@@ -4,6 +4,9 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
     config.cpp
+    job_probe.cpp
+
+    proto/job_prober_service.proto
 )
 
 PEERDIR(

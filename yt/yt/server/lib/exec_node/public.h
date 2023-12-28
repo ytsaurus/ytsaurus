@@ -51,6 +51,7 @@ YT_DEFINE_ERROR_ENUM(
     ((SchedulerJobsDisabled)                 (1131))
     ((DockerImagePullingFailed)              (1132))
     ((InvalidImage)                          (1133))
+    ((AbortByControllerAgent)                (1134))
 );
 
 DEFINE_ENUM(ESandboxKind,

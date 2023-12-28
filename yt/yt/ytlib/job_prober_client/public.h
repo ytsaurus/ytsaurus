@@ -14,7 +14,6 @@ namespace NYT::NJobProberClient {
 
 struct TJobShellDescriptor;
 
-DECLARE_REFCOUNTED_STRUCT(IJobProbe)
 DECLARE_REFCOUNTED_CLASS(TJobShellDescriptorCache)
 
 YT_DEFINE_ERROR_ENUM(

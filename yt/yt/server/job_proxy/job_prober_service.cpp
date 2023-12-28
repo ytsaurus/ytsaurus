@@ -1,10 +1,11 @@
 #include "job_prober_service.h"
 
-#include <yt/yt/ytlib/job_prober_client/job_probe.h>
-#include <yt/yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 #include <yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
 #include <yt/yt/server/tools/tools.h>
+
+#include <yt/yt/server/lib/job_proxy/job_probe.h>
+#include <yt/yt/server/lib/job_proxy/job_prober_service_proxy.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
 
@@ -16,7 +17,7 @@
 namespace NYT::NJobProber {
 
 using namespace NConcurrency;
-using namespace NJobProberClient;
+using namespace NJobProxy;
 using namespace NRpc;
 using namespace NTools;
 using namespace NYson;
@@ -43,6 +44,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStderr));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PollJobShell));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Interrupt));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GracefulAbort));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Fail));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpSensors));
     }
@@ -50,7 +52,7 @@ public:
 private:
     const TWeakPtr<IJobProbe> JobProxy_;
 
-    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, DumpInputContext)
+    DECLARE_RPC_SERVICE_METHOD(NJobProxy::NProto, DumpInputContext)
     {
         context->SetRequestInfo();
 
@@ -61,7 +63,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, GetStderr)
+    DECLARE_RPC_SERVICE_METHOD(NJobProxy::NProto, GetStderr)
     {
         context->SetRequestInfo();
 
@@ -71,11 +73,11 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, PollJobShell)
+    DECLARE_RPC_SERVICE_METHOD(NJobProxy::NProto, PollJobShell)
     {
         auto parameters = TYsonString(request->parameters());
 
-        TJobShellDescriptor jobShellDescriptor;
+        NJobProberClient::TJobShellDescriptor jobShellDescriptor;
         jobShellDescriptor.Subcontainer = request->subcontainer();
 
         context->SetRequestInfo("Parameters: %v, Subcontainer: %v",
@@ -94,7 +96,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, Interrupt)
+    DECLARE_RPC_SERVICE_METHOD(NJobProxy::NProto, Interrupt)
     {
         Y_UNUSED(response);
 
@@ -105,7 +107,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, Fail)
+    DECLARE_RPC_SERVICE_METHOD(NJobProxy::NProto, Fail)
     {
         Y_UNUSED(response);
 
@@ -116,7 +118,20 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, DumpSensors)
+    DECLARE_RPC_SERVICE_METHOD(NJobProxy::NProto, GracefulAbort)
+    {
+        Y_UNUSED(response);
+
+        auto error = FromProto<TError>(request->error());
+
+        context->SetRequestInfo("AbortError: %v", error);
+
+        GetJobProxy()->GracefulAbort(std::move(error));
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NJobProxy::NProto, DumpSensors)
     {
         context->SetRequestInfo();
 

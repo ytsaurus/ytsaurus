@@ -573,6 +573,8 @@ void TJobTrackerConfig::Register(TRegistrar registrar)
         "duration_before_job_considered_disappeared_from_node",
         &TThis::DurationBeforeJobConsideredDisappearedFromNode)
         .Default(TDuration::Seconds(5));
+    registrar.Parameter("enable_graceful_abort", &TThis::EnableGracefulAbort)
+        .Default(false);
 }
 
 void TDockerRegistryConfig::Register(TRegistrar registrar)

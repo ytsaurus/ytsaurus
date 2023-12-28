@@ -37,6 +37,8 @@
 
 #include <yt/yt/server/lib/job_agent/structs.h>
 
+#include <yt/yt/server/lib/job_proxy/job_probe.h>
+
 #include <yt/yt/server/lib/misc/job_reporter.h>
 
 #include <yt/yt/server/lib/nbd/profiler.h>
@@ -52,7 +54,6 @@
 #include <yt/yt/ytlib/table_client/helpers.h>
 
 #include <yt/yt/ytlib/job_prober_client/public.h>
-#include <yt/yt/ytlib/job_prober_client/job_probe.h>
 
 #include <yt/yt/ytlib/job_proxy/public.h>
 
@@ -326,7 +327,7 @@ void TJob::Start() noexcept
         ->Invoke(BIND(&TJob::DoStart, MakeStrong(this)));
 }
 
-void TJob::Abort(TError error)
+void TJob::Abort(TError error, bool graceful)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -335,6 +336,11 @@ void TJob::Abort(TError error)
         "Job abort requested (Phase: %v, State: %v)",
         JobPhase_,
         JobState_);
+
+    if (graceful) {
+        RequestGracefulAbort(std::move(error));
+        return;
+    }
 
     Terminate(EJobState::Aborted, std::move(error));
 }
@@ -1400,6 +1406,17 @@ void TJob::DoInterrupt(
     }
 }
 
+void TJob::Fail(std::optional<TError> error)
+{
+    YT_LOG_INFO("Fail job (Error: %v)", error);
+
+    try {
+        DoFail(std::move(error));
+    } catch (const std::exception& ex) {
+        YT_LOG_WARNING(ex, "Error failing job");
+    }
+}
+
 void TJob::DoFail(std::optional<TError> error)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -1414,7 +1431,6 @@ void TJob::DoFail(std::optional<TError> error)
         return;
     }
 
-    // TODO(pogorelov): We should not request running job failure, it must be special type of abort.
     try {
         GetJobProbeOrThrow()->Fail();
     } catch (const std::exception& ex) {
@@ -1423,6 +1439,36 @@ void TJob::DoFail(std::optional<TError> error)
         if (error) {
             abortionError = abortionError << *error;
         }
+        Abort(std::move(abortionError));
+    }
+}
+
+void TJob::RequestGracefulAbort(TError error)
+{
+    YT_LOG_INFO("Requesting job graceful abort (Error: %v)", error);
+
+    try {
+        DoRequestGracefulAbort(std::move(error));
+    } catch (const std::exception& ex) {
+        YT_LOG_WARNING(ex, "Failed to request job graceful abort");
+    }
+}
+
+void TJob::DoRequestGracefulAbort(TError error)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    if (JobPhase_ != EJobPhase::Running) {
+        Terminate(EJobState::Failed, std::move(error));
+        return;
+    }
+
+    try {
+        GetJobProbeOrThrow()->GracefulAbort(error);
+    } catch (const std::exception& ex) {
+        auto abortionError = TError("Error failing job on job proxy")
+            << ex;
+        abortionError <<= std::move(error);
         Abort(std::move(abortionError));
     }
 }
@@ -1498,17 +1544,6 @@ void TJob::Interrupt(
         DoInterrupt(timeout, interruptionReason, preemptionReason, preemptedFor);
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(ex, "Failed to interrupt job");
-    }
-}
-
-void TJob::Fail(std::optional<TError> error)
-{
-    YT_LOG_INFO("Fail job (Error: %v)", error);
-
-    try {
-        DoFail(std::move(error));
-    } catch (const std::exception& ex) {
-        YT_LOG_WARNING(ex, "Failed to fail job");
     }
 }
 
@@ -1646,7 +1681,13 @@ void TJob::DoSetResult(
         JobResultExtension_ = std::move(jobResultExtension);
     }
 
-    Error_ = std::move(error).Truncate();
+    Error_ = std::move(error).Truncate(
+        2,
+        16_KB,
+        {
+            "abort_reason",
+            "graceful_abort",
+        });
 
     JobProxyCompleted_ = receivedFromJobProxy;
 
@@ -2540,7 +2581,7 @@ NCri::TCriAuthConfigPtr TJob::BuildDockerAuthConfig()
 TUserSandboxOptions TJob::BuildUserSandboxOptions()
 {
     TUserSandboxOptions options;
-    // NB: this eventually results in job failure.
+    // NB: this eventually results in job graceful abort.
     options.DiskOverdraftCallback = BIND(&TJob::Fail, MakeWeak(this))
         .Via(Invoker_);
     options.HasRootFSQuota = false;
@@ -2767,6 +2808,12 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
         resultError.FindMatching(NExecNode::EErrorCode::InvalidImage))
     {
         return std::nullopt;
+    }
+
+    if (resultError.GetCode() == NJobProxy::EErrorCode::UserJobFailed) {
+        if (auto innerError = resultError.FindMatching(NExecNode::EErrorCode::AbortByControllerAgent)) {
+            return innerError->Attributes().Find<EAbortReason>("abort_reason");
+        }
     }
 
     auto abortReason = resultError.Attributes().Find<EAbortReason>("abort_reason");
@@ -3148,7 +3195,7 @@ void TJob::InitializeJobProbe()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto probe = CreateJobProbe(GetUserSlot()->GetBusClientConfig(), Id_);
+    auto probe = CreateJobProbe(GetUserSlot()->GetBusClientConfig());
     {
         auto guard = Guard(JobProbeLock_);
         std::swap(JobProbe_, probe);

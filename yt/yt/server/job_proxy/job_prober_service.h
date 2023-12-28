@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/ytlib/job_prober_client/public.h>
+#include <yt/yt/server/lib/job_proxy/public.h>
 
 #include <yt/yt/core/actions/public.h>
 #include <yt/yt/core/concurrency/public.h>
@@ -11,7 +11,7 @@ namespace NYT::NJobProber {
 ////////////////////////////////////////////////////////////////////////////////
 
 NRpc::IServicePtr CreateJobProberService(
-    NJobProberClient::IJobProbePtr jobProbe,
+    NJobProxy::IJobProbePtr jobProbe,
     IInvokerPtr controlInvoker);
 
 ////////////////////////////////////////////////////////////////////////////////

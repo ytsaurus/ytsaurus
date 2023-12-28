@@ -17,6 +17,8 @@ DECLARE_REFCOUNTED_CLASS(TJobProxyDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TJobThrottlerConfig)
 DECLARE_REFCOUNTED_CLASS(TBindConfig)
 
+DECLARE_REFCOUNTED_STRUCT(IJobProbe)
+
 DEFINE_ENUM(EJobProxyExitCode,
     ((HeartbeatFailed)        (20))
     ((ResultReportFailed)     (21))

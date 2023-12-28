@@ -175,7 +175,7 @@ struct IOperationControllerHost
     virtual const TJobTrackerOperationHandlerPtr& GetJobTrackerOperationHandler() const = 0;
 
     virtual void InterruptJob(TJobId jobId, EInterruptReason reason, TDuration timeout) = 0;
-    virtual void FailJob(TJobId jobId) = 0;
+    virtual void RequestJobGracefulAbort(TJobId jobId, EAbortReason reason) = 0;
     virtual void UpdateRunningJobsStatistics(std::vector<TAgentToSchedulerRunningJobStatistics> runningJobStatisticsUpdates) = 0;
 
     virtual void RegisterJob(TStartedJobInfo jobInfo) = 0;

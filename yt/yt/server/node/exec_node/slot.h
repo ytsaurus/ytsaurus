@@ -9,8 +9,6 @@
 
 #include <yt/yt/server/lib/job_proxy/config.h>
 
-#include <yt/yt/ytlib/job_prober_client/job_prober_service_proxy.h>
-
 #include <yt/yt/client/formats/format.h>
 
 #include <yt/yt/core/actions/public.h>

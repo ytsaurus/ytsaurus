@@ -1158,7 +1158,7 @@ private:
                     "Agent requested to fail job (JobId: %v)",
                     jobId);
 
-                job->Fail(/*error*/ std::nullopt);
+                job->Fail(std::nullopt);
             } else {
                 YT_LOG_WARNING(
                     "Agent requested to fail a non-existent job (JobId: %v)",
@@ -1175,7 +1175,7 @@ private:
                     jobToAbort.JobId,
                     agentDescriptor);
 
-                AbortJob(job, jobToAbort.AbortReason);
+                AbortJob(job, jobToAbort.AbortReason, jobToAbort.Graceful);
             } else {
                 YT_LOG_WARNING(
                     "Agent requested to abort a non-existent job (JobId: %v, AbortReason: %v, AgentDescriptor: %v)",
@@ -1689,7 +1689,7 @@ private:
         DoAbortJob(job, std::move(error));
     }
 
-    void AbortJob(const TJobPtr& job, EAbortReason abortReason)
+    void AbortJob(const TJobPtr& job, EAbortReason abortReason, bool graceful = false)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -1697,17 +1697,18 @@ private:
             job->GetId(),
             abortReason);
 
-        auto error = TError(NExecNode::EErrorCode::AbortByScheduler, "Job aborted by controller agent")
-            << TErrorAttribute("abort_reason", abortReason);
+        auto error = TError(NExecNode::EErrorCode::AbortByControllerAgent, "Job aborted by controller agent")
+            << TErrorAttribute("abort_reason", abortReason)
+            << TErrorAttribute("graceful_abort", graceful);
 
-        DoAbortJob(job, std::move(error));
+        DoAbortJob(job, std::move(error), graceful);
     }
 
-    void DoAbortJob(const TJobPtr& job, TError abortionError)
+    void DoAbortJob(const TJobPtr& job, TError abortionError, bool graceful = false)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        job->Abort(std::move(abortionError));
+        job->Abort(std::move(abortionError), graceful);
     }
 
     void RemoveJob(

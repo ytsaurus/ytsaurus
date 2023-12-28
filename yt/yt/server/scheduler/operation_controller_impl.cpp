@@ -18,8 +18,6 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/ytlib/controller_agent/job_prober_service_proxy.h>
-
 #include <yt/yt/ytlib/job_proxy/public.h>
 
 namespace NYT::NScheduler {

@@ -225,13 +225,15 @@ void TOperationControllerHost::InterruptJob(TJobId jobId, EInterruptReason reaso
         jobId);
 }
 
-void TOperationControllerHost::FailJob(TJobId jobId)
+void TOperationControllerHost::RequestJobGracefulAbort(TJobId jobId, EAbortReason reason)
 {
-    JobTrackerOperationHandler_->RequestJobFailure(jobId);
+    JobTrackerOperationHandler_->RequestJobGracefulAbort(jobId, reason);
 
-    YT_LOG_DEBUG("Job failure request enqueued (OperationId: %v, JobId: %v)",
+    YT_LOG_DEBUG(
+        "Job graceful abort request enqueued (OperationId: %v, JobId: %v, AbortReason: %v)",
         OperationId_,
-        jobId);
+        jobId,
+        reason);
 }
 
 void TOperationControllerHost::UpdateRunningJobsStatistics(

@@ -360,8 +360,11 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         op.track()
 
     @authors("ignat")
+    @pytest.mark.parametrize("enable_graceful_job_abort", [True, False])
     @flaky(max_runs=3)
-    def test_fail_context_saved_on_time_limit(self):
+    def test_fail_context_saved_on_time_limit(self, enable_graceful_job_abort):
+        update_controller_agent_config("job_tracker/enable_graceful_abort", enable_graceful_job_abort)
+
         self._create_table("//tmp/in")
         self._create_table("//tmp/out")
 
@@ -382,8 +385,12 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         jobs = list_jobs(op.id)["jobs"]
 
+        expected_state = "failed"
+        if enable_graceful_job_abort:
+            expected_state = "aborted"
+
         for job in jobs:
-            if job["state"] == "failed":
+            if job["state"] == expected_state:
                 assert len(get_job_fail_context(op.id, job["id"])) > 0
 
     # Test is flaky by the next reason: schedule job may fail by some reason (chunk list demand is not met, et.c)

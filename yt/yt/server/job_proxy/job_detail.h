@@ -37,6 +37,7 @@ public:
     NApi::TPollJobShellResponse PollJobShell(
         const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
         const NYson::TYsonString& parameters) override;
+    void GracefulAbort(TError error) override;
     void Fail() override;
     i64 GetStderrSize() const override;
     TSharedRef DumpSensors() override;

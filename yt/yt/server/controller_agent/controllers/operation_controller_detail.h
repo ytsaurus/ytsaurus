@@ -1469,6 +1469,7 @@ private:
     void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary);
     void OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary);
     void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary);
+    bool WasJobGracefullyAborted(const std::unique_ptr<TAbortedJobSummary>& jobSummary);
 
     void ReportJobCookieToArchive(const TJobletPtr& joblet);
     void ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state);

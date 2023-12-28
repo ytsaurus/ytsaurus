@@ -88,7 +88,8 @@ public:
     void DoStart();
     bool IsStarted() const;
 
-    void Abort(TError error);
+    void Abort(TError error, bool graceful = false);
+    void Fail(std::optional<TError> error);
 
     void OnJobProxySpawned();
 
@@ -207,6 +208,9 @@ public:
 
     void DoFail(std::optional<TError> error);
 
+    void RequestGracefulAbort(TError error);
+    void DoRequestGracefulAbort(TError error);
+
     bool GetStored() const;
 
     void SetStored();
@@ -226,8 +230,6 @@ public:
         NScheduler::EInterruptReason interruptionReason,
         const std::optional<TString>& preemptionReason,
         const std::optional<NScheduler::TPreemptedFor>& preemptedFor);
-
-    void Fail(std::optional<TError> error);
 
     NScheduler::EInterruptReason GetInterruptionReason() const noexcept;
     bool IsInterrupted() const noexcept;
@@ -341,7 +343,7 @@ private:
     TPromise<void> CleanupFinished_ = NewPromise<void>();
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, JobProbeLock_);
-    NJobProberClient::IJobProbePtr JobProbe_;
+    NJobProxy::IJobProbePtr JobProbe_;
 
     std::vector<std::pair<TString, NNet::TIP6Address>> ResolvedNodeAddresses_;
 
@@ -490,7 +492,7 @@ private:
 
     void ResetJobProbe();
 
-    NJobProberClient::IJobProbePtr GetJobProbeOrThrow();
+    NJobProxy::IJobProbePtr GetJobProbeOrThrow();
 
     static bool ShouldCleanSandboxes();
 

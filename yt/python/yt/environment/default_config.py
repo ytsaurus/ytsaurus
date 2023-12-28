@@ -380,6 +380,7 @@ def get_controller_agent_config():
         running_job_time_statistics_updates_send_period = 10;
 
         job_tracker = {
+            enable_graceful_abort = %false;
             logging_job_sample_size = 1000;
             duration_before_job_considered_disappeared_from_node = 1000;
         };

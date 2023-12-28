@@ -120,12 +120,15 @@ private:
         TDuration Timeout;
     };
 
-    struct TFailureRequestOptions { };
+    struct TGracefulAbortRequestOptions
+    {
+        EAbortReason Reason;
+    };
 
     using TRequestedActionInfo = std::variant<
         TNoActionRequested,
         TInterruptionRequestOptions,
-        TFailureRequestOptions>;
+        TGracefulAbortRequestOptions>;
 
     struct TFinishedJobStatus { };
     struct TRunningJobStatus
@@ -272,9 +275,9 @@ private:
         const NLogging::TLogger& Logger,
         THeartbeatCounters& heartbeatCounters);
 
-    void ProcessFailureRequest(
+    void ProcessGracefulAbortRequest(
         TJobTracker::TCtxHeartbeat::TTypedResponse* response,
-        const TFailureRequestOptions& requestOptions,
+        const TGracefulAbortRequestOptions& requestOptions,
         TJobId jobId,
         const NLogging::TLogger& Logger,
         THeartbeatCounters& heartbeatCounters);
@@ -315,13 +318,15 @@ private:
         EInterruptReason reason,
         TDuration timeout);
 
-    void RequestJobFailure(
+    void RequestJobGracefulAbort(
         TJobId jobId,
-        TOperationId operationId);
-    void DoRequestJobFailure(
+        TOperationId operationId,
+        EAbortReason reason);
+    void DoRequestJobGracefulAbort(
         TRequestedActionInfo& requestedActionInfo,
         TJobId jobId,
-        TOperationId operationId);
+        TOperationId operationId,
+        EAbortReason reason);
 
     void ReportUnknownJobInArchive(
         TJobId jobId,
@@ -394,7 +399,9 @@ public:
         TJobId jobId,
         EInterruptReason reason,
         TDuration timeout);
-    void RequestJobFailure(TJobId jobId);
+    void RequestJobGracefulAbort(
+        TJobId jobId,
+        EAbortReason reason);
 
     void OnAllocationsAborted(std::vector<TAbortedAllocationSummary> abortedAllocations);
 

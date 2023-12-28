@@ -17,6 +17,8 @@
 
 #include <yt/yt/server/lib/controller_agent/job_report.h>
 
+#include <yt/yt/server/lib/exec_node/public.h>
+
 #include <yt/yt/server/lib/misc/job_report.h>
 #include <yt/yt/server/lib/misc/job_table_schema.h>
 #include <yt/yt/server/lib/misc/job_reporter.h>
@@ -3511,7 +3513,7 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
         }
         taskJobResult = joblet->Task->OnJobAborted(joblet, *jobSummary);
 
-        bool retainJob = (abortReason == EAbortReason::UserRequest);
+        bool retainJob = (abortReason == EAbortReason::UserRequest) || WasJobGracefullyAborted(jobSummary);
 
         Host->GetJobProfiler()->ProfileAbortedJob(*joblet, *jobSummary);
 
@@ -3552,6 +3554,24 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
     if (IsCompleted()) {
         OnOperationCompleted(/*interrupted*/ false);
     }
+}
+
+bool TOperationControllerBase::WasJobGracefullyAborted(const std::unique_ptr<TAbortedJobSummary>& jobSummary)
+{
+    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
+
+    if (!jobSummary->Result) {
+        return false;
+    }
+
+    auto error = FromProto<TError>(jobSummary->Result->error());
+
+    if (auto innerError = error.FindMatching(NExecNode::EErrorCode::AbortByControllerAgent)) {
+        return innerError->Attributes().Get("graceful_abort", false);
+    }
+
+    return false;
+
 }
 
 void TOperationControllerBase::SafeOnAllocationAborted(TAbortedAllocationSummary&& abortedAllocationSummary)
@@ -5218,7 +5238,7 @@ void TOperationControllerBase::OnOperationTimeLimitExceeded()
             case EJobType::PartitionReduce:
             case EJobType::Vanilla:
                 hasJobsToFail = true;
-                Host->FailJob(joblet->JobId);
+                Host->RequestJobGracefulAbort(joblet->JobId, NScheduler::EAbortReason::OperationFailed);
                 break;
             default:
                 AbortJob(joblet->JobId, EAbortReason::OperationFailed);

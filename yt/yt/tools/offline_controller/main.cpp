@@ -104,7 +104,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void FailJob(TJobId /*jobId*/) override
+    void RequestJobGracefulAbort(TJobId /*jobId*/, EAbortReason /*reason*/) override
     {
         YT_UNIMPLEMENTED();
     }

@@ -227,6 +227,12 @@ void TJobProxy::Interrupt()
     job->Interrupt();
 }
 
+void TJobProxy::GracefulAbort(TError error)
+{
+    auto job = GetJobOrThrow();
+    job->GracefulAbort(std::move(error));
+}
+
 void TJobProxy::Fail()
 {
     auto job = GetJobOrThrow();

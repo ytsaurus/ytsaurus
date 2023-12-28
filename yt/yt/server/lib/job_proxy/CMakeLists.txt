@@ -6,6 +6,18 @@
 # original buildsystem will not be accepted.
 
 
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
 
 add_library(server-lib-job_proxy)
 target_compile_options(server-lib-job_proxy PRIVATE
@@ -19,7 +31,26 @@ target_link_libraries(server-lib-job_proxy PUBLIC
   library-dns_over_rpc-client
   server-lib-misc
   server-lib-rpc_proxy
+  contrib-libs-protobuf
+)
+target_proto_messages(server-lib-job_proxy PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_proxy/proto/job_prober_service.proto
 )
 target_sources(server-lib-job_proxy PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_proxy/config.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_proxy/job_probe.cpp
+)
+target_proto_addincls(server-lib-job_proxy
+  ./
+  ${CMAKE_SOURCE_DIR}/
+  ${CMAKE_BINARY_DIR}
+  ${CMAKE_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/yt
+  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_BINARY_DIR}
+  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+)
+target_proto_outs(server-lib-job_proxy
+  --cpp_out=${CMAKE_BINARY_DIR}/
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
 )

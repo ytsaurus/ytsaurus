@@ -1,7 +1,8 @@
 #pragma once
 
 #include "public.h"
-#include "job_shell_descriptor_cache.h"
+
+#include <yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
 #include <yt/yt/client/api/client.h>
 
@@ -9,7 +10,7 @@
 
 #include <yt/yt/core/bus/tcp/public.h>
 
-namespace NYT::NJobProberClient {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,6 +30,8 @@ struct IJobProbe
 
     virtual void Interrupt() = 0;
 
+    virtual void GracefulAbort(TError error) = 0;
+
     virtual void Fail() = 0;
 
     virtual TSharedRef DumpSensors() = 0;
@@ -39,9 +42,8 @@ DEFINE_REFCOUNTED_TYPE(IJobProbe)
 ////////////////////////////////////////////////////////////////////////////////
 
 IJobProbePtr CreateJobProbe(
-    NBus::TBusClientConfigPtr config,
-    NJobTrackerClient::TJobId jobId);
+    NBus::TBusClientConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NJobProberClient
+} // namespace NYT::NJobProxy

@@ -1340,8 +1340,8 @@ void TJobTracker::HandleRunningJobInfo(
             [&] (const TInterruptionRequestOptions& requestOptions) {
                 ProcessInterruptionRequest(response, requestOptions, jobId, Logger, heartbeatCounters);
             },
-            [&] (const TFailureRequestOptions& requestOptions) {
-                ProcessFailureRequest(response, requestOptions, jobId, Logger, heartbeatCounters);
+            [&] (const TGracefulAbortRequestOptions& requestOptions) {
+                ProcessGracefulAbortRequest(response, requestOptions, jobId, Logger, heartbeatCounters);
             });
 
             jobsToProcessInOperationController.JobSummaries.push_back(std::move(jobSummary));
@@ -1370,7 +1370,7 @@ void TJobTracker::HandleRunningJobInfo(
         [&] (const TInterruptionRequestOptions& /*requestOptions*/) {
             YT_LOG_DEBUG("Job is already finished; interruption request ignored");
         },
-        [&] (const TFailureRequestOptions& /*requestOptions*/) {
+        [&] (const TGracefulAbortRequestOptions& /*requestOptions*/) {
             YT_LOG_DEBUG("Job is already finished; failure request ignored");
         });
 
@@ -1456,21 +1456,31 @@ void TJobTracker::ProcessInterruptionRequest(
     protoJobToInterrupt->set_reason(ToProto<i32>(requestOptions.Reason));
 }
 
-void TJobTracker::ProcessFailureRequest(
+void TJobTracker::ProcessGracefulAbortRequest(
     TCtxHeartbeat::TTypedResponse* response,
-    const TFailureRequestOptions& /*requestOptions*/,
+    const TGracefulAbortRequestOptions& requestOptions,
     TJobId jobId,
     const NLogging::TLogger& Logger,
     THeartbeatCounters& heartbeatCounters)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
-    YT_LOG_DEBUG("Request node to fail job");
+    YT_LOG_DEBUG("Request node to gracefully abort job");
 
     ++heartbeatCounters.JobFailureRequestCount;
 
-    auto* protoJobToFail = response->add_jobs_to_fail();
-    ToProto(protoJobToFail->mutable_job_id(), jobId);
+    if (Config_->EnableGracefulAbort) {
+        NProto::ToProto(
+            response->add_jobs_to_abort(),
+            TJobToAbort{
+                .JobId = jobId,
+                .AbortReason = requestOptions.Reason,
+                .Graceful = true,
+            });
+    } else {
+        auto* protoJobToFail = response->add_jobs_to_fail();
+        ToProto(protoJobToFail->mutable_job_id(), jobId);
+    }
 }
 
 void TJobTracker::DoRegisterOperation(
@@ -1887,16 +1897,19 @@ void TJobTracker::DoRequestJobInterruption(
                 jobId,
                 operationId);
         },
-        [&] (TFailureRequestOptions& /*requestOptions*/) {
+        [&] (TGracefulAbortRequestOptions& /*requestOptions*/) {
             YT_LOG_FATAL(
-                "Unexpected interruption request after failure request (JobId: %v, OperationId: %v)",
+                "Unexpected interruption request after graceful abort request (JobId: %v, OperationId: %v)",
                 jobId,
                 operationId);
         });
 }
 
 
-void TJobTracker::RequestJobFailure(TJobId jobId, TOperationId operationId)
+void TJobTracker::RequestJobGracefulAbort(
+    TJobId jobId,
+    TOperationId operationId,
+    EAbortReason reason)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
@@ -1904,32 +1917,33 @@ void TJobTracker::RequestJobFailure(TJobId jobId, TOperationId operationId)
         jobId,
         operationId,
         [&] (TRequestedActionInfo& requestedActionInfo) {
-            DoRequestJobFailure(requestedActionInfo, jobId, operationId);
+            DoRequestJobGracefulAbort(requestedActionInfo, jobId, operationId, reason);
         },
-        /*actionName*/ "failure");
+        /*actionName*/ "graceful abort");
 }
 
-void TJobTracker::DoRequestJobFailure(
+void TJobTracker::DoRequestJobGracefulAbort(
     TRequestedActionInfo& requestedActionInfo,
     TJobId jobId,
-    TOperationId operationId)
+    TOperationId operationId,
+    EAbortReason reason)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     Visit(
         requestedActionInfo,
         [&] (TNoActionRequested) {
-            requestedActionInfo = TFailureRequestOptions();
+            requestedActionInfo = TGracefulAbortRequestOptions(reason);
         },
         [&] (const TInterruptionRequestOptions& /*requestOptions*/) {
             YT_LOG_DEBUG(
-                "Fail job despite interruption request (JobId: %v, OperationId: %v)",
+                "Request job graceful abort despite interruption request (JobId: %v, OperationId: %v)",
                 jobId,
                 operationId);
 
-            requestedActionInfo = TFailureRequestOptions();
+            requestedActionInfo = TGracefulAbortRequestOptions(reason);
         },
-        [&] (TFailureRequestOptions& /*requestOptions*/) { });
+        [&] (TGracefulAbortRequestOptions& /*requestOptions*/) { });
 }
 
 void TJobTracker::ReportUnknownJobInArchive(TJobId jobId, TOperationId operationId, const TString& nodeAddress)
@@ -2565,17 +2579,20 @@ void TJobTrackerOperationHandler::RequestJobInterruption(
         timeout));
 }
 
-void TJobTrackerOperationHandler::RequestJobFailure(TJobId jobId)
+void TJobTrackerOperationHandler::RequestJobGracefulAbort(
+    TJobId jobId,
+    EAbortReason reason)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto guard = TCurrentTraceContextGuard(TraceContext_);
 
     CancelableInvoker_->Invoke(BIND(
-        &TJobTracker::RequestJobFailure,
+        &TJobTracker::RequestJobGracefulAbort,
         MakeStrong(JobTracker_),
         jobId,
-        OperationId_));
+        OperationId_,
+        reason));
 }
 
 void TJobTrackerOperationHandler::OnAllocationsAborted(

@@ -6,13 +6,14 @@
 #include "environment.h"
 
 #include <yt/yt/server/lib/exec_node/supervisor_service_proxy.h>
+#include <yt/yt/server/lib/job_proxy/job_probe.h>
+
 #include <yt/yt/library/containers/porto_resource_tracker.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/auth/public.h>
 
-#include <yt/yt/ytlib/job_prober_client/job_probe.h>
 #include <yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
@@ -35,7 +36,7 @@ namespace NYT::NJobProxy {
 
 class TJobProxy
     : public IJobHost
-    , public NJobProberClient::IJobProbe
+    , public IJobProbe
 {
 public:
     TJobProxy(
@@ -54,6 +55,7 @@ public:
         const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
         const NYson::TYsonString& parameters) override;
     void Interrupt() override;
+    void GracefulAbort(TError error) override;
     void Fail() override;
     TSharedRef DumpSensors() override;
 

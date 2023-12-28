@@ -125,6 +125,11 @@ NApi::TPollJobShellResponse TJob::PollJobShell(
         "Job shell is not supported for built-in jobs");
 }
 
+void TJob::GracefulAbort(TError /*error*/)
+{
+    THROW_ERROR_EXCEPTION("Graceful abort is not supported for built-in jobs");
+}
+
 void TJob::Fail()
 {
     THROW_ERROR_EXCEPTION("Failing is not supported for built-in jobs");

@@ -22,6 +22,8 @@
 #include <yt/yt/server/lib/exec_node/supervisor_service_proxy.h>
 #include <yt/yt/server/lib/exec_node/helpers.h>
 
+#include <yt/yt/server/lib/job_proxy/job_probe.h>
+
 #include <yt/yt/server/lib/misc/public.h>
 
 #include <yt/yt/server/lib/shell/shell_manager.h>
@@ -44,8 +46,6 @@
 #include <yt/yt/ytlib/file_client/file_chunk_output.h>
 
 #include <yt/yt/ytlib/job_proxy/user_job_read_controller.h>
-
-#include <yt/yt/ytlib/job_prober_client/job_probe.h>
 
 #include <yt/yt/ytlib/query_client/functions_cache.h>
 
@@ -379,7 +379,7 @@ public:
 
         auto jobError = innerErrors.empty()
             ? TError()
-            : TError(EErrorCode::UserJobFailed, "User job failed") << innerErrors;
+            : TError(EErrorCode::UserJobFailed, "User job failed") << std::move(innerErrors);
 
         ToProto(result.mutable_error(), jobError);
 
@@ -944,8 +944,17 @@ private:
 
     void Fail() override
     {
+        YT_LOG_DEBUG("User job failed");
         auto error = TError("Job failed by external request");
         JobErrorPromise_.TrySet(error);
+        CleanupUserProcesses();
+    }
+
+    void GracefulAbort(TError error) override
+    {
+        YT_LOG_DEBUG("User job gracefully aborted (Error: %v)", error);
+        YT_VERIFY(error.GetCode() == NExecNode::EErrorCode::AbortByControllerAgent);
+        JobErrorPromise_.TrySet(std::move(error));
         CleanupUserProcesses();
     }
 

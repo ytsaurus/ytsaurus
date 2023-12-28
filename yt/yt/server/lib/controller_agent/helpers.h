@@ -49,6 +49,7 @@ struct TJobToAbort
 {
     TJobId JobId;
     NScheduler::EAbortReason AbortReason;
+    bool Graceful = false;
 };
 
 struct TJobToStore

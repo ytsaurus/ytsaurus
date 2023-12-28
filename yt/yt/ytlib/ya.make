@@ -257,7 +257,6 @@ SRCS(
     incumbent_client/incumbent_descriptor.cpp
     incumbent_client/public.cpp
 
-    job_prober_client/job_probe.cpp
     job_prober_client/job_shell_descriptor_cache.cpp
 
     job_prober_client/proto/job_prober_service.proto

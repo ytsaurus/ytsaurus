@@ -1,0 +1,72 @@
+package NYT.NJobProxy.NProto;
+
+import "yt_proto/yt/core/misc/proto/error.proto";
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqDumpInputContext
+{ }
+
+message TRspDumpInputContext
+{
+    repeated NYT.NProto.TGuid chunk_ids = 1;
+}
+
+message TReqPollJobShell
+{
+    // Parameters in YSON format. This value is set by user.
+    required string parameters = 2;
+    // Path to subconatainer in which job shell
+    // should be run. This value is set by scheduler.
+    optional string subcontainer = 3;
+}
+
+message TRspPollJobShell
+{
+    // Result in YSON format.
+    required string result = 1;
+
+    // Yson map fragment, serialized into string.
+    // These additional attributes are used for SOC audit via job shell structured logging.
+    optional string logging_context = 2;
+}
+
+message TReqGetStderr
+{ }
+
+message TRspGetStderr
+{
+    required bytes stderr_data = 1;
+}
+
+message TReqInterrupt
+{
+    optional int64 timeout = 2;
+    optional int32 interruption_reason = 3;
+}
+
+message TRspInterrupt
+{ }
+
+message TReqFail
+{ }
+
+message TRspFail
+{ }
+
+message TReqGracefulAbort
+{
+    required NYT.NProto.TError error = 2;
+}
+
+message TRspGracefulAbort
+{ }
+
+message TReqDumpSensors
+{ }
+
+message TRspDumpSensors
+{ }
+
+////////////////////////////////////////////////////////////////////////////////

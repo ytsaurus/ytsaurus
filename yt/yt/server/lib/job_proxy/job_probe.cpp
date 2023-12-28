@@ -9,7 +9,7 @@
 
 #include <yt/yt/client/job_tracker_client/public.h>
 
-namespace NYT::NJobProberClient {
+namespace NYT::NJobProxy {
 
 using NBus::TBusClientConfigPtr;
 using NChunkClient::TChunkId;
@@ -26,9 +26,8 @@ class TJobProberClient
     : public IJobProbe
 {
 public:
-    TJobProberClient(TBusClientConfigPtr config, TJobId jobId)
+    TJobProberClient(TBusClientConfigPtr config)
         : TcpBusClientConfig_(config)
-        , JobId_(jobId)
     { }
 
     std::vector<TChunkId> DumpInputContext() override
@@ -36,7 +35,6 @@ public:
         auto* proxy = GetOrCreateJobProberProxy();
 
         auto req = proxy->DumpInputContext();
-        ToProto(req->mutable_job_id(), JobId_);
 
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
@@ -51,7 +49,7 @@ public:
     {
         auto* proxy = GetOrCreateJobProberProxy();
         auto req = proxy->PollJobShell();
-        ToProto(req->mutable_job_id(), JobId_);
+
         ToProto(req->mutable_parameters(), parameters.ToString());
         req->set_subcontainer(jobShellDescriptor.Subcontainer);
 
@@ -73,7 +71,6 @@ public:
         auto* proxy = GetOrCreateJobProberProxy();
 
         auto req = proxy->GetStderr();
-        ToProto(req->mutable_job_id(), JobId_);
 
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
@@ -87,7 +84,6 @@ public:
         auto* proxy = GetOrCreateJobProberProxy();
 
         auto req = proxy->Interrupt();
-        ToProto(req->mutable_job_id(), JobId_);
 
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
@@ -98,7 +94,18 @@ public:
         auto* proxy = GetOrCreateJobProberProxy();
 
         auto req = proxy->Fail();
-        ToProto(req->mutable_job_id(), JobId_);
+
+        auto rspOrError = WaitFor(req->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
+    }
+
+    void GracefulAbort(TError error) override
+    {
+        auto* proxy = GetOrCreateJobProberProxy();
+
+        auto req = proxy->GracefulAbort();
+
+        ToProto(req->mutable_error(), std::move(error));
 
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
@@ -123,7 +130,6 @@ public:
 
 private:
     const TBusClientConfigPtr TcpBusClientConfig_;
-    const TJobId JobId_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     std::unique_ptr<TJobProberServiceProxy> JobProberProxy_;
@@ -144,12 +150,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IJobProbePtr CreateJobProbe(
-    NBus::TBusClientConfigPtr config,
-    TJobId jobId)
+    NBus::TBusClientConfigPtr config)
 {
-    return New<TJobProberClient>(config, jobId);
+    return New<TJobProberClient>(config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProberClient::NYT
+} // namespace NYT::NJobProxy

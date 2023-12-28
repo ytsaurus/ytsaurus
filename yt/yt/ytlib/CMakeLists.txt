@@ -1193,7 +1193,6 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hydra/peer_channel.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/incumbent_client/incumbent_descriptor.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/incumbent_client/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_prober_client/job_probe.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_proxy/any_to_composite_converter.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_proxy/config.cpp

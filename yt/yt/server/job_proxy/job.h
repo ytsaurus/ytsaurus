@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/job_proxy/job_probe.h>
+
 #include <yt/yt/server/lib/misc/job_report.h>
 
 #include <yt/yt/server/job_proxy/environment.h>
@@ -16,8 +18,6 @@
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/job_proxy/job_spec_helper.h>
-
-#include <yt/yt/ytlib/job_prober_client/job_probe.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
@@ -116,7 +116,7 @@ DEFINE_REFCOUNTED_TYPE(IJobHost)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IJob
-    : public NJobProberClient::IJobProbe
+    : public IJobProbe
 {
     virtual void Initialize() = 0;
     virtual void PopulateInputNodeDirectory() const = 0;
