@@ -21,7 +21,6 @@ struct TLocationLivenessInfo
     TString DiskId;
     ELocationState LocationState;
     bool IsDiskAlive;
-    NContainers::EDiskState DiskState;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
