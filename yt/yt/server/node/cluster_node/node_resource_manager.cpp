@@ -420,8 +420,8 @@ std::optional<double> TNodeResourceManager::GetCpuLimit() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (auto memory = Limits_.Load().Memory) {
-        return memory;
+    if (auto cpu = Limits_.Load().Cpu) {
+        return cpu;
     }
 
     return {};
