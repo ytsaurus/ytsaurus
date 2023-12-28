@@ -306,11 +306,12 @@ public:
 
         std::vector<TDevice> devices;
         for (const auto& descriptor : ListGpuDevices()) {
-            const auto& deviceIndex = descriptor.DeviceIndex;
+            int deviceIndex = descriptor.DeviceIndex;
             if (std::find(Options_.GpuIndexes.begin(), Options_.GpuIndexes.end(), deviceIndex) == Options_.GpuIndexes.end()) {
                 devices.push_back(TDevice{
                     .DeviceName = GetGpuDeviceName(deviceIndex),
-                    .Enabled = false});
+                    .Enabled = false
+                });
             }
         }
 
