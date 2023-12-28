@@ -24,7 +24,14 @@ void TValidatorJob::Do()
     const int port = 2827;
 
     auto client = NYT::CreateClientFromEnv();
-    client->Create(Dir_ + "/" + Hostname_ + ":" + std::to_string(port), NT_STRING);
+
+    // TODO(YT-20802) implement service announcement and discovery properly.
+    client->Create(
+        Dir_ + "/" + Hostname_ + ":" + std::to_string(port),
+        NT_STRING,
+        TCreateOptions().IgnoreExisting(true)
+    );
+
     RunValidatorService(client, port);
 }
 
