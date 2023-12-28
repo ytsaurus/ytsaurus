@@ -207,6 +207,7 @@ public:
         : Config_(std::move(config))
         , RuntimeApi_(CreateRetryingChannel(Config_, channelFactory->CreateChannel(Config_->RuntimeEndpoint)))
         , ImageApi_(CreateRetryingChannel(Config_, channelFactory->CreateChannel(Config_->ImageEndpoint)))
+        , Attempt_(RandomNumber<ui32>())
     { }
 
     TString GetPodCgroup(TString podName) const override
@@ -361,6 +362,9 @@ public:
         {
             auto* metadata = config->mutable_metadata();
             metadata->set_name(containerSpec->Name);
+
+            // Set unique attempt for each newly created container.
+            metadata->set_attempt(Attempt_++);
         }
 
         {
@@ -624,6 +628,8 @@ private:
     const TCriExecutorConfigPtr Config_;
     TCriRuntimeApi RuntimeApi_;
     TCriImageApi ImageApi_;
+
+    std::atomic<ui32> Attempt_;
 
     THashMap<TString, TFuture<void>> InflightImagePulls_;
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
