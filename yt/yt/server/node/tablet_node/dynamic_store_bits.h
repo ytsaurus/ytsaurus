@@ -47,11 +47,7 @@ struct TLockDescriptor
         TTimestamp PrepareTimestamp;
         const TTransaction* Transaction;
 
-        bool operator<(const auto& other) const
-        {
-            return std::tie(PrepareTimestamp, Transaction)
-                < std::tie(other.PrepareTimestamp, other.Transaction);
-        }
+        auto operator<=>(const TSharedWriteTransaction& other) const = default;
     };
 
     static_assert(std::is_trivially_destructible_v<TSharedWriteTransaction>);
