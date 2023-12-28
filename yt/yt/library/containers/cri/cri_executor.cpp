@@ -303,9 +303,9 @@ public:
         std::function<void(NProto::ContainerFilter&)> initFilter = nullptr) override
     {
         return ListContainers(initFilter).Apply(BIND([=] (const TCriRuntimeApi::TRspListContainersPtr& rsp) {
-            for (const auto& ct : rsp->containers()) {
-                TCriDescriptor descriptor{.Name=ct.metadata().name(), .Id=ct.id()};
-                callback(descriptor, ct);
+            for (const auto& container : rsp->containers()) {
+                TCriDescriptor descriptor{.Name = container.metadata().name(), .Id = container.id()};
+                callback(descriptor, container);
             }
         }));
     }
@@ -365,7 +365,7 @@ public:
     }
 
     TFuture<TCriDescriptor> CreateContainer(
-        TCriContainerSpecPtr ctSpec,
+        TCriContainerSpecPtr containerSpec,
         const TCriPodDescriptor& podDescriptor,
         TCriPodSpecPtr podSpec) override
     {
@@ -376,24 +376,24 @@ public:
 
         {
             auto* metadata = config->mutable_metadata();
-            metadata->set_name(ctSpec->Name);
+            metadata->set_name(containerSpec->Name);
         }
 
         {
             auto& labels = *config->mutable_labels();
 
-            for (const auto& [key, val] : ctSpec->Labels) {
+            for (const auto& [key, val] : containerSpec->Labels) {
                 labels[key] = val;
             }
 
             labels[YTPodNamespaceLabel] = Config_->Namespace;
             labels[YTPodNameLabel] = podSpec->Name;
-            labels[YTContainerNameLabel] = ctSpec->Name;
+            labels[YTContainerNameLabel] = containerSpec->Name;
         }
 
-        FillImageSpec(config->mutable_image(), ctSpec->Image);
+        FillImageSpec(config->mutable_image(), containerSpec->Image);
 
-        for (const auto& mountSpec : ctSpec->BindMounts) {
+        for (const auto& mountSpec : containerSpec->BindMounts) {
             auto* mount = config->add_mounts();
             mount->set_container_path(mountSpec.ContainerPath);
             mount->set_host_path(mountSpec.HostPath);
@@ -402,12 +402,12 @@ public:
         }
 
         {
-            ToProto(config->mutable_command(), ctSpec->Command);
-            ToProto(config->mutable_args(), ctSpec->Arguments);
+            ToProto(config->mutable_command(), containerSpec->Command);
+            ToProto(config->mutable_args(), containerSpec->Arguments);
 
-            config->set_working_dir(ctSpec->WorkingDirectory);
+            config->set_working_dir(containerSpec->WorkingDirectory);
 
-            for (const auto& [key, val] : ctSpec->Environment) {
+            for (const auto& [key, val] : containerSpec->Environment) {
                 auto* env = config->add_envs();
                 env->set_key(key);
                 env->set_value(val);
@@ -416,28 +416,28 @@ public:
 
         {
             auto* linux = config->mutable_linux();
-            FillLinuxContainerResources(linux->mutable_resources(), ctSpec->Resources);
+            FillLinuxContainerResources(linux->mutable_resources(), containerSpec->Resources);
 
             auto* security = linux->mutable_security_context();
 
             auto* namespaces = security->mutable_namespace_options();
             namespaces->set_network(NProto::NODE);
 
-            security->set_readonly_rootfs(ctSpec->ReadOnlyRootFS);
+            security->set_readonly_rootfs(containerSpec->ReadOnlyRootFS);
 
-            if (ctSpec->Credentials.Uid) {
-                security->mutable_run_as_user()->set_value(*ctSpec->Credentials.Uid);
+            if (containerSpec->Credentials.Uid) {
+                security->mutable_run_as_user()->set_value(*containerSpec->Credentials.Uid);
             }
-            if (ctSpec->Credentials.Gid) {
-                security->mutable_run_as_group()->set_value(*ctSpec->Credentials.Gid);
+            if (containerSpec->Credentials.Gid) {
+                security->mutable_run_as_group()->set_value(*containerSpec->Credentials.Gid);
             }
-            ToProto(security->mutable_supplemental_groups(), ctSpec->Credentials.Groups);
+            ToProto(security->mutable_supplemental_groups(), containerSpec->Credentials.Groups);
         }
 
         FillPodSandboxConfig(req->mutable_sandbox_config(), *podSpec);
 
         return req->Invoke()
-            .Apply(BIND([name = ctSpec->Name] (const TCriRuntimeApi::TRspCreateContainerPtr& rsp) -> TCriDescriptor {
+            .Apply(BIND([name = containerSpec->Name] (const TCriRuntimeApi::TRspCreateContainerPtr& rsp) -> TCriDescriptor {
                 return TCriDescriptor{.Name = name, .Id = rsp->container_id()};
             }))
             .ToUncancelable();
@@ -512,9 +512,9 @@ public:
         {
             std::vector<TFuture<void>> futures;
             futures.reserve(containers->containers_size());
-            for (const auto& ct : containers->containers()) {
-                TCriDescriptor ctDescriptor{.Name = ct.metadata().name(), .Id = ct.id()};
-                futures.push_back(StopContainer(ctDescriptor, TDuration::Zero()));
+            for (const auto& container : containers->containers()) {
+                TCriDescriptor containerDescriptor{.Name = container.metadata().name(), .Id = container.id()};
+                futures.push_back(StopContainer(containerDescriptor, TDuration::Zero()));
             }
             WaitFor(AllSucceeded(std::move(futures)))
                 .ThrowOnError();
@@ -523,9 +523,9 @@ public:
         {
             std::vector<TFuture<void>> futures;
             futures.reserve(containers->containers_size());
-            for (const auto& ct : containers->containers()) {
-                TCriDescriptor ctDescriptor{.Name = ct.metadata().name(), .Id = ct.id()};
-                futures.push_back(RemoveContainer(ctDescriptor));
+            for (const auto& container : containers->containers()) {
+                TCriDescriptor containerDescriptor{.Name = container.metadata().name(), .Id = container.id()};
+                futures.push_back(RemoveContainer(containerDescriptor));
             }
             WaitFor(AllSucceeded(std::move(futures)))
                 .ThrowOnError();
