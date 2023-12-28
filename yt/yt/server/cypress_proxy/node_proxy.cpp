@@ -1,9 +1,10 @@
 #include "node_proxy.h"
 
 #include "private.h"
+#include "action_helpers.h"
 #include "bootstrap.h"
-#include "path_resolver.h"
 #include "helpers.h"
+#include "path_resolver.h"
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -145,75 +146,6 @@ protected:
             NCellMasterClient::EMasterCellRole::SequoiaNodeHost);
     }
 
-    void WriteSequoiaNodeRows(
-        TNodeId id,
-        const TYPath& path)
-    {
-        auto [parentPath, childKey] = DirNameAndBaseName(path);
-        Transaction_->WriteRow(NRecords::TPathToNodeId{
-            .Key = {.Path = MangleSequoiaPath(path)},
-            .NodeId = id,
-        });
-        Transaction_->WriteRow(NRecords::TNodeIdToPath{
-            .Key = {.NodeId = id},
-            .Path = path,
-        });
-        Transaction_->WriteRow(NRecords::TChildNode{
-            .Key = {
-                .ParentPath = MangleSequoiaPath(parentPath),
-                .ChildKey = ToStringLiteral(childKey),
-            },
-            .ChildId = id,
-        });
-    }
-
-    void DeleteSequoiaNodeRows(
-        TNodeId id,
-        const TMangledSequoiaPath& path)
-    {
-        YT_VERIFY(TypeFromId(id) != EObjectType::Rootstock);
-
-        // Remove from path-to-node-id table.
-        Transaction_->DeleteRow(NRecords::TPathToNodeIdKey{
-            .Path = path,
-        });
-
-        // Remove from node-id-to-path table.
-        Transaction_->DeleteRow(NRecords::TNodeIdToPathKey{
-            .NodeId = id,
-        });
-
-        if (TypeFromId(id) != EObjectType::Scion) {
-            // Remove from child table.
-            auto [parentPath, childKey] = DirNameAndBaseName(DemangleSequoiaPath(path));
-            Transaction_->DeleteRow(NRecords::TChildNodeKey{
-                .ParentPath = MangleSequoiaPath(parentPath),
-                .ChildKey = ToStringLiteral(childKey),
-            });
-        }
-    }
-
-    void RemoveNode(
-        TNodeId nodeId,
-        const TMangledSequoiaPath& path)
-    {
-        DeleteSequoiaNodeRows(nodeId, path);
-
-        NCypressServer::NProto::TReqRemoveNode reqRemoveNode;
-        ToProto(reqRemoveNode.mutable_node_id(), nodeId);
-        Transaction_->AddTransactionAction(
-            CellTagFromId(nodeId),
-            MakeTransactionActionData(reqRemoveNode));
-    }
-
-    void SetNode(TNodeId id, const NYson::TYsonString& value)
-    {
-        NCypressServer::NProto::TReqSetNode setNodeRequest;
-        ToProto(setNodeRequest.mutable_node_id(), id);
-        setNodeRequest.set_value(value.ToString());
-        Transaction_->AddTransactionAction(CellTagFromId(id), MakeTransactionActionData(setNodeRequest));
-    }
-
     TCellTag RemoveRootstock()
     {
         YT_VERIFY(TypeFromId(Id_) == EObjectType::Scion);
@@ -234,26 +166,6 @@ protected:
             CellTagFromId(rootstockId),
             MakeTransactionActionData(reqRemoveRootstock));
         return CellTagFromId(rootstockId);
-    }
-
-    void DetachFromParent(TNodeId parentId, const TString& childKey)
-    {
-        NCypressServer::NProto::TReqDetachChild reqDetachChild;
-        ToProto(reqDetachChild.mutable_parent_id(), parentId);
-        reqDetachChild.set_key(childKey);
-        Transaction_->AddTransactionAction(
-            CellTagFromId(parentId),
-            MakeTransactionActionData(reqDetachChild));
-    }
-
-    void LockRowInPathToIdTable(
-        const TYPath& path,
-        ELockType lockType = ELockType::SharedStrong)
-    {
-        NRecords::TPathToNodeIdKey nodeKey{
-            .Path = MangleSequoiaPath(path),
-        };
-        Transaction_->LockRow(nodeKey, lockType);
     }
 
     template <class TRequestPtr, class TResponse, class TContextPtr>
@@ -284,7 +196,7 @@ protected:
         };
         Transaction_->LockRow(selfKey, ELockType::Exclusive);
 
-        SetNode(Id_, NYson::TYsonString(request->value()));
+        SetNode(Id_, NYson::TYsonString(request->value()), Transaction_);
 
         WaitFor(Transaction_->Commit({
             .CoordinatorCellId = CellIdFromObjectId(Id_),
@@ -318,10 +230,10 @@ protected:
             subtreeRootCell = RemoveRootstock();
         } else {
             auto [parentPath, thisName] = DirNameAndBaseName(Path_);
-            LockRowInPathToIdTable(parentPath);
+            LockRowInPathToIdTable(parentPath, Transaction_);
 
             auto parentId = LookupNodeId(parentPath, Transaction_);
-            DetachFromParent(parentId, thisName);
+            DetachChild(parentId, thisName, Transaction_);
             subtreeRootCell = CellTagFromId(parentId);
         }
 
@@ -345,7 +257,7 @@ protected:
         }
 
         for (const auto& node : nodesToRemove) {
-            RemoveNode(node.NodeId, node.Key.Path);
+            RemoveNode(node.NodeId, node.Key.Path, Transaction_);
         }
 
         WaitFor(Transaction_->Commit({
@@ -435,30 +347,6 @@ private:
         return TNodeProxyBase::DoInvoke(context);
     }
 
-    void CreateNode(
-        EObjectType type,
-        TNodeId id,
-        const TYPath& path)
-    {
-        WriteSequoiaNodeRows(id, path);
-
-        NCypressServer::NProto::TReqCreateNode createNodeRequest;
-        createNodeRequest.set_type(ToProto<int>(type));
-        ToProto(createNodeRequest.mutable_node_id(), id);
-        createNodeRequest.set_path(path);
-        Transaction_->AddTransactionAction(CellTagFromId(id), MakeTransactionActionData(createNodeRequest));
-    }
-
-    //! Changes visible to user must be applied at coordinator with late prepare mode.
-    void AttachChild(TNodeId parentId, TNodeId childId, const TYPath& childKey)
-    {
-        NCypressServer::NProto::TReqAttachChild attachChildRequest;
-        ToProto(attachChildRequest.mutable_parent_id(), parentId);
-        ToProto(attachChildRequest.mutable_child_id(), childId);
-        attachChildRequest.set_key(ToStringLiteral(childKey));
-        Transaction_->AddTransactionAction(CellTagFromId(parentId), MakeTransactionActionData(attachChildRequest));
-    }
-
     struct TRecursiveCreateResult
     {
         TString SubtreeRootKey;
@@ -487,8 +375,9 @@ private:
             CreateNode(
                 EObjectType::SequoiaMapNode,
                 id,
-                TYPath(nestedPath));
-            AttachChild(id, prevNode.first, prevNode.second);
+                TYPath(nestedPath),
+                Transaction_);
+            AttachChild(id, prevNode.first, prevNode.second, Transaction_);
 
             nestedPath.Chop(key.size() + 1);
             prevNode = std::pair(id, key);
@@ -498,93 +387,6 @@ private:
             .SubtreeRootId = prevNode.first,
             .DesignatedNodeId = designatedNodeId,
         };
-    }
-
-    TFuture<void> ClearAsync(const TYPath& path)
-    {
-        auto mangledPath = MangleSequoiaPath(path);
-
-        auto removeFuture = Transaction_->SelectRows<NRecords::TPathToNodeIdKey>({
-            Format("path > %Qv", mangledPath),
-            Format("path <= %Qv", MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(mangledPath)),
-        }).Apply(
-            BIND([=, this, this_ = MakeStrong(this)] (const std::vector<NRecords::TPathToNodeId>& nodesToRemove) {
-                for (const auto& node : nodesToRemove) {
-                    RemoveNode(node.NodeId, node.Key.Path);
-                }
-            }));
-
-        auto detachFuture = Transaction_->SelectRows<NRecords::TChildNodeKey>({
-            Format("parent_path = %Qv", mangledPath),
-        }).Apply(
-            BIND([=, this, this_ = MakeStrong(this)] (const std::vector<NRecords::TChildNode>& childrenRows) {
-                for (const auto& row : childrenRows) {
-                    DetachFromParent(Id_, row.Key.ChildKey);
-                }
-            }));
-
-        return AllSucceeded(std::vector{removeFuture, detachFuture});
-    }
-
-    TNodeId CopyNode(
-        TNodeId sourceNodeId,
-        const TYPath& destinationNodePath,
-        const TCopyOptions& options)
-    {
-        // TypeFromId here might break everything for Cypress->Sequoia copy.
-        // Add exception somewhere to not crash all the time.
-        // TODO(h0pless): Do that.
-        auto sourceNodeType = TypeFromId(sourceNodeId);
-        YT_VERIFY(
-            sourceNodeType != EObjectType::Rootstock &&
-            sourceNodeType != EObjectType::Scion);
-
-        auto cellTag = CellTagFromId(sourceNodeId);
-        auto destinationNodeId = Transaction_->GenerateObjectId(sourceNodeType, cellTag);
-        WriteSequoiaNodeRows(destinationNodeId, destinationNodePath);
-
-        NCypressServer::NProto::TReqCloneNode cloneNodeRequest;
-        ToProto(cloneNodeRequest.mutable_src_id(), sourceNodeId);
-        ToProto(cloneNodeRequest.mutable_dst_id(), destinationNodeId);
-        cloneNodeRequest.set_dst_path(destinationNodePath);
-        ToProto(cloneNodeRequest.mutable_options(), options);
-        // TODO(h0pless): Add cypress transaction id here.
-
-        Transaction_->AddTransactionAction(cellTag, MakeTransactionActionData(cloneNodeRequest));
-
-        return destinationNodeId;
-    }
-
-    TNodeId CopySubtree(
-        const std::vector<NRecords::TPathToNodeId>& sourceNodes,
-        const TYPath& sourceRootPath,
-        const TYPath& destinationRootPath,
-        const TCopyOptions& options)
-    {
-        THashMap<TYPath, std::vector<std::pair<TString, TNodeId>>> nodePathToChildren;
-        TNodeId destinationNodeId;
-        for (auto it = sourceNodes.rbegin(); it != sourceNodes.rend(); ++it) {
-            auto destinationNodePath = DemangleSequoiaPath(it->Key.Path);
-            destinationNodePath.replace(0, sourceRootPath.size(), destinationRootPath);
-            destinationNodeId = CopyNode(
-                it->NodeId,
-                destinationNodePath,
-                options);
-
-            auto nodeIt = nodePathToChildren.find(destinationNodePath);
-            if (nodeIt != nodePathToChildren.end()) {
-                for (const auto& [childKey, childId] : nodeIt->second) {
-                    AttachChild(destinationNodeId, childId, childKey);
-                }
-                nodePathToChildren.erase(nodeIt);
-            }
-
-            auto [parentPath, childKey] = DirNameAndBaseName(destinationNodePath);
-            nodePathToChildren[std::move(parentPath)].emplace_back(std::move(childKey), destinationNodeId);
-        }
-
-        YT_VERIFY(nodePathToChildren.size() == 1);
-        return destinationNodeId;
     }
 
     void ValidateCreateOptions(
@@ -707,13 +509,13 @@ private:
         TNodeId CreateNode(EObjectType type) {
             auto cellTag = Owner_->GetRandomSequoiaNodeHostCellTag();
             auto nodeId = Owner_->Transaction_->GenerateObjectId(type, cellTag);
-            Owner_->CreateNode(type, nodeId, Format("%v/%v", ParentPath_, Key_));
+            NCypressProxy::CreateNode(type, nodeId, Format("%v/%v", ParentPath_, Key_), Owner_->Transaction_);
             return nodeId;
         }
 
         void SetValue(TNodeId nodeId, const NYson::TYsonString& value)
         {
-            Owner_->SetNode(nodeId, value);
+            SetNode(nodeId, value, Owner_->Transaction_);
         }
 
         void AddNode(TNodeId nodeId, bool push)
@@ -722,7 +524,7 @@ private:
                 ResultNodeId_ = nodeId;
             } else {
                 auto parentId = NodeStack_.top().second;
-                Owner_->AttachChild(parentId, nodeId, Key_);
+                AttachChild(parentId, nodeId, Key_, Owner_->Transaction_);
             }
 
             if (push) {
@@ -761,7 +563,10 @@ private:
 
         void OnMyBeginMap() override
         {
-            ClearRequest_ = Owner_->ClearAsync(Owner_->Path_);
+            ClearRequest_ = RemoveSubtree(
+                Owner_->Path_,
+                Owner_->Transaction_,
+                /*removeRoot*/ false);
         }
 
         void OnMyKeyedItem(TStringBuf key) override
@@ -785,7 +590,7 @@ private:
         void OnMyEndMap() override
         {
             for (const auto& [childKey, childId] : Children_) {
-                Owner_->AttachChild(Owner_->Id_, childId, childKey);
+                AttachChild(Owner_->Id_, childId, childKey, Owner_->Transaction_);
             }
             WaitFor(ClearRequest_)
                 .ThrowOnError();
@@ -839,7 +644,7 @@ private:
         auto parentId = Id_;
 
         // Acquire shared lock on parent node.
-        LockRowInPathToIdTable(parentPath);
+        LockRowInPathToIdTable(parentPath, Transaction_);
 
         auto createDesignatedNode = [&] (const TYPath& path) {
             TTreeBuilder builder(this);
@@ -854,7 +659,7 @@ private:
             createDesignatedNode);
 
         // Attach child on parent cell.
-        AttachChild(parentId, createResult.SubtreeRootId, createResult.SubtreeRootKey);
+        AttachChild(parentId, createResult.SubtreeRootId, createResult.SubtreeRootKey, Transaction_);
 
         WaitFor(Transaction_->Commit({
             .CoordinatorCellId = CellIdFromObjectId(parentId),
@@ -961,20 +766,18 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
     if (pathTokens.empty() && force) {
         parentPath = std::move(updatedParentPath);
         parentId = LookupNodeId(parentPath, Transaction_);
-        DetachFromParent(parentId, childKeyHolder);
         pathTokens.push_back(childKeyHolder);
 
-        auto nodesToRemove = SelectSubtree(Path_, Transaction_);
-        for (auto nodeToRemove : nodesToRemove) {
-            RemoveNode(nodeToRemove.NodeId, nodeToRemove.Key.Path);
-        }
+        auto removeFuture = RemoveSubtree(Path_, Transaction_);
+        WaitFor(removeFuture)
+            .ThrowOnError();
     }
 
-    LockRowInPathToIdTable(parentPath);
+    LockRowInPathToIdTable(parentPath, Transaction_);
 
     auto createDesignatedNode = [&] (const TYPath& path) {
         auto id = Transaction_->GenerateObjectId(type, GetRandomSequoiaNodeHostCellTag());
-        CreateNode(type, id, path);
+        CreateNode(type, id, path, Transaction_);
         return id;
     };
     auto createResult = CreateRecursive(
@@ -983,7 +786,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
         createDesignatedNode);
 
     // Attach child on parent cell.
-    AttachChild(parentId, createResult.SubtreeRootId, createResult.SubtreeRootKey);
+    AttachChild(parentId, createResult.SubtreeRootId, createResult.SubtreeRootKey, Transaction_);
 
     WaitFor(Transaction_->Commit({
         .CoordinatorCellId = CellIdFromObjectId(parentId),
@@ -1019,7 +822,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, List)
         ThrowNoSuchChild(Path_, pathTokens[0]);
     }
 
-    LockRowInPathToIdTable(Path_);
+    LockRowInPathToIdTable(Path_, Transaction_);
     auto selectRows = WaitFor(Transaction_->SelectRows<NRecords::TChildNodeKey>(
         {
             Format("parent_path = %Qv", MangleSequoiaPath(Path_)),
@@ -1144,14 +947,14 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Copy)
     if (overwriteDestinationSubtree) {
         parentPath = std::move(updatedParentPath);
         parentId = LookupNodeId(parentPath, Transaction_);
-        DetachFromParent(parentId, childKey);
+        DetachChild(parentId, childKey, Transaction_);
         destinationPathTokens.push_back(childKey);
     }
 
     if (options.Mode == ENodeCloneMode::Move) {
         auto [sourceParentPath, sourceRootKey] = DirNameAndBaseName(sourceRootPath);
         auto sourceParentId = LookupNodeId(sourceParentPath, Transaction_);
-        DetachFromParent(sourceParentId, sourceRootKey);
+        DetachChild(sourceParentId, sourceRootKey, Transaction_);
     }
 
     std::vector<NRecords::TPathToNodeId> nodesToRemove;
@@ -1160,7 +963,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Copy)
         for (auto nodeToRemove : nodesToRemove) {
             // NB: Calling DelteRow and WriteRow under one transaction does not lead to conflict.
             // NB: It's fine to call RemoveNode early, since actions will be sorted in sequoia transaction.
-            RemoveNode(nodeToRemove.NodeId, nodeToRemove.Key.Path);
+            RemoveNode(nodeToRemove.NodeId, nodeToRemove.Key.Path, Transaction_);
         }
     }
 
@@ -1173,13 +976,13 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Copy)
     {
         for (auto nodesToCopy : nodesToCopy) {
             // NB: It's fine to call RemoveNode early, since actions will be sorted in sequoia transaction.
-            RemoveNode(nodesToCopy.NodeId, nodesToCopy.Key.Path);
+            RemoveNode(nodesToCopy.NodeId, nodesToCopy.Key.Path, Transaction_);
         }
     }
 
-    LockRowInPathToIdTable(parentPath);
+    LockRowInPathToIdTable(parentPath, Transaction_);
 
-    auto destinationId = CopySubtree(nodesToCopy, sourceRootPath, destinationRootPath, options);
+    auto destinationId = CopySubtree(nodesToCopy, sourceRootPath, destinationRootPath, options, Transaction_);
 
     // Designated node is cloned source root node. It has already been created and it's ID is known, yet it hasn't been attached.
     auto getDesignatedNodeId = [&] (const TYPath& path) {
@@ -1190,7 +993,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Copy)
         parentPath,
         destinationPathTokens,
         getDesignatedNodeId);
-    AttachChild(parentId, createResult.SubtreeRootId, createResult.SubtreeRootKey);
+    AttachChild(parentId, createResult.SubtreeRootId, createResult.SubtreeRootKey, Transaction_);
 
     WaitFor(Transaction_->Commit({
         .CoordinatorCellId = CellIdFromObjectId(parentId),

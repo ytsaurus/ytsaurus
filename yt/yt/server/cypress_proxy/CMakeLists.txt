@@ -24,6 +24,7 @@ target_link_libraries(yt-server-cypress_proxy PUBLIC
   server-lib-cypress_registrar
 )
 target_sources(yt-server-cypress_proxy PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/action_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/bootstrap.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/dynamic_config_manager.cpp
