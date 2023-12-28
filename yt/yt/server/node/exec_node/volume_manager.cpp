@@ -1185,7 +1185,7 @@ private:
                 .Update(VolumeCounters().Increment(tagSet));
 
             return volumeMeta;
-        } catch (const TErrorException& ex) {
+        } catch (const std::exception& ex) {
             TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/create_errors").Increment(1);
 
             YT_LOG_ERROR(ex, "Failed to create volume (Tag: %v, Type: %v, VolumeId: %v)",
@@ -1198,11 +1198,11 @@ private:
                 volumeId) << ex;
 
             // Don't disable location in case of InvalidImage or NBD errors.
-            switch (static_cast<EPortoErrorCode>((int)ex.Error().GetCode())) {
+            switch (static_cast<EPortoErrorCode>(TError(ex).GetCode())) {
                 case EPortoErrorCode::InvalidFilesystem:
                     THROW_ERROR_EXCEPTION(
                         EErrorCode::InvalidImage,
-                        "Failed to create %Qv volume", FromProto<EVolumeType>(volumeMeta.type()))
+                        "Failed to create %Qlv volume", FromProto<EVolumeType>(volumeMeta.type()))
                         << ex;
                 case EPortoErrorCode::NbdProtoError:
                 case EPortoErrorCode::NbdSocketError:
