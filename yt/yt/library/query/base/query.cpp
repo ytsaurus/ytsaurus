@@ -1347,6 +1347,7 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
     serialized->set_retention_timestamp(original.TimestampRange.RetentionTimestamp);
     serialized->set_verbose_logging(original.VerboseLogging);
     serialized->set_new_range_inference(original.NewRangeInference);
+    serialized->set_use_canonical_null_relations(original.UseCanonicalNullRelations);
     serialized->set_max_subqueries(original.MaxSubqueries);
     serialized->set_enable_code_cache(original.EnableCodeCache);
     ToProto(serialized->mutable_workload_descriptor(), original.WorkloadDescriptor);
@@ -1367,6 +1368,7 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     original->TimestampRange.RetentionTimestamp = serialized.retention_timestamp();
     original->VerboseLogging = serialized.verbose_logging();
     original->NewRangeInference = serialized.new_range_inference();
+    original->UseCanonicalNullRelations = serialized.use_canonical_null_relations();
     original->MaxSubqueries = serialized.max_subqueries();
     original->EnableCodeCache = serialized.enable_code_cache();
     original->WorkloadDescriptor = serialized.has_workload_descriptor()

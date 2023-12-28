@@ -1790,6 +1790,28 @@ class TestQuery(DynamicTablesBase):
             actual = select_rows(query)
             assert expected == actual
 
+    @authors("sabdenovch")
+    def test_select_with_canonical_null_relations(self):
+        sync_create_cells(1)
+        self._create_table(
+            "//tmp/t",
+            [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64"},
+            ],
+            [
+                {"a": 0, "b": 0},
+                {"a": 1, "b": 2},
+                {"a": 3},
+            ])
+
+        assert_items_equal(
+            select_rows("a from [//tmp/t] where b != 0 limit 3"),
+            [{"a": 1}, {"a": 3}])
+        assert_items_equal(
+            select_rows("a from [//tmp/t] where b != 0 limit 3", use_canonical_null_relations=True),
+            [{"a": 1}])
+
 
 class TestQueryRpcProxy(TestQuery):
     DRIVER_BACKEND = "rpc"
