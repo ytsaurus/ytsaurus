@@ -23,7 +23,7 @@ struct IDiskManagerProxy
 
     virtual TFuture<void> FailDiskById(const TString& diskId, const TString& reason) = 0;
 
-    virtual TFuture<bool> IsHotSwapEnabled() = 0;
+    virtual TFuture<bool> GetHotSwapEnabledFuture() = 0;
 
     virtual void OnDynamicConfigChanged(const TDiskManagerProxyDynamicConfigPtr& newConfig) = 0;
 };

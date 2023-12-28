@@ -25,6 +25,8 @@ target_link_libraries(yt-server-rpc_proxy PUBLIC
   core-rpc-grpc
   yt-library-auth_server
   yt-library-dynamic_config
+  yt-library-containers
+  library-containers-disk_manager
   cpp-yt-phdr_cache
   library-cpp-getopt
 )

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/library/auth_server/public.h>
+#include <yt/yt/server/lib/misc/disk_change_checker.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -11,6 +11,8 @@
 #include <yt/yt/client/node_tracker_client/public.h>
 
 #include <yt/yt/library/coredumper/public.h>
+
+#include <yt/yt/library/containers/public.h>
 
 #include <yt/yt/library/tracing/jaeger/public.h>
 
@@ -26,6 +28,8 @@
 #include <yt/yt/core/http/public.h>
 
 #include <yt/yt/core/ytree/public.h>
+
+#include <yt/yt/library/auth_server/public.h>
 
 namespace NYT::NRpcProxy {
 
@@ -72,6 +76,10 @@ private:
     NNodeTrackerClient::TAddressMap LocalAddresses_;
     IDynamicConfigManagerPtr DynamicConfigManager_;
     IAccessCheckerPtr AccessChecker_;
+
+    NContainers::IDiskManagerProxyPtr DiskManagerProxy_;
+    NContainers::TDiskInfoProviderPtr DiskInfoProvider_;
+    TDiskChangeCheckerPtr DiskChangeChecker_;
 
     void DoRun();
 

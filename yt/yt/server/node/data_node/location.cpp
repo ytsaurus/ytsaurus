@@ -542,13 +542,6 @@ bool TChunkLocation::StartDestroy()
     YT_LOG_INFO("Starting location destruction (LocationUuid: %v, DiskName: %v)",
         GetUuid(),
         StaticConfig_->DeviceName);
-
-    LocationDiskFailedAlert_.Store(
-        TError(NChunkClient::EErrorCode::LocationDiskWaitingReplacement,
-            "Disk of chunk location is waiting replacement")
-            << TErrorAttribute("location_uuid", GetUuid())
-            << TErrorAttribute("location_path", GetPath())
-            << TErrorAttribute("location_disk", StaticConfig_->DeviceName));
     return true;
 }
 
@@ -1172,6 +1165,18 @@ void TChunkLocation::MarkLocationDiskFailed()
     LocationDiskFailedAlert_.Store(
         TError(NChunkClient::EErrorCode::LocationDiskFailed,
             "Disk of chunk location is marked as failed")
+            << TErrorAttribute("location_uuid", GetUuid())
+            << TErrorAttribute("location_path", GetPath())
+            << TErrorAttribute("location_disk", StaticConfig_->DeviceName));
+}
+
+void TChunkLocation::MarkLocationDiskWaitingReplacement()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    LocationDiskFailedAlert_.Store(
+        TError(NChunkClient::EErrorCode::LocationDiskWaitingReplacement,
+            "Disk of chunk location is waiting replacement")
             << TErrorAttribute("location_uuid", GetUuid())
             << TErrorAttribute("location_path", GetPath())
             << TErrorAttribute("location_disk", StaticConfig_->DeviceName));

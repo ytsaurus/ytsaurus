@@ -27,7 +27,7 @@ struct TDiskManagerProxyMock
         THROW_ERROR_EXCEPTION("Disk manager library is not available under this build configuration");
     }
 
-    virtual TFuture<bool> IsHotSwapEnabled()
+    virtual TFuture<bool> GetHotSwapEnabledFuture()
     {
         return MakeFuture(false);
     }

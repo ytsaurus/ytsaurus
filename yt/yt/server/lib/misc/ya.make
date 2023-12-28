@@ -8,6 +8,7 @@ SRCS(
     cluster_connection.cpp
     config.cpp
     disk_health_checker.cpp
+    disk_change_checker.cpp
     fork_executor.cpp
     format_manager.cpp
     job_table_schema.cpp

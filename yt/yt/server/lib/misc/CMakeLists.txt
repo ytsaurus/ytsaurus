@@ -28,6 +28,7 @@ target_sources(server-lib-misc PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/cluster_connection.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/disk_health_checker.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/disk_change_checker.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/fork_executor.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/format_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/job_table_schema.cpp

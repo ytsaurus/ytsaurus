@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/ytree/public.h>
 
+#include <yt/yt/library/containers/public.h>
+
 namespace NYT::NMasterCache {
 
 ////////////////////////////////////////////////////////////////////////////////

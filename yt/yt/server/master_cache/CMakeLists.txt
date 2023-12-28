@@ -21,6 +21,8 @@ target_link_libraries(yt-server-master_cache PUBLIC
   library-cpp-getopt
   cpp-yt-phdr_cache
   yt-library-dynamic_config
+  yt-library-containers
+  library-containers-disk_manager
   yt-yt-ytlib
   ytserver
   server-lib-chaos_cache

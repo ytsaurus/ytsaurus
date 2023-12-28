@@ -21,6 +21,7 @@ struct TLocationLivenessInfo
     TString DiskId;
     ELocationState LocationState;
     bool IsDiskAlive;
+    NContainers::EDiskState DiskState;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -35,17 +36,15 @@ public:
         IInvokerPtr controlInvoker,
         NContainers::TDiskInfoProviderPtr diskInfoProvider);
 
-    TFuture<std::vector<TLocationLivenessInfo>> GetLocationsLiveness();
+    void SetFailedDiskAlerts(std::vector<TError> alerts);
 
-    const std::vector<TString>& GetConfigDiskIds();
+    void SetWaitingReplacementDiskAlerts(std::vector<TError> alerts);
 
-    void SetDiskAlerts(std::vector<TError> alerts);
-
-    void SetUnlinkedDiskIds(std::vector<TString> diskIds);
+    void SetFailedUnlinkedDiskIds(std::vector<TString> diskIds);
 
     TFuture<std::vector<NContainers::TDiskInfo>> GetDiskInfos();
 
-    TFuture<bool> IsHotSwapEnabled();
+    TFuture<bool> GetHotSwapEnabledFuture();
 
     TFuture<std::vector<TGuid>> ResurrectChunkLocations(const THashSet<TGuid>& locationUuids);
 
@@ -61,28 +60,20 @@ public:
 
     TFuture<void> RecoverDisk(const TString& diskId);
 
-    void SetDiskIdsMismatched();
-
     NYTree::IYPathServicePtr GetOrchidService();
 
     std::vector<TLocationLivenessInfo> MapLocationToLivenessInfo(
         const std::vector<NContainers::TDiskInfo>& diskInfos);
-
-    void UpdateOldDiskIds(THashSet<TString> oldDiskIds);
-
-    const THashSet<TString>& GetOldDiskIds() const;
 
 private:
     const NContainers::TDiskInfoProviderPtr DiskInfoProvider_;
 
     const TChunkStorePtr ChunkStore_;
     const IInvokerPtr ControlInvoker_;
-    const NYTree::IYPathServicePtr OrchidService_;
 
-    std::atomic<bool> DiskIdsMismatched_;
     TAtomicObject<std::vector<TError>> DiskFailedAlerts_;
-    TAtomicObject<std::vector<TString>> UnlinkedDiskIds_;
-    THashSet<TString> OldDiskIds_;
+    TAtomicObject<std::vector<TError>> DiskWaitingReplacementAlerts_;
+    TAtomicObject<std::vector<TString>> FailedUnlinkedDiskIds_;
 
     NYTree::IYPathServicePtr CreateOrchidService();
 

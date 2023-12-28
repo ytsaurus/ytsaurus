@@ -21,6 +21,8 @@ PEERDIR(
     library/cpp/yt/phdr_cache
 
     yt/yt/library/dynamic_config
+    yt/yt/library/containers
+    yt/yt/library/containers/disk_manager
 
     yt/yt/ytlib
 

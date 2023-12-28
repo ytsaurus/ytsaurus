@@ -24,7 +24,7 @@ class TRestartService
     : public TServiceBase
 {
 public:
-    explicit TRestartService(
+    TRestartService(
         TRestartManagerPtr restartManager,
         IInvokerPtr invoker,
         TLogger logger,
@@ -35,7 +35,7 @@ public:
             logger,
             NullRealmId,
             authenticator)
-        , RestartManager_(restartManager)
+        , RestartManager_(std::move(restartManager))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RequestRestart));
     }
