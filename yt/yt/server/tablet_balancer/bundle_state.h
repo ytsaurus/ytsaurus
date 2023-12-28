@@ -60,8 +60,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TTableProfilingCounterMap, ProfilingCounters);
     DEFINE_BYVAL_RW_PROPERTY(bool, HasUntrackedUnfinishedActions, false);
     DEFINE_BYVAL_RO_PROPERTY(NQueryClient::TTableSchemaPtr, PerformanceCountersTableSchema);
-
-    static const std::vector<TString> DefaultPerformanceCountersKeys;
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TString>, PerformanceCountersKeys);
 
 public:
     TBundleState(

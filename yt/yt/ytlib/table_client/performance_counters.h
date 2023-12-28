@@ -50,6 +50,7 @@ struct TTabletPerformanceCounters
     TPerformanceCountersEma PartitioningDataWeight;
     TPerformanceCountersEma LookupError;
     TPerformanceCountersEma WriteError;
+    TPerformanceCountersEma LookupCpuTime;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletPerformanceCounters)

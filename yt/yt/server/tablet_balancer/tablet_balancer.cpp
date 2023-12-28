@@ -806,7 +806,7 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
         BIND(
             ReassignTabletsParameterized,
             bundleState->GetBundle(),
-            bundleState->DefaultPerformanceCountersKeys,
+            bundleState->PerformanceCountersKeys(),
             bundleState->GetPerformanceCountersTableSchema(),
             TParameterizedReassignSolverConfig{
                 .EnableSwaps = dynamicConfig->EnableSwaps,

@@ -21,6 +21,7 @@ void Serialize(const TTabletPerformanceCounters& counters, NYson::IYsonConsumer*
     NYTree::BuildYsonFluently(consumer)
         .BeginMap()
             ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
+            ITERATE_NODE_TABLET_PERFORMANCE_COUNTERS(XX)
         .EndMap();
     #undef XX
 }
