@@ -139,7 +139,7 @@ private:
 template <typename T>
 TReadTransform<T> DummyRead()
 {
-    return TReadTransform<T>{MakeIntrusive<NPrivate::TRawDummyRead>()};
+    return TReadTransform<T>{MakeIntrusive<NPrivate::TRawDummyRead>(NPrivate::MakeRowVtable<T>())};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -184,7 +184,7 @@ private:
 template <typename T>
 TWriteTransform<T> DummyWrite()
 {
-    return TWriteTransform<T>{MakeIntrusive<NPrivate::TRawDummyWriter>()};
+    return TWriteTransform<T>{MakeIntrusive<NPrivate::TRawDummyWriter>(NPrivate::MakeRowVtable<T>())};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

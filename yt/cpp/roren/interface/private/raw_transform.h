@@ -83,6 +83,9 @@ class TRawDummyRead
     : public NPrivate::IRawRead
 {
 public:
+    TRawDummyRead() = default;
+    explicit TRawDummyRead(TRowVtable vtable);
+
     const void* NextRaw() override;
 
     TDefaultFactoryFunc GetDefaultFactory() const override;
@@ -90,6 +93,9 @@ public:
     void Load(IInputStream*) override;
     std::vector<TDynamicTypeTag> GetInputTags() const override;
     std::vector<TDynamicTypeTag> GetOutputTags() const override;
+
+private:
+    TRowVtable Vtable_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -109,6 +115,9 @@ class TRawDummyWriter
     : public IRawWrite
 {
 public:
+    TRawDummyWriter() = default;
+    explicit TRawDummyWriter(TRowVtable vtable);
+
     void AddRaw(const void*, ssize_t count) override;
     void Close() override;
 
@@ -117,6 +126,9 @@ public:
     void Load(IInputStream*) override;
     std::vector<TDynamicTypeTag> GetInputTags() const override;
     std::vector<TDynamicTypeTag> GetOutputTags() const override;
+
+private:
+    TRowVtable Vtable_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

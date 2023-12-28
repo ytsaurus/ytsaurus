@@ -113,6 +113,10 @@ const IRawFlatten& IRawTransform::AsRawFlattenRef() const {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRawDummyRead::TRawDummyRead(TRowVtable vtable)
+    : Vtable_(std::move(vtable))
+{ }
+
 const void* TRawDummyRead::NextRaw()
 {
     Y_ABORT("unimplemented method of TRawDummyRead");
@@ -125,11 +129,15 @@ ISerializable<IRawRead>::TDefaultFactoryFunc TRawDummyRead::GetDefaultFactory() 
     };
 }
 
-void TRawDummyRead::Save(IOutputStream*) const
-{}
+void TRawDummyRead::Save(IOutputStream* out) const
+{
+    ::Save(out, Vtable_);
+}
 
-void TRawDummyRead::Load(IInputStream*)
-{}
+void TRawDummyRead::Load(IInputStream* in)
+{
+    ::Load(in, Vtable_);
+}
 
 std::vector<TDynamicTypeTag> TRawDummyRead::GetInputTags() const
 {
@@ -138,10 +146,14 @@ std::vector<TDynamicTypeTag> TRawDummyRead::GetInputTags() const
 
 std::vector<TDynamicTypeTag> TRawDummyRead::GetOutputTags() const
 {
-    return std::vector<TDynamicTypeTag>{TTypeTag<TString>("dummy-read-output-0")};
+    return std::vector<TDynamicTypeTag>{TDynamicTypeTag("dummy-read-output-0", Vtable_)};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TRawDummyWriter::TRawDummyWriter(TRowVtable vtable)
+    : Vtable_(std::move(vtable))
+{ }
 
 void TRawDummyWriter::AddRaw(const void*, ssize_t)
 {
@@ -153,16 +165,6 @@ void TRawDummyWriter::Close()
     Y_ABORT("not implemented");
 }
 
-std::vector<TDynamicTypeTag> TRawDummyWriter::GetInputTags() const
-{
-    return std::vector<TDynamicTypeTag>{TTypeTag<TString>("dummy-write-input-0")};
-}
-
-std::vector<TDynamicTypeTag> TRawDummyWriter::GetOutputTags() const
-{
-    return {};
-}
-
 ISerializable<IRawWrite>::TDefaultFactoryFunc TRawDummyWriter::GetDefaultFactory() const
 {
     return []() -> IRawWritePtr {
@@ -171,11 +173,25 @@ ISerializable<IRawWrite>::TDefaultFactoryFunc TRawDummyWriter::GetDefaultFactory
     };
 }
 
-void TRawDummyWriter::Save(IOutputStream*) const
-{}
+void TRawDummyWriter::Save(IOutputStream* out) const
+{
+    ::Save(out, Vtable_);
+}
 
-void TRawDummyWriter::Load(IInputStream*)
-{}
+void TRawDummyWriter::Load(IInputStream* in)
+{
+    ::Load(in, Vtable_);
+}
+
+std::vector<TDynamicTypeTag> TRawDummyWriter::GetInputTags() const
+{
+    return std::vector<TDynamicTypeTag>{TDynamicTypeTag("dummy-write-input-0", Vtable_)};
+}
+
+std::vector<TDynamicTypeTag> TRawDummyWriter::GetOutputTags() const
+{
+    return {};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
