@@ -14,17 +14,4 @@ PEERDIR(
     yt/yt/server/node
 )
 
-IF (SANITIZER_TYPE)
-    SIZE(LARGE)
-    TAG(
-        ya:fat
-    )
-ELSE()
-    SIZE(MEDIUM)
-ENDIF()
-
-TAG(
-    ya:yt
-)
-
 END()

@@ -45,7 +45,7 @@ set_property(
   unittester-query-agent
   PROPERTY
   LABELS
-  MEDIUM
+  SMALL
 )
 set_property(
   TEST
