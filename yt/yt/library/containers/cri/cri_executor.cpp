@@ -420,9 +420,11 @@ public:
 
         FillPodSandboxConfig(req->mutable_sandbox_config(), *podSpec);
 
-        return req->Invoke().Apply(BIND([name = ctSpec->Name] (const TCriRuntimeApi::TRspCreateContainerPtr& rsp) -> TCriDescriptor {
-            return TCriDescriptor{.Name = "", .Id = rsp->container_id()};
-        }));
+        return req->Invoke()
+            .Apply(BIND([name = ctSpec->Name] (const TCriRuntimeApi::TRspCreateContainerPtr& rsp) -> TCriDescriptor {
+                return TCriDescriptor{.Name = name, .Id = rsp->container_id()};
+            }))
+            .ToUncancelable();
     }
 
     TFuture<void> StartContainer(const TCriDescriptor& descriptor) override
