@@ -229,7 +229,7 @@ yt get //tmp/table_2/@schema
   - Если дополнительно включить поколоночный формат хранения [чанков](../../../user-guide/storage/chunks.md) `optimize_for = scan`, то данные будут храниться компактнее, а чтение подмножества колонок будет быстрее.
   - Некоторые табличные ридеры могут работать быстрее для таблиц со схемой.
 - Удобство и более широкие возможности:
-  - В YQL удобнее работать со схематизированными таблицами;
+  - В {% if audience == "public" %}YQL{% else %}[YQL](https://yql.{{internal-domain}}/){% endif %} удобнее работать со схематизированными таблицами;
   - В [CHYT](../../../user-guide/data-processing/chyt/about-chyt.md) нельзя работать с несхематизированными данными.
 
 
@@ -296,7 +296,7 @@ yt get //tmp/table_2/@schema
 
 - CLI
   ```
-  yt get //home/tutorial/links_sorted_schematized/@schema
+  yt --proxy {{prestable-cluster}} get //home/tutorial/links_sorted_schematized/@schema
   ```
 
 ### Создание таблицы со схемой

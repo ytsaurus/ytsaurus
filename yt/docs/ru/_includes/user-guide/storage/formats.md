@@ -55,6 +55,10 @@ yt read //some/table --format dsv
 * [DSV (TSKV)](#dsv)
 * [SCHEMAFUL_DSV](#schemaful_dsv)
 
+{% if audience == "internal" %}
+Для наглядности покажем, как будет выглядеть одна [таблица](https://yt.{{internal-domain}}/{{prestable-cluster}}/navigation?path=//home/tutorial/staff_unsorted_sample) в разных форматах.
+{% endif %}
+
 ## Пример { #example }
 
 В примерах будет использована данная таблица:
@@ -80,7 +84,7 @@ yt read //some/table --format dsv
 Для чтения таблицы в формате YSON выполните:
 
 ```bash
-yt read --proxy <cluster-name> --format '<format=pretty>yson' '//home/tutorial/staff_unsorted_sample'
+yt read --proxy {{prestable-cluster}} --format '<format=pretty>yson' '//home/tutorial/staff_unsorted_sample'
 ```
 
 Представление таблицы в формате YSON:
@@ -202,7 +206,7 @@ yt read --proxy <cluster-name> --format '<format=pretty>yson' '//home/tutorial/s
 - CLI
 
    ```bash
-   echo '{"key": "Иван"}{"key":"Иванов"}' | YT_PROXY=cluster-name yt write --table "//path/to/table" --format="<encode_utf8=%false>json"
+   echo '{"key": "Иван"}{"key":"Иванов"}' | YT_PROXY={{production-cluster}} yt write --table "//path/to/table" --format="<encode_utf8=%false>json"
    ```
 {% endlist %}
 
@@ -215,7 +219,7 @@ yt read --proxy <cluster-name> --format '<format=pretty>yson' '//home/tutorial/s
 Чтение таблицы в формате JSON:
 
 ```bash
-yt read --proxy <cluster-name> --format json '//home/tutorial/staff_unsorted_sample'
+yt read --proxy {{prestable-cluster}} --format json '//home/tutorial/staff_unsorted_sample'
 ```
 
 Представление таблицы в формате JSON:
@@ -283,7 +287,7 @@ JSON имеет некомпактное представление байтов
 Чтение таблицы в формате DSV:
 
 ```bash
-yt read --proxy <cluster-name> --format dsv '//home/tutorial/staff_unsorted_sample'
+yt read --proxy {{prestable-cluster}} --format dsv '//home/tutorial/staff_unsorted_sample'
 ```
 
 Представление таблицы в формате DSV:
@@ -304,7 +308,7 @@ name=Karina	uid=20364947097122776
 Чтение таблицы с некоторыми параметрами:
 
 ```bash
-yt read --proxy <cluster-name> --format '<field_separator=";";key_value_separator=":">dsv' '//home/tutorial/staff_unsorted_sample'
+yt read --proxy {{prestable-cluster}} --format '<field_separator=";";key_value_separator=":">dsv' '//home/tutorial/staff_unsorted_sample'
 ```
 
 **Параметры:**
@@ -348,7 +352,7 @@ yt read --proxy <cluster-name> --format '<field_separator=";";key_value_separato
 Чтение таблицы в формате SCHEMAFUL_DSV:
 
 ```bash
-yt read --proxy <cluster-name> --format '<columns=[name;uid]>schemaful_dsv' '//home/tutorial/staff_unsorted_sample'
+yt read --proxy {{prestable-cluster}} --format '<columns=[name;uid]>schemaful_dsv' '//home/tutorial/staff_unsorted_sample'
 ```
 
 Представление таблицы в формате SCHEMAFUL_DSV:
