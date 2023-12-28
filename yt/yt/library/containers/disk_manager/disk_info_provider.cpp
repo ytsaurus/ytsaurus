@@ -27,6 +27,7 @@ TFuture<std::vector<TDiskInfo>> TDiskInfoProvider::GetYTDiskInfos()
 {
     auto diskInfosFuture = DiskManagerProxy_->GetDisks();
     auto ytDiskPathsFuture = DiskManagerProxy_->GetYtDiskDevicePaths();
+    auto diskYtPrefix = Config_->YtDiskPrefix;
 
     // Merge two futures and filter disks placed in /yt.
     return diskInfosFuture.Apply(BIND([=] (const std::vector<TDiskInfo>& diskInfos) {
@@ -34,11 +35,23 @@ TFuture<std::vector<TDiskInfo>> TDiskInfoProvider::GetYTDiskInfos()
             std::vector<TDiskInfo> disks;
 
             for (const auto& diskInfo : diskInfos) {
+                auto isYtDisk = false;
                 for (const auto& path : diskPaths) {
                     if (path.StartsWith(diskInfo.DevicePath)) {
-                        disks.push_back(diskInfo);
+                        isYtDisk = true;
                         break;
                     }
+                }
+
+                for (const auto& path : diskInfo.PartitionFsLabels) {
+                    if (path.StartsWith(diskYtPrefix)) {
+                        isYtDisk = true;
+                        break;
+                    }
+                }
+
+                if (isYtDisk) {
+                    disks.push_back(diskInfo);
                 }
             }
 
@@ -59,9 +72,9 @@ TFuture<void> TDiskInfoProvider::FailDisk(
     return DiskManagerProxy_->FailDiskById(diskId, reason);
 }
 
-TFuture<bool> TDiskInfoProvider::IsHotSwapEnabled()
+TFuture<bool> TDiskInfoProvider::GetHotSwapEnabledFuture()
 {
-    return DiskManagerProxy_->IsHotSwapEnabled();
+    return DiskManagerProxy_->GetHotSwapEnabledFuture();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -373,6 +373,8 @@ public:
     //! Enable alert about location disk failing.
     void MarkLocationDiskFailed();
 
+    void MarkLocationDiskWaitingReplacement();
+
     //! Returns |true| if location is sick.
     bool IsSick() const;
 

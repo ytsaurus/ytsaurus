@@ -26,6 +26,8 @@ void TDiskInfoProviderConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("disk_ids", &TThis::DiskIds)
         .Default();
+    registrar.Parameter("yt_disk_prefix", &TThis::YtDiskPrefix)
+        .Default("/yt");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -18,6 +18,8 @@
 
 #include <yt/yt/server/lib/misc/restart_manager.h>
 
+#include <yt/yt/server/lib/misc/disk_change_checker.h>
+
 #include <yt/yt/server/lib/cellar_agent/public.h>
 
 #include <yt/yt/server/lib/job_proxy/public.h>

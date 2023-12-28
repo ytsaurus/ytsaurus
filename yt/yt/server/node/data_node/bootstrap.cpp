@@ -33,6 +33,7 @@
 
 #include <yt/yt/library/query/engine_api/config.h>
 
+#include <yt/yt/library/containers/disk_manager/config.h>
 #include <yt/yt/library/containers/disk_manager/disk_info_provider.h>
 #include <yt/yt/library/containers/disk_manager/disk_manager_proxy.h>
 
@@ -250,6 +251,10 @@ public:
         DiskInfoProvider_ = New<TDiskInfoProvider>(
             DiskManagerProxy_,
             GetConfig()->DataNode->DiskInfoProvider);
+        DiskChangeChecker_ = New<TDiskChangeChecker>(
+            DiskInfoProvider_,
+            GetControlInvoker(),
+            DataNodeLogger);
         LocationManager_ = New<TLocationManager>(
             this,
             ChunkStore_,
@@ -275,6 +280,10 @@ public:
             GetOrchidRoot(),
             "/data_node",
             CreateVirtualNode(GetOrchidService(this)));
+        SetNodeByYPath(
+            GetOrchidRoot(),
+            "/disk_monitoring",
+            CreateVirtualNode(DiskChangeChecker_->GetOrchidService()));
 
         P2PDistributor_->Start();
 
@@ -283,6 +292,8 @@ public:
         AllyReplicaManager_->Start();
 
         LocationHealthChecker_->Start();
+
+        DiskChangeChecker_->Start();
     }
 
     const TChunkStorePtr& GetChunkStore() const override
@@ -298,6 +309,11 @@ public:
     const TLocationManagerPtr& GetLocationManager() const override
     {
         return LocationManager_;
+    }
+
+    const TDiskChangeCheckerPtr& GetDiskChangeChecker() const override
+    {
+        return DiskChangeChecker_;
     }
 
     const TSessionManagerPtr& GetSessionManager() const override
@@ -456,6 +472,7 @@ private:
 
     IDiskManagerProxyPtr DiskManagerProxy_;
     TDiskInfoProviderPtr DiskInfoProvider_;
+    TDiskChangeCheckerPtr DiskChangeChecker_;
     TLocationManagerPtr LocationManager_;
     TLocationHealthCheckerPtr LocationHealthChecker_;
 

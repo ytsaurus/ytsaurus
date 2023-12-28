@@ -16,10 +16,15 @@
 
 #include <yt/yt/server/lib/misc/address_helpers.h>
 #include <yt/yt/server/lib/misc/restart_manager.h>
+#include <yt/yt/server/lib/misc/disk_change_checker.h>
 
 #include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/library/program/build_attributes.h>
+
+#include <yt/yt/library/containers/disk_manager/config.h>
+#include <yt/yt/library/containers/disk_manager/disk_info_provider.h>
+#include <yt/yt/library/containers/disk_manager/disk_manager_proxy.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -54,6 +59,7 @@
 #include <yt/yt/core/net/address.h>
 
 #include <yt/yt/library/coredumper/coredumper.h>
+
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 #include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
@@ -192,6 +198,15 @@ void TBootstrap::DoRun()
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
 
+    DiskManagerProxy_ = CreateDiskManagerProxy(New<NContainers::TDiskManagerProxyConfig>());
+    DiskInfoProvider_ = New<NContainers::TDiskInfoProvider>(
+        DiskManagerProxy_,
+        New<NContainers::TDiskInfoProviderConfig>());
+    DiskChangeChecker_ = New<TDiskChangeChecker>(
+        DiskInfoProvider_,
+        GetControlInvoker(),
+        Logger);
+
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
         HttpServer_,
@@ -212,6 +227,10 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/cluster_connection",
         CreateVirtualNode(Connection_->GetOrchidService()));
+    SetNodeByYPath(
+        orchidRoot,
+        "/disk_monitoring",
+        CreateVirtualNode(DiskChangeChecker_->GetOrchidService()));
     SetBuildAttributes(
         orchidRoot,
         "proxy");
@@ -255,6 +274,7 @@ void TBootstrap::DoRun()
         TvmOnlyRpcServer_->RegisterService(TvmOnlyApiService_);
     }
 
+    DiskChangeChecker_->Start();
     DynamicConfigManager_->Initialize();
     DynamicConfigManager_->Start();
 

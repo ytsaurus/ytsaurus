@@ -39,6 +39,10 @@
 
 #include <yt/yt/library/dns_over_rpc/server/dns_over_rpc_service.h>
 
+#include <yt/yt/library/containers/disk_manager/config.h>
+#include <yt/yt/library/containers/disk_manager/disk_info_provider.h>
+#include <yt/yt/library/containers/disk_manager/disk_manager_proxy.h>
+
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/local_address.h>
 
@@ -156,6 +160,16 @@ public:
             NNet::TAddressResolver::Get()->GetDnsResolver(),
             DnsOverRpcActionQueue_->GetInvoker()));
 
+        DiskManagerProxy_ = CreateDiskManagerProxy(
+            GetConfig()->DataNode->DiskManagerProxy);
+        DiskInfoProvider_ = New<NContainers::TDiskInfoProvider>(
+            DiskManagerProxy_,
+            GetConfig()->DataNode->DiskInfoProvider);
+        DiskChangeChecker_ = New<TDiskChangeChecker>(
+            DiskInfoProvider_,
+            GetControlInvoker(),
+            ExecNodeLogger);
+
         // NB(psushin): initialize chunk cache first because slot manager (and root
         // volume manager inside it) can start using it to populate tmpfs layers cache.
         ChunkCache_->Initialize();
@@ -178,12 +192,18 @@ public:
             CreateVirtualNode(GetOrchidService(this))
         );
 
+        SetNodeByYPath(
+            GetOrchidRoot(),
+            "/disk_monitoring",
+            CreateVirtualNode(DiskChangeChecker_->GetOrchidService()));
+
         JobProxySolomonExporter_->Register("/solomon/job_proxy", GetHttpServer());
         JobProxySolomonExporter_->Start();
 
         SchedulerConnector_->Start();
 
         ControllerAgentConnectorPool_->Start();
+        DiskChangeChecker_->Start();
     }
 
     const TGpuManagerPtr& GetGpuManager() const override
@@ -290,6 +310,10 @@ private:
 
     TActionQueuePtr NbdQueue_;
     NYT::NNbd::INbdServerPtr NbdServer_;
+
+    NContainers::IDiskManagerProxyPtr DiskManagerProxy_;
+    NContainers::TDiskInfoProviderPtr DiskInfoProvider_;
+    TDiskChangeCheckerPtr DiskChangeChecker_;
 
     void BuildJobProxyConfigTemplate()
     {

@@ -30,7 +30,7 @@ NYTree::IYPathServicePtr GetOrchidService(const IBootstrap* bootstrap)
         bootstrap->GetJobController()->GetOrchidService());
     mapService->AddChild(
         "location_manager",
-        bootstrap->GetLocationManager()->GetOrchidService());
+        bootstrap->GetDiskChangeChecker()->GetOrchidService());
     mapService->AddChild(
         "session_manager",
         bootstrap->GetSessionManager()->GetOrchidService());

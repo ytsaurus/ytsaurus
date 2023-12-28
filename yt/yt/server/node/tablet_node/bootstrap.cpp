@@ -43,6 +43,10 @@
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
+#include <yt/yt/library/containers/disk_manager/config.h>
+#include <yt/yt/library/containers/disk_manager/disk_info_provider.h>
+#include <yt/yt/library/containers/disk_manager/disk_manager_proxy.h>
+
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 
 #include <yt/yt/core/ytree/virtual.h>
@@ -301,6 +305,15 @@ public:
         GetRpcServer()->RegisterService(CreateQueryService(GetConfig()->QueryAgent, this));
         GetRpcServer()->RegisterService(CreateTabletCellService(this));
 
+        DiskManagerProxy_ = CreateDiskManagerProxy(New<NContainers::TDiskManagerProxyConfig>());
+        DiskInfoProvider_ = New<NContainers::TDiskInfoProvider>(
+            DiskManagerProxy_,
+            New<NContainers::TDiskInfoProviderConfig>());
+        DiskChangeChecker_ = New<TDiskChangeChecker>(
+            DiskInfoProvider_,
+            GetControlInvoker(),
+            TabletNodeLogger);
+
         SlotManager_->Initialize();
         MasterConnector_->Initialize();
     }
@@ -336,6 +349,10 @@ public:
             GetOrchidRoot(),
             "/tablet_node_thread_pools",
             CreateVirtualNode(CreateThreadPoolsOrchidService()));
+        SetNodeByYPath(
+            GetOrchidRoot(),
+            "/disk_monitoring",
+            CreateVirtualNode(DiskChangeChecker_->GetOrchidService()));
 
         StoreCompactor_->Start();
         StoreFlusher_->Start();
@@ -349,6 +366,7 @@ public:
         TableDynamicConfigManager_->Start();
         SlotManager_->Start();
         OverloadController_->Start();
+        DiskChangeChecker_->Start();
     }
 
     NYTree::IYPathServicePtr CreateThreadPoolsOrchidService()
@@ -554,6 +572,10 @@ private:
     IBackingStoreCleanerPtr BackingStoreCleaner_;
     ILsmInteropPtr LsmInterop_;
     TOverloadControllerPtr OverloadController_;
+
+    NContainers::IDiskManagerProxyPtr DiskManagerProxy_;
+    NContainers::TDiskInfoProviderPtr DiskInfoProvider_;
+    TDiskChangeCheckerPtr DiskChangeChecker_;
 
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& oldConfig,

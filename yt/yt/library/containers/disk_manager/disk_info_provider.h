@@ -26,7 +26,7 @@ public:
         const TString& diskId,
         const TString& reason);
 
-    TFuture<bool> IsHotSwapEnabled();
+    TFuture<bool> GetHotSwapEnabledFuture();
 
 private:
     const IDiskManagerProxyPtr DiskManagerProxy_;

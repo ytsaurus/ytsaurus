@@ -41,29 +41,9 @@ TLocationManager::TLocationManager(
     : DiskInfoProvider_(std::move(diskInfoProvider))
     , ChunkStore_(std::move(chunkStore))
     , ControlInvoker_(std::move(controlInvoker))
-    , OrchidService_(CreateOrchidService())
 {
     bootstrap->SubscribePopulateAlerts(
         BIND(&TLocationManager::PopulateAlerts, MakeWeak(this)));
-}
-
-void TLocationManager::BuildOrchid(IYsonConsumer* consumer)
-{
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("disk_ids_mismatched").Value(DiskIdsMismatched_.load())
-        .EndMap();
-}
-
-IYPathServicePtr TLocationManager::CreateOrchidService()
-{
-    return IYPathService::FromProducer(BIND(&TLocationManager::BuildOrchid, MakeStrong(this)))
-        ->Via(ControlInvoker_);
-}
-
-IYPathServicePtr TLocationManager::GetOrchidService()
-{
-    return OrchidService_;
 }
 
 TFuture<void> TLocationManager::FailDiskByName(
@@ -101,16 +81,27 @@ void TLocationManager::PopulateAlerts(std::vector<TError>* alerts)
             alerts->push_back(std::move(alert));
         }
     }
+
+    for (auto alert : DiskWaitingReplacementAlerts_.Load()) {
+        if (!alert.IsOK()) {
+            alerts->push_back(std::move(alert));
+        }
+    }
 }
 
-void TLocationManager::SetDiskAlerts(std::vector<TError> alerts)
+void TLocationManager::SetFailedDiskAlerts(std::vector<TError> alerts)
 {
     DiskFailedAlerts_.Store(alerts);
 }
 
-void TLocationManager::SetUnlinkedDiskIds(std::vector<TString> diskIds)
+void TLocationManager::SetWaitingReplacementDiskAlerts(std::vector<TError> alerts)
 {
-    UnlinkedDiskIds_.Store(diskIds);
+    DiskWaitingReplacementAlerts_.Store(alerts);
+}
+
+void TLocationManager::SetFailedUnlinkedDiskIds(std::vector<TString> diskIds)
+{
+    FailedUnlinkedDiskIds_.Store(diskIds);
 }
 
 std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
@@ -118,11 +109,11 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    THashMap<TString, TString> diskNameToId;
+    THashMap<TString, TDiskInfo> diskNameToDisk;
     THashSet<TString> failedDisks;
 
     for (const auto& disk : disks) {
-        diskNameToId.emplace(std::make_pair(disk.DeviceName, disk.DiskId));
+        diskNameToDisk.emplace(std::make_pair(disk.DeviceName, disk));
         if (disk.State == NContainers::EDiskState::Failed) {
             failedDisks.insert(disk.DeviceName);
         }
@@ -133,17 +124,18 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
     locationLivenessInfos.reserve(locations.size());
 
     for (const auto& location : locations) {
-        auto it = diskNameToId.find(location->GetStaticConfig()->DeviceName);
+        auto it = diskNameToDisk.find(location->GetStaticConfig()->DeviceName);
 
-        if (it == diskNameToId.end()) {
+        if (it == diskNameToDisk.end()) {
             YT_LOG_WARNING("Unknown location disk (DeviceName: %v)",
                 location->GetStaticConfig()->DeviceName);
         } else {
             locationLivenessInfos.push_back(TLocationLivenessInfo{
                 .Location = location,
-                .DiskId = it->second,
+                .DiskId = it->second.DiskId,
                 .LocationState = location->GetState(),
-                .IsDiskAlive = !failedDisks.contains(location->GetStaticConfig()->DeviceName)
+                .IsDiskAlive = !failedDisks.contains(location->GetStaticConfig()->DeviceName),
+                .DiskState = it->second.State
             });
         }
     }
@@ -151,36 +143,14 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
     return locationLivenessInfos;
 }
 
-TFuture<std::vector<TLocationLivenessInfo>> TLocationManager::GetLocationsLiveness()
+TFuture<bool> TLocationManager::GetHotSwapEnabledFuture()
 {
-    return DiskInfoProvider_->GetYTDiskInfos()
-        .Apply(BIND(&TLocationManager::MapLocationToLivenessInfo, MakeStrong(this))
-        .AsyncVia(ControlInvoker_));
-}
-
-TFuture<bool> TLocationManager::IsHotSwapEnabled()
-{
-    return DiskInfoProvider_->IsHotSwapEnabled();
+    return DiskInfoProvider_->GetHotSwapEnabledFuture();
 }
 
 TFuture<std::vector<TDiskInfo>> TLocationManager::GetDiskInfos()
 {
     return DiskInfoProvider_->GetYTDiskInfos();
-}
-
-const std::vector<TString>& TLocationManager::GetConfigDiskIds()
-{
-    return DiskInfoProvider_->GetConfigDiskIds();
-}
-
-void TLocationManager::UpdateOldDiskIds(THashSet<TString> oldDiskIds)
-{
-    OldDiskIds_ = oldDiskIds;
-}
-
-const THashSet<TString>& TLocationManager::GetOldDiskIds() const
-{
-    return OldDiskIds_;
 }
 
 std::vector<TGuid> TLocationManager::DoDisableLocations(const THashSet<TGuid>& locationUuids)
@@ -222,7 +192,7 @@ std::vector<TGuid> TLocationManager::DoDestroyLocations(bool recoverUnlinkedDisk
     }
 
     if (recoverUnlinkedDisk) {
-        auto unlinkedDiskIds = UnlinkedDiskIds_.Exchange(std::vector<TString>());
+        auto unlinkedDiskIds = FailedUnlinkedDiskIds_.Exchange(std::vector<TString>());
         for (const auto& diskId : unlinkedDiskIds) {
             RecoverDisk(diskId)
                 .Apply(BIND([] (const TError& result) {
@@ -281,11 +251,6 @@ TFuture<void> TLocationManager::RecoverDisk(const TString& diskId)
     return DiskInfoProvider_->RecoverDisk(diskId);
 }
 
-void TLocationManager::SetDiskIdsMismatched()
-{
-    return DiskIdsMismatched_.store(true);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TLocationHealthChecker::TLocationHealthChecker(
@@ -301,7 +266,7 @@ TLocationHealthChecker::TLocationHealthChecker(
     , RestartManager_(std::move(restartManager))
     , HealthCheckerExecutor_(New<TPeriodicExecutor>(
         Invoker_,
-        BIND(&TLocationHealthChecker::OnHealthCheck, MakeWeak(this)),
+        BIND(&TLocationHealthChecker::OnLocationsHealthCheck, MakeWeak(this)),
         DynamicConfig_.Acquire()->HealthCheckPeriod))
     , Profiler_(profiler)
 {
@@ -357,64 +322,15 @@ void TLocationHealthChecker::OnDiskHealthCheckFailed(
     }
 }
 
-void TLocationHealthChecker::OnHealthCheck()
-{
-    VERIFY_INVOKER_AFFINITY(Invoker_);
-
-    OnLocationsHealthCheck();
-}
-
-void TLocationHealthChecker::OnDiskHealthCheck(const std::vector<TDiskInfo>& diskInfos)
-{
-    THashSet<TString> diskIds;
-    THashSet<TString> aliveDiskIds;
-    THashSet<TString> oldDiskIds = LocationManager_->GetOldDiskIds();
-    THashSet<TString> configDiskIds;
-
-    for (const auto& diskInfo : diskInfos) {
-        diskIds.insert(diskInfo.DiskId);
-
-        if (diskInfo.State == NContainers::EDiskState::Ok) {
-            aliveDiskIds.insert(diskInfo.DiskId);
-        }
-    }
-
-    for (const auto& diskId : LocationManager_->GetConfigDiskIds()) {
-        configDiskIds.insert(diskId);
-    }
-
-    auto checkDisks = [] (const THashSet<TString>& oldDisks, const THashSet<TString>& newDisks) {
-        for (const auto& newDiskId : newDisks) {
-            if (!oldDisks.contains(newDiskId)) {
-                return false;
-            }
-        }
-
-        return true;
-    };
-
-    if (!oldDiskIds.empty() && !configDiskIds.empty()) {
-        if (!checkDisks(oldDiskIds, aliveDiskIds) ||
-            !checkDisks(configDiskIds, diskIds) ||
-            !checkDisks(diskIds, configDiskIds))
-        {
-            YT_LOG_WARNING("Set disk ids mismatched flag");
-            LocationManager_->SetDiskIdsMismatched();
-        }
-    }
-
-    LocationManager_->UpdateOldDiskIds(aliveDiskIds);
-}
-
 void TLocationHealthChecker::OnLocationsHealthCheck()
 {
     VERIFY_INVOKER_AFFINITY(Invoker_);
 
-    auto hotSwapEnabled = WaitFor(LocationManager_->IsHotSwapEnabled());
+    auto hotSwapEnabled = WaitFor(LocationManager_->GetHotSwapEnabledFuture());
 
     // Fast path.
     if (!hotSwapEnabled.IsOK()) {
-        YT_LOG_ERROR(hotSwapEnabled, "Failed to get hotswap creds");
+        YT_LOG_DEBUG(hotSwapEnabled);
         return;
     }
 
@@ -440,7 +356,6 @@ void TLocationHealthChecker::OnLocationsHealthCheck()
     }
 
     PushCounters(diskInfos);
-    OnDiskHealthCheck(diskInfos);
 }
 
 void TLocationHealthChecker::PushCounters(std::vector<TDiskInfo> diskInfos)
@@ -468,12 +383,20 @@ void TLocationHealthChecker::HandleHotSwap(std::vector<TDiskInfo> diskInfos)
 {
     auto livenessInfos = LocationManager_->MapLocationToLivenessInfo(diskInfos);
 
-    THashMap<TString, TError> diskAlertsMap;
+    THashMap<TString, TError> diskFailedAlertsMap;
+    THashMap<TString, TError> diskWaitingReplacementAlertsMap;
     std::vector<TString> unlinkedDiskIds;
 
     for (const auto& diskInfo : diskInfos) {
         if (diskInfo.State == NContainers::EDiskState::Failed) {
-            diskAlertsMap[diskInfo.DiskId] = TError("Disk failed, need hot swap")
+            diskFailedAlertsMap[diskInfo.DiskId] = TError("Disk failed, need hot swap")
+                << TErrorAttribute("disk_id", diskInfo.DiskId)
+                << TErrorAttribute("disk_model", diskInfo.DiskModel)
+                << TErrorAttribute("disk_state", diskInfo.State)
+                << TErrorAttribute("disk_path", diskInfo.DevicePath)
+                << TErrorAttribute("disk_name", diskInfo.DeviceName);
+        } else if (diskInfo.State == NContainers::EDiskState::RecoverWait) {
+            diskWaitingReplacementAlertsMap[diskInfo.DiskId] = TError("Disk is waiting replacement")
                 << TErrorAttribute("disk_id", diskInfo.DiskId)
                 << TErrorAttribute("disk_model", diskInfo.DiskModel)
                 << TErrorAttribute("disk_state", diskInfo.State)
@@ -482,7 +405,7 @@ void TLocationHealthChecker::HandleHotSwap(std::vector<TDiskInfo> diskInfos)
         }
     }
 
-    for (const auto& [diskAlertId, _] : diskAlertsMap) {
+    for (const auto& [diskAlertId, _] : diskFailedAlertsMap) {
         bool diskLinkedWithLocation = false;
 
         for (const auto& livenessInfo : livenessInfos) {
@@ -497,8 +420,9 @@ void TLocationHealthChecker::HandleHotSwap(std::vector<TDiskInfo> diskInfos)
         }
     }
 
-    LocationManager_->SetDiskAlerts(GetValues(diskAlertsMap));
-    LocationManager_->SetUnlinkedDiskIds(unlinkedDiskIds);
+    LocationManager_->SetFailedDiskAlerts(GetValues(diskFailedAlertsMap));
+    LocationManager_->SetWaitingReplacementDiskAlerts(GetValues(diskWaitingReplacementAlertsMap));
+    LocationManager_->SetFailedUnlinkedDiskIds(unlinkedDiskIds);
 
     THashSet<TString> diskWithLivenessLocations;
     THashSet<TString> diskWithNotDestroyingLocations;
@@ -509,8 +433,12 @@ void TLocationHealthChecker::HandleHotSwap(std::vector<TDiskInfo> diskInfos)
 
         if (livenessInfo.IsDiskAlive) {
             diskWithLivenessLocations.insert(livenessInfo.DiskId);
-        } else {
+        }
+
+        if (livenessInfo.DiskState == NContainers::EDiskState::Failed) {
             location->MarkLocationDiskFailed();
+        } else if (livenessInfo.DiskState == NContainers::EDiskState::RecoverWait) {
+            location->MarkLocationDiskWaitingReplacement();
         }
 
         if (livenessInfo.LocationState == ELocationState::Destroying) {

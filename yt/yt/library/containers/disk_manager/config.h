@@ -52,6 +52,7 @@ struct TDiskInfoProviderConfig
     : public NYTree::TYsonStruct
 {
     std::vector<TString> DiskIds;
+    TString YtDiskPrefix;
 
     REGISTER_YSON_STRUCT(TDiskInfoProviderConfig);
 

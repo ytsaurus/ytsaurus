@@ -11,6 +11,10 @@
 
 #include <yt/yt/library/coredumper/coredumper.h>
 
+#include <yt/yt/library/containers/disk_manager/config.h>
+#include <yt/yt/library/containers/disk_manager/disk_info_provider.h>
+#include <yt/yt/library/containers/disk_manager/disk_manager_proxy.h>
+
 #include <yt/yt/library/monitoring/http_integration.h>
 
 #include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
@@ -18,6 +22,7 @@
 
 #include <yt/yt/server/lib/misc/address_helpers.h>
 #include <yt/yt/server/lib/misc/restart_manager.h>
+#include <yt/yt/server/lib/misc/disk_change_checker.h>
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
@@ -160,6 +165,10 @@ private:
 
     TDynamicConfigManagerPtr DynamicConfigManager_;
 
+    NContainers::IDiskManagerProxyPtr DiskManagerProxy_;
+    NContainers::TDiskInfoProviderPtr DiskInfoProvider_;
+    TDiskChangeCheckerPtr DiskChangeChecker_;
+
     void DoInitialize()
     {
         BusServer_ = NBus::CreateBusServer(Config_->BusServer);
@@ -219,6 +228,15 @@ private:
             MasterCacheLogger,
             NativeAuthenticator_));
 
+        DiskManagerProxy_ = CreateDiskManagerProxy(New<NContainers::TDiskManagerProxyConfig>());
+        DiskInfoProvider_ = New<NContainers::TDiskInfoProvider>(
+            DiskManagerProxy_,
+            New<NContainers::TDiskInfoProviderConfig>());
+        DiskChangeChecker_ = New<TDiskChangeChecker>(
+            DiskInfoProvider_,
+            GetControlInvoker(),
+            Logger);
+
         SetNodeByYPath(
             OrchidRoot_,
             "/config",
@@ -229,8 +247,8 @@ private:
             CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
         SetNodeByYPath(
             OrchidRoot_,
-            "/restart_manager",
-            CreateVirtualNode(restartManager->GetOrchidService()));
+            "/disk_monitoring",
+            CreateVirtualNode(DiskChangeChecker_->GetOrchidService()));
 
         RpcServer_->RegisterService(CreateOrchidService(
             OrchidRoot_,
@@ -241,6 +259,8 @@ private:
     void DoRun()
     {
         DynamicConfigManager_->Start();
+
+        DiskChangeChecker_->Start();
 
         YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
         HttpServer_->Start();
