@@ -1696,6 +1696,7 @@ class TestClientConfigFromCluster(object):
         assert yt.config["proxy"]["request_timeout"] == 20000, "default"
         assert len(pickle.dumps(yt.config.config["proxy"])) > 0
         assert deepcopy(yt.config.config) is not None
+        yt.remove(config_remote_patch_path, recursive=True, force=True)
 
     @authors("denvr")
     def test_remote_config_and_env(self):
@@ -1719,3 +1720,4 @@ class TestClientConfigFromCluster(object):
         assert type(yt.default_config.default_config["proxy"]["enable_proxy_discovery"]) == yt.default_config.RemotePatchableBoolean
         assert type(config["proxy"]["enable_proxy_discovery"]) == bool
         assert config["proxy"]["enable_proxy_discovery"]
+        yt.remove(config_remote_patch_path, recursive=True, force=True)
