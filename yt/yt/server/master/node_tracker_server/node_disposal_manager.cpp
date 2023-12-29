@@ -202,6 +202,12 @@ private:
         }
 
         DisposeNodeSemaphore_->SetTotal(config->MaxConcurrentNodeUnregistrations);
+        while (std::ssize(NodesBeingDisposed_) < GetDynamicConfig()->MaxNodesBeingDisposed &&
+            !NodesAwaitingForBeingDisposed_.empty())
+        {
+            InsertOrCrash(NodesBeingDisposed_, NodesAwaitingForBeingDisposed_.front());
+            NodesAwaitingForBeingDisposed_.pop_front();
+        }
     }
 
     const TDynamicNodeTrackerConfigPtr& GetDynamicConfig()
