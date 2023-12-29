@@ -4,7 +4,7 @@
 
 #include <yt/yt/client/object_client/public.h>
 
-#include <yt/yt/core/actions/public.h>
+#include <yt/yt/core/actions/future.h>
 
 #include <library/cpp/yt/memory/ref_counted.h>
 
