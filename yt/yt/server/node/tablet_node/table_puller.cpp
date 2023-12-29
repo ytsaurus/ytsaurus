@@ -627,7 +627,7 @@ private:
             localTransaction->ModifyRows(
                 tabletSnapshot->TablePath,
                 nameTable,
-                MakeSharedRange(rowModifications),
+                MakeSharedRange(std::move(rowModifications)),
                 modifyOptions);
 
             {

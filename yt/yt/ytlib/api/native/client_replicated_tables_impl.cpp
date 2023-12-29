@@ -112,7 +112,7 @@ TSharedRange<TUnversionedRow> TClient::PermuteAndEvaluateKeys(
         evaluatedKeys.push_back(capturedKey);
     }
 
-    return MakeSharedRange(evaluatedKeys, std::move(rowBuffer));
+    return MakeSharedRange(std::move(evaluatedKeys), std::move(rowBuffer));
 }
 
 std::vector<TTableReplicaId> TClient::GetReplicatedTableInSyncReplicas(
