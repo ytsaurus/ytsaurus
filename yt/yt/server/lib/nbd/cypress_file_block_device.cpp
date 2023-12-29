@@ -105,7 +105,7 @@ public:
         TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/removed")
             .Increment(1);
 
-        YT_LOG_INFO("Destroying cypress file block device (Path: %v, ReadBytes: %v, ReadBlockBytesFromCache: %v, ReadBlockBytesFromDisk: %v, ReadBlockMetaBytesFromDisk: %v)",
+        YT_LOG_INFO("Destroying Cypress file block device (Path: %v, ReadBytes: %v, ReadBlockBytesFromCache: %v, ReadBlockBytesFromDisk: %v, ReadBlockMetaBytesFromDisk: %v)",
             Config_->Path,
             ReadBytes_.load(),
             ReadBlockBytesFromCache_.load(),

@@ -391,6 +391,7 @@ private:
                 ETransmissionFlags::NBD_FLAG_SEND_FUA;
             if (Device_->IsReadOnly()) {
                 flags |= ETransmissionFlags::NBD_FLAG_READ_ONLY;
+                flags |= ETransmissionFlags::NBD_FLAG_CAN_MULTI_CONN;
             }
 
             TServerExportNameMessage message{
