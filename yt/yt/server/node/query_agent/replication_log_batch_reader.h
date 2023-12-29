@@ -9,7 +9,6 @@ namespace NYT::NQueryAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IReplicationLogBatchFetcher
-    : TNonCopyable
 {
     virtual ~IReplicationLogBatchFetcher() = default;
     virtual NTableClient::IUnversionedRowBatchPtr ReadNextRowBatch(i64 currentRowIndex) = 0;
@@ -23,7 +22,7 @@ public:
     TReplicationLogBatchReaderBase(
         NTabletNode::TTableMountConfigPtr mountConfig,
         NTabletClient::TTabletId tabletId,
-        const NLogging::TLogger& logger);
+        NLogging::TLogger logger);
 
     virtual ~TReplicationLogBatchReaderBase() = default;
 
@@ -39,7 +38,7 @@ public:
 protected:
     const NTabletNode::TTableMountConfigPtr TableMountConfig_;
     const NTabletClient::TTabletId TabletId_;
-    const NLogging::TLogger& Logger;
+    const NLogging::TLogger Logger;
 
     virtual NTableClient::TColumnFilter CreateColumnFilter() const;
 
@@ -56,7 +55,7 @@ protected:
         NTableClient::TTimestamp* timestamp,
         i64* rowDataWeight) const = 0;
 
-    virtual void WriteTypeErasedRow(const NTableClient::TTypeErasedRow& row) = 0;
+    virtual void WriteTypeErasedRow(NTableClient::TTypeErasedRow row) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

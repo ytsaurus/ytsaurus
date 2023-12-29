@@ -15,10 +15,10 @@ using namespace NLogging;
 TReplicationLogBatchReaderBase::TReplicationLogBatchReaderBase(
     TTableMountConfigPtr mountConfig,
     TTabletId tabletId,
-    const TLogger& logger)
+    TLogger logger)
     : TableMountConfig_(std::move(mountConfig))
-    , TabletId_(tabletId)
-    , Logger(logger)
+    , TabletId_(std::move(tabletId))
+    , Logger(std::move(logger))
 { }
 
 TColumnFilter TReplicationLogBatchReaderBase::CreateColumnFilter() const
@@ -65,7 +65,7 @@ void TReplicationLogBatchReaderBase::ReadReplicationBatch(
             auto range = batch->MaterializeRows();
             readerRows.assign(range.begin(), range.end());
 
-            for (const auto& replicationLogRow : readerRows) {
+            for (auto replicationLogRow : readerRows) {
                 TTypeErasedRow replicationRow;
                 TTimestamp timestamp;
                 i64 rowDataWeight;

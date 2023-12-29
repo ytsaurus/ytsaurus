@@ -1767,7 +1767,7 @@ private:
             TLegacyOwningKey lower,
             TLegacyOwningKey upper,
             const TColumnFilter& columnFilter,
-            const NTabletNode::TTabletSnapshotPtr& tabletSnapshot,
+            NTabletNode::TTabletSnapshotPtr tabletSnapshot,
             const TClientChunkReadOptions& chunkReaderOptions,
             const TRowBatchReadOptions& rowBatchReadOptions,
             const NTabletClient::TTabletId& tabletId,
@@ -1775,7 +1775,7 @@ private:
             : TabletId_(tabletId)
             , RowBatchReadOptions_(rowBatchReadOptions)
             , Reader_(CreateSchemafulRangeTabletReader(
-                tabletSnapshot,
+                std::move(tabletSnapshot),
                 columnFilter,
                 std::move(lower),
                 std::move(upper),
@@ -1786,7 +1786,7 @@ private:
             , Logger(logger)
         { }
 
-        IUnversionedRowBatchPtr ReadNextRowBatch(i64 currentRowIndex) override final
+        IUnversionedRowBatchPtr ReadNextRowBatch(i64 currentRowIndex) override
         {
             IUnversionedRowBatchPtr batch;
             while (true) {
@@ -1810,7 +1810,7 @@ private:
         const NTabletClient::TTabletId& TabletId_;
         const TRowBatchReadOptions& RowBatchReadOptions_;
         const ISchemafulUnversionedReaderPtr Reader_;
-        const NLogging::TLogger& Logger;
+        const NLogging::TLogger Logger;
     };
 
     class TTabletRowBatchReader
@@ -1818,44 +1818,44 @@ private:
     {
     public:
         TTabletRowBatchReader(
-            const NTabletNode::TTabletSnapshotPtr& tabletSnapshot,
-            const TClientChunkReadOptions& chunkReaderOptions,
-            const TRowBatchReadOptions& rowBatchReadOptions,
-            const TReplicationProgress& progress,
+            NTabletNode::TTabletSnapshotPtr tabletSnapshot,
+            TClientChunkReadOptions chunkReaderOptions,
+            TRowBatchReadOptions rowBatchReadOptions,
+            TReplicationProgress progress,
             IWireProtocolWriter* writer,
-            const NLogging::TLogger& logger)
+            NLogging::TLogger logger)
             : TReplicationLogBatchReaderBase(
                 tabletSnapshot->Settings.MountConfig,
                 tabletSnapshot->TabletId,
-                logger)
+                std::move(logger))
             , TablerSnapshotPtr_(std::move(tabletSnapshot))
-            , ChunkReadOptions_(chunkReaderOptions)
-            , RowBatchReadOptions_(rowBatchReadOptions)
-            , Progress_(progress)
+            , ChunkReadOptions_(std::move(chunkReaderOptions))
+            , RowBatchReadOptions_(std::move(rowBatchReadOptions))
+            , Progress_(std::move(progress))
             , Writer_(writer)
         { }
 
     protected:
         const NTabletNode::TTabletSnapshotPtr TablerSnapshotPtr_;
-        const TClientChunkReadOptions& ChunkReadOptions_;
-        const TRowBatchReadOptions& RowBatchReadOptions_;
-        const TReplicationProgress& Progress_;
+        const TClientChunkReadOptions ChunkReadOptions_;
+        const TRowBatchReadOptions RowBatchReadOptions_;
+        const TReplicationProgress Progress_;
         IWireProtocolWriter* Writer_;
 
         std::unique_ptr<IReplicationLogBatchFetcher> MakeBatchFetcher(
             TLegacyOwningKey lower,
             TLegacyOwningKey upper,
-            const TColumnFilter& columnFilter) const override final
+            const TColumnFilter& columnFilter) const override
         {
             return std::make_unique<TTabletBatchFetcher>(
-                    std::move(lower),
-                    std::move(upper),
-                    columnFilter,
-                    TablerSnapshotPtr_,
-                    ChunkReadOptions_,
-                    RowBatchReadOptions_,
-                    TabletId_,
-                    Logger);
+                std::move(lower),
+                std::move(upper),
+                columnFilter,
+                TablerSnapshotPtr_,
+                ChunkReadOptions_,
+                RowBatchReadOptions_,
+                TabletId_,
+                Logger);
         }
     };
 
@@ -1893,7 +1893,7 @@ private:
         }
 
     protected:
-        TColumnFilter CreateColumnFilter() const override final
+        TColumnFilter CreateColumnFilter() const override
         {
             // Without a filter first two columns are (tablet index, row index). Add tablet index column to row.
             TColumnFilter::TIndexes columnFilterIndexes{0};
@@ -1903,7 +1903,7 @@ private:
             return TColumnFilter(std::move(columnFilterIndexes));
         }
 
-        TLegacyOwningKey MakeBoundKey(i64 currentRowIndex) const override final
+        TLegacyOwningKey MakeBoundKey(i64 currentRowIndex) const override
         {
             return MakeRowBound(currentRowIndex, TabletIndex_);
         }
@@ -1912,7 +1912,7 @@ private:
             const TUnversionedRow& row,
             TTypeErasedRow* replicationRow,
             TTimestamp* timestamp,
-            i64* rowDataWeight) const override final
+            i64* rowDataWeight) const override
         {
             auto rowTimestamp = row[TimestampColumnIndex_].Data.Uint64;
 
@@ -1927,14 +1927,14 @@ private:
             return true;
         }
 
-        void WriteTypeErasedRow(const TTypeErasedRow& row) override final
+        void WriteTypeErasedRow(TTypeErasedRow row) override
         {
-            Writer_->WriteSchemafulRow(TUnversionedRow(row));
+            Writer_->WriteSchemafulRow(TUnversionedRow(std::move(row)));
         }
 
     private:
         int TimestampColumnIndex_ = 0;
-        long TabletIndex_ = 0;
+        int TabletIndex_ = 0;
     };
 
     class TSortedRowBatchReader
@@ -1961,7 +1961,7 @@ private:
             , RowBuffer_(rowBuffer)
         { }
 
-        TLegacyOwningKey MakeBoundKey(i64 currentRowIndex) const override final
+        TLegacyOwningKey MakeBoundKey(i64 currentRowIndex) const override
         {
             return MakeRowBound(currentRowIndex);
         }
@@ -1970,7 +1970,7 @@ private:
             const TUnversionedRow& row,
             TTypeErasedRow* replicationRow,
             TTimestamp* timestamp,
-            i64* rowDataWeight) const override final
+            i64* rowDataWeight) const override
         {
             *replicationRow = ReadVersionedReplicationRow(
                 TablerSnapshotPtr_,
@@ -1987,9 +1987,9 @@ private:
             return progressTimestamp && *progressTimestamp < *timestamp;
         }
 
-        void WriteTypeErasedRow(const TTypeErasedRow& row) override final
+        void WriteTypeErasedRow(TTypeErasedRow row) override
         {
-            Writer_->WriteVersionedRow(TVersionedRow(row));
+            Writer_->WriteVersionedRow(TVersionedRow(std::move((row))));
         }
 
     private:
@@ -2024,13 +2024,13 @@ private:
                 writer,
                 Logger)
                 .ReadReplicationBatch(
-                currentRowIndex,
-                upperTimestamp,
-                totalRowCount,
-                batchRowCount,
-                batchDataWeight,
-                maxTimestamp,
-                readAllRows);
+                    currentRowIndex,
+                    upperTimestamp,
+                    totalRowCount,
+                    batchRowCount,
+                    batchDataWeight,
+                    maxTimestamp,
+                    readAllRows);
         } else {
             TOrderedRowBatchReader(
                 tabletSnapshot,
@@ -2041,13 +2041,13 @@ private:
                 writer,
                 Logger)
                 .ReadReplicationBatch(
-                currentRowIndex,
-                upperTimestamp,
-                totalRowCount,
-                batchRowCount,
-                batchDataWeight,
-                maxTimestamp,
-                readAllRows);
+                    currentRowIndex,
+                    upperTimestamp,
+                    totalRowCount,
+                    batchRowCount,
+                    batchDataWeight,
+                    maxTimestamp,
+                    readAllRows);
         }
     }
 

@@ -33,11 +33,11 @@ class TFakeBatchFetcher
 public:
     TFakeBatchFetcher(std::vector<TUnversionedRow> batch, int batchSize = 10)
         : Batch_(std::move(batch))
-        , Position_(0)
         , BatchSize_(batchSize)
+        , Position_(0)
     { }
 
-    IUnversionedRowBatchPtr ReadNextRowBatch(i64 /*currentRowIndex*/) override final
+    IUnversionedRowBatchPtr ReadNextRowBatch(i64 /*currentRowIndex*/) override
     {
         int amount = std::min<int>(Batch_.size() - Position_, BatchSize_);
         if (amount == 0) {
@@ -49,9 +49,9 @@ public:
     }
 
 private:
-    std::vector<TUnversionedRow> Batch_;
+    const std::vector<TUnversionedRow> Batch_;
+    const int BatchSize_;
     int Position_;
-    int BatchSize_;
 };
 
 
@@ -62,20 +62,14 @@ public:
     TFakeReplicationLogBatchReader(
         TTableMountConfigPtr mountConfig,
         TTabletId tabletId,
-        const TLogger& logger,
-        const std::vector<TFakeRow>& replicationLogRows)
+        TLogger logger,
+        const std::vector<TFakeRow>& replicationLogFakeRows)
         : TReplicationLogBatchReaderBase(
-            mountConfig,
-            tabletId,
-            logger)
-    {
-        ReplicationLogRows_.reserve(replicationLogRows.size());
-        int i = 0;
-        for (const auto& t : replicationLogRows) {
-            ReplicationLogRows_.push_back(MakeUnversionedOwningRow(t.Timestamp, t.Weight, i));
-            ++i;
-        }
-    }
+            std::move(mountConfig),
+            std::move(tabletId),
+            std::move(logger))
+        , ReplicationLogRows_(BuildReplicationLogRows(replicationLogFakeRows))
+    { }
 
     const std::vector<int>& GetProcessedRows() const
     {
@@ -88,7 +82,7 @@ public:
     }
 
 protected:
-    TLegacyOwningKey MakeBoundKey(i64 currentRowIndex) const override final
+    TLegacyOwningKey MakeBoundKey(i64 currentRowIndex) const override
     {
         return MakeRowBound(currentRowIndex);
     }
@@ -101,7 +95,7 @@ protected:
     std::unique_ptr<IReplicationLogBatchFetcher> MakeBatchFetcher(
         NTableClient::TLegacyOwningKey lower,
         NTableClient::TLegacyOwningKey upper,
-        const NTableClient::TColumnFilter& /*columnFilter*/) const override final
+        const NTableClient::TColumnFilter& /*columnFilter*/) const override
 
     {
         ++ReadsCount_;
@@ -126,7 +120,7 @@ protected:
         const TUnversionedRow& row,
         TTypeErasedRow* replicationRow,
         TTimestamp* timestamp,
-        i64* rowDataWeight) const override final
+        i64* rowDataWeight) const override
     {
         *replicationRow = row.ToTypeErasedRow();
         *timestamp = row[0].Data.Uint64;
@@ -134,15 +128,28 @@ protected:
         return true;
     }
 
-    void WriteTypeErasedRow(const TTypeErasedRow& row) override final
+    void WriteTypeErasedRow(TTypeErasedRow row) override
     {
-        ProcessedRows_.push_back(TUnversionedRow(row)[2].Data.Int64);
+        ProcessedRows_.push_back(TUnversionedRow(std::move(row))[2].Data.Int64);
     }
 
 private:
-    std::vector<TUnversionedOwningRow> ReplicationLogRows_;
+    const std::vector<TUnversionedOwningRow> ReplicationLogRows_;
     std::vector<int> ProcessedRows_;
     mutable int ReadsCount_ = 0;
+
+    static std::vector<TUnversionedOwningRow> BuildReplicationLogRows(
+        const std::vector<TFakeRow>& replicationLogFakeRows)
+    {
+        std::vector<TUnversionedOwningRow> replicationLogRows;
+        replicationLogRows.reserve(replicationLogRows.size());
+        int i = 0;
+        for (const auto& t : replicationLogFakeRows) {
+            replicationLogRows.push_back(MakeUnversionedOwningRow(t.Timestamp, t.Weight, i));
+            ++i;
+        }
+        return replicationLogRows;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -167,7 +174,7 @@ void CheckReaderContinious(const TFakeReplicationLogBatchReader& reader, int exp
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TReplicationLogBatchReaderSuite, TestReadEmpty)
+TEST(TReplicationLogBatchReaderTest, TestReadEmpty)
 {
     TTableMountConfigPtr mountConfig = New<TTableMountConfig>();
     mountConfig->MaxRowsPerReplicationCommit = 1000;
@@ -204,7 +211,7 @@ TEST(TReplicationLogBatchReaderSuite, TestReadEmpty)
     EXPECT_EQ(reader.GetReadsCount(), 1);
 }
 
-TEST(TReplicationLogBatchReaderSuite, TestReadAll)
+TEST(TReplicationLogBatchReaderTest, TestReadAll)
 {
     TTableMountConfigPtr mountConfig = New<TTableMountConfig>();
     mountConfig->MaxRowsPerReplicationCommit = 1000;
@@ -243,7 +250,7 @@ TEST(TReplicationLogBatchReaderSuite, TestReadAll)
     CheckReaderContinious(reader, 30);
 }
 
-TEST(TReplicationLogBatchReaderSuite, TestReadUntilLimits)
+TEST(TReplicationLogBatchReaderTest, TestReadUntilLimits)
 {
     TTableMountConfigPtr mountConfig = New<TTableMountConfig>();
     mountConfig->MaxRowsPerReplicationCommit = 12;
@@ -305,7 +312,7 @@ TEST(TReplicationLogBatchReaderSuite, TestReadUntilLimits)
     CheckReaderContinious(reader, 30);
 }
 
-TEST(TReplicationLogBatchReaderSuite, TestReadLargeTransactionBreakingLimits)
+TEST(TReplicationLogBatchReaderTest, TestReadLargeTransactionBreakingLimits)
 {
     TTableMountConfigPtr mountConfig = New<TTableMountConfig>();
     mountConfig->MaxRowsPerReplicationCommit = 12;
