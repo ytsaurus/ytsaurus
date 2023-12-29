@@ -87,11 +87,6 @@ protected:
         return MakeRowBound(currentRowIndex);
     }
 
-    static i64 GetRowIndexFromKey(const TLegacyOwningKey& key)
-    {
-        return key[1].Data.Int64;
-    }
-
     std::unique_ptr<IReplicationLogBatchFetcher> MakeBatchFetcher(
         NTableClient::TLegacyOwningKey lower,
         NTableClient::TLegacyOwningKey upper,
@@ -100,8 +95,8 @@ protected:
     {
         ++ReadsCount_;
 
-        auto lowerRowIndex = std::max<i64>(GetRowIndexFromKey(lower), 0);
-        auto upperRowIndex = std::min<i64>(std::max<i64>(GetRowIndexFromKey(upper), 0), ReplicationLogRows_.size());
+        auto lowerRowIndex = std::max<i64>(GetLogRowIndex(lower), 0);
+        auto upperRowIndex = std::min<i64>(std::max<i64>(GetLogRowIndex(upper), 0), ReplicationLogRows_.size());
 
         if (lowerRowIndex >= i64(ReplicationLogRows_.size())) {
             return std::make_unique<TFakeBatchFetcher>(std::vector<TUnversionedRow>());
