@@ -8,10 +8,10 @@ namespace NYT::NContainers::NCGroups {
 
 struct TMemoryStatistics
 {
-    ui64 Rss;
-    ui64 PeakRss;
-    ui64 MappedFile;
-    ui64 MajorPageFaults;
+    ui64 Rss = 0;
+    ui64 PeakRss = 0;
+    ui64 MappedFile = 0;
+    ui64 MajorPageFaults = 0;
 };
 
 struct TCpuStatistics
@@ -22,11 +22,11 @@ struct TCpuStatistics
 
 struct TBlockIOStatistics
 {
-    ui64 IOReadByte;
-    ui64 IOWriteByte;
+    ui64 IOReadByte = 0;
+    ui64 IOWriteByte = 0;
 
-    ui64 IOReadOps;
-    ui64 IOWriteOps;
+    ui64 IOReadOps = 0;
+    ui64 IOWriteOps = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
