@@ -354,8 +354,24 @@ public:
         }
         queuePhysicalPath = NYPath::TRichYPath(queueTableInfoOrError.Value()->PhysicalPath, queuePath.Attributes());
 
-        auto subConsumerClient = CreateSubConsumerClient(GetClient(), consumerPath.GetPath(), queuePhysicalPath);
+        auto queueClient = GetClient();
+        if (auto queueCluster = queuePath.GetCluster()) {
+            auto queueConnection = FindRemoteConnection(Client_->GetNativeConnection(), *queueCluster);
+            if (!queueConnection) {
+                THROW_ERROR_EXCEPTION(
+                    "Queue cluster %Qv was not found for path %v",
+                    *queueCluster,
+                    queuePath
+                );
+            }
+
+            auto queueClientOptions = TClientOptions::FromUser(Client_->GetOptions().GetAuthenticatedUser());
+            queueClient = queueConnection->CreateNativeClient(queueClientOptions);
+        }
+
+        auto subConsumerClient = CreateSubConsumerClient(GetClient(), queueClient, consumerPath.GetPath(), queuePhysicalPath);
         subConsumerClient->Advance(MakeStrong(this), partitionIndex, oldOffset, newOffset);
+
         return VoidFuture;
     }
 

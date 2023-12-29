@@ -2576,7 +2576,7 @@ IQueueRowsetPtr TClient::DoPullConsumer(
             << TErrorAttribute("raw_consumer", consumerPath);
     }
 
-    auto queueClusterClient = MakeStrong(static_cast<IInternalClient*>(this));
+    IClientPtr queueClusterClient = MakeStrong(this);
     if (auto queueCluster = queuePath.GetCluster()) {
         auto queueClusterConnection = FindRemoteConnection(Connection_, *queueCluster);
         if (!queueClusterConnection) {
@@ -2588,7 +2588,8 @@ IQueueRowsetPtr TClient::DoPullConsumer(
         }
 
         auto queueClientOptions = TClientOptions::FromUser(Options_.GetAuthenticatedUser());
-        queueClusterClient = DynamicPointerCast<IInternalClient>(queueClusterConnection->CreateNativeClient(queueClientOptions));
+
+        queueClusterClient = queueClusterConnection->CreateNativeClient(queueClientOptions);
         YT_VERIFY(queueClusterClient);
     }
 
@@ -2599,8 +2600,8 @@ IQueueRowsetPtr TClient::DoPullConsumer(
         // PullConsumer is supported only for consumers from current cluster.
         IClientPtr consumerClusterClient = MakeStrong(this);
 
-        auto subConsumerClient = CreateSubConsumerClient(consumerClusterClient, consumerPath.GetPath(), queuePath);
-        auto partitions = WaitFor(subConsumerClient->CollectPartitions(consumerClusterClient, std::vector<int>{partitionIndex}))
+        auto subConsumerClient = CreateSubConsumerClient(consumerClusterClient, queueClusterClient, consumerPath.GetPath(), queuePath);
+        auto partitions = WaitFor(subConsumerClient->CollectPartitions(std::vector<int>{partitionIndex}))
             .ValueOrThrow();
         if (partitions.size() < 1) {
             YT_LOG_DEBUG(
@@ -2622,7 +2623,7 @@ IQueueRowsetPtr TClient::DoPullConsumer(
     TPullQueueOptions pullQueueOptions = options;
     pullQueueOptions.UseNativeTabletNodeApi = true;
 
-    return WaitFor(queueClusterClient->PullQueueUnauthenticated(
+    return WaitFor(DynamicPointerCast<IInternalClient>(queueClusterClient)->PullQueueUnauthenticated(
         queuePath,
         resultOffset,
         partitionIndex,

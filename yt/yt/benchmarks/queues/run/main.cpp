@@ -294,10 +294,11 @@ private:
         CreateConsumer();
 
         ConsumerClient_ = (UseYTConsumers_
-            ? CreateConsumerClient(Client_, ConsumerPath_.GetPath())->GetSubConsumerClient({
-                .Cluster = *QueuePath_.GetCluster(),
-                .Path = QueuePath_.GetPath(),
-            })
+            ? CreateConsumerClient(Client_, ConsumerPath_.GetPath())->GetSubConsumerClient(
+                Client_, {
+                    .Cluster = *QueuePath_.GetCluster(),
+                    .Path = QueuePath_.GetPath(),
+                })
             : CreateBigRTConsumerClient(Client_, ConsumerPath_.GetPath()));
 
         if (Mode_ == "online") {
@@ -325,7 +326,7 @@ private:
     void ReportLag()
     {
         i64 nextRowIndex = 0;
-        auto partitionInfos = WaitFor(ConsumerClient_->CollectPartitions(Client_, std::vector<int>{0}, /*withLastConsumeTime*/ false))
+        auto partitionInfos = WaitFor(ConsumerClient_->CollectPartitions(std::vector<int>{0}, /*withLastConsumeTime*/ false))
             .ValueOrThrow();
         if (!partitionInfos.empty()) {
             YT_VERIFY(partitionInfos.size() == 1);

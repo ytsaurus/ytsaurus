@@ -169,59 +169,7 @@ NApi::NNative::IClientPtr AssertNativeClient(const NApi::IClientPtr& client)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<int, THashMap<i64, i64>> CollectCumulativeDataWeights(
-    const TYPath& path,
-    const NApi::IClientPtr& client,
-    const std::vector<std::pair<int, i64>>& tabletAndRowIndices,
-    const TLogger& logger)
-{
-    const auto& Logger = logger;
 
-    if (tabletAndRowIndices.empty()) {
-        return {};
-    }
-
-    TStringBuilder queryBuilder;
-    queryBuilder.AppendFormat("[$tablet_index], [$row_index], [$cumulative_data_weight] from [%v] where ([$tablet_index], [$row_index]) in (",
-        path);
-    bool isFirstTuple = true;
-    for (const auto& [partitionIndex, rowIndex] : tabletAndRowIndices) {
-        if (!isFirstTuple) {
-            queryBuilder.AppendString(", ");
-        }
-        queryBuilder.AppendFormat("(%vu, %vu)", partitionIndex, rowIndex);
-        isFirstTuple = false;
-    }
-
-    queryBuilder.AppendString(")");
-
-    YT_VERIFY(!isFirstTuple);
-
-    auto query = queryBuilder.Flush();
-    TSelectRowsOptions options;
-    options.ReplicaConsistency = EReplicaConsistency::Sync;
-    YT_LOG_TRACE("Executing query for cumulative data weights (Query: %v)", query);
-    auto selectResult = WaitFor(client->SelectRows(query, options))
-        .ValueOrThrow();
-
-    THashMap<int, THashMap<i64, i64>> result;
-
-    for (const auto& row : selectResult.Rowset->GetRows()) {
-        YT_VERIFY(row.GetCount() == 3);
-
-        auto tabletIndex = FromUnversionedValue<int>(row[0]);
-        auto rowIndex = FromUnversionedValue<i64>(row[1]);
-        auto cumulativeDataWeight = FromUnversionedValue<std::optional<i64>>(row[2]);
-
-        if (!cumulativeDataWeight) {
-            continue;
-        }
-
-        result[tabletIndex].emplace(rowIndex, *cumulativeDataWeight);
-    }
-
-    return result;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

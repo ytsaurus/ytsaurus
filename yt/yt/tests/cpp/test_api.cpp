@@ -984,7 +984,7 @@ TEST_F(TBigRTConsumerApiTest, TestBigRTConsumer)
         TColumnSchema("ShardId", EValueType::Uint64, ESortOrder::Ascending),
         TColumnSchema("Offset", EValueType::Uint64),
     }, /*strict*/ true, /*uniqueKeys*/ true);
-    auto consumerClient = NQueueClient::CreateBigRTConsumerClient("//tmp/big_rt_consumer_test", *consumerSchema);
+    auto consumerClient = NQueueClient::CreateBigRTConsumerClient(Client_, "//tmp/big_rt_consumer_test", *consumerSchema);
 
     auto transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
         .ValueOrThrow();
@@ -993,7 +993,7 @@ TEST_F(TBigRTConsumerApiTest, TestBigRTConsumer)
     WaitFor(transaction->Commit())
         .ThrowOnError();
 
-    auto partitions = WaitFor(consumerClient->CollectPartitions(Client_, 15))
+    auto partitions = WaitFor(consumerClient->CollectPartitions(15))
         .ValueOrThrow();
     ASSERT_EQ(partitions.size(), 15u);
     EXPECT_EQ(partitions[13].PartitionIndex, 13);
@@ -1008,7 +1008,7 @@ TEST_F(TBigRTConsumerApiTest, TestBigRTConsumer)
     WaitFor(transaction->Commit())
         .ThrowOnError();
 
-    partitions = WaitFor(consumerClient->CollectPartitions(Client_, 15))
+    partitions = WaitFor(consumerClient->CollectPartitions(15))
         .ValueOrThrow();
     ASSERT_EQ(partitions.size(), 15u);
     EXPECT_EQ(partitions[13].PartitionIndex, 13);
@@ -1035,7 +1035,7 @@ TEST_F(TBigRTConsumerApiTest, TestBigRTConsumer)
     WaitFor(transaction->Commit())
         .ThrowOnError();
 
-    partitions = WaitFor(consumerClient->CollectPartitions(Client_, 15))
+    partitions = WaitFor(consumerClient->CollectPartitions(15))
         .ValueOrThrow();
     ASSERT_EQ(partitions.size(), 15u);
     EXPECT_EQ(partitions[14].PartitionIndex, 14);
@@ -1048,7 +1048,7 @@ TEST_F(TBigRTConsumerApiTest, TestBigRTConsumer)
     WaitFor(transaction->Commit())
         .ThrowOnError();
 
-    partitions = WaitFor(consumerClient->CollectPartitions(Client_, 15))
+    partitions = WaitFor(consumerClient->CollectPartitions(15))
         .ValueOrThrow();
     ASSERT_EQ(partitions.size(), 15u);
     EXPECT_EQ(partitions[9].PartitionIndex, 9);
@@ -1061,7 +1061,7 @@ TEST_F(TBigRTConsumerApiTest, TestBigRTConsumer)
     WaitFor(transaction->Commit())
         .ThrowOnError();
 
-    partitions = WaitFor(consumerClient->CollectPartitions(Client_, 15))
+    partitions = WaitFor(consumerClient->CollectPartitions(15))
         .ValueOrThrow();
     ASSERT_EQ(partitions.size(), 15u);
     EXPECT_EQ(partitions[8].PartitionIndex, 8);
@@ -1074,7 +1074,7 @@ TEST_F(TBigRTConsumerApiTest, TestBigRTConsumer)
     WaitFor(transaction->Commit())
         .ThrowOnError();
 
-    partitions = WaitFor(consumerClient->CollectPartitions(Client_, 15))
+    partitions = WaitFor(consumerClient->CollectPartitions(15))
         .ValueOrThrow();
     ASSERT_EQ(partitions.size(), 15u);
     EXPECT_EQ(partitions[13].PartitionIndex, 13);
@@ -1087,7 +1087,7 @@ TEST_F(TBigRTConsumerApiTest, TestBigRTConsumer)
     WaitFor(transaction->Commit())
         .ThrowOnError();
 
-    partitions = WaitFor(consumerClient->CollectPartitions(Client_, 15))
+    partitions = WaitFor(consumerClient->CollectPartitions(15))
         .ValueOrThrow();
     ASSERT_EQ(partitions.size(), 15u);
     EXPECT_EQ(partitions[5].PartitionIndex, 5);
@@ -1182,9 +1182,9 @@ TEST_F(TConsumerApiTest, TestAdvanceConsumerViaProxy)
     WaitFor(Client_->LinkNode(queuePath.GetPath(), queueLinkPath.GetPath()))
         .ValueOrThrow();
 
-    auto consumerClient = NQueueClient::CreateSubConsumerClient(Client_, consumerPath.GetPath(), queuePath);
+    auto consumerClient = NQueueClient::CreateSubConsumerClient(Client_, Client_, consumerPath.GetPath(), queuePath);
 
-    auto partitions = WaitFor(consumerClient->CollectPartitions(Client_, 1))
+    auto partitions = WaitFor(consumerClient->CollectPartitions(1))
         .ValueOrThrow();
     ASSERT_EQ(partitions.size(), 1u);
     EXPECT_EQ(partitions[0].PartitionIndex, 0);
@@ -1198,7 +1198,7 @@ TEST_F(TConsumerApiTest, TestAdvanceConsumerViaProxy)
     WaitFor(transaction->Commit())
         .ThrowOnError();
 
-    partitions = WaitFor(consumerClient->CollectPartitions(Client_, 1))
+    partitions = WaitFor(consumerClient->CollectPartitions(1))
         .ValueOrThrow();
     ASSERT_EQ(partitions.size(), 1u);
     EXPECT_EQ(partitions[0].PartitionIndex, 0);
@@ -1213,7 +1213,7 @@ TEST_F(TConsumerApiTest, TestAdvanceConsumerViaProxy)
     WaitFor(transaction->Commit())
         .ThrowOnError();
 
-    partitions = WaitFor(consumerClient->CollectPartitions(Client_, 1))
+    partitions = WaitFor(consumerClient->CollectPartitions(1))
         .ValueOrThrow();
     ASSERT_EQ(partitions.size(), 1u);
     EXPECT_EQ(partitions[0].PartitionIndex, 0);

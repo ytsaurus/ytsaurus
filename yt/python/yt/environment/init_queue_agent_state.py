@@ -65,11 +65,15 @@ DEFAULT_REGISTRATION_TABLE_PATH = DEFAULT_ROOT + "/consumer_registrations"
 DEFAULT_REPLICATED_TABLE_MAPPING_TABLE_PATH = DEFAULT_ROOT + "/replicated_table_mapping"
 DEFAULT_TABLET_CELL_BUNDLE = "sys"
 
-CONSUMER_OBJECT_TABLE_SCHEMA = [
+CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META = [
     {"name": "queue_cluster", "type": "string", "sort_order": "ascending", "required": True},
     {"name": "queue_path", "type": "string", "sort_order": "ascending", "required": True},
     {"name": "partition_index", "type": "uint64", "sort_order": "ascending", "required": True},
     {"name": "offset", "type": "uint64", "required": True},
+]
+
+CONSUMER_OBJECT_TABLE_SCHEMA = CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META + [
+    {"name": "meta", "type": "any", "required": False},
 ]
 
 

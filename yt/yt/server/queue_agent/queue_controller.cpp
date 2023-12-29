@@ -25,6 +25,7 @@
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/client/queue_client/config.h>
+#include <yt/yt/client/queue_client/helpers.h>
 
 #include <yt/yt/client/chaos_client/replication_card.h>
 
@@ -244,19 +245,23 @@ private:
         }
 
         auto clientContext = ClientDirectory_->GetDataReadContext(QueueSnapshot_);
-        auto result = NQueueAgent::CollectCumulativeDataWeights(clientContext.Path, clientContext.Client, tabletAndRowIndices, Logger);
 
-        for (const auto& [tabletIndex, cumulativeDataWeights] : result) {
+        auto params = TCollectPartitionRowInfoParams{
+            .HasCumulativeDataWeightColumn = true,
+        };
+        auto result = NQueueClient::CollectPartitionRowInfos(clientContext.Path, clientContext.Client, tabletAndRowIndices, params, Logger);
+
+        for (const auto& [tabletIndex, tabletInfo] : result) {
             auto& partitionSnapshot = QueueSnapshot_->PartitionSnapshots[tabletIndex];
 
-            auto trimmedDataWeightIt = cumulativeDataWeights.find(partitionSnapshot->LowerRowIndex);
-            if (trimmedDataWeightIt != cumulativeDataWeights.end()) {
-                partitionSnapshot->TrimmedDataWeight = cumulativeDataWeights.find(partitionSnapshot->LowerRowIndex)->second;
+            auto lowerTabletRowInfoIt = tabletInfo.find(partitionSnapshot->LowerRowIndex);
+            if (lowerTabletRowInfoIt != tabletInfo.end()) {
+                partitionSnapshot->TrimmedDataWeight = lowerTabletRowInfoIt->second.CumulativeDataWeight;
             }
 
-            auto cumulativeDataWeightIt = cumulativeDataWeights.find(partitionSnapshot->UpperRowIndex - 1);
-            if (cumulativeDataWeightIt != cumulativeDataWeights.end()) {
-                partitionSnapshot->CumulativeDataWeight = cumulativeDataWeights.find(partitionSnapshot->UpperRowIndex - 1)->second;
+            auto upperTabletRowInfoIt = tabletInfo.find(partitionSnapshot->UpperRowIndex - 1);
+            if (upperTabletRowInfoIt != tabletInfo.end()) {
+                partitionSnapshot->CumulativeDataWeight = upperTabletRowInfoIt->second.CumulativeDataWeight;
                 partitionSnapshot->WriteRate.DataWeight.Update(*partitionSnapshot->CumulativeDataWeight);
             }
 

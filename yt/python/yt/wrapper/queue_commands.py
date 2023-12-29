@@ -168,7 +168,7 @@ def pull_consumer(consumer_path, queue_path, offset, partition_index,
         return format.load_rows(response)
 
 
-def advance_consumer(consumer_path, queue_path, partition_index, old_offset, new_offset, client=None):
+def advance_consumer(consumer_path, queue_path, partition_index, old_offset, new_offset, client_side=True, client=None):
     """Advances consumer offset for the given queue.
     If the old offset is specified, the command fails if it is not equal to the current stored offset.
 
@@ -182,6 +182,8 @@ def advance_consumer(consumer_path, queue_path, partition_index, old_offset, new
     :type old_offset: None or int
     :param new_offset: new offset to set
     :type new_offset: int
+    :param client_side: use client side implementation
+    :type client_side: bool
     """
 
     params = {
@@ -191,6 +193,7 @@ def advance_consumer(consumer_path, queue_path, partition_index, old_offset, new
     set_param(params, "partition_index", partition_index)
     set_param(params, "old_offset", old_offset)
     set_param(params, "new_offset", new_offset)
+    set_param(params, "client_side", client_side)
 
     retry_config = deepcopy(get_config(client)["dynamic_table_retries"])
     retry_config["enable"] = \

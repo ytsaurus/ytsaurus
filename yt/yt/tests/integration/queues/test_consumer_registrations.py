@@ -786,6 +786,7 @@ class TestDataApi(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgent
 
     DEFAULT_QUEUE_SCHEMA = [
         {"name": "$timestamp", "type": "uint64"},
+        {"name": "$cumulative_data_weight", "type": "int64"},
         {"name": "data", "type": "string"},
     ]
 
@@ -801,10 +802,10 @@ class TestDataApi(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgent
             sync_mount_table(path)
 
     @staticmethod
-    def _create_consumer(path, mount=True, **kwargs):
+    def _create_consumer(path, mount=True, without_meta=False, **kwargs):
         attributes = {
             "dynamic": True,
-            "schema": init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
+            "schema": init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META if without_meta else init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
             "treat_as_queue_consumer": True,
         }
         attributes.update(kwargs)
@@ -818,8 +819,8 @@ class TestDataApi(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgent
         link(f"{path}-original", path)
 
     @staticmethod
-    def _create_symlink_consumer(path):
-        TestDataApi._create_consumer(f"{path}-original")
+    def _create_symlink_consumer(path, without_meta=False):
+        TestDataApi._create_consumer(f"{path}-original", without_meta=without_meta)
         link(f"{path}-original", path)
 
     @staticmethod
@@ -1084,42 +1085,81 @@ class TestDataApi(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgent
         _create_consumer,
         _create_symlink_consumer,
     ])
-    def test_advance_consumer(self, create_consumer):
-        create_consumer("//tmp/c")
+    @pytest.mark.parametrize("without_meta", [
+        False,
+        True,
+    ])
+    def test_advance_consumer(self, create_consumer, without_meta):
+        create_consumer("//tmp/c", without_meta=without_meta)
 
-        def get_offset(queue, partition_index=0):
+        def select_queue_partition_from_consumer(queue, partition_index=0):
             rows = select_rows(
                 f"* from [//tmp/c] where [queue_path] = \"{queue}\" and [partition_index] = {partition_index}")
             assert len(rows) <= 1
+            return rows
+
+        def get_offset(queue, partition_index=0):
+            rows = select_queue_partition_from_consumer(queue, partition_index)
             if rows:
                 return rows[0]["offset"]
             return None
 
+        def get_meta(queue, partition_index=0):
+            rows = select_queue_partition_from_consumer(queue, partition_index)
+            if rows and len(rows) > 0 and "meta" in rows[0]:
+                return rows[0]["meta"]
+            return None
+
         assert get_offset("//tmp/q1") is None
+
+        with raises_yt_error("Failed to resolve queue path"):
+            advance_consumer("//tmp/c", "//tmp/q1", partition_index=0, old_offset=None, new_offset=3, client_side=False)
 
         self._create_queue("//tmp/q1")
         self._create_queue("//tmp/q2")
         self._create_queue("//tmp/q3")
         self._create_queue("//tmp/q4")
 
-        advance_consumer("//tmp/c", "//tmp/q1", partition_index=0, old_offset=None, new_offset=3)
+        insert_rows("//tmp/q1", [{"data": "foo"}] * 6)
+
+        advance_consumer("//tmp/c", "//tmp/q1", partition_index=0, old_offset=None, new_offset=3, client_side=False)
         assert get_offset("//tmp/q1") == 3
 
-        with raises_yt_error(yt_error_codes.ConsumerOffsetConflict):
-            advance_consumer("//tmp/c", "//tmp/q1", partition_index=0, old_offset=4, new_offset=5)
+        if without_meta:
+            assert get_meta("//tmp/q1") is None
+        else:
+            meta = get_meta("//tmp/q1")
+            # Each row weight is equal to 20.
+            assert meta['cumulative_data_weight'] == 60
+            assert 'offset_timestamp' in meta
 
-        advance_consumer("//tmp/c", "//tmp/q1", partition_index=0, old_offset=3, new_offset=5)
+        with raises_yt_error(yt_error_codes.ConsumerOffsetConflict):
+            advance_consumer("//tmp/c", "//tmp/q1", partition_index=0, old_offset=4, new_offset=5, client_side=False)
+
+        advance_consumer("//tmp/c", "//tmp/q1", partition_index=0, old_offset=3, new_offset=5, client_side=False)
         assert get_offset("//tmp/q1") == 5
 
-        advance_consumer("//tmp/c", "//tmp/q1", partition_index=0, old_offset=None, new_offset=7)
+        if without_meta:
+            assert get_meta("//tmp/q1") is None
+        else:
+            meta = get_meta("//tmp/q1")
+            assert meta['cumulative_data_weight'] == 100
+            assert 'offset_timestamp' in meta
+
+        advance_consumer("//tmp/c", "//tmp/q1", partition_index=0, old_offset=None, new_offset=7, client_side=False)
         assert get_offset("//tmp/q1") == 7
 
-        advance_consumer("//tmp/c", "//tmp/q2", partition_index=0, old_offset=0, new_offset=42)
+        if without_meta:
+            assert get_meta("//tmp/q1") is None
+        else:
+            assert get_meta("//tmp/q1") == YsonEntity()
+
+        advance_consumer("//tmp/c", "//tmp/q2", partition_index=0, old_offset=0, new_offset=42, client_side=False)
         assert get_offset("//tmp/q2") == 42
 
         tx = start_transaction(type="tablet")
-        advance_consumer("//tmp/c", "//tmp/q3", partition_index=0, old_offset=None, new_offset=1543, transaction_id=tx)
-        advance_consumer("//tmp/c", "//tmp/q4", partition_index=0, old_offset=None, new_offset=1543, transaction_id=tx)
+        advance_consumer("//tmp/c", "//tmp/q3", partition_index=0, old_offset=None, new_offset=1543, transaction_id=tx, client_side=False)
+        advance_consumer("//tmp/c", "//tmp/q4", partition_index=0, old_offset=None, new_offset=1543, transaction_id=tx, client_side=False)
 
         assert get_offset("//tmp/q3") is None
         assert get_offset("//tmp/q4") is None

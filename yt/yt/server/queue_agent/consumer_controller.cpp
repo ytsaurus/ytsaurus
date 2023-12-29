@@ -13,6 +13,7 @@
 #include <yt/yt/ytlib/queue_client/dynamic_state.h>
 
 #include <yt/yt/client/queue_client/consumer_client.h>
+#include <yt/yt/client/queue_client/helpers.h>
 
 #include <yt/yt/client/table_client/helpers.h>
 
@@ -127,7 +128,7 @@ private:
 
         auto clientContext = ClientDirectory_->GetDataReadContext(ConsumerSnapshot_, /*onlyDataReplicas*/ true);
         Client_ = clientContext.Client;
-        ConsumerClient_ = CreateConsumerClient(clientContext.Path, *ConsumerSnapshot_->Row.Schema);
+        ConsumerClient_ = CreateConsumerClient(Client_, clientContext.Path, *ConsumerSnapshot_->Row.Schema);
 
         THashMap<TCrossClusterReference, TFuture<TSubConsumerSnapshotPtr>> subSnapshotFutures;
         for (const auto& registration : Registrations_) {
@@ -204,9 +205,9 @@ private:
         // Collect partition infos from the consumer table.
 
         {
-            auto subConsumerClient = ConsumerClient_->GetSubConsumerClient(queueRef);
+            auto subConsumerClient = ConsumerClient_->GetSubConsumerClient(/*queueClient*/ nullptr, queueRef);
 
-            auto consumerPartitionInfos = WaitFor(subConsumerClient->CollectPartitions(Client_, partitionCount, /*withLastConsumeTime*/ true))
+            auto consumerPartitionInfos = WaitFor(subConsumerClient->CollectPartitions(partitionCount, /*withLastConsumeTime*/ true))
                 .ValueOrThrow();
 
             for (const auto& consumerPartitionInfo : consumerPartitionInfos) {
@@ -305,6 +306,7 @@ private:
     {
         const auto& Logger = logger;
 
+        // TODO(nadya73): Use CollectPartitionRowInfos.
         YT_LOG_DEBUG("Collecting consumer timestamps");
 
         auto clientContext = ClientDirectory_->GetDataReadContext(queueSnapshot);
@@ -374,12 +376,22 @@ private:
         }
 
         auto clientContext = ClientDirectory_->GetDataReadContext(queueSnapshot);
-        auto result = NQueueAgent::CollectCumulativeDataWeights(clientContext.Path, clientContext.Client, tabletAndRowIndices, Logger);
 
-        for (const auto& [tabletIndex, cumulativeDataWeights] : result) {
+        auto params = TCollectPartitionRowInfoParams{
+            .HasCumulativeDataWeightColumn = true,
+        };
+
+        auto result = NQueueClient::CollectPartitionRowInfos(clientContext.Path, clientContext.Client, tabletAndRowIndices, params, Logger);
+
+        for (const auto& [tabletIndex, partitionInfo] : result) {
             auto& consumerPartitionSnapshot = subSnapshot->PartitionSnapshots[tabletIndex];
-            consumerPartitionSnapshot->CumulativeDataWeight = cumulativeDataWeights.begin()->second;
-            consumerPartitionSnapshot->ReadRate.DataWeight.Update(*consumerPartitionSnapshot->CumulativeDataWeight);
+
+            const auto& partitionRowInfo = partitionInfo.begin()->second;
+
+            if (partitionRowInfo.CumulativeDataWeight) {
+                consumerPartitionSnapshot->CumulativeDataWeight = *partitionRowInfo.CumulativeDataWeight;
+                consumerPartitionSnapshot->ReadRate.DataWeight.Update(*partitionRowInfo.CumulativeDataWeight);
+            }
         }
 
         YT_LOG_DEBUG("Consumer cumulative data weights collected");
