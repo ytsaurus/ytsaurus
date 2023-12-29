@@ -1150,7 +1150,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
             for (auto metricName : TEnumTraits<NScheduler::EJobMetricName>::GetDomainValues()) {
                 if (FormatEnum(metricName) == profilingName) {
                     THROW_ERROR_EXCEPTION("Custom job metric with profiling name $Qv is already presented as builtin metric",
-                         profilingName);
+                        profilingName);
                 }
             }
 

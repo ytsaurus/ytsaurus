@@ -543,7 +543,7 @@ private:
                 .Id = "invalid_instance_tags",
                 .BundleName = bundleName,
                 .Description = Format("Instance %v cannot be deallocated with hulk. Please check allocation tags",
-                   instanceName),
+                    instanceName),
             });
             return true;
         }

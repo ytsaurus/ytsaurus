@@ -325,7 +325,7 @@ private:
         YT_ASSERT(id);
 
         auto validateRetry = [&] {
-           if (!isRetry) {
+            if (!isRetry) {
                 THROW_ERROR_EXCEPTION("Duplicate request is not marked as \"retry\"")
                     << TErrorAttribute("mutation_id", id);
             }

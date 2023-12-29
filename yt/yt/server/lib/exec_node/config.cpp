@@ -221,7 +221,7 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("should_close_descriptors", &TThis::ShouldCloseDescriptors)
         .Default(false);
 
-   registrar.Parameter("slot_release_timeout", &TThis::SlotReleaseTimeout)
+    registrar.Parameter("slot_release_timeout", &TThis::SlotReleaseTimeout)
         .Default(TDuration::Minutes(20));
 
     registrar.Parameter("abort_on_free_volume_synchronization_failed", &TThis::AbortOnFreeVolumeSynchronizationFailed)

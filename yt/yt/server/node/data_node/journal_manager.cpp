@@ -1288,8 +1288,8 @@ private:
 
         bool IsSplitChangelogSealed(TChunkId chunkId) override
         {
-             return WaitFor(Impl_->IsChangelogSealed(chunkId))
-                 .ValueOrThrow();
+            return WaitFor(Impl_->IsChangelogSealed(chunkId))
+                .ValueOrThrow();
         }
 
     private:

@@ -100,7 +100,7 @@ TVectorPiecewiseLinearFunction CompressFunction(const TVectorPiecewiseLinearFunc
         for (int r = 0; r < ResourceCount; ++r) {
             // If the accumulated top bound for resource |r| is above the top bound of current segment, then update the top bound.
             if (CompareSegments(currentBounds.Top[r], accumulatedBounds.Top[r]) > 0) {
-               accumulatedBounds.Top[r] = currentBounds.Top[r];
+                accumulatedBounds.Top[r] = currentBounds.Top[r];
             }
             // If the accumulated bottom bound for resource |r| is below the bottom bound of current segment, then update the bottom bound.
             if (CompareSegments(currentBounds.Bottom[r], accumulatedBounds.Bottom[r]) < 0) {

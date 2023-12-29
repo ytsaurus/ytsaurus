@@ -993,10 +993,10 @@ protected:
             RegisterError(TError(
                 EErrorCode::ReaderTimeout,
                 "Replication reader retry %v out of %v timed out",
-                 RetryIndex_,
-                 ReaderConfig_->RetryCount)
-                 << TErrorAttribute("retry_start_time", RetryStartTime_)
-                 << TErrorAttribute("retry_timeout", ReaderConfig_->RetryTimeout));
+                RetryIndex_,
+                ReaderConfig_->RetryCount)
+                << TErrorAttribute("retry_start_time", RetryStartTime_)
+                << TErrorAttribute("retry_timeout", ReaderConfig_->RetryTimeout));
             OnRetryFailed();
             return;
         }

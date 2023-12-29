@@ -634,7 +634,7 @@ TMemory::TStatistics TMemory::GetStatistics() const
 {
     TMemory::TStatistics result;
 #ifdef _linux_
-     try {
+    try {
         auto values = ReadAllValues(GetPath("memory.stat"));
         int lineNumber = 0;
         while (2 * lineNumber + 1 < std::ssize(values)) {

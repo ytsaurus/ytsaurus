@@ -3185,7 +3185,7 @@ private:
         FinishOperation(operation);
 
         YT_LOG_INFO("Operation completed (OperationId: %v)",
-             operationId);
+            operationId);
     }
 
     void DoFailOperation(
@@ -3203,7 +3203,7 @@ private:
         auto codicilGuard = operation->MakeCodicilGuard();
 
         YT_LOG_INFO(error, "Operation failed (OperationId: %v)",
-             operation->GetId());
+            operation->GetId());
 
         TerminateOperation(
             operation,
@@ -3497,7 +3497,7 @@ private:
         auto codicilGuard = operation->MakeCodicilGuard();
 
         YT_LOG_INFO("Completing operation without revival (OperationId: %v)",
-             operation->GetId());
+            operation->GetId());
 
         if (operation->RevivalDescriptor()->ShouldCommitOutputTransaction) {
             WaitFor(operation->Transactions()->OutputTransaction->Commit())
@@ -3542,7 +3542,7 @@ private:
         auto codicilGuard = operation->MakeCodicilGuard();
 
         YT_LOG_INFO(error, "Aborting operation without revival (OperationId: %v)",
-             operation->GetId());
+            operation->GetId());
 
         THashSet<ITransactionPtr> abortedTransactions;
         auto abortTransaction = [&] (ITransactionPtr transaction, const TString& type) {
@@ -4136,7 +4136,7 @@ private:
             , Operation_(operation)
             , OperationIdService_(
                 IYPathService::FromProducer(BIND([operationId = operation->GetId()] (IYsonConsumer* consumer) {
-                     BuildYsonFluently(consumer).Value(operationId);
+                    BuildYsonFluently(consumer).Value(operationId);
                 })))
             , OperationProgressService_(
                 IYPathService::FromProducer(

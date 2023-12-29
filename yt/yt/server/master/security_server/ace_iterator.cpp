@@ -216,18 +216,18 @@ void TOverriddenBeginAclInheritanceIterator::ResetOverride()
     BeginOverride_.Reset();
 }
 
- TOverriddenBeginAclInheritanceIterator::TValue
- TOverriddenBeginAclInheritanceIterator::GetOveriddenValue() const
- {
-     auto result = *Underlying_;
-     if (BeginOverride_.Acl()) {
-         result.Acl = &*BeginOverride_.Acl();
-     }
-     if (BeginOverride_.InheritAcl()) {
-         result.InheritAcl = &*BeginOverride_.InheritAcl();
-     }
-     return result;
- }
+TOverriddenBeginAclInheritanceIterator::TValue
+TOverriddenBeginAclInheritanceIterator::GetOveriddenValue() const
+{
+    auto result = *Underlying_;
+    if (BeginOverride_.Acl()) {
+        result.Acl = &*BeginOverride_.Acl();
+    }
+    if (BeginOverride_.InheritAcl()) {
+        result.InheritAcl = &*BeginOverride_.InheritAcl();
+    }
+    return result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

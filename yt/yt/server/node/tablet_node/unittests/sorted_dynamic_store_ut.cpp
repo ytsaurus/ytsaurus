@@ -1094,7 +1094,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ReadWriteLocks1)
 
 TEST_F(TSingleLockSortedDynamicStoreTest, ReadWriteConflict1)
 {
-     auto key = BuildKey("1");
+    auto key = BuildKey("1");
 
     auto transaction1 = StartTransaction();
     auto transaction2 = StartTransaction();

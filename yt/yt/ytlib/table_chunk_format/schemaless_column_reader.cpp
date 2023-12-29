@@ -104,7 +104,7 @@ private:
     ui32 GetOffset(i64 segmentRowIndex) const
     {
         return ExpectedBytesPerRow_ * (segmentRowIndex + 1) +
-           ZigZagDecode32(OffsetDiffReader_[segmentRowIndex]);
+            ZigZagDecode32(OffsetDiffReader_[segmentRowIndex]);
     }
 };
 

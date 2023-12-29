@@ -92,7 +92,7 @@ protected:
         value = SplitString(output, delimiter, 0 /* maxFields */, KEEP_EMPTY_TOKENS);
         // We should at least have key, subkey and the rest of values.
         if (value.size() < 3)
-           return false;
+            return false;
         key = value[0];
         subkey = value[1];
         value.erase(value.begin(), value.end());

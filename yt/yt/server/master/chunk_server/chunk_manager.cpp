@@ -2068,10 +2068,10 @@ public:
     {
         auto* dynamicStore = FindDynamicStore(id);
         if (!IsObjectAlive(dynamicStore)) {
-             THROW_ERROR_EXCEPTION(
-                 NTabletClient::EErrorCode::NoSuchDynamicStore,
-                 "No such dynamic store %v",
-                 id);
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::NoSuchDynamicStore,
+                "No such dynamic store %v",
+                id);
         }
         return dynamicStore;
     }

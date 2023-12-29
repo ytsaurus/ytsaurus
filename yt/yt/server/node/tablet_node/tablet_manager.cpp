@@ -4106,12 +4106,12 @@ private:
             } catch (const std::exception& ex) {
                 YT_LOG_ERROR(ex,
                     "Error deserializing tablet mount config with extra attributes patch (TabletId: %v)",
-                     tabletId);
+                    tabletId);
                 return ConvertTo<TTableMountConfigPtr>(mountConfigMap);
             }
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Error deserializing tablet mount config (TabletId: %v)",
-                 tabletId);
+                tabletId);
             return New<TTableMountConfig>();
         }
     }
@@ -4122,7 +4122,7 @@ private:
             return ConvertTo<TTabletStoreReaderConfigPtr>(str);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Error deserializing store reader config (TabletId: %v)",
-                 tabletId);
+                tabletId);
             return New<TTabletStoreReaderConfig>();
         }
     }
@@ -4133,7 +4133,7 @@ private:
             return ConvertTo<TTabletHunkReaderConfigPtr>(str);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Error deserializing hunk reader config (TabletId: %v)",
-                 tabletId);
+                tabletId);
             return New<TTabletHunkReaderConfig>();
         }
     }
@@ -4144,7 +4144,7 @@ private:
             return ConvertTo<TTabletStoreWriterConfigPtr>(str);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Error deserializing store writer config (TabletId: %v)",
-                 tabletId);
+                tabletId);
             return New<TTabletStoreWriterConfig>();
         }
     }
@@ -4155,7 +4155,7 @@ private:
             return ConvertTo<TTabletStoreWriterOptionsPtr>(str);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Error deserializing store writer options (TabletId: %v)",
-                 tabletId);
+                tabletId);
             return New<TTabletStoreWriterOptions>();
         }
     }
@@ -4166,7 +4166,7 @@ private:
             return ConvertTo<TTabletHunkWriterConfigPtr>(str);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Error deserializing hunk writer config (TabletId: %v)",
-                 tabletId);
+                tabletId);
             return New<TTabletHunkWriterConfig>();
         }
     }
@@ -4177,7 +4177,7 @@ private:
             return ConvertTo<TTabletHunkWriterOptionsPtr>(str);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Error deserializing hunk writer options (TabletId: %v)",
-                 tabletId);
+                tabletId);
             return New<TTabletHunkWriterOptions>();
         }
     }

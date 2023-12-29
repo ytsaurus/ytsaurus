@@ -402,7 +402,7 @@ TConstExpressionPtr EliminatePredicate(
                     refinePredicate(rhsExpr));
             }
         } else if (auto inExpr = expr->As<TInExpression>()) {
-            return EliminateInExpression(lookupKeys, inExpr, keyColumns, keyColumns.size(), nullptr);
+            return EliminateInExpression(lookupKeys, inExpr, keyColumns, keyColumns.size(), /*bounds*/ nullptr);
         }
 
         return expr;

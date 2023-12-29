@@ -130,7 +130,7 @@ public:
 
     void RemoveCachedMeta(TChunkId chunkId) override
     {
-         ChunkMetaCache_->TryRemove(chunkId);
+        ChunkMetaCache_->TryRemove(chunkId);
     }
 
 

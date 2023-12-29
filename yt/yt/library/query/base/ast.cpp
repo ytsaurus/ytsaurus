@@ -610,7 +610,7 @@ void FormatJoin(TStringBuilderBase* builder, const TJoin& join)
             join.Fields.begin(),
             join.Fields.end(),
             [] (TStringBuilderBase* builder, const TReferenceExpressionPtr& referenceExpr) {
-                 FormatReference(builder, referenceExpr->Reference);
+                FormatReference(builder, referenceExpr->Reference);
             });
     }
     if (join.Predicate) {

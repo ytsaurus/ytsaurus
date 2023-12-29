@@ -955,7 +955,7 @@ TEST_P(TBundleSchedulerTest, DoNotCreateNewDeallocationsIfSomeNodesAreNotReady)
 
     // Do not deallocate nodes if node tag filter is not set for all alive nodes
     for (const auto& dataCenter : dataCenters) {
-       auto nodes = GenerateNodesForBundle(input, "bigd", 5, {.SetFilterTag = !SetNodeTagFilters, .SlotCount = TabletSlotCount, .DC = dataCenter});
+        auto nodes = GenerateNodesForBundle(input, "bigd", 5, {.SetFilterTag = !SetNodeTagFilters, .SlotCount = TabletSlotCount, .DC = dataCenter});
 
         auto intactNodes = GetRandomElements(nodes, 1);
         for (const auto& nodeName : intactNodes) {
@@ -1013,7 +1013,7 @@ TEST_P(TBundleSchedulerTest, CreateNewDeallocationsIfAllNodesAreNotReady)
 
     // Do not deallocate nodes if node tag filter is not set for all alive nodes
     for (const auto& dataCenter : dataCenters) {
-       auto nodes = GenerateNodesForBundle(input, "bigd", 5, {.SetFilterTag = !SetNodeTagFilters, .SlotCount = TabletSlotCount, .DC = dataCenter});
+        auto nodes = GenerateNodesForBundle(input, "bigd", 5, {.SetFilterTag = !SetNodeTagFilters, .SlotCount = TabletSlotCount, .DC = dataCenter});
     }
 
     TSchedulerMutations mutations;

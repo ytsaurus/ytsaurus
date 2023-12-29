@@ -536,14 +536,14 @@ public:
             context->GetMethod(),
             targetPathRewrite,
             MakeFormatterWrapper([&] (auto* builder) {
-               if (!additionalPathRewrites.empty()) {
-                   builder->AppendFormat("AdditionalPaths: %v, ", additionalPathRewrites);
-               }
+                if (!additionalPathRewrites.empty()) {
+                    builder->AppendFormat("AdditionalPaths: %v, ", additionalPathRewrites);
+                }
             }),
             MakeFormatterWrapper([&] (auto* builder) {
-               if (!additionalPathRewrites.empty()) {
-                   builder->AppendFormat("PrerequisiteRevisionPaths: %v, ", prerequisiteRevisionPathRewrites);
-               }
+                if (!additionalPathRewrites.empty()) {
+                    builder->AppendFormat("PrerequisiteRevisionPaths: %v, ", prerequisiteRevisionPathRewrites);
+                }
             }),
             context->GetAuthenticationIdentity(),
             isMutating,

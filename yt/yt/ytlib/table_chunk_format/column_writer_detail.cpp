@@ -121,18 +121,18 @@ void TVersionedColumnWriterBase::WriteUnversionedValues(TRange<NTableClient::TUn
     YT_ABORT();
 }
 
- void TVersionedColumnWriterBase::Reset()
- {
-     TimestampIndexes_.clear();
-     NullBitmap_ = TBitmapOutput();
-     if (Aggregate_) {
-         AggregateBitmap_ = TBitmapOutput();
-     }
-     ValuesPerRow_.clear();
+void TVersionedColumnWriterBase::Reset()
+{
+    TimestampIndexes_.clear();
+    NullBitmap_ = TBitmapOutput();
+    if (Aggregate_) {
+        AggregateBitmap_ = TBitmapOutput();
+    }
+    ValuesPerRow_.clear();
 
-     MaxTimestampIndex_ = 0;
-     EmptyPendingRowCount_ = 0;
- }
+    MaxTimestampIndex_ = 0;
+    EmptyPendingRowCount_ = 0;
+}
 
 void TVersionedColumnWriterBase::AddValues(
     TRange<TVersionedRow> rows,

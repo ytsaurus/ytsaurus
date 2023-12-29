@@ -259,7 +259,7 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
         TRef>;
 
     auto createChunkWriter = [=] (IChunkWriterPtr chunkWriter) {
-         return CreateFileChunkWriter(
+        return CreateFileChunkWriter(
             config,
             options,
             chunkWriter,

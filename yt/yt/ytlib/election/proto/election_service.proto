@@ -6,8 +6,8 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 
 message TPeerPriority
 {
-   required int64 first = 1;
-   required int64 second = 2;
+    required int64 first = 1;
+    required int64 second = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

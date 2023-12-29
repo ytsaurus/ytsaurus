@@ -67,7 +67,7 @@ static TError TryParseTabletRange(const TTabletOwnerBase* table, int* first, int
                 tablets.size() - 1);
         }
         if (*first > *last) {
-           return TError("First tablet index is greater than last tablet index");
+            return TError("First tablet index is greater than last tablet index");
         }
     }
 

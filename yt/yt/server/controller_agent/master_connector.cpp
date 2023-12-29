@@ -781,8 +781,8 @@ private:
         auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, TTransactionStartOptions{}))
            .ValueOrThrow();
         YT_LOG_DEBUG("Operation controller features update transaction started (TransactionId: %v, OperationId: %v)",
-           transaction->GetId(),
-           operationId);
+            transaction->GetId(),
+            operationId);
 
         auto featureYsonString = featureYson.ToString();
 
@@ -915,8 +915,8 @@ private:
         auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, TTransactionStartOptions{}))
            .ValueOrThrow();
         YT_LOG_DEBUG("Operation progress update transaction started (TransactionId: %v, OperationId: %v)",
-           transaction->GetId(),
-           operationId);
+            transaction->GetId(),
+            operationId);
 
         auto progressString = progress.ToString();
         auto briefProgressString = briefProgress.ToString();

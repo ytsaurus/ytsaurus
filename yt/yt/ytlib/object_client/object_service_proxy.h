@@ -153,7 +153,7 @@ public:
          *  (thus avoiding complicated and error-prone index calculations).
          *  the request list aligned with some other data structure.
          */
-         void AddRequest(
+        void AddRequest(
             const NYTree::TYPathRequestPtr& innerRequest,
             std::optional<TString> key = std::nullopt,
             std::optional<size_t> hash = std::nullopt);

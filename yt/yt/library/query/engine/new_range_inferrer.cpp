@@ -676,7 +676,7 @@ public:
                 // We can not determine if constraint is empty at previous stages because
                 // in general case range (a, b) is not empty when a < b. But for integers range (1, 2) is empty.
                 if (expressionEstimation == 0) {
-                     return {0, 0};
+                    return {0, 0};
                 }
 
                 bool moduloEnumeration = false;

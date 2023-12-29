@@ -452,7 +452,7 @@ private:
     {
         BuildYsonFluently(consumer)
             .DoListFor(snapshots, [&] (TFluentList fluent, const TTabletSnapshotPtr& snapshot) {
-                 fluent
+                fluent
                     .Item().BeginMap()
                         .Do(BIND(&TTabletSnapshotStore::BuildSnapshotOrchidYson, Unretained(this), snapshot))
                     .EndMap();

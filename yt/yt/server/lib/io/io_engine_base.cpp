@@ -183,7 +183,7 @@ TFuture<void> TIOEngineBase::Allocate(TAllocateRequest request, EWorkloadCategor
         .Run();
 }
 
- TFuture<void> TIOEngineBase::Lock(TLockRequest request, EWorkloadCategory category)
+TFuture<void> TIOEngineBase::Lock(TLockRequest request, EWorkloadCategory category)
 {
     return BIND(&TIOEngineBase::DoLock, MakeStrong(this), std::move(request))
         .AsyncVia(CreateFixedPriorityInvoker(AuxInvoker_, GetBasicPriority(category)))

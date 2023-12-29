@@ -1549,7 +1549,7 @@ private:
 
         auto isOverflown = [&] {
             return !(messageCountToPost < Config_->MaxMessagesPerPost &&
-               messageBytesToPost < Config_->MaxBytesPerPost);
+                messageBytesToPost < Config_->MaxBytesPerPost);
         };
 
         auto fillEnvelope = [&] (TMailbox* mailbox, TEnvelope* envelope) {

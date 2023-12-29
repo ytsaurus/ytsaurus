@@ -16,7 +16,7 @@ class TCGPICaller<TResult(TArgs...), TPIResult(TPIArgs...)>
 public:
     explicit TCGPICaller(
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
-       const NYT::TSourceLocation& location,
+        const NYT::TSourceLocation& location,
 #endif
         TCallback<TPIResult(TPIArgs...)> callback)
         : NYT::NDetail::TBindStateBase(

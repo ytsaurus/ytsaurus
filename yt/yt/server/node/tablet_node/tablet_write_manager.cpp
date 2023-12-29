@@ -1480,8 +1480,8 @@ private:
                     ValidateReplicaStatus(ETableReplicaStatus::SyncNotWritable, replicaInfo);
                     THROW_ERROR_EXCEPTION(
                         "Replica %v is not synchronously writeable since it is in %Qlv state",
-                         replicaInfo.GetId(),
-                         replicaInfo.GetState());
+                        replicaInfo.GetId(),
+                        replicaInfo.GetState());
                 }
                 ValidateReplicaStatus(ETableReplicaStatus::SyncInSync, replicaInfo);
                 YT_VERIFY(!replicaInfo.GetPreparedReplicationTransactionId());

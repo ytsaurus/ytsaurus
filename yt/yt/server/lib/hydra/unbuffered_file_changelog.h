@@ -68,7 +68,7 @@ struct IUnbufferedFileChangelog
      *  \note
      *  Thread affinity: any
      */
-     virtual double GetWriteAmplificationRatio() const = 0;
+    virtual double GetWriteAmplificationRatio() const = 0;
 
 
     //! Returns |true| is the changelog is open.

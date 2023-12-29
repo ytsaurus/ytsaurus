@@ -10,7 +10,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
- TDiscoveryBase::TDiscoveryBase(
+TDiscoveryBase::TDiscoveryBase(
     TDiscoveryBaseConfigPtr config,
     IInvokerPtr invoker,
     TLogger logger)

@@ -1328,19 +1328,19 @@ private:
                 requestHeader.service(),
                 requestHeader.method(),
                 MakeFormatterWrapper([&] (auto* builder) {
-                   if (subrequest.TargetPathRewrite) {
-                       builder->AppendFormat("TargetPath: %v, ", subrequest.TargetPathRewrite);
-                   }
+                    if (subrequest.TargetPathRewrite) {
+                        builder->AppendFormat("TargetPath: %v, ", subrequest.TargetPathRewrite);
+                    }
                 }),
                 MakeFormatterWrapper([&] (auto* builder) {
-                   if (subrequest.AdditionalPathRewrites && !subrequest.AdditionalPathRewrites->empty()) {
-                       builder->AppendFormat("AdditionalPaths: %v, ", *subrequest.AdditionalPathRewrites);
-                   }
+                    if (subrequest.AdditionalPathRewrites && !subrequest.AdditionalPathRewrites->empty()) {
+                        builder->AppendFormat("AdditionalPaths: %v, ", *subrequest.AdditionalPathRewrites);
+                    }
                 }),
                 MakeFormatterWrapper([&] (auto* builder) {
-                   if (subrequest.PrerequisiteRevisionPathRewrites && !subrequest.PrerequisiteRevisionPathRewrites->empty()) {
-                       builder->AppendFormat("PrerequisiteRevisionPaths: %v, ", *subrequest.PrerequisiteRevisionPathRewrites);
-                   }
+                    if (subrequest.PrerequisiteRevisionPathRewrites && !subrequest.PrerequisiteRevisionPathRewrites->empty()) {
+                        builder->AppendFormat("PrerequisiteRevisionPaths: %v, ", *subrequest.PrerequisiteRevisionPathRewrites);
+                    }
                 }),
                 RpcContext_->GetAuthenticationIdentity(),
                 ypathExt.mutating(),

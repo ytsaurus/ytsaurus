@@ -605,7 +605,7 @@ private:
             .ThrowOnError();
     }
 
-   TChunkListId GetChunkListId()
+    TChunkListId GetChunkListId()
     {
         YT_VERIFY(UploadTransaction_);
 

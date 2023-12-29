@@ -46,7 +46,7 @@ TIOEngineHandle::TIOEngineHandle(const TString& fName, EOpenMode oMode) noexcept
 
 bool TIOEngineHandle::IsOpenForDirectIO() const
 {
-     return OpenForDirectIO_;
+    return OpenForDirectIO_;
 }
 
 void TIOEngineHandle::MarkOpenForDirectIO(EOpenMode* oMode)

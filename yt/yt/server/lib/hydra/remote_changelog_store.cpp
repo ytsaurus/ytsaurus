@@ -767,7 +767,7 @@ private:
             .ThrowOnError();
     }
 
-   void ValidateChangelogsSealed()
+    void ValidateChangelogsSealed()
     {
         ListChangelogs({"sealed"}, [&] (const INodePtr& item, int id) {
             if (!item->Attributes().Get<bool>("sealed", false)) {

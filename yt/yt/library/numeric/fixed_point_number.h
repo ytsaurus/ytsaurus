@@ -132,10 +132,10 @@ template <typename U, int P>
 class numeric_limits<NYT::TFixedPointNumber<U, P>>
 {
 public:
-   static NYT::TFixedPointNumber<U, P> max()
-   {
-       return numeric_limits<U>::max() / NYT::TFixedPointNumber<U, P>::ScalingFactor;
-   }
+    static NYT::TFixedPointNumber<U, P> max()
+    {
+        return numeric_limits<U>::max() / NYT::TFixedPointNumber<U, P>::ScalingFactor;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

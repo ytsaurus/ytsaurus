@@ -186,7 +186,7 @@ public:
                     currentDataOffset += result.FirstUnparsedOffset;
                 }
 
-                 if (currentDataOffset < dataFileLength) {
+                if (currentDataOffset < dataFileLength) {
                     WaitFor(IOEngine_->Resize({.Handle = DataFileHandle_, .Size = currentDataOffset}))
                         .ThrowOnError();
 

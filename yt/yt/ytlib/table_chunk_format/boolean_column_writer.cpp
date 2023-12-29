@@ -63,8 +63,8 @@ public:
             return 0;
         } else {
             return Values_.GetByteSize() +
-               NullBitmap_.GetByteSize() +
-               TVersionedColumnWriterBase::GetCurrentSegmentSize();
+                NullBitmap_.GetByteSize() +
+                TVersionedColumnWriterBase::GetCurrentSegmentSize();
         }
     }
 

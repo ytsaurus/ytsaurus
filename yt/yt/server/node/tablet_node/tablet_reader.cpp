@@ -406,8 +406,8 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
         YT_VERIFY(upperBound[0].Type == EValueType::Int64 ||
             upperBound[0].Type == EValueType::Max);
         YT_VERIFY(upperBound[0].Type != EValueType::Int64 ||
-           tabletIndex == upperBound[0].Data.Int64 ||
-           tabletIndex + 1 == upperBound[0].Data.Int64);
+            tabletIndex == upperBound[0].Data.Int64 ||
+            tabletIndex + 1 == upperBound[0].Data.Int64);
 
         if (lowerBound.GetCount() >= 2) {
             lowerRowIndex = valueToInt(lowerBound[1]);

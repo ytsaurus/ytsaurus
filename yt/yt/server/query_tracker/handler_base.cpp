@@ -216,7 +216,7 @@ void TQueryHandlerBase::TryWriteProgress()
     {
         auto guard = Guard(ProgressSpinLock_);
         if (LastSavedProgressVersion_ == ProgressVersion_) {
-           return;
+            return;
         }
         progress = Progress_;
         progressVersion = ProgressVersion_;

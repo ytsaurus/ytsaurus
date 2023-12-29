@@ -39,9 +39,9 @@ REGISTER_PROTO_EXTENSION(TVersionedRowDigestExt, 66, versioned_row_digest)
 size_t TOwningBoundaryKeys::SpaceUsed() const
 {
     return
-       sizeof(*this) +
-       MinKey.GetSpaceUsed() - sizeof(MinKey) +
-       MaxKey.GetSpaceUsed() - sizeof(MaxKey);
+        sizeof(*this) +
+        MinKey.GetSpaceUsed() - sizeof(MinKey) +
+        MaxKey.GetSpaceUsed() - sizeof(MaxKey);
 }
 
 void TOwningBoundaryKeys::Persist(const TStreamPersistenceContext& context)

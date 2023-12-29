@@ -1709,7 +1709,7 @@ void TNodeShard::LogOngoingJobsOnHeartbeat(
 TJobPtr TNodeShard::ProcessJobHeartbeat(
     const TExecNodePtr& node,
     NProto::NNode::TRspHeartbeat* response,
-     NProto::TAllocationStatus* jobStatus)
+    NProto::TAllocationStatus* jobStatus)
 {
     auto allocationId = FromProto<TAllocationId>(jobStatus->allocation_id());
     auto operationId = FromProto<TOperationId>(jobStatus->operation_id());

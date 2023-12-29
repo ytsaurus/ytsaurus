@@ -90,7 +90,7 @@ protected:
 
     bool DoInvoke(const NYTree::IYPathServiceContextPtr& context) override;
 
-   NYTree::IYPathService::TResolveResult ResolveRecursive(
+    NYTree::IYPathService::TResolveResult ResolveRecursive(
         const NYPath::TYPath& path,
         const NYTree::IYPathServiceContextPtr& context) override;
 

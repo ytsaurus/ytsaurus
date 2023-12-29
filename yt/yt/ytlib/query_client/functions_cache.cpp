@@ -724,7 +724,7 @@ void FetchFunctionImplementationsFromFiles(
     const TConstExternalCGInfoPtr& externalCGInfo,
     const TString& rootPath)
 {
-     for (const auto& function : externalCGInfo->Functions) {
+    for (const auto& function : externalCGInfo->Functions) {
         const auto& name = function.Name;
 
         YT_LOG_DEBUG("Fetching UDF implementation (Name: %v)", name);

@@ -95,9 +95,9 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
 }
 
 std::vector<TUnversionedRow> FetchReaderKeyPrefixes(
-     ISchemalessMultiChunkReaderPtr reader,
-     int keyLength,
-     TRowBufferPtr buffer)
+    ISchemalessMultiChunkReaderPtr reader,
+    int keyLength,
+    TRowBufferPtr buffer)
 {
     std::vector<TUnversionedRow> keys;
     while (true) {

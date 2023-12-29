@@ -569,7 +569,7 @@ void LoadLlvmBitcode(
         // Link two modules together, with the first module modified to be the
         // composite of the two input modules.
         linkerFailed = Linker::LinkModules(module, implementationModule.get(), [&] (const DiagnosticInfo& info) {
-           info.print(printer);
+            info.print(printer);
         });
     }
 #else

@@ -295,8 +295,8 @@ public:
            .ValueOrThrow();
 
         YT_LOG_DEBUG("Operation heavy attributes report transaction started (TransactionId: %v, OperationId: %v)",
-           transaction->GetId(),
-           operationId);
+            transaction->GetId(),
+            operationId);
 
         auto fullSpecString = fullSpec.ToString();
         auto unrecognizedSpecString = unrecognizedSpec.ToString();

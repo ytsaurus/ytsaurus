@@ -43,7 +43,7 @@ struct THash<NYT::NChunkClient::TBlockId>
     size_t operator()(const NYT::NChunkClient::TBlockId& blockId) const
     {
         return THash<NYT::TGuid>()(blockId.ChunkId) * 497 +
-               blockId.BlockIndex;
+            blockId.BlockIndex;
     }
 };
 

@@ -2187,8 +2187,10 @@ INSTANTIATE_TEST_SUITE_P(
                 TStringBuf("\3\0\0\0aba\4\0\0\0caba", 15),
                 TStringBuf("\3\0\0\0aca\4\0\0\0baca", 15)
             },
-            {TStringBuf("\3\0\0\0cab\4\0\0\0abac", 15),
-             TStringBuf("\3\0\0\0cab\4\0\0\0abac", 15)},
+            {
+                TStringBuf("\3\0\0\0cab\4\0\0\0abac", 15),
+                TStringBuf("\3\0\0\0cab\4\0\0\0abac", 15)
+            },
             TStringBuf("\3\0\0\0cab\4\0\0\0abac", 15),
             MakeString("cab")},
         TEvaluateAggregationWithStringStateParam{

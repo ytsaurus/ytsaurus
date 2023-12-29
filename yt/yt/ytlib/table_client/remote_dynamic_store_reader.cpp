@@ -83,7 +83,7 @@ std::tuple<TTableSchemaPtr, TColumnFilter, TIdMapping> CreateSortedReadParameter
 
     if (columnFilter.IsUniversal()) {
         for (int index = 0; index < std::ssize(idMapping); ++index) {
-             idMapping[index] = index;
+            idMapping[index] = index;
         }
         return {
             schema,

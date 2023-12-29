@@ -3259,7 +3259,7 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
         if (!abandoned) {
             if ((JobSpecCompletedArchiveCount_ < Config->GuaranteedArchivedJobSpecCountPerOperation ||
                 jobSummary->TimeStatistics.ExecDuration.value_or(TDuration()) > Config->MinJobDurationToArchiveJobSpec) &&
-               JobSpecCompletedArchiveCount_ < Config->MaxArchivedJobSpecCountPerOperation)
+                JobSpecCompletedArchiveCount_ < Config->MaxArchivedJobSpecCountPerOperation)
             {
                 ++JobSpecCompletedArchiveCount_;
                 jobSummary->ReleaseFlags.ArchiveJobSpec = true;
@@ -8378,9 +8378,9 @@ void TOperationControllerBase::RegisterStderr(const TJobletPtr& joblet, const TJ
     auto key = BuildBoundaryKeysFromOutputResult(stderrResult, StderrTable_->GetStreamDescriptorTemplate(), RowBuffer);
     if (!key.MinKey || key.MinKey.GetLength() == 0 || !key.MaxKey || key.MaxKey.GetLength() == 0) {
         YT_LOG_DEBUG("Dropping empty stderr chunk tree (JobId: %v, NodeAddress: %v, ChunkListId: %v)",
-           joblet->JobId,
-           joblet->NodeDescriptor.Address,
-           chunkListId);
+            joblet->JobId,
+            joblet->NodeDescriptor.Address,
+            chunkListId);
         return;
     }
 
@@ -8433,9 +8433,9 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
     auto key = BuildBoundaryKeysFromOutputResult(coreResult, CoreTable_->GetStreamDescriptorTemplate(), RowBuffer);
     if (!key.MinKey || key.MinKey.GetLength() == 0 || !key.MaxKey || key.MaxKey.GetLength() == 0) {
         YT_LOG_DEBUG("Dropping empty core chunk tree (JobId: %v, NodeAddress: %v, ChunkListId: %v)",
-           joblet->JobId,
-           joblet->NodeDescriptor.Address,
-           chunkListId);
+            joblet->JobId,
+            joblet->NodeDescriptor.Address,
+            chunkListId);
         return;
     }
     CoreTable_->OutputChunkTreeIds.emplace_back(key, chunkListId);

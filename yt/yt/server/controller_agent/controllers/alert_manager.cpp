@@ -355,28 +355,28 @@ private:
 
     void AnalyzePartitionHistogram()
     {
-         TError error;
+        TError error;
 
-         auto sizeHistogram = Host_->ComputeFinalPartitionSizeHistogram();
-         if (!sizeHistogram) {
-             return;
-         }
+        auto sizeHistogram = Host_->ComputeFinalPartitionSizeHistogram();
+        if (!sizeHistogram) {
+            return;
+        }
 
-         auto view = sizeHistogram->GetHistogramView();
+        auto view = sizeHistogram->GetHistogramView();
 
-         i64 minIqr = Config_->IntermediateDataSkewAlertMinInterquartileRange;
+        i64 minIqr = Config_->IntermediateDataSkewAlertMinInterquartileRange;
 
-         if (view.Max > Config_->IntermediateDataSkewAlertMinPartitionSize) {
-             auto quartiles = ComputeHistogramQuartiles(view);
-             i64 iqr = quartiles.Q75 - quartiles.Q25;
-             if (iqr > minIqr && quartiles.Q50 + 2 * iqr < view.Max) {
-                 error = TError(
-                     "Intermediate data skew is too high (see partitions histogram); "
-                     "operation is likely to have stragglers");
-             }
-         }
+        if (view.Max > Config_->IntermediateDataSkewAlertMinPartitionSize) {
+            auto quartiles = ComputeHistogramQuartiles(view);
+            i64 iqr = quartiles.Q75 - quartiles.Q25;
+            if (iqr > minIqr && quartiles.Q50 + 2 * iqr < view.Max) {
+                error = TError(
+                    "Intermediate data skew is too high (see partitions histogram); "
+                    "operation is likely to have stragglers");
+            }
+        }
 
-         Host_->SetOperationAlert(EOperationAlertType::IntermediateDataSkew, error);
+        Host_->SetOperationAlert(EOperationAlertType::IntermediateDataSkew, error);
     }
 
     void AnalyzeAbortedJobs()

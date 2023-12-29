@@ -267,7 +267,7 @@ private:
         {
             // These errors are possible during grace period.
             if (Owner_->PotentialPeerIds_.contains(id)) {
-                 if (TInstant::Now() > Owner_->EpochContext_->StartTime + Owner_->Config_->FollowerGraceTimeout) {
+                if (TInstant::Now() > Owner_->EpochContext_->StartTime + Owner_->Config_->FollowerGraceTimeout) {
                     YT_LOG_WARNING(error, "Error pinging %v, no success within grace period, considered down (PeerId: %v)",
                         votingPeer ? "follower" : "observer",
                         id);

@@ -411,7 +411,7 @@ void GetRangesFromTrieWithinRangeImpl(
                 builder.Reset();
 
                 if (insertUndefined || !IsEmpty(range)) {
-                     result->push_back(range);
+                    result->push_back(range);
                 }
             }
             continue;

@@ -228,8 +228,10 @@ PyObject* LazyYsonMapCopy(TLazyYsonMap* self)
     LazyYsonMapInit(result, params.ptr(), Py::Dict().ptr());
 
     LazyDictCopy(self->super.Dict, result->super.Dict, false);
-    LazyDictCopy(reinterpret_cast<TLazyYsonMapBase*>(self->Attributes)->Dict,
-                 reinterpret_cast<TLazyYsonMapBase*>(result->Attributes)->Dict, false);
+    LazyDictCopy(
+        reinterpret_cast<TLazyYsonMapBase*>(self->Attributes)->Dict,
+        reinterpret_cast<TLazyYsonMapBase*>(result->Attributes)->Dict,
+        false);
     return reinterpret_cast<PyObject*>(result);
 }
 
@@ -240,9 +242,10 @@ PyObject* LazyYsonMapDeepCopy(TLazyYsonMap* self, PyObject* /*args*/, PyObject* 
     LazyYsonMapInit(result, params.ptr(), Py::Dict().ptr());
 
     LazyDictCopy(self->super.Dict, result->super.Dict, true);
-    LazyDictCopy(reinterpret_cast<TLazyYsonMapBase*>(self->Attributes)->Dict,
-                 reinterpret_cast<TLazyYsonMapBase*>(result->Attributes)->Dict,
-                 true);
+    LazyDictCopy(
+        reinterpret_cast<TLazyYsonMapBase*>(self->Attributes)->Dict,
+        reinterpret_cast<TLazyYsonMapBase*>(result->Attributes)->Dict,
+        true);
     return reinterpret_cast<PyObject*>(result);
 }
 

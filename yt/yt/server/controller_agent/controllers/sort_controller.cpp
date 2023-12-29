@@ -4027,7 +4027,7 @@ protected:
             case EJobType::PartitionReduce:
             case EJobType::SortedReduce:
                 return TStringBuf("partition_data_weight");
-           default:
+            default:
                 YT_ABORT();
         }
     }

@@ -504,7 +504,7 @@ private:
             while (j < std::ssize(candidates)) {
                 int storeCount = j - i;
                 if (storeCount > mountConfig->MaxCompactionStoreCount) {
-                   break;
+                    break;
                 }
                 i64 dataSize = candidates[j].Store->GetCompressedDataSize();
                 if (!criticalPartition &&

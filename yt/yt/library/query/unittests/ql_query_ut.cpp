@@ -4034,8 +4034,7 @@ TEST_F(TQueryEvaluateTest, JoinSimple2)
         "x=2"
     }, resultSplit);
 
-    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources,
-             OrderedResultMatcher(result, {"x"}));
+    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, OrderedResultMatcher(result, {"x"}));
 
     SUCCEED();
 }
@@ -4505,8 +4504,7 @@ TEST_F(TQueryEvaluateTest, JoinNonPrefixColumns)
         "a=3;x=c"
     }, resultSplit);
 
-    Evaluate("x, a, y FROM [//left] join [//right] using x", splits, sources,
-             OrderedResultMatcher(result, {"a"}));
+    Evaluate("x, a, y FROM [//left] join [//right] using x", splits, sources, OrderedResultMatcher(result, {"a"}));
 
     SUCCEED();
 }

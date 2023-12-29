@@ -848,8 +848,8 @@ private:
             if (!isNontrivialInput && IsRowCountPreserved() && Spec->ForceTransform) {
                 YT_LOG_ERROR_IF(TotalEstimatedInputRowCount != UnorderedTask_->GetTotalOutputRowCount(),
                     "Input/output row count mismatch in unordered merge operation (TotalEstimatedInputRowCount: %v, TotalOutputRowCount: %v)",
-                     TotalEstimatedInputRowCount,
-                     UnorderedTask_->GetTotalOutputRowCount());
+                    TotalEstimatedInputRowCount,
+                    UnorderedTask_->GetTotalOutputRowCount());
                 YT_VERIFY(TotalEstimatedInputRowCount == UnorderedTask_->GetTotalOutputRowCount());
             }
         }

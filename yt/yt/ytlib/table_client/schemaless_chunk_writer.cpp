@@ -679,8 +679,8 @@ public:
             // that at least one writer should be present.
             auto blockWriter = std::make_unique<TDataBlockWriter>();
             ValueColumnWriters_.emplace_back(CreateSchemalessColumnWriter(
-               Schema_->GetColumnCount(),
-               blockWriter.get()));
+                Schema_->GetColumnCount(),
+                blockWriter.get()));
             BlockWriters_.emplace_back(std::move(blockWriter));
         }
 
@@ -2369,9 +2369,9 @@ private:
             Options_->MaxHeavyColumns = rsp->max_heavy_columns();
 
             YT_LOG_DEBUG("Table upload parameters received (ChunkListId: %v, HasLastKey: %v, MaxHeavyColumns: %v)",
-                 chunkListId,
-                 static_cast<bool>(writerLastKey),
-                 Options_->MaxHeavyColumns);
+                chunkListId,
+                static_cast<bool>(writerLastKey),
+                Options_->MaxHeavyColumns);
         }
 
         auto timestamp = WaitFor(Client_->GetNativeConnection()->GetTimestampProvider()->GenerateTimestamps())

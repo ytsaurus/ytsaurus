@@ -3832,7 +3832,7 @@ private:
                             lockingState->TransactionToExclusiveLocks.erase(lock->GetTransactionToExclusiveLocksIterator());
                             break;
 
-                         case ELockMode::Shared:
+                        case ELockMode::Shared:
                             lockingState->TransactionAndKeyToSharedLocks.erase(lock->GetTransactionAndKeyToSharedLocksIterator());
                             if (lock->Request().Key.Kind != ELockKeyKind::None) {
                                 lockingState->KeyToSharedLocks.erase(lock->GetKeyToSharedLocksIterator());

@@ -804,7 +804,7 @@ private:
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex,
                 "Error deserializing hunk storage mount config (TabletId: %v)",
-                 tabletId);
+                tabletId);
             return New<THunkStorageMountConfig>();
         }
     }
@@ -816,7 +816,7 @@ private:
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex,
                 "Error deserializing hunk store writer config (TabletId: %v)",
-                 tabletId);
+                tabletId);
             return New<THunkStoreWriterConfig>();
         }
     }
@@ -828,7 +828,7 @@ private:
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex,
                 "Error deserializing hunk store writer options (TabletId: %v)",
-                 tabletId);
+                tabletId);
             return New<THunkStoreWriterOptions>();
         }
     }

@@ -32,24 +32,24 @@ namespace {
 
 TTransactionId GetTransactionIdFromToken(TPathResolver::TTransactionToken token)
 {
-   return Visit(token,
-       [] (TTransactionId id) {
-           return id;
-       },
-       [] (TTransaction* transaction) {
-           return GetObjectId(transaction);
-       });
+    return Visit(token,
+        [] (TTransactionId id) {
+            return id;
+        },
+        [] (TTransaction* transaction) {
+            return GetObjectId(transaction);
+        });
 }
 
 std::optional<TTransaction*> GetTransactionFromToken(TPathResolver::TTransactionToken token)
 {
-   return Visit(token,
-       [] (TTransactionId /*id*/) -> std::optional<TTransaction*> {
-           return std::nullopt;
-       },
-       [] (TTransaction* transaction) -> std::optional<TTransaction*> {
-           return transaction;
-       });
+    return Visit(token,
+        [] (TTransactionId /*id*/) -> std::optional<TTransaction*> {
+            return std::nullopt;
+        },
+        [] (TTransaction* transaction) -> std::optional<TTransaction*> {
+            return transaction;
+        });
 }
 
 } // namespace

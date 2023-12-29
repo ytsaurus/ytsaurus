@@ -1497,7 +1497,7 @@ private:
         LastCounters_ = currentCounters;
     }
 
-     void OnDynamicConfigChanged(
+    void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {

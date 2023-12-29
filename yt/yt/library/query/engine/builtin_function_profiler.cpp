@@ -1035,7 +1035,7 @@ private:
 
         Value* iterator = permanentData;
 
-        for(int index = 0; index < std::ssize(args); ++index) {
+        for (int index = 0; index < std::ssize(args); ++index) {
             switch (argTypes[index]) {
                 case EValueType::String: {
                     builder->CreateStore(args[index].GetLength(), iterator);

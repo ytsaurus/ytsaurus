@@ -58,7 +58,7 @@ std::unique_ptr<NHydra::TSaveContext> TMasterAutomaton::CreateSaveContext(
     auto backgroundThreadPool = Bootstrap_->GetConfig()->HydraManager->SnapshotBackgroundThreadCount > 0
         ? CreateThreadPool(Bootstrap_->GetConfig()->HydraManager->SnapshotBackgroundThreadCount, "SnapshotBack")
         : nullptr;
-   return std::make_unique<TSaveContext>(
+    return std::make_unique<TSaveContext>(
         output,
         std::move(logger),
         std::move(backgroundThreadPool));

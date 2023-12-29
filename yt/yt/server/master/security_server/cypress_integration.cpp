@@ -129,7 +129,7 @@ private:
             }
 
             case EInternedAttributeKey::RootAccountResourceLimits:
-                 SerializeClusterResourceLimits(
+                SerializeClusterResourceLimits(
                     rootAccount->ClusterResourceLimits(),
                     consumer,
                     Bootstrap_,

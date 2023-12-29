@@ -1304,8 +1304,8 @@ IUnversionedRowBatchPtr THorizontalSchemalessKeyRangesChunkReader::Read(const TR
     if (!BeginRead()) {
         // Not ready yet, retry.
         return CreateBatchFromUnversionedRows(MakeSharedRange(
-           std::vector<TUnversionedRow>{},
-           MakeStrong(this)));
+            std::vector<TUnversionedRow>{},
+            MakeStrong(this)));
 
     }
 
@@ -1317,8 +1317,8 @@ IUnversionedRowBatchPtr THorizontalSchemalessKeyRangesChunkReader::Read(const TR
         BlockReader_.reset();
         OnBlockEnded();
         return CreateBatchFromUnversionedRows(MakeSharedRange(
-               std::vector<TUnversionedRow>{},
-               MakeStrong(this)));
+            std::vector<TUnversionedRow>{},
+            MakeStrong(this)));
     }
 
     i64 initialRowCount = RowCount_;

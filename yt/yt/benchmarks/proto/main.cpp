@@ -20,7 +20,7 @@ int main(int argc, const char* argv[])
 
     int N  = 30000;
     if (argc > 2)
-         N = atoi(argv[2]);
+        N = atoi(argv[2]);
 
     TExtendFull extFull;
     extFull.set_int_field(5678);

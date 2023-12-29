@@ -1986,7 +1986,7 @@ void TSchedulableConfig::Register(TRegistrar registrar)
     registrar.Postprocessor([&] (TSchedulableConfig* config) {
         if (config->SchedulingTagFilter.Size() > MaxSchedulingTagRuleCount) {
             THROW_ERROR_EXCEPTION("Specifying more than %v tokens in scheduling tag filter is not allowed",
-                 MaxSchedulingTagRuleCount);
+                MaxSchedulingTagRuleCount);
         }
     });
 }

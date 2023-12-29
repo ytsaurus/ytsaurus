@@ -202,7 +202,7 @@ private:
     const IAsyncZeroCopyInputStreamPtr Underlying_;
     const TContentEncoding ContentEncoding_;
 
-   std::unique_ptr<IInputStream> Decompressor_;
+    std::unique_ptr<IInputStream> Decompressor_;
 
     TSharedRef LastRead_;
     bool IsEnd_ = false;

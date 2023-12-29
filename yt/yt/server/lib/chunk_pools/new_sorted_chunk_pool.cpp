@@ -682,7 +682,7 @@ private:
         int splitJobCount)
     {
         auto validateDataSlices = [&] (const std::vector<TLegacyDataSlicePtr>& dataSlices, int prefixLength) {
-             for (const auto& dataSlice : dataSlices) {
+            for (const auto& dataSlice : dataSlices) {
                 YT_VERIFY(!dataSlice->IsLegacy);
                 YT_VERIFY(dataSlice->LowerLimit().KeyBound);
                 YT_VERIFY(dataSlice->UpperLimit().KeyBound);

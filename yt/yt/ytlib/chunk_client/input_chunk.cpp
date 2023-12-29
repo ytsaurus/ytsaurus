@@ -218,12 +218,12 @@ void TInputChunk::Persist(const TStreamPersistenceContext& context)
 size_t TInputChunk::SpaceUsed() const
 {
     return
-       sizeof(*this) +
-       (LowerLimit_ ? LowerLimit_->SpaceUsed() : 0) +
-       (UpperLimit_ ? UpperLimit_->SpaceUsed() : 0) +
-       (BoundaryKeys_ ? BoundaryKeys_->SpaceUsed() : 0) +
-       (PartitionsExt_ ? PartitionsExt_->SpaceUsed() : 0) +
-       (HeavyColumnarStatisticsExt_ ? HeavyColumnarStatisticsExt_->SpaceUsed() : 0);
+        sizeof(*this) +
+        (LowerLimit_ ? LowerLimit_->SpaceUsed() : 0) +
+        (UpperLimit_ ? UpperLimit_->SpaceUsed() : 0) +
+        (BoundaryKeys_ ? BoundaryKeys_->SpaceUsed() : 0) +
+        (PartitionsExt_ ? PartitionsExt_->SpaceUsed() : 0) +
+        (HeavyColumnarStatisticsExt_ ? HeavyColumnarStatisticsExt_->SpaceUsed() : 0);
 }
 
 //! Returns |false| iff the chunk has nontrivial limits.

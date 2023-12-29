@@ -4095,8 +4095,8 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
         // 98..99 - add new pool to multi pool if multi pool is used.
         int eventType = dice(Gen_);
         if (eventType <= 0) {
-           Cdebug << "Persisting and restoring the pool" << Endl;
-           PersistAndRestore();
+            Cdebug << "Persisting and restoring the pool" << Endl;
+            PersistAndRestore();
         } else if (eventType <= 19) {
             if (auto randomElement = chooseRandomElement(resumedCookies)) {
                 auto cookie = *randomElement;

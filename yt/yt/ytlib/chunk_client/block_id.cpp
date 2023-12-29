@@ -26,7 +26,7 @@ TString ToString(const TBlockId& id)
 bool operator == (const TBlockId& lhs, const TBlockId& rhs)
 {
     return lhs.ChunkId == rhs.ChunkId &&
-           lhs.BlockIndex == rhs.BlockIndex;
+        lhs.BlockIndex == rhs.BlockIndex;
 }
 
 bool operator != (const TBlockId& lhs, const TBlockId& rhs)

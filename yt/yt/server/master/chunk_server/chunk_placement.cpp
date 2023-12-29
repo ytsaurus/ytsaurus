@@ -716,7 +716,7 @@ std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
         result.erase(tailIt, result.end());
     }
 
-   return result;
+    return result;
 }
 
 TNodeList TChunkPlacement::AllocateWriteTargets(

@@ -1518,7 +1518,7 @@ private:
                 partition->GetState() == EPartitionState::Splitting)
             {
                 YT_LOG_DEBUG("Other partition is splitting, aborting eden partitioning (PartitionId: %v)",
-                     partition->GetId());
+                    partition->GetId());
                 logFailure("other_partition_splitting")
                     .Item("other_partition_id").Value(partition->GetId());
                 return;

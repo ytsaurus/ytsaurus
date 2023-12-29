@@ -241,9 +241,10 @@ protected:
         }
     }
 
-    ISchemalessChunkReaderPtr CreateReader(TNameTablePtr readNameTable,
-                                           const TReadLimit& lowerReadLimit,
-                                           const TReadLimit& upperReadLimit)
+    ISchemalessChunkReaderPtr CreateReader(
+        TNameTablePtr readNameTable,
+        const TReadLimit& lowerReadLimit,
+        const TReadLimit& upperReadLimit)
     {
         auto schema = std::get<1>(GetParam());
         auto columnFilter = std::get<2>(GetParam());

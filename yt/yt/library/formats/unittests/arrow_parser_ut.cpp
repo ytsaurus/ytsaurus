@@ -112,7 +112,7 @@ std::string MakeIntAndStringArrow(const std::vector<int8_t>& data, const std::ve
     arrow::StringBuilder stringBuilder;
 
     for (const auto& value : stringData) {
-       ThrowOnError(stringBuilder.Append(value));
+        ThrowOnError(stringBuilder.Append(value));
     }
 
     auto stringArray = stringBuilder.Finish();

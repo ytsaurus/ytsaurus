@@ -1178,7 +1178,7 @@ private:
     }
 
     // TODO(capone212): Remove after using request sizes histogram everywhere.
-     static int GetReadToWriteRatio(
+    static int GetReadToWriteRatio(
         const TGentleLoaderConfigPtr& config,
         IIOEngineWorkloadModelPtr engine)
     {

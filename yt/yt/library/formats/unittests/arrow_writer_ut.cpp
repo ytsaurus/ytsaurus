@@ -815,7 +815,7 @@ TEST(Simple, MultiTable)
 
     std::vector<std::string> stringColumn1 = {MakeRandomString(7), MakeRandomString(3), MakeRandomString(10)};
     firstBatchSize += std::ssize(stringColumn1);
-    for(int rowIndex = 0; rowIndex < std::ssize(stringColumn1); ++rowIndex) {
+    for (int rowIndex = 0; rowIndex < std::ssize(stringColumn1); ++rowIndex) {
         TUnversionedOwningRowBuilder rowsBuilders;
         rowsBuilders.AddValue(MakeUnversionedStringValue(stringColumn1[rowIndex], stringId1));
         rowsBuilders.AddValue(MakeUnversionedInt64Value(0, tableId));
@@ -827,7 +827,7 @@ TEST(Simple, MultiTable)
 
     std::vector<int64_t> intColumn1 = {1, 2, 3, 4, 5};
     firstBatchSize += std::ssize(intColumn1);
-    for(int rowIndex = 0; rowIndex < std::ssize(intColumn1); ++rowIndex) {
+    for (int rowIndex = 0; rowIndex < std::ssize(intColumn1); ++rowIndex) {
         TUnversionedOwningRowBuilder rowsBuilders;
         rowsBuilders.AddValue(MakeUnversionedInt64Value(intColumn1[rowIndex], intId1));
         rowsBuilders.AddValue(MakeUnversionedInt64Value(1, tableId));
@@ -840,7 +840,7 @@ TEST(Simple, MultiTable)
     std::vector<int64_t> intColumn2= {1, 2, 3};
     std::vector<std::string> stringColumn2 = {MakeRandomString(4), MakeRandomString(12), MakeRandomString(2)};
     firstBatchSize += std::ssize(stringColumn2);
-    for(int rowIndex = 0; rowIndex < std::ssize(stringColumn2); ++rowIndex) {
+    for (int rowIndex = 0; rowIndex < std::ssize(stringColumn2); ++rowIndex) {
         TUnversionedOwningRowBuilder rowsBuilders;
         rowsBuilders.AddValue(MakeUnversionedStringValue(stringColumn2[rowIndex], stringId2));
         rowsBuilders.AddValue(MakeUnversionedInt64Value(intColumn2[rowIndex], intId2));
@@ -852,7 +852,7 @@ TEST(Simple, MultiTable)
     // Fourth batch
 
     std::vector<std::string> stringColumn3 = {MakeRandomString(5), MakeRandomString(6)};
-    for(int rowIndex = 0; rowIndex < std::ssize(stringColumn3); ++rowIndex) {
+    for (int rowIndex = 0; rowIndex < std::ssize(stringColumn3); ++rowIndex) {
         TUnversionedOwningRowBuilder rowsBuilders;
         rowsBuilders.AddValue(MakeUnversionedStringValue(stringColumn3[rowIndex], stringId1));
         rowsBuilders.AddValue(MakeUnversionedInt64Value(0, tableId));
@@ -863,7 +863,7 @@ TEST(Simple, MultiTable)
     // Fifth batch
 
     std::vector<int64_t> intColumn3 = {42, 128};
-    for(int rowIndex = 0; rowIndex < std::ssize(intColumn3); ++rowIndex) {
+    for (int rowIndex = 0; rowIndex < std::ssize(intColumn3); ++rowIndex) {
         TUnversionedOwningRowBuilder rowsBuilders;
         rowsBuilders.AddValue(MakeUnversionedInt64Value(intColumn3[rowIndex], intId1));
         rowsBuilders.AddValue(MakeUnversionedInt64Value(1, tableId));
