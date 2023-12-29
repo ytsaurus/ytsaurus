@@ -71,7 +71,8 @@ TMapDataset::TMapDataset(const IDataset& inner, const IMultiMapper& operation)
     , Operation_(operation)
     , Table_{
         std::vector<TDataColumn>{Operation_.OutputColumns().begin(), Operation_.OutputColumns().end()},
-        std::vector<TString>{}  // deleted columns
+        std::vector<TString>{Operation_.DeletedColumns().begin(), Operation_.DeletedColumns().end()},
+        0
       }
 {
     for (const auto& dataColumn : Operation_.OutputColumns()) {

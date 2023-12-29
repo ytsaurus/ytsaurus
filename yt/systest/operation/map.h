@@ -74,35 +74,37 @@ public:
     virtual TRange<int> InputColumns() const override;
     virtual TRange<TDataColumn> OutputColumns() const override;
     virtual void ToProto(NProto::TRowMapper* proto) const override;
+    virtual TRange<TString> DeletedColumns() const override;
 
     virtual std::vector<TNode> Run(TCallState* state, TRange<TNode> input) const override;
 
 private:
     std::vector<std::unique_ptr<IRowMapper>> Operations_;
     std::vector<TDataColumn> OutputColumns_;
+    std::vector<TString> DeletedStableNames_;
 
     std::vector<int> InputColumns_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDeleteColumnRowMapper : public IRowMapper
+class TDecorateWithDeletedColumnRowMapper : public IRowMapper
 {
 public:
-    TDeleteColumnRowMapper(const TTable& input, int index);
-    TDeleteColumnRowMapper(const TTable& input, const NProto::TDeleteColumnRowMapper& proto);
+    TDecorateWithDeletedColumnRowMapper(const TTable& input, const TString& deletedStableName);
+    TDecorateWithDeletedColumnRowMapper(
+        const TTable& input,
+        const NProto::TDecorateWithDeletedColumnRowMapper& proto);
 
     virtual TRange<int> InputColumns() const override;
     virtual TRange<TDataColumn> OutputColumns() const override;
 
     virtual std::vector<TNode> Run(TCallState* state, TRange<TNode> input) const override;
     virtual void ToProto(NProto::TRowMapper* proto) const override;
+    virtual TRange<TString> DeletedColumns() const override;
 
 private:
-    int Index_;
-    int InputColumns_[1];
-
-    void FillColumns();
+    TString DeletedStableName_[1];
 };
 
 ////////////////////////////////////////////////////////////////////////////////

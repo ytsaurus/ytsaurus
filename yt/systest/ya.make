@@ -7,7 +7,6 @@ SRCS(
     config.cpp
     dataset.cpp
     dataset_operation.cpp
-    decorate_dataset.cpp
     map_dataset.cpp
     operation.cpp
 

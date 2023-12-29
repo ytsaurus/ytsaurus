@@ -59,6 +59,6 @@ struct TStoredDataset
 
 std::unique_ptr<IDataset> Map(const IDataset& source, const IMultiMapper& operation);
 
-TStoredDataset MaterializeIntoTable(IClientPtr client, const TString& tablePath, const IDataset& dataset);
+TStoredDataset MaterializeIgnoringStableNames(IClientPtr client, const TString& tablePath, const IDataset& dataset);
 
 }  // namespace NYT::NTest

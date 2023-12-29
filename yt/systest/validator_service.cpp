@@ -116,7 +116,6 @@ TValidatorService::TValidatorService(IClientPtr client, IInvokerPtr invoker, NLo
 
 DEFINE_RPC_SERVICE_METHOD(TValidatorService, MapInterval)
 {
-
     TTable table;
     FromProto(&table, request->map_spec().table());
 
@@ -126,7 +125,7 @@ DEFINE_RPC_SERVICE_METHOD(TValidatorService, MapInterval)
     auto operation = CreateFromProto(table, request->map_spec().operation());
     std::unique_ptr<TMapDataset> mapDataset = std::make_unique<TMapDataset>(*dataset, *operation);
 
-    MaterializeIntoTable(Client_, request->output_path(), *mapDataset);
+    MaterializeIgnoringStableNames(Client_, request->output_path(), *mapDataset);
 
     context->Reply();
 }
@@ -149,7 +148,7 @@ DEFINE_RPC_SERVICE_METHOD(TValidatorService, ReduceInterval)
     };
 
     auto reduceDataset = std::make_unique<TReduceDataset>(*dataset, reduceOperation);
-    MaterializeIntoTable(Client_, request->output_path(), *reduceDataset);
+    MaterializeIgnoringStableNames(Client_, request->output_path(), *reduceDataset);
 
     context->Reply();
 }
@@ -167,7 +166,7 @@ DEFINE_RPC_SERVICE_METHOD(TValidatorService, SortInterval)
     std::unique_ptr<IDataset> sortDataset = std::make_unique<TSortDataset>(
         *dataset, sortOperation);
 
-    MaterializeIntoTable(Client_, request->output_path(), *sortDataset);
+    MaterializeIgnoringStableNames(Client_, request->output_path(), *sortDataset);
 
     context->Reply();
 }
@@ -230,7 +229,7 @@ DEFINE_RPC_SERVICE_METHOD(TValidatorService, MergeSortedIntervals)
         inner.push_back(inputDataset.back().get());
     }
     auto mergeDataset = std::make_unique<TMergeSortedDataset>(std::move(inner));
-    MaterializeIntoTable(Client_, request->output_path(), *mergeDataset);
+    MaterializeIgnoringStableNames(Client_, request->output_path(), *mergeDataset);
 
     context->Reply();
 }

@@ -25,6 +25,7 @@ struct TTable {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTable DropStableNames(const TTable& table);
 TString BuildAttributes(const TTable& table);
 
 TString SchemaTypeName(NProto::EColumnType type);

@@ -73,6 +73,20 @@ NTableClient::ESimpleLogicalValueType GetType(NProto::EColumnType type)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTable DropStableNames(const TTable& table)
+{
+    TTable result;
+    for (const auto& column : table.DataColumns) {
+        result.DataColumns.push_back({
+            column.Name,
+            column.Type,
+            std::nullopt
+        });
+    }
+    result.SortColumns = table.SortColumns;
+    return result;
+}
+
 TString BuildAttributes(const TTable& table)
 {
     TString attrs("<schema=[");
@@ -95,9 +109,9 @@ TString BuildAttributes(const TTable& table)
         if (i > 0) {
             attrs += ";";
         }
-        attrs += "{name=";
+        attrs += "{stable_name=";
         attrs += column;
-        attrs += ";deleted=true}";
+        attrs += ";deleted=%true}";
     }
     attrs += "]>";
     return attrs;

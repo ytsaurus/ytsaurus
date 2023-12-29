@@ -28,9 +28,9 @@ std::unique_ptr<IRowMapper> CreateFromProto(
                 input, operationProto.concatenate_columns());
             break;
         }
-        case NProto::TRowMapper::kDeleteColumn: {
-            return std::make_unique<TDeleteColumnRowMapper>(
-                input, operationProto.delete_column());
+        case NProto::TRowMapper::kDecorateWithDeletedColumn: {
+            return std::make_unique<TDecorateWithDeletedColumnRowMapper>(
+                input, operationProto.decorate_with_deleted_column());
             break;
         }
         case NProto::TRowMapper::kRenameColumn: {

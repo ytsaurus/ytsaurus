@@ -87,6 +87,11 @@ TRange<TDataColumn> TSingleMultiMapper::OutputColumns() const
     return Inner_->OutputColumns();
 }
 
+TRange<TString> TSingleMultiMapper::DeletedColumns() const
+{
+    return Inner_->DeletedColumns();
+}
+
 void TSingleMultiMapper::ToProto(NProto::TMultiMapper* proto) const
 {
     auto* operationProto = proto->mutable_single();
@@ -117,6 +122,7 @@ TRepeatMultiMapper::TRepeatMultiMapper(
     , Count_(proto.count())
     , Inner_(CreateFromProto(input, proto.inner()))
 {
+    YT_VERIFY(Inner_->DeletedColumns().empty());
 }
 
 TRange<int> TRepeatMultiMapper::InputColumns() const
@@ -138,11 +144,11 @@ void TRepeatMultiMapper::ToProto(NProto::TMultiMapper* proto) const
 
 std::vector<std::vector<TNode>> TRepeatMultiMapper::Run(TCallState* state, TRange<TNode> input) const
 {
-  std::vector<std::vector<TNode>> result;
-  for (int i = 0; i < Count_; i++) {
-    result.push_back(Inner_->Run(state, input));
-  }
-  return result;
+    std::vector<std::vector<TNode>> result;
+    for (int i = 0; i < Count_; i++) {
+        result.push_back(Inner_->Run(state, input));
+    }
+    return result;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -176,8 +182,10 @@ void TCombineMultiMapper::PopulateInputColumns()
     std::vector<const IOperation*> allOperations;
     for (const auto& operation : SingleOperations_) {
         YT_VERIFY(operation->OutputColumns().empty());
+        YT_VERIFY(operation->DeletedColumns().empty());
         allOperations.push_back(operation.get());
     }
+    YT_VERIFY(MultiOperation_->DeletedColumns().empty());
     allOperations.push_back(MultiOperation_.get());
     InputColumns_ = CollectInputColumns(allOperations);
 }

@@ -4,7 +4,6 @@
 #include <yt/systest/bootstrap_dataset.h>
 #include <yt/systest/dataset.h>
 #include <yt/systest/dataset_operation.h>
-#include <yt/systest/decorate_dataset.h>
 #include <yt/systest/sort_dataset.h>
 #include <yt/systest/reduce_dataset.h>
 #include <yt/systest/run.h>
@@ -154,7 +153,7 @@ void TRunner::Run()
     auto bootstrapPath = TestHome_.CreateRandomTablePath();
     YT_LOG_INFO("Will write bootstrap table (Path: %v)", bootstrapPath);
 
-    auto bootstrapInfo = MaterializeIntoTable(Client_, bootstrapPath, *bootstrapDataset);
+    auto bootstrapInfo = MaterializeIgnoringStableNames(Client_, bootstrapPath, *bootstrapDataset);
 
     Infos_.push_back(TDatasetInfo{
         bootstrapDataset.get(),
@@ -272,16 +271,17 @@ TRunner::TMappedDataset TRunner::RenameAndDeleteColumn(const TDatasetInfo& info)
     const auto& path = info.Stored.Path;
 
     std::vector<std::unique_ptr<IRowMapper>> columnOperations;
-    columnOperations.push_back(std::make_unique<TDeleteColumnRowMapper>(dataset.table_schema(), deleteIndex));
-    columnOperations.push_back(std::make_unique<TIdentityRowMapper>(dataset.table_schema(), indexRangeExcept(0, 5, {3})));
+    columnOperations.push_back(std::make_unique<TIdentityRowMapper>(dataset.table_schema(), indexRangeExcept(0, 5, {deleteIndex})));
     columnOperations.push_back(std::make_unique<TRenameColumnRowMapper>(dataset.table_schema(), renameIndex, "Y" + std::to_string(renameIndex)));
     columnOperations.push_back(std::make_unique<TIdentityRowMapper>(dataset.table_schema(), indexRangeExcept(6, numIndices, {})));
+    columnOperations.push_back(std::make_unique<TDecorateWithDeletedColumnRowMapper>(dataset.table_schema(), "X3"));
 
     auto deleteColumnOperation = std::make_unique<TSingleMultiMapper>(
         dataset.table_schema(), std::make_unique<TConcatenateColumnsRowMapper>(dataset.table_schema(), std::move(columnOperations)));
 
-    auto deleteColumnDataset = std::make_unique<TDecorateDataset>(
-        Map(dataset, *deleteColumnOperation), std::vector<TString>{"X3"});
+    YT_VERIFY(std::ssize(deleteColumnOperation->DeletedColumns()) == 1);
+
+    auto deleteColumnDataset = Map(dataset, *deleteColumnOperation);
 
     auto targetPath = CloneTableViaMap(dataset.table_schema(), path);
 

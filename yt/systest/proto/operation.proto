@@ -16,8 +16,8 @@ message TRowMapper {
         TIdentityRowMapper identity = 2;
         TGenerateRandomRowMapper generate_random = 3;
         TConcatenateColumnsRowMapper concatenate_columns = 4;
-        TDeleteColumnRowMapper delete_column = 5;
-        TRenameColumnRowMapper rename_column = 6;
+        TDecorateWithDeletedColumnRowMapper decorate_with_deleted_column = 6;
+        TRenameColumnRowMapper rename_column = 7;
     }
 }
 
@@ -58,8 +58,8 @@ message TConcatenateColumnsRowMapper {
     repeated TRowMapper inner_operations = 1;
 };
 
-message TDeleteColumnRowMapper {
-    required int32 index = 1;
+message TDecorateWithDeletedColumnRowMapper {
+    required string stable_name = 1;
 }
 
 message TRenameColumnRowMapper {

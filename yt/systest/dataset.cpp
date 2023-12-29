@@ -25,9 +25,10 @@ std::unique_ptr<IDataset> Map(const IDataset& source, const IMultiMapper& operat
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStoredDataset MaterializeIntoTable(IClientPtr client, const TString& tablePath, const IDataset& dataset)
+TStoredDataset MaterializeIgnoringStableNames(IClientPtr client, const TString& tablePath, const IDataset& dataset)
 {
-    auto writer = client->CreateTableWriter<TNode>(BuildAttributes(dataset.table_schema()) + tablePath);
+    auto writer = client->CreateTableWriter<TNode>(
+        BuildAttributes(DropStableNames(dataset.table_schema())) + tablePath);
     auto iterator = dataset.NewIterator();
     i64 totalSize = 0;
     i64 totalRecords = 0;

@@ -185,6 +185,9 @@ TConcatenateColumnsRowMapper::TConcatenateColumnsRowMapper(const TTable& input, 
     {
         auto operationColumns = operation->OutputColumns();
         std::copy(operationColumns.begin(), operationColumns.end(), std::back_inserter(OutputColumns_));
+        auto deletedColumns = operation->DeletedColumns();
+        std::copy(deletedColumns.begin(), deletedColumns.end(),
+            std::back_inserter(DeletedStableNames_));
         operationPtrs.push_back(operation.get());
     }
 
@@ -203,6 +206,10 @@ TConcatenateColumnsRowMapper::TConcatenateColumnsRowMapper(const TTable& input, 
         std::copy(operationColumns.begin(), operationColumns.end(),
             std::back_inserter(OutputColumns_));
 
+        auto deletedColumns = operation->DeletedColumns();
+        std::copy(deletedColumns.begin(), deletedColumns.end(),
+            std::back_inserter(DeletedStableNames_));
+
         Operations_.push_back(std::move(operation));
         operationPtrs.push_back(Operations_.back().get());
     }
@@ -218,6 +225,11 @@ TRange<int> TConcatenateColumnsRowMapper::InputColumns() const
 TRange<TDataColumn> TConcatenateColumnsRowMapper::OutputColumns() const
 {
     return OutputColumns_;
+}
+
+TRange<TString> TConcatenateColumnsRowMapper::DeletedColumns() const
+{
+    return DeletedStableNames_;
 }
 
 void TConcatenateColumnsRowMapper::ToProto(NProto::TRowMapper* proto) const
@@ -240,41 +252,50 @@ std::vector<TNode> TConcatenateColumnsRowMapper::Run(TCallState* state, TRange<T
     return result;
 }
 
-////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////
 
-TDeleteColumnRowMapper::TDeleteColumnRowMapper(const TTable& input, int index)
+TDecorateWithDeletedColumnRowMapper::TDecorateWithDeletedColumnRowMapper(
+    const TTable& input,
+    const TString& deletedStableName)
     : IRowMapper(input)
-    , Index_(index)
+    , DeletedStableName_{deletedStableName}
 {
-    InputColumns_[0] = Index_;
 }
 
-TDeleteColumnRowMapper::TDeleteColumnRowMapper(const TTable& input, const NProto::TDeleteColumnRowMapper& proto)
+TDecorateWithDeletedColumnRowMapper::TDecorateWithDeletedColumnRowMapper(
+    const TTable& input,
+    const NProto::TDecorateWithDeletedColumnRowMapper& proto)
     : IRowMapper(input)
-    , Index_(proto.index())
+    , DeletedStableName_{proto.stable_name()}
 {
-    InputColumns_[0] = Index_;
 }
 
-TRange<int> TDeleteColumnRowMapper::InputColumns() const
+TRange<int> TDecorateWithDeletedColumnRowMapper::InputColumns() const
 {
-    return TRange<int>(InputColumns_, 1);
+    return TRange<int>();
 }
 
-TRange<TDataColumn> TDeleteColumnRowMapper::OutputColumns() const
+TRange<TDataColumn> TDecorateWithDeletedColumnRowMapper::OutputColumns() const
 {
-    return TRange<TDataColumn>(nullptr, nullptr);
+    return TRange<TDataColumn>();
 }
 
-std::vector<TNode> TDeleteColumnRowMapper::Run(TCallState* /*state*/, TRange<TNode> /*input*/) const
+TRange<TString> TDecorateWithDeletedColumnRowMapper::DeletedColumns() const
+{
+    return TRange<TString>(DeletedStableName_, 1);
+}
+
+std::vector<TNode> TDecorateWithDeletedColumnRowMapper::Run(
+    TCallState* /*state*/,
+    TRange<TNode> /*input*/) const
 {
     return std::vector<TNode>{};
 }
 
-void TDeleteColumnRowMapper::ToProto(NProto::TRowMapper* proto) const
+void TDecorateWithDeletedColumnRowMapper::ToProto(NProto::TRowMapper* proto) const
 {
-    auto* operationProto = proto->mutable_delete_column();
-    operationProto->set_index(Index_);
+    auto* operationProto = proto->mutable_decorate_with_deleted_column();
+    operationProto->set_stable_name(DeletedStableName_[0]);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////

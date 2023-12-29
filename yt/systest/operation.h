@@ -29,6 +29,7 @@ public:
 
     virtual TRange<int> InputColumns() const = 0;
     virtual TRange<TDataColumn> OutputColumns() const = 0;
+    virtual TRange<TString> DeletedColumns() const { return TRange<TString>(nullptr, nullptr); }
 
 protected:
     const TTable& Input_;
