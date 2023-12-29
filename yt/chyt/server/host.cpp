@@ -247,6 +247,17 @@ public:
         return Discovery_->Leave();
     }
 
+    void ValidatePermissionToClique(const TString& user, EPermission permission) const
+    {
+        auto key = TPermissionKey{
+            .Object = Format("//sys/access_control_object_namespaces/chyt/%v/principal", Config_->CliqueAlias),
+            .User = user,
+            .Permission = permission,
+        };
+        WaitFor(PermissionCache_->Get(key))
+            .ThrowOnError();
+    }
+
     void ValidateReadPermissions(
         const std::vector<NYPath::TRichYPath>& paths,
         const TString& user)
@@ -527,7 +538,7 @@ public:
         return RootClient_;
     }
 
-    NApi::NNative::IClientPtr CreateClient(const TString& user)
+    NApi::NNative::IClientPtr CreateClient(const TString& user) const
     {
         auto identity = NRpc::TAuthenticationIdentity(user);
         auto options = NApi::TClientOptions::FromAuthenticationIdentity(identity);
@@ -895,6 +906,11 @@ TFuture<void> THost::StopDiscovery()
     return Impl_->StopDiscovery();
 }
 
+void THost::ValidatePermissionToClique(const TString& user, EPermission permission) const
+{
+    return Impl_->ValidatePermissionToClique(user, permission);
+}
+
 void THost::ValidateReadPermissions(
     const std::vector<NYPath::TRichYPath>& paths,
     const TString& user)
@@ -992,7 +1008,7 @@ NApi::NNative::IClientPtr THost::GetRootClient() const
     return Impl_->GetRootClient();
 }
 
-NApi::NNative::IClientPtr THost::CreateClient(const TString& user)
+NApi::NNative::IClientPtr THost::CreateClient(const TString& user) const
 {
     return Impl_->CreateClient(user);
 }

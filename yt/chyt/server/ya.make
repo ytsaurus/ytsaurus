@@ -102,6 +102,7 @@ SRCS(
     table_traverser.cpp
     table.cpp
     tcp_handler.cpp
+    user_defined_sql_objects_storage.cpp
     version.cpp
     virtual_column.cpp
     yt_ch_converter.cpp

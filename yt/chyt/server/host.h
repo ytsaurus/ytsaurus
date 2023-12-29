@@ -40,6 +40,8 @@ public:
 
     TFuture<void> StopDiscovery();
 
+    void ValidatePermissionToClique(const TString& user, NYTree::EPermission permission) const;
+
     void ValidateReadPermissions(const std::vector<NYPath::TRichYPath>& paths, const TString& user);
 
     //! Get object attributes via local cache.
@@ -78,7 +80,7 @@ public:
     const IInvokerPtr& GetClickHouseFetcherInvoker() const;
 
     NApi::NNative::IClientPtr GetRootClient() const;
-    NApi::NNative::IClientPtr CreateClient(const TString& user);
+    NApi::NNative::IClientPtr CreateClient(const TString& user) const;
 
     //! Return nodes available through discovery service.
     //! In some cases local node can be out of discovery protocol

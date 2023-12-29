@@ -39,6 +39,7 @@ TEST_SRCS(
     test_query_log.py
     test_query_registry.py
     test_query_tracker.py
+    test_sql_udf.py
     test_statistics_tables.py
     test_table_functions.py
     test_tracing.py

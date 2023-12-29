@@ -362,16 +362,13 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         yt_set("//sys/access_control_object_namespaces/chyt/ch_alias/principal/@acl", acl)
         with Clique(1, config_patch=patch, alias="*ch_alias") as clique:
             # TODO(gudqeit): this attribute should become unused and must be removed after we stop supporting discovery v1 in HTTP proxy.
-            create("map_node",
-                   "//sys/strawberry/chyt/ch_alias",
-                   recursive=True,
-                   attributes={
-                       "strawberry_persistent_state": {
-                           "yt_operation_id": clique.op.id,
-                           "yt_operation_state": "running",
-                       }
-                   }
-                   )
+            yt_set(
+                "//sys/strawberry/chyt/ch_alias/@strawberry_persistent_state",
+                {
+                    "yt_operation_id": clique.op.id,
+                    "yt_operation_state": "running",
+                }
+            )
             time.sleep(1)
             with Restarter(self.Env, SCHEDULERS_SERVICE):
                 assert clique.make_query_via_proxy("select 1 as a", user="u1") == [{"a": 1}]

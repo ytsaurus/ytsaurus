@@ -5,6 +5,7 @@ namespace NYT::NClickHouseServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 const TString CacheUserName("yt-clickhouse-cache");
+const TString ChytSqlObjectsUserName("chyt-sql-objects");
 const TString InternalRemoteUserName("$remote");
 const std::vector<TString> TableAttributesToFetch{
     "id",

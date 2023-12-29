@@ -11,6 +11,7 @@
 #include "helpers.h"
 #include "clickhouse_singletons.h"
 #include "format.h"
+#include "user_defined_sql_objects_storage.h"
 
 #include <yt/yt/core/misc/fs.h>
 
@@ -307,6 +308,15 @@ private:
         if (Config_->QueryMaskingRules) {
             YT_LOG_DEBUG("Setting up query masking rules");
             DB::SensitiveDataMasker::setInstance(std::make_unique<DB::SensitiveDataMasker>(*LayeredConfig_, "query_masking_rules"));
+        }
+
+        if (!Config_->UserDefinedSQLObjectsStorage->Path.empty()) {
+            YT_LOG_DEBUG("Setting up user defined SQL objects storage");
+            ServerContext_->setUserDefinedSQLObjectsStorage(CreateUserDefinedSQLObjectsYTStorage(
+                ServerContext_,
+                Config_->UserDefinedSQLObjectsStorage,
+                Host_));
+            ServerContext_->getUserDefinedSQLObjectsStorage().loadObjects();
         }
 
         YT_LOG_INFO("Finished setting up context");

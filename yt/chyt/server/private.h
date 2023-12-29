@@ -40,6 +40,7 @@ constexpr int SentinelMaxStringLength = 50;
 constexpr int YqlOperationIdLength = 24;
 
 extern const TString CacheUserName;
+extern const TString ChytSqlObjectsUserName;
 extern const TString InternalRemoteUserName;
 extern const std::vector<TString> TableAttributesToFetch;
 
@@ -70,6 +71,7 @@ DECLARE_REFCOUNTED_CLASS(TSystemLogConfig)
 DECLARE_REFCOUNTED_CLASS(TPocoInvalidCertificateHandlerConfig)
 DECLARE_REFCOUNTED_CLASS(TPocoOpenSSLConfigEntry)
 DECLARE_REFCOUNTED_CLASS(TPocoOpenSSLConfig)
+DECLARE_REFCOUNTED_CLASS(TUserDefinedSQLObjectsStorageConfig)
 DECLARE_REFCOUNTED_CLASS(TMemoryWatchdogConfig)
 DECLARE_REFCOUNTED_CLASS(THealthCheckerConfig)
 DECLARE_REFCOUNTED_CLASS(TQueryRegistry)

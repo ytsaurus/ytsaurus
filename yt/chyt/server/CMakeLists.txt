@@ -105,6 +105,7 @@ target_sources(yt-chyt-server PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/table_traverser.cpp
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/table.cpp
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/tcp_handler.cpp
+  ${CMAKE_SOURCE_DIR}/yt/chyt/server/user_defined_sql_objects_storage.cpp
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/version.cpp
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/virtual_column.cpp
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/yt_ch_converter.cpp

@@ -1,7 +1,7 @@
 from helpers import get_scheduling_options
 
 from yt_commands import (create, write_file, ls, start_op, get, exists, update_op_parameters, create_user,
-                         sync_create_cells, print_debug, get_driver)
+                         sync_create_cells, print_debug, get_driver, remove, make_ace, set as yt_set)
 
 from yt.clickhouse import get_clique_spec_builder
 from yt.clickhouse.test_helpers import get_host_paths, get_clickhouse_server_config
@@ -76,6 +76,7 @@ class Clique(object):
     clique_index_by_test_name = {}
     alias = None
     tvm_secret = None
+    sql_udf_path = None
 
     def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, cpu_limit=None, alias=None, **kwargs):
         discovery_patch = {
@@ -86,7 +87,13 @@ class Clique(object):
                     "attribute_update_period": 2000,
                     "lease_timeout": 1000,
                 }
-            }
+            },
+            "clickhouse": {
+                "user_defined_sql_objects_storage": {
+                    "update_period": 300,
+                    "expire_after_successful_sync_time": 1000,
+                }
+            },
         }
         config = update(Clique.base_config, discovery_patch)
 
@@ -100,6 +107,13 @@ class Clique(object):
         if Clique.alias:
             alias_without_asterisk = Clique.alias[1:]
             config["yt"]["clique_alias"] = alias_without_asterisk
+
+            Clique.sql_udf_path = "//sys/strawberry/chyt/{}/user_defined_sql_functions".format(alias_without_asterisk)
+            ace = make_ace("allow", "chyt-sql-objects", ["read", "write", "remove"])
+            create("map_node", Clique.sql_udf_path, recursive=True, attributes={
+                "acl": [ace],
+            })
+            config["clickhouse"]["user_defined_sql_objects_storage"]["path"] = Clique.sql_udf_path
 
         spec = {"pool": None}
         self.is_tracing = False
@@ -291,6 +305,10 @@ class Clique(object):
         time.sleep(2)
         try:
             self.op.complete()
+
+            if Clique.sql_udf_path:
+                remove(Clique.sql_udf_path, recursive=True, force=True)
+
         except YtError as err:
             print_debug("Error while completing clique operation:", err)
         clique_error = None
@@ -652,4 +670,8 @@ class ClickHouseTestBase(YTEnvSetup):
 
         create_user("yt-clickhouse-cache")
         create_user("yt-clickhouse")
+
+        create_user("chyt-sql-objects")
+        yt_set("//sys/accounts/sys/@acl/end", make_ace("allow", "chyt-sql-objects", "use"))
+
         sync_create_cells(1)

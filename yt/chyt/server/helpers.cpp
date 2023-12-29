@@ -72,6 +72,9 @@ void RegisterNewUser(DB::AccessControl& accessControl, TString userName)
     user->access.grant(DB::AccessType::CREATE_TEMPORARY_TABLE);
     user->access.grant(DB::AccessType::dictGet);
 
+    user->access.grant(DB::AccessType::CREATE_FUNCTION);
+    user->access.grant(DB::AccessType::DROP_FUNCTION);
+
     accessControl.tryInsert(std::move(user));
 }
 
