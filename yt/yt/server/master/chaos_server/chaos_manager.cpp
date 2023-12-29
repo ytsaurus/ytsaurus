@@ -604,6 +604,9 @@ private:
                 }
             }
         }
+
+        const auto& config = GetDynamicConfig();
+        AlienCellSynchronizer_->Reconfigure(config->AlienCellSynchronizer);
     }
 
     void Clear() override
