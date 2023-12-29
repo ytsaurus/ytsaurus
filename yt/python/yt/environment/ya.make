@@ -31,6 +31,7 @@ PY_SRCS(
     init_queue_agent_state.py
     init_query_tracker_state.py
     porto_helpers.py
+    tls_helpers.py
     yt_env.py
     watcher.py
     local_cypress.py
@@ -41,4 +42,8 @@ END()
 RECURSE(
     api
     migrationlib
+)
+
+RECURSE_FOR_TESTS(
+    tests
 )
