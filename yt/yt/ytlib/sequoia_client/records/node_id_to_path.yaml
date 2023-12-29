@@ -1,7 +1,9 @@
 namespace: NYT::NSequoiaClient::NRecords
 
 types:
-  - type_name: TNodeIdToPath
+  - table_name: node_id_to_path
+    table_group: resolve_tables
+    type_name: TNodeIdToPath
     fields:
       - cpp_name: NodeId
         cpp_type: NCypressClient::TNodeId

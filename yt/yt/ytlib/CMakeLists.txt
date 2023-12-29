@@ -1389,6 +1389,10 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.cpp
   --output-include
   yt/yt/ytlib/sequoia_client/public.h
+  --output-include
+  yt/yt/client/node_tracker_client/public.h
+  --output-include
+  library/cpp/yt/yson_string/string.h
 )
 add_custom_command(
   OUTPUT
@@ -1408,6 +1412,10 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.record.cpp
   --output-include
   yt/yt/ytlib/sequoia_client/public.h
+  --output-include
+  yt/yt/client/node_tracker_client/public.h
+  --output-include
+  yt/yt/client/object_client/public.h
 )
 add_custom_command(
   OUTPUT

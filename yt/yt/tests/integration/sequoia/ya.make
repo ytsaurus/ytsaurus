@@ -6,6 +6,10 @@ TEST_SRCS(
     test_sequoia_objects.py
 )
 
+PEERDIR(
+    yt/python/yt/sequoia_tools
+)
+
 END()
 
 RECURSE_FOR_TESTS(
