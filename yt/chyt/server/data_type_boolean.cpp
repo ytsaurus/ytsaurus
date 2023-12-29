@@ -15,7 +15,7 @@ void RegisterDataTypeBoolean()
     factory.registerSimpleDataTypeCustom(
         "YtBoolean",
         [] {
-            return std::make_pair(
+            return std::pair(
                 std::make_shared<DB::DataTypeUInt8>(),
                 std::make_unique<DB::DataTypeCustomDesc>(
                     std::make_unique<DB::DataTypeCustomFixedName>("YtBoolean")));

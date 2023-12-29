@@ -217,7 +217,7 @@ void TGarbageCollector::EphemeralUnrefObject(TObject* object, TEpoch epoch)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    EphemeralGhostUnrefQueue_.Enqueue(std::make_pair(object, epoch));
+    EphemeralGhostUnrefQueue_.Enqueue(std::pair(object, epoch));
     ++EphemeralGhostUnrefQueueSize_;
 }
 

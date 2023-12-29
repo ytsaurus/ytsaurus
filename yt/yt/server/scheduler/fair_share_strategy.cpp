@@ -245,7 +245,7 @@ public:
         state->TreeIdToPoolNameMap() = std::move(treeIdToPoolNameMap);
 
         YT_VERIFY(OperationIdToOperationState_.insert(
-            std::make_pair(operation->GetId(), state)).second);
+            std::pair(operation->GetId(), state)).second);
 
         auto runtimeParameters = operation->GetRuntimeParameters();
         for (const auto& [treeName, poolName] : state->TreeIdToPoolNameMap()) {

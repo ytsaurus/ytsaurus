@@ -256,9 +256,9 @@ protected:
 TEST_P(TUnversionedFloatingPointSegmentTest, GetEqualRange)
 {
     auto reader = CreateColumnReader();
-    EXPECT_EQ(std::make_pair(8L, 8L), reader->GetEqualRange(MakeValue(7.5), 7, 8));
-    EXPECT_EQ(std::make_pair(0L, 0L), reader->GetEqualRange(MakeValue(std::nullopt), 0, 0));
-    EXPECT_EQ(std::make_pair(8L, 8L), reader->GetEqualRange(MakeValue(7.5), 2, 9));
+    EXPECT_EQ(std::pair(8L, 8L), reader->GetEqualRange(MakeValue(7.5), 7, 8));
+    EXPECT_EQ(std::pair(0L, 0L), reader->GetEqualRange(MakeValue(std::nullopt), 0, 0));
+    EXPECT_EQ(std::pair(8L, 8L), reader->GetEqualRange(MakeValue(7.5), 2, 9));
 }
 
 TEST_P(TUnversionedFloatingPointSegmentTest, ReadValues)

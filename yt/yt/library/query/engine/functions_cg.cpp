@@ -705,7 +705,7 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
             LoadLlvmFunctions(
                 innerBuilder,
                 this_->FunctionName_,
-                { std::make_pair(this_->SymbolName_, functionType) },
+                { std::pair(this_->SymbolName_, functionType) },
                 this_->ImplementationFile_);
 
             auto callee = innerBuilder.Module->GetModule()->getFunction(
@@ -777,7 +777,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
                 std::vector<EValueType>(),
                 stateType,
                 false);
-            auto init = std::make_pair(initName, initType);
+            auto init = std::pair(initName, initType);
 
             std::vector<EValueType> updateArgs = {stateType};
             updateArgs.insert(updateArgs.end(), argumentTypes.begin(), argumentTypes.end());
@@ -787,7 +787,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
                 updateArgs,
                 stateType,
                 false);
-            auto update = std::make_pair(updateName, updateType);
+            auto update = std::pair(updateName, updateType);
 
 
             auto mergeType = this_->CallingConvention_->GetCalleeType(
@@ -797,14 +797,14 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
                     stateType},
                 stateType,
                 false);
-            auto merge = std::make_pair(mergeName, mergeType);
+            auto merge = std::pair(mergeName, mergeType);
 
             auto finalizeType = this_->CallingConvention_->GetCalleeType(
                 builder,
                 std::vector{stateType},
                 resultType,
                 false);
-            auto finalize = std::make_pair(finalizeName, finalizeType);
+            auto finalize = std::pair(finalizeName, finalizeType);
 
             aggregateFunctions.push_back(init);
             aggregateFunctions.push_back(update);

@@ -97,7 +97,7 @@ Value* TCGIRBuilder::ViaClosure(Value* value, Twine name)
             resultingName);
         restoreIP(currentIP);
 
-        Mapping_[valueInParent] = std::make_pair(result, indexInClosure);
+        Mapping_[valueInParent] = std::pair(result, indexInClosure);
 
         return result;
     }

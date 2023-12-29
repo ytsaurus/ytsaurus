@@ -303,7 +303,7 @@ where-clause
 group-by-clause
     : KwGroupBy comma-expr[exprs] group-by-clause-tail[totalsMode]
         {
-            std::get<TQuery>(head->Ast).GroupExprs = std::make_pair($exprs, $totalsMode);
+            std::get<TQuery>(head->Ast).GroupExprs = std::pair($exprs, $totalsMode);
         }
     |
 ;

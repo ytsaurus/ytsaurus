@@ -262,7 +262,7 @@ TCongestionState TOverloadController::GetCongestionState(TStringBuf service, TSt
     }
 
     const auto& controllers = snapshot->CongestionControllers;
-    if (auto it = controllers.find(std::make_pair(service, method)); it != controllers.end()) {
+    if (auto it = controllers.find(std::pair(service, method)); it != controllers.end()) {
         return it->second->GetCongestionState();
     }
 
@@ -277,11 +277,11 @@ TOverloadController::TMethodsCongestionControllers TOverloadController::CreateCo
 
     THashMap<TMethodIndex, TServiceMethodConfigPtr> configIndex;
     for (const auto& methodConfig : config->Methods) {
-        configIndex[std::make_pair(methodConfig->Service, methodConfig->Method)] = methodConfig;
+        configIndex[std::pair(methodConfig->Service, methodConfig->Method)] = methodConfig;
     }
 
     auto getConfig = [&configIndex] (const TStringBuf& service, const TStringBuf& method) {
-        auto it = configIndex.find(std::make_pair(service, method));
+        auto it = configIndex.find(std::pair(service, method));
         if (it != configIndex.end()) {
             return it->second;
         }
@@ -294,7 +294,7 @@ TOverloadController::TMethodsCongestionControllers TOverloadController::CreateCo
 
     for (const auto& [trackerType, tracker] : config->Trackers) {
         for (const auto& method : tracker->MethodsToThrottle) {
-            auto& controller = controllers[std::make_pair(method->Service, method->Method)];
+            auto& controller = controllers[std::pair(method->Service, method->Method)];
 
             if (!controller) {
                 auto methodConfig = getConfig(method->Service, method->Method);
@@ -342,7 +342,7 @@ void TOverloadController::DoAdjust(const THazardPtr<TState>& state)
 
     for (const auto& [_, trackerConfig] : config->Trackers) {
         for (const auto& method : trackerConfig->MethodsToThrottle) {
-            methodOverloaded[std::make_pair(method->Service, method->Method)] = {};
+            methodOverloaded[std::pair(method->Service, method->Method)] = {};
         }
     }
 
@@ -366,7 +366,7 @@ void TOverloadController::DoAdjust(const THazardPtr<TState>& state)
         }
 
         for (const auto& method : trackerIt->second->MethodsToThrottle) {
-            auto& overloadedTrackers = methodOverloaded[std::make_pair(method->Service, method->Method)];
+            auto& overloadedTrackers = methodOverloaded[std::pair(method->Service, method->Method)];
             overloadedTrackers.insert(tracker->GetType());
         }
     }

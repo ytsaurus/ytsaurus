@@ -44,7 +44,7 @@ struct TSortedIOTagList
 
     std::optional<TString> FindTag(const TString& key) const
     {
-        auto iter = std::lower_bound(Tags.begin(), Tags.end(), std::make_pair(key, TString()));
+        auto iter = std::lower_bound(Tags.begin(), Tags.end(), std::pair(key, TString()));
         if (iter == Tags.end() || iter->first != key) {
             return std::nullopt;
         }

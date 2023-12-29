@@ -264,7 +264,7 @@ std::optional<std::pair<i64, i64>> TFileChangelogIndex::FindRecordsRange(
             break;
         }
     }
-    return std::make_pair(startOffset, endOffset);
+    return std::pair(startOffset, endOffset);
 }
 
 void TFileChangelogIndex::AppendRecord(int recordIndex, std::pair<i64, i64> range)

@@ -998,7 +998,7 @@ void TSlotLocation::UpdateDiskResources()
                 slotDiskUsage = std::accumulate(sizes.begin(), sizes.end(), 0ll);
             }
 
-            diskStatisticsPerSlot.insert(std::make_pair(
+            diskStatisticsPerSlot.insert(std::pair(
                 slotIndex,
                 TDiskStatistics{
                     .Limit = sandboxOptions.DiskSpaceLimit,

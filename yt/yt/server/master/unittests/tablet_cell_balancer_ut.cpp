@@ -300,9 +300,9 @@ private:
         YT_VERIFY(NameToNode_.emplace(name, node).second);
         YT_VERIFY(NodeToName_.emplace(node, name).second);
         node->RefObject();
-        node->SetNodeAddresses(TNodeAddressMap{std::make_pair(
+        node->SetNodeAddresses(TNodeAddressMap{std::pair(
             EAddressType::InternalRpc,
-            TAddressMap{std::make_pair(DefaultNetworkName, name)}
+            TAddressMap{std::pair(DefaultNetworkName, name)}
         )});
         return node;
     }
@@ -321,7 +321,7 @@ private:
 
     void AssignPeer(TNodeHolder* holder, const TCellBase* cell, int peerId)
     {
-        holder->InsertCell(std::make_pair(cell, peerId));
+        holder->InsertCell(std::pair(cell, peerId));
     }
 
     void ValidatePeerAssignment()
@@ -355,7 +355,7 @@ private:
 
             for (auto [cellId, cell] : CellMap_) {
                 for (int peer = 0; peer < cell->CellBundle()->GetOptions()->PeerCount; ++peer) {
-                    if (!cellSet.contains(std::make_pair(cell, peer))) {
+                    if (!cellSet.contains(std::pair(cell, peer))) {
                         THROW_ERROR_EXCEPTION("Peer %v of cell %v is not assigned to any node",
                             peer,
                             CellToIndex_[cell]);

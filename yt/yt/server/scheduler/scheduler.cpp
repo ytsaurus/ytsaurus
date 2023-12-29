@@ -1097,7 +1097,7 @@ public:
         auto resourceLimits = NodeManager_->GetResourceLimits(filter);
 
         {
-            auto value = std::make_pair(GetCpuInstant(), resourceLimits);
+            auto value = std::pair(GetCpuInstant(), resourceLimits);
             auto it = CachedResourceLimitsByTags_.find(filter);
             if (it == CachedResourceLimitsByTags_.end()) {
                 CachedResourceLimitsByTags_.emplace(filter, std::move(value));

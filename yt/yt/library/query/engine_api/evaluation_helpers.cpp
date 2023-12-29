@@ -182,7 +182,7 @@ std::pair<const TPIValue*, int> TTopCollector::Capture(const TPIValue* row)
         EmptyBufferIds_.pop_back();
     }
 
-    return std::make_pair(capturedRow, bufferId);
+    return std::pair(capturedRow, bufferId);
 }
 
 void TTopCollector::AccountGarbage(const TPIValue* row)
@@ -404,7 +404,7 @@ std::pair<TQueryPtr, TDataSource> GetForeignQuery(
             : inClause;
     }
 
-    return std::make_pair(newQuery, dataSource);
+    return std::pair(newQuery, dataSource);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

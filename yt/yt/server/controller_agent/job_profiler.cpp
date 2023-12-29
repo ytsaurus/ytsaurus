@@ -341,7 +341,7 @@ void TJobProfiler::DoUpdateInProgressJobCount(
     if (it == InProgressJobCounters_.end()) {
         it = InProgressJobCounters_.emplace(
             key,
-            std::make_pair(
+            std::pair(
                 0,
                 createGauge())).first;
     }

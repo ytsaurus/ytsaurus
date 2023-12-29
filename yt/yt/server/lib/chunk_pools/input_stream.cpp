@@ -97,7 +97,7 @@ int TInputStreamDirectory::GetDescriptorCount() const
 
 int TInputStreamDirectory::GetInputStreamIndex(int tableIndex, int rangeIndex) const
 {
-    auto it = TableAndRangeIndicesToInputStreamIndex_.find(std::make_pair(tableIndex, rangeIndex));
+    auto it = TableAndRangeIndicesToInputStreamIndex_.find(std::pair(tableIndex, rangeIndex));
     YT_VERIFY(it != TableAndRangeIndicesToInputStreamIndex_.end());
     return it->second;
 }

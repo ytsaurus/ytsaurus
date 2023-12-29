@@ -3774,7 +3774,7 @@ private:
                 THROW_ERROR_EXCEPTION("Duplicate tablet id in start replication row indexes")
                     << TErrorAttribute("tablet_id", tabletId);
             }
-            InsertOrCrash(options.StartReplicationRowIndexes, std::make_pair(tabletId, rowIndex));
+            InsertOrCrash(options.StartReplicationRowIndexes, std::pair(tabletId, rowIndex));
         }
 
         context->SetRequestInfo("ReplicationProgress: %v, OrderRowsByTimestamp: %v, UpperTimestamp: %v",

@@ -2586,7 +2586,7 @@ void TCypressMapNodeProxy::Clear()
     for (const auto& [key, child] : keyToChildList) {
         LockThisImpl(TLockRequest::MakeSharedChild(key));
         auto* childImpl = LockImpl(child);
-        children.push_back(std::make_pair(key, childImpl));
+        children.push_back(std::pair(key, childImpl));
     }
 
     // Insert tombstones (if in transaction).

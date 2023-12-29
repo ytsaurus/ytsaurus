@@ -504,7 +504,7 @@ private:
 
     void AddCell(TNodeHolder* dstNode, const TCellBase* cell, int peerId)
     {
-        dstNode->InsertCell(std::make_pair(cell, peerId));
+        dstNode->InsertCell(std::pair(cell, peerId));
         PeerTracker_.AddPeer(cell, peerId, dstNode->GetNode());
         MoveDescriptors_.emplace_back(
             cell,

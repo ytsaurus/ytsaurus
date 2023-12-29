@@ -2371,7 +2371,7 @@ NProfiling::TTimeCounter* TObjectManager::GetMethodCumulativeExecuteTimeCounter(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto key = std::make_pair(type, method);
+    auto key = std::pair(type, method);
     auto [entryPtr, inserted] = MethodToEntry_
         .FindOrInsert(
             key,

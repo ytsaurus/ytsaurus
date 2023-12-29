@@ -179,7 +179,7 @@ TTabletSnapshot::GetIntersectingPartitions(
         ++endIt;
     }
 
-    return std::make_pair(beginIt, endIt);
+    return std::pair(beginIt, endIt);
 }
 
 TPartitionSnapshotPtr TTabletSnapshot::FindContainingPartition(TLegacyKey key)

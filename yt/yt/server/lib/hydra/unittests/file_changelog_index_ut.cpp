@@ -136,10 +136,10 @@ TEST_P(TFileChangelogIndexTest, FindRecordsRange)
     AppendRecords(index);
 
     EXPECT_EQ(std::nullopt, index->FindRecordsRange(/*firstRecordIndex*/ 10, /*maxRecords*/ 100, /*maxBytes*/ 1e9));
-    EXPECT_EQ(std::make_pair(static_cast<i64>(333), static_cast<i64>(333)), index->FindRecordsRange(/*firstRecordIndex*/ 0, /*maxRecords*/ 0, /*maxBytes*/ 1e9));
-    EXPECT_EQ(std::make_pair(static_cast<i64>(433), static_cast<i64>(533)), index->FindRecordsRange(/*firstRecordIndex*/ 1, /*maxRecords*/ 1, /*maxBytes*/ 1e9));
-    EXPECT_EQ(std::make_pair(static_cast<i64>(433), static_cast<i64>(633)), index->FindRecordsRange(/*firstRecordIndex*/ 1, /*maxRecords*/ 2, /*maxBytes*/ 1e9));
-    EXPECT_EQ(std::make_pair(static_cast<i64>(433), static_cast<i64>(533)), index->FindRecordsRange(/*firstRecordIndex*/ 1, /*maxRecords*/ 2, /*maxBytes*/ 1));
+    EXPECT_EQ(std::pair(static_cast<i64>(333), static_cast<i64>(333)), index->FindRecordsRange(/*firstRecordIndex*/ 0, /*maxRecords*/ 0, /*maxBytes*/ 1e9));
+    EXPECT_EQ(std::pair(static_cast<i64>(433), static_cast<i64>(533)), index->FindRecordsRange(/*firstRecordIndex*/ 1, /*maxRecords*/ 1, /*maxBytes*/ 1e9));
+    EXPECT_EQ(std::pair(static_cast<i64>(433), static_cast<i64>(633)), index->FindRecordsRange(/*firstRecordIndex*/ 1, /*maxRecords*/ 2, /*maxBytes*/ 1e9));
+    EXPECT_EQ(std::pair(static_cast<i64>(433), static_cast<i64>(533)), index->FindRecordsRange(/*firstRecordIndex*/ 1, /*maxRecords*/ 2, /*maxBytes*/ 1));
     EXPECT_EQ(std::nullopt, index->FindRecordsRange(/*firstRecordIndex*/ 1e9, /*maxRecords*/ 2, /*maxBytes*/ 1));
 
     index->Close();

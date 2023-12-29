@@ -393,7 +393,7 @@ TRowRange RowRangeFromPrefix(TRowBuffer* rowBuffer, TRange<TValue> boundPrefix)
     auto upperBound = rowBuffer->AllocateUnversioned(prefixSize + 1);
     CopyValues(boundPrefix, upperBound);
     upperBound[prefixSize] = MakeUnversionedSentinelValue(EValueType::Max);
-    return std::make_pair(lowerBound, upperBound);
+    return std::pair(lowerBound, upperBound);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

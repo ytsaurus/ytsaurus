@@ -370,7 +370,7 @@ DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumnImpl(const IUnve
                 MakeMutableRange(ytStringLengths));
 
             auto stringsFetcher = [&] (i64 index) {
-                return std::make_pair(ytStrings[index], ytStringLengths[index]);
+                return std::pair(ytStrings[index], ytStringLengths[index]);
             };
 
             if (rleIndexes) {
@@ -420,7 +420,7 @@ DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumnImpl(const IUnve
                 rleIndexes,
                 [&] (i64 index) {
                     auto [startOffset, endOffset] = DecodeStringRange(ytOffsets, avgLength, index);
-                    return std::make_pair(ytChars + startOffset, endOffset - startOffset);
+                    return std::pair(ytChars + startOffset, endOffset - startOffset);
                 },
                 checkedConsumer);
         }
@@ -446,7 +446,7 @@ DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumnImpl(const IUnve
                 auto endOffset = avgLengthTimesIndex + ZigZagDecode64(ytOffsets[index]);
                 i32 length = endOffset - startOffset;
                 currentOffset = endOffset;
-                return std::make_pair(ytChars + startOffset, length);
+                return std::pair(ytChars + startOffset, length);
             },
             checkedConsumer);
     }

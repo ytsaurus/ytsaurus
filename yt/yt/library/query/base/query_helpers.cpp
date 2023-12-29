@@ -161,7 +161,7 @@ TConstExpressionPtr EliminateInExpression(
 
     std::vector<std::pair<TRow, size_t>> sortedKeys(lookupKeys.Size());
     for (size_t index = 0; index < lookupKeys.Size(); ++index) {
-        sortedKeys[index] = std::make_pair(lookupKeys[index], index);
+        sortedKeys[index] = std::pair(lookupKeys[index], index);
     }
     SortRows(sortedKeys.begin(), sortedKeys.end(), keyMapping);
 
@@ -262,7 +262,7 @@ TConstExpressionPtr EliminatePredicate(
         YT_VERIFY(keyPartIndex < keyRange.second.GetCount());
         auto upper = TBound(keyRange.second[keyPartIndex], keyPartIndex + 1 < keyRange.second.GetCount());
 
-        return std::make_pair(lower, upper);
+        return std::pair(lower, upper);
     };
 
     // Is it a good idea? Heavy, not always useful calculation.
@@ -415,14 +415,14 @@ TKeyRange Unite(const TKeyRange& first, const TKeyRange& second)
 {
     const auto& lower = ChooseMinKey(first.first, second.first);
     const auto& upper = ChooseMaxKey(first.second, second.second);
-    return std::make_pair(lower, upper);
+    return std::pair(lower, upper);
 }
 
 TRowRange Unite(const TRowRange& first, const TRowRange& second)
 {
     const auto& lower = std::min(first.first, second.first);
     const auto& upper = std::max(first.second, second.second);
-    return std::make_pair(lower, upper);
+    return std::pair(lower, upper);
 }
 
 TKeyRange Intersect(const TKeyRange& first, const TKeyRange& second)
@@ -436,13 +436,13 @@ TKeyRange Intersect(const TKeyRange& first, const TKeyRange& second)
 
     if (rightmost->first > leftmost->second) {
         // Empty intersection.
-        return std::make_pair(rightmost->first, rightmost->first);
+        return std::pair(rightmost->first, rightmost->first);
     }
 
     if (rightmost->second > leftmost->second) {
-        return std::make_pair(rightmost->first, leftmost->second);
+        return std::pair(rightmost->first, leftmost->second);
     } else {
-        return std::make_pair(rightmost->first, rightmost->second);
+        return std::pair(rightmost->first, rightmost->second);
     }
 }
 
@@ -457,13 +457,13 @@ TRowRange Intersect(const TRowRange& first, const TRowRange& second)
 
     if (rightmost->first > leftmost->second) {
         // Empty intersection.
-        return std::make_pair(rightmost->first, rightmost->first);
+        return std::pair(rightmost->first, rightmost->first);
     }
 
     if (rightmost->second > leftmost->second) {
-        return std::make_pair(rightmost->first, leftmost->second);
+        return std::pair(rightmost->first, leftmost->second);
     } else {
-        return std::make_pair(rightmost->first, rightmost->second);
+        return std::pair(rightmost->first, rightmost->second);
     }
 }
 
@@ -571,7 +571,7 @@ std::pair<TConstExpressionPtr, TConstExpressionPtr> SplitPredicateByColumnSubset
         target = MakeAndExpression(target, expr);
     }
 
-    return std::make_pair(projected, remaining);
+    return std::pair(projected, remaining);
 }
 
 // Wrapper around CompareRowValues that checks that its arguments are not nan.

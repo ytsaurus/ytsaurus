@@ -984,7 +984,7 @@ std::tuple<TTableSchemaPtr, TColumnFilter> CreateVersionedReadParameters(
     const TColumnFilter& columnFilter)
 {
     if (columnFilter.IsUniversal()) {
-        return std::make_pair(schema, columnFilter);
+        return std::pair(schema, columnFilter);
     }
 
     std::vector<NTableClient::TColumnSchema> columns;

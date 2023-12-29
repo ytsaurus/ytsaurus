@@ -243,7 +243,7 @@ void TParallelFileWriter::Write(TSharedRef blob)
     auto blobId = NextBlobId_++;
 
     for (const auto& [subBlobId, subBlob] : Enumerate(blob.Split(Options_.MaxBlobSize_))) {
-        auto taskId = std::make_pair(blobId, subBlobId);
+        auto taskId = std::pair(blobId, subBlobId);
         auto filePath = CreateFilePath(taskId);
 
         auto future = StartWriteTask(std::make_unique<TBlobWriteTask>(std::move(subBlob)), filePath);
@@ -266,7 +266,7 @@ void TParallelFileWriter::WriteFile(const TString& fileName)
     auto length = GetFileLength(fileName);
     size_t subBlobId = 0;
     for (i64 pos = 0; pos < length; pos += Options_.MaxBlobSize_, ++subBlobId) {
-        auto taskId = std::make_pair(blobId, subBlobId);
+        auto taskId = std::pair(blobId, subBlobId);
         auto filePath = CreateFilePath(taskId);
 
         i64 begin = pos;

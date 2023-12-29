@@ -152,7 +152,7 @@ std::optional<TSemaphoreGuard> TApi::AcquireSemaphore(const TString& user, const
         }
     } while (!GlobalSemaphore_.compare_exchange_weak(value, value + 1));
 
-    auto key = std::make_pair(user, command);
+    auto key = std::pair(user, command);
     auto counters = GetProfilingCounters(key);
     if (counters->LocalSemaphore >= Config_->ConcurrencyLimit) {
         GlobalSemaphore_.fetch_add(-1);
@@ -249,7 +249,7 @@ void TApi::IncrementProfilingCounters(
     }
 
     auto incrementUserCounter = [&, this] (auto& counterMap, auto counterName, auto tagName, auto tagValue, auto value) {
-        counterMap.FindOrInsert(std::make_pair(user, networkName), [&, this] {
+        counterMap.FindOrInsert(std::pair(user, networkName), [&, this] {
             return SparseProfiler_
                 .WithTag("user", user)
                 .WithTag(tagName, tagValue)

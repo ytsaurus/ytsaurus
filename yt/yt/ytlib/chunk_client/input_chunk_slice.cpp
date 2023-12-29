@@ -590,7 +590,7 @@ std::pair<TInputChunkSlicePtr, TInputChunkSlicePtr> TInputChunkSlice::SplitByRow
 
     YT_VERIFY(splitRow >= 0 && splitRow <= rowCount);
 
-    return std::make_pair(
+    return std::pair(
         New<TInputChunkSlice>(
             *this,
             lowerRowIndex,

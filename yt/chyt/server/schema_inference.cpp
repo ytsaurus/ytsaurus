@@ -263,7 +263,7 @@ TTableSchemaPtr InferCommonTableSchema(
                 foundInAllSchemas = false;
             }
         }
-        return std::make_pair(std::move(positions), foundInAllSchemas);
+        return std::pair(std::move(positions), foundInAllSchemas);
     };
 
     std::vector<TColumnSchema> commonColumns;

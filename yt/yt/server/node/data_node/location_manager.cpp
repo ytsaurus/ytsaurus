@@ -113,7 +113,7 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
     THashSet<TString> failedDisks;
 
     for (const auto& disk : disks) {
-        diskNameToDisk.emplace(std::make_pair(disk.DeviceName, disk));
+        diskNameToDisk.emplace(disk.DeviceName, disk);
         if (disk.State == NContainers::EDiskState::Failed) {
             failedDisks.insert(disk.DeviceName);
         }

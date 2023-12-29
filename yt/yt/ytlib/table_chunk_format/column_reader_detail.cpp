@@ -83,12 +83,12 @@ std::pair<ui32, ui32> TDenseVersionedValueExtractorBase::GetValueIndexRange(i64 
             return GetTimestampIndex(currentValueIndex) < lowerTimestampIndex;
         });
 
-    return std::make_pair(valueIndex, upperValueIndex);
+    return std::pair(valueIndex, upperValueIndex);
 }
 
 std::pair<ui32, ui32> TDenseVersionedValueExtractorBase::GetValueIndexRange(i64 segmentRowIndex)
 {
-    return std::make_pair(
+    return std::pair(
         GetLowerValueIndex(segmentRowIndex),
         GetLowerValueIndex(segmentRowIndex + 1));
 }
@@ -154,13 +154,13 @@ std::pair<ui32, ui32> TSparseVersionedValueExtractorBase::GetValueIndexRange(i64
             return GetTimestampIndex(currentValueIndex) < lowerTimestampIndex;
         });
 
-    return std::make_pair(currentValueIndex, upperValueIndex);
+    return std::pair(currentValueIndex, upperValueIndex);
 }
 
 std::pair<ui32, ui32> TSparseVersionedValueExtractorBase::GetValueIndexRange(i64 segmentRowIndex, i64 valueIndex)
 {
     i64 upperValueIndex = GetLowerValueIndex(segmentRowIndex + 1, valueIndex);
-    return std::make_pair(valueIndex, upperValueIndex);
+    return std::pair(valueIndex, upperValueIndex);
 }
 
 const char* TSparseVersionedValueExtractorBase::InitSparseReader(const char* ptr)

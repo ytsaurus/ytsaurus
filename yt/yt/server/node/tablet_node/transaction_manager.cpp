@@ -1333,7 +1333,7 @@ private:
         if (prepareTimestamp == NullTimestamp) {
             return;
         }
-        auto pair = std::make_pair(prepareTimestamp, transaction);
+        auto pair = std::pair(prepareTimestamp, transaction);
         auto it = PreparedTransactions_.find(pair);
         YT_VERIFY(it != PreparedTransactions_.end());
         PreparedTransactions_.erase(it);

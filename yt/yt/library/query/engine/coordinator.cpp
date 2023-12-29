@@ -70,7 +70,7 @@ std::pair<TConstFrontQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         subqueries.push_back(subquery);
     }
 
-    return std::make_pair(topQuery, subqueries);
+    return std::pair(topQuery, subqueries);
 }
 
 TRowRanges GetPrunedRanges(

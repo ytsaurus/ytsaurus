@@ -1674,7 +1674,7 @@ protected:
 
             resultMatcher(resultRowset->GetRows(), *primaryQuery->GetTableSchema());
 
-            return std::make_pair(primaryQuery, resultStatistics);
+            return std::pair(primaryQuery, resultStatistics);
         };
 
         if (failure) {
@@ -2936,7 +2936,7 @@ TEST_F(TQueryEvaluateTest, GroupByNoLimitCoordinated)
         int k = i / 10;
         int x = i % 2;
         int b = i % 10;
-        grouped[std::make_pair(k, x)] += b;
+        grouped[std::pair(k, x)] += b;
     }
 
     auto unsortedRows = std::vector<std::tuple<int, int, int>>{};
@@ -3444,7 +3444,7 @@ TEST_F(TQueryEvaluateTest, GroupByDisjointTotalsLimit)
     i64 totalSum = 0;
 
     auto groupRow = [&] (i64 a, i64 b, i64 value) {
-        auto key = std::make_pair(a, b % 3);
+        auto key = std::pair(a, b % 3);
 
         if (!groupedValues.count(key)) {
             if (groupedValues.size() >= limit) {
@@ -3476,7 +3476,7 @@ TEST_F(TQueryEvaluateTest, GroupByDisjointTotalsLimit)
 
     std::vector<TOwningRow> result;
     for (auto [a, b] : orderedKeys) {
-        TString resultRow = Format("x=%v;y=%v;s=%v", a, b, groupedValues[std::make_pair(a, b)]);
+        TString resultRow = Format("x=%v;y=%v;s=%v", a, b, groupedValues[std::pair(a, b)]);
         result.push_back(YsonToRow(resultRow, resultSplit, false));
     }
     // TODO(lukyan): Try to make stable order of totals row
@@ -5322,7 +5322,7 @@ TEST_F(TQueryEvaluateTest, GroupByTotalsOrderBy)
         sourceValues.emplace_back(value, value * 10);
     }
 
-    std::vector<std::pair<i64, i64>> groupedValues(200, std::make_pair(0, 0));
+    std::vector<std::pair<i64, i64>> groupedValues(200, std::pair(0, 0));
     i64 totalSum = 0;
     for (const auto& row : sourceValues) {
         i64 x = row.first % 200;

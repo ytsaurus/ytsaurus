@@ -159,7 +159,7 @@ TString TNewJobStub::GetDebugString() const
 
 const TChunkStripePtr& TNewJobStub::GetStripe(int streamIndex, int rangeIndex, bool isStripePrimary)
 {
-    auto& stripe = StripeMap_[std::make_pair(streamIndex, rangeIndex)];
+    auto& stripe = StripeMap_[std::pair(streamIndex, rangeIndex)];
     if (!stripe) {
         stripe = New<TChunkStripe>(!isStripePrimary /* foreign */);
     }

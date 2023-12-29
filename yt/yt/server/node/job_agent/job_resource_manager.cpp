@@ -1360,7 +1360,7 @@ std::pair<TJobResources, TJobResources> TResourceHolder::GetDetailedResourceUsag
 {
     auto guard = ReaderGuard(ResourcesLock_);
 
-    return std::make_pair(BaseResourceUsage_, AdditionalResourceUsage_);
+    return std::pair(BaseResourceUsage_, AdditionalResourceUsage_);
 }
 
 const TJobResourceAttributes& TResourceHolder::GetResourceAttributes() const noexcept

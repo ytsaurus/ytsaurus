@@ -51,14 +51,14 @@ void ForEachRange(TRange<std::pair<T, T>> ranges, std::pair<T, T> limit, const T
         }
 
         auto upper = it->second;
-        callback(std::make_pair(lower, upper));
+        callback(std::pair(lower, upper));
 
         it = next;
         lower = it->first;
     }
 
     auto upper = limit.second;
-    callback(std::make_pair(lower, upper));
+    callback(std::pair(lower, upper));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3448,7 +3448,7 @@ private:
             }
 
             case ELockMode::Shared: {
-                auto range = lockingState.TransactionAndKeyToSharedLocks.equal_range(std::make_pair(transaction, request.Key));
+                auto range = lockingState.TransactionAndKeyToSharedLocks.equal_range(std::pair(transaction, request.Key));
                 for (auto it = range.first; it != range.second; ++it) {
                     const auto* existingLock = get<TLock*>(*it);
                     if (existingLock != lockToIgnore) {

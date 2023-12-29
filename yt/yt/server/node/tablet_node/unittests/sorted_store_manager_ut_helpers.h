@@ -189,7 +189,7 @@ protected:
         Tablet_->Save(saveContext);
         saveContext.Finish();
 
-        return std::make_pair(buffer, Tablet_->AsyncSave());
+        return std::pair(buffer, Tablet_->AsyncSave());
     }
 
     void EndReserializeTablet(const TStoreSnapshot& snapshot)

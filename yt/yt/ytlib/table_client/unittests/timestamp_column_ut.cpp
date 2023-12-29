@@ -180,7 +180,7 @@ protected:
                 ++upperTimestampIndex;
             }
 
-            expected.push_back(std::make_pair(lowerTimestampIndex, upperTimestampIndex));
+            expected.push_back(std::pair(lowerTimestampIndex, upperTimestampIndex));
         }
 
         return expected;

@@ -152,7 +152,7 @@ public:
 
         const auto& [zoneName, zoneInfo] = *zoneIt;
         for (const auto& [dataCenterName, _] : zoneInfo->DataCenters) {
-            auto disruptionIt = input.DatacenterDisrupted.find(std::make_pair(zoneName, dataCenterName));
+            auto disruptionIt = input.DatacenterDisrupted.find(std::pair(zoneName, dataCenterName));
             if (disruptionIt != input.DatacenterDisrupted.end() && adapter->IsDataCenterDisrupted(disruptionIt->second)) {
                 YT_LOG_WARNING("Instance management skipped for bundle due zone unhealthy state"
                     " (BundleName: %v, InstanceType: %v)",
@@ -1637,7 +1637,7 @@ THashMap<TSchedulerInputState::TQualifiedDCName, TDataCenterDisruptedState> GetD
                     nodeInfo->Banned,
                     nodeInfo->LastSeenTime);
 
-                ++zoneOfflineNodeCount[std::make_pair(zoneName, dataCenterName)];
+                ++zoneOfflineNodeCount[std::pair(zoneName, dataCenterName)];
             }
         }
     }
@@ -1655,7 +1655,7 @@ THashMap<TSchedulerInputState::TQualifiedDCName, TDataCenterDisruptedState> GetD
                     proxyName,
                     proxyInfo->Annotations->NannyService);
 
-                ++zoneOfflineProxyCount[std::make_pair(zoneName, dataCenterName)];
+                ++zoneOfflineProxyCount[std::pair(zoneName, dataCenterName)];
             }
         }
     }
@@ -1663,9 +1663,9 @@ THashMap<TSchedulerInputState::TQualifiedDCName, TDataCenterDisruptedState> GetD
     THashMap<TQualifiedDCName, TDataCenterDisruptedState> result;
     for (const auto& [zoneName, zoneInfo] : input.Zones) {
         for (const auto& [dataCenterName, dataCenterInfo] : zoneInfo->DataCenters) {
-            auto& dataCenterDisrupted = result[std::make_pair(zoneName, dataCenterName)];
+            auto& dataCenterDisrupted = result[std::pair(zoneName, dataCenterName)];
 
-            dataCenterDisrupted.OfflineNodeCount = zoneOfflineNodeCount[std::make_pair(zoneName, dataCenterName)];
+            dataCenterDisrupted.OfflineNodeCount = zoneOfflineNodeCount[std::pair(zoneName, dataCenterName)];
             dataCenterDisrupted.OfflineNodeThreshold = zoneInfo->SpareTargetConfig->TabletNodeCount * zoneInfo->DisruptedThresholdFactor / std::ssize(zoneInfo->DataCenters);
 
             YT_LOG_WARNING_IF(dataCenterDisrupted.IsNodesDisrupted(), "Zone data center is in disrupted state"
@@ -1677,7 +1677,7 @@ THashMap<TSchedulerInputState::TQualifiedDCName, TDataCenterDisruptedState> GetD
                 dataCenterDisrupted.OfflineNodeCount);
 
             dataCenterDisrupted.OfflineProxyThreshold = zoneInfo->SpareTargetConfig->RpcProxyCount * zoneInfo->DisruptedThresholdFactor / std::ssize(zoneInfo->DataCenters);
-            dataCenterDisrupted.OfflineProxyCount = zoneOfflineProxyCount[std::make_pair(zoneName, dataCenterName)];
+            dataCenterDisrupted.OfflineProxyCount = zoneOfflineProxyCount[std::pair(zoneName, dataCenterName)];
 
             YT_LOG_WARNING_IF(dataCenterDisrupted.IsProxiesDisrupted(), "Zone data center is in disrupted state"
                 " (ZoneName: %v, DataCenter: %v, NannyService: %v, DisruptedThreshold: %v, OfflineProxyCount: %v)",

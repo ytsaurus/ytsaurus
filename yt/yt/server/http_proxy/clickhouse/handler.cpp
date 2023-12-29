@@ -1131,7 +1131,7 @@ void TClickHouseHandler::AdjustQueryCount(const TString& user, int delta)
             .WithSparse()
             .WithTag("user", user)
             .Gauge("/running_query_count");
-        return std::make_pair(0, gauge);
+        return std::pair(0, gauge);
     }).first;
 
     entry->first += delta;

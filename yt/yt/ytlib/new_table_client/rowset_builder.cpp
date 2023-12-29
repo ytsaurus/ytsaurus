@@ -1066,7 +1066,7 @@ public:
         // COMPAT(lukyan): Produce really all versions or all versions after last delete.
         if (ProduceAll_) {
             // Produces all versions and all delete timestamps.
-            auto timestampIdRange = std::make_pair(
+            auto timestampIdRange = std::pair(
                 lowerWriteIt - writeTimestamps.Begin(),
                 writeTimestamps.Size());
 
@@ -1089,7 +1089,7 @@ public:
                 : NullTimestamp;
             auto upperWriteIt = GetUpperWriteIndex(lowerWriteIt, writeTimestamps.End(), deleteTimestamp);
 
-            auto timestampIdRange = std::make_pair(
+            auto timestampIdRange = std::pair(
                 lowerWriteIt - writeTimestamps.Begin(),
                 upperWriteIt - writeTimestamps.Begin());
 
@@ -1135,7 +1135,7 @@ protected:
             return *it > readTimestamp;
         });
 
-        return std::make_pair(lowerDeleteIt, lowerWriteIt);
+        return std::pair(lowerDeleteIt, lowerWriteIt);
     }
 
     static const TTimestamp* GetUpperWriteIndex(

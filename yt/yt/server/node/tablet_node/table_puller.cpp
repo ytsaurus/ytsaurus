@@ -101,7 +101,7 @@ public:
                 replicaInfo.ContentType == ETableReplicaContentType::Queue &&
                 IsReplicaEnabled(replicaInfo.State))
             {
-                InsertOrCrash(BannedReplicas_, std::make_pair(replicaId, 0));
+                InsertOrCrash(BannedReplicas_, std::pair(replicaId, 0));
             }
         }
 

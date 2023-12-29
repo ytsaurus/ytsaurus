@@ -802,7 +802,7 @@ private:
                     }
                 }));
 
-                return std::make_pair(pipe->GetReader(), asyncStatistics);
+                return std::pair(pipe->GetReader(), asyncStatistics);
             },
             [&] (const TConstFrontQueryPtr& topQuery, const ISchemafulUnversionedReaderPtr& reader, const IUnversionedRowsetWriterPtr& writer) {
                 YT_LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);

@@ -273,8 +273,8 @@ public:
             {
                 YT_VERIFY(lhs->Tag);
                 YT_VERIFY(rhs->Tag);
-                auto lhsLocation = std::make_pair(*lhs->Tag, lhs->GetSliceIndex());
-                auto rhsLocation = std::make_pair(*rhs->Tag, rhs->GetSliceIndex());
+                auto lhsLocation = std::pair(*lhs->Tag, lhs->GetSliceIndex());
+                auto rhsLocation = std::pair(*rhs->Tag, rhs->GetSliceIndex());
                 if (lhsLocation < rhsLocation) {
                     return;
                 }

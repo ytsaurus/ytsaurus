@@ -89,7 +89,7 @@ int TFunctionTypeInferrer::GetNormalizedConstraints(
     if (!(std::holds_alternative<EValueType>(RepeatedArgumentType_) &&
         std::get<EValueType>(RepeatedArgumentType_) == EValueType::Null))
     {
-        *repeatedType = std::make_pair(
+        *repeatedType = std::pair(
             getIndex(RepeatedArgumentType_),
             std::get_if<TUnionType>(&RepeatedArgumentType_));
     }
@@ -213,7 +213,7 @@ std::pair<int, int> TAggregateFunctionTypeInferrer::GetNormalizedConstraints(
         argumentConstraintIndexes->push_back(getIndex(argumentType));
     }
 
-    return std::make_pair(getIndex(StateType_), getIndex(ResultType_));
+    return std::pair(getIndex(StateType_), getIndex(ResultType_));
 }
 
 

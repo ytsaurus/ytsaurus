@@ -166,7 +166,7 @@ public:
                         blockSize);
 
                     auto result = ReadAndParseRange(
-                        std::make_pair(currentDataOffset, currentDataOffset + blockSize),
+                        std::pair(currentDataOffset, currentDataOffset + blockSize),
                         Index_->GetRecordCount(),
                         false);
 
@@ -734,7 +734,7 @@ private:
                 static const std::array<char, ChangelogPageAlignment> Padding{};
                 buffers.push_back(TSharedRef(Padding.data(), totalPaddingSize, /*nullptr*/ nullptr));
 
-                Index_->AppendRecord(currentRecordIndex, std::make_pair(currentFileOffset, currentFileOffset + totalSize));
+                Index_->AppendRecord(currentRecordIndex, std::pair(currentFileOffset, currentFileOffset + totalSize));
 
                 currentFileOffset += totalSize;
                 currentRecordIndex += 1;

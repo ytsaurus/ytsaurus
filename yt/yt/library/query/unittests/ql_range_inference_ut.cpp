@@ -31,7 +31,7 @@ TEST(TKeyRangeTest, Unite)
     auto k1 = YsonToKey("1"); auto k2 = YsonToKey("2");
     auto k3 = YsonToKey("3"); auto k4 = YsonToKey("4");
     auto mp = [] (const TLegacyOwningKey& a, const TLegacyOwningKey& b) {
-        return std::make_pair(a, b);
+        return std::pair(a, b);
     };
 
     EXPECT_EQ(mp(k1, k4), Unite(mp(k1, k2), mp(k3, k4)));
@@ -47,7 +47,7 @@ TEST(TKeyRangeTest, Intersect)
     auto k1 = YsonToKey("1"); auto k2 = YsonToKey("2");
     auto k3 = YsonToKey("3"); auto k4 = YsonToKey("4");
     auto mp = [] (const TLegacyOwningKey& a, const TLegacyOwningKey& b) {
-        return std::make_pair(a, b);
+        return std::pair(a, b);
     };
 
     EXPECT_TRUE(IsEmpty(Intersect(mp(k1, k2), mp(k3, k4))));
@@ -70,7 +70,7 @@ TEST(TKeyRangeTest, IsEmpty)
 {
     auto k1 = YsonToKey("1"); auto k2 = YsonToKey("2");
     auto mp = [] (const TLegacyOwningKey& a, const TLegacyOwningKey& b) {
-        return std::make_pair(a, b);
+        return std::pair(a, b);
     };
 
     EXPECT_TRUE(IsEmpty(mp(k1, k1)));
@@ -193,7 +193,7 @@ std::vector<TRowRange> GetRangesFromConstraints(
                 auto lowerBound = MakeLowerBound(buffer.Get(), MakeRange(boundRow.Begin(), prefixSize), constraintRow[prefixSize].Lower);
                 auto upperBound = MakeUpperBound(buffer.Get(), MakeRange(boundRow.Begin(), prefixSize), constraintRow[prefixSize].Upper);
 
-                rowRange = std::make_pair(lowerBound, upperBound);
+                rowRange = std::pair(lowerBound, upperBound);
             } else {
                 rowRange = RowRangeFromPrefix(buffer.Get(), MakeRange(boundRow.Begin(), prefixSize));
             }
@@ -239,7 +239,7 @@ TKeyRange RefineKeyRange(
     auto result = GetRangesFromExpression(buffer, keyColumns, predicate, keyRange);
 
     if (result.empty()) {
-        return std::make_pair(EmptyKey(), EmptyKey());
+        return std::pair(EmptyKey(), EmptyKey());
     }
 
     // Check that ranges are adjacent.
@@ -327,7 +327,7 @@ TEST_P(TRefineKeyRangeTest, Basic)
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
-        std::make_pair(
+        std::pair(
             testCase.GetInitialLeftBound(),
             testCase.GetInitialRightBound()),
         expr);
@@ -350,7 +350,7 @@ TEST_P(TRefineKeyRangeTest, BasicReversed)
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
-        std::make_pair(
+        std::pair(
             testCase.GetInitialLeftBound(),
             testCase.GetInitialRightBound()),
         expr);
@@ -789,7 +789,7 @@ TEST_F(TRefineKeyRangeTest, Empty)
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
-        std::make_pair(YsonToKey("1"), YsonToKey("100")),
+        std::pair(YsonToKey("1"), YsonToKey("100")),
         expr);
 
     ExpectIsEmpty(result);
@@ -801,7 +801,7 @@ TEST_F(TRefineKeyRangeTest, ContradictiveConjuncts)
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
-        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
+        std::pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
         expr);
 
     ExpectIsEmpty(result);
@@ -813,7 +813,7 @@ TEST_F(TRefineKeyRangeTest, Lookup1)
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
-        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
+        std::pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
         expr);
 
     EXPECT_EQ(YsonToKey("50;50"), result.first);
@@ -826,7 +826,7 @@ TEST_F(TRefineKeyRangeTest, Lookup2)
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
-        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
+        std::pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
         expr);
 
     EXPECT_EQ(YsonToKey("50;50;50"), result.first);
@@ -841,7 +841,7 @@ TEST_F(TRefineKeyRangeTest, Range1)
     keyColumns.push_back("k");
     auto result = RefineKeyRange(
         keyColumns,
-        std::make_pair(YsonToKey(""), YsonToKey("1000000000")),
+        std::pair(YsonToKey(""), YsonToKey("1000000000")),
         expr);
 
     EXPECT_EQ(YsonToKey("0;" _MAX_), result.first);
@@ -856,7 +856,7 @@ TEST_F(TRefineKeyRangeTest, NegativeRange1)
     keyColumns.push_back("k");
     auto result = RefineKeyRange(
         keyColumns,
-        std::make_pair(YsonToKey(""), YsonToKey("1000000000")),
+        std::pair(YsonToKey(""), YsonToKey("1000000000")),
         expr);
 
     EXPECT_EQ(YsonToKey("-100;" _MAX_), result.first);
@@ -869,7 +869,7 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts1)
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
-        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
+        std::pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
         expr);
 
     EXPECT_EQ(YsonToKey("10"), result.first);
@@ -884,7 +884,7 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts2)
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
-        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
+        std::pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
         expr);
 
     EXPECT_EQ(YsonToKey("50;10"), result.first);
@@ -897,7 +897,7 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
-        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
+        std::pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
         expr);
 
     EXPECT_EQ(YsonToKey("50"), result.first);
@@ -908,7 +908,7 @@ TEST_F(TRefineKeyRangeTest, EmptyKeyTrie)
 {
     auto rowBuffer = New<TRowBuffer>();
     auto result = GetRangesFromTrieWithinRange(
-        std::make_pair(YsonToKey(_MIN_), YsonToKey(_MAX_)),
+        std::pair(YsonToKey(_MIN_), YsonToKey(_MAX_)),
         TKeyTrie::Empty(),
         rowBuffer);
 
@@ -926,7 +926,7 @@ TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
         rowBuffer,
         GetSampleKeyColumns(),
         expr,
-        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")));
+        std::pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")));
 
     EXPECT_EQ(2u, result.size());
 
@@ -948,7 +948,7 @@ TEST_F(TRefineKeyRangeTest, NotEqualToMultipleRanges)
         rowBuffer,
         GetSampleKeyColumns(),
         expr,
-        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")));
+        std::pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")));
 
     EXPECT_EQ(2u, result.size());
 
@@ -970,7 +970,7 @@ TEST_F(TRefineKeyRangeTest, RangesProduct)
         rowBuffer,
         GetSampleKeyColumns(),
         expr,
-        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")));
+        std::pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")));
 
     EXPECT_EQ(9u, result.size());
 
@@ -1013,7 +1013,7 @@ TEST_F(TRefineKeyRangeTest, RangesProductWithOverlappingKeyPositions)
         rowBuffer,
         GetSampleKeyColumns(),
         expr,
-        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")));
+        std::pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")));
 
     EXPECT_EQ(4u, result.size());
 
@@ -1048,7 +1048,7 @@ TEST_F(TRefineKeyRangeTest, BetweenRanges)
         rowBuffer,
         GetSampleKeyColumns(),
         expr,
-        std::make_pair(YsonToKey("0"), YsonToKey("100")));
+        std::pair(YsonToKey("0"), YsonToKey("100")));
 
     EXPECT_EQ(4u, result.size());
 
@@ -1073,7 +1073,7 @@ TEST_F(TRefineKeyRangeTest, NormalizeShortKeys)
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
-        std::make_pair(YsonToKey("1"), YsonToKey("2")),
+        std::pair(YsonToKey("1"), YsonToKey("2")),
         expr);
 
     EXPECT_EQ(YsonToKey("1;2;3"), result.first);
@@ -1096,7 +1096,7 @@ TEST_F(TRefineKeyRangeTest, PrefixQuery)
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns2(),
-        std::make_pair(YsonToKey("1;1;1;aaa"), YsonToKey("100;100;100;bbb")),
+        std::pair(YsonToKey("1;1;1;aaa"), YsonToKey("100;100;100;bbb")),
         expr);
 
     EXPECT_EQ(YsonToKey("50;50;50;abc"), result.first);
@@ -1111,7 +1111,7 @@ TEST_F(TRefineKeyRangeTest, EmptyRange)
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
-        std::make_pair(YsonToKey("0;0;0"), YsonToKey("2;2;2")),
+        std::pair(YsonToKey("0;0;0"), YsonToKey("2;2;2")),
         expr);
 
     EXPECT_EQ(YsonToKey("1"), result.first);
@@ -1126,7 +1126,7 @@ TEST_F(TRefineKeyRangeTest, RangeToPointCollapsing)
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
-        std::make_pair(YsonToKey("0;0;0"), YsonToKey("2;2;2")),
+        std::pair(YsonToKey("0;0;0"), YsonToKey("2;2;2")),
         expr);
 
     EXPECT_EQ(YsonToKey("1;1"), result.first);
@@ -1144,7 +1144,7 @@ TEST_F(TRefineKeyRangeTest, MultipleRangeDisjuncts)
         rowBuffer,
         GetSampleKeyColumns(),
         expr,
-        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")));
+        std::pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")));
 
     EXPECT_EQ(2u, result.size());
 
@@ -1166,7 +1166,7 @@ TEST_F(TRefineKeyRangeTest, SecondDimensionRange)
         rowBuffer,
         GetSampleKeyColumns(),
         expr,
-        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")));
+        std::pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")));
 
     EXPECT_EQ(1u, result.size());
 
@@ -1185,7 +1185,7 @@ TEST_F(TRefineKeyRangeTest, InTuples)
         rowBuffer,
         GetSampleKeyColumns(),
         expr,
-        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
+        std::pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
         7);
 
     EXPECT_EQ(4u, result.size());
@@ -1214,7 +1214,7 @@ TEST_F(TRefineKeyRangeTest, RangeExpansionLimit)
         rowBuffer,
         GetSampleKeyColumns(),
         expr,
-        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
+        std::pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
         7);
 
     EXPECT_EQ(5u, result.size());
@@ -1245,7 +1245,7 @@ TEST_F(TRefineKeyRangeTest, RedundantCondition)
         rowBuffer,
         GetSampleKeyColumns(),
         expr,
-        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")));
+        std::pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")));
 
     EXPECT_EQ(2u, result.size());
 
@@ -1267,7 +1267,7 @@ TEST_F(TRefineKeyRangeTest, InColumnPermutation)
         rowBuffer,
         GetSampleKeyColumns(),
         expr,
-        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")));
+        std::pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")));
 
     EXPECT_EQ(2u, result.size());
 

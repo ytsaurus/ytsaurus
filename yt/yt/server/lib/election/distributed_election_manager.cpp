@@ -546,7 +546,7 @@ private:
                 currentCandidateStatus.VoteId,
                 Owner_->ElectionCallbacks_->FormatPriority(currentCandidateStatus.Priority),
                 currentCandidateStatus.VoteEpochId);
-            auto currentCandidate = std::make_pair(currentCandidateId, currentCandidateStatus.Priority);
+            auto currentCandidate = std::pair(currentCandidateId, currentCandidateStatus.Priority);
             if (!bestCandidate || IsBetterCandidate(currentCandidate, *bestCandidate)) {
                 bestCandidate = currentCandidate;
                 YT_LOG_DEBUG("Updated best candidate (PeerId: %v, Priority %v)",

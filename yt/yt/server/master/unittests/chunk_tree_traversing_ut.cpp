@@ -1607,7 +1607,7 @@ TEST_F(TChunkTreeTraversingStressTest, StaticWithoutKeys)
         if (lhs > rhs) {
             std::swap(lhs, rhs);
         }
-        return std::make_pair(lhs, rhs);
+        return std::pair(lhs, rhs);
     };
 
     auto context = GetSyncChunkTraverserContext();
@@ -1650,7 +1650,7 @@ TEST_F(TChunkTreeTraversingStressTest, SortedDynamic)
         if (lhs > rhs) {
             std::swap(lhs, rhs);
         }
-        return std::make_pair(lhs, rhs);
+        return std::pair(lhs, rhs);
     };
 
     auto context = GetSyncChunkTraverserContext();
@@ -1710,7 +1710,7 @@ TEST_F(TChunkTreeTraversingStressTest, SortedDynamicThreeLevel)
         if (lhs > rhs) {
             std::swap(lhs, rhs);
         }
-        return std::make_pair(lhs, rhs);
+        return std::pair(lhs, rhs);
     };
 
     auto context = GetSyncChunkTraverserContext();
@@ -1768,7 +1768,7 @@ TEST_F(TChunkTreeTraversingStressTest, OrderedDynamic)
         if (lhs > rhs) {
             std::swap(lhs, rhs);
         }
-        return std::make_pair(lhs, rhs);
+        return std::pair(lhs, rhs);
     };
 
     auto context = GetSyncChunkTraverserContext();
@@ -1850,7 +1850,7 @@ TEST_F(TChunkTreeTraversingStressTest, OrderedDynamicWithTabletIndex)
             upperLimit = TLegacyReadLimit{};
         }
 
-        return std::make_pair(lowerLimit, upperLimit);
+        return std::pair(lowerLimit, upperLimit);
     };
 
     auto context = GetSyncChunkTraverserContext();

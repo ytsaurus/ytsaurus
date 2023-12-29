@@ -166,7 +166,7 @@ protected:
 
         auto finalizeResult = Finalize();
 
-        return std::make_pair(compactionResult, finalizeResult);
+        return std::pair(compactionResult, finalizeResult);
     }
 
     IVersionedMultiChunkWriterPtr CreateWriter()

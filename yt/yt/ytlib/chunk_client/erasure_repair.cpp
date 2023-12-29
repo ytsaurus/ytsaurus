@@ -87,7 +87,7 @@ public:
                     if (it != BlockIndexToBlocksToSaveIndex_.end()) {
                         SavedBlocks_[it->second] = block;
                     }
-                    CachedBlocks_.push_back(std::make_pair(blockIndex, block));
+                    CachedBlocks_.push_back(std::pair(blockIndex, block));
                 }
                 resultBlocks.insert(resultBlocks.end(), blocks.begin(), blocks.end());
                 return resultBlocks;

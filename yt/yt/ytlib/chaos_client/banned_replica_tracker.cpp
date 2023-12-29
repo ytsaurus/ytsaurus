@@ -77,7 +77,7 @@ public:
                 replicaInfo.ContentType == ETableReplicaContentType::Data &&
                 IsReplicaEnabled(replicaInfo.State))
             {
-                InsertOrCrash(BannedReplicas_, std::make_pair(replicaId, TReplicaState{}));
+                InsertOrCrash(BannedReplicas_, std::pair(replicaId, TReplicaState{}));
             }
         }
 

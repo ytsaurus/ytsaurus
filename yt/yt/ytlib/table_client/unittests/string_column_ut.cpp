@@ -144,11 +144,11 @@ TEST_F(TUnversionedStringColumnTest, CheckSegmentTypes)
 TEST_F(TUnversionedStringColumnTest, GetEqualRange)
 {
     auto reader = CreateColumnReader();
-    EXPECT_EQ(std::make_pair(4L, 5L), reader->GetEqualRange(MakeValue(Bara), 3, 5));
-    EXPECT_EQ(std::make_pair(7L, 8L), reader->GetEqualRange(MakeValue(Abra), 7, 50));
-    EXPECT_EQ(std::make_pair(8L, 50L), reader->GetEqualRange(MakeValue(B), 7, 50));
-    EXPECT_EQ(std::make_pair(1118L, 1119L), reader->GetEqualRange(MakeValue(std::nullopt), 1118, 1119));
-    EXPECT_EQ(std::make_pair(1119L, 1119L), reader->GetEqualRange(MakeValue(A), 1118, 1119));
+    EXPECT_EQ(std::pair(4L, 5L), reader->GetEqualRange(MakeValue(Bara), 3, 5));
+    EXPECT_EQ(std::pair(7L, 8L), reader->GetEqualRange(MakeValue(Abra), 7, 50));
+    EXPECT_EQ(std::pair(8L, 50L), reader->GetEqualRange(MakeValue(B), 7, 50));
+    EXPECT_EQ(std::pair(1118L, 1119L), reader->GetEqualRange(MakeValue(std::nullopt), 1118, 1119));
+    EXPECT_EQ(std::pair(1119L, 1119L), reader->GetEqualRange(MakeValue(A), 1118, 1119));
 }
 
 TEST_F(TUnversionedStringColumnTest, ReadValues)

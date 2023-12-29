@@ -93,7 +93,7 @@ void TTimestampSegmentReader::SkipToRowIndex(i64 rowIndex)
         WriteTimestamp_ = NullTimestamp;
     }
 
-    TimestampIndexRange_ = std::make_pair(adjustedLowerWriteIndex, adjustedUpperWriteIndex);
+    TimestampIndexRange_ = std::pair(adjustedLowerWriteIndex, adjustedUpperWriteIndex);
 
     FullWriteTimestampIndexRange_ = {writeIndex - lowerWriteIndex, upperWriteIndex - lowerWriteIndex};
     FullDeleteTimestampIndexRange_ = {deleteIndex - lowerDeleteIndex, upperDeleteIndex - lowerDeleteIndex};

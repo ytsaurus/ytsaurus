@@ -126,7 +126,7 @@ TCellIdToSnapshotIdMap TClient::DoBuildMasterSnapshots(const TBuildMasterSnapsho
 
     THashMap<TCellId, IChannelPtr> channels;
     for (auto cellId : cellIds) {
-        EmplaceOrCrash(channels, std::make_pair(cellId, GetHydraAdminChannelOrThrow(cellId)));
+        EmplaceOrCrash(channels, std::pair(cellId, GetHydraAdminChannelOrThrow(cellId)));
     }
 
     std::queue<TSnapshotRequest> requestQueue;
@@ -220,7 +220,7 @@ void TClient::DoMasterExitReadOnly(
 
     THashMap<TCellId, IChannelPtr> channels;
     for (auto cellId : cellIds) {
-        EmplaceOrCrash(channels, std::make_pair(cellId, GetHydraAdminChannelOrThrow(cellId)));
+        EmplaceOrCrash(channels, std::pair(cellId, GetHydraAdminChannelOrThrow(cellId)));
     }
 
     std::queue<TExitReadOnlyRequest> requestQueue;

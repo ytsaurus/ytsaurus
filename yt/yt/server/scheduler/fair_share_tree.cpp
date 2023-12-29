@@ -1672,7 +1672,7 @@ private:
         TreeSnapshotPrecommit_ = std::move(treeSnapshot);
         LastFairShareUpdateTime_ = now;
 
-        return std::make_pair(MakeStrong(this), error);
+        return std::pair(MakeStrong(this), error);
     }
 
     void DoRegisterPool(const TSchedulerPoolElementPtr& pool)

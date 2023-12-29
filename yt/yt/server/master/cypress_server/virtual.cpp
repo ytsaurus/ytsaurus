@@ -339,7 +339,7 @@ TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromLocal()
 {
     return GetSize()
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (i64 size) {
-            return std::make_pair(Bootstrap_->GetMulticellManager()->GetCellTag(), size);
+            return std::pair(Bootstrap_->GetMulticellManager()->GetCellTag(), size);
         }));
 }
 
@@ -371,7 +371,7 @@ TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromRemote(
 
             auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_count");
             const auto& rsp = rspOrError.Value();
-            return std::make_pair(cellTag, ConvertTo<i64>(TYsonString(rsp->value())));
+            return std::pair(cellTag, ConvertTo<i64>(TYsonString(rsp->value())));
         }));
 }
 

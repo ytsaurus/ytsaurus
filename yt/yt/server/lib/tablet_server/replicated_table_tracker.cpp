@@ -1447,8 +1447,8 @@ private:
             auto getPriority = [&] (auto* replica) {
                 auto it = replicaClusterPriorities->find(replica->GetClusterName());
                 return it != replicaClusterPriorities->end()
-                    ? std::make_pair(it->second, it->first)
-                    : std::make_pair(0, replica->GetClusterName());
+                    ? std::pair(it->second, it->first)
+                    : std::pair(0, replica->GetClusterName());
             };
 
             SortBy(syncReplicas, getPriority);

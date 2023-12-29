@@ -128,7 +128,7 @@ private:
                 it->second = cellId;
             }
         } else {
-            InsertOrCrash(ObservedCells_, std::make_pair(cellTag, cellId));
+            InsertOrCrash(ObservedCells_, std::pair(cellTag, cellId));
         }
     }
 

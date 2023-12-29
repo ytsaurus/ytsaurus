@@ -330,8 +330,8 @@ void TJobProxy::LogJobSpec(TJobSpec jobSpec)
         jobSpecExt->mutable_foreign_input_table_specs()->Swap(&foreignInputTableSpecs);
 
         for (const auto& [name, inputTableSpecs] : {
-            std::make_pair("primary", &primaryInputTableSpecs),
-            std::make_pair("foreign", &foreignInputTableSpecs)
+            std::pair("primary", &primaryInputTableSpecs),
+            std::pair("foreign", &foreignInputTableSpecs)
         })
         {
             TStringBuilder builder;

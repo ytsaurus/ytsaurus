@@ -1121,11 +1121,11 @@ std::pair<EValueType, EValueType> RefineBinaryExprTypes(
     if (IsRelationalBinaryOp(opCode) && (lhsTypes & rhsTypes).IsEmpty()) {
         // Empty intersection (Any, alpha) || (alpha, Any), where alpha = {bool, int, uint, double, string}
         if (lhsTypes.Get(EValueType::Any)) {
-            return std::make_pair(EValueType::Any, GetFrontWithCheck(rhsTypes, rhsSource));
+            return std::pair(EValueType::Any, GetFrontWithCheck(rhsTypes, rhsSource));
         }
 
         if (rhsTypes.Get(EValueType::Any)) {
-            return std::make_pair(GetFrontWithCheck(lhsTypes, lhsSource), EValueType::Any);
+            return std::pair(GetFrontWithCheck(lhsTypes, lhsSource), EValueType::Any);
         }
 
         THROW_ERROR_EXCEPTION("Type mismatch in expression")
@@ -1143,7 +1143,7 @@ std::pair<EValueType, EValueType> RefineBinaryExprTypes(
         argType = resultType;
     }
 
-    return std::make_pair(argType, argType);
+    return std::pair(argType, argType);
 }
 
 TTypeSet InferUnaryExprTypes(
@@ -1466,7 +1466,7 @@ public:
             resultTypes = genericAssignments;
         }
 
-        return std::make_pair(resultTypes, [=, this] (EValueType type) {
+        return std::pair(resultTypes, [=, this] (EValueType type) {
             EValueType argType;
             if (resultType) {
                 YT_VERIFY(!genericAssignments.IsEmpty());
@@ -1516,7 +1516,7 @@ public:
             subexpressionName);
 
         TExpressionGenerator generator = [=, this] (EValueType type) {
-            auto key = std::make_pair(subexpressionName, type);
+            auto key = std::pair(subexpressionName, type);
             auto found = AggregateLookup.find(key);
             if (found != AggregateLookup.end()) {
                 return found->second;
@@ -1764,7 +1764,7 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
             formalArguments = std::move(formalArguments),
             source = functionExpr->GetSource(Source)
         ] (EValueType type) mutable {
-            auto key = std::make_pair(subexpressionName, type);
+            auto key = std::pair(subexpressionName, type);
             auto foundCached = AggregateLookup.find(key);
             if (foundCached != AggregateLookup.end()) {
                 return foundCached->second;

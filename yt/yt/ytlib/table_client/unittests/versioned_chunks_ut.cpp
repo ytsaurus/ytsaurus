@@ -1597,12 +1597,12 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Combine(
         TestOptionsValues,
         ::testing::Values(
-            std::make_pair(EValueType::Min, EValueType::Min),
-            std::make_pair(EValueType::Min, EValueType::Null),
-            std::make_pair(EValueType::Min, EValueType::Max),
-            std::make_pair(EValueType::Null, EValueType::Null),
-            std::make_pair(EValueType::Null, EValueType::Max),
-            std::make_pair(EValueType::Max, EValueType::Max))),
+            std::pair(EValueType::Min, EValueType::Min),
+            std::pair(EValueType::Min, EValueType::Null),
+            std::pair(EValueType::Min, EValueType::Max),
+            std::pair(EValueType::Null, EValueType::Null),
+            std::pair(EValueType::Null, EValueType::Max),
+            std::pair(EValueType::Max, EValueType::Max))),
     [] (const auto& info) {
         return Format("%v_%kv_%kv",
             std::get<0>(info.param),

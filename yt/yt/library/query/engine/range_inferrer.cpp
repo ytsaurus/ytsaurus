@@ -641,7 +641,7 @@ void EnrichKeyRange(
         auto upper = finalizeRow(upperRow, upperSize, MakeUnversionedSentinelValue(EValueType::Max), upperSentinel);
         YT_ASSERT(lower <= upper);
         if (lower < upper) {
-            ranges.push_back(std::make_pair(lower, upper));
+            ranges.push_back(std::pair(lower, upper));
         }
     };
 

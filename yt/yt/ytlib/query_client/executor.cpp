@@ -379,7 +379,7 @@ private:
                     dataSource.CellId,
                     address);
 
-                return std::make_pair(std::vector<TDataSource>{dataSource}, address);
+                return std::pair(std::vector<TDataSource>{dataSource}, address);
             });
     }
 
@@ -444,7 +444,7 @@ private:
             query->GetTableSchema(),
             config->SelectRowsResponseCodec,
             Logger);
-        return std::make_pair(resultReader, resultReader->GetQueryResult());
+        return std::pair(resultReader, resultReader->GetQueryResult());
     }
 };
 

@@ -563,7 +563,7 @@ protected:
         YT_VERIFY(SortOrder_);
 
         if (lowerRowIndex == upperRowIndex) {
-            return std::make_pair(lowerRowIndex, upperRowIndex);
+            return std::pair(lowerRowIndex, upperRowIndex);
         }
 
         int segmentLimit = FindSegmentByRowIndex(upperRowIndex - 1);
@@ -601,7 +601,7 @@ protected:
 
         upperRowIndex = upperSegmentReader->GetUpperRowIndex(value, upperRowIndex);
 
-        return std::make_pair(lowerRowIndex, upperRowIndex);
+        return std::pair(lowerRowIndex, upperRowIndex);
     }
 };
 

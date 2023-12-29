@@ -650,7 +650,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
                         BIND([&] {
                                 NProfiling::TFiberWallTimer timer;
                                 auto block = compressionCodec->Decompress(compressedBlock.Data);
-                                return std::make_pair(std::move(block), timer.GetElapsedTime());
+                                return std::pair(std::move(block), timer.GetElapsedTime());
                             })
                             .AsyncVia(compressionInvoker)
                             .Run());

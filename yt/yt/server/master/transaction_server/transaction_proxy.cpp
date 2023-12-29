@@ -415,7 +415,7 @@ private:
         for (const auto& [account, resources] : transaction->AccountResourceUsage()) {
             YT_VERIFY(result.emplace(account->GetName(), resources).second);
         }
-        return MakeFuture(std::make_pair(cellTag, result));
+        return MakeFuture(std::pair(cellTag, result));
     }
 
     TFuture<std::pair<TCellTag, TAccountResourcesMap>> GetRemoteResourcesMap(TCellTag cellTag)
@@ -434,7 +434,7 @@ private:
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
                 auto cumulativeError = GetCumulativeError(batchRspOrError);
                 if (cumulativeError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                    return std::make_pair(cellTag, TAccountResourcesMap());
+                    return std::pair(cellTag, TAccountResourcesMap());
                 }
 
                 THROW_ERROR_EXCEPTION_IF_FAILED(cumulativeError, "Error fetching resource usage of transaction %v from cell %v",
@@ -444,7 +444,7 @@ private:
                 const auto& batchRsp = batchRspOrError.Value();
                 auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(0);
                 const auto& rsp = rspOrError.Value();
-                return std::make_pair(cellTag, DeserializeAccountResourcesMap(TYsonString(rsp->value())));
+                return std::pair(cellTag, DeserializeAccountResourcesMap(TYsonString(rsp->value())));
             }).AsyncVia(GetCurrentInvoker()));
     }
 

@@ -543,7 +543,7 @@ std::pair<TString, TSelectRowsOptions::TExpectedTableSchemas> TClient::PickInSyn
                 pickedReplicaIds.push_back(replicaInfo->ReplicaId);
                 descriptor->Path = replicaInfo->ReplicaPath;
                 if (tableSchema) {
-                    InsertOrCrash(expectedTableSchemas, std::make_pair(replicaInfo->ReplicaPath, std::move(tableSchema)));
+                    InsertOrCrash(expectedTableSchemas, std::pair(replicaInfo->ReplicaPath, std::move(tableSchema)));
                 }
                 return;
             }

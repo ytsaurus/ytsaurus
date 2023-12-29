@@ -1285,7 +1285,7 @@ private:
                 continue;
             }
 
-            replicationCard->Coordinators().insert(std::make_pair(cellId, TCoordinatorInfo{EShortcutState::Granting}));
+            replicationCard->Coordinators().insert(std::pair(cellId, TCoordinatorInfo{EShortcutState::Granting}));
             auto* mailbox = hiveManager->GetOrCreateCellMailbox(cellId);
             hiveManager->PostMessage(mailbox, req);
 
@@ -1979,7 +1979,7 @@ private:
                 if (it) {
                     it->second.State = EShortcutState::Granting;
                 } else {
-                    replicationCard->Coordinators().insert(std::make_pair(coordinatorCellId, TCoordinatorInfo{EShortcutState::Granting}));
+                    replicationCard->Coordinators().insert(std::pair(coordinatorCellId, TCoordinatorInfo{EShortcutState::Granting}));
                 }
             }
         }

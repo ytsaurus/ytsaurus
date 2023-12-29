@@ -58,7 +58,7 @@ static void ApplySortOperationInternal(
     sortedMask->resize(std::ssize(table.DataColumns), false);
     std::unordered_map<TString, int> index;
     for (int i = 0; i < std::ssize(table.DataColumns); i++) {
-        index.insert(std::make_pair(table.DataColumns[i].Name, i));
+        index.insert(std::pair(table.DataColumns[i].Name, i));
     }
     for (const auto& sortColumn : operation.SortBy) {
         auto position = index.find(sortColumn);

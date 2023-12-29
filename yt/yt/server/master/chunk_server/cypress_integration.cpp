@@ -434,7 +434,7 @@ private:
         if (!IsMulticell()) {
             return GetSize()
                 .Apply(BIND([=, this, this_ = MakeStrong(this)] (i64 size) {
-                    return std::vector{std::make_pair(Bootstrap_->GetMulticellManager()->GetCellTag(), size)};
+                    return std::vector{std::pair(Bootstrap_->GetMulticellManager()->GetCellTag(), size)};
                 }));
         }
 

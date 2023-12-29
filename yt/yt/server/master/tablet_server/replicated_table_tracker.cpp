@@ -1724,7 +1724,7 @@ private:
 
             YT_LOG_DEBUG("Finished building replicated table tracker snapshot");
 
-            return std::make_pair(++Revision_, std::move(snapshot));
+            return std::pair(++Revision_, std::move(snapshot));
         })
             .AsyncVia(GetAutomatonInvoker())
             .Run();

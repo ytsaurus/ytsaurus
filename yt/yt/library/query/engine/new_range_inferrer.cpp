@@ -825,7 +825,7 @@ public:
                         buffer,
                         MakeRange(boundRow.Begin(), prefixSize),
                         constraintRow[prefixSize].Upper);
-                    rowRange = std::make_pair(lowerBound, upperBound);
+                    rowRange = std::pair(lowerBound, upperBound);
                 } else {
                     rowRange = RowRangeFromPrefix(buffer, MakeRange(boundRow.Begin(), prefixSize));
                 }
@@ -1044,7 +1044,7 @@ TRangeInferrer CreateNewLightRangeInferrer(
                         MakeRange(boundRow.Begin(), prefixSize),
                         constraintRow[prefixSize].Upper);
 
-                    rowRange = std::make_pair(lowerBound, upperBound);
+                    rowRange = std::pair(lowerBound, upperBound);
                 } else {
                     rowRange = RowRangeFromPrefix(buffer.Get(), MakeRange(boundRow.Begin(), prefixSize));
                 }

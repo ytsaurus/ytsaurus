@@ -866,7 +866,7 @@ private:
         }
 
         SortBy(candidates, [] (const TCandidate& candidate) {
-            return std::make_pair(candidate.SessionCount, -candidate.AvailableSpace);
+            return std::pair(candidate.SessionCount, -candidate.AvailableSpace);
         });
 
         for (const auto& candidate : candidates) {

@@ -2149,7 +2149,7 @@ void TChunkReplicator::ScheduleRepairJobs(IJobSchedulingContext* context)
         for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
             auto& chunkRepairQueue = ChunkRepairQueue(mediumIndex, queue);
             if (!chunkRepairQueue.empty()) {
-                iteratorPerRepairQueue[mediumIndex] = std::make_pair(chunkRepairQueue.begin(), chunkRepairQueue.end());
+                iteratorPerRepairQueue[mediumIndex] = std::pair(chunkRepairQueue.begin(), chunkRepairQueue.end());
             }
         }
 

@@ -37,7 +37,7 @@ TObject* FindMapObjectLCA(TObject* lhs, TObject* rhs)
         for (; root && root->GetParent(); root = root->GetParent()) {
             ++depth;
         }
-        return std::make_pair(root, depth);
+        return std::pair(root, depth);
     };
 
     auto [lhsRoot, lhsDepth] = getRootAndDepth(lhs);

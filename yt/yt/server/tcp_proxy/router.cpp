@@ -34,7 +34,7 @@ struct TEndpoint
 
 bool operator==(const TEndpoint& lhs, const TEndpoint& rhs)
 {
-    return std::make_pair(lhs.Host, lhs.Port) == std::make_pair(rhs.Host, rhs.Port);
+    return std::pair(lhs.Host, lhs.Port) == std::pair(rhs.Host, rhs.Port);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

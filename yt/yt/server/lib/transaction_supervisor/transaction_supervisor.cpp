@@ -2112,7 +2112,7 @@ private:
                     asyncTimestamp = TimestampProvider_->GenerateTimestamps(1);
                 }
                 asyncTimestamps.push_back(asyncTimestamp.Apply(BIND([=] (TTimestamp timestamp) {
-                    return std::make_pair(cellTag, timestamp);
+                    return std::pair(cellTag, timestamp);
                 })));
                 if (cellId == SelfCellId_ && !asyncCoordinatorTimestamp) {
                     asyncCoordinatorTimestamp = asyncTimestamp;

@@ -1103,7 +1103,7 @@ void TLookupSession::AddTabletRequest(
             }
 
             auto counters = tabletSnapshot->TableProfiler->GetQueryServiceCounters(ProfilingUser_);
-            ProfilerGuard_.emplace(std::make_pair(std::move(tabletSnapshot), TServiceProfilerGuard{}));
+            ProfilerGuard_.emplace(std::pair(std::move(tabletSnapshot), TServiceProfilerGuard{}));
             ProfilerGuard_->second.Start(counters->Multiread);
         }
     }

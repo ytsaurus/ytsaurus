@@ -2718,7 +2718,7 @@ private:
             for (auto protoEndReplicationRowIndex : request->new_replication_row_indexes()) {
                 auto tabletId = FromProto<TTabletId>(protoEndReplicationRowIndex.tablet_id());
                 auto endReplicationRowIndex = protoEndReplicationRowIndex.replication_row_index();
-                YT_VERIFY(currentReplicationRowIndexes.insert(std::make_pair(tabletId, endReplicationRowIndex)).second);
+                YT_VERIFY(currentReplicationRowIndexes.insert(std::pair(tabletId, endReplicationRowIndex)).second);
             }
 
             chaosData->CurrentReplicationRowIndexes.Store(currentReplicationRowIndexes);

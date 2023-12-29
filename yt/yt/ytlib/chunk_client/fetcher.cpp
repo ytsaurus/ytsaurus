@@ -382,7 +382,7 @@ void TFetcherBase::StartFetchingRound(const TError& preparationError)
         for (auto replica : replicas) {
             auto nodeId = replica.GetNodeId();
             if (!DeadNodes_.contains(nodeId) &&
-                DeadChunks_.find(std::make_pair(nodeId, chunkId)) == DeadChunks_.end())
+                DeadChunks_.find(std::pair(nodeId, chunkId)) == DeadChunks_.end())
             {
                 if (!UnbanTime_.contains(nodeId)) {
                     nodeIdToChunkIndexes[nodeId].push_back(chunkIndex);
@@ -502,7 +502,7 @@ void TFetcherBase::OnRequestThrottled(TNodeId nodeId, const std::vector<int>& ch
     auto unbanTime = TInstant::Zero();
     if (UnbanTime_.contains(nodeId)) {
         unbanTime = UnbanTime_[nodeId];
-        YT_VERIFY(BannedNodes_.erase(std::make_pair(unbanTime, nodeId)) == 1);
+        YT_VERIFY(BannedNodes_.erase(std::pair(unbanTime, nodeId)) == 1);
         YT_VERIFY(UnbanTime_.erase(nodeId) == 1);
     }
 

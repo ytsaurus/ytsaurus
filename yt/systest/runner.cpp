@@ -62,7 +62,7 @@ static std::pair<std::vector<TString>, TString> GetSortAndReduceColumnsAndIndex(
         reduceColumns.push_back(schema.DataColumns[reduceable[1]].Name);
     }
 
-    return std::make_pair(reduceColumns, schema.DataColumns[summable[0]].Name);
+    return std::pair(reduceColumns, schema.DataColumns[summable[0]].Name);
 }
 
 static std::vector<int> indexRangeExcept(int start, int limit, std::vector<int> excepted) {

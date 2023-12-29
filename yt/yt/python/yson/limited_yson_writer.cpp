@@ -85,7 +85,7 @@ public:
 
     void OnBeginList()
     {
-        Stack_.push_back(std::make_pair(ETokenType::List, !LimitReached_));
+        Stack_.push_back(std::pair(ETokenType::List, !LimitReached_));
         if (LimitReached_ && !ExpectValue_) {
             return;
         }
@@ -115,7 +115,7 @@ public:
 
     void OnBeginMap()
     {
-        Stack_.push_back(std::make_pair(ETokenType::Map, !LimitReached_));
+        Stack_.push_back(std::pair(ETokenType::Map, !LimitReached_));
         if (LimitReached_ && !ExpectValue_) {
             return;
         }
@@ -145,7 +145,7 @@ public:
 
     void OnBeginAttributes()
     {
-        Stack_.push_back(std::make_pair(ETokenType::Attributes, !LimitReached_));
+        Stack_.push_back(std::pair(ETokenType::Attributes, !LimitReached_));
         if (LimitReached_ && !ExpectValue_) {
             return;
         }

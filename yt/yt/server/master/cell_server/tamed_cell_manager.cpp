@@ -1335,12 +1335,12 @@ private:
                 for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
                     auto* transaction = cell->Peers()[peerId].PrerequisiteTransaction;
                     if (transaction) {
-                        EmplaceOrCrash(TransactionToCellMap_, transaction, std::make_pair(cell, peerId));
+                        EmplaceOrCrash(TransactionToCellMap_, transaction, std::pair(cell, peerId));
                     }
                 }
             } else {
                 if (auto* transaction = cell->GetPrerequisiteTransaction(); transaction) {
-                    EmplaceOrCrash(TransactionToCellMap_, transaction, std::make_pair(cell, std::nullopt));
+                    EmplaceOrCrash(TransactionToCellMap_, transaction, std::pair(cell, std::nullopt));
                 }
             }
 
@@ -2348,7 +2348,7 @@ private:
             /*isCypressTransaction*/ true);
 
         YT_VERIFY(!cell->GetPrerequisiteTransaction(peerId));
-        EmplaceOrCrash(TransactionToCellMap_, transaction, std::make_pair(cell, peerId));
+        EmplaceOrCrash(TransactionToCellMap_, transaction, std::pair(cell, peerId));
         cell->SetPrerequisiteTransaction(peerId, transaction);
 
         TReqStartPrerequisiteTransaction request;
@@ -2389,7 +2389,7 @@ private:
             return;
         }
 
-        EmplaceOrCrash(TransactionToCellMap_, transaction, std::make_pair(cell, peerId));
+        EmplaceOrCrash(TransactionToCellMap_, transaction, std::pair(cell, peerId));
         cell->SetPrerequisiteTransaction(peerId, transaction);
 
         YT_LOG_DEBUG("Cell prerequisite transaction attached (CellId: %v, PeerId: %v, TransactionId: %v)",

@@ -2210,7 +2210,7 @@ void TNodeShard::UpdateProfilingCounter(const TJobPtr& job, int value)
     if (it == AllocationCounter_.end()) {
         it = AllocationCounter_.emplace(
             std::move(key),
-            std::make_pair(
+            std::pair(
                 0,
                 createGauge())).first;
     }

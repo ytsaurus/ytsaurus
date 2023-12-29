@@ -297,7 +297,7 @@ std::vector<TExperimentAssignmentPtr> TExperimentAssigner::Assign(
                 }
                 cumulativeFraction += fractionGetter(it->second);
             }
-            return std::make_pair(sampledIt, uniformSample);
+            return std::pair(sampledIt, uniformSample);
         };
 
         for (const auto& dimensionExperiments : GetValues(dimensionToExperiments)) {

@@ -368,9 +368,9 @@ TEST_F(TMultiChunkPoolOutputTest, TestTeleportChunks)
     Mocks_[1]->TeleportChunk(chunk3);
 
     EXPECT_EQ(std::ssize(teleportChunks), 3);
-    EXPECT_EQ(teleportChunks[0], std::make_pair(chunk1, 1));
-    EXPECT_EQ(teleportChunks[1], std::make_pair(chunk2, 0));
-    EXPECT_EQ(teleportChunks[2], std::make_pair(chunk3, 1));
+    EXPECT_EQ(teleportChunks[0], std::pair(chunk1, 1));
+    EXPECT_EQ(teleportChunks[1], std::pair(chunk2, 0));
+    EXPECT_EQ(teleportChunks[2], std::pair(chunk3, 1));
 
     EXPECT_TRUE(Pool_->IsCompleted());
 }

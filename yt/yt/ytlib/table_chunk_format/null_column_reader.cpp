@@ -146,11 +146,11 @@ public:
         }
 
         if (less) {
-            return std::make_pair(lowerRowIndex, lowerRowIndex);
+            return std::pair(lowerRowIndex, lowerRowIndex);
         } else if (value.Type == EValueType::Null) {
-            return std::make_pair(lowerRowIndex, upperRowIndex);
+            return std::pair(lowerRowIndex, upperRowIndex);
         } else {
-            return std::make_pair(upperRowIndex, upperRowIndex);
+            return std::pair(upperRowIndex, upperRowIndex);
         }
     }
 

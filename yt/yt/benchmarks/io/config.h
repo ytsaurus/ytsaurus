@@ -66,7 +66,7 @@ public:
         RegisterParameter("iterate_block_size_log", IterateBlockSizeLog)
             .Default(std::vector<int>{12});
         RegisterParameter("iterate_zone", IterateZone)
-            .Default(std::vector<std::pair<int,int>>{std::make_pair(0,100)});
+            .Default(std::vector<std::pair<int,int>>{std::pair(0,100)});
         RegisterParameter("iterate_read_percentage", IterateReadPercentage)
             .Default(std::vector<int>{100});
         RegisterParameter("iterate_direct", IterateDirect)

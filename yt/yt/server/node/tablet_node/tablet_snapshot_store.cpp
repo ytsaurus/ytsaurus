@@ -357,7 +357,7 @@ private:
         // Outdated snapshots are useful for AsyncLastCommitted reads and ReadDynamicStore requests.
 
         auto getComparisonSurrogate = [] (const TTabletSnapshotPtr& snapshot) {
-            return std::make_pair(snapshot->HydraManager->IsActive(), snapshot->MountRevision);
+            return std::pair(snapshot->HydraManager->IsActive(), snapshot->MountRevision);
         };
 
         for (auto it = range.first; it != range.second; ++it) {
