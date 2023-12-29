@@ -346,6 +346,10 @@ TOperationControllerBase::TOperationControllerBase(
         ExternalScheduleJobFailureCounts_[reason] = 0;
     }
 
+    TSchedulingTagFilter filter(Spec_->SchedulingTagFilter);
+    ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(filter, /*onlineOnly*/ false);
+    OnlineExecNodesDescriptors_ = Host->GetExecNodeDescriptors(filter, /*onlineOnly*/ true);
+
     YT_LOG_INFO("Operation controller instantiated (OperationType: %v, Address: %v)",
         OperationType,
         static_cast<void*>(this));
