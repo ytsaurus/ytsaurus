@@ -247,10 +247,10 @@ public:
         JobController_->Initialize();
 
         DiskManagerProxy_ = CreateDiskManagerProxy(
-            GetConfig()->DataNode->DiskManagerProxy);
+            GetConfig()->DiskManagerProxy);
         DiskInfoProvider_ = New<TDiskInfoProvider>(
             DiskManagerProxy_,
-            GetConfig()->DataNode->DiskInfoProvider);
+            GetConfig()->DiskInfoProvider);
         DiskChangeChecker_ = New<TDiskChangeChecker>(
             DiskInfoProvider_,
             GetControlInvoker(),
@@ -507,7 +507,7 @@ private:
 
         ChunkStore_->UpdateConfig(newConfig->DataNode);
 
-        DiskManagerProxy_->OnDynamicConfigChanged(newConfig->DataNode->DiskManagerProxy);
+        DiskManagerProxy_->OnDynamicConfigChanged(newConfig->DiskManagerProxy);
         LocationHealthChecker_->OnDynamicConfigChanged(newConfig->DataNode->LocationHealthChecker);
         JobController_->OnDynamicConfigChanged(newConfig->DataNode->JobController);
     }

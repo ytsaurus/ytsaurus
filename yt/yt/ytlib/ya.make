@@ -564,6 +564,7 @@ PEERDIR(
     library/cpp/yt/backtrace/symbolizers/dwarf
     yt/yt/library/erasure/impl
     yt/yt/library/containers
+    yt/yt/library/containers/disk_manager
     yt/yt/library/process
     yt/yt/library/random
     yt/yt/core

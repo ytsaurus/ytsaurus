@@ -305,10 +305,10 @@ public:
         GetRpcServer()->RegisterService(CreateQueryService(GetConfig()->QueryAgent, this));
         GetRpcServer()->RegisterService(CreateTabletCellService(this));
 
-        DiskManagerProxy_ = CreateDiskManagerProxy(New<NContainers::TDiskManagerProxyConfig>());
+        DiskManagerProxy_ = CreateDiskManagerProxy(GetConfig()->DiskManagerProxy);
         DiskInfoProvider_ = New<NContainers::TDiskInfoProvider>(
             DiskManagerProxy_,
-            New<NContainers::TDiskInfoProviderConfig>());
+            GetConfig()->DiskInfoProvider);
         DiskChangeChecker_ = New<TDiskChangeChecker>(
             DiskInfoProvider_,
             GetControlInvoker(),
@@ -602,6 +602,8 @@ private:
         OverloadController_->Reconfigure(newConfig->TabletNode->OverloadController);
 
         StatisticsReporter_->Reconfigure(oldConfig, newConfig);
+
+        DiskManagerProxy_->OnDynamicConfigChanged(newConfig->DiskManagerProxy);
     }
 
     void OnBundleDynamicConfigChanged(

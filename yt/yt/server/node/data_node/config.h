@@ -857,11 +857,6 @@ public:
     //! Table schema and row key comparer cache.
     TTableSchemaCacheConfigPtr TableSchemaCache;
 
-    //! Configuration of the interaction with the host disk manager.
-    NContainers::TDiskManagerProxyConfigPtr DiskManagerProxy;
-
-    NContainers::TDiskInfoProviderConfigPtr DiskInfoProvider;
-
     //! Upload session timeout.
     /*!
      * Some activity must be happening in a session regularly (i.e. new
@@ -1004,9 +999,6 @@ public:
 
     TMasterConnectorDynamicConfigPtr MasterConnector;
     TAllyReplicaManagerDynamicConfigPtr AllyReplicaManager;
-
-    //! Configuration of the interaction with the host disk manager.
-    NContainers::TDiskManagerProxyDynamicConfigPtr DiskManagerProxy;
 
     //! Prepared chunk readers are kept open during this period of time after the last use.
     TDuration ChunkReaderRetentionTimeout;

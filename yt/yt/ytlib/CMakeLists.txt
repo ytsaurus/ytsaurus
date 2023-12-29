@@ -927,6 +927,7 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   backtrace-symbolizers-dwarf
   library-erasure-impl
   yt-library-containers
+  library-containers-disk_manager
   yt-library-process
   yt-library-random
   yt-yt-core
@@ -1615,6 +1616,7 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   backtrace-symbolizers-dwarf
   library-erasure-impl
   yt-library-containers
+  library-containers-disk_manager
   yt-library-process
   yt-library-random
   yt-yt-core
