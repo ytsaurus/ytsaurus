@@ -73,6 +73,12 @@ class HttpProxyTestBase(YTEnvSetup):
     def _get_proxy_address(self):
         return "http://" + self.Env.get_proxy_address()
 
+    def _get_https_proxy_url(self):
+        return self.Env.get_https_proxy_url()
+
+    def _get_ca_cert(self):
+        return self.Env.yt_config.ca_cert
+
     def _get_build_snapshot_url(self):
         return self._get_proxy_address() + "/api/v4/build_snapshot"
 
@@ -1111,3 +1117,24 @@ class TestHttpProxyNullApiTestingOptions(TestHttpProxyHeapUsageStatisticsBase):
         create("table", self.PATH)
         write_table(f"<append=%true>{self.PATH}", [{"key": "x"}])
         self._execute_command("GET", "read_table")
+
+
+class TestHttpsProxy(HttpProxyTestBase):
+    ENABLE_TLS = True
+
+    @authors("khlebnikov")
+    def test_ping_https(self):
+        # verification against system ca bundle: /etc/ssl/certs/ca-certificates.crt
+        with pytest.raises(requests.exceptions.SSLError):
+            rsp = requests.get(self._get_https_proxy_url() + "/ping")
+            rsp.raise_for_status()
+
+    @authors("khlebnikov")
+    def test_ping_https_verify_false(self):
+        rsp = requests.get(self._get_https_proxy_url() + "/ping", verify=False)
+        rsp.raise_for_status()
+
+    @authors("khlebnikov")
+    def test_ping_verify_ca(self):
+        rsp = requests.get(self._get_https_proxy_url() + "/ping", verify=self._get_ca_cert())
+        rsp.raise_for_status()

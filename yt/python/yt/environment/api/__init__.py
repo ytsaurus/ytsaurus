@@ -51,6 +51,15 @@ class LocalYtConfig(object):
     enable_resource_tracking = attr.ib(False)
     enable_tvm_only_proxies = attr.ib(False)
 
+    """TLS settings"""
+    enable_tls = attr.ib(False)
+    ca_cert = attr.ib(None)
+    ca_cert_key = attr.ib(None)
+    rpc_cert = attr.ib(None)
+    rpc_cert_key = attr.ib(None)
+    https_cert = attr.ib(None)
+    https_cert_key = attr.ib(None)
+
     """Native authentication settings"""
     mock_tvm_id = attr.ib(None)
 
@@ -62,6 +71,7 @@ class LocalYtConfig(object):
 
     """Port settings"""
     http_proxy_ports = attr.ib(factory=list)
+    https_proxy_ports = attr.ib(factory=list)
     rpc_proxy_ports = attr.ib(factory=list)
 
     port_locks_path = attr.ib(None)

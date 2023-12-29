@@ -1064,6 +1064,19 @@ def _build_http_proxy_config(proxy_dir,
             },
         }
 
+        if yt_config.https_cert is not None:
+            set_at(config, "https_server", {
+                "port": yt_config.https_proxy_ports[index] if yt_config.https_proxy_ports else next(ports_generator),
+                "credentials": {
+                    "cert_chain": {
+                        "value": yt_config.https_cert,
+                    },
+                    "private_key": {
+                        "value": yt_config.https_cert_key,
+                    },
+                },
+            })
+
         proxy_configs.append(config)
 
     return proxy_configs
@@ -1429,6 +1442,16 @@ def _build_cluster_connection_config(yt_config,
             "refresh_time": 0
         }
 
+    if yt_config.ca_cert is not None:
+        set_at(cluster_connection, "bus_client", {
+            "ca": {
+                "value": yt_config.ca_cert,
+            },
+            "encryption_mode": "required",
+            "verification_mode": "full",
+            "peer_alternative_host_name": yt_config.cluster_name,
+        })
+
     if yt_config.delta_global_cluster_connection_config:
         cluster_connection = update(cluster_connection, yt_config.delta_global_cluster_connection_config)
 
@@ -1727,6 +1750,16 @@ def init_singletons(config, yt_config, index):
                 "client_self_secret": "TestSecret-" + str(yt_config.mock_tvm_id),
             },
             "enable_validation": True,
+        })
+    if yt_config.rpc_cert is not None:
+        set_at(config, "bus_server", {
+            "encryption_mode": "optional",
+            "cert_chain": {
+                "value": yt_config.rpc_cert,
+            },
+            "private_key": {
+                "value": yt_config.rpc_cert_key,
+            },
         })
 
 
