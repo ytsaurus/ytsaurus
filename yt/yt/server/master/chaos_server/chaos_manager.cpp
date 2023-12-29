@@ -27,8 +27,6 @@
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/node.h>
 
-#include <yt/yt/server/lib/transaction_supervisor/helpers.h>
-
 #include <yt/yt/ytlib/chaos_client/proto/chaos_node_service.pb.h>
 
 #include <yt/yt/ytlib/object_client/public.h>
@@ -107,10 +105,11 @@ public:
         cellManager->SubscribeCellDecommissionStarted(BIND_NO_PROPAGATE(&TChaosManager::OnCellDecommissionStarted, MakeWeak(this)));
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChaosManager::HydraPrepareCreateReplicationCard, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChaosManager::HydraCommitCreateReplicationCard, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChaosManager::HydraAbortCreateReplicationCard, Unretained(this))));
+        transactionManager->RegisterTransactionActionHandlers<NChaosClient::NProto::TReqCreateReplicationCard>({
+            .Prepare = BIND_NO_PROPAGATE(&TChaosManager::HydraPrepareCreateReplicationCard, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TChaosManager::HydraCommitCreateReplicationCard, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TChaosManager::HydraAbortCreateReplicationCard, Unretained(this)),
+        });
     }
 
     void ReplicateAlienClusterRegistryToSecondaryMaster(TCellTag cellTag) const override

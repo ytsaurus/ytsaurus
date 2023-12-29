@@ -25,8 +25,6 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/yt/server/lib/transaction_supervisor/helpers.h>
-
 #include <yt/yt/ytlib/api/native/proto/transaction_actions.pb.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -97,17 +95,9 @@ public:
     {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TPortalManager::HydraCopySynchronizablePortalAttributes, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(MakeEmptyTransactionActionHandler<
-                TTransaction,
-                TReqCopySynchronizablePortalAttributes,
-                const TTransactionCommitOptions&>()),
-            MakeTransactionActionHandlerDescriptor(MakeEmptyTransactionActionHandler<
-                TTransaction,
-                TReqCopySynchronizablePortalAttributes,
-                const TTransactionAbortOptions&>())
-        );
+        transactionManager->RegisterTransactionActionHandlers<TReqCopySynchronizablePortalAttributes>({
+            .Prepare = BIND_NO_PROPAGATE(&TPortalManager::HydraCopySynchronizablePortalAttributes, Unretained(this)),
+        });
     }
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)

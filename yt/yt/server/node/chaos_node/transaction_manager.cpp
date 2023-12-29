@@ -109,14 +109,9 @@ public:
     }
 
     void RegisterTransactionActionHandlers(
-        const TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
-        const TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
-        const TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor) override
+        TTransactionActionDescriptor<TTransaction> descriptor) override
     {
-        TTransactionManagerBase<TTransaction>::RegisterTransactionActionHandlers(
-            prepareActionDescriptor,
-            commitActionDescriptor,
-            abortActionDescriptor);
+        TTransactionManagerBase<TTransaction>::RegisterTransactionActionHandlers(std::move(descriptor));
     }
 
     // ITransactionManager implementation.

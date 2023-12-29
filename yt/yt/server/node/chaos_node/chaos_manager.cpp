@@ -30,8 +30,6 @@
 #include <yt/yt/server/lib/tablet_server/config.h>
 #include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
 
-#include <yt/yt/server/lib/transaction_supervisor/helpers.h>
-
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/client/chaos_client/helpers.h>
@@ -155,10 +153,11 @@ public:
     void Initialize() override
     {
         const auto& transactionManager = Slot_->GetTransactionManager();
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TChaosManager::HydraPrepareCreateReplicationCard, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TChaosManager::HydraCommitCreateReplicationCard, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TChaosManager::HydraAbortCreateReplicationCard, Unretained(this))));
+        transactionManager->RegisterTransactionActionHandlers<NChaosClient::NProto::TReqCreateReplicationCard>({
+            .Prepare = BIND_NO_PROPAGATE(&TChaosManager::HydraPrepareCreateReplicationCard, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TChaosManager::HydraCommitCreateReplicationCard, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TChaosManager::HydraAbortCreateReplicationCard, Unretained(this)),
+        });
     }
 
     IYPathServicePtr GetOrchidService() const override

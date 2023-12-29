@@ -42,26 +42,6 @@ class TTransactionAbortOptions;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TTransaction>
-using TTransactionPrepareActionHandler = TCallback<void(TTransaction*, const TString&, const TTransactionPrepareOptions&)>;
-template <class TTransaction>
-using TTransactionCommitActionHandler = TCallback<void(TTransaction*, const TString&, const TTransactionCommitOptions&)>;
-template <class TTransaction>
-using TTransactionAbortActionHandler = TCallback<void(TTransaction*, const TString&, const TTransactionAbortOptions&)>;
-template <class TTransaction>
-using TTransactionSerializeActionHandler = TCallback<void(TTransaction*, const TString&)>;
-
-template <class TCallback>
-struct TTransactionActionHandlerDescriptor;
-template <class TTransaction>
-using TTransactionPrepareActionHandlerDescriptor = TTransactionActionHandlerDescriptor<TTransactionPrepareActionHandler<TTransaction>>;
-template <class TTransaction>
-using TTransactionCommitActionHandlerDescriptor = TTransactionActionHandlerDescriptor<TTransactionCommitActionHandler<TTransaction>>;
-template <class TTransaction>
-using TTransactionAbortActionHandlerDescriptor = TTransactionActionHandlerDescriptor<TTransactionAbortActionHandler<TTransaction>>;
-template <class TTransaction>
-using TTransactionSerializeActionHandlerDescriptor = TTransactionActionHandlerDescriptor<TTransactionSerializeActionHandler<TTransaction>>;
-
 DECLARE_REFCOUNTED_STRUCT(ITransactionSupervisor)
 DECLARE_REFCOUNTED_STRUCT(ITransactionManager)
 DECLARE_REFCOUNTED_STRUCT(ITransactionParticipantProvider)

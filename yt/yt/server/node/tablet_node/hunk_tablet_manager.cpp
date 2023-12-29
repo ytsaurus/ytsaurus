@@ -11,7 +11,6 @@
 #include <yt/yt/server/lib/hive/avenue_directory.h>
 #include <yt/yt/server/lib/hive/helpers.h>
 
-#include <yt/yt/server/lib/transaction_supervisor/helpers.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager.h>
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
@@ -92,21 +91,17 @@ public:
     void Initialize() override
     {
         const auto& transactionManager = Slot_->GetTransactionManager();
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(
-                BIND(&THunkTabletManager::HydraPrepareUpdateHunkTabletStores, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(
-                BIND(&THunkTabletManager::HydraCommitUpdateHunkTabletStores, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(
-                BIND(&THunkTabletManager::HydraAbortUpdateHunkTabletStores, Unretained(this))));
+        transactionManager->RegisterTransactionActionHandlers<TReqUpdateHunkTabletStores>({
+            .Prepare = BIND_NO_PROPAGATE(&THunkTabletManager::HydraPrepareUpdateHunkTabletStores, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&THunkTabletManager::HydraCommitUpdateHunkTabletStores, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&THunkTabletManager::HydraAbortUpdateHunkTabletStores, Unretained(this)),
+        });
 
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(
-                BIND(&THunkTabletManager::HydraPrepareToggleHunkTabletStoreLock, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(
-                BIND(&THunkTabletManager::HydraCommitToggleHunkTabletStoreLock, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(
-                BIND(&THunkTabletManager::HydraAbortToggleHunkTabletStoreLock, Unretained(this))));
+        transactionManager->RegisterTransactionActionHandlers<NTabletClient::NProto::TReqToggleHunkTabletStoreLock>({
+            .Prepare = BIND_NO_PROPAGATE(&THunkTabletManager::HydraPrepareToggleHunkTabletStoreLock, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&THunkTabletManager::HydraCommitToggleHunkTabletStoreLock, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&THunkTabletManager::HydraAbortToggleHunkTabletStoreLock, Unretained(this)),
+        });
     }
 
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Tablet, THunkTablet);

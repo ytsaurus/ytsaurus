@@ -4,6 +4,7 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/transaction_action.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -113,16 +114,12 @@ struct ITransactionManager
         TTransactionSignature signature,
         ::google::protobuf::RepeatedPtrField<NTransactionClient::NProto::TTransactionActionData>&& actions) = 0;
 
-    virtual void RegisterTransactionActionHandlers(
-        const NTransactionSupervisor::TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
-        const NTransactionSupervisor::TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
-        const NTransactionSupervisor::TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor) = 0;
+    template <class TProto>
+    void RegisterTransactionActionHandlers(
+        NTransactionSupervisor::TTypedTransactionActionDescriptor<TTransaction, TProto> descriptor);
 
     virtual void RegisterTransactionActionHandlers(
-        const NTransactionSupervisor::TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
-        const NTransactionSupervisor::TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
-        const NTransactionSupervisor::TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor,
-        const NTransactionSupervisor::TTransactionSerializeActionHandlerDescriptor<TTransaction>& serializeActionDescriptor) = 0;
+        NTransactionSupervisor::TTransactionActionDescriptor<TTransaction> descriptor) = 0;
 
     //! Increases transaction commit signature.
     // NB: After incrementing transaction may become committed and destroyed.
@@ -158,3 +155,7 @@ ITransactionManagerPtr CreateTransactionManager(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
+
+#define TRANSACTION_MANAGER_INL_H_
+#include "transaction_manager-inl.h"
+#undef TRANSACTION_MANAGER_INL_H_

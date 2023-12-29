@@ -4,13 +4,10 @@
 #include "balancing_helpers.h"
 #include "chaos_helpers.h"
 #include "config.h"
-#include "cypress_integration.h"
 #include "helpers.h"
 #include "hunk_storage_node.h"
-#include "hunk_storage_node_type_handler.h"
 #include "hunk_tablet.h"
 #include "hunk_tablet_type_handler.h"
-#include "mount_config_storage.h"
 #include "private.h"
 #include "table_replica.h"
 #include "table_replica_type_handler.h"
@@ -81,8 +78,6 @@
 
 #include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
-
-#include <yt/yt/server/lib/transaction_supervisor/helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
@@ -257,14 +252,18 @@ public:
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->SubscribeTransactionAborted(BIND_NO_PROPAGATE(&TImpl::OnTransactionAborted, MakeWeak(this)));
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraPrepareUpdateTabletStores, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraCommitUpdateTabletStores, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraAbortUpdateTabletStores, Unretained(this))));
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraPrepareUpdateHunkTabletStores, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraCommitUpdateHunkTabletStores, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TImpl::HydraAbortUpdateHunkTabletStores, Unretained(this))));
+
+        transactionManager->RegisterTransactionActionHandlers<NProto::TReqUpdateTabletStores>({
+            .Prepare = BIND_NO_PROPAGATE(&TImpl::HydraPrepareUpdateTabletStores, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TImpl::HydraCommitUpdateTabletStores, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TImpl::HydraAbortUpdateTabletStores, Unretained(this)),
+        });
+
+        transactionManager->RegisterTransactionActionHandlers<NProto::TReqUpdateHunkTabletStores>({
+            .Prepare = BIND_NO_PROPAGATE(&TImpl::HydraPrepareUpdateHunkTabletStores, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TImpl::HydraCommitUpdateHunkTabletStores, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TImpl::HydraAbortUpdateHunkTabletStores, Unretained(this)),
+        });
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         cellManager->SubscribeAfterSnapshotLoaded(BIND_NO_PROPAGATE(&TImpl::OnAfterCellManagerSnapshotLoaded, MakeWeak(this)));

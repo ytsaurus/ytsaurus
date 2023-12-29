@@ -18,8 +18,6 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/yt/server/lib/transaction_supervisor/helpers.h>
-
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/serialize.h>
 
@@ -79,10 +77,11 @@ public:
     void Initialize() override
     {
         const auto& transactionManager = Slot_->GetTransactionManager();
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TCoordinatorManager::HydraPrepareReplicatedCommit, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TCoordinatorManager::HydraCommitReplicatedCommit, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TCoordinatorManager::HydraAbortReplicatedCommit, Unretained(this))));
+        transactionManager->RegisterTransactionActionHandlers<NChaosClient::NProto::TReqReplicatedCommit>({
+            .Prepare = BIND_NO_PROPAGATE(&TCoordinatorManager::HydraPrepareReplicatedCommit, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TCoordinatorManager::HydraCommitReplicatedCommit, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TCoordinatorManager::HydraAbortReplicatedCommit, Unretained(this)),
+        });
     }
 
     IYPathServicePtr GetOrchidService() override

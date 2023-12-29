@@ -8,8 +8,6 @@
 
 #include <yt/yt/server/master/cypress_server/node_detail.h>
 
-#include <yt/yt/server/lib/transaction_supervisor/helpers.h>
-
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
 #include <yt/yt/core/ypath/helpers.h>
@@ -24,6 +22,8 @@ using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NTransactionServer;
 using namespace NTransactionSupervisor;
+
+using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,36 +42,30 @@ public:
     void Initialize() override
     {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareCreateNode, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqCreateNode, const TTransactionCommitOptions&>()),
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraAbortCreateNode, Unretained(this))));
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareAttachChild, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraCommitAttachChild, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqAttachChild, const TTransactionAbortOptions&>()));
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareRemoveNode, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraCommitRemoveNode, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqRemoveNode, const TTransactionAbortOptions&>()));
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqDetachChild, const TTransactionPrepareOptions&>()),
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraCommitDetachChild, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqDetachChild, const TTransactionAbortOptions&>()));
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareSetNode, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraCommitSetNode, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqSetNode, const TTransactionAbortOptions&>()));
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareCloneNode, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraCommitCloneNode, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraAbortCloneNode, Unretained(this))));
+        transactionManager->RegisterTransactionActionHandlers<TReqCreateNode>({
+            .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareCreateNode, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraAbortCreateNode, Unretained(this)),
+        });
+        transactionManager->RegisterTransactionActionHandlers<TReqAttachChild>({
+            .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareAttachChild, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraCommitAttachChild, Unretained(this)),
+        });
+        transactionManager->RegisterTransactionActionHandlers<TReqRemoveNode>({
+            .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareRemoveNode, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraCommitRemoveNode, Unretained(this)),
+        });
+        transactionManager->RegisterTransactionActionHandlers<TReqDetachChild>({
+            .Commit = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraCommitDetachChild, Unretained(this)),
+        });
+        transactionManager->RegisterTransactionActionHandlers<TReqSetNode>({
+            .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareSetNode, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraCommitSetNode, Unretained(this)),
+        });
+        transactionManager->RegisterTransactionActionHandlers<TReqCloneNode>({
+            .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareCloneNode, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraCommitCloneNode, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraAbortCloneNode, Unretained(this)),
+        });
     }
 
 private:
@@ -343,7 +337,7 @@ private:
     // NB: See PrepareCreateNode.
     void HydraPrepareCloneNode(
         TTransaction* /*transaction*/,
-        NProto::TReqCloneNode* request,
+        TReqCloneNode* request,
         const TTransactionPrepareOptions& options)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);

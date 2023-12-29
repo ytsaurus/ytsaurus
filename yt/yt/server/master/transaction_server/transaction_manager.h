@@ -10,6 +10,7 @@
 
 #include <yt/yt/server/master/cypress_server/public.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/transaction_action.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager.h>
 
 #include <yt/yt/server/lib/hydra/entity_map.h>
@@ -136,10 +137,12 @@ struct ITransactionManager
         TTransaction* transaction,
         NCellServer::TCellBase* cell) = 0;
 
+    template <class TProto>
+    void RegisterTransactionActionHandlers(
+        NTransactionSupervisor::TTypedTransactionActionDescriptor<TTransaction, TProto> descriptor);
+
     virtual void RegisterTransactionActionHandlers(
-        const NTransactionSupervisor::TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
-        const NTransactionSupervisor::TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
-        const NTransactionSupervisor::TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor) = 0;
+        NTransactionSupervisor::TTransactionActionDescriptor<TTransaction> descriptor) = 0;
 
     using TCtxStartTransaction = NRpc::TTypedServiceContext<
         NTransactionClient::NProto::TReqStartTransaction,
@@ -211,3 +214,7 @@ ITransactionManagerPtr CreateTransactionManager(NCellMaster::TBootstrap* bootstr
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTransactionServer
+
+#define TRANSACTION_MANAGER_INL_H_
+#include "transaction_manager-inl.h"
+#undef TRANSACTION_MANAGER_INL_H_

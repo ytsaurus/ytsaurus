@@ -10,8 +10,6 @@
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/access_log.h>
 
-#include <yt/yt/server/lib/transaction_supervisor/helpers.h>
-
 #include <yt/yt/ytlib/tablet_client/master_tablet_service.h>
 
 #include <yt/yt/core/rpc/authentication_identity.h>
@@ -64,35 +62,41 @@ public:
     void Initialize()
     {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareMount, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitMount, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortMount, Unretained(this))));
+        transactionManager->RegisterTransactionActionHandlers<TReqMount>({
+            .Prepare = BIND_NO_PROPAGATE(&TImpl::HydraPrepareMount, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TImpl::HydraCommitMount, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TImpl::HydraAbortMount, Unretained(this)),
+        });
 
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUnmount, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUnmount, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUnmount, Unretained(this))));
+        transactionManager->RegisterTransactionActionHandlers<TReqUnmount>({
+            .Prepare = BIND_NO_PROPAGATE(&TImpl::HydraPrepareUnmount, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TImpl::HydraCommitUnmount, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TImpl::HydraAbortUnmount, Unretained(this)),
+        });
 
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareFreeze, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitFreeze, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortFreeze, Unretained(this))));
+        transactionManager->RegisterTransactionActionHandlers<TReqFreeze>({
+            .Prepare = BIND_NO_PROPAGATE(&TImpl::HydraPrepareFreeze, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TImpl::HydraCommitFreeze, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TImpl::HydraAbortFreeze, Unretained(this)),
+        });
 
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUnfreeze, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUnfreeze, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUnfreeze, Unretained(this))));
+        transactionManager->RegisterTransactionActionHandlers<TReqUnfreeze>({
+            .Prepare = BIND_NO_PROPAGATE(&TImpl::HydraPrepareUnfreeze, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TImpl::HydraCommitUnfreeze, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TImpl::HydraAbortUnfreeze, Unretained(this)),
+        });
 
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareRemount, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitRemount, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortRemount, Unretained(this))));
+        transactionManager->RegisterTransactionActionHandlers<TReqRemount>({
+            .Prepare = BIND_NO_PROPAGATE(&TImpl::HydraPrepareRemount, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TImpl::HydraCommitRemount, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TImpl::HydraAbortRemount, Unretained(this)),
+        });
 
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareReshard, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitReshard, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortReshard, Unretained(this))));
+        transactionManager->RegisterTransactionActionHandlers<TReqReshard>({
+            .Prepare = BIND_NO_PROPAGATE(&TImpl::HydraPrepareReshard, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TImpl::HydraCommitReshard, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TImpl::HydraAbortReshard, Unretained(this)),
+        });
     }
 
 private:

@@ -6,7 +6,6 @@
 #include "transaction_presence_cache.h"
 #include "transaction_replication_session.h"
 #include "transaction.h"
-#include "transaction_proxy.h"
 #include "transaction_type_handler.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
@@ -1005,15 +1004,9 @@ public:
         object->ImportRefObject();
     }
 
-    void RegisterTransactionActionHandlers(
-        const TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
-        const TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
-        const TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor) override
+    void RegisterTransactionActionHandlers(TTransactionActionDescriptor<TTransaction> descriptor) override
     {
-        TTransactionManagerBase<TTransaction>::RegisterTransactionActionHandlers(
-            prepareActionDescriptor,
-            commitActionDescriptor,
-            abortActionDescriptor);
+        TTransactionManagerBase<TTransaction>::RegisterTransactionActionHandlers(std::move(descriptor));
     }
 
     void ExportObject(

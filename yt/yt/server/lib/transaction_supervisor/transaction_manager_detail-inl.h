@@ -12,27 +12,10 @@ namespace NYT::NTransactionSupervisor {
 
 template <class TTransaction>
 void TTransactionManagerBase<TTransaction>::RegisterTransactionActionHandlers(
-    const TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
-    const TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
-    const TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor)
+    TTransactionActionDescriptor<TTransaction> handlers)
 {
-    EmplaceOrCrash(PrepareActionHandlerMap_, prepareActionDescriptor.Type, prepareActionDescriptor.Handler);
-    EmplaceOrCrash(CommitActionHandlerMap_, commitActionDescriptor.Type, commitActionDescriptor.Handler);
-    EmplaceOrCrash(AbortActionHandlerMap_, abortActionDescriptor.Type, abortActionDescriptor.Handler);
-}
-
-template <class TTransaction>
-void TTransactionManagerBase<TTransaction>::RegisterTransactionActionHandlers(
-    const TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
-    const TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
-    const TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor,
-    const TTransactionSerializeActionHandlerDescriptor<TTransaction>& serializeActionDescriptor)
-{
-    RegisterTransactionActionHandlers(
-        prepareActionDescriptor,
-        commitActionDescriptor,
-        abortActionDescriptor);
-    EmplaceOrCrash(SerializeActionHandlerMap_, serializeActionDescriptor.Type, serializeActionDescriptor.Handler);
+    auto type = handlers.Type();
+    EmplaceOrCrash(ActionHandlerMap_, type, std::move(handlers));
 }
 
 template <class TTransaction>
@@ -43,12 +26,12 @@ void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
     TTransactionActionGuard transactionActionGuard;
     for (const auto& action : transaction->Actions()) {
         try {
-            auto it = PrepareActionHandlerMap_.find(action.Type);
-            if (it == PrepareActionHandlerMap_.end()) {
+            auto it = ActionHandlerMap_.find(action.Type);
+            if (it == ActionHandlerMap_.end()) {
                 THROW_ERROR_EXCEPTION("Action %Qv is not registered",
                     action.Type);
             }
-            it->second(transaction, action.Value, options);
+            it->second.Prepare(transaction, action.Value, options);
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Prepare action failed (TransactionId: %v, ActionType: %v)",
                 transaction->GetId(),
@@ -66,12 +49,12 @@ void TTransactionManagerBase<TTransaction>::RunCommitTransactionActions(
     TTransactionActionGuard transactionActionGuard;
     for (const auto& action : transaction->Actions()) {
         try {
-            auto it = CommitActionHandlerMap_.find(action.Type);
-            if (it == CommitActionHandlerMap_.end()) {
+            auto it = ActionHandlerMap_.find(action.Type);
+            if (it == ActionHandlerMap_.end()) {
                 THROW_ERROR_EXCEPTION("Action %Qv is not registered",
                     action.Type);
             }
-            it->second(transaction, action.Value, options);
+            it->second.Commit(transaction, action.Value, options);
         } catch (const std::exception& ex) {
             YT_LOG_ALERT(ex, "Commit action failed (TransactionId: %v, ActionType: %v)",
                 transaction->GetId(),
@@ -88,12 +71,12 @@ void TTransactionManagerBase<TTransaction>::RunAbortTransactionActions(
     TTransactionActionGuard transactionActionGuard;
     for (const auto& action : transaction->Actions()) {
         try {
-            auto it = AbortActionHandlerMap_.find(action.Type);
-            if (it == AbortActionHandlerMap_.end()) {
+            auto it = ActionHandlerMap_.find(action.Type);
+            if (it == ActionHandlerMap_.end()) {
                 THROW_ERROR_EXCEPTION("Action %Qv is not registered",
                     action.Type);
             }
-            it->second(transaction, action.Value, options);
+            it->second.Abort(transaction, action.Value, options);
         } catch (const std::exception& ex) {
             YT_LOG_ALERT(ex, "Abort action failed (TransactionId: %v, ActionType: %v)",
                 transaction->GetId(),
@@ -107,8 +90,8 @@ void TTransactionManagerBase<TTransaction>::RunSerializeTransactionActions(TTran
 {
     for (const auto& action : transaction->Actions()) {
         try {
-            if (auto it = SerializeActionHandlerMap_.find(action.Type)) {
-                it->second(transaction, action.Value);
+            if (auto it = ActionHandlerMap_.find(action.Type); it != ActionHandlerMap_.end()) {
+                it->second.Serialize(transaction, action.Value);
             }
         } catch (const std::exception& ex) {
             YT_LOG_ALERT(ex, "Serialize action failed (TransactionId: %v, ActionType: %v)",

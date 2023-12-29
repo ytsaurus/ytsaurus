@@ -52,8 +52,6 @@
 
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 
-#include <yt/yt/server/lib/transaction_supervisor/helpers.h>
-
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -756,12 +754,9 @@ void TObjectManager::Initialize()
     configManager->SubscribeConfigChanged(BIND(&TObjectManager::OnDynamicConfigChanged, MakeWeak(this)));
 
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
-    transactionManager->RegisterTransactionActionHandlers(
-        MakeTransactionActionHandlerDescriptor(BIND(&TObjectManager::HydraPrepareDestroyObjects, Unretained(this))),
-        MakeTransactionActionHandlerDescriptor(
-            MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqDestroyObjects, const NTransactionSupervisor::TTransactionCommitOptions&>()),
-        MakeTransactionActionHandlerDescriptor(
-            MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqDestroyObjects, const NTransactionSupervisor::TTransactionAbortOptions&>()));
+    transactionManager->RegisterTransactionActionHandlers<NProto::TReqDestroyObjects>({
+        .Prepare = BIND(&TObjectManager::HydraPrepareDestroyObjects, Unretained(this)),
+    });
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     if (multicellManager->IsPrimaryMaster()) {

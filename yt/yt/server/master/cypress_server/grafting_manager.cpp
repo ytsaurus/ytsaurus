@@ -16,8 +16,6 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/yt/server/lib/transaction_supervisor/helpers.h>
-
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
 namespace NYT::NCypressServer {
@@ -75,12 +73,9 @@ public:
     void Initialize() override
     {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TGraftingManager::HydraCreateRootstock, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, TReqCreateRootstock, const NTransactionSupervisor::TTransactionCommitOptions&>()),
-            MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, TReqCreateRootstock, const NTransactionSupervisor::TTransactionAbortOptions&>()));
+        transactionManager->RegisterTransactionActionHandlers<TReqCreateRootstock>({
+            .Prepare = BIND_NO_PROPAGATE(&TGraftingManager::HydraCreateRootstock, Unretained(this)),
+        });
     }
 
     void OnRootstockCreated(

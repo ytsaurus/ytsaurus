@@ -1,7 +1,8 @@
 #pragma once
 
 #include "public.h"
-#include "helpers.h"
+
+#include "transaction_action.h"
 
 #include <yt/yt/core/logging/logger_owner.h>
 
@@ -29,22 +30,10 @@ class TTransactionManagerBase
     : public virtual NLogging::TLoggerOwner
 {
 public:
-    void RegisterTransactionActionHandlers(
-        const TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
-        const TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
-        const TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor);
-
-    void RegisterTransactionActionHandlers(
-        const TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
-        const TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
-        const TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor,
-        const TTransactionSerializeActionHandlerDescriptor<TTransaction>& serializeActionDescriptor);
+    void RegisterTransactionActionHandlers(TTransactionActionDescriptor<TTransaction> descriptor);
 
 protected:
-    THashMap<TString, TTransactionPrepareActionHandler<TTransaction>> PrepareActionHandlerMap_;
-    THashMap<TString, TTransactionCommitActionHandler<TTransaction>> CommitActionHandlerMap_;
-    THashMap<TString, TTransactionAbortActionHandler<TTransaction>> AbortActionHandlerMap_;
-    THashMap<TString, TTransactionSerializeActionHandler<TTransaction>> SerializeActionHandlerMap_;
+    THashMap<TString, TTransactionActionDescriptor<TTransaction>> ActionHandlerMap_;
 
     void RunPrepareTransactionActions(TTransaction* transaction, const TTransactionPrepareOptions& options);
     void RunCommitTransactionActions(TTransaction* transaction, const TTransactionCommitOptions& options);

@@ -94,8 +94,6 @@
 
 #include <yt/yt/server/lib/hydra/hydra_context.h>
 
-#include <yt/yt/server/lib/transaction_supervisor/helpers.h>
-
 #include <yt/yt/ytlib/api/native/proto/transaction_actions.pb.h>
 
 #include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
@@ -1213,24 +1211,14 @@ public:
             &TCypressManager::OnTransactionAborted,
             MakeStrong(this)));
 
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TCypressManager::HydraPrepareSetAttributeOnTransactionCommit, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TCypressManager::HydraCommitSetAttributeOnTransactionCommit, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(MakeEmptyTransactionActionHandler<
-                TTransaction,
-                NApi::NNative::NProto::TReqSetAttributeOnTransactionCommit,
-                const TTransactionAbortOptions&>()));
+        transactionManager->RegisterTransactionActionHandlers<NApi::NNative::NProto::TReqSetAttributeOnTransactionCommit>({
+            .Prepare = BIND_NO_PROPAGATE(&TCypressManager::HydraPrepareSetAttributeOnTransactionCommit, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TCypressManager::HydraCommitSetAttributeOnTransactionCommit, Unretained(this)),
+        });
 
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(MakeEmptyTransactionActionHandler<
-                TTransaction,
-                NApi::NNative::NProto::TReqMergeToTrunkAndUnlockNode,
-                const TTransactionPrepareOptions&>()),
-            MakeTransactionActionHandlerDescriptor(BIND(&TCypressManager::HydraCommitMergeToTrunkAndUnlockNode, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(MakeEmptyTransactionActionHandler<
-                TTransaction,
-                NApi::NNative::NProto::TReqMergeToTrunkAndUnlockNode,
-                const TTransactionAbortOptions&>()));
+        transactionManager->RegisterTransactionActionHandlers<NApi::NNative::NProto::TReqMergeToTrunkAndUnlockNode>({
+            .Commit = BIND_NO_PROPAGATE(&TCypressManager::HydraCommitMergeToTrunkAndUnlockNode, Unretained(this)),
+        });
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TLockTypeHandler>(this));

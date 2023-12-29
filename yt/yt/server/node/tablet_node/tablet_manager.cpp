@@ -56,7 +56,6 @@
 
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
-#include <yt/yt/server/lib/transaction_supervisor/helpers.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
@@ -261,29 +260,32 @@ public:
     {
         const auto& transactionManager = Slot_->GetTransactionManager();
 
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraPrepareReplicateRows, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraCommitReplicateRows, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraAbortReplicateRows, Unretained(this))));
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraPrepareWritePulledRows, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraCommitWritePulledRows, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraAbortWritePulledRows, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraSerializeWritePulledRows, Unretained(this))));
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraPrepareAdvanceReplicationProgress, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqAdvanceReplicationProgress, const NTransactionSupervisor::TTransactionCommitOptions&>()),
-            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraAbortAdvanceReplicationProgress, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraSerializeAdvanceReplicationProgress, Unretained(this))));
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraPrepareUpdateTabletStores, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraCommitUpdateTabletStores, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraAbortUpdateTabletStores, Unretained(this))));
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraPrepareBoggleHunkTabletStoreLock, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraCommitBoggleHunkTabletStoreLock, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TTabletManager::HydraAbortBoggleHunkTabletStoreLock, Unretained(this))));
+        transactionManager->RegisterTransactionActionHandlers<TReqReplicateRows>({
+            .Prepare = BIND_NO_PROPAGATE(&TTabletManager::HydraPrepareReplicateRows, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TTabletManager::HydraCommitReplicateRows, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TTabletManager::HydraAbortReplicateRows, Unretained(this)),
+        });
+        transactionManager->RegisterTransactionActionHandlers<TReqWritePulledRows>({
+            .Prepare = BIND_NO_PROPAGATE(&TTabletManager::HydraPrepareWritePulledRows, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TTabletManager::HydraCommitWritePulledRows, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TTabletManager::HydraAbortWritePulledRows, Unretained(this)),
+            .Serialize = BIND_NO_PROPAGATE(&TTabletManager::HydraSerializeWritePulledRows, Unretained(this)),
+        });
+        transactionManager->RegisterTransactionActionHandlers<TReqAdvanceReplicationProgress>({
+            .Prepare = BIND_NO_PROPAGATE(&TTabletManager::HydraPrepareAdvanceReplicationProgress, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TTabletManager::HydraAbortAdvanceReplicationProgress, Unretained(this)),
+            .Serialize = BIND_NO_PROPAGATE(&TTabletManager::HydraSerializeAdvanceReplicationProgress, Unretained(this)),
+        });
+        transactionManager->RegisterTransactionActionHandlers<TReqUpdateTabletStores>({
+            .Prepare = BIND_NO_PROPAGATE(&TTabletManager::HydraPrepareUpdateTabletStores, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TTabletManager::HydraCommitUpdateTabletStores, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TTabletManager::HydraAbortUpdateTabletStores, Unretained(this)),
+        });
+        transactionManager->RegisterTransactionActionHandlers<TReqBoggleHunkTabletStoreLock>({
+            .Prepare = BIND_NO_PROPAGATE(&TTabletManager::HydraPrepareBoggleHunkTabletStoreLock, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TTabletManager::HydraCommitBoggleHunkTabletStoreLock, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TTabletManager::HydraAbortBoggleHunkTabletStoreLock, Unretained(this)),
+        });
 
         BackupManager_->Initialize();
 

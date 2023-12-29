@@ -687,27 +687,9 @@ public:
     }
 
     void RegisterTransactionActionHandlers(
-        const TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
-        const TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
-        const TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor) override
+        TTransactionActionDescriptor<TTransaction> descriptor) override
     {
-        TTransactionManagerBase<TTransaction>::RegisterTransactionActionHandlers(
-            prepareActionDescriptor,
-            commitActionDescriptor,
-            abortActionDescriptor);
-    }
-
-    void RegisterTransactionActionHandlers(
-        const TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
-        const TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
-        const TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor,
-        const TTransactionSerializeActionHandlerDescriptor<TTransaction>& serializeActionDescriptor) override
-    {
-        TTransactionManagerBase<TTransaction>::RegisterTransactionActionHandlers(
-            prepareActionDescriptor,
-            commitActionDescriptor,
-            abortActionDescriptor,
-            serializeActionDescriptor);
+        TTransactionManagerBase<TTransaction>::RegisterTransactionActionHandlers(std::move(descriptor));
     }
 
 private:

@@ -56,8 +56,6 @@
 #include <yt/yt/server/lib/hydra/composite_automaton.h>
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
-#include <yt/yt/server/lib/transaction_supervisor/helpers.h>
-
 #include <yt/yt/server/master/node_tracker_server/config.h>
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
@@ -483,26 +481,15 @@ public:
         configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TChunkManager::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChunkManager::HydraPrepareModifyReplicas, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, TReqModifyReplicas, const NTransactionSupervisor::TTransactionCommitOptions&>()),
-            MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, TReqModifyReplicas, const NTransactionSupervisor::TTransactionAbortOptions&>()));
-
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChunkManager::HydraPrepareAddConfirmReplicas, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqAddConfirmReplicas, const NTransactionSupervisor::TTransactionCommitOptions&>()),
-            MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqAddConfirmReplicas, const NTransactionSupervisor::TTransactionAbortOptions&>()));
-
-        transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND_NO_PROPAGATE(&TChunkManager::HydraRemoveDeadSequoiaChunkReplicas, Unretained(this))),
-            MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqRemoveDeadSequoiaChunkReplicas, const NTransactionSupervisor::TTransactionCommitOptions&>()),
-            MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqRemoveDeadSequoiaChunkReplicas, const NTransactionSupervisor::TTransactionAbortOptions&>()));
+        transactionManager->RegisterTransactionActionHandlers<TReqModifyReplicas>({
+            .Prepare = BIND_NO_PROPAGATE(&TChunkManager::HydraPrepareModifyReplicas, Unretained(this)),
+        });
+        transactionManager->RegisterTransactionActionHandlers<NProto::TReqAddConfirmReplicas>({
+            .Prepare = BIND_NO_PROPAGATE(&TChunkManager::HydraPrepareAddConfirmReplicas, Unretained(this)),
+        });
+        transactionManager->RegisterTransactionActionHandlers<NProto::TReqRemoveDeadSequoiaChunkReplicas>({
+            .Prepare = BIND_NO_PROPAGATE(&TChunkManager::HydraRemoveDeadSequoiaChunkReplicas, Unretained(this)),
+        });
 
         BufferedProducer_ = New<TBufferedProducer>();
         ChunkServerProfiler
