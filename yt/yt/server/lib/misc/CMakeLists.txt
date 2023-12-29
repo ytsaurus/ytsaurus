@@ -17,6 +17,7 @@ target_link_libraries(server-lib-misc PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
+  library-containers-disk_manager
   yt-library-coredumper
   yt-library-process
   yt-library-ytprof
@@ -48,6 +49,7 @@ target_link_libraries(server-lib-misc.global PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
+  library-containers-disk_manager
   yt-library-coredumper
   yt-library-process
   yt-library-ytprof

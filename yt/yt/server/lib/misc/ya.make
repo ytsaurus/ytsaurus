@@ -22,6 +22,7 @@ SRCS(
 
 PEERDIR(
     yt/yt/ytlib
+    yt/yt/library/containers/disk_manager
     yt/yt/library/coredumper
     yt/yt/library/process
     yt/yt/library/ytprof
