@@ -228,10 +228,10 @@ private:
             MasterCacheLogger,
             NativeAuthenticator_));
 
-        DiskManagerProxy_ = CreateDiskManagerProxy(New<NContainers::TDiskManagerProxyConfig>());
+        DiskManagerProxy_ = CreateDiskManagerProxy(Config_->DiskManagerProxy);
         DiskInfoProvider_ = New<NContainers::TDiskInfoProvider>(
             DiskManagerProxy_,
-            New<NContainers::TDiskInfoProviderConfig>());
+            Config_->DiskInfoProvider);
         DiskChangeChecker_ = New<TDiskChangeChecker>(
             DiskInfoProvider_,
             GetControlInvoker(),
@@ -276,6 +276,7 @@ private:
         const TMasterCacheDynamicConfigPtr& newConfig)
     {
         ReconfigureNativeSingletons(Config_, newConfig);
+        DiskManagerProxy_->OnDynamicConfigChanged(newConfig->DiskManagerProxy);
     }
 };
 

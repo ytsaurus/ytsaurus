@@ -198,10 +198,10 @@ void TBootstrap::DoRun()
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
 
-    DiskManagerProxy_ = CreateDiskManagerProxy(New<NContainers::TDiskManagerProxyConfig>());
+    DiskManagerProxy_ = CreateDiskManagerProxy(Config_->DiskManagerProxy);
     DiskInfoProvider_ = New<NContainers::TDiskInfoProvider>(
         DiskManagerProxy_,
-        New<NContainers::TDiskInfoProviderConfig>());
+        Config_->DiskInfoProvider);
     DiskChangeChecker_ = New<TDiskChangeChecker>(
         DiskInfoProvider_,
         GetControlInvoker(),
@@ -374,6 +374,8 @@ void TBootstrap::OnDynamicConfigChanged(
     ApiService_->OnDynamicConfigChanged(newConfig->Api);
 
     RpcServer_->OnDynamicConfigChanged(newConfig->RpcServer);
+
+    DiskManagerProxy_->OnDynamicConfigChanged(newConfig->DiskManagerProxy);
 }
 
 const IInvokerPtr& TBootstrap::GetWorkerInvoker() const

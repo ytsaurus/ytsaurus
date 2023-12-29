@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
+#include <yt/yt/library/containers/porto_resource_tracker.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,6 +18,10 @@ void ConfigureNativeSingletons(const TNativeSingletonsConfigPtr& config)
 
     NChunkClient::TDispatcher::Get()->Configure(config->ChunkClientDispatcher);
     NAuth::TNativeAuthenticationManager::Get()->Configure(config->NativeAuthenticationManager);
+
+    if (config->EnablePortoResourceTracker) {
+        NContainers::EnablePortoResourceTracker(config->PodSpec);
+    }
 }
 
 void ReconfigureNativeSingletons(

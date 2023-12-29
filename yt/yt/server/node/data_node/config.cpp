@@ -761,12 +761,6 @@ void TDataNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("publish_disabled_locations", &TThis::PublishDisabledLocations)
         .Default(false);
 
-    registrar.Parameter("disk_manager_proxy", &TThis::DiskManagerProxy)
-        .DefaultNew();
-
-    registrar.Parameter("disk_info_provider", &TThis::DiskInfoProvider)
-        .DefaultNew();
-
     registrar.Parameter("max_write_sessions", &TThis::MaxWriteSessions)
         .Default(1000)
         .GreaterThanOrEqual(1);
@@ -931,9 +925,6 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(10));
 
     registrar.Parameter("io_throughput_meter", &TThis::IOThroughputMeter)
-        .DefaultNew();
-
-    registrar.Parameter("disk_manager_proxy", &TThis::DiskManagerProxy)
         .DefaultNew();
 
     registrar.Parameter("remove_chunk_job", &TThis::RemoveChunkJob)
