@@ -37,7 +37,7 @@ TVirtualStaticTable::TVirtualStaticTable(
     TNodeDirectoryPtr nodeDirectory,
     TOperationId operationId,
     TString name,
-    TString path)
+    TYPath path)
     : Chunks_(chunks)
     , Schema_(std::move(schema))
     , NodeDirectory_(std::move(nodeDirectory))
@@ -165,7 +165,7 @@ bool TVirtualStaticTable::GetBuiltinAttribute(TInternedAttributeKey key, IYsonCo
             "### Live preview for `%v` table of the operation `%v`.\n\n"
             "Use the following command to copy it:\n"
             "```\n"
-            "yt concatenate --src %v/controller_orchid/live_previews/%v --dst //path/to/the/table\n"
+            "yt concatenate --src %v/controller_orchid/live_previews/%v --dst //path/to/table\n"
             "```\n",
             Path_.Empty() ? Name_ : Path_,
             OperationId_,

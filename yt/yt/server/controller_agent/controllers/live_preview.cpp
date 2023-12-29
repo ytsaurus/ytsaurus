@@ -10,6 +10,7 @@ namespace NYT::NControllerAgent::NControllers {
 
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,7 +19,7 @@ TLivePreview::TLivePreview(
     TNodeDirectoryPtr nodeDirectory,
     TOperationId operationId,
     TString name,
-    TString path)
+    TYPath path)
     : Schema_(std::move(schema))
     , NodeDirectory_(std::move(nodeDirectory))
     , OperationId_(operationId)

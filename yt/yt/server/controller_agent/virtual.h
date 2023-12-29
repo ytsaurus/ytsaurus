@@ -14,6 +14,8 @@
 
 #include <yt/yt/core/ytree/virtual.h>
 
+#include <yt/yt/core/ypath/public.h>
+
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,7 +31,7 @@ public:
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         TOperationId operationId,
         TString name,
-        TString path);
+        NYTree::TYPath path);
 
     bool DoInvoke(const NYTree::IYPathServiceContextPtr& context) override;
 
@@ -62,7 +64,7 @@ private:
 
     TOperationId OperationId_;
     TString Name_;
-    TString Path_;
+    NYTree::TYPath Path_;
 
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetBasicAttributes);
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Fetch);

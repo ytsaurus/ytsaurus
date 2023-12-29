@@ -14,6 +14,8 @@
 
 #include <yt/yt/core/ytree/public.h>
 
+#include <yt/yt/core/ypath/public.h>
+
 namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,7 +36,7 @@ public:
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         NJobTrackerClient::TOperationId operationId = NJobTrackerClient::NullOperationId,
         TString name = "",
-        TString path = "");
+        NYTree::TYPath path = "");
 
     void Persist(const TPersistenceContext& context);
 
@@ -42,7 +44,7 @@ private:
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     NJobTrackerClient::TOperationId OperationId_;
     TString Name_;
-    TString Path_;
+    NYTree::TYPath Path_;
 
     void Initialize();
 };
