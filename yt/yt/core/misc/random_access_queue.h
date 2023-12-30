@@ -30,6 +30,9 @@ public:
     //! Returns element with specified key in the queue or null if none exists;
     std::optional<TEntry> Pop(const TKey& key);
 
+    //! Returns true if element with specified key exists.
+    bool Contains(const TKey& key) const;
+
     //! Accessor to access an element. New element is pushed to the back.
     TValue& operator[](const TKey& key);
 

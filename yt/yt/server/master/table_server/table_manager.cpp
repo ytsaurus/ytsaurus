@@ -143,7 +143,7 @@ public:
         // COMPAT(shakurov, gritukan)
         RegisterMethod(BIND(&TTableManager::HydraSendTableStatisticsUpdates, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqSendTableStatisticsUpdates"});
         RegisterMethod(BIND(&TTableManager::HydraUpdateTableStatistics, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqUpdateTableStatistics"});
-        RegisterMethod(BIND(&TTableManager::HydraNotifyContentRevisionCasFailed, Unretained(this)));
+        RegisterMethod(BIND(&TTableManager::HydraConfirmTableStatisticsUpdate, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqNotifyContentRevisionCasFailed"});
 
         RegisterMethod(BIND(&TTableManager::HydraImportMasterTableSchema, Unretained(this)));
         RegisterMethod(BIND(&TTableManager::HydraUnimportMasterTableSchema, Unretained(this)));
@@ -193,6 +193,10 @@ public:
             statistics.UpdateModificationTime = true;
             statistics.UpdateAccessTime = true;
             statistics.UseNativeContentRevisionCas = useNativeContentRevisionCas;
+
+            auto& ongoingUpdate = NodeIdToOngoingStatisticsUpdate_[chunkOwner->GetId()];
+            ongoingUpdate.RequestCount++;
+            ongoingUpdate.EffectiveRequest |= statistics;
         }
     }
 
@@ -212,22 +216,32 @@ public:
         YT_LOG_DEBUG("Sending node statistics update (NodeId: %v)",
             chunkOwner->GetId());
 
+        TStatisticsUpdateRequest statistics{
+            .UpdateDataStatistics = true,
+            .UpdateTabletResourceUsage = IsTableType(chunkOwner->GetType()),
+            .UpdateModificationTime = true,
+            .UpdateAccessTime = true,
+            .UseNativeContentRevisionCas = useNativeContentRevisionCas,
+        };
         NTableServer::NProto::TReqUpdateTableStatistics req;
         auto* entry = req.add_entries();
         ToProto(entry->mutable_node_id(), chunkOwner->GetId());
         ToProto(entry->mutable_data_statistics(), chunkOwner->SnapshotStatistics());
-        if (IsTableType(chunkOwner->GetType())) {
+        if (statistics.UpdateTabletResourceUsage) {
             auto* table = chunkOwner->As<TTableNode>();
             ToProto(entry->mutable_tablet_resource_usage(), table->GetTabletResourceUsage());
         }
         entry->set_modification_time(ToProto<ui64>(chunkOwner->GetModificationTime()));
         entry->set_access_time(ToProto<ui64>(chunkOwner->GetAccessTime()));
-        if (useNativeContentRevisionCas) {
+        if (statistics.UseNativeContentRevisionCas) {
             entry->set_expected_content_revision(chunkOwner->GetNativeContentRevision());
         }
         multicellManager->PostToMaster(req, chunkOwner->GetNativeCellTag());
 
         StatisticsUpdateRequests_.Pop(chunkOwner->GetId());
+        auto& ongoingUpdate = NodeIdToOngoingStatisticsUpdate_[chunkOwner->GetId()];
+        ongoingUpdate.RequestCount++;
+        ongoingUpdate.EffectiveRequest |= statistics;
     }
 
 
@@ -1230,11 +1244,11 @@ public:
 private:
     struct TStatisticsUpdateRequest
     {
-        bool UpdateDataStatistics;
-        bool UpdateTabletResourceUsage;
-        bool UpdateModificationTime;
-        bool UpdateAccessTime;
-        bool UseNativeContentRevisionCas;
+        bool UpdateDataStatistics = false;
+        bool UpdateTabletResourceUsage = false;
+        bool UpdateModificationTime = false;
+        bool UpdateAccessTime = false;
+        bool UseNativeContentRevisionCas = false;
 
         void Persist(const NCellMaster::TPersistenceContext& context)
         {
@@ -1245,6 +1259,30 @@ private:
             Persist(context, UpdateModificationTime);
             Persist(context, UpdateAccessTime);
             Persist(context, UseNativeContentRevisionCas);
+        }
+
+        TStatisticsUpdateRequest& operator|=(const TStatisticsUpdateRequest& rhs)
+        {
+            UpdateDataStatistics |= rhs.UpdateDataStatistics;
+            UpdateTabletResourceUsage |= rhs.UpdateTabletResourceUsage;
+            UpdateModificationTime |= rhs.UpdateModificationTime;
+            UpdateAccessTime |= rhs.UpdateAccessTime;
+            UseNativeContentRevisionCas |= rhs.UseNativeContentRevisionCas;
+            return *this;
+        }
+    };
+
+    struct TOngoingStatisticsUpdate
+    {
+        i64 RequestCount = 0;
+        TStatisticsUpdateRequest EffectiveRequest;
+
+        void Persist(const NCellMaster::TPersistenceContext& context)
+        {
+            using NYT::Persist;
+
+            Persist(context, RequestCount);
+            Persist(context, EffectiveRequest);
         }
     };
 
@@ -1271,6 +1309,7 @@ private:
     NHydra::TEntityMap<TSecondaryIndex> SecondaryIndexMap_;
 
     TRandomAccessQueue<TNodeId, TStatisticsUpdateRequest> StatisticsUpdateRequests_;
+    THashMap<TNodeId, TOngoingStatisticsUpdate> NodeIdToOngoingStatisticsUpdate_;
     TPeriodicExecutorPtr StatisticsGossipExecutor_;
     IReconfigurableThroughputThrottlerPtr StatisticsGossipThrottler_;
 
@@ -1457,12 +1496,13 @@ private:
             nodeIds);
 
         TCompactVector<TTableId, 8> nodeIdsToRetry; // Just for logging.
-        NTableServer::NProto::TReqNotifyContentRevisionCasFailed retryRequest;
+        NTableServer::NProto::TReqConfirmTableStatisticsUpdate confirmRequest;
 
         auto externalCellTag = InvalidCellTag;
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         for (const auto& entry : request->entries()) {
             auto nodeId = FromProto<TTableId>(entry.node_id());
+            ToProto(confirmRequest.add_requested_nodes(), nodeId);
             auto* node = cypressManager->FindNode(TVersionedNodeId(nodeId));
             if (!IsObjectAlive(node)) {
                 continue;
@@ -1480,7 +1520,7 @@ private:
                 chunkOwner->GetContentRevision() != entry.expected_content_revision())
             {
                 nodeIdsToRetry.push_back(nodeId);
-                auto* retryEntry = retryRequest.add_entries();
+                auto* retryEntry = confirmRequest.add_content_revision_cas_failed_nodes();
                 ToProto(retryEntry->mutable_node_id(), nodeId);
                 retryEntry->set_update_data_statistics(entry.has_data_statistics());
                 retryEntry->set_update_tablet_statistics(entry.has_tablet_resource_usage());
@@ -1521,21 +1561,21 @@ private:
         }
 
         if (!nodeIdsToRetry.empty()) {
-            YT_VERIFY(std::ssize(nodeIdsToRetry) == retryRequest.entries_size());
-
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToMaster(retryRequest, externalCellTag);
+            YT_VERIFY(std::ssize(nodeIdsToRetry) == confirmRequest.content_revision_cas_failed_nodes_size());
 
             YT_LOG_DEBUG("Content revision CASes failed, requesting retries (NodeIds: %v)",
                 nodeIdsToRetry);
         }
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToMaster(confirmRequest, externalCellTag);
     }
 
-    void HydraNotifyContentRevisionCasFailed(NTableServer::NProto::TReqNotifyContentRevisionCasFailed* request)
+    void HydraConfirmTableStatisticsUpdate(NTableServer::NProto::TReqConfirmTableStatisticsUpdate* request)
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
 
-        for (const auto& entry : request->entries()) {
+        for (const auto& entry : request->content_revision_cas_failed_nodes()) {
             auto nodeId = FromProto<TNodeId>(entry.node_id());
             auto* node = cypressManager->FindNode(TVersionedNodeId(nodeId));
             if (!IsObjectAlive(node)) {
@@ -1560,6 +1600,22 @@ private:
                 entry.update_data_statistics(),
                 entry.update_tablet_statistics(),
                 /*useNativeContentRevisionCas*/ true);
+        }
+
+        for (const auto& protoNodeId : request->requested_nodes()) {
+            auto nodeId = FromProto<TNodeId>(protoNodeId);
+            auto it = NodeIdToOngoingStatisticsUpdate_.find(nodeId);
+            if (it == NodeIdToOngoingStatisticsUpdate_.end()) {
+                YT_LOG_WARNING("Received excessive statistics update confirmation for node; ignored (NodeId: %v)",
+                    nodeId);
+                continue;
+            }
+
+            auto& count = it->second.RequestCount;
+            YT_VERIFY(count > 0);
+            if (--count == 0) {
+                NodeIdToOngoingStatisticsUpdate_.erase(it);
+            }
         }
     }
 
@@ -1607,6 +1663,7 @@ private:
         TableCollocationMap_.Clear();
         SecondaryIndexMap_.Clear();
         StatisticsUpdateRequests_.Clear();
+        NodeIdToOngoingStatisticsUpdate_.clear();
         Queues_.clear();
         Consumers_.clear();
 
@@ -1640,6 +1697,10 @@ private:
         MasterTableSchemaMap_.LoadValues(context);
 
         Load(context, StatisticsUpdateRequests_);
+        // COMPAT(danilalexeev)
+        if (context.GetVersion() >= EMasterReign::FixAsyncTableStatisticsUpdate) {
+            Load(context, NodeIdToOngoingStatisticsUpdate_);
+        }
         TableCollocationMap_.LoadValues(context);
 
         // COMPAT(sabdenovch)
@@ -1934,6 +1995,22 @@ private:
         }
     }
 
+    void OnTableCopied(TTableNode* sourceNode, TTableNode* clonedNode) override
+    {
+        if (!sourceNode->IsForeign()) {
+            return;
+        }
+
+        auto it = NodeIdToOngoingStatisticsUpdate_.find(sourceNode->GetId());
+        if (it != NodeIdToOngoingStatisticsUpdate_.end()) {
+            const auto& request = it->second.EffectiveRequest;
+            ScheduleStatisticsUpdate(clonedNode,
+                request.UpdateDataStatistics,
+                request.UpdateTabletResourceUsage,
+                request.UseNativeContentRevisionCas);
+        }
+    }
+
     void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
@@ -2103,6 +2180,7 @@ private:
     {
         MasterTableSchemaMap_.SaveValues(context);
         Save(context, StatisticsUpdateRequests_);
+        Save(context, NodeIdToOngoingStatisticsUpdate_);
         TableCollocationMap_.SaveValues(context);
         SecondaryIndexMap_.SaveValues(context);
         Save(context, Queues_);

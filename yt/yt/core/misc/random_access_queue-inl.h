@@ -65,6 +65,12 @@ std::optional<typename TRandomAccessQueue<TKey, TValue>::TEntry> TRandomAccessQu
 }
 
 template <class TKey, class TValue>
+bool TRandomAccessQueue<TKey, TValue>::Contains(const TKey& key) const
+{
+    return KeyToEntryMap_.contains(key);
+}
+
+template <class TKey, class TValue>
 i64 TRandomAccessQueue<TKey, TValue>::Size() const
 {
     return Queue_.size();

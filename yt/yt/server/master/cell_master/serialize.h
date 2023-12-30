@@ -212,6 +212,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixErrorSerialization)                                        (2515))  // gritukan
     ((Uint32ForNodeId)                                              (2516))  // babenko
     ((HiveManagerLamportTimestamp)                                  (2517))  // danilalexeev
+    ((FixAsyncTableStatisticsUpdate)                                (2518))  // danilalexeev
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

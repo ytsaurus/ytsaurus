@@ -1402,6 +1402,28 @@ class TestChunkMergerMulticell(TestChunkMerger):
         for chunk_id in chunk_ids:
             wait(lambda: not exists("#{}".format(chunk_id)))
 
+    @authors("danilalexeev")
+    def test_data_statistics_consistency_on_copy(self):
+        create("table", "//tmp/t", attirbutes={"external_cell_tag": 11})
+        write_table("<append=true>//tmp/t", {"a": "b"})
+        write_table("<append=true>//tmp/t", {"a": "c"})
+        write_table("<append=true>//tmp/t", {"a": "d"})
+
+        set("//sys/@config/tablet_manager/multicell_gossip/table_statistics_gossip_period", 6000)
+
+        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
+        set("//tmp/t/@chunk_merger_mode", "deep")
+
+        # Wait for merger to start
+        sleep(3)
+        copy("//tmp/t", "//tmp/t1")
+        assert get("//tmp/t/@chunk_count") == 3
+        assert get("//tmp/t1/@chunk_count") == 3
+
+        wait(lambda: get("//tmp/t/@chunk_count") == 1
+             and get("//tmp/t1/@chunk_count") == 1)
+
 
 class TestChunkMergerPortal(TestChunkMergerMulticell):
     NUM_TEST_PARTITIONS = 6

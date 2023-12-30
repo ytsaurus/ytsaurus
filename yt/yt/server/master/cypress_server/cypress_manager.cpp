@@ -4359,6 +4359,15 @@ private:
             tableManager->SetTableSchemaOrCrash(table, schemaId);
         }
 
+        // TODO(danilalexeev): Refactor this.
+        if (IsTableType(sourceNode->GetType())) {
+            YT_VERIFY(IsTableType(clonedTrunkNode->GetType()));
+            const auto& tableManager = Bootstrap_->GetTableManager();
+            auto* sourceTable = sourceNode->As<TTableNode>();
+            auto* clonedTable = clonedTrunkNode->As<TTableNode>();
+            tableManager->OnTableCopied(sourceTable, clonedTable);
+        }
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(clonedTrunkNode);
 

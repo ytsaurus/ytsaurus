@@ -32,7 +32,7 @@ message TReqUpdateTableStatistics
     repeated TEntry entries = 1;
 }
 
-message TReqNotifyContentRevisionCasFailed
+message TReqConfirmTableStatisticsUpdate
 {
     message TEntry
     {
@@ -42,7 +42,8 @@ message TReqNotifyContentRevisionCasFailed
         optional uint64 actual_content_revision = 4;
     }
 
-    repeated TEntry entries = 1;
+    repeated TEntry content_revision_cas_failed_nodes = 1;
+    repeated NYT.NProto.TGuid requested_nodes = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
