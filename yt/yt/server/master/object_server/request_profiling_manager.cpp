@@ -28,7 +28,7 @@ class TRequestProfilingManager
 public:
     TRequestProfilingCountersPtr GetCounters(const TString& user, const TString& method) override
     {
-        auto key = std::make_tuple(user, method);
+        auto key = std::tuple(user, method);
         return *KeyToCounters_.FindOrInsert(key, [&] {
             return New<TRequestProfilingCounters>(
                 ObjectServerProfiler

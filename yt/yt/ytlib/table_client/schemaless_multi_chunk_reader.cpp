@@ -1002,7 +1002,7 @@ std::tuple<TTableSchemaPtr, TColumnFilter> CreateVersionedReadParameters(
         }
     }
 
-    return std::make_tuple(
+    return std::tuple(
         New<TTableSchema>(std::move(columns)),
         TColumnFilter(std::move(columnFilterIndexes)));
 }

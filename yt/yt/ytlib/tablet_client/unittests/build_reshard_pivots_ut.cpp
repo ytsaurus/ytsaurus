@@ -424,36 +424,36 @@ INSTANTIATE_TEST_SUITE_P(Test,
     ::testing::Values(
         // Chunk layout:          ---
         // Tablet pivot keys:    |---|
-        std::make_tuple(/*tabletCount*/ 1, /*chunkCount*/ 1, /*forSlicingCount*/ 0, /*overlapping*/ false),
+        std::tuple(/*tabletCount*/ 1, /*chunkCount*/ 1, /*forSlicingCount*/ 0, /*overlapping*/ false),
         // Chunk layout:          --- --- ---
         // Tablet pivot keys:    |-----------|
-        std::make_tuple(/*tabletCount*/ 1, /*chunkCount*/ 3, /*forSlicingCount*/ 0, /*overlapping*/ false),
+        std::tuple(/*tabletCount*/ 1, /*chunkCount*/ 3, /*forSlicingCount*/ 0, /*overlapping*/ false),
         // Chunk layout:          --- --- --- ---
         // Tablet pivot keys:    |-------|-------|
-        std::make_tuple(/*tabletCount*/ 4, /*chunkCount*/ 2, /*forSlicingCount*/ 2, /*overlapping*/ false),
+        std::tuple(/*tabletCount*/ 4, /*chunkCount*/ 2, /*forSlicingCount*/ 2, /*overlapping*/ false),
         // Chunk layout:          --- --- --- --- --- ---
         // Tablet pivot keys:    |-------|-------|-------|
-        std::make_tuple(/*tabletCount*/ 6, /*chunkCount*/ 3, /*forSlicingCount*/ 3, /*overlapping*/ false),
+        std::tuple(/*tabletCount*/ 6, /*chunkCount*/ 3, /*forSlicingCount*/ 3, /*overlapping*/ false),
         // Chunk layout:          -- -- -- -- -- -- -- -- --
         // Tablet pivot keys:    |--------|--------|--------|
-        std::make_tuple(/*tabletCount*/ 9, /*chunkCount*/ 3, /*forSlicingCount*/ 3, /*overlapping*/ false),
+        std::tuple(/*tabletCount*/ 9, /*chunkCount*/ 3, /*forSlicingCount*/ 3, /*overlapping*/ false),
         // Chunk layout:          --- --- ---
         // Tablet pivot keys:    |-----|-----|
-        std::make_tuple(/*tabletCount*/ 2, /*chunkCount*/ 3, /*forSlicingCount*/ 1, /*overlapping*/ false),
+        std::tuple(/*tabletCount*/ 2, /*chunkCount*/ 3, /*forSlicingCount*/ 1, /*overlapping*/ false),
         // Chunk layout:         --- --- --- --- ---
         // Tablet pivot keys:    |-----|-----|-----|
-        std::make_tuple(/*tabletCount*/ 3, /*chunkCount*/ 5, /*forSlicingCount*/ 2, /*overlapping*/ false),
+        std::tuple(/*tabletCount*/ 3, /*chunkCount*/ 5, /*forSlicingCount*/ 2, /*overlapping*/ false),
         // Chunk layout:         -------------
         // Tablet pivot keys:    |---|---|---|
-        std::make_tuple(/*tabletCount*/ 3, /*chunkCount*/ 1, /*forSlicingCount*/ 1, /*overlapping*/ false),
+        std::tuple(/*tabletCount*/ 3, /*chunkCount*/ 1, /*forSlicingCount*/ 1, /*overlapping*/ false),
         // Chunk layout:         --- --- --- --- --- --- ---
         //                         --- --- --- --- --- ---
         // Tablet pivot keys:    |-------------------------|
-        std::make_tuple(/*tabletCount*/ 1, /*chunkCount*/ 11, /*forSlicingCount*/ 0, /*overlapping*/ true),
+        std::tuple(/*tabletCount*/ 1, /*chunkCount*/ 11, /*forSlicingCount*/ 0, /*overlapping*/ true),
         // Chunk layout:         --- --- --- --- --- --- ---
         //                         --- --- --- --- --- ---
         // Tablet pivot keys:    |--------|--------|--------|
-        std::make_tuple(/*tabletCount*/ 3, /*chunkCount*/ 11, /*forSlicingCount*/ 5, /*overlapping*/ true))
+        std::tuple(/*tabletCount*/ 3, /*chunkCount*/ 11, /*forSlicingCount*/ 5, /*overlapping*/ true))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

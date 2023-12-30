@@ -85,16 +85,16 @@ INSTANTIATE_TEST_SUITE_P(
     TXorFilterCreateDifferentSizeSequentialKeys,
     TXorFilterCreateDifferentSizeSequentialKeys,
     ::testing::Values(
-        std::make_tuple(1000, 10),
-        std::make_tuple(5000, 4),
-        std::make_tuple(5000, 5),
-        std::make_tuple(5000, 7),
-        std::make_tuple(5000, 8),
-        std::make_tuple(5000, 16),
-        std::make_tuple(5000, 20),
-        std::make_tuple(5000, 31),
-        std::make_tuple(5000, 32),
-        std::make_tuple(5000, 33)));
+        std::tuple(1000, 10),
+        std::tuple(5000, 4),
+        std::tuple(5000, 5),
+        std::tuple(5000, 7),
+        std::tuple(5000, 8),
+        std::tuple(5000, 16),
+        std::tuple(5000, 20),
+        std::tuple(5000, 31),
+        std::tuple(5000, 32),
+        std::tuple(5000, 33)));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,19 +121,19 @@ INSTANTIATE_TEST_SUITE_P(
     TXorFilterCreateSingleSizeRandomKeys,
     TXorFilterCreateSingleSizeRandomKeys,
     ::testing::Values(
-        std::make_tuple(10'000, 8),
-        std::make_tuple(50'000, 8),
-        std::make_tuple(100'000, 8),
-        std::make_tuple(200'000, 8),
-        std::make_tuple(500'000, 8),
-        std::make_tuple(1'000'000, 4),
-        std::make_tuple(1'000'000, 7),
-        std::make_tuple(1'000'000, 8),
-        std::make_tuple(1'000'000, 9),
-        std::make_tuple(1'000'000, 15),
-        std::make_tuple(1'000'000, 16),
-        std::make_tuple(1'000'000, 17),
-        std::make_tuple(2'000'000, 8)));
+        std::tuple(10'000, 8),
+        std::tuple(50'000, 8),
+        std::tuple(100'000, 8),
+        std::tuple(200'000, 8),
+        std::tuple(500'000, 8),
+        std::tuple(1'000'000, 4),
+        std::tuple(1'000'000, 7),
+        std::tuple(1'000'000, 8),
+        std::tuple(1'000'000, 9),
+        std::tuple(1'000'000, 15),
+        std::tuple(1'000'000, 16),
+        std::tuple(1'000'000, 17),
+        std::tuple(2'000'000, 8)));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -180,15 +180,15 @@ INSTANTIATE_TEST_SUITE_P(
     TXorFilterContainsSingleSize,
     TXorFilterContainsSingleSize,
     ::testing::Values(
-        std::make_tuple(1000, 1'000'000, 8),
-        std::make_tuple(10'000, 1'000'000, 8),
-        std::make_tuple(50'000, 1'000'000, 8),
-        std::make_tuple(100'000, 1'000'000, 8),
-        std::make_tuple(100'000, 1'000'000, 9),
-        std::make_tuple(100'000, 1'000'000, 16),
-        std::make_tuple(200'000, 1'000'000, 8),
-        std::make_tuple(400'000, 1'000'000, 4),
-        std::make_tuple(100'000, 10'000'000, 4)));
+        std::tuple(1000, 1'000'000, 8),
+        std::tuple(10'000, 1'000'000, 8),
+        std::tuple(50'000, 1'000'000, 8),
+        std::tuple(100'000, 1'000'000, 8),
+        std::tuple(100'000, 1'000'000, 9),
+        std::tuple(100'000, 1'000'000, 16),
+        std::tuple(200'000, 1'000'000, 8),
+        std::tuple(400'000, 1'000'000, 4),
+        std::tuple(100'000, 10'000'000, 4)));
 
 ////////////////////////////////////////////////////////////////////////////////
 

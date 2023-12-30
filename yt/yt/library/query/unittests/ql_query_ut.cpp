@@ -7648,27 +7648,27 @@ INSTANTIATE_TEST_SUITE_P(
     QueryEvaluatePlaceholdersTest,
     TQueryEvaluatePlaceholdersTest,
     ::testing::Values(
-        std::make_tuple(
+        std::tuple(
             "a from [//t] where (a, b) = {tuple}",
             "{tuple=[3;4]}",
             YsonToRows({"a=3"}, MakeSplit({{"a", EValueType::Int64}}))),
-        std::make_tuple(
+        std::tuple(
             "a from [//t] where (a, b) > ({a}, {b})",
             "{a=5;b=5}",
             YsonToRows({"a=5", "a=7"}, MakeSplit({{"a", EValueType::Int64}}))),
-        std::make_tuple(
+        std::tuple(
             "a from [//t] where a in {tuple}",
             "{tuple=[1;7]}",
             YsonToRows({"a=1", "a=7"}, MakeSplit({{"a", EValueType::Int64}}))),
-        std::make_tuple(
+        std::tuple(
             "concat({prefix}, numeric_to_string(a)) as c from [//t] where a = {a}",
             "{prefix=p;a=1}",
             YsonToRows({R"(c="p1")"}, MakeSplit({{"c", EValueType::String}}))),
-        std::make_tuple(
+        std::tuple(
             "concat({prefix}, numeric_to_string(a)) as c from [//t] where a = {a}",
             R"({prefix="{a}";a=1})",
             YsonToRows({R"(c="{a}1")"}, MakeSplit({{"c", EValueType::String}}))),
-        std::make_tuple(
+        std::tuple(
             "transform(b, {from}, ({first_to}, {second_to})) as c from [//t] where a = {a}",
             "{from=[2;4];first_to=42;second_to=-5;a=1}",
             YsonToRows({"c=42"}, MakeSplit({{"c", EValueType::Int64}})))));
@@ -7738,55 +7738,55 @@ INSTANTIATE_TEST_SUITE_P(
     QueryEvaluatePlaceholdersWithIncorrectSyntaxTest,
     TQueryEvaluatePlaceholdersWithIncorrectSyntaxTest,
     ::testing::Values(
-        std::make_tuple(
+        std::tuple(
             "a from [//t] where a = {a}",
             "{}",
             "Placeholder was not found"),
-        std::make_tuple(
+        std::tuple(
             "a from [//t] where a = {a}",
             "{a=}",
             "Error occurred while parsing YSON"),
-        std::make_tuple(
+        std::tuple(
             "a from [//t] where a = {a}",
             "{a=<attribute=attribute>42}",
             "Incorrect placeholder map: values should be plain types or lists"),
-        std::make_tuple(
+        std::tuple(
             "a from [//t] where a = {a}",
             "{a=[<attribute=attribute>42]}",
             "Attributes inside YSON placeholder are not allowed"),
-        std::make_tuple(
+        std::tuple(
             "a from [//t] where a = {a}",
             "{a={b=42}}",
             "Incorrect placeholder map: values should be plain types or lists"),
-        std::make_tuple(
+        std::tuple(
             "a from [//t] where a = {a}",
             "{a=[{b=42}]}",
             "Maps inside YSON placeholder are not allowed"),
-        std::make_tuple(
+        std::tuple(
             "a from [//t] where a = {a}",
             "{a={b=42}}",
             "Incorrect placeholder map: values should be plain types or lists"),
-        std::make_tuple(
+        std::tuple(
             "a from [//t] where a = {a}",
             "[42;]",
             "Incorrect placeholder argument: YSON map expected"),
-        std::make_tuple(
+        std::tuple(
             "a from [//t] where a = {a} incorrect query",
             "{a=42}",
             "{a}  >>>>> incorrect <<<<<  query"),
-        std::make_tuple(
+        std::tuple(
             "a from [//t] where a = {}",
             "{}",
             "a =  >>>>> { <<<<< }"),
-        std::make_tuple(
+        std::tuple(
             "a from [//t] where a = {{a}}",
             "{}",
             "a =  >>>>> { <<<<< {a}}"),
-        std::make_tuple(
+        std::tuple(
             "a from {t} where a = {a}",
             "{t=table_name;a=42}",
             "from  >>>>> {t} <<<<<  where"),
-        std::make_tuple(
+        std::tuple(
             "a from [//T] where a = {a} {b}",
             "{b=b;a=42}",
             "{a}  >>>>> {b} <<<<<")));
@@ -7883,19 +7883,19 @@ INSTANTIATE_TEST_SUITE_P(
     QueryYsonLengthWithIncorrectSyntaxTest,
     TQueryYsonLengthWithIncorrectSyntaxTest,
     ::testing::Values(
-        std::make_tuple("any=1", "YSON List or Map expected, but got Int64"),
-        std::make_tuple("any=<attribute=attribute>abc", "YSON List or Map expected, but got String"),
-        std::make_tuple("any=<attribute=attribute>", "Unexpected \"finish\""),
-        std::make_tuple("any={", "Unexpected \"finish\""),
-        std::make_tuple("any=}", "Error occurred while parsing YSON"),
-        std::make_tuple("any={a=}", "Unexpected \"}\""),
-        std::make_tuple("any={<attribute=attribute>}", "Unexpected \"<\""),
-        std::make_tuple("any=[<attribute=attribute>]", "Unexpected \"]\""),
-        std::make_tuple("any={a={b={}}", "Unexpected \"finish\""),
-        std::make_tuple("any={[}", "Unexpected \"[\""),
-        std::make_tuple("any={]", "Unexpected \"]\""),
-        std::make_tuple("any=[}", "Unexpected \"}\""),
-        std::make_tuple("any=[];[]", "Error occurred while parsing YSON")));
+        std::tuple("any=1", "YSON List or Map expected, but got Int64"),
+        std::tuple("any=<attribute=attribute>abc", "YSON List or Map expected, but got String"),
+        std::tuple("any=<attribute=attribute>", "Unexpected \"finish\""),
+        std::tuple("any={", "Unexpected \"finish\""),
+        std::tuple("any=}", "Error occurred while parsing YSON"),
+        std::tuple("any={a=}", "Unexpected \"}\""),
+        std::tuple("any={<attribute=attribute>}", "Unexpected \"<\""),
+        std::tuple("any=[<attribute=attribute>]", "Unexpected \"]\""),
+        std::tuple("any={a={b={}}", "Unexpected \"finish\""),
+        std::tuple("any={[}", "Unexpected \"[\""),
+        std::tuple("any={]", "Unexpected \"]\""),
+        std::tuple("any=[}", "Unexpected \"}\""),
+        std::tuple("any=[];[]", "Error occurred while parsing YSON")));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -7921,19 +7921,19 @@ INSTANTIATE_TEST_SUITE_P(
     TQueryPrepareCaseTest,
     TQueryPrepareCaseTest,
     ::testing::Values(
-        std::make_tuple(
+        std::tuple(
             "case x when < 2 then x end as m from [//t]",
             "Error while parsing query"),
-        std::make_tuple(
+        std::tuple(
             "case x else 1 end as m from [//t]",
             "Error while parsing query"),
-        std::make_tuple(
+        std::tuple(
             "case x end as m from [//t]",
             "Error while parsing query"),
-        std::make_tuple(
+        std::tuple(
             "case end as m from [//t]",
             "Error while parsing query"),
-        std::make_tuple(
+        std::tuple(
             "case else 1 end as m from [//t]",
             "Error while parsing query")));
 
@@ -7974,32 +7974,32 @@ INSTANTIATE_TEST_SUITE_P(
     TQueryEvaluateCaseTest,
     TQueryEvaluateCaseTest,
     ::testing::Values(
-        std::make_tuple(
+        std::tuple(
             "case when a < b then a else b end as m from [//t]",
             YsonToRows(
                 {"m=1", "m=2", "m=3", "m=4", "m=5", "m=4", "m=3", "m=2", "m=1",},
                 MakeSplit({{"m", EValueType::Int64},}))),
-        std::make_tuple(
+        std::tuple(
             "case when a in (2, 4) then 'a' else 'b' end as n from [//t] limit 4",
             YsonToRows(
                 {"n=b", "n=a", "n=b", "n=a",},
                 MakeSplit({{"n", EValueType::String},}))),
-        std::make_tuple(
+        std::tuple(
             "case a when # then 'a' end as o from [//t]",
             YsonToRows(
                 {"o=#", "o=#", "o=#", "o=#", "o=#", "o=#", "o=#", "o=#", "o=#",},
                 MakeSplit({{"o", EValueType::String},}))),
-        std::make_tuple(
+        std::tuple(
             "a, case when a = 1 then 'a' when a = 5 then 'b' else 'c' end as m from [//t]",
             YsonToRows(
                 {"a=1;m=a", "a=2;m=c", "a=3;m=c", "a=4;m=c", "a=5;m=b", "a=6;m=c", "a=7;m=c", "a=8;m=c", "a=9;m=c",},
                 MakeSplit({{"a", EValueType::Int64}, {"m", EValueType::String},}))),
-        std::make_tuple(
+        std::tuple(
             "a, case a when 1 then 'a' when 5 then 'b' else 'c' end as m from [//t]",
             YsonToRows(
                 {"a=1;m=a", "a=2;m=c", "a=3;m=c", "a=4;m=c", "a=5;m=b", "a=6;m=c", "a=7;m=c", "a=8;m=c", "a=9;m=c",},
                 MakeSplit({{"a", EValueType::Int64}, {"m", EValueType::String},}))),
-        std::make_tuple(
+        std::tuple(
             R"(a, case
                 when a = b - 2 then 'b - 2'
                 when a = b     then 'b'
@@ -8009,7 +8009,7 @@ INSTANTIATE_TEST_SUITE_P(
             YsonToRows(
                 {"a=1;m=a", "a=2;m=a", "a=3;m=a", "a=4;m=\"b - 2\"", "a=5;m=b", "a=6;m=\"b + 2\"", "a=7;m=a", "a=8;m=a", "a=9;m=a",},
                 MakeSplit({{"a", EValueType::Int64}, {"m", EValueType::String},}))),
-        std::make_tuple(
+        std::tuple(
             R"(a, case a
                 when b - 2 then 'b - 2'
                 when b     then 'b'
@@ -8019,7 +8019,7 @@ INSTANTIATE_TEST_SUITE_P(
             YsonToRows(
                 {"a=1;m=a", "a=2;m=a", "a=3;m=a", "a=4;m=\"b - 2\"", "a=5;m=b", "a=6;m=\"b + 2\"", "a=7;m=a", "a=8;m=a", "a=9;m=a",},
                 MakeSplit({{"a", EValueType::Int64}, {"m", EValueType::String},}))),
-        std::make_tuple(
+        std::tuple(
             R"(case
                 when a < b then 111
                 when a = b then 222
@@ -8192,37 +8192,37 @@ INSTANTIATE_TEST_SUITE_P(
     TQueryEvaluateCaseWithIncorrectSemanticsTest,
     TQueryEvaluateCaseWithIncorrectSemanticsTest,
     ::testing::Values(
-        std::make_tuple(
+        std::tuple(
             "case a when 'str' then a end as m from [//t]",
             "Types mismatch in CASE WHEN expression"),
-        std::make_tuple(
+        std::tuple(
             "case a when a > 2 then a end as m from [//t]",
             "Types mismatch in CASE WHEN expression"),
-        std::make_tuple(
+        std::tuple(
             "case when (a < b, 2) then a end as m from [//t]",
             "Expression inside CASE WHEN should be scalar"),
-        std::make_tuple(
+        std::tuple(
             "case when a then a end as m from [//t]",
             "Expression inside CASE WHEN should be boolean"),
-        std::make_tuple(
+        std::tuple(
             "case a when 2 then (1, 2) end as m from [//t]",
             "Expression inside CASE THEN should be scalar"),
-        std::make_tuple(
+        std::tuple(
             "case when a > 1 then (1, 2) end as m from [//t]",
             "Expression inside CASE THEN should be scalar"),
-        std::make_tuple(
+        std::tuple(
             "case a when 1 then 1 when 2 then '2' end as m from [//t]",
             "Types mismatch in CASE THEN expression"),
-        std::make_tuple(
+        std::tuple(
             "case when a > 2 then 1 when a > 1 then '2' end as m from [//t]",
             "Types mismatch in CASE THEN expression"),
-        std::make_tuple(
+        std::tuple(
             "case a when 1 then 1 else (1,2,3) end as m from [//t]",
             "Expression inside CASE ELSE should be scalar"),
-        std::make_tuple(
+        std::tuple(
             "case a when 1 then 1 else '2' end as m from [//t]",
             "Types mismatch in CASE ELSE expression"),
-        std::make_tuple(
+        std::tuple(
             "case when a > 1 then 1 else '2' end as m from [//t]",
             "Types mismatch in CASE ELSE expression")));
 
@@ -8275,35 +8275,35 @@ INSTANTIATE_TEST_SUITE_P(
     QueryEvaluateLikeTest,
     TQueryEvaluateLikeTest,
     ::testing::Values(
-        std::make_tuple(
+        std::tuple(
             "a from [//t] where a like '%abc%'",
             YsonToRows({R"(a="--- abc ---")", R"(a="abc")",}, MakeSplit({{"a", EValueType::String},}))),
-        std::make_tuple(
+        std::tuple(
             "a from [//t] where a like '%Abc%'",
             YsonToRows({R"(a="--- Abc ---")",}, MakeSplit({{"a", EValueType::String},}))),
-        std::make_tuple(
+        std::tuple(
             "a from [//t] where a not like '%abc%'",
             YsonToRows({R"(a="--- ---")", R"(a="--- Abc ---")", R"(a="--- --- Ab ---")",}, MakeSplit({{"a", EValueType::String},}))),
-        std::make_tuple(
+        std::tuple(
             "a from [//t] where a ilike '%abc%'",
             YsonToRows({R"(a="--- abc ---")", R"(a="abc")", R"(a="--- Abc ---")",}, MakeSplit({{"a", EValueType::String},}))),
-        std::make_tuple(
+        std::tuple(
             "a from [//t] where a ilike '%_bc%'",
             YsonToRows({R"(a="--- abc ---")", R"(a="abc")", R"(a="--- Abc ---")",}, MakeSplit({{"a", EValueType::String},}))),
-        std::make_tuple(
+        std::tuple(
             "a from [//t] where a rlike '.*[aA]bc.*'",
             YsonToRows({
                 R"(a="--- abc ---")",
                 R"(a="abc")",
                 R"(a="--- Abc ---")",
             }, MakeSplit({{"a", EValueType::String},}))),
-        std::make_tuple(
+        std::tuple(
             "a like # from [//t] limit 1",
             YsonToRows({R"(a=#)",}, MakeSplit({{"a", EValueType::String},}))),
-        std::make_tuple(
+        std::tuple(
             "# like a from [//t] limit 1",
             YsonToRows({R"(a=#)",}, MakeSplit({{"a", EValueType::String},}))),
-        std::make_tuple(
+        std::tuple(
             "a like a escape # from [//t] limit 1",
             YsonToRows({R"(a=#)",}, MakeSplit({{"a", EValueType::String},})))
 ));
@@ -8371,13 +8371,13 @@ INSTANTIATE_TEST_SUITE_P(
     QueryLikeWithIncorrectSyntaxTest,
     TQueryLikeWithIncorrectSyntaxTest,
     ::testing::Values(
-        std::make_tuple("a from [//t] where a like 123", "Types mismatch in LIKE pattern"),
-        std::make_tuple("a from [//t] where 123 like a", "Types mismatch in LIKE matched value"),
-        std::make_tuple("a from [//t] where '' like '' escape 123", "Types mismatch in escape character"),
-        std::make_tuple(R"(a from [//t] where a like '\\')", "Incomplete escape sequence at the end of LIKE pattern"),
-        std::make_tuple("a from [//t] where a like 'x' escape 'x'", "Incomplete escape sequence at the end of LIKE pattern"),
-        std::make_tuple("a from [//t] where a like '' escape 'xx'", "Escape string must be empty or one character"),
-        std::make_tuple("a from [//t] where a rlike '123' escape 'x'", "ESCAPE should not be used together with REGEXP (RLIKE)")
+        std::tuple("a from [//t] where a like 123", "Types mismatch in LIKE pattern"),
+        std::tuple("a from [//t] where 123 like a", "Types mismatch in LIKE matched value"),
+        std::tuple("a from [//t] where '' like '' escape 123", "Types mismatch in escape character"),
+        std::tuple(R"(a from [//t] where a like '\\')", "Incomplete escape sequence at the end of LIKE pattern"),
+        std::tuple("a from [//t] where a like 'x' escape 'x'", "Incomplete escape sequence at the end of LIKE pattern"),
+        std::tuple("a from [//t] where a like '' escape 'xx'", "Escape string must be empty or one character"),
+        std::tuple("a from [//t] where a rlike '123' escape 'x'", "ESCAPE should not be used together with REGEXP (RLIKE)")
 ));
 
 

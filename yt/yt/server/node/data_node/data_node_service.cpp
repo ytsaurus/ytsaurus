@@ -697,7 +697,7 @@ private:
 
             auto [diskThrottling, diskQueueSize] = chunk
                 ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor, /*incrementCounter*/ false)
-                : std::make_tuple<bool, i64>(false, 0);
+                : std::tuple<bool, i64>(false, 0);
             subresponse->set_disk_throttling(diskThrottling);
             subresponse->set_disk_queue_size(diskQueueSize);
 
@@ -760,7 +760,7 @@ private:
 
         auto [diskThrottling, diskQueueSize] = chunk
             ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor, /*incrementCounter*/ false)
-            : std::make_tuple<bool, i64>(false, 0);
+            : std::tuple<bool, i64>(false, 0);
         response->set_disk_throttling(diskThrottling);
         response->set_disk_queue_size(diskQueueSize);
 
@@ -829,7 +829,7 @@ private:
 
         auto [diskThrottling, diskQueueSize] = chunk
             ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor)
-            : std::make_tuple<bool, i64>(false, 0);
+            : std::tuple<bool, i64>(false, 0);
         response->set_disk_throttling(diskThrottling);
         response->set_disk_queue_size(diskQueueSize);
 
@@ -982,7 +982,7 @@ private:
 
         auto [diskThrottling, diskQueueSize] = chunk
             ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor)
-            : std::make_tuple<bool, i64>(false, 0);
+            : std::tuple<bool, i64>(false, 0);
         response->set_disk_throttling(diskThrottling);
         response->set_disk_queue_size(diskQueueSize);
 
@@ -1356,7 +1356,7 @@ private:
 
         auto [diskThrottling, diskQueueSize] = chunk
             ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor)
-            : std::make_tuple<bool, i64>(false, 0);
+            : std::tuple<bool, i64>(false, 0);
         // COMPAT(akozhikhov): For YT-18378. Drop this after all tablet nodes are updated.
         if (diskThrottling) {
             ++diskQueueSize;

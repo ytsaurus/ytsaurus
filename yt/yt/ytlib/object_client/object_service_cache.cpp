@@ -409,7 +409,7 @@ void TObjectServiceCache::Reconfigure(const TObjectServiceCacheDynamicConfigPtr&
 
 TCacheProfilingCountersPtr TObjectServiceCache::GetProfilingCounters(const TString& user, const TString& method)
 {
-    auto key = std::make_tuple(user, method);
+    auto key = std::tuple(user, method);
 
     {
         auto guard = ReaderGuard(Lock_);

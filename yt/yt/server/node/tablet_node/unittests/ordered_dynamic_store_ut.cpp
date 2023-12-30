@@ -225,14 +225,14 @@ INSTANTIATE_TEST_SUITE_P(
     Read,
     TOrderedDynamicStoreReadTest,
     ::testing::Values(
-        std::make_tuple(1,      0,   0),
-        std::make_tuple(1,      0,   1),
-        std::make_tuple(1,    -10,  -10),
-        std::make_tuple(1,     10,   10),
-        std::make_tuple(100,   50,   60),
-        std::make_tuple(100,   60,  200),
-        std::make_tuple(100,  -10,   20),
-        std::make_tuple(1000,   0, 1000)));
+        std::tuple(1,      0,   0),
+        std::tuple(1,      0,   1),
+        std::tuple(1,    -10,  -10),
+        std::tuple(1,     10,   10),
+        std::tuple(100,   50,   60),
+        std::tuple(100,   60,  200),
+        std::tuple(100,  -10,   20),
+        std::tuple(1000,   0, 1000)));
 
 ////////////////////////////////////////////////////////////////////////////////
 

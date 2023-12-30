@@ -760,7 +760,7 @@ private:
     template <typename T>
     static auto GetOrderingTuple(const T& task)
     {
-        return std::make_tuple(
+        return std::tuple(
             !task->DiscardStores,
             task->Slack + task->FutureEffect,
             -task->Effect,

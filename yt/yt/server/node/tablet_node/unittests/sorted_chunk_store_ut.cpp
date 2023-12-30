@@ -78,17 +78,17 @@ INSTANTIATE_TEST_SUITE_P(
     Test,
     TSortedChunkStoreTestKeysFiltering,
     ::testing::Values(
-        std::make_tuple("0", "3", std::vector<TString>{"0", "1", "2"}),
-        std::make_tuple("0", "2", std::vector<TString>{"0", "1", "2"}),
-        std::make_tuple("1", "2", std::vector<TString>{"0", "1", "2"}),
-        std::make_tuple("5", "5", std::vector<TString>{"1", "10"}),
-        std::make_tuple("5", "5", std::vector<TString>{"1", "2"}),
-        std::make_tuple("5", "5", std::vector<TString>{"2", "10"}),
-        std::make_tuple("5", "5", std::vector<TString>{"4", "5", "6"}),
-        std::make_tuple("1", "5", std::vector<TString>{"2", "4", "6"}),
-        std::make_tuple("5", "8", std::vector<TString>{"2", "4", "6"}),
-        std::make_tuple("5", "8", std::vector<TString>{"2", "4"}),
-        std::make_tuple("5", "8", std::vector<TString>{"2", "4", "5"})
+        std::tuple("0", "3", std::vector<TString>{"0", "1", "2"}),
+        std::tuple("0", "2", std::vector<TString>{"0", "1", "2"}),
+        std::tuple("1", "2", std::vector<TString>{"0", "1", "2"}),
+        std::tuple("5", "5", std::vector<TString>{"1", "10"}),
+        std::tuple("5", "5", std::vector<TString>{"1", "2"}),
+        std::tuple("5", "5", std::vector<TString>{"2", "10"}),
+        std::tuple("5", "5", std::vector<TString>{"4", "5", "6"}),
+        std::tuple("1", "5", std::vector<TString>{"2", "4", "6"}),
+        std::tuple("5", "8", std::vector<TString>{"2", "4", "6"}),
+        std::tuple("5", "8", std::vector<TString>{"2", "4"}),
+        std::tuple("5", "8", std::vector<TString>{"2", "4", "5"})
     )
 );
 
@@ -146,15 +146,15 @@ INSTANTIATE_TEST_SUITE_P(
     Test,
     TSortedChunkStoreTestRangesFiltering,
     ::testing::Values(
-        std::make_tuple("0", "3", std::vector<std::pair<TString, TString>>{
+        std::tuple("0", "3", std::vector<std::pair<TString, TString>>{
             {"0", "1"}, {"2", "3"}, {"4", "5"}}),
-        std::make_tuple("0", "3", std::vector<std::pair<TString, TString>>{
+        std::tuple("0", "3", std::vector<std::pair<TString, TString>>{
             {"0", "1"}, {"3", "5"}}),
-        std::make_tuple("5", "7", std::vector<std::pair<TString, TString>>{
+        std::tuple("5", "7", std::vector<std::pair<TString, TString>>{
             {"0", "3"}, {"8", "9"}}),
-        std::make_tuple("5", "7", std::vector<std::pair<TString, TString>>{
+        std::tuple("5", "7", std::vector<std::pair<TString, TString>>{
             {"0", "3"}, {"7", "9"}}),
-        std::make_tuple("5", "7", std::vector<std::pair<TString, TString>>{
+        std::tuple("5", "7", std::vector<std::pair<TString, TString>>{
             {"0", "5"}, {"6", "8"}, {"7", "9"}})
     )
 );

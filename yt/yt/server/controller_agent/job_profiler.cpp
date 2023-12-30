@@ -53,7 +53,7 @@ void TJobProfiler::ProfileStartedJob(const TJoblet& joblet)
 
 void TJobProfiler::DoProfileStartedJob(EJobType jobType, TString treeId)
 {
-    auto key = std::make_tuple(jobType, treeId);
+    auto key = std::tuple(jobType, treeId);
 
     auto it = StartedJobCounters_.find(key);
     if (it == StartedJobCounters_.end()) {
@@ -169,7 +169,7 @@ void TJobProfiler::DoProfileCompletedJob(
     TDuration duration,
     std::optional<EJobState> previousJobState)
 {
-    auto key = std::make_tuple(jobType, interruptionReason, treeId);
+    auto key = std::tuple(jobType, interruptionReason, treeId);
 
     auto it = CompletedJobCounters_.find(key);
     if (it == CompletedJobCounters_.end()) {
@@ -213,7 +213,7 @@ void TJobProfiler::DoProfileFailedJob(
     TDuration duration,
     std::optional<EJobState> previousJobState)
 {
-    auto key = std::make_tuple(jobType, treeId);
+    auto key = std::tuple(jobType, treeId);
 
     auto it = FailedJobCounters_.find(key);
     if (it == FailedJobCounters_.end()) {
@@ -267,7 +267,7 @@ void TJobProfiler::DoProfileAbortedJob(
     TError error,
     std::optional<EJobState> previousJobState)
 {
-    auto key = std::make_tuple(jobType, abortReason, treeId);
+    auto key = std::tuple(jobType, abortReason, treeId);
 
     auto it = AbortedJobCounters_.find(key);
     if (it == AbortedJobCounters_.end()) {
@@ -304,7 +304,7 @@ void TJobProfiler::ProfileAbortedJobByError(
         return;
     }
 
-    auto key = std::make_tuple(jobType, static_cast<int>(errorCode), treeId);
+    auto key = std::tuple(jobType, static_cast<int>(errorCode), treeId);
     auto it = AbortedJobByErrorCounters_.find(key);
     if (it == AbortedJobByErrorCounters_.end()) {
         it = AbortedJobByErrorCounters_.emplace(
@@ -326,7 +326,7 @@ void TJobProfiler::DoUpdateInProgressJobCount(
 {
     YT_VERIFY(jobState <= EJobState::Running);
 
-    auto key = std::make_tuple(jobState, jobType, treeId);
+    auto key = std::tuple(jobState, jobType, treeId);
 
     auto createGauge = [&] {
         return ControllerAgentProfiler

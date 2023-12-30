@@ -414,7 +414,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto key = std::make_tuple(cellTag, peerKind);
+        auto key = std::tuple(cellTag, peerKind);
 
         {
             auto guard = ReaderGuard(MasterChannelCacheLock_);

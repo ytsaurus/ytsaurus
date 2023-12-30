@@ -295,7 +295,7 @@ private:
                 auto replicas = chunkManager->GetChunkReplicas(ephemeralChunk)
                     .ValueOrThrow();
                 SortBy(replicas, [] (TChunkLocationPtrWithReplicaInfo replica) {
-                    return std::make_tuple(replica.GetReplicaIndex(), replica.GetPtr()->GetEffectiveMediumIndex());
+                    return std::tuple(replica.GetReplicaIndex(), replica.GetPtr()->GetEffectiveMediumIndex());
                 });
                 BuildYsonFluently(consumer)
                     .DoListFor(replicas, [&] (TFluentList fluent, TChunkLocationPtrWithReplicaInfo replica) {
@@ -944,7 +944,7 @@ private:
 
                 auto replicas = chunkManager->GetConsistentChunkReplicas(chunk);
                 SortBy(replicas, [] (TNodePtrWithReplicaInfoAndMediumIndex replica) {
-                    return std::make_tuple(replica.GetReplicaIndex(), replica.GetMediumIndex());
+                    return std::tuple(replica.GetReplicaIndex(), replica.GetMediumIndex());
                 });
                 BuildYsonFluently(consumer)
                     .DoListFor(replicas, [&] (TFluentList fluent, TNodePtrWithReplicaInfoAndMediumIndex replica) {

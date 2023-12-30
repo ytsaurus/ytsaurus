@@ -193,7 +193,7 @@ INSTANTIATE_TEST_SUITE_P(
     TTestReassignInMemoryTablets,
     TTestReassignInMemoryTablets,
     ::testing::Values(
-        std::make_tuple(
+        std::tuple(
             "{tables=[{in_memory_mode=uncompressed; tablets=["
             "{tablet_index=1; cell_index=1;"
                 "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}};"
@@ -203,7 +203,7 @@ INSTANTIATE_TEST_SUITE_P(
                    "{cell_index=2; memory_size=0; node_address=home}];"
             "nodes=[{node_address=home; memory_used=100}]}",
             /*moveDescriptors*/ "[{tablet_index=1; cell_index=2};]"),
-        std::make_tuple(
+        std::tuple(
             "{tables=[{in_memory_mode=none; tablets=["
             "{tablet_index=1; cell_index=1;"
                 "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}};"
@@ -213,7 +213,7 @@ INSTANTIATE_TEST_SUITE_P(
                    "{cell_index=2; memory_size=0; node_address=home}];"
             "nodes=[{node_address=home; memory_used=100}]}",
             /*moveDescriptors*/ "[]"),
-        std::make_tuple(
+        std::tuple(
             "{tables=[{in_memory_mode=uncompressed; tablets=["
             "{tablet_index=1; cell_index=1;"
                 "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}};"
@@ -297,7 +297,7 @@ INSTANTIATE_TEST_SUITE_P(
     TTestReassignOrdinaryTablets,
     TTestReassignOrdinaryTablets,
     ::testing::Values(
-        std::make_tuple(
+        std::tuple(
             "{tables=[{in_memory_mode=uncompressed; tablets=["
             "{tablet_index=1; cell_index=1;"
                 "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}};"
@@ -307,7 +307,7 @@ INSTANTIATE_TEST_SUITE_P(
                    "{cell_index=2; memory_size=0; node_address=home}];"
             "nodes=[{node_address=home; memory_used=100}]}",
             /*moveDescriptors*/ "[]"),
-        std::make_tuple(
+        std::tuple(
             "{tables=[{in_memory_mode=none; tablets=["
             "{tablet_index=1; cell_index=1;"
                 "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}};"
@@ -317,7 +317,7 @@ INSTANTIATE_TEST_SUITE_P(
                    "{cell_index=2; memory_size=0; node_address=home}];"
             "nodes=[{node_address=home; memory_used=100}]}",
             /*moveDescriptors*/ "[{tablet_index=2; cell_index=2}]"),
-        std::make_tuple(
+        std::tuple(
             "{tables=[{in_memory_mode=none; tablets=["
             "{tablet_index=1; cell_index=1;"
                 "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}};"
@@ -372,7 +372,7 @@ INSTANTIATE_TEST_SUITE_P(
     TTestMergeSplitTabletsOfTable,
     TTestMergeSplitTabletsOfTable,
     ::testing::Values(
-        std::make_tuple(
+        std::tuple(
             "{tables=[{in_memory_mode=none; uncompressed_data_size=100; compressed_data_size=100;"
                       "config={desired_tablet_count=100};"
                       "tablets=["
@@ -380,7 +380,7 @@ INSTANTIATE_TEST_SUITE_P(
                 "statistics={uncompressed_data_size=100; memory_size=100; compressed_data_size=100; partition_count=2}}]}];"
             "cells=[{cell_index=1; memory_size=100}]}",
             /*reshardDescriptors*/ "[{tablets=[1;]; tablet_count=100; data_size=100}]"),
-        std::make_tuple(
+        std::tuple(
             "{config={min_tablet_size=200};"
             "tables=[{in_memory_mode=none; uncompressed_data_size=300; compressed_data_size=300; tablets=["
             "{tablet_index=1; cell_index=1;"
@@ -640,7 +640,7 @@ INSTANTIATE_TEST_SUITE_P(
     TTestReassignTabletsParameterized,
     TTestReassignTabletsParameterized,
     ::testing::Values(
-        std::make_tuple( // NO ACTIONS
+        std::tuple( // NO ACTIONS
             "{config={groups={rex={parameterized={metric=\"int64([/statistics/memory_size]) + int64([/statistics/uncompressed_data_size])\"}}}};"
             "tables=[{in_memory_mode=uncompressed;"
                      "config={enable_parameterized=%true; group=rex};"
@@ -656,7 +656,7 @@ INSTANTIATE_TEST_SUITE_P(
             /*moveActionLimit*/ 0,
             /*distribution*/ std::vector<int>{2, 0},
             /*cellSizes*/ std::vector<i64>{100, 0}),
-        std::make_tuple( // MOVE
+        std::tuple( // MOVE
             "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
             "tables=[{in_memory_mode=uncompressed;"
                      "config={enable_parameterized=%true};"
@@ -672,7 +672,7 @@ INSTANTIATE_TEST_SUITE_P(
             /*moveActionLimit*/ 1,
             /*distribution*/ std::vector<int>{1, 1},
             /*cellSizes*/ std::vector<i64>{60, 40}),
-        std::make_tuple( // MOVE (group)
+        std::tuple( // MOVE (group)
             "{config={groups={rex={parameterized={metric=\"0\"}};"
                 "fex={parameterized={metric=\"int64([/statistics/memory_size]) + int64([/statistics/uncompressed_data_size])\"}}}};"
             "tables=[{in_memory_mode=uncompressed;"
@@ -689,7 +689,7 @@ INSTANTIATE_TEST_SUITE_P(
             /*moveActionLimit*/ 1,
             /*distribution*/ std::vector<int>{1, 1},
             /*cellSizes*/ std::vector<i64>{60, 40}),
-        std::make_tuple( // SWAP (available action count is more than needed)
+        std::tuple( // SWAP (available action count is more than needed)
             "{config={enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
             "tables=[{in_memory_mode=uncompressed; tablets=["
             "{tablet_index=1; cell_index=1;"
@@ -708,7 +708,7 @@ INSTANTIATE_TEST_SUITE_P(
             /*moveActionLimit*/ 3,
             /*distribution*/ std::vector<int>{2, 2},
             /*cellSizes*/ std::vector<i64>{60, 60}),
-        std::make_tuple( // DISABLE BALANCING
+        std::tuple( // DISABLE BALANCING
             "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
             "tables=[{in_memory_mode=uncompressed; tablets=["
             "{tablet_index=1; cell_index=1;"
@@ -722,7 +722,7 @@ INSTANTIATE_TEST_SUITE_P(
             /*moveActionLimit*/ 3,
             /*distribution*/ std::vector<int>{2, 0},
             /*cellSizes*/ std::vector<i64>{100, 0}),
-        std::make_tuple( // DISABLE BALANCING HARD
+        std::tuple( // DISABLE BALANCING HARD
             "{config={groups={default={parameterized={metric=\"1\"}}}};"
             "tables=[{in_memory_mode=uncompressed;"
                      "config={enable_parameterized=%false};"
@@ -776,7 +776,7 @@ INSTANTIATE_TEST_SUITE_P(
     TTestReassignTabletsParameterizedErrors,
     TTestReassignTabletsParameterizedErrors,
     ::testing::Values(
-        std::make_tuple(
+        std::tuple(
             "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
             "tables=[{in_memory_mode=uncompressed; tablets=["
             "{tablet_index=1; cell_index=1;"
@@ -906,7 +906,7 @@ INSTANTIATE_TEST_SUITE_P(
     TTestReassignTabletsParameterizedByNodes,
     TTestReassignTabletsParameterizedByNodes,
     ::testing::Values(
-        std::make_tuple(
+        std::tuple(
             "{config={enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
             "tables=[{in_memory_mode=uncompressed; tablets=["
             "{tablet_index=1; cell_index=1;"
@@ -926,7 +926,7 @@ INSTANTIATE_TEST_SUITE_P(
             /*moveActionLimit*/ 2,
             /*distribution*/ std::vector<int>{2, 1, 1},
             /*cellSizes*/ std::vector<i64>{30, 40, 50}),
-        std::make_tuple(
+        std::tuple(
             "{config={enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
             "tables=[{in_memory_mode=uncompressed; tablets=["
             "{tablet_index=1; cell_index=1;"
@@ -946,7 +946,7 @@ INSTANTIATE_TEST_SUITE_P(
             /*moveActionLimit*/ 2,
             /*distribution*/ std::vector<int>{2, 2, 0},
             /*cellSizes*/ std::vector<i64>{30, 30, 0}),
-        std::make_tuple(
+        std::tuple(
             "{config={enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
             "tables=[{in_memory_mode=uncompressed; tablets=["
             "{tablet_index=1; cell_index=1;"
@@ -965,7 +965,7 @@ INSTANTIATE_TEST_SUITE_P(
             /*moveActionLimit*/ 2,
             /*distribution*/ std::vector<int>{2, 2},
             /*cellSizes*/ std::vector<i64>{40, 20}),
-        std::make_tuple(
+        std::tuple(
             "{config={enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
             "tables=[{in_memory_mode=uncompressed; tablets=["
             "{tablet_index=1; cell_index=1;"
@@ -988,7 +988,7 @@ INSTANTIATE_TEST_SUITE_P(
             /*moveActionLimit*/ 2,
             /*distribution*/ std::vector<int>{2, 2, 1, 0},
             /*cellSizes*/ std::vector<i64>{30, 30, 10, 0}),
-        std::make_tuple(
+        std::tuple(
             "{config={enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
             "tables=[{in_memory_mode=uncompressed; tablets=["
             "{tablet_index=1; cell_index=1;"
@@ -1055,7 +1055,7 @@ INSTANTIATE_TEST_SUITE_P(
     TTestMergeSplitTabletsParameterized,
     TTestMergeSplitTabletsParameterized,
     ::testing::Values(
-        std::make_tuple( // SPLIT
+        std::tuple( // SPLIT
             "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"; enable_reshard=%true}}}};"
             "tables=[{in_memory_mode=uncompressed; uncompressed_data_size=200; compressed_data_size=200;"
                      "config={enable_parameterized=%true; desired_tablet_count=2};"
@@ -1065,7 +1065,7 @@ INSTANTIATE_TEST_SUITE_P(
             "cells=[{cell_index=1; memory_size=200; node_address=home}];"
             "nodes=[{node_address=home; memory_used=200}]}",
             /*reshardDescriptors*/ "[{tablets=[1;]; tablet_count=2; data_size=200}]"),
-        std::make_tuple( // SPLIT (by size)
+        std::tuple( // SPLIT (by size)
             "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"; enable_reshard=%true}}}};"
             "tables=[{in_memory_mode=uncompressed; uncompressed_data_size=200; compressed_data_size=200;"
                      "config={enable_parameterized=%true; desired_tablet_count=2};"
@@ -1077,7 +1077,7 @@ INSTANTIATE_TEST_SUITE_P(
             "cells=[{cell_index=1; memory_size=1; node_address=home}];"
             "nodes=[{node_address=home; memory_used=1}]}",
             /*reshardDescriptors*/ "[{tablets=[1;]; tablet_count=2; data_size=200}]"),
-        std::make_tuple( // SPLIT (by size, swapped)
+        std::tuple( // SPLIT (by size, swapped)
             "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"; enable_reshard=%true}}}};"
             "tables=[{in_memory_mode=uncompressed; uncompressed_data_size=200; compressed_data_size=200;"
                      "config={enable_parameterized=%true; desired_tablet_count=2};"
@@ -1089,7 +1089,7 @@ INSTANTIATE_TEST_SUITE_P(
             "cells=[{cell_index=1; memory_size=1; node_address=home}];"
             "nodes=[{node_address=home; memory_used=1}]}",
             /*reshardDescriptors*/ "[{tablets=[2;]; tablet_count=2; data_size=200}]"),
-        std::make_tuple( // SPLIT (by metric)
+        std::tuple( // SPLIT (by metric)
             "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"; enable_reshard=%true}}}};"
             "tables=[{in_memory_mode=uncompressed; uncompressed_data_size=200; compressed_data_size=200;"
                      "config={enable_parameterized=%true; desired_tablet_count=2};"
@@ -1101,7 +1101,7 @@ INSTANTIATE_TEST_SUITE_P(
             "cells=[{cell_index=1; memory_size=1; node_address=home}];"
             "nodes=[{node_address=home; memory_used=1}]}",
             /*reshardDescriptors*/ "[{tablets=[1;]; tablet_count=2; data_size=10}]"),
-        std::make_tuple( // SPLIT (by metric, swapped)
+        std::tuple( // SPLIT (by metric, swapped)
             "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"; enable_reshard=%true}}}};"
             "tables=[{in_memory_mode=uncompressed; uncompressed_data_size=20; compressed_data_size=20;"
                      "config={enable_parameterized=%true; desired_tablet_count=2};"
@@ -1113,7 +1113,7 @@ INSTANTIATE_TEST_SUITE_P(
             "cells=[{cell_index=1; memory_size=1; node_address=home}];"
             "nodes=[{node_address=home; memory_used=1}]}",
             /*reshardDescriptors*/ "[{tablets=[2;]; tablet_count=2; data_size=10}]"),
-        std::make_tuple( // Just right
+        std::tuple( // Just right
             "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"; enable_reshard=%true}}}};"
             "tables=[{in_memory_mode=uncompressed; uncompressed_data_size=40; compressed_data_size=40;"
                      "config={enable_parameterized=%true; desired_tablet_count=2};"
@@ -1127,7 +1127,7 @@ INSTANTIATE_TEST_SUITE_P(
             "cells=[{cell_index=1; memory_size=102; node_address=home}];"
             "nodes=[{node_address=home; memory_used=102}]}",
             /*reshardDescriptors*/ "[]"),
-        std::make_tuple( // MERGE (size is too small)
+        std::tuple( // MERGE (size is too small)
             "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"; enable_reshard=%true}}}};"
             "tables=[{in_memory_mode=uncompressed; uncompressed_data_size=40; compressed_data_size=40;"
                      "config={enable_parameterized=%true; desired_tablet_count=2};"
@@ -1141,7 +1141,7 @@ INSTANTIATE_TEST_SUITE_P(
             "cells=[{cell_index=1; memory_size=102; node_address=home}];"
             "nodes=[{node_address=home; memory_used=102}]}",
             /*reshardDescriptors*/ "[{tablets=[1;2;]; tablet_count=1; data_size=20}]"),
-        std::make_tuple( // MERGE (metric is too small)
+        std::tuple( // MERGE (metric is too small)
             "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"; enable_reshard=%true}}}};"
             "tables=[{in_memory_mode=uncompressed; uncompressed_data_size=40; compressed_data_size=40;"
                      "config={enable_parameterized=%true; desired_tablet_count=2};"
@@ -1155,7 +1155,7 @@ INSTANTIATE_TEST_SUITE_P(
             "cells=[{cell_index=1; memory_size=102; node_address=home}];"
             "nodes=[{node_address=home; memory_used=102}]}",
             /*reshardDescriptors*/ "[{tablets=[1;2;]; tablet_count=1; data_size=20}]"),
-        std::make_tuple( // MERGE (both are less than desired)
+        std::tuple( // MERGE (both are less than desired)
             "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"; enable_reshard=%true}}}};"
             "tables=[{in_memory_mode=uncompressed; uncompressed_data_size=40; compressed_data_size=40;"
                      "config={enable_parameterized=%true; desired_tablet_count=2};"
@@ -1169,7 +1169,7 @@ INSTANTIATE_TEST_SUITE_P(
             "cells=[{cell_index=1; memory_size=102; node_address=home}];"
             "nodes=[{node_address=home; memory_used=102}]}",
             /*reshardDescriptors*/ "[{tablets=[1;2;]; tablet_count=1; data_size=20}]"),
-        std::make_tuple( // Just fine
+        std::tuple( // Just fine
             "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"; enable_reshard=%true}}}};"
             "tables=[{in_memory_mode=uncompressed; uncompressed_data_size=40; compressed_data_size=40;"
                      "config={enable_parameterized=%true; desired_tablet_count=4};"
@@ -1187,7 +1187,7 @@ INSTANTIATE_TEST_SUITE_P(
             "cells=[{cell_index=1; memory_size=102; node_address=home}];"
             "nodes=[{node_address=home; memory_used=102}]}",
             /*reshardDescriptors*/ "[]"),
-        std::make_tuple( // DISABLE BALANCING HARD
+        std::tuple( // DISABLE BALANCING HARD
             "{config={groups={default={parameterized={metric=\"1\"; enable_parameterized_reshard=%true}}}};"
             "tables=[{in_memory_mode=uncompressed; uncompressed_data_size=200; compressed_data_size=200;"
                      "config={enable_parameterized=%false; desired_tablet_count=2};"
@@ -1234,7 +1234,7 @@ INSTANTIATE_TEST_SUITE_P(
     TTestMergeSplitTabletsParameterizedErrors,
     TTestMergeSplitTabletsParameterizedErrors,
     ::testing::Values(
-        std::make_tuple(
+        std::tuple(
             "{config={groups={default={parameterized={metric=\"-double([/statistics/memory_size])\"; enable_reshard=%true}}}};"
             "tables=[{in_memory_mode=uncompressed; "
                      "config={enable_parameterized=%true; desired_tablet_count=2};"

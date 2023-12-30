@@ -6534,8 +6534,8 @@ private:
             tabletsToMount.end(),
             [&] (const TTabletBase* lhs, const TTabletBase* rhs) {
                 return
-                    std::make_tuple(getTabletSize(lhs), lhs->GetId()) >
-                    std::make_tuple(getTabletSize(rhs), rhs->GetId());
+                    std::tuple(getTabletSize(lhs), lhs->GetId()) >
+                    std::tuple(getTabletSize(rhs), rhs->GetId());
             });
 
         // Assign tablets to cells iteratively looping over cell array.

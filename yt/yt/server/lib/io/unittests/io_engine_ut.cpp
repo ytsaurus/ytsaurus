@@ -477,21 +477,21 @@ INSTANTIATE_TEST_SUITE_P(
     TIOEngineTest,
     TIOEngineTest,
     ::testing::Values(
-        std::make_tuple(EIOEngineType::ThreadPool, DefaultConfig, AllocatorBehaviourCollocate),
-        std::make_tuple(EIOEngineType::ThreadPool, CustomConfig, AllocatorBehaviourCollocate),
-        std::make_tuple(EIOEngineType::ThreadPool, DefaultConfig, AllocatorBehaviourSeparate),
+        std::tuple(EIOEngineType::ThreadPool, DefaultConfig, AllocatorBehaviourCollocate),
+        std::tuple(EIOEngineType::ThreadPool, CustomConfig, AllocatorBehaviourCollocate),
+        std::tuple(EIOEngineType::ThreadPool, DefaultConfig, AllocatorBehaviourSeparate),
 
-        std::make_tuple(EIOEngineType::FairShareThreadPool, DefaultConfig, AllocatorBehaviourCollocate),
-        std::make_tuple(EIOEngineType::FairShareThreadPool, CustomConfig, AllocatorBehaviourCollocate),
-        std::make_tuple(EIOEngineType::FairShareThreadPool, DefaultConfig, AllocatorBehaviourSeparate),
+        std::tuple(EIOEngineType::FairShareThreadPool, DefaultConfig, AllocatorBehaviourCollocate),
+        std::tuple(EIOEngineType::FairShareThreadPool, CustomConfig, AllocatorBehaviourCollocate),
+        std::tuple(EIOEngineType::FairShareThreadPool, DefaultConfig, AllocatorBehaviourSeparate),
 
-        std::make_tuple(EIOEngineType::Uring, DefaultConfig, AllocatorBehaviourCollocate),
-        std::make_tuple(EIOEngineType::Uring, CustomConfig, AllocatorBehaviourCollocate),
-        std::make_tuple(EIOEngineType::Uring, DefaultConfig, AllocatorBehaviourSeparate),
+        std::tuple(EIOEngineType::Uring, DefaultConfig, AllocatorBehaviourCollocate),
+        std::tuple(EIOEngineType::Uring, CustomConfig, AllocatorBehaviourCollocate),
+        std::tuple(EIOEngineType::Uring, DefaultConfig, AllocatorBehaviourSeparate),
 
-        std::make_tuple(EIOEngineType::FairShareUring, DefaultConfig, AllocatorBehaviourCollocate),
-        std::make_tuple(EIOEngineType::FairShareUring, CustomConfig, AllocatorBehaviourCollocate),
-        std::make_tuple(EIOEngineType::FairShareUring, DefaultConfig, AllocatorBehaviourSeparate)
+        std::tuple(EIOEngineType::FairShareUring, DefaultConfig, AllocatorBehaviourCollocate),
+        std::tuple(EIOEngineType::FairShareUring, CustomConfig, AllocatorBehaviourCollocate),
+        std::tuple(EIOEngineType::FairShareUring, DefaultConfig, AllocatorBehaviourSeparate)
     )
 );
 

@@ -1283,7 +1283,7 @@ private:
         };
         THashMap<TBatchKey, TBatchValue> batchMap;
         auto getOrCreateBatch = [&] (TCellTag cellTag, NApi::EMasterChannelKind channelKind) {
-            auto key = std::make_tuple(cellTag, channelKind);
+            auto key = std::tuple(cellTag, channelKind);
             auto it = batchMap.find(key);
             if (it == batchMap.end()) {
                 TObjectServiceProxy proxy(

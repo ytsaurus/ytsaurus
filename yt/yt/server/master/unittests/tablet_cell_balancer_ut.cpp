@@ -679,9 +679,9 @@ INSTANTIATE_TEST_SUITE_P(
     CellBalancer,
     TCellBaseBalancerStressTest,
     ::testing::Values(
-        std::make_tuple(4, 20, 2, 5, 8),
-        std::make_tuple(6, 30, 4, 9, 5),
-        std::make_tuple(10, 50, 4, 5, 25)
+        std::tuple(4, 20, 2, 5, 8),
+        std::tuple(6, 30, 4, 9, 5),
+        std::tuple(10, 50, 4, 5, 25)
     ));
 
 /*
@@ -696,7 +696,7 @@ INSTANTIATE_TEST_SUITE_P(
     CellBalancer,
     TCellBaseBalancerRevokeTest,
     ::testing::Values(
-        std::make_tuple(
+        std::tuple(
             "{a=1;}",
             "{a=[1;2;];}",
             "{n1=[a;]; n2=[a;];}",
@@ -708,43 +708,43 @@ INSTANTIATE_TEST_SUITE_P(
     CellBalancer,
     TCellBaseBalancerTest,
     ::testing::Values(
-        std::make_tuple(
+        std::tuple(
             "{a=1;}",
             "{a=[1;2;3;4]; b=[5;6;7;8]}",
             "{n1=[a;b]; n2=[a;b]; n3=[a;b]}",
             10,
             "{n1=[1;2]; n2=[3;4]; n3=[5;6]}"),
-        std::make_tuple(
+        std::tuple(
             "{a=2;}",
             "{a=[1;2;3;4]; b=[5;6;7;8]}",
             "{n1=[a;b]; n2=[a;b]; n3=[a;b]}",
             10,
             "{n1=[1;2]; n2=[3;4]; n3=[5;6]}"),
-        std::make_tuple(
+        std::tuple(
             "{a=2;}",
             "{a=[1;2;3]}",
             "{n1=[a]; n2=[a]; n3=[a]}",
             2,
             "{n1=[]; n2=[]; n3=[]}"),
-        std::make_tuple(
+        std::tuple(
             "{a=2;}",
             "{a=[1;2;3;4;5;6;7;8;9;10]}",
             "{n1=[a]; n2=[a]; n3=[a]}",
             10,
             "{n1=[1;2;3;4;5;6;7;8;9;10]; n2=[1;2;3;4]; n3=[5;6;7;8;9;10]}"),
-        std::make_tuple(
+        std::tuple(
             "{a=2; b=2; c=2}",
             "{a=[1;2;3;]; b=[4;5;6;]; c=[7;8;9;]}",
             "{n1=[a;b;c]; n2=[a;b;c]; n3=[a;b;c]}",
             6,
             "{n1=[]; n2=[]; n3=[]}"),
-        std::make_tuple(
+        std::tuple(
             "{a=2; b=2; c=2}",
             "{a=[1;2;3;]; b=[4;5;6;]; c=[7;8;9;]}",
             "{n1=[a;b;c]; n2=[a;b;c]; n3=[a;b;c]}",
             6,
             "{n1=[1;2;3;4;5;6;]; n2=[]; n3=[1;2;3;4;5;6;]}"),
-        std::make_tuple(
+        std::tuple(
             "{a=2; b=2; c=2}",
             "{a=[1;2;3;]; b=[4;5;6;]; c=[7;8;9;]}",
             "{n1=[a;b;c]; n2=[a;b;c]; n3=[a;b;c]}",

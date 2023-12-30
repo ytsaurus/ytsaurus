@@ -991,7 +991,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        return std::make_tuple(
+        return std::tuple(
             BuildResourceManagerInfo(),
             BuildResourceHoldersInfo());
     }

@@ -82,7 +82,7 @@ INSTANTIATE_TEST_SUITE_P(
     Test,
     TComputedColumnPredicatePopulationTest,
     ::testing::Values(
-        std::make_tuple(
+        std::tuple(
             New<TTableSchema>(std::vector<TColumnSchema>{
                 TColumnSchema("computed_key", EValueType::Int64, ESortOrder::Ascending)
                     .SetExpression("2 * key"),
@@ -91,7 +91,7 @@ INSTANTIATE_TEST_SUITE_P(
             "key = 5",
             "(key = 5) AND ((key, computed_key) IN tuple((5, 10)))",
             "(key = 5) AND ((key = 5) AND (computed_key = 10))"),
-        std::make_tuple(
+        std::tuple(
             New<TTableSchema>(std::vector<TColumnSchema>{
                 TColumnSchema("computed_key", EValueType::Int64, ESortOrder::Ascending)
                     .SetExpression("2 * key"),
@@ -100,7 +100,7 @@ INSTANTIATE_TEST_SUITE_P(
             "(key = (7 * key)) OR (NOT (key = 5)) OR (key > 7)",
             "(key = (7 * key)) OR (NOT ((key = 5) AND ((key, computed_key) IN tuple((5, 10))))) OR (key > 7)",
             "(key = (7 * key)) OR (NOT ((key = 5) AND ((key = 5) AND (computed_key = 10)))) OR (key > 7)"),
-        std::make_tuple(
+        std::tuple(
             New<TTableSchema>(std::vector<TColumnSchema>{
                 TColumnSchema("computed_key", EValueType::Uint64, ESortOrder::Ascending)
                     .SetExpression("farm_hash(key)"),
@@ -110,7 +110,7 @@ INSTANTIATE_TEST_SUITE_P(
             "(key = 'foo') AND ((key, computed_key) IN tuple(('foo', 7945198393224481366)))",
             "(key = 'foo') AND ((key = 'foo') AND (computed_key = 7945198393224481366))"),
         // Mistake should leave occurrence as is.
-        std::make_tuple(
+        std::tuple(
             New<TTableSchema>(std::vector<TColumnSchema>{
                 TColumnSchema("computed_key", EValueType::Uint64, ESortOrder::Ascending)
                     .SetExpression("key / (key - 2)"),
@@ -120,7 +120,7 @@ INSTANTIATE_TEST_SUITE_P(
             "0 OR ((3 = key) AND ((key, computed_key) IN tuple((3, 3)))) OR ((key = (2 + 2)) AND ((key, computed_key) IN tuple((4, 2))))",
             "0 OR ((3 = key) AND ((key = 3) AND (computed_key = 3))) OR ((key = (2 + 2)) AND ((key = 4) AND (computed_key = 2)))"),
         // Do not go inside subqueries.
-        std::make_tuple(
+        std::tuple(
             New<TTableSchema>(std::vector<TColumnSchema>{
                 TColumnSchema("computed_key", EValueType::Uint64, ESortOrder::Ascending)
                     .SetExpression("key * 2"),
@@ -129,7 +129,7 @@ INSTANTIATE_TEST_SUITE_P(
             "key IN (SELECT * FROM T WHERE key = 42)",
             "key IN ((SELECT * FROM T WHERE key = 42) AS _subquery1)",
             "key IN ((SELECT * FROM T WHERE key = 42) AS _subquery2)"),
-        std::make_tuple(
+        std::tuple(
             New<TTableSchema>(std::vector<TColumnSchema>{
                 TColumnSchema("computed_key1", EValueType::Uint64, ESortOrder::Ascending)
                     .SetExpression("key * 2"),
@@ -142,7 +142,7 @@ INSTANTIATE_TEST_SUITE_P(
             "(key = 5) AND ((key = 5) AND (computed_key1 = 10)) AND ((key = 5) AND (computed_key2 = 15))"),
         // TODO(max42): CHYT-438.
         // Should become "(key1 = 5) AND (key2 = 10) AND (computed_key = 15)".
-        std::make_tuple(
+        std::tuple(
             New<TTableSchema>(std::vector<TColumnSchema>{
                 TColumnSchema("computed_key", EValueType::Uint64, ESortOrder::Ascending)
                     .SetExpression("key1 + key2"),
@@ -152,7 +152,7 @@ INSTANTIATE_TEST_SUITE_P(
             "(key1 = 5) AND (key2 = 10)",
             "(key1 = 5) AND (key2 = 10)",
             "(key1 = 5) AND (key2 = 10)"),
-        std::make_tuple(
+        std::tuple(
             New<TTableSchema>(std::vector<TColumnSchema>{
                 TColumnSchema("computed_key", EValueType::Uint64, ESortOrder::Ascending)
                     .SetExpression("key1 * 2 + key2"),
@@ -162,7 +162,7 @@ INSTANTIATE_TEST_SUITE_P(
             "(key1, key2) = (5, 10) OR tuple(20, 42) = tuple(key2, key1)",
             "(((key1, key2) = (5, 10)) AND ((key1, key2, computed_key) IN tuple((5, 10, 20)))) OR (((20, 42) = (key2, key1)) AND ((key1, key2, computed_key) IN tuple((42, 20, 104))))",
             "(((key1, key2) = (5, 10)) AND ((key1 = 5) AND (key2 = 10) AND (computed_key = 20))) OR (((20, 42) = (key2, key1)) AND ((key1 = 42) AND (key2 = 20) AND (computed_key = 104)))"),
-        std::make_tuple(
+        std::tuple(
             New<TTableSchema>(std::vector<TColumnSchema>{
                 TColumnSchema("computed_key", EValueType::Uint64, ESortOrder::Ascending)
                     .SetExpression("key * 2"),
@@ -171,7 +171,7 @@ INSTANTIATE_TEST_SUITE_P(
             "key IN (2, 3)",
             "(key IN (2, 3)) AND ((key, computed_key) IN ((2, 4), (3, 6)))",
             "(key IN (2, 3)) AND (((key = 2) AND (computed_key = 4)) OR ((key = 3) AND (computed_key = 6)))"),
-        std::make_tuple(
+        std::tuple(
             New<TTableSchema>(std::vector<TColumnSchema>{
                 TColumnSchema("computed_key", EValueType::Uint64, ESortOrder::Ascending)
                     .SetExpression("key * 2"),
@@ -180,7 +180,7 @@ INSTANTIATE_TEST_SUITE_P(
             "key IN tuple(2, 3)",
             "(key IN (2, 3)) AND ((key, computed_key) IN ((2, 4), (3, 6)))",
             "(key IN (2, 3)) AND (((key = 2) AND (computed_key = 4)) OR ((key = 3) AND (computed_key = 6)))"),
-        std::make_tuple(
+        std::tuple(
             New<TTableSchema>(std::vector<TColumnSchema>{
                 TColumnSchema("computed_key", EValueType::Uint64, ESortOrder::Ascending)
                     .SetExpression("key * 2"),
@@ -190,7 +190,7 @@ INSTANTIATE_TEST_SUITE_P(
             "(key IN (1)) AND ((key, computed_key) IN tuple((1, 2)))",
             "(key IN (1)) AND ((key = 1) AND (computed_key = 2))"),
         // Not a key column.
-        std::make_tuple(
+        std::tuple(
             New<TTableSchema>(std::vector<TColumnSchema>{
                 TColumnSchema("computed_key", EValueType::Int64)
                     .SetExpression("2 * key"),
@@ -199,8 +199,8 @@ INSTANTIATE_TEST_SUITE_P(
             "key = 5",
             "key = 5",
             "key = 5"),
-        std::make_tuple(New<TTableSchema>(std::vector<TColumnSchema>{}), "1", "1", "1"),
-        std::make_tuple(
+        std::tuple(New<TTableSchema>(std::vector<TColumnSchema>{}), "1", "1", "1"),
+        std::tuple(
             New<TTableSchema>(std::vector<TColumnSchema>{
                 TColumnSchema("computed_key", EValueType::Int64, ESortOrder::Ascending)
                     .SetExpression("2 * key"),
@@ -210,7 +210,7 @@ INSTANTIATE_TEST_SUITE_P(
             "(key, value) = (4, 'xyz')",
             "((key, value) = (4, 'xyz')) AND ((key, computed_key) IN tuple((4, 8)))",
             "((key, value) = (4, 'xyz')) AND ((key = 4) AND (computed_key = 8))"),
-        std::make_tuple(
+        std::tuple(
             New<TTableSchema>(std::vector<TColumnSchema>{
                 TColumnSchema("computed_key", EValueType::Int64, ESortOrder::Ascending)
                     .SetExpression("2 * key"),

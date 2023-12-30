@@ -212,7 +212,7 @@ auto AnalyzeColumnEncoding(const IUnversionedColumnarRowBatch::TColumn& ytColumn
         ytValueColumn = ytValueColumn->Dictionary->ValueColumn;
     }
 
-    return std::make_tuple(
+    return std::tuple(
         ytValueColumn,
         rleIndexes,
         dictionaryIndexes);

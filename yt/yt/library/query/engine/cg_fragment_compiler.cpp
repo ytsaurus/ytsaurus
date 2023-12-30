@@ -2839,7 +2839,7 @@ std::tuple<size_t, size_t> MakeCodegenDuplicateOp(
         codegenSource(builder);
     };
 
-    return std::make_tuple(firstSlot, secondSlot);
+    return std::tuple(firstSlot, secondSlot);
 }
 
 size_t MakeCodegenMergeOp(

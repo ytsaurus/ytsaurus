@@ -1565,19 +1565,19 @@ INSTANTIATE_TEST_SUITE_P(
     TTraverseWithKeyColumnCount,
     TTraverseWithKeyColumnCount,
     ::testing::Values(
-        std::make_tuple(
+        std::tuple(
             2,
             "0;<type=min>#",
             "2;<type=min>#",
             TLegacyReadLimit(),
             TLegacyReadLimit(BuildKey("2"))),
-        std::make_tuple(
+        std::tuple(
             2,
             "0;<type=null>#",
             "2;<type=null>#",
             TLegacyReadLimit(),
             TLegacyReadLimit(BuildKey("2;<type=null>#"))),
-        std::make_tuple(
+        std::tuple(
             2,
             "0;<type=max>#",
             "2;<type=max>#",

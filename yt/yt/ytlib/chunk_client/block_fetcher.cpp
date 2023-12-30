@@ -79,8 +79,8 @@ TBlockFetcher::TBlockFetcher(
         BlockInfos_.end(),
         [&] (const TBlockInfo& lhs, const TBlockInfo& rhs) {
             return
-                std::make_tuple(lhs.Priority, lhs.ReaderIndex, lhs.BlockIndex) <
-                std::make_tuple(rhs.Priority, rhs.ReaderIndex, rhs.BlockIndex);
+                std::tuple(lhs.Priority, lhs.ReaderIndex, lhs.BlockIndex) <
+                std::tuple(rhs.Priority, rhs.ReaderIndex, rhs.BlockIndex);
         });
 
     YT_VERIFY(std::all_of(BlockInfos_.begin(), BlockInfos_.end(), [] (const TBlockInfo& info) {

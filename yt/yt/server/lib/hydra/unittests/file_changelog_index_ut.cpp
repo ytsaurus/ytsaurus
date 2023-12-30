@@ -282,7 +282,7 @@ INSTANTIATE_TEST_SUITE_P(
     TFileChangelogIndexTest,
     TFileChangelogIndexTest,
     ::testing::Values(
-        std::make_tuple(NIO::EIOEngineType::ThreadPool, "{ }")));
+        std::tuple(NIO::EIOEngineType::ThreadPool, "{ }")));
 
 ////////////////////////////////////////////////////////////////////////////////
 

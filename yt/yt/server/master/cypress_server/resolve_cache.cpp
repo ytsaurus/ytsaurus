@@ -67,11 +67,11 @@ std::optional<TResolveCache::TResolveResult> TResolveCache::TryResolve(const TYP
                 if (ampersandSkipped) {
                     THROW_ERROR_EXCEPTION("YPath cannot end with ampersand");
                 }
-                return std::make_tuple(TNodeId(), false);
+                return std::tuple(TNodeId(), false);
 
             case ETokenType::Slash:
                 tokenizer.Advance();
-                return std::make_tuple(RootNodeId_, ampersandSkipped);
+                return std::tuple(RootNodeId_, ampersandSkipped);
 
             case ETokenType::Literal: {
                 auto token = tokenizer.GetToken();
@@ -89,7 +89,7 @@ std::optional<TResolveCache::TResolveResult> TResolveCache::TryResolve(const TYP
                 }
                 tokenizer.Advance();
 
-                return std::make_tuple(objectId, ampersandSkipped);
+                return std::tuple(objectId, ampersandSkipped);
             }
 
             default:

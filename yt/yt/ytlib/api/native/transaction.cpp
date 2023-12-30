@@ -1690,7 +1690,7 @@ private:
         ETableSchemaKind kind,
         bool allowMissingKeyColumns)
     {
-        auto key = std::make_tuple(tableInfo->TableId, nameTable, kind, allowMissingKeyColumns);
+        auto key = std::tuple(tableInfo->TableId, nameTable, kind, allowMissingKeyColumns);
         auto it = IdMappingCache_.find(key);
         if (it == IdMappingCache_.end()) {
             auto mapping = BuildColumnIdMapping(*tableInfo->Schemas[kind], nameTable, allowMissingKeyColumns);

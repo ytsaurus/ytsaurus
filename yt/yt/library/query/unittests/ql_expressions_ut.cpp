@@ -164,42 +164,42 @@ INSTANTIATE_TEST_SUITE_P(
     TExtractSubexpressionPredicateTest,
     TExtractSubexpressionPredicateTest,
     ::testing::Values(
-        std::make_tuple(
+        std::tuple(
             "[{name=a;type=boolean;}; {name=b;type=boolean}; {name=c;type=boolean}]",
             "[{name=a;type=boolean;}]",
             "a and b and c",
             "a"),
-        std::make_tuple(
+        std::tuple(
             "[{name=a;type=boolean;}; {name=b;type=boolean}; {name=c;type=boolean}]",
             "[{name=a;type=boolean;}]",
             "not a and b and c",
             "not a"),
-        std::make_tuple(
+        std::tuple(
             "[{name=a;type=int64;}; {name=b;type=boolean}; {name=c;type=boolean}]",
             "[{name=a;type=int64;}]",
             "not is_null(a) and b and c",
             "not is_null(a)"),
-        std::make_tuple(
+        std::tuple(
             "[{name=a;type=int64;}; {name=b;type=boolean}; {name=c;type=boolean}]",
             "[{name=a;type=int64;}]",
             "a in (1, 2, 3) and b and c",
             "a in (1, 2, 3)"),
-        std::make_tuple(
+        std::tuple(
             "[{name=a;type=int64;}; {name=b;type=boolean}; {name=c;type=boolean}]",
             "[{name=a;type=int64;}]",
             "a = 1 and b and c",
             "a = 1"),
-        std::make_tuple(
+        std::tuple(
             "[{name=a;type=int64;}; {name=b;type=int64}; {name=c;type=boolean}]",
             "[{name=a;type=int64;}; {name=b;type=int64}]",
             "a = b and c",
             "a = b"),
-        std::make_tuple(
+        std::tuple(
             "[{name=a;type=boolean;}; {name=b;type=int64}; {name=c;type=boolean}]",
             "[{name=a;type=boolean;}; {name=b;type=int64}]",
             "if(a, b = 1, false) and c",
             "if(a, b = 1, false)"),
-        std::make_tuple(
+        std::tuple(
             "[{name=a;type=boolean;}; {name=b;type=boolean}]",
             "[{name=a;type=boolean;};]",
             "a or b",
@@ -276,55 +276,55 @@ INSTANTIATE_TEST_SUITE_P(
     TEliminateLookupPredicateTest,
     TEliminateLookupPredicateTest,
     ::testing::Values(
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "(k,l) in ((1,2),(3,4))",
             "false",
             std::vector<const char*>{"1;3"}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "(k,l) in ((1,2),(3,4))",
             "true",
             std::vector<const char*>{"1;2"}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "(k,l) in ((1,2),(3,4))",
             "true",
             std::vector<const char*>{"1;2", "3;4"}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "(l,k) in ((1,2),(3,4))",
             "false",
             std::vector<const char*>{"3;1"}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "(l,k) in ((1,2),(3,4))",
             "true",
             std::vector<const char*>{"2;1"}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "(l,k) in ((1,2),(3,4))",
             "true",
             std::vector<const char*>{"2;1", "4;3"}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "k in ((1),(3))",
             "true",
             std::vector<const char*>{"1;2", "3;4"}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "k in ((1),(3))",
             "true",
             std::vector<const char*>{"1", "3"}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "l in ((2),(4))",
@@ -399,67 +399,67 @@ INSTANTIATE_TEST_SUITE_P(
     TEliminatePredicateTestOld,
     TEliminatePredicateTest,
     ::testing::Values(
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "(k,l) in ((1,2),(3,4))",
             "(k,l) in ((1,2),(3,4))",
             std::vector<const char*>{_MIN_, _MAX_}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "(k,l) in ((1,2),(3,4))",
             "(k,l) in ((1,2))",
             std::vector<const char*>{"1", "2"}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "(k) in ((2),(4))",
             "(k) in ((2),(4))",
             std::vector<const char*>{_MIN_, _MAX_}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "(l) in ((2),(4))",
             "(l) in ((2),(4))",
             std::vector<const char*>{_MIN_, _MAX_}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "(k) in ((2),(4))",
             "(k) in ((2))",
             std::vector<const char*>{"2;1", "3;3"}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;sort_order=ascending;expression=l}; {name=l;type=int64;sort_order=ascending}; {name=a;type=int64}]",
             "[k;l]",
             "l in ((2),(4))",
             "l in ((2),(4))",
             std::vector<const char*>{_MIN_, _MAX_}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
             "[k;l]",
             "k in ((0),(2),(4))",
             "k in ((2))",
             std::vector<const char*>{"2;1", "3;3"}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
             "[k;l]",
             "k in ((0),(2),(4))",
             "k in ((2))",
             std::vector<const char*>{"2;1", "3;3"}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
             "[k;l]",
             "k in ((0),(2),(4),(6))",
             "k in ((2),(4))",
             std::vector<const char*>{"2;1", "4;5"}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
             "[k;l]",
             "k in ((0),(2),(4),(6))",
             "k in ((2))",
             std::vector<const char*>{"2", "3"}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=m;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "k in ((0),(2),(4))",
@@ -471,91 +471,91 @@ INSTANTIATE_TEST_SUITE_P(
     TEliminatePredicateTest,
     TEliminatePredicateTest,
     ::testing::Values(
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "k = 1 and l in (1,2,3)",
             "true",
             std::vector<const char*>{"1;1", "1;1;" _MAX_, "1;2", "1;2;" _MAX_, "1;3", "1;3;" _MAX_}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "k in (1,2,3) and l = 1",
             "true",
             std::vector<const char*>{"1;1", "1;1;" _MAX_, "2;1", "2;1;" _MAX_, "3;1", "3;1;" _MAX_}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "(k,l) in ((1,2),(3,4))",
             "true",
             std::vector<const char*>{"1;2", "1;2;" _MAX_, "3;4", "3;4;" _MAX_}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "(k) in ((2),(4))",
             "true",
             std::vector<const char*>{"2", "2;" _MAX_, "4", "4;" _MAX_}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
             "(l) in ((2),(4))",
             "(l) in ((2),(4))",
             std::vector<const char*>{_MIN_, _MAX_}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;sort_order=ascending;expression=l}; {name=l;type=int64;sort_order=ascending}; {name=a;type=int64}]",
             "[k;l]",
             "l in ((2),(4))",
             "true",
             std::vector<const char*>{"2;2", "2;2;" _MAX_, "4;4", "4;4;" _MAX_}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;sort_order=ascending;expression=\"l+1\"}; {name=l;type=int64;sort_order=ascending}; {name=a;type=int64}]",
             "[k;l]",
             "l in ((2),(4))",
             "true",
             std::vector<const char*>{"3;2", "3;2;" _MAX_, "5;4", "5;4;" _MAX_}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;sort_order=ascending;expression=l}; {name=l;type=int64;sort_order=ascending}; {name=a;type=int64}]",
             "[k;l]",
             "l in ((0),(2),(4))",
             "true",
             std::vector<const char*>{"0;0", "0;0;" _MAX_, "2;2", "2;2;" _MAX_, "4;4", "4;4;" _MAX_}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
             "[k;l]",
             "k in ((0),(2),(4))",
             "true",
             std::vector<const char*>{"0;0", "0;0;" _MAX_, "2;2", "2;2;" _MAX_, "4;4", "4;4;" _MAX_}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
             "[k;l]",
             "k in ((0),(2),(4),(6))",
             "true",
             std::vector<const char*>{"0;0", "0;0;" _MAX_, "2;2", "2;2;" _MAX_, "4;4", "4;4;" _MAX_, "6;6", "6;6;" _MAX_}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
             "[k;l]",
             "k in (1,2,3,4,5) or k > 10",
             "k in (1,2,3,4,5) or k > 10",
             std::vector<const char*>{"1;1", "1;1;" _MAX_, "2;2", "2;2;" _MAX_, "3;3", "3;3;" _MAX_, "4;4", "4;4;" _MAX_, "5;5", "5;5;" _MAX_, "10;" _MAX_, _MAX_}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
             "[k;l]",
             "k in (1,2,3,4,5) or k > 10",
             "true",
             std::vector<const char*>{"1;1", "1;1;" _MAX_, "2;2", "2;2;" _MAX_, "3;3", "3;3;" _MAX_, "4;4", "4;4;" _MAX_, "5;5", "5;5;" _MAX_}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
             "[k;l]",
             "k in (1,2,3,4,5) or k in (11,12,14,15)",
             "k in (4,5) or k in (11,12)",
             std::vector<const char*>{"4;4", "4;4;" _MAX_, "5;5", "5;5;" _MAX_, "11;11", "11;11;" _MAX_, "12;12", "12;12;" _MAX_}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;sort_order=ascending}; {name=l;type=int64;sort_order=ascending;expression=k}; {name=a;type=int64}]",
             "[k;l]",
             "k in ((0),(2)) or k in ((4),(6))",
             "k in ((0),(2)) or k in ((4),(6))",
             std::vector<const char*>{"0;0", "0;0;" _MAX_, "2;2", "2;2;" _MAX_, "4;4", "4;4;" _MAX_, "6;6", "6;6;" _MAX_}),
-        std::make_tuple(
+        std::tuple(
             "[{name=k;type=int64;sort_order=ascending;}; {name=l;type=int64;sort_order=ascending}; {name=a;type=int64}]",
             "[k;l]",
             "l in (20, 123, 15)",
@@ -2483,54 +2483,54 @@ INSTANTIATE_TEST_SUITE_P(
     EvaluateLikeExpressionTest,
     TEvaluateLikeExpressionTest,
     ::testing::Values(
-        std::make_tuple("'abc' like ''", false),
-        std::make_tuple("'abc' like '' escape ''", false),
-        std::make_tuple("'' like '' escape ''", true),
-        std::make_tuple("'' like '%'", true),
-        std::make_tuple("'ab.cd.efgh' like '__.__.____'", true),
-        std::make_tuple("'ab.cd-efgh' like '__.__.____'", false),
-        std::make_tuple("'a' || 'b' || 'c' like '_'", false),
-        std::make_tuple("'abc' like '_' || '_' || 'c'", true),
-        std::make_tuple("'$[](){}' like '$[](){}'", true),
-        std::make_tuple("'ABC' like '(?i)abc'", false),
-        std::make_tuple("'(?i)ABC' like '(?i)abc'", false),
-        std::make_tuple("'(?i)ABC' like '(?i)ABC'", true),
-        std::make_tuple("'(?i)ABC' ilike '(?i)abc'", true),
-        std::make_tuple("'abc' like '%'", true),
-        std::make_tuple("'abc' like '_%_'", true),
-        std::make_tuple("'abcdef' like 'abcdef'", true),
-        std::make_tuple("'abcdef' like 'a_c_%f'", true),
-        std::make_tuple("'abcdef' like '%abc%def%'", true),
-        std::make_tuple("'abcdef' not like '%abc%def%'", false),
-        std::make_tuple("'abcdef' like '%abc%def%'", true),
-        std::make_tuple("'abc\n\tdef' like '%abc%def%'", true),
-        std::make_tuple("'abc\n\tdef' like '%Abc%def%'", false),
-        std::make_tuple("'abc\n\tdef' ilike '%Abc%def%'", true),
-        std::make_tuple("'abc\n\tdef' not ilike '%Abc%def%'", false),
-        std::make_tuple("'Abc\n\tdef' ilike '%BC%DEF%'", true),
-        std::make_tuple("'Abc\n\tdef' not ilike '%BC%DEF%'", false),
-        std::make_tuple("'q' not like 'x_' escape 'x'", true),
-        std::make_tuple("'_' like '._' escape '.'", true),
-        std::make_tuple("'a' like '._' escape '.'", false),
-        std::make_tuple("'_' like '[_' escape '['", true),
-        std::make_tuple("'a' like '[_' escape '['", false),
-        std::make_tuple(R"('_' like '\\_' escape '\\')", true),
-        std::make_tuple(R"('a' like '\\_' escape '\\')", false),
-        std::make_tuple(R"('\\q' like '\\_' escape '')", true),
-        std::make_tuple(R"('\\qwe' like '\\%' escape '')", true),
-        std::make_tuple(R"('\\abc\\' like '\\abc\\' escape 'x')", true),
-        std::make_tuple(R"('_' like '\\_')", true),
-        std::make_tuple(R"('_' like 'x_' escape 'x')", true),
-        std::make_tuple(R"('\\_\\%_%' like '\\_\\%_%' escape '')", true),
-        std::make_tuple(R"('\\' like '\\\\')", true),
-        std::make_tuple(R"('\\\\' like '\\\\')", false),
-        std::make_tuple(R"('\\' like 'x\\' escape 'x')", true),
-        std::make_tuple(R"('\\abc\\' like '\\\\%\\\\')", true),
-        std::make_tuple(R"('Abc def' rlike '\\w+')", false),
-        std::make_tuple(R"('Abc def' rlike '\\w+ \\w+')", true),
-        std::make_tuple(R"('Abc def' rlike '\\w+\\s+\\w+')", true),
-        std::make_tuple(R"('Abc def' regexp '\\w+\\s+\\w+')", true),
-        std::make_tuple(R"('Abc def' not regexp '\\w+\\s+\\w+')", false)));
+        std::tuple("'abc' like ''", false),
+        std::tuple("'abc' like '' escape ''", false),
+        std::tuple("'' like '' escape ''", true),
+        std::tuple("'' like '%'", true),
+        std::tuple("'ab.cd.efgh' like '__.__.____'", true),
+        std::tuple("'ab.cd-efgh' like '__.__.____'", false),
+        std::tuple("'a' || 'b' || 'c' like '_'", false),
+        std::tuple("'abc' like '_' || '_' || 'c'", true),
+        std::tuple("'$[](){}' like '$[](){}'", true),
+        std::tuple("'ABC' like '(?i)abc'", false),
+        std::tuple("'(?i)ABC' like '(?i)abc'", false),
+        std::tuple("'(?i)ABC' like '(?i)ABC'", true),
+        std::tuple("'(?i)ABC' ilike '(?i)abc'", true),
+        std::tuple("'abc' like '%'", true),
+        std::tuple("'abc' like '_%_'", true),
+        std::tuple("'abcdef' like 'abcdef'", true),
+        std::tuple("'abcdef' like 'a_c_%f'", true),
+        std::tuple("'abcdef' like '%abc%def%'", true),
+        std::tuple("'abcdef' not like '%abc%def%'", false),
+        std::tuple("'abcdef' like '%abc%def%'", true),
+        std::tuple("'abc\n\tdef' like '%abc%def%'", true),
+        std::tuple("'abc\n\tdef' like '%Abc%def%'", false),
+        std::tuple("'abc\n\tdef' ilike '%Abc%def%'", true),
+        std::tuple("'abc\n\tdef' not ilike '%Abc%def%'", false),
+        std::tuple("'Abc\n\tdef' ilike '%BC%DEF%'", true),
+        std::tuple("'Abc\n\tdef' not ilike '%BC%DEF%'", false),
+        std::tuple("'q' not like 'x_' escape 'x'", true),
+        std::tuple("'_' like '._' escape '.'", true),
+        std::tuple("'a' like '._' escape '.'", false),
+        std::tuple("'_' like '[_' escape '['", true),
+        std::tuple("'a' like '[_' escape '['", false),
+        std::tuple(R"('_' like '\\_' escape '\\')", true),
+        std::tuple(R"('a' like '\\_' escape '\\')", false),
+        std::tuple(R"('\\q' like '\\_' escape '')", true),
+        std::tuple(R"('\\qwe' like '\\%' escape '')", true),
+        std::tuple(R"('\\abc\\' like '\\abc\\' escape 'x')", true),
+        std::tuple(R"('_' like '\\_')", true),
+        std::tuple(R"('_' like 'x_' escape 'x')", true),
+        std::tuple(R"('\\_\\%_%' like '\\_\\%_%' escape '')", true),
+        std::tuple(R"('\\' like '\\\\')", true),
+        std::tuple(R"('\\\\' like '\\\\')", false),
+        std::tuple(R"('\\' like 'x\\' escape 'x')", true),
+        std::tuple(R"('\\abc\\' like '\\\\%\\\\')", true),
+        std::tuple(R"('Abc def' rlike '\\w+')", false),
+        std::tuple(R"('Abc def' rlike '\\w+ \\w+')", true),
+        std::tuple(R"('Abc def' rlike '\\w+\\s+\\w+')", true),
+        std::tuple(R"('Abc def' regexp '\\w+\\s+\\w+')", true),
+        std::tuple(R"('Abc def' not regexp '\\w+\\s+\\w+')", false)));
 
 INSTANTIATE_TEST_SUITE_P(
     EvaluateTimestampExpressionTest,

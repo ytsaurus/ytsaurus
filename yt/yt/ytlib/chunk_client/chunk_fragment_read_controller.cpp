@@ -71,7 +71,7 @@ public:
         ReplicasWithRevision_ = replicasWithRevision;
 
         SortBy(ReplicasWithRevision_.Replicas, [] (const TChunkReplicaInfo& replicaInfo) {
-            return std::make_tuple(replicaInfo.Penalty, replicaInfo.PeerInfo->NodeId);
+            return std::tuple(replicaInfo.Penalty, replicaInfo.PeerInfo->NodeId);
         });
 
         for (int index = 0; index < std::min(std::ssize(ReplicasWithRevision_.Replicas), MaxPlans); ++index) {
@@ -479,7 +479,7 @@ private:
         }
 
         SortBy(endpoints, [&] (const TEndpoint& endpoint) {
-            return std::make_tuple(endpoint.BlockIndex, endpoint.BlockOffset, !endpoint.Open);
+            return std::tuple(endpoint.BlockIndex, endpoint.BlockOffset, !endpoint.Open);
         });
 
         int balance = 0;
