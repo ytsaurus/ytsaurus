@@ -23,8 +23,6 @@ from random import shuffle
 import datetime
 import os
 
-from flaky import flaky
-
 ##################################################################
 
 
