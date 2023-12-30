@@ -1,9 +1,7 @@
 namespace: NYT::NSequoiaClient::NRecords
 
 types:
-  - table_name: child_node
-    table_group: resolve_tables
-    type_name: TChildNode
+  - type_name: TChildNode
     fields:
       - cpp_name: ParentPath
         cpp_type: TMangledSequoiaPath

@@ -29,8 +29,11 @@ from yt.environment.helpers import (  # noqa
     RPC_PROXIES_SERVICE,
     HTTP_PROXIES_SERVICE,
 )
-
-from yt.python.yt.sequoia_tools import DESCRIPTORS
+from yt_sequoia_helpers import (
+    PATH_TO_NODE_ID_TABLE,
+    NODE_ID_TO_PATH_TABLE,
+    CHILD_NODE_TABLE,
+)
 
 from yt.test_helpers import wait, WaitFailed, get_work_path, get_build_root, get_tests_sandbox
 import yt.test_helpers.cleanup as test_cleanup
@@ -736,23 +739,22 @@ class YTEnvSetup(object):
         yt_commands.sync_create_cells(1, tablet_cell_bundle="sequoia", driver=ground_driver)
         yt_commands.set("//sys/accounts/sequoia/@resource_limits/tablet_count", 10000, driver=ground_driver)
 
-        for descriptor in DESCRIPTORS.as_dict().values():
-            table_path = descriptor.get_default_path()
+        for table in yt_sequoia_helpers.SEQUOIA_TABLES:
             yt_commands.create(
                 "table",
-                table_path,
+                table.get_path(),
                 attributes={
                     "dynamic": True,
-                    "schema": descriptor.schema,
+                    "enable_shared_write_locks": True,
+                    "schema": table.schema,
                     "tablet_cell_bundle": "sequoia",
                     "account": "sequoia",
-                    "enable_shared_write_locks": True,
                 },
                 driver=ground_driver)
-            yt_commands.mount_table(table_path, driver=ground_driver)
+            yt_commands.mount_table(table.get_path(), driver=ground_driver)
 
-        for descriptor in DESCRIPTORS.as_dict().values():
-            yt_commands.wait_for_tablet_state(descriptor.get_default_path(), "mounted", driver=ground_driver)
+        for table in yt_sequoia_helpers.SEQUOIA_TABLES:
+            yt_commands.wait_for_tablet_state(table.get_path(), "mounted", driver=ground_driver)
 
     @classmethod
     def apply_dynamic_config_patches(cls, config, ytserver_version, cluster_index):
@@ -1174,9 +1176,9 @@ class YTEnvSetup(object):
             yt_commands.gc_collect(driver=driver)
 
             if self._is_ground_cluster(cluster_index):
-                wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.path_to_node_id.get_default_path()}]", driver=driver) == [])
-                wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.node_id_to_path.get_default_path()}]", driver=driver) == [])
-                wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.child_node.get_default_path()}]", driver=driver) == [])
+                wait(lambda: yt_commands.select_rows(f"* from [{PATH_TO_NODE_ID_TABLE.get_path()}]", driver=driver) == [])
+                wait(lambda: yt_commands.select_rows(f"* from [{NODE_ID_TO_PATH_TABLE.get_path()}]", driver=driver) == [])
+                wait(lambda: yt_commands.select_rows(f"* from [{CHILD_NODE_TABLE.get_path()}]", driver=driver) == [])
 
         # Ground cluster can't have rootstocks or portals.
         # Do not remove tmp if ENABLE_TMP_ROOTSTOCK, since it will be removed with scions.

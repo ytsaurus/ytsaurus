@@ -1,9 +1,12 @@
 namespace: NYT::NSequoiaClient::NRecords
 
+h_verbatim: |
+  #include <yt/yt/client/node_tracker_client/public.h>
+
+  #include <yt/yt/client/object_client/public.h>
+
 types:
-  - table_name: location_replicas
-    table_group: chunk_tables
-    type_name: TLocationReplicas
+  - type_name: TLocationReplicas
     fields:
       - cpp_name: CellTag
         cpp_type: NObjectClient::TCellTag

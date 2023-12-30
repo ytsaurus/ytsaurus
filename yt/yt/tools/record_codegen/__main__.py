@@ -1,5 +1,6 @@
-from dataclasses import fields
+from dataclasses import dataclass, fields
 from dacite import from_dict
+from typing import Optional, List
 
 import jinja2
 import argparse
@@ -7,7 +8,36 @@ import yaml
 import os
 import pathlib
 
-from .helpers import Manifest
+
+@dataclass
+class Field:
+    cpp_name: str
+    cpp_type: str
+    column_name: str
+    column_type: str
+    sort_order: Optional[str]
+    lock: Optional[str]
+    aggregate: Optional[bool]
+
+
+@dataclass
+class RecordType:
+    type_name: str
+    fields: List[Field]
+    verbatim: Optional[str]
+    record_verbatim: Optional[str]
+    key_verbatim: Optional[str]
+    descriptor_verbatim: Optional[str]
+
+
+@dataclass
+class Manifest:
+    namespace: str
+    includes: Optional[List[str]]
+    types: List[RecordType]
+    h_verbatim: Optional[str]
+    cpp_verbatim: Optional[str]
+    h_path: Optional[str]
 
 
 def get_template(name):
