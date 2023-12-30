@@ -177,7 +177,8 @@ bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TPIValue* va
 void ScanOpHelper(
     TExecutionContext* context,
     void** consumeRowsClosure,
-    TUnversionedRowsConsumer consumeRowsFunction)
+    TUnversionedRowsConsumer consumeRowsFunction,
+    TRowSchemaInformation* rowSchemaInformation)
 {
     auto* compartment = GetCurrentCompartment();
     auto consumeRows = PrepareFunction(compartment, consumeRowsFunction);
@@ -244,9 +245,16 @@ void ScanOpHelper(
         }
 
         statistics->RowsRead += rows.size();
+        statistics->DataWeightRead += rowSchemaInformation->RowWeightWithNoStrings * rows.size();
+
         for (auto row : rows) {
-            statistics->DataWeightRead += GetDataWeight(row);
             values.push_back(row.Begin());
+
+            for (int index : rowSchemaInformation->StringLikeIndices) {
+                statistics->DataWeightRead += row[index].Type == EValueType::Null
+                    ? 0
+                    : row[index].Length;
+            }
         }
 
         interrupt |= consumeRows(consumeRowsClosure, rowBuffer.Get(), values.data(), values.size());

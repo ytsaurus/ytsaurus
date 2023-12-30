@@ -50,7 +50,7 @@ Value* CodegenForEachRow(
     Value* rows,
     Value* size,
     const TCodegenConsumer& codegenConsumer,
-    const std::vector<int>& convertibleColumnIndices = {})
+    const std::vector<int>& stringLikeColumnIndices = {})
 {
     auto* loopBB = builder->CreateBBHere("loop");
     auto* condBB = builder->CreateBBHere("cond");
@@ -80,12 +80,12 @@ Value* CodegenForEachRow(
     Value* row = builder->CreateLoad(rowType, rowPointer, "row");
 
     // convert row to PI
-    for (auto convertibleColumnIndex : convertibleColumnIndices) {
-        // value = row[convertibleColumnIndex]
+    for (auto stringLikeColumnIndex : stringLikeColumnIndices) {
+        // value = row[stringLikeColumnIndex]
         Value* valueToConvert = builder->CreateConstInBoundsGEP1_32(
             TValueTypeBuilder::Get(builder->getContext()),
             row,
-            convertibleColumnIndex,
+            stringLikeColumnIndex,
             "unversionedValueToConvert");
 
         // convert value.Data to PI
@@ -2325,12 +2325,12 @@ TLlvmClosure MakeConsumerWithPIConversion(
     TCGOperatorContext& builder,
     llvm::Twine name,
     size_t consumerSlot,
-    const std::vector<int>& convertibleColumnIndices)
+    const std::vector<int>& stringLikeColumnIndices)
 {
 
     return MakeClosure<bool(TExpressionContext*, TValue**, i64)>(builder, name, [
             consumerSlot,
-            convertibleColumnIndices = std::move(convertibleColumnIndices)
+            stringLikeColumnIndices = std::move(stringLikeColumnIndices)
         ] (
             TCGOperatorContext& builder,
             Value* buffer,
@@ -2343,7 +2343,7 @@ TLlvmClosure MakeConsumerWithPIConversion(
                 rows,
                 size,
                 builder[consumerSlot],
-                convertibleColumnIndices);
+                stringLikeColumnIndices);
 
             Value* casted = innerBuilder->CreateIntCast(
                 more,
@@ -2357,14 +2357,16 @@ TLlvmClosure MakeConsumerWithPIConversion(
 size_t MakeCodegenScanOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
-    const std::vector<int>& convertibleColumnIndices)
+    const std::vector<int>& stringLikeColumnIndices,
+    int rowSchemaInformationIndex)
 {
     size_t consumerSlot = (*slotCount)++;
 
     *codegenSource = [
         consumerSlot,
         codegenSource = std::move(*codegenSource),
-        convertibleColumnIndices
+        stringLikeColumnIndices,
+        rowSchemaInformationIndex
     ] (TCGOperatorContext& builder) {
         codegenSource(builder);
 
@@ -2372,14 +2374,15 @@ size_t MakeCodegenScanOp(
             builder,
             "ScanOpInner",
             consumerSlot,
-            convertibleColumnIndices);
+            stringLikeColumnIndices);
 
         builder->CreateCall(
             builder.Module->GetRoutine("ScanOpHelper"),
             {
                 builder.GetExecutionContext(),
                 consume.ClosurePtr,
-                consume.Function
+                consume.Function,
+                builder.GetOpaqueValue(rowSchemaInformationIndex),
             });
     };
 

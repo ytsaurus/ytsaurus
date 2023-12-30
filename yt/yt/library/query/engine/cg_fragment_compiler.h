@@ -164,7 +164,8 @@ size_t MakeCodegenOnceOp(
 size_t MakeCodegenScanOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
-    const std::vector<int>& convertibleColumnIndices);
+    const std::vector<int>& stringLikeColumnIndices,
+    int rowSchemaInformationIndex);
 
 size_t MakeCodegenFilterOp(
     TCodegenSource* codegenSource,

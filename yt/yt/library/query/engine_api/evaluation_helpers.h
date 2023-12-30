@@ -283,6 +283,12 @@ private:
     void AccountGarbage(const TPIValue* row);
 };
 
+struct TRowSchemaInformation
+{
+    i64 RowWeightWithNoStrings;
+    std::vector<int> StringLikeIndices;
+};
+
 class TCGVariables
 {
 public:

@@ -1494,18 +1494,33 @@ void TQueryProfiler::Profile(
     MakeCodegenWriteOp(codegenSource, resultSlot, resultRowSize);
 }
 
-std::vector<int> GetPIConvertibleColumnIndices(const TTableSchemaPtr& schema)
+std::vector<int> GetStringLikeColumnIndices(const TTableSchemaPtr& schema)
 {
-    std::vector<int> convertibleColumnIndices;
-    auto columns = schema->Columns();
+    std::vector<int> stringLikeColumnIndices;
+    const auto& columns = schema->Columns();
 
     for (int index = 0; index < std::ssize(columns); ++index) {
         if (IsStringLikeType(columns[index].GetWireType())) {
-            convertibleColumnIndices.push_back(index);
+            stringLikeColumnIndices.push_back(index);
         }
     }
 
-    return convertibleColumnIndices;
+    return stringLikeColumnIndices;
+}
+
+i64 InferRowWeightWithNoStrings(const TTableSchemaPtr& schema)
+{
+    i64 result = 1;
+
+    const auto& columns = schema->Columns();
+    for (int index = 0; index < std::ssize(columns); ++index) {
+        auto wireType = columns[index].GetWireType();
+        if (!IsStringLikeType(wireType)) {
+            result += GetDataWeight(wireType);
+        }
+    }
+
+    return result;
 }
 
 void TQueryProfiler::Profile(
@@ -1519,10 +1534,15 @@ void TQueryProfiler::Profile(
     auto schema = query->GetRenamedSchema();
     TSchemaProfiler::Profile(schema);
 
+    auto stringLikeColumnIndices = GetStringLikeColumnIndices(query->GetReadSchema());
+    int rowSchemaInformationIndex = Variables_->AddOpaque<TRowSchemaInformation>(
+        TRowSchemaInformation{InferRowWeightWithNoStrings(query->GetReadSchema()), stringLikeColumnIndices});
+
     size_t currentSlot = MakeCodegenScanOp(
         codegenSource,
         slotCount,
-        GetPIConvertibleColumnIndices(query->GetReadSchema()));
+        stringLikeColumnIndices,
+        rowSchemaInformationIndex);
 
     auto whereClause = query->WhereClause;
 
@@ -1719,10 +1739,15 @@ void TQueryProfiler::Profile(
     auto schema = query->GetRenamedSchema();
     TSchemaProfiler::Profile(schema);
 
+    auto stringLikeIndices = GetStringLikeColumnIndices(query->GetReadSchema());
+    int rowSchemaInformationIndex = Variables_->AddOpaque<TRowSchemaInformation>(
+        TRowSchemaInformation{InferRowWeightWithNoStrings(query->GetReadSchema()), stringLikeIndices});
+
     size_t currentSlot = MakeCodegenScanOp(
         codegenSource,
         slotCount,
-        GetPIConvertibleColumnIndices(query->GetReadSchema()));
+        stringLikeIndices,
+        rowSchemaInformationIndex);
 
     // Front query always perform merge.
     Profile(codegenSource, query, slotCount, currentSlot, schema, /*mergeMode*/ true);

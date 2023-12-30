@@ -7611,6 +7611,31 @@ TEST_F(TQueryEvaluateTest, UnaryNullOperations)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TQueryEvaluateTest, DataWeightRead)
+{
+    auto split = MakeSplit({{"a", EValueType::Int64},  {"b", EValueType::Boolean},  {"c", EValueType::String}});
+
+    std::vector<TString> source = {"a=4;b=%true;c=abc", "a=10;b=%false;c=defg"};
+
+    auto result = YsonToRows(source, split);
+
+    auto queryStatistics = EvaluateWithQueryStatistics("* from [//t]", split, source, ResultMatcher(result)).second;
+
+    i64 rowWeight = 1;
+    i64 int64Weight = sizeof(i64);
+    i64 booleanWeight = 1;
+    i64 firstStringWeight = 3;
+    i64 secondStringWeight = 4;
+
+    i64 firstRowWeight = rowWeight + int64Weight + booleanWeight + firstStringWeight;
+    i64 secondRowWeight = rowWeight + int64Weight + booleanWeight + secondStringWeight;
+    i64 expectedWeight = firstRowWeight + secondRowWeight;
+
+    EXPECT_EQ(queryStatistics.DataWeightRead, expectedWeight);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryEvaluatePlaceholdersTest
     : public TQueryEvaluateTest
     , public ::testing::WithParamInterface<std::tuple<
