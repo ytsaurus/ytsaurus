@@ -40,6 +40,9 @@ class TestSchedulerMapReduceCommands(YTEnvSetup):
                 "min_uncompressed_block_size": 1
             },
             "map_reduce_operation_options": {
+                "data_balancer": {
+                    "tolerance": 1.0,
+                },
                 "min_uncompressed_block_size": 1,
                 "job_splitter": {
                     "min_job_time": 3000,
@@ -1178,7 +1181,6 @@ print "x={0}\ty={1}".format(x, y)
 
     @authors("max42")
     @flaky(max_runs=3)
-    @pytest.mark.skip(reason="YT-20716")
     def test_data_balancing(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
