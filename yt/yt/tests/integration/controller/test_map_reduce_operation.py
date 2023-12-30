@@ -1223,7 +1223,6 @@ print "x={0}\ty={1}".format(x, y)
         assert len(read_table("//tmp/t_out_map")) == 10
 
     @authors("max42")
-    @flaky(max_runs=3)
     def test_data_balancing(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
