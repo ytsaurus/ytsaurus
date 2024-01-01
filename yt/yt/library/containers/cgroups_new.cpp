@@ -231,9 +231,6 @@ void TSelfCGroupsStatisticsFetcher::DetectSelfCGroup()
     // but in /sys/fs/cgroup it is just root cgroup.
     // We will try our best to detect such a situation below.
 
-    IsV2_ = true;
-    CGroup_ = "/";
-
     auto rawSelfCGroups = TFileInput("/proc/self/cgroup").ReadAll();
     for (auto line : SplitString(rawSelfCGroups, "\n")) {
         // NB: CGroup name may contain ":".
@@ -248,21 +245,30 @@ void TSelfCGroupsStatisticsFetcher::DetectSelfCGroup()
         if (cgroupType == "memory") {
             if (NFS::Exists(Format("/sys/fs/cgroup/memory/%v/memory.stat", cgroup))) {
                 CGroup_ = cgroup;
+                IsV2_ = false;
+                return;
             } else if (NFS::Exists("/sys/fs/cgroup/memory/memory.stat")) {
                 CGroup_ = "/";
+                IsV2_ = false;
+                return;
             }
-            IsV2_ = false;
-            return;
         } else if (cgroupType == "") {
             if (NFS::Exists(Format("/sys/fs/cgroup/%v/memory.stat", cgroup))) {
                 CGroup_ = cgroup;
+                IsV2_ = true;
+                return;
             } else if (NFS::Exists("/sys/fs/cgroup/memory.stat")) {
                 CGroup_ = "/";
+                IsV2_ = true;
+                return;
             }
-            IsV2_ = true;
-            return;
         }
     }
+
+    YT_LOG_WARNING("Failed to detect cgroup, assuming root cgroup v1 is used");
+
+    IsV2_ = false;
+    CGroup_ = "/";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
