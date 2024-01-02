@@ -536,9 +536,11 @@ class TestRetries(object):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"a": "b"}])
 
-        @authors("ignat")
         def test_func():
-            client = yt.YtClient(config=deepcopy(yt.config.config))
+            config = deepcopy(yt.config.config)
+            config["apply_remote_patch_at_start"] = None
+
+            client = yt.YtClient(config=config)
             for row in client.read_table(table):
                 pass
             return id(client)
