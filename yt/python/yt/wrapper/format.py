@@ -856,6 +856,31 @@ class ArrowFormat(Format):
         raise YtFormatError("_dump_row is not supported in Arrow")
 
 
+class ProtobufFormat(Format):
+    """Protobuf format.
+    .. seealso:: `C++ protobuf format in the docs <https://ytsaurus.tech/docs/en/api/cpp/protobuf>`_
+
+    This format is not supported in python API yet and it is only needed for compatibility with the C++ API
+    (to allow to create operation spec with this format).
+    """
+
+    def __init__(self, attributes=None, raw=None, encoding=_ENCODING_SENTINEL):
+        all_attributes = Format._make_attributes(get_value(attributes, {}), {}, {})
+        super(ProtobufFormat, self).__init__("protobuf", all_attributes, raw, encoding)
+
+    def load_row(self, stream, raw=None):
+        """Not supported."""
+        raise YtFormatError("load_row is not supported in ProtobufFormat")
+
+    def load_rows(self, stream, raw=None):
+        """Not supported."""
+        raise YtFormatError("load_rows is not supported in ProtobufFormat")
+
+    def _dump_row(self, row, stream):
+        """Not supported."""
+        raise YtFormatError("_dump_row is not supported in ProtobufFormat")
+
+
 class YamrFormat(Format):
     """YAMR legacy data format. Deprecated!
 
@@ -1509,7 +1534,8 @@ def create_format(yson_name, attributes=None, **kwargs):
         "yson": YsonFormat,
         "json": JsonFormat,
         "skiff": SkiffFormat,
-        "arrow": ArrowFormat
+        "arrow": ArrowFormat,
+        "protobuf": ProtobufFormat,
     }
 
     if name not in NAME_TO_FORMAT:
