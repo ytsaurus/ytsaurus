@@ -10,8 +10,6 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/yt/library/coredumper/coredumper.h>
-
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
 
 #include <yt/yt/server/lib/cypress_registrar/config.h>

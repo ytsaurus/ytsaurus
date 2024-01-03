@@ -101,7 +101,6 @@ public:
 
     IYPathServicePtr FindItemService(TStringBuf key) const override
     {
-
         auto guard = ReaderGuard(Owner_->ObjectLock_);
 
         auto objectRef = TCrossClusterReference::FromString(key);
@@ -561,7 +560,8 @@ void TQueueAgent::Pass()
 
 void TQueueAgent::Profile()
 {
-    struct TTaggedCounters {
+    struct TTaggedCounters
+    {
         int QueueCount;
         int ConsumerCount;
         int PartitionCount;

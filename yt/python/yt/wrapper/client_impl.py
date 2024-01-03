@@ -222,7 +222,7 @@ class YtClient(ClientState):
 
     def advance_consumer(
             self,
-            consumer_path, queue_path, partition_index, old_offset, new_offset):
+            consumer_path, queue_path, partition_index, old_offset, new_offset, client_side=True):
         """
         Advances consumer offset for the given queue.
         If the old offset is specified, the command fails if it is not equal to the current stored offset.
@@ -240,7 +240,7 @@ class YtClient(ClientState):
 
         """
         return client_api.advance_consumer(
-            consumer_path, queue_path, partition_index, old_offset, new_offset,
+            consumer_path, queue_path, partition_index, old_offset, new_offset, client_side,
             client=self)
 
     def alter_replication_card(

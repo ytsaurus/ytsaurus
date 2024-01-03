@@ -23,7 +23,7 @@ class TQueueExporter
 public:
     TQueueExporter() = default;
 
-    explicit TQueueExporter(
+    TQueueExporter(
         NHiveClient::TClientDirectoryPtr clientDirectory,
         IInvokerPtr invoker,
         const NLogging::TLogger& logger);

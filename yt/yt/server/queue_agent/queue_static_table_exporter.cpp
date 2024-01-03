@@ -371,7 +371,6 @@ private:
                 currentExportProgress->LastExportedFragmentUnixTs);
         }
 
-
         return currentExportProgress ? currentExportProgress : New<TExportProgress>();
     }
 
@@ -384,14 +383,14 @@ private:
             tabletToChunkSpecs[chunkSpec.tablet_index()].push_back(&chunkSpec);
         }
 
-        for (const auto& [tabletIndex, tabletSpecs] : tabletToChunkSpecs) {
-            auto lastExportedSpecIt = std::find_if(tabletSpecs.begin(), tabletSpecs.end(), [&, tabletIndex = tabletIndex] (auto tabletSpec) {
+        for (const auto& [tabletIndex, chunkSpecs] : tabletToChunkSpecs) {
+            auto lastExportedSpecIt = std::find_if(chunkSpecs.begin(), chunkSpecs.end(), [&, tabletIndex = tabletIndex] (auto* chunkSpec) {
                 auto tabletProgressIt = currentExportProgress->Tablets.find(tabletIndex);
-                return tabletProgressIt != currentExportProgress->Tablets.end() && tabletProgressIt->second->LastChunk == FromProto<TChunkId>(tabletSpec->chunk_id());
+                return tabletProgressIt != currentExportProgress->Tablets.end() && tabletProgressIt->second->LastChunk == FromProto<TChunkId>(chunkSpec->chunk_id());
             });
 
-            auto specToExportIt = (lastExportedSpecIt == tabletSpecs.end() ? tabletSpecs.begin() : (lastExportedSpecIt + 1));
-            for (; specToExportIt != tabletSpecs.end(); ++specToExportIt) {
+            auto specToExportIt = (lastExportedSpecIt == chunkSpecs.end() ? chunkSpecs.begin() : (lastExportedSpecIt + 1));
+            for (; specToExportIt != chunkSpecs.end(); ++specToExportIt) {
                 auto* chunkSpec = *specToExportIt;
                 // TODO(achulkov2): Get rid of this allocation?
                 TInputChunkPtr chunk = New<TInputChunk>(*chunkSpec);
@@ -633,7 +632,8 @@ private:
             ChunkSpecsToExport_.size());
 
         TChunkServiceProxy proxy(Client_->GetMasterChannelOrThrow(
-            EMasterChannelKind::Leader, DestinationObject_.ExternalCellTag));
+            EMasterChannelKind::Leader,
+            DestinationObject_.ExternalCellTag));
 
         auto batchReq = proxy.ExecuteBatch();
         GenerateMutationId(batchReq);

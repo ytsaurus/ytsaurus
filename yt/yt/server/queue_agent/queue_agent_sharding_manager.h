@@ -19,7 +19,7 @@ struct IQueueAgentShardingManager
 {
     virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
 
-    virtual void Start() = 0;
+    virtual void Start() const = 0;
 
     virtual void OnDynamicConfigChanged(
         const TQueueAgentShardingManagerDynamicConfigPtr& oldConfig,

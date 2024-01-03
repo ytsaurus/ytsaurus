@@ -26,6 +26,12 @@ protected:
     static void TearDownTestCase();
 
     static NApi::IClientPtr CreateClient(const TString& userName);
+
+    static void WaitUntilEqual(const NYPath::TYPath& path, const TString& expected);
+
+    static void WaitUntil(
+        std::function<bool()> predicate,
+        const TString& errorMessage);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,12 +57,6 @@ protected:
     static void SyncUnfreezeTable(const NYPath::TYPath& path);
 
     static void SyncUnmountTable(const NYPath::TYPath& path);
-
-    static void WaitUntilEqual(const NYPath::TYPath& path, const TString& expected);
-
-    static void WaitUntil(
-        std::function<bool()> predicate,
-        const TString& errorMessage);
 
     static std::tuple<TSharedRange<NTableClient::TUnversionedRow>, NTableClient::TNameTablePtr> PrepareUnversionedRow(
         const std::vector<TString>& names,

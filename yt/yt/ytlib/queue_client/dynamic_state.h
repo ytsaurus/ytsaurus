@@ -4,11 +4,13 @@
 
 #include <yt/yt/ytlib/hive/public.h>
 
+#include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/client/chaos_client/public.h>
 
 #include <yt/yt/client/table_client/public.h>
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/client/hydra/public.h>
 
@@ -17,11 +19,7 @@
 #include <yt/yt/client/queue_client/common.h>
 #include <yt/yt/client/queue_client/config.h>
 
-#include <yt/yt/client/table_client/schema.h>
-
 #include <yt/yt/client/ypath/public.h>
-
-#include <yt/yt/client/api/client.h>
 
 namespace NYT::NQueueClient {
 
@@ -43,8 +41,8 @@ public:
     TFuture<NApi::TTransactionCommitResult> Delete(std::vector<TRow> keys) const;
 
 private:
-    NYPath::TYPath Path_;
-    NApi::IClientPtr Client_;
+    const NYPath::TYPath Path_;
+    const NApi::IClientPtr Client_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

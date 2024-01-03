@@ -8,7 +8,6 @@ using namespace NDynamicConfig;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 TDynamicConfigManager::TDynamicConfigManager(
     const TQueueAgentServerConfigPtr& queueAgentConfig,
     NApi::IClientPtr client,

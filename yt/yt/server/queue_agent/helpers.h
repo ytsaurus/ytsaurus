@@ -59,7 +59,7 @@ public:
     TNativeClientContext GetNativeSyncClient(const TObjectSnapshotPtr& snapshot, bool onlyDataReplicas = false);
 
     //! Proxy-method for internal client directory.
-    NApi::NNative::IClientPtr GetClientOrThrow(const TString& cluster);
+    NApi::NNative::IClientPtr GetClientOrThrow(const TString& cluster) const;
 
     //! Returns a federated client wrapped over the provided replica-clusters.
     //! NB: Each path must contain a cluster.
@@ -69,10 +69,11 @@ public:
 
 private:
     const NHiveClient::TClientDirectoryPtr ClientDirectory_;
-    THashMap<TString, NApi::IClientPtr> FederatedClients_;
-    NClient::NFederated::TFederationConfigPtr FederationConfig_;
+    const NClient::NFederated::TFederationConfigPtr FederationConfig_;
 
-    NApi::NNative::IConnectionPtr GetNativeConnection(const TString& cluster);
+    THashMap<TString, NApi::IClientPtr> FederatedClients_;
+
+    NApi::NNative::IConnectionPtr GetNativeConnection(const TString& cluster) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueAgentClientDirectory)
@@ -95,6 +96,8 @@ NApi::NNative::IClientPtr AssertNativeClient(const NApi::IClientPtr& client);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Collect cumulative row indices from rows with given (tablet_index, row_index) pairs and
+//! return them as a tablet_index: (row_index: cumulative_data_weight) map.
 THashMap<int, THashMap<i64, i64>> CollectCumulativeDataWeights(
     const NYPath::TYPath& path,
     const NApi::IClientPtr& client,

@@ -425,6 +425,8 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 IQueueProfileManagerPtr CreateQueueProfileManager(const TProfiler& profiler, const TLogger& logger)
 {
     return New<TQueueProfileManager>(profiler, logger);

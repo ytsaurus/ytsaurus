@@ -549,8 +549,8 @@ TEST_W(TPartitionReaderTest, Simple)
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
-        auto consumerClient = CreateBigRTConsumerClient(consumer->GetPath(), *consumer->GetSchema());
-        auto partitions = WaitFor(consumerClient->CollectPartitions(Client_, 1))
+        auto consumerClient = CreateBigRTConsumerClient(Client_, consumer->GetPath(), *consumer->GetSchema());
+        auto partitions = WaitFor(consumerClient->CollectPartitions(1))
             .ValueOrThrow();
 
         ASSERT_EQ(partitions.size(), 1u);
@@ -606,8 +606,8 @@ TEST_W(TPartitionReaderTest, HintBiggerThanMaxDataWeight)
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
-        auto consumerClient = CreateBigRTConsumerClient(consumer->GetPath(), *consumer->GetSchema());
-        auto partitions = WaitFor(consumerClient->CollectPartitions(Client_, 1))
+        auto consumerClient = CreateBigRTConsumerClient(Client_, consumer->GetPath(), *consumer->GetSchema());
+        auto partitions = WaitFor(consumerClient->CollectPartitions(1))
             .ValueOrThrow();
 
         ASSERT_EQ(partitions.size(), 1u);
@@ -636,7 +636,7 @@ TEST_W(TPartitionReaderTest, HintBiggerThanMaxDataWeight)
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
-        partitions = WaitFor(consumerClient->CollectPartitions(Client_, 1))
+        partitions = WaitFor(consumerClient->CollectPartitions(1))
             .ValueOrThrow();
 
         ASSERT_EQ(partitions.size(), 1u);
@@ -746,8 +746,8 @@ TEST_W(TPartitionReaderTest, MultiplePartitions)
         WaitFor(transaction1->Commit())
             .ThrowOnError();
 
-        auto consumerClient = CreateBigRTConsumerClient(consumer->GetPath(), *consumer->GetSchema());
-        auto partitions = WaitFor(consumerClient->CollectPartitions(Client_, 3))
+        auto consumerClient = CreateBigRTConsumerClient(Client_, consumer->GetPath(), *consumer->GetSchema());
+        auto partitions = WaitFor(consumerClient->CollectPartitions(3))
             .ValueOrThrow();
 
         ASSERT_EQ(partitions.size(), 3u);
@@ -882,8 +882,8 @@ TEST_W(TPartitionReaderTest, ReaderCatchingUp)
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
-        auto consumerClient = CreateBigRTConsumerClient(consumer->GetPath(), *consumer->GetSchema());
-        auto partitions = WaitFor(consumerClient->CollectPartitions(Client_, 1))
+        auto consumerClient = CreateBigRTConsumerClient(Client_, consumer->GetPath(), *consumer->GetSchema());
+        auto partitions = WaitFor(consumerClient->CollectPartitions(1))
             .ValueOrThrow();
 
         ASSERT_EQ(partitions.size(), 1u);
@@ -916,8 +916,8 @@ TEST_W(TPartitionReaderTest, EmptyQueue)
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
-        auto consumerClient = CreateBigRTConsumerClient(consumer->GetPath(), *consumer->GetSchema());
-        auto partitions = WaitFor(consumerClient->CollectPartitions(Client_, 1))
+        auto consumerClient = CreateBigRTConsumerClient(Client_, consumer->GetPath(), *consumer->GetSchema());
+        auto partitions = WaitFor(consumerClient->CollectPartitions(1))
             .ValueOrThrow();
 
         ASSERT_EQ(partitions.size(), 1u);
@@ -951,7 +951,7 @@ TEST_W(TPartitionReaderTest, EmptyQueue)
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
-        partitions = WaitFor(consumerClient->CollectPartitions(Client_, 1))
+        partitions = WaitFor(consumerClient->CollectPartitions(1))
             .ValueOrThrow();
 
         ASSERT_EQ(partitions.size(), 1u);

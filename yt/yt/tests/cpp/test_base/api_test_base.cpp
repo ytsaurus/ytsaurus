@@ -26,6 +26,7 @@ using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYson;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,6 +85,38 @@ IClientPtr TApiTestBase::CreateClient(const TString& userName)
 {
     auto clientOptions = TClientOptions::FromUser(userName);
     return Connection_->CreateClient(clientOptions);
+}
+
+void TApiTestBase::WaitUntil(
+    std::function<bool()> predicate,
+    const TString& errorMessage)
+{
+    auto start = Now();
+    bool reached = false;
+    for (int attempt = 0; attempt < 2*30; ++attempt) {
+        if (predicate()) {
+            reached = true;
+            break;
+        }
+        Sleep(TDuration::MilliSeconds(500));
+    }
+
+    if (!reached) {
+        THROW_ERROR_EXCEPTION("%v after %v seconds",
+            errorMessage,
+            (Now() - start).Seconds());
+    }
+}
+
+void TApiTestBase::WaitUntilEqual(const TYPath& path, const TString& expected)
+{
+    WaitUntil(
+        [&] {
+            auto value = WaitFor(Client_->GetNode(path))
+                .ValueOrThrow();
+            return ConvertTo<IStringNodePtr>(value)->GetValue() == expected;
+        },
+        Format("%Qv is not %Qv", path, expected));
 }
 
 NApi::IConnectionPtr TApiTestBase::Connection_;
@@ -172,38 +205,6 @@ void TDynamicTablesTestBase::SyncUnmountTable(const TYPath& path)
     WaitFor(Client_->UnmountTable(path))
         .ThrowOnError();
     WaitUntilEqual(path + "/@tablet_state", "unmounted");
-}
-
-void TDynamicTablesTestBase::WaitUntilEqual(const TYPath& path, const TString& expected)
-{
-    WaitUntil(
-        [&] {
-            auto value = WaitFor(Client_->GetNode(path))
-                .ValueOrThrow();
-            return ConvertTo<IStringNodePtr>(value)->GetValue() == expected;
-        },
-        Format("%Qv is not %Qv", path, expected));
-}
-
-void TDynamicTablesTestBase::WaitUntil(
-    std::function<bool()> predicate,
-    const TString& errorMessage)
-{
-    auto start = Now();
-    bool reached = false;
-    for (int attempt = 0; attempt < 2*30; ++attempt) {
-        if (predicate()) {
-            reached = true;
-            break;
-        }
-        Sleep(TDuration::MilliSeconds(500));
-    }
-
-    if (!reached) {
-        THROW_ERROR_EXCEPTION("%v after %v seconds",
-            errorMessage,
-            (Now() - start).Seconds());
-    }
 }
 
 std::tuple<TSharedRange<TUnversionedRow>, TNameTablePtr> TDynamicTablesTestBase::PrepareUnversionedRow(
