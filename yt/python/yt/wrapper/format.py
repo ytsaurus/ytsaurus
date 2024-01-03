@@ -860,8 +860,7 @@ class ProtobufFormat(Format):
     """Protobuf format.
     .. seealso:: `C++ protobuf format in the docs <https://ytsaurus.tech/docs/en/api/cpp/protobuf>`_
 
-    This format is not supported in python API yet and it is only needed for compatibility with the C++ API
-    (to allow to create operation spec with this format).
+    This format is not supported in python API yet and it is only needed for compatibility with the C++ API.
     """
 
     def __init__(self, attributes=None, raw=None, encoding=_ENCODING_SENTINEL):
