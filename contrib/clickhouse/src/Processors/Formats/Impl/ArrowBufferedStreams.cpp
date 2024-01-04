@@ -7,7 +7,6 @@
 #include <IO/ReadBufferFromFileDescriptor.h>
 #include <IO/WriteBufferFromString.h>
 #include <IO/copyData.h>
-#include <IO/PeekableReadBuffer.h>
 #error #include <arrow/buffer.h>
 #error #include <arrow/util/future.h>
 #error #include <arrow/io/memory.h>
