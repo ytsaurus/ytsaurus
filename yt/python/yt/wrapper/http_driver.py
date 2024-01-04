@@ -175,7 +175,8 @@ def make_request(command_name,
     if mutation_id is None:
         generate_mutation_id = get_option("_generate_mutation_id", client)
         if generate_mutation_id is None:
-            generate_mutation_id = lambda command_descriptor: generate_uuid(get_option("_random_generator", client))  # noqa
+            random_generator = get_option("_random_generator", client)
+            generate_mutation_id = lambda command_descriptor: generate_uuid(random_generator)  # noqa
     else:
         generate_mutation_id = lambda command_descriptor: mutation_id  # noqa
 
