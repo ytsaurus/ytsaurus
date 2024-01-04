@@ -119,6 +119,7 @@ private:
 
     TCoordinatorPtr Coordinator_;
     THostsHandlerPtr HostsHandler_;
+    TClusterConnectionHandlerPtr ClusterConnectionHandler_;
     TPingHandlerPtr PingHandler_;
     TDiscoverVersionsHandlerPtr DiscoverVersionsHandlerV2_;
 

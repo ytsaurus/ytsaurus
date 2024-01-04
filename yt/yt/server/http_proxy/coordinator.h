@@ -147,6 +147,24 @@ DEFINE_REFCOUNTED_TYPE(THostsHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TClusterConnectionHandler
+    : public NHttp::IHttpHandler
+{
+public:
+    explicit TClusterConnectionHandler(NApi::IClientPtr client);
+
+    void HandleRequest(
+        const NHttp::IRequestPtr& req,
+        const NHttp::IResponseWriterPtr& rsp) override;
+
+private:
+    const NApi::IClientPtr Client_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TClusterConnectionHandler)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPingHandler
     : public NHttp::IHttpHandler
 {
