@@ -921,6 +921,9 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
                     // This is context switch, chunk may die.
                     auto replicas = chunkManager->GetChunkReplicas(ephemeralChunk)
                         .ValueOrThrow();
+                    if (replicas.empty()) {
+                        return std::nullopt;
+                    }
 
                     // We should choose a single medium for the chunk if there are replicas
                     // with different media. We choose the most frequent medium if more than
