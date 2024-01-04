@@ -522,6 +522,36 @@ void THostsHandler::HandleRequest(
     }
 }
 
+
+////////////////////////////////////////////////////////////////////////////////
+
+TClusterConnectionHandler::TClusterConnectionHandler(NApi::IClientPtr client)
+    : Client_(std::move(client))
+{ }
+
+void TClusterConnectionHandler::HandleRequest(
+    const NHttp::IRequestPtr& req,
+    const NHttp::IResponseWriterPtr& rsp)
+{
+    const auto& path = req->GetUrl().Path;
+    if (path != "/cluster_connection" && path != "/cluster_connection/") {
+        rsp->SetStatus(EStatusCode::NotFound);
+        WaitFor(rsp->Close())
+            .ThrowOnError();
+        return;
+    }
+
+    TGetNodeOptions options;
+    options.ReadFrom = EMasterChannelKind::Cache;
+    auto nodeYson = WaitFor(Client_->GetNode("//sys/@cluster_connection", options))
+        .ValueOrThrow();
+
+    rsp->SetStatus(EStatusCode::OK);
+    ReplyJson(rsp, [&] (IYsonConsumer* consumer) {
+        consumer->OnRaw(nodeYson);
+    });
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TPingHandler::TPingHandler(TCoordinatorPtr coordinator)

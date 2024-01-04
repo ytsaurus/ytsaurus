@@ -150,6 +150,22 @@ class TestHttpProxy(HttpProxyTestBase):
         assert len(hosts) == 1
         assert not hosts[0]["banned"]
 
+    @authors("aleksandr.gaev")
+    def test_cluster_connection(self):
+        def get_cluster_connection(path):
+            return requests.get(self._get_proxy_address() + path)
+
+        url = "{}/api/v3/get?path=//sys/@cluster_connection".format(self._get_proxy_address())
+        api_result = requests.get(url)
+        driver_result = get("//sys/@cluster_connection", is_raw=True, output_format="json")
+
+        assert json.loads(api_result.content) == json.loads(driver_result)
+
+        assert get_cluster_connection("/cluster_connection").content == api_result.content
+        assert get_cluster_connection("/cluster_connection/").content == api_result.content
+        assert get_cluster_connection("/cluster_connection/abcd").status_code == 404
+        assert get_cluster_connection("/cluster_connection?abcd=efhg").content == api_result.content
+
     @authors("prime")
     def test_supported_api_versions(self):
         assert ["v3", "v4"] == requests.get(self._get_proxy_address() + "/api").json()

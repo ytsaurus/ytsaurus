@@ -175,6 +175,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         /*authenticator*/ nullptr));
 
     HostsHandler_ = New<THostsHandler>(Coordinator_);
+    ClusterConnectionHandler_ = New<TClusterConnectionHandler>(RootClient_);
     PingHandler_ = New<TPingHandler>(Coordinator_);
     DiscoverVersionsHandlerV2_ = New<TDiscoverVersionsHandlerV2>(Connection_, RootClient_, Config_->Coordinator);
 
@@ -431,6 +432,7 @@ void TBootstrap::RegisterRoutes(const NHttp::IServerPtr& server)
     server->AddHandler("/auth/whoami", AllowCors(HttpAuthenticator_));
     server->AddHandler("/api/", AllowCors(Api_));
     server->AddHandler("/hosts/", AllowCors(HostsHandler_));
+    server->AddHandler("/cluster_connection/", AllowCors(ClusterConnectionHandler_));
     server->AddHandler("/ping/", AllowCors(PingHandler_));
     if (CypressCookieLoginHandler_) {
         server->AddHandler("/login/", CypressCookieLoginHandler_);
