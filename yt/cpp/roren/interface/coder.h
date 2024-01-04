@@ -5,6 +5,7 @@
 #include <util/stream/mem.h>
 #include <util/ysaveload.h>
 
+#include <memory>
 #include <optional>
 
 namespace google::protobuf {
