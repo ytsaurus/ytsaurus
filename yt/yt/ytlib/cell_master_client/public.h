@@ -8,7 +8,7 @@ namespace NYT::NCellMasterClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TCellDirectory)
+DECLARE_REFCOUNTED_STRUCT(ICellDirectory)
 DECLARE_REFCOUNTED_STRUCT(ICellDirectorySynchronizer)
 
 DECLARE_REFCOUNTED_CLASS(TCellDirectoryConfig)

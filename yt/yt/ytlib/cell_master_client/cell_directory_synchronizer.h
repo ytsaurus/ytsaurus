@@ -33,7 +33,7 @@ DEFINE_REFCOUNTED_TYPE(ICellDirectorySynchronizer)
 
 ICellDirectorySynchronizerPtr CreateCellDirectorySynchronizer(
     TCellDirectorySynchronizerConfigPtr config,
-    TCellDirectoryPtr directory);
+    ICellDirectoryPtr directory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

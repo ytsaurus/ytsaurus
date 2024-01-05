@@ -4,7 +4,6 @@
 #include "sync_replica_cache.h"
 #include "tablet_sync_replica_cache.h"
 #include "transaction_participant.h"
-#include "transaction.h"
 #include "private.h"
 #include "helpers.h"
 
@@ -201,7 +200,7 @@ public:
             Options_.ConnectionInvoker = ConnectionThreadPool_->GetInvoker();
         }
 
-        MasterCellDirectory_ = New<NCellMasterClient::TCellDirectory>(
+        MasterCellDirectory_ = NCellMasterClient::CreateCellDirectory(
             StaticConfig_,
             Options_,
             ChannelFactory_,
@@ -607,7 +606,7 @@ public:
         return ColumnEvaluatorCache_.Value();
     }
 
-    const NCellMasterClient::TCellDirectoryPtr& GetMasterCellDirectory() override
+    const NCellMasterClient::ICellDirectoryPtr& GetMasterCellDirectory() override
     {
         return MasterCellDirectory_;
     }
@@ -836,7 +835,7 @@ private:
     const TLazyIntrusivePtr<IColumnEvaluatorCache> ColumnEvaluatorCache_;
 
     // NB: There're also CellDirectory_ and CellDirectorySynchronizer_, which are completely different from these.
-    NCellMasterClient::TCellDirectoryPtr MasterCellDirectory_;
+    NCellMasterClient::ICellDirectoryPtr MasterCellDirectory_;
     NCellMasterClient::ICellDirectorySynchronizerPtr MasterCellDirectorySynchronizer_;
 
     IChannelPtr CypressProxyChannel_;

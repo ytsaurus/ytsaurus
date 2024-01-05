@@ -62,7 +62,7 @@ public:
     TNodeAddressesProvider(
         TDuration syncPeriod,
         TDuration syncPeriodSplay,
-        TWeakPtr<TCellDirectory> cellDirectory,
+        TWeakPtr<ICellDirectory> cellDirectory,
         ENodeRole nodeRole,
         TCallback<IChannelPtr(const std::vector<TString>&)> channelBuilder)
         : CellDirectory_(std::move(cellDirectory))
@@ -133,7 +133,7 @@ public:
     }
 
 private:
-    const TWeakPtr<TCellDirectory> CellDirectory_;
+    const TWeakPtr<ICellDirectory> CellDirectory_;
     const ENodeRole NodeRole_;
     const TCallback<IChannelPtr(const std::vector<TString>&)> ChannelBuilder_;
     const TDuration SyncPeriod_;
@@ -265,10 +265,12 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 IChannelPtr CreateNodeAddressesChannel(
     TDuration syncPeriod,
     TDuration syncPeriodSplay,
-    TWeakPtr<TCellDirectory> cellDirectory,
+    TWeakPtr<ICellDirectory> cellDirectory,
     ENodeRole nodeRole,
     TCallback<IChannelPtr(const std::vector<TString>&)> channelBuilder)
 {

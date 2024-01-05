@@ -29,7 +29,7 @@ class TCellDirectorySynchronizer
 public:
     TCellDirectorySynchronizer(
         TCellDirectorySynchronizerConfigPtr config,
-        TCellDirectoryPtr directory)
+        ICellDirectoryPtr directory)
         : Config_(std::move(config))
         , Directory_(std::move(directory))
         , SyncExecutor_(New<TPeriodicExecutor>(
@@ -74,7 +74,7 @@ public:
 
 private:
     const TCellDirectorySynchronizerConfigPtr Config_;
-    const TCellDirectoryPtr Directory_;
+    const ICellDirectoryPtr Directory_;
 
     const TPeriodicExecutorPtr SyncExecutor_;
 
@@ -193,7 +193,7 @@ private:
 
 ICellDirectorySynchronizerPtr CreateCellDirectorySynchronizer(
     TCellDirectorySynchronizerConfigPtr config,
-    TCellDirectoryPtr directory)
+    ICellDirectoryPtr directory)
 {
     return New<TCellDirectorySynchronizer>(
         std::move(config),

@@ -45,13 +45,12 @@ using namespace NYTree;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TCellDirectory::TImpl
-    : public TRefCounted
+class TCellDirectory
+    : public ICellDirectory
 {
 public:
-    TImpl(
+    TCellDirectory(
         TCellDirectoryConfigPtr config,
-        const TWeakPtr<TCellDirectory>& owner,
         const NNative::TConnectionOptions& options,
         IChannelFactoryPtr channelFactory,
         NLogging::TLogger logger)
@@ -78,40 +77,40 @@ public:
 
         // NB: unlike channels, roles will be filled on first sync.
 
-        InitMasterChannels(Config_->PrimaryMaster, owner, options);
+        InitMasterChannels(Config_->PrimaryMaster, options);
         for (const auto& masterConfig : Config_->SecondaryMasters) {
-            InitMasterChannels(masterConfig, owner, options);
+            InitMasterChannels(masterConfig, options);
         }
         RpcServer_->Start();
     }
 
-    TCellId GetPrimaryMasterCellId() const
+    TCellId GetPrimaryMasterCellId() override
     {
         return PrimaryMasterCellId_;
     }
 
-    TCellTag GetPrimaryMasterCellTag() const
+    TCellTag GetPrimaryMasterCellTag() override
     {
         return PrimaryMasterCellTag_;
     }
 
-    const TCellTagList& GetSecondaryMasterCellTags() const
+    const TCellTagList& GetSecondaryMasterCellTags() override
     {
         return SecondaryMasterCellTags_;
     }
 
-    const TCellIdList& GetSecondaryMasterCellIds() const
+    const TCellIdList& GetSecondaryMasterCellIds() override
     {
         return SecondaryMasterCellIds_;
     }
 
-    IChannelPtr GetMasterChannelOrThrow(EMasterChannelKind kind, TCellTag cellTag)
+    IChannelPtr GetMasterChannelOrThrow(EMasterChannelKind kind, TCellTag cellTag) override
     {
         cellTag = cellTag == PrimaryMasterCellTagSentinel ? GetPrimaryMasterCellTag() : cellTag;
         return GetCellChannelOrThrow(cellTag, kind);
     }
 
-    IChannelPtr GetMasterChannelOrThrow(EMasterChannelKind kind, TCellId cellId)
+    IChannelPtr GetMasterChannelOrThrow(EMasterChannelKind kind, TCellId cellId) override
     {
         if (ReplaceCellTagInId(cellId, TCellTag(0)) != ReplaceCellTagInId(GetPrimaryMasterCellId(), TCellTag(0))) {
             THROW_ERROR_EXCEPTION("Unknown master cell id %v",
@@ -120,13 +119,13 @@ public:
         return GetMasterChannelOrThrow(kind, CellTagFromId(cellId));
     }
 
-    TCellTagList GetMasterCellTagsWithRole(EMasterCellRole role) const
+    TCellTagList GetMasterCellTagsWithRole(EMasterCellRole role) override
     {
         auto guard = ReaderGuard(SpinLock_);
         return RoleCells_[role];
     }
 
-    TCellId GetRandomMasterCellWithRoleOrThrow(EMasterCellRole role)
+    TCellId GetRandomMasterCellWithRoleOrThrow(EMasterCellRole role) override
     {
         auto candidateCellTags = GetMasterCellTagsWithRole(role);
         if (candidateCellTags.empty()) {
@@ -144,7 +143,7 @@ public:
         return ReplaceCellTagInId(GetPrimaryMasterCellId(), cellTag);
     }
 
-    void Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory)
+    void Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory) override
     {
         THashMap<TCellTag, EMasterCellRoles> cellRoles;
         cellRoles.reserve(protoDirectory.items_size());
@@ -246,7 +245,7 @@ public:
         }
     }
 
-    void UpdateDefault()
+    void UpdateDefault() override
     {
         {
             auto guard = WriterGuard(SpinLock_);
@@ -324,7 +323,6 @@ private:
 
     void InitMasterChannels(
         const TMasterConnectionConfigPtr& config,
-        const TWeakPtr<TCellDirectory>& owner,
         const NNative::TConnectionOptions& options)
     {
         auto cellTag = CellTagFromId(config->CellId);
@@ -338,9 +336,9 @@ private:
             auto channel = CreateNodeAddressesChannel(
                 Config_->MasterCache->MasterCacheDiscoveryPeriod,
                 Config_->MasterCache->MasterCacheDiscoveryPeriodSplay,
-                owner,
+                MakeWeak(this),
                 ENodeRole::MasterCache,
-                BIND(&TImpl::CreatePeerChannelFromAddresses, ChannelFactory_, masterCacheConfig, EPeerKind::Follower, options));
+                BIND(&TCellDirectory::CreatePeerChannelFromAddresses, ChannelFactory_, masterCacheConfig, EPeerKind::Follower, options));
             CellChannelMap_[cellTag][EMasterChannelKind::Cache] = channel;
         } else {
             InitMasterChannel(EMasterChannelKind::Cache, masterCacheConfig, EPeerKind::Follower, options);
@@ -419,70 +417,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellDirectory::TCellDirectory(
+ICellDirectoryPtr CreateCellDirectory(
     TCellDirectoryConfigPtr config,
-    const NApi::NNative::TConnectionOptions& options,
+    NApi::NNative::TConnectionOptions options,
     IChannelFactoryPtr channelFactory,
     NLogging::TLogger logger)
-    : Impl_(New<TCellDirectory::TImpl>(
+{
+    return New<TCellDirectory>(
         std::move(config),
-        MakeWeak(this),
-        options,
+        std::move(options),
         std::move(channelFactory),
-        std::move(logger)))
-{ }
-
-TCellDirectory::~TCellDirectory()
-{ }
-
-void TCellDirectory::Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory)
-{
-    return Impl_->Update(protoDirectory);
-}
-
-void TCellDirectory::UpdateDefault()
-{
-    return Impl_->UpdateDefault();
-}
-
-TCellId TCellDirectory::GetPrimaryMasterCellId() const
-{
-    return Impl_->GetPrimaryMasterCellId();
-}
-
-TCellTag TCellDirectory::GetPrimaryMasterCellTag() const
-{
-    return Impl_->GetPrimaryMasterCellTag();
-}
-
-const TCellTagList& TCellDirectory::GetSecondaryMasterCellTags() const
-{
-    return Impl_->GetSecondaryMasterCellTags();
-}
-
-const TCellIdList& TCellDirectory::GetSecondaryMasterCellIds() const
-{
-    return Impl_->GetSecondaryMasterCellIds();
-}
-
-IChannelPtr TCellDirectory::GetMasterChannelOrThrow(EMasterChannelKind kind, TCellTag cellTag)
-{
-    return Impl_->GetMasterChannelOrThrow(kind, cellTag);
-}
-
-IChannelPtr TCellDirectory::GetMasterChannelOrThrow(EMasterChannelKind kind, TCellId cellId)
-{
-    return Impl_->GetMasterChannelOrThrow(kind, cellId);
-}
-
-TCellTagList TCellDirectory::GetMasterCellTagsWithRole(EMasterCellRole role) const
-{
-    return Impl_->GetMasterCellTagsWithRole(role);
-}
-
-TCellId TCellDirectory::GetRandomMasterCellWithRoleOrThrow(EMasterCellRole role) const
-{
-    return Impl_->GetRandomMasterCellWithRoleOrThrow(role);
+        std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -63,7 +63,7 @@ struct IConnection
     virtual const NChunkClient::IBlockCachePtr& GetBlockCache() = 0;
     virtual const NChunkClient::IClientChunkMetaCachePtr& GetChunkMetaCache() = 0;
 
-    virtual const NCellMasterClient::TCellDirectoryPtr& GetMasterCellDirectory() = 0;
+    virtual const NCellMasterClient::ICellDirectoryPtr& GetMasterCellDirectory() = 0;
     virtual const NCellMasterClient::ICellDirectorySynchronizerPtr& GetMasterCellDirectorySynchronizer() = 0;
 
     virtual const NHiveClient::ICellDirectoryPtr& GetCellDirectory() = 0;

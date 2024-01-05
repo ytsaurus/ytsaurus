@@ -69,7 +69,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    const NCellMasterClient::TCellDirectoryPtr& GetMasterCellDirectory() override
+    const NCellMasterClient::ICellDirectoryPtr& GetMasterCellDirectory() override
     {
         YT_UNIMPLEMENTED();
     }

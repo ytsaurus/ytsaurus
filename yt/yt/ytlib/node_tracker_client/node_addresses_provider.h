@@ -17,7 +17,7 @@ namespace NYT::NNodeTrackerClient {
 NRpc::IChannelPtr CreateNodeAddressesChannel(
     TDuration syncPeriod,
     TDuration syncPeriodSplay,
-    TWeakPtr<NCellMasterClient::TCellDirectory> cellDirectory,
+    TWeakPtr<NCellMasterClient::ICellDirectory> cellDirectory,
     ENodeRole nodeRole,
     TCallback<NRpc::IChannelPtr(const std::vector<TString>&)> channelBuilder);
 

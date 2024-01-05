@@ -6,12 +6,11 @@
 
 #include <yt/yt/ytlib/api/public.h>
 
-#include <yt/yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/client/cell_master_client/public.h>
 
 #include <yt/yt/core/logging/log.h>
-#include <yt/yt/core/rpc/public.h>
 
-#include <yt/yt/client/cell_master_client/public.h>
+#include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NCellMasterClient {
 
@@ -26,43 +25,38 @@ NRpc::IChannelPtr CreateMasterCacheChannel(
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TCellDirectory
+struct ICellDirectory
     : public TRefCounted
 {
-public:
-    TCellDirectory(
-        TCellDirectoryConfigPtr config,
-        const NApi::NNative::TConnectionOptions& options,
-        NRpc::IChannelFactoryPtr channelFactory,
-        NLogging::TLogger logger);
+    virtual void Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory) = 0;
+    virtual void UpdateDefault() = 0;
 
-    ~TCellDirectory();
+    virtual NObjectClient::TCellId GetPrimaryMasterCellId() = 0;
+    virtual NObjectClient::TCellTag GetPrimaryMasterCellTag() = 0;
+    virtual const NObjectClient::TCellTagList& GetSecondaryMasterCellTags() = 0;
+    virtual const NObjectClient::TCellIdList& GetSecondaryMasterCellIds() = 0;
 
-    void Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory);
-    void UpdateDefault();
-
-    NObjectClient::TCellId GetPrimaryMasterCellId() const;
-    NObjectClient::TCellTag GetPrimaryMasterCellTag() const;
-    const NObjectClient::TCellTagList& GetSecondaryMasterCellTags() const;
-    const NObjectClient::TCellIdList& GetSecondaryMasterCellIds() const;
-
-    NRpc::IChannelPtr GetMasterChannelOrThrow(
+    virtual NRpc::IChannelPtr GetMasterChannelOrThrow(
         NApi::EMasterChannelKind kind,
-        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel);
-    NRpc::IChannelPtr GetMasterChannelOrThrow(
+        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) = 0;
+    virtual NRpc::IChannelPtr GetMasterChannelOrThrow(
         NApi::EMasterChannelKind kind,
-        NObjectClient::TCellId cellId);
+        NObjectClient::TCellId cellId) = 0;
 
-    NObjectClient::TCellTagList GetMasterCellTagsWithRole(EMasterCellRole role) const;
+    virtual NObjectClient::TCellTagList GetMasterCellTagsWithRole(EMasterCellRole role) = 0;
 
-    NObjectClient::TCellId GetRandomMasterCellWithRoleOrThrow(EMasterCellRole role) const;
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual NObjectClient::TCellId GetRandomMasterCellWithRoleOrThrow(EMasterCellRole role) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TCellDirectory)
+DEFINE_REFCOUNTED_TYPE(ICellDirectory)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ICellDirectoryPtr CreateCellDirectory(
+    TCellDirectoryConfigPtr config,
+    NApi::NNative::TConnectionOptions options,
+    NRpc::IChannelFactoryPtr channelFactory,
+    NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
