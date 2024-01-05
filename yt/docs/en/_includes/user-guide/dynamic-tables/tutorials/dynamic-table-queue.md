@@ -73,6 +73,6 @@ To implement a queue using dynamic tables, use ordered dynamic tables. Such tabl
 
 {% endlist %}
 
-For more information about cleaning up and splitting ordered dynamic tables into tablets, see [Ordered dynamic tables](../../../user-guide/dynamic-tables/ordered-dynamic-tables.md).
+For more information about cleaning up and splitting ordered dynamic tables into tablets, see [Ordered dynamic tables](../../../../user-guide/dynamic-tables/ordered-dynamic-tables.md).
 
 
