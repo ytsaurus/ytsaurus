@@ -178,13 +178,12 @@ private:
         int SnapshotId = -1;
         // Build a snapshot right after this mutation.
         i64 SequenceNumber = -1;
-        std::vector<bool> HasReply;
+        std::vector<bool> HasResponse;
+        int ResponseCount = 0;
         std::vector<std::optional<TChecksum>> Checksums;
         bool ReadOnly = false;
 
         TPromise<int> Promise = NewPromise<int>();
-
-        int ReplyCount = 0;
     };
     std::optional<TShapshotInfo> LastSnapshotInfo_;
 
@@ -220,7 +219,7 @@ private:
     void OnChangelogAcquired(const TErrorOr<IChangelogPtr>& changelogsOrError);
 
     void OnLocalSnapshotBuilt(int snapshotId, const TErrorOr<TRemoteSnapshotParams>& rspOrError);
-    void OnSnapshotReply(int peerId);
+    void OnSnapshotResponse(int peerId);
     void OnSnapshotsComplete();
 };
 

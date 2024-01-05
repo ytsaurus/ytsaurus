@@ -608,21 +608,16 @@ void TLeaderCommitter::FlushMutations()
     }
 }
 
-void TLeaderCommitter::OnSnapshotReply(int peerId)
+void TLeaderCommitter::OnSnapshotResponse(int peerId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (LastSnapshotInfo_->HasReply[peerId]) {
+    if (std::exchange(LastSnapshotInfo_->HasResponse[peerId], true)) {
         return;
     }
 
-    YT_LOG_INFO("Received a new snapshot reply (PeerId: %v, SnapshotId: %v)",
-        peerId,
-        LastSnapshotInfo_->SnapshotId);
-
-    LastSnapshotInfo_->HasReply[peerId] = true;
-    ++LastSnapshotInfo_->ReplyCount;
-    if (LastSnapshotInfo_->ReplyCount == std::ssize(LastSnapshotInfo_->HasReply)) {
+    ++LastSnapshotInfo_->ResponseCount;
+    if (LastSnapshotInfo_->ResponseCount == std::ssize(LastSnapshotInfo_->HasResponse)) {
         OnSnapshotsComplete();
     }
 }
@@ -654,7 +649,7 @@ void TLeaderCommitter::OnMutationsAcceptedByFollower(
 
         // TODO(aleksandra-zh): This might be an old reply.
         if (LastSnapshotInfo_ && LastSnapshotInfo_->SequenceNumber != -1) {
-            OnSnapshotReply(followerId);
+            OnSnapshotResponse(followerId);
         }
 
         if (peerState.Mode == EAcceptMutationsMode::Fast) {
@@ -668,33 +663,28 @@ void TLeaderCommitter::OnMutationsAcceptedByFollower(
 
     const auto& rsp = rspOrError.Value();
 
-    if (rsp->has_snapshot_response()) {
-        const auto& snapshotResult = rsp->snapshot_response();
-        auto snapshotId = snapshotResult.snapshot_id();
-        if (!snapshotResult.has_error()) {
-            auto checksum = snapshotResult.checksum();
-            if (LastSnapshotInfo_ && LastSnapshotInfo_->SnapshotId == snapshotId) {
-                auto& currentChecksum = LastSnapshotInfo_->Checksums[followerId];
-                if (currentChecksum) {
-                    YT_VERIFY(currentChecksum == checksum);
-                } else {
-                    currentChecksum = checksum;
-                    YT_LOG_INFO("Built snapshot at follower (SnapshotId: %v, FollowerId: %v, Checksum: %x)",
-                        snapshotId,
-                        followerId,
-                        checksum);
-                }
-            }
-        } else if (LastSnapshotInfo_ && LastSnapshotInfo_->SnapshotId == snapshotId && !LastSnapshotInfo_->HasReply[followerId]) {
-            auto snapshotError = FromProto<TError>(snapshotResult.error());
+    if (rsp->has_snapshot_response() &&
+        LastSnapshotInfo_ &&
+        LastSnapshotInfo_->SnapshotId == rsp->snapshot_response().snapshot_id() &&
+        !LastSnapshotInfo_->HasResponse[followerId])
+    {
+        const auto& snapshotResponse = rsp->snapshot_response();
+        auto snapshotId = snapshotResponse.snapshot_id();
+        if (snapshotResponse.has_error()) {
+            auto snapshotError = FromProto<TError>(snapshotResponse.error());
             YT_LOG_WARNING(snapshotError, "Error building snapshot at follower (SnapshotId: %v, FollowerId: %v)",
                 snapshotId,
                 followerId);
+        } else {
+            auto checksum = snapshotResponse.checksum();
+            LastSnapshotInfo_->Checksums[followerId] = checksum;
+            YT_LOG_INFO("Snapshot built at follower (SnapshotId: %v, FollowerId: %v, Checksum: %x)",
+                snapshotId,
+                followerId,
+                checksum);
         }
 
-        if (LastSnapshotInfo_ && LastSnapshotInfo_->SnapshotId == snapshotId) {
-            OnSnapshotReply(followerId);
-        }
+        OnSnapshotResponse(followerId);
     }
 
     auto loggedSequenceNumber = rsp->logged_sequence_number();
@@ -992,28 +982,29 @@ void TLeaderCommitter::OnLocalSnapshotBuilt(int snapshotId, const TErrorOr<TRemo
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (!LastSnapshotInfo_ || LastSnapshotInfo_->SnapshotId > snapshotId) {
-        YT_LOG_INFO("Stale local snapshot built, ignoring (SnapshotId: %v)", snapshotId);
+        YT_LOG_INFO("Stale snapshot built locally, ignoring (SnapshotId: %v)", snapshotId);
         return;
     }
-
-    YT_LOG_INFO("Local snapshot built (SnapshotId: %v)", snapshotId);
 
     auto selfId = CellManager_->GetSelfPeerId();
 
     YT_VERIFY(LastSnapshotInfo_->SnapshotId == snapshotId);
-    YT_VERIFY(!LastSnapshotInfo_->HasReply[selfId]);
+    YT_VERIFY(!LastSnapshotInfo_->HasResponse[selfId]);
 
     if (rspOrError.IsOK()) {
         const auto& snapshotParams = rspOrError.Value();
         YT_VERIFY(!LastSnapshotInfo_->Checksums[selfId]);
         YT_VERIFY(snapshotParams.SnapshotId == snapshotId);
         LastSnapshotInfo_->Checksums[selfId] = snapshotParams.Checksum;
+        YT_LOG_INFO("Snapshot built locally (SnapshotId: %v, Checksum: %x)",
+            snapshotId,
+            snapshotParams.Checksum);
     } else {
         YT_LOG_WARNING(rspOrError, "Error building snapshot locally (SnapshotId: %v)",
             snapshotId);
     }
 
-    OnSnapshotReply(selfId);
+    OnSnapshotResponse(selfId);
 }
 
 void TLeaderCommitter::OnChangelogAcquired(const TErrorOr<IChangelogPtr>& changelogsOrError)
@@ -1069,7 +1060,7 @@ void TLeaderCommitter::OnChangelogAcquired(const TErrorOr<IChangelogPtr>& change
 
     LastSnapshotInfo_->SequenceNumber = snapshotSequenceNumber;
     LastSnapshotInfo_->Checksums.resize(CellManager_->GetTotalPeerCount());
-    LastSnapshotInfo_->HasReply.resize(CellManager_->GetTotalPeerCount());
+    LastSnapshotInfo_->HasResponse.resize(CellManager_->GetTotalPeerCount());
 
     NextLoggedVersion_ = newNextLoggedVersion;
 
