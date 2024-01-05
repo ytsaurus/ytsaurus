@@ -180,6 +180,19 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
         result = query.read_result(0)
         assert_items_equal([{"column0": 2}], result)
 
+    @authors("aleksandr.gaev")
+    def test_sum(self, query_tracker, yql_agent):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 42}, {"a": 43}]
+        write_table("//tmp/t1", rows)
+
+        query = start_query("yql", "select sum(a) from `//tmp/t1`")
+        query.track()
+        result = query.read_result(0)
+        assert_items_equal([{"column0": 85}], result)
+
 
 class TestYqlAgent(TestQueriesYqlBase):
     NUM_TEST_PARTITIONS = 8
