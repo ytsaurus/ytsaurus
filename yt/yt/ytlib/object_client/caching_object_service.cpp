@@ -3,7 +3,6 @@
 #include "config.h"
 #include "object_service_cache.h"
 #include "object_service_proxy.h"
-#include "private.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -48,10 +47,11 @@ public:
     TCachingObjectService(
         TCachingObjectServiceConfigPtr config,
         IInvokerPtr invoker,
-        IThrottlingChannelPtr cypressChannel,
+        IChannelPtr upstreamChannel,
         TObjectServiceCachePtr cache,
         TRealmId masterCellId,
         NLogging::TLogger logger,
+        NProfiling::TProfiler profiler,
         IAuthenticatorPtr authenticator)
         : TServiceBase(
             std::move(invoker),
@@ -62,7 +62,10 @@ public:
         , Config_(config)
         , Cache_(std::move(cache))
         , CellId_(masterCellId)
-        , CypressChannel_(std::move(cypressChannel))
+        , ThrottlingUpstreamChannel_(CreateThrottlingChannel(
+            config,
+            std::move(upstreamChannel),
+            profiler.WithPrefix("/upstream_channel")))
         , Logger(logger.WithTag("RealmId: %v", masterCellId))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
@@ -76,48 +79,9 @@ public:
         Reconfigure(New<TCachingObjectServiceDynamicConfig>());
     }
 
-    TCachingObjectService(
-        TCachingObjectServiceConfigPtr config,
-        IInvokerPtr invoker,
-        const NApi::NNative::IConnectionPtr& connection,
-        TObjectServiceCachePtr cache,
-        TRealmId masterCellId,
-        NLogging::TLogger logger,
-        IAuthenticatorPtr authenticator)
-        : TCachingObjectService(
-            config,
-            std::move(invoker),
-            CreateCypressChannel(
-                connection,
-                CellTagFromId(masterCellId),
-                config),
-            std::move(cache),
-            masterCellId,
-            std::move(logger),
-            std::move(authenticator))
-        { }
-
-    TCachingObjectService(
-        TCachingObjectServiceConfigPtr config,
-        IInvokerPtr invoker,
-        IChannelPtr cacheChannel,
-        TObjectServiceCachePtr cache,
-        TRealmId masterCellId,
-        NLogging::TLogger logger,
-        IAuthenticatorPtr authenticator)
-        : TCachingObjectService(
-            config,
-            std::move(invoker),
-            CreateThrottlingChannel(config, std::move(cacheChannel)),
-            std::move(cache),
-            masterCellId,
-            std::move(logger),
-            std::move(authenticator))
-        { }
-
     void Reconfigure(const TCachingObjectServiceDynamicConfigPtr& config) override
     {
-        CypressChannel_->Reconfigure(config);
+        ThrottlingUpstreamChannel_->Reconfigure(config);
         CacheTtlRatio_.store(config->CacheTtlRatio);
     }
 
@@ -127,7 +91,7 @@ private:
     const TCachingObjectServiceConfigPtr Config_;
     const TObjectServiceCachePtr Cache_;
     const TCellId CellId_;
-    const IThrottlingChannelPtr CypressChannel_;
+    const IThrottlingChannelPtr ThrottlingUpstreamChannel_;
     const NLogging::TLogger Logger;
 
     const IRequestQueueProviderPtr ExecuteRequestQueueProvider_ = New<TPerUserRequestQueueProvider>();
@@ -135,18 +99,6 @@ private:
     std::atomic<double> CacheTtlRatio_;
 
     std::atomic<bool> CachingEnabled_ = false;
-
-    static IThrottlingChannelPtr CreateCypressChannel(
-        const NApi::NNative::IConnectionPtr& connection,
-        TCellTag cellTag,
-        const TCachingObjectServiceConfigPtr& config)
-    {
-        // TODO(gritukan): Support Cypress Proxies here.
-        auto channel = connection->GetMasterChannelOrThrow(
-            NApi::EMasterChannelKind::Follower,
-            cellTag);
-        return CreateThrottlingChannel(config, std::move(channel));
-    }
 };
 
 DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
@@ -251,7 +203,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
         }
 
         if (cookie.IsActive()) {
-            auto proxy = TObjectServiceProxy::FromDirectMasterChannel(CypressChannel_);
+            auto proxy = TObjectServiceProxy::FromDirectMasterChannel(ThrottlingUpstreamChannel_);
             auto req = proxy.Execute();
             SetCurrentAuthenticationIdentity(req);
 
@@ -363,29 +315,11 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
 ICachingObjectServicePtr CreateCachingObjectService(
     TCachingObjectServiceConfigPtr config,
     IInvokerPtr invoker,
-    const NApi::NNative::IConnectionPtr& connection,
-    TObjectServiceCachePtr cache,
-    TRealmId masterCellId,
-    NLogging::TLogger logger,
-    IAuthenticatorPtr authenticator)
-{
-    return New<TCachingObjectService>(
-        std::move(config),
-        std::move(invoker),
-        connection,
-        std::move(cache),
-        masterCellId,
-        std::move(logger),
-        std::move(authenticator));
-}
-
-ICachingObjectServicePtr CreateCachingObjectService(
-    TCachingObjectServiceConfigPtr config,
-    IInvokerPtr invoker,
     IChannelPtr cacheChannel,
     TObjectServiceCachePtr cache,
     TRealmId masterCellId,
     NLogging::TLogger logger,
+    NProfiling::TProfiler profiler,
     IAuthenticatorPtr authenticator)
 {
     return New<TCachingObjectService>(
@@ -395,7 +329,19 @@ ICachingObjectServicePtr CreateCachingObjectService(
         std::move(cache),
         masterCellId,
         std::move(logger),
+        std::move(profiler),
         std::move(authenticator));
+}
+
+NRpc::IChannelPtr CreateMasterChannelForCache(
+    NApi::NNative::IConnectionPtr connection,
+    NRpc::TRealmId masterCellId)
+{
+    auto cellTag = CellTagFromId(masterCellId);
+    // TODO(gritukan): Support Cypress Proxies here.
+    return connection->GetMasterChannelOrThrow(
+        NApi::EMasterChannelKind::Follower,
+        cellTag);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

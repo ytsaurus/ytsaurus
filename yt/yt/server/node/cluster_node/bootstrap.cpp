@@ -954,16 +954,17 @@ private:
             Config_->CachingObjectService,
             MemoryUsageTracker_->WithCategory(EMemoryCategory::MasterCache),
             Logger,
-            ClusterNodeProfiler.WithPrefix("/master_cache"));
+            ClusterNodeProfiler.WithPrefix("/object_service_cache"));
 
         auto initCachingObjectService = [&] (const auto& masterConfig) {
             return CreateCachingObjectService(
                 Config_->CachingObjectService,
                 MasterCacheQueue_->GetInvoker(),
-                GetConnection(),
+                CreateMasterChannelForCache(GetConnection(), masterConfig->CellId),
                 ObjectServiceCache_,
                 masterConfig->CellId,
                 Logger,
+                ClusterNodeProfiler.WithPrefix("/caching_object_service"),
                 NativeAuthenticator_);
         };
 

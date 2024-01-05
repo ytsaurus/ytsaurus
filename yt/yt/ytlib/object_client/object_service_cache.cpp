@@ -1,7 +1,6 @@
 #include "object_service_cache.h"
 
 #include "config.h"
-#include "object_service_proxy.h"
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 

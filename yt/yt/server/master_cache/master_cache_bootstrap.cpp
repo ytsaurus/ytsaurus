@@ -32,10 +32,6 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = MasterCacheLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TMasterCacheBootstrap
     : public TBootstrapBase
 {
@@ -49,17 +45,18 @@ public:
         ObjectServiceCache_ = New<TObjectServiceCache>(
             GetConfig()->CachingObjectService,
             GetNullMemoryUsageTracker(),
-            Logger,
+            MasterCacheLogger,
             MasterCacheProfiler.WithPrefix("/object_service_cache"));
 
         auto initCachingObjectService = [&] (const auto& masterConfig) {
             return CreateCachingObjectService(
                 GetConfig()->CachingObjectService,
                 MasterCacheQueue_->GetInvoker(),
-                GetConnection(),
+                CreateMasterChannelForCache(GetConnection(), masterConfig->CellId),
                 ObjectServiceCache_,
                 masterConfig->CellId,
-                Logger,
+                MasterCacheLogger,
+                MasterCacheProfiler.WithPrefix("/caching_object_service"),
                 GetNativeAuthenticator());
         };
 

@@ -10,7 +10,11 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static void ValidateEqual(const TSharedRefArray& lhs, const TSharedRefArray& rhs)
+const NLogging::TLogger Logger("Test");
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateEqual(const TSharedRefArray& lhs, const TSharedRefArray& rhs)
 {
     EXPECT_EQ(lhs.Size(), rhs.Size());
     for (int index = 0; index < std::ssize(rhs); ++index) {
@@ -23,7 +27,7 @@ TEST(TObjectServiceCacheTest, TestStaleResponse)
     auto cache = New<TObjectServiceCache>(
         New<TObjectServiceCacheConfig>(),
         GetNullMemoryUsageTracker(),
-        NLogging::TLogger("test"),
+        Logger,
         NProfiling::TProfiler());
 
     auto key = TObjectServiceCacheKey(
@@ -122,7 +126,7 @@ TEST(TObjectServiceCacheTest, TestStaleError)
     auto cache = New<TObjectServiceCache>(
         New<TObjectServiceCacheConfig>(),
         GetNullMemoryUsageTracker(),
-        NLogging::TLogger("test"),
+        Logger,
         NProfiling::TProfiler());
 
     auto key = TObjectServiceCacheKey(

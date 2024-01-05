@@ -1,6 +1,6 @@
 #include "cell_directory.h"
-#include "private.h"
 
+#include "private.h"
 #include "config.h"
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -41,7 +41,6 @@ using namespace NHydra;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NRpc;
-using namespace NProfiling;
 using namespace NYTree;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -65,7 +64,7 @@ public:
             Config_->CachingObjectService,
             GetNullMemoryUsageTracker(),
             Logger,
-            TProfiler("/local_cache")))
+            NProfiling::TProfiler()))
         , RpcServer_(CreateLocalServer())
         , RandomGenerator_(TInstant::Now().GetValue())
     {
@@ -354,6 +353,7 @@ private:
             Cache_,
             config->CellId,
             ObjectClientLogger,
+            /*profiler*/ {},
             /*authenticator*/ nullptr);
         CachingObjectServices_.push_back(cachingObjectService);
         RpcServer_->RegisterService(cachingObjectService);
