@@ -184,7 +184,6 @@ using namespace NTransactionClient;
 using namespace NVectorHdrf;
 using namespace NYPath;
 using namespace NYson;
-using namespace NYTAlloc;
 using namespace NYTProf;
 using namespace NYTree;
 
@@ -198,7 +197,6 @@ using NProfiling::CpuInstantToInstant;
 using NProfiling::TCpuInstant;
 using NControllerAgent::NProto::TJobResultExt;
 using NControllerAgent::NProto::TJobSpecExt;
-using NScheduler::TExecNodeDescriptor;
 using NTableClient::NProto::TBoundaryKeysExt;
 using NTableClient::NProto::THeavyColumnStatisticsExt;
 using NTabletNode::DefaultMaxOverlappingStoreCount;
