@@ -193,6 +193,7 @@ DEFINE_ENUM(EMasterReign,
     ((LimitForChunkCountInMergePipeline)                            (2453))  // cherepashka
     ((SequoiaChunkPurgatory)                                        (2454))  // aleksandra-zh
     ((AttributeBasedAccessControl)                                  (2455))  // shakurov
+    ((CreateHunkStorageWithProperAttributes_23_2)                   (2456))  // akozhikhov
     // 23.3 starts here.
     ((SecondaryIndex)                                               (2500))  // sabdenovch
     ((SecondaryIndexReplication)                                    (2501))  // sabdenovch
@@ -213,6 +214,7 @@ DEFINE_ENUM(EMasterReign,
     ((Uint32ForNodeId)                                              (2516))  // babenko
     ((HiveManagerLamportTimestamp)                                  (2517))  // danilalexeev
     ((FixAsyncTableStatisticsUpdate)                                (2518))  // danilalexeev
+    ((CreateHunkStorageWithProperAttributes)                        (2519))  // akozhikhov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

@@ -34,6 +34,9 @@ MASTER_CONFIG_PATCHES = [
             "default_journal_replication_factor": 1,
             "default_journal_read_quorum": 1,
             "default_journal_write_quorum": 1,
+            "default_hunk_storage_replication_factor": 1,
+            "default_hunk_storage_read_quorum": 1,
+            "default_hunk_storage_write_quorum": 1,
         }
     },
     {

@@ -344,7 +344,6 @@ private:
             "Error confirming chunk %v",
             ChunkId_);
 
-
         YT_LOG_DEBUG("Chunk confirmed");
     }
 

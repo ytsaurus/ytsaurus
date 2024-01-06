@@ -60,10 +60,14 @@ protected:
         auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
 
         const auto& config = Bootstrap_->GetConfig()->CypressManager;
-        auto erasureCodec = combinedAttributes->GetAndRemove<NErasure::ECodec>("erasure_codec", config->DefaultJournalErasureCodec);
-        auto replicationFactor = combinedAttributes->GetAndRemove<int>("replication_factor", config->DefaultJournalReplicationFactor);
-        auto readQuorum = combinedAttributes->GetAndRemove<int>("read_quorum", config->DefaultJournalReadQuorum);
-        auto writeQuorum = combinedAttributes->GetAndRemove<int>("write_quorum", config->DefaultJournalWriteQuorum);
+        auto erasureCodec = combinedAttributes->GetAndRemove<NErasure::ECodec>(
+            "erasure_codec",
+            config->DefaultHunkStorageErasureCodec);
+        auto replicationFactor = combinedAttributes->GetAndRemove<int>(
+            "replication_factor",
+            config->DefaultHunkStorageReplicationFactor);
+        auto readQuorum = combinedAttributes->GetAndRemove<int>("read_quorum", config->DefaultHunkStorageReadQuorum);
+        auto writeQuorum = combinedAttributes->GetAndRemove<int>("write_quorum", config->DefaultHunkStorageWriteQuorum);
 
         auto optionalTabletCellBundleName = combinedAttributes->FindAndRemove<TString>("tablet_cell_bundle");
         auto tabletCount = combinedAttributes->GetAndRemove<int>("tablet_count", 1);

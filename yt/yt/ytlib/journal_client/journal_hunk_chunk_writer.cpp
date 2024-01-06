@@ -57,7 +57,7 @@ public:
         std::vector<TFuture<void>> futures;
 
         bool addFuture = true;
-        for (const auto& payload : payloads) {
+        for (auto& payload : payloads) {
             auto guard = Guard(Lock_);
 
             auto hunkSize = sizeof(THunkPayloadHeader) + payload.size();
@@ -88,7 +88,7 @@ public:
         }
 
         return AllSucceeded(std::move(futures))
-            .Apply(BIND([descriptors = std::move(descriptors)] { return descriptors; }));
+            .Apply(BIND([descriptors = std::move(descriptors)] () mutable { return std::move(descriptors); }));
     }
 
     TJournalHunkChunkWriterStatistics GetStatistics() const override

@@ -78,7 +78,7 @@ struct THunkStoreLockingState
 
 void FormatValue(TStringBuilderBase* builder, const THunkStoreLockingState& ref, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("PersistentLockCount: %v, TransientLockCount: %v}",
+    builder->AppendFormat("{PersistentLockCount: %v, TransientLockCount: %v}",
         ref.PersistentLockCount,
         ref.TransientLockCount);
 }
@@ -293,6 +293,7 @@ public:
                 hunkChunksInfo.MountRevision,
                 /*lock*/ true);
 
+            // FIXME(akozhikhov): Should we emplace it before ToggleLock?
             auto promise = NewPromise<void>();
             EmplaceOrCrash(HunkStoreIdsBeingLockedToPromise_, hunkStoreId, promise);
             futures.push_back(promise.ToFuture().ToUncancelable());
@@ -448,7 +449,7 @@ private:
         state.LastChangeTime = TInstant::Now();
     }
 
-    TFuture<void> ToggleLock(
+    void ToggleLock(
         TCellId hunkCellId,
         TTabletId hunkTabletId,
         THunkStoreId hunkStoreId,
@@ -462,8 +463,14 @@ private:
             ETransactionType::Tablet,
             /*options*/ {});
 
-        return transactionFuture
-            .Apply(BIND([=, this] (const NNative::ITransactionPtr& transaction) {
+        transactionFuture
+            .Subscribe(BIND([=, this] (const TErrorOr<NNative::ITransactionPtr>& transactionOrError) {
+                if (!transactionOrError.IsOK()) {
+                    return;
+                }
+
+                const auto& transaction = transactionOrError.Value();
+
                 NTabletClient::NProto::TReqToggleHunkTabletStoreLock hunkRequest;
                 ToProto(hunkRequest.mutable_tablet_id(), hunkTabletId);
                 ToProto(hunkRequest.mutable_store_id(), hunkStoreId);
@@ -487,8 +494,7 @@ private:
                     .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late
                 };
 
-                return transaction->Commit(commitOptions)
-                    .AsVoid();
+                transaction->Commit(commitOptions);
             }));
     }
 
