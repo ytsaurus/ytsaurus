@@ -466,9 +466,11 @@ IHunkChunkPayloadWriterPtr CreateHunkChunkPayloadWriter(
 ////////////////////////////////////////////////////////////////////////////////
 
 void DecodeInlineHunkInUnversionedValue(TUnversionedValue* value);
+
 std::vector<TRef> ExtractHunks(
     TUnversionedRow row,
     TTableSchemaPtr schema);
+
 void ReplaceHunks(
     TMutableUnversionedRow row,
     const TTableSchemaPtr& schema,

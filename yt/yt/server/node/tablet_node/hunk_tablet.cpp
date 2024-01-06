@@ -81,28 +81,37 @@ TFuture<std::vector<TJournalHunkDescriptor>> THunkTablet::WriteHunks(std::vector
 
     auto automatonInvoker = GetCurrentInvoker();
 
-    auto doWriteHunks =
-        [=, this, writeLockGuard = std::move(writeLockGuard)] (std::vector<TSharedRef> payloads, THunkStorePtr store) mutable
+    auto doWriteHunks = [
+        =, this, writeLockGuard = std::move(writeLockGuard)
+    ] (std::vector<TSharedRef> payloads, const THunkStorePtr& store) mutable
     {
         auto tabletId = GetId();
         store->SetLastWriteTime(TInstant::Now());
 
         auto future = store->WriteHunks(std::move(payloads));
         future.Subscribe(
-            BIND([=, this, writeLockGuard = std::move(writeLockGuard)] (const TErrorOr<std::vector<TJournalHunkDescriptor>>& descriptorsOrError) mutable
-        {
-            store->SetLastWriteTime(TInstant::Now());
+            BIND([
+                =, this, writeLockGuard = std::move(writeLockGuard)
+            ] (const TErrorOr<std::vector<TJournalHunkDescriptor>>& descriptorsOrError) mutable
+            {
+                store->SetLastWriteTime(TInstant::Now());
 
-            if (!descriptorsOrError.IsOK() && ActiveStore_ == store) {
-                YT_LOG_DEBUG(descriptorsOrError, "Failed to write hunks, rotating active store "
-                    "(StoreId: %v)",
-                    store->GetId());
+                if (!descriptorsOrError.IsOK()) {
+                    if (ActiveStore_ == store) {
+                        YT_LOG_DEBUG(descriptorsOrError, "Failed to write hunks, rotating active store "
+                            "(StoreId: %v)",
+                            store->GetId());
 
-                RotateActiveStore();
+                        RotateActiveStore();
 
-                Host_->ScheduleScanTablet(tabletId);
-            }
-        }).Via(automatonInvoker));
+                        Host_->ScheduleScanTablet(tabletId);
+                    }
+                } else {
+                    YT_LOG_DEBUG("Hunks are written to hunk store (DescriptorCount: %v)",
+                        descriptorsOrError.Value().size());
+                }
+            })
+            .Via(automatonInvoker));
 
         return future;
     };
@@ -114,7 +123,7 @@ TFuture<std::vector<TJournalHunkDescriptor>> THunkTablet::WriteHunks(std::vector
 
     // Slow path.
     auto future = ActiveStorePromise_.ToFuture();
-    return future.Apply(BIND(std::move(doWriteHunks), payloads).AsyncVia(automatonInvoker));
+    return future.Apply(BIND(std::move(doWriteHunks), Passed(std::move(payloads))).AsyncVia(automatonInvoker));
 }
 
 void THunkTablet::Reconfigure(const THunkStorageSettings& settings)

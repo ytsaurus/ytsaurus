@@ -191,6 +191,7 @@ DEFINE_ENUM(EMasterReign,
     ((LimitForChunkCountInMergePipeline)                            (2453))  // cherepashka
     ((SequoiaChunkPurgatory)                                        (2454))  // aleksandra-zh
     ((AttributeBasedAccessControl)                                  (2455))  // shakurov
+    ((CreateHunkStorageWithProperAttributes_23_2)                   (2456))  // akozhikhov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

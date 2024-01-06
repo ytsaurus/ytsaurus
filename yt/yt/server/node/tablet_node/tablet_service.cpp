@@ -419,7 +419,7 @@ private:
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto mountRevision = request->mount_revision();
-        const auto& payloads = request->Attachments();
+        auto payloads = std::move(request->Attachments());
 
         context->SetRequestInfo("TabletId: %v, MountRevision: %v, HunkCount: %v",
             tabletId,
@@ -430,7 +430,7 @@ private:
         auto* tablet = tabletManager->GetTabletOrThrow(tabletId);
         tablet->ValidateMounted(mountRevision);
 
-        tablet->WriteHunks(payloads)
+        tablet->WriteHunks(std::move(payloads))
             .Apply(BIND([=] (const TErrorOr<std::vector<TJournalHunkDescriptor>>& descriptorsOrError) {
                 if (!descriptorsOrError.IsOK()) {
                     context->Reply(descriptorsOrError);
