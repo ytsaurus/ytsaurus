@@ -5,6 +5,8 @@
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
+#include <yt/yt/client/api/dynamic_table_transaction_mixin.h>
+#include <yt/yt/client/api/queue_transaction_mixin.h>
 
 #include <yt/yt/client/misc/method_helpers.h>
 
@@ -52,7 +54,9 @@ std::optional<TString> GetDataCenterByClient(const IClientPtr& client)
 }
 
 class TTransaction
-    : public ITransaction
+    : public virtual ITransaction
+    , public TDynamicTableTransactionMixin
+    , public TQueueTransactionMixin
 {
 public:
     TTransaction(TClientPtr client, int clientIndex, ITransactionPtr underlying);
@@ -77,6 +81,7 @@ public:
         TSharedRange<TRowModification> modifications,
         const TModifyRowsOptions& options) override;
 
+    using TQueueTransactionMixin::AdvanceConsumer;
     TFuture<void> AdvanceConsumer(
         const NYPath::TRichYPath& consumerPath,
         const NYPath::TRichYPath& queuePath,
@@ -262,7 +267,6 @@ public:
         int,
         const NQueueClient::TQueueRowBatchReadOptions&,
         const TPullQueueOptions&) override;
-
     TFuture<NQueueClient::IQueueRowsetPtr> PullConsumer(
         const NYPath::TRichYPath&,
         const NYPath::TRichYPath&,

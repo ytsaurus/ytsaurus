@@ -5,9 +5,7 @@
 #include "connection.h"
 #include "config.h"
 #include "sync_replica_cache.h"
-#include "transaction_helpers.h"
 #include "tablet_commit_session.h"
-#include "tablet_request_batcher.h"
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
@@ -50,6 +48,9 @@
 
 #include <yt/yt/client/queue_client/consumer_client.h>
 
+#include <yt/yt/client/api/dynamic_table_transaction_mixin.h>
+#include <yt/yt/client/api/queue_transaction_mixin.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 
 #include <yt/yt/core/compression/codec.h>
@@ -89,7 +90,9 @@ DEFINE_ENUM(ETransactionState,
 DECLARE_REFCOUNTED_CLASS(TTransaction)
 
 class TTransaction
-    : public ITransaction
+    : public virtual ITransaction
+    , public TDynamicTableTransactionMixin
+    , public TQueueTransactionMixin
 {
 public:
     TTransaction(
@@ -337,6 +340,7 @@ public:
         return StartNativeTransaction(type, options).As<NApi::ITransactionPtr>();
     }
 
+    using TQueueTransactionMixin::AdvanceConsumer;
     TFuture<void> AdvanceConsumer(
         const NYPath::TRichYPath& consumerPath,
         const NYPath::TRichYPath& queuePath,
@@ -370,7 +374,7 @@ public:
         }
 
         auto subConsumerClient = CreateSubConsumerClient(GetClient(), queueClient, consumerPath.GetPath(), queuePhysicalPath);
-        subConsumerClient->Advance(MakeStrong(this), partitionIndex, oldOffset, newOffset);
+        subConsumerClient->Advance(this, partitionIndex, oldOffset, newOffset);
 
         return VoidFuture;
     }

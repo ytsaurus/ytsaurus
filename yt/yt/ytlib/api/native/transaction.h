@@ -13,7 +13,7 @@ namespace NYT::NApi::NNative {
 
 struct ITransaction
     : public IClientBase
-    , public NApi::ITransaction
+    , public virtual NApi::ITransaction
 {
     virtual void AddAction(
         NElection::TCellId cellId,

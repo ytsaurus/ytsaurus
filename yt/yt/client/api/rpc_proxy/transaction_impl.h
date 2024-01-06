@@ -3,6 +3,8 @@
 #include "client_base.h"
 
 #include <yt/yt/client/api/transaction.h>
+#include <yt/yt/client/api/dynamic_table_transaction_mixin.h>
+#include <yt/yt/client/api/queue_transaction_mixin.h>
 
 #include <yt/yt/core/rpc/public.h>
 
@@ -24,7 +26,9 @@ DEFINE_ENUM(ETransactionState,
 );
 
 class TTransaction
-    : public NApi::ITransaction
+    : public virtual NApi::ITransaction
+    , public NApi::TDynamicTableTransactionMixin
+    , public NApi::TQueueTransactionMixin
 {
 public:
     TTransaction(
@@ -73,6 +77,7 @@ public:
         TSharedRange<NApi::TRowModification> modifications,
         const NApi::TModifyRowsOptions& options) override;
 
+    using TQueueTransactionMixin::AdvanceConsumer;
     TFuture<void> AdvanceConsumer(
         const NYPath::TRichYPath& consumerPath,
         const NYPath::TRichYPath& queuePath,
