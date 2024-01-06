@@ -25,20 +25,22 @@ class PYAMLDumper(yaml.dumper.SafeDumper):
 
 	@staticmethod
 	def pyaml_transliterate(s):
-		if not all(ord(c) < 128 for c in s):
-			if not (unidecode := PYAMLDumper.pyaml_anchor_decode):
-				from unidecode import unidecode
+		if unidecode_missing := not all(ord(c) < 128 for c in s):
+			if (unidecode := PYAMLDumper.pyaml_anchor_decode) is None:
+				try: from unidecode import unidecode
+				except ImportError: unidecode = False
 				PYAMLDumper.pyaml_anchor_decode = unidecode
-			s = unidecode(s)
-		return re.sub(r'[^-_a-z0-9]+', '_', s.lower())
+			if unidecode: unidecode_missing, s = None, unidecode(s)
+		return re.sub(r'[^-_a-z0-9]+', '_', s.lower()), unidecode_missing
 
 	def anchor_node(self, node, hints=list()):
 		if node in self.anchors:
 			if self.anchors[node] is None and not self.pyaml_force_embed:
 				if hints:
-					nid = self.pyaml_transliterate('_-_'.join(h.value for h in hints))
+					nid, uc = self.pyaml_transliterate('_-_'.join(h.value for h in hints))
 					if len(nid) > (n := self.pyaml_anchor_len_max - 9) + 9:
 						nid = f'{nid[:n//2]}-_-{nid[-n//2:]}_{self.generate_anchor(node)}'
+					elif uc is True: nid = f'{nid}_{self.generate_anchor(node)}'
 				else: nid = self.generate_anchor(node)
 				self.anchors[node] = nid
 		else:
@@ -198,7 +200,7 @@ def dump_add_vspacing(yaml_str, split_lines=40, split_count=2, oneline_group=Fal
 
 
 def dump( data, dst=None, safe=None, force_embed=True, vspacing=True,
-		string_val_style=None, sort_dicts=None, multiple_docs=False, **pyyaml_kws ):
+		string_val_style=None, sort_dicts=None, multiple_docs=False, width=100, **pyyaml_kws ):
 	'''Serialize data as pretty-YAML to specified dst file-like object,
 		or return as str with dst=str (default) or encoded to bytes with dst=bytes.'''
 	if safe is not None:
@@ -221,7 +223,7 @@ def dump( data, dst=None, safe=None, force_embed=True, vspacing=True,
 		force_embed=force_embed, string_val_style=string_val_style, sort_dicts=sort_dicts )
 	if not multiple_docs: data = [data]
 	else: pyyaml_kws.setdefault('explicit_start', True)
-	yaml.dump_all( data, buff, Dumper=Dumper,
+	yaml.dump_all( data, buff, Dumper=Dumper, width=width,
 		default_flow_style=False, allow_unicode=True, **pyyaml_kws )
 	buff = buff.getvalue()
 

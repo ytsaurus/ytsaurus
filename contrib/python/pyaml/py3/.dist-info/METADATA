@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: pyaml
-Version: 23.9.6
+Version: 23.12.0
 Summary: PyYAML-based module to produce a bit more pretty and readable YAML-serialized data
 Home-page: https://github.com/mk-fg/pretty-yaml
 Author: Mike Kazantsev
@@ -70,7 +70,8 @@ combination of parameters for such output that I've seen so far is probably this
 
   >>> m = [123, 45.67, {1: None, 2: False}, 'some text']
   >>> data = dict(a='asldnsa\nasldpáknsa\n', b='whatever text', ma=m, mb=m)
-  >>> yaml.safe_dump(data, sys.stdout, allow_unicode=True, default_flow_style=False)
+  >>> yaml.safe_dump( data, sys.stdout,
+    width=100, allow_unicode=True, default_flow_style=False )
   a: 'asldnsa
 
     asldpáknsa
@@ -88,7 +89,7 @@ combination of parameters for such output that I've seen so far is probably this
 pyaml (this module) tries to improve on that a bit, with the following tweaks:
 
 * Most human-friendly representation options in PyYAML (that I know of)
-  are used as defaults.
+  are used as defaults - unicode, flow-style, width=100 (old default is 80).
 
 * Dump "null" values as empty values, if possible, which have the same meaning
   but reduce visual clutter and are easier to edit.
@@ -321,9 +322,12 @@ It's a regular Python 3.8+ module/package, published on PyPI (as pyaml_).
 Module uses PyYAML_ for processing of the actual YAML files
 and should pull it in as a dependency.
 
-Dependency on unidecode_ module is optional and should only be necessary
-with force_embed=False keyword, and same-id objects or recursion is used
-within serialized data.
+Dependency on unidecode_ module is optional and should only be useful
+with force_embed=False keyword (defaults to True), and same-id objects
+or recursion is used within serialized data - i.e. only when generating
+&some_key_id anchors is needed.
+If module is unavailable at runtime, anchor ids will be less like their
+keys and maybe not as nice.
 
 Using pip_ is how you generally install it, usually coupled with venv_ usage
 (which will also provide "pip" tool itself)::
