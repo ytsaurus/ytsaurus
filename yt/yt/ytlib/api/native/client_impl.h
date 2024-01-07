@@ -143,7 +143,7 @@ public:
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TVersionedLookupRowsOptions& options),
         (path, std::move(nameTable), std::move(keys), options))
-    IMPLEMENT_METHOD(std::vector<TUnversionedLookupRowsResult>, MultiLookup, (
+    IMPLEMENT_METHOD(std::vector<TUnversionedLookupRowsResult>, MultiLookupRows, (
         const std::vector<TMultiLookupSubrequest>& subrequests,
         const TMultiLookupOptions& options),
         (subrequests, options))
@@ -930,7 +930,7 @@ private:
         const NTableClient::TNameTablePtr& nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TVersionedLookupRowsOptions& options);
-    std::vector<TUnversionedLookupRowsResult> DoMultiLookup(
+    std::vector<TUnversionedLookupRowsResult> DoMultiLookupRows(
         const std::vector<TMultiLookupSubrequest>& subrequests,
         const TMultiLookupOptions& options);
 

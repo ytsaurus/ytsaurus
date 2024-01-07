@@ -90,7 +90,7 @@ struct IDynamicTableClientBase
         NTableClient::TNameTablePtr nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TVersionedLookupRowsOptions& options = {}) = 0;
-    virtual TFuture<std::vector<TUnversionedLookupRowsResult>> MultiLookup(
+    virtual TFuture<std::vector<TUnversionedLookupRowsResult>> MultiLookupRows(
         const std::vector<TMultiLookupSubrequest>& subrequests,
         const TMultiLookupOptions& options = {}) = 0;
 

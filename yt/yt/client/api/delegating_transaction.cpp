@@ -35,7 +35,7 @@ DELEGATE_METHOD(TFuture<TVersionedLookupRowsResult>, VersionedLookupRows, (
     const TVersionedLookupRowsOptions& options),
     (path, std::move(nameTable), keys, options))
 
-DELEGATE_METHOD(TFuture<std::vector<TUnversionedLookupRowsResult>>, MultiLookup, (
+DELEGATE_METHOD(TFuture<std::vector<TUnversionedLookupRowsResult>>, MultiLookupRows, (
     const std::vector<TMultiLookupSubrequest>& subrequests,
     const TMultiLookupOptions& options),
     (subrequests, options))

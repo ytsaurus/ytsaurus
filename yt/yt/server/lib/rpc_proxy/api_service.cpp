@@ -3601,7 +3601,7 @@ private:
         ExecuteCall(
             context,
             [=] {
-                return client->MultiLookup(
+                return client->MultiLookupRows(
                     std::move(subrequests),
                     std::move(options));
             },

@@ -459,7 +459,7 @@ public:
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TVersionedLookupRowsOptions& options),
         (path, nameTable, keys, options))
-    DELEGATE_TIMESTAMPED_METHOD(TFuture<std::vector<TUnversionedLookupRowsResult>>, MultiLookup, (
+    DELEGATE_TIMESTAMPED_METHOD(TFuture<std::vector<TUnversionedLookupRowsResult>>, MultiLookupRows, (
         const std::vector<TMultiLookupSubrequest>& subrequests,
         const TMultiLookupOptions& options),
         (subrequests, options))

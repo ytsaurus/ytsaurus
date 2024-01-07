@@ -365,7 +365,7 @@ TEST_F(TMultiLookupTest, TestMultiLookup)
         std::get<0>(key1),
         TLookupRowsOptions()});
 
-    auto results = WaitFor(Client_->MultiLookup(
+    auto results = WaitFor(Client_->MultiLookupRows(
         subrequests,
         TMultiLookupOptions()))
         .ValueOrThrow();

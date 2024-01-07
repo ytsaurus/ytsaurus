@@ -834,7 +834,7 @@ TVersionedLookupRowsResult TClient::DoVersionedLookupRows(
         });
 }
 
-std::vector<TUnversionedLookupRowsResult> TClient::DoMultiLookup(
+std::vector<TUnversionedLookupRowsResult> TClient::DoMultiLookupRows(
     const std::vector<TMultiLookupSubrequest>& subrequests,
     const TMultiLookupOptions& options)
 {
