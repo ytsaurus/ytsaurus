@@ -69,6 +69,7 @@ public:
     void OnUnmount();
 
     void RotateActiveStore();
+    void OnStoreAllocationFailed(const TError& error);
 
     void LockTransaction(TTransactionId transactionId);
     bool TryUnlockTransaction(TTransactionId transactionId);
@@ -79,8 +80,6 @@ public:
 
     void ValidateMountRevision(NHydra::TRevision mountRevision) const;
     void ValidateMounted(NHydra::TRevision mountRevision) const;
-
-    TFuture<THunkStorePtr> GetActiveStoreFuture() const;
 
     void BuildOrchidYson(NYson::IYsonConsumer* consumer) const;
 
@@ -101,9 +100,13 @@ private:
     //! write is in progress.
     int WriteLockCount_ = 0;
 
-    TPromise<THunkStorePtr> ActiveStorePromise_ = NewPromise<THunkStorePtr>();
+    TPromise<THunkStorePtr> ActiveStorePromise_;
+    TFuture<THunkStorePtr> ActiveStoreFuture_;
 
     void MakeAllStoresPassive();
+
+    void RenewPromise();
+    void RenewPromise(TError error);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

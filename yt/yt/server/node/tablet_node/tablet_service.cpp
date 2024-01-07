@@ -93,7 +93,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Trim));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendTabletCell));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeTabletCell));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteHunks));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteHunks)
+            .SetCancelable(true));
 
         DeclareServerFeature(ETabletServiceFeatures::WriteGenerations);
         SubscribeLoadAdjusted();
@@ -431,14 +432,8 @@ private:
         auto* tablet = tabletManager->GetTabletOrThrow(tabletId);
         tablet->ValidateMounted(mountRevision);
 
-        tablet->WriteHunks(std::move(payloads))
-            .Apply(BIND([=] (const TErrorOr<std::vector<TJournalHunkDescriptor>>& descriptorsOrError) {
-                if (!descriptorsOrError.IsOK()) {
-                    context->Reply(descriptorsOrError);
-                    return;
-                }
-
-                const auto& descriptors = descriptorsOrError.Value();
+        context->ReplyFrom(tablet->WriteHunks(std::move(payloads))
+            .Apply(BIND([=] (const std::vector<TJournalHunkDescriptor>& descriptors) {
                 for (const auto& descriptor : descriptors) {
                     auto* protoDescriptor = response->add_descriptors();
                     ToProto(protoDescriptor->mutable_chunk_id(), descriptor.ChunkId);
@@ -446,8 +441,7 @@ private:
                     protoDescriptor->set_record_offset(descriptor.RecordOffset);
                     protoDescriptor->set_length(descriptor.Size);
                 }
-                context->Reply();
-            }));
+            })));
     }
 
     TTabletSnapshotPtr GetTabletSnapshotOrThrow(

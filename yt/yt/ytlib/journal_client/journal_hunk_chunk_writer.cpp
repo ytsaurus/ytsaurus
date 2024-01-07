@@ -36,6 +36,7 @@ public:
         , ChunkId_(sessionId.ChunkId)
     {
         auto guard = Guard(Lock_);
+        RenewPromise();
         ScheduleCurrentRecordFlush();
     }
 
@@ -71,7 +72,7 @@ public:
             descriptors.push_back(descriptor);
 
             if (addFuture) {
-                futures.push_back(CurrentRecordPromise_.ToFuture());
+                futures.push_back(CurrentRecordFuture_);
                 addFuture = false;
             }
 
@@ -119,7 +120,8 @@ private:
     i64 CurrentRecordSize_ = 0;
     i64 CurrentRecordIndex_ = 0;
 
-    TPromise<void> CurrentRecordPromise_ = NewPromise<void>();
+    TPromise<void> CurrentRecordPromise_;
+    TFuture<void> CurrentRecordFuture_;
 
     TDelayedExecutorCookie CurrentRecordFlushCookie_;
 
@@ -200,13 +202,22 @@ private:
         ++CurrentRecordIndex_;
         TDelayedExecutor::CancelAndClear(CurrentRecordFlushCookie_);
 
-        auto currentRecordPromise = std::exchange(CurrentRecordPromise_, NewPromise<void>());
+        auto currentRecordPromise = RenewPromise();
 
         ScheduleCurrentRecordFlush();
 
         guard.Release();
 
         currentRecordPromise.SetFrom(recordFlushFuture);
+    }
+
+    TPromise<void> RenewPromise()
+    {
+        VERIFY_SPINLOCK_AFFINITY(Lock_);
+
+        auto currentRecordPromise = std::exchange(CurrentRecordPromise_, NewPromise<void>());
+        CurrentRecordFuture_ = CurrentRecordPromise_.ToFuture().ToUncancelable();
+        return currentRecordPromise;
     }
 
     static TJournalChunkWriterConfigPtr PrepareJournalChunkWriterConfig(

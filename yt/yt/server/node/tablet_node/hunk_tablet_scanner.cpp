@@ -29,6 +29,7 @@ namespace NYT::NTabletNode {
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NObjectClient;
+using namespace NTracing;
 using namespace NTransactionClient;
 using namespace NYTree;
 
@@ -78,6 +79,9 @@ private:
             if (!Tablet_->TryLockScan()) {
                 return;
             }
+
+            TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("HunkTabletScanner"));
+
             auto unlockGuard = Finally([&] {
                 Tablet_->UnlockScan();
 
@@ -95,7 +99,10 @@ private:
                 MaybeMarkStoresAsSealable();
                 MaybeRemoveStores();
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Failed to scan hunk tablet");
+                auto error = TError("Failed to scan hunk tablet")
+                    << TErrorAttribute("tablet_id", Tablet_->GetId())
+                    << TError(ex);
+                YT_LOG_ERROR(error);
             }
         }
 
@@ -125,7 +132,7 @@ private:
                 ++storesToAllocate;
             }
 
-            DoAllocateStores(storesToAllocate);
+            AllocateStores(storesToAllocate);
         }
 
         void MaybeRotateActiveStore()
@@ -187,7 +194,7 @@ private:
             if (Tablet_->AllocatedStores().empty()) {
                 YT_LOG_DEBUG("Cannot rotate active store since there are no allocated stores; allocating new store");
 
-                DoAllocateStores(/*storeCount*/ 1);
+                AllocateStores(/*storeCount*/ 1);
             }
 
             // NB: Active store could have been changed during stores allocation.
@@ -302,6 +309,18 @@ private:
                 .ThrowOnError();
         }
 
+        void AllocateStores(int storeCount)
+        {
+            try {
+                DoAllocateStores(storeCount);
+            } catch (const std::exception& ex) {
+                auto error = TError("Hunk tablet scanner failed to allocated stores")
+                    << TError(ex);
+                Tablet_->OnStoreAllocationFailed(error);
+                THROW_ERROR(error);
+            }
+        }
+
         void DoAllocateStores(int storeCount)
         {
             if (storeCount == 0) {
@@ -310,7 +329,6 @@ private:
 
             YT_LOG_DEBUG("Allocating stores for hunk tablet (StoreCount: %v)",
                 storeCount);
-
 
             auto transaction = CreateTransaction();
             auto actionRequest = MakeActionRequest();
