@@ -55,9 +55,11 @@ TFuture<std::vector<TJournalHunkDescriptor>> THunkStore::WriteHunks(std::vector<
     }
 
     // Slow path.
-    return WriterOpenedFuture_.Apply(BIND([=, this, this_ = MakeStrong(this)] {
-        return Writer_->WriteHunks(std::move(payloads));
-    }));
+    return WriterOpenedFuture_
+        .ToImmediatelyCancelable()
+        .Apply(BIND([=, this, this_ = MakeStrong(this), payloads = std::move(payloads)] () mutable {
+            return Writer_->WriteHunks(std::move(payloads));
+        }));
 }
 
 void THunkStore::Save(TSaveContext& context) const
@@ -139,7 +141,7 @@ void THunkStore::SetWriter(IJournalHunkChunkWriterPtr writer)
 {
     YT_VERIFY(!Writer_);
     Writer_ = std::move(writer);
-    WriterOpenedFuture_ = Writer_->Open();
+    WriterOpenedFuture_ = Writer_->Open().ToUncancelable();
 }
 
 const IJournalHunkChunkWriterPtr THunkStore::GetWriter() const

@@ -22,7 +22,9 @@ THunkTablet::THunkTablet(
     : TObjectBase(tabletId)
     , Host_(std::move(host))
     , Logger(TabletNodeLogger.WithTag("TabletId: %v", tabletId))
-{ }
+{
+    RenewPromise();
+}
 
 void THunkTablet::Save(TSaveContext& context) const
 {
@@ -122,8 +124,12 @@ TFuture<std::vector<TJournalHunkDescriptor>> THunkTablet::WriteHunks(std::vector
     }
 
     // Slow path.
-    auto future = ActiveStorePromise_.ToFuture();
-    return future.Apply(BIND(std::move(doWriteHunks), Passed(std::move(payloads))).AsyncVia(automatonInvoker));
+    return ActiveStoreFuture_
+        .ToImmediatelyCancelable()
+        .Apply(BIND(
+            std::move(doWriteHunks),
+            Passed(std::move(payloads)))
+        .AsyncVia(automatonInvoker));
 }
 
 void THunkTablet::Reconfigure(const THunkStorageSettings& settings)
@@ -247,7 +253,7 @@ void THunkTablet::OnUnmount()
         "Tablet %v is unmounted",
         Id_);
     ActiveStorePromise_.TrySet(error);
-    ActiveStorePromise_ = MakePromise<THunkStorePtr>(error);
+    RenewPromise(error);
 }
 
 void THunkTablet::OnStopLeading()
@@ -259,7 +265,7 @@ void THunkTablet::OnStopLeading()
         "Tablet cell stopped leading",
         Id_);
     ActiveStorePromise_.TrySet(error);
-    ActiveStorePromise_ = MakePromise<THunkStorePtr>(error);
+    RenewPromise(error);
 }
 
 void THunkTablet::RotateActiveStore()
@@ -270,7 +276,7 @@ void THunkTablet::RotateActiveStore()
         oldActiveStoreId = ActiveStore_->GetId();
         PassiveStores_.insert(ActiveStore_);
         ActiveStore_.Reset();
-        ActiveStorePromise_ = NewPromise<THunkStorePtr>();
+        RenewPromise();
     }
 
     auto newActiveStoreId = NullStoreId;
@@ -282,7 +288,7 @@ void THunkTablet::RotateActiveStore()
 
         // NB: May be already set in case of errors.
         if (ActiveStorePromise_.IsSet()) {
-            ActiveStorePromise_ = NewPromise<THunkStorePtr>();
+            RenewPromise();
         }
         ActiveStorePromise_.Set(ActiveStore_);
 
@@ -293,6 +299,11 @@ void THunkTablet::RotateActiveStore()
         "Active store rotated (ActiveStoreId: %v -> %v)",
         oldActiveStoreId,
         newActiveStoreId);
+}
+
+void THunkTablet::OnStoreAllocationFailed(const TError& error)
+{
+    ActiveStorePromise_.TrySet(error);
 }
 
 void THunkTablet::LockTransaction(TTransactionId transactionId)
@@ -365,11 +376,6 @@ void THunkTablet::ValidateMounted(NHydra::TRevision mountRevision) const
     ValidateMountRevision(mountRevision);
 }
 
-TFuture<THunkStorePtr> THunkTablet::GetActiveStoreFuture() const
-{
-    return ActiveStorePromise_.ToFuture();
-}
-
 void THunkTablet::BuildOrchidYson(IYsonConsumer* consumer) const
 {
     BuildYsonFluently(consumer).BeginMap()
@@ -409,6 +415,18 @@ void THunkTablet::MakeAllStoresPassive()
         InsertOrCrash(PassiveStores_, store);
     }
     AllocatedStores_.clear();
+}
+
+void THunkTablet::RenewPromise()
+{
+    ActiveStorePromise_ = NewPromise<THunkStorePtr>();
+    ActiveStoreFuture_ = ActiveStorePromise_.ToFuture().ToUncancelable();
+}
+
+void THunkTablet::RenewPromise(TError error)
+{
+    ActiveStorePromise_ = MakePromise<THunkStorePtr>(std::move(error));
+    ActiveStoreFuture_ = ActiveStorePromise_.ToFuture();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
