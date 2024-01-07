@@ -98,7 +98,7 @@ struct IDynamicTableClientBase
 
     virtual TFuture<NYson::TYsonString> ExplainQuery(
         const TString& query,
-        const TExplainQueryOptions& options = TExplainQueryOptions()) = 0;
+        const TExplainQueryOptions& options = {}) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

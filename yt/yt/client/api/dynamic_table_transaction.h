@@ -108,7 +108,7 @@ struct IDynamicTableTransaction
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         TSharedRange<TRowModification> modifications,
-        const TModifyRowsOptions& options = TModifyRowsOptions()) = 0;
+        const TModifyRowsOptions& options = {}) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
