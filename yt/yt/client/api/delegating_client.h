@@ -7,7 +7,7 @@ namespace NYT::NApi {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A simple base class that implements IClient and delegates
-//! all calls to an underlying instance.
+//! all calls to the underlying instance.
 class TDelegatingClient
     : public IClient
 {

@@ -64,6 +64,7 @@ target_sources(yt-yt-client PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/client/api/client_common.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/api/client_cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/api/delegating_client.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/api/delegating_transaction.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/api/etc_client.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/api/journal_client.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/api/operation_client.cpp
