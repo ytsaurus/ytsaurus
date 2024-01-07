@@ -69,6 +69,8 @@ struct TModifyRowsOptions
 
 struct IDynamicTableTransaction
 {
+    virtual ~IDynamicTableTransaction() = default;
+
     virtual void WriteRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,

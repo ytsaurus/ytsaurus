@@ -78,6 +78,8 @@ using TVersionedLookupRowsResult = TLookupRowsResult<IVersionedRowset>;
 
 struct IDynamicTableClientBase
 {
+    virtual ~IDynamicTableClientBase() = default;
+
     virtual TFuture<TUnversionedLookupRowsResult> LookupRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,

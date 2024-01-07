@@ -351,6 +351,8 @@ struct ITableClientBase
 
 struct ITableClient
 {
+    virtual ~ITableClient() = default;
+
     virtual TFuture<void> MountTable(
         const NYPath::TYPath& path,
         const TMountTableOptions& options = {}) = 0;

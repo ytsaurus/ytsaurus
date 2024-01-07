@@ -16,6 +16,8 @@ struct TAdvanceConsumerOptions
 
 struct IQueueTransaction
 {
+    virtual ~IQueueTransaction() = default;
+
     // TODO(nadya73): Remove it: YT-20712
     virtual void AdvanceConsumer(
         const NYPath::TYPath& path,
