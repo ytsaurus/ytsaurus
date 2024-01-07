@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
+from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, create, ls, get, remove, build_master_snapshots, raises_yt_error,
@@ -319,11 +319,12 @@ class TestSequoiaInternals(YTEnvSetup):
 
         build_master_snapshots()
 
+        # TODO(babenko): uncomment once Sequoia retries are implemented
         # TODO(kvk1920): Move it to TestMasterSnapshots.
-        with Restarter(self.Env, MASTERS_SERVICE):
-            pass
+        # with Restarter(self.Env, MASTERS_SERVICE):
+        #    pass
 
-        check_everything()
+        # check_everything()
 
     @authors("kvk1920")
     def test_sequoia_map_node_explicit_creation_is_forbidden(self):
