@@ -84,8 +84,7 @@ std::vector<TDataSliceDescriptor> FilterDataSliceDescriptorsByPrewhereInfo(
         std::move(granuleFilter));
 
     return WaitFor(BIND(&GetFilteredDataSliceDescriptors, blockInputStream)
-        // TODO(max42): use clickhouse worker invoker?
-        .AsyncVia(queryContext->Host->GetWorkerInvoker())
+        .AsyncVia(queryContext->Host->GetClickHouseWorkerInvoker())
         .Run())
         .ValueOrThrow();
 }

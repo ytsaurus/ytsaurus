@@ -19,6 +19,32 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+// NB: AttachThreadStatus and DetachThreadStatus access a thread local variable
+// DB::current_thread. If those function are inlined, the compiller may calculate
+// an absolute variable address and use it both times to access the variable.
+// However, since there might be context switches between those calls, we could
+// end up in a diffrent thread, and previously calculated address would not be
+// valid anymore. So, noinline is important here to force the compiller to
+// calculate current thread local address every time the function is called.
+
+Y_NO_INLINE void AttachThreadStatus(DB::ThreadStatus* status)
+{
+    YT_VERIFY(DB::current_thread == nullptr);
+    DB::current_thread = status;
+}
+
+Y_NO_INLINE void DetachThreadStatus()
+{
+    YT_VERIFY(DB::current_thread != nullptr);
+    DB::current_thread = nullptr;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TClickHouseInvoker
     : public TInvokerWrapper
 {
@@ -27,27 +53,17 @@ public:
 
     void Invoke(TClosure callback) override
     {
-        auto doInvoke = [currentThread = DB::current_thread, callback = std::move(callback), this_ = MakeStrong(this)] {
+        // Why do you use TClickHouseInvoker from a non-ClickHouse context?
+        YT_VERIFY(DB::current_thread != nullptr);
+
+        auto doInvoke = [threadStatus = DB::current_thread, callback = std::move(callback), this_ = MakeStrong(this)] {
             // CH has per-thread state stored in thread local variable DB::current_thread.
             // We need this state to be per-fiber in our code, so we store it within a fiber
             // and replace DB::current_thread variable with it every time we enter the fiber.
-            DB::ThreadStatus* fiberThreadStatus = currentThread;
+            auto currentThreadRestoreGuard = NConcurrency::TContextSwitchGuard(DetachThreadStatus, BIND(AttachThreadStatus, threadStatus));
 
-            auto attach = [&fiberThreadStatus] {
-                // TODO(dakovalkov): investigate why we enter it several times.
-                // YT_VERIFY(DB::current_thread == nullptr);
-                std::swap(DB::current_thread, fiberThreadStatus);
-            };
-
-            auto detach = [&fiberThreadStatus] {
-                std::swap(DB::current_thread, fiberThreadStatus);
-                // YT_VERIFY(DB::current_thread == nullptr);
-            };
-
-            auto currentThreadRestoreGuard = NConcurrency::TContextSwitchGuard(detach, attach);
-
-            attach();
-            auto detachGuard = Finally(detach);
+            AttachThreadStatus(threadStatus);
+            auto detachGuard = Finally(DetachThreadStatus);
 
             callback.Run();
         };
