@@ -7,7 +7,6 @@ Distro - an OS platform information API
 [![Code Coverage](https://codecov.io/github/python-distro/distro/coverage.svg?branch=master)](https://codecov.io/github/python-distro/distro?branch=master)
 [![Is Wheel](https://img.shields.io/pypi/wheel/distro.svg?style=flat)](https://pypi.python.org/pypi/distro)
 [![Latest Github Release](https://readthedocs.org/projects/distro/badge/?version=stable)](http://distro.readthedocs.io/en/latest/)
-[![Join the chat at https://gitter.im/python-distro/distro](https://badges.gitter.im/python-distro/distro.svg)](https://gitter.im/python-distro/distro?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 `distro` provides information about the
 OS distribution it runs on, such as a reliable machine-readable ID, or

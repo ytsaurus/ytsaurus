@@ -248,6 +248,18 @@ class TestOSRelease:
         }
         self._test_outcome(desired_outcome)
 
+    def test_debiantesting_os_release(self) -> None:
+        desired_outcome = {
+            "id": "debian",
+            "name": "Debian GNU/Linux",
+            "pretty_name": "Debian GNU/Linux bookworm/sid",
+            "version": "bookworm/sid",
+            "pretty_version": "bookworm/sid (bookworm)",
+            "best_version": "bookworm/sid",
+            "codename": "bookworm",
+        }
+        self._test_outcome(desired_outcome)
+
     def test_fedora19_os_release(self) -> None:
         desired_outcome = {
             "id": "fedora",
@@ -521,6 +533,34 @@ class TestOSRelease:
             "best_version": "7.3",
             "major_version": "7",
             "minor_version": "3",
+        }
+        self._test_outcome(desired_outcome)
+
+    def test_altlinux10_os_release(self) -> None:
+        desired_outcome = {
+            "id": "altlinux",
+            "name": "ALT Server",
+            "pretty_name": "ALT Server 10.1 (Mendelevium)",
+            "version": "10.1",
+            "pretty_version": "10.1",
+            "best_version": "10.1",
+            "major_version": "10",
+            "minor_version": "1",
+        }
+        self._test_outcome(desired_outcome)
+
+    def test_bttcb1_os_release(self) -> None:
+        desired_outcome = {
+            "id": "debian",
+            "codename": "bullseye",
+            "name": "Debian GNU/Linux",
+            "pretty_name": "BTT-CB1 2.3.1 Bullseye",
+            "like": "",
+            "version": "11",
+            "pretty_version": "11 (bullseye)",
+            "best_version": "11",
+            "major_version": "11",
+            "minor_version": "0",
         }
         self._test_outcome(desired_outcome)
 
@@ -1095,6 +1135,20 @@ class TestDistroRelease:
         }
         self._test_outcome(desired_outcome, "cloudlinux", "7", "redhat")
 
+    def test_altlinux10_dist_release(self) -> None:
+        desired_outcome = {
+            "id": "altlinux",
+            "name": "ALT Server",
+            "codename": "Mendelevium",
+            "pretty_name": "ALT Server 10.1 (Mendelevium)",
+            "version": "10.1",
+            "pretty_version": "10.1 (Mendelevium)",
+            "best_version": "10.1",
+            "major_version": "10",
+            "minor_version": "1",
+        }
+        self._test_outcome(desired_outcome, "altlinux", "10")
+
 
 @pytest.mark.skipif(not IS_LINUX, reason="Irrelevant on non-linux")
 class TestOverall(DistroTestCase):
@@ -1266,6 +1320,20 @@ class TestOverall(DistroTestCase):
             "best_version": "10.11",
             "codename": "buster",
             "major_version": "10",
+        }
+        self._test_outcome(desired_outcome)
+        self._test_non_existing_release_file()
+
+    def test_debiantesting_release(self) -> None:
+        desired_outcome = {
+            "id": "debian",
+            "name": "Debian GNU/Linux",
+            "pretty_name": "Debian GNU/Linux bookworm/sid",
+            "version": "bookworm/sid",
+            "pretty_version": "bookworm/sid (bookworm)",
+            "best_version": "bookworm/sid",
+            "codename": "bookworm",
+            "major_version": "",
         }
         self._test_outcome(desired_outcome)
         self._test_non_existing_release_file()
@@ -1843,6 +1911,28 @@ class TestOverall(DistroTestCase):
             "minor_version": "3",
         }
         self._test_outcome(desired_outcome)
+
+    def test_altlinux10_release(self) -> None:
+        desired_outcome = {
+            "id": "altlinux",
+            "name": "ALT Server",
+            "codename": "Mendelevium",
+            "pretty_name": "ALT Server 10.1 (Mendelevium)",
+            "version": "10.1",
+            "pretty_version": "10.1 (Mendelevium)",
+            "best_version": "10.1",
+            "major_version": "10",
+            "minor_version": "1",
+        }
+        self._test_outcome(desired_outcome)
+
+        desired_info = {
+            "id": "altlinux",
+            "name": "ALT Server",
+            "version_id": "10.1",
+            "codename": "Mendelevium",
+        }
+        self._test_release_file_info("altlinux-release", desired_info)
 
 
 def _bad_os_listdir(path: str = ".") -> NoReturn:
