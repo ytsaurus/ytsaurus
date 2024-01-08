@@ -2670,7 +2670,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             }
         }
         set("//sys/tablet_cell_bundles/@config", bundle_dynamic_config)
-        wait(lambda: self._get_orchid_memory_limits(node_address, "tablet_static") == new_tablet_static)
+        wait(lambda: self._get_orchid_memory_limits(node_address, "tablet_static") == old_tablet_static)
 
         # Wait while changes actually take place
         wait(lambda: _get_insert_time(10) < 5)
