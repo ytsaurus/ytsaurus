@@ -275,7 +275,33 @@ TIntrusivePtr<TPreparedChunkMeta> TPreparedChunkMeta::FromProtoSegmentMetas(
 
     std::vector<std::vector<ui16>> columnIdsPerGroup;
 
-    auto determineColumnGroup = [&] (std::vector<ui32> blockIds, int columnIndex) {
+    int timestampReaderIndex = columnMetas->columns().size() - 1;
+    int mainGroupId = 0;
+
+    {
+        auto blockIds = preparedColumns[timestampReaderIndex].PrepareTimestampMetas(
+            MakeRange(columnMetas->columns(timestampReaderIndex).segments()),
+            blockProvider);
+
+        YT_VERIFY(!blockIds.empty());
+        EmplaceOrCrash(firstBlockIdToGroup, blockIds.front(), mainGroupId);
+
+        groupInfos.emplace_back();
+        columnIdsPerGroup.emplace_back();
+        groupInfos[mainGroupId].BlockIds = std::move(blockIds);
+    }
+
+    for (int columnIndex = 0; columnIndex < std::ssize(chunkSchemaColumns); ++columnIndex) {
+        auto type = GetPhysicalType(chunkSchemaColumns[columnIndex].CastToV1Type());
+        bool valueColumn = columnIndex >= chunkSchema->GetKeyColumnCount();
+
+        auto blockIds = preparedColumns[columnIndex].PrepareMetas(
+            MakeRange(columnMetas->columns(columnIndex).segments()),
+            type,
+            valueColumn,
+            static_cast<bool>(chunkSchemaColumns[columnIndex].Aggregate()),
+            blockProvider);
+
         YT_VERIFY(!blockIds.empty());
 
         auto [it, inserted] = firstBlockIdToGroup.emplace(blockIds.front(), groupInfos.size());
@@ -285,7 +311,6 @@ TIntrusivePtr<TPreparedChunkMeta> TPreparedChunkMeta::FromProtoSegmentMetas(
         }
 
         auto groupId = it->second;
-        columnInfos[columnIndex].GroupId = groupId;
 
         auto& group = groupInfos[groupId];
 
@@ -296,32 +321,15 @@ TIntrusivePtr<TPreparedChunkMeta> TPreparedChunkMeta::FromProtoSegmentMetas(
             YT_VERIFY(blockIds == group.BlockIds);
         }
 
+        columnInfos[columnIndex].GroupId = groupId;
         columnInfos[columnIndex].IndexInGroup = columnIdsPerGroup[groupId].size();
         columnIdsPerGroup[groupId].push_back(columnIndex);
-    };
-
-    for (int index = 0; index < std::ssize(chunkSchemaColumns); ++index) {
-        auto type = GetPhysicalType(chunkSchemaColumns[index].CastToV1Type());
-        bool valueColumn = index >= chunkSchema->GetKeyColumnCount();
-
-        auto blockIds = preparedColumns[index].PrepareMetas(
-            MakeRange(columnMetas->columns(index).segments()),
-            type,
-            valueColumn,
-            static_cast<bool>(chunkSchemaColumns[index].Aggregate()),
-            blockProvider);
-
-        determineColumnGroup(std::move(blockIds), index);
     }
 
     {
-        int timestampReaderIndex = columnMetas->columns().size() - 1;
-
-        auto blockIds = preparedColumns[timestampReaderIndex].PrepareTimestampMetas(
-            MakeRange(columnMetas->columns(timestampReaderIndex).segments()),
-            blockProvider);
-
-        determineColumnGroup(std::move(blockIds), timestampReaderIndex);
+        columnInfos[timestampReaderIndex].GroupId = mainGroupId;
+        columnInfos[timestampReaderIndex].IndexInGroup = columnIdsPerGroup[mainGroupId].size();
+        columnIdsPerGroup[mainGroupId].push_back(timestampReaderIndex);
     }
 
     for (auto& group : groupInfos) {

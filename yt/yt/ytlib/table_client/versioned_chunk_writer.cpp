@@ -671,7 +671,7 @@ public:
         , DataToBlockFlush_(Config_->BlockSize)
     {
         auto createBlockWriter = [&] {
-            auto blockWriterIndex = std::ssize(BlockWriters_);
+            int blockWriterIndex = std::ssize(BlockWriters_);
             BlockWriters_.emplace_back(std::make_unique<TDataBlockWriter>(Options_->EnableSegmentMetaInBlocks));
             return blockWriterIndex;
         };
@@ -681,30 +681,34 @@ public:
         //    all columns (key and value) have the same group in schema.
         auto mainBlockWriter = createBlockWriter();
 
-        std::optional<TString> keyGroupFromSchema;
+        THashMap<TString, int> groupBlockWriters;
+        auto getBlockWriterIndex = [&] (const std::optional<TString>& group) {
+            if (group) {
+                auto [it, inserted] = groupBlockWriters.emplace(*group, 0);
+                if (inserted) {
+                    it->second = createBlockWriter();
+                }
+
+                return it->second;
+            } else if (Options_->SingleColumnGroupByDefault) {
+                return mainBlockWriter;
+            } else {
+                return createBlockWriter();
+            }
+        };
 
         // Key columns.
         for (int keyColumnIndex = 0; keyColumnIndex < Schema_->GetKeyColumnCount(); ++keyColumnIndex) {
             const auto& columnSchema = Schema_->Columns()[keyColumnIndex];
 
-            ColumnToGroupIndex_.push_back(mainBlockWriter);
+            auto blockWriterIndex = getBlockWriterIndex(columnSchema.Group());
 
+            ColumnToGroupIndex_.push_back(blockWriterIndex);
             ValueColumnWriters_.emplace_back(CreateUnversionedColumnWriter(
                 keyColumnIndex,
                 columnSchema,
-                BlockWriters_[mainBlockWriter].get(),
+                BlockWriters_[blockWriterIndex].get(),
                 Config_->MaxSegmentValueCount));
-
-            if (keyColumnIndex == 0) {
-                keyGroupFromSchema = columnSchema.Group();
-            } else if (keyGroupFromSchema != columnSchema.Group()) {
-                keyGroupFromSchema.reset();
-            }
-        }
-
-        THashMap<TString, int> groupBlockWriters;
-        if (keyGroupFromSchema) {
-            groupBlockWriters[*keyGroupFromSchema] = mainBlockWriter;
         }
 
         // Value columns.
@@ -715,29 +719,13 @@ public:
         {
             const auto& columnSchema = Schema_->Columns()[valueColumnIndex];
 
-            TDataBlockWriter* blockWriter = nullptr;
-            if (columnSchema.Group()) {
-                auto [it, inserted] = groupBlockWriters.emplace(*columnSchema.Group(), 0);
-                if (inserted) {
-                    auto blockWriterIndex = createBlockWriter();
-                    it->second = blockWriterIndex;
-                }
+            auto blockWriterIndex = getBlockWriterIndex(columnSchema.Group());
 
-                ColumnToGroupIndex_.push_back(it->second);
-                blockWriter = BlockWriters_[it->second].get();;
-            } else if (Options_->SingleColumnGroupByDefault) {
-                ColumnToGroupIndex_.push_back(mainBlockWriter);
-                blockWriter = BlockWriters_[mainBlockWriter].get();
-            } else {
-                auto blockWriterIndex = createBlockWriter();
-                ColumnToGroupIndex_.push_back(blockWriterIndex);
-                blockWriter = BlockWriters_[blockWriterIndex].get();
-            }
-
+            ColumnToGroupIndex_.push_back(blockWriterIndex);
             ValueColumnWriters_.emplace_back(CreateVersionedColumnWriter(
                 valueColumnIndex,
                 columnSchema,
-                blockWriter,
+                BlockWriters_[blockWriterIndex].get(),
                 Config_->MaxSegmentValueCount));
         }
 

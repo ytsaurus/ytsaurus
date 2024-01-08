@@ -95,7 +95,7 @@ public:
     // Size currently occupied.
     i32 GetCurrentSegmentSize() const override
     {
-        if (UniqueTimestamps_.empty()) {
+        if (WriteTimestampCounts_.empty()) {
             return 0;
         }
 
