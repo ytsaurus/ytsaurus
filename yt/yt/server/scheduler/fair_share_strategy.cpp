@@ -571,7 +571,7 @@ public:
 
         EphemeralPoolNameRegex_.emplace(Config_->EphemeralPoolNameRegex);
         if (!EphemeralPoolNameRegex_->ok()) {
-            THROW_ERROR_EXCEPTION("Bad regular expression provided in scheduler config")
+            THROW_ERROR_EXCEPTION("Bad ephemeral pool name regular expression provided in scheduler config")
                 << TErrorAttribute("regex", Config_->EphemeralPoolNameRegex);
         }
     }

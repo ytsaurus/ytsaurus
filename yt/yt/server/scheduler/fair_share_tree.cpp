@@ -1711,7 +1711,7 @@ private:
 
         if (pool->GetConfig()->EphemeralSubpoolConfig.has_value()) {
             for (const auto& child : pool->EnabledChildren()) {
-                auto childPool = dynamic_cast<TSchedulerPoolElement*>(child.Get());
+                auto* childPool = dynamic_cast<TSchedulerPoolElement*>(child.Get());
 
                 if (childPool && childPool->IsDefaultConfigured()) {
                     ApplyEphemeralSubpoolConfig(pool, childPool->GetConfig());
@@ -1795,7 +1795,7 @@ private:
             return;
         }
 
-        auto parentPool = dynamic_cast<TSchedulerPoolElement*>(parent.Get());
+        auto* parentPool = dynamic_cast<TSchedulerPoolElement*>(parent.Get());
         YT_VERIFY(parentPool);
         auto maybeConfig = parentPool->GetConfig()->EphemeralSubpoolConfig;
         if (!maybeConfig.has_value()) {
