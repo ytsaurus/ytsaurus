@@ -1,7 +1,7 @@
 JAVA_CONTRIB_PROXY()
 
 PEERDIR(
-    contrib/java/io/netty/netty-transport-native-epoll-linux-x86_64/4.1.101.Final
+    contrib/java/io/netty/netty-transport-native-epoll-linux-x86_64/4.1.104.Final
 )
 
 END()
@@ -59,4 +59,5 @@ RECURSE(
     4.1.101.Final
     4.1.99.Final
     4.1.100.Final
+    4.1.104.Final
 )
