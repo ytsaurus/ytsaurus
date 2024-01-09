@@ -909,6 +909,10 @@ class TestLocalSquashFSLayers(YTEnvSetup):
         set("//tmp/squashfs.img/@access_method", "local")
         set("//tmp/squashfs.img/@filesystem", "squashfs")
 
+        create("file", "//tmp/image.squashfs")
+        write_file("//tmp/image.squashfs", open("layers/image.squashfs", "rb").read())
+        set("//tmp/image.squashfs/@access_method", "local")
+
     @authors("yuryalekseev")
     def test_squashfs_layer(self):
         self.setup_files()
@@ -939,6 +943,43 @@ class TestLocalSquashFSLayers(YTEnvSetup):
         job = get_job(op.id, job_id)
         profiler = profiler_factory().at_node(job["address"])
         tags = {'type': 'squashfs', 'file_path': '//tmp/squashfs.img'}
+
+        wait(lambda: profiler.get("volumes/created", tags) is not None)
+        wait(lambda: profiler.get("volumes/create_time", tags) is not None)
+
+        wait(lambda: profiler.get("volumes/removed", tags) is not None)
+        wait(lambda: profiler.get("volumes/remove_time", tags) is not None)
+
+    @authors("yuryalekseev")
+    def test_squashfs_layer_file_extension(self):
+        self.setup_files()
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="ls $YT_ROOT_FS/dir 1>&2",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "layer_paths": ["//tmp/image.squashfs"],
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        for job_id in job_ids:
+            assert b"squash_file" in op.read_stderr(job_id)
+
+        # Check solomon counters.
+        job = get_job(op.id, job_id)
+        profiler = profiler_factory().at_node(job["address"])
+        tags = {'type': 'squashfs', 'file_path': '//tmp/image.squashfs'}
 
         wait(lambda: profiler.get("volumes/created", tags) is not None)
         wait(lambda: profiler.get("volumes/create_time", tags) is not None)
