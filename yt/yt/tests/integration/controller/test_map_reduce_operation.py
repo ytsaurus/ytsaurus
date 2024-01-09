@@ -1177,7 +1177,7 @@ print "x={0}\ty={1}".format(x, y)
         assert read_table("//tmp/t_out") == [{"shuffle_key": 23}] * 10
         assert len(read_table("//tmp/t_out_map")) == 10
 
-    @authors("max42")
+    @authors("max42", "galtsev")
     def test_data_balancing(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -3322,6 +3322,9 @@ class TestSchedulerMapReduceCommandsNewSortedPool(TestSchedulerMapReduceCommands
                 "min_uncompressed_block_size": 1
             },
             "map_reduce_operation_options": {
+                "data_balancer": {
+                    "tolerance": 1.0,
+                },
                 "min_uncompressed_block_size": 1,
                 "job_splitter": {
                     "min_job_time": 3000,
