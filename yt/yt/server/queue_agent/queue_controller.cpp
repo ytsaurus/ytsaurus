@@ -262,7 +262,9 @@ private:
             auto upperTabletRowInfoIt = tabletInfo.find(partitionSnapshot->UpperRowIndex - 1);
             if (upperTabletRowInfoIt != tabletInfo.end()) {
                 partitionSnapshot->CumulativeDataWeight = upperTabletRowInfoIt->second.CumulativeDataWeight;
-                partitionSnapshot->WriteRate.DataWeight.Update(*partitionSnapshot->CumulativeDataWeight);
+                if (partitionSnapshot->CumulativeDataWeight) {
+                    partitionSnapshot->WriteRate.DataWeight.Update(*partitionSnapshot->CumulativeDataWeight);
+                }
             }
 
             partitionSnapshot->AvailableDataWeight = OptionalSub(
