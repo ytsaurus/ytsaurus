@@ -54,7 +54,12 @@ public:
     void Invoke(TClosure callback) override
     {
         // Why do you use TClickHouseInvoker from a non-ClickHouse context?
-        YT_VERIFY(DB::current_thread != nullptr);
+        // YT_VERIFY(DB::current_thread != nullptr);
+        // TODO(dakovalkov): HealthChecker starts queries from a non-ClickHouse context. Eliminate it.
+        if (!DB::current_thread) {
+            UnderlyingInvoker_->Invoke(callback);
+            return;
+        }
 
         auto doInvoke = [threadStatus = DB::current_thread, callback = std::move(callback), this_ = MakeStrong(this)] {
             // CH has per-thread state stored in thread local variable DB::current_thread.
