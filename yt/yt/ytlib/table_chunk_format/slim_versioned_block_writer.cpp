@@ -36,7 +36,7 @@ void WriteNonNullUnversionedValue(
     ESimpleLogicalValueType type)
 {
     YT_ASSERT(value.Type != EValueType::Null);
-    YT_ASSERT(value.Type == type);
+    YT_ASSERT(CheckedEnumCast<ESimpleLogicalValueType>(value.Type) == type);
 
     switch (type) {
         case ESimpleLogicalValueType::Void:

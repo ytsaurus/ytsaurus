@@ -213,7 +213,7 @@ public:
         DB::MutableColumnPtr intermediateColumn;
         switch (v1Type) {
             case ESimpleLogicalValueType::Any:
-                if (Settings_->DefaultYsonFormat == EYsonFormat::Binary) {
+                if (Settings_->DefaultYsonFormat == EExtendedYsonFormat::Binary) {
                     ReplaceColumnTypeChecked(Column_, ConvertStringLikeYTColumnToCHColumn(column));
                 } else {
                     TYsonExtractingConverterBase::ConsumeYtColumn(column);
