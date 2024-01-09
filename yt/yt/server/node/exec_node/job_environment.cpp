@@ -276,7 +276,7 @@ protected:
         const auto& dynamicConfig = dynamicConfigManager->GetConfig()->ExecNode;
 
         if (dynamicConfig->AbortOnJobsDisabled) {
-            TProgram::Abort(EProgramExitCode::ProgramError);
+            YT_LOG_FATAL(alert);
         }
 
         if (dynamicConfig->SlotManager->EnableJobEnvironmentResurrection) {

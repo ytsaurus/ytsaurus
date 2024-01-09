@@ -1367,7 +1367,7 @@ void TChunkLocation::CreateDisableLockFile(const TError& reason)
     }
 
     if (dynamicConfig->AbortOnLocationDisabled) {
-        TProgram::Abort(EProgramExitCode::ProgramError);
+        YT_LOG_FATAL(reason);
     }
 }
 

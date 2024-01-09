@@ -577,7 +577,7 @@ public:
         YT_LOG_ERROR(error, "Volume manager disabled; terminating");
 
         if (DynamicConfigManager_->GetConfig()->DataNode->AbortOnLocationDisabled) {
-            TProgram::Abort(EProgramExitCode::ProgramError);
+            YT_LOG_FATAL(error, "Volume manager disabled; terminating");
         }
     }
 
@@ -1045,7 +1045,7 @@ private:
             Disable(error);
 
             if (DynamicConfigManager_->GetConfig()->ExecNode->AbortOnOperationWithLayerFailed) {
-                YT_ABORT();
+                YT_LOG_FATAL(error);
             } else {
                 THROW_ERROR(error);
             }
@@ -1098,7 +1098,7 @@ private:
             Disable(error);
 
             if (DynamicConfigManager_->GetConfig()->ExecNode->AbortOnOperationWithLayerFailed) {
-                YT_ABORT();
+                YT_LOG_FATAL(error);
             } else {
                 THROW_ERROR(error);
             }
@@ -1213,7 +1213,7 @@ private:
             }
 
             if (DynamicConfigManager_->GetConfig()->ExecNode->AbortOnOperationWithVolumeFailed) {
-                YT_ABORT();
+                YT_LOG_FATAL(error);
             } else {
                 THROW_ERROR(error);
             }
@@ -1405,7 +1405,7 @@ private:
             Disable(error);
 
             if (DynamicConfigManager_->GetConfig()->ExecNode->AbortOnOperationWithVolumeFailed) {
-                YT_ABORT();
+                YT_LOG_FATAL(error);
             } else {
                 THROW_ERROR(error);
             }
