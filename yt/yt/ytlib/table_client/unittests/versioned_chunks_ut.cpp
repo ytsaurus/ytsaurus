@@ -1455,6 +1455,31 @@ protected:
             SyncLastCommittedTimestamp,
             /*produceAllVersions*/ false);
     }
+
+    void DoSingleGroup()
+    {
+        auto writeColumnSchemas = ColumnSchemas_;
+        for (auto& column : writeColumnSchemas) {
+            column.SetGroup(TString("G"));
+        }
+        auto writeSchema = New<TTableSchema>(writeColumnSchemas);
+
+        auto readSchema = New<TTableSchema>(writeColumnSchemas);
+
+        auto memoryChunkReader = CreateChunk(
+            InitialRows_,
+            writeSchema);
+
+        TestRangeReader(
+            InitialRows_,
+            memoryChunkReader,
+            writeSchema,
+            readSchema,
+            MinKey(),
+            MaxKey(),
+            SyncLastCommittedTimestamp,
+            /*produceAllVersions*/ false);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1509,6 +1534,11 @@ TEST_P(TVersionedChunksHeavyTest, GroupsLimitsAndSchemaChange)
 TEST_P(TVersionedChunksHeavyTest, EmptyReadWideSchemaScan)
 {
     DoEmptyReadWideSchema();
+}
+
+TEST_P(TVersionedChunksHeavyTest, SingleGroup)
+{
+    DoSingleGroup();
 }
 
 INSTANTIATE_TEST_SUITE_P(
