@@ -1,2 +1,25 @@
-__pycache__
+# Compiled
+*.a
+*.o
+*.so
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Protobuf
+*_pb2.py
+*_pb2_grpc.py
+*_pb2.pyi
+*.pb.h
+*.pb.cc
+
+compile_commands.json
+
+# clangd cache
 .cache
+
+.idea
+.vscode
+.DS_Store
