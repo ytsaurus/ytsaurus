@@ -926,7 +926,7 @@ void TSlotLocation::Disable(const TError& error)
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         const auto& dynamicConfig = dynamicConfigManager->GetConfig()->DataNode;
         if (dynamicConfig->AbortOnLocationDisabled) {
-            TProgram::Abort(EProgramExitCode::ProgramError);
+            YT_LOG_FATAL(alert);
         }
 
         YT_VERIFY(ChangeState(ELocationState::Disabled, ELocationState::Disabling));
