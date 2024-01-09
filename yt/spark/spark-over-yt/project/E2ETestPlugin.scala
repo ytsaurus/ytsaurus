@@ -4,7 +4,7 @@ import sbt.plugins.JvmPlugin
 import sbtbuildinfo.BuildInfoPlugin
 import spyt.SparkPackagePlugin.autoImport.sparkAddCustomFiles
 import spyt.SparkPaths.sparkYtE2ETestPath
-import spyt.SpytPlugin.autoImport.{spytClientPythonVersion, spytClientVersion, spytClusterVersion, spytPublishClusterSnapshot}
+import spyt.SpytPlugin.autoImport.{spytPythonVersion, spytVersion}
 import spyt.{SparkPackagePlugin, YtPublishPlugin}
 
 import java.time.Duration
@@ -35,7 +35,7 @@ object E2ETestPlugin extends AutoPlugin {
 
     lazy val e2eClientVersion: TaskKey[String] = taskKey[String]("Client version for e2e tests, " +
       "default is current client version")
-    lazy val e2ePythonClientVersion: SettingKey[String] = ThisBuild / spytClientPythonVersion
+    lazy val e2ePythonClientVersion: SettingKey[String] = ThisBuild / spytPythonVersion
   }
 
   import YtPublishPlugin.autoImport._
@@ -80,7 +80,7 @@ object E2ETestPlugin extends AutoPlugin {
     e2eTest := Def.sequential(e2ePreparation, e2eTestImpl).value,
     e2eScalaTestImpl := (Test / test).value,
     e2eClientVersion := {
-      Option(System.getProperty("clientVersion")).getOrElse((ThisBuild / spytClientVersion).value)
+      Option(System.getProperty("clientVersion")).getOrElse((ThisBuild / spytVersion).value)
     },
     e2ePrepareEnv := {
       runProcess(
@@ -99,7 +99,7 @@ object E2ETestPlugin extends AutoPlugin {
         "--worker-num", "2",
         "--worker-memory", "48G",
         "--tmpfs-limit", "24G",
-        "--spark-cluster-version", (ThisBuild / spytClusterVersion).value,
+        "--spark-cluster-version", (ThisBuild / spytVersion).value,
         "--enable-advanced-event-log",
         "--enable-livy",
         "--disable-byop",

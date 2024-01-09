@@ -76,7 +76,7 @@ object CommonPlugin extends AutoPlugin {
     resolvers += Resolver.mavenCentral,
     resolvers += ("YTsaurusSparkReleases" at "https://repo1.maven.org/maven2"),
     resolvers += ("YTsaurusSparkSnapshots" at "https://s01.oss.sonatype.org/content/repositories/snapshots/"),
-    ThisBuild / version := (ThisBuild / spytClusterVersion).value,
+    ThisBuild / version := (ThisBuild / spytVersion).value,
     organization := "tech.ytsaurus",
     name := s"spark-yt-${name.value}",
     organizationName := "YTsaurus",

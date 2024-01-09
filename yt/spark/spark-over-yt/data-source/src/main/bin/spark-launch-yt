@@ -50,7 +50,7 @@ def main(raw_args=None):
                         default=SparkDefaultArguments.get_params())
     parser.add_argument('--abort-existing', required=False,
                         action='store_true', default=False)
-    parser.add_argument("--spark-cluster-version", required=False)
+    parser.add_argument("--spyt-version", "--spark-cluster-version", required=False)
     parser.add_argument("--worker-log-update-interval",
                         required=False, default=SparkDefaultArguments.SPARK_WORKER_LOG_UPDATE_INTERVAL)
     parser.add_argument("--worker-log-table-ttl", required=False,
@@ -189,7 +189,7 @@ def main(raw_args=None):
                         worker_log_table_ttl=args.worker_log_table_ttl,
                         params=args.params,
                         shs_location=args.shs_location,
-                        spark_cluster_version=args.spark_cluster_version,
+                        spark_cluster_version=args.spyt_version,
                         enablers=SpytEnablers(
                             enable_byop=args.enable_byop,
                             enable_profiling=args.enable_profiling,

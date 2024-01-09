@@ -4,7 +4,7 @@ from os import listdir
 from os.path import join
 
 from .local_manager import Versions, get_release_level, load_versions, ReleaseLevel
-from .remote_manager import ClientBuilder, bin_remote_dir, conf_remote_dir, spark_remote_dir, PublishConfig, \
+from .remote_manager import ClientBuilder, conf_remote_dir, spark_remote_dir, PublishConfig, \
     spyt_remote_dir, Client
 from .utils import configure_logger
 
@@ -28,22 +28,22 @@ def upload_spark_fork(uploader: Client, versions: Versions, sources_path: str, p
     uploader.write_file(spark_tgz, f"{spark_remote_dir(versions)}/spark.tgz")
 
 
-def upload_cluster(uploader: Client, versions: Versions, sources_path: str, publish_conf: PublishConfig):
+def upload_spyt(uploader: Client, versions: Versions, sources_path: str, publish_conf: PublishConfig):
     logger.info("Uploading cluster files")
-    ttl = publish_conf.snapshot_ttl if versions.cluster_version.is_snapshot else None
-    uploader.mkdir(bin_remote_dir(versions), ttl=ttl, ignore_existing=publish_conf.ignore_existing)
+    ttl = publish_conf.snapshot_ttl if versions.spyt_version.is_snapshot else None
+    uploader.mkdir(spyt_remote_dir(versions), ttl=ttl, ignore_existing=publish_conf.ignore_existing)
     uploader.mkdir(conf_remote_dir(versions), ttl=ttl, ignore_existing=publish_conf.ignore_existing)
 
     spark_yt_launcher_jar = join(sources_path, 'spark-yt-launcher.jar')
-    uploader.write_file(spark_yt_launcher_jar, f"{bin_remote_dir(versions)}/spark-yt-launcher.jar")
+    uploader.write_file(spark_yt_launcher_jar, f"{spyt_remote_dir(versions)}/spark-yt-launcher.jar")
 
     spark_extra_zip = join(sources_path, 'spark-extra.zip')
-    uploader.write_file(spark_extra_zip, f"{bin_remote_dir(versions)}/spark-extra.zip")
+    uploader.write_file(spark_extra_zip, f"{spyt_remote_dir(versions)}/spark-extra.zip")
 
     setup_spyt_env = join(sources_path, 'setup-spyt-env.sh')
-    uploader.write_file(setup_spyt_env, f"{bin_remote_dir(versions)}/setup-spyt-env.sh", executable=True)
+    uploader.write_file(setup_spyt_env, f"{spyt_remote_dir(versions)}/setup-spyt-env.sh", executable=True)
 
-    uploader.link(f"{spark_remote_dir(versions)}/spark.tgz", f"{bin_remote_dir(versions)}/spark.tgz")
+    uploader.link(f"{spark_remote_dir(versions)}/spark.tgz", f"{spyt_remote_dir(versions)}/spark.tgz")
 
     conf_local_dir = join(sources_path, 'conf')
     spark_launch_conf_file = join(conf_local_dir, 'spark-launch-conf')
@@ -52,17 +52,12 @@ def upload_cluster(uploader: Client, versions: Versions, sources_path: str, publ
     for config_name in listdir(sidecar_configs_dir):
         sidecar_config_file = join(sidecar_configs_dir, config_name)
         uploader.write_file(sidecar_config_file, f"{conf_remote_dir(versions)}/{config_name}")
-    if not versions.cluster_version.is_snapshot:
+    if not versions.spyt_version.is_snapshot:
         global_conf_file_name = publish_conf.specific_global_file or 'global'
         global_conf_file = join(conf_local_dir, global_conf_file_name)
         uploader.write_document(global_conf_file, "conf/global")
 
-
-def upload_client(uploader: Client, versions: Versions, sources_path: str, publish_conf: PublishConfig):
     logger.info("Uploading client files")
-    ttl = publish_conf.snapshot_ttl if versions.client_version.is_snapshot else None
-    uploader.mkdir(spyt_remote_dir(versions), ttl=ttl, ignore_existing=publish_conf.ignore_existing)
-
     spyt_zip = join(sources_path, 'spyt.zip')
     uploader.write_file(spyt_zip, f"{spyt_remote_dir(versions)}/spyt.zip")
     spark_yt_data_source_jar = join(sources_path, 'spark-yt-data-source.jar')
@@ -71,10 +66,9 @@ def upload_client(uploader: Client, versions: Versions, sources_path: str, publi
 
 def create_base_dirs(uploader: Client, versions: Versions):
     logger.debug("Creation root directories")
-    uploader.mkdir(f"bin/{versions.cluster_version.get_release_mode()}")
-    uploader.mkdir(f"conf/{versions.cluster_version.get_release_mode()}")
+    uploader.mkdir(f"conf/{versions.spyt_version.get_release_mode()}")
     uploader.mkdir(f"spark/{versions.spark_version.get_release_mode()}")
-    uploader.mkdir(f"spyt/{versions.client_version.get_release_mode()}")
+    uploader.mkdir(f"spyt/{versions.spyt_version.get_release_mode()}")
 
 
 def main(sources_path: str, uploader_builder: ClientBuilder, publish_conf: PublishConfig):
@@ -86,10 +80,8 @@ def main(sources_path: str, uploader_builder: ClientBuilder, publish_conf: Publi
         upload_livy(uploader, sources_path)
     if release_level >= ReleaseLevel.SPARK_FORK and not publish_conf.skip_spark_fork:
         upload_spark_fork(uploader, versions, sources_path, publish_conf)
-    if release_level >= ReleaseLevel.CLUSTER:
-        upload_cluster(uploader, versions, sources_path, publish_conf)
-    if release_level >= ReleaseLevel.CLIENT:
-        upload_client(uploader, versions, sources_path, publish_conf)
+    if release_level >= ReleaseLevel.SPYT:
+        upload_spyt(uploader, versions, sources_path, publish_conf)
     logger.info("Publication finished successfully")
 
 

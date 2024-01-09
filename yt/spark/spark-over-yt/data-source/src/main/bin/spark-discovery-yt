@@ -23,7 +23,7 @@ def main(raw_args=None):
         print("+- operation: {}".format(url))
     print("Spark History Server: http://{}/".format(spark_cluster.shs_url))
     print("Livy Server: http://{}/".format(spark_cluster.livy_url))
-    print("Spark Cluster version: {}".format(spark_cluster.spark_cluster_version))
+    print("SPYT Cluster version: {}".format(spark_cluster.spark_cluster_version))
 
 
 if __name__ == '__main__':

@@ -25,8 +25,7 @@ RUN python3.7 -m pip install ytsaurus-client==0.13.7
 ARG BUILD_OUTPUT_PATH
 ARG PUBLISH_SCRIPTS_PATH
 
-COPY ${BUILD_OUTPUT_PATH}/client_version.json /data/
-COPY ${BUILD_OUTPUT_PATH}/cluster_version.json /data/
+COPY ${BUILD_OUTPUT_PATH}/version.json /data/
 COPY ${BUILD_OUTPUT_PATH}/conf /data/conf
 COPY ${BUILD_OUTPUT_PATH}/spark-yt-data-source.jar /data/
 COPY ${BUILD_OUTPUT_PATH}/spark-yt-launcher.jar /data/

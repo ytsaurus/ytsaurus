@@ -35,8 +35,7 @@ def load_version_file(file_path: str) -> PackedVersion:
 @total_ordering
 class ReleaseLevel(Enum):
     EMPTY = -1
-    CLIENT = 0
-    CLUSTER = 1
+    SPYT = 1
     SPARK_FORK = 2
 
     def __lt__(self, other):
@@ -47,28 +46,28 @@ class ReleaseLevel(Enum):
 
 
 class Versions(NamedTuple):
-    client_version: PackedVersion
-    cluster_version: PackedVersion
+    spyt_version: PackedVersion
     spark_version: PackedVersion
 
 
 def load_versions(sources_path: str) -> Versions:
-    client_version = load_version_file(join(sources_path, 'client_version.json'))
-    cluster_version = load_version_file(join(sources_path, 'cluster_version.json'))
+    spyt_version = load_version_file(join(sources_path, 'version.json'))
     spark_version = load_version_file(join(sources_path, 'spark_version.json'))
-    return Versions(client_version, cluster_version, spark_version)
+    return Versions(spyt_version, spark_version)
 
 
 def check_existence(sources_path: str, files: List[str]) -> bool:
     return all(exists(join(sources_path, file)) for file in files)
 
 
-def check_client_files(sources_path: str) -> bool:
-    return check_existence(sources_path, ['spyt.zip', 'spark-yt-data-source.jar'])
-
-
-def check_cluster_files(sources_path: str) -> bool:
-    return check_existence(sources_path, ['spark-yt-launcher.jar', 'conf', 'spark-extra.zip', 'setup-spyt-env.sh'])
+def check_spyt_files(sources_path: str) -> bool:
+    return check_existence(sources_path, [
+        'spyt.zip',
+        'spark-yt-data-source.jar',
+        'spark-yt-launcher.jar',
+        'conf',
+        'spark-extra.zip',
+        'setup-spyt-env.sh'])
 
 
 def check_spark_files(sources_path: str) -> bool:
@@ -76,12 +75,10 @@ def check_spark_files(sources_path: str) -> bool:
 
 
 def get_release_level(sources_path: str) -> ReleaseLevel:
-    if not check_client_files(sources_path):
+    if not check_spyt_files(sources_path):
         return ReleaseLevel.EMPTY
-    if not check_cluster_files(sources_path):
-        return ReleaseLevel.CLIENT
     if not check_spark_files(sources_path):
-        return ReleaseLevel.CLUSTER
+        return ReleaseLevel.SPYT
     return ReleaseLevel.SPARK_FORK
 
 

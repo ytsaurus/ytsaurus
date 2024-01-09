@@ -13,25 +13,13 @@ import scala.util.Random
 import scala.util.control.NonFatal
 
 object SpytSnapshot {
-  lazy val clientSnapshotProcess: Seq[ReleaseStep] = Seq(
-    ReleaseStep(releaseStepTask(prepareBuildDirectory)),
-    clientSnapshotVersions,
-    setSnapshotClientVersion,
-    releaseStepTask(spytUpdatePythonVersion),
-    releaseStepTask(spytPublishClient),
-    dumpVersions,
-    logClientVersion
-  )
 
-  lazy val clusterSnapshotProcess: Seq[ReleaseStep] = Seq(
+  lazy val spytSnapshotProcess: Seq[ReleaseStep] = Seq(
     ReleaseStep(releaseStepTask(prepareBuildDirectory)),
-    clusterSnapshotVersions,
-    setClusterSnapshotVersion,
-    clientSnapshotVersions,
-    setSnapshotClientVersion,
+    spytSnapshotVersions,
+    setSpytSnapshotVersion,
     releaseStepTask(spytUpdatePythonVersion),
-    releaseStepTask(spytPublishCluster),
-    releaseStepTask(spytPublishClient),
+    releaseStepTask(spytPublish),
     dumpVersions
   )
 
@@ -39,15 +27,12 @@ object SpytSnapshot {
     ReleaseStep(releaseStepTask(prepareBuildDirectory)),
     sparkForkSnapshotVersions,
     setSparkForkSnapshotVersion,
-    clusterSnapshotVersions,
-    setClusterSnapshotVersion,
-    clientSnapshotVersions,
-    setSnapshotClientVersion,
+    spytSnapshotVersions,
+    setSpytSnapshotVersion,
     ReleaseStep(releaseStepTask(spytUpdatePythonVersion))
   ) ++ sparkInstallProcess ++ Seq(
     ReleaseStep(releaseStepTask(spytPublishSparkFork)),
-    ReleaseStep(releaseStepTask(spytPublishCluster)),
-    ReleaseStep(releaseStepTask(spytPublishClient)),
+    ReleaseStep(releaseStepTask(spytPublish)),
     dumpVersions
   )
 
@@ -92,30 +77,26 @@ object SpytSnapshot {
     }
 
     private def getVcsInfo(submodule: String = ""): Option[VcsInfo] = {
-      if (isTeamCity) {
-        Some(VcsInfo(getTeamcityBuildNumber, "teamcity", isGit = false))
-      } else {
-        try {
-          val catchStderr: ProcessLogger = new ProcessLogger {
-            override def out(s: => String): Unit = ()
-            override def err(s: => String): Unit = ()
-            override def buffer[T](f: => T): T = f
-          }
-          val out = Process("arc info").lineStream(catchStderr).toList
-          val m = out.map(_.split(':').toList).map(as => (as(0), as(1).trim)).toMap
-          for {
-            hash <- m.get("hash")
-            branch <- m.get("branch")
-          } yield VcsInfo(hash, branch, isGit = false)
-        } catch {
-          // arc not found or it is not arc branch
-          // let's try git
-          case NonFatal(_) =>
-            for {
-              branch <- gitBranch(submodule)
-              hash <- gitHash(submodule)
-            } yield VcsInfo(hash, branch, isGit = true)
+      try {
+        val catchStderr: ProcessLogger = new ProcessLogger {
+          override def out(s: => String): Unit = ()
+          override def err(s: => String): Unit = ()
+          override def buffer[T](f: => T): T = f
         }
+        val out = Process("arc info").lineStream(catchStderr).toList
+        val m = out.map(_.split(':').toList).map(as => (as(0), as(1).trim)).toMap
+        for {
+          hash <- m.get("hash")
+          branch <- m.get("branch")
+        } yield VcsInfo(hash, branch, isGit = false)
+      } catch {
+        // arc not found or it is not arc branch
+        // let's try git
+        case NonFatal(_) =>
+          for {
+            branch <- gitBranch(submodule)
+            hash <- gitHash(submodule)
+          } yield VcsInfo(hash, branch, isGit = true)
       }
     }
 
@@ -179,14 +160,14 @@ object SpytSnapshot {
     }
   }
 
-  private lazy val clientSnapshotVersions: ReleaseStep = { st: State =>
-    snapshotVersions(clientVersions, st, spytClientVersion, "ytsaurus-spyt")
+  private lazy val spytSnapshotVersions: ReleaseStep = { st: State =>
+    snapshotVersions(spytVersions, st, spytVersion, "ytsaurus-spyt")
   }
-  private lazy val setSnapshotClientVersion: ReleaseStep = {
-    setVersion(clientVersions, Seq(
-      spytClientVersion -> { v: Versions => v._1 },
-      spytClientPythonVersion -> { v: Versions => v._2 }
-    ), spytClientVersionFile)
+  private lazy val setSpytSnapshotVersion: ReleaseStep = {
+    setVersion(spytVersions, Seq(
+      spytVersion -> { v: Versions => v._1 },
+      spytPythonVersion -> { v: Versions => v._2 }
+    ), spytVersionFile)
   }
 
   private lazy val sparkForkSnapshotVersions: ReleaseStep = { st: State =>
@@ -207,15 +188,6 @@ object SpytSnapshot {
 
   private def sparkInstallEnabled: Boolean = {
     Option(System.getProperty("installSpark")).forall(_.toBoolean)
-  }
-
-  private lazy val clusterSnapshotVersions: ReleaseStep = { st: State =>
-    snapshotVersion(clusterVersions, st, spytClusterVersion)
-  }
-  private lazy val setClusterSnapshotVersion: ReleaseStep = {
-    setVersion(clusterVersions, Seq(
-      spytClusterVersion -> { v: Versions => v._1 }
-    ), spytClusterVersionFile)
   }
 
   private def snapshotVersions(versions: SettingKey[Versions],

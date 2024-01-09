@@ -32,7 +32,7 @@ def validate_cluster_version(spark_cluster_version, client=None):
     spyt_minor_version = _get_spyt_minor_version(SELF_VERSION)
     spark_cluster_minor_version = _get_spark_cluster_minor_version(spark_cluster_version)
     if spyt_minor_version < spark_cluster_minor_version:
-        logger.warning("You required Spark Cluster version {} which is older than spark-launch-yt version {}."
+        logger.warning("You required SPYT version {} which is older than your local ytsaurus-spyt version {}."
                        "Please update your local ytsaurus-spyt".format(spark_cluster_version, SELF_VERSION))
 
 
@@ -77,8 +77,9 @@ def latest_compatible_spyt_version(spark_cluster_version, client=None):
     return max(compatible_spyt_versions)
 
 
-def latest_cluster_version(global_conf):
-    return global_conf["latest_spark_cluster_version"]
+def latest_spyt_version(global_conf):
+    # COMPAT(atokarew): latest_spark_cluster_version is deprecated and is left for compatibility with old clusters
+    return global_conf["latest_spyt_version"] if "latest_spyt_version" in global_conf else global_conf["latest_spark_cluster_version"]
 
 
 def python_bin_path(global_conf, version):

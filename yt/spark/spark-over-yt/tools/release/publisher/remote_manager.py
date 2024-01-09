@@ -92,14 +92,10 @@ class Client:
         return result
 
 
-def bin_remote_dir(versions: Versions):
-    return f"bin/{versions.cluster_version.get_version_directory()}"
-
-
 def conf_remote_dir(versions: Optional[Versions] = None):
     if versions is None:
         return "conf"
-    return f"conf/{versions.cluster_version.get_version_directory()}"
+    return f"conf/{versions.spyt_version.get_version_directory()}"
 
 
 def spark_remote_dir(versions: Versions):
@@ -107,4 +103,4 @@ def spark_remote_dir(versions: Versions):
 
 
 def spyt_remote_dir(versions: Versions):
-    return f"spyt/{versions.client_version.get_version_directory()}"
+    return f"spyt/{versions.spyt_version.get_version_directory()}"

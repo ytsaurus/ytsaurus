@@ -128,7 +128,7 @@ jobs:
             -DinnerSidecarConfig=False \
             -DconfigGeneration=False \
             -DpublishYt=False \
-            -DcustomClusterVersion=${{ needs.prepare_env.outputs.release_version }} \
+            -DcustomSpytVersion=${{ needs.prepare_env.outputs.release_version }} \
             -DcustomSparkForkVersion=${{ needs.prepare_env.outputs.release_major_version }} \
             -Dgpg.passphrase=${{ secrets.GPG_PASSWORD }} \
             -Dpypi.password=${{ secrets.PYPI_API_TOKEN }} \
@@ -222,11 +222,11 @@ jobs:
             -DinnerSidecarConfig=False \
             -DconfigGeneration=False \
             -DpublishYt=False \
-            -DcustomClusterVersion=${{ needs.prepare_env.outputs.release_version }} \
+            -DcustomSpytVersion=${{ needs.prepare_env.outputs.release_version }} \
             -DcustomSparkForkVersion=${{ needs.prepare_env.outputs.release_major_version }} \
             -Dgpg.passphrase=${{ secrets.GPG_PASSWORD }} \
             -Dpypi.password=${{ secrets.PYPI_API_TOKEN }} \
-            spytPublishClusterRelease
+            spytPublishRelease
         env:
           OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}

@@ -27,7 +27,7 @@ except Exception:
 
 from .conf import read_remote_conf, validate_cluster_version, spyt_jar_path, spyt_python_path, \
     validate_spyt_version, validate_versions_compatibility, latest_compatible_spyt_version, \
-    latest_cluster_version, update_config_inplace, validate_custom_params, validate_mtn_config, \
+    latest_spyt_version, update_config_inplace, validate_custom_params, validate_mtn_config, \
     latest_ytserver_proxy_path, ytserver_proxy_attributes, read_global_conf, python_bin_path, \
     worker_num_limit, validate_worker_num, read_cluster_conf, validate_ssd_config  # noqa: E402
 from .utils import get_spark_master, base_spark_conf, SparkDiscovery, SparkCluster, call_get_proxy_address_url, \
@@ -710,7 +710,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_cores_ov
     :param history_server_cpu_limit: cpu limit for history server, default 20
     :param history_server_memory_overhead: memory overhead for history server, default 2G,
     total memory for SHS job is history_server_memory_limit + history_server_memory_overhead
-    :param spark_cluster_version: Spark cluster version
+    :param spark_cluster_version: SPYT cluster version
     :param network_project: YT network project
     :param abort_existing: abort existing running operation
     :param advanced_event_log: advanced log format for history server (requires dynamic tables write permission)
@@ -768,7 +768,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_cores_ov
 
     ytserver_proxy_path = latest_ytserver_proxy_path(spark_cluster_version, client=client)
     global_conf = read_global_conf(client=client)
-    spark_cluster_version = spark_cluster_version or latest_cluster_version(global_conf)
+    spark_cluster_version = spark_cluster_version or latest_spyt_version(global_conf)
 
     if ssd_limit is not None:
         worker_disk_name = "ssd_slots_physical"

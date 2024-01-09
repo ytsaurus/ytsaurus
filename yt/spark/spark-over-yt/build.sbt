@@ -85,7 +85,7 @@ lazy val `cluster` = (project in file("spark-cluster"))
       val rootDirectory = baseDirectory.value.getParentFile
       val files = Seq(assembly.value, zip.value, setupSpytEnvScript.value)
       makeLinksToBuildDirectory(files, rootDirectory)
-      val versionValue = (ThisBuild / spytClusterVersion).value
+      val versionValue = (ThisBuild / spytVersion).value
       val baseConfigDir = (Compile / resourceDirectory).value
       val logger = streams.value.log
       if (configGenerationEnabled) {
@@ -109,12 +109,12 @@ lazy val `cluster` = (project in file("spark-cluster"))
       }
     },
     publishYtArtifacts ++= {
-      val versionValue = (ThisBuild / spytClusterVersion).value
+      val versionValue = (ThisBuild / spytVersion).value
       val sparkVersionValue = (ThisBuild / spytSparkVersion).value
       val isSnapshotValue = isSnapshotVersion(versionValue)
       val isTtlLimited = isSnapshotValue && limitTtlEnabled
 
-      val basePath = versionPath(sparkYtClusterPath, versionValue)
+      val basePath = versionPath(spytPath, versionValue)
       val sparkPath = versionPath(sparkYtSparkForkPath, sparkVersionValue)
 
       val sparkLink = Seq(YtPublishLink(s"$sparkPath/spark.tgz", basePath, None, "spark.tgz", isTtlLimited))
@@ -154,7 +154,7 @@ lazy val `data-source` = (project in file("data-source"))
   .configs(IntegrationTest)
   .dependsOn(`yt-wrapper` % "compile->compile;test->test", `file-system` % "compile->compile;test->test")
   .settings(
-    version := (ThisBuild / spytClientVersion).value,
+    version := (ThisBuild / spytVersion).value,
     Defaults.itSettings,
     libraryDependencies ++= itTestDeps,
     libraryDependencies ++= commonDependencies.value,
@@ -172,7 +172,7 @@ lazy val `data-source` = (project in file("data-source"))
     },
     publishYtArtifacts ++= {
       val subdir = if (isSnapshot.value) "snapshots" else "releases"
-      val publishDir = s"$sparkYtClientPath/$subdir/${version.value}"
+      val publishDir = s"$spytPath/$subdir/${version.value}"
       val isTtlLimited = isSnapshot.value && limitTtlEnabled
 
       Seq(
@@ -315,20 +315,12 @@ lazy val root = (project in file("."))
       streams.value.log.info(s"Preparing build directory in ${baseDirectory.value}")
       deleteBuildDirectory(baseDirectory.value)
     },
-    spytPublishCluster := {
-      if (publishYtEnabled) {
-        (cluster / publishYt).value
-      } else {
-        streams.value.log.info("Publishing cluster files to YT is skipped because of disabled publishYt")
-        (cluster / clusterSpytBuild).value
-      }
-    },
-    spytPublishClient := Def.taskDyn {
+    spytPublish := Def.taskDyn {
       val task1 = if (publishYtEnabled) {
-        `data-source` / publishYt
+        Def.sequential(`data-source` / publishYt, cluster / publishYt)
       } else {
-        streams.value.log.info("Publishing client files to YT is skipped because of disabled publishYt")
-        `data-source` / clientSpytBuild
+        streams.value.log.info("Publishing SPYT files to YT is skipped because of disabled publishYt")
+        Def.sequential(`data-source` / clientSpytBuild, cluster / clusterSpytBuild)
       }
       val task2 = Def.task {
         if (publishRepoEnabled) {

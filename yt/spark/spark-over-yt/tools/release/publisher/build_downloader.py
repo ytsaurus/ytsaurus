@@ -2,7 +2,7 @@ import argparse
 from os.path import join
 
 from .local_manager import Versions, get_release_level, load_versions, ReleaseLevel
-from .remote_manager import ClientBuilder, Client, spark_remote_dir, bin_remote_dir, conf_remote_dir, spyt_remote_dir
+from .remote_manager import ClientBuilder, Client, spark_remote_dir, conf_remote_dir, spyt_remote_dir
 from .utils import configure_logger
 
 logger = configure_logger("Build downloader")
@@ -17,7 +17,7 @@ def download_spark_fork(downloader: Client, versions: Versions, sources_path: st
 def download_cluster(downloader: Client, versions: Versions, sources_path: str):
     logger.info("Downloading cluster files")
     spark_yt_launcher_jar = join(sources_path, 'spark-yt-launcher.jar')
-    downloader.read_file(f"{bin_remote_dir(versions)}/spark-yt-launcher.jar", spark_yt_launcher_jar)
+    downloader.read_file(f"{spyt_remote_dir(versions)}/spark-yt-launcher.jar", spark_yt_launcher_jar)
 
     conf_local_dir = join(sources_path, 'conf')
     spark_launch_conf_file = join(conf_local_dir, 'spark-launch-conf')
@@ -26,7 +26,7 @@ def download_cluster(downloader: Client, versions: Versions, sources_path: str):
     for config_name in downloader.list_dir(conf_remote_dir(versions)):
         sidecar_config_file = join(sidecar_configs_dir, config_name)
         downloader.read_file(f"{conf_remote_dir(versions)}/{config_name}", sidecar_config_file)
-    if not versions.cluster_version.is_snapshot:
+    if not versions.spyt_version.is_snapshot:
         global_conf_file = join(conf_local_dir, 'global')
         downloader.read_document("conf/global", global_conf_file)
 

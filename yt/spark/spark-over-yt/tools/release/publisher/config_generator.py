@@ -8,7 +8,7 @@ import shutil
 from typing import List, Dict, Any
 
 from .local_manager import get_release_level, load_versions, Versions, ReleaseLevel
-from .remote_manager import bin_remote_dir, conf_remote_dir, ClientBuilder, Client
+from .remote_manager import spyt_remote_dir, conf_remote_dir, ClientBuilder, Client
 from .utils import configure_logger
 
 
@@ -79,10 +79,10 @@ def get_spark_conf(proxy: str):
 
 def get_file_paths(conf_local_dir: str, root_path: str, versions: Versions) -> List[str]:
     file_paths = [
-        f"{root_path}/{bin_remote_dir(versions)}/spark.tgz",
-        f"{root_path}/{bin_remote_dir(versions)}/spark-yt-launcher.jar",
-        f"{root_path}/{bin_remote_dir(versions)}/spark-extra.zip",
-        f"{root_path}/{bin_remote_dir(versions)}/setup-spyt-env.sh",
+        f"{root_path}/{spyt_remote_dir(versions)}/spark.tgz",
+        f"{root_path}/{spyt_remote_dir(versions)}/spark-yt-launcher.jar",
+        f"{root_path}/{spyt_remote_dir(versions)}/spark-extra.zip",
+        f"{root_path}/{spyt_remote_dir(versions)}/setup-spyt-env.sh",
     ]
     file_paths.extend([
         f"{root_path}/{conf_remote_dir(versions)}/{config_name}"
@@ -104,7 +104,7 @@ def prepare_sidecar_configs(conf_local_dir: str, os_release: bool):
 def prepare_launch_config(conf_local_dir: str, client: Client, versions: Versions,
                           os_release: bool) -> Dict[str, Any]:
     launch_config = copy.deepcopy(LAUNCH_CONFIG)
-    launch_config['spark_yt_base_path'] = client.resolve_from_root(bin_remote_dir(versions))
+    launch_config['spark_yt_base_path'] = client.resolve_from_root(spyt_remote_dir(versions))
     launch_config['file_paths'] = get_file_paths(conf_local_dir, client.root_path, versions)
     launch_config['enablers'] = {
         "spark.hadoop.yt.byop.enabled": not os_release,
@@ -136,7 +136,7 @@ def prepare_global_config(versions: Versions, os_release: bool) -> Dict[str, Any
     global_config = copy.deepcopy(GLOBAL_CONFIG)
     proxy = os.environ.get("YT_PROXY", "os")
     global_config['spark_conf'] = get_spark_conf(proxy)
-    global_config['latest_spark_cluster_version'] = versions.cluster_version.get_scala_version()
+    global_config['latest_spyt_version'] = versions.spyt_version.get_scala_version()
     if not os_release:
         python_cluster_paths = {
             "3.11": "/opt/python3.11/bin/python3.11",
@@ -168,7 +168,7 @@ def make_configs(sources_path: str, client_builder: ClientBuilder, versions: Ver
     logger.info(f"Launch config: {launch_config}")
     write_config(launch_config, join(conf_local_dir, 'spark-launch-conf'))
 
-    if not versions.cluster_version.is_snapshot:
+    if not versions.spyt_version.is_snapshot:
         logger.debug("Global config file creation")
         global_config = prepare_global_config(versions, os_release)
         logger.info(f"Global config: {global_config}")

@@ -17,7 +17,7 @@ object ClusterConfig {
   }
 
   def launchConfig(version: String, sidecarConfigs: Seq[File]): SparkLaunchConfig = {
-    val clusterBasePath = versionPath(sparkYtClusterPath, version)
+    val clusterBasePath = versionPath(spytPath, version)
     val versionConfPath = versionPath(sparkYtConfPath, version)
     val sidecarConfigsClusterPaths = sidecarConfigs.map(file => s"$versionConfPath/${file.getName}")
     SparkLaunchConfig(

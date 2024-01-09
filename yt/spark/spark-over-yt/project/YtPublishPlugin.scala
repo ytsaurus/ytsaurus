@@ -294,8 +294,7 @@ object YtPublishPlugin extends AutoPlugin {
             }
       }
       if (ytProxies.isEmpty) {
-        log.warn("No yt proxies provided. " +
-          "Use `proxies` property or `YT_PROXY` environment variable")
+        log.warn("No yt proxies provided. Use `proxies` property or `YT_PROXY` environment variable")
       }
       ytProxies.par.foreach { proxy =>
         val (ytClient, connector) = createYtClient(proxy, creds)

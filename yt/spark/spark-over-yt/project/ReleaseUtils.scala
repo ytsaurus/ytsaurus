@@ -12,15 +12,10 @@ import spyt.SpytSnapshot.SnapshotVersion
 import java.io.File
 
 object ReleaseUtils {
-  val isTeamCity: Boolean = sys.env.get("IS_TEAMCITY").contains("1")
 
-  lazy val logClientVersion: ReleaseStep = { st: State =>
-    st.log.info(s"Client scala version: ${st.extract.get(spytClientVersion)}")
-    st.log.info(s"Client python version: ${st.extract.get(spytClientPythonVersion)}")
-    st
-  }
-  lazy val logClusterVersion: ReleaseStep = { st: State =>
-    st.log.info(s"Cluster version: ${st.extract.get(spytClusterVersion)}")
+  lazy val logSpytVersion: ReleaseStep = { st: State =>
+    st.log.info(s"SPYT scala version: ${st.extract.get(spytVersion)}")
+    st.log.info(s"SPYT python version: ${st.extract.get(spytPythonVersion)}")
     st
   }
   lazy val logSparkForkVersion: ReleaseStep = { st: State =>
@@ -29,24 +24,18 @@ object ReleaseUtils {
     st
   }
   lazy val dumpVersions: ReleaseStep = { st: State =>
-    val clientScalaVersion = st.extract.get(spytClientVersion)
-    val clientPythonVersion = st.extract.get(spytClientPythonVersion)
-    val clusterVersion = st.extract.get(spytClusterVersion)
+    val scalaVersion = st.extract.get(spytVersion)
+    val pythonVersion = st.extract.get(spytPythonVersion)
     val sparkScalaVersion = st.extract.get(spytSparkVersion)
     val sparkPythonVersion = st.extract.get(spytSparkPythonVersion)
-    st.log.info(s"Client scala version dump: $clientScalaVersion")
-    st.log.info(s"Client python version dump: $clientPythonVersion")
-    st.log.info(s"Cluster version dump: $clusterVersion")
+    st.log.info(s"SPYT scala version dump: $scalaVersion")
+    st.log.info(s"SPYT python version dump: $pythonVersion")
     st.log.info(s"Spark fork scala version dump: $sparkScalaVersion")
     st.log.info(s"Spark fork python version dump: $sparkPythonVersion")
     if (!publishYtEnabled) {
       dumpVersionsToBuildDirectory(
-        Map("scala" -> clientScalaVersion, "python" -> clientPythonVersion),
-        st.extract.get(baseDirectory), "client_version.json"
-      )
-      dumpVersionsToBuildDirectory(
-        Map("scala" -> clusterVersion),
-        st.extract.get(baseDirectory), "cluster_version.json"
+        Map("scala" -> scalaVersion, "python" -> pythonVersion),
+        st.extract.get(baseDirectory), "version.json"
       )
       dumpVersionsToBuildDirectory(
         Map("scala" -> sparkScalaVersion, "python" -> sparkPythonVersion),
@@ -151,11 +140,7 @@ object ReleaseUtils {
   def maybeSetVersion(versions: SettingKey[Versions],
                       spytVersions: Seq[(SettingKey[String], Versions => String)],
                       fileSetting: SettingKey[File]): ReleaseStep = {
-    if (isTeamCity) {
-      identity[State](_)
-    } else {
-      setVersion(versions, spytVersions, fileSetting)
-    }
+    setVersion(versions, spytVersions, fileSetting)
   }
 
   def runProcess(state: State, process: Seq[ReleaseStep]*): State = {

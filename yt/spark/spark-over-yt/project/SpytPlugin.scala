@@ -19,37 +19,31 @@ object SpytPlugin extends AutoPlugin {
   override def requires = super.requires
 
   object autoImport {
-    val spytClusterVersion = settingKey[String]("Spyt cluster version")
-
-    val spytClientVersion = settingKey[String]("Spyt client version")
-    val spytClientPythonVersion = settingKey[String]("ytsaurus-spyt version")
+    val spytVersion = settingKey[String]("Spyt client version")
+    val spytPythonVersion = settingKey[String]("ytsaurus-spyt version")
 
     val spytSparkVersion = settingKey[String]("ytsaurus-spark version")
     val spytSparkPythonVersion = settingKey[String]("ytsaurus-spark version")
 
-    val clientVersions = settingKey[Versions]("")
-    val clusterVersions = settingKey[Versions]("")
+    val spytVersions = settingKey[Versions]("")
     val sparkVersions = settingKey[Versions]("")
 
     val pypiRegistry = settingKey[String]("PyPi registry to use")
 
-    val spytPublishClusterSnapshot = taskKey[Unit]("Publish spyt cluster with snapshot version")
-    val spytPublishClientSnapshot = taskKey[Unit]("Publish spyt client with snapshot version")
-    val spytPublishSparkForkSnapshot = taskKey[Unit]("Publish spyt client & cluster with snapshot version")
+    val spytPublishSnapshot = taskKey[Unit]("Publish spyt with snapshot version")
+    val spytPublishSparkForkSnapshot = taskKey[Unit]("Publish spyt and spark fork with snapshot version")
 
-    val spytPublishClusterRelease = taskKey[Unit]("Publish spyt cluster with snapshot version")
-    val spytPublishClientRelease = taskKey[Unit]("Publish spyt client with snapshot version")
-    val spytPublishSparkForkRelease = taskKey[Unit]("Publish spyt client & cluster with snapshot version")
+    val spytPublishRelease = taskKey[Unit]("Publish spyt with release version")
+    val spytPublishSparkForkRelease = taskKey[Unit]("Publish spyt and spark fork with release version")
 
     val prepareBuildDirectory = taskKey[Unit]("")
-    val spytPublishCluster = taskKey[Unit]("Publish spyt cluster")
-    val spytPublishClient = taskKey[Unit]("Publish spyt client")
-    val spytPublishSparkFork = taskKey[Unit]("Publish spyt client & cluster")
+    val spytPublish = taskKey[Unit]("Publish spyt")
+    val spytPublishSparkFork = taskKey[Unit]("Publish spyt and spark fork")
 
     val spytPublishLibraries = taskKey[Unit]("Publish spyt libraries")
 
-    val spytMvnInstallSparkFork = taskKey[Unit]("Publish spyt client & cluster")
-    val spytMvnDeploySparkFork = taskKey[Unit]("Publish spyt client & cluster")
+    val spytMvnInstallSparkFork = taskKey[Unit]("Install spark fork to local mvn")
+    val spytMvnDeploySparkFork = taskKey[Unit]("Deploy spark fork")
 
     val spytUpdatePythonVersion = taskKey[Unit]("Update versions in data-source/version.py")
 
@@ -58,9 +52,8 @@ object SpytPlugin extends AutoPlugin {
 
     val setupSpytEnvScript = taskKey[File]("Script for preparing SPYT environment inside YT job")
 
-    val spytClusterVersionFile = settingKey[File]("Spyt cluster version")
-    val spytClientVersionFile = settingKey[File]("Spyt client version")
-    val spytClientVersionPyFile = settingKey[File]("Spyt client version")
+    val spytVersionFile = settingKey[File]("Spyt client version")
+    val spytVersionPyFile = settingKey[File]("Spyt client version")
     val spytSparkVersionFile = settingKey[File]("ytsaurus-spark version")
     val spytSparkVersionPyFile = settingKey[File]("ytsaurus-spark version")
     val spytSparkPomFile = settingKey[File]("ytsaurus-spark version")
@@ -69,16 +62,10 @@ object SpytPlugin extends AutoPlugin {
 
     val spytSparkForkDependency = settingKey[Seq[ModuleID]]("")
 
-    val releaseClusterCommitMessage = taskKey[String]("")
-    val releaseNextClusterCommitMessage = taskKey[String]("")
-    val releaseClientCommitMessage = taskKey[String]("")
-    val releaseNextClientCommitMessage = taskKey[String]("")
-    val releaseSparkForkCommitMessage = taskKey[String]("")
-
     def publishRepoEnabled: Boolean = Option(System.getProperty("publishRepo")).exists(_.toBoolean)
     def publishMavenCentralEnabled: Boolean = Option(System.getProperty("publishMavenCentral")).exists(_.toBoolean)
     def publishYtEnabled: Boolean = Option(System.getProperty("publishYt")).forall(_.toBoolean)
-    def customClusterVersion: Option[String] = Option(System.getProperty("customClusterVersion"))
+    def customSpytVersion: Option[String] = Option(System.getProperty("customSpytVersion"))
     def customSparkForkVersion: Option[String] = Option(System.getProperty("customSparkForkVersion"))
     def gpgPassphrase: Option[String] = Option(System.getProperty("gpg.passphrase"))
 
@@ -136,66 +123,39 @@ object SpytPlugin extends AutoPlugin {
     }
   }
 
-  sealed abstract class ReleaseComponent(val name: String)
-
-  object ReleaseComponent {
-    case object Cluster extends ReleaseComponent("cluster")
-
-    case object Client extends ReleaseComponent("client")
-
-    case object All extends ReleaseComponent("all")
-
-    def fromString(name: String): Option[ReleaseComponent] = Seq(Cluster, Client, All).find(_.name == name)
-  }
-
   import autoImport._
 
   override def projectSettings: Seq[Def.Setting[_]] = super.projectSettings ++ Seq(
-    spytClusterVersionFile := baseDirectory.value / "cluster_version.sbt",
-    spytClientVersionFile := baseDirectory.value / "client_version.sbt",
+    spytVersionFile := baseDirectory.value / "version.sbt",
     spytSparkVersionFile := baseDirectory.value / "spark_version.sbt",
     spytSparkPomFile := baseDirectory.value.getParentFile / "spark" / "pom.xml",
     spytSparkDependencyFile := baseDirectory.value / "project" / "SparkForkVersion.scala",
 
     pypiRegistry := "https://pypi.org/simple",
 
-    spytClientVersionPyFile := baseDirectory.value / "data-source" / "src" / "main" / "python" / "spyt" / "version.py",
+    spytVersionPyFile := baseDirectory.value / "data-source" / "src" / "main" / "python" / "spyt" / "version.py",
     spytSparkVersionPyFile := (ThisBuild / sparkVersionPyFile).value,
 
     spytUpdatePythonVersion := {
       updatePythonVersion(
-        (ThisBuild / spytClientPythonVersion).value,
-        (ThisBuild / spytClientVersion).value,
-        spytClientVersionPyFile.value,
+        (ThisBuild / spytPythonVersion).value,
+        (ThisBuild / spytVersion).value,
+        spytVersionPyFile.value,
         (ThisBuild / spytSparkPythonVersion).value,
         spytSparkVersionPyFile.value
       )
     },
 
-    spytPublishClientSnapshot := {
-      runProcess(state.value, clientSnapshotProcess)
-    },
-
-    spytPublishClusterSnapshot := {
-      runProcess(state.value, clusterSnapshotProcess)
+    spytPublishSnapshot := {
+      runProcess(state.value, spytSnapshotProcess)
     },
 
     spytPublishSparkForkSnapshot := {
       runProcess(state.value, sparkForkSnapshotProcess)
     },
 
-    releaseClusterCommitMessage := s"Release cluster and client ${(ThisBuild / spytClusterVersion).value}",
-    releaseNextClusterCommitMessage := s"Start cluster and client ${(ThisBuild / spytClusterVersion).value}",
-    releaseClientCommitMessage := s"Release client ${(ThisBuild / spytClientVersion).value}",
-    releaseNextClientCommitMessage := s"Start client ${(ThisBuild / spytClientVersion).value}",
-    releaseSparkForkCommitMessage := s"Release spark fork ${(ThisBuild / spytSparkVersion).value}",
-
-    spytPublishClientRelease := {
-      runProcess(state.value, clientReleaseProcess)
-    },
-
-    spytPublishClusterRelease := {
-      runProcess(state.value, clusterReleaseProcess)
+    spytPublishRelease := {
+      runProcess(state.value, spytReleaseProcess)
     },
 
     spytPublishSparkForkRelease := {
