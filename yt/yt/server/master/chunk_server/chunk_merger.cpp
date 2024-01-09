@@ -944,22 +944,22 @@ void TChunkMerger::OnStopLeading()
     ResetTransientState();
 
     if (ScheduleExecutor_) {
-        ScheduleExecutor_->Stop();
+        YT_UNUSED_FUTURE(ScheduleExecutor_->Stop());
         ScheduleExecutor_.Reset();
     }
 
     if (ChunkCreatorExecutor_) {
-        ChunkCreatorExecutor_->Stop();
+        YT_UNUSED_FUTURE(ChunkCreatorExecutor_->Stop());
         ChunkCreatorExecutor_.Reset();
     }
 
     if (StartTransactionExecutor_) {
-        StartTransactionExecutor_->Stop();
+        YT_UNUSED_FUTURE(StartTransactionExecutor_->Stop());
         StartTransactionExecutor_.Reset();
     }
 
     if (FinalizeSessionExecutor_) {
-        FinalizeSessionExecutor_->Stop();
+        YT_UNUSED_FUTURE(FinalizeSessionExecutor_->Stop());
         FinalizeSessionExecutor_.Reset();
     }
 
@@ -1026,8 +1026,8 @@ void TChunkMerger::StartMergeTransaction()
     YT_VERIFY(IsLeader());
 
     NProto::TReqStartMergeTransaction request;
-    CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-        ->CommitAndLog(Logger);
+    YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
+        ->CommitAndLog(Logger));
 }
 
 void TChunkMerger::OnTransactionFinished(TTransaction* transaction)
@@ -1186,8 +1186,8 @@ void TChunkMerger::ScheduleReplaceChunks(
     ToProto(request.mutable_account_id(), accountId);
     ToProto(request.mutable_chunk_list_id(), parentChunkListId);
 
-    CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-        ->CommitAndLog(Logger);
+    YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
+        ->CommitAndLog(Logger));
 }
 
 void TChunkMerger::RegisterJobAwaitingChunkCreation(
@@ -1291,8 +1291,8 @@ void TChunkMerger::FinalizeSessions()
         SessionsAwaitingFinalization_.pop();
     }
 
-    CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-        ->CommitAndLog(Logger);
+    YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
+        ->CommitAndLog(Logger));
 }
 
 bool TChunkMerger::CanAdvanceNodeInMergePipeline()
@@ -1443,8 +1443,8 @@ void TChunkMerger::CreateChunks()
         JobsAwaitingChunkCreation_.pop();
     }
 
-    CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), createChunksReq)
-        ->CommitAndLog(Logger);
+    YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), createChunksReq)
+        ->CommitAndLog(Logger));
 }
 
 bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMergeJobInfo& jobInfo)

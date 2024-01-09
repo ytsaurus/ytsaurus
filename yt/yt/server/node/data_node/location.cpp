@@ -592,7 +592,7 @@ bool TChunkLocation::Resurrect()
 
     YT_LOG_WARNING("Location resurrection (LocationUuid: %v)", GetUuid());
 
-    BIND([=, this, this_ = MakeStrong(this)] () {
+    YT_UNUSED_FUTURE(BIND([=, this, this_ = MakeStrong(this)] () {
         try {
             // Remove disabled lock file if exists.
             auto lockFilePath = NFS::CombinePaths(GetPath(), DisabledLockFileName);
@@ -611,7 +611,7 @@ bool TChunkLocation::Resurrect()
         }
     })
         .AsyncVia(GetAuxPoolInvoker())
-        .Run();
+        .Run());
 
     return true;
 }
@@ -1894,7 +1894,7 @@ bool TStoreLocation::ScheduleDisable(const TError& reason)
         CreateDisableLockFile(reason);
     }
 
-    BIND([=, this, this_ = MakeStrong(this)] () {
+    YT_UNUSED_FUTURE(BIND([=, this, this_ = MakeStrong(this)] () {
         try {
             CreateDisableLockFile(reason);
         } catch (const std::exception& ex) {
@@ -1931,7 +1931,7 @@ bool TStoreLocation::ScheduleDisable(const TError& reason)
         }
     })
         .AsyncVia(GetAuxPoolInvoker())
-        .Run();
+        .Run());
 
     return true;
 }

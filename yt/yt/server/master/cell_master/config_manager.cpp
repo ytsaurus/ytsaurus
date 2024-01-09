@@ -83,7 +83,7 @@ public:
 
         ReplicateConfigToSecondaryMasters();
 
-        HydraManager_->Reconfigure(Config_->HydraManager);
+        YT_UNUSED_FUTURE(HydraManager_->Reconfigure(Config_->HydraManager));
 
         NTracing::TNullTraceContextGuard nullTraceContext;
         ConfigChanged_.Fire(oldConfig);

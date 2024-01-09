@@ -390,7 +390,7 @@ protected:
             request.set_data_weight(dataWeight);
 
             auto mutation = CreateMutation(HydraManager(), request);
-            mutation->Commit();
+            YT_UNUSED_FUTURE(mutation->Commit());
         });
     }
 

@@ -1403,7 +1403,7 @@ private:
         TMasterAutomatonPart::OnStopLeading();
 
         if (StatisticsGossipExecutor_) {
-            StatisticsGossipExecutor_->Stop();
+            YT_UNUSED_FUTURE(StatisticsGossipExecutor_->Stop());
         }
     }
 
@@ -1419,8 +1419,8 @@ private:
         NTableServer::NProto::TReqSendTableStatisticsUpdates request;
         request.set_node_count(nodeCount);
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+            ->CommitAndLog(Logger));
     }
 
     void HydraSendTableStatisticsUpdates(NTableServer::NProto::TReqSendTableStatisticsUpdates* request)

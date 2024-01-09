@@ -1744,12 +1744,12 @@ private:
         TMasterAutomatonPart::OnStopLeading();
 
         if (FullNodeStatesGossipExecutor_) {
-            FullNodeStatesGossipExecutor_->Stop();
+            YT_UNUSED_FUTURE(FullNodeStatesGossipExecutor_->Stop());
             FullNodeStatesGossipExecutor_.Reset();
         }
 
         if (NodeStatisticsGossipExecutor_) {
-            NodeStatisticsGossipExecutor_->Stop();
+            YT_UNUSED_FUTURE(NodeStatisticsGossipExecutor_->Stop());
             NodeStatisticsGossipExecutor_.Reset();
         }
 
@@ -1998,8 +1998,8 @@ private:
         }
 
         TReqSendNodeStates request;
-        CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
+            ->CommitAndLog(Logger));
     }
 
     void HydraSendNodeStates(NProto::TReqSendNodeStates* /*mutationRequest*/)

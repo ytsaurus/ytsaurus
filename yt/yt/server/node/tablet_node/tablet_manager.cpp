@@ -951,8 +951,8 @@ private:
 
         StopEpoch();
 
-        DecommissionCheckExecutor_->Stop();
-        SuspensionCheckExecutor_->Stop();
+        YT_UNUSED_FUTURE(DecommissionCheckExecutor_->Stop());
+        YT_UNUSED_FUTURE(SuspensionCheckExecutor_->Stop());
     }
 
     void OnFollowerRecoveryComplete() override
@@ -3240,8 +3240,8 @@ private:
             return;
         }
 
-        CreateMutation(Slot_->GetHydraManager(), TReqOnTabletCellDecommissioned())
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateMutation(Slot_->GetHydraManager(), TReqOnTabletCellDecommissioned())
+            ->CommitAndLog(Logger));
     }
 
     void HydraOnTabletCellDecommissioned(TReqOnTabletCellDecommissioned* /*request*/)
@@ -3286,8 +3286,8 @@ private:
             return;
         }
 
-        CreateMutation(Slot_->GetHydraManager(), TReqOnTabletCellSuspended())
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateMutation(Slot_->GetHydraManager(), TReqOnTabletCellSuspended())
+            ->CommitAndLog(Logger));
     }
 
     void HydraOnTabletCellSuspended(TReqOnTabletCellSuspended* /*request*/)
@@ -4603,9 +4603,9 @@ private:
         TClusterTableConfigPatchSetPtr /*oldConfig*/,
         TClusterTableConfigPatchSetPtr newConfig)
     {
-        BIND(&TTabletManager::DoTableDynamicConfigChanged, MakeWeak(this), Passed(std::move(newConfig)))
+        YT_UNUSED_FUTURE(BIND(&TTabletManager::DoTableDynamicConfigChanged, MakeWeak(this), Passed(std::move(newConfig)))
             .AsyncVia(Slot_->GetEpochAutomatonInvoker())
-            .Run();
+            .Run());
     }
 
     void OnDynamicConfigChanged(

@@ -221,7 +221,7 @@ private:
 
         if (ChunkSpecsToExport_.empty()) {
             YT_LOG_DEBUG("No chunks to export, aborting export transaction (TransactionId: %v)", transactionId);
-            transaction->Abort();
+            YT_UNUSED_FUTURE(transaction->Abort());
             return;
         }
 

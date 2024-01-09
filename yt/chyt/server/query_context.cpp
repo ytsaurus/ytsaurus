@@ -447,7 +447,7 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
                 }
 
                 // In best_effort mode we acquire locks for dynamic tables asynchronously and do not wait for them.
-                DoAcquireSnapshotLocks(pathsToLock);
+                YT_UNUSED_FUTURE(DoAcquireSnapshotLocks(pathsToLock));
                 // But we do need to remember locks not to lock paths twice and to know whether to read
                 // a table under the transaction or not on worker instances.
                 // The exact lock value (node id/revision) matters only for Sync mode.

@@ -96,7 +96,7 @@ public:
     {
         for (int i = 0; i < std::ssize(Addresses_); ++i) {
             KillDiscoveryServer(i);
-            RpcServers_[i]->Stop();
+            YT_UNUSED_FUTURE(RpcServers_[i]->Stop());
         }
     }
 
@@ -191,7 +191,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestSimple)
         ASSERT_EQ(memberId2, members[1].Id);
     }
 
-    memberClient1->Stop();
+    YT_UNUSED_FUTURE(memberClient1->Stop());
 
     auto checkMember = [&] () {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
@@ -812,7 +812,7 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestGroupRemoval)
         ASSERT_EQ((std::vector<TString>{"sample_group1", "sample_group2"}), result);
     }
 
-    memberClient1->Stop();
+    YT_UNUSED_FUTURE(memberClient1->Stop());
     WaitForPredicate([&](){
         return !SyncYPathExists(ypathService, "/sample_group1");
     });

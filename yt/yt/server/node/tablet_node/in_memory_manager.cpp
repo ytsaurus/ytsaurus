@@ -963,7 +963,7 @@ private:
         std::vector<TFuture<void>> asyncResults;
         for (const auto& node : Nodes_) {
             if (node->PingExecutor) {
-                node->PingExecutor->Stop();
+                YT_UNUSED_FUTURE(node->PingExecutor->Stop());
                 node->PingExecutor.Reset();
             }
 

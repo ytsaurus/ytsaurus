@@ -1919,8 +1919,8 @@ public:
             request.mutable_resource_limits()->CopyFrom(resourceLimits);
 
             const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-            nodeTracker->CreateUpdateNodeResourcesMutation(request)
-                ->CommitAndLog(Logger);
+            YT_UNUSED_FUTURE(nodeTracker->CreateUpdateNodeResourcesMutation(request)
+                ->CommitAndLog(Logger));
         }
     }
 
@@ -3761,7 +3761,7 @@ private:
             request,
             &TChunkManager::HydraRedistributeConsistentReplicaPlacementTokens,
             this);
-        mutation->Commit();
+        YT_UNUSED_FUTURE(mutation->Commit());
     }
 
     void HydraRedistributeConsistentReplicaPlacementTokens(
@@ -5323,8 +5323,8 @@ private:
             YT_LOG_INFO("Scheduling chunk lists requisition traverse confirmation (Count: %v)",
                 request.chunk_list_ids_size());
 
-            CreateConfirmChunkListsRequisitionTraverseFinishedMutation(request)
-                ->CommitAndLog(Logger);
+            YT_UNUSED_FUTURE(CreateConfirmChunkListsRequisitionTraverseFinishedMutation(request)
+                ->CommitAndLog(Logger));
         }
 
         SequoiaReplicaRemovalExecutor_ = New<TPeriodicExecutor>(
@@ -5345,7 +5345,7 @@ private:
         ChunkSealer_->Stop();
 
         if (SequoiaReplicaRemovalExecutor_) {
-            SequoiaReplicaRemovalExecutor_->Stop();
+            YT_UNUSED_FUTURE(SequoiaReplicaRemovalExecutor_->Stop());
             SequoiaReplicaRemovalExecutor_.Reset();
         }
     }

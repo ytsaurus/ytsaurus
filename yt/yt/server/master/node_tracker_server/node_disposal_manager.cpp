@@ -150,7 +150,7 @@ private:
 
         TMasterAutomatonPart::OnStopLeading();
         if (NodeDisposalExecutor_) {
-            NodeDisposalExecutor_->Stop();
+            YT_UNUSED_FUTURE(NodeDisposalExecutor_->Stop());
             NodeDisposalExecutor_.Reset();
         }
 
@@ -232,7 +232,7 @@ private:
             request,
             &TNodeDisposalManager::HydraFinishNodeDisposal,
             this);
-        mutation->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
     }
 
     void NodeDisposalTick()
@@ -319,12 +319,12 @@ private:
             this);
 
         if (sequoiaRequest.removed_chunks_size() == 0) {
-            mutation->CommitAndLog(Logger);
+            YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
             return;
         }
 
         auto future = chunkManager->ModifySequoiaReplicas(sequoiaRequest);
-        future.Apply(BIND([=, mutation = std::move(mutation), nodeId = node->GetId(), this, this_ = MakeStrong(this)] (const TErrorOr<TRspModifyReplicas>& rspOrError) {
+        YT_UNUSED_FUTURE(future.Apply(BIND([=, mutation = std::move(mutation), nodeId = node->GetId(), this, this_ = MakeStrong(this)] (const TErrorOr<TRspModifyReplicas>& rspOrError) {
             if (!rspOrError.IsOK()) {
                 const auto& nodeTracker = Bootstrap_->GetNodeTracker();
                 auto* node = nodeTracker->FindNode(nodeId);
@@ -337,8 +337,8 @@ private:
                 return;
             }
 
-            mutation->CommitAndLog(Logger);
-        }).AsyncVia(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::NodeTracker)));
+            YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
+        }).AsyncVia(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::NodeTracker))));
     }
 
     void DoStartNodeDisposal(TNode* node)

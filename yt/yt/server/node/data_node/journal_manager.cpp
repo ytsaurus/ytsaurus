@@ -447,7 +447,7 @@ private:
             splitEntry.AppendLogged = true;
         }
 
-        splitEntry.Changelog->Append({record.Data});
+        YT_UNUSED_FUTURE(splitEntry.Changelog->Append({record.Data}));
         ++splitEntry.RecordsAdded;
     }
 
@@ -766,13 +766,13 @@ private:
                 .AsyncVia(MultiplexedChangelogDispatcher_->GetInvoker())
                 .Run();
 
-            BIND(
+            YT_UNUSED_FUTURE(BIND(
                 &TMultiplexedWriter::WaitAndMarkMultplexedChangelogClean,
                 MakeStrong(this),
                 combinedBarrier,
                 oldId)
             .AsyncVia(MultiplexedChangelogDispatcher_->GetInvoker())
-            .Run();
+            .Run());
 
             SetMultiplexedChangelog(CreateLazyChangelog(newId, futureMultiplexedChangelog), newId);
         }

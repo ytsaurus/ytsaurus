@@ -95,8 +95,8 @@ public:
 
     void Stop()
     {
-        ConfigCheckExecutor_->Stop();
-        BalanceExecutor_->Stop();
+        YT_UNUSED_FUTURE(ConfigCheckExecutor_->Stop());
+        YT_UNUSED_FUTURE(BalanceExecutor_->Stop());
         Started_ = false;
     }
 
@@ -339,8 +339,8 @@ private:
         ToProto(request.mutable_correlation_id(), correlationId);
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+            ->CommitAndLog(Logger));
     }
 
     void CreateReshardAction(const std::vector<TTablet*>& tablets, int newTabletCount, i64 size)
@@ -370,8 +370,8 @@ private:
         ToProto(request.mutable_correlation_id(), correlationId);
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+            ->CommitAndLog(Logger));
     }
 
     int ApplyMoveActions()

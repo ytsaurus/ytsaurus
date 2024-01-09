@@ -52,7 +52,7 @@ TMultiReaderManagerBase::TMultiReaderManagerBase(
 
 TMultiReaderManagerBase::~TMultiReaderManagerBase()
 {
-    MultiReaderMemoryManager_->Finalize();
+    YT_UNUSED_FUTURE(MultiReaderMemoryManager_->Finalize());
 
     YT_LOG_DEBUG("Multi reader manager data statistics (DataStatistics: %v)", TMultiReaderManagerBase::GetDataStatistics());
     YT_LOG_DEBUG("Multi reader manager decompression codec statistics (CodecStatistics: %v)", TMultiReaderManagerBase::GetDecompressionStatistics());
@@ -251,7 +251,7 @@ void TMultiReaderManagerBase::OnReaderReady(
 
     if (nonOpenedReaderCount == 0) {
         // All readers have been opened.
-        MultiReaderMemoryManager_->Finalize();
+        YT_UNUSED_FUTURE(MultiReaderMemoryManager_->Finalize());
     }
 }
 

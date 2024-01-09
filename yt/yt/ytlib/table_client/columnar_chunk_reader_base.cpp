@@ -588,7 +588,7 @@ void TColumnarLookupChunkReaderBase::InitBlockFetcher()
     if (blockInfos.empty()) {
         // NB(psushin): typically memory manager is finalized by block fetcher.
         // When block fetcher is not created, we should do it explicitly.
-        MemoryManager_->Finalize();
+        YT_UNUSED_FUTURE(MemoryManager_->Finalize());
         return;
     }
 

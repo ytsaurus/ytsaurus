@@ -471,9 +471,9 @@ private:
             }
 
             ++ Inflight_;
-            BIND(&TTask::Shoot, this, std::move(packet))
+            YT_UNUSED_FUTURE(BIND(&TTask::Shoot, this, std::move(packet))
                 .AsyncVia(WorkerPool_->GetInvoker())
-                .Run();
+                .Run());
 
             auto wait = TDuration::MicroSeconds(1000000 / Config_.MaxRps);
             Sleep(wait);

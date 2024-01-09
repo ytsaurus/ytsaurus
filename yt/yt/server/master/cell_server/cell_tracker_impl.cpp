@@ -299,8 +299,8 @@ void TCellTrackerImpl::ScanCellarCells(ECellarType cellarType)
 
     WaitForCommit_ = true;
 
-    CreateMutation(hydraManager, request)
-        ->CommitAndLog(Logger);
+    YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+        ->CommitAndLog(Logger));
 }
 
 void TCellTrackerImpl::OnCellPeersReassigned()
@@ -401,8 +401,8 @@ void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell, int newLeadin
         .Increment();
 
     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-    CreateMutation(hydraManager, request)
-        ->CommitAndLog(Logger);
+    YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+        ->CommitAndLog(Logger));
 }
 
 void TCellTrackerImpl::SchedulePeerAssignment(TCellBase* cell, ICellBalancer* balancer)

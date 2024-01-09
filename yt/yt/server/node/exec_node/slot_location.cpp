@@ -908,7 +908,7 @@ void TSlotLocation::Disable(const TError& error)
         return;
     }
 
-    BIND([=, this, this_ = MakeStrong(this)] {
+    YT_UNUSED_FUTURE(BIND([=, this, this_ = MakeStrong(this)] {
         Error_.Store(error);
 
         auto alert = TError(
@@ -920,8 +920,8 @@ void TSlotLocation::Disable(const TError& error)
         YT_LOG_ERROR(alert);
         Alert_.Store(alert);
 
-        DiskResourcesUpdateExecutor_->Stop();
-        SlotLocationStatisticsUpdateExecutor_->Stop();
+        YT_UNUSED_FUTURE(DiskResourcesUpdateExecutor_->Stop());
+        YT_UNUSED_FUTURE(SlotLocationStatisticsUpdateExecutor_->Stop());
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         const auto& dynamicConfig = dynamicConfigManager->GetConfig()->DataNode;
@@ -932,7 +932,7 @@ void TSlotLocation::Disable(const TError& error)
         YT_VERIFY(ChangeState(ELocationState::Disabled, ELocationState::Disabling));
     })
     .AsyncVia(HeavyInvoker_)
-    .Run();
+    .Run());
 }
 
 void TSlotLocation::InvokeUpdateDiskResources()

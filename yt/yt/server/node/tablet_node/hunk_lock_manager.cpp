@@ -132,7 +132,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         if (UnlockExecutor_) {
-            UnlockExecutor_->Stop();
+            YT_UNUSED_FUTURE(UnlockExecutor_->Stop());
         }
         UnlockExecutor_.Reset();
 
@@ -494,7 +494,7 @@ private:
                     .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late
                 };
 
-                transaction->Commit(commitOptions);
+                YT_UNUSED_FUTURE(transaction->Commit(commitOptions));
             }));
     }
 

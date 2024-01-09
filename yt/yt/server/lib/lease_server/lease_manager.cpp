@@ -617,7 +617,7 @@ private:
         NProto::TReqRegisterLease req;
         ToProto(req.mutable_lease_id(), leaseId);
         auto mutation = CreateMutation(TCompositeAutomatonPart::HydraManager_, req);
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NLeaseClient::NProto, RevokeLease)
@@ -634,7 +634,7 @@ private:
         ToProto(req.mutable_lease_id(), leaseId);
         req.set_force(force);
         auto mutation = CreateMutation(TCompositeAutomatonPart::HydraManager_, req);
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NLeaseClient::NProto, ReferenceLease)
@@ -655,7 +655,7 @@ private:
             req.set_reference(true);
             req.set_force(force);
             auto mutation = CreateMutation(TCompositeAutomatonPart::HydraManager_, req);
-            mutation->CommitAndReply(context);
+            YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
         } else {
             auto* lease = GetLeaseOrThrow(leaseId);
             lease->RefTransiently(force);
@@ -678,7 +678,7 @@ private:
             ToProto(req.mutable_lease_id(), leaseId);
             req.set_reference(false);
             auto mutation = CreateMutation(TCompositeAutomatonPart::HydraManager_, req);
-            mutation->CommitAndReply(context);
+            YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
         } else {
             auto* lease = GetLeaseOrThrow(leaseId);
             lease->UnrefTransiently(*GetLeaderAutomatonTerm());

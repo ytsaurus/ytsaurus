@@ -1082,7 +1082,7 @@ private:
                 ->ExecNode
                 ->VolumeManager
                 ->EnableAsyncLayerRemoval;
-            LayerExecutor_->RemoveLayer(ToString(layerId), PlacePath_, async);
+            YT_UNUSED_FUTURE(LayerExecutor_->RemoveLayer(ToString(layerId), PlacePath_, async));
 
             NFS::Remove(layerMetaPath);
 
@@ -2204,7 +2204,7 @@ public:
 
     ~TNbdVolume()
     {
-        Remove();
+        YT_UNUSED_FUTURE(Remove());
     }
 
     TFuture<void> Remove() override
@@ -2285,7 +2285,7 @@ public:
 
     ~TOverlayVolume() override
     {
-        Remove();
+        YT_UNUSED_FUTURE(Remove());
     }
 
     TFuture<void> Remove() override
@@ -2374,7 +2374,7 @@ public:
 
     ~TSquashFSVolume()
     {
-        Remove();
+        YT_UNUSED_FUTURE(Remove());
     }
 
     TFuture<void> Remove() override

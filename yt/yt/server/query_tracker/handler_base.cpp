@@ -101,7 +101,7 @@ void TQueryHandlerBase::StopProgressWriter()
 {
     YT_LOG_INFO("Stopping progress writer");
     if (ProgressWriter_) {
-        ProgressWriter_->Stop();
+        YT_UNUSED_FUTURE(ProgressWriter_->Stop());
     }
 }
 

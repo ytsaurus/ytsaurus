@@ -864,7 +864,7 @@ TEST_W(TPartitionReaderTest, ReaderCatchingUp)
         WriteSingleRow(queue->GetPath(), queueNameTable, {"45u", "old"});
         WriteSingleRow(queue->GetPath(), queueNameTable, {"46u", "friend"});
 
-        Client_->TrimTable(queue->GetPath(), 0, 2);
+        YT_UNUSED_FUTURE(Client_->TrimTable(queue->GetPath(), 0, 2));
         WaitForRowCount(queue->GetPath(), 3);
 
         auto queueRowset = WaitFor(partitionReader->Read())
@@ -927,7 +927,7 @@ TEST_W(TPartitionReaderTest, EmptyQueue)
         WriteSingleRow(queue->GetPath(), queueNameTable, {"44u", "my"});
         UnmountAndMount(queue->GetPath());
 
-        Client_->TrimTable(queue->GetPath(), 0, 2);
+        YT_UNUSED_FUTURE(Client_->TrimTable(queue->GetPath(), 0, 2));
         WaitForRowCount(queue->GetPath(), 0);
 
         queueRowset = WaitFor(partitionReader->Read())

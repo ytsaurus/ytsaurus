@@ -85,8 +85,8 @@ TEST_F(TTestSortedTabletWriteBasic, TestSimple)
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
-    PrepareTransactionCommit(versionedTxId, true, 0x50);
-    CommitTransaction(versionedTxId, 0x60);
+    YT_UNUSED_FUTURE(PrepareTransactionCommit(versionedTxId, true, 0x50));
+    YT_UNUSED_FUTURE(CommitTransaction(versionedTxId, 0x60));
 
     EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
@@ -108,8 +108,8 @@ TEST_F(TTestSortedTabletWriteBasic, TestSimple)
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
-    PrepareTransactionCommit(unversionedTxId, true, 0x80);
-    CommitTransaction(unversionedTxId, 0x90);
+    YT_UNUSED_FUTURE(PrepareTransactionCommit(unversionedTxId, true, 0x80));
+    YT_UNUSED_FUTURE(CommitTransaction(unversionedTxId, 0x90));
 
     EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
@@ -197,7 +197,7 @@ TEST_F(TTestSortedTabletWriteBarrier, TestWriteBarrierUnversionedPrepared)
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
-    PrepareTransactionCommit(unversionedTxId, true, 0x20);
+    YT_UNUSED_FUTURE(PrepareTransactionCommit(unversionedTxId, true, 0x20));
 
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
@@ -611,8 +611,8 @@ protected:
         EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
         HydraManager()->ApplyAll();
 
-        PrepareTransactionCommit(txId, /*persistent*/ use2pc, 0x20);
-        CommitTransaction(txId, 0x30);
+        YT_UNUSED_FUTURE(PrepareTransactionCommit(txId, /*persistent*/ use2pc, 0x20));
+        YT_UNUSED_FUTURE(CommitTransaction(txId, 0x30));
         EXPECT_EQ(use2pc ? 2 : 1, HydraManager()->GetPendingMutationCount());
 
         HydraManager()->ApplyAll();
@@ -655,8 +655,8 @@ TEST_F(TTestOrderedTabletWriteBasic, TestSimple)
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
-    PrepareTransactionCommit(txId, true, 0x20);
-    CommitTransaction(txId, 0x30);
+    YT_UNUSED_FUTURE(PrepareTransactionCommit(txId, true, 0x20));
+    YT_UNUSED_FUTURE(CommitTransaction(txId, 0x30));
 
     EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
@@ -701,8 +701,8 @@ TEST_F(TTestOrderedTabletWriteBasic, TestAbortCommittingTransaction)
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
-    PrepareTransactionCommit(txId, /*persistent*/ true, 0x20);
-    CommitTransaction(txId, 0x30);
+    YT_UNUSED_FUTURE(PrepareTransactionCommit(txId, /*persistent*/ true, 0x20));
+    YT_UNUSED_FUTURE(CommitTransaction(txId, 0x30));
     EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
 
     HydraManager()->ApplyAll();
@@ -711,12 +711,12 @@ TEST_F(TTestOrderedTabletWriteBasic, TestAbortCommittingTransaction)
     auto* tx = transactionManager->GetPersistentTransaction(txId);
     EXPECT_EQ(tx->GetPersistentState(), ETransactionState::CommitPending);
 
-    AbortTransaction(txId, /*force*/ false);
+    YT_UNUSED_FUTURE(AbortTransaction(txId, /*force*/ false));
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
     EXPECT_EQ(tx->GetPersistentState(), ETransactionState::CommitPending);
 
-    AbortTransaction(txId, /*force*/ true);
+    YT_UNUSED_FUTURE(AbortTransaction(txId, /*force*/ true));
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
     EXPECT_FALSE(transactionManager->FindPersistentTransaction(txId));

@@ -29,8 +29,8 @@ void PipeConnectionReaderToWriter(
 
     auto closeGuard = Finally([&] {
         // Fire and forget.
-        reader->Abort();
-        writer->Abort();
+        YT_UNUSED_FUTURE(reader->Abort());
+        YT_UNUSED_FUTURE(writer->Abort());
     });
 
     try {
@@ -82,8 +82,8 @@ void HandleConnection(
     }).AsyncVia(invoker);
 
     // TODO(gritukan): Think about async dialer.
-    dialer->Dial(destinationAddress)
-        .Apply(onDestinationDialed);
+    YT_UNUSED_FUTURE(dialer->Dial(destinationAddress)
+        .Apply(onDestinationDialed));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

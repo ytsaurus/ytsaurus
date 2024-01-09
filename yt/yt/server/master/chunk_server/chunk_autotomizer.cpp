@@ -360,8 +360,8 @@ public:
         UnregisterJob(job->GetJobId());
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+            ->CommitAndLog(Logger));
     }
 
     void OnJobAborted(const TAutotomyJobPtr& job) override
@@ -734,17 +734,17 @@ private:
         TMasterAutomatonPart::OnStopLeading();
 
         if (UpdateTransactionsExecutor_) {
-            UpdateTransactionsExecutor_->Stop();
+            YT_UNUSED_FUTURE(UpdateTransactionsExecutor_->Stop());
             UpdateTransactionsExecutor_.Reset();
         }
 
         if (RefreshExecutor_) {
-            RefreshExecutor_->Stop();
+            YT_UNUSED_FUTURE(RefreshExecutor_->Stop());
             RefreshExecutor_.Reset();
         }
 
         if (ChunkUnstageExecutor_) {
-            ChunkUnstageExecutor_->Stop();
+            YT_UNUSED_FUTURE(ChunkUnstageExecutor_->Stop());
             ChunkUnstageExecutor_.Reset();
         }
 
@@ -874,8 +874,8 @@ private:
         NProto::TReqUpdateChunkAutotomizerTransactions request;
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+            ->CommitAndLog(Logger));
     }
 
     void OnTransactionFinished(TTransaction* transaction)
@@ -1047,8 +1047,8 @@ private:
         YT_LOG_DEBUG("Unstaging chunks (ChunkCount: %v)", unstagedChunkCount);
         if (unstagedChunkCount > 0) {
             const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-            CreateMutation(hydraManager, request)
-                ->CommitAndLog(Logger);
+            YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+                ->CommitAndLog(Logger));
         }
     }
 
@@ -1164,8 +1164,8 @@ private:
         }
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+            ->CommitAndLog(Logger));
     }
 
     // This function can be called from two contexts: chunks refresh and a single chunk state change.

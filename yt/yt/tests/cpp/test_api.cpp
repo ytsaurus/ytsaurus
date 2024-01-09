@@ -839,7 +839,7 @@ TEST_P(TQueueApiTest, TestQueueApi)
         "<id=0> 0; <id=1> 1; <id=2> 23; <id=3> 24; <id=4> 25;"));
     EXPECT_EQ(expected, actual);
 
-    Client_->TrimTable(Table_, 0, 1);
+    YT_UNUSED_FUTURE(Client_->TrimTable(Table_, 0, 1));
     WaitForRowCount(2);
 
     WriteUnversionedRow(
@@ -860,7 +860,7 @@ TEST_P(TQueueApiTest, TestQueueApi)
         "<id=0> 0; <id=1> 1; <id=2> 23; <id=3> 24; <id=4> 25;"));
     EXPECT_EQ(expected, actual);
 
-    Client_->TrimTable(Table_, 0, 2);
+    YT_UNUSED_FUTURE(Client_->TrimTable(Table_, 0, 2));
     WaitForRowCount(2);
 
     options = TQueueRowBatchReadOptions{.MaxRowCount = 2};
@@ -1116,7 +1116,7 @@ protected:
         WaitFor(Client_->CreateNode(path.GetPath(), EObjectType::Table, options))
             .ThrowOnError();
 
-        Client_->MountTable(path.GetPath());
+        YT_UNUSED_FUTURE(Client_->MountTable(path.GetPath()));
         WaitUntilEqual(path.GetPath() + "/@tablet_state", "mounted");
     }
 
@@ -1135,7 +1135,7 @@ protected:
         WaitFor(Client_->CreateNode(path.GetPath(), EObjectType::Table, options))
             .ThrowOnError();
 
-        Client_->MountTable(path.GetPath());
+        YT_UNUSED_FUTURE(Client_->MountTable(path.GetPath()));
         WaitUntilEqual(path.GetPath() + "/@tablet_state", "mounted");
     }
 };

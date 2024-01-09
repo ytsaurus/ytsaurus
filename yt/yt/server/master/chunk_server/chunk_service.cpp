@@ -351,7 +351,7 @@ private:
 
             YT_LOG_DEBUG("Forwarding touch request to remote replicator (ChunkCount: %v)",
                 req->subrequests_size());
-            req->Invoke();
+            YT_UNUSED_FUTURE(req->Invoke());
         }
 
         context->Reply();
@@ -623,7 +623,7 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto mutation = chunkManager->CreateExportChunksMutation(context);
         mutation->SetCurrentTraceContext();
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ImportChunks)
@@ -641,7 +641,7 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto mutation = chunkManager->CreateImportChunksMutation(context);
         mutation->SetCurrentTraceContext();
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkOwningNodes)
@@ -786,7 +786,7 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto mutation = chunkManager->CreateUnstageChunkTreeMutation(context);
         mutation->SetCurrentTraceContext();
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, CreateChunkLists)
@@ -829,7 +829,7 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto mutation = chunkManager->CreateSealChunkMutation(context);
         mutation->SetCurrentTraceContext();
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, CreateChunk)
@@ -912,7 +912,7 @@ private:
 
         auto mutation = chunkManager->CreateConfirmChunkMutation(context);
         mutation->SetCurrentTraceContext();
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     void SyncWithTransactionCoordinatorCell(const IServiceContextPtr& context, TTransactionId transactionId)

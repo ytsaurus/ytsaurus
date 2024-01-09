@@ -216,9 +216,9 @@ private:
 
         void Run()
         {
-            BIND(&TConnectionHandler::FiberMain, MakeStrong(this))
+            YT_UNUSED_FUTURE(BIND(&TConnectionHandler::FiberMain, MakeStrong(this))
                 .AsyncVia(Server_->GetInvoker())
-                .Run();
+                .Run());
         }
 
     private:

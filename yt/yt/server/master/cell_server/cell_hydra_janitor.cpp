@@ -104,7 +104,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         if (PeriodicExecutor_) {
-            PeriodicExecutor_->Stop();
+            YT_UNUSED_FUTURE(PeriodicExecutor_->Stop());
             PeriodicExecutor_.Reset();
         }
     }

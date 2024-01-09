@@ -133,7 +133,7 @@ void TSlotManager::Initialize()
             FreeSlots_.push(slotIndex);
         }
 
-        InitializeEnvironment();
+        YT_UNUSED_FUTURE(InitializeEnvironment());
     })
         .AsyncVia(Bootstrap_->GetJobInvoker())
         .Run());

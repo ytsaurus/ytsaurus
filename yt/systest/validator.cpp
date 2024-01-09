@@ -266,9 +266,9 @@ void TValidator::Start()
         break;
     }
 
-    BIND(&TValidator::PollVanillaWorkers, this)
+    YT_UNUSED_FUTURE(BIND(&TValidator::PollVanillaWorkers, this)
         .AsyncVia(ThreadPool_->GetInvoker())
-        .Run();
+        .Run());
 }
 
 TString TValidator::GetWorker()

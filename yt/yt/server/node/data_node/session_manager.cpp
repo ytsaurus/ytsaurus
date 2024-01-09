@@ -177,11 +177,11 @@ ISessionPtr TSessionManager::StartSession(
         BIND(&TSessionManager::OnSessionFinished, MakeStrong(this), MakeWeak(session))
             .Via(Bootstrap_->GetStorageLightInvoker()));
 
-    session
+    YT_UNUSED_FUTURE(session
         ->GetStoreLocation()
         ->RegisterAction(BIND([=] {
             return session->GetUnregisteredEvent();
-        }));
+        })));
 
     RegisterSession(session);
 

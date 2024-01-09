@@ -145,7 +145,7 @@ TEST(TParallelReaderMemoryManagerTest, TestChunkReaderMemoryManagerUnregister)
     {
         auto allocation = reader1->AsyncAcquire(100);
         NConcurrency::WaitFor(allocation).ValueOrThrow();
-        reader1->Finalize();
+        YT_UNUSED_FUTURE(reader1->Finalize());
         AssertOverTime([&] () {
             return reader1->GetReservedMemorySize() == 100 && reader2->GetReservedMemorySize() == 0;
         });
@@ -202,7 +202,7 @@ TEST(TParallelReaderMemoryManagerTest, TestMemoryManagerFreesMemoryAfterUnregist
         return reader1->GetReservedMemorySize() == 100 && reader2->GetReservedMemorySize() == 0;
     });
 
-    reader1->Finalize();
+    YT_UNUSED_FUTURE(reader1->Finalize());
     WaitTestPredicate([&] () { return reader2->GetReservedMemorySize() == 100; });
 }
 
@@ -228,7 +228,7 @@ TEST(TParallelReaderMemoryManagerTest, TestMemoryManagerBalancing1)
     WaitTestPredicate([&] () { return reader1->GetReservedMemorySize() == 50; });
     WaitTestPredicate([&] () { return reader2->GetReservedMemorySize() == 50; });
 
-    reader1->Finalize();
+    YT_UNUSED_FUTURE(reader1->Finalize());
     WaitTestPredicate([&] () { return reader2->GetReservedMemorySize() == 100; });
 }
 
@@ -259,7 +259,7 @@ TEST(TParallelReaderMemoryManagerTest, TestMemoryManagerBalancing2)
     reader3->SetPrefetchMemorySize(100'000);
     AssertOverTime([&] () { return reader3->GetReservedMemorySize() == 0; });
 
-    reader2->Finalize();
+    YT_UNUSED_FUTURE(reader2->Finalize());
     WaitTestPredicate([&] () { return reader3->GetReservedMemorySize() == 20; });
 
     auto reader4 = memoryManager->CreateChunkReaderMemoryManager();
@@ -267,7 +267,7 @@ TEST(TParallelReaderMemoryManagerTest, TestMemoryManagerBalancing2)
     reader4->SetPrefetchMemorySize(100'000);
     AssertOverTime([&] () { return reader4->GetReservedMemorySize() == 0; });
 
-    reader1->Finalize();
+    YT_UNUSED_FUTURE(reader1->Finalize());
     WaitTestPredicate([&] () { return reader3->GetReservedMemorySize() == 50; });
     WaitTestPredicate([&] () { return reader4->GetReservedMemorySize() == 50; });
 }
@@ -339,7 +339,7 @@ TEST(TParallelReaderMemoryManagerTest, TestFreeMemorySize)
     reader1->SetPrefetchMemorySize(50);
     WaitTestPredicate([&] () { return memoryManager->GetFreeMemorySize() == 0; });
 
-    reader1->Finalize();
+    YT_UNUSED_FUTURE(reader1->Finalize());
     WaitTestPredicate([&] () { return memoryManager->GetFreeMemorySize() == 100; });
 }
 
@@ -392,7 +392,7 @@ TEST(TParallelReaderMemoryManagerTest, PerformanceAndStressTest)
 
     while (!readers.empty()) {
         if (rng() % 3 == 0) {
-            readers.back()->Finalize();
+            YT_UNUSED_FUTURE(readers.back()->Finalize());
             readers.pop_back();
         } else {
             auto readerIndex = rng() % readers.size();
@@ -438,7 +438,7 @@ TEST(TParallelReaderMemoryManagerTest, TestManyHeavyRebalancings)
         } else {
             WaitTestPredicate([&] () { return readers.back()->GetReservedMemorySize() == ReaderCount; });
         }
-        readers.back()->Finalize();
+        YT_UNUSED_FUTURE(readers.back()->Finalize());
         readers.pop_back();
     }
 }
@@ -578,8 +578,8 @@ TEST(TParallelReaderMemoryManagerTest, TParallelReaderMemoryManagerTestFinalize)
     WaitTestPredicate([&] () { return r1->GetReservedMemorySize() == 5; });
     WaitTestPredicate([&] () { return r2->GetReservedMemorySize() == 5; });
 
-    r1->Finalize();
-    mm21->Finalize();
+    YT_UNUSED_FUTURE(r1->Finalize());
+    YT_UNUSED_FUTURE(mm21->Finalize());
     WaitTestPredicate([&] () { return r2->GetReservedMemorySize() == 10; });
 }
 

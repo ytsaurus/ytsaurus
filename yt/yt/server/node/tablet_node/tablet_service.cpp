@@ -401,7 +401,7 @@ private:
 
         const auto& hydraManager = Slot_->GetHydraManager();
         auto mutation = CreateMutation(hydraManager, NTabletServer::NProto::TReqSuspendTabletCell());
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, ResumeTabletCell)
@@ -412,7 +412,7 @@ private:
 
         const auto& hydraManager = Slot_->GetHydraManager();
         auto mutation = CreateMutation(hydraManager, NTabletServer::NProto::TReqResumeTabletCell());
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, WriteHunks)

@@ -263,7 +263,7 @@ public:
             context,
             &TChaosManager::HydraResumeChaosCell,
             this);
-        mutation->CommitAndReply(context);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     TFuture<void> ExecuteAlterTableReplica(const NChaosClient::NProto::TReqAlterTableReplica& request) override

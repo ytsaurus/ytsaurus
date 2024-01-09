@@ -279,9 +279,9 @@ protected:
         }
 
         if (dynamicConfig->EnableJobEnvironmentResurrection) {
-            BIND(&TSlotManager::Disable, Bootstrap_->GetSlotManager())
+            YT_UNUSED_FUTURE(BIND(&TSlotManager::Disable, Bootstrap_->GetSlotManager())
                 .AsyncVia(Bootstrap_->GetJobInvoker())
-                .Run(error);
+                .Run(error));
         }
     }
 

@@ -118,7 +118,7 @@ public:
         BIND([this] {
             ElectionManager->Participate();
             Sleep();
-            ElectionManager->Abandon(TError("oops"));
+            YT_UNUSED_FUTURE(ElectionManager->Abandon(TError("oops")));
             Sleep();
         })
             .AsyncVia(ActionQueue->GetInvoker())

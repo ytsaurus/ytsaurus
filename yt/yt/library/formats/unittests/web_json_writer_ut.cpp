@@ -147,7 +147,7 @@ TEST_F(TWriterForWebJson, SliceColumnsByMaxCount)
         }).Get(),
     });
     EXPECT_TRUE(written);
-    Writer_->Close();
+    YT_UNUSED_FUTURE(Writer_->Close());
 
     TString expectedOutput =
         "{"
@@ -205,7 +205,7 @@ TEST_F(TWriterForWebJson, SliceStrings)
         }).Get(),
     });
     EXPECT_TRUE(written);
-    Writer_->Close();
+    YT_UNUSED_FUTURE(Writer_->Close());
 
     TString expectedOutput =
         "{"
@@ -487,7 +487,7 @@ TEST_F(TWriterForWebJson, SkipUnregisteredColumns)
     rows.push_back(row.GetRow());
 
     EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->Close();
+    YT_UNUSED_FUTURE(Writer_->Close());
 
     TString expectedOutput =
         "{"

@@ -22,9 +22,9 @@ int main()
 {
     auto threadPool = NYT::NConcurrency::CreateThreadPool(2, "Pool");
 
-    BIND([] { Sleep(TDuration::Max()); })
+    YT_UNUSED_FUTURE(BIND([] { Sleep(TDuration::Max()); })
         .AsyncVia(threadPool->GetInvoker())
-        .Run();
+        .Run());
 
     auto traceContext = NYT::NTracing::CreateTraceContextFromCurrent("Test");
     traceContext->SetRecorded();

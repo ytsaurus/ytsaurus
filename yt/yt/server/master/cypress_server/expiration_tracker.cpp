@@ -335,8 +335,8 @@ void TExpirationTracker::OnCheck()
     YT_LOG_DEBUG("Starting removal commit for expired nodes (Count: %v)",
         request.node_ids_size());
 
-    CreateMutation(hydraManager, request)
-        ->CommitAndLog(Logger);
+    YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+        ->CommitAndLog(Logger));
 }
 
 bool TExpirationTracker::IsRecovery() const

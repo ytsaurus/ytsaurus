@@ -135,10 +135,10 @@ protected:
 
         if (Running_) {
             // Reschedule interrupted global chunk scan.
-            CreateMutation(
+            YT_UNUSED_FUTURE(CreateMutation(
                 Bootstrap_->GetHydraFacade()->GetHydraManager(),
                 TReqRecalculateMasterCellChunkStatistics{})
-                ->CommitAndLog(Logger);
+                ->CommitAndLog(Logger));
         }
 
         // NB: It is important to start executor only after ScheduleScan() is
@@ -183,7 +183,7 @@ private:
     void TransientClear()
     {
         if (ChunkScanExecutor_) {
-            ChunkScanExecutor_->Stop();
+            YT_UNUSED_FUTURE(ChunkScanExecutor_->Stop());
             ChunkScanExecutor_.Reset();
         }
         StopScanner();
@@ -309,8 +309,8 @@ private:
 
         mutationRequest.set_last_batch(!ChunkScanner_.HasUnscannedChunk());
 
-        CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), mutationRequest)
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), mutationRequest)
+            ->CommitAndLog(Logger));
 
         YT_LOG_DEBUG("Master cell chunk statistics updated (GlobalScanFinished: %v)",
             !ChunkScanner_.HasUnscannedChunk());

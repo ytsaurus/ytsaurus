@@ -62,7 +62,7 @@ public:
 
     void Stop() override
     {
-        SyncExecutor_->Stop();
+        YT_UNUSED_FUTURE(SyncExecutor_->Stop());
     }
 
 private:

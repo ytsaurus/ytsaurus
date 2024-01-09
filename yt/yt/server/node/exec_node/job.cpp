@@ -537,7 +537,7 @@ void TJob::Terminate(EJobState finalState, TError error)
         case EJobPhase::Running:
         case EJobPhase::RunningExtraGpuCheckCommand:
             doTerminate();
-            StopJobProxy();
+            YT_UNUSED_FUTURE(StopJobProxy());
             break;
 
         case EJobPhase::FinalizingJobProxy:

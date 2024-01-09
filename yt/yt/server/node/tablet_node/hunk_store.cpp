@@ -31,12 +31,12 @@ EHunkStoreState THunkStore::GetState() const
 void THunkStore::SetState(EHunkStoreState newState)
 {
     if (State_ == EHunkStoreState::Active && newState == EHunkStoreState::Passive) {
-        Writer_->Close().Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
+        YT_UNUSED_FUTURE(Writer_->Close().Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
             YT_LOG_WARNING_UNLESS(
                 error.IsOK(),
                 error,
                 "Failed to close journal hunk chunk writer");
-        }));
+        })));
     }
 
     State_ = newState;

@@ -392,7 +392,7 @@ void TMasterJobBase::DoSetFinished(
                 "Master job finished with error");
 
             // 5th step.
-            ReleaseCumulativeResources()
+            YT_UNUSED_FUTURE(ReleaseCumulativeResources()
                 // 6th step.
                 .Apply(BIND(&TMasterJobBase::ReleaseResources, MakeStrong(this))
                 .AsyncVia(Bootstrap_->GetJobInvoker()))
@@ -402,7 +402,7 @@ void TMasterJobBase::DoSetFinished(
                         error,
                         "Failed to release master job resources");
                 })
-                .Via(Bootstrap_->GetJobInvoker()));
+                .Via(Bootstrap_->GetJobInvoker())));
         }));
 
         JobFuture_.Reset();
@@ -1165,7 +1165,7 @@ private:
                 for (const auto& block : blocks) {
                     records.push_back(block.Data);
                 }
-                changelog->Append(records);
+                YT_UNUSED_FUTURE(changelog->Append(records));
 
                 i64 totalRecordsSize = 0;
                 for (const auto& block : blocks) {

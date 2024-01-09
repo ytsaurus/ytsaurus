@@ -343,13 +343,13 @@ TEST_F(TRemoteChangelogStoreTest, TestPendingMutations)
         .ValueOrThrow();
 
     for (int index = 0; index < 5; ++index) {
-        changelog->Append(MakeRange(Records_.begin() + index, Records_.begin() + index + 1));
+        YT_UNUSED_FUTURE(changelog->Append(MakeRange(Records_.begin() + index, Records_.begin() + index + 1)));
     }
 
     TDelayedExecutor::WaitForDuration(TDuration::Seconds(5));
 
     for (int index = 5; index < 10; ++index) {
-        changelog->Append(MakeRange(Records_.begin() + index, Records_.begin() + index + 1));
+        YT_UNUSED_FUTURE(changelog->Append(MakeRange(Records_.begin() + index, Records_.begin() + index + 1)));
     }
 
     WaitFor(changelog->Close())

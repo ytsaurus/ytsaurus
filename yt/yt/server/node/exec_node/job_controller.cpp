@@ -869,7 +869,7 @@ private:
             // NB(psushin): if slot manager is disabled with fatal alert we might have experienced an unrecoverable failure (e.g. hanging Porto)
             // and to avoid inconsistent state with scheduler we decide not to report to it any jobs at all.
             // We also drop all scheduler jobs from |JobMap_|.
-            RemoveSchedulerJobs();
+            YT_UNUSED_FUTURE(RemoveSchedulerJobs());
 
             request->set_confirmed_job_count(0);
 

@@ -62,8 +62,8 @@ private:
     {
         TEvictKeptResponsesReq request;
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+            ->CommitAndLog(Logger));
     }
 
     void HydraEvictKeptResponses(TEvictKeptResponsesReq* /*request*/)
@@ -83,7 +83,7 @@ private:
     {
         TMasterAutomatonPart::OnStopLeading();
 
-        ResponseKeeperEvictionExecutor_->Stop();
+        YT_UNUSED_FUTURE(ResponseKeeperEvictionExecutor_->Stop());
     }
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)

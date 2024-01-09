@@ -82,7 +82,7 @@ protected:
 TEST_F(TChangelogTest, ReadWithRecordCountLimit)
 {
     for (int recordIndex = 0; recordIndex < 40; ++recordIndex) {
-        Changelog_->Append({MakeData(recordIndex)});
+        YT_UNUSED_FUTURE(Changelog_->Append({MakeData(recordIndex)}));
     }
 
     WaitFor(Changelog_->Flush())
@@ -105,7 +105,7 @@ TEST_F(TChangelogTest, ReadWithRecordCountLimit)
 TEST_F(TChangelogTest, ReadWithSizeLimit)
 {
     for (int recordIndex = 0; recordIndex < 40; ++recordIndex) {
-        Changelog_->Append({MakeData(recordIndex)});
+        YT_UNUSED_FUTURE(Changelog_->Append({MakeData(recordIndex)}));
     }
 
     WaitFor(Changelog_->Flush())
@@ -127,7 +127,7 @@ TEST_F(TChangelogTest, ReadWithSizeLimit)
 TEST_F(TChangelogTest, Truncate)
 {
     for (int recordIndex = 0; recordIndex < 40; ++recordIndex) {
-        Changelog_->Append({MakeData(recordIndex)});
+        YT_UNUSED_FUTURE(Changelog_->Append({MakeData(recordIndex)}));
     }
 
     constexpr int NewRecordCount = 30;
@@ -159,7 +159,7 @@ TEST_F(TChangelogTestNoAutoFlush, ReadFromMemory)
     constexpr int RecordCount = 30;
 
     for (int recordIndex = 0; recordIndex < RecordCount; ++recordIndex) {
-        Changelog_->Append({MakeData(recordIndex)});
+        YT_UNUSED_FUTURE(Changelog_->Append({MakeData(recordIndex)}));
     }
 
     auto records = WaitFor(Changelog_->Read(0, std::numeric_limits<int>::max(), std::numeric_limits<i64>::max()))
@@ -176,14 +176,14 @@ TEST_F(TChangelogTestNoAutoFlush, ReadFromDiskAndMemory)
     constexpr int TotalRecordCount = DiskRecordCount + MemoryRecordCount;
 
     for (int recordIndex = 0; recordIndex < DiskRecordCount; ++recordIndex) {
-        Changelog_->Append({MakeData(recordIndex)});
+        YT_UNUSED_FUTURE(Changelog_->Append({MakeData(recordIndex)}));
     }
 
     WaitFor(Changelog_->Flush())
         .ThrowOnError();
 
     for (int recordIndex = DiskRecordCount; recordIndex < DiskRecordCount + MemoryRecordCount; ++recordIndex) {
-        Changelog_->Append({MakeData(recordIndex)});
+        YT_UNUSED_FUTURE(Changelog_->Append({MakeData(recordIndex)}));
     }
 
     auto records = WaitFor(Changelog_->Read(0, std::numeric_limits<int>::max(), std::numeric_limits<i64>::max()))

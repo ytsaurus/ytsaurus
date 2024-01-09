@@ -289,8 +289,8 @@ private:
         ToProto(hydraRequest.mutable_tablet_id(), tablet->GetId());
         hydraRequest.set_mount_revision(tablet->GetMountRevision());
         hydraRequest.set_trimmed_row_count(trimmedRowCount);
-        CreateMutation(slot->GetHydraManager(), hydraRequest)
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateMutation(slot->GetHydraManager(), hydraRequest)
+            ->CommitAndLog(Logger));
     }
 
     void TrimStores(

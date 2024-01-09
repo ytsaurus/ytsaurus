@@ -105,15 +105,15 @@ private:
     {
         TMasterAutomatonPart::OnStopLeading();
 
-        StoreMutationTimeExecutor_->Stop();
+        YT_UNUSED_FUTURE(StoreMutationTimeExecutor_->Stop());
     }
 
     void Run()
     {
         TStoreMutationTimeReq request;
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+            ->CommitAndLog(Logger));
     }
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)

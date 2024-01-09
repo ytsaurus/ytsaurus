@@ -124,7 +124,7 @@ TEST_F(TCypressElectionManagerTest, TestElectionManager)
     EXPECT_EQ(StartCount_, 1);
     EXPECT_EQ(EndCount_, 0);
 
-    electionManager->StopLeading();
+    YT_UNUSED_FUTURE(electionManager->StopLeading());
     WaitForPredicate([&] {
         return !IsActive(transaction1);
     });
@@ -227,7 +227,7 @@ TEST_F(TCypressElectionManagerTest, TestSeveralElectionManagers)
 
     for (int i = 0; i < 3; ++i) {
         if (!IsActive(electionManagers[i]->GetPrerequisiteTransactionId())) {
-            electionManagers[i]->StopLeading();
+            YT_UNUSED_FUTURE(electionManagers[i]->StopLeading());
         }
     }
 
@@ -238,7 +238,7 @@ TEST_F(TCypressElectionManagerTest, TestSeveralElectionManagers)
     EXPECT_EQ(StartCount_, 1);
     EXPECT_EQ(EndCount_, 0);
 
-    leader->StopLeading();
+    YT_UNUSED_FUTURE(leader->StopLeading());
     WaitForPredicate([&] {
         return !IsActive(transaction1);
     });
@@ -310,7 +310,7 @@ TEST_F(TCypressElectionManagerTest, TestSeveralElectionManagers)
     EXPECT_EQ(StartCount_, 3);
     EXPECT_EQ(EndCount_, 2);
 
-    leader->StopLeading();
+    YT_UNUSED_FUTURE(leader->StopLeading());
     WaitForPredicate([&] {
         return !IsActive(transaction3);
     });

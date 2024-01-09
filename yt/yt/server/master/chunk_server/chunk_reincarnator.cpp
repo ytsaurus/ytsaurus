@@ -733,7 +733,7 @@ public:
 
         auto stopExecutor = [] (auto& executor) {
             if (executor) {
-                executor->Stop();
+                YT_UNUSED_FUTURE(executor->Stop());
                 executor.Reset();
             }
         };
@@ -1294,8 +1294,8 @@ private:
                 ToProto(subrequest->mutable_options(), request.Options);
             }
 
-            CreateMutation(hydraManager, replaceChunksMutation)
-                ->CommitAndLog(Logger);
+            YT_UNUSED_FUTURE(CreateMutation(hydraManager, replaceChunksMutation)
+                ->CommitAndLog(Logger));
         }
     }
 
@@ -1546,10 +1546,10 @@ private:
                 });
         }
 
-        CreateMutation(
+        YT_UNUSED_FUTURE(CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             NProto::TReqUpdateChunkReincarnatorTransactions())
-            ->CommitAndLog(Logger);
+            ->CommitAndLog(Logger));
     }
 
     void OnChunkScan()
@@ -1712,8 +1712,8 @@ private:
             for (auto chunkId : chunksToReincarnate) {
                 ToProto(request.add_subrequests()->mutable_old_chunk_id(), chunkId);
             }
-            CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-                ->CommitAndLog(Logger);
+            YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
+                ->CommitAndLog(Logger));
 
             YT_LOG_DEBUG("Chunk reincarnation scheduled "
                 "(ChunkCount: %v, ChunkIds: %v)",
@@ -1728,10 +1728,10 @@ private:
             NProto::TReqCheckExportedChunkReincarnation mutationRequest;
             mutationRequest.set_config_version(ConfigVersion_);
             ToProto(mutationRequest.mutable_chunk_ids(), exportedChunks);
-            CreateMutation(
+            YT_UNUSED_FUTURE(CreateMutation(
                 Bootstrap_->GetHydraFacade()->GetHydraManager(),
                 mutationRequest)
-                ->CommitAndLog(Logger);
+                ->CommitAndLog(Logger));
 
             YT_LOG_DEBUG("Exported chunk reincarnation check scheduled "
                 "(ChunkIdsCount: %v, ChunkIds: %v)",
@@ -1963,8 +1963,8 @@ private:
             ToProto(subrequest->mutable_old_chunk_id(), chunkId);
         }
 
-        CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), mutationRequest)
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), mutationRequest)
+            ->CommitAndLog(Logger));
     }
 
     void HydraUpdateChunkReincarnatorTransactions(

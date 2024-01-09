@@ -72,8 +72,8 @@ public:
 
     void Stop()
     {
-        DecommissionExecutor_->Stop();
-        KickOrphansExecutor_->Stop();
+        YT_UNUSED_FUTURE(DecommissionExecutor_->Stop());
+        YT_UNUSED_FUTURE(KickOrphansExecutor_->Stop());
     }
 
     void Reconfigure(TTabletCellDecommissionerConfigPtr config)
@@ -194,8 +194,8 @@ private:
             ToProto(request.mutable_tablet_ids(), std::vector<TTabletId>{tablet->GetId()});
 
             const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-            CreateMutation(hydraManager, request)
-                ->CommitAndLog(Logger);
+            YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+                ->CommitAndLog(Logger));
         }
     }
 
@@ -228,8 +228,8 @@ private:
         ToProto(request.mutable_cell_id(), cell->GetId());
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+            ->CommitAndLog(Logger));
     }
 
     void RemoveCellIfDecommissioned(const TCellBase* cell)
@@ -243,7 +243,7 @@ private:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto rootService = objectManager->GetRootService();
         auto req = TYPathProxy::Remove(NObjectClient::FromObjectId(cell->GetId()));
-        ExecuteVerb(rootService, req);
+        YT_UNUSED_FUTURE(ExecuteVerb(rootService, req));
     }
 
     void DoCheckOrphans()
@@ -268,8 +268,8 @@ private:
             TReqKickOrphanedTabletActions request;
             ToProto(request.mutable_tablet_action_ids(), orphans);
             const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-            CreateMutation(hydraManager, request)
-                ->CommitAndLog(Logger);
+            YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+                ->CommitAndLog(Logger));
         }
     }
 };

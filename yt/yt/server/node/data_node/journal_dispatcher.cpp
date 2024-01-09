@@ -196,9 +196,9 @@ public:
                 // guarantees that all previous records are committed to disk.
                 if (skipped) {
                     ++RejectedMultiplexedAppends_;
-                    flushResult.Apply(BIND([=, this, this_ = MakeStrong(this)] {
+                    YT_UNUSED_FUTURE(flushResult.Apply(BIND([=, this, this_ = MakeStrong(this)] {
                         YT_VERIFY(--RejectedMultiplexedAppends_ >= 0);
-                    }));
+                    })));
                 }
 
                 return RejectedMultiplexedAppends_ ? flushResult : VoidFuture;

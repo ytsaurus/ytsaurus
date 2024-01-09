@@ -358,8 +358,8 @@ private:
             ToProto(request.mutable_partition_id(), partition->GetId());
             ToProto(request.mutable_pivot_keys(), pivotKeys);
 
-            CreateMutation(hydraManager, request)
-                ->CommitAndLog(Logger);
+            YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+                ->CommitAndLog(Logger));
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Partition splitting aborted");
             structuredLogger->LogEvent("backoff_partition_split")
@@ -394,8 +394,8 @@ private:
         ToProto(request.mutable_partition_id(), partition->GetId());
         ToProto(request.mutable_pivot_keys(), pivotKeys);
 
-        CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+            ->CommitAndLog(Logger));
     }
 
     bool RunMerge(
@@ -452,8 +452,8 @@ private:
         ToProto(request.mutable_partition_id(), tablet->PartitionList()[firstPartitionIndex]->GetId());
         request.set_partition_count(lastPartitionIndex - firstPartitionIndex + 1);
 
-        CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+            ->CommitAndLog(Logger));
         return true;
     }
 
@@ -530,8 +530,8 @@ private:
             ToProto(request.mutable_partition_id(), partition->GetId());
             request.set_sample_keys(MergeRefsToString(writer->Finish()));
 
-            CreateMutation(hydraManager, request)
-                ->CommitAndLog(Logger);
+            YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+                ->CommitAndLog(Logger));
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Partition sampling aborted");
         }

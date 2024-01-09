@@ -1120,12 +1120,12 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         if (CheckerExecutor_) {
-            CheckerExecutor_->Stop();
+            YT_UNUSED_FUTURE(CheckerExecutor_->Stop());
             CheckerExecutor_.Reset();
         }
 
         if (UpdaterExecutor_) {
-            UpdaterExecutor_->Stop();
+            YT_UNUSED_FUTURE(UpdaterExecutor_->Stop());
             UpdaterExecutor_.Reset();
         }
 

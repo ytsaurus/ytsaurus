@@ -123,7 +123,7 @@ private:
 
         const auto& chunkDescriptor = ChunkDescriptors_[CurrentChunkIndex_];
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        chunkManager->GetChunkQuorumInfo(
+        YT_UNUSED_FUTURE(chunkManager->GetChunkQuorumInfo(
             chunkDescriptor.ChunkId,
             true,
             chunkDescriptor.CodecId,
@@ -132,7 +132,7 @@ private:
             chunkDescriptor.ReplicaDescriptors)
             .Apply(
                 BIND(&TJournalQuorumRowCountSession::OnChunkInfoReceived, MakeStrong(this))
-                    .Via(GetCurrentInvoker()));
+                    .Via(GetCurrentInvoker())));
     }
 
     void OnChunkInfoReceived(const TErrorOr<TChunkQuorumInfo>& infoOrError)

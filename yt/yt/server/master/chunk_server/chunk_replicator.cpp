@@ -408,22 +408,22 @@ void TChunkReplicator::OnEpochFinished()
     LastPerNodeProfilingTime_ = TInstant::Zero();
 
     if (RefreshExecutor_) {
-        RefreshExecutor_->Stop();
+        YT_UNUSED_FUTURE(RefreshExecutor_->Stop());
         RefreshExecutor_.Reset();
     }
 
     if (RequisitionUpdateExecutor_) {
-        RequisitionUpdateExecutor_->Stop();
+        YT_UNUSED_FUTURE(RequisitionUpdateExecutor_->Stop());
         RequisitionUpdateExecutor_.Reset();
     }
 
     if (FinishedRequisitionTraverseFlushExecutor_) {
-        FinishedRequisitionTraverseFlushExecutor_->Stop();
+        YT_UNUSED_FUTURE(FinishedRequisitionTraverseFlushExecutor_->Stop());
         FinishedRequisitionTraverseFlushExecutor_.Reset();
     }
 
     if (EnabledCheckExecutor_) {
-        EnabledCheckExecutor_->Stop();
+        YT_UNUSED_FUTURE(EnabledCheckExecutor_->Stop());
         EnabledCheckExecutor_.Reset();
     }
 
@@ -3541,7 +3541,7 @@ void TChunkReplicator::FlushEndorsementQueue()
     // NB: This code can be executed either on leader or follower.
     mutation->SetAllowLeaderForwarding(true);
     auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkRefresher);
-    mutation->CommitAndLog(Logger)
+    YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger)
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
             if (!error.IsOK()) {
                 YT_LOG_WARNING(error,
@@ -3549,7 +3549,7 @@ void TChunkReplicator::FlushEndorsementQueue()
                     "scheduling global refresh");
                 ScheduleGlobalChunkRefresh();
             }
-        }).AsyncVia(invoker));
+        }).AsyncVia(invoker)));
 }
 
 const std::unique_ptr<TChunkReplicator::TChunkRefreshScanner>& TChunkReplicator::GetChunkRefreshScanner(TChunk* chunk) const

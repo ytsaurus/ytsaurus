@@ -908,12 +908,12 @@ private:
         TCompositeAutomatonPart::OnStopLeading();
 
         if (ProfilingExecutor_) {
-            ProfilingExecutor_->Stop();
+            YT_UNUSED_FUTURE(ProfilingExecutor_->Stop());
             ProfilingExecutor_.Reset();
         }
 
         if (BarrierCheckExecutor_) {
-            BarrierCheckExecutor_->Stop();
+            YT_UNUSED_FUTURE(BarrierCheckExecutor_->Stop());
             BarrierCheckExecutor_.Reset();
         }
 
@@ -1314,8 +1314,8 @@ private:
 
         NTabletNode::NProto::TReqHandleTransactionBarrier request;
         request.set_timestamp(TransientBarrierTimestamp_);
-        CreateMutation(HydraManager_, request)
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateMutation(HydraManager_, request)
+            ->CommitAndLog(Logger));
     }
 
     void RegisterPrepareTimestamp(TTransaction* transaction)

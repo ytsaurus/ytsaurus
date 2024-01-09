@@ -3069,8 +3069,8 @@ private:
     void OnRecomputeMembershipClosure()
     {
         NProto::TReqRecomputeMembershipClosure request;
-        CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
+            ->CommitAndLog(Logger));
     }
 
 
@@ -4082,7 +4082,7 @@ private:
     void StopAccountsProfiling()
     {
         if (AccountsProfilingExecutor_) {
-            AccountsProfilingExecutor_->Stop();
+            YT_UNUSED_FUTURE(AccountsProfilingExecutor_->Stop());
             AccountsProfilingExecutor_.Reset();
         }
 
@@ -4097,17 +4097,17 @@ private:
         UserActivityTracker_->Stop();
 
         if (AccountStatisticsGossipExecutor_) {
-            AccountStatisticsGossipExecutor_->Stop();
+            YT_UNUSED_FUTURE(AccountStatisticsGossipExecutor_->Stop());
             AccountStatisticsGossipExecutor_.Reset();
         }
 
         if (MembershipClosureRecomputeExecutor_) {
-            MembershipClosureRecomputeExecutor_->Stop();
+            YT_UNUSED_FUTURE(MembershipClosureRecomputeExecutor_->Stop());
             MembershipClosureRecomputeExecutor_.Reset();
         }
 
         if (AccountMasterMemoryUsageUpdateExecutor_) {
-            AccountMasterMemoryUsageUpdateExecutor_->Stop();
+            YT_UNUSED_FUTURE(AccountMasterMemoryUsageUpdateExecutor_->Stop());
             AccountMasterMemoryUsageUpdateExecutor_.Reset();
         }
 
@@ -4143,8 +4143,8 @@ private:
         }
 
         if (request.entries_size() > 0) {
-            CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-                ->CommitAndLog(Logger);
+            YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
+                ->CommitAndLog(Logger));
         }
     }
 

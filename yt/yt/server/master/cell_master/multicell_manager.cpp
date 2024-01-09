@@ -648,17 +648,17 @@ private:
         TMasterAutomatonPart::OnStopLeading();
 
         if (RegisterAtPrimaryMasterExecutor_) {
-            RegisterAtPrimaryMasterExecutor_->Stop();
+            YT_UNUSED_FUTURE(RegisterAtPrimaryMasterExecutor_->Stop());
             RegisterAtPrimaryMasterExecutor_.Reset();
         }
 
         if (CellStatisticsGossipExecutor_) {
-            CellStatisticsGossipExecutor_->Stop();
+            YT_UNUSED_FUTURE(CellStatisticsGossipExecutor_->Stop());
             CellStatisticsGossipExecutor_.Reset();
         }
 
         if (SyncHiveClocksExecutor_) {
-            SyncHiveClocksExecutor_->Stop();
+            YT_UNUSED_FUTURE(SyncHiveClocksExecutor_->Stop());
             SyncHiveClocksExecutor_.Reset();
         }
 
@@ -1026,8 +1026,8 @@ private:
         }
 
         NProto::TReqStartSecondaryMasterRegistration request;
-        CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
+            ->CommitAndLog(Logger));
     }
 
     void OnCellStatisticsGossip()
@@ -1044,8 +1044,8 @@ private:
 
         if (IsPrimaryMaster()) {
             // Persist statistics locally.
-            CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), localRequest)
-                ->CommitAndLog(Logger);
+            YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), localRequest)
+                ->CommitAndLog(Logger));
 
             // Send statistics to secondary cells.
             auto allCellTags = GetRegisteredMasterCellTags();
@@ -1079,8 +1079,8 @@ private:
     void OnSyncHiveClocks()
     {
         NProto::TReqSyncHiveClocks request;
-        CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
+            ->CommitAndLog(Logger));
     }
 
     NProto::TReqSetCellStatistics GetTransientLocalCellStatistics()

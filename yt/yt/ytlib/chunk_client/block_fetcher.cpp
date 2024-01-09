@@ -165,7 +165,7 @@ TBlockFetcher::TBlockFetcher(
 
 TBlockFetcher::~TBlockFetcher()
 {
-    MemoryManager_->Finalize();
+    YT_UNUSED_FUTURE(MemoryManager_->Finalize());
 }
 
 void TBlockFetcher::Start()
@@ -468,7 +468,7 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
 
     if (windowIndexes.empty()) {
         FetchingCompleted_ = true;
-        MemoryManager_->Finalize();
+        YT_UNUSED_FUTURE(MemoryManager_->Finalize());
         return;
     }
 

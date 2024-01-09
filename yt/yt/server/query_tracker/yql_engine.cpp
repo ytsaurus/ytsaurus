@@ -113,7 +113,7 @@ public:
     void Abort() override
     {
         // Nothing smarter than that for now.
-        ProgressGetterExecutor_->Stop();
+        YT_UNUSED_FUTURE(ProgressGetterExecutor_->Stop());
         StopProgressWriter();
         AsyncQueryResult_.Cancel(TError("Query aborted"));
     }
@@ -121,7 +121,7 @@ public:
     void Detach() override
     {
         // Nothing smarter than that for now.
-        ProgressGetterExecutor_->Stop();
+        YT_UNUSED_FUTURE(ProgressGetterExecutor_->Stop());
         StopProgressWriter();
         AsyncQueryResult_.Cancel(TError("Query detached"));
     }

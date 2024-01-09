@@ -43,7 +43,7 @@ public:
 
     void Stop()
     {
-        CleanupExecutor_->Stop();
+        YT_UNUSED_FUTURE(CleanupExecutor_->Stop());
     }
 
     void Reconfigure(TTabletActionManagerMasterConfigPtr config)
@@ -84,8 +84,8 @@ private:
             ToProto(request.mutable_tablet_action_ids(), actionIdsPendingRemoval);
 
             const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-            CreateMutation(hydraManager, request)
-                ->CommitAndLog(Logger);
+            YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+                ->CommitAndLog(Logger));
         }
     }
 };

@@ -6247,8 +6247,8 @@ private:
         if (multicellManager->IsMulticell() && multicellManager->IsPrimaryMaster()) {
             NProto::TReqUpdateTabletCellBundleResourceUsage request;
             const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-            CreateMutation(hydraManager, request)
-                ->CommitAndLog(Logger);
+            YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+                ->CommitAndLog(Logger));
         }
     }
 
@@ -6372,17 +6372,17 @@ private:
         TabletActionManager_->Stop();
 
         if (TabletCellStatisticsGossipExecutor_) {
-            TabletCellStatisticsGossipExecutor_->Stop();
+            YT_UNUSED_FUTURE(TabletCellStatisticsGossipExecutor_->Stop());
             TabletCellStatisticsGossipExecutor_.Reset();
         }
 
         if (BundleResourceUsageGossipExecutor_) {
-            BundleResourceUsageGossipExecutor_->Stop();
+            YT_UNUSED_FUTURE(BundleResourceUsageGossipExecutor_->Stop());
             BundleResourceUsageGossipExecutor_.Reset();
         }
 
         if (ProfilingExecutor_) {
-            ProfilingExecutor_->Stop();
+            YT_UNUSED_FUTURE(ProfilingExecutor_->Stop());
             ProfilingExecutor_.Reset();
         }
 

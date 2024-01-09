@@ -152,8 +152,8 @@ void TMutationIdempotizer::OnCheck()
     }
 
     NProto::TReqRemoveExpiredRecentlyAppliedMutationIds request;
-    CreateMutation(hydraManager, request)
-        ->CommitAndLog(Logger);
+    YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+        ->CommitAndLog(Logger));
 }
 
 const TMutationIdempotizerConfigPtr& TMutationIdempotizer::GetDynamicConfig()

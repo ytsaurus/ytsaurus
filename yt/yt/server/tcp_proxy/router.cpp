@@ -202,9 +202,9 @@ private:
         const IListenerPtr& listener,
         ui16 port)
     {
-        listener->Accept()
+        YT_UNUSED_FUTURE(listener->Accept()
             .Apply(BIND(&TRouter::OnConnectionAccepted, MakeWeak(this), port)
-            .AsyncVia(Acceptor_->GetInvoker()));
+            .AsyncVia(Acceptor_->GetInvoker())));
     }
 
     void UpdateRoutingTable()

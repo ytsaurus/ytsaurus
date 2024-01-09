@@ -65,12 +65,12 @@ void TGarbageCollector::Start()
 void TGarbageCollector::Stop()
 {
     if (SweepExecutor_) {
-        SweepExecutor_->Stop();
+        YT_UNUSED_FUTURE(SweepExecutor_->Stop());
         SweepExecutor_.Reset();
     }
 
     if (ObjectRemovalCellsSyncExecutor_) {
-        ObjectRemovalCellsSyncExecutor_->Stop();
+        YT_UNUSED_FUTURE(ObjectRemovalCellsSyncExecutor_->Stop());
         ObjectRemovalCellsSyncExecutor_.Reset();
     }
 

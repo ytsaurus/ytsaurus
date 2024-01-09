@@ -1450,8 +1450,8 @@ private:
         }
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        CreateMutation(hydraManager, TReqUpdateTabletCellHealthStatistics())
-            ->CommitAndLog(Logger);
+        YT_UNUSED_FUTURE(CreateMutation(hydraManager, TReqUpdateTabletCellHealthStatistics())
+            ->CommitAndLog(Logger));
 
         if (multicellManager->IsPrimaryMaster()) {
             multicellManager->PostToSecondaryMasters(request, false);
@@ -2220,11 +2220,11 @@ private:
         CellTracker_->Stop();
 
         if (CellStatusIncrementalGossipExecutor_) {
-            CellStatusIncrementalGossipExecutor_->Stop();
+            YT_UNUSED_FUTURE(CellStatusIncrementalGossipExecutor_->Stop());
             CellStatusIncrementalGossipExecutor_.Reset();
         }
         if (CellStatusFullGossipExecutor_) {
-            CellStatusFullGossipExecutor_->Stop();
+            YT_UNUSED_FUTURE(CellStatusFullGossipExecutor_->Stop());
             CellStatusFullGossipExecutor_.Reset();
         }
     }

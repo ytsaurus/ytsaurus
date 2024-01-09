@@ -81,7 +81,7 @@ public:
 
     void stopWatching() override
     {
-        PeriodicExecutor_->Stop();
+        YT_UNUSED_FUTURE(PeriodicExecutor_->Stop());
     }
 
     void reloadObjects() override

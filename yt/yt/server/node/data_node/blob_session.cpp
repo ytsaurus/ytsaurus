@@ -788,12 +788,12 @@ void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
 
             slot.Block = {};
 
-            BIND([=] (TMemoryUsageTrackerGuard guard) {
+            YT_UNUSED_FUTURE(BIND([=] (TMemoryUsageTrackerGuard guard) {
                 TDelayedExecutor::WaitForDuration(*delayBeforeFree);
                 guard.Release();
             })
             .AsyncVia(GetCurrentInvoker())
-            .Run(std::move(slot.MemoryUsageGuard));
+            .Run(std::move(slot.MemoryUsageGuard)));
         } else {
             slot.Block = {};
             slot.MemoryUsageGuard.Release();

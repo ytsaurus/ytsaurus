@@ -184,7 +184,7 @@ public:
             SealScanner_->Stop(shardIndex);
         }
 
-        SealExecutor_->Stop();
+        YT_UNUSED_FUTURE(SealExecutor_->Stop());
         SealExecutor_.Reset();
 
         YT_VERIFY(std::exchange(Running_, false));
@@ -469,9 +469,9 @@ private:
             }
 
             if (CanBeSealed(chunk)) {
-                BIND(&TChunkSealer::SealChunk, MakeStrong(this), chunk->GetId(), Passed(std::move(guard)))
+                YT_UNUSED_FUTURE(BIND(&TChunkSealer::SealChunk, MakeStrong(this), chunk->GetId(), Passed(std::move(guard)))
                     .AsyncVia(GetCurrentInvoker())
-                    .Run();
+                    .Run());
             }
         }
     }
@@ -631,8 +631,8 @@ private:
                     request.mutable_chunk_seal_info()->Swap(&chunkSealInfo);
 
                     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-                    CreateMutation(hydraManager, request)
-                        ->CommitAndLog(Logger);
+                    YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+                        ->CommitAndLog(Logger));
                 }
 
                 // Probably next seal attempt will succeed and will happen before autotomy end.

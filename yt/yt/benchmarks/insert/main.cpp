@@ -675,9 +675,9 @@ private:
             currentClient = (currentClient + 1) % Clients_.size();
 
             ++ Inflight_;
-            BIND(&TTask::Shoot, this, client, packet)
+            YT_UNUSED_FUTURE(BIND(&TTask::Shoot, this, client, packet)
                 .AsyncVia(WorkerPool_->GetInvoker())
-                .Run();
+                .Run());
 
             while (Inflight_ > Config_.MaxInflight) {
                 std::this_thread::yield();

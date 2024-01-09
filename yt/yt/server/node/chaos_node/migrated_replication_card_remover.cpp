@@ -131,14 +131,14 @@ private:
             SetMutationId(req, GenerateMutationId(), false);
             ToProto(req->mutable_replication_card_id(), replicationCardId);
 
-            req->Invoke()
+            YT_UNUSED_FUTURE(req->Invoke()
                 .Apply(
                     BIND([=] (const TChaosNodeServiceProxy::TErrorOrRspRemoveReplicationCardPtr& rspOrError) {
                         if (!rspOrError.IsOK()) {
                             YT_LOG_WARNING(rspOrError, "Failed to remove replication card (ReplicationCardId: %v)",
                                 replicationCardId);
                         }
-                    }));
+                    })));
         }
     }
 };

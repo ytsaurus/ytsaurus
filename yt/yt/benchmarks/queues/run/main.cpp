@@ -380,7 +380,7 @@ private:
         WaitFor(Client_->CreateNode(ConsumerPath_.GetPath(), EObjectType::Table, options))
             .ThrowOnError();
 
-        Client_->MountTable(ConsumerPath_.GetPath());
+        YT_UNUSED_FUTURE(Client_->MountTable(ConsumerPath_.GetPath()));
         WaitUntil(ConsumerPath_.GetPath() + "/@tablet_state", "mounted");
 
         // TODO(achulkov2): Use TCrossClusterReference.
@@ -407,7 +407,7 @@ private:
         WaitFor(Client_->CreateNode(ConsumerPath_.GetPath(), EObjectType::Table, options))
             .ThrowOnError();
 
-        Client_->MountTable(ConsumerPath_.GetPath());
+        YT_UNUSED_FUTURE(Client_->MountTable(ConsumerPath_.GetPath()));
         WaitUntil(ConsumerPath_.GetPath() + "/@tablet_state", "mounted");
 
         YT_LOG_DEBUG("Created consumer (Path: %v)", ConsumerPath_);

@@ -194,10 +194,10 @@ std::vector<TGuid> TLocationManager::DoDestroyLocations(bool recoverUnlinkedDisk
     if (recoverUnlinkedDisk) {
         auto unlinkedDiskIds = FailedUnlinkedDiskIds_.Exchange(std::vector<TString>());
         for (const auto& diskId : unlinkedDiskIds) {
-            RecoverDisk(diskId)
+            YT_UNUSED_FUTURE(RecoverDisk(diskId)
                 .Apply(BIND([] (const TError& result) {
                     YT_LOG_ERROR_IF(!result.IsOK(), result);
-                }));
+                })));
         }
     }
 

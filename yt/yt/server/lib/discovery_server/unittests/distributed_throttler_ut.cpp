@@ -64,7 +64,7 @@ public:
     {
         for (int i = 0; i < std::ssize(Addresses_); ++i) {
             DiscoveryServers_[i]->Finalize();
-            RpcServers_[i]->Stop();
+            YT_UNUSED_FUTURE(RpcServers_[i]->Stop());
         }
     }
 
