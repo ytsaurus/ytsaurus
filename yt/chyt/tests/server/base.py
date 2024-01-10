@@ -546,7 +546,7 @@ class Clique(object):
         orchid_path = "//sys/clickhouse/orchids/{}/{}".format(self.op.id, instance.attributes["job_cookie"])
         return get(orchid_path + path, verbose=verbose)
 
-    def get_profiler_counter(self, sensor, instance_id=None):
+    def get_profiler(self, instance_id=None):
         if not instance_id:
             instance_id = self.get_active_instances()[0].attributes["job_cookie"]
 
@@ -557,7 +557,13 @@ class Clique(object):
         })
         sensors_path = "//sys/clickhouse/orchids/{}/{}/sensors".format(self.op.id, instance_id)
 
-        return Profiler(yt_client, sensors_path).counter(sensor)
+        return Profiler(yt_client, sensors_path)
+
+    def get_profiler_counter(self, sensor, instance_id=None):
+        return self.get_profiler(instance_id).counter(sensor)
+
+    def get_profiler_gauge(self, sensor, instance_id=None):
+        return self.get_profiler(instance_id).gauge(sensor)
 
     def resize(self, size):
         update_op_parameters(self.op.id, parameters=get_scheduling_options(user_slots=size))

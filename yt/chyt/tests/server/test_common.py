@@ -1540,6 +1540,30 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with raises_yt_error(QueryFailedError):
                 clique.make_query("select 1 as a", headers={"User-Agent": "some_user_agent"})
 
+    @authors("dakovalkov")
+    def test_health_checker(self):
+        patch = {
+            "yt": {
+                "health_checker": {
+                    "period": 100,
+                    "queries": [
+                        "select * from `//tmp/t`",
+                    ],
+                },
+            },
+        }
+
+        with Clique(1, config_patch=patch) as clique:
+            hc = clique.get_profiler_gauge("clickhouse/yt/health_checker/success")
+
+            wait(lambda: hc.get() == 0)
+
+            create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+            wait(lambda: hc.get() == 1)
+
+            remove("//tmp/t")
+            wait(lambda: hc.get() == 0)
+
 
 class TestClickHouseNoCache(ClickHouseTestBase):
     @authors("dakovalkov")
