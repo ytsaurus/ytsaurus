@@ -59,6 +59,10 @@ struct TGpuStatistics
     i64 CumulativeUtilizationClocksSM = 0;
     i64 CumulativeSMUtilization = 0;
     i64 CumulativeSMOccupancy = 0;
+    i64 NvlinkRxBytes = 0;
+    i64 NvlinkTxBytes = 0;
+    i64 PcieRxBytes = 0;
+    i64 PcieTxBytes = 0;
     i64 MaxStuckDuration = 0;
 };
 

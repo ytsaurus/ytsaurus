@@ -67,6 +67,10 @@ public:
             status->set_power(100);
             status->set_sm_utilization(20.0);
             status->set_sm_occupancy(10.0);
+            status->set_nvlink_rx_bytes_per_second(1000.0);
+            status->set_nvlink_tx_bytes_per_second(5000.0);
+            status->set_pcie_rx_bytes_per_second(100.0);
+            status->set_pcie_tx_bytes_per_second(500.0);
             auto* stuck = status->mutable_stuck();
             stuck->set_status(false);
         }
@@ -87,6 +91,10 @@ public:
             status->set_power(200);
             status->set_sm_utilization(25.0);
             status->set_sm_occupancy(10.0);
+            status->set_nvlink_rx_bytes_per_second(4000.0);
+            status->set_nvlink_tx_bytes_per_second(2000.0);
+            status->set_pcie_rx_bytes_per_second(0.0);
+            status->set_pcie_tx_bytes_per_second(300.0);
             auto* stuck = status->mutable_stuck();
             stuck->set_status(true);
         }
@@ -159,6 +167,10 @@ TEST_F(TTestNvManagerGpuInfoProvider, Simple)
         EXPECT_EQ(gpuInfo.PowerLimit, 123);
         EXPECT_EQ(gpuInfo.SMUtilizationRate, 0.2);
         EXPECT_EQ(gpuInfo.SMOccupancyRate, 0.1);
+        EXPECT_EQ(gpuInfo.NvlinkRxByteRate, 1000.0);
+        EXPECT_EQ(gpuInfo.NvlinkTxByteRate, 5000.0);
+        EXPECT_EQ(gpuInfo.PcieRxByteRate, 100.0);
+        EXPECT_EQ(gpuInfo.PcieTxByteRate, 500.0);
         EXPECT_FALSE(gpuInfo.Stuck.Status);
     }
 
@@ -174,6 +186,10 @@ TEST_F(TTestNvManagerGpuInfoProvider, Simple)
         EXPECT_EQ(gpuInfo.PowerLimit, 234);
         EXPECT_EQ(gpuInfo.SMUtilizationRate, 0.25);
         EXPECT_EQ(gpuInfo.SMOccupancyRate, 0.1);
+        EXPECT_EQ(gpuInfo.NvlinkRxByteRate, 4000.0);
+        EXPECT_EQ(gpuInfo.NvlinkTxByteRate, 2000.0);
+        EXPECT_EQ(gpuInfo.PcieRxByteRate, 0.0);
+        EXPECT_EQ(gpuInfo.PcieTxByteRate, 300.0);
         EXPECT_TRUE(gpuInfo.Stuck.Status);
     }
 }

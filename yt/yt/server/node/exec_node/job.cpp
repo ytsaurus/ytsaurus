@@ -2992,6 +2992,10 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
                 : 0.0);
         slotStatistics.CumulativeSMUtilization += period.MilliSeconds() * gpuInfo.SMUtilizationRate;
         slotStatistics.CumulativeSMOccupancy += period.MilliSeconds() * gpuInfo.SMOccupancyRate;
+        slotStatistics.NvlinkRxBytes += static_cast<i64>(period.SecondsFloat() * gpuInfo.NvlinkRxByteRate);
+        slotStatistics.NvlinkTxBytes += static_cast<i64>(period.SecondsFloat() * gpuInfo.NvlinkTxByteRate);
+        slotStatistics.PcieRxBytes += static_cast<i64>(period.SecondsFloat() * gpuInfo.PcieRxByteRate);
+        slotStatistics.PcieTxBytes += static_cast<i64>(period.SecondsFloat() * gpuInfo.PcieTxByteRate);
         slotStatistics.MaxMemoryUsed = std::max(slotStatistics.MaxMemoryUsed, gpuInfo.MemoryUsed);
         if (gpuInfo.Stuck.Status && gpuInfo.Stuck.LastTransitionTime) {
             slotStatistics.MaxStuckDuration = std::max(
@@ -3018,6 +3022,10 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
         aggregatedGpuStatistics.CumulativePower += slotStatistics.CumulativePower;
         aggregatedGpuStatistics.CumulativeSMUtilization += slotStatistics.CumulativeSMUtilization;
         aggregatedGpuStatistics.CumulativeSMOccupancy += slotStatistics.CumulativeSMOccupancy;
+        aggregatedGpuStatistics.NvlinkRxBytes += slotStatistics.NvlinkRxBytes;
+        aggregatedGpuStatistics.NvlinkTxBytes += slotStatistics.NvlinkTxBytes;
+        aggregatedGpuStatistics.PcieRxBytes += slotStatistics.PcieRxBytes;
+        aggregatedGpuStatistics.PcieTxBytes += slotStatistics.PcieTxBytes;
         aggregatedGpuStatistics.MaxMemoryUsed += slotStatistics.MaxMemoryUsed;
         aggregatedGpuStatistics.MaxStuckDuration = std::max(aggregatedGpuStatistics.MaxStuckDuration, slotStatistics.MaxStuckDuration);
         totalGpuMemory += gpuInfo.MemoryTotal;
@@ -3037,6 +3045,10 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
     statistics->AddSample("/user_job/gpu/max_memory_used", aggregatedGpuStatistics.MaxMemoryUsed);
     statistics->AddSample("/user_job/gpu/cumulative_sm_utilization", aggregatedGpuStatistics.CumulativeSMUtilization);
     statistics->AddSample("/user_job/gpu/cumulative_sm_occupancy", aggregatedGpuStatistics.CumulativeSMOccupancy);
+    statistics->AddSample("/user_job/gpu/nvlink/rx_bytes", aggregatedGpuStatistics.NvlinkRxBytes);
+    statistics->AddSample("/user_job/gpu/nvlink/tx_bytes", aggregatedGpuStatistics.NvlinkTxBytes);
+    statistics->AddSample("/user_job/gpu/pcie/rx_bytes", aggregatedGpuStatistics.PcieRxBytes);
+    statistics->AddSample("/user_job/gpu/pcie/tx_bytes", aggregatedGpuStatistics.PcieTxBytes);
     statistics->AddSample("/user_job/gpu/max_stuck_duration", aggregatedGpuStatistics.MaxStuckDuration);
     statistics->AddSample("/user_job/gpu/memory_total", totalGpuMemory);
 }
@@ -3338,6 +3350,11 @@ void TJob::CollectSensorsFromGpuInfo(ISensorWriter* writer)
     static const TString SMUtilizationName = "gpu/sm_utilization";
     static const TString SMOccupancyName = "gpu/sm_occupancy";
 
+    static const TString NvlinkRxBytesName = "gpu/nvlink/rx_bytes";
+    static const TString NvlinkTxBytesName = "gpu/nvlink/tx_bytes";
+    static const TString PcieRxBytesName = "gpu/pcie/rx_bytes";
+    static const TString PcieTxBytesName = "gpu/pcie/tx_bytes";
+
     static const TString StuckName = "gpu/stuck";
 
     auto gpuInfoMap = Bootstrap_->GetGpuManager()->GetGpuInfoMap();
@@ -3371,6 +3388,10 @@ void TJob::CollectSensorsFromGpuInfo(ISensorWriter* writer)
         profileSensorIfNeeded(PowerName, gpuInfo.PowerDraw);
         profileSensorIfNeeded(SMUtilizationName, gpuInfo.SMUtilizationRate);
         profileSensorIfNeeded(SMOccupancyName, gpuInfo.SMOccupancyRate);
+        profileSensorIfNeeded(NvlinkRxBytesName, gpuInfo.NvlinkRxByteRate);
+        profileSensorIfNeeded(NvlinkTxBytesName, gpuInfo.NvlinkTxByteRate);
+        profileSensorIfNeeded(PcieRxBytesName, gpuInfo.PcieRxByteRate);
+        profileSensorIfNeeded(PcieTxBytesName, gpuInfo.PcieTxByteRate);
         profileSensorIfNeeded(StuckName, static_cast<double>(gpuInfo.Stuck.Status));
     }
 }
