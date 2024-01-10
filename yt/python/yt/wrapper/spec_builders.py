@@ -1041,7 +1041,7 @@ class SpecBuilder(object):
                 else:
                     spec[output_tables_param] = list(imap(lambda table: table.to_yson_type(), self._output_table_paths))
 
-    def _prepare_tables(self, spec, single_output_table=False, replace_unexisting_by_empty=True, client=None):
+    def _prepare_tables(self, spec, single_output_table=False, replace_unexisting_by_empty=True, create_on_cluster=False, client=None):
         require("input_table_paths" in spec,
                 lambda: YtError("You should specify input_table_paths"))
         input_tables = _prepare_source_tables(
@@ -1051,7 +1051,7 @@ class SpecBuilder(object):
         output_tables_param = "output_table_path" if single_output_table else "output_table_paths"
         output_tables = None
         if output_tables_param in spec:
-            output_tables = _prepare_destination_tables(spec[output_tables_param], client=client)
+            output_tables = _prepare_destination_tables(spec[output_tables_param], create_on_cluster=create_on_cluster, client=client)
         self._set_tables(spec, input_tables, output_tables, single_output_table=single_output_table)
 
     def _build_simple_user_job_spec(self, spec, job_type, job_io_type,
@@ -2061,6 +2061,7 @@ class RemoteCopySpecBuilder(SpecBuilder):
     """
     def __init__(self):
         super(RemoteCopySpecBuilder, self).__init__(operation_type="remote_copy", job_io_types=["job_io"])
+        self._create_destination_on_cluster = True
 
     @spec_option("The name of the cluster from which you want to copy the data")
     def cluster_name(self, name):
@@ -2103,13 +2104,23 @@ class RemoteCopySpecBuilder(SpecBuilder):
         """Start building job_io section."""
         return JobIOSpecBuilder(self)
 
+    def create_destination_on_cluster(self, create_on_cluster):
+        """Forces creation of destination object on cluster. Attributes are passed via YRichPath"""
+        self._create_destination_on_cluster = create_on_cluster
+        return self
+
     def prepare(self, client=None):
         """Prepare spec to be used in operation."""
         spec = deepcopy(self._spec)
         spec = self._apply_spec_overrides(spec, client=client)
         spec = self._apply_user_spec(spec)
 
-        self._prepare_tables(spec, single_output_table=True, client=client)
+        self._prepare_tables(
+            spec,
+            single_output_table=True,
+            create_on_cluster=self._create_destination_on_cluster,
+            client=client
+        )
         self._prepare_spec(spec, client=client)
 
 

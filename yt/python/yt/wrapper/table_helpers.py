@@ -356,13 +356,30 @@ def _prepare_python_command(binary, file_manager, tempfiles_manager, params, loc
     return result
 
 
-def _prepare_destination_tables(tables, client=None):
-    from .table_commands import _create_table
+def _prepare_destination_tables(tables, create_on_cluster=False, client=None):
+    from .table_commands import _create_table, _merge_with_create_table_default_attributes
     if tables is None:
         if get_config(client)["yamr_mode"]["throw_on_missing_destination"]:
             raise YtError("Destination tables are missing")
         return []
     tables = list(imap(lambda name: TablePath(name, client=client), flatten(tables)))
+    if create_on_cluster:
+        def make_table_path(path, client):
+            table = TablePath(path)
+            default_attributes = _merge_with_create_table_default_attributes(attributes=None, client=client)
+
+            # NB(coteeq): Default attributes have lower priority here,
+            #             because controller overrides them when operation ends.
+            table._path_object.attributes = update(default_attributes, table._path_object.attributes)
+            table._path_object.attributes["create"] = True
+
+            return table
+
+        return [
+            make_table_path(table, client=client)
+            for table in tables
+        ]
+
     batch_client = create_batch_client(raise_errors=True, client=client)
     for table in tables:
         _create_table(table, ignore_existing=True, client=batch_client)

@@ -1270,6 +1270,25 @@ private:
         }
     }
 
+    void CustomPrepare() override
+    {
+        TOrderedControllerBase::CustomPrepare();
+
+        static const THashSet<TString> allowedAttributes = [] {
+            const auto& wellKnown = GetWellKnownRichYPathAttributes();
+            return THashSet<TString>(wellKnown.begin(), wellKnown.end());
+        }();
+
+        if (Spec_->RestrictDestinationYPathAttributes) {
+            for (const auto& attributeName : Spec_->OutputTablePath.Attributes().ListKeys()) {
+                if (!allowedAttributes.contains(attributeName)) {
+                    THROW_ERROR_EXCEPTION("Found unexpected attribute in Rich YPath")
+                        << TErrorAttribute("attribute_name", attributeName);
+                }
+            }
+        }
+    }
+
     void CustomMaterialize() override
     {
         if (Spec_->CopyAttributes) {
