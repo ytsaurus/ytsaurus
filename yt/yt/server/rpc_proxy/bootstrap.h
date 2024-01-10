@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/library/auth_server/public.h>
+
 #include <yt/yt/library/monitoring/public.h>
 
 #include <yt/yt/client/node_tracker_client/public.h>
@@ -28,8 +30,6 @@
 #include <yt/yt/core/http/public.h>
 
 #include <yt/yt/core/ytree/public.h>
-
-#include <yt/yt/library/auth_server/public.h>
 
 namespace NYT::NRpcProxy {
 
