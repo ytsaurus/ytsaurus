@@ -107,6 +107,9 @@ func getPatchedYtConfig(ctx context.Context, ytc yt.Client, oplet *strawberry.Op
 	if _, ok := configAsMap["clique_incarnation"]; !ok {
 		configAsMap["clique_incarnation"] = oplet.NextIncarnationIndex()
 	}
+	if _, ok := configAsMap["clique_instance_count"]; !ok {
+		configAsMap["clique_instance_count"] = speclet.Resources.InstanceCount
+	}
 	// TODO(max42): put to preprocessor similarly to yt/cpu_limit.
 	if _, ok := configAsMap["worker_thread_count"]; !ok {
 		configAsMap["worker_thread_count"] = *speclet.Resources.InstanceCPU

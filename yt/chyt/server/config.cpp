@@ -453,6 +453,8 @@ void TYtConfig::Register(TRegistrar registrar)
         .Default(-1);
     registrar.Parameter("address", &TThis::Address)
         .Default();
+    registrar.Parameter("clique_instance_count", &TThis::CliqueInstanceCount)
+        .Default(1);
 
     registrar.Parameter("client_cache", &TThis::ClientCache)
         .DefaultNew();

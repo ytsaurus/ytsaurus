@@ -163,6 +163,13 @@ public:
                 YT_ABORT();
         }
 
+        ClickHouseYtProfiler.AddFuncGauge(
+            "/clique_instance_count",
+            MakeStrong(this),
+            [this] {
+                return Config_->CliqueInstanceCount;
+            });
+
         if (Config_->CpuLimit) {
             ClickHouseYtProfiler.AddFuncGauge(
                 "/cpu_limit",

@@ -548,6 +548,8 @@ public:
     i64 CliqueIncarnation;
     //! Address override when entering discovery group.
     std::optional<TString> Address;
+    //! Clique size for better profiling.
+    int CliqueInstanceCount;
 
     TSlruCacheConfigPtr ClientCache;
 
