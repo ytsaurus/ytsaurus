@@ -34,11 +34,9 @@ std::string GetEos()
     return eos;
 }
 
-void ThrowOnError(const arrow::Status& status)
+void Verify(const arrow::Status& status)
 {
-    if (!status.ok()) {
-        THROW_ERROR_EXCEPTION("%Qlv", status.message());
-    }
+    YT_VERIFY(status.ok());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,7 +45,7 @@ std::string MakeOutputFromRecordBatch(const std::shared_ptr<arrow::RecordBatch>&
 {
     auto outputStream = arrow::io::BufferOutputStream::Create().ValueOrDie();
     auto arrowWriter = arrow::ipc::MakeStreamWriter(outputStream, recordBatch->schema()).ValueOrDie();
-    ThrowOnError(arrowWriter->WriteRecordBatch(*recordBatch));
+    Verify(arrowWriter->WriteRecordBatch(*recordBatch));
     auto buffer = outputStream->Finish().ValueOrDie();
     return buffer->ToString();
 }
@@ -57,12 +55,12 @@ std::string MakeIntegerArrow(const std::vector<int8_t>& data)
     arrow::Int8Builder builder;
 
     for (const auto& value : data) {
-        ThrowOnError(builder.Append(value));
+        Verify(builder.Append(value));
     }
 
     auto intArray = builder.Finish();
 
-    std::shared_ptr<arrow::Schema> arrowSchema = arrow::schema({arrow::field("integer", arrow::int8())});
+    auto arrowSchema = arrow::schema({arrow::field("integer", arrow::int8())});
     std::vector<std::shared_ptr<arrow::Array>> columns = {*intArray};
     auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
     return MakeOutputFromRecordBatch(recordBatch);
@@ -72,13 +70,13 @@ std::string MakeOptionalIntegerArrow()
 {
     arrow::Int8Builder builder;
 
-    ThrowOnError(builder.Append(1));
-    ThrowOnError(builder.AppendNull());
-    ThrowOnError(builder.AppendNull());
+    Verify(builder.Append(1));
+    Verify(builder.AppendNull());
+    Verify(builder.AppendNull());
 
     auto data = builder.Finish();
 
-    std::shared_ptr<arrow::Schema> arrowSchema = arrow::schema({arrow::field("opt", arrow::int8())});
+    auto arrowSchema = arrow::schema({arrow::field("opt", arrow::int8())});
     std::vector<std::shared_ptr<arrow::Array>> columns = {*data};
     auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
     return MakeOutputFromRecordBatch(recordBatch);
@@ -89,12 +87,12 @@ std::string MakeBooleanArrow(const std::vector<bool>& data)
     arrow::BooleanBuilder builder;
 
     for (const auto& value : data) {
-        ThrowOnError(builder.Append(value));
+        Verify(builder.Append(value));
     }
 
     auto boolArray = builder.Finish();
 
-    std::shared_ptr<arrow::Schema> arrowSchema = arrow::schema({arrow::field("bool", arrow::boolean())});
+    auto arrowSchema = arrow::schema({arrow::field("bool", arrow::boolean())});
     std::vector<std::shared_ptr<arrow::Array>> columns = {*boolArray};
     auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
     return MakeOutputFromRecordBatch(recordBatch);
@@ -105,19 +103,23 @@ std::string MakeIntAndStringArrow(const std::vector<int8_t>& data, const std::ve
     arrow::Int8Builder builder;
 
     for (const auto& value : data) {
-        ThrowOnError(builder.Append(value));
+        Verify(builder.Append(value));
     }
     auto intArray = builder.Finish();
 
     arrow::StringBuilder stringBuilder;
 
     for (const auto& value : stringData) {
-        ThrowOnError(stringBuilder.Append(value));
+        Verify(stringBuilder.Append(value));
     }
 
     auto stringArray = stringBuilder.Finish();
 
-    std::shared_ptr<arrow::Schema> arrowSchema = arrow::schema({arrow::field("integer", arrow::int8()), arrow::field("string", arrow::binary())});
+    auto arrowSchema = arrow::schema({
+        arrow::field("integer", arrow::int8()),
+        arrow::field("string", arrow::binary()),
+    });
+
     std::vector<std::shared_ptr<arrow::Array>> columns = {*intArray, *stringArray};
     auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
 
@@ -126,24 +128,21 @@ std::string MakeIntAndStringArrow(const std::vector<int8_t>& data, const std::ve
 
 std::string MakeIntListArray(const std::vector<std::vector<int32_t>>& data)
 {
-    arrow::MemoryPool* pool = arrow::default_memory_pool();
-    std::unique_ptr<arrow::ListBuilder> listBuilder;
-    std::shared_ptr<arrow::Int32Builder> valueBuilder;
-
-    valueBuilder = std::make_shared<arrow::Int32Builder>(pool);
-    listBuilder = std::make_unique<arrow::ListBuilder>(pool, valueBuilder);
+    auto* pool = arrow::default_memory_pool();
+    auto valueBuilder = std::make_shared<arrow::Int32Builder>(pool);
+    auto listBuilder = std::make_unique<arrow::ListBuilder>(pool, valueBuilder);
 
     for (const auto& list : data) {
-        ThrowOnError(listBuilder->Append());
+        Verify(listBuilder->Append());
         for (const auto& value : list) {
-            ThrowOnError(valueBuilder->Append(value));
+            Verify(valueBuilder->Append(value));
         }
     }
 
-    std::shared_ptr<arrow::Schema> arrowSchema = arrow::schema({arrow::field("list", listBuilder->type())});
+    auto arrowSchema = arrow::schema({arrow::field("list", listBuilder->type())});
 
     std::shared_ptr<arrow::Array> listArray;
-    ThrowOnError(listBuilder->Finish(&listArray));
+    Verify(listBuilder->Finish(&listArray));
     std::vector<std::shared_ptr<arrow::Array>> columns = {listArray};
 
     auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
@@ -153,24 +152,22 @@ std::string MakeIntListArray(const std::vector<std::vector<int32_t>>& data)
 
 std::string MakeStringListArray(const std::vector<std::vector<std::string>>& data)
 {
-    arrow::MemoryPool* pool = arrow::default_memory_pool();
-    std::unique_ptr<arrow::ListBuilder> listBuilder;
-    std::shared_ptr<arrow::StringBuilder> valueBuilder;
+    auto* pool = arrow::default_memory_pool();
 
-    valueBuilder = std::make_shared<arrow::StringBuilder>(pool);
-    listBuilder = std::make_unique<arrow::ListBuilder>(pool, valueBuilder);
+    auto valueBuilder = std::make_shared<arrow::StringBuilder>(pool);
+    auto listBuilder = std::make_unique<arrow::ListBuilder>(pool, valueBuilder);
 
     for (const auto& list : data) {
-        ThrowOnError(listBuilder->Append());
+        Verify(listBuilder->Append());
         for (const auto& value : list) {
-            ThrowOnError(valueBuilder->Append(value));
+            Verify(valueBuilder->Append(value));
         }
     }
 
-    std::shared_ptr<arrow::Schema> arrowSchema = arrow::schema({arrow::field("list", listBuilder->type())});
+    auto arrowSchema = arrow::schema({arrow::field("list", listBuilder->type())});
 
     std::shared_ptr<arrow::Array> listArray;
-    ThrowOnError(listBuilder->Finish(&listArray));
+    Verify(listBuilder->Finish(&listArray));
     std::vector<std::shared_ptr<arrow::Array>> columns = {listArray};
 
     auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
@@ -180,27 +177,24 @@ std::string MakeStringListArray(const std::vector<std::vector<std::string>>& dat
 
 std::string MakeMapArray(const std::vector<std::vector<int32_t>>& key, const std::vector<std::vector<int32_t>>& value)
 {
-    arrow::MemoryPool* pool = arrow::default_memory_pool();
-    std::unique_ptr<arrow::MapBuilder> map_builder;
-    std::shared_ptr<arrow::Int32Builder> valueBuilder;
-    std::shared_ptr<arrow::Int32Builder> keyBuilder;
+    auto* pool = arrow::default_memory_pool();
 
-    keyBuilder = std::make_shared<arrow::Int32Builder>(pool);
-    valueBuilder = std::make_shared<arrow::Int32Builder>(pool);
-    map_builder = std::make_unique<arrow::MapBuilder>(pool, keyBuilder, valueBuilder);
+    auto keyBuilder = std::make_shared<arrow::Int32Builder>(pool);
+    auto valueBuilder = std::make_shared<arrow::Int32Builder>(pool);
+    auto mapBuilder = std::make_unique<arrow::MapBuilder>(pool, keyBuilder, valueBuilder);
 
-    for (int mapNumber = 0; mapNumber < std::ssize(key); mapNumber++) {
-        ThrowOnError(map_builder->Append());
-        for (int valueNumber = 0; valueNumber < std::ssize(key[mapNumber]); valueNumber++) {
-            ThrowOnError(keyBuilder->Append(key[mapNumber][valueNumber]));
-            ThrowOnError(valueBuilder->Append(value[mapNumber][valueNumber]));
+    for (ssize_t mapIndex = 0; mapIndex < std::ssize(key); mapIndex++) {
+        Verify(mapBuilder->Append());
+        for (int valueNumber = 0; valueNumber < std::ssize(key[mapIndex]); valueNumber++) {
+            Verify(keyBuilder->Append(key[mapIndex][valueNumber]));
+            Verify(valueBuilder->Append(value[mapIndex][valueNumber]));
         }
     }
 
-    std::shared_ptr<arrow::Schema> arrowSchema = arrow::schema({arrow::field("map", map_builder->type())});
+    auto arrowSchema = arrow::schema({arrow::field("map", mapBuilder->type())});
 
     std::shared_ptr<arrow::Array> mapArray;
-    ThrowOnError(map_builder->Finish(&mapArray));
+    Verify(mapBuilder->Finish(&mapArray));
     std::vector<std::shared_ptr<arrow::Array>> columns = {mapArray};
 
     auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
@@ -210,19 +204,20 @@ std::string MakeMapArray(const std::vector<std::vector<int32_t>>& key, const std
 
 std::string MakeDictionaryArray()
 {
-    arrow::MemoryPool* pool = arrow::default_memory_pool();
+    auto* pool = arrow::default_memory_pool();
 
     arrow::DictionaryBuilder<arrow::Int32Type> dictionaryBuilder(pool);
 
     std::vector<int32_t> values = {1, 2, 1};
-    for (const int32_t& value : values) {
-        arrow::Status status = dictionaryBuilder.Append(value);
+    for (auto value : values) {
+        Verify(dictionaryBuilder.Append(value));
     }
 
-    std::shared_ptr<arrow::Schema> arrowSchema = arrow::schema({arrow::field("integer", dictionaryBuilder.type())});
+    auto arrowSchema = arrow::schema({arrow::field("integer", dictionaryBuilder.type())});
 
     std::shared_ptr<arrow::Array> array;
-    arrow::Status status = dictionaryBuilder.Finish(&array);
+    Verify(dictionaryBuilder.Finish(&array));
+
     std::vector<std::shared_ptr<arrow::Array>> columns = {array};
 
     auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
@@ -232,35 +227,31 @@ std::string MakeDictionaryArray()
 
 std::string MakeStructArray(const std::vector<std::string>& stringData, const std::vector<int64_t>& intData)
 {
-    arrow::MemoryPool* pool = arrow::default_memory_pool();
+    auto* pool = arrow::default_memory_pool();
 
-    std::shared_ptr<arrow::StringBuilder> stringBuilder;
-    std::shared_ptr<arrow::Int64Builder> intBuilder;
+    auto stringBuilder = std::make_shared<arrow::StringBuilder>(pool);
+    auto intBuilder = std::make_shared<arrow::Int64Builder>(pool);
 
     std::vector<std::shared_ptr<arrow::Field>> fields = {
         std::make_shared<arrow::Field>("bar", std::make_shared<arrow::StringType>()),
         std::make_shared<arrow::Field>("foo", std::make_shared<arrow::Int64Type>())
     };
 
-    stringBuilder = std::make_shared<arrow::StringBuilder>(pool);
-    intBuilder = std::make_shared<arrow::Int64Builder>(pool);
-
     arrow::StructBuilder structBuilder(
         std::make_shared<arrow::StructType>(fields),
         pool,
-        {stringBuilder, intBuilder}
-    );
+        {stringBuilder, intBuilder});
 
     for (int index = 0; index < std::ssize(stringData); index++) {
-        ThrowOnError(structBuilder.Append());
-        ThrowOnError(stringBuilder->Append(stringData[index]));
-        ThrowOnError(intBuilder->Append(intData[index]));
+        Verify(structBuilder.Append());
+        Verify(stringBuilder->Append(stringData[index]));
+        Verify(intBuilder->Append(intData[index]));
     }
 
     std::shared_ptr<arrow::Schema> arrowSchema = arrow::schema({arrow::field("struct", structBuilder.type())});
 
     std::shared_ptr<arrow::Array> structArray;
-    ThrowOnError(structBuilder.Finish(&structArray));
+    Verify(structBuilder.Finish(&structArray));
     std::vector<std::shared_ptr<arrow::Array>> columns = {structArray};
 
     auto recordBatch = arrow::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
@@ -272,8 +263,9 @@ std::string MakeStructArray(const std::vector<std::string>& stringData, const st
 
 TEST(TArrowParserTest, Simple)
 {
-    TTableSchemaPtr tableSchema = New<TTableSchema>(std::vector{
-        TColumnSchema("integer", EValueType::Int64)});
+    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+        TColumnSchema("integer", EValueType::Int64)
+    });
 
     TCollectingValueConsumer collectedRows(tableSchema);
 
@@ -292,8 +284,9 @@ TEST(TArrowParserTest, Simple)
 
 TEST(TArrowParserTest, Optional)
 {
-    TTableSchemaPtr tableSchema = New<TTableSchema>(std::vector{
-        TColumnSchema("opt", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))});
+    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+        TColumnSchema("opt", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))
+    });
 
     TCollectingValueConsumer collectedRows(tableSchema);
 
@@ -312,8 +305,9 @@ TEST(TArrowParserTest, Optional)
 
 TEST(TArrowParserTest, Dictionary)
 {
-    TTableSchemaPtr tableSchema = New<TTableSchema>(std::vector{
-        TColumnSchema("integer", EValueType::Int64)});
+    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+        TColumnSchema("integer", EValueType::Int64)
+    });
 
     TCollectingValueConsumer collectedRows(tableSchema);
 
@@ -332,8 +326,9 @@ TEST(TArrowParserTest, Dictionary)
 
 TEST(TArrowParserTest, Bool)
 {
-    TTableSchemaPtr tableSchema = New<TTableSchema>(std::vector{
-        TColumnSchema("bool", EValueType::Boolean)});
+    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+        TColumnSchema("bool", EValueType::Boolean),
+    });
 
     TCollectingValueConsumer collectedRows(tableSchema);
 
@@ -352,9 +347,10 @@ TEST(TArrowParserTest, Bool)
 
 TEST(TArrowParserTest, String)
 {
-    TTableSchemaPtr tableSchema = New<TTableSchema>(std::vector{
+    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
         TColumnSchema("integer", EValueType::Any),
-        TColumnSchema("string", EValueType::String)});
+        TColumnSchema("string", EValueType::String),
+    });
 
     TCollectingValueConsumer collectedRows(tableSchema);
 
@@ -388,8 +384,9 @@ TString ConvertToYsonTextStringStable(const INodePtr& node)
 
 TEST(TArrowParserTest, ListOfIntegers)
 {
-    TTableSchemaPtr tableSchema = New<TTableSchema>(std::vector{
-        TColumnSchema("list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))});
+    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+        TColumnSchema("list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
+    });
 
     TCollectingValueConsumer collectedRows(tableSchema);
 
@@ -399,17 +396,18 @@ TEST(TArrowParserTest, ListOfIntegers)
     parser->Read(data);
     parser->Finish();
 
-    auto intListNode = GetComposite(collectedRows.GetRowValue(0, "list"));
-    ASSERT_EQ(ConvertToYsonTextStringStable(intListNode), "[1;2;3;]");
+    auto firstNode = GetComposite(collectedRows.GetRowValue(0, "list"));
+    ASSERT_EQ(ConvertToYsonTextStringStable(firstNode), "[1;2;3;]");
 
-    intListNode = GetComposite(collectedRows.GetRowValue(1, "list"));
-    ASSERT_EQ(ConvertToYsonTextStringStable(intListNode), "[4;5;]");
+    auto secondNode = GetComposite(collectedRows.GetRowValue(1, "list"));
+    ASSERT_EQ(ConvertToYsonTextStringStable(secondNode), "[4;5;]");
 }
 
 TEST(TArrowParserTest, ListOfStrings)
 {
-    TTableSchemaPtr tableSchema = New<TTableSchema>(std::vector{
-            TColumnSchema("list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))});
+    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+        TColumnSchema("list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))),
+    });
 
     TCollectingValueConsumer collectedRows(tableSchema);
 
@@ -419,21 +417,22 @@ TEST(TArrowParserTest, ListOfStrings)
     parser->Read(data);
     parser->Finish();
 
-    auto stringListNode = GetComposite(collectedRows.GetRowValue(0, "list"));
-    ASSERT_EQ(ConvertToYsonTextStringStable(stringListNode), "[\"foo\";\"bar\";]");
+    auto firstNode =  GetComposite(collectedRows.GetRowValue(0, "list"));
+    ASSERT_EQ(ConvertToYsonTextStringStable(firstNode), "[\"foo\";\"bar\";]");
 
-    stringListNode = GetComposite(collectedRows.GetRowValue(1, "list"));
-    ASSERT_EQ(ConvertToYsonTextStringStable(stringListNode), "[\"42\";\"universe\";]");
+    auto secondNode = GetComposite(collectedRows.GetRowValue(1, "list"));
+    ASSERT_EQ(ConvertToYsonTextStringStable(secondNode), "[\"42\";\"universe\";]");
 }
 
 TEST(TArrowParserTest, Map)
 {
-    TTableSchemaPtr tableSchema = New<TTableSchema>(std::vector{
+    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
         TColumnSchema(
             "map",
             DictLogicalType(
                 SimpleLogicalType(ESimpleLogicalValueType::Int64),
-                SimpleLogicalType(ESimpleLogicalValueType::Uint64)))});
+                SimpleLogicalType(ESimpleLogicalValueType::Uint64))),
+    });
 
     TCollectingValueConsumer collectedRows(tableSchema);
 
@@ -443,17 +442,18 @@ TEST(TArrowParserTest, Map)
     parser->Read(data);
     parser->Finish();
 
-    auto mapNode = GetComposite(collectedRows.GetRowValue(0, "map"));
-    ASSERT_EQ(ConvertToYsonTextStringStable(mapNode), "[[1;2;];[3;2;];]");
+    auto firstNode = GetComposite(collectedRows.GetRowValue(0, "map"));
+    ASSERT_EQ(ConvertToYsonTextStringStable(firstNode), "[[1;2;];[3;2;];]");
 
-    mapNode = GetComposite(collectedRows.GetRowValue(1, "map"));
-    ASSERT_EQ(ConvertToYsonTextStringStable(mapNode), "[[3;2;];]");
+    auto secondNode = GetComposite(collectedRows.GetRowValue(1, "map"));
+    ASSERT_EQ(ConvertToYsonTextStringStable(secondNode), "[[3;2;];]");
 }
 
 TEST(TArrowParserTest, SeveralIntArrays)
 {
-    TTableSchemaPtr tableSchema = New<TTableSchema>(std::vector{
-        TColumnSchema("integer", EValueType::Int64)});
+    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+        TColumnSchema("integer", EValueType::Int64),
+    });
 
     TCollectingValueConsumer collectedRows(tableSchema);
 
@@ -474,7 +474,7 @@ TEST(TArrowParserTest, SeveralIntArrays)
 
 TEST(TArrowParserTest, Struct)
 {
-    auto tableSchema = New<TTableSchema>(std::vector{
+    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
         TColumnSchema("struct", StructLogicalType({
             {"bar",   SimpleLogicalType(ESimpleLogicalValueType::String)},
             {"foo",   SimpleLogicalType(ESimpleLogicalValueType::Int64)},
@@ -488,16 +488,18 @@ TEST(TArrowParserTest, Struct)
     parser->Read(MakeStructArray({"one", "two"}, {1, 2}));
     parser->Finish();
 
-    auto structNode = GetComposite(collectedRows.GetRowValue(0, "struct"));
-    ASSERT_EQ(ConvertToYsonTextStringStable(structNode), "[\"one\";1;]");
-    structNode = GetComposite(collectedRows.GetRowValue(1, "struct"));
-    ASSERT_EQ(ConvertToYsonTextStringStable(structNode), "[\"two\";2;]");
+    auto firstNode = GetComposite(collectedRows.GetRowValue(0, "struct"));
+    ASSERT_EQ(ConvertToYsonTextStringStable(firstNode), "[\"one\";1;]");
+
+    auto secondNode = GetComposite(collectedRows.GetRowValue(1, "struct"));
+    ASSERT_EQ(ConvertToYsonTextStringStable(secondNode), "[\"two\";2;]");
 }
 
 TEST(TArrowParserTest, BlockingInput)
 {
-    TTableSchemaPtr tableSchema = New<TTableSchema>(std::vector{
-        TColumnSchema("integer", EValueType::Int64)});
+    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+        TColumnSchema("integer", EValueType::Int64)
+    });
 
     TCollectingValueConsumer collectedRows(tableSchema);
 
@@ -517,6 +519,7 @@ TEST(TArrowParserTest, BlockingInput)
     ASSERT_EQ(GetInt64(collectedRows.GetRowValue(2, "integer")), 3);
 }
 
-} // namespace
+////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYT
