@@ -4557,12 +4557,12 @@ TEST_F(TQueryEvaluateTest, JoinManySimple)
     });
 
     auto result = YsonToRows({
-         "a=2;c=b;b=200;d=Y;e=5678",
-         "a=2;c=b;b=500;d=X;e=1234",
-         "a=3;c=c;b=300;d=X;e=1234",
-         "a=3;c=c;b=600;d=Y;e=5678",
-         "a=4;c=a;b=100;d=X;e=1234",
-         "a=4;c=a;b=400;d=Y;e=5678"
+        "a=2;c=b;b=200;d=Y;e=5678",
+        "a=2;c=b;b=500;d=X;e=1234",
+        "a=3;c=c;b=300;d=X;e=1234",
+        "a=3;c=c;b=600;d=Y;e=5678",
+        "a=4;c=a;b=100;d=X;e=1234",
+        "a=4;c=a;b=400;d=Y;e=5678"
     }, resultSplit);
 
     Evaluate(
@@ -4618,12 +4618,12 @@ TEST_F(TQueryEvaluateTest, Multijoin)
     });
 
     auto result = YsonToRows({
-         "a=0;b=1;c=1",
-         "a=0;b=2;c=1",
-         "a=0;b=1;c=2",
-         "a=0;b=2;c=2",
-         "a=0;b=1;c=3",
-         "a=0;b=2;c=3"
+        "a=0;b=1;c=1",
+        "a=0;b=2;c=1",
+        "a=0;b=1;c=2",
+        "a=0;b=2;c=2",
+        "a=0;b=1;c=3",
+        "a=0;b=2;c=3"
     }, resultSplit);
 
     Evaluate(

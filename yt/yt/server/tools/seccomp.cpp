@@ -55,8 +55,8 @@ static void SeccompInit(int arch, int error)
     };
 
     struct sock_fprog prog = {
-      .len = (unsigned short)(sizeof(filter) / sizeof(filter[0])),
-      .filter = filter,
+        .len = (unsigned short)(sizeof(filter) / sizeof(filter[0])),
+        .filter = filter,
     };
 
     if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) {

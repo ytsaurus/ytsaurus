@@ -309,7 +309,7 @@ void TDynamicTablesTestBase::RemoveSystemObjects(const TYPath& path)
     TListNodeOptions options;
     options.Attributes = {"builtin"};
     auto items = WaitFor(Client_->ListNode(path, options))
-         .ValueOrThrow();
+        .ValueOrThrow();
     auto itemsList = ConvertTo<IListNodePtr>(items);
 
     std::vector<TFuture<void>> asyncWait;

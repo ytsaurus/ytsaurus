@@ -2020,12 +2020,12 @@ TEST_F(TSortedChunkPoolTest, TestJobInterruption)
     ASSERT_EQ(newStripeList->Stripes.size(), 3u);
     ASSERT_EQ(GetStripeByTableIndex(newStripeList, 0)->DataSlices.size(), 1u);
     ASSERT_EQ(GetStripeByTableIndex(newStripeList, 0)->DataSlices
-                  .front()
-                  ->LegacyLowerLimit().Key, BuildRow({13}));
+                .front()
+                ->LegacyLowerLimit().Key, BuildRow({13}));
     ASSERT_EQ(GetStripeByTableIndex(newStripeList, 1)->DataSlices.size(), 1u);
     ASSERT_EQ(GetStripeByTableIndex(newStripeList, 1)->DataSlices
-                  .front()
-                  ->LegacyLowerLimit().Key, BuildRow({14}));
+                .front()
+                ->LegacyLowerLimit().Key, BuildRow({14}));
     ASSERT_EQ(GetStripeByTableIndex(newStripeList, 3)->DataSlices.size(), 1u);
 }
 

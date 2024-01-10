@@ -249,7 +249,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                                     : multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate),
                                 dataSliceDescriptor.VirtualRowIndex,
                                 interruptDescriptorKeyLength);
-                         } else {
+                        } else {
                             YT_LOG_DEBUG("Only reading hint prefixes (Count: %v)", hintKeyPrefixes->HintPrefixes.size());
                             return CreateSchemalessKeyRangesChunkReader(
                                 std::move(chunkState),
@@ -267,7 +267,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                                 chunkReaderMemoryManager
                                     ? chunkReaderMemoryManager
                                     : multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate));
-                         }
+                        }
                     }).AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
                 });
 

@@ -332,8 +332,8 @@ bool TSortedStoreManager::CheckInactiveStoresLocks(
     }
 
     for (auto it = MaxTimestampToStore_.rbegin();
-         it != MaxTimestampToStore_.rend() && it->first > transaction->GetStartTimestamp();
-         ++it)
+        it != MaxTimestampToStore_.rend() && it->first > transaction->GetStartTimestamp();
+        ++it)
     {
         const auto& store = it->second;
         // Avoid checking locked stores twice.

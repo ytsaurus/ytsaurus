@@ -196,11 +196,11 @@ public:
                     YT_LOG_DEBUG("Changelog data file truncated (RecordCount: %v, DataFileLength: %v)",
                         currentRecordIndex,
                         currentDataOffset);
-                 } else {
+                } else {
                     YT_LOG_DEBUG("Changelog data does not need truncation (RecordCount: %v, DataFileLength: %v)",
                         currentRecordIndex,
                         dataFileLength);
-                 }
+                }
 
                 CurrentFileOffset_.store(currentDataOffset);
                 RecordCount_.store(currentRecordIndex);

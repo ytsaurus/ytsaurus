@@ -385,7 +385,7 @@ public:
                 const auto& hiveManager = Bootstrap_->GetHiveManager();
                 auto* mailbox = hiveManager->GetMailbox(cell->GetId());
                 hiveManager->PostMessage(mailbox, request);
-           }
+            }
         }
 
         YT_VERIFY(!tablet->GetOwner());

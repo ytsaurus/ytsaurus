@@ -751,7 +751,7 @@ private:
             error = TError(
                 "Excessive job spec throttling is detected. Usage ratio of operation can be "
                 "significantly less than fair share ratio")
-                 << TErrorAttribute("job_spec_throttler_activation_count", jobSpecThrottlerActivationCount);
+                << TErrorAttribute("job_spec_throttler_activation_count", jobSpecThrottlerActivationCount);
         }
 
         Host_->SetOperationAlert(EOperationAlertType::ExcessiveJobSpecThrottling, error);

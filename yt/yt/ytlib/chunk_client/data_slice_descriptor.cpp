@@ -57,8 +57,8 @@ int TDataSliceDescriptor::GetDataSourceIndex() const
 int TDataSliceDescriptor::GetRangeIndex() const
 {
     return ChunkSpecs.empty()
-       ? 0
-       : ChunkSpecs.front().range_index();
+        ? 0
+        : ChunkSpecs.front().range_index();
 }
 
 TString ToString(const TDataSliceDescriptor& dataSliceDescriptor)

@@ -1060,7 +1060,7 @@ private:
                         fluent
                             .Item("finish_time").Value(finishTime);
                     })
-                 .EndMap();
+                .EndMap();
             }
         };
 

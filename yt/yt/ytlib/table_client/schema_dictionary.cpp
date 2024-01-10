@@ -39,14 +39,14 @@ int TSchemaDictionary::GetIdOrRegisterTable(const TTableSchema& table)
 
 int TSchemaDictionary::GetIdOrRegisterDeletedColumn(const TDeletedColumn& deletedColumn)
 {
-  auto newId = DeletedColumnToId_.size();
-  auto result = DeletedColumnToId_.insert({deletedColumn, newId});
-  if (result.second) {
-    IdToDeletedColumn_.emplace_back(deletedColumn);
-    return newId;
-  } else {
-    return result.first->second;
-  }
+    auto newId = DeletedColumnToId_.size();
+    auto result = DeletedColumnToId_.insert({deletedColumn, newId});
+    if (result.second) {
+        IdToDeletedColumn_.emplace_back(deletedColumn);
+        return newId;
+    } else {
+        return result.first->second;
+    }
 }
 
 int TSchemaDictionary::GetIdOrRegisterColumn(const TColumnSchema& column)

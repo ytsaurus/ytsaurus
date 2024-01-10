@@ -18,7 +18,7 @@ class TCachingSecretVaultService
     , public TAsyncExpiringCache<
         ISecretVaultService::TSecretSubrequest,
         ISecretVaultService::TSecretSubresponse
-     >
+    >
 {
 public:
     TCachingSecretVaultService(

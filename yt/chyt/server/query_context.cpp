@@ -379,7 +379,7 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
         }
     };
 
-   if (CreatedTablePath && pathsToFetch.size() == 1 && pathsToFetch.front() == CreatedTablePath) {
+    if (CreatedTablePath && pathsToFetch.size() == 1 && pathsToFetch.front() == CreatedTablePath) {
         // Special case when ClickHouse fetches the table created in the current query.
         // This table exists only in the write transaction so far.
         auto attributes = FetchTableAttributes(pathsToFetch, WriteTransactionId);

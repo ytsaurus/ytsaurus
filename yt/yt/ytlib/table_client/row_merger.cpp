@@ -79,7 +79,7 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
             } else {
                 MergedTimestamps_[index] = NullTimestamp;
                 mergedValue = MakeUnversionedNullValue(id);
-             }
+            }
         }
 
         Started_ = true;
@@ -147,7 +147,7 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row, TTimestamp upperTimes
             } else {
                 MergedTimestamps_[index] = NullTimestamp;
                 *mergedValue = MakeUnversionedNullValue(id);
-             }
+            }
         }
 
         Started_ = true;

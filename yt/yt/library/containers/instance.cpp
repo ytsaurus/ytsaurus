@@ -473,7 +473,7 @@ public:
                         << TErrorAttribute("container", Name_)
                         << valueOrError;
                 }
-             } else {
+            } else {
                 record = TError("Missing property %Qlv in Porto response", field)
                     << TErrorAttribute("container", Name_);
             }

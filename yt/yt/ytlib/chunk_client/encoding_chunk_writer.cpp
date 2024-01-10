@@ -22,9 +22,9 @@ TEncodingChunkWriter::TEncodingChunkWriter(
     IBlockCachePtr blockCache,
     NLogging::TLogger logger)
     : Meta_(New<TMemoryTrackedDeferredChunkMeta>(
-          TMemoryUsageTrackerGuard::Acquire(
-              options->MemoryTracker,
-              /*size*/ 0)))
+        TMemoryUsageTrackerGuard::Acquire(
+            options->MemoryTracker,
+            /*size*/ 0)))
     , Config_(config)
     , Options_(options)
     , ChunkWriter_(std::move(chunkWriter))

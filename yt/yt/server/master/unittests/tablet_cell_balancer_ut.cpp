@@ -184,7 +184,7 @@ public:
                                 CellToIndex_[slot.first],
                                 slot.second));
                     });
-             })
+            })
             .ToString();
     }
 

@@ -780,8 +780,8 @@ public:
     {
         auto it = AddressToCell_.find(address);
         return it != AddressToCell_.end()
-           ? &it->second
-           : nullptr;
+            ? &it->second
+            : nullptr;
     }
 
     const IBundleNodeTrackerPtr& GetBundleNodeTracker() override

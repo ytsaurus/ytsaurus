@@ -1215,7 +1215,7 @@ void TChunkOwnerNodeProxy::SetReplication(const TChunkReplication& replication)
         node->GetId(),
         primaryMedium->GetName(),
         node->Replication());
- }
+}
 
 void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium)
 {

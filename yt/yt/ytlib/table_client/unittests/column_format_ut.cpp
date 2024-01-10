@@ -36,7 +36,7 @@ std::pair<TSharedRef, TColumnMeta> TSingleColumnWriter::WriteSingleSegmentBlock(
 ////////////////////////////////////////////////////////////////////////////////
 
 TSingleColumnReader::TSingleColumnReader(TReaderFactory readerCreator)
-     : Factory_(readerCreator)
+    : Factory_(readerCreator)
 { }
 
 std::vector<TUnversionedOwningRow> TSingleColumnReader::ReadBlock(

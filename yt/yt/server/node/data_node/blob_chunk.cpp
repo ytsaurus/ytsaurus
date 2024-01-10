@@ -118,7 +118,7 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
             ProfileReadMetaLatency(session);
             return FilterMeta(cachedMeta->GetMeta(), extensionTags);
         })
-       .AsyncVia(Context_->StorageHeavyInvoker));
+        .AsyncVia(Context_->StorageHeavyInvoker));
 }
 
 NIO::TBlocksExtPtr TBlobChunkBase::FindCachedBlocksExt()

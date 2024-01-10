@@ -432,7 +432,7 @@ TEST_F(TClearTmpTestBase, TestAnyYsonValidation)
             NYT::NTableClient::EErrorCode::SchemaViolation);
 
         auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-                                           .ValueOrThrow());
+            .ValueOrThrow());
         EXPECT_EQ(rowCount, 0);
     }
 
@@ -459,7 +459,7 @@ TEST_F(TClearTmpTestBase, TestAnyYsonValidation)
             NYT::NTableClient::EErrorCode::SchemaViolation);
 
         auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-                                           .ValueOrThrow());
+            .ValueOrThrow());
         EXPECT_EQ(rowCount, 0);
     }
 
@@ -485,7 +485,7 @@ TEST_F(TClearTmpTestBase, TestAnyYsonValidation)
             NYT::NTableClient::EErrorCode::SchemaViolation);
 
         auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-                                           .ValueOrThrow());
+            .ValueOrThrow());
         EXPECT_EQ(rowCount, 0);
     }
 
@@ -569,7 +569,7 @@ TEST_F(TClearTmpTestBase, TestAnyCompatibleTypes)
             .ThrowOnError();
 
         auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-                                           .ValueOrThrow());
+            .ValueOrThrow());
         EXPECT_EQ(rowCount, 1);
     }
 
@@ -594,7 +594,7 @@ TEST_F(TClearTmpTestBase, TestAnyCompatibleTypes)
             .ThrowOnError();
 
         auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-                                           .ValueOrThrow());
+            .ValueOrThrow());
         EXPECT_EQ(rowCount, 1);
     }
 
@@ -619,7 +619,7 @@ TEST_F(TClearTmpTestBase, TestAnyCompatibleTypes)
             .ThrowOnError();
 
         auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-                                           .ValueOrThrow());
+            .ValueOrThrow());
         EXPECT_EQ(rowCount, 1);
     }
 
@@ -644,7 +644,7 @@ TEST_F(TClearTmpTestBase, TestAnyCompatibleTypes)
             .ThrowOnError();
 
         auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-                                           .ValueOrThrow());
+            .ValueOrThrow());
         EXPECT_EQ(rowCount, 1);
     }
 
@@ -669,7 +669,7 @@ TEST_F(TClearTmpTestBase, TestAnyCompatibleTypes)
             .ThrowOnError();
 
         auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-                                           .ValueOrThrow());
+            .ValueOrThrow());
         EXPECT_EQ(rowCount, 1);
     }
 
@@ -695,7 +695,7 @@ TEST_F(TClearTmpTestBase, TestAnyCompatibleTypes)
             .ThrowOnError();
 
         auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-                                           .ValueOrThrow());
+            .ValueOrThrow());
         EXPECT_EQ(rowCount, 1);
     }
 
@@ -720,7 +720,7 @@ TEST_F(TClearTmpTestBase, TestAnyCompatibleTypes)
             .ThrowOnError();
 
         auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-                                           .ValueOrThrow());
+            .ValueOrThrow());
         EXPECT_EQ(rowCount, 1);
     }
 
@@ -746,7 +746,7 @@ TEST_F(TClearTmpTestBase, TestAnyCompatibleTypes)
             NYT::NTableClient::EErrorCode::SchemaViolation);
 
         auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-                                           .ValueOrThrow());
+            .ValueOrThrow());
         EXPECT_EQ(rowCount, 0);
     }
 
@@ -772,7 +772,7 @@ TEST_F(TClearTmpTestBase, TestAnyCompatibleTypes)
             NYT::NTableClient::EErrorCode::SchemaViolation);
 
         auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-                                           .ValueOrThrow());
+            .ValueOrThrow());
         EXPECT_EQ(rowCount, 0);
     }
 }

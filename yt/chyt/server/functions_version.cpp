@@ -49,17 +49,17 @@ public:
 
     bool isDeterministicInScopeOfQuery() const override
     {
-         return true;
+        return true;
     }
 
     bool isSuitableForConstantFolding() const override
     {
-         return !IsDistributed_;
+        return !IsDistributed_;
     }
 
     bool isSuitableForShortCircuitArgumentsExecution(const DB::DataTypesWithConstInfo& /*arguments*/) const override
     {
-         return false;
+        return false;
     }
 
     DB::ColumnPtr executeImpl(const DB::ColumnsWithTypeAndName& /*arguments*/, const DB::DataTypePtr& /*resultType*/, size_t inputRowsCount) const override

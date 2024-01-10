@@ -239,7 +239,7 @@ DEFINE_RPC_SERVICE_METHOD(TValidatorService, CompareInterval)
     TRichYPath tablePath;
     tablePath.Path(request->target_path());
     tablePath.AddRange(TReadRange::FromRowIndices(
-         request->start_row_index(), request->limit_row_index()));
+        request->start_row_index(), request->limit_row_index()));
 
     auto left = Client_->CreateTableReader<TNode>(tablePath);
     auto right = Client_->CreateTableReader<TNode>(request->interval_path());

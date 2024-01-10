@@ -292,7 +292,7 @@ public:
 
         const auto& client = Bootstrap_->GetClient();
         auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, TTransactionStartOptions{}))
-           .ValueOrThrow();
+            .ValueOrThrow();
 
         YT_LOG_DEBUG("Operation heavy attributes report transaction started (TransactionId: %v, OperationId: %v)",
             transaction->GetId(),

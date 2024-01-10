@@ -148,7 +148,7 @@ void TSkynetColumnEvaluator::ValidateAndComputeHashes(
 
     if (LastDataSize_ != SkynetPartSize) {
         THROW_ERROR_EXCEPTION("Table contains data part #%v with size %v in the middle of file %Qv; "
-           "all but the last file part must be exactly %vMb in size",
+            "all but the last file part must be exactly %vMb in size",
             partIndex,
             LastDataSize_,
             fileName,

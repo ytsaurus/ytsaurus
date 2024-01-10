@@ -66,7 +66,7 @@ NYT::TTableRangesReaderPtr<TNode> CreateRangesNodeTableReader(IInputStream* stre
 ////////////////////////////////////////////////////////////////////////////////
 
 class TImpulseRawJob
-     : public NYT::IRawJob
+    : public NYT::IRawJob
 {
 public:
     TImpulseRawJob() = default;

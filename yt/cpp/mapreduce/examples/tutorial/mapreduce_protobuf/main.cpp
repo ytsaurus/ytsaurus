@@ -15,8 +15,8 @@ using namespace NYT;
 
 class TNormalizeNameMapper
     : public IMapper<
-          TTableReader<TLoginRecord>,
-          TTableWriter<TLoginRecord>>
+        TTableReader<TLoginRecord>,
+        TTableWriter<TLoginRecord>>
 {
 public:
     void Do(TReader* reader, TWriter* writer) override
@@ -32,8 +32,8 @@ REGISTER_MAPPER(TNormalizeNameMapper)
 
 class TCountNameReducer
     : public IReducer<
-          TTableReader<TLoginRecord>,
-          TTableWriter<TNameStatistics>>
+        TTableReader<TLoginRecord>,
+        TTableWriter<TNameStatistics>>
 {
 public:
     void Do(TReader* reader, TWriter* writer) override

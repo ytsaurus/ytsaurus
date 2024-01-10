@@ -699,7 +699,7 @@ TYsonString TClient::DoGetJobInputPaths(
     for (const auto& dataSource : dataSourceDirectory->DataSources()) {
         if (!dataSource.GetPath()) {
             THROW_ERROR_EXCEPTION("Cannot build job input paths; job has intermediate input")
-               << TErrorAttribute("job_id", jobId);
+                << TErrorAttribute("job_id", jobId);
         }
     }
 
@@ -2195,7 +2195,7 @@ std::optional<TJob> TClient::DoGetJobFromControllerAgent(
 
     auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_controller_state");
     if (!rspOrError.IsOK()) {
-         THROW_ERROR_EXCEPTION(EErrorCode::UncertainOperationControllerState,
+        THROW_ERROR_EXCEPTION(EErrorCode::UncertainOperationControllerState,
             "Error obtaining state of operation %v from controller agent",
             operationId)
             << rspOrError;

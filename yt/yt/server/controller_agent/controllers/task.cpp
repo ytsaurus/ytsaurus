@@ -837,7 +837,7 @@ void TTask::BuildTaskYson(TFluentMap fluent) const
         .DoIf(static_cast<bool>(InputDataWeightHistogram_), [&] (TFluentMap fluent) {
             InputDataWeightHistogram_->BuildHistogramView();
             fluent.Item("input_data_weight_histogram").Value(*InputDataWeightHistogram_);
-         })
+        })
         .DoIf(static_cast<bool>(JobSplitter_), [&] (TFluentMap fluent) {
             fluent.Item("job_splitter")
                 .BeginMap()

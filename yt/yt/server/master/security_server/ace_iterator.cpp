@@ -422,7 +422,7 @@ TTagFilteringAceIterator& TTagFilteringAceIterator::operator++()
     } while (true);
 
     return *this;
- }
+}
 
 bool TTagFilteringAceIterator::operator==(const TTagFilteringAceIterator& rhs) const
 {

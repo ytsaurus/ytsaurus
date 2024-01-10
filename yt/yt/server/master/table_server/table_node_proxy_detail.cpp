@@ -2006,7 +2006,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
 
     // NB: Sorted dynamic tables contain unique keys, set this for user.
     if (dynamic && schemaReceived  && schema->IsSorted() && !schema->GetUniqueKeys()) {
-         // COMPAT(h0pless): Change this to YT_VERIFY after schema migration is complete.
+        // COMPAT(h0pless): Change this to YT_VERIFY after schema migration is complete.
         YT_LOG_ALERT_IF(
             !schema->IsUniqueKeys() && table->IsForeign(),
             "Schema doesn't have UniqueKeys set to true on the external cell (TableId: %v, Schema: %v)",

@@ -779,7 +779,7 @@ private:
     {
         const auto& client = Bootstrap_->GetClient();
         auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, TTransactionStartOptions{}))
-           .ValueOrThrow();
+            .ValueOrThrow();
         YT_LOG_DEBUG("Operation controller features update transaction started (TransactionId: %v, OperationId: %v)",
             transaction->GetId(),
             operationId);
@@ -913,7 +913,7 @@ private:
     {
         const auto& client = Bootstrap_->GetClient();
         auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, TTransactionStartOptions{}))
-           .ValueOrThrow();
+            .ValueOrThrow();
         YT_LOG_DEBUG("Operation progress update transaction started (TransactionId: %v, OperationId: %v)",
             transaction->GetId(),
             operationId);

@@ -12,8 +12,8 @@ class TSplitHumanRobotsReduce
     // Обратите внимание наш редьюс работает с несколькими типами записей
     // как на вход так и на выход, поэтому мы используем ::google::protobuf::Message
     : public IReducer<
-          TTableReader<::google::protobuf::Message>,
-          TTableWriter<::google::protobuf::Message>>
+        TTableReader<::google::protobuf::Message>,
+        TTableWriter<::google::protobuf::Message>>
 {
 public:
     void Do(TReader* reader, TWriter* writer) override {

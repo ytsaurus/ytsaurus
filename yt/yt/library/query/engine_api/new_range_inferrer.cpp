@@ -277,7 +277,7 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
                 ++equalPrefix;
             }
 
-             // Lower and upper bounds are included.
+            // Lower and upper bounds are included.
             auto currentLower = TConstraintRef::Universal();
             auto currentUpper = TConstraintRef::Universal();
 

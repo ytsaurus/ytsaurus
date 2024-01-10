@@ -429,8 +429,8 @@ private:
                 !error.IsOK())
             {
                 error = error
-                  << TErrorAttribute("tablet_id", tablet->GetId())
-                  << TErrorAttribute("table_path", tablet->GetTablePath());
+                    << TErrorAttribute("tablet_id", tablet->GetId())
+                    << TErrorAttribute("table_path", tablet->GetTablePath());
                 YT_LOG_DEBUG(error,
                     "Replica statuses do not allow backup");
                 RejectCheckpoint(tablet, error, EBackupStage::TimestampReceived);

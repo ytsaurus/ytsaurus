@@ -396,7 +396,7 @@ void ParseOperationToConsumer(TYsonPullParserCursor* cursor, TConsumer* consumer
         } else if (key == TStringBuf("suspended")) {
             cursor->Next();
             consumer->OnSuspended(ExtractTo<bool>(cursor));
-       } else if (key == TStringBuf("events")) {
+        } else if (key == TStringBuf("events")) {
             cursor->Next();
             consumer->OnEvents(cursor);
         } else if (key == TStringBuf("result")) {

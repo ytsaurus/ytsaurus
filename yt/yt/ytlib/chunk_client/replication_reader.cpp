@@ -1269,8 +1269,8 @@ private:
             RegisterError(TError(
                 NChunkClient::EErrorCode::ReaderTimeout,
                 "Replication reader session timed out")
-                 << TErrorAttribute("session_start_time", StartTime_)
-                 << TErrorAttribute("session_timeout", ReaderConfig_->SessionTimeout));
+                << TErrorAttribute("session_start_time", StartTime_)
+                << TErrorAttribute("session_timeout", ReaderConfig_->SessionTimeout));
             OnSessionFailed(/*fatal*/ false);
             return true;
         }

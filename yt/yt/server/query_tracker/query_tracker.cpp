@@ -158,7 +158,7 @@ private:
                 Alerts_.clear();
             }
         }
-     }
+    }
 
     void AcquireQueries()
     {

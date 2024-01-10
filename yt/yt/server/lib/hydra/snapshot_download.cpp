@@ -75,7 +75,7 @@ void DoDownloadSnapshot(
         YT_LOG_INFO("Snapshot downloaded successfully");
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error downloading snapshot %v", snapshotId)
-           << ex;
+            << ex;
     }
 }
 

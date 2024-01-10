@@ -3353,7 +3353,7 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
 
     if (chunk->IsErasure()) {
         static_assert(MinReplicationFactor <= 1 && 1 <= MaxReplicationFactor,
-                     "Replication factor limits are incorrect.");
+                      "Replication factor limits are incorrect.");
         requisition.ForceReplicationFactor(1);
     }
 
