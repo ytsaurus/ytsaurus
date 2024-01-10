@@ -31,13 +31,13 @@ namespace {
 
 Y_NO_INLINE void AttachThreadStatus(DB::ThreadStatus* status)
 {
-    YT_VERIFY(DB::current_thread == nullptr);
+    YT_VERIFY(!DB::current_thread);
     DB::current_thread = status;
 }
 
 Y_NO_INLINE void DetachThreadStatus()
 {
-    YT_VERIFY(DB::current_thread != nullptr);
+    YT_VERIFY(DB::current_thread);
     DB::current_thread = nullptr;
 }
 
