@@ -558,30 +558,50 @@ public:
             .ToUncancelable();
     }
 
-    void Disable(const TError& error)
+    void StopHealthChecker()
+    {
+        if (HealthChecker_) {
+            HealthChecker_->Stop();
+        }
+    }
+
+    void Disable(const TError& error, bool persistentDisable = true)
     {
         // TODO(don-dron): Research and fix unconditional Disabled.
         if (State_.exchange(ELocationState::Disabled) != ELocationState::Enabled) {
-            Sleep(TDuration::Max());
+            return;
         }
 
-        // Save the reason in a file and exit.
-        // Location will be disabled during the scan in the restarted process.
-        auto lockFilePath = NFS::CombinePaths(Config_->Path, DisabledLockFileName);
-        try {
-            TFile file(lockFilePath, CreateAlways | WrOnly | Seq | CloseOnExec);
-            TFileOutput fileOutput(file);
-            fileOutput << ConvertToYsonString(error, NYson::EYsonFormat::Pretty).AsStringBuf();
-        } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Error creating location lock file");
-            // Exit anyway.
+        YT_LOG_WARNING("Layer location disabled (Path: %v)", Config_->Path);
+
+        StopHealthChecker();
+
+        if (persistentDisable) {
+            // Save the reason in a file and exit.
+            // Location will be disabled during the scan in the restarted process.
+            auto lockFilePath = NFS::CombinePaths(Config_->Path, DisabledLockFileName);
+            try {
+                TFile file(lockFilePath, CreateAlways | WrOnly | Seq | CloseOnExec);
+                TFileOutput fileOutput(file);
+                fileOutput << ConvertToYsonString(error, NYson::EYsonFormat::Pretty).AsStringBuf();
+            } catch (const std::exception& ex) {
+                YT_LOG_ERROR(ex, "Error creating location lock file");
+                // Exit anyway.
+            }
+
+            YT_LOG_ERROR(error, "Volume manager disabled; terminating");
+
+            if (DynamicConfigManager_->GetConfig()->DataNode->AbortOnLocationDisabled) {
+                YT_LOG_FATAL(error, "Volume manager disabled; terminating");
+            }
         }
 
-        YT_LOG_ERROR(error, "Volume manager disabled; terminating");
+        AvailableSpace_ = 0;
+        UsedSpace_ = 0;
+        Volumes_.clear();
+        Layers_.clear();
 
-        if (DynamicConfigManager_->GetConfig()->DataNode->AbortOnLocationDisabled) {
-            YT_LOG_FATAL(error, "Volume manager disabled; terminating");
-        }
+        PerformanceCounters_ = {};
     }
 
     TLayerLocationPerformanceCounters& GetPerformanceCounters()
@@ -874,7 +894,9 @@ private:
             LoadLayers();
 
             if (HealthChecker_) {
-                HealthChecker_->SubscribeFailed(BIND(&TLayerLocation::Disable, MakeWeak(this))
+                HealthChecker_->SubscribeFailed(BIND([=, this, this_ = MakeWeak(this)] (const TError& result) {
+                    Disable(result, true);
+                })
                     .Via(LocationQueue_->GetInvoker()));
                 HealthChecker_->Start();
             }
@@ -1644,6 +1666,27 @@ public:
         return result;
     }
 
+    TFuture<void> Disable(const TError& error, bool persistentDisable = true)
+    {
+        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
+        YT_LOG_WARNING("Disable tmfps layer cache (Path: %v)", CacheName_);
+
+        if (TmpfsLocation_) {
+            MemoryUsageTracker_->Release(Config_->Capacity);
+
+            if (LayerUpdateExecutor_) {
+                return LayerUpdateExecutor_->Stop()
+                    .Apply(BIND(&TLayerLocation::Disable, TmpfsLocation_, error, persistentDisable));
+            } else {
+                TmpfsLocation_->Disable(error, persistentDisable);
+                return VoidFuture;
+            }
+        } else {
+            return VoidFuture;
+        }
+    }
+
     void BuildOrchid(TFluentMap fluent) const
     {
         auto guard1 = Guard(DataSpinLock_);
@@ -1982,6 +2025,25 @@ public:
         });
     }
 
+    TFuture<void> Disable(const TError& reason)
+    {
+        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
+        YT_LOG_WARNING(reason, "Layer cache disabled");
+
+        for (const auto& location : LayerLocations_) {
+            location->Disable(reason, false);
+        }
+
+        return AllSucceeded(std::vector<TFuture<void>>{
+            ProfilingExecutor_->Stop(),
+            RegularTmpfsLayerCache_->Disable(reason, false),
+            NirvanaTmpfsLayerCache_->Disable(reason, false)
+        }).Apply(BIND([=, this, this_ = MakeStrong(this)] () {
+            OnProfiling();
+        }));
+    }
+
     TFuture<TLayerPtr> PrepareLayer(
         TArtifactKey artifactKey,
         const TArtifactDownloadOptions& downloadOptions,
@@ -2056,7 +2118,6 @@ private:
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
-
     bool IsResurrectionSupported() const override
     {
         return false;
@@ -2065,6 +2126,17 @@ private:
     i64 GetWeight(const TLayerPtr& layer) const override
     {
         return layer->GetSize();
+    }
+
+    void ProfileLocation(const TLayerLocationPtr& location) {
+        auto& performanceCounters = location->GetPerformanceCounters();
+
+        performanceCounters.AvailableSpace.Update(location->GetAvailableSpace());
+        performanceCounters.UsedSpace.Update(location->GetUsedSpace());
+        performanceCounters.TotalSpace.Update(location->GetCapacity());
+        performanceCounters.Full.Update(location->IsFull() ? 1 : 0);
+        performanceCounters.LayerCount.Update(location->GetLayerCount());
+        performanceCounters.VolumeCount.Update(location->GetVolumeCount());
     }
 
     TLayerPtr FindLayerInTmpfs(const TArtifactKey& artifactKey, const TGuid& tag = TGuid()) {
@@ -2155,27 +2227,16 @@ private:
 
     void OnProfiling()
     {
-        auto profileLocation = [] (const TLayerLocationPtr& location) {
-            auto& performanceCounters = location->GetPerformanceCounters();
-
-            performanceCounters.AvailableSpace.Update(location->GetAvailableSpace());
-            performanceCounters.UsedSpace.Update(location->GetUsedSpace());
-            performanceCounters.TotalSpace.Update(location->GetCapacity());
-            performanceCounters.Full.Update(location->IsFull() ? 1 : 0);
-            performanceCounters.LayerCount.Update(location->GetLayerCount());
-            performanceCounters.VolumeCount.Update(location->GetVolumeCount());
-        };
-
         if (auto location = RegularTmpfsLayerCache_->GetLocation()) {
-            profileLocation(location);
+            ProfileLocation(location);
         }
 
         if (auto location = NirvanaTmpfsLayerCache_->GetLocation()) {
-            profileLocation(location);
+            ProfileLocation(location);
         }
 
         for (const auto& location : LayerLocations_) {
-            profileLocation(location);
+            ProfileLocation(location);
         }
     }
 };
@@ -2568,6 +2629,17 @@ public:
         return AllSet(std::move(futures))
             .AsVoid()
             .ToUncancelable();
+    }
+
+    TFuture<void> DisableLayerCache(const TError& reason) override
+    {
+        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
+        return LayerCache_->Disable(reason)
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] () {
+                Locations_.clear();
+            })
+            .AsyncVia(ControlInvoker_));
     }
 
     TFuture<IVolumePtr> PrepareVolume(

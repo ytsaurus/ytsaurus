@@ -37,6 +37,8 @@ public:
 
     void Start();
 
+    void Stop();
+
     DEFINE_SIGNAL(void(const TError&), Failed);
 
 private:
@@ -48,6 +50,8 @@ private:
     NProfiling::TEventTimer TotalTimer_;
     NProfiling::TEventTimer ReadTimer_;
     NProfiling::TEventTimer WriteTimer_;
+
+    NConcurrency::TDelayedExecutorCookie CheckerCookie_;
 
     void OnCheck();
     void OnCheckCompleted(const TError& error);

@@ -35,9 +35,14 @@ TDiskHealthChecker::TDiskHealthChecker(
 
 void TDiskHealthChecker::Start()
 {
-    TDelayedExecutor::Submit(
+    CheckerCookie_ = TDelayedExecutor::Submit(
         BIND(&TDiskHealthChecker::OnCheck, MakeWeak(this)),
         Config_->CheckPeriod);
+}
+
+void TDiskHealthChecker::Stop()
+{
+    TDelayedExecutor::CancelAndClear(CheckerCookie_);
 }
 
 TFuture<void> TDiskHealthChecker::RunCheck()

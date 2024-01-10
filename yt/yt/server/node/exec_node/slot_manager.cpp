@@ -634,6 +634,8 @@ bool TSlotManager::Disable(const TError& error)
 
     if (auto volumeManager = RootVolumeManager_.Acquire()) {
         auto result = WaitFor(volumeManager->GetVolumeReleaseEvent()
+            .Apply(BIND(&IVolumeManager::DisableLayerCache, volumeManager, error)
+            .AsyncVia(Bootstrap_->GetControlInvoker()))
             .WithTimeout(timeout));
         YT_LOG_FATAL_IF(
             dynamicConfig->AbortOnFreeVolumeSynchronizationFailed && !result.IsOK(),
