@@ -31,6 +31,15 @@ private:
     void ValidateRemoval() override
     {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
+
+        const auto* collocation = GetThisImpl();
+        for (const auto* table : collocation->Tables()) {
+            if (table->GetIndexTo() || !table->SecondaryIndices().empty()) {
+                THROW_ERROR_EXCEPTION("Cannot remove collocation %v because table %v has or is an index",
+                    collocation->GetId(),
+                    table->GetId());
+            }
+        }
     }
 
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override

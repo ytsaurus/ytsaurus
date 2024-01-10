@@ -557,12 +557,23 @@ std::pair<TString, TSelectRowsOptions::TExpectedTableSchemas> TClient::PickInSyn
         chaosTableSchemas[0],
         bannedSyncReplicaIds[0]);
 
+    int joinOffset = 1;
+
+    if (query->WithIndex) {
+        patchTableDescriptor(
+            &*query->WithIndex,
+            candidates[1],
+            chaosTableSchemas[1],
+            bannedSyncReplicaIds[1]);
+        joinOffset++;
+    }
+
     for (size_t index = 0; index < query->Joins.size(); ++index) {
         patchTableDescriptor(
             &query->Joins[index].Table,
-            candidates[index + 1],
-            chaosTableSchemas[index + 1],
-            bannedSyncReplicaIds[index + 1]);
+            candidates[index + joinOffset],
+            chaosTableSchemas[index + joinOffset],
+            bannedSyncReplicaIds[index + joinOffset]);
     }
 
     YT_LOG_DEBUG("In-sync cluster selected (Paths: %v, ClusterName: %v, ReplicaIds: %v)",

@@ -362,6 +362,8 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
         /*predicate*/ std::nullopt);
 
     query.Joins.front().Equivalences = std::move(equivalences);
+
+    query.WithIndex.reset();
 }
 
 std::vector<TTableMountInfoPtr> GetQueryTableInfos(
@@ -369,6 +371,9 @@ std::vector<TTableMountInfoPtr> GetQueryTableInfos(
     const TStickyTableMountInfoCachePtr& cache)
 {
     std::vector<TYPath> paths{query->Table.Path};
+    if (const auto& withIndex = query->WithIndex; withIndex) {
+        paths.push_back(withIndex->Path);
+    }
     for (const auto& join : query->Joins) {
         paths.push_back(join.Table.Path);
     }
@@ -1399,7 +1404,6 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto* astQuery = &std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
 
     auto cache = New<TStickyTableMountInfoCache>(Connection_->GetTableMountCache());
-    TransformWithIndexStatement(&parsedQuery->AstHead, cache);
 
     auto [tableInfos, replicaCandidates] = PrepareInSyncReplicaCandidates(
         options,
@@ -1464,6 +1468,8 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         YT_VERIFY(!resultOrError.IsOK());
         resultOrError.ThrowOnError();
     }
+
+    TransformWithIndexStatement(&parsedQuery->AstHead, cache);
 
     auto inputRowLimit = options.InputRowLimit.value_or(Connection_->GetConfig()->DefaultInputRowLimit);
     auto outputRowLimit = options.OutputRowLimit.value_or(Connection_->GetConfig()->DefaultOutputRowLimit);

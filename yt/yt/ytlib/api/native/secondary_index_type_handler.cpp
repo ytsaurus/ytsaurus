@@ -45,6 +45,17 @@ public:
         ResolveExternalTable(Client_, tablePath, &tableId, &tableCellTag);
         ResolveExternalTable(Client_, indexTablePath, &indexTableId, &indexTableCellTag);
 
+        if (TypeFromId(tableId) != TypeFromId(indexTableId)) {
+            THROW_ERROR_EXCEPTION("Table type mismatch")
+                << TErrorAttribute("table_type", TypeFromId(tableId))
+                << TErrorAttribute("index_table_type", TypeFromId(indexTableId));
+        }
+
+        auto tableType = TypeFromId(tableId);
+        if (tableType != EObjectType::ReplicatedTable && tableType != EObjectType::Table) {
+            THROW_ERROR_EXCEPTION("Unsupported table type %Qlv", tableType);
+        }
+
         if (CellTagFromId(tableId) != CellTagFromId(indexTableId)) {
             THROW_ERROR_EXCEPTION("Table and index table native cell tags differ")
                 << TErrorAttribute("table_cell_tag", CellTagFromId(tableId))

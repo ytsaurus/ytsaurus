@@ -215,6 +215,7 @@ DEFINE_ENUM(EMasterReign,
     ((HiveManagerLamportTimestamp)                                  (2517))  // danilalexeev
     ((FixAsyncTableStatisticsUpdate)                                (2518))  // danilalexeev
     ((CreateHunkStorageWithProperAttributes)                        (2519))  // akozhikhov
+    ((SecondaryIndexOverReplicatedTables)                           (2520))  // sabdenovch
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

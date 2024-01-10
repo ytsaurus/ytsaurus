@@ -802,6 +802,42 @@ public:
             }
         }
 
+        auto tableType = TypeFromId(table->GetId());
+        auto indexTableType = TypeFromId(indexTable->GetId());
+        if (tableType != indexTableType) {
+            THROW_ERROR_EXCEPTION("Type mismatch: trying to create index of type %Qlv for a table of type %Qlv",
+                indexTableType,
+                tableType);
+        }
+
+        switch (tableType) {
+            case EObjectType::Table: {
+                break;
+            }
+
+            case EObjectType::ReplicatedTable: {
+                auto* tableCollocation = table->GetReplicationCollocation();
+                auto* indexCollocation = indexTable->GetReplicationCollocation();
+
+                if (tableCollocation == nullptr || tableCollocation != indexCollocation) {
+                    auto tableCollocationId = tableCollocation ? tableCollocation->GetId() : NullObjectId;
+                    auto indexCollocationId = indexCollocation ? indexCollocation->GetId() : NullObjectId;
+                    THROW_ERROR_EXCEPTION("Table and index table must belong to the same non-null table collocation")
+                        << TErrorAttribute("table_collocation_id", tableCollocationId)
+                        << TErrorAttribute("index_table_collocation_id", indexCollocationId);
+                }
+
+                if (auto type = tableCollocation->GetType(); type != ETableCollocationType::Replication) {
+                    THROW_ERROR_EXCEPTION("Unsupported collocation type %Qlv", type);
+                }
+
+                break;
+            }
+
+            default:
+                THROW_ERROR_EXCEPTION("Unsupported table type %Qlv", tableType);
+        }
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto secondaryIndexId = objectManager->GenerateId(EObjectType::SecondaryIndex, hintId);
 
@@ -927,6 +963,7 @@ public:
         switch (collocation->GetType()) {
             case ETableCollocationType::Replication:
                 for (auto* table : collocation->Tables()) {
+                    YT_VERIFY(!table->GetIndexTo() && table->SecondaryIndices().empty());
                     table->SetReplicationCollocation(nullptr);
                 }
                 break;
@@ -1038,6 +1075,7 @@ public:
         auto collocationType = collocation->GetType();
         switch (collocationType) {
             case ETableCollocationType::Replication:
+                YT_VERIFY(table->SecondaryIndices().empty() && !table->GetIndexTo());
                 table->SetReplicationCollocation(nullptr);
                 break;
 

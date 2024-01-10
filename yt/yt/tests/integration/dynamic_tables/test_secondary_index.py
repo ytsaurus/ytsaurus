@@ -3,9 +3,9 @@ from yt_dynamic_tables_base import DynamicTablesBase
 from yt.common import wait
 
 from yt_commands import (
-    authors, get, exists, remove, create, copy,
-    create_secondary_index, create_dynamic_table,
-    sync_create_cells, sync_mount_table, mount_table, get_driver,
+    create, create_secondary_index, create_dynamic_table, create_table_replica, create_table_collocation,
+    authors, set, get, exists, remove, copy, get_driver,
+    sync_create_cells, sync_mount_table, sync_enable_table_replica,
     select_rows, insert_rows, delete_rows,
     sorted_dicts, raises_yt_error,
 )
@@ -15,8 +15,6 @@ from yt.test_helpers import assert_items_equal
 ##################################################################
 
 EMPTY_COLUMN_NAME = "$empty"
-
-EMPTY_COLUMN = {"name": EMPTY_COLUMN_NAME, "type": "int64"}
 
 PRIMARY_SCHEMA = [
     {"name": "keyA", "type": "int64", "sort_order": "ascending"},
@@ -43,37 +41,119 @@ INDEX_ON_VALUE_SCHEMA = [
 INDEX_ON_KEY_SCHEMA = [
     {"name": "keyB", "type": "string", "sort_order": "ascending"},
     {"name": "keyA", "type": "int64", "sort_order": "ascending"},
-    EMPTY_COLUMN,
+    {"name": EMPTY_COLUMN_NAME, "type": "int64"},
 ]
 
 ##################################################################
 
 
 class TestSecondaryIndexBase(DynamicTablesBase):
+    def _mount(self, *tables):
+        sync_create_cells(1)
+        for table in tables:
+            sync_mount_table(table)
+
+    def _create_table(self, table_path, table_schema, external_cell_tag=11):
+        return create_dynamic_table(table_path, table_schema, external_cell_tag=external_cell_tag)
+
     def _create_basic_tables(
         self,
         table_path="//tmp/table",
+        table_schema=PRIMARY_SCHEMA,
+        index_table_path="//tmp/index_table",
+        index_schema=INDEX_ON_VALUE_SCHEMA,
+        kind="full_sync",
+        mount=False,
+    ):
+        table_id = self._create_table(table_path, table_schema)
+        index_table_id = self._create_table(index_table_path, index_schema)
+        index_id = create_secondary_index(table_path, index_table_path, kind)
+
+        if mount:
+            self._mount(table_path, index_table_path)
+
+        return table_id, index_table_id, index_id, None
+
+
+##################################################################
+
+
+class TestSecondaryIndexReplicatedBase(TestSecondaryIndexBase):
+    NUM_REMOTE_CLUSTERS = 1
+    REPLICA_CLUSTER_NAME = "remote_0"
+
+    def setup_method(self, method):
+        super(TestSecondaryIndexReplicatedBase, self).setup_method(method)
+        self.REPLICA_DRIVER = get_driver(cluster=self.REPLICA_CLUSTER_NAME)
+
+    def _mount(self, *tables):
+        sync_create_cells(1)
+        sync_create_cells(1, driver=self.REPLICA_DRIVER)
+
+        for table in tables:
+            sync_mount_table(table)
+            sync_mount_table(table + "_replica", driver=self.REPLICA_DRIVER)
+
+    def _create_table(self, table_path, table_schema, external_cell_tag=11):
+        table_id = create(
+            "replicated_table",
+            table_path,
+            attributes={
+                "schema": table_schema,
+                "dynamic": True,
+                "external_cell_tag": external_cell_tag,
+            },
+        )
+
+        replica_id = create_table_replica(
+            table_path,
+            self.REPLICA_CLUSTER_NAME,
+            table_path + "_replica",
+            attributes={"mode": "sync"}
+        )
+
+        create(
+            "table",
+            table_path + "_replica",
+            driver=self.REPLICA_DRIVER,
+            attributes={
+                "schema": table_schema,
+                "dynamic": True,
+                "upstream_replica_id": replica_id,
+            },
+        )
+
+        sync_enable_table_replica(replica_id)
+
+        return table_id
+
+    def _create_basic_tables(
+        self,
+        table_path="//tmp/table",
+        table_schema=PRIMARY_SCHEMA,
         index_table_path="//tmp/index_table",
         index_schema=INDEX_ON_VALUE_SCHEMA,
         kind="full_sync",
         mount=False
     ):
-        table_id = create_dynamic_table(table_path, PRIMARY_SCHEMA, external_cell_tag=11)
-        index_table_id = create_dynamic_table(index_table_path, index_schema, external_cell_tag=11)
+        table_id = self._create_table(table_path, table_schema)
+        index_table_id = self._create_table(index_table_path, index_schema)
+        collocation_id = create_table_collocation(table_ids=[table_id, index_table_id])
         index_id = create_secondary_index(table_path, index_table_path, kind)
 
         if mount:
-            sync_create_cells(1)
-            sync_mount_table(table_path)
-            sync_mount_table(index_table_path)
+            self._mount(table_path, index_table_path)
 
-        return table_id, index_table_id, index_id
+        return table_id, index_table_id, index_id, collocation_id
 
 
-class TestSecondaryIndex(TestSecondaryIndexBase):
+##################################################################
+
+
+class TestSecondaryIndexMaster(TestSecondaryIndexBase):
     @authors("sabdenovch")
     def test_secondary_index_create_index(self):
-        table_id, index_table_id, index_id = self._create_basic_tables()
+        table_id, index_table_id, index_id, _ = self._create_basic_tables()
 
         assert get("#{}/@kind".format(index_id)) == "full_sync"
         assert get("#{}/@table_id".format(index_id)) == table_id
@@ -96,7 +176,7 @@ class TestSecondaryIndex(TestSecondaryIndexBase):
 
     @authors("sabdenovch")
     def test_secondary_index_delete_index(self):
-        _, _, index_id = self._create_basic_tables()
+        _, _, index_id, _ = self._create_basic_tables()
 
         remove(f"#{index_id}")
         assert not exists("//tmp/table/@secondary_indices")
@@ -106,7 +186,7 @@ class TestSecondaryIndex(TestSecondaryIndexBase):
 
     @authors("sabdenovch")
     def test_secondary_index_delete_primary_table(self):
-        _, _, index_id = self._create_basic_tables()
+        _, _, index_id, _ = self._create_basic_tables()
 
         remove("//tmp/table")
         assert not exists("//tmp/index_table/@index_to")
@@ -116,7 +196,7 @@ class TestSecondaryIndex(TestSecondaryIndexBase):
 
     @authors("sabdenovch")
     def test_secondary_index_delete_index_table(self):
-        _, _, index_id = self._create_basic_tables()
+        _, _, index_id, _ = self._create_basic_tables()
 
         remove("//tmp/index_table")
         assert not exists("//tmp/table/@secondary_indices")
@@ -125,8 +205,24 @@ class TestSecondaryIndex(TestSecondaryIndexBase):
             wait(lambda: not exists(f"#{index_id}", driver=get_driver(1)))
 
     @authors("sabdenovch")
+    def test_secondary_index_illegal_create_on_mounted(self):
+        self._create_table("//tmp/table", PRIMARY_SCHEMA)
+        self._create_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA)
+
+        self._mount("//tmp/table")
+        with raises_yt_error("Cannot create index on a mounted table"):
+            create_secondary_index("//tmp/table", "//tmp/index_table", "full_sync")
+
+
+##################################################################
+
+
+class TestSecondaryIndexSelect(TestSecondaryIndexBase):
+    @authors("sabdenovch")
     def test_secondary_index_select_simple(self):
-        self._create_basic_tables(mount=True)
+        self._create_table("//tmp/table", PRIMARY_SCHEMA)
+        self._create_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA)
+        self._mount("//tmp/table", "//tmp/index_table")
 
         table_rows = [
             {"keyA": 0, "keyB": "alpha", "valueA": 100, "valueB": True},
@@ -146,7 +242,9 @@ class TestSecondaryIndex(TestSecondaryIndexBase):
 
     @authors("sabdenovch")
     def test_secondary_index_select_with_alias(self):
-        self._create_basic_tables(mount=True)
+        self._create_table("//tmp/table", PRIMARY_SCHEMA)
+        self._create_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA)
+        self._mount("//tmp/table", "//tmp/index_table")
 
         table_rows = [{"keyA": 0, "keyB": "alpha", "valueA": 100, "valueB": False}]
         insert_rows("//tmp/table", table_rows)
@@ -162,43 +260,48 @@ class TestSecondaryIndex(TestSecondaryIndexBase):
                            "from [//tmp/table] Alias with index [//tmp/index_table]")
         assert_items_equal(sorted_dicts(rows), sorted_dicts(aliased_table_rows))
 
-    @authors("sabdenovch")
-    def test_secondary_index_illegal_create_on_mounted(self):
-        sync_create_cells(1)
-        create_dynamic_table("//tmp/table", PRIMARY_SCHEMA, external_cell_tag=11)
-        create_dynamic_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA, external_cell_tag=11)
 
-        mount_table("//tmp/table")
-        with raises_yt_error("Cannot create index on a mounted table"):
-            create_secondary_index("//tmp/table", "//tmp/index_table", "full_sync")
+##################################################################
+
+
+class TestSecondaryIndexModifications(TestSecondaryIndexBase):
+    def _insert_rows(self, rows, table="//tmp/table", update=False):
+        insert_rows(table, rows, update=update)
+
+    def _delete_rows(self, rows, table="//tmp/table"):
+        delete_rows(table, rows)
+
+    def _expect_from_index(self, expected, index_table="//tmp/index_table"):
+        actual = select_rows(f"* from [{index_table}]")
+        assert_items_equal(sorted_dicts(actual), sorted_dicts(expected))
 
     @authors("sabdenovch")
     def test_secondary_index_insert_simple(self):
         self._create_basic_tables(mount=True)
 
         rows = [{"keyA": 0, "keyB": "key", "valueA": 0, "valueB": False}]
-        insert_rows("//tmp/table", rows)
-        assert_items_equal(select_rows("* from [//tmp/table]"), rows)
-        assert_items_equal(select_rows("* from [//tmp/index_table]"), rows)
+        self._insert_rows(rows)
+
+        self._expect_from_index(rows)
 
     @authors("sabdenovch")
     def test_secondary_index_utility_column(self):
         self._create_basic_tables(index_schema=INDEX_ON_KEY_SCHEMA, mount=True)
 
         rows = [{"keyA": 0, "keyB": "key", "valueA": 0, "valueB": False}]
-        expected_index_rows = [{"keyB": "key", "keyA": 0, EMPTY_COLUMN_NAME: None}]
-        insert_rows("//tmp/table", rows)
-        assert_items_equal(select_rows("* from [//tmp/table]"), rows)
-        assert_items_equal(select_rows("* from [//tmp/index_table]"), expected_index_rows)
+        self._insert_rows(rows)
+
+        self._expect_from_index([{"keyB": "key", "keyA": 0, EMPTY_COLUMN_NAME: None}])
 
     @authors("sabdenovch")
     def test_secondary_index_insert_same_key_twice(self):
         self._create_basic_tables(mount=True)
 
-        insert_rows("//tmp/table", [{"keyA": 0, "keyB": "key", "valueA": 0, "valueB": False}])
+        self._insert_rows([{"keyA": 0, "keyB": "key", "valueA": 0, "valueB": False}])
         update = [{"keyA": 0, "keyB": "key", "valueA": 1, "valueB": True}]
-        insert_rows("//tmp/table", update)
-        assert_items_equal(select_rows("* from [//tmp/index_table]"), update)
+        self._insert_rows(update)
+
+        self._expect_from_index(update)
 
     @authors("sabdenovch")
     def test_secondary_index_insert_multiple(self):
@@ -208,36 +311,34 @@ class TestSecondaryIndex(TestSecondaryIndexBase):
         for i in range(10):
             row = {"keyA": i, "keyB": "key", "valueA": 123, "valueB": i % 2 == 0}
             rows.append(row)
-            insert_rows("//tmp/table", [row])
+            self._insert_rows([row])
 
-        assert_items_equal(select_rows("* from [//tmp/index_table]"), rows)
+        self._expect_from_index(rows)
 
     @authors("sabdenovch")
     def test_secondary_index_update_partial(self):
         self._create_basic_tables(mount=True)
 
-        insert_rows("//tmp/table", [{"keyA": 0, "keyB": "keyB", "valueA": 123, "valueB": False}])
-        insert_rows("//tmp/table", [{"keyA": 0, "keyB": "keyB", "valueB": True}], update=True)
+        self._insert_rows([{"keyA": 0, "keyB": "keyB", "valueA": 123, "valueB": False}])
+        self._insert_rows([{"keyA": 0, "keyB": "keyB", "valueB": True}], update=True)
 
-        index_rows = select_rows("* from [//tmp/index_table]")
-        assert_items_equal(index_rows,  [{"valueA": 123, "keyA": 0, "keyB": "keyB", "valueB": True}])
+        self._expect_from_index([{"valueA": 123, "keyA": 0, "keyB": "keyB", "valueB": True}])
 
-    @authors("orlovorlov", "sabdenovch")
+    @authors("sabdenovch")
     def test_secondary_index_insert_missing_index_key(self):
         self._create_basic_tables(mount=True)
 
-        insert_rows("//tmp/table", [
+        self._insert_rows([
             {"keyA": 0, "keyB": "B1", "valueB": True},
             {"keyA": 1, "keyB": "B2", "valueA": None, "valueB": True},
         ])
 
-        expected = [
+        self._expect_from_index([
             {"keyA": 0, "keyB": "B1", "valueA": None, "valueB": True},
             {"keyA": 1, "keyB": "B2", "valueA": None, "valueB": True},
-        ]
-        assert_items_equal(select_rows("* from [//tmp/index_table]"), expected)
+        ])
 
-    @authors("orlovorlov", "sabdenovch")
+    @authors("sabdenovch")
     def test_secondary_index_delete_rows(self):
         self._create_basic_tables(mount=True)
 
@@ -249,17 +350,13 @@ class TestSecondaryIndex(TestSecondaryIndexBase):
         def row(i):
             return {"keyA": i, "keyB": "b%02x" % (N - i - 1), "valueA": (11 * i + 5) // 7, "valueB": False}
 
-        insert_rows("//tmp/table", [row(i) for i in range(N)])
-        delete_rows("//tmp/table", [key(i) for i in range(N // 4, N - N // 4)])
+        self._insert_rows([row(i) for i in range(N)])
+        self._delete_rows([key(i) for i in range(N // 4, N - N // 4)])
         remaining = list(range(N // 4)) + list(range(N - N // 4, N))
 
-        table_rows = select_rows("* from [//tmp/table]")
-        assert_items_equal(table_rows, [row(i) for i in remaining])
+        self._expect_from_index([row(i) for i in remaining])
 
-        index_table_rows = select_rows("* from [//tmp/index_table]")
-        assert_items_equal(sorted_dicts(index_table_rows), sorted_dicts([row(i) for i in remaining]))
-
-    @authors("orlovorlov", "sabdenovch")
+    @authors("sabdenovch")
     def test_secondary_index_update_nonkey(self):
         self._create_basic_tables(mount=True)
 
@@ -267,13 +364,13 @@ class TestSecondaryIndex(TestSecondaryIndexBase):
 
         def row(i, b):
             return {"keyA": i, "keyB": "b%02x" % (N - i - 1), "valueA": i, "valueB": b}
-        insert_rows("//tmp/table", [row(i, False) for i in range(N)])
-        insert_rows("//tmp/table", [row(i, True) for i in range(N // 4, N - N // 4)])
 
-        index_table_rows = select_rows("* from [//tmp/index_table]")
-        assert_items_equal(index_table_rows, [row(i, N // 4 <= i and i < N - N // 4) for i in range(N)])
+        self._insert_rows([row(i, False) for i in range(N)])
+        self._insert_rows([row(i, True) for i in range(N // 4, N - N // 4)])
 
-    @authors("orlovorlov", "sabdenovch")
+        self._expect_from_index([row(i, N // 4 <= i and i < N - N // 4) for i in range(N)])
+
+    @authors("sabdenovch")
     def test_secondary_index_insert_update_index_key(self):
         self._create_basic_tables(mount=True)
 
@@ -281,14 +378,13 @@ class TestSecondaryIndex(TestSecondaryIndexBase):
 
         def row(i, a):
             return {"keyA": i, "keyB": "b%02x" % (N - i - 1), "valueA": a, "valueB": False}
-        insert_rows("//tmp/table", [row(i, i % 2) for i in range(N)])
-        insert_rows("//tmp/table", [row(i, i % 3) for i in range(N // 4, N - N // 4)])
 
-        index_table_rows = select_rows("* from [//tmp/index_table]")
-        expected = [row(i, i % 3 if N // 4 <= i and i < N - N // 4 else i % 2) for i in range(N)]
-        assert_items_equal(sorted_dicts(index_table_rows), sorted_dicts(expected))
+        self._insert_rows([row(i, i % 2) for i in range(N)])
+        self._insert_rows([row(i, i % 3) for i in range(N // 4, N - N // 4)])
 
-    @authors("orlovorlov", "sabdenovch")
+        self._expect_from_index([row(i, i % 3 if N // 4 <= i and i < N - N // 4 else i % 2) for i in range(N)])
+
+    @authors("sabdenovch")
     def test_secondary_index_insert_drop_index_key(self):
         self._create_basic_tables(mount=True)
 
@@ -296,22 +392,23 @@ class TestSecondaryIndex(TestSecondaryIndexBase):
 
         def row(i, a):
             return {"keyA": i, "keyB": "b%02x" % (N - i - 1), "valueA": a, "valueB": False}
-        insert_rows("//tmp/table", [row(i, i % 3) for i in range(N)])
-        insert_rows("//tmp/table", [row(i, None) for i in range(N // 4, N - N // 4)])
 
-        index_table_rows = select_rows("* from [//tmp/index_table]")
-        expected = [row(i, None if N // 4 <= i and i < N - N // 4 else i % 3) for i in range(N)]
-        assert_items_equal(sorted_dicts(index_table_rows), sorted_dicts(expected))
+        self._insert_rows([row(i, i % 3) for i in range(N)])
+        self._insert_rows([row(i, None) for i in range(N // 4, N - N // 4)])
 
-    @authors("orlovorlov", "sabdenovch")
+        self._expect_from_index([row(i, None if N // 4 <= i and i < N - N // 4 else i % 3) for i in range(N)])
+
+    @authors("sabdenovch")
     def test_secondary_index_multiple_indices(self):
-        sync_create_cells(1)
         self._create_basic_tables()
-        create_dynamic_table("//tmp/index_table_auxiliary", INDEX_ON_KEY_SCHEMA, external_cell_tag=11)
-        create_secondary_index("//tmp/table", "//tmp/index_table_auxiliary", "full_sync")
-        sync_mount_table("//tmp/table")
-        sync_mount_table("//tmp/index_table")
-        sync_mount_table("//tmp/index_table_auxiliary")
+        self._create_table("//tmp/index_table_auxiliary", INDEX_ON_KEY_SCHEMA)
+        if self.NUM_REMOTE_CLUSTERS:
+            collocation_id = get("//tmp/table/@replication_collocation_id")
+            set("//tmp/index_table_auxiliary/@replication_collocation_id", collocation_id)
+
+        create_secondary_index("//tmp/table", "//tmp/index_table_auxiliary", kind="full_sync")
+
+        self._mount("//tmp/table", "//tmp/index_table", "//tmp/index_table_auxiliary")
 
         N = 8
 
@@ -321,21 +418,22 @@ class TestSecondaryIndex(TestSecondaryIndexBase):
         def aux_row(i):
             return {"keyB": "b%02x" % i, "keyA": i, EMPTY_COLUMN_NAME: None}
 
-        insert_rows("//tmp/table", [row(i) for i in range(N)])
+        self._insert_rows([row(i) for i in range(N)])
 
-        assert_items_equal(select_rows("* from [//tmp/index_table]"), [row(i) for i in range(N - 1, -1, -1)])
-        assert_items_equal(select_rows("* from [//tmp/index_table_auxiliary]"), [aux_row(i) for i in range(N)])
+        self._expect_from_index([row(i) for i in range(N - 1, -1, -1)])
+        self._expect_from_index([aux_row(i) for i in range(N)], index_table="//tmp/index_table_auxiliary")
+
 
 ##################################################################
 
 
-class TestSecondaryIndexMulticell(TestSecondaryIndex):
+class TestSecondaryIndexMulticell(TestSecondaryIndexMaster):
     NUM_SECONDARY_MASTER_CELLS = 2
 
     @authors("sabdenovch")
     def test_secondary_index_different_cell_tags(self):
-        create_dynamic_table("//tmp/table", PRIMARY_SCHEMA, external_cell_tag=11)
-        create_dynamic_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA, external_cell_tag=12)
+        self._create_table("//tmp/table", PRIMARY_SCHEMA, external_cell_tag=11)
+        self._create_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA, external_cell_tag=12)
         with raises_yt_error("Table and index table external cell tags differ"):
             create_secondary_index("//tmp/table", "//tmp/index_table")
 
@@ -347,3 +445,114 @@ class TestSecondaryIndexMulticell(TestSecondaryIndex):
             copy("//tmp/table", "//tmp/p/table")
         with raises_yt_error("Cannot cross-cell copy neither a table with a secondary index nor an index table itself"):
             copy("//tmp/index_table", "//tmp/p/index_table")
+
+
+##################################################################
+
+
+class TestSecondaryIndexReplicatedMaster(TestSecondaryIndexReplicatedBase, TestSecondaryIndexMaster):
+    @authors("sabdenovch")
+    def test_secondary_index_holds_collocation(self):
+        stranger_id = self._create_table("//tmp/stranger", PRIMARY_SCHEMA)
+        table_id = self._create_table("//tmp/table", PRIMARY_SCHEMA)
+        index_table_id = self._create_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA)
+        collocation_id = create_table_collocation(table_ids=[stranger_id, table_id, index_table_id])
+        index_id = create_secondary_index("//tmp/table", "//tmp/index_table", "full_sync")
+
+        with raises_yt_error(f"Cannot remove table {table_id} from collocation"):
+            remove("//tmp/table/@replication_collocation_id")
+        with raises_yt_error(f"Cannot remove table {index_table_id} from collocation"):
+            remove("//tmp/index_table/@replication_collocation_id")
+        with raises_yt_error("Cannot remove collocation"):
+            remove(f"#{collocation_id}")
+
+        remove("//tmp/stranger")
+        remove("//tmp/index_table")
+
+        assert exists(f"#{collocation_id}")
+        assert not exists(f"#{index_id}")
+
+        remove("//tmp/table")
+
+
+##################################################################
+
+
+class TestSecondaryIndexReplicatedSelect(TestSecondaryIndexReplicatedBase, TestSecondaryIndexSelect):
+    @authors("sabdenovch")
+    def test_secondary_index_select_picks_sync_replicas(self):
+        table_path = "//tmp/table"
+        index_table_path = "//tmp/index_table"
+
+        self._create_table(table_path, PRIMARY_SCHEMA)
+        self._create_table(index_table_path, INDEX_ON_VALUE_SCHEMA)
+        set(
+            "//tmp/table/@replicated_table_options",
+            {
+                "min_sync_replica_count": 2,
+                "max_sync_replica_count": 2,
+            },
+        )
+        self._mount(table_path, index_table_path)
+
+        replica_id = create_table_replica(
+            table_path,
+            self.REPLICA_CLUSTER_NAME,
+            table_path + "_replica_2",
+            attributes={"mode": "sync"}
+        )
+
+        create(
+            "table",
+            table_path + "_replica_2",
+            driver=self.REPLICA_DRIVER,
+            attributes={
+                "schema": PRIMARY_SCHEMA,
+                "dynamic": True,
+                "upstream_replica_id": replica_id,
+            },
+        )
+
+        sync_enable_table_replica(replica_id)
+        sync_mount_table(table_path + "_replica_2", driver=self.REPLICA_DRIVER)
+
+        insert_rows(table_path, [
+            {"keyA": i, "keyB": f"key{i}", "valueA": i, "valueB": i % 2 == 0} for i in range(10)
+        ])
+
+        replica_id = create_table_replica(
+            index_table_path,
+            self.REPLICA_CLUSTER_NAME,
+            index_table_path + "_replica_2",
+            attributes={"mode": "async"}
+        )
+
+        create(
+            "table",
+            index_table_path + "_replica_2",
+            driver=self.REPLICA_DRIVER,
+            attributes={
+                "schema": INDEX_ON_VALUE_SCHEMA,
+                "dynamic": True,
+                "upstream_replica_id": replica_id,
+            },
+        )
+
+        sync_enable_table_replica(replica_id)
+        sync_mount_table(index_table_path + "_replica_2", driver=self.REPLICA_DRIVER)
+
+        insert_rows(index_table_path, [
+            {"keyA": i, "keyB": f"key{i}", "valueA": i, "valueB": i % 2 == 0} for i in range(10)
+        ])
+
+        assert_items_equal(
+            sorted_dicts(select_rows(f"keyA, keyB, valueA, valueB FROM [{table_path}] WITH INDEX [{index_table_path}] where valueA < 5")),
+            sorted_dicts([{"keyA": i, "keyB": f"key{i}", "valueA": i, "valueB": i % 2 == 0} for i in range(5)])
+        )
+
+
+##################################################################
+
+
+class TestSecondaryIndexReplicatedModifications(TestSecondaryIndexReplicatedBase, TestSecondaryIndexModifications):
+    pass
