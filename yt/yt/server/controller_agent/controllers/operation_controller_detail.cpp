@@ -155,8 +155,6 @@
 #include <util/generic/cast.h>
 #include <util/generic/vector.h>
 
-#include <util/folder/path.h>
-
 #include <library/cpp/iterator/functools.h>
 
 #include <functional>
@@ -7382,20 +7380,9 @@ void TOperationControllerBase::GetUserFilesAttributes()
                                         accessMethod) << ex;
                                 }
 
-                                auto filesystem = attributes.Get<TString>("filesystem", TString());
-                                if (filesystem.Empty()) {
-                                    // Try to get filesystem type from file extension.
-                                    try {
-                                        file.Filesystem = TEnumTraits<ELayerFilesystem>::FromString(TFsPath(ToString(file.Path)).GetExtension());
-                                    } catch (const std::exception&) {
-                                        filesystem = ToString(ELayerFilesystem::Archive);
-                                    }
-                                }
-
+                                auto filesystem = attributes.Find<TString>("filesystem").value_or(ToString(ELayerFilesystem::Archive));
                                 try {
-                                    if (!file.Filesystem) {
-                                        file.Filesystem = TEnumTraits<ELayerFilesystem>::FromString(filesystem);
-                                    }
+                                    file.Filesystem = TEnumTraits<ELayerFilesystem>::FromString(filesystem);
                                 } catch (const std::exception& ex) {
                                     THROW_ERROR_EXCEPTION("Attribute 'filesystem' of file %v has invalid value %Qv",
                                         file.Path,
