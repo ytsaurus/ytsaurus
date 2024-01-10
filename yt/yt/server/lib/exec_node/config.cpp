@@ -347,6 +347,13 @@ const THashMap<TString, TUserJobSensorPtr>& TUserJobMonitoringDynamicConfig::Get
                 .Item("profiling_name").Value("/user_job/disk/limit")
             .EndMap()
 
+            .Item("block_io/io_total").BeginMap()
+                .Item("path").Value("/user_job/block_io/io_total")
+                .Item("type").Value("counter")
+                .Item("source").Value("statistics")
+                .Item("profiling_name").Value("/user_job/block_io/io_total")
+            .EndMap()
+
             .Item("network/rx_bytes").BeginMap()
                 .Item("path").Value("/user_job/network/rx_bytes")
                 .Item("type").Value("counter")
