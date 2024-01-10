@@ -1036,6 +1036,28 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
         disallow(["//tmp/document"], "//tmp/document", error="Only files and tables are allowed")
 
+    @authors("coteeq")
+    def test_remote_copy_restrict_attributes(self):
+        skip_if_old(self.Env, (23, 3), "no such logic in 23.2")
+        create("table", "//tmp/in", driver=self.remote_driver)
+        write_table("//tmp/in", [{"a": 1}, {"a": 2}], driver=self.remote_driver)
+
+        spec = {
+            "cluster_name": self.REMOTE_CLUSTER_NAME,
+            "restrict_destination_ypath_attributes": True,
+        }
+
+        with raises_yt_error("Found unexpected attribute"):
+            remote_copy(in_="//tmp/in", out="<create=%true;user_attribute=42>//tmp/out", spec=spec)
+
+        remote_copy(
+            in_="//tmp/in",
+            out="<create=%true;optimize_for=scan;compression_codec=zstd_10;format=whatever>//tmp/out",
+            spec=spec
+        )
+
+        assert read_table("//tmp/out") == [{"a": 1}, {"a": 2}]
+
 
 ##################################################################
 

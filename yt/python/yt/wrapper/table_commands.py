@@ -75,13 +75,19 @@ def _get_format_from_tables(tables, ignore_unexisting_tables):
     return formats[0]
 
 
-def _create_table(path, recursive=None, ignore_existing=False, attributes=None, client=None):
-    table = TablePath(path, client=client)
+def _merge_with_create_table_default_attributes(attributes, client):
     attributes = get_value(attributes, {})
     if get_config(client)["create_table_attributes"] is not None:
         attributes = update(get_config(client)["create_table_attributes"], attributes)
     if get_config(client)["yamr_mode"]["use_yamr_defaults"]:
         attributes = update({"compression_codec": "zlib_6"}, attributes)
+
+    return attributes
+
+
+def _create_table(path, recursive=None, ignore_existing=False, attributes=None, client=None):
+    table = TablePath(path, client=client)
+    attributes = _merge_with_create_table_default_attributes(attributes, client=client)
     return create("table", table, recursive=recursive, ignore_existing=ignore_existing,
                   attributes=attributes, client=client)
 

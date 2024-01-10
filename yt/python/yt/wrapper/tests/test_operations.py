@@ -42,6 +42,7 @@ import yt.type_info as typing
 
 import pytest
 
+import contextlib
 import io
 import json
 import logging
@@ -466,8 +467,8 @@ print(op.id)
         op = yt.run_reduce("cat", table, table, format=yt.JsonFormat(), reduce_by=["x"], sort_by=["x", "y"])
         assert "sort_by" in op.get_attributes()["spec"]
 
-    @authors("ignat")
-    def test_remote_copy(self):
+    @contextlib.contextmanager
+    def _start_second_cluster(self):
         mode = yt.config["backend"]
         if mode == "http":
             mode = yt.config["api_version"]
@@ -477,8 +478,22 @@ print(op.id)
         id = "run_" + uuid.uuid4().hex[:8]
         instance = None
         try:
-            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, fqdn="localhost", cell_tag=2)
-            second_cluster_client = instance.create_client()
+            instance = start(
+                path=dir,
+                id=id,
+                node_count=3,
+                enable_debug_logging=True,
+                fqdn="localhost",
+                cell_tag=2,
+            )
+            yield instance.create_client()
+        finally:
+            if instance is not None:
+                stop(instance.id, path=dir, remove_runtime_data=True)
+
+    @authors("ignat")
+    def test_remote_copy(self):
+        with self._start_second_cluster() as second_cluster_client:
             second_cluster_connection = second_cluster_client.get("//sys/@cluster_connection")
             second_cluster_client.create("map_node", TEST_DIR)
             table = TEST_DIR + "/test_table"
@@ -504,9 +519,64 @@ print(op.id)
             assert second_cluster_client.get(table + "/@compressed_data_size") == \
                    yt.get(table + "/@compressed_data_size")
 
-        finally:
-            if instance is not None:
-                stop(instance.id, path=dir, remove_runtime_data=True)
+    @authors("coteeq")
+    def test_remote_copy_autocreate_destination(self):
+        with self._start_second_cluster() as second_cluster_client:
+            second_cluster_connection = second_cluster_client.get("//sys/@cluster_connection")
+            second_cluster_client.create("map_node", TEST_DIR)
+            table = TEST_DIR + "/test_table"
+            file = TEST_DIR + "/test_file"
+
+            second_cluster_client.write_table(table, [{"a": 1, "b": 2, "c": 3}])
+            second_cluster_client.write_file(file, b"asdf")
+
+            def copy_and_assert_attributes(src, dst, attributes=None, create_on_cluster=None, custom_spec=None):
+                yt.remove(dst, force=True)
+                spec = yt.RemoteCopySpecBuilder() \
+                    .input_table_paths(src) \
+                    .output_table_path(dst) \
+                    .cluster_connection(second_cluster_connection) \
+                    .create_destination_on_cluster(create_on_cluster)
+
+                if custom_spec:
+                    spec.spec(custom_spec)
+
+                yt.run_operation(spec)
+                if attributes:
+                    assert yt.get(dst + "/@", attributes=list(attributes.keys())) == attributes
+
+            for create_on_cluster in [False, True]:
+                copy_and_assert_attributes(table, table, create_on_cluster=create_on_cluster)
+
+                with set_config_option("create_table_attributes", {"compression_codec": "zstd_9"}):
+                    copy_and_assert_attributes(
+                        table,
+                        table, {"compression_codec": "zstd_9"},
+                        create_on_cluster=create_on_cluster,
+                    )
+
+                with set_config_option("create_table_attributes", {"compression_codec": "zstd_9"}):
+                    copy_and_assert_attributes(
+                        table,
+                        "<compression_codec=zstd_10>" + table, {"compression_codec": "zstd_10"},
+                        create_on_cluster=create_on_cluster,
+                    )
+
+            with pytest.raises(yt.YtError):
+                # NB: API creates table, but remote_copy expects a file
+                copy_and_assert_attributes(file, file, create_on_cluster=False)
+            # NB: controller creates appropriate object
+            copy_and_assert_attributes(file, file, create_on_cluster=True)
+
+            copy_and_assert_attributes(table, "<user_attribute=42>" + table, create_on_cluster=False)
+            copy_and_assert_attributes(table, "<user_attribute=42>" + table, create_on_cluster=True)
+            with pytest.raises(yt.YtError):
+                copy_and_assert_attributes(
+                    table,
+                    "<user_attribute=42>" + table,
+                    create_on_cluster=True,
+                    custom_spec={"restrict_destination_ypath_attributes": True},
+                )
 
     @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
