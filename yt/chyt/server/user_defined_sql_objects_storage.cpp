@@ -39,25 +39,25 @@ static const auto& Logger = ClickHouseYtLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class UserDefinedSQLObjectsYTStorage
+class UserDefinedSqlObjectsYTStorage
     : public DB::UserDefinedSQLObjectsStorageBase
 {
 public:
-    UserDefinedSQLObjectsYTStorage(
+    UserDefinedSqlObjectsYTStorage(
         DB::ContextPtr globalContext,
-        TUserDefinedSQLObjectsStorageConfigPtr config,
+        TUserDefinedSqlObjectsStorageConfigPtr config,
         THost* host)
         : GlobalContext_(std::move(globalContext))
         , Config_(std::move(config))
         , Host_(host)
         , Client_(Host_->CreateClient(ChytSqlObjectsUserName))
         , ObjectNameRegexp_(New<TRe2>("^[a-zA-Z_][a-zA-Z0-9_]*$"))
-        , ActionQueue_(New<TActionQueue>("UserDefinedSQLObjectsStorage"))
+        , ActionQueue_(New<TActionQueue>("UserDefinedSqlObjectsStorage"))
         , PeriodicExecutor_(New<TPeriodicExecutor>(
             ActionQueue_->GetInvoker(),
             // It's ok to use here 'this' instead of MakeWeak(this),
-            // because executor's lifetime is less than UserDefinedSQLObjectsYTStorage's one.
-            BIND(&UserDefinedSQLObjectsYTStorage::SyncObjectsNonThrowing, this),
+            // because executor's lifetime is less than UserDefinedSqlObjectsYTStorage's one.
+            BIND(&UserDefinedSqlObjectsYTStorage::SyncObjectsNonThrowing, this),
             Config_->UpdatePeriod))
     { }
 
@@ -98,12 +98,13 @@ public:
 
 private:
     const DB::ContextPtr GlobalContext_;
-    const TUserDefinedSQLObjectsStorageConfigPtr Config_;
-    const THost* Host_;
+    const TUserDefinedSqlObjectsStorageConfigPtr Config_;
+    const THost* const Host_;
     const NNative::IClientPtr Client_;
     const TRe2Ptr ObjectNameRegexp_;
-    NConcurrency::TActionQueuePtr ActionQueue_;
+    const NConcurrency::TActionQueuePtr ActionQueue_;
     const NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
+
     std::atomic<bool> ObjectsLoaded_ = false;
     TInstant LastSuccessfulSyncTime_ = TInstant::Now();
 
@@ -116,7 +117,7 @@ private:
         bool replaceIfExists,
         const DB::Settings& /*settings*/) override
     {
-        Host_->ValidatePermissionToClique(TString(currentContext->getClientInfo().initial_user), EPermission::Manage);
+        Host_->ValidateCliquePermission(TString(currentContext->getClientInfo().initial_user), EPermission::Manage);
 
         auto path = GetCypressPath(objectType, objectName);
 
@@ -142,7 +143,7 @@ private:
         const String& objectName,
         bool throwIfNotExists) override
     {
-        Host_->ValidatePermissionToClique(TString(currentContext->getClientInfo().initial_user), EPermission::Manage);
+        Host_->ValidateCliquePermission(TString(currentContext->getClientInfo().initial_user), EPermission::Manage);
 
         auto path = GetCypressPath(objectType, objectName);
 
@@ -161,8 +162,7 @@ private:
     {
         ValidateObjectName(objectName);
 
-        switch (objectType)
-        {
+        switch (objectType) {
             case DB::UserDefinedSQLObjectType::Function:
                 return TYPath(Format("%v/%v", Config_->Path, objectName));;
             default:
@@ -196,7 +196,7 @@ private:
 
     void SyncObjects()
     {
-        YT_LOG_DEBUG("Syncing user-defined objects");
+        YT_LOG_DEBUG("Synchronizing user-defined objects");
 
         TGetNodeOptions options;
         options.Attributes = {"value"};
@@ -222,7 +222,7 @@ private:
                     0 /*maxQuerySize*/,
                     GlobalContext_->getSettingsRef().max_parser_depth);
             } catch (const std::exception& ex) {
-                TString errorStatement = Format("create function %v as () -> throwIf(true, 'Failed to parse user defined function %v: %v')", name, name, ex.what());
+                auto errorStatement = Format("create function %v as () -> throwIf(true, 'Failed to parse user defined function %v: %v')", name, name, ex.what());
                 ast = DB::parseQuery(
                     parser,
                     errorStatement.data(),
@@ -244,12 +244,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<DB::IUserDefinedSQLObjectsStorage> CreateUserDefinedSQLObjectsYTStorage(
+std::unique_ptr<DB::IUserDefinedSQLObjectsStorage> CreateUserDefinedSqlObjectsYTStorage(
     DB::ContextPtr globalContext,
-    TUserDefinedSQLObjectsStorageConfigPtr config,
+    TUserDefinedSqlObjectsStorageConfigPtr config,
     THost* host)
 {
-    return std::make_unique<UserDefinedSQLObjectsYTStorage>(
+    return std::make_unique<UserDefinedSqlObjectsYTStorage>(
         std::move(globalContext),
         std::move(config),
         host);

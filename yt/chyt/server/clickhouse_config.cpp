@@ -93,7 +93,7 @@ void TPocoInvalidCertificateHandlerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TPocoOpenSSLConfigEntry::Register(TRegistrar registrar)
+void TPocoOpenSslConfigEntry::Register(TRegistrar registrar)
 {
     // NOTE(dakovalkov): options names are in camelCase because they correspond to Poco::Net::SSLManager's options.
     // https://docs.pocoproject.org/current/Poco.Net.SSLManager.html
@@ -105,7 +105,7 @@ void TPocoOpenSSLConfigEntry::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TPocoOpenSSLConfig::Register(TRegistrar registrar)
+void TPocoOpenSslConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("server", &TThis::Server)
         .DefaultNew();
@@ -115,14 +115,22 @@ void TPocoOpenSSLConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUserDefinedSQLObjectsStorageConfig::Register(TRegistrar registrar)
+void TUserDefinedSqlObjectsStorageConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(false);
     registrar.Parameter("path", &TThis::Path)
         .Default();
     registrar.Parameter("update_period", &TThis::UpdatePeriod)
         .Default(TDuration::Seconds(5));
     registrar.Parameter("expire_after_successful_sync_time", &TThis::ExpireAfterSuccessfulSyncTime)
         .Default(TDuration::Seconds(60));
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->Enabled && config->Path.empty()) {
+            THROW_ERROR_EXCEPTION("No path is set for SQL UDF storage");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -196,7 +204,7 @@ void TClickHouseConfig::Register(TRegistrar registrar)
 
     // NOTE(dakovalkov): this option name correspond to Poco::Net::SSLManager's config option.
     // https://docs.pocoproject.org/current/Poco.Net.SSLManager.html
-    registrar.Parameter("openSSL", &TThis::OpenSSL)
+    registrar.Parameter("openSSL", &TThis::OpenSsl)
         .DefaultNew();
 
     registrar.Parameter("query_masking_rules", &TThis::QueryMaskingRules)
@@ -222,7 +230,7 @@ void TClickHouseConfig::Register(TRegistrar registrar)
                 .EndMap()->AsMap();
         });
 
-    registrar.Parameter("user_defined_sql_objects_storage", &TThis::UserDefinedSQLObjectsStorage)
+    registrar.Parameter("user_defined_sql_objects_storage", &TThis::UserDefinedSqlObjectsStorage)
         .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {

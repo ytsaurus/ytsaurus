@@ -126,52 +126,53 @@ DEFINE_REFCOUNTED_TYPE(TPocoInvalidCertificateHandlerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPocoOpenSSLConfigEntry
+class TPocoOpenSslConfigEntry
     : public NYTree::TYsonStruct
 {
 public:
     TPocoInvalidCertificateHandlerConfigPtr InvalidCertificateHandler;
     TString CAConfig;
 
-    REGISTER_YSON_STRUCT(TPocoOpenSSLConfigEntry);
+    REGISTER_YSON_STRUCT(TPocoOpenSslConfigEntry);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TPocoOpenSSLConfigEntry)
+DEFINE_REFCOUNTED_TYPE(TPocoOpenSslConfigEntry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPocoOpenSSLConfig
+class TPocoOpenSslConfig
     : public NYTree::TYsonStruct
 {
 public:
-    TPocoOpenSSLConfigEntryPtr Server;
-    TPocoOpenSSLConfigEntryPtr Client;
+    TPocoOpenSslConfigEntryPtr Server;
+    TPocoOpenSslConfigEntryPtr Client;
 
-    REGISTER_YSON_STRUCT(TPocoOpenSSLConfig);
+    REGISTER_YSON_STRUCT(TPocoOpenSslConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TPocoOpenSSLConfig)
+DEFINE_REFCOUNTED_TYPE(TPocoOpenSslConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserDefinedSQLObjectsStorageConfig
+class TUserDefinedSqlObjectsStorageConfig
     : public NYTree::TYsonStruct
 {
 public:
-    TString Path;
+    bool Enabled;
+    NYPath::TYPath Path;
     TDuration UpdatePeriod;
     TDuration ExpireAfterSuccessfulSyncTime;
 
-    REGISTER_YSON_STRUCT(TUserDefinedSQLObjectsStorageConfig);
+    REGISTER_YSON_STRUCT(TUserDefinedSqlObjectsStorageConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TUserDefinedSQLObjectsStorageConfig)
+DEFINE_REFCOUNTED_TYPE(TUserDefinedSqlObjectsStorageConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -226,11 +227,11 @@ public:
     //! This map is merged into `users/profiles/default`.
     THashMap<TString, NYTree::INodePtr> Settings;
 
-    TPocoOpenSSLConfigPtr OpenSSL;
+    TPocoOpenSslConfigPtr OpenSsl;
 
     NYTree::IMapNodePtr QueryMaskingRules;
 
-    TUserDefinedSQLObjectsStorageConfigPtr UserDefinedSQLObjectsStorage;
+    TUserDefinedSqlObjectsStorageConfigPtr UserDefinedSqlObjectsStorage;
 
     REGISTER_YSON_STRUCT(TClickHouseConfig);
 

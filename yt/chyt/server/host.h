@@ -40,9 +40,9 @@ public:
 
     TFuture<void> StopDiscovery();
 
-    void ValidatePermissionToClique(const TString& user, NYTree::EPermission permission) const;
+    void ValidateCliquePermission(const TString& user, NYTree::EPermission permission) const;
 
-    void ValidateReadPermissions(const std::vector<NYPath::TRichYPath>& paths, const TString& user);
+    void ValidateTableReadPermissions(const std::vector<NYPath::TRichYPath>& paths, const TString& user);
 
     //! Get object attributes via local cache.
     std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> GetObjectAttributes(

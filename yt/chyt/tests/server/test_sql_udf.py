@@ -4,7 +4,6 @@ from yt_commands import (authors, raises_yt_error, create_access_control_object_
 
 from base import ClickHouseTestBase, Clique, QueryFailedError
 
-import pytest
 import time
 
 
@@ -29,19 +28,22 @@ class TestSqlUdf(ClickHouseTestBase):
 
             clique.make_query(query, user="u1")
 
+            time.sleep(0.4)
+
             with raises_yt_error("Access denied"):
                 clique.make_query("drop function linear_equation", user="u2")
 
             clique.make_query("drop function linear_equation", user="u1")
 
     @authors("gudqeit")
-    @pytest.mark.skipif(True, reason="Skipping until UDF storage becomes sync")
     def test_simple_udf(self):
         with Clique(1, alias="*clique") as clique:
             with raises_yt_error(QueryFailedError):
                 clique.make_query("select number, linear_equation(number, 2, 1) from numbers(3)")
 
             clique.make_query("create function linear_equation as (x, k, b) -> k*x + b")
+
+            time.sleep(0.4)
 
             query = "select number, linear_equation(number, 2, 1) as result from numbers(2)"
             assert clique.make_query(query) == [

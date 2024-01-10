@@ -310,11 +310,11 @@ private:
             DB::SensitiveDataMasker::setInstance(std::make_unique<DB::SensitiveDataMasker>(*LayeredConfig_, "query_masking_rules"));
         }
 
-        if (!Config_->UserDefinedSQLObjectsStorage->Path.empty()) {
+        if (Config_->UserDefinedSqlObjectsStorage->Enabled) {
             YT_LOG_DEBUG("Setting up user defined SQL objects storage");
-            ServerContext_->setUserDefinedSQLObjectsStorage(CreateUserDefinedSQLObjectsYTStorage(
+            ServerContext_->setUserDefinedSQLObjectsStorage(CreateUserDefinedSqlObjectsYTStorage(
                 ServerContext_,
-                Config_->UserDefinedSQLObjectsStorage,
+                Config_->UserDefinedSqlObjectsStorage,
                 Host_));
             ServerContext_->getUserDefinedSQLObjectsStorage().loadObjects();
         }

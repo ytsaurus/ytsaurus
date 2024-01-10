@@ -114,6 +114,7 @@ class Clique(object):
                 "acl": [ace],
             })
             config["clickhouse"]["user_defined_sql_objects_storage"]["path"] = Clique.sql_udf_path
+            config["clickhouse"]["user_defined_sql_objects_storage"]["enabled"] = True
 
         spec = {"pool": None}
         self.is_tracing = False

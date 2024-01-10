@@ -259,7 +259,7 @@ void ValidateReadPermissions(
         tablePath.SetColumns(columnNames);
         tablePathsWithColumns.emplace_back(std::move(tablePath));
     }
-    queryContext->Host->ValidateReadPermissions(tablePathsWithColumns, queryContext->User);
+    queryContext->Host->ValidateTableReadPermissions(tablePathsWithColumns, queryContext->User);
 }
 
 TClusterNodes GetNodesToDistribute(TQueryContext* queryContext, size_t distributionSeed, bool isDistributedJoin)

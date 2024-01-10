@@ -73,6 +73,7 @@ using namespace NObjectClient;
 using namespace NTracing;
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NYPath;
 
 using NYT::FromProto;
 
@@ -247,10 +248,10 @@ public:
         return Discovery_->Leave();
     }
 
-    void ValidatePermissionToClique(const TString& user, EPermission permission) const
+    void ValidateCliquePermission(const TString& user, EPermission permission) const
     {
         auto key = TPermissionKey{
-            .Object = Format("//sys/access_control_object_namespaces/chyt/%v/principal", Config_->CliqueAlias),
+            .Object = Format("//sys/access_control_object_namespaces/chyt/%v/principal", ToYPathLiteral(Config_->CliqueAlias)),
             .User = user,
             .Permission = permission,
         };
@@ -258,7 +259,7 @@ public:
             .ThrowOnError();
     }
 
-    void ValidateReadPermissions(
+    void ValidateTableReadPermissions(
         const std::vector<NYPath::TRichYPath>& paths,
         const TString& user)
     {
@@ -906,16 +907,16 @@ TFuture<void> THost::StopDiscovery()
     return Impl_->StopDiscovery();
 }
 
-void THost::ValidatePermissionToClique(const TString& user, EPermission permission) const
+void THost::ValidateCliquePermission(const TString& user, EPermission permission) const
 {
-    return Impl_->ValidatePermissionToClique(user, permission);
+    return Impl_->ValidateCliquePermission(user, permission);
 }
 
-void THost::ValidateReadPermissions(
+void THost::ValidateTableReadPermissions(
     const std::vector<NYPath::TRichYPath>& paths,
     const TString& user)
 {
-    return Impl_->ValidateReadPermissions(paths, user);
+    return Impl_->ValidateTableReadPermissions(paths, user);
 }
 
 std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> THost::GetObjectAttributes(

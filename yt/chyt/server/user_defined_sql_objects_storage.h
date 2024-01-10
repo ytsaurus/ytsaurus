@@ -9,9 +9,9 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<DB::IUserDefinedSQLObjectsStorage> CreateUserDefinedSQLObjectsYTStorage(
+std::unique_ptr<DB::IUserDefinedSQLObjectsStorage> CreateUserDefinedSqlObjectsYTStorage(
     DB::ContextPtr globalContext,
-    TUserDefinedSQLObjectsStorageConfigPtr config,
+    TUserDefinedSqlObjectsStorageConfigPtr config,
     THost* host);
 
 ////////////////////////////////////////////////////////////////////////////////
