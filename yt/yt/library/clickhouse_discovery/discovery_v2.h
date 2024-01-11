@@ -14,7 +14,8 @@ IDiscoveryPtr CreateDiscoveryV2(
     NRpc::IChannelFactoryPtr channelFactory,
     IInvokerPtr invoker,
     std::vector<TString> extraAttributes,
-    NLogging::TLogger logger = {});
+    NLogging::TLogger logger = {},
+    NProfiling::TProfiler profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

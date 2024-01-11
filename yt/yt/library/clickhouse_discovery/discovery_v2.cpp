@@ -8,11 +8,12 @@
 
 namespace NYT::NClickHouseServer {
 
+using namespace NApi::NNative;
 using namespace NConcurrency;
 using namespace NDiscoveryClient;
+using namespace NProfiling;
 using namespace NRpc;
 using namespace NYTree;
-using namespace NApi::NNative;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,20 +24,22 @@ public:
     TDiscoveryV2(
         TDiscoveryV2ConfigPtr config,
         IConnectionPtr connection,
-        NRpc::IChannelFactoryPtr channelFactory,
+        IChannelFactoryPtr channelFactory,
         IInvokerPtr invoker,
         std::vector<TString> extraAttributes,
-        NLogging::TLogger logger)
+        NLogging::TLogger logger,
+        TProfiler profiler)
         : TDiscoveryBase(config, invoker, logger)
         , Config_(std::move(config))
         , Connection_(std::move(connection))
         , ChannelFactory_(std::move(channelFactory))
         , DiscoveryClient_(Connection_->CreateDiscoveryClient(Config_, ChannelFactory_))
+        , ParticipantCount_(profiler.Gauge("/participant_count"))
     {
         ListOptions_.AttributeKeys = extraAttributes;
     }
 
-    TFuture<void> Enter(TString name, NYTree::IAttributeDictionaryPtr attributes) override
+    TFuture<void> Enter(TString name, IAttributeDictionaryPtr attributes) override
     {
         {
             auto guard = WriterGuard(Lock_);
@@ -74,11 +77,13 @@ public:
 private:
     TDiscoveryV2ConfigPtr Config_;
     IConnectionPtr Connection_;
-    NRpc::IChannelFactoryPtr ChannelFactory_;
+    IChannelFactoryPtr ChannelFactory_;
     TListMembersOptions ListOptions_;
 
     IDiscoveryClientPtr DiscoveryClient_;
     IMemberClientPtr MemberClient_;
+
+    TGauge ParticipantCount_;
 
     void DoUpdateList() override
     {
@@ -87,7 +92,7 @@ private:
         auto list = WaitFor(DiscoveryClient_->ListMembers(Config_->GroupId, ListOptions_))
             .ValueOrThrow();
 
-        THashMap<TString, NYTree::IAttributeDictionaryPtr> newList;
+        THashMap<TString, IAttributeDictionaryPtr> newList;
         for (const auto& memberInfo: list) {
             newList[memberInfo.Id] = memberInfo.Attributes->Clone();
         }
@@ -95,6 +100,7 @@ private:
             auto guard = WriterGuard(Lock_);
             swap(List_, newList);
             LastUpdate_ = TInstant::Now();
+            ParticipantCount_.Update(List_.size());
         }
         YT_LOG_DEBUG("List of participants updated (Alive: %v)", list.size());
     }
@@ -108,7 +114,8 @@ IDiscoveryPtr CreateDiscoveryV2(
     NRpc::IChannelFactoryPtr channelFactory,
     IInvokerPtr invoker,
     std::vector<TString> extraAttributes,
-    NLogging::TLogger logger)
+    NLogging::TLogger logger,
+    NProfiling::TProfiler profiler)
 {
     return New<TDiscoveryV2>(
         std::move(config),
@@ -116,7 +123,8 @@ IDiscoveryPtr CreateDiscoveryV2(
         std::move(channelFactory),
         std::move(invoker),
         std::move(extraAttributes),
-        std::move(logger));
+        std::move(logger),
+        std::move(profiler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

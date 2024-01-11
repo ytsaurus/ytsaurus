@@ -156,7 +156,8 @@ public:
                     ChannelFactory_,
                     ControlInvoker_,
                     DiscoveryAttributes,
-                    Logger);
+                    Logger,
+                    ClickHouseYtProfiler.WithPrefix("/discovery"));
                 break;
             }
             default:
