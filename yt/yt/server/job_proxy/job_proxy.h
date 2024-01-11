@@ -102,6 +102,9 @@ private:
     i64 JobProxyMemoryReserve_ = 0;
     // Job proxy peak memory usage.
     std::atomic<i64> JobProxyMaxMemoryUsage_ = {0};
+    // Job proxy cumulative memory usage in bytes * seconds.
+    std::atomic<i64> CumulativeMemoryUsageMBSec_ = {0};
+    TInstant LastMemoryMeasureTime_;
     // If this limit for job proxy memory overcommit is exceeded, the job proxy is terminated.
     std::optional<i64> JobProxyMemoryOvercommitLimit_;
 
@@ -160,6 +163,8 @@ private:
     NProfiling::TSolomonExporterPtr SolomonExporter_;
 
     NAuth::ITvmBridgePtr TvmBridge_;
+
+    void UpdateCumulativeMemoryUsage(i64 memoryUsage);
 
     void SetJob(IJobPtr job);
     IJobPtr FindJob() const;

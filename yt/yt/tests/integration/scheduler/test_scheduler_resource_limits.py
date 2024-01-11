@@ -222,6 +222,87 @@ class TestMemoryReserveFactor(YTEnvSetup):
 
 
 @pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")
+class TestCumulativeMemoryStatistics(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+    USE_PORTO = True
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "user_job_memory_digest_precision": 0.05,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "job_proxy_send_heartbeat_before_abort": True,
+                "always_abort_on_memory_reserve_overdraft": True,
+            },
+        }
+    }
+
+    @authors("arkady-e1ppa")
+    def test_cumulative_memory_statistics(self):
+        job_count = 5
+
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"key": i} for i in range(job_count)])
+        create("table", "//tmp/t_out")
+
+        create("file", "//tmp/mapper.py")
+        write_file("//tmp/mapper.py", create_memory_script(memory=10 * 10 ** 6), attributes={"executable": True})
+
+        controller_agent_address = ls("//sys/controller_agents/instances")[0]
+        from_barrier = write_log_barrier(controller_agent_address)
+
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="python mapper.py",
+            job_count=job_count,
+            spec={
+                "resource_limits": {"cpu": 1},
+                "data_weight_per_job": 1,
+                "mapper": {
+                    "memory_limit": 200 * 10 ** 6,
+                    "user_job_memory_digest_default_value": 0.9,
+                    "file_paths": ["//tmp/mapper.py"],
+                },
+            })
+
+        time.sleep(1)
+
+        to_barrier = write_log_barrier(controller_agent_address)
+
+        structured_log = read_structured_log(
+            self.path_to_run + "/logs/controller-agent-0.json.log",
+            from_barrier=from_barrier,
+            to_barrier=to_barrier,
+            row_filter=lambda e: "event_type" in e)
+
+        for event in structured_log:
+            if event["event_type"] in ("job_completed") and event["operation_id"] == op.id:
+                assert "user_job" in event["statistics"]
+                print_debug(
+                    event["job_id"],
+                    event["statistics"]["user_job"]["cumulative_memory_mb_sec"]["last"] * 2 ** 20,
+                    event["statistics"]["user_job"]["cumulative_max_memory"]["last"],
+                    event["statistics"]["job_proxy"]["cumulative_memory_mb_sec"]["last"] * 2 ** 20,
+                    event["statistics"]["job_proxy"]["cumulative_max_memory"]["last"],
+                )
+
+                assert event["statistics"]["user_job"]["cumulative_memory_mb_sec"]["last"] * 2 ** 20 < \
+                       event["statistics"]["user_job"]["cumulative_max_memory"]["last"]
+
+                assert event["statistics"]["job_proxy"]["cumulative_memory_mb_sec"]["last"] * 2 ** 20 < \
+                       event["statistics"]["job_proxy"]["cumulative_max_memory"]["last"]
+
+###############################################################################################
+
+
+@pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")
 @pytest.mark.skipif(is_debug_build(), reason="This test does not work under Debug build")
 class TestMemoryReserveMultiplier(YTEnvSetup):
     NUM_MASTERS = 1
@@ -386,6 +467,8 @@ class TestMemoryReserveMultiplier(YTEnvSetup):
 
         assert user_job_memory_reserves[1] <= user_job_memory_reserves[0]
         assert user_job_memory_reserves[2] <= user_job_memory_reserves[0]
+
+###############################################################################################
 
 
 @pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")

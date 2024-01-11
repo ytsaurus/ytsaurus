@@ -518,6 +518,7 @@ void TJobProxy::RetrieveJobSpec()
 
 void TJobProxy::DoRun()
 {
+    LastMemoryMeasureTime_ = Now();
     auto startTime = Now();
     auto resultOrError = WaitFor(BIND(&TJobProxy::RunJob, MakeStrong(this))
         .AsyncVia(JobThread_->GetInvoker())
@@ -629,6 +630,18 @@ TString TJobProxy::AdjustPath(const TString& path) const
     auto pathSuffix = path.substr(GetPreparationPath().size() + 1);
     auto adjustedPath = NFS::CombinePaths(GetSlotPath(), pathSuffix);
     return adjustedPath;
+}
+
+void TJobProxy::UpdateCumulativeMemoryUsage(i64 memoryUsage)
+{
+    auto now = Now();
+
+    if (now <= LastMemoryMeasureTime_) {
+        return;
+    }
+
+    CumulativeMemoryUsageMBSec_ += memoryUsage * (now - LastMemoryMeasureTime_).SecondsFloat() / 1_MB;
+    LastMemoryMeasureTime_ = now;
 }
 
 void TJobProxy::SetJob(IJobPtr job)
@@ -1053,6 +1066,10 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
         statistics.AddSample("/job_proxy/memory_reserve", JobProxyMemoryReserve_);
     }
 
+    if (CumulativeMemoryUsageMBSec_ > 0) {
+        statistics.AddSample("/job_proxy/cumulative_memory_mb_sec", CumulativeMemoryUsageMBSec_);
+    }
+
     FillTrafficStatistics(JobProxyTrafficStatisticsPrefix, statistics, TrafficMeter_);
 
     CpuMonitor_->FillStatistics(statistics);
@@ -1341,6 +1358,7 @@ void TJobProxy::CheckMemoryUsage()
     }
 
     JobProxyMaxMemoryUsage_ = std::max(JobProxyMaxMemoryUsage_.load(), jobProxyMemoryUsage);
+    UpdateCumulativeMemoryUsage(jobProxyMemoryUsage);
 
     YT_LOG_DEBUG("Job proxy memory check (JobProxyMemoryUsage: %v, JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, UserJobCurrentMemoryUsage: %v)",
         jobProxyMemoryUsage,
