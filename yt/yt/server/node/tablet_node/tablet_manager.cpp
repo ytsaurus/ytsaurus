@@ -2733,12 +2733,13 @@ private:
                 replicationRound + 1);
         } else {
             YT_LOG_ALERT("Skip writing pulled rows due to not strictly advanced progress %v "
-                "(TabletId: %v, TransactionId: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, "
-                "NewReplicationRound: %v)",
+                "(TabletId: %v, TransactionId: %v, NewReplicationProgress: %v, TabletProgress: %v, "
+                "ReplicationRowIndexes: %v, NewReplicationRound: %v)",
                 inCommit ? "committed" : "serialized",
                 tabletId,
                 transaction->GetId(),
                 static_cast<NChaosClient::TReplicationProgress>(*progress),
+                static_cast<NChaosClient::TReplicationProgress>(*tabletProgress),
                 currentReplicationRowIndexes,
                 replicationRound + 1);
         }
