@@ -65,7 +65,7 @@ class TestYPIp4Manager:
         )
 
         vlan_id = "backbone"
-        create_nodes(yp_client, 1, vlan_id=vlan_id)
+        create_nodes(yp_client, 1, vlan_ids=[vlan_id])
 
         pod_spec = dict(
             enable_scheduling=True,
