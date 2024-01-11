@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/chunk_pools/public.h>
 
+#include <yt/yt/server/lib/misc/disk_change_checker.h>
+
 #include <yt/yt/server/lib/zookeeper_proxy/bootstrap_proxy.h>
 
 #include <yt/yt/ytlib/api/public.h>
@@ -14,6 +16,9 @@
 #include <yt/yt/library/auth_server/public.h>
 
 #include <yt/yt/library/monitoring/public.h>
+
+#include <yt/yt/library/containers/public.h>
+#include <yt/yt/library/containers/disk_manager/public.h>
 
 #include <yt/yt/client/driver/public.h>
 
@@ -126,6 +131,10 @@ private:
     IAccessCheckerPtr AccessChecker_;
 
     NCoreDump::ICoreDumperPtr CoreDumper_;
+
+    NContainers::IDiskManagerProxyPtr DiskManagerProxy_;
+    NContainers::TDiskInfoProviderPtr DiskInfoProvider_;
+    TDiskChangeCheckerPtr DiskChangeChecker_;
 
     void RegisterRoutes(const NHttp::IServerPtr& server);
     NHttp::IHttpHandlerPtr AllowCors(NHttp::IHttpHandlerPtr nextHandler) const;
