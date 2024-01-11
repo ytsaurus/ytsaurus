@@ -74,7 +74,7 @@ DEPENDS(
     yt/python/yt/wrapper/bin/generate_client_impl
 
     yt/yt/tools/yt_sudo_fixup
-    yt/yt/experiments/ytserver_dummy
+    yt/yt/experiments/public/ytserver_dummy
 
     # Used in some tests to check cpp binaries in operations.
     yt/python/yt/wrapper/tests/files/cpp_bin

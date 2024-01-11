@@ -1,0 +1,11 @@
+package NRpcTest;
+
+message TReqTestCall
+{
+    required int32 a = 1;
+}
+
+message TRspTestCall
+{
+    required int32 b = 1;
+}

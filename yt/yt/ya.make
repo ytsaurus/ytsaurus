@@ -3,18 +3,13 @@ RECURSE(
     benchmarks
     client
     core
+    experiments/public
     library
     python
     tools
     ytlib
 )
 
-IF (OPENSOURCE)
-    RECURSE(
-        experiments/new_stress_test
-    )
-ENDIF()
-    
 IF (NOT OPENSOURCE)
     RECURSE(
         experiments

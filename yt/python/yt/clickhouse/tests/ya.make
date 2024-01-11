@@ -16,7 +16,7 @@ PEERDIR(
 
 DEPENDS(
     yt/yt/packages/tests_package
-    yt/yt/experiments/ytserver_dummy
+    yt/yt/experiments/public/ytserver_dummy
 
     yt/chyt/controller/cmd/chyt-controller
     yt/chyt/server/bin

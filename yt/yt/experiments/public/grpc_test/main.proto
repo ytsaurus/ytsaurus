@@ -1,0 +1,23 @@
+package NYT.NGrpcTest.NProto;
+
+service TestService
+{
+    rpc TestCall(TReqTestCall) returns (TRspTestCall) {}
+    rpc TestFailedCall(TReqTestFailedCall) returns (TRspTestFailedCall) {}
+}
+
+message TReqTestCall
+{
+    required int32 a = 1;
+}
+
+message TRspTestCall
+{
+    required int32 b = 1;
+}
+
+message TReqTestFailedCall
+{ }
+
+message TRspTestFailedCall
+{ }
