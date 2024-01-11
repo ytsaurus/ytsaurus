@@ -2,8 +2,6 @@
 
 #include <yt/yt/core/misc/public.h>
 
-#include <util/generic/size_literals.h>
-
 namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,15 +36,7 @@ DECLARE_REFCOUNTED_CLASS(TDiscoverVersionsHandler)
 DECLARE_REFCOUNTED_CLASS(THttpAuthenticator)
 DECLARE_REFCOUNTED_CLASS(TCompositeHttpAuthenticator)
 
-DECLARE_REFCOUNTED_CLASS(TSharedRefOutputStream)
-
 DECLARE_REFCOUNTED_CLASS(TContext)
-
-using TContentEncoding = TString;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static constexpr size_t DefaultStreamBufferSize = 32_KB;
 
 ////////////////////////////////////////////////////////////////////////////////
 

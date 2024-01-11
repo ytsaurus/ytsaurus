@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/concurrency/async_stream.h>
 
-namespace NYT::NHttpProxy {
+namespace NYT::NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,4 +53,4 @@ std::unique_ptr<IInputStream> TryDetectOptionalDecompressors(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHttpProxy
+} // namespace NYT::NHttp

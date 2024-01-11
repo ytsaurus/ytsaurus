@@ -1,6 +1,5 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/http_proxy/compression.h>
 #include <yt/yt/server/http_proxy/framing.h>
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
@@ -13,33 +12,6 @@ namespace {
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TEST(THttpProxy, CompressionStreamFlush)
-{
-    constexpr int IterationCount = 10;
-    for (const auto& compression : GetSupportedCompressions()) {
-        if (compression == IdentityContentEncoding) {
-            continue;
-        }
-        TStringStream stringStream;
-        auto asyncStream = CreateAsyncAdapter(static_cast<IOutputStream*>(&stringStream));
-        auto compressionStream = CreateCompressingAdapter(asyncStream, compression);
-        auto previousLength = stringStream.Size();
-        for (int i = 0; i < IterationCount; ++i) {
-            WaitFor(compressionStream->Write(TSharedRef("x", 1, nullptr)))
-                .ThrowOnError();
-            WaitFor(compressionStream->Flush())
-                .ThrowOnError();
-            EXPECT_GT(stringStream.Size(), previousLength)
-                << "Output for stream " << compression << " has not grown on iteration " << i;
-            previousLength = stringStream.Size();
-        }
-        WaitFor(compressionStream->Close())
-            .ThrowOnError();
-        WaitFor(asyncStream->Close())
-            .ThrowOnError();
-    }
-}
 
 TEST(THttpProxy, FramingOutputStream)
 {
@@ -83,6 +55,3 @@ TEST(THttpProxy, FramingOutputStream)
 
 } // namespace
 } // namespace NYT::NHttpProxy
-
-
-

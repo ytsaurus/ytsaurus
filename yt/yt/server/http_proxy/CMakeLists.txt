@@ -16,7 +16,6 @@ target_link_libraries(yt-server-http_proxy PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-blockcodecs-core
   yt-client-driver
   yt-yt-ytlib
   yt-library-auth_server
@@ -38,25 +37,23 @@ target_link_libraries(yt-server-http_proxy PUBLIC
   cpp-yt-phdr_cache
 )
 target_sources(yt-server-http_proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/private.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/coordinator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/context.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/access_checker.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/api.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/dynamic_config_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/http_authenticator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/formats.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/compression.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/framing.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/bootstrap.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/config.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/context.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/coordinator.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/dynamic_config_manager.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/formats.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/framing.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/http_authenticator.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/private.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/profilers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/zookeeper_bootstrap_proxy.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/discovery_cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/config.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/discovery_cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/compression_opensource.cpp
 )

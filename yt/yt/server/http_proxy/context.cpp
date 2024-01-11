@@ -1,13 +1,12 @@
-#include "context.h"
 #include "api.h"
-#include "http_authenticator.h"
+#include "config.h"
+#include "context.h"
 #include "coordinator.h"
-#include "helpers.h"
 #include "formats.h"
 #include "framing.h"
-#include "compression.h"
+#include "helpers.h"
+#include "http_authenticator.h"
 #include "private.h"
-#include "config.h"
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
@@ -19,8 +18,9 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/poller.h>
 
-#include <yt/yt/core/http/http.h>
+#include <yt/yt/core/http/compression.h>
 #include <yt/yt/core/http/helpers.h>
+#include <yt/yt/core/http/http.h>
 
 #include <yt/yt/core/json/config.h>
 #include <yt/yt/core/json/json_writer.h>

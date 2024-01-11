@@ -1,8 +1,7 @@
 #pragma once
 
-#include "private.h"
-#include "http_authenticator.h"
 #include "api.h"
+#include "http_authenticator.h"
 
 #include <yt/yt/server/lib/misc/format_manager.h>
 
@@ -93,17 +92,17 @@ private:
     std::unique_ptr<TFormatManager> FormatManager_;
     std::optional<NFormats::TFormat> HeadersFormat_;
     std::optional<NFormats::TFormat> InputFormat_;
-    std::optional<TContentEncoding> InputContentEncoding_;
+    std::optional<NHttp::TContentEncoding> InputContentEncoding_;
 
     std::optional<NFormats::TFormat> OutputFormat_;
     std::optional<TString> ContentType_;
-    std::optional<TContentEncoding> OutputContentEncoding_;
+    std::optional<NHttp::TContentEncoding> OutputContentEncoding_;
 
     std::optional<NDriver::TEtag> IfNoneMatch_;
 
     bool PrepareFinished_ = false;
 
-    TSharedRefOutputStreamPtr MemoryOutput_;
+    NHttp::TSharedRefOutputStreamPtr MemoryOutput_;
 
     TError Error_;
 

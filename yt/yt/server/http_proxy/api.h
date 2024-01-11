@@ -81,8 +81,8 @@ public:
         i64 bytesOut,
         const std::optional<NFormats::TFormat>& inputFormat,
         const std::optional<NFormats::TFormat>& outputFormat,
-        std::optional<TContentEncoding> inputCompression,
-        std::optional<TContentEncoding> outputCompression);
+        std::optional<NHttp::TContentEncoding> inputCompression,
+        std::optional<NHttp::TContentEncoding> outputCompression);
 
     void IncrementHttpCode(NHttp::EStatusCode httpStatusCode);
 

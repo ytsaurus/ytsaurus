@@ -3,38 +3,27 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
-    public.cpp
-    private.cpp
-    bootstrap.cpp
-    coordinator.cpp
-    context.cpp
     access_checker.cpp
     api.cpp
-    dynamic_config_manager.cpp
-    http_authenticator.cpp
-    formats.cpp
-    helpers.cpp
-    compression.cpp
-    framing.cpp
+    bootstrap.cpp
     config.cpp
+    context.cpp
+    coordinator.cpp
+    dynamic_config_manager.cpp
+    formats.cpp
+    framing.cpp
+    helpers.cpp
+    http_authenticator.cpp
+    private.cpp
     profilers.cpp
+    public.cpp
     zookeeper_bootstrap_proxy.cpp
 
-    clickhouse/discovery_cache.cpp
     clickhouse/config.cpp
+    clickhouse/discovery_cache.cpp
     clickhouse/handler.cpp
     clickhouse/public.cpp
 )
-
-IF (OPENSOURCE)
-    SRCS(compression_opensource.cpp)
-
-    PEERDIR(
-        library/cpp/blockcodecs/core
-    )
-ELSE()
-    INCLUDE(ya_non_opensource.inc)
-ENDIF()
 
 PEERDIR(
     yt/yt/client/driver
