@@ -502,8 +502,6 @@ private:
     TPeriodicExecutorPtr RecentlyRemovedJobCleaner_;
     TPeriodicExecutorPtr JobProxyBuildInfoUpdater_;
 
-    TInstant LastStoredJobsSendTime_;
-
     TAtomicObject<TErrorOr<TBuildInfoPtr>> CachedJobProxyBuildInfo_;
 
     TInstant LastOperationInfosRequestTime_;
@@ -1267,9 +1265,6 @@ private:
             return;
         }
 
-        const bool totalConfirmation = NeedSchedulerTotalConfirmation();
-        YT_LOG_INFO_IF(totalConfirmation, "Including all stored jobs in heartbeat");
-
         const bool requestOperationInfosForJobs =
             TInstant::Now() > LastOperationInfosRequestTime_ +
                 GetDynamicConfig()->OperationInfosRequestPeriod;
@@ -1282,14 +1277,14 @@ private:
                 operationIdsToRequestInfo.insert(job->GetOperationId());
             }
 
-            bool sendForcefully = context->JobsToForcefullySend.erase(job) || totalConfirmation;
-            if (job->GetStored() && !sendForcefully) {
-                continue;
-            }
-
+            bool sendForcefully = context->JobsToForcefullySend.erase(job);
             if (job->GetStored()) {
+                if (!sendForcefully) {
+                    continue;
+                }
+
                 YT_LOG_DEBUG(
-                    "Confirm job (JobId: %v, OperationId: %v, Stored: %v, State: %v)",
+                    "Reporting finished job to scheduler (JobId: %v, OperationId: %v, Stored: %v, State: %v)",
                     jobId,
                     job->GetOperationId(),
                     job->GetStored(),
@@ -1881,27 +1876,6 @@ private:
             UserMemoryOverdraftInstant_ = std::nullopt;
             CpuOverdraftInstant_ = std::nullopt;
         }
-    }
-
-    // COMPAT(pogorelov)
-    bool NeedTotalConfirmation(TInstant& lastTotalConfirmationTime)
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        if (const auto now = TInstant::Now();
-            lastTotalConfirmationTime + TDuration::Minutes(10) < now)
-        {
-            lastTotalConfirmationTime = now;
-            return true;
-        }
-
-        return false;
-    }
-
-    // COMPAT(pogorelov)
-    bool NeedSchedulerTotalConfirmation() noexcept
-    {
-        return NeedTotalConfirmation(LastStoredJobsSendTime_);
     }
 
     std::vector<TJobPtr> GetRunningJobsSortedByStartTime() const
