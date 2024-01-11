@@ -1,4 +1,5 @@
-PACKAGE()
+# Use UNION instead PACKAGE to avoid artifact duplication; details in DEVTOOLSSUPPORT-15693
+UNION()
 
 INCLUDE(${ARCADIA_ROOT}/yt/packages/ya.make.common)
 
