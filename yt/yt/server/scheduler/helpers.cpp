@@ -250,6 +250,7 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"exec_agent/artifacts/cache_miss_artifacts_size", "Size of artifacts that were not found in cache", "bytes"},
 
         {"job_proxy/cumulative_estimated_memory", "Memory for the job proxy estimated by scheduler/controller agent multiplied by job length in seconds", "bytes * sec"},
+        {"job_proxy/cumulative_memory_mb_sec", "Integral of the memory used", "MB*sec"},
         {"job_proxy/cumulative_max_memory", "Maximum amount of memory used by the job proxy process multiplied by job length in seconds", "bytes * sec"},
         {"job_proxy/cumulative_memory_reserve", "Amount of memory reserved for job proxy at the time of start multiplied by job length in seconds", "bytes * sec"},
         {"job_proxy/estimated_memory", "Memory for the job proxy estimated by scheduler/controller agent", "bytes"},
