@@ -111,7 +111,7 @@ private:
 
     void DoEnsureDestinationServiceIds(std::vector<TTvmId> serviceIds)
     {
-        TBackoffStrategy backoff(*Config_->EnsureTicketsBackoff);
+        TBackoffStrategy backoff(Config_->EnsureTicketsBackoff);
 
         auto filterFetchedTickets = [&] {
             auto guard = ReaderGuard(Lock_);

@@ -62,7 +62,7 @@ ITabletCommitSessionPtr CreateTabletCommitSession(
 
 TFuture<void> CommitTabletSessions(
     std::vector<ITabletCommitSessionPtr> sessions,
-    TSerializableExponentialBackoffOptionsPtr backoffOptions,
+    TExponentialBackoffOptions backoffOptions,
     NLogging::TLogger logger,
     TTransactionCounters counters);
 

@@ -42,15 +42,11 @@ void TTvmBridgeConfig::Register(TRegistrar registrar)
     registrar.Parameter("refresh_period", &TThis::RefreshPeriod)
         .Default(TDuration::Hours(1));
     registrar.Parameter("ensure_tickets_backoff", &TThis::EnsureTicketsBackoff)
-        .DefaultNew();
+        .Default({
+            .InvocationCount = 20,
+        });
     registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
         .Default(TDuration::Seconds(10));
-
-    registrar.Preprocessor([] (TThis* config) {
-        config->EnsureTicketsBackoff->MinBackoff = TDuration::Seconds(1);
-        config->EnsureTicketsBackoff->MaxBackoff = TDuration::Seconds(5);
-        config->EnsureTicketsBackoff->InvocationCount = 20;
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

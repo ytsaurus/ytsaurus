@@ -62,7 +62,7 @@ public:
     TDuration RefreshPeriod;
 
     //! Backoff for EnsureDestinationServiceIds().
-    TSerializableExponentialBackoffOptionsPtr EnsureTicketsBackoff;
+    TExponentialBackoffOptions EnsureTicketsBackoff;
 
     //! Timeout for RPC calls.
     TDuration RpcTimeout;

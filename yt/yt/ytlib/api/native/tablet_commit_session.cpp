@@ -350,13 +350,13 @@ class TTabletSessionsCommitter
 public:
     TTabletSessionsCommitter(
         std::vector<ITabletCommitSessionPtr> sessions,
-        TSerializableExponentialBackoffOptionsPtr backoffOptions,
+        TExponentialBackoffOptions backoffOptions,
         TLogger logger,
         TTransactionCounters counters)
         : Logger(std::move(logger))
         , Counters_(std::move(counters))
         , Sessions_(std::move(sessions))
-        , BackoffStrategy_(*backoffOptions)
+        , BackoffStrategy_(backoffOptions)
     { }
 
     TFuture<void> Run()
@@ -454,7 +454,7 @@ private:
 
 TFuture<void> CommitTabletSessions(
     std::vector<ITabletCommitSessionPtr> sessions,
-    TSerializableExponentialBackoffOptionsPtr backoffOptions,
+    TExponentialBackoffOptions backoffOptions,
     TLogger logger,
     TTransactionCounters counters)
 {
