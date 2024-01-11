@@ -228,15 +228,31 @@ class TestQueriesChyt(ClickHouseTestBase):
 
             wait(lambda: any(query.id == log["query_id"] for log in clique.make_query("select query_id from system.query_log")))
 
-    @authors("gudeqit")
+    @authors("gudeqit", "dakovalkov")
     def test_conversion_for_const_columns(self, query_tracker):
         with Clique(1, alias="*ch_alias"):
             settings = {"clique": "ch_alias", "cluster": "primary"}
 
-            query = start_query("chyt", "select 1 from numbers(1000)", settings=settings)
+            query = start_query("chyt", "select 1 as a from numbers(1000)", settings=settings)
             query.track()
-            assert query.read_result(0) == [{'1': 1}] * 1000
+            assert query.read_result(0) == [{"a": 1}] * 1000
 
-            query = start_query("chyt", "select 'ab' from numbers(1000)", settings=settings)
+            query = start_query("chyt", "select 'ab' as a from numbers(1000)", settings=settings)
             query.track()
-            assert query.read_result(0) == [{"'ab'": 'ab'}] * 1000
+            assert query.read_result(0) == [{"a": 'ab'}] * 1000
+
+            query = start_query("chyt", "select [1, 2, 3] as a", settings=settings)
+            query.track()
+            assert query.read_result(0) == [{"a": [1, 2, 3]}]
+
+            query = start_query("chyt", "select CAST(1, 'Nullable(UInt8)') as a", settings=settings)
+            query.track()
+            assert query.read_result(0) == [{"a": 1}]
+
+            query = start_query("chyt", "select tuple(1, 'abc', 2) as a", settings=settings)
+            query.track()
+            assert query.read_result(0) == [{"a": [1, "abc", 2]}]
+
+            query = start_query("chyt", "select CAST(123.23, 'Decimal(30, 2)') as a", settings=settings)
+            query.track()
+            assert query.read_result(0) == [{"a": encode_decimal("123.23", 30, 2)}]

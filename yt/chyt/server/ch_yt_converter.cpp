@@ -97,9 +97,9 @@ public:
 
     void InitColumn(const DB::IColumn* column) override
     {
-        Column_ = column->convertToFullIfNeeded();
+        Column_ = column;
         Data_ = Column_->getDataAt(0).data;
-        ColumnString_ = dynamic_cast<const DB::ColumnString*>(Column_.get());
+        ColumnString_ = dynamic_cast<const DB::ColumnString*>(Column_);
         CurrentValueIndex_ = 0;
     }
 
@@ -210,7 +210,7 @@ public:
     }
 
 private:
-    DB::ColumnPtr Column_;
+    const DB::IColumn* Column_;
     const char* Data_ = nullptr;
     const DB::ColumnString* ColumnString_ = nullptr;
     i64 CurrentValueIndex_ = 0;
@@ -233,6 +233,7 @@ public:
     {
         YT_VERIFY(column->isNullable());
         auto* columnNullable = DB::checkAndGetColumn<DB::ColumnNullable>(column);
+        YT_VERIFY(columnNullable);
         NullColumn_ = &columnNullable->getNullMapColumn();
         NullData_ = &NullColumn_->getData();
         UnderlyingConverter_->InitColumn(&columnNullable->getNestedColumn());
@@ -295,6 +296,7 @@ public:
     void InitColumn(const DB::IColumn* column) override
     {
         auto* columnArray = DB::checkAndGetColumn<DB::ColumnArray>(column);
+        YT_VERIFY(columnArray);
         Offsets_ = &columnArray->getOffsets();
         CurrentValueIndex_ = 0;
         UnderlyingConverter_->InitColumn(&columnArray->getData());
@@ -359,6 +361,7 @@ public:
     void InitColumn(const DB::IColumn* column) override
     {
         auto* columnTuple = DB::checkAndGetColumn<DB::ColumnTuple>(column);
+        YT_VERIFY(columnTuple);
         YT_VERIFY(columnTuple->getColumns().size() == UnderlyingConverters_.size());
         for (const auto& [nestedColumn, underlyingConverter] : Zip(columnTuple->getColumns(), UnderlyingConverters_)) {
             underlyingConverter->InitColumn(&*nestedColumn);
@@ -435,6 +438,7 @@ public:
     void InitColumn(const DB::IColumn* column) override
     {
         Column_ = DB::checkAndGetColumn<TDecimalColumn>(column);
+        YT_VERIFY(Column_);
         CurrentValueIndex_ = 0;
     }
 
@@ -535,7 +539,8 @@ public:
         // We save current column to be able to prolong its lifetime until next call of
         // ConvertColumnToUnversionedValues. This allows us to form string-like unversioned values
         // pointing directly to the input column.
-        CurrentColumn_ = column;
+        // TODO(dakovalkov): support const and low-cardinality columns without conversion to full column.
+        CurrentColumn_ = column->convertToFullIfNeeded();
 
         RootConverter_->InitColumn(CurrentColumn_.get());
 
