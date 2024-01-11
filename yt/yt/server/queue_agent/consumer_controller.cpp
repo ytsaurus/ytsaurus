@@ -222,6 +222,16 @@ private:
 
                 subConsumerPartitionSnapshot->NextRowIndex = consumerPartitionInfo.NextRowIndex;
                 subConsumerPartitionSnapshot->LastConsumeTime = consumerPartitionInfo.LastConsumeTime;
+
+                if (consumerPartitionInfo.ConsumerMeta) {
+                    if (auto cumulativeDataWeight = consumerPartitionInfo.ConsumerMeta->CumulativeDataWeight) {
+                        subConsumerPartitionSnapshot->CumulativeDataWeight = cumulativeDataWeight;
+                        subConsumerPartitionSnapshot->ReadRate.DataWeight.Update(*cumulativeDataWeight);
+                    }
+                    if (consumerPartitionInfo.ConsumerMeta->OffsetTimestamp) {
+                        subConsumerPartitionSnapshot->NextRowCommitTime = TimestampToInstant(*consumerPartitionInfo.ConsumerMeta->OffsetTimestamp).first;
+                    }
+                }
             }
         }
 
@@ -247,6 +257,7 @@ private:
                 // NB: may be negative if the consumer is ahead of the partition.
                 subConsumerPartitionSnapshot->UnreadRowCount =
                     queuePartitionSnapshot->UpperRowIndex - subConsumerPartitionSnapshot->NextRowIndex;
+
                 // TODO(max42): this seems to not work properly as cumulative data weight is not set yet.
                 // Re-think this code when working on new profiling.
                 subConsumerPartitionSnapshot->UnreadDataWeight = OptionalSub(
@@ -388,9 +399,14 @@ private:
 
             const auto& partitionRowInfo = partitionInfo.begin()->second;
 
-            if (partitionRowInfo.CumulativeDataWeight) {
+            if (!consumerPartitionSnapshot->CumulativeDataWeight && partitionRowInfo.CumulativeDataWeight) {
                 consumerPartitionSnapshot->CumulativeDataWeight = *partitionRowInfo.CumulativeDataWeight;
                 consumerPartitionSnapshot->ReadRate.DataWeight.Update(*partitionRowInfo.CumulativeDataWeight);
+
+                consumerPartitionSnapshot->UnreadDataWeight = OptionalSub(
+                    queueSnapshot->PartitionSnapshots[tabletIndex]->CumulativeDataWeight,
+                    consumerPartitionSnapshot->CumulativeDataWeight);
+
             }
         }
 

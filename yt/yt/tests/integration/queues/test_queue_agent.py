@@ -349,7 +349,11 @@ class TestQueueController(TestQueueAgentBase):
         assert 9 * 20 <= queue_partitions[0]["available_data_weight"] <= 11 * 20
 
     @authors("max42")
-    def test_consumer_status(self):
+    @pytest.mark.parametrize("trim", [
+        False,
+        True,
+    ])
+    def test_consumer_status(self, trim):
         orchid = QueueAgentOrchid()
 
         self._create_queue("//tmp/q", partition_count=2)
@@ -378,6 +382,7 @@ class TestQueueController(TestQueueAgentBase):
         def assert_partition(partition, next_row_index):
             assert partition["next_row_index"] == next_row_index
             assert partition["unread_row_count"] == max(0, 2 - next_row_index)
+            assert partition["unread_data_weight"] == (YsonEntity() if next_row_index == 0 else (partition["unread_row_count"] * 20))
             assert partition["next_row_commit_time"] == (self._timestamp_to_iso_str(timestamps[next_row_index])
                                                          if next_row_index < 2 else YsonEntity())
             assert (partition["processing_lag"] > 0) == (next_row_index < 2)
@@ -388,13 +393,26 @@ class TestQueueController(TestQueueAgentBase):
         assert_partition(consumer_partitions[1], 0)
 
         self._advance_consumer("//tmp/c", "//tmp/q", 0, 1)
+
+        orchid.get_consumer_orchid("primary://tmp/c").wait_fresh_pass()
+
+        if trim:
+            trim_rows("//tmp/q", 0, 1)
+
+        orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
         orchid.get_consumer_orchid("primary://tmp/c").wait_fresh_pass()
         consumer_partitions = orchid.get_consumer_orchid("primary://tmp/c").get_partitions()["primary://tmp/q"]
         assert_partition(consumer_partitions[0], 1)
 
         self._advance_consumer("//tmp/c", "//tmp/q", 1, 2)
+
+        if trim:
+            trim_rows("//tmp/q", 1, 1)
+
+        orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
         orchid.get_consumer_orchid("primary://tmp/c").wait_fresh_pass()
         consumer_partitions = orchid.get_consumer_orchid("primary://tmp/c").get_partitions()["primary://tmp/q"]
+
         assert_partition(consumer_partitions[1], 2)
 
     @authors("achulkov2")
