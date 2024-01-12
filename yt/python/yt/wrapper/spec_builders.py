@@ -1710,8 +1710,10 @@ class MapReduceSpecBuilder(SpecBuilder):
         output_streams = mapper_spec.get("output_streams")
 
         intermediate_stream_count = 1
-        if isinstance(command, TypedJob) and command.get_intermediate_stream_count() is not None:
-            intermediate_stream_count = command.get_intermediate_stream_count()
+        if isinstance(command, TypedJob):
+            if command.get_intermediate_stream_count() is not None:
+                intermediate_stream_count = command.get_intermediate_stream_count()
+
             if output_streams is not None:
                 raise YtError("Output streams cannot be specified explicitly for a typed map job, use get_intermediate_stream_count and prepare_operation methods instead")
 
