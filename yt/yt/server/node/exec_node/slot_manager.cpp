@@ -452,6 +452,16 @@ bool TSlotManager::HasNonFatalAlerts() const
         HasGpuAlerts();
 }
 
+void TSlotManager::VerifyCurrentState(ESlotManagerState expectedState) const
+{
+    auto currentState = State_.load();
+    YT_LOG_FATAL_IF(
+        currentState != expectedState,
+        "Slot manager state race detected (Expected: %v, Actual: %v)",
+        expectedState,
+        currentState);
+}
+
 TSlotManager::TSlotManagerInfo TSlotManager::DoGetStateSnapshot() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -610,7 +620,8 @@ bool TSlotManager::Disable(const TError& error)
     auto expected = ESlotManagerState::Initialized;
 
     if (!State_.compare_exchange_strong(expected, ESlotManagerState::Disabling)) {
-        YT_LOG_WARNING("Slot manager expects other state (Expected: %v, Actual: %v)",
+        YT_LOG_WARNING(
+            "Slot manager expects other state (Expected: %v, Actual: %v)",
             ESlotManagerState::Initialized,
             expected);
         return false;
@@ -629,33 +640,35 @@ bool TSlotManager::Disable(const TError& error)
     auto dynamicConfig = DynamicConfig_.Acquire();
     auto timeout = dynamicConfig->SlotReleaseTimeout;
 
-    auto syncResult = WaitFor(Bootstrap_->GetJobController()->RemoveSchedulerJobs()
-        .WithTimeout(timeout));
+    if (auto syncResult = WaitFor(Bootstrap_->GetJobController()->RemoveSchedulerJobs().WithTimeout(timeout));
+        dynamicConfig->AbortOnFreeSlotSynchronizationFailed)
+    {
+        YT_LOG_FATAL_IF(!syncResult.IsOK(), syncResult, "Free slot synchronization failed");
+    } else {
+        YT_LOG_ERROR_IF(!syncResult.IsOK(), syncResult, "Free slot synchronization failed");
+    }
 
     if (auto volumeManager = RootVolumeManager_.Acquire()) {
         auto result = WaitFor(volumeManager->GetVolumeReleaseEvent()
             .Apply(BIND(&IVolumeManager::DisableLayerCache, volumeManager, error)
             .AsyncVia(Bootstrap_->GetControlInvoker()))
             .WithTimeout(timeout));
-        YT_LOG_FATAL_IF(
-            dynamicConfig->AbortOnFreeVolumeSynchronizationFailed && !result.IsOK(),
-            result,
-            "Free volume synchronization failed");
-        YT_LOG_ERROR_IF(
-            !result.IsOK(),
-            result,
-            "Free volume synchronization failed");
+        if (dynamicConfig->AbortOnFreeVolumeSynchronizationFailed) {
+            YT_LOG_FATAL_IF(
+                !result.IsOK(),
+                result,
+                "Free volume synchronization failed");
+        } else {
+            YT_LOG_ERROR_IF(
+                !result.IsOK(),
+                result,
+                "Free volume synchronization failed");
+        }
     }
-
-    YT_LOG_FATAL_IF(dynamicConfig->AbortOnFreeSlotSynchronizationFailed && !syncResult.IsOK(), syncResult, "Free slot synchronization failed");
-    YT_LOG_ERROR_IF(!syncResult.IsOK(), syncResult, "Free slot synchronization failed");
 
     YT_LOG_WARNING("Disable slot manager finished");
 
-    auto currentState = State_.load();
-    YT_LOG_FATAL_IF(currentState != ESlotManagerState::Disabling, "Slot manager state race detected (Expected: %v, Actual: %v)",
-        ESlotManagerState::Disabling,
-        currentState);
+    VerifyCurrentState(ESlotManagerState::Disabling);
 
     SetDisableState();
 
@@ -933,10 +946,7 @@ void TSlotManager::AsyncInitialize()
 
         UpdateAliveLocations();
 
-        auto currentState = State_.load();
-        YT_LOG_FATAL_IF(currentState != ESlotManagerState::Initializing, "Slot manager state race detected (Expected: %v, Actual: %v)",
-            ESlotManagerState::Initializing,
-            currentState);
+        VerifyCurrentState(ESlotManagerState::Initializing);
 
         YT_LOG_INFO("Slot manager async initialization finished");
         State_.store(ESlotManagerState::Initialized);

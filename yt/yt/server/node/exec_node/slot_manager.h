@@ -37,7 +37,7 @@ DEFINE_ENUM(ESlotManagerState,
     ((Disabled)                    (0))
     ((Disabling)                   (1))
     ((Initialized)                 (2))
-    ((Initializing)              (3))
+    ((Initializing)                (3))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -216,6 +216,8 @@ private:
     };
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
+
+    void VerifyCurrentState(ESlotManagerState expectedState) const;
 
     TSlotManagerInfo DoGetStateSnapshot() const;
     auto GetStateSnapshot() const;
