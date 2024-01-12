@@ -44,10 +44,10 @@ def main():
             "simplejson >=3.18.4, ~=3.18",
             "decorator >=4.4.2, ~=4.4",
             "tqdm >=4.66.1, ~=4.66",
-            "argcomplete >=3.1.4, ~=3.1",
+            "argcomplete >=3.2.1, ~=3.1",
             "six >=1.16.0, ~=1.16",
             "charset-normalizer >=3.3.0, ~=3.3",
-            "typing-extensions >=4.8.0, ~=4.8",
+            "typing-extensions >=4.9.0, ~=4.8",
         ],
     )
 
