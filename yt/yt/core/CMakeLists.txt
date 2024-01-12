@@ -154,6 +154,7 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/formatter.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/fluent_log.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/log_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/logger_owner.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/serializable_logger.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/stream_output.cpp
@@ -385,7 +386,6 @@ target_link_libraries(yt-yt-core.global PUBLIC
 )
 target_sources(yt-yt-core.global PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/log.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/log_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/assert.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/guid.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/ref_tracked.cpp
