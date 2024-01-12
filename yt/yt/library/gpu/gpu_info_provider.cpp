@@ -20,7 +20,8 @@ void FormatValue(TStringBuilderBase* builder, const TGpuInfo& gpuInfo, TStringBu
     builder->AppendFormat(
         "{UpdateTime: %v, Index: %v, Name: %v, UtilizationGpuRate: %v, UtilizationMemoryRate: %v, "
         "MemoryUsed: %v, MemoryTotal: %v, PowerDraw: %v, PowerLimit: %v, ClocksSM: %v, ClocksMaxSM: %v, "
-        "SMUtilizationRate: %v, SMOccupancyRate: %v, Stuck: {Status: %v, LastTransitionTime: %v}}",
+        "SMUtilizationRate: %v, SMOccupancyRate: %v, NvlinkRxByteRate: %v, NvlinkTxByteRate: %v, "
+        "PcieRxByteRate: %v, PcieTxByteRate: %v, Stuck: {Status: %v, LastTransitionTime: %v}}",
         gpuInfo.UpdateTime,
         gpuInfo.Index,
         gpuInfo.Name,
@@ -34,6 +35,10 @@ void FormatValue(TStringBuilderBase* builder, const TGpuInfo& gpuInfo, TStringBu
         gpuInfo.ClocksMaxSM,
         gpuInfo.SMUtilizationRate,
         gpuInfo.SMOccupancyRate,
+        gpuInfo.NvlinkRxByteRate,
+        gpuInfo.NvlinkTxByteRate,
+        gpuInfo.PcieRxByteRate,
+        gpuInfo.PcieTxByteRate,
         gpuInfo.Stuck.Status,
         gpuInfo.Stuck.LastTransitionTime);
 }
@@ -55,6 +60,10 @@ void Serialize(const TGpuInfo& gpuInfo, NYson::IYsonConsumer* consumer)
             .Item("clocks_max_sm").Value(gpuInfo.ClocksMaxSM)
             .Item("sm_utilization_rate").Value(gpuInfo.SMUtilizationRate)
             .Item("sm_occupancy_rate").Value(gpuInfo.SMOccupancyRate)
+            .Item("nvlink_rx_byte_rate").Value(gpuInfo.NvlinkRxByteRate)
+            .Item("nvlink_tx_byte_rate").Value(gpuInfo.NvlinkTxByteRate)
+            .Item("pcie_rx_byte_rate").Value(gpuInfo.PcieRxByteRate)
+            .Item("pcie_tx_byte_rate").Value(gpuInfo.PcieTxByteRate)
             .Item("stuck").BeginMap()
                 .Item("status").Value(gpuInfo.Stuck.Status)
                 .Item("last_transition_time").Value(gpuInfo.Stuck.LastTransitionTime)

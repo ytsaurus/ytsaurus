@@ -25,6 +25,10 @@ struct TGpuInfo
     i64 ClocksMaxSM = 0;
     double SMUtilizationRate = 0.0;
     double SMOccupancyRate = 0.0;
+    double NvlinkRxByteRate = 0.0;
+    double NvlinkTxByteRate = 0.0;
+    double PcieRxByteRate = 0.0;
+    double PcieTxByteRate = 0.0;
 
     struct
     {
