@@ -32,6 +32,8 @@ class IJobController
 public:
     virtual void Initialize() = 0;
 
+    virtual void Start() = 0;
+
     virtual void ScheduleStartJobs() = 0;
 
     //! Finds the job by its id, returns |nullptr| if no job is found.

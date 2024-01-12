@@ -133,6 +133,8 @@ public:
 
     void Initialize() override
     {
+        auto dynamicConfig = GetDynamicConfig();
+
         JobResourceManager_ = Bootstrap_->GetJobResourceManager();
         JobResourceManager_->RegisterResourcesConsumer(
             BIND_NO_PROPAGATE(&TJobController::OnResourceReleased, MakeWeak(this))
@@ -144,31 +146,30 @@ public:
         JobResourceManager_->SubscribeResourceUsageOverdrafted(
             BIND_NO_PROPAGATE(&TJobController::OnResourceUsageOverdrafted, MakeWeak(this))
                 .Via(Bootstrap_->GetJobInvoker()));
-        auto dynamicConfig = GetDynamicConfig();
-
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetJobInvoker(),
             BIND_NO_PROPAGATE(&TJobController::OnProfiling, MakeWeak(this)),
             dynamicConfig->ProfilingPeriod);
-        ProfilingExecutor_->Start();
-
         ResourceAdjustmentExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetJobInvoker(),
             BIND_NO_PROPAGATE(&TJobController::AdjustResources, MakeWeak(this)),
             dynamicConfig->ResourceAdjustmentPeriod);
-        ResourceAdjustmentExecutor_->Start();
-
         RecentlyRemovedJobCleaner_ = New<TPeriodicExecutor>(
             Bootstrap_->GetJobInvoker(),
             BIND_NO_PROPAGATE(&TJobController::CleanRecentlyRemovedJobs, MakeWeak(this)),
             dynamicConfig->RecentlyRemovedJobsCleanPeriod);
-        RecentlyRemovedJobCleaner_->Start();
-
-        // Do not set period initially to defer start.
         JobProxyBuildInfoUpdater_ = New<TPeriodicExecutor>(
             Bootstrap_->GetJobInvoker(),
             BIND_NO_PROPAGATE(&TJobController::UpdateJobProxyBuildInfo, MakeWeak(this)));
-        // Start nominally.
+    }
+
+    void Start() override
+    {
+        auto dynamicConfig = GetDynamicConfig();
+
+        ProfilingExecutor_->Start();
+        ResourceAdjustmentExecutor_->Start();
+        RecentlyRemovedJobCleaner_->Start();
         JobProxyBuildInfoUpdater_->Start();
 
         // Get ready event before actual start.

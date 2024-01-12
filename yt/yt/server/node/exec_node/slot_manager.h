@@ -67,6 +67,8 @@ public:
     //! Initializes slots etc.
     void Initialize();
 
+    void Start();
+
     TFuture<void> InitializeEnvironment();
 
     void OnDynamicConfigChanged(
@@ -237,7 +239,6 @@ private:
     void OnPortoHealthCheckFailed(const TError& result);
 
     void ForceInitialize();
-    TFuture<void> Resurrect();
     void AsyncInitialize();
 
     int DoAcquireSlot(ESlotType slotType);

@@ -72,20 +72,6 @@ bool TSlotManager::IsJobEnvironmentResurrectionEnabled()
         ->EnableJobEnvironmentResurrection;
 }
 
-TFuture<void> TSlotManager::Resurrect()
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    return InitializeEnvironment()
-        .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& result) {
-            if (result.IsOK()) {
-                InitMedia(Bootstrap_->GetClient()->GetNativeConnection()->GetMediumDirectory());
-            } else {
-                YT_LOG_ERROR(result, "Slot manager resurrection failed");
-            }
-        }));
-}
-
 void TSlotManager::OnPortoHealthCheckSuccess()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -97,8 +83,9 @@ void TSlotManager::OnPortoHealthCheckSuccess()
 
         YT_VERIFY(Bootstrap_->IsExecNode());
 
-        WaitFor(Resurrect())
-            .ThrowOnError();
+        auto result = WaitFor(InitializeEnvironment());
+
+        YT_LOG_ERROR_IF(!result.IsOK(), result, "Resurrection failed with error");
     }
 }
 
@@ -125,7 +112,22 @@ void TSlotManager::Initialize()
         BIND(&TSlotManager::OnJobFinished, MakeStrong(this)));
     Bootstrap_->GetJobController()->SubscribeJobProxyBuildInfoUpdated(
         BIND(&TSlotManager::OnJobProxyBuildInfoUpdated, MakeStrong(this)));
+    Bootstrap_->GetNodeResourceManager()->SubscribeJobsCpuLimitUpdated(
+        BIND(&TSlotManager::OnJobsCpuLimitUpdated, MakeWeak(this))
+            .Via(Bootstrap_->GetJobInvoker()));
 
+    auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(StaticConfig_->JobEnvironment);
+
+    if (environmentConfig->Type == EJobEnvironmentType::Porto) {
+        PortoHealthChecker_->SubscribeSuccess(BIND(&TSlotManager::OnPortoHealthCheckSuccess, MakeStrong(this))
+            .Via(Bootstrap_->GetJobInvoker()));
+        PortoHealthChecker_->SubscribeFailed(BIND(&TSlotManager::OnPortoHealthCheckFailed, MakeStrong(this))
+            .Via(Bootstrap_->GetJobInvoker()));
+    }
+}
+
+void TSlotManager::Start()
+{
     auto initializeResult = WaitFor(BIND([=, this, this_ = MakeStrong(this)] () {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -140,17 +142,9 @@ void TSlotManager::Initialize()
 
     YT_LOG_FATAL_IF(!initializeResult.IsOK(), initializeResult, "First slot manager initialization failed");
 
-    Bootstrap_->GetNodeResourceManager()->SubscribeJobsCpuLimitUpdated(
-        BIND(&TSlotManager::OnJobsCpuLimitUpdated, MakeWeak(this))
-            .Via(Bootstrap_->GetJobInvoker()));
-
     auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(StaticConfig_->JobEnvironment);
 
     if (environmentConfig->Type == EJobEnvironmentType::Porto) {
-        PortoHealthChecker_->SubscribeSuccess(BIND(&TSlotManager::OnPortoHealthCheckSuccess, MakeStrong(this))
-            .Via(Bootstrap_->GetJobInvoker()));
-        PortoHealthChecker_->SubscribeFailed(BIND(&TSlotManager::OnPortoHealthCheckFailed, MakeStrong(this))
-            .Via(Bootstrap_->GetJobInvoker()));
         PortoHealthChecker_->Start();
     }
 }
@@ -190,6 +184,9 @@ TFuture<void> TSlotManager::InitializeEnvironment()
     JobEnvironment_ = CreateJobEnvironment(
         StaticConfig_->JobEnvironment,
         Bootstrap_);
+    JobEnvironment_->OnDynamicConfigChanged(
+        Bootstrap_->GetDynamicConfig()->ExecNode->SlotManager,
+        Bootstrap_->GetDynamicConfig()->ExecNode->SlotManager);
 
     // Job environment must be initialized first, since it cleans up all the processes,
     // which may hold open descriptors to volumes, layers and files in sandboxes.
@@ -244,7 +241,9 @@ TFuture<void> TSlotManager::InitializeEnvironment()
 
     return BIND(&TSlotManager::AsyncInitialize, MakeStrong(this))
         .AsyncVia(Bootstrap_->GetJobInvoker())
-        .Run();
+        .Run()
+        .Apply(BIND(&TSlotManager::InitMedia, MakeStrong(this), Bootstrap_->GetClient()->GetNativeConnection()->GetMediumDirectory())
+        .AsyncVia(Bootstrap_->GetJobInvoker()));
 }
 
 void TSlotManager::OnDynamicConfigChanged(
@@ -269,10 +268,12 @@ void TSlotManager::OnDynamicConfigChanged(
             this,
             this_ = MakeStrong(this)
         ] {
-            try {
-                JobEnvironment_->OnDynamicConfigChanged(oldConfig, newConfig);
-            } catch (const std::exception& ex) {
-                YT_LOG_ERROR(TError(ex));
+            if (JobEnvironment_) {
+                try {
+                    JobEnvironment_->OnDynamicConfigChanged(oldConfig, newConfig);
+                } catch (const std::exception& ex) {
+                    YT_LOG_ERROR(TError(ex));
+                }
             }
         }));
 }
@@ -530,7 +531,11 @@ i64 TSlotManager::GetMajorPageFaultCount() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    return JobEnvironment_->GetMajorPageFaultCount();
+    if (JobEnvironment_) {
+        return JobEnvironment_->GetMajorPageFaultCount();
+    } else {
+        return 0;
+    }
 }
 
 bool TSlotManager::EnableNumaNodeScheduling() const
