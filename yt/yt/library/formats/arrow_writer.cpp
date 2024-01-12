@@ -1366,8 +1366,7 @@ private:
             if (message.FlatbufBuilder) {
                 auto metadataSize = message.FlatbufBuilder->GetSize();
 
-                auto metadataPtr = message.FlatbufBuilder->GetBufferPointer();
-
+                auto* metadataPtr = message.FlatbufBuilder->GetBufferPointer();
 
                 ui32 metadataAlignSize = AlignUp<i64>(metadataSize, ArrowAlignment);
 
@@ -1378,10 +1377,9 @@ private:
 
                 // Body
                 if (message.BodyWriter) {
-                    TString current(AlignUp<i64>(message.BodySize, ArrowAlignment), 0);
-                    // Double copying.
-                    message.BodyWriter(TMutableRef(current.begin(), current.begin() + message.BodySize));
-                    output->Write(current.data(), current.Size());
+                    auto bodyBuffer = output->RequestBuffer(AlignUp<i64>(message.BodySize, ArrowAlignment));
+                    message.BodyWriter(bodyBuffer.Slice(0, message.BodySize));
+                    std::fill(bodyBuffer.Begin() + message.BodySize, bodyBuffer.End(), 0);
                 } else {
                     YT_VERIFY(message.BodySize == 0);
                 }
