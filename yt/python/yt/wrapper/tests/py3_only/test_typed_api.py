@@ -1709,3 +1709,49 @@ class TestTypedApi(object):
 
         with pytest.raises(YtError, match="bad post init: field2"):
             list(yt.read_table_structured(table, RowWithBadNestedPostInit))
+
+    @authors("ermolovd")
+    def test_manual_mapper_output_streams_in_map_reduce(self):
+        table1 = "//tmp/table1"
+        table2 = "//tmp/table2"
+        result_table = "//tmp/result_table"
+
+        yt.write_table_structured(table1, TheRow, [
+            TheRow(int32_field=10, str_field="key1"),
+            TheRow(int32_field=20, str_field="key1"),
+            TheRow(int32_field=30, str_field="key2"),
+            TheRow(int32_field=40, str_field="key2"),
+        ])
+        yt.write_table_structured(table2, Row1, [
+            Row1(int32_field=100, str_field="key2"),
+            Row1(int32_field=200, str_field="key2"),
+            Row1(int32_field=300, str_field="key3"),
+            Row1(int32_field=400, str_field="key3"),
+        ])
+
+        yt.run_map_reduce(
+            "cat",
+            TwoInputSummingReducer(),
+            [table1, table2],
+            result_table,
+            map_input_format="yson",
+            map_output_format="yson",
+            reduce_by=["str_field"],
+            spec={
+                "mapper": {
+                    "output_streams": [
+                        {
+                            "schema": TableSchema.from_row_type(row_type).build_schema_sorted_by(["str_field"]),
+                        }
+                        for row_type in [TheRow, Row1]
+                    ],
+                },
+            },
+        )
+
+        result = sorted(yt.read_table_structured(result_table, SumRow), key=lambda row: row.key)
+        assert result == [
+            SumRow(key="key1", sum=30),
+            SumRow(key="key2", sum=370),
+            SumRow(key="key3", sum=700),
+        ]

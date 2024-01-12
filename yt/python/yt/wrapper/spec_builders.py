@@ -1702,13 +1702,21 @@ class MapReduceSpecBuilder(SpecBuilder):
 
     def _do_build_mapper(self, spec, client):
         if isinstance(spec["mapper"], UserJobSpecBuilder):
-            command = spec["mapper"]._spec["command"]
+            mapper_spec = spec["mapper"]._spec
         else:
-            command = spec["mapper"].get("command")
+            mapper_spec = spec["mapper"]
+
+        command = mapper_spec.get("command")
+        output_streams = mapper_spec.get("output_streams")
 
         intermediate_stream_count = 1
         if isinstance(command, TypedJob) and command.get_intermediate_stream_count() is not None:
             intermediate_stream_count = command.get_intermediate_stream_count()
+            if output_streams is not None:
+                raise YtError("Output streams cannot be specified explicitly for a typed map job, use get_intermediate_stream_count and prepare_operation methods instead")
+
+        elif output_streams is not None:
+            intermediate_stream_count = len(output_streams)
 
         additional_mapper_output_table_count = spec.get("mapper_output_table_count", 0)
         mapper_output_tables = [None] * intermediate_stream_count + \
@@ -1735,8 +1743,8 @@ class MapReduceSpecBuilder(SpecBuilder):
         self._set_tables(spec, input_tables, output_tables)
 
         # TODO(egor-gutrov): fill intermediate_stream_schemas for CppJob
+        intermediate_streams = []
         if isinstance(command, TypedJob):
-            intermediate_streams = []
             for intermediate_table_path in mapper_output_tables[:intermediate_stream_count]:
                 schema = intermediate_table_path.attributes.get("schema")
                 if schema is None:
@@ -1746,7 +1754,14 @@ class MapReduceSpecBuilder(SpecBuilder):
                 intermediate_streams.append({
                     "schema": schema,
                 })
+
+            # NB: spec["mapper"]["output_streams"] must be empty here due to validation above.
+            assert "output_streams" not in spec["mapper"], "output streams must be empty for a typed job"
             spec["mapper"]["output_streams"] = intermediate_streams
+        else:
+            intermediate_streams = spec["mapper"].get("output_streams", [])
+
+        if intermediate_streams:
             intermediate_stream_schemas = [stream["schema"] for stream in intermediate_streams]
         else:
             intermediate_stream_schemas = [None]
