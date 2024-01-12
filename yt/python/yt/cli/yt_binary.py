@@ -298,6 +298,14 @@ def add_sort_order_argument(parser, name, help, required):
     add_argument(parser, name, help, DESCRIPTION, action=ParseAppendStructuredDataOrString, required=required)
 
 
+def add_boolean_argument(parser, name, negation_prefix="no", default=None, required=False, help=None):
+    hyphenated_name = name.replace("_", "-")
+    group = parser.add_mutually_exclusive_group(required=required)
+    group.add_argument("--" + hyphenated_name, dest=name, action="store_true", help=help)
+    group.add_argument("--" + negation_prefix + "-" + hyphenated_name, dest=name, action="store_false", help=help)
+    parser.set_defaults(**{name: default})
+
+
 @copy_docstring_from(yt.exists)
 def exists(**kwargs):
     print("true" if yt.exists(**kwargs) else "false")
@@ -1121,7 +1129,7 @@ def add_register_queue_consumer_parser(add_parser):
     parser = add_parser("register-queue-consumer", yt.register_queue_consumer)
     add_ypath_argument(parser, "queue_path", hybrid=True)
     add_ypath_argument(parser, "consumer_path", hybrid=True)
-    parser.add_argument("--vital", type=bool, required=True)
+    add_boolean_argument(parser, "vital", negation_prefix="non", required=True, help="Whether the consumer is vital")
     parser.add_argument("--partitions", type=int, nargs="*")
 
 
@@ -1837,12 +1845,9 @@ def get_job_spec(**kwargs):
 def add_get_job_spec_parser(add_parser):
     parser = add_parser("get-job-spec", get_job_spec)
     add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
-    parser.add_argument("--omit-node-directory", type=bool,
-                        help='Whether node directory should be removed from job spec (true by default)')
-    parser.add_argument("--omit-input-table-specs", type=bool,
-                        help='Whether input table specs should be removed from job spec (false by default)')
-    parser.add_argument("--omit-output-table-specs", type=bool,
-                        help='Whether output table specs should be removed from job spec (false by default)')
+    add_boolean_argument(parser, "omit_node_directory", help="Whether node directory should be removed from job spec (true by default)", default=True)
+    add_boolean_argument(parser, "omit_input_table_specs", help='Whether input table specs should be removed from job spec (false by default)', default=False)
+    add_boolean_argument(parser, "omit_output_table_specs", help='Whether output table specs should be removed from job spec (false by default)', default=False)
 
 
 def add_set_user_password_parser(add_parser):
