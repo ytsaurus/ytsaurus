@@ -150,6 +150,7 @@ object LocalSpark {
   val defaultSparkConf: SparkConf = maybeSetExtensions(new SparkConf()
     .set("fs.ytTable.impl", "tech.ytsaurus.spyt.fs.YtTableFileSystem")
     .set("fs.yt.impl", "tech.ytsaurus.spyt.fs.YtFileSystem")
+    .set("spark.hadoop.fs.AbstractFileSystem.yt.impl", "tech.ytsaurus.spyt.fs.YtFs")
     .set("spark.hadoop.fs.yt.impl", "tech.ytsaurus.spyt.fs.YtFileSystem")
     .set("fs.defaultFS", "ytTable:///")
     .set("spark.hadoop.yt.proxy", s"${LocalYt.host}:${LocalYt.proxyPort}")

@@ -265,6 +265,7 @@ object YsonRowConverter {
           case v: Long => consumer.onUnsignedInteger(v)
           case UInt64Long(v) => consumer.onUnsignedInteger(v)
         }
+        case TimestampType => consumer.onInteger(value.asInstanceOf[Long] / 1000000)
       }
     }
   }

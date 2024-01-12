@@ -41,6 +41,8 @@ abstract class YtFileSystemBase extends FileSystem with LogLazy {
     this._ytConf = ytClientConfiguration(getConf, Option(uri.getAuthority).filter(_.nonEmpty))
   }
 
+  private[fs] def ytClient: CompoundClient = yt  // For YtFs class
+
   override def getUri: URI = _uri
 
   override def open(f: Path, bufferSize: Int): FSDataInputStream = convertExceptions {
@@ -88,7 +90,7 @@ abstract class YtFileSystemBase extends FileSystem with LogLazy {
   override def rename(src: Path, dst: Path): Boolean = convertExceptions {
     log.debugLazy(s"Rename $src to $dst")
     statistics.incrementWriteOps(1)
-    YtWrapper.rename(hadoopPathToYt(src), hadoopPathToYt(dst))(yt)
+    YtWrapper.move(hadoopPathToYt(src), hadoopPathToYt(dst))(yt)
     true
   }
 

@@ -112,6 +112,19 @@ trait YtCypressUtils {
     response.asScala.view.map(_.stringValue()).toArray
   }
 
+  def copy(src: String, dst: String, transaction: Option[String] = None, force: Boolean = false)
+          (implicit yt: CompoundClient): Unit = {
+    log.debug(s"Copy: $src -> $dst, transaction $transaction, force: $force")
+    yt.copyNode(
+      CopyNode.builder()
+        .setSource(formatPath(src))
+        .setDestination(formatPath(dst))
+        .setForce(force)
+        .optionalTransaction(transaction)
+        .build()
+    ).join()
+  }
+
   def move(src: String, dst: String, transaction: Option[String] = None, force: Boolean = false)
           (implicit yt: CompoundClient): Unit = {
     log.debug(s"Move: $src -> $dst, transaction $transaction, force: $force")
@@ -220,16 +233,6 @@ trait YtCypressUtils {
       .optionalTransaction(transaction)
       .build()
     yt.setNode(request).join()
-  }
-
-  def rename(src: String, dst: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Unit = {
-    log.debug(s"Rename: $src -> $dst, transaction $transaction")
-    val request = MoveNode.builder()
-      .setSource(formatPath(src))
-      .setDestination(formatPath(dst))
-      .optionalTransaction(transaction)
-      .build()
-    yt.moveNode(request).join()
   }
 
   def readDocument(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): YTreeNode = {

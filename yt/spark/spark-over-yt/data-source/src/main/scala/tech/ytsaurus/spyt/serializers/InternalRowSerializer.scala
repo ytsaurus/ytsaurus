@@ -7,13 +7,12 @@ import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.yson.{UInt64Type, YsonType}
 import org.slf4j.LoggerFactory
-import SchemaConverter.{Unordered, applyYtLimitToSparkDecimal, decimalToBinary}
-import tech.ytsaurus.spyt.wrapper.LogLazy
 import tech.ytsaurus.client.TableWriter
 import tech.ytsaurus.client.rows.{WireProtocolWriteable, WireRowSerializer}
-import tech.ytsaurus.core.common.Decimal.textToBinary
 import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 import tech.ytsaurus.spyt.serialization.YsonEncoder
+import tech.ytsaurus.spyt.serializers.SchemaConverter.{Unordered, decimalToBinary}
+import tech.ytsaurus.spyt.wrapper.LogLazy
 import tech.ytsaurus.typeinfo.TiType
 
 import java.util.concurrent.{Executors, TimeUnit}
@@ -124,8 +123,9 @@ object InternalRowSerializer {
 
   def getOrCreate(schema: StructType,
                   schemaHint: Map[String, YtLogicalType],
-                  filters: Array[Filter] = Array.empty): InternalRowSerializer = {
-    deserializers.get().getOrElseUpdate(schema, new InternalRowSerializer(schema, schemaHint))
+                  filters: Array[Filter] = Array.empty,
+                  typeV3Format: Boolean = false): InternalRowSerializer = {
+    deserializers.get().getOrElseUpdate(schema, new InternalRowSerializer(schema, schemaHint, typeV3Format))
   }
 
   final def writeRows(writer: TableWriter[InternalRow],
