@@ -2,6 +2,7 @@ package strawberry
 
 import (
 	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
 )
 
@@ -13,4 +14,4 @@ type ClusterInitializer interface {
 	ACONamespace() string
 }
 
-type ClusterInitializerFactory = func(l log.Logger, ytc yt.Client) ClusterInitializer
+type ClusterInitializerFactory = func(l log.Logger, ytc yt.Client, root ypath.Path) ClusterInitializer

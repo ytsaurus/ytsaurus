@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -20,6 +21,7 @@ import (
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yttest"
+	"golang.org/x/exp/slices"
 )
 
 func setupBinaryDirectory(t *testing.T) (directory string) {
@@ -171,8 +173,18 @@ type Response struct {
 }
 
 func makeQueryWithFullResponse(env *chytEnv, query string, alias string) Response {
+	queryTypesWithOutput := []string{"describe", "select", "show", "exists", "explain", "with"}
+
+	fields := strings.Fields(query)
+	require.NotEmpty(env.t, fields)
+
+	outputPresent := slices.Contains(queryTypesWithOutput, strings.ToLower(fields[0]))
+	if outputPresent {
+		query = query + " format JSON"
+	}
+
 	url := fmt.Sprintf("http://%v/query?database=*%v", os.Getenv("YT_PROXY"), alias)
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader([]byte(query+" format JSON")))
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader([]byte(query)))
 	require.NoError(env.t, err)
 
 	req.Header.Set("X-YT-TestUser", env.ctlClient.User)
@@ -184,7 +196,7 @@ func makeQueryWithFullResponse(env *chytEnv, query string, alias string) Respons
 	require.NoError(env.t, err)
 
 	var data json.RawMessage
-	if rsp.StatusCode == http.StatusOK {
+	if rsp.StatusCode == http.StatusOK && outputPresent {
 		var result map[string]json.RawMessage
 		require.NoError(env.t, json.Unmarshal(body, &result))
 

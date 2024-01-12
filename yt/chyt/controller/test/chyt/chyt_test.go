@@ -63,3 +63,24 @@ func TestClusterConnectionUpdate(t *testing.T) {
 	briefInfo = ctlClient.GetBriefInfo(alias)
 	require.Equal(t, 2, briefInfo.IncarnationIndex)
 }
+
+func TestSQLUDFStorage(t *testing.T) {
+	chytEnv, teardownCb := newCHYTEnv(t)
+	defer teardownCb(t)
+
+	alias := helpers.GenerateAlias()
+	stopCb := runCHYTClique(chytEnv, alias, nil)
+	defer stopCb()
+
+	udfStoragePath := ypath.Path("//sys/strawberry/chyt").Child(alias).Child("user_defined_sql_functions")
+	ok, err := chytEnv.ytEnv.YT.NodeExists(chytEnv.ytEnv.Ctx, udfStoragePath, nil)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	makeQuery(chytEnv, "create function linear_equation as (x, k, b) -> k*x + b", alias)
+
+	functionPath := udfStoragePath.Child("linear_equation")
+	ok, err = chytEnv.ytEnv.YT.NodeExists(chytEnv.ytEnv.Ctx, functionPath, nil)
+	require.NoError(t, err)
+	require.True(t, ok)
+}

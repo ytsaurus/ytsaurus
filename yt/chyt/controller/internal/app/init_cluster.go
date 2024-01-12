@@ -44,7 +44,7 @@ func NewClusterInitializer(config *ClusterInitializerConfig, initializerFactory 
 	if err != nil {
 		panic(err)
 	}
-	initializer.strawberryInitializer = initializerFactory(l, initializer.ytc)
+	initializer.strawberryInitializer = initializerFactory(l, initializer.ytc, config.StrawberryRoot)
 	return
 }
 

@@ -12,11 +12,13 @@ import (
 const (
 	DefaultDiscoveryV1Path = ypath.Path("//sys/clickhouse/cliques")
 	YTClickHouseUser       = "yt-clickhouse"
+	CHYTSQLObjectsUser     = "chyt-sql-objects"
 )
 
 type ClusterInitializer struct {
-	l   log.Logger
-	ytc yt.Client
+	l    log.Logger
+	ytc  yt.Client
+	root ypath.Path
 }
 
 func (initializer *ClusterInitializer) createNodesIfNotExist(ctx context.Context) error {
@@ -27,22 +29,22 @@ func (initializer *ClusterInitializer) createNodesIfNotExist(ctx context.Context
 	return err
 }
 
-func (initializer *ClusterInitializer) createYTClickHouseUserIfNotExists(ctx context.Context) error {
-	userPath := ypath.Path("//sys/users").Child(YTClickHouseUser)
+func (initializer *ClusterInitializer) createUserIfNotExists(ctx context.Context, user string) error {
+	userPath := ypath.Path("//sys/users").Child(user)
 	ok, err := initializer.ytc.NodeExists(ctx, userPath, nil)
 	if err != nil {
 		return err
 	}
 	if ok {
-		initializer.l.Info("system clickhouse user already exists", log.String("username", YTClickHouseUser))
+		initializer.l.Info("user already exists", log.String("user", user))
 		return nil
 	}
 
-	initializer.l.Info("creating user yt-clickhouse")
+	initializer.l.Info("creating user", log.String("user", user))
 
 	_, err = initializer.ytc.CreateObject(ctx, yt.NodeUser, &yt.CreateObjectOptions{
 		Attributes: map[string]any{
-			"name": YTClickHouseUser,
+			"name": user,
 		},
 	})
 	if err != nil {
@@ -51,10 +53,10 @@ func (initializer *ClusterInitializer) createYTClickHouseUserIfNotExists(ctx con
 	return nil
 }
 
-func (initializer *ClusterInitializer) addPermissionIfNeeded(ctx context.Context, path ypath.Path, acl yt.ACE) error {
+func (initializer *ClusterInitializer) addPermissionIfNeeded(ctx context.Context, user string, path ypath.Path, acl yt.ACE) error {
 	permissionsAreMissing := false
 	for _, permission := range acl.Permissions {
-		response, err := initializer.ytc.CheckPermission(ctx, YTClickHouseUser, permission, path, nil)
+		response, err := initializer.ytc.CheckPermission(ctx, user, permission, path, nil)
 		if err != nil {
 			return err
 		}
@@ -64,15 +66,19 @@ func (initializer *ClusterInitializer) addPermissionIfNeeded(ctx context.Context
 		}
 	}
 	if !permissionsAreMissing {
-		initializer.l.Info("enough permissions", log.String("path", path.String()), log.String("user", YTClickHouseUser))
+		initializer.l.Info("enough permissions", log.String("path", path.String()), log.String("user", user))
 		return nil
 	}
-	initializer.l.Info("setting permissions", log.String("path", path.String()), log.String("user", YTClickHouseUser))
+	initializer.l.Info("setting permissions", log.String("path", path.String()), log.String("user", user))
 	return initializer.ytc.SetNode(ctx, path.Attr("acl").Child("end"), acl, nil)
 }
 
 func (initializer *ClusterInitializer) setUpYTClickHouseUser(ctx context.Context) error {
-	initializer.l.Info("configuring ACLs for yt-clickhouse")
+	if err := initializer.createUserIfNotExists(ctx, YTClickHouseUser); err != nil {
+		return err
+	}
+
+	initializer.l.Info("configuring ACLs for user yt-clickhouse")
 
 	clickhouseACL := yt.ACE{
 		Action:   yt.ActionAllow,
@@ -82,7 +88,7 @@ func (initializer *ClusterInitializer) setUpYTClickHouseUser(ctx context.Context
 			yt.PermissionUse,
 		},
 	}
-	err := initializer.addPermissionIfNeeded(ctx, ypath.Path("//sys/clickhouse"), clickhouseACL)
+	err := initializer.addPermissionIfNeeded(ctx, YTClickHouseUser, "//sys/clickhouse", clickhouseACL)
 	if err != nil {
 		return err
 	}
@@ -94,7 +100,7 @@ func (initializer *ClusterInitializer) setUpYTClickHouseUser(ctx context.Context
 			yt.PermissionUse,
 		},
 	}
-	err = initializer.addPermissionIfNeeded(ctx, ypath.Path("//sys/accounts/sys"), sysACL)
+	err = initializer.addPermissionIfNeeded(ctx, YTClickHouseUser, ypath.Path("//sys/accounts/sys"), sysACL)
 	if err != nil {
 		return err
 	}
@@ -106,7 +112,38 @@ func (initializer *ClusterInitializer) setUpYTClickHouseUser(ctx context.Context
 			yt.PermissionCreate,
 		},
 	}
-	return initializer.addPermissionIfNeeded(ctx, ypath.Path("//sys/schemas/orchid"), orchidACL)
+	return initializer.addPermissionIfNeeded(ctx, YTClickHouseUser, ypath.Path("//sys/schemas/orchid"), orchidACL)
+}
+
+func (initializer *ClusterInitializer) setUpCHYTSQLObjectsUser(ctx context.Context) error {
+	if err := initializer.createUserIfNotExists(ctx, CHYTSQLObjectsUser); err != nil {
+		return err
+	}
+
+	initializer.l.Info("configuring ACLs for user chyt-sql-objects")
+
+	rootACL := yt.ACE{
+		Action:   yt.ActionAllow,
+		Subjects: []string{CHYTSQLObjectsUser},
+		Permissions: []yt.Permission{
+			yt.PermissionWrite,
+			yt.PermissionRead,
+			yt.PermissionRemove,
+		},
+	}
+	err := initializer.addPermissionIfNeeded(ctx, CHYTSQLObjectsUser, initializer.root, rootACL)
+	if err != nil {
+		return err
+	}
+
+	sysACL := yt.ACE{
+		Action:   yt.ActionAllow,
+		Subjects: []string{CHYTSQLObjectsUser},
+		Permissions: []yt.Permission{
+			yt.PermissionUse,
+		},
+	}
+	return initializer.addPermissionIfNeeded(ctx, CHYTSQLObjectsUser, ypath.Path("//sys/accounts/sys"), sysACL)
 }
 
 func (initializer *ClusterInitializer) InitializeCluster() error {
@@ -114,10 +151,10 @@ func (initializer *ClusterInitializer) InitializeCluster() error {
 	if err := initializer.createNodesIfNotExist(ctx); err != nil {
 		return err
 	}
-	if err := initializer.createYTClickHouseUserIfNotExists(ctx); err != nil {
+	if err := initializer.setUpYTClickHouseUser(ctx); err != nil {
 		return err
 	}
-	if err := initializer.setUpYTClickHouseUser(ctx); err != nil {
+	if err := initializer.setUpCHYTSQLObjectsUser(ctx); err != nil {
 		return err
 	}
 	return nil
@@ -127,9 +164,10 @@ func (initializer *ClusterInitializer) ACONamespace() string {
 	return "chyt"
 }
 
-func NewClusterInitializer(l log.Logger, ytc yt.Client) strawberry.ClusterInitializer {
+func NewClusterInitializer(l log.Logger, ytc yt.Client, root ypath.Path) strawberry.ClusterInitializer {
 	return &ClusterInitializer{
-		l:   l,
-		ytc: ytc,
+		l:    l,
+		ytc:  ytc,
+		root: root,
 	}
 }

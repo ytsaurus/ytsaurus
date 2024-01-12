@@ -31,7 +31,7 @@ func asMapNode(ysonNode any) (asMap map[string]any, err error) {
 	return
 }
 
-func getPatchedClickHouseConfig(speclet *Speclet) (config any, err error) {
+func (c Controller) getPatchedClickHouseConfig(oplet *strawberry.Oplet, speclet *Speclet) (config any, err error) {
 	config, err = cloneNode(speclet.ClickHouseConfig)
 	if err != nil {
 		return
@@ -76,6 +76,24 @@ func getPatchedClickHouseConfig(speclet *Speclet) (config any, err error) {
 	}
 	if _, ok := settings["max_temporary_non_const_columns"]; !ok {
 		settings["max_temporary_non_const_columns"] = 1234
+	}
+
+	if _, ok := configAsMap["user_defined_sql_objects_storage"]; !ok {
+		configAsMap["user_defined_sql_objects_storage"] = make(map[string]any)
+	}
+	sqlUDFStorage, err := asMapNode(configAsMap["user_defined_sql_objects_storage"])
+	if err != nil {
+		err = fmt.Errorf("invalid user_defined_sql_objects_storage config: %v", err)
+		return
+	}
+	if _, ok := sqlUDFStorage["path"]; ok {
+		err = fmt.Errorf("path in user_defined_sql_objects_storage config cannot be set by user")
+		return
+	} else {
+		sqlUDFStorage["path"] = c.sqlUDFDir(oplet.Alias())
+	}
+	if _, ok := sqlUDFStorage["enabled"]; !ok {
+		sqlUDFStorage["enabled"] = true
 	}
 
 	return
@@ -242,8 +260,12 @@ func (c Controller) artifactDir(alias string) ypath.Path {
 	return c.root.Child(alias).Child("artifacts")
 }
 
-func (c *Controller) createArtifactDirIfNotExists(ctx context.Context, alias string) error {
-	_, err := c.ytc.CreateNode(ctx, c.artifactDir(alias), yt.NodeMap,
+func (c Controller) sqlUDFDir(alias string) ypath.Path {
+	return c.root.Child(alias).Child("user_defined_sql_functions")
+}
+
+func (c *Controller) createOpaqueDirIfNotExists(ctx context.Context, dir ypath.Path) error {
+	_, err := c.ytc.CreateNode(ctx, dir, yt.NodeMap,
 		&yt.CreateNodeOptions{
 			IgnoreExisting: true,
 			Attributes: map[string]any{
@@ -256,7 +278,7 @@ func (c *Controller) createArtifactDirIfNotExists(ctx context.Context, alias str
 func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet, filePaths *[]ypath.Rich) error {
 	r := speclet.Resources
 
-	clickhouseConfig, err := getPatchedClickHouseConfig(speclet)
+	clickhouseConfig, err := c.getPatchedClickHouseConfig(oplet, speclet)
 	if err != nil {
 		return fmt.Errorf("invalid clickhouse config: %v", err)
 	}
@@ -283,9 +305,13 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 		}
 	}
 
-	err = c.createArtifactDirIfNotExists(ctx, oplet.Alias())
+	err = c.createOpaqueDirIfNotExists(ctx, c.artifactDir(oplet.Alias()))
 	if err != nil {
 		return fmt.Errorf("error creating artifact dir: %v", err)
+	}
+
+	if err := c.createOpaqueDirIfNotExists(ctx, c.sqlUDFDir(oplet.Alias())); err != nil {
+		return fmt.Errorf("error creating sql udf dir: %v", err)
 	}
 
 	var logRotationPolicy map[string]any
