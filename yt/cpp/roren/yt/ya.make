@@ -21,6 +21,7 @@ PEERDIR(
     yt/cpp/roren/interface
     yt/cpp/roren/yt/proto
     yt/cpp/mapreduce/client
+    yt/cpp/mapreduce/util
 )
 
 END()

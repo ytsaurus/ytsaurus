@@ -81,8 +81,6 @@ public:
             }
 
             YT_LOG_DEBUG("All operations was completed");
-
-            // tx->Commit();
         } catch (...) {
             // just to make sure that tx is aborted
             throw;

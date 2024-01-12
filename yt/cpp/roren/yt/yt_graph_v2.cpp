@@ -562,7 +562,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TInputTableNode
-    : public TYtGraphV2::TTableNode
+    : public virtual TYtGraphV2::TTableNode
 {
 public:
     TInputTableNode(TRowVtable vtable, IRawYtReadPtr rawYtRead)
@@ -628,7 +628,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOutputTableNode
-    : public TYtGraphV2::TTableNode
+    : public virtual TYtGraphV2::TTableNode
 {
 public:
     TOutputTableNode(TRowVtable vtable, IRawYtWritePtr rawYtWrite)
@@ -740,12 +740,13 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TIntermediateTableNode
-    : public TYtGraphV2::TTableNode
+    : public virtual TYtGraphV2::TTableNode
 {
 public:
     TIntermediateTableNode(TRowVtable vtable, TString temporaryDirectory, bool useProtoFormat)
         : TYtGraphV2::TTableNode(std::move(vtable))
         , TemporaryDirectory_(std::move(temporaryDirectory))
+        , Guid_(CreateGuidAsString())
         , UseProtoFormat_(useProtoFormat)
     { }
 
@@ -810,7 +811,7 @@ public:
             }
         }, OutputOf.Connector);
 
-        return TemporaryDirectory_ + "/" + tableName.Str();
+        return TemporaryDirectory_ + "/" + tableName.Str() + ".GUID-" + Guid_;
     }
 
     const ::google::protobuf::Descriptor* GetProtoDescriptor() const override
@@ -824,8 +825,11 @@ private:
         return std::make_shared<TIntermediateTableNode>(Vtable, TemporaryDirectory_, UseProtoFormat_);
     }
 
-private:
+protected:
     const TString TemporaryDirectory_;
+
+private:
+    const TString Guid_;
     bool UseProtoFormat_;
 };
 
@@ -833,41 +837,46 @@ private:
 
 class TTypedIntermediateTableNode
     : public TOutputTableNode
+    , public TIntermediateTableNode
 {
 public:
     TTypedIntermediateTableNode(TRowVtable vtable, TString temporaryDirectory, IRawYtWritePtr rawYtWrite)
-        : TOutputTableNode(std::move(vtable), rawYtWrite)
-        , TemporaryDirectory_(std::move(temporaryDirectory))
+        : TTableNode(vtable)
+        , TOutputTableNode(vtable, rawYtWrite)
+        , TIntermediateTableNode(
+            vtable,
+            temporaryDirectory,
+            TOutputTableNode::GetTableFormat() == ETableFormat::Proto)
     { }
 
     ETableType GetTableType() const override
     {
-        return ETableType::Intermediate;
+        return TIntermediateTableNode::GetTableType();
     }
 
-    virtual NYT::TRichYPath GetPath() const override
+    ETableFormat GetTableFormat() const override
     {
-        Y_ABORT_UNLESS(OutputOf.Operation);
+        return TOutputTableNode::GetTableFormat();
+    }
 
-        TStringStream tableName;
-        tableName << OutputOf.Operation->GetFirstName();
-        tableName << "." << std::visit([] (const auto& connector) {
-            using TType = std::decay_t<decltype(connector)>;
-            if constexpr (std::is_same_v<TMergeOutputConnector, TType>) {
-                return ToString("Merge");
-            } else if constexpr (std::is_same_v<TSortOutputConnector, TType>) {
-                return ToString("Sort");
-            } else if constexpr (std::is_same_v<TMapperOutputConnector, TType>) {
-                return ToString("Map.") + ToString(connector.MapperIndex) + "." + ToString(connector.NodeId);
-            } else if constexpr (std::is_same_v<TReducerOutputConnector, TType>) {
-                return ToString("Reduce.") + ToString(connector.NodeId);
-            } else {
-                static_assert(TDependentFalse<TType>);
-            }
-        }, OutputOf.Connector);
+    IRawParDoPtr CreateDecodingParDo() const override
+    {
+        return TOutputTableNode::CreateDecodingParDo();
+    }
 
-        auto path = RawYtWrite_->GetPath();
-        path.Path(TemporaryDirectory_ + "/" + tableName.Str());
+    IRawParDoPtr CreateWriteParDo(ssize_t tableIndex) const override
+    {
+        return TOutputTableNode::CreateWriteParDo(tableIndex);
+    }
+
+    IRawParDoPtr CreateEncodingParDo() const override
+    {
+        return TOutputTableNode::CreateEncodingParDo();
+    }
+
+    NYT::TRichYPath GetPath() const override
+    {
+        auto path = TIntermediateTableNode::GetPath();
         path.Schema(RawYtWrite_->GetSchema());
         if (!path.OptimizeFor_.Defined()) {
             path.OptimizeFor_ = NYT::EOptimizeForAttr::OF_SCAN_ATTR;
@@ -876,14 +885,16 @@ public:
         return path;
     }
 
-private:
-    std::shared_ptr<TTableNode> Clone() const override
+    const ::google::protobuf::Descriptor* GetProtoDescriptor() const override
     {
-        return std::make_shared<TTypedIntermediateTableNode>(Vtable, TemporaryDirectory_, RawYtWrite_);
+        return TOutputTableNode::GetProtoDescriptor();
     }
 
 private:
-    const TString TemporaryDirectory_;
+    std::shared_ptr<TTableNode> Clone() const override
+    {
+        return std::make_shared<TTypedIntermediateTableNode>(TIntermediateTableNode::Vtable, TemporaryDirectory_, RawYtWrite_);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2253,6 +2264,22 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
         }
     };
 
+    auto materializeIfIntermediateTable = [&client, this, nodeId] (const TTableNode* table) {
+        const auto* upcastedTable = dynamic_cast<const TIntermediateTableNode*>(table);
+        if (!upcastedTable) {
+            return;
+        }
+
+        IntermediateTables_.emplace_back(
+            MakeHolder<NYT::TTempTable>(
+                client,
+                "",
+                upcastedTable->GetPath().Path_,
+                NYT::TCreateOptions{}.Recursive(true).IgnoreExisting(true),
+                false),
+            nodeId);
+    };
+
     Y_ABORT_UNLESS(nodeId >= 0 && nodeId < std::ssize(PlainGraph_->Operations));
     const auto& operation = PlainGraph_->Operations[nodeId];
 
@@ -2288,10 +2315,14 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                     NYT::TMergeOperationSpec spec;
                     for (const auto *table : operation->InputTables) {
                         spec.AddInput(table->GetPath());
+
+                        materializeIfIntermediateTable(table);
                     }
                     Y_ABORT_UNLESS(std::ssize(operation->OutputTables) == 1);
                     for (const auto &[_, table] : operation->OutputTables) {
                         spec.Output(table->GetPath());
+
+                        materializeIfIntermediateTable(table);
                     }
                     return client->Merge(spec, operationOptions);
                 } else {
@@ -2314,6 +2345,8 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                             }
                         );
                         spec.AddInput(inputTable->GetPath());
+
+                        materializeIfIntermediateTable(inputTable);
                     }
 
                     switch (outputTable->GetTableType()) {
@@ -2331,6 +2364,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                             break;
                         }
                     }
+                    materializeIfIntermediateTable(outputTable);
 
                     spec.InputFormat(GetFormat(operation->InputTables));
                     spec.OutputFormat(GetFormat(operation->OutputTables));
@@ -2343,6 +2377,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                 Y_ABORT_UNLESS(operation->InputTables.size() == 1);
                 const auto* inputTable = operation->InputTables[0];
                 spec.AddInput(inputTable->GetPath());
+                materializeIfIntermediateTable(inputTable);
 
                 TParDoTreeBuilder tmpMapBuilder = mapOperation->GetMapperBuilder();
                 std::vector<IYtJobOutputPtr> jobOutputs;
@@ -2356,6 +2391,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                         output.Schema(outputTable->GetSchema());
                     }
                     spec.AddOutput(table->GetPath());
+                    materializeIfIntermediateTable(table);
                     auto nodeId = tmpMapBuilder.AddParDoVerifySingleOutput(
                         table->CreateEncodingParDo(),
                         mapperConnector.NodeId
@@ -2397,6 +2433,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
             auto tmpMapperBuilderList = mapReduceOperation->GetMapperBuilderList();
             for (const auto* inputTable : operation->InputTables) {
                 spec.AddInput(inputTable->GetPath());
+                materializeIfIntermediateTable(inputTable);
             }
 
             auto reducerBuilder = mapReduceOperation->GetReducerBuilder();
@@ -2407,6 +2444,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
             for (const auto& item : mapReduceOperation->OutputTables) {
                 const auto& connector = item.first;
                 const auto& outputTable = item.second;
+                materializeIfIntermediateTable(outputTable);
                 std::visit([&] (const auto& connector) {
                     using TType = std::decay_t<decltype(connector)>;
                     if constexpr (std::is_same_v<TType, TMergeOutputConnector>) {
@@ -2491,10 +2529,12 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
             Y_ABORT_UNLESS(std::ssize(operation->InputTables) == 1);
             for (const auto *table : operation->InputTables) {
                 spec.AddInput(table->GetPath());
+                materializeIfIntermediateTable(table);
             }
             Y_ABORT_UNLESS(std::ssize(operation->OutputTables) == 1);
             for (const auto &[_, table] : operation->OutputTables) {
                 spec.Output(table->GetPath());
+                materializeIfIntermediateTable(table);
             }
 
             auto rawYtSortedWrite = std::dynamic_pointer_cast<TSortOperationNode>(operation)->GetWrite();
@@ -2565,6 +2605,35 @@ std::set<TString> TYtGraphV2::GetEdgeDebugStringSet() const
         }
     }
     return result;
+}
+
+void TYtGraphV2::CreateWorkingDir(NYT::IClientBasePtr client) const
+{
+    client->Create(
+        Config_.GetWorkingDir(),
+        NYT::ENodeType::NT_MAP,
+        NYT::TCreateOptions{}
+            .Recursive(true)
+            .IgnoreExisting(true));
+}
+
+void TYtGraphV2::ClearIntermediateTables() const
+{
+    IntermediateTables_.clear();
+}
+
+void TYtGraphV2::LeaveIntermediateTables(NYT::IClientBasePtr client, NYT::ITransactionPtr tx, TOperationNodeId operationNodeId) const
+{
+    for (auto& [table, id] : IntermediateTables_) {
+        if (id == operationNodeId) {
+            auto path = table->Release();
+
+            client->Merge(
+                NYT::TMergeOperationSpec{}
+                    .AddInput(NYT::TRichYPath(path).TransactionId(tx->GetId()))
+                    .Output(path + "_failed"));
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

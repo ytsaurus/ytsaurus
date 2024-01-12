@@ -12,7 +12,8 @@ TTempTable::TTempTable(
     IClientBasePtr client,
     const TString& prefix,
     const TYPath& path,
-    const TCreateOptions& options)
+    const TCreateOptions& options,
+    bool needGuid)
     : Client_(client)
 {
     if (path) {
@@ -20,16 +21,17 @@ TTempTable::TTempTable(
             ythrow yexception() << "Path " << path << " does not exist";
         }
         Name_ = path;
-
     } else {
         Name_ = TConfig::Get()->RemoteTempTablesDirectory;
         Client_->Create(Name_, NT_MAP,
             TCreateOptions().IgnoreExisting(true).Recursive(true));
     }
 
-    Name_ += "/";
-    Name_ += prefix;
-    Name_ += CreateGuidAsString();
+    if (needGuid) {
+        Name_ += "/";
+        Name_ += prefix;
+        Name_ += CreateGuidAsString();
+    }
 
     Client_->Create(Name_, NT_TABLE, options);
 }

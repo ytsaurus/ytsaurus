@@ -18,7 +18,7 @@ class TDependencyRunner
 {
 public:
     TDependencyRunner(
-        NYT::IClientBasePtr tx,
+        NYT::IClientBasePtr client,
         std::shared_ptr<TYtGraphV2> ytGraph,
         i32 concurrencyLimit);
 
@@ -31,14 +31,12 @@ private:
         explicit TState(i32 concurrencyLimit);
 
         void WaitOperations();
+        void TryRethrow();
         void SignalCompletion();
-        void SignalError();
+        void SignalError(IYtGraph::TOperationNodeId operationNodeId);
 
         bool HasError() const;
-
-        void RegisterRunningOperation(IYtGraph::TOperationNodeId operationNodeId, ::NYT::IOperationPtr operation);
-        void UnregisterRunningOperation(IYtGraph::TOperationNodeId operationNodeId);
-        void AbortRunningOperations();
+        IYtGraph::TOperationNodeId GetErrorNodeId() const;
 
     public:
         i32 AvailableToRun;
@@ -49,15 +47,14 @@ private:
         ::NThreading::TPromise<void> Promise_;
         ::NThreading::TFuture<void> MainFuture_;
 
-        bool HasError_ = false;
-
-        THashMap<IYtGraph::TOperationNodeId, ::NYT::IOperationPtr> RunningOperations_;
+        std::optional<IYtGraph::TOperationNodeId> ErrorNodeId_;
     };
 
 private:
-    void StartAllAvailable(const TStartOperationContext& context);
+    void StartAllAvailable(NYT::ITransactionPtr tx, const TStartOperationContext& context);
 
     NThreading::TFuture<void> StartOperation(
+        NYT::ITransactionPtr tx,
         IYtGraph::TOperationNodeId operationNodeId,
         const TStartOperationContext& context);
 
@@ -67,9 +64,8 @@ private:
 private:
     TAdaptiveLock Lock_;
 
-    NYT::IClientBasePtr Tx_;
+    NYT::IClientBasePtr Client_;
     std::shared_ptr<TYtGraphV2> YtGraph_;
-    i32 ConcurrencyLimit_;
 
     THashMap<IYtGraph::TOperationNodeId, std::vector<IYtGraph::TOperationNodeId>> NextOperationMapping_;
     THashMap<IYtGraph::TOperationNodeId, ssize_t> DependencyCountMapping_;
@@ -84,7 +80,7 @@ using TDependencyRunnerPtr = ::NYT::TIntrusivePtr<TDependencyRunner>;
 ////////////////////////////////////////////////////////////////////////////////
 
 TDependencyRunnerPtr MakeDependencyRunner(
-    NYT::IClientBasePtr tx,
+    NYT::IClientBasePtr client,
     std::shared_ptr<TYtGraphV2> ytGraph,
     i32 concurrencyLimit);
 

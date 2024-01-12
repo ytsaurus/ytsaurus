@@ -4,6 +4,8 @@
 
 #include <yt/cpp/roren/yt/proto/config.pb.h>
 
+#include <yt/cpp/mapreduce/util/temp_table.h>
+
 #include <memory>
 #include <set>
 
@@ -49,9 +51,14 @@ public:
 
     std::set<TString> GetEdgeDebugStringSet() const;
 
+    void CreateWorkingDir(NYT::IClientBasePtr client) const;
+    void ClearIntermediateTables() const;
+    void LeaveIntermediateTables(NYT::IClientBasePtr client, NYT::ITransactionPtr tx, TOperationNodeId operationNodeId) const;
+
 private:
     std::unique_ptr<TPlainGraph> PlainGraph_;
     TYtPipelineConfig Config_;
+    mutable std::vector<std::pair<THolder<NYT::TTempTable>, TOperationNodeId>> IntermediateTables_;
 
     friend class TYtGraphV2Builder;
 };

@@ -7,8 +7,6 @@
 #include <library/cpp/yt/logging/logger.h>
 #include <library/cpp/yt/memory/ref_counted.h>
 
-#include <cstddef>
-
 namespace NRoren::NPrivate {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,7 +21,12 @@ TDependencyRunner::TState::TState(i32 concurrencyLimit)
 
 void TDependencyRunner::TState::WaitOperations()
 {
-    MainFuture_.GetValueSync();
+    MainFuture_.Wait();
+}
+
+void TDependencyRunner::TState::TryRethrow()
+{
+    MainFuture_.TryRethrow();
 }
 
 void TDependencyRunner::TState::SignalCompletion()
@@ -31,48 +34,30 @@ void TDependencyRunner::TState::SignalCompletion()
     Promise_.SetValue();
 }
 
-void TDependencyRunner::TState::SignalError()
+void TDependencyRunner::TState::SignalError(IYtGraph::TOperationNodeId operationNodeId)
 {
-    HasError_ = true;
+    ErrorNodeId_ = operationNodeId;
     Promise_.TrySetException(std::current_exception());
 }
 
 bool TDependencyRunner::TState::HasError() const
 {
-    return HasError_;
+    return ErrorNodeId_.has_value();
 }
 
-void TDependencyRunner::TState::RegisterRunningOperation(
-    IYtGraph::TOperationNodeId operationNodeId,
-    ::NYT::IOperationPtr operation)
+IYtGraph::TOperationNodeId TDependencyRunner::TState::GetErrorNodeId() const
 {
-    RunningOperations_[operationNodeId] = operation;
-}
-
-void TDependencyRunner::TState::UnregisterRunningOperation(IYtGraph::TOperationNodeId operationNodeId)
-{
-    RunningOperations_.erase(operationNodeId);
-}
-
-void TDependencyRunner::TState::AbortRunningOperations()
-{
-    for (const auto& [_, operation] : RunningOperations_) {
-        try {
-            operation->AbortOperation();
-        } catch (const ::NYT::TErrorResponse&) {
-        }
-    }
+    return ErrorNodeId_.value();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TDependencyRunner::TDependencyRunner(
-    NYT::IClientBasePtr tx,
+    NYT::IClientBasePtr client,
     std::shared_ptr<TYtGraphV2> ytGraph,
     i32 concurrencyLimit)
-    : Tx_(tx)
+    : Client_(std::move(client))
     , YtGraph_(ytGraph)
-    , ConcurrencyLimit_(concurrencyLimit)
     , State_(concurrencyLimit)
 {
     Init();
@@ -84,24 +69,41 @@ void TDependencyRunner::RunOperations(const TStartOperationContext& context)
         return;
     }
 
+    YtGraph_->CreateWorkingDir(Client_);
+
+    auto tx = Client_->StartTransaction();
+
     {
         auto guard = Guard(Lock_);
-        StartAllAvailable(context);
+        StartAllAvailable(tx, context);
     }
 
     State_.WaitOperations();
+
+    if (!State_.HasError()) {
+        YtGraph_->ClearIntermediateTables();
+
+        tx->Commit();
+    } else {
+        YtGraph_->LeaveIntermediateTables(Client_, tx, State_.GetErrorNodeId());
+
+        tx->Abort();
+
+        State_.TryRethrow();
+    }
 }
 
-void TDependencyRunner::StartAllAvailable(const TStartOperationContext& context)
+void TDependencyRunner::StartAllAvailable(ITransactionPtr tx, const TStartOperationContext& context)
 {
     for (
         ;
         State_.Cursor < std::ssize(OperationsAvailableToRun_) && State_.AvailableToRun > 0;
         ++State_.Cursor, --State_.AvailableToRun
     ) {
-        StartOperation(OperationsAvailableToRun_[State_.Cursor], context).Subscribe(
+        StartOperation(tx, OperationsAvailableToRun_[State_.Cursor], context).Subscribe(
             [
                 self = ::NYT::MakeStrong(this),
+                tx,
                 operationNodeId = State_.Cursor,
                 context
             ] (const ::NThreading::TFuture<void>& operationFuture) {
@@ -112,8 +114,6 @@ void TDependencyRunner::StartAllAvailable(const TStartOperationContext& context)
                 if (state.HasError()) {
                     return;
                 }
-
-                state.UnregisterRunningOperation(operationNodeId);
 
                 try {
                     operationFuture.TryRethrow();
@@ -126,24 +126,22 @@ void TDependencyRunner::StartAllAvailable(const TStartOperationContext& context)
                     if (state.Completed == std::ssize(self->OperationsAvailableToRun_)) {
                         state.SignalCompletion();
                     } else {
-                        self->StartAllAvailable(context);
+                        self->StartAllAvailable(tx, context);
                     }
                 } catch (...) {
-                    state.AbortRunningOperations();
-                    state.SignalError();
+                    state.SignalError(operationNodeId);
                 }
             });
     }
 }
 
 ::NThreading::TFuture<void> TDependencyRunner::StartOperation(
+    ITransactionPtr tx,
     IYtGraph::TOperationNodeId operationNodeId,
     const TStartOperationContext& context)
 {
-    auto operation = YtGraph_->StartOperation(Tx_, operationNodeId, context);
+    auto operation = YtGraph_->StartOperation(tx, operationNodeId, context);
     YT_LOG_DEBUG("Operation was started (OperationId: %v)", operation->GetId());
-
-    State_.RegisterRunningOperation(operationNodeId, operation);
 
     return operation->Watch();
 }
@@ -184,11 +182,11 @@ void TDependencyRunner::CompleteNext(IYtGraph::TOperationNodeId operationNodeId)
 ////////////////////////////////////////////////////////////////////////////////
 
 TDependencyRunnerPtr MakeDependencyRunner(
-    NYT::IClientBasePtr tx,
+    NYT::IClientBasePtr client,
     std::shared_ptr<TYtGraphV2> ytGraph,
     i32 concurrencyLimit)
 {
-    return ::NYT::New<TDependencyRunner>(tx, ytGraph, concurrencyLimit);
+    return ::NYT::New<TDependencyRunner>(client, ytGraph, concurrencyLimit);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

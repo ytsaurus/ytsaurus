@@ -13,7 +13,8 @@ public:
         IClientBasePtr client,
         const TString& prefix = {},
         const TYPath& path = {},
-        const TCreateOptions& options = {});
+        const TCreateOptions& options = {},
+        bool needGuid = true);
 
     TTempTable(const TTempTable&) = delete;
     TTempTable& operator=(const TTempTable&) = delete;

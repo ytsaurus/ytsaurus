@@ -18,6 +18,7 @@ target_link_libraries(cpp-roren-yt PUBLIC
   cpp-roren-interface
   roren-yt-proto
   cpp-mapreduce-client
+  cpp-mapreduce-util
 )
 target_sources(cpp-roren-yt PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/base_state.cpp
