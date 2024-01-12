@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup
 
-from yt_commands import authors, create, read_table, write_table, map
+from yt_commands import authors, create, read_table, write_table, map, merge, get
 
 from yt_type_helpers import optional_type, list_type
 
@@ -585,6 +585,66 @@ class TestMapArrowFormat(YTEnvSetup):
         column_names = table2.column_names
         assert column_names[0] == "column"
         assert table2[column_names[0]].to_pylist() == [53, 42, 179]
+
+    @authors("nadya02")
+    def test_read_table_with_different_chunk_meta(self):
+        schema1 = [
+            {"name": "string", "type_v3": "string"},
+            {"name": "int", "type_v3": "int64"},
+        ]
+
+        schema2 = [
+            {"name": "int", "type_v3": "int64"},
+            {"name": "string", "type_v3": "string"},
+        ]
+
+        create("table", "//tmp/table1", attributes={
+            "schema": schema1,
+            "optimize_for": "scan",
+        }, force=True)
+
+        create("table", "//tmp/table2", attributes={
+            "schema": schema2,
+            "optimize_for": "scan",
+        }, force=True)
+
+        write_table("//tmp/table1", [{
+            "int": 53,
+            "string": "table1",
+        }])
+
+        write_table("//tmp/table2", [{
+            "int": -82,
+            "string": "table2",
+        }])
+
+        create("table", "//tmp/merged_table", attributes={
+            "optimize_for": "lookup",
+        }, force=True)
+
+        merge(in_=["//tmp/table1", "//tmp/table2"], out="//tmp/merged_table")
+
+        expected_table = [
+            {'string': 'table1', 'int': 53},
+            {'string': 'table2', 'int': -82},
+        ]
+
+        assert read_table("//tmp/merged_table") == expected_table
+
+        assert get("//tmp/table1/@chunk_count") == 1
+        assert get("//tmp/table2/@chunk_count") == 1
+        assert get("//tmp/merged_table/@chunk_count") == 2
+
+        arrow_dump = read_table("//tmp/merged_table", output_format=yson.YsonString(b"arrow"))
+        parsed_table = parse_arrow_stream(arrow_dump)
+
+        column_names = parsed_table.column_names
+
+        assert column_names[0] == "string"
+        assert parsed_table[column_names[0]].to_pylist() == [b'table1', b'table2']
+
+        assert column_names[1] == "int"
+        assert parsed_table[column_names[1]].to_pylist() == [53, -82]
 
 
 @authors("nadya73")
