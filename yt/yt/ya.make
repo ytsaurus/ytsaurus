@@ -3,7 +3,7 @@ RECURSE(
     benchmarks
     client
     core
-    experiments/public
+    experiments
     library
     python
     tools
@@ -12,7 +12,6 @@ RECURSE(
 
 IF (NOT OPENSOURCE)
     RECURSE(
-        experiments
         fuzz
         orm
         packages/tests_package
