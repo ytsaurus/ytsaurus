@@ -70,9 +70,9 @@ static const TTableSchemaPtr BigRTConsumerTableSchema = New<TTableSchema>(std::v
 void TConsumerMeta::Register(TRegistrar registrar)
 {
     registrar.Parameter("cumulative_data_weight", &TThis::CumulativeDataWeight)
-        .Optional();
+        .Default();
     registrar.Parameter("offset_timestamp", &TThis::OffsetTimestamp)
-        .Optional();
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -458,6 +458,7 @@ private:
                 YT_ABORT();
             }
 
+            // NB: in BigRT offsets encode the last read row, while we operate with the first unread row.
             auto partitionInfo = TPartitionInfo{
                 .PartitionIndex = FromUnversionedValue<i64>(partitionIndexValue),
                 .NextRowIndex = offset,
@@ -465,12 +466,12 @@ private:
 
             if (metaColumnId) {
                 const auto& metaValue = row[*metaColumnId];
+                YT_VERIFY(metaValue.Type == EValueType::Any || metaValue.Type == EValueType::Null);
                 if (metaValue.Type == EValueType::Any) {
                     partitionInfo.ConsumerMeta = ConvertTo<TConsumerMeta>(FromUnversionedValue<TYsonString>(metaValue));
                 }
             }
 
-            // NB: in BigRT offsets encode the last read row, while we operate with the first unread row.
             result.push_back(std::move(partitionInfo));
         }
 
