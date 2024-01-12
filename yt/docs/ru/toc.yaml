@@ -238,8 +238,8 @@ items:
               href: user-guide/data-processing/chyt/cliques/start.md
             - name: Клика в интерфейсе {{product-name}}
               href: user-guide/data-processing/chyt/cliques/ui.md
-            - name: Администрирование приватной клики
-              href: user-guide/data-processing/chyt/cliques/administration.md
+            - name: Права доступа
+              href: user-guide/data-processing/chyt/cliques/access.md
             - name: Ресурсы и вытеснение
               href: user-guide/data-processing/chyt/cliques/resources.md
           - name: CLI и Python API
@@ -260,8 +260,6 @@ items:
             href: user-guide/data-processing/chyt/cliques/controller.md
           - name: Производительность и рекомендации
             href: user-guide/data-processing/chyt/reference/performance.md
-          - name: Диагностика запросов
-            href: user-guide/data-processing/chyt/queries/diagnostics.md
           - name: FAQ
             href: user-guide/data-processing/chyt/faq-chyt.md
         - name: SPYT

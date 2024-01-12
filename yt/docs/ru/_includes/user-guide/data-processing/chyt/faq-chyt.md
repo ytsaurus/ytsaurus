@@ -39,7 +39,7 @@ toDate(reinterpretAsInt64(reverse(unhex(substring(hex(payment_dt), 1, 8)))))
 ```
 ------
 
-#### **Q: Как переложить таблицу на SSD?**
+#### **Q: Как переложить таблицу на SSD?** { #how-to-set-ssd }
 
 **A:** Для начала необходимо убедиться, что в вашем аккаунте в {{product-name}} квота в [медиуме](../../../../user-guide/storage/media.md) **ssd_blobs**. Для этого можно перейти на {% if audience == "public" %}страницу **Аккаунтов**{% else %}[страницу аккаунтов](https://yt.yandex-team.ru/hahn/accounts/general?medium=ssd_blobs){% endif %}, переключить тип медиума на **ssd_blobs** и ввести название своего аккаунта. Если квоты в медиуме `ssd_blobs` нет, то ее стоит запросить у администратора.
 

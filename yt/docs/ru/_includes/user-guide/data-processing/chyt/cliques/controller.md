@@ -9,7 +9,7 @@ Controller — это сервис, который берет на себя за
 - Запуск и перезапуск Vanilla-операций клики в случае их аварийного завершения из-за неполадок или работ на кластере.
 
 {% if audience == "internal" %}
-Также возможна интеграция с IDM для [выдачи прав на клику](../../../../../user-guide/data-processing/chyt/cliques/administration.md#access).
+Также есть интеграция с IDM для [выдачи прав на клику](../../../../../user-guide/data-processing/chyt/cliques/access.md).
 {% else %}{% endif %}
 
 ## Controller CLI { #cli }
@@ -34,7 +34,7 @@ yt --proxy <cluster_name> clickhouse ctl list
 {% if audience == "internal" %}
 В течение пары минут после [создания клики](#create) на создателя будут выданы роли **responsible**, **use** и **manage** на клику в IDM.
 {% else %}
-Права на клику хранятся по пути `//sys/access_control_object_namespaces/chyt/<alias>/@principal_acl`. Атрибут `@principal_acl` замените на необходимые права: 
+Права на клику хранятся по пути `//sys/access_control_object_namespaces/chyt/<alias>/@principal_acl`. Атрибут `@principal_acl` замените на необходимые права:
 
 - `use` — использовать клику (делать запросы);
 - `read` — читать конфигурацию клики;
@@ -66,7 +66,7 @@ yt --proxy <cluster_name> clickhouse ctl list
 Пример результата:
 
 ```bash
-yt clickhouse ctl exists <clique_name>
+$ yt clickhouse ctl exists test_clique_name
 %true
 ```
 
@@ -76,7 +76,7 @@ yt clickhouse ctl exists <clique_name>
 
 Пример результата:
 ```bash
-yt clickhouse ctl status <clique_name>
+$ yt clickhouse ctl status test_clique_name
 {
     "status" = "Waiting for restart: speclet changed";
     "operation_state" = "running";
@@ -97,7 +97,7 @@ yt clickhouse ctl status <clique_name>
 Пример результата:
 
 ```bash
-yt clickhouse ctl list
+$ yt clickhouse ctl list
 [
     "<clique_name_1>";
     "<clique_name_2>";
@@ -129,7 +129,7 @@ yt clickhouse ctl set-option chyt_version '"stable-2.08"'
 
 Опциональный аргумент `--alias <alias>` задает алиас клики, к которой необходимо применить изменения. Данный аргумент может быть опущен, в таком случае его значение будет взято из переменной окружения `CHYT_ALIAS`. Если и оно пусто, то будет возвращена ошибка.
 
-Все выставленные опции можно посмотреть в узле speclet, находящимся по пути `//sys/strawberry/chyt/<alias>/speclet`.
+Все выставленные опции можно посмотреть с помощью команды [get-speclet](#get-speclet). Описание всех доступных опций приведено в разделе [Конфигурация](../reference/configuration.md#options).
 
 ### Remove-option { #remove_option }
 
@@ -141,7 +141,7 @@ yt clickhouse ctl set-option chyt_version '"stable-2.08"'
 
 Пример результата:
 ```bash
-yt clickhouse ctl get-speclet --alias <clique_name>
+$ yt clickhouse ctl get-speclet --alias test_clique_name
 {
     "family" = "chyt";
     "stage" = "production";
@@ -158,7 +158,7 @@ yt clickhouse ctl get-speclet --alias <clique_name>
 
 Пример:
 ```bash
-yt clickhouse ctl set-speclet '{instance_count=2;pool="chyt";}' --alias <clique_name>
+yt clickhouse ctl set-speclet '{instance_count=2;pool="chyt";}' --alias test_clique_name
 ```
 
 ### Start { #start }
@@ -171,11 +171,11 @@ yt clickhouse ctl set-speclet '{instance_count=2;pool="chyt";}' --alias <clique_
 
 Пример результата:
 ```bash
-yt clickhouse ctl start <clique_name>
+$ yt clickhouse ctl start test_clique_name
 {
     "status" = "Ok";
     "operation_state" = "initializing";
-    "operation_url" = "https://yt.yandex-team.ru/hume/operations/6a6da53b-f553cc4a-3ff03e8-889cb9ee";
+    "operation_url" = ...;
 }
 ```
 
@@ -185,25 +185,5 @@ yt clickhouse ctl start <clique_name>
 
 ## Доступные опции { #options }
 
-Опции клики, доступные для установки через команду `set-option` (в квадратных скобках указаны значения по умолчанию):
+Опции клики, доступные для установки через команду `set-option`, можно посмотреть в разделе [Конфигурация](../reference/configuration.md#options).
 
-- `active` [`%false`] &mdash; если опция включена, контроллер будет пытаться запустить соответствующую клике Vanilla-операцию. При значении `%false` клика будет неактивной: не будет обрабатывать запросы, при этом также не будет тратить ресурсов вычислительного пула. Может быть полезна для временного выключения клики с сохранением ее конфигурации.
-
-- `pool` — название вычислительного пула, в котором необходимо запускать операцию клики. Для включения опции пользователю необходимо иметь права **use** на указанный вычислительный пул. Включение данной опции обязательно для запуска операции клики.
-
-- `enable_geodata` [`%true`] &mdash; автоматически настроить системные словари, необходимые для работы [некоторых Geo-функций  ClickHouse](https://clickhouse.com/docs/en/sql-reference/functions/ym-dict-functions/).
-
-- `restart_on_speclet_change` [`%true`] &mdash; если опция включена, клика будет автоматически перезапускаться при любой реконфигурации (изменении спеклета). В противном случае для применения настроек клики необходимо перезапустить клику вручную.
-
-- `query_settings` &mdash; словарь с настройками по умолчанию для всех запросов в клику.
-
-- `yt_config` &mdash; словарь с конфигурацией {{product-name}} части инстансов CHYT. Данная часть конфигурации будет записана в сгенерированную конфигурацию инстансов as is. Использование данной опции крайне не рекомендуется, так как структура данной конфигурации очень запутанна. По возможности необходимо пользоваться другими опциями, которые будут задавать необходимые изменения в конфигурации более простым способом.
-
-- `clickhouse_config` &mdash; словарь с конфигурацией ClickHouse части инстансов CHYT. Аналогично опции `yt_config`. Использование крайне не рекомендуется.
-
-- `instance_count` [1] &mdash; количество инстансов клики.
-
-- `instance_cpu` [16] &mdash; количество CPU, которое будет выделено под каждый инстанс клики.
-- `instance_total_memory` [71940702208 (67 Gib)] — количество оперативной памяти в байтах, которое будет выделено под каждый инстанс клики.
-- `clique_cpu` &mdash; суммарное количество CPU, выделенное под клику. Не может быть использовано вместе с `instance_cpu`
-- `clique_memory` &mdash; суммарное количество памяти, выделенное под клику. Не может быть использовано вместе с `instance_total_memory`.

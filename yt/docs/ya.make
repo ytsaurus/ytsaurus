@@ -8,6 +8,7 @@ DOCS_VARS(
     prestable-cluster=<cluster-name>
     testing-cluster=<cluster-name>
     production-cluster=<cluster-name>
+    package-name=ytsaurus-client
 )
 
 DOCS_DIR(

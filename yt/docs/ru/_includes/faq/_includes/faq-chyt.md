@@ -39,7 +39,7 @@ https://yql.yandex-team.ru/Operations/XVZ8JglcTpHZhVoH3iFVAeixaazEBY0NtJKv0zUIQm
 
 ------
 
-#### **Q: Как переложить таблицу на SSD?**
+#### **Q: Как переложить таблицу на SSD?** { #how-to-set-ssd }
 
 **A:** Для начала необходимо убедиться, что в вашем аккаунте в {{product-name}} квота в медиуме **ssd_blobs**. Для этого можно на {% if audience == "public" %}странице аккаунтов{% else %}[странице аккаунтов](https://yt.yandex-team.ru/hahn/accounts/general?medium=ssd_blobs){% endif %} переключить тип медиума на **ssd_blobs** и ввести название своего аккаунта. Если квоты в медиуме **ssd_blobs** нет, то ее можно запросить через специальную форму.
 
