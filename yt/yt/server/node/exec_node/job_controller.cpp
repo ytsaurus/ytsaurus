@@ -150,46 +150,42 @@ public:
             Bootstrap_->GetJobInvoker(),
             BIND_NO_PROPAGATE(&TJobController::OnProfiling, MakeWeak(this)),
             Config_->ProfilingPeriod);
+        ProfilingExecutor_->Start();
 
         ResourceAdjustmentExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetJobInvoker(),
             BIND_NO_PROPAGATE(&TJobController::AdjustResources, MakeWeak(this)),
             Config_->ResourceAdjustmentPeriod);
+        ResourceAdjustmentExecutor_->Start();
 
         RecentlyRemovedJobCleaner_ = New<TPeriodicExecutor>(
             Bootstrap_->GetJobInvoker(),
             BIND_NO_PROPAGATE(&TJobController::CleanRecentlyRemovedJobs, MakeWeak(this)),
             Config_->RecentlyRemovedJobsCleanPeriod);
+        RecentlyRemovedJobCleaner_->Start();
 
         // Do not set period initially to defer start.
         JobProxyBuildInfoUpdater_ = New<TPeriodicExecutor>(
             Bootstrap_->GetJobInvoker(),
             BIND_NO_PROPAGATE(&TJobController::UpdateJobProxyBuildInfo, MakeWeak(this)));
+        // Start nominally.
+        JobProxyBuildInfoUpdater_->Start();
 
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(
-            BIND_NO_PROPAGATE(&TJobController::OnDynamicConfigChanged, MakeWeak(this)));
-    }
-
-    void Start() override
-    {
         // Get ready event before actual start.
         auto buildInfoReadyEvent = JobProxyBuildInfoUpdater_->GetExecutedEvent();
 
         // Actual start and fetch initial job proxy build info immediately. No need to call ScheduleOutOfBand.
         JobProxyBuildInfoUpdater_->SetPeriod(Config_->JobProxyBuildInfoUpdatePeriod);
 
-        ProfilingExecutor_->Start();
-        ResourceAdjustmentExecutor_->Start();
-        RecentlyRemovedJobCleaner_->Start();
-        // Start nominally.
-        JobProxyBuildInfoUpdater_->Start();
-
         // Wait synchronously for one update in order to get some reasonable value in CachedJobProxyBuildInfo_.
         // Note that if somebody manages to request orchid before this field is set, this will result to nullptr
         // dereference.
         WaitFor(buildInfoReadyEvent)
             .ThrowOnError();
+
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        dynamicConfigManager->SubscribeConfigChanged(
+            BIND_NO_PROPAGATE(&TJobController::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     TJobPtr FindJob(TJobId jobId) const override

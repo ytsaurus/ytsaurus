@@ -464,6 +464,10 @@ private:
             const auto& nativeConnection = Bootstrap_->GetClient()->GetNativeConnection();
             WaitFor(nativeConnection->GetMediumDirectorySynchronizer()->RecentSync())
                 .ThrowOnError();
+            auto mediumDirectory = nativeConnection->GetMediumDirectory();
+
+            const auto& execNodeBootstrap = Bootstrap_->GetExecNodeBootstrap();
+            execNodeBootstrap->GetSlotManager()->InitMedia(mediumDirectory);
         }
     }
 
