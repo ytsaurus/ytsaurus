@@ -523,7 +523,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         wait(check)
 
     @authors("eshcherbin")
-    def test_high_queue_average_wait_time(self):
+    def test_high_queue_total_time_estimate(self):
         op = run_test_vanilla(
             command="echo 'pass' >/dev/null",
             spec={
@@ -534,7 +534,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             job_count=30,
         )
 
-        wait(lambda: "high_queue_average_wait_time" in op.get_alerts())
+        wait(lambda: "high_queue_total_time_estimate" in op.get_alerts())
 
         op.abort()
 

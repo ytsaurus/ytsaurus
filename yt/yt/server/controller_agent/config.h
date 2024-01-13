@@ -191,7 +191,7 @@ public:
 
     // High queue average wait time alert is triggered
     // if queues with average wait time above this threshold are found.
-    TDuration QueueAverageWaitTimeThreshold;
+    TDuration QueueTotalTimeEstimateThreshold;
 
     REGISTER_YSON_STRUCT(TAlertManagerConfig);
 
@@ -1086,7 +1086,7 @@ public:
     EOperationControllerQueue ScheduleJobControllerQueue;
     EOperationControllerQueue JobEventsControllerQueue;
 
-    TDuration ScheduleJobWaitTimeThreshold;
+    TDuration ScheduleJobTotalTimeThreshold;
 
     // TODO(levysotsky): Get rid of this option when everybody migrates to new operation ACLs.
     bool AllowUsersGroupReadIntermediateData;

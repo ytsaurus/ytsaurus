@@ -4588,16 +4588,15 @@ bool TOperationControllerBase::IsThrottling() const noexcept
     // Check invoker wait time.
     bool waitTimeThrottling = false;
     {
-        // TODO(eshcherbin): Change to max wait time throttling because average wait time doesn't make sense.
         auto scheduleJobInvokerStatistics = GetInvokerStatistics(Config->ScheduleJobControllerQueue);
-        auto scheduleJobWaitTime = scheduleJobInvokerStatistics.AverageWaitTime;
-        waitTimeThrottling = scheduleJobWaitTime > Config->ScheduleJobWaitTimeThreshold;
+        auto scheduleJobWaitTime = scheduleJobInvokerStatistics.TotalTimeEstimate;
+        waitTimeThrottling = scheduleJobWaitTime > Config->ScheduleJobTotalTimeThreshold;
 
         if (waitTimeThrottling || forceLogging) {
             YT_LOG_DEBUG("Throttling statistics for wait time "
                 "(ScheduleJobWaitTime: %v, Threshold: %v, WaitTimeThrottling: %v)",
                 scheduleJobWaitTime,
-                Config->ScheduleJobWaitTimeThreshold,
+                Config->ScheduleJobTotalTimeThreshold,
                 waitTimeThrottling);
         }
     }
