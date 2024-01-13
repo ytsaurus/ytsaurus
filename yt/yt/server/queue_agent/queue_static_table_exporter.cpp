@@ -446,7 +446,8 @@ private:
         chunkSpecFetcher->Add(
             QueueObject_.ObjectId,
             QueueObject_.ExternalCellTag,
-            QueueObject_.ChunkCount);
+            // XXX(achulkov2, gritukan): YT-11825
+            /*chunkCount*/ -1);
 
         WaitFor(chunkSpecFetcher->Fetch())
             .ThrowOnError();
