@@ -67,10 +67,17 @@ def extract_statistic(job_statistics, path, aggr="sum", default=None):
     return sum([item["summary"][aggr] for item in statistics_by_path])
 
 
+def extract_cumulative_memory(job_statistics):
+    MB = 10 ** 6
+    job_proxy_memory = extract_statistic(job_statistics, "job_proxy/cumulative_memory_mb_sec", default=0) * MB
+    user_job_memory = extract_statistic(job_statistics, "user_job/cumulative_memory_mb_sec", default=0) * MB
+    return job_proxy_memory + user_job_memory
+
+
 def extract_cumulative_max_memory(job_statistics):
-    job_proxy_memory_reserve = extract_statistic(job_statistics, "job_proxy/cumulative_max_memory", default=0)
-    user_job_memory_reserve = extract_statistic(job_statistics, "user_job/cumulative_max_memory", default=0)
-    return job_proxy_memory_reserve + user_job_memory_reserve
+    job_proxy_max_memory = extract_statistic(job_statistics, "job_proxy/cumulative_max_memory", default=0)
+    user_job_max_memory = extract_statistic(job_statistics, "user_job/cumulative_max_memory", default=0)
+    return job_proxy_max_memory + user_job_max_memory
 
 
 def extract_cumulative_used_cpu(job_statistics):
@@ -131,6 +138,7 @@ class OperationInfo:
     accumulated_resource_usage_cpu: typing.Optional[float]
     accumulated_resource_usage_memory: typing.Optional[float]
     accumulated_resource_usage_gpu: typing.Optional[float]
+    cumulative_memory: typing.Optional[float]
     cumulative_max_memory: typing.Optional[float]
     cumulative_used_cpu: typing.Optional[float]
     cumulative_gpu_utilization: typing.Optional[float]
@@ -253,6 +261,7 @@ def merge_info(info_base, info_update):
     info_base.accumulated_resource_usage_memory += info_update.accumulated_resource_usage_memory
     info_base.accumulated_resource_usage_gpu += info_update.accumulated_resource_usage_gpu
 
+    info_base.cumulative_memory += info_update.cumulative_memory
     info_base.cumulative_max_memory += info_update.cumulative_max_memory
     info_base.cumulative_used_cpu += info_update.cumulative_used_cpu
     info_base.cumulative_gpu_utilization += info_update.cumulative_gpu_utilization
@@ -363,6 +372,7 @@ class FilterAndNormalizeEvents(TypedJob):
                 cumulative_used_cpu=0.0,
                 cumulative_gpu_utilization=0.0,
                 cumulative_max_memory=0.0,
+                cumulative_memory=0.0,
                 job_statistics=None,
                 start_time=None,
                 finish_time=None,
@@ -416,6 +426,7 @@ class FilterAndNormalizeEvents(TypedJob):
                 cumulative_gpu_utilization=extract_cumulative_gpu_utilization(job_statistics),
                 cumulative_used_cpu=extract_cumulative_used_cpu(job_statistics),
                 cumulative_max_memory=extract_cumulative_max_memory(job_statistics),
+                cumulative_memory=extract_cumulative_memory(job_statistics),
                 job_statistics=yson.dumps(job_statistics),
                 start_time=date_string_to_timestamp(input_row["start_time"]),
                 finish_time=date_string_to_timestamp(input_row["finish_time"]),

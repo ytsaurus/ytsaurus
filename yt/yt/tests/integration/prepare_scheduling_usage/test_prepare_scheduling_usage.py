@@ -42,6 +42,7 @@ class OperationInfo:
     accumulated_resource_usage_cpu: typing.Optional[float]
     accumulated_resource_usage_memory: typing.Optional[float]
     accumulated_resource_usage_gpu: typing.Optional[float]
+    cumulative_memory: typing.Optional[float]
     cumulative_max_memory: typing.Optional[float]
     cumulative_used_cpu: typing.Optional[float]
     cumulative_gpu_utilization: typing.Optional[float]
@@ -80,12 +81,14 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
     def _check_operation_info(self, rows, op_id):
         accumulated_resource_usage_memory = 0.0
         accumulated_resource_usage_cpu = 0.0
+        cumulative_memory = 0.0
         cumulative_max_memory = 0.0
         cumulative_used_cpu = 0.0
 
         for index, row in enumerate(rows):
             accumulated_resource_usage_cpu += row["accumulated_resource_usage_cpu"]
             accumulated_resource_usage_memory += row["accumulated_resource_usage_memory"]
+            cumulative_memory += row["cumulative_memory"]
             cumulative_max_memory += row["cumulative_max_memory"]
             cumulative_used_cpu += row["cumulative_used_cpu"]
             assert row["operation_id"] == op_id
@@ -100,6 +103,9 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
                 assert row["operation_state"] == "completed"
 
         assert 5.0 <= accumulated_resource_usage_cpu
+
+        assert cumulative_memory > 0
+        assert cumulative_memory <= accumulated_resource_usage_memory
 
         assert cumulative_max_memory > 0
         assert cumulative_max_memory <= accumulated_resource_usage_memory
