@@ -69,6 +69,8 @@ public:
     //! Initializes slots etc.
     void Initialize();
 
+    void Start();
+
     TFuture<void> InitializeEnvironment();
 
     void OnDynamicConfigChanged(

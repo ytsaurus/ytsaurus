@@ -197,6 +197,9 @@ public:
             "/disk_monitoring",
             CreateVirtualNode(DiskChangeChecker_->GetOrchidService()));
 
+        SlotManager_->Start();
+        JobController_->Start();
+
         JobProxySolomonExporter_->Register("/solomon/job_proxy", GetHttpServer());
         JobProxySolomonExporter_->Start();
 
