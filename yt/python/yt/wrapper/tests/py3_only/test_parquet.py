@@ -184,7 +184,7 @@ class TestParquet(object):
             for j in range(10):
                 chunk.append({
                     "string": generate_random_string(random.randint(1, 20)),
-                    "int": random.randint(1, 1e9),
+                    "int": random.randint(1, 1_000_000_000),
                     "enum_string": random.choice(enum_array),
                     "opt_string": random.choice([None, generate_random_string(random.randint(1, 20))]),
                     "double": random.uniform(0, 1e9),
