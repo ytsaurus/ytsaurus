@@ -93,7 +93,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        WaitFor(UserCache_->Get(user))
+        WaitForFast(UserCache_->Get(user))
             .ThrowOnError();
     }
 

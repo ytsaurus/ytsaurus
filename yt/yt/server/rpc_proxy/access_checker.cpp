@@ -60,10 +60,10 @@ public:
         auto path = Config_->UseAccessControlObjects
             ? Format("%v/%v/principal", Config_->PathPrefix, *proxyRole)
             : Format("%v/%v", Config_->PathPrefix, *proxyRole);
-        auto error = WaitFor(Cache_->Get(TPermissionKey{
+        auto error = WaitForFast(Cache_->Get(TPermissionKey{
             .Object = path,
             .User = user,
-            .Permission = EPermission::Use
+            .Permission = EPermission::Use,
         }));
 
         if (error.IsOK()) {

@@ -911,7 +911,7 @@ private:
                 return VoidFuture;
             }
 
-            auto hunkTableInfo = TableSession_->GetHunkTableInfo();
+            const auto& hunkTableInfo = TableSession_->GetHunkTableInfo();
             RandomHunkTabletInfo_ = hunkTableInfo->GetRandomMountedTablet();
 
             auto cellChannel = transaction->Client_->GetCellChannelOrThrow(RandomHunkTabletInfo_->CellId);
@@ -921,18 +921,22 @@ private:
             req->set_mount_revision(RandomHunkTabletInfo_->MountRevision);
 
             auto payloadCount = std::ssize(HunkPayloads_);
-            auto payloadHolder = MakeSharedRangeHolder(transaction);
+            auto payloadHolder = MakeSharedRangeHolder(std::move(transaction));
+            req->Attachments().reserve(payloadCount);
             for (const auto& payload : HunkPayloads_) {
-                req->Attachments().push_back(TSharedRef(payload, payloadHolder));
+                req->Attachments().push_back(TSharedRef(payload, std::move(payloadHolder)));
             }
+
             return req->Invoke().Apply(BIND([this, payloadCount]
                 (const TTabletServiceProxy::TErrorOrRspWriteHunksPtr& rspOrError) mutable {
                     if (!rspOrError.IsOK()) {
                         THROW_ERROR_EXCEPTION("Failed to write hunks")
                             << rspOrError;
                     }
+
                     const auto& rsp = rspOrError.Value();
                     YT_VERIFY(payloadCount == rsp->descriptors_size());
+                    HunkDescriptors_.reserve(payloadCount);
                     for (const auto& protoDescriptor : rsp->descriptors()) {
                         auto hunkChunkId = FromProto<TChunkId>(protoDescriptor.chunk_id());
                         HunkDescriptors_.push_back(THunkDescriptor{
@@ -1394,9 +1398,9 @@ private:
         {
             const auto& tableMountCache = transaction->Client_->GetTableMountCache();
             auto tableInfoFuture = tableMountCache->GetTableInfo(path);
-            auto tableInfoOrError = tableInfoFuture.TryGet();
-            PrepareFuture_ = tableInfoOrError && tableInfoOrError->IsOK()
-                ? OnGotTableInfo(tableInfoOrError->Value())
+            auto maybeTableInfoOrError = tableInfoFuture.TryGet();
+            PrepareFuture_ = maybeTableInfoOrError && maybeTableInfoOrError->IsOK()
+                ? OnGotTableInfo(maybeTableInfoOrError->Value())
                 : tableInfoFuture
                     .Apply(BIND(&TTableCommitSession::OnGotTableInfo, MakeStrong(this))
                         .AsyncVia(transaction->SerializedInvoker_));
@@ -1497,16 +1501,30 @@ private:
 
             auto hunkStorageId = TableInfo_->HunkStorageId;
             const auto& tableMountCache = transaction->Client_->GetTableMountCache();
-            return tableMountCache->GetTableInfo(FromObjectId(hunkStorageId))
-                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TTableMountInfoPtr& hunkTableInfo) {
-                    HunkTableInfo_ = hunkTableInfo;
 
-                    YT_LOG_DEBUG("Got hunk table info (Path: %v, HunkStorageId: %v)",
-                        TableInfo_->Path,
-                        TableInfo_->HunkStorageId);
+            auto tableInfoFuture = tableMountCache->GetTableInfo(FromObjectId(hunkStorageId));
+            auto maybeTableInfoOrError = tableInfoFuture.TryGet();
+            if (maybeTableInfoOrError && maybeTableInfoOrError->IsOK()) {
+                OnGotHunkTableMountInfo(maybeTableInfoOrError->Value());
+                return VoidFuture;
+            } else {
+                return tableInfoFuture
+                    .Apply(BIND(
+                        &TTableCommitSession::OnGotHunkTableMountInfo,
+                        MakeStrong(this))
+                    .AsyncVia(transaction->SerializedInvoker_));
+            }
+        }
 
-                    return VoidFuture;
-                }).AsyncVia(transaction->SerializedInvoker_));
+        void OnGotHunkTableMountInfo(const TTableMountInfoPtr& hunkTableInfo)
+        {
+            VERIFY_THREAD_AFFINITY_ANY();
+
+            HunkTableInfo_ = hunkTableInfo;
+
+            YT_LOG_DEBUG("Got hunk table info (Path: %v, HunkStorageId: %v)",
+                TableInfo_->Path,
+                TableInfo_->HunkStorageId);
         }
 
         TFuture<void> OnGotTableInfo(const TTableMountInfoPtr& tableInfo)
@@ -1924,6 +1942,7 @@ private:
                         request->PrepareRows();
                     }
 
+                    writeHunksFutures.reserve(pendingRequests.size());
                     for (auto* request : pendingRequests) {
                         writeHunksFutures.push_back(request->WriteHunks());
                     }
