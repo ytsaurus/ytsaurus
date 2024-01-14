@@ -30,7 +30,8 @@ message TTreeTaggedJobMetrics
     optional TJobMetrics metrics = 2;
 }
 
-message TCompositeNeededResources {
+message TCompositeNeededResources
+{
     optional NScheduler.NProto.TJobResources default_resources = 1;
     map<string, NScheduler.NProto.TJobResources> resources_per_pool_tree = 2;
 }
@@ -80,12 +81,13 @@ message TOperationDescriptor
     required uint64 start_time = 4; // TInstant
     required string authenticated_user = 5;
     optional bytes secure_vault = 6; // YSON
-    reserved 7; // deprecated
     required NYT.NProto.TGuid user_transaction_id = 8;
     required TPoolTreeControllerSettingsMap pool_tree_controller_settings_map = 9;
     required bytes acl = 10; // YSON
     required bytes experiment_assignments = 11; // YSON
     required int32 controller_epoch = 12 [default = -1];
+
+    reserved 7;
 }
 
 message TReqRegisterOperation
