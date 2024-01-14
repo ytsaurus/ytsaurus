@@ -33,7 +33,7 @@ public:
         TSharedRefArray message,
         IBusPtr replyBus) noexcept override
     {
-        YT_UNUSED_FUTURE(replyBus->Send(message, TSendOptions(EDeliveryTrackingLevel::Full))
+        YT_UNUSED_FUTURE(replyBus->Send(message, {.TrackingLevel = EDeliveryTrackingLevel::Full})
             .ToUncancelable());
     }
 };
@@ -96,7 +96,7 @@ void RunBenchmark(int port, int iterations)
         auto array = TSharedRefArray(TSharedRef::FromString(message));
 
         handler->ResetPromise();
-        WaitFor(bus->Send(array, TSendOptions(EDeliveryTrackingLevel::Full)))
+        WaitFor(bus->Send(array, {.TrackingLevel = EDeliveryTrackingLevel::Full}))
             .ThrowOnError();
         auto response = handler->GetResponse();
 

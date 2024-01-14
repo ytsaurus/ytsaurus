@@ -155,7 +155,7 @@ protected:
             YT_LOG_INFO("out[%v] = %Qv (Size: %v)", i, message[i], message[i].Size());
         }
 
-        auto future = bus->Send(message, TSendOptions(EDeliveryTrackingLevel::Full));
+        auto future = bus->Send(message, {.TrackingLevel = EDeliveryTrackingLevel::Full});
         future.Subscribe(BIND([] (const TError& error) {
             if (error.IsOK()) {
                 YT_LOG_INFO("Message was sent");

@@ -35,7 +35,7 @@ public:
             YT_LOG_INFO("parts[%v] = %Qv (Size: %v, MessageId: %v)", i, message[i], message[i].Size(), id);
         }
 
-        auto future = replyBus->Send(message, TSendOptions(EDeliveryTrackingLevel::Full));
+        auto future = replyBus->Send(message, {.TrackingLevel = EDeliveryTrackingLevel::Full});
         future.Subscribe(BIND([id] (const TError& error) {
             if (error.IsOK()) {
                 YT_LOG_INFO("Message was echoed successfully (MessageId: %v)", id);

@@ -170,7 +170,7 @@ public:
 
         if (!str.empty() && str[str.length() - 1] == '?') {
             auto replyMessage = Serialize(str.substr(0, str.length() - 1) + "!");
-            YT_UNUSED_FUTURE(replyBus->Send(replyMessage, NYT::NBus::TSendOptions(EDeliveryTrackingLevel::None)));
+            YT_UNUSED_FUTURE(replyBus->Send(replyMessage));
         }
     }
 };
@@ -195,7 +195,7 @@ void RunBusClient(const TString& address)
             break;
 
         auto message = Serialize(str);
-        bus->Send(message, NYT::NBus::TSendOptions(EDeliveryTrackingLevel::Full))
+        bus->Send(message, {.TrackingLevel = EDeliveryTrackingLevel::Full})
             .Subscribe(BIND(&OnSent, str));
     }
 }
@@ -259,7 +259,7 @@ public:
         TFuture<void> result;
         for (i32 i = 0; i < NumIter; ++i) {
             auto message = CreateMessage(MessageSize);
-            result = Bus->Send(message, NYT::NBus::TSendOptions(EDeliveryTrackingLevel::Full));
+            result = Bus->Send(message, {.TrackingLevel = EDeliveryTrackingLevel::Full});
             if (i % 1000 == 0) {
                 Cout << "iteration " << i << Endl;
                 result.Get();
@@ -382,7 +382,7 @@ public:
                 Cout << "Iteration " << i << Endl;
             }
             auto replyMessage = CreateMessage(MessageSize);
-            YT_UNUSED_FUTURE(replyBus->Send(replyMessage, NYT::NBus::TSendOptions(EDeliveryTrackingLevel::None)));
+            YT_UNUSED_FUTURE(replyBus->Send(replyMessage));
         }
 
         Cout << "Everything was sent" << Endl;
@@ -413,7 +413,7 @@ void RunRpsReplyTestClient(const TString& address, i32 numIter)
     Cout << "Running " << numIter << " replies" << Endl;
     TString str = "Go!";
     auto message = Serialize(str);
-    bus->Send(message, NYT::NBus::TSendOptions(EDeliveryTrackingLevel::Full))
+    bus->Send(message, {.TrackingLevel = EDeliveryTrackingLevel::Full})
         .Subscribe(BIND(&OnSent, str));
 
     char ch;
