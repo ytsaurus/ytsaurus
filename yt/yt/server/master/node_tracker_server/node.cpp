@@ -1185,7 +1185,7 @@ void TNode::RebuildTags()
         Tags_.insert(host->GetName());
     }
     for (auto flavor : Flavors_) {
-        Tags_.insert(FormatShortly(flavor));
+        Tags_.insert(Format("flavor:%lv", flavor));
     }
 }
 

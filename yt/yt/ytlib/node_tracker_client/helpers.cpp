@@ -16,8 +16,6 @@
 
 namespace NYT::NNodeTrackerClient {
 
-static const auto& Logger = NodeTrackerClientLogger;
-
 using namespace NYson;
 using namespace NYTree;
 using namespace NProfiling;
@@ -232,19 +230,6 @@ void ValidateNodeTags(const std::vector<TString>& tags)
                 << ex;
         }
     }
-}
-
-const TString& FormatShortly(ENodeFlavor flavor)
-{
-    static_assert(TEnumTraits<ENodeFlavor>::GetDomainSize() == 5);
-
-    static const TEnumIndexedVector<ENodeFlavor, TString> flavors{"clu", "dat", "exe", "tab", "cha"};
-
-    YT_LOG_ALERT_IF(
-        flavor == ENodeFlavor::Cluster,
-        "Cluster node is compat; it should not be used now");
-
-    return flavors[flavor];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
