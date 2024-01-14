@@ -132,6 +132,24 @@ void TSlotManager::Initialize()
     const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
     dynamicConfigManager->SubscribeConfigChanged(BIND(&TSlotManager::OnDynamicConfigChanged, MakeWeak(this)));
 
+    Bootstrap_->GetNodeResourceManager()->SubscribeJobsCpuLimitUpdated(
+        BIND(&TSlotManager::OnJobsCpuLimitUpdated, MakeWeak(this))
+            .Via(Bootstrap_->GetJobInvoker()));
+
+    auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
+
+    if (environmentConfig->Type == EJobEnvironmentType::Porto) {
+        PortoHealthChecker_->SubscribeSuccess(BIND(&TSlotManager::OnPortoHealthCheckSuccess, MakeStrong(this))
+            .Via(Bootstrap_->GetJobInvoker()));
+        PortoHealthChecker_->SubscribeFailed(BIND(&TSlotManager::OnPortoHealthCheckFailed, MakeStrong(this))
+            .Via(Bootstrap_->GetJobInvoker()));
+    }
+}
+
+void TSlotManager::Start()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto initializeResult = WaitFor(BIND([=, this, this_ = MakeStrong(this)] () {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -146,17 +164,9 @@ void TSlotManager::Initialize()
 
     YT_LOG_FATAL_IF(!initializeResult.IsOK(), initializeResult, "First slot manager initialization failed");
 
-    Bootstrap_->GetNodeResourceManager()->SubscribeJobsCpuLimitUpdated(
-        BIND(&TSlotManager::OnJobsCpuLimitUpdated, MakeWeak(this))
-            .Via(Bootstrap_->GetJobInvoker()));
-
     auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
 
     if (environmentConfig->Type == EJobEnvironmentType::Porto) {
-        PortoHealthChecker_->SubscribeSuccess(BIND(&TSlotManager::OnPortoHealthCheckSuccess, MakeStrong(this))
-            .Via(Bootstrap_->GetJobInvoker()));
-        PortoHealthChecker_->SubscribeFailed(BIND(&TSlotManager::OnPortoHealthCheckFailed, MakeStrong(this))
-            .Via(Bootstrap_->GetJobInvoker()));
         PortoHealthChecker_->Start();
     }
 }
@@ -246,7 +256,9 @@ TFuture<void> TSlotManager::InitializeEnvironment()
 
     return BIND(&TSlotManager::AsyncInitialize, MakeStrong(this))
         .AsyncVia(Bootstrap_->GetJobInvoker())
-        .Run();
+        .Run()
+        .Apply(BIND(&TSlotManager::InitMedia, MakeStrong(this), Bootstrap_->GetClient()->GetNativeConnection()->GetMediumDirectory())
+        .AsyncVia(Bootstrap_->GetJobInvoker()));
 }
 
 void TSlotManager::OnDynamicConfigChanged(
@@ -261,12 +273,14 @@ void TSlotManager::OnDynamicConfigChanged(
 
     BIND([=, this, this_ = MakeStrong(this)] () {
         try {
-            JobEnvironment_->UpdateIdleCpuFraction(GetIdleCpuFraction());
+            if (JobEnvironment_) {
+                JobEnvironment_->UpdateIdleCpuFraction(GetIdleCpuFraction());
 
-            if (oldNodeConfig->ExecNode->SlotManager->EnableNumaNodeScheduling &&
-                !newNodeConfig->ExecNode->SlotManager->EnableNumaNodeScheduling)
-            {
-                JobEnvironment_->ClearSlotCpuSets(SlotCount_);
+                if (oldNodeConfig->ExecNode->SlotManager->EnableNumaNodeScheduling &&
+                    !newNodeConfig->ExecNode->SlotManager->EnableNumaNodeScheduling)
+                {
+                    JobEnvironment_->ClearSlotCpuSets(SlotCount_);
+                }
             }
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(TError(ex));
@@ -525,7 +539,11 @@ i64 TSlotManager::GetMajorPageFaultCount() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    return JobEnvironment_->GetMajorPageFaultCount();
+    if (JobEnvironment_) {
+        return JobEnvironment_->GetMajorPageFaultCount();
+    } else {
+        return 0;
+    }
 }
 
 bool TSlotManager::EnableNumaNodeScheduling() const
@@ -585,8 +603,10 @@ void TSlotManager::OnJobsCpuLimitUpdated()
 
     try {
         const auto& resourceManager = Bootstrap_->GetNodeResourceManager();
-        auto cpuLimit = resourceManager->GetJobsCpuLimit();
-        JobEnvironment_->UpdateCpuLimit(cpuLimit);
+        if (resourceManager && JobEnvironment_) {
+            auto cpuLimit = resourceManager->GetJobsCpuLimit();
+            JobEnvironment_->UpdateCpuLimit(cpuLimit);
+        }
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(ex, "Error updating job environment CPU limit");
     }
