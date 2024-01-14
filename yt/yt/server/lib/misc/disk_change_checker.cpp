@@ -134,6 +134,7 @@ void TDiskChangeChecker::CheckDiskChange(const std::vector<TDiskInfo>& diskInfos
 
     if (!oldDiskIds.empty() && !configDiskIds.empty()) {
         if (!checkDisks(oldDiskIds, aliveDiskIds) ||
+            !checkDisks(aliveDiskIds, oldDiskIds) ||
             !checkDisks(configDiskIds, diskIds) ||
             !checkDisks(diskIds, configDiskIds))
         {
