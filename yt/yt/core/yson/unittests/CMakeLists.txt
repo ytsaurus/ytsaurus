@@ -78,6 +78,7 @@ target_sources(unittester-core-yson PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/unittests/depth_limiting_yson_consumer_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/unittests/filter_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/unittests/lexer_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/unittests/list_verb_lazy_yson_consumer_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/unittests/protobuf_scalar_type_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/unittests/protobuf_yson_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/unittests/ypath_designated_yson_consumer_ut.cpp
