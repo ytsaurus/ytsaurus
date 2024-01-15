@@ -428,12 +428,12 @@ private:
                 PartitionIndexColumnName_,
                 OffsetColumnName_);
         }
-        ui32 expectedColumnsCount = 2 + (metaColumnId ? 1 : 0);
+        int expectedColumnsCount = 2 + (metaColumnId ? 1 : 0);
 
         std::vector<ui64> partitionIndices;
 
         for (auto row : selectRowsResult.Rowset->GetRows()) {
-            YT_VERIFY(row.GetCount() == expectedColumnsCount);
+            YT_VERIFY(static_cast<int>(row.GetCount()) == expectedColumnsCount);
 
             const auto& partitionIndexValue = row[*partitionIndexRowsetColumnId];
             if (partitionIndexValue.Type == EValueType::Null) {
