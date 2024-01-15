@@ -471,6 +471,7 @@ void TLocationHealthChecker::HandleHotSwap(std::vector<TDiskInfo> diskInfos)
 
     for (const auto& livenessInfo : livenessInfos) {
         if (livenessInfo.IsDiskAlive &&
+            livenessInfo.DiskState == NContainers::EDiskState::Ok &&
             livenessInfo.LocationState == ELocationState::Destroyed)
         {
             livenessInfo.Location->OnDiskRepaired();
