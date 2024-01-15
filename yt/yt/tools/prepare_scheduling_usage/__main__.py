@@ -8,6 +8,7 @@ from yt.wrapper.schema import (
 from yt.wrapper.default_config import get_config_from_env
 from yt.wrapper.common import date_string_to_timestamp
 from yt.wrapper.schema import YsonBytes, TableSchema
+from yt.wrapper.operation_commands import OperationState
 from yt.wrapper.prepare_operation import TypedJob
 import yt.yson as yson
 import yt.wrapper as yt
@@ -266,7 +267,8 @@ def merge_info(info_base, info_update):
     info_base.cumulative_used_cpu += info_update.cumulative_used_cpu
     info_base.cumulative_gpu_utilization += info_update.cumulative_gpu_utilization
 
-    info_base.operation_state = info_update.operation_state
+    if not OperationState(info_base.operation_state).is_finished():
+        info_base.operation_state = info_update.operation_state
     info_base.start_time = info_update.start_time
     info_base.finish_time = info_update.finish_time
     info_base.job_statistics = info_update.job_statistics
