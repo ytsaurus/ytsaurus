@@ -97,6 +97,15 @@ public:
 
     void Kill(int /*signal*/) override
     {
+        if (Finished_) {
+            return;
+        }
+        Finished_ = true;
+
+        if (!Started_) {
+            THROW_ERROR_EXCEPTION("Process is not started yet");
+        }
+
         YT_LOG_DEBUG("Killing process");
         WaitFor(Executor_->StopContainer(ContainerDescriptor_))
             .ThrowOnError();
@@ -158,6 +167,13 @@ private:
         YT_LOG_DEBUG("Spawning process (Command: %v, Environment: %v)",
             ContainerSpec_->Command[0],
             ContainerSpec_->Environment);
+
+        YT_VERIFY(!Started_);
+        Started_ = true;
+
+        if (Finished_) {
+            THROW_ERROR_EXCEPTION("Process is already killed");
+        }
 
         WaitFor(Executor_->StartContainer(ContainerDescriptor_))
             .ThrowOnError();
