@@ -167,14 +167,10 @@ TFuture<void> TSlotManager::InitializeEnvironment()
     YT_LOG_INFO("Slot manager sync initialization started (SlotCount: %v)",
         SlotCount_);
 
-    YT_VERIFY(std::ssize(FreeSlots_) == SlotCount_);
-
     {
         auto guard = WriterGuard(AliveLocationsLock_);
         AliveLocations_.clear();
     }
-
-    NumaNodeStates_.clear();
 
     {
         auto guard = WriterGuard(AlertsLock_);
@@ -225,16 +221,6 @@ TFuture<void> TSlotManager::InitializeEnvironment()
             Locations_.push_back(std::move(newLocation));
             ++locationIndex;
         }
-    }
-
-    for (const auto& numaNode : StaticConfig_->NumaNodes) {
-        NumaNodeStates_.push_back(TNumaNodeState{
-            .NumaNodeInfo = TNumaNodeInfo{
-                .NumaNodeId = numaNode->NumaNodeId,
-                .CpuSet = numaNode->CpuSet
-            },
-            .FreeCpuCount = static_cast<double>(numaNode->CpuCount),
-        });
     }
 
     YT_LOG_INFO("Slot manager sync initialization finished");
@@ -650,7 +636,7 @@ bool TSlotManager::Disable(const TError& error)
     {
         YT_LOG_FATAL_IF(!syncResult.IsOK(), syncResult, "Free slot synchronization failed");
     } else {
-        YT_LOG_ERROR_IF(!syncResult.IsOK(), syncResult, "Free slot synchronization failed");
+        YT_LOG_WARNING_IF(!syncResult.IsOK(), syncResult, "Free slot synchronization failed");
     }
 
     if (auto volumeManager = RootVolumeManager_.Acquire()) {
@@ -664,7 +650,7 @@ bool TSlotManager::Disable(const TError& error)
                 result,
                 "Free volume synchronization failed");
         } else {
-            YT_LOG_ERROR_IF(
+            YT_LOG_WARNING_IF(
                 !result.IsOK(),
                 result,
                 "Free volume synchronization failed");
@@ -947,6 +933,29 @@ void TSlotManager::AsyncInitialize()
                 THROW_ERROR_EXCEPTION("Failed to initialize volume manager")
                     << volumeManagerOrError;
             }
+        }
+
+        auto dynamicConfig = DynamicConfig_.Acquire();
+        auto timeout = dynamicConfig->SlotReleaseTimeout;
+        auto slotSync = WaitFor(Bootstrap_->GetJobController()->GetAllJobsCleanedupFuture()
+            .WithTimeout(timeout));
+
+        YT_LOG_FATAL_IF(!slotSync.IsOK(), slotSync, "Slot synchronization failed");
+        YT_LOG_FATAL_IF(std::ssize(FreeSlots_) != SlotCount_,
+            "Some slots are still acquired (FreeSlots: %v, SlotCount: %v)",
+            std::ssize(FreeSlots_),
+            SlotCount_);
+
+        NumaNodeStates_.clear();
+
+        for (const auto& numaNode : StaticConfig_->NumaNodes) {
+            NumaNodeStates_.push_back(TNumaNodeState{
+                .NumaNodeInfo = TNumaNodeInfo{
+                    .NumaNodeId = numaNode->NumaNodeId,
+                    .CpuSet = numaNode->CpuSet
+                },
+                .FreeCpuCount = static_cast<double>(numaNode->CpuCount),
+            });
         }
 
         UpdateAliveLocations();
