@@ -268,12 +268,13 @@ class TestQueueController(TestQueueAgentBase):
         return dt.isoformat().replace("+00:00", ".000000Z")
 
     @authors("max42")
-    def test_queue_status(self):
+    @pytest.mark.parametrize("without_meta", [True, False])
+    def test_queue_status(self, without_meta):
         orchid = QueueAgentOrchid()
 
         schema, _ = self._create_queue("//tmp/q", partition_count=2, enable_cumulative_data_weight_column=False)
         schema_with_cumulative_data_weight = schema + [{"name": "$cumulative_data_weight", "type": "int64"}]
-        self._create_registered_consumer("//tmp/c", "//tmp/q")
+        self._create_registered_consumer("//tmp/c", "//tmp/q", without_meta=without_meta)
 
         self._wait_for_component_passes()
         orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
@@ -349,15 +350,13 @@ class TestQueueController(TestQueueAgentBase):
         assert 9 * 20 <= queue_partitions[0]["available_data_weight"] <= 11 * 20
 
     @authors("max42")
-    @pytest.mark.parametrize("trim", [
-        False,
-        True,
-    ])
-    def test_consumer_status(self, trim):
+    @pytest.mark.parametrize("trim", [False, True])
+    @pytest.mark.parametrize("without_meta", [True, False])
+    def test_consumer_status(self, trim, without_meta):
         orchid = QueueAgentOrchid()
 
         self._create_queue("//tmp/q", partition_count=2)
-        self._create_registered_consumer("//tmp/c", "//tmp/q")
+        self._create_registered_consumer("//tmp/c", "//tmp/q", without_meta=without_meta)
 
         self._wait_for_component_passes()
 
@@ -416,7 +415,8 @@ class TestQueueController(TestQueueAgentBase):
         assert_partition(consumer_partitions[1], 2)
 
     @authors("achulkov2")
-    def test_null_columns(self):
+    @pytest.mark.parametrize("without_meta", [True, False])
+    def test_null_columns(self, without_meta):
         orchid = QueueAgentOrchid()
 
         schema, _ = self._create_queue("//tmp/q", enable_timestamp_column=False, enable_cumulative_data_weight_column=False)
@@ -428,7 +428,7 @@ class TestQueueController(TestQueueAgentBase):
         alter_table("//tmp/q", schema=schema)
         sync_mount_table("//tmp/q")
 
-        self._create_registered_consumer("//tmp/c", "//tmp/q")
+        self._create_registered_consumer("//tmp/c", "//tmp/q", without_meta=without_meta)
 
         self._wait_for_component_passes()
 
@@ -436,11 +436,12 @@ class TestQueueController(TestQueueAgentBase):
         assert orchid.get_consumer_orchid("primary://tmp/c").get_status()["queues"]["primary://tmp/q"]["partition_count"] == 1
 
     @authors("max42")
-    def test_consumer_partition_disposition(self):
+    @pytest.mark.parametrize("without_meta", [True, False])
+    def test_consumer_partition_disposition(self, without_meta):
         orchid = QueueAgentOrchid()
 
         self._create_queue("//tmp/q")
-        self._create_registered_consumer("//tmp/c", "//tmp/q")
+        self._create_registered_consumer("//tmp/c", "//tmp/q", without_meta=without_meta)
 
         self._wait_for_component_passes()
 
@@ -457,20 +458,21 @@ class TestQueueController(TestQueueAgentBase):
             assert partition["unread_row_count"] == 3 - offset
 
     @authors("max42")
-    def test_inconsistent_partitions_in_consumer_table(self):
+    @pytest.mark.parametrize("without_meta", [True, False])
+    def test_inconsistent_partitions_in_consumer_table(self, without_meta):
         orchid = QueueAgentOrchid()
 
         self._create_queue("//tmp/q", partition_count=2)
-        self._create_registered_consumer("//tmp/c", "//tmp/q")
+        self._create_registered_consumer("//tmp/c", "//tmp/q", without_meta=without_meta)
 
         self._wait_for_component_passes()
 
         insert_rows("//tmp/q", [{"data": "foo"}] * 2)
         orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
 
-        self._advance_consumer("//tmp/c", "//tmp/q", 1, 1)
-        self._advance_consumer("//tmp/c", "//tmp/q", 2 ** 63 - 1, 1)
-        self._advance_consumer("//tmp/c", "//tmp/q", 2 ** 64 - 1, 1)
+        self._advance_consumer("//tmp/c", "//tmp/q", 1, 1, via_insert=True)
+        self._advance_consumer("//tmp/c", "//tmp/q", 2 ** 63 - 1, 1, via_insert=True)
+        self._advance_consumer("//tmp/c", "//tmp/q", 2 ** 64 - 1, 1, via_insert=True)
 
         orchid.get_consumer_orchid("primary://tmp/c").wait_fresh_pass()
 
@@ -488,14 +490,15 @@ class TestRates(TestQueueAgentBase):
     }
 
     @authors("max42")
-    def test_rates(self):
+    @pytest.mark.parametrize("without_meta", [True, False])
+    def test_rates(self, without_meta):
         eps = 1e-2
         zero = {"current": 0.0, "1m_raw": 0.0, "1m": 0.0, "1h": 0.0, "1d": 0.0}
 
         orchid = QueueAgentOrchid()
 
         self._create_queue("//tmp/q", partition_count=2)
-        self._create_registered_consumer("//tmp/c", "//tmp/q")
+        self._create_registered_consumer("//tmp/c", "//tmp/q", without_meta=without_meta)
 
         # We advance consumer in both partitions by one beforehand in order to workaround
         # the corner-case when consumer stands on the first row in the available row window.
@@ -1000,8 +1003,8 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         sync_unmount_table("//tmp/q", first_tablet_index=0, last_tablet_index=0)
 
         # Nothing should be trimmed from the first partition, since it is unmounted.
-        self._advance_consumer("//tmp/c1", "//tmp/q", 0, 2)
-        self._advance_consumer("//tmp/c2", "//tmp/q", 0, 1)
+        self._advance_consumer("//tmp/c1", "//tmp/q", 0, 2, via_insert=True)
+        self._advance_consumer("//tmp/c2", "//tmp/q", 0, 1, via_insert=True)
 
         # Yet the second partition should be trimmed based on c1.
         self._advance_consumer("//tmp/c1", "//tmp/q", 1, 3)
@@ -1044,7 +1047,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         sync_unmount_table("//tmp/q2")
 
         self._advance_consumer("//tmp/c1", "//tmp/q1", 0, 3)
-        self._advance_consumer("//tmp/c2", "//tmp/q2", 0, 4)
+        self._advance_consumer("//tmp/c2", "//tmp/q2", 0, 4, via_insert=True)
 
         queue_agent_orchid.get_queue_orchid("primary://tmp/q1").wait_fresh_pass()
         queue_agent_orchid.get_queue_orchid("primary://tmp/q2").wait_fresh_pass()

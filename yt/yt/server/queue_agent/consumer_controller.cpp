@@ -224,9 +224,7 @@ private:
                 subConsumerPartitionSnapshot->LastConsumeTime = consumerPartitionInfo.LastConsumeTime;
 
                 if (consumerPartitionInfo.ConsumerMeta) {
-                    if (auto cumulativeDataWeight = consumerPartitionInfo.ConsumerMeta->CumulativeDataWeight) {
-                        subConsumerPartitionSnapshot->CumulativeDataWeight = cumulativeDataWeight;
-                    }
+                    subConsumerPartitionSnapshot->CumulativeDataWeight = consumerPartitionInfo.ConsumerMeta->CumulativeDataWeight;
                     if (consumerPartitionInfo.ConsumerMeta->OffsetTimestamp) {
                         subConsumerPartitionSnapshot->NextRowCommitTime = TimestampToInstant(*consumerPartitionInfo.ConsumerMeta->OffsetTimestamp).first;
                     }
@@ -403,8 +401,8 @@ private:
 
             const auto& partitionRowInfo = partitionInfo.begin()->second;
 
-            if (!consumerPartitionSnapshot->CumulativeDataWeight && partitionRowInfo.CumulativeDataWeight) {
-                consumerPartitionSnapshot->CumulativeDataWeight = *partitionRowInfo.CumulativeDataWeight;
+            if (!consumerPartitionSnapshot->CumulativeDataWeight) {
+                consumerPartitionSnapshot->CumulativeDataWeight = partitionRowInfo.CumulativeDataWeight;
             }
         }
 

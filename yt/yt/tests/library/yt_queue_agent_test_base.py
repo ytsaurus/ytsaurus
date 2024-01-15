@@ -4,7 +4,7 @@ from yt_chaos_test_base import ChaosTestBase
 from yt_commands import (get, set, ls, wait, create, remove, sync_mount_table, sync_create_cells, exists,
                          select_rows, sync_reshard_table, print_debug, get_driver, register_queue_consumer,
                          sync_freeze_table, sync_unfreeze_table, create_table_replica, sync_enable_table_replica,
-                         advance_consumer)
+                         advance_consumer, insert_rows)
 
 from yt.common import YtError, update_inplace, update
 
@@ -369,10 +369,10 @@ class TestQueueAgentBase(YTEnvSetup):
 
         return schema, queue_id
 
-    def _create_consumer(self, path, mount=True, **kwargs):
+    def _create_consumer(self, path, mount=True, without_meta=False, **kwargs):
         attributes = {
             "dynamic": True,
-            "schema": init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
+            "schema": init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META if without_meta else init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
             "treat_as_queue_consumer": True,
         }
         attributes.update(kwargs)
@@ -380,16 +380,24 @@ class TestQueueAgentBase(YTEnvSetup):
         if mount:
             sync_mount_table(path)
 
-    def _create_registered_consumer(self, consumer_path, queue_path, vital=False, **kwargs):
+    def _create_registered_consumer(self, consumer_path, queue_path, vital=False, without_meta=False, **kwargs):
         self._create_consumer(consumer_path, **kwargs)
         register_queue_consumer(queue_path, consumer_path, vital=vital)
 
-    def _advance_consumer(self, consumer_path, queue_path, partition_index, offset, client_side=False):
-        self._advance_consumers(consumer_path, queue_path, {partition_index: offset}, client_side)
+    def _advance_consumer(self, consumer_path, queue_path, partition_index, offset, client_side=False, via_insert=False):
+        self._advance_consumers(consumer_path, queue_path, {partition_index: offset}, client_side, via_insert)
 
-    def _advance_consumers(self, consumer_path, queue_path, partition_index_to_offset, client_side=False):
-        for partition_index, offset in partition_index_to_offset.items():
-            advance_consumer(consumer_path, queue_path, partition_index=partition_index, old_offset=None, new_offset=offset, client_side=client_side)
+    def _advance_consumers(self, consumer_path, queue_path, partition_index_to_offset, client_side=False, via_insert=False):
+        if via_insert:
+            insert_rows(consumer_path, [{
+                "queue_cluster": "primary",
+                "queue_path": queue_path,
+                "partition_index": partition_index,
+                "offset": offset,
+            } for partition_index, offset in partition_index_to_offset.items()])
+        else:
+            for partition_index, offset in partition_index_to_offset.items():
+                advance_consumer(consumer_path, queue_path, partition_index=partition_index, old_offset=None, new_offset=offset, client_side=client_side)
 
     @staticmethod
     def _flush_table(path, first_tablet_index=None, last_tablet_index=None):
