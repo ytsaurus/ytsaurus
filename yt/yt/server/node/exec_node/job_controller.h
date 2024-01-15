@@ -57,6 +57,8 @@ public:
     //! Set value of flag disabling all scheduler jobs.
     virtual void SetDisableSchedulerJobs(bool value) = 0;
 
+    virtual TFuture<void> GetAllJobsCleanedupFuture() = 0;
+
     virtual TFuture<void> RemoveSchedulerJobs() = 0;
 
     virtual bool AreSchedulerJobsDisabled() const noexcept = 0;

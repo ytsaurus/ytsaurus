@@ -376,7 +376,7 @@ public:
         YT_LOG_INFO("Remove scheduler jobs on fatal alert");
 
         std::vector<TFuture<void>> jobResourceReleaseFutures;
-        jobResourceReleaseFutures.reserve(std::size(JobsWaitingForCleanup_));
+        jobResourceReleaseFutures.reserve(std::size(JobsWaitingForCleanup_) + std::size(JobMap_));
 
         for (const auto& job : JobsWaitingForCleanup_) {
             jobResourceReleaseFutures.push_back(job->GetCleanupFinishedEvent());
@@ -397,6 +397,25 @@ public:
 
         for (const auto& job : jobsToRemove) {
             RemoveJob(job, NControllerAgent::TReleaseJobFlags{});
+        }
+
+        return AllSet(std::move(jobResourceReleaseFutures))
+            .AsVoid();
+    }
+
+    TFuture<void> GetAllJobsCleanedupFuture() override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        std::vector<TFuture<void>> jobResourceReleaseFutures;
+        jobResourceReleaseFutures.reserve(std::size(JobsWaitingForCleanup_) + std::size(JobMap_));
+
+        for (const auto& job : JobsWaitingForCleanup_) {
+            jobResourceReleaseFutures.push_back(job->GetCleanupFinishedEvent());
+        }
+
+        for (TForbidContextSwitchGuard guard; const auto& [jobId, job] : JobMap_) {
+            jobResourceReleaseFutures.push_back(job->GetCleanupFinishedEvent());
         }
 
         return AllSet(std::move(jobResourceReleaseFutures))

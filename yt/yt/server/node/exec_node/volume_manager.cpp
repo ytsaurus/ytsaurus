@@ -486,10 +486,10 @@ public:
             .Run();
     }
 
-    void RemoveLayer(const TLayerId& layerId)
+    TFuture<void> RemoveLayer(const TLayerId& layerId)
     {
-        BIND(&TLayerLocation::DoRemoveLayer, MakeStrong(this), layerId)
-            .Via(LocationQueue_->GetInvoker())
+        return BIND(&TLayerLocation::DoRemoveLayer, MakeStrong(this), layerId)
+            .AsyncVia(LocationQueue_->GetInvoker())
             .Run();
     }
 
@@ -1496,7 +1496,10 @@ public:
             LayerMeta_.Id,
             LayerMeta_.Path);
 
-        Location_->RemoveLayer(LayerMeta_.Id);
+        Location_->RemoveLayer(LayerMeta_.Id)
+            .Apply(BIND([] (const TError& result) {
+                YT_LOG_ERROR_IF(!result.IsOK(), result, "Layer remove failed");
+            }));
     }
 
     const TString& GetCypressPath() const
@@ -2169,39 +2172,42 @@ private:
 
         return ChunkCache_->DownloadArtifact(artifactKey, downloadOptions)
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& artifactChunk) {
-                 YT_LOG_DEBUG("Layer artifact loaded, starting import (Tag: %v, ArtifactPath: %v)",
-                     tag,
-                     artifactKey.data_source().path());
+                YT_LOG_DEBUG("Layer artifact loaded, starting import (Tag: %v, ArtifactPath: %v)",
+                    tag,
+                    artifactKey.data_source().path());
 
-                  // NB(psushin): we limit number of concurrently imported layers, since this is heavy operation
-                  // which may delay light operations performed in the same IO thread pool inside Porto daemon.
-                  // PORTO-518
-                  TAsyncSemaphoreGuard guard;
-                  while (!(guard = TAsyncSemaphoreGuard::TryAcquire(Semaphore_))) {
-                      WaitFor(Semaphore_->GetReadyEvent())
-                          .ThrowOnError();
-                  }
+                // NB(psushin): we limit number of concurrently imported layers, since this is heavy operation
+                // which may delay light operations performed in the same IO thread pool inside Porto daemon.
+                // PORTO-518
+                TAsyncSemaphoreGuard guard;
+                while (!(guard = TAsyncSemaphoreGuard::TryAcquire(Semaphore_))) {
+                    WaitFor(Semaphore_->GetReadyEvent())
+                        .ThrowOnError();
+                }
 
-                  auto location = this_->PickLocation();
-                  auto layerMeta = WaitFor(location->ImportLayer(artifactKey, artifactChunk->GetFileName(), tag))
-                      .ValueOrThrow();
+                auto location = this_->PickLocation();
+                auto layerMeta = WaitFor(location->ImportLayer(artifactKey, artifactChunk->GetFileName(), tag))
+                    .ValueOrThrow();
 
-                  if (targetLocation) {
-                      // For tmpfs layers we cannot import them directly to tmpfs location,
-                      // since tar/gzip are run in special /portod-helpers cgroup, which suffers from
-                      // OOM when importing into tmpfs. To workaround this, we first import to disk locations
-                      // and then copy into in-memory.
+                if (targetLocation) {
+                    // For tmpfs layers we cannot import them directly to tmpfs location,
+                    // since tar/gzip are run in special /portod-helpers cgroup, which suffers from
+                    // OOM when importing into tmpfs. To workaround this, we first import to disk locations
+                    // and then copy into in-memory.
 
-                      auto finally = Finally(BIND([=] () {
-                          location->RemoveLayer(layerMeta.Id);
-                      }));
+                    auto finally = Finally(BIND([=] () {
+                        location->RemoveLayer(layerMeta.Id)
+                            .Apply(BIND([] (const TError& result) {
+                                YT_LOG_ERROR_IF(!result.IsOK(), result, "Layer remove failed");
+                            }));
+                    }));
 
-                      auto tmpfsLayerMeta = WaitFor(targetLocation->InternalizeLayer(layerMeta, tag))
-                          .ValueOrThrow();
-                      return New<TLayer>(tmpfsLayerMeta, artifactKey, targetLocation);
-                  } else {
-                      return New<TLayer>(layerMeta, artifactKey, location);
-                  }
+                    auto tmpfsLayerMeta = WaitFor(targetLocation->InternalizeLayer(layerMeta, tag))
+                        .ValueOrThrow();
+                    return New<TLayer>(tmpfsLayerMeta, artifactKey, targetLocation);
+                } else {
+                    return New<TLayer>(layerMeta, artifactKey, location);
+                }
             })
             // We must pass this action through invoker to avoid synchronous execution.
             // WaitFor calls inside this action can ruin context-switch-free handlers inside TJob.
