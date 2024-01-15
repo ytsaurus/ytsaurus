@@ -113,6 +113,7 @@ class LocalYtConfig(object):
     delta_master_config = attr.ib(None)
     delta_clock_config = attr.ib(None)
     delta_scheduler_config = attr.ib(None)
+    delta_queue_agent_config = attr.ib(None)
     delta_controller_agent_config = attr.ib(None)
     delta_node_config = attr.ib(None)
     delta_http_proxy_config = attr.ib(None)

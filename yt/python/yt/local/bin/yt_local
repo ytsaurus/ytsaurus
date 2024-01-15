@@ -17,7 +17,7 @@ import errno
 
 DESCRIPTION = """Command-line utility to work with local YT instances."""
 
-SERVICE_LIST = ("master", "node", "scheduler", "controller-agent", "proxy", "rpc-proxy", "watcher")
+SERVICE_LIST = ("master", "node", "scheduler", "controller-agent", "proxy", "rpc-proxy", "watcher", "queue-agent")
 
 logger = logging.getLogger("YtLocal")
 

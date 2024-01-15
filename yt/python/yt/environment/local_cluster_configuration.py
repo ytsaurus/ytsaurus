@@ -269,6 +269,10 @@ def modify_cluster_configuration(yt_config, cluster_configuration):
         if yt_config.delta_controller_agent_config:
             update_inplace(config, yt_config.delta_controller_agent_config)
 
+    for config in cluster_configuration["queue_agent"]:
+        if yt_config.delta_queue_agent_config:
+            update_inplace(config, yt_config.delta_queue_agent_config)
+
     for config in cluster_configuration["node"]:
         if yt_config.optimize_config:
             for patch in NODE_CONFIG_PATCHES:

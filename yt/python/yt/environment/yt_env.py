@@ -2100,7 +2100,7 @@ class YTInstance(object):
     def _apply_queue_agent_dynamic_config(self, client):
         dyn_queue_agent_config = get_dynamic_queue_agent_config(self.yt_config)
         client.create("map_node", "//sys/queue_agents", ignore_existing=True)
-        client.create("document", "//sys/queue_agents/config", attributes={"value": dyn_queue_agent_config})
+        client.create("document", "//sys/queue_agents/config", ignore_existing=True, attributes={"value": dyn_queue_agent_config})
         return dyn_queue_agent_config
 
     def _apply_nodes_dynamic_config(self, client):
