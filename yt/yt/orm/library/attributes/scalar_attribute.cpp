@@ -947,7 +947,7 @@ private:
     {
         YT_VERIFY(field->is_repeated());
         const auto* reflection = message->GetReflection();
-        auto doForEach = [=] (auto func) {
+        auto doForEach = [&] (const auto& func) {
             for (const auto& node : nodes) {
                 func(node);
             }
