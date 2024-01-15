@@ -39,7 +39,7 @@
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/yson/string.h>
 
@@ -77,7 +77,7 @@ DEFINE_ENUM(EDriverType,
 );
 
 class TTestConfig
-    : public TYsonSerializableLite
+    : public TYsonStructLite
 {
 public:
     TString User;
@@ -102,44 +102,46 @@ public:
 
     EDriverType DriverType;
 
-    TTestConfig()
-    {
-        RegisterParameter("user", User);
-        RegisterParameter("token", Token);
+    REGISTER_YSON_STRUCT_LITE(TTestConfig);
 
-        RegisterParameter("table", Table)
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("user", &TThis::User);
+        registrar.Parameter("token", &TThis::Token);
+
+        registrar.Parameter("table", &TThis::Table)
             .Default("//home/stress-test-insert-3");
 
-        RegisterParameter("max_inflight", MaxInflight)
+        registrar.Parameter("max_inflight", &TThis::MaxInflight)
             .Default(100);
-        RegisterParameter("max_rps", MaxRps)
+        registrar.Parameter("max_rps", &TThis::MaxRps)
             .Default(500);
-        RegisterParameter("max_packet", PacketSize)
+        registrar.Parameter("max_packet", &TThis::PacketSize)
             .Default(10);
-        RegisterParameter("max_inserts", MaxInserts)
+        registrar.Parameter("max_inserts", &TThis::MaxInserts)
             .Default(10);
-        RegisterParameter("max_tables", MaxTables)
+        registrar.Parameter("max_tables", &TThis::MaxTables)
             .Default(10);
-        RegisterParameter("threads", Threads)
+        registrar.Parameter("threads", &TThis::Threads)
             .Default(16);
-        RegisterParameter("clients", Clients)
+        registrar.Parameter("clients", &TThis::Clients)
             .Default(16);
-        RegisterParameter("print_interval", PrintInterval)
+        registrar.Parameter("print_interval", &TThis::PrintInterval)
             .Default(TDuration::Seconds(1));
 
-        RegisterParameter("address_resolver", AddressResolver)
+        registrar.Parameter("address_resolver", &TThis::AddressResolver)
             .DefaultNew();
-        RegisterParameter("rpc_dispatcher", RpcDispatcher)
+        registrar.Parameter("rpc_dispatcher", &TThis::RpcDispatcher)
             .DefaultNew();
-        RegisterParameter("logging", Logging)
-            .Default(NLogging::TLogManagerConfig::CreateSilent());
-        RegisterParameter("connection", Connection)
-            .DefaultNew();
-
-        RegisterParameter("driver", Driver)
+        registrar.Parameter("logging", &TThis::Logging)
+            .DefaultCtor([] () { return NLogging::TLogManagerConfig::CreateSilent(); });
+        registrar.Parameter("connection", &TThis::Connection)
             .DefaultNew();
 
-        RegisterParameter("driver_type", DriverType)
+        registrar.Parameter("driver", &TThis::Driver)
+            .DefaultNew();
+
+        registrar.Parameter("driver_type", &TThis::DriverType)
             .Default(EDriverType::RpcProxy);
     }
 };

@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <library/cpp/yt/misc/enum.h>
 
@@ -23,17 +23,19 @@ DECLARE_REFCOUNTED_STRUCT(IThrottler)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TThrottlerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration Period;
     i64 Limit;
 
-    TThrottlerConfig()
+    REGISTER_YSON_STRUCT(TThrottlerConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("period", Period)
+        registrar.Parameter("period", &TThis::Period)
             .Default(TDuration::Seconds(1));
-        RegisterParameter("limit", Limit)
+        registrar.Parameter("limit", &TThis::Limit)
             .Default(0);
     }
 };

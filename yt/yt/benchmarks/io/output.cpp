@@ -5,47 +5,47 @@ namespace NYT::NIOTest {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFormattedOutput::TFormattedOutput()
+void TFormattedOutput::Register(TRegistrar registrar)
 {
-    RegisterParameter("name", Name);
-    RegisterParameter("info", Info);
-    RegisterParameter("uname", Uname);
-    RegisterParameter("config", Config);
-    RegisterParameter("epochs", Epochs);
+    registrar.Parameter("name", &TThis::Name);
+    registrar.Parameter("info", &TThis::Info);
+    registrar.Parameter("uname", &TThis::Uname);
+    registrar.Parameter("config", &TThis::Config);
+    registrar.Parameter("epochs", &TThis::Epochs);
 }
 
-TFormattedEpoch::TFormattedEpoch()
+void TFormattedEpoch::Register(TRegistrar registrar)
 {
-    RegisterParameter("epoch_name", EpochName);
-    RegisterParameter("config", Config);
-    RegisterParameter("generations", Generations);
+    registrar.Parameter("epoch_name", &TThis::EpochName);
+    registrar.Parameter("config", &TThis::Config);
+    registrar.Parameter("generations", &TThis::Generations);
 }
 
-TFormattedGeneration::TFormattedGeneration()
+void TFormattedGeneration::Register(TRegistrar registrar)
 {
-    RegisterParameter("configuration", Configuration);
-    RegisterParameter("iterations", Iterations);
-    RegisterParameter("iteration_count", IterationCount);
-    RegisterParameter("sum_for_all_iterations", AllIterationStatistics);
+    registrar.Parameter("configuration", &TThis::Configuration);
+    registrar.Parameter("iterations", &TThis::Iterations);
+    registrar.Parameter("iteration_count", &TThis::IterationCount);
+    registrar.Parameter("sum_for_all_iterations", &TThis::AllIterationStatistics);
 }
 
-TFormattedConfiguration::TFormattedConfiguration()
+void TFormattedConfiguration::Register(TRegistrar registrar)
 {
-    RegisterParameter("driver", Driver);
-    RegisterParameter("threads", Threads);
-    RegisterParameter("block_size_log", BlockSizeLog);
-    RegisterParameter("range", Zone);
-    RegisterParameter("pattern", Pattern);
-    RegisterParameter("read_percentage", ReadPercentage);
-    RegisterParameter("direct", Direct);
-    RegisterParameter("sync", Sync);
-    RegisterParameter("fallocate", Fallocate);
-    RegisterParameter("oneshot", Oneshot);
-    RegisterParameter("validate", Validate);
-    RegisterParameter("loop", Loop);
-    RegisterParameter("shot_count", ShotCount);
-    RegisterParameter("time_limit", TimeLimit);
-    RegisterParameter("transfer_limit", TransferLimit);
+    registrar.Parameter("driver", &TThis::Driver);
+    registrar.Parameter("threads", &TThis::Threads);
+    registrar.Parameter("block_size_log", &TThis::BlockSizeLog);
+    registrar.Parameter("range", &TThis::Zone);
+    registrar.Parameter("pattern", &TThis::Pattern);
+    registrar.Parameter("read_percentage", &TThis::ReadPercentage);
+    registrar.Parameter("direct", &TThis::Direct);
+    registrar.Parameter("sync", &TThis::Sync);
+    registrar.Parameter("fallocate", &TThis::Fallocate);
+    registrar.Parameter("oneshot", &TThis::Oneshot);
+    registrar.Parameter("validate", &TThis::Validate);
+    registrar.Parameter("loop", &TThis::Loop);
+    registrar.Parameter("shot_count", &TThis::ShotCount);
+    registrar.Parameter("time_limit", &TThis::TimeLimit);
+    registrar.Parameter("transfer_limit", &TThis::TransferLimit);
 }
 
 TFormattedConfigurationPtr TFormattedConfiguration::From(const TConfigurationPtr& configuration)
@@ -71,10 +71,10 @@ TFormattedConfigurationPtr TFormattedConfiguration::From(const TConfigurationPtr
     return formatted;
 }
 
-TFormattedDriver::TFormattedDriver()
+void TFormattedDriver::Register(TRegistrar registrar)
 {
-    RegisterParameter("type", Type);
-    RegisterParameter("config", Config);
+    registrar.Parameter("type", &TThis::Type);
+    registrar.Parameter("config", &TThis::Config);
 }
 
 TFormattedDriverPtr TFormattedDriver::From(const TDriverDescription& driver)
@@ -85,19 +85,19 @@ TFormattedDriverPtr TFormattedDriver::From(const TDriverDescription& driver)
     return formatted;
 }
 
-TFormattedIteration::TFormattedIteration()
+void TFormattedIteration::Register(TRegistrar registrar)
 {
-    RegisterParameter("start", Start);
-    RegisterParameter("duration", Duration);
-    RegisterParameter("threads_aggregated", ThreadsAggregated);
-    RegisterParameter("process_rusage", ProcessRusage);
-    RegisterParameter("threads", Threads);
+    registrar.Parameter("start", &TThis::Start);
+    registrar.Parameter("duration", &TThis::Duration);
+    registrar.Parameter("threads_aggregated", &TThis::ThreadsAggregated);
+    registrar.Parameter("process_rusage", &TThis::ProcessRusage);
+    registrar.Parameter("threads", &TThis::Threads);
 }
 
-TFormattedRusageTimeSeries::TFormattedRusageTimeSeries()
+void TFormattedRusageTimeSeries::Register(TRegistrar registrar)
 {
-    RegisterParameter("timestamps", Timestamps);
-    RegisterParameter("rusage", Rusage);
+    registrar.Parameter("timestamps", &TThis::Timestamps);
+    registrar.Parameter("rusage", &TThis::Rusage);
 }
 
 TFormattedRusageTimeSeriesPtr TFormattedRusageTimeSeries::From(const TRusageTimeSeries& timeseries)
@@ -113,11 +113,11 @@ TFormattedRusageTimeSeriesPtr TFormattedRusageTimeSeries::From(const TRusageTime
     return formatted;
 }
 
-TFormattedWholeRusage::TFormattedWholeRusage()
+void TFormattedWholeRusage::Register(TRegistrar registrar)
 {
-    RegisterParameter("process", Process);
-    RegisterParameter("kernel_poller", KernelPoller);
-    RegisterParameter("process_and_poller", ProcessAndPoller);
+    registrar.Parameter("process", &TThis::Process);
+    registrar.Parameter("kernel_poller", &TThis::KernelPoller);
+    registrar.Parameter("process_and_poller", &TThis::ProcessAndPoller);
 }
 
 TFormattedWholeRusagePtr TFormattedWholeRusage::From(TWholeRusage wholeRusage)
@@ -129,10 +129,10 @@ TFormattedWholeRusagePtr TFormattedWholeRusage::From(TWholeRusage wholeRusage)
     return formatted;
 }
 
-TFormattedRusage::TFormattedRusage()
+void TFormattedRusage::Register(TRegistrar registrar)
 {
-    RegisterParameter("user_time", UserTime);
-    RegisterParameter("system_time", SystemTime);
+    registrar.Parameter("user_time", &TThis::UserTime);
+    registrar.Parameter("system_time", &TThis::SystemTime);
 }
 
 TFormattedRusagePtr TFormattedRusage::From(TRusage rusage)
@@ -143,9 +143,9 @@ TFormattedRusagePtr TFormattedRusage::From(TRusage rusage)
     return formatted;
 }
 
-TFormattedStatistics::TFormattedStatistics()
+void TFormattedStatistics::Register(TRegistrar registrar)
 {
-    RegisterParameter("total", Total);
+    registrar.Parameter("total", &TThis::Total);
 }
 
 TFormattedStatisticsPtr TFormattedStatistics::From(const TStatistics& statistics)
@@ -156,9 +156,9 @@ TFormattedStatisticsPtr TFormattedStatistics::From(const TStatistics& statistics
     return formatted;
 }
 
-TFormattedTimeSeries::TFormattedTimeSeries()
+void TFormattedTimeSeries::Register(TRegistrar registrar)
 {
-    RegisterParameter("timestamps", Timestamps);
+    registrar.Parameter("timestamps", &TThis::Timestamps);
 }
 
 void TFormattedTimeSeries::Update(const TTimeSeries& timeseries)
@@ -179,10 +179,10 @@ TFormattedTimeSeriesPtr TFormattedTimeSeries::From(const TTimeSeries& timeseries
     return formatted;
 }
 
-TFormattedQuantum::TFormattedQuantum()
+void TFormattedQuantum::Register(TRegistrar registrar)
 {
-    RegisterParameter("rusage", Rusage);
-    RegisterParameter("operations", Operations);
+    registrar.Parameter("rusage", &TThis::Rusage);
+    registrar.Parameter("operations", &TThis::Operations);
 }
 
 TFormattedQuantumPtr TFormattedQuantum::From(const TQuantumStatistics& quantum)
@@ -199,12 +199,12 @@ TFormattedQuantumPtr TFormattedQuantum::From(const TQuantumStatistics& quantum)
     return formatted;
 }
 
-TFormattedOperationType::TFormattedOperationType()
+void TFormattedOperationType::Register(TRegistrar registrar)
 {
-    RegisterParameter("latency", Latency);
-    RegisterParameter("latency_histogram", LatencyHistogram);
-    RegisterParameter("bytes_transmitted", BytesTransmitted);
-    RegisterParameter("operation_count", OperationCount);
+    registrar.Parameter("latency", &TThis::Latency);
+    registrar.Parameter("latency_histogram", &TThis::LatencyHistogram);
+    registrar.Parameter("bytes_transmitted", &TThis::BytesTransmitted);
+    registrar.Parameter("operation_count", &TThis::OperationCount);
 }
 
 TFormattedOperationTypePtr TFormattedOperationType::From(const TOperationTypeStatistics& operation)
@@ -217,10 +217,10 @@ TFormattedOperationTypePtr TFormattedOperationType::From(const TOperationTypeSta
     return formatted;
 }
 
-TFormattedLatencyHistogram::TFormattedLatencyHistogram()
+void TFormattedLatencyHistogram::Register(TRegistrar registrar)
 {
-    RegisterParameter("scale", Scale);
-    RegisterParameter("histogram", Histogram);
+    registrar.Parameter("scale", &TThis::Scale);
+    registrar.Parameter("histogram", &TThis::Histogram);
 }
 
 TFormattedLatencyHistogramPtr TFormattedLatencyHistogram::From(const TLatencyHistogram& histogram)
@@ -238,14 +238,14 @@ TFormattedLatencyHistogramPtr TFormattedLatencyHistogram::From(const TLatencyHis
     return formatted;
 }
 
-TFormattedLatency::TFormattedLatency()
+void TFormattedLatency::Register(TRegistrar registrar)
 {
-    RegisterParameter("avg", Avg);
-    RegisterParameter("min", Min);
-    RegisterParameter("max", Max);
-    RegisterParameter("sum", Sum);
-    RegisterParameter("sum_squared", SumSquare);
-    RegisterParameter("count", Count);
+    registrar.Parameter("avg", &TThis::Avg);
+    registrar.Parameter("min", &TThis::Min);
+    registrar.Parameter("max", &TThis::Max);
+    registrar.Parameter("sum", &TThis::Sum);
+    registrar.Parameter("sum_squared", &TThis::SumSquare);
+    registrar.Parameter("count", &TThis::Count);
 }
 
 TFormattedLatencyPtr TFormattedLatency::From(const TAggregateLatency& latency)

@@ -3,7 +3,7 @@
 #include "iotest.h"
 #include "throttler.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NIOTest {
 
@@ -16,17 +16,19 @@ DECLARE_REFCOUNTED_CLASS(TTestConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDriverConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     EDriverType Type;
     NYTree::INodePtr Config;
 
-    TDriverConfig()
+    REGISTER_YSON_STRUCT(TDriverConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("type", Type)
+        registrar.Parameter("type", &TThis::Type)
             .Default(EDriverType::Rw);
-        RegisterParameter("config", Config)
+        registrar.Parameter("config", &TThis::Config)
             .Optional();
     }
 };
@@ -36,7 +38,7 @@ DEFINE_REFCOUNTED_TYPE(TDriverConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEpochConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TString EpochName;
@@ -58,42 +60,44 @@ public:
     std::optional<TDuration> TimeLimit;
     std::optional<i64> TransferLimit;
 
-    TEpochConfig()
+    REGISTER_YSON_STRUCT(TEpochConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("epoch_name", EpochName);
-        RegisterParameter("iterate_threads", IterateThreads)
+        registrar.Parameter("epoch_name", &TThis::EpochName);
+        registrar.Parameter("iterate_threads", &TThis::IterateThreads)
             .Default(std::vector<int>{1});
-        RegisterParameter("iterate_block_size_log", IterateBlockSizeLog)
+        registrar.Parameter("iterate_block_size_log", &TThis::IterateBlockSizeLog)
             .Default(std::vector<int>{12});
-        RegisterParameter("iterate_zone", IterateZone)
+        registrar.Parameter("iterate_zone", &TThis::IterateZone)
             .Default(std::vector<std::pair<int,int>>{std::pair(0,100)});
-        RegisterParameter("iterate_read_percentage", IterateReadPercentage)
+        registrar.Parameter("iterate_read_percentage", &TThis::IterateReadPercentage)
             .Default(std::vector<int>{100});
-        RegisterParameter("iterate_direct", IterateDirect)
+        registrar.Parameter("iterate_direct", &TThis::IterateDirect)
             .Default(std::vector<bool>{true});
-        RegisterParameter("iterate_sync", IterateSync)
+        registrar.Parameter("iterate_sync", &TThis::IterateSync)
             .Default(std::vector<ESyncMode>{ESyncMode::None});
-        RegisterParameter("iterate_fallocate", IterateFallocate)
+        registrar.Parameter("iterate_fallocate", &TThis::IterateFallocate)
             .Default(std::vector<EFallocateMode>{EFallocateMode::None});
-        RegisterParameter("iterate_oneshot", IterateOneshot)
+        registrar.Parameter("iterate_oneshot", &TThis::IterateOneshot)
             .Default(std::vector<bool>{true});
-        RegisterParameter("iterate_loop", IterateLoop)
+        registrar.Parameter("iterate_loop", &TThis::IterateLoop)
             .Default(std::vector<int>{1});
-        RegisterParameter("iterate_pattern", IteratePattern)
+        registrar.Parameter("iterate_pattern", &TThis::IteratePattern)
             .Default(std::vector<EPattern>{EPattern::Sequential});
-        RegisterParameter("iterate_driver", IterateDriver)
+        registrar.Parameter("iterate_driver", &TThis::IterateDriver)
             .Default(std::vector<TDriverConfigPtr>{New<TDriverConfig>()});
-        RegisterParameter("iterate_throttler", IterateThrottler)
+        registrar.Parameter("iterate_throttler", &TThis::IterateThrottler)
             .Default({});
-        RegisterParameter("iterate_shot_count", IterateShotCount)
+        registrar.Parameter("iterate_shot_count", &TThis::IterateShotCount)
             .Default({});
-        RegisterParameter("files", Files)
+        registrar.Parameter("files", &TThis::Files)
             .Optional();
-        RegisterParameter("file_size", FileSize)
+        registrar.Parameter("file_size", &TThis::FileSize)
             .Default(1_MB);
-        RegisterParameter("time_limit", TimeLimit)
+        registrar.Parameter("time_limit", &TThis::TimeLimit)
             .Optional();
-        RegisterParameter("transfer_limit", TransferLimit)
+        registrar.Parameter("transfer_limit", &TThis::TransferLimit)
             .Optional();
     }
 };
@@ -103,17 +107,19 @@ DEFINE_REFCOUNTED_TYPE(TEpochConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTestConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TString Name;
     std::vector<TEpochConfigPtr> Epochs;
 
-    TTestConfig()
+    REGISTER_YSON_STRUCT(TTestConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("name", Name)
+        registrar.Parameter("name", &TThis::Name)
             .Optional();
-        RegisterParameter("epochs", Epochs)
+        registrar.Parameter("epochs", &TThis::Epochs)
             .Optional();
     }
 };

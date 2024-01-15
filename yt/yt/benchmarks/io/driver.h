@@ -4,7 +4,7 @@
 #include "statistics.h"
 #include "operation.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NIOTest {
 
@@ -65,19 +65,21 @@ IDriverPtr CreatePrwDriver(TPrwDriverOptions options);
 DECLARE_REFCOUNTED_STRUCT(TPrwv2DriverConfig)
 
 struct TPrwv2DriverConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     bool HighPriority;
     bool Sync;
     bool DataSync;
 
-    TPrwv2DriverConfig()
+    REGISTER_YSON_STRUCT(TPrwv2DriverConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("high_priority", HighPriority)
+        registrar.Parameter("high_priority", &TThis::HighPriority)
             .Default(false);
-        RegisterParameter("sync", Sync)
+        registrar.Parameter("sync", &TThis::Sync)
             .Default(false);
-        RegisterParameter("data_sync", DataSync)
+        registrar.Parameter("data_sync", &TThis::DataSync)
             .Default(false);
     }
 };
@@ -103,19 +105,21 @@ DEFINE_ENUM(EUserspaceGetevents,
 DECLARE_REFCOUNTED_STRUCT(TAsyncDriverConfig)
 
 struct TAsyncDriverConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     int QueueSize = 32;
     int BatchSize = 1;
     EUserspaceGetevents UserspaceGetevents;
 
-    TAsyncDriverConfig()
+    REGISTER_YSON_STRUCT(TAsyncDriverConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("queue_size", QueueSize)
+        registrar.Parameter("queue_size", &TThis::QueueSize)
             .Default(64);
-        RegisterParameter("batch_size", BatchSize)
+        registrar.Parameter("batch_size", &TThis::BatchSize)
             .Default(1);
-        RegisterParameter("userspace_getevents", UserspaceGetevents)
+        registrar.Parameter("userspace_getevents", &TThis::UserspaceGetevents)
             .Default(EUserspaceGetevents::Never);
     }
 };
@@ -135,7 +139,7 @@ IDriverPtr CreateAsyncDriver(TAsyncDriverOptions options);
 DECLARE_REFCOUNTED_STRUCT(TUringDriverConfig)
 
 struct TUringDriverConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     int QueueSize = 64;
     int BatchSize = 6;
@@ -145,19 +149,21 @@ struct TUringDriverConfig
     bool UseKernelSQThread = false;
     bool KernelSQThreadAffinity = -1;
 
-    TUringDriverConfig()
+    REGISTER_YSON_STRUCT(TUringDriverConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("queue_size", QueueSize)
+        registrar.Parameter("queue_size", &TThis::QueueSize)
             .Default(64);
-        RegisterParameter("batch_size", BatchSize)
+        registrar.Parameter("batch_size", &TThis::BatchSize)
             .Default(1);
-        RegisterParameter("fixed_files", FixedFiles)
+        registrar.Parameter("fixed_files", &TThis::FixedFiles)
             .Default(false);
-        RegisterParameter("fixed_buffers", FixedBuffers)
+        registrar.Parameter("fixed_buffers", &TThis::FixedBuffers)
             .Default(false);
-        RegisterParameter("polling", Polling)
+        registrar.Parameter("polling", &TThis::Polling)
             .Default(false);
-        RegisterParameter("kernel_sq_thread", UseKernelSQThread)
+        registrar.Parameter("kernel_sq_thread", &TThis::UseKernelSQThread)
             .Default(false);
     }
 };

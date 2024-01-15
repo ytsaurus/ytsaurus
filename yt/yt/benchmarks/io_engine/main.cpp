@@ -3,7 +3,7 @@
 #include <yt/yt/core/misc/mpsc_stack.h>
 
 #include <yt/yt/core/ytree/convert.h>
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/yson/string.h>
 
@@ -56,7 +56,7 @@ DEFINE_ENUM(EAmmoType,
 );
 
 class TTestConfig
-    : public TYsonSerializableLite
+    : public TYsonStructLite
 {
 public:
     EIOEngineType IOEngine;
@@ -77,35 +77,38 @@ public:
 
     INodePtr IOConfig;
 
-    TTestConfig()
+    REGISTER_YSON_STRUCT_LITE(TTestConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("io_engine", IOEngine)
+        registrar.Parameter("io_engine", &TThis::IOEngine)
             .Default(EIOEngineType::ThreadPool);
-        RegisterParameter("io_pattern", IOPattern)
+        registrar.Parameter("io_pattern", &TThis::IOPattern)
             .Default(EIOPattern::RandomRead);
-        RegisterParameter("directory", WorkingDirectory)
+        registrar.Parameter("directory", &TThis::WorkingDirectory)
             .Default("/tmp");
-        RegisterParameter("block_size", BlockSize)
+        registrar.Parameter("block_size", &TThis::BlockSize)
             .Default(128 * 1024);
-        RegisterParameter("file_size", FileSize)
+        registrar.Parameter("file_size", &TThis::FileSize)
             .Default(512 * 1024 * 1024);
-        RegisterParameter("max_inflight", MaxInflight)
+        registrar.Parameter("max_inflight", &TThis::MaxInflight)
             .Default(100);
-        RegisterParameter("max_rps", MaxRps)
+        registrar.Parameter("max_rps", &TThis::MaxRps)
             .Default(500);
-        RegisterParameter("max_packet", PacketSize)
+        registrar.Parameter("max_packet", &TThis::PacketSize)
             .Default(10);
-        RegisterParameter("threads", Threads)
+        registrar.Parameter("threads", &TThis::Threads)
             .Default(16);
-        RegisterParameter("print_interval_sec", PrintInterval)
+        registrar.Parameter("print_interval_sec", &TThis::PrintInterval)
             .Default(5);
-        RegisterParameter("io_config", IOConfig)
+        registrar.Parameter("io_config", &TThis::IOConfig)
             .Optional();
     }
 
+public:
     void Load(NYTree::INodePtr node)
     {
-        TYsonSerializableLite::Load(node);
+        TYsonStructLite::Load(node);
 
         switch (IOPattern) {
             case EIOPattern::Read:
