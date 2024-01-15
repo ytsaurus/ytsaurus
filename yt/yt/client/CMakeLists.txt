@@ -82,6 +82,7 @@ target_sources(yt-yt-client PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/client/api/dynamic_table_transaction_mixin.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/api/persistent_queue.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/api/sticky_transaction_pool.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/api/options.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/address_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/config.cpp

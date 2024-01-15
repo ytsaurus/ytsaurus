@@ -19,6 +19,5 @@ target_link_libraries(yt-client-cache PUBLIC
 target_sources(yt-client-cache PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/client/cache/cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/cache/cache_base.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/cache/options.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/cache/rpc.cpp
 )

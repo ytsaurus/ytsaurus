@@ -1,4 +1,4 @@
-#include <yt/yt/client/cache/options.h>
+#include <yt/yt/client/api/options.h>
 
 #include <library/cpp/testing/common/scope.h>
 #include <library/cpp/testing/gtest/gtest.h>
