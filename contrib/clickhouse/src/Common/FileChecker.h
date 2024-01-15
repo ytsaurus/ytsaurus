@@ -2,6 +2,7 @@
 
 #include <Storages/CheckResults.h>
 #include <map>
+#include <memory>
 #include <base/types.h>
 
 namespace Poco { class Logger; }
