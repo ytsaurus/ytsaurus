@@ -489,10 +489,10 @@ public:
             .Run();
     }
 
-    void RemoveLayer(const TLayerId& layerId)
+    TFuture<void> RemoveLayer(const TLayerId& layerId)
     {
-        BIND(&TLayerLocation::DoRemoveLayer, MakeStrong(this), layerId)
-            .Via(LocationQueue_->GetInvoker())
+        return BIND(&TLayerLocation::DoRemoveLayer, MakeStrong(this), layerId)
+            .AsyncVia(LocationQueue_->GetInvoker())
             .Run();
     }
 
@@ -1499,7 +1499,10 @@ public:
             LayerMeta_.Id,
             LayerMeta_.Path);
 
-        Location_->RemoveLayer(LayerMeta_.Id);
+        YT_UNUSED_FUTURE(Location_->RemoveLayer(LayerMeta_.Id)
+            .Apply(BIND([] (const TError& result) {
+                YT_LOG_ERROR_IF(!result.IsOK(), result, "Layer remove failed");
+            })));
     }
 
     const TString& GetCypressPath() const
@@ -2196,7 +2199,10 @@ private:
                     // and then copy into in-memory.
 
                     auto finally = Finally(BIND([=] () {
-                        location->RemoveLayer(layerMeta.Id);
+                        YT_UNUSED_FUTURE(location->RemoveLayer(layerMeta.Id)
+                            .Apply(BIND([] (const TError& result) {
+                                YT_LOG_ERROR_IF(!result.IsOK(), result, "Layer remove failed");
+                            })));
                     }));
 
                     auto tmpfsLayerMeta = WaitFor(targetLocation->InternalizeLayer(layerMeta, tag))
