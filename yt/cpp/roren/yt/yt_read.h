@@ -23,7 +23,7 @@ TReadTransform<T> YtRead(NYT::TRichYPath path)
     NPrivate::IRawYtReadPtr inner;
     if constexpr (std::is_same_v<T, NYT::TNode>) {
         inner = NPrivate::MakeYtNodeInput(std::move(path));
-    } else if constexpr (std::is_base_of_v<::google::protobuf::Message, T>) {
+    } else if constexpr (std::derived_from<T, ::google::protobuf::Message>) {
         inner = NPrivate::MakeYtProtoRead<T>(std::move(path));
     } else {
         static_assert(TDependentFalse<T>, "unknown YT reader");

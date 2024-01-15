@@ -12,7 +12,7 @@ template <class TImpl, EMaintenanceType... Types>
 NObjectServer::TObject* TMaintenanceTarget<TImpl, Types...>::AsObject()
 {
     static_assert(
-        std::is_base_of_v<NObjectServer::TObject, TImpl>,
+        std::derived_from<TImpl, NObjectServer::TObject>,
         "TImpl argument of TMaintenanceTarget template must be a subclass of NObjectServer::TObject");
 
     return static_cast<TImpl*>(this);

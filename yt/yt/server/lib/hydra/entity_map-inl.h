@@ -29,7 +29,7 @@ int TDefaultEntityMapTraits<TValue>::GetParallelSaveBatchSize() const
 template <class TValue>
 std::unique_ptr<TValue> TDefaultEntityMapTraits<TValue>::Create(const TEntityKey<TValue>& key) const
 {
-    if constexpr(std::is_base_of_v<TPoolAllocator::TObjectBase, TValue>) {
+    if constexpr(std::derived_from<TValue, TPoolAllocator::TObjectBase>) {
         return TPoolAllocator::New<TValue>(key);
     } else {
         return std::make_unique<TValue>(key);
