@@ -20,8 +20,6 @@
 
 #include <util/random/fast.h>
 
-#include <numeric>
-
 namespace NYT::NChunkClient {
 namespace {
 
@@ -61,6 +59,7 @@ struct TPlot
     ERequestBehavior GetMetaBehavior = ERequestBehavior::Succeed;
     ERequestBehavior ReadBlocksBehavior = ERequestBehavior::Succeed;
     std::optional<int> MaxBlockCount;
+    std::optional<int> ReadBlockCount;
 };
 
 class TMockChunkReader
@@ -135,6 +134,11 @@ private:
             YT_VERIFY(*Plot_.MaxBlockCount >= blockCount);
         }
 
+        if (Plot_.ReadBlockCount) {
+            YT_VERIFY(*Plot_.ReadBlockCount <= blockCount);
+            blockCount = *Plot_.ReadBlockCount;
+        }
+
         std::vector<TBlock> blocks;
         for (int index = firstBlockIndex; index < firstBlockIndex + blockCount; ++index) {
             blocks.emplace_back(Blocks_[index]);
@@ -197,6 +201,8 @@ struct TTestCase
     THashMap<int, TPlot> ReadersPlot;
 
     bool ShouldFail = false;
+    bool ReadShouldBeFast = false;
+    bool ExpectedCountShouldBeStrict = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -231,6 +237,7 @@ void ExecTest(TTestCase testCase)
         testCase.RequestedPartIndices,
         NChunkClient::ChunkClientLogger);
 
+    auto readStart = Now();
     auto rowParts = reader->ReadRows(
         /*options*/ {},
         testCase.FirstRowIndex,
@@ -238,9 +245,17 @@ void ExecTest(TTestCase testCase)
         .Get()
         .ValueOrThrow();
 
+    if (testCase.ReadShouldBeFast) {
+        YT_VERIFY(Now() - readStart < TDuration::Seconds(1));
+    }
+
     ASSERT_EQ(rowParts.size(), testCase.ExpectedPartRowCount.size());
     for (int partIndex = 0; partIndex < std::ssize(rowParts); ++partIndex) {
-        ASSERT_GE(std::ssize(rowParts[partIndex]), testCase.ExpectedPartRowCount[partIndex]);
+        if (testCase.ExpectedCountShouldBeStrict) {
+            ASSERT_EQ(std::ssize(rowParts[partIndex]), testCase.ExpectedPartRowCount[partIndex]);
+        } else {
+            ASSERT_GE(std::ssize(rowParts[partIndex]), testCase.ExpectedPartRowCount[partIndex]);
+        }
         for (int row = 0; row < testCase.ExpectedPartRowCount[partIndex]; ++row) {
             EXPECT_TRUE(TRef::AreBitwiseEqual(encodedRows[partIndex][row + testCase.FirstRowIndex], rowParts[partIndex][row]));
         }
@@ -369,7 +384,7 @@ INSTANTIATE_TEST_SUITE_P(
                 {2, {.MaxBlockCount = 9}},
                 {3, {.MaxBlockCount = 9}},
             },
-            .ShouldFail = true
+            .ShouldFail = true,
         },
         TTestCase{
             .FirstRowIndex = 10,
@@ -402,6 +417,36 @@ INSTANTIATE_TEST_SUITE_P(
                 {1, {.GetMetaBehavior = ERequestBehavior::FailImmediately}},
                 {2, {.GetMetaBehavior = ERequestBehavior::FailImmediately}},
             },
+        },
+        TTestCase{
+            .FirstRowIndex = 0,
+            .RowCount = 2,
+            .ExpectedPartRowCount = {2, 2, 2},
+            .DecodeRowCount = 2,
+            .ReadersPlot = {
+                {0, {.MaxBlockCount = 1, .ReadBlockCount = 1}},
+                {1, {.ReadBlocksBehavior = ERequestBehavior::Slow, .MaxBlockCount = 2, .ReadBlockCount = 2}},
+                {2, {.ReadBlocksBehavior = ERequestBehavior::Slow, .MaxBlockCount = 2, .ReadBlockCount = 2}},
+                {3, {.ReadBlocksBehavior = ERequestBehavior::Slow, .MaxBlockCount = 2, .ReadBlockCount = 2}},
+                {4, {.ReadBlocksBehavior = ERequestBehavior::Slow, .MaxBlockCount = 2, .ReadBlockCount = 2}},
+                {5, {.ReadBlocksBehavior = ERequestBehavior::Slow, .MaxBlockCount = 2, .ReadBlockCount = 2}},
+            },
+        },
+        TTestCase{
+            .FirstRowIndex = 0,
+            .RowCount = 2,
+            .ExpectedPartRowCount = {1, 1, 1},
+            .DecodeRowCount = 1,
+            .ReadersPlot = {
+                {0, {.MaxBlockCount = 2, .ReadBlockCount = 1}},
+                {1, {.MaxBlockCount = 2, .ReadBlockCount = 1}},
+                {2, {.MaxBlockCount = 2, .ReadBlockCount = 1}},
+                {3, {.MaxBlockCount = 2, .ReadBlockCount = 1}},
+                {4, {.MaxBlockCount = 2, .ReadBlockCount = 1}},
+                {5, {.ReadBlocksBehavior = ERequestBehavior::Slow}},
+            },
+            .ReadShouldBeFast = true,
+            .ExpectedCountShouldBeStrict = true,
         }));
 
 ////////////////////////////////////////////////////////////////////////////////

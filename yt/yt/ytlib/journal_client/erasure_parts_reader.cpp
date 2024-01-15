@@ -188,17 +188,27 @@ private:
         }
 
         const auto& data = dataOrError.Value();
+        int readRowCount = data.size();
         auto& replica = GetOrCrash(Replicas_, partIndex);
 
         YT_LOG_DEBUG("Got replica data (PartIndex: %v, ReadRowCount: %v)",
             partIndex,
-            data.size());
+            readRowCount);
 
         replica.Data = std::move(data);
 
         if (CanComplete(ReadRowCount_)) {
             YT_LOG_DEBUG("Erasure rows read session will complete with full read");
             Complete(std::move(guard), ReadRowCount_);
+            return;
+        }
+
+        // NB: Assume that incomplete response is caused by some read limits on data node and is still significant enough.
+        // Throttling is accounted by comparing with null.
+        if (readRowCount > 0 && readRowCount < replica.RowCount && CanComplete(readRowCount)) {
+            YT_LOG_DEBUG("Erasure rows read session will early complete with partial read (RowCount: %v)",
+                readRowCount);
+            Complete(std::move(guard), readRowCount);
             return;
         }
 
