@@ -11,7 +11,7 @@ func (c *CompressionCodec) UnmarshalText(text []byte) error {
 	return nil
 }
 
-// MarshalText is implementation of encoding.TexMarshaler.
+// MarshalText is implementation of encoding.TextMarshaler.
 func (c CompressionCodec) MarshalText() (text []byte, err error) {
 	return []byte(c), nil
 }
@@ -89,4 +89,5 @@ const (
 	ErasureNone        ErasureCodec = "none"
 	ErasureReedSolomon ErasureCodec = "reed_solomon_6_3"
 	ErasureLRC         ErasureCodec = "lrc_12_2_2"
+	ErasureISALRC      ErasureCodec = "isa_lrc_12_2_2"
 )
