@@ -228,7 +228,7 @@ public:
         auto enable = groupConfig->Parameterized->EnableReshard.value_or(
             DynamicConfig_->EnableParameterizedReshardByDefault);
         if (!enable) {
-            YT_LOG_DEBUG("Balancing tablets via parameterized move is disabled (BundleName: %v, Group: %v)",
+            YT_LOG_DEBUG("Balancing tablets via parameterized reshard is disabled (BundleName: %v, Group: %v)",
                 BundleName_,
                 GroupName_);
         }
