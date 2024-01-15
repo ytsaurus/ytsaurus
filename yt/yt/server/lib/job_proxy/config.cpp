@@ -113,6 +113,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("binds", &TThis::Binds)
         .Default();
 
+    registrar.Parameter("gpu_indexes", &TThis::GpuIndexes)
+        .Default();
+
     registrar.Parameter("supervisor_connection", &TThis::SupervisorConnection);
 
     registrar.Parameter("supervisor_rpc_timeout", &TThis::SupervisorRpcTimeout)
