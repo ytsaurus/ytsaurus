@@ -186,7 +186,7 @@ def do_compute_weight(args, client):
 
     client.run_merge(
         args.table_path,
-        "<schema={}>{}".format(yson.dumps(table_schema), args.static_path),
+        "<schema={}>{}".format(yson.dumps(table_schema).decode('utf-8'), args.static_path),
         spec={
             "force_transform": True,
             "sampling": {
@@ -203,7 +203,7 @@ def do_compute_weight(args, client):
         Mapper(table_schema),
         reducer,
         args.static_path,
-        "<schema={}>{}".format(yson.dumps(result_schema), args.columns_path),
+        "<schema={}>{}".format(yson.dumps(result_schema).decode('utf-8'), args.columns_path),
         reduce_by=["column"])
 
     visualize(args, client)
