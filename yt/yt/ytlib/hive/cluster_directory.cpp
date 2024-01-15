@@ -49,6 +49,13 @@ NNative::IConnectionPtr TClusterDirectory::GetConnectionOrThrow(TClusterTag clus
     return connection;
 }
 
+NNative::IConnectionPtr TClusterDirectory::GetConnection(TClusterTag clusterTag) const
+{
+    auto connection = FindConnection(clusterTag);
+    YT_VERIFY(connection);
+    return connection;
+}
+
 NNative::IConnectionPtr TClusterDirectory::FindConnection(const TString& clusterName) const
 {
     auto guard = Guard(Lock_);
@@ -62,6 +69,13 @@ NNative::IConnectionPtr TClusterDirectory::GetConnectionOrThrow(const TString& c
     if (!connection) {
         THROW_ERROR_EXCEPTION("Cannot find cluster with name %Qv", clusterName);
     }
+    return connection;
+}
+
+NNative::IConnectionPtr TClusterDirectory::GetConnection(const TString& clusterName) const
+{
+    auto connection = FindConnection(clusterName);
+    YT_VERIFY(connection);
     return connection;
 }
 

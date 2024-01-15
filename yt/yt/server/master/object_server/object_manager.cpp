@@ -2010,11 +2010,10 @@ void TObjectManager::HydraPrepareDestroyObjects(
 
 TFuture<void> TObjectManager::DestroySequoiaObjects(NProto::TReqDestroyObjects request)
 {
-    return Bootstrap_->GetSequoiaClient()
-        .Apply(BIND([this_ = MakeStrong(this)] (const ISequoiaClientPtr& readyClient) {
-            return readyClient->StartTransaction();
-        }))
-        .Apply(BIND([request = std::move(request), this, this_ = MakeStrong(this)] (ISequoiaTransactionPtr transaction) mutable {
+    return Bootstrap_
+        ->GetSequoiaClient()
+        ->StartTransaction()
+        .Apply(BIND([request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) mutable {
             for (auto protoId : request.object_ids()) {
                 auto id = FromProto<TObjectId>(protoId);
                 auto type = TypeFromId(id);

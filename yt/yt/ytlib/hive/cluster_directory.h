@@ -33,12 +33,16 @@ public:
     NApi::NNative::IConnectionPtr FindConnection(NApi::TClusterTag clusterTag) const;
     //! Same as #FindConnection but throws if no connection is found.
     NApi::NNative::IConnectionPtr GetConnectionOrThrow(NApi::TClusterTag clusterTag) const;
+    //! Same as #FindConnection but crashes if no connection is found.
+    NApi::NNative::IConnectionPtr GetConnection(NApi::TClusterTag clusterTag) const;
 
     //! Returns the connection to cluster with a given #clusterName.
     //! Returns |nullptr| if no connection is found.
     NApi::NNative::IConnectionPtr FindConnection(const TString& clusterName) const;
     //! Same as #FindConnection but throws if no connection is found.
     NApi::NNative::IConnectionPtr GetConnectionOrThrow(const TString& clusterName) const;
+    //! Same as #FindConnection but crashes if no connection is found.
+    NApi::NNative::IConnectionPtr GetConnection(const TString& clusterName) const;
 
     //! Returns the list of names of all registered clusters.
     std::vector<TString> GetClusterNames() const;

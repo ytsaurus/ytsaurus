@@ -356,6 +356,7 @@ SRCS(
 
     sequoia_client/chunk_meta_extensions.cpp
     sequoia_client/client.cpp
+    sequoia_client/lazy_client.cpp
     sequoia_client/helpers.cpp
     sequoia_client/table_descriptor.cpp
     sequoia_client/transaction.cpp
