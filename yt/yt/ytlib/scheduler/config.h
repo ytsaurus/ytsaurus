@@ -31,7 +31,6 @@
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/misc/arithmetic_formula.h>
-#include <yt/yt/core/misc/backoff_strategy_api.h>
 #include <yt/yt/core/misc/phoenix.h>
 
 #include <yt/yt/library/formats/format.h>

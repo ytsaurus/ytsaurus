@@ -5,7 +5,6 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/yt/core/misc/backoff_strategy_api.h>
 #include <yt/yt/core/misc/backoff_strategy_config.h>
 
 namespace NYT::NAuth {

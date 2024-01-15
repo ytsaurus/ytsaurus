@@ -11,8 +11,6 @@
 
 #include <yt/yt/client/chaos_client/public.h>
 
-#include <yt/yt/core/misc/backoff_strategy_api.h>
-
 namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
