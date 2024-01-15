@@ -5519,9 +5519,7 @@ private:
     {
         return Bootstrap_
             ->GetSequoiaClient()
-            .Apply(BIND([] (const ISequoiaClientPtr& readyClient) {
-                return readyClient->StartTransaction();
-            }))
+            ->StartTransaction()
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 for (const auto& protoChunkId : request.chunk_ids()) {
                     auto chunkId = FromProto<TChunkId>(protoChunkId);
