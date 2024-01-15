@@ -79,22 +79,12 @@ public:
     TFuture<ISequoiaTransactionPtr> StartTransaction(
         const NApi::TTransactionStartOptions& options) override
     {
-        return NDetail::StartSequoiaTransaction(this, options);
+        return NDetail::StartSequoiaTransaction(this, NativeRootClient_, GroundRootClient_, options);
     }
 
     const TLogger& GetLogger() const override
     {
         return Logger;
-    }
-
-    const NNative::IClientPtr& GetNativeRootClient() const override
-    {
-        return NativeRootClient_;
-    }
-
-    const NNative::IClientPtr& GetGroundRootClient() const override
-    {
-        return GroundRootClient_;
     }
 
 private:
@@ -111,7 +101,10 @@ ISequoiaClientPtr CreateSequoiaClient(
     NNative::IClientPtr groundClient,
     NLogging::TLogger logger)
 {
-    return New<TSequoiaClient>(std::move(nativeClient), std::move(groundClient), logger);
+    return New<TSequoiaClient>(
+        std::move(nativeClient),
+        std::move(groundClient),
+        std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
