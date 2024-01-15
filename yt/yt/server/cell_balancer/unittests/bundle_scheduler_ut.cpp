@@ -3506,7 +3506,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodeTagsAssigned)
 
     for (const auto& node : newTabletNodes) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, node);
-        nodeInfo->TabletSlots.resize(bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize);
+        nodeInfo->TabletSlots.resize(bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize.value());
         SetTabletSlotsState(input, node, TabletSlotStateEmpty);
         nodeInfo->Statistics->Memory->TabletStatic->Limit = *bundleInfo->TargetConfig->MemoryLimits->TabletStatic;
     }
@@ -3749,7 +3749,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesWithSpare)
 
     for (auto& node : spareNodes) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, node);
-        nodeInfo->TabletSlots.resize(bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize);
+        nodeInfo->TabletSlots.resize(bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize.value());
         SetTabletSlotsState(input, node, TabletSlotStateEmpty);
     }
 
@@ -3838,7 +3838,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesWithSpare)
         nodeInfo->Decommissioned = mutations.ChangedDecommissionedFlag.at(nodeName);
 
         nodeInfo->Statistics->Memory->TabletStatic->Limit = *bundleInfo->TargetConfig->MemoryLimits->TabletStatic;
-        nodeInfo->TabletSlots.resize(bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize);
+        nodeInfo->TabletSlots.resize(bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize.value());
         SetTabletSlotsState(input, nodeName, TabletSlotStateEmpty);
     }
 

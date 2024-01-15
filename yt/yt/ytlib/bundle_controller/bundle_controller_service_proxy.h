@@ -18,6 +18,7 @@ public:
         .SetProtocolVersion(4));
 
     DEFINE_RPC_PROXY_METHOD(NProto, GetBundleConfig);
+    DEFINE_RPC_PROXY_METHOD(NProto, SetBundleConfig);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

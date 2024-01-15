@@ -296,7 +296,7 @@ void TryCreateSpareNodesAssignment(
 {
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
     auto& spareNodes = spareNodesInfo->FreeNodes;
-    int perNodeSlotCount = bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize;
+    int perNodeSlotCount = bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize.value_or(DefaultWriteThreadPoolSize);
     auto now = TInstant::Now();
 
     while (slotsToAdd > 0 && !spareNodes.empty()) {
@@ -645,7 +645,7 @@ THashSet<TString> GetDataCentersToPopulate(
 {
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
     const auto& zoneInfo = GetOrCrash(input.Zones, bundleInfo->Zone);
-    const auto perNodeSlotCount = bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize;
+    const auto perNodeSlotCount = bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize.value_or(DefaultWriteThreadPoolSize);
 
     int activeDataCenterCount = std::ssize(zoneInfo->DataCenters) - zoneInfo->RedundantDataCenterCount;
     YT_VERIFY(activeDataCenterCount > 0);
@@ -805,7 +805,7 @@ void SetNodeTagFilter(
 
     for (const auto& [dataCenterName, _] : zoneInfo->DataCenters) {
         const auto& aliveNodes = perDataCenterAliveNodes[dataCenterName];
-        int perNodeSlotCount = bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize;
+        int perNodeSlotCount = bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize.value_or(DefaultWriteThreadPoolSize);
         auto& spareNodes = perDataCenterSpareNodes[dataCenterName];
 
         auto getSpareSlotCount = [perNodeSlotCount, bundleName] (auto& sparesByBundle) ->int {

@@ -46,6 +46,7 @@ public:
         Y_UNUSED(Bootstrap_);
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBundleConfig));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SetBundleConfig));
     }
 
 private:
@@ -53,7 +54,7 @@ private:
 
     inline static const TString  BundleAttributeTargetConfig = "bundle_controller_target_config";
 
-    NCellBalancer::TBundleConfigPtr GetBundleConfig(const TString& bundleName)
+    NBundleControllerClient::TBundleTargetConfigPtr GetBundleConfig(const TString& bundleName)
     {
         auto path = Format("%v/%v/@%v", TabletCellBundlesPath, bundleName, BundleAttributeTargetConfig);
         auto yson = NConcurrency::WaitFor(Bootstrap_
@@ -61,7 +62,17 @@ private:
             ->GetNode(path))
             .ValueOrThrow();
 
-        return NYTree::ConvertTo<NCellBalancer::TBundleConfigPtr>(yson);
+        return NYTree::ConvertTo<NBundleControllerClient::TBundleTargetConfigPtr>(yson);
+    }
+
+    void SetBundleConfig(const TString& bundleName, NBundleControllerClient::TBundleTargetConfigPtr& config)
+    {
+        auto path = Format("%v/%v/@%v", TabletCellBundlesPath, bundleName, BundleAttributeTargetConfig);
+        NApi::TSetNodeOptions setOptions;
+        NConcurrency::WaitFor(Bootstrap_
+            ->GetClient()
+            ->SetNode(path, NYson::ConvertToYsonString(config), setOptions))
+            .ThrowOnError();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NBundleController::NProto, GetBundleConfig)
@@ -75,14 +86,23 @@ private:
 
         response->set_bundle_name(bundleName);
 
-        NBundleControllerClient::NProto::ToProto(response->mutable_cpu_limits(), bundleConfig->CpuLimits);
-        NBundleControllerClient::NProto::ToProto(response->mutable_memory_limits(), bundleConfig->MemoryLimits);
+        NBundleControllerClient::NProto::ToProto(response->mutable_bundle_config(), bundleConfig);
 
-        response->set_rpc_proxy_count(bundleConfig->RpcProxyCount);
-        NBundleControllerClient::NProto::ToProto(response->mutable_rpc_proxy_resource_guarantee(), bundleConfig->RpcProxyResourceGuarantee);
+        context->Reply();
+    }
 
-        response->set_tablet_node_count(bundleConfig->TabletNodeCount);
-        NBundleControllerClient::NProto::ToProto(response->mutable_tablet_node_resource_guarantee(), bundleConfig->TabletNodeResourceGuarantee);
+    DECLARE_RPC_SERVICE_METHOD(NBundleController::NProto, SetBundleConfig)
+    {
+        context->SetRequestInfo("BundleName: %v",
+            request->bundle_name());
+
+        TString bundleName = request->bundle_name();
+        auto reqBundleConfig = request->mutable_bundle_config();
+
+        auto bundleConfig = GetBundleConfig(bundleName);
+        NBundleControllerClient::NProto::FromProto(bundleConfig, reqBundleConfig);
+
+        SetBundleConfig(bundleName, bundleConfig);
 
         context->Reply();
     }

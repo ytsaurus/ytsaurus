@@ -15,9 +15,9 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBundleConfigDescriptorPtr TClient::DoGetBundleConfig(
+NBundleControllerClient::TBundleConfigDescriptorPtr TClient::DoGetBundleConfig(
     const TString& bundleName,
-    const TGetBundleConfigOptions& /*options*/)
+    const NBundleControllerClient::TGetBundleConfigOptions& /*options*/)
 {
     auto req = BundleControllerProxy_->GetBundleConfig();
     req->set_bundle_name(bundleName);
@@ -28,17 +28,36 @@ TBundleConfigDescriptorPtr TClient::DoGetBundleConfig(
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
 
-    auto result = New<TBundleConfigDescriptor>();
+    auto result = New<NBundleControllerClient::TBundleConfigDescriptor>();
     result->BundleName = rsp->bundle_name();
-    result->RpcProxyCount = rsp->rpc_proxy_count();
-    result->TabletNodeCount = rsp->tablet_node_count();
 
-    NBundleControllerClient::NProto::FromProto(result->CpuLimits, rsp->mutable_cpu_limits());
-    NBundleControllerClient::NProto::FromProto(result->MemoryLimits, rsp->mutable_memory_limits());
-    NBundleControllerClient::NProto::FromProto(result->RpcProxyResourceGuarantee, rsp->mutable_rpc_proxy_resource_guarantee());
-    NBundleControllerClient::NProto::FromProto(result->TabletNodeResourceGuarantee, rsp->mutable_tablet_node_resource_guarantee());
+    auto conf = New<NBundleControllerClient::TBundleTargetConfig>();
+    conf->CpuLimits = New<NBundleControllerClient::TCpuLimits>();
+    conf->MemoryLimits = New<NBundleControllerClient::TMemoryLimits>();
+    conf->RpcProxyResourceGuarantee = New<NBundleControllerClient::TInstanceResources>();
+    conf->TabletNodeResourceGuarantee = New<NBundleControllerClient::TInstanceResources>();
+    NBundleControllerClient::NProto::FromProto(conf, rsp->mutable_bundle_config());
+
+    result->BundleConfig = conf;
 
     return result;
+}
+
+void TClient::DoSetBundleConfig(
+    const TString& bundleName,
+    const NBundleControllerClient::TBundleTargetConfigPtr& bundleConfig,
+    const NBundleControllerClient::TSetBundleConfigOptions& /*options*/)
+{
+    auto req = BundleControllerProxy_->SetBundleConfig();
+
+    req->set_bundle_name(bundleName);
+    NBundleControllerClient::NProto::ToProto(req->mutable_bundle_config(), bundleConfig);
+
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

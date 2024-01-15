@@ -589,7 +589,7 @@ private:
 
             const auto& targetConfig = bundleInfo->TargetConfig;
             auto sensors = GetBundleSensors(bundleName);
-            sensors->WriteThreadPoolSize.Update(targetConfig->CpuLimits->WriteThreadPoolSize);
+            sensors->WriteThreadPoolSize.Update(targetConfig->CpuLimits->WriteThreadPoolSize.value_or(0));
 
             const auto& memoryLimits = targetConfig->MemoryLimits;
             sensors->TabletStaticSize.Update(memoryLimits->TabletStatic.value_or(0));

@@ -1221,7 +1221,7 @@ int GetTargetCellCount(const TBundleInfoPtr& bundleInfo, const TZoneInfoPtr& zon
     int activeNodeCount = (targetConfig->TabletNodeCount * activeDataCenterCount) / std::ssize(zoneInfo->DataCenters);
 
     YT_VERIFY(activeNodeCount >= 0);
-    return activeNodeCount * targetConfig->CpuLimits->WriteThreadPoolSize / bundleInfo->Options->PeerCount;
+    return activeNodeCount * targetConfig->CpuLimits->WriteThreadPoolSize.value_or(DefaultWriteThreadPoolSize) / bundleInfo->Options->PeerCount;
 }
 
 bool EnsureNodeDecommissioned(

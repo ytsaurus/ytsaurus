@@ -799,10 +799,16 @@ public:
         const TListUserTokensOptions& options),
         (user, passwordSha256, options))
 
-    IMPLEMENT_METHOD(TBundleConfigDescriptorPtr, GetBundleConfig, (
+    IMPLEMENT_METHOD(NBundleControllerClient::TBundleConfigDescriptorPtr, GetBundleConfig, (
         const TString& bundleName,
-        const TGetBundleConfigOptions& options),
+        const NBundleControllerClient::TGetBundleConfigOptions& options),
         (bundleName, options))
+
+    IMPLEMENT_METHOD(void, SetBundleConfig, (
+        const TString& bundleName,
+        const NBundleControllerClient::TBundleTargetConfigPtr& bundleConfig,
+        const NBundleControllerClient::TSetBundleConfigOptions& options),
+        (bundleName, bundleConfig, options))
 
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
@@ -1881,14 +1887,18 @@ private:
         const TString& passwordSha256,
         const TTimeoutOptions& options);
 
-
     //
     // BundleController
     //
 
-    TBundleConfigDescriptorPtr DoGetBundleConfig(
+    NBundleControllerClient::TBundleConfigDescriptorPtr DoGetBundleConfig(
         const TString& bundleName,
-        const TGetBundleConfigOptions& options);
+        const NBundleControllerClient::TGetBundleConfigOptions& options);
+
+    void DoSetBundleConfig(
+        const TString& bundleName,
+        const NBundleControllerClient::TBundleTargetConfigPtr& bundleConfig,
+        const NBundleControllerClient::TSetBundleConfigOptions& options);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)
