@@ -1564,6 +1564,23 @@ class TestClickHouseCommon(ClickHouseTestBase):
             remove("//tmp/t")
             wait(lambda: hc.get() == 0)
 
+    @authors("dakovalkov")
+    def test_wait_end_of_query(self):
+        with Clique(1) as clique:
+            query = "select * from numbers({})"
+            settings = {
+                "wait_end_of_query": 1,
+                "buffer_size": 1024 ** 2,
+            }
+            expected_result = [{"number": i} for i in range(1000)]
+
+            assert clique.make_query(query.format(1000), settings=settings, verbose=False) == expected_result
+
+            # TODO: Should fail since buffer_size is exceeded and temporary data disk space limit is 1 byte,
+            # but works for now because of https://github.com/ClickHouse/ClickHouse/issues/58826
+            # with raises_yt_error(QueryFailedError):
+            #     clique.make_query(query.format(1000 * 1000), settings=settings, verbose=False)
+
 
 class TestClickHouseNoCache(ClickHouseTestBase):
     @authors("dakovalkov")
