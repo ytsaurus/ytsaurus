@@ -227,7 +227,7 @@ public:
         }
     }
 
-    void SetDisableSchedulerJobs(bool value) override
+    void SetDisableJobs(bool value) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -921,15 +921,16 @@ private:
 
         YT_LOG_DEBUG_IF(
             context->NeedTotalConfirmation,
-            "Send all finished jobs due to total confirmation (ControllerAgentDescriptor: %v)",
+            "Sending all finished jobs due to total confirmation (ControllerAgentDescriptor: %v)",
             agentDescriptor);
 
         auto sendFinishedJob = [&request, &finishedJobsStatisticsSize, &getJobStatistics] (const TJobPtr& job) {
             YT_LOG_DEBUG(
-                "Add finished job info to heartbeat to agent (JobId: %v, JobState: %v, AgentDescriptor: %v)",
+                "Adding finished job info to heartbeat to agent (JobId: %v, JobState: %v, AgentDescriptor: %v, OperationId: %v)",
                 job->GetId(),
                 job->GetState(),
-                job->GetControllerAgentDescriptor());
+                job->GetControllerAgentDescriptor(),
+                job->GetOperationId());
 
             auto* jobStatus = request->add_jobs();
             FillJobStatus(jobStatus, job);
@@ -960,8 +961,10 @@ private:
 
             if (!controllerAgentDescriptor) {
                 YT_LOG_DEBUG(
-                    "Skipping heartbeat for job since old agent incarnation is outdated and new incarnation is not received yet (JobId: %v)",
-                    job->GetId());
+                    "Skipping heartbeat for job since old agent incarnation is outdated and new incarnation is not received yet "
+                    "(JobId: %v, OperationId: %v)",
+                    job->GetId(),
+                    job->GetOperationId());
                 if (jobConfirmationRequested) {
                     agentMismatchJobs.push_back(job);
                 }
@@ -983,7 +986,7 @@ private:
 
             if (job->GetStored()) {
                 YT_LOG_DEBUG(
-                    "Confirm job (JobId: %v, OperationId: %v, Stored: %v, State: %v, ControllerAgentDescriptor: %v)",
+                    "Confirming job (JobId: %v, OperationId: %v, Stored: %v, State: %v, ControllerAgentDescriptor: %v)",
                     jobId,
                     job->GetOperationId(),
                     job->GetStored(),
@@ -1029,7 +1032,11 @@ private:
 
         if (!std::empty(removedJobsToForcefullySend)) {
             for (const auto& job : removedJobsToForcefullySend) {
-                YT_LOG_DEBUG("Forcefully send removed job info (JobId: %v, JobState: %v)", job->GetId(), job->GetState());
+                YT_LOG_DEBUG(
+                    "Forcefully adding removed job info to heartbeat to agent (JobId: %v, JobState: %v, OperationId: %v)",
+                    job->GetId(),
+                    job->GetState(),
+                    job->GetOperationId());
 
                 sendFinishedJob(job);
             }
@@ -1050,9 +1057,10 @@ private:
         i64 runningJobsStatisticsSize = 0;
         for (const auto& job : runningJobs) {
             YT_LOG_DEBUG(
-                "Add running job info to heartbeat to agent (JobId: %v, AgentDescriptor: %v)",
+                "Adding running job info to heartbeat to agent (JobId: %v, AgentDescriptor: %v, OperationId: %v)",
                 job->GetId(),
-                job->GetControllerAgentDescriptor());
+                job->GetControllerAgentDescriptor(),
+                job->GetOperationId());
 
             addAllocationInfoToHeartbeatRequest(job->GetAllocationId());
 
@@ -1291,46 +1299,28 @@ private:
         THashSet<TOperationId> operationIdsToRequestInfo;
 
         for (TForbidContextSwitchGuard guard; const auto& [id, job] : JobMap_) {
-            auto jobId = job->GetId();
-
             if (requestOperationInfosForJobs && !job->GetControllerAgentDescriptor()) {
                 operationIdsToRequestInfo.insert(job->GetOperationId());
             }
 
-            bool sendForcefully = context->JobsToForcefullySend.erase(job);
-            if (job->GetStored()) {
-                if (!sendForcefully) {
-                    continue;
-                }
-
-                YT_LOG_DEBUG(
-                    "Reporting finished job to scheduler (JobId: %v, OperationId: %v, Stored: %v, State: %v)",
-                    jobId,
-                    job->GetOperationId(),
-                    job->GetStored(),
-                    job->GetState());
+            if (job->IsFinished()) {
+                continue;
             }
+
+            YT_LOG_DEBUG(
+                "Adding allocation info to heartbeat to scheduler (AllocationId: %v, AllocationState: %v, OperationId: %v)",
+                job->GetAllocationId(),
+                job->GetState(),
+                job->GetOperationId());
 
             auto* allocationStatus = request->add_allocations();
             FillJobStatus(allocationStatus, job);
-            switch (job->GetState()) {
-                case EJobState::Running: {
-                    auto& resourceUsage = *allocationStatus->mutable_resource_usage();
-                    resourceUsage = ToNodeResources(job->GetResourceUsage());
-                    ReplaceCpuWithVCpu(resourceUsage);
-                    break;
-                }
-                case EJobState::Completed:
-                case EJobState::Aborted:
-                case EJobState::Failed: {
-                    ToProto(allocationStatus->mutable_result()->mutable_error(), job->GetJobError());
-                    break;
-                }
-                default:
-                    break;
+            {
+                auto& resourceUsage = *allocationStatus->mutable_resource_usage();
+                resourceUsage = ToNodeResources(job->GetResourceUsage());
+                ReplaceCpuWithVCpu(resourceUsage);
             }
         }
-
 
         for (auto [allocationId, operationId] : controllerAgentConnectorPool->GetAllocationIdsWaitingForSpec()) {
             auto* allocationStatus = request->add_allocations();
@@ -1343,9 +1333,10 @@ private:
 
         for (const auto& job : context->JobsToForcefullySend) {
             YT_LOG_DEBUG(
-                "Forcefully send already removed job (JobId: %v, JobState: %v)",
+                "Forcefully adding allocation to heartbeat to scheduler (JobId: %v, JobState: %v, OperationId: %v)",
                 job->GetId(),
-                job->GetState());
+                job->GetState(),
+                job->GetOperationId());
 
             YT_VERIFY(job->IsFinished());
 
@@ -1354,7 +1345,7 @@ private:
             ToProto(allocationStatus->mutable_result()->mutable_error(), job->GetJobError());
         }
 
-        for (const auto& [allocationId, info] : context->SpecFetchFailedAllocations) {
+        for (const auto& [allocationId, info] : context->FailedAllocations) {
             auto* jobStatus = request->add_allocations();
             ToProto(jobStatus->mutable_allocation_id(), allocationId);
 
@@ -1367,13 +1358,6 @@ private:
                 << info.Error;
             ToProto(jobResult.mutable_error(), error);
             *jobStatus->mutable_result() = jobResult;
-        }
-
-        for (const auto& [allocationId, info] : context->SpecFetchFailedAllocations) {
-            auto* specFetchFailedAllocationInfoProto = request->add_spec_fetch_failed_allocations();
-            ToProto(specFetchFailedAllocationInfoProto->mutable_allocation_id(), allocationId);
-            ToProto(specFetchFailedAllocationInfoProto->mutable_operation_id(), info.OperationId);
-            ToProto(specFetchFailedAllocationInfoProto->mutable_error(), info.Error);
         }
 
         if (requestOperationInfosForJobs) {

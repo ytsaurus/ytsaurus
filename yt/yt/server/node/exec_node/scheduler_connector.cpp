@@ -61,6 +61,46 @@ TSchedulerConnector::TSchedulerConnector(IBootstrap* bootstrap)
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
 }
 
+void TSchedulerConnector::Start()
+{
+    const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
+    jobResourceManager->SubscribeResourcesAcquired(BIND_NO_PROPAGATE(
+        &TSchedulerConnector::OnResourcesAcquired,
+        MakeWeak(this)));
+
+    const auto& jobController = Bootstrap_->GetJobController();
+
+    jobController->SubscribeJobFinished(BIND_NO_PROPAGATE(
+            &TSchedulerConnector::OnJobFinished,
+            MakeWeak(this))
+        .Via(Bootstrap_->GetJobInvoker()));
+
+    jobController->SubscribeJobRegistrationFailed(BIND_NO_PROPAGATE(
+            &TSchedulerConnector::OnJobRegistrationFailed,
+            MakeWeak(this))
+        .Via(Bootstrap_->GetJobInvoker()));
+
+    HeartbeatExecutor_->Start();
+}
+
+void TSchedulerConnector::OnDynamicConfigChanged(
+    const TSchedulerConnectorDynamicConfigPtr& /*oldConfig*/,
+    const TSchedulerConnectorDynamicConfigPtr& newConfig)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    DynamicConfig_.Store(newConfig);
+
+    YT_LOG_DEBUG(
+        "Set new scheduler heartbeat options (NewPeriod: %v, NewSplay: %v, NewMinBackoff: %v, NewMaxBackoff: %v, NewBackoffMultiplier: %v)",
+        newConfig->HeartbeatExecutorOptions.PeriodicOptions.Period,
+        newConfig->HeartbeatExecutorOptions.PeriodicOptions.Splay,
+        newConfig->HeartbeatExecutorOptions.BackoffOptions.MinBackoff,
+        newConfig->HeartbeatExecutorOptions.BackoffOptions.MaxBackoff,
+        newConfig->HeartbeatExecutorOptions.BackoffOptions.BackoffMultiplier);
+    HeartbeatExecutor_->SetOptions(newConfig->HeartbeatExecutorOptions);
+}
+
 void TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded()
 {
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
@@ -144,53 +184,22 @@ void TSchedulerConnector::EnqueueFinishedJobs(std::vector<TJobPtr> jobs)
     }
 }
 
-void TSchedulerConnector::RemoveSpecFetchFailedAllocations(THashMap<TAllocationId, TSpecFetchFailedAllocationInfo> allocations)
+void TSchedulerConnector::RemoveSentJobs(const THashSet<TJobPtr>& jobs)
+{
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
+
+    for (const auto& job : jobs) {
+        EraseOrCrash(JobsToForcefullySend_, job);
+    }
+}
+
+void TSchedulerConnector::RemoveFailedAllocations(THashMap<TAllocationId, TFailedAllocationInfo> allocations)
 {
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
     for (const auto& [allocationId, _] : allocations) {
-        EraseOrCrash(SpecFetchFailedAllocations_, allocationId);
+        EraseOrCrash(FailedAllocations_, allocationId);
     }
-}
-
-void TSchedulerConnector::Start()
-{
-    const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
-    jobResourceManager->SubscribeResourcesAcquired(BIND_NO_PROPAGATE(
-        &TSchedulerConnector::OnResourcesAcquired,
-        MakeWeak(this)));
-
-    const auto& jobController = Bootstrap_->GetJobController();
-
-    jobController->SubscribeJobFinished(BIND_NO_PROPAGATE(
-            &TSchedulerConnector::OnJobFinished,
-            MakeWeak(this))
-        .Via(Bootstrap_->GetJobInvoker()));
-
-    jobController->SubscribeJobRegistrationFailed(BIND_NO_PROPAGATE(
-            &TSchedulerConnector::OnJobRegistrationFailed,
-            MakeWeak(this))
-        .Via(Bootstrap_->GetJobInvoker()));
-
-    HeartbeatExecutor_->Start();
-}
-
-void TSchedulerConnector::OnDynamicConfigChanged(
-    const TSchedulerConnectorDynamicConfigPtr& /*oldConfig*/,
-    const TSchedulerConnectorDynamicConfigPtr& newConfig)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    DynamicConfig_.Store(newConfig);
-
-    YT_LOG_DEBUG(
-        "Set new scheduler heartbeat options (NewPeriod: %v, NewSplay: %v, NewMinBackoff: %v, NewMaxBackoff: %v, NewBackoffMultiplier: %v)",
-        newConfig->HeartbeatExecutorOptions.PeriodicOptions.Period,
-        newConfig->HeartbeatExecutorOptions.PeriodicOptions.Splay,
-        newConfig->HeartbeatExecutorOptions.BackoffOptions.MinBackoff,
-        newConfig->HeartbeatExecutorOptions.BackoffOptions.MaxBackoff,
-        newConfig->HeartbeatExecutorOptions.BackoffOptions.BackoffMultiplier);
-    HeartbeatExecutor_->SetOptions(newConfig->HeartbeatExecutorOptions);
 }
 
 TError TSchedulerConnector::DoSendHeartbeat()
@@ -314,8 +323,8 @@ void TSchedulerConnector::DoPrepareHeartbeatRequest(
 {
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
-    context->JobsToForcefullySend = std::move(JobsToForcefullySend_);
-    context->SpecFetchFailedAllocations = SpecFetchFailedAllocations_;
+    context->JobsToForcefullySend = JobsToForcefullySend_;
+    context->FailedAllocations = FailedAllocations_;
 
     const auto& jobController = Bootstrap_->GetJobController();
     jobController->PrepareSchedulerHeartbeatRequest(request, context);
@@ -334,7 +343,8 @@ void TSchedulerConnector::DoProcessHeartbeatResponse(
     const auto& jobController = Bootstrap_->GetJobController();
     jobController->ProcessSchedulerHeartbeatResponse(response, context);
 
-    RemoveSpecFetchFailedAllocations(std::move(context->SpecFetchFailedAllocations));
+    RemoveFailedAllocations(std::move(context->FailedAllocations));
+    RemoveSentJobs(std::move(context->JobsToForcefullySend));
 }
 
 void TSchedulerConnector::OnJobRegistrationFailed(
@@ -346,9 +356,9 @@ void TSchedulerConnector::OnJobRegistrationFailed(
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
     EmplaceOrCrash(
-        SpecFetchFailedAllocations_,
+        FailedAllocations_,
         allocationId,
-        TSpecFetchFailedAllocationInfo{
+        TFailedAllocationInfo{
             .OperationId = operationId,
             .Error = error,
         });

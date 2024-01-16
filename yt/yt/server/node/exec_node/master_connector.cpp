@@ -91,7 +91,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         bool disableSchedulerJobs = response.disable_scheduler_jobs() || Bootstrap_->IsDecommissioned();
-        Bootstrap_->GetJobController()->SetDisableSchedulerJobs(disableSchedulerJobs);
+        Bootstrap_->GetJobController()->SetDisableJobs(disableSchedulerJobs);
     }
 
 private:

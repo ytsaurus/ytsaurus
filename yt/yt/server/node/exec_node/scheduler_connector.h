@@ -15,7 +15,7 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSpecFetchFailedAllocationInfo
+struct TFailedAllocationInfo
 {
     TOperationId OperationId;
     TError Error;
@@ -26,7 +26,7 @@ struct TSchedulerHeartbeatContext
 {
     THashSet<TJobPtr> JobsToForcefullySend;
 
-    THashMap<TAllocationId, TSpecFetchFailedAllocationInfo> SpecFetchFailedAllocations;
+    THashMap<TAllocationId, TFailedAllocationInfo> FailedAllocations;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerHeartbeatContext)
@@ -46,10 +46,6 @@ public:
         const TSchedulerConnectorDynamicConfigPtr& newConfig);
 
     void SetMinSpareResources(const NScheduler::TJobResources& minSpareResources);
-
-    void EnqueueFinishedJobs(std::vector<TJobPtr> jobs);
-
-    void RemoveSpecFetchFailedAllocations(THashMap<TAllocationId, TSpecFetchFailedAllocationInfo> allocations);
 
     using TRspHeartbeat = NRpc::TTypedClientResponse<
         NScheduler::NProto::NNode::TRspHeartbeat>;
@@ -83,7 +79,7 @@ private:
 
     THashSet<TJobPtr> JobsToForcefullySend_;
 
-    THashMap<TAllocationId, TSpecFetchFailedAllocationInfo> SpecFetchFailedAllocations_;
+    THashMap<TAllocationId, TFailedAllocationInfo> FailedAllocations_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -120,6 +116,11 @@ private:
         TOperationId operationId,
         const TControllerAgentDescriptor& agentDescriptor,
         const TError& error);
+
+    void EnqueueFinishedJobs(std::vector<TJobPtr> jobs);
+    void RemoveSentJobs(const THashSet<TJobPtr>& jobs);
+
+    void RemoveFailedAllocations(THashMap<TAllocationId, TFailedAllocationInfo> allocations);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerConnector)

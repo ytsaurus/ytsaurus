@@ -37,11 +37,9 @@ message TReqHeartbeat
 
     repeated NYT.NProto.TGuid operations_ids_to_request_info = 11;
 
-    repeated TSpecFetchFailedAllocationInfo spec_fetch_failed_allocations = 12;
-
     repeated NControllerAgent.NProto.TControllerAgentDescriptor registered_controller_agents = 13;
 
-    reserved 9, 10;
+    reserved 9, 10, 12;
 }
 
 message TAllocationStartInfo

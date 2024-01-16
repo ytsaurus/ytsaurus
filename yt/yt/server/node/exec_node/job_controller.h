@@ -56,8 +56,8 @@ public:
     //! Returns dynamic config of job proxy.
     virtual NJobProxy::TJobProxyDynamicConfigPtr GetJobProxyDynamicConfig() const = 0;
 
-    //! Set value of flag disabling all scheduler jobs.
-    virtual void SetDisableSchedulerJobs(bool value) = 0;
+    //! Set value of flag disabling all jobs.
+    virtual void SetDisableJobs(bool value) = 0;
 
     virtual TFuture<void> GetAllJobsCleanedupFuture() = 0;
 
