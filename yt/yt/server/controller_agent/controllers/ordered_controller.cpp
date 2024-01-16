@@ -1274,7 +1274,7 @@ private:
     {
         TOrderedControllerBase::CustomPrepare();
 
-        static const THashSet<TString> allowedAttributes = [] {
+        static const auto allowedAttributes = [] {
             const auto& wellKnown = GetWellKnownRichYPathAttributes();
             return THashSet<TString>(wellKnown.begin(), wellKnown.end());
         }();
@@ -1282,8 +1282,8 @@ private:
         if (Spec_->RestrictDestinationYPathAttributes) {
             for (const auto& attributeName : Spec_->OutputTablePath.Attributes().ListKeys()) {
                 if (!allowedAttributes.contains(attributeName)) {
-                    THROW_ERROR_EXCEPTION("Found unexpected attribute in Rich YPath")
-                        << TErrorAttribute("attribute_name", attributeName);
+                    THROW_ERROR_EXCEPTION("Found unexpected attribute %Qv in Rich YPath", attributeName)
+                        << TErrorAttribute("path", Spec_->OutputTablePath);
                 }
             }
         }

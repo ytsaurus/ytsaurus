@@ -1047,13 +1047,13 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             "restrict_destination_ypath_attributes": True,
         }
 
-        with raises_yt_error("Found unexpected attribute"):
+        with raises_yt_error("Found unexpected attribute \"user_attribute\""):
             remote_copy(in_="//tmp/in", out="<create=%true;user_attribute=42>//tmp/out", spec=spec)
 
         remote_copy(
             in_="//tmp/in",
             out="<create=%true;optimize_for=scan;compression_codec=zstd_10;format=whatever>//tmp/out",
-            spec=spec
+            spec=spec,
         )
 
         assert read_table("//tmp/out") == [{"a": 1}, {"a": 2}]
