@@ -160,6 +160,7 @@ target_sources(clickhouse-src-Common PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/IPv6ToBinary.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/IntervalKind.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/JSONBuilder.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/Jemalloc.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/KnownObjectNames.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/LockMemoryExceptionInThread.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/LoggingFormatStringHelpers.cpp

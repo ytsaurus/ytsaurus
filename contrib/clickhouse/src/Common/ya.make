@@ -172,6 +172,7 @@ SRCS(
     src/Common/IPv6ToBinary.cpp
     src/Common/IntervalKind.cpp
     src/Common/JSONBuilder.cpp
+    src/Common/Jemalloc.cpp
     src/Common/KnownObjectNames.cpp
     src/Common/LockMemoryExceptionInThread.cpp
     src/Common/LoggingFormatStringHelpers.cpp
