@@ -1114,7 +1114,9 @@ private:
             spec->Environment["LOGNAME"] = username;
         }
 
-        if (!config->GpuIndexes.empty()) {
+        // NB: If nvidia container runtime is used, empty list of devices
+        // should be set explicitly to avoid binding all devices to job container.
+        if (Bootstrap_->GetGpuManager()->HasGpuDevices()) {
             auto nvidiaDriverCapabilities = Bootstrap_
                 ->GetDynamicConfig()
                 ->ExecNode
