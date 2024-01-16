@@ -1190,11 +1190,14 @@ class TestRpcProxyFormatConfig(TestRpcProxyBase, _TestProxyFormatConfigBase):
 class TestRpcProxyHeapUsageStatisticsBase(TestRpcProxyBase):
     NUM_RPC_PROXIES = 1
 
-    DELTA_PROXY_CONFIG = {
-        "heap_profiler": {
-            "snapshot_update_period": 20,
-        },
-    }
+    @classmethod
+    def setup_class(cls):
+        cls.DELTA_RPC_PROXY_CONFIG.update({
+            "heap_profiler": {
+                "snapshot_update_period": 20,
+            },
+        })
+        super().setup_class()
 
     def enable_allocation_tags(self, proxy):
         set(f"//sys/{proxy}/@config", {
