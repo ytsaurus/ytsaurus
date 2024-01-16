@@ -635,6 +635,51 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/a/@count") == 1
         assert get("//tmp/b/@count") == 1
 
+    @authors("shakurov")
+    @not_implemented_in_sequoia
+    def test_copy_tx_builtin_versioned_attributes(self):
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={
+                "optimize_for": "lookup",
+                "compression_codec": "zlib_6",
+                "erasure_codec": "reed_solomon_6_3",
+                "chunk_merger_mode": "auto",
+            },
+        )
+
+        assert get("//tmp/t1/@optimize_for") == "lookup"
+        assert get("//tmp/t1/@compression_codec") == "zlib_6"
+        assert get("//tmp/t1/@erasure_codec") == "reed_solomon_6_3"
+        assert not get("//tmp/t1/@enable_striped_erasure")
+        assert not get("//tmp/t1/@enable_skynet_sharing")
+        assert get("//tmp/t1/@chunk_merger_mode") == "auto"
+
+        tx = start_transaction()
+        copy("//tmp/t1", "//tmp/t2", tx=tx)
+        copy("//tmp/t2", "//tmp/t3", tx=tx)
+
+        for table in ("t2", "t3"):
+            table_path = f"//tmp/{table}"
+            assert get(f"{table_path}/@optimize_for", tx=tx) == "lookup"
+            assert get(f"{table_path}/@compression_codec", tx=tx) == "zlib_6"
+            assert get(f"{table_path}/@erasure_codec", tx=tx) == "reed_solomon_6_3"
+            assert not get(f"{table_path}/@enable_striped_erasure", tx=tx)
+            assert not get(f"{table_path}/@enable_skynet_sharing", tx=tx)
+            assert get(f"{table_path}/@chunk_merger_mode", tx=tx) == "auto"
+
+        commit_transaction(tx)
+
+        for table in ("t2", "t3"):
+            table_path = f"//tmp/{table}"
+            assert get(f"{table_path}/@optimize_for") == "lookup"
+            assert get(f"{table_path}/@compression_codec") == "zlib_6"
+            assert get(f"{table_path}/@erasure_codec") == "reed_solomon_6_3"
+            assert not get(f"{table_path}/@enable_striped_erasure")
+            assert not get(f"{table_path}/@enable_skynet_sharing")
+            assert get(f"{table_path}/@chunk_merger_mode") == "auto"
+
     @authors("babenko", "ignat")
     @not_implemented_in_sequoia
     def test_copy_account1(self):
