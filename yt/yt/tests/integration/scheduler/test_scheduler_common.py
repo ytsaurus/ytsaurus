@@ -1707,7 +1707,13 @@ class TestSchedulerObjectsDestruction(YTEnvSetup):
     DELTA_DYNAMIC_NODE_CONFIG = {
         "%true": {
             "exec_node": {
-                "scheduler_connector": {"heartbeat_period": 1},  # 1 msec
+                "scheduler_connector": {
+                    "heartbeat_executor_options": {
+                        "periodic_options": {
+                            "period": 1,  # 1 msec
+                        },
+                    },
+                },
                 "controller_agent_connector": {"heartbeat_period": 1},  # 1 msec
             },
         },
@@ -1762,7 +1768,13 @@ class TestScheduleJobDelayAndRevive(YTEnvSetup):
     DELTA_DYNAMIC_NODE_CONFIG = {
         "%true": {
             "exec_node": {
-                "scheduler_connector": {"heartbeat_period": 1},  # 1 msec
+                "scheduler_connector": {
+                    "heartbeat_executor_options": {
+                        "periodic_options": {
+                            "period": 1,  # 1 msec
+                        },
+                    },
+                },
                 "controller_agent_connector": {"heartbeat_period": 1},  # 1 msec
             }
         }

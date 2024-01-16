@@ -79,7 +79,13 @@ class TestSchedulerAlertHistoryBase(YTEnvSetup):
     DELTA_DYNAMIC_NODE_CONFIG = {
         "%true": {
             "exec_node": {
-                "scheduler_connector": {"heartbeat_period": 200},  # 200 msec
+                "scheduler_connector": {
+                    "heartbeat_executor_options": {
+                        "periodic_options": {
+                            "period": 200,  # 200 msec
+                        },
+                    },
+                },
                 "controller_agent_connector": {"settle_jobs_timeout": 30000},  # 30 sec
             }
         }

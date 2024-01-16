@@ -6,6 +6,7 @@
 
 #include <yt/yt/ytlib/scheduler/public.h>
 
+#include <yt/yt/core/concurrency/retrying_periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
@@ -65,15 +66,13 @@ private:
 
     NScheduler::TJobResources MinSpareResources_{};
 
-    const NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
+    const NConcurrency::TRetryingPeriodicExecutorPtr HeartbeatExecutor_;
 
     struct THeartbeatInfo
     {
         TInstant LastSentHeartbeatTime;
         TInstant LastFullyProcessedHeartbeatTime;
         TInstant LastThrottledHeartbeatTime;
-        TInstant LastFailedHeartbeatTime;
-        TDuration FailedHeartbeatBackoffTime;
     };
 
     THeartbeatInfo HeartbeatInfo_;
@@ -88,9 +87,9 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
-    void SendHeartbeat();
+    TError SendHeartbeat();
 
-    void DoSendHeartbeat();
+    TError DoSendHeartbeat();
 
     void OnJobFinished(const TJobPtr& job);
 

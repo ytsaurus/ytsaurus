@@ -5,6 +5,7 @@
 
 namespace NYT::NExecNode {
 
+using namespace NConcurrency;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -511,6 +512,20 @@ void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
 
 void TSchedulerConnectorDynamicConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("heartbeat_executor_options", &TThis::HeartbeatExecutorOptions)
+        .Default(TRetryingPeriodicExecutorOptions{
+            .PeriodicOptions = {
+                .Period = TDuration::Seconds(3),
+                .Splay = TDuration::Seconds(1),
+                .Jitter = 0.0,
+            },
+            .BackoffOptions = {
+                .MinBackoff = TDuration::Seconds(5),
+                .MaxBackoff = TDuration::Seconds(60),
+                .BackoffMultiplier = 2.0,
+            },
+        });
+
     registrar.Parameter(
         "send_heartbeat_on_job_finished",
         &TSchedulerConnectorDynamicConfig::SendHeartbeatOnJobFinished)

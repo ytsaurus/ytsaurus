@@ -27,7 +27,6 @@
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
-#include <yt/yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NExecNode {
 
@@ -49,21 +48,16 @@ static const auto& Logger = ExecNodeLogger;
 TSchedulerConnector::TSchedulerConnector(IBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
     , DynamicConfig_(New<TSchedulerConnectorDynamicConfig>())
-    , HeartbeatExecutor_(New<TPeriodicExecutor>(
+    , HeartbeatExecutor_(New<TRetryingPeriodicExecutor>(
         Bootstrap_->GetControlInvoker(),
-        BIND(
-            &TSchedulerConnector::SendHeartbeat,
-            MakeWeak(this)),
-            TPeriodicExecutorOptions{
-                .Period = DynamicConfig_.Acquire()->HeartbeatPeriod,
-                .Splay = DynamicConfig_.Acquire()->HeartbeatSplay
-            }))
+        BIND([this_ = MakeWeak(this)] {
+            return this_.Lock()->SendHeartbeat();
+        }),
+        DynamicConfig_.Acquire()->HeartbeatExecutorOptions))
     , TimeBetweenSentHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_sent_heartbeats"))
     , TimeBetweenAcknowledgedHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_acknowledged_heartbeats"))
     , TimeBetweenFullyProcessedHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_fully_processed_heartbeats"))
 {
-    YT_VERIFY(DynamicConfig_.Acquire());
-    YT_VERIFY(bootstrap);
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
 }
 
@@ -190,12 +184,16 @@ void TSchedulerConnector::OnDynamicConfigChanged(
     DynamicConfig_.Store(newConfig);
 
     YT_LOG_DEBUG(
-        "Set new scheduler heartbeat period (NewPeriod: %v)",
-        newConfig->HeartbeatPeriod);
-    HeartbeatExecutor_->SetPeriod(newConfig->HeartbeatPeriod);
+        "Set new scheduler heartbeat options (NewPeriod: %v, NewSplay: %v, NewMinBackoff: %v, NewMaxBackoff: %v, NewBackoffMultiplier: %v)",
+        newConfig->HeartbeatExecutorOptions.PeriodicOptions.Period,
+        newConfig->HeartbeatExecutorOptions.PeriodicOptions.Splay,
+        newConfig->HeartbeatExecutorOptions.BackoffOptions.MinBackoff,
+        newConfig->HeartbeatExecutorOptions.BackoffOptions.MaxBackoff,
+        newConfig->HeartbeatExecutorOptions.BackoffOptions.BackoffMultiplier);
+    HeartbeatExecutor_->SetOptions(newConfig->HeartbeatExecutorOptions);
 }
 
-void TSchedulerConnector::DoSendHeartbeat()
+TError TSchedulerConnector::DoSendHeartbeat()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -224,69 +222,45 @@ void TSchedulerConnector::DoSendHeartbeat()
 
     auto rspOrError = WaitFor(req->Invoke());
     if (!rspOrError.IsOK()) {
-        HeartbeatInfo_.LastFailedHeartbeatTime = TInstant::Now();
-
-        auto dynamicConfig = DynamicConfig_.Acquire();
-
-        auto heartbeatBackoffStartTime = dynamicConfig->FailedHeartbeatBackoffStartTime;
-        auto heartbeatBackoffMaxTime = dynamicConfig->FailedHeartbeatBackoffMaxTime;
-        auto heartbeatBackoffMultiplier = dynamicConfig->FailedHeartbeatBackoffMultiplier;
-
-        if (HeartbeatInfo_.FailedHeartbeatBackoffTime == TDuration::Zero()) {
-            HeartbeatInfo_.FailedHeartbeatBackoffTime = heartbeatBackoffStartTime;
-        } else {
-            HeartbeatInfo_.FailedHeartbeatBackoffTime = std::min(
-                HeartbeatInfo_.FailedHeartbeatBackoffTime * heartbeatBackoffMultiplier,
-                heartbeatBackoffMaxTime);
-        }
         YT_LOG_ERROR(rspOrError, "Error reporting heartbeat to scheduler (BackoffTime: %v)",
-            HeartbeatInfo_.FailedHeartbeatBackoffTime);
-        return;
+            HeartbeatExecutor_->GetBackoffTimeEstimate());
+        return TError("Failed reporting heartbeat to scheduler");
     }
 
     YT_LOG_INFO("Successfully reported heartbeat to scheduler");
-
-    HeartbeatInfo_.FailedHeartbeatBackoffTime = TDuration::Zero();
 
     profileInterval(
         std::max(HeartbeatInfo_.LastFullyProcessedHeartbeatTime, HeartbeatInfo_.LastThrottledHeartbeatTime),
         TimeBetweenAcknowledgedHeartbeatsCounter_);
 
     const auto& rsp = rspOrError.Value();
-    if (rsp->scheduling_skipped()) {
-        HeartbeatInfo_.LastThrottledHeartbeatTime = TInstant::Now();
-    } else {
+    bool operationSuccessful = !rsp->scheduling_skipped();
+    if (operationSuccessful) {
         profileInterval(
             HeartbeatInfo_.LastFullyProcessedHeartbeatTime,
             TimeBetweenFullyProcessedHeartbeatsCounter_);
         HeartbeatInfo_.LastFullyProcessedHeartbeatTime = TInstant::Now();
+    } else {
+        HeartbeatInfo_.LastThrottledHeartbeatTime = TInstant::Now();
     }
 
     ProcessHeartbeatResponse(rsp, heartbeatContext);
+
+    return
+        operationSuccessful ?
+        TError() :
+        TError("Scheduling skipped");
 }
 
-void TSchedulerConnector::SendHeartbeat()
+TError TSchedulerConnector::SendHeartbeat()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (!Bootstrap_->IsConnected()) {
-        return;
+    if (!Bootstrap_->IsConnected() || !Bootstrap_->GetSlotManager()->IsInitialized()) {
+        return TError();
     }
 
-    const auto slotManager = Bootstrap_->GetSlotManager();
-    if (!slotManager->IsInitialized()) {
-        return;
-    }
-
-    if (TInstant::Now() < std::max(
-        HeartbeatInfo_.LastFailedHeartbeatTime,
-        HeartbeatInfo_.LastThrottledHeartbeatTime) + HeartbeatInfo_.FailedHeartbeatBackoffTime)
-    {
-        YT_LOG_INFO("Skipping scheduler heartbeat");
-        return;
-    }
-
-    DoSendHeartbeat();
+    return DoSendHeartbeat();
 }
 
 void TSchedulerConnector::PrepareHeartbeatRequest(

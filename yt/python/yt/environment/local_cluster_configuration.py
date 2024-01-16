@@ -166,6 +166,7 @@ NODE_CONFIG_PATCHES = [
     }
 ]
 
+# COMPAT(arkady-e1ppa): heartbeat_period, heartbeat_splay, failed_heartbeat_backoff_start_time, failed_heartbeat_backoff_max_time, failed_heartbeat_backoff_multiplier
 DYNAMIC_NODE_CONFIG_PATCHES = [
     {
         "exec_node": {
@@ -174,7 +175,21 @@ DYNAMIC_NODE_CONFIG_PATCHES = [
             },
             "scheduler_connector": {
                 "heartbeat_period": 100,
-                "heartbeat_splay": 50
+                "heartbeat_splay": 50,
+                "failed_heartbeat_backoff_start_time": 50,
+                "failed_heartbeat_backoff_max_time": 50,
+                "failed_heartbeat_backoff_multiplier": 1.0,
+                "heartbeat_executor_options": {
+                    "periodic_options": {
+                        "period": 100,
+                        "splay": 50,
+                    },
+                    "backoff_options": {
+                        "min_backoff": 50,
+                        "max_backoff": 50,
+                        "backoff_multiplier": 1.0,
+                    },
+                },
             },
             "master_connector": {
                 "heartbeat_period": 300,
@@ -182,15 +197,6 @@ DYNAMIC_NODE_CONFIG_PATCHES = [
             },
         },
     },
-    {
-        "exec_node": {
-            "scheduler_connector": {
-                "failed_heartbeat_backoff_start_time": 50,
-                "failed_heartbeat_backoff_max_time": 50,
-                "failed_heartbeat_backoff_multiplier": 1.0
-            }
-        }
-    }
 ]
 
 NODE_STORE_LOCATION_PATCHES = [

@@ -700,6 +700,16 @@ def get_dynamic_node_config():
                 failed_heartbeat_backoff_max_time = 50;
                 failed_heartbeat_backoff_multiplier = 1.0;
                 heartbeat_period = 100;
+                heartbeat_executor_options = {
+                    periodic_options = {
+                        period = 100;
+                    };
+                    backoff_options = {
+                        min_backoff = 200;
+                        max_backoff = 200;
+                        backoff_multiplier = 1.0;
+                    };
+                };
             };
 
             master_connector = {

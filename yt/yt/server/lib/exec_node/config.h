@@ -20,6 +20,8 @@
 
 #include <yt/yt/library/gpu/config.h>
 
+#include <yt/yt/core/concurrency/config.h>
+
 #include <yt/yt/core/ytree/node.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
@@ -437,9 +439,11 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerConnectorDynamicConfig
-    : public THeartbeatReporterDynamicConfigBase
+    : public NYTree::TYsonStruct
 {
 public:
+    NConcurrency::TRetryingPeriodicExecutorOptions HeartbeatExecutorOptions;
+
     bool SendHeartbeatOnJobFinished;
 
     REGISTER_YSON_STRUCT(TSchedulerConnectorDynamicConfig);
