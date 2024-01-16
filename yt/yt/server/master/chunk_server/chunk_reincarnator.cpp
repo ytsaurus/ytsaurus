@@ -1741,8 +1741,8 @@ private:
 
         YT_LOG_DEBUG(
             "Chunk reincarnator iteration finished "
-            "(ScannedChunks: %v, Skipped: %v, NotAlive: %v, Fresh: %v, Foreign: %v, "
-            "WrongFormat: %v, AccountSettings: %v, AfterTraverse: %v)",
+            "(ScannedChunks: %v, Skipped: %v, NotAlive: %v, NotConfirmed: %v, Fresh: %v, "
+            "Foreign: %v, WrongFormat: %v, AccountSettings: %v, AfterTraverse: %v)",
             scannedChunkCount,
             skipped.GetTotal(),
             skipped.NotAlive,

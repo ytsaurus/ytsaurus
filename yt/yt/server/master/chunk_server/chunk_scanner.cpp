@@ -147,6 +147,10 @@ void TGlobalChunkScanner::RecomputeActiveGlobalChunkScanIndex()
     ActiveGlobalChunkScanIndex_ = -1;
     for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
         if (GlobalChunkScanShards_[shardIndex].Iterator) {
+            if (!ActiveShardIndices_.test(shardIndex)) {
+                continue;
+            }
+
             ActiveGlobalChunkScanIndex_ = shardIndex;
             break;
         }
