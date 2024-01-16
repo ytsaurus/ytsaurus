@@ -131,6 +131,10 @@ public:
     // It is public for testing purposes.
     void ResetFairShareFunctions();
 
+protected:
+    //! These methods are only available after fair share update.
+    TResourceVector ComputeLimitedDemandShare() const;
+
 private:
     bool AreFairShareFunctionsPrepared_ = false;
     std::optional<TVectorPiecewiseLinearFunction> FairShareByFitFactor_;

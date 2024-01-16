@@ -95,10 +95,6 @@ void TSchedulerElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdateContext* 
     MaybeSpecifiedResourceLimits_ = ComputeMaybeSpecifiedResourceLimits();
     ResourceLimits_ = ComputeResourceLimits();
 
-    if (MaybeSpecifiedResourceLimits_) {
-        LimitedResourceDemand_ = Min(LimitedResourceDemand_, *MaybeSpecifiedResourceLimits_);
-    }
-
     if (PersistentAttributes_.AppliedSpecifiedResourceLimits != MaybeSpecifiedResourceLimits_) {
         std::vector<TResourceTreeElementPtr> descendantOperationElements;
         if (!IsOperation() && !PersistentAttributes_.AppliedSpecifiedResourceLimits && MaybeSpecifiedResourceLimits_) {
@@ -593,7 +589,7 @@ bool TSchedulerElement::AreDetailedLogsEnabled() const
     return false;
 }
 
-void TSchedulerElement::UpdateEffectiveRecursiveAttributes()
+void TSchedulerElement::UpdateRecursiveAttributes()
 {
     YT_VERIFY(Mutable_);
 
@@ -626,6 +622,8 @@ void TSchedulerElement::UpdateEffectiveRecursiveAttributes()
             EffectiveNonPreemptibleResourceUsageThresholdConfig_ = specifiedConfig;
         }
     }
+
+    LimitedDemandShare_ = ComputeLimitedDemandShare();
 }
 
 void TSchedulerElement::UpdateStarvationStatuses(TInstant now, bool enablePoolStarvation)
@@ -740,7 +738,6 @@ void TSchedulerCompositeElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
 
     ResourceUsageAtUpdate_ = {};
     ResourceDemand_ = {};
-    LimitedResourceDemand_ = {};
 
     for (const auto& child : EnabledChildren_) {
         child->PreUpdateBottomUp(context);
@@ -748,7 +745,6 @@ void TSchedulerCompositeElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
         ResourceUsageAtUpdate_ += child->GetResourceUsageAtUpdate();
         ResourceDemand_ += child->GetResourceDemand();
         PendingJobCount_ += child->GetPendingJobCount();
-        LimitedResourceDemand_ += child->LimitedResourceDemand();
 
         if (IsInferringChildrenWeightsFromHistoricUsageEnabled()) {
             // NB(eshcherbin): This is a lazy parameters update so it has to be done every time.
@@ -1135,11 +1131,11 @@ TResourceVolume TSchedulerCompositeElement::GetIntegralPoolCapacity() const
     return TResourceVolume(TotalResourceLimits_ * Attributes_.ResourceFlowRatio, TreeConfig_->IntegralGuarantees->PoolCapacitySaturationPeriod);
 }
 
-void TSchedulerCompositeElement::UpdateEffectiveRecursiveAttributes()
+void TSchedulerCompositeElement::UpdateRecursiveAttributes()
 {
     YT_VERIFY(Mutable_);
 
-    TSchedulerElement::UpdateEffectiveRecursiveAttributes();
+    TSchedulerElement::UpdateRecursiveAttributes();
 
     if (IsRoot()) {
         YT_VERIFY(GetSpecifiedFifoPoolSchedulingOrder());
@@ -1158,7 +1154,7 @@ void TSchedulerCompositeElement::UpdateEffectiveRecursiveAttributes()
     }
 
     for (const auto& child : EnabledChildren_) {
-        child->UpdateEffectiveRecursiveAttributes();
+        child->UpdateRecursiveAttributes();
     }
 }
 
@@ -1792,8 +1788,6 @@ void TSchedulerOperationElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
         PendingJobCount_ = TotalNeededResources_.GetUserSlots();
     }
 
-    LimitedResourceDemand_ = ResourceDemand_;
-
     // NB: It was moved from regular fair share update for performing split.
     // It can be performed in fair share thread as second step of preupdate.
     if (context->Now >= PersistentAttributes_.LastBestAllocationShareUpdateTime + TreeConfig_->BestAllocationShareUpdatePeriod &&
@@ -1831,9 +1825,9 @@ void TSchedulerOperationElement::BuildSchedulableChildrenLists(TFairSharePostUpd
     }
 }
 
-void TSchedulerOperationElement::UpdateEffectiveRecursiveAttributes()
+void TSchedulerOperationElement::UpdateRecursiveAttributes()
 {
-    TSchedulerElement::UpdateEffectiveRecursiveAttributes();
+    TSchedulerElement::UpdateRecursiveAttributes();
 
     // TODO(eshcherbin): Consider deleting this option from operation spec, as it is useless.
     if (auto unpreemptibleJobCount = Spec_->MaxUnpreemptibleRunningJobCount) {
@@ -2356,7 +2350,7 @@ void TSchedulerRootElement::PostUpdate(TFairSharePostUpdateContext* postUpdateCo
 
     BuildElementMapping(postUpdateContext);
 
-    UpdateEffectiveRecursiveAttributes();
+    UpdateRecursiveAttributes();
 
     ComputeSatisfactionRatioAtUpdate();
     BuildPoolSatisfactionDigests(postUpdateContext);

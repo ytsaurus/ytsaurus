@@ -194,6 +194,13 @@ void TElement::ResetFairShareFunctions()
     AreFairShareFunctionsPrepared_ = false;
 }
 
+TResourceVector TElement::ComputeLimitedDemandShare() const
+{
+    YT_VERIFY(FairShareBySuggestion_);
+
+    return FairShareBySuggestion_->RightFunctionValue();
+}
+
 void TElement::PrepareFairShareFunctions(TFairShareUpdateContext* context)
 {
     if (AreFairShareFunctionsPrepared_) {

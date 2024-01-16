@@ -513,8 +513,18 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
     @authors("omgronny")
     def test_limited_resource_demand(self):
-        update_scheduler_config("operation_hangup_safe_timeout", 100000000)
+        create_pool("some_pool", attributes={"resource_limits": {"user_slots": 1}})
 
+        run_sleeping_vanilla(job_count=3, spec={
+            "pool": "some_pool",
+        })
+        wait(lambda: get(scheduler_orchid_pool_path("some_pool", "default") + "/resource_demand/user_slots", default=None) == 3.0)
+        wait(lambda: get(scheduler_orchid_pool_path("some_pool", "default") + "/resource_demand/cpu", default=None) == 3.0)
+        wait(lambda: get(scheduler_orchid_pool_path("some_pool", "default") + "/limited_resource_demand/user_slots", default=None) == 1.0)
+        wait(lambda: get(scheduler_orchid_pool_path("some_pool", "default") + "/limited_resource_demand/cpu", default=None) == 1.0)
+
+    @authors("omgronny")
+    def test_limited_resource_demand_hierarchical(self):
         create_pool("parent_pool", attributes={"resource_limits": {"cpu": 4}})
         create_pool("child_pool1", parent_name="parent_pool", attributes={"resource_limits": {"cpu": 1}})
         create_pool("child_pool2", parent_name="parent_pool", attributes={"resource_limits": {"cpu": 2}})
