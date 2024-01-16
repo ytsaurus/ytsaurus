@@ -112,6 +112,7 @@ class TQueryTrackerDynamicConfig
 public:
     TDuration ActiveQueryAcquisitionPeriod;
     TDuration ActiveQueryLeaseTimeout;
+    TDuration QueryAcquisitionGracePeriod;
     TDuration ActiveQueryPingPeriod;
     TDuration QueryFinishBackoff;
     TDuration HealthCheckPeriod;

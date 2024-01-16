@@ -28,6 +28,7 @@ public:
         , YqlAgent_(std::move(yqlAgent))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartQuery));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortQuery));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQueryProgress));
     }
 
@@ -48,6 +49,15 @@ private:
 
         auto responseFuture = YqlAgent_->StartQuery(queryId, impersonationUser, *request);
 
+        context->SubscribeCanceled(BIND([=, this, this_ = MakeStrong(this)] {
+            try {
+                WaitFor(YqlAgent_->AbortQuery(queryId))
+                    .ThrowOnError();
+            } catch (const std::exception& ex) {
+                YT_LOG_ERROR(ex, "Failed to abort query (QueryId: %v)", queryId);
+            }
+        }));
+
         if (request->async()) {
             // TODO(max42): there is no way to poll query result for now.
             context->Reply();
@@ -59,6 +69,19 @@ private:
 
         response->MergeFrom(builtResponse);
         response->Attachments() = std::move(refs);
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NYqlClient::NProto, AbortQuery)
+    {
+        auto queryId = FromProto<TQueryId>(request->query_id());
+
+        context->SetRequestInfo("QueryId: %v", queryId);
+        context->SetResponseInfo("QueryId: %v", queryId);
+
+        WaitFor(YqlAgent_->AbortQuery(queryId))
+            .ThrowOnError();
 
         context->Reply();
     }
@@ -76,6 +99,8 @@ private:
         context->Reply();
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 IServicePtr CreateYqlService(IInvokerPtr controlInvoker, IYqlAgentPtr yqlAgent)
 {
