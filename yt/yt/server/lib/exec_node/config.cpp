@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/yt/core/misc/backoff_strategy_config.h>
+
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -216,8 +218,11 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
         .Default(50);
     registrar.Parameter("max_consecutive_job_aborts", &TThis::MaxConsecutiveJobAborts)
         .Default(500);
-    registrar.Parameter("disable_jobs_timeout", &TThis::DisableJobsTimeout)
-        .Default(TDuration::Minutes(10));
+    registrar.Parameter("disable_jobs_backoff_options", &TThis::DisableJobsBackoffOptions)
+        .Default({
+            .Backoff = TDuration::Minutes(10),
+            .BackoffJitter = 1.0,
+        });
 
     registrar.Parameter("should_close_descriptors", &TThis::ShouldCloseDescriptors)
         .Default(false);
@@ -496,8 +501,11 @@ void TControllerAgentConnectorDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(30));
     registrar.Parameter("use_job_tracker_service_to_settle_jobs", &TThis::UseJobTrackerServiceToSettleJobs)
         .Default(false);
-    registrar.Parameter("total_confirmation_period", &TThis::TotalConfirmationPeriod)
-        .Default(TDuration::Minutes(10));
+    registrar.Parameter("total_confirmation_backoff_options", &TThis::TotalConfirmationBackoffOptions)
+        .Default({
+            .Backoff = TDuration::Minutes(10),
+            .BackoffJitter = 0.1,
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -678,6 +686,12 @@ void TJobCommonConfig::Register(TRegistrar registrar)
 
 void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("operation_info_request_backoff_options", &TThis::OperationInfoRequestBackoffOptions)
+        .Default({
+            .Backoff = TDuration::Seconds(5),
+            .BackoffJitter = 0.1,
+        });
+
     // Make it greater than interrupt preemption timeout.
     registrar.Parameter("waiting_jobs_timeout", &TThis::WaitingJobsTimeout)
         .Default(TDuration::Seconds(30));
@@ -708,9 +722,6 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_proxy", &TThis::JobProxy)
         .Default();
-
-    registrar.Parameter("operation_infos_request_period", &TThis::OperationInfosRequestPeriod)
-        .Default(TDuration::Seconds(5));
 
     registrar.Parameter("unknown_operation_jobs_removal_delay", &TThis::UnknownOperationJobsRemovalDelay)
         .Default(TDuration::Minutes(1));

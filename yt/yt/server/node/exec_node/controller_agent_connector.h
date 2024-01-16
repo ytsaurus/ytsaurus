@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
+#include <yt/yt/core/misc/backoff_strategy.h>
+
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,8 +83,7 @@ public:
 
         NConcurrency::IReconfigurableThroughputThrottlerPtr StatisticsThrottler_;
 
-        TInstant LastTotalConfirmationTime_ = TInstant::Now();
-        float TotalConfirmationPeriodMultiplicator_ = GenerateTotalConfirmationPeriodMultiplicator();
+        TRelativeConstantBackoffStrategy TotalConfirmationRequestBackoffStrategy_;
 
         THashSet<TJobPtr> EnqueuedFinishedJobs_;
         std::vector<TJobId> UnconfirmedJobIds_;
@@ -124,10 +125,6 @@ public:
         void OnJobRegistered(const TJobPtr& job);
 
         void OnJobRegistrationFailed(TAllocationId allocationId);
-
-        bool IsTotalConfirmationNeeded();
-
-        static float GenerateTotalConfirmationPeriodMultiplicator() noexcept;
     };
 
     using TControllerAgentConnectorPtr = TIntrusivePtr<TControllerAgentConnector>;

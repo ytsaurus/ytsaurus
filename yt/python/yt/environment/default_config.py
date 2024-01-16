@@ -665,6 +665,7 @@ def get_master_cache_config():
 """)
 
 
+# COMPAT(arkady-e1ppa) operation_infos_request_period, total_confirmation_period
 def get_dynamic_node_config():
     return yson.loads(b"""
 {
@@ -677,7 +678,10 @@ def get_dynamic_node_config():
         };
         exec_node = {
             job_controller = {
-                "job_common" = {
+                operation_info_request_backoff_options = {
+                    backoff = 1000;
+                };
+                job_common = {
                     use_artifact_binds = %true;
                     node_directory_prepare_backoff_time = 100;
                     job_prepare_time_limit = 60000;
@@ -688,6 +692,9 @@ def get_dynamic_node_config():
             };
 
             controller_agent_connector = {
+                total_confirmation_backoff_options = {
+                    backoff = 5000;
+                };
                 heartbeat_period = 100;
                 total_confirmation_period = 5000;
                 running_job_statistics_sending_backoff = 0;

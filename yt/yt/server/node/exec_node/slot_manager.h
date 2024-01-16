@@ -13,6 +13,7 @@
 #include <yt/yt/core/concurrency/public.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
+#include <yt/yt/core/misc/backoff_strategy.h>
 #include <yt/yt/core/misc/fs.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -169,6 +170,8 @@ private:
     const TString NodeTag_;
     const NContainers::TPortoHealthCheckerPtr PortoHealthChecker_;
 
+    TBackoffStrategy DisableJobsBackoffStrategy_;
+
     std::atomic<ESlotManagerState> State_ = ESlotManagerState::Disabled;
 
     std::atomic<bool> JobProxyReady_ = false;
@@ -218,6 +221,8 @@ private:
     };
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
+
+    TDuration GetDisableJobsBackoff();
 
     void VerifyCurrentState(ESlotManagerState expectedState) const;
 

@@ -53,6 +53,7 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
         }))
     , StatisticsThrottler_(CreateReconfigurableThroughputThrottler(
         GetConfig()->StatisticsThrottler))
+    , TotalConfirmationRequestBackoffStrategy_(GetConfig()->TotalConfirmationBackoffOptions)
 {
     YT_LOG_DEBUG("Controller agent connector created (AgentAddress: %v, IncarnationId: %v)",
         ControllerAgentDescriptor_.Address,
@@ -316,6 +317,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnConfigUpdated(
 
     HeartbeatExecutor_->SetPeriod(newConfig->HeartbeatPeriod);
     StatisticsThrottler_->Reconfigure(newConfig->StatisticsThrottler);
+    TotalConfirmationRequestBackoffStrategy_.UpdateOptions(newConfig->TotalConfirmationBackoffOptions);
 }
 
 TControllerAgentConnectorPool::TControllerAgentConnector::~TControllerAgentConnector()
@@ -478,7 +480,8 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoPrepareHeartbea
     context->ControllerAgentConnector = MakeStrong(this);
     context->StatisticsThrottler = StatisticsThrottler_;
     context->RunningJobStatisticsSendingBackoff = GetConfig()->RunningJobStatisticsSendingBackoff;
-    context->NeedTotalConfirmation = IsTotalConfirmationNeeded();
+    context->NeedTotalConfirmation = TotalConfirmationRequestBackoffStrategy_
+        .RecordInvocationIfOverBackoff();
 
     context->JobsToForcefullySend = EnqueuedFinishedJobs_;
     context->UnconfirmedJobIds = std::move(UnconfirmedJobIds_);
@@ -540,25 +543,6 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnJobRegistration
     VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
 
     EraseOrCrash(AllocationIdsWaitingForSpec_, allocationId);
-}
-
-bool TControllerAgentConnectorPool::TControllerAgentConnector::IsTotalConfirmationNeeded()
-{
-    auto now = TInstant::Now();
-
-    if (now >= LastTotalConfirmationTime_ + TotalConfirmationPeriodMultiplicator_ * GetConfig()->TotalConfirmationPeriod) {
-        LastTotalConfirmationTime_ = now;
-        TotalConfirmationPeriodMultiplicator_ = GenerateTotalConfirmationPeriodMultiplicator();
-
-        return true;
-    }
-
-    return false;
-}
-
-float TControllerAgentConnectorPool::TControllerAgentConnector::GenerateTotalConfirmationPeriodMultiplicator() noexcept
-{
-    return 0.9 + RandomNumber<float>() / 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

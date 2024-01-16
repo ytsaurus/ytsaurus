@@ -54,6 +54,7 @@ target_sources(unittester-core-misc PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/atomic_ptr_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/async_expiring_cache_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/async_slru_cache_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/backoff_strategy_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/bit_packed_integer_vector_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/boolean_formula_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/callback_ut.cpp

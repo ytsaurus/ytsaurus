@@ -40,6 +40,7 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+#include <yt/yt/core/misc/backoff_strategy.h>
 #include <yt/yt/core/misc/statistics.h>
 
 #include <yt/yt/core/ytree/ypath_resolver.h>
@@ -114,6 +115,7 @@ public:
     TJobController(IBootstrapBase* bootstrap)
         : Bootstrap_(bootstrap)
         , DynamicConfig_(New<TJobControllerDynamicConfig>())
+        , OperationInfoRequestBackoffStrategy_(DynamicConfig_.Acquire()->OperationInfoRequestBackoffOptions)
         , Profiler_("/job_controller")
         , CacheHitArtifactsSizeCounter_(Profiler_.Counter("/chunk_cache/cache_hit_artifacts_size"))
         , CacheMissArtifactsSizeCounter_(Profiler_.Counter("/chunk_cache/cache_miss_artifacts_size"))
@@ -422,6 +424,7 @@ public:
 
         DynamicConfig_.Store(newConfig);
 
+        OperationInfoRequestBackoffStrategy_.UpdateOptions(newConfig->OperationInfoRequestBackoffOptions);
         ProfilingExecutor_->SetPeriod(
             newConfig->ProfilingPeriod);
         ResourceAdjustmentExecutor_->SetPeriod(
@@ -481,6 +484,8 @@ private:
     // It is needed because cpu_to_vcpu_factor can change between preparing request and processing response.
     double LastHeartbeatCpuToVCpuFactor_ = 1.0;
 
+    TRelativeConstantBackoffStrategy OperationInfoRequestBackoffStrategy_;
+
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, JobMapLock_);
     THashMap<TJobId, TJobPtr> JobMap_;
     THashMap<TOperationId, THashSet<TJobPtr>> OperationIdToJobs_;
@@ -523,8 +528,6 @@ private:
     TPeriodicExecutorPtr JobProxyBuildInfoUpdater_;
 
     TAtomicObject<TErrorOr<TBuildInfoPtr>> CachedJobProxyBuildInfo_;
-
-    TInstant LastOperationInfosRequestTime_;
 
     THashMap<TGuid, TFuture<void>> OutstandingThrottlingRequests_;
 
@@ -1293,13 +1296,13 @@ private:
             return;
         }
 
-        const bool requestOperationInfosForJobs =
-            TInstant::Now() > LastOperationInfosRequestTime_ +
-                GetDynamicConfig()->OperationInfosRequestPeriod;
+        const bool requestOperationInfo = OperationInfoRequestBackoffStrategy_
+            .RecordInvocationIfOverBackoff();
+
         THashSet<TOperationId> operationIdsToRequestInfo;
 
         for (TForbidContextSwitchGuard guard; const auto& [id, job] : JobMap_) {
-            if (requestOperationInfosForJobs && !job->GetControllerAgentDescriptor()) {
+            if (requestOperationInfo && !job->GetControllerAgentDescriptor()) {
                 operationIdsToRequestInfo.insert(job->GetOperationId());
             }
 
@@ -1360,14 +1363,12 @@ private:
             *jobStatus->mutable_result() = jobResult;
         }
 
-        if (requestOperationInfosForJobs) {
+        if (requestOperationInfo) {
             YT_LOG_DEBUG(
                 "Adding operation info requests for stored jobs (Count: %v)",
                 std::size(operationIdsToRequestInfo));
 
             ToProto(request->mutable_operations_ids_to_request_info(), operationIdsToRequestInfo);
-
-            LastOperationInfosRequestTime_ = TInstant::Now();
         }
 
         YT_LOG_DEBUG("Scheduler heartbeat request prepared");
