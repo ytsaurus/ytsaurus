@@ -32,7 +32,7 @@ SRCS(
     api/native/client_operation_info_impl.cpp
     api/native/client_operations_impl.cpp
     api/native/client_pools_impl.cpp
-    api/native/client_queries.cpp
+    api/native/client_queries_impl.cpp
     api/native/client_replicated_tables_impl.cpp
     api/native/client_security_impl.cpp
     api/native/client_static_tables_impl.cpp

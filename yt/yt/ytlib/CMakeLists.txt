@@ -1045,7 +1045,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_operation_info_impl.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_operations_impl.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_pools_impl.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_queries.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_queries_impl.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_replicated_tables_impl.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_security_impl.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_static_tables_impl.cpp
