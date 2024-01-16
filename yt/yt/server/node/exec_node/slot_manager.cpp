@@ -140,7 +140,9 @@ void TSlotManager::Start()
         .AsyncVia(Bootstrap_->GetJobInvoker())
         .Run());
 
-    YT_LOG_FATAL_IF(!initializeResult.IsOK(), initializeResult, "First slot manager initialization failed");
+    YT_LOG_FATAL_IF(!IsJobEnvironmentResurrectionEnabled() &&
+        !initializeResult.IsOK(), initializeResult, "First slot manager initialization failed");
+    YT_LOG_ERROR_IF(!initializeResult.IsOK(), initializeResult, "First slot manager initialization failed");
 
     auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(StaticConfig_->JobEnvironment);
 
