@@ -22,9 +22,9 @@ void TStandaloneTabletBalancerConfig::Register(TRegistrar registrar)
         .Default(3);
 
     registrar.Parameter("parameterized_timeout_on_start", &TThis::ParameterizedTimeoutOnStart)
-        .Default(TDuration::Minutes(10));
+        .Default(TDuration::Minutes(5));
     registrar.Parameter("parameterized_timeout", &TThis::ParameterizedTimeout)
-        .Default(TDuration::Minutes(10));
+        .Default(TDuration::Minutes(9));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
