@@ -222,6 +222,13 @@ private:
 
                 subConsumerPartitionSnapshot->NextRowIndex = consumerPartitionInfo.NextRowIndex;
                 subConsumerPartitionSnapshot->LastConsumeTime = consumerPartitionInfo.LastConsumeTime;
+
+                if (consumerPartitionInfo.ConsumerMeta) {
+                    subConsumerPartitionSnapshot->CumulativeDataWeight = consumerPartitionInfo.ConsumerMeta->CumulativeDataWeight;
+                    if (consumerPartitionInfo.ConsumerMeta->OffsetTimestamp) {
+                        subConsumerPartitionSnapshot->NextRowCommitTime = TimestampToInstant(*consumerPartitionInfo.ConsumerMeta->OffsetTimestamp).first;
+                    }
+                }
             }
         }
 
@@ -247,11 +254,6 @@ private:
                 // NB: may be negative if the consumer is ahead of the partition.
                 subConsumerPartitionSnapshot->UnreadRowCount =
                     queuePartitionSnapshot->UpperRowIndex - subConsumerPartitionSnapshot->NextRowIndex;
-                // TODO(max42): this seems to not work properly as cumulative data weight is not set yet.
-                // Re-think this code when working on new profiling.
-                subConsumerPartitionSnapshot->UnreadDataWeight = OptionalSub(
-                    queuePartitionSnapshot->CumulativeDataWeight,
-                    subConsumerPartitionSnapshot->CumulativeDataWeight);
 
                 if (subConsumerPartitionSnapshot->UnreadRowCount < 0) {
                     subConsumerPartitionSnapshot->Disposition = EConsumerPartitionDisposition::Ahead;
@@ -286,7 +288,18 @@ private:
         WaitFor(AllSucceeded(futures))
             .ThrowOnError();
 
-        for (const auto& subConsumerPartitionSnapshot : subSnapshot->PartitionSnapshots) {
+        for (const auto& [partitionIndex, subConsumerPartitionSnapshot] : Enumerate(subSnapshot->PartitionSnapshots)) {
+            if (subConsumerPartitionSnapshot->CumulativeDataWeight) {
+                subConsumerPartitionSnapshot->ReadRate.DataWeight.Update(*subConsumerPartitionSnapshot->CumulativeDataWeight);
+            }
+
+            const auto& queuePartitionSnapshot = queueSnapshot->PartitionSnapshots[partitionIndex];
+            if (queuePartitionSnapshot->Error.IsOK()) {
+                subConsumerPartitionSnapshot->UnreadDataWeight = OptionalSub(
+                    queuePartitionSnapshot->CumulativeDataWeight,
+                    subConsumerPartitionSnapshot->CumulativeDataWeight);
+            }
+
             // If consumer has read all rows in the partition, we assume its processing lag to be zero;
             // otherwise the processing lag is defined as the duration since the commit time of the next
             // row in the partition to be read by the consumer.
@@ -388,9 +401,8 @@ private:
 
             const auto& partitionRowInfo = partitionInfo.begin()->second;
 
-            if (partitionRowInfo.CumulativeDataWeight) {
-                consumerPartitionSnapshot->CumulativeDataWeight = *partitionRowInfo.CumulativeDataWeight;
-                consumerPartitionSnapshot->ReadRate.DataWeight.Update(*partitionRowInfo.CumulativeDataWeight);
+            if (!consumerPartitionSnapshot->CumulativeDataWeight) {
+                consumerPartitionSnapshot->CumulativeDataWeight = partitionRowInfo.CumulativeDataWeight;
             }
         }
 
