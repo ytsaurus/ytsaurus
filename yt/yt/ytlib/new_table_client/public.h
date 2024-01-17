@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/yt/ytlib/chunk_client/public.h>
+#include <yt/yt/client/table_chunk_format/public.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/yt/client/table_chunk_format/public.h>
+#include <library/cpp/yt/memory/shared_range.h>
 
 namespace NYT::NNewTableClient {
 
@@ -20,9 +20,7 @@ using TDenseVersionedSegmentMeta = NTableChunkFormat::NProto::TDenseVersionedSeg
 
 } // namespace NProto
 
-using NChunkClient::TBlock;
-using NChunkClient::TBlockFetcher;
-using NChunkClient::TBlockFetcherPtr;
+////////////////////////////////////////////////////////////////////////////////
 
 using NTableClient::TCachedVersionedChunkMetaPtr;
 using NTableClient::TRefCountedDataBlockMetaPtr;
@@ -30,26 +28,17 @@ using NTableClient::TColumnIdMapping;
 
 using NTableClient::EValueType;
 
-// For read_span_refiner.h
 using NTableClient::TLegacyKey;
 using NTableClient::TRowRange;
-
-// For rowset_builder.h
-using NTableClient::TRowBuffer;
-using NTableClient::TMutableVersionedRow;
-
-// For segment_readers.h
-using NTableClient::EValueType;
 using NTableClient::TUnversionedValue;
 using NTableClient::TVersionedValue;
+using NTableClient::TMutableVersionedRow;
 using NTableClient::TUnversionedRow;
 using NTableClient::TTimestamp;
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTmpBuffers;
-
-struct TMetaBase;
-
-struct TColumnGroupInfo;
 
 struct TPreparedChunkMeta;
 

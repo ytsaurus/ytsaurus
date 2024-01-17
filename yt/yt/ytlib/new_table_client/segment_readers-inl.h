@@ -143,14 +143,14 @@ std::pair<ui32, ui32> TScanTimestampExtractor::GetWriteTimestampsSpan(ui32 rowIn
 {
     auto position = rowIndex - RowOffset_;
     YT_ASSERT(rowIndex < SegmentRowLimit_);
-    return std::pair(WriteTimestampOffsets_[position], WriteTimestampOffsets_[position + 1]);
+    return {WriteTimestampOffsets_[position], WriteTimestampOffsets_[position + 1]};
 }
 
 std::pair<ui32, ui32> TScanTimestampExtractor::GetDeleteTimestampsSpan(ui32 rowIndex) const
 {
     auto position = rowIndex - RowOffset_;
     YT_ASSERT(rowIndex < SegmentRowLimit_);
-    return std::pair(DeleteTimestampOffsets_[position], DeleteTimestampOffsets_[position + 1]);
+    return {DeleteTimestampOffsets_[position], DeleteTimestampOffsets_[position + 1]};
 }
 
 TRange<TTimestamp> TScanTimestampExtractor::GetWriteTimestamps(

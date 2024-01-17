@@ -1,6 +1,4 @@
 #include "column_block_manager.h"
-#include "dispatch_by_type.h"
-#include "memory_helpers.h"
 #include "prepared_meta.h"
 #include "read_span.h"
 
@@ -12,8 +10,6 @@
 #include <yt/yt/ytlib/chunk_client/block_id.h>
 
 #include <yt/yt/client/table_client/config.h>
-
-#include <yt/yt_proto/yt/client/table_chunk_format/proto/column_meta.pb.h>
 
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
@@ -31,7 +27,9 @@ using NChunkClient::TChunkReaderMemoryManager;
 using NChunkClient::TChunkReaderMemoryManagerOptions;
 using NChunkClient::TClientChunkReadOptions;
 
+using NChunkClient::TBlock;
 using NChunkClient::IBlockCachePtr;
+using NChunkClient::TBlockFetcher;
 using NChunkClient::TBlockFetcherPtr;
 using NChunkClient::IChunkReaderPtr;
 

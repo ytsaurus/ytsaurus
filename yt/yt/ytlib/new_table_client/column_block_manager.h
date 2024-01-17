@@ -4,7 +4,7 @@
 #include "block_ref.h"
 #include "reader_statistics.h"
 
-#include <yt/yt/ytlib/table_client/public.h>
+#include <yt/yt/core/actions/public.h>
 
 namespace NYT::NNewTableClient {
 
