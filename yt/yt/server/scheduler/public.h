@@ -11,9 +11,9 @@ namespace NYT::NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TOperation)
-DECLARE_REFCOUNTED_CLASS(TJob)
+DECLARE_REFCOUNTED_CLASS(TAllocation)
 
-using TJobList = std::list<TJobPtr>;
+using TAllocationList = std::list<TAllocationPtr>;
 
 struct INodeManagerHost;
 

@@ -37,7 +37,7 @@ public:
                 .SetResponseCodec(NCompression::ECodec::Lz4)
                 .SetPooled(false));
         RegisterMethod(
-            RPC_SERVICE_METHOD_DESC(ScheduleJobHeartbeat)
+            RPC_SERVICE_METHOD_DESC(ScheduleAllocationHeartbeat)
                 .SetHeavy(true)
                 .SetResponseCodec(NCompression::ECodec::Lz4)
                 .SetPooled(false));
@@ -73,7 +73,7 @@ private:
         controllerAgentTracker->ProcessAgentHeartbeat(context);
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NScheduler::NProto, ScheduleJobHeartbeat)
+    DECLARE_RPC_SERVICE_METHOD(NScheduler::NProto, ScheduleAllocationHeartbeat)
     {
         const auto& scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
@@ -83,7 +83,7 @@ private:
             return;
         }
 
-        controllerAgentTracker->ProcessAgentScheduleJobHeartbeat(context);
+        controllerAgentTracker->ProcessAgentScheduleAllocationHeartbeat(context);
     }
 };
 

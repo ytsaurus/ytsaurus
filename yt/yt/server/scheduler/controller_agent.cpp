@@ -16,17 +16,17 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TScheduleJobRequest* protoRequest, const TScheduleJobRequest& request)
+void ToProto(NProto::TScheduleAllocationRequest* protoRequest, const TScheduleAllocationRequest& request)
 {
     ToProto(protoRequest->mutable_operation_id(), request.OperationId);
-    ToProto(protoRequest->mutable_job_id(), request.JobId);
+    ToProto(protoRequest->mutable_allocation_id(), request.AllocationId);
     protoRequest->set_tree_id(request.TreeId);
-    ToProto(protoRequest->mutable_job_resource_limits(), request.JobResourceLimits);
+    ToProto(protoRequest->mutable_allocation_resource_limits(), request.AllocationResourceLimits);
     protoRequest->set_pool_path(request.PoolPath);
     protoRequest->mutable_node_disk_resources()->CopyFrom(request.NodeDiskResources);
     auto* spec = protoRequest->mutable_spec();
-    if (request.Spec.WaitingJobTimeout) {
-        spec->set_waiting_job_timeout(ToProto<i64>(*request.Spec.WaitingJobTimeout));
+    if (request.Spec.WaitingForResourcesOnNodeTimeout) {
+        spec->set_waiting_for_resources_on_node_timeout(ToProto<i64>(*request.Spec.WaitingForResourcesOnNodeTimeout));
     }
 }
 
@@ -106,23 +106,23 @@ void TControllerAgent::SetIncarnationTransaction(NApi::ITransactionPtr transacti
             GetIncarnationId()),
         SchedulerProfiler.WithTag("queue", "operation_events"),
         CancelableInvoker_);
-    RunningJobStatisticsUpdatesInbox_ = std::make_unique<TMessageQueueInbox>(
-        SchedulerLogger.WithTag("Kind: AgentToSchedulerRunningJobStatisticsUpdates, AgentId: %v, IncarnationId: %v",
+    RunningAllocationStatisticsUpdatesInbox_ = std::make_unique<TMessageQueueInbox>(
+        SchedulerLogger.WithTag("Kind: AgentToSchedulerRunningAllocationStatisticsUpdates, AgentId: %v, IncarnationId: %v",
             Id_,
             GetIncarnationId()),
-        SchedulerProfiler.WithTag("queue", "running_job_statistics_updates"),
+        SchedulerProfiler.WithTag("queue", "running_allocation_statistics_updates"),
         MessageOffloadInvoker_);
-    ScheduleJobResponsesInbox_ = std::make_unique<TMessageQueueInbox>(
-        SchedulerLogger.WithTag("Kind: AgentToSchedulerScheduleJobResponses, AgentId: %v, IncarnationId: %v",
+    ScheduleAllocationResponsesInbox_ = std::make_unique<TMessageQueueInbox>(
+        SchedulerLogger.WithTag("Kind: AgentToSchedulerScheduleAllocationResponses, AgentId: %v, IncarnationId: %v",
             Id_,
             GetIncarnationId()),
-        SchedulerProfiler.WithTag("queue", "schedule_job_responses"),
+        SchedulerProfiler.WithTag("queue", "schedule_allocation_responses"),
         MessageOffloadInvoker_);
     AbortedAllocationEventsOutbox_ = New<TMessageQueueOutbox<TAbortedAllocationSummary>>(
-        SchedulerLogger.WithTag("Kind: SchedulerToAgentJobs, AgentId: %v, IncarnationId: %v",
+        SchedulerLogger.WithTag("Kind: SchedulerToAgentAbortedAllocations, AgentId: %v, IncarnationId: %v",
             Id_,
             GetIncarnationId()),
-        SchedulerProfiler.WithTag("queue", "job_events"),
+        SchedulerProfiler.WithTag("queue", "aborted_allocation_events"),
         MessageOffloadInvoker_);
 
     OperationEventsOutbox_ = New<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>>(
@@ -131,11 +131,11 @@ void TControllerAgent::SetIncarnationTransaction(NApi::ITransactionPtr transacti
             GetIncarnationId()),
         SchedulerProfiler.WithTag("queue", "operation_events"),
         MessageOffloadInvoker_);
-    ScheduleJobRequestsOutbox_ = New<TMessageQueueOutbox<TScheduleJobRequestPtr>>(
-        SchedulerLogger.WithTag("Kind: SchedulerToAgentScheduleJobRequests, AgentId: %v, IncarnationId: %v",
+    ScheduleAllocationRequestsOutbox_ = New<TMessageQueueOutbox<TScheduleAllocationRequestPtr>>(
+        SchedulerLogger.WithTag("Kind: SchedulerToAgentScheduleAllocationRequests, AgentId: %v, IncarnationId: %v",
             Id_,
             GetIncarnationId()),
-        SchedulerProfiler.WithTag("queue", "schedule_job_requests"),
+        SchedulerProfiler.WithTag("queue", "schedule_allocation_requests"),
         MessageOffloadInvoker_,
         /*supportTracing*/ true);
 }
@@ -145,14 +145,14 @@ TMessageQueueInbox* TControllerAgent::GetOperationEventsInbox()
     return OperationEventsInbox_.get();
 }
 
-TMessageQueueInbox* TControllerAgent::GetRunningJobStatisticsUpdatesInbox()
+TMessageQueueInbox* TControllerAgent::GetRunningAllocationStatisticsUpdatesInbox()
 {
-    return RunningJobStatisticsUpdatesInbox_.get();
+    return RunningAllocationStatisticsUpdatesInbox_.get();
 }
 
-TMessageQueueInbox* TControllerAgent::GetScheduleJobResponsesInbox()
+TMessageQueueInbox* TControllerAgent::GetScheduleAllocationResponsesInbox()
 {
-    return ScheduleJobResponsesInbox_.get();
+    return ScheduleAllocationResponsesInbox_.get();
 }
 
 const TSchedulerToAgentAbortedAllocationEventOutboxPtr& TControllerAgent::GetAbortedAllocationEventsOutbox()
@@ -165,9 +165,9 @@ const TSchedulerToAgentOperationEventOutboxPtr& TControllerAgent::GetOperationEv
     return OperationEventsOutbox_;
 }
 
-const TScheduleJobRequestOutboxPtr& TControllerAgent::GetScheduleJobRequestsOutbox()
+const TScheduleAllocationRequestOutboxPtr& TControllerAgent::GetScheduleAllocationRequestsOutbox()
 {
-    return ScheduleJobRequestsOutbox_;
+    return ScheduleAllocationRequestsOutbox_;
 }
 
 void TControllerAgent::Cancel(const TError& error)

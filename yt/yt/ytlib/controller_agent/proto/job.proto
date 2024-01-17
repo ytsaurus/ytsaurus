@@ -3,7 +3,7 @@ package NYT.NControllerAgent.NProto;
 import "yt/ytlib/controller_agent/proto/output_result.proto";
 
 import "yt/ytlib/scheduler/proto/allocation.proto";
-import "yt/ytlib/scheduler/proto/job.proto";
+import "yt/ytlib/scheduler/proto/resources.proto";
 
 import "yt/ytlib/chunk_client/proto/data_source.proto";
 

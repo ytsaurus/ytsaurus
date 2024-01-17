@@ -9,8 +9,6 @@
 
 #include <yt/yt/server/lib/job_agent/structs.h>
 
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
-
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>

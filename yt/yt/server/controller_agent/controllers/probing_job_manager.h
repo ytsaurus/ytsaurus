@@ -37,7 +37,7 @@ public:
     // If competitive job of this joblet completed we should abort the joblet even if it has completed.
     std::optional<EAbortReason> ShouldAbortCompletingJob(const TJobletPtr& joblet) override;
 
-    void UpdatePendingJobCount(NScheduler::TCompositePendingJobCount* pendingJobCount) const;
+    void UpdatePendingJobCount(TCompositePendingJobCount* pendingJobCount) const;
 
     void Persist(const TPersistenceContext& context);
 

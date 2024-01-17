@@ -28,6 +28,7 @@
     XX(AlienConfigVersions, alien_config_versions) \
     XX(AllowChildrenLimitOvercommit, allow_children_limit_overcommit) \
     XX(AllowRegularJobsOnSsdNodes, allow_regular_jobs_on_ssd_nodes) \
+    XX(AllowRegularAllocationsOnSsdNodes, allow_regular_allocations_on_ssd_nodes) \
     XX(AllowedProfilingTags, allowed_profiling_tags) \
     XX(AllowAggressivePreemption, allow_aggressive_preemption) \
     XX(AllowAggressiveStarvationPreemption, allow_aggressive_starvation_preemption) \

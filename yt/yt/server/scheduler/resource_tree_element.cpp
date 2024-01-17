@@ -221,7 +221,7 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheck(
 
     // NB: Actually tree elements has resource usage discounts (used for scheduling with preemption)
     // that should be considered in this check. But concurrent nature of this shared tree makes hard to consider
-    // these discounts here. The only consequence of discounts ignorance is possibly redundant jobs that would
+    // these discounts here. The only consequence of discounts ignorance is possibly redundant allocations that would
     // be aborted just after being scheduled.
     *availableResourceLimitsOutput = TJobResources::Infinite();
     if (SpecifiedResourceLimits_) {

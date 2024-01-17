@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/ytlib/controller_agent/public.h>
+
 #include <yt/yt/ytlib/scheduler/public.h>
 
 #include <yt/yt/core/misc/phoenix.h>
@@ -16,7 +18,7 @@ struct TJobDescription
 {
     TDuration Duration;
     NScheduler::TJobResources ResourceLimits;
-    NScheduler::TJobId Id;
+    NControllerAgent::TJobId Id;
     NJobTrackerClient::EJobType Type;
     TString State;
 

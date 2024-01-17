@@ -103,5 +103,29 @@ NTracing::TTraceContextGuard CreateOperationTraceContextGuard(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCompositePendingJobCount
+{
+    int DefaultCount = 0;
+    THashMap<TString, int> CountByPoolTree = {};
+
+    int GetJobCountFor(const TString& tree) const;
+    bool IsZero() const;
+
+    void Persist(const TStreamPersistenceContext& context);
+};
+
+void Serialize(const TCompositePendingJobCount& jobCount, NYson::IYsonConsumer* consumer);
+
+void FormatValue(TStringBuilderBase* builder, const TCompositePendingJobCount& jobCount, TStringBuf /*format*/);
+
+bool operator == (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs);
+bool operator != (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs);
+
+TCompositePendingJobCount operator + (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs);
+TCompositePendingJobCount operator - (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs);
+TCompositePendingJobCount operator - (const TCompositePendingJobCount& count);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent
 

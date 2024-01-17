@@ -23,9 +23,9 @@ using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobId GenerateJobId(TCellTag tag, TNodeId nodeId)
+TAllocationId GenerateAllocationId(TCellTag tag, TNodeId nodeId)
 {
-    return TJobId(MakeId(
+    return TAllocationId(MakeId(
         EObjectType::SchedulerJob,
         tag,
         RandomNumber<ui64>(),
@@ -80,28 +80,6 @@ void MaybeDelay(const TDelayConfigPtr& delayConfig)
 {
     if (delayConfig) {
         Delay(delayConfig->Duration, delayConfig->Type);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-EAllocationState JobStateToAllocationState(EJobState jobState)
-{
-    switch (jobState) {
-        case EJobState::None:
-            return EAllocationState::Scheduled;
-        case EJobState::Waiting:
-            return EAllocationState::Waiting;
-        case EJobState::Running:
-            return EAllocationState::Running;
-        case EJobState::Aborting:
-            return EAllocationState::Finishing;
-        case EJobState::Completed:
-        case EJobState::Failed:
-        case EJobState::Aborted:
-            return EAllocationState::Finished;
-        default:
-            YT_ABORT();
     }
 }
 

@@ -70,7 +70,7 @@ void TPersistentSchedulingSegmentsState::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TPersistentFairShareTreeJobSchedulerState::Register(TRegistrar registrar)
+void TPersistentFairShareTreeAllocationSchedulerState::Register(TRegistrar registrar)
 {
     registrar.Parameter("scheduling_segments_state", &TThis::SchedulingSegmentsState)
         .DefaultNew();

@@ -40,7 +40,7 @@ private:
     void RunOnce();
 
     void OnHeartbeat(const TNodeEvent& event);
-    void OnJobFinished(const TNodeEvent& event);
+    void OnAllocationFinished(const TNodeEvent& event);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSimulatorNodeWorker)

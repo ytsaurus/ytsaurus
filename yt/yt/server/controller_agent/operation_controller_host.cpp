@@ -89,7 +89,7 @@ TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateBannedInT
     TOperationId operationId,
     TControllerEpoch controllerEpoch,
     TString treeId,
-    std::vector<TJobId> jobIds)
+    std::vector<TAllocationId> allocationIds)
 {
     TAgentToSchedulerOperationEvent event(
         EAgentToSchedulerOperationEventType::BannedInTentativeTree,
@@ -97,7 +97,7 @@ TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateBannedInT
         controllerEpoch
     );
     event.TentativeTreeId = std::move(treeId);
-    event.TentativeTreeJobIds = std::move(jobIds);
+    event.TentativeTreeAllocationIds = std::move(allocationIds);
     return event;
 }
 
@@ -189,13 +189,13 @@ TOperationControllerHost::TOperationControllerHost(
     IInvokerPtr cancelableControlInvoker,
     IInvokerPtr uncancelableControlInvoker,
     TAgentToSchedulerOperationEventOutboxPtr operationEventsOutbox,
-    TAgentToSchedulerRunningJobStatisticsOutboxPtr runningJobStatisticsUpdatesOutbox,
+    TAgentToSchedulerRunningAllocationStatisticsOutboxPtr runningAllocationStatisticsUpdatesOutbox,
     TBootstrap* bootstrap)
     : OperationId_(operation->GetId())
     , CancelableControlInvoker_(std::move(cancelableControlInvoker))
     , UncancelableControlInvoker_(std::move(uncancelableControlInvoker))
     , OperationEventsOutbox_(std::move(operationEventsOutbox))
-    , RunningJobStatisticsUpdatesOutbox_(std::move(runningJobStatisticsUpdatesOutbox))
+    , RunningAllocationStatisticsUpdatesOutbox_(std::move(runningAllocationStatisticsUpdatesOutbox))
     , Bootstrap_(bootstrap)
     , IncarnationId_(Bootstrap_->GetControllerAgent()->GetIncarnationId())
     , ControllerEpoch_(operation->GetControllerEpoch())
@@ -236,18 +236,19 @@ void TOperationControllerHost::RequestJobGracefulAbort(TJobId jobId, EAbortReaso
         reason);
 }
 
-void TOperationControllerHost::UpdateRunningJobsStatistics(
-    std::vector<TAgentToSchedulerRunningJobStatistics> runningJobStatisticsUpdates)
+void TOperationControllerHost::UpdateRunningAllocationsStatistics(
+    std::vector<TAgentToSchedulerRunningAllocationStatistics> runningAllocationStatisticsUpdates)
 {
-    if (std::empty(runningJobStatisticsUpdates)) {
+    if (std::empty(runningAllocationStatisticsUpdates)) {
         return;
     }
 
-    RunningJobStatisticsUpdatesOutbox_->Enqueue(std::move(runningJobStatisticsUpdates));
+    RunningAllocationStatisticsUpdatesOutbox_->Enqueue(std::move(runningAllocationStatisticsUpdates));
 
-    YT_LOG_DEBUG("Jobs statistics update request enqueued (OperationId: %v, JobCount: %v)",
+    YT_LOG_DEBUG(
+        "Allocations statistics update request enqueued (OperationId: %v, AllocationCount: %v)",
         OperationId_,
-        runningJobStatisticsUpdates.size());
+        runningAllocationStatisticsUpdates.size());
 }
 
 void TOperationControllerHost::RegisterJob(TStartedJobInfo jobInfo)
@@ -454,14 +455,17 @@ const NChunkClient::TMediumDirectoryPtr& TOperationControllerHost::GetMediumDire
 void TOperationControllerHost::OnOperationCompleted()
 {
     OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent::CreateCompletedEvent(OperationId_, ControllerEpoch_));
-    YT_LOG_DEBUG("Operation completion notification enqueued (OperationId: %v)",
+    YT_LOG_DEBUG(
+        "Operation completion notification enqueued (OperationId: %v)",
         OperationId_);
 }
 
 void TOperationControllerHost::OnOperationAborted(const TError& error)
 {
     OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent::CreateAbortedEvent(OperationId_, ControllerEpoch_, error));
-    YT_LOG_DEBUG(error, "Operation abort notification enqueued (OperationId: %v)",
+    YT_LOG_DEBUG(
+        error,
+        "Operation abort notification enqueued (OperationId: %v)",
         OperationId_,
         error);
 }
@@ -469,25 +473,35 @@ void TOperationControllerHost::OnOperationAborted(const TError& error)
 void TOperationControllerHost::OnOperationFailed(const TError& error)
 {
     OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent::CreateFailedEvent(OperationId_, ControllerEpoch_, error));
-    YT_LOG_DEBUG(error, "Operation failure notification enqueued (OperationId: %v)",
+    YT_LOG_DEBUG(
+        error,
+        "Operation failure notification enqueued (OperationId: %v)",
         OperationId_);
 }
 
 void TOperationControllerHost::OnOperationSuspended(const TError& error)
 {
-    OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent::CreateSuspendedEvent(OperationId_, ControllerEpoch_, error));
-    YT_LOG_DEBUG(error, "Operation suspension notification enqueued (OperationId: %v)",
+    OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent::CreateSuspendedEvent(
+        OperationId_,
+        ControllerEpoch_,
+        error));
+    YT_LOG_DEBUG(
+        error,
+        "Operation suspension notification enqueued (OperationId: %v)",
         OperationId_);
 }
 
-void TOperationControllerHost::OnOperationBannedInTentativeTree(const TString& treeId, const std::vector<TJobId>& jobIds)
+void TOperationControllerHost::OnOperationBannedInTentativeTree(
+    const TString& treeId,
+    const std::vector<TAllocationId>& allocationIds)
 {
     OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent::CreateBannedInTentativeTreeEvent(
         OperationId_,
         ControllerEpoch_,
         treeId,
-        jobIds));
-    YT_LOG_DEBUG("Operation tentative tree ban notification enqueued (OperationId: %v, TreeId: %v)",
+        allocationIds));
+    YT_LOG_DEBUG(
+        "Operation tentative tree ban notification enqueued (OperationId: %v, TreeId: %v)",
         OperationId_,
         treeId);
 }

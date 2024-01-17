@@ -20,13 +20,11 @@ using NScheduler::EOperationAlertType;
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TJobSummary;
-struct TStartedJobSummary;
 struct TCompletedJobSummary;
 struct TAbortedJobSummary;
 struct TFailedJobSummary;
 struct TRunningJobSummary;
 struct TAbortedAllocationSummary;
-struct TFinishedJobSummary;
 
 DECLARE_REFCOUNTED_CLASS(TLegacyProgressCounter)
 DECLARE_REFCOUNTED_CLASS(TProgressCounter)

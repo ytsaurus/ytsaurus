@@ -4,7 +4,7 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt_proto/yt/core/misc/proto/error.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 import "yt_proto/yt/core/tracing/proto/tracing_ext.proto";
-import "yt/ytlib/scheduler/proto/job.proto";
+import "yt/ytlib/scheduler/proto/resources.proto";
 import "yt/ytlib/controller_agent/proto/controller_agent_service.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,7 +54,7 @@ message TAgentToSchedulerOperationEvent
     optional string tentative_tree_id = 4;
 
     // for BannedInTentativeTree
-    repeated NYT.NProto.TGuid tentative_tree_job_ids = 5;
+    repeated NYT.NProto.TGuid tentative_tree_allocation_ids = 5;
 
     // for InitializationFinished
     optional NYT.NControllerAgent.NProto.TInitializeOperationResult initialize_result = 6;
@@ -72,9 +72,9 @@ message TAgentToSchedulerOperationEvent
     optional NYT.NControllerAgent.NProto.TCommitOperationResult commit_result = 10;
 }
 
-message TAgentToSchedulerRunningJobStatistics
+message TAgentToSchedulerRunningAllocationStatistics
 {
-    required NYT.NProto.TGuid job_id = 1;
+    required NYT.NProto.TGuid allocation_id = 1;
 
     required int64 preemptible_progress_time = 2;
 }
@@ -98,33 +98,33 @@ message TSchedulerToAgentOperationEvent
     required int32 event_type = 2; // ESchedulerToAgentOperationEventType
 }
 
-message TScheduleJobSpec
+message TScheduleAllocationSpec
 {
-    optional int64 waiting_job_timeout = 1;
+    optional int64 waiting_for_resources_on_node_timeout = 1;
 }
 
-message TScheduleJobRequest
+message TScheduleAllocationRequest
 {
     required NYT.NProto.TGuid operation_id = 1;
-    required NYT.NProto.TGuid job_id = 2;
+    required NYT.NProto.TGuid allocation_id = 2;
     required string tree_id = 3;
-    required TJobResources job_resource_limits = 4;
+    required TJobResources allocation_resource_limits = 4;
     optional string pool_path = 8;
     required NNodeTrackerClient.NProto.TDiskResources node_disk_resources = 6;
-    optional TScheduleJobSpec spec = 7;
+    optional TScheduleAllocationSpec spec = 7;
 
     optional NYT.NTracing.NProto.TTracingExt tracing_ext = 9;
 }
 
-message TScheduleJobResponse
+message TScheduleAllocationResponse
 {
     message TFailedCounter
     {
-        required int32 reason = 1; // EScheduleJobFailReason
+        required int32 reason = 1; // EScheduleAllocationFailReason
         required int32 value = 2;
     }
 
-    required NYT.NProto.TGuid job_id = 1;
+    required NYT.NProto.TGuid allocation_id = 1;
     required bool success = 2;
     optional TJobResourcesWithQuota resource_limits = 3;
     repeated TFailedCounter failed = 4;
@@ -167,10 +167,10 @@ message TReqHeartbeat
         repeated TAgentToSchedulerOperationEvent items = 2;
     }
 
-    message TAgentToSchedulerRunningJobStatisticsUpdatesOutbox
+    message TAgentToSchedulerRunningAllocationStatisticsUpdatesOutbox
     {
         required int64 first_item_id = 1;
-        repeated TAgentToSchedulerRunningJobStatistics items = 2;
+        repeated TAgentToSchedulerRunningAllocationStatistics items = 2;
     }
 
     required string agent_id = 1;
@@ -180,11 +180,11 @@ message TReqHeartbeat
     required bool exec_nodes_requested = 4;
 
     required TAgentToSchedulerOperationEventsOutbox agent_to_scheduler_operation_events = 7;
-    required TAgentToSchedulerRunningJobStatisticsUpdatesOutbox agent_to_scheduler_running_job_statistics_updates = 15;
+    required TAgentToSchedulerRunningAllocationStatisticsUpdatesOutbox agent_to_scheduler_running_allocation_statistics_updates = 15;
 
     required TEventQueueInbox scheduler_to_agent_aborted_allocation_events = 10;
     required TEventQueueInbox scheduler_to_agent_operation_events = 11;
-    required TEventQueueInbox scheduler_to_agent_schedule_job_requests = 12;
+    required TEventQueueInbox scheduler_to_agent_schedule_allocation_requests = 12;
 
     optional int64 controller_memory_limit = 13;
     optional int64 controller_memory_usage = 14;
@@ -212,7 +212,7 @@ message TRspHeartbeat
     optional TExecNodeDescriptorList exec_nodes = 1;
 
     required TEventQueueInbox agent_to_scheduler_operation_events = 2;
-    required TEventQueueInbox agent_to_scheduler_running_job_statistics_updates = 11;
+    required TEventQueueInbox agent_to_scheduler_running_allocation_statistics_updates = 11;
 
     required TSchedulerToAgentAbortedAllocationEventsOutbox scheduler_to_agent_aborted_allocation_events = 4;
     required TSchedulerToAgentOperationEventsOutbox scheduler_to_agent_operation_events = 5;
@@ -224,32 +224,32 @@ message TRspHeartbeat
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqScheduleJobHeartbeat
+message TReqScheduleAllocationHeartbeat
 {
-    message TAgentToSchedulerScheduleJobResponsesOutbox
+    message TAgentToSchedulerScheduleAllocationResponsesOutbox
     {
         required int64 first_item_id = 1;
-        repeated TScheduleJobResponse items = 2;
+        repeated TScheduleAllocationResponse items = 2;
     }
 
     required string agent_id = 1;
     required NYT.NProto.TGuid incarnation_id = 2;
-    required TAgentToSchedulerScheduleJobResponsesOutbox agent_to_scheduler_schedule_job_responses = 3;
+    required TAgentToSchedulerScheduleAllocationResponsesOutbox agent_to_scheduler_schedule_allocation_responses = 3;
 
-    required TEventQueueInbox scheduler_to_agent_schedule_job_requests = 4;
+    required TEventQueueInbox scheduler_to_agent_schedule_allocation_requests = 4;
 }
 
-message TRspScheduleJobHeartbeat
+message TRspScheduleAllocationHeartbeat
 {
-    message TSchedulerToAgentScheduleJobRequestsOutbox
+    message TSchedulerToAgentScheduleAllocationRequestsOutbox
     {
         required int64 first_item_id = 1;
-        repeated TScheduleJobRequest items = 2;
+        repeated TScheduleAllocationRequest items = 2;
     }
 
-    required TEventQueueInbox agent_to_scheduler_schedule_job_responses = 1;
+    required TEventQueueInbox agent_to_scheduler_schedule_allocation_responses = 1;
 
-    required TSchedulerToAgentScheduleJobRequestsOutbox scheduler_to_agent_schedule_job_requests = 2;
+    required TSchedulerToAgentScheduleAllocationRequestsOutbox scheduler_to_agent_schedule_allocation_requests = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

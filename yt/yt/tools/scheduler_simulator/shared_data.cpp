@@ -35,14 +35,14 @@ TNodeEvent CreateHeartbeatNodeEvent(TInstant time, TNodeId nodeId, bool schedule
     };
 }
 
-TNodeEvent CreateJobFinishedNodeEvent(TInstant time, const TJobPtr& job, const TExecNodePtr& execNode, TNodeId nodeId)
+TNodeEvent CreateAllocationFinishedNodeEvent(TInstant time, const TAllocationPtr& allocation, const TExecNodePtr& execNode, TNodeId nodeId)
 {
     return TNodeEvent{
-        .Type = ENodeEventType::JobFinished,
+        .Type = ENodeEventType::AllocationFinished,
         .Time = time,
         .NodeId = nodeId,
-        .Job = job,
-        .JobNode = execNode,
+        .Allocation = allocation,
+        .AllocationNode = execNode,
     };
 }
 
@@ -332,17 +332,17 @@ INodeHeartbeatStrategyProxyPtr TSharedSchedulerStrategy::CreateNodeHeartbeatStra
     return SchedulerStrategy_->CreateNodeHeartbeatStrategyProxy(nodeId, address, tags, cookie);
 }
 
-void TSharedSchedulerStrategy::PreemptJob(const TJobPtr& job)
+void TSharedSchedulerStrategy::PreemptAllocation(const TAllocationPtr& allocation)
 {
-    StrategyHost_.PreemptJob(job, TDuration::Zero());
+    StrategyHost_.PreemptAllocation(allocation, TDuration::Zero());
 }
 
-void TSharedSchedulerStrategy::ProcessJobUpdates(
-    const std::vector<TJobUpdate>& jobUpdates,
-    THashSet<TJobId>* jobsToPostpone,
-    THashMap<TJobId, EAbortReason>* jobsToAbort)
+void TSharedSchedulerStrategy::ProcessAllocationUpdates(
+    const std::vector<TAllocationUpdate>& allocationUpdates,
+    THashSet<TAllocationId>* allocationsToPostpone,
+    THashMap<TAllocationId, EAbortReason>* allocationsToAbort)
 {
-    SchedulerStrategy_->ProcessJobUpdates(jobUpdates, jobsToPostpone, jobsToAbort);
+    SchedulerStrategy_->ProcessAllocationUpdates(allocationUpdates, allocationsToPostpone, allocationsToAbort);
 }
 
 void TSharedSchedulerStrategy::UnregisterOperation(NYT::NScheduler::IOperationStrategyHost* operation)

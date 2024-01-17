@@ -30,7 +30,7 @@ TString ToString(const TNodeMovePenalty& penalty);
 
 struct TNodeWithMovePenalty
 {
-    TFairShareTreeJobSchedulerNodeState* Node = nullptr;
+    TFairShareTreeAllocationSchedulerNodeState* Node = nullptr;
     TNodeMovePenalty MovePenalty;
 };
 
@@ -54,8 +54,8 @@ struct TUpdateSchedulingSegmentsContext
     const TFairShareTreeSnapshotPtr TreeSnapshot;
 
     // These are copies, it's safe to modify them.
-    TFairShareTreeJobSchedulerOperationStateMap OperationStates;
-    TFairShareTreeJobSchedulerNodeStateMap NodeStates;
+    TFairShareTreeAllocationSchedulerOperationStateMap OperationStates;
+    TFairShareTreeAllocationSchedulerNodeStateMap NodeStates;
 
     double NodesTotalKeyResourceLimit = 0.0;
     THashMap<TSchedulingSegmentModule, double> TotalCapacityPerModule;
@@ -96,7 +96,7 @@ public:
 
     void InitOrUpdateOperationSchedulingSegment(
         TOperationId operationId,
-        const TFairShareTreeJobSchedulerOperationStatePtr& operationState) const;
+        const TFairShareTreeAllocationSchedulerOperationStatePtr& operationState) const;
 
     void UpdateConfig(TFairShareStrategySchedulingSegmentsConfigPtr config);
 
@@ -159,8 +159,8 @@ private:
         THashMap<TSchedulingSegmentModule, TNodeWithMovePenaltyList>* movableNodesPerModule,
         THashMap<TSchedulingSegmentModule, TNodeWithMovePenaltyList>* aggressivelyMovableNodesPerModule) const;
 
-    const TSchedulingSegmentModule& GetNodeModule(const TFairShareTreeJobSchedulerNodeState& node) const;
-    void SetNodeSegment(TFairShareTreeJobSchedulerNodeState* node, ESchedulingSegment segment, TUpdateSchedulingSegmentsContext* context) const;
+    const TSchedulingSegmentModule& GetNodeModule(const TFairShareTreeAllocationSchedulerNodeState& node) const;
+    void SetNodeSegment(TFairShareTreeAllocationSchedulerNodeState* node, ESchedulingSegment segment, TUpdateSchedulingSegmentsContext* context) const;
 
     void LogAndProfileSegments(const TUpdateSchedulingSegmentsContext* context) const;
     void BuildPersistentState(TUpdateSchedulingSegmentsContext* context) const;

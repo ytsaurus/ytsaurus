@@ -18,34 +18,34 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobStartDescriptor
+struct TAllocationStartDescriptor
 {
-    TJobStartDescriptor(
-        TJobId id,
+    TAllocationStartDescriptor(
+        TAllocationId id,
         const TJobResourcesWithQuota& resourceLimits);
 
-    const TJobId Id;
+    const TAllocationId Id;
     const TJobResourcesWithQuota ResourceLimits;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TControllerScheduleJobResult
+struct TControllerScheduleAllocationResult
     : public TRefCounted
 {
-    void RecordFail(NControllerAgent::EScheduleJobFailReason reason);
+    void RecordFail(NControllerAgent::EScheduleAllocationFailReason reason);
     bool IsBackoffNeeded() const;
     bool IsScheduleStopNeeded() const;
 
-    std::optional<TJobStartDescriptor> StartDescriptor;
-    TEnumIndexedVector<NControllerAgent::EScheduleJobFailReason, int> Failed;
+    std::optional<TAllocationStartDescriptor> StartDescriptor;
+    TEnumIndexedVector<NControllerAgent::EScheduleAllocationFailReason, int> Failed;
     TDuration Duration;
     std::optional<TDuration> NextDurationEstimate;
     TIncarnationId IncarnationId;
     TControllerEpoch ControllerEpoch;
 };
 
-DEFINE_REFCOUNTED_TYPE(TControllerScheduleJobResult)
+DEFINE_REFCOUNTED_TYPE(TControllerScheduleAllocationResult)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,7 +83,7 @@ void FromProto(
 
 struct TPreemptedFor
 {
-    TJobId JobId;
+    TAllocationId AllocationId;
     TOperationId OperationId;
 
     bool operator == (const TPreemptedFor& other) const noexcept;
@@ -97,30 +97,6 @@ void FromProto(TPreemptedFor* preemptedFor, const NProto::TPreemptedFor& proto);
 
 void Serialize(const TPreemptedFor& preemptedFor, NYson::IYsonConsumer* consumer);
 void Deserialize(TPreemptedFor& preemptedFor, const NYTree::INodePtr& node);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TCompositePendingJobCount
-{
-    int DefaultCount = 0;
-    THashMap<TString, int> CountByPoolTree = {};
-
-    int GetJobCountFor(const TString& tree) const;
-    bool IsZero() const;
-
-    void Persist(const TStreamPersistenceContext& context);
-};
-
-void Serialize(const TCompositePendingJobCount& jobCount, NYson::IYsonConsumer* consumer);
-
-void FormatValue(TStringBuilderBase* builder, const TCompositePendingJobCount& jobCount, TStringBuf /* format */);
-
-bool operator == (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs);
-bool operator != (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs);
-
-TCompositePendingJobCount operator + (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs);
-TCompositePendingJobCount operator - (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs);
-TCompositePendingJobCount operator - (const TCompositePendingJobCount& count);
 
 ////////////////////////////////////////////////////////////////////////////////
 

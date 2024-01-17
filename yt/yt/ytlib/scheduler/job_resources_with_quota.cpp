@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 

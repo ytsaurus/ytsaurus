@@ -92,22 +92,22 @@ public:
     int GetKeySwitchColumnCount() const override
     {
         switch (GetJobType()) {
-            case NScheduler::EJobType::Map:
-            case NScheduler::EJobType::OrderedMap:
-            case NScheduler::EJobType::PartitionMap:
-            case NScheduler::EJobType::Vanilla:
+            case EJobType::Map:
+            case EJobType::OrderedMap:
+            case EJobType::PartitionMap:
+            case EJobType::Vanilla:
                 return 0;
 
-            case NScheduler::EJobType::JoinReduce:
-            case NScheduler::EJobType::SortedReduce: {
+            case EJobType::JoinReduce:
+            case EJobType::SortedReduce: {
                 const auto& reduceJobSpecExt = JobSpec_.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 const auto reduceKeyColumnCount = reduceJobSpecExt.reduce_key_column_count();
                 const auto foreignKeyColumnCount = reduceJobSpecExt.join_key_column_count();
                 return foreignKeyColumnCount != 0 ? foreignKeyColumnCount : reduceKeyColumnCount;
             }
 
-            case NScheduler::EJobType::ReduceCombiner:
-            case NScheduler::EJobType::PartitionReduce:
+            case EJobType::ReduceCombiner:
+            case EJobType::PartitionReduce:
                 {
                     const auto& reduceJobSpecExt = JobSpec_.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                     return reduceJobSpecExt.reduce_key_column_count();
@@ -121,17 +121,17 @@ public:
     bool IsReaderInterruptionSupported() const override
     {
         switch (GetJobType()) {
-            case NScheduler::EJobType::Map:
-            case NScheduler::EJobType::OrderedMap:
-            case NScheduler::EJobType::PartitionMap:
-            case NScheduler::EJobType::SortedReduce:
-            case NScheduler::EJobType::JoinReduce:
-            case NScheduler::EJobType::ReduceCombiner:
-            case NScheduler::EJobType::PartitionReduce:
-            case NScheduler::EJobType::SortedMerge:
-            case NScheduler::EJobType::OrderedMerge:
-            case NScheduler::EJobType::UnorderedMerge:
-            case NScheduler::EJobType::Partition:
+            case EJobType::Map:
+            case EJobType::OrderedMap:
+            case EJobType::PartitionMap:
+            case EJobType::SortedReduce:
+            case EJobType::JoinReduce:
+            case EJobType::ReduceCombiner:
+            case EJobType::PartitionReduce:
+            case EJobType::SortedMerge:
+            case EJobType::OrderedMerge:
+            case EJobType::UnorderedMerge:
+            case EJobType::Partition:
                 return true;
             default:
                 return false;

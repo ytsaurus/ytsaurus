@@ -242,7 +242,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
         "scheduler": {
             "watchers_update_period": 100,
             "operations_update_period": 10,
-            "running_jobs_update_period": 10,
+            "running_allocations_update_period": 10,
         }
     }
 
@@ -391,7 +391,7 @@ class TestListSpeculativeJobs(YTEnvSetup):
         "scheduler": {
             "watchers_update_period": 100,
             "operations_update_period": 10,
-            "running_jobs_update_period": 10,
+            "running_allocations_update_period": 10,
             "enable_job_reporter": True,
             "enable_job_spec_reporter": True,
             "static_orchid_cache_update_period": 100,
@@ -557,7 +557,7 @@ class TestSpeculativeJobsOther(YTEnvSetup):
         "scheduler": {
             "watchers_update_period": 100,
             "operations_update_period": 10,
-            "running_jobs_update_period": 10,
+            "running_allocations_update_period": 10,
         }
     }
 

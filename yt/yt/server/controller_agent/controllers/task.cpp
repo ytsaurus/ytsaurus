@@ -493,28 +493,28 @@ bool TTask::ValidateChunkCount(int /* chunkCount */)
     return true;
 }
 
-void TTask::ScheduleJob(
+void TTask::ScheduleAllocation(
     ISchedulingContext* context,
     const TJobResources& jobLimits,
     const TString& treeId,
     bool treeIsTentative,
     bool treeIsProbing,
-    TControllerScheduleJobResult* scheduleJobResult)
+    TControllerScheduleAllocationResult* scheduleAllocationResult)
 {
     if (auto failReason = GetScheduleFailReason(context)) {
-        scheduleJobResult->RecordFail(*failReason);
+        scheduleAllocationResult->RecordFail(*failReason);
         return;
     }
 
     if (treeIsTentative && !TentativeTreeEligibility_.CanScheduleJob(treeId, treeIsTentative)) {
-        scheduleJobResult->RecordFail(EScheduleJobFailReason::TentativeTreeDeclined);
+        scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::TentativeTreeDeclined);
         return;
     }
 
     auto chunkPoolOutput = GetChunkPoolOutput();
     bool speculative = chunkPoolOutput->GetJobCounter()->GetPending() == 0;
     if (speculative && treeIsTentative) {
-        scheduleJobResult->RecordFail(EScheduleJobFailReason::TentativeSpeculativeForbidden);
+        scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::TentativeSpeculativeForbidden);
         return;
     }
 
@@ -542,31 +542,32 @@ void TTask::ScheduleJob(
         joblet->OutputCookie = ExtractCookie(localityNodeId);
         if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
             YT_LOG_DEBUG("Job input is empty");
-            scheduleJobResult->RecordFail(EScheduleJobFailReason::EmptyInput);
+            scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::EmptyInput);
             return;
         }
     }
 
-    auto abortJob = [&] (EScheduleJobFailReason jobFailReason, EAbortReason abortReason) {
+    auto abortJob = [&] (EScheduleAllocationFailReason allocationFailReason, EAbortReason abortReason) {
         if (!joblet->CompetitionType) {
             chunkPoolOutput->Aborted(joblet->OutputCookie, abortReason);
         }
-        scheduleJobResult->RecordFail(jobFailReason);
+        scheduleAllocationResult->RecordFail(allocationFailReason);
     };
 
     int sliceCount = chunkPoolOutput->GetStripeListSliceCount(joblet->OutputCookie);
 
     if (!ValidateChunkCount(sliceCount)) {
-        abortJob(EScheduleJobFailReason::IntermediateChunkLimitExceeded, EAbortReason::IntermediateChunkLimitExceeded);
+        abortJob(EScheduleAllocationFailReason::IntermediateChunkLimitExceeded, EAbortReason::IntermediateChunkLimitExceeded);
         return;
     }
 
     const auto& jobSpecSliceThrottler = TaskHost_->GetJobSpecSliceThrottler();
     if (sliceCount > TaskHost_->GetConfig()->HeavyJobSpecSliceCountThreshold) {
         if (!jobSpecSliceThrottler->TryAcquire(sliceCount)) {
-            YT_LOG_DEBUG("Job spec throttling is active (SliceCount: %v)",
+            YT_LOG_DEBUG(
+                "Job spec throttling is active (SliceCount: %v)",
                 sliceCount);
-            abortJob(EScheduleJobFailReason::JobSpecThrottling, EAbortReason::SchedulingJobSpecThrottling);
+            abortJob(EScheduleAllocationFailReason::JobSpecThrottling, EAbortReason::SchedulingJobSpecThrottling);
             return;
         }
     } else {
@@ -634,18 +635,19 @@ void TTask::ScheduleJob(
     if (!Dominates(jobLimits, neededResources.ToJobResources()) ||
         !CanSatisfyDiskQuotaRequests(context->DiskResources(), {neededResources.DiskQuota()}))
     {
-        YT_LOG_DEBUG("Job actual resource demand is not met (AvailableJobResources: %v, AvailableDiskResources: %v, NeededResources: %v)",
+        YT_LOG_DEBUG(
+            "Allocation actual resource demand is not met (AvailableJobResources: %v, AvailableDiskResources: %v, NeededResources: %v)",
             jobLimits,
             NNodeTrackerClient::ToString(context->DiskResources(), TaskHost_->GetMediumDirectory()),
             FormatResources(neededResources));
         CheckResourceDemandSanity(neededResources);
-        abortJob(EScheduleJobFailReason::NotEnoughResources, EAbortReason::SchedulingOther);
+        abortJob(EScheduleAllocationFailReason::NotEnoughResources, EAbortReason::SchedulingOther);
         // Seems like cached min needed resources are too optimistic.
         ResetCachedMinNeededResources();
         return;
     }
 
-    joblet->JobId = context->GetJobId();
+    joblet->JobId = JobIdFromAllocationId(context->GetAllocationId());
 
     for (auto* jobManager : JobManagers_) {
         jobManager->OnJobScheduled(joblet);
@@ -672,8 +674,8 @@ void TTask::ScheduleJob(
 
     joblet->JobInterruptible = IsJobInterruptible();
 
-    scheduleJobResult->StartDescriptor.emplace(
-        joblet->JobId,
+    scheduleAllocationResult->StartDescriptor.emplace(
+        AllocationIdFromJobId(joblet->JobId),
         neededResources);
 
     joblet->Restarted = restarted;
@@ -758,16 +760,18 @@ void TTask::ScheduleJob(
     joblet->JobSpecProtoFuture = BIND([
         weakTaskHost = MakeWeak(TaskHost_),
         joblet,
-        scheduleJobSpec = context->GetScheduleJobSpec(),
+        scheduleAllocationSpec = context->GetScheduleAllocationSpec(),
         discountBuildingJobSpecGuard = std::move(discountBuildingJobSpecGuard),
         Logger = Logger
     ] {
         if (auto taskHost = weakTaskHost.Lock()) {
-            YT_LOG_DEBUG("Started building job spec (JobId: %v)",
+            YT_LOG_DEBUG(
+                "Started building job spec (JobId: %v)",
                 joblet->JobId);
             TWallTimer timer;
-            auto jobSpecProto = taskHost->BuildJobSpecProto(joblet, scheduleJobSpec);
-            YT_LOG_DEBUG("Job spec built (JobId: %v, TimeElapsed: %v)",
+            auto jobSpecProto = taskHost->BuildJobSpecProto(joblet, scheduleAllocationSpec);
+            YT_LOG_DEBUG(
+                "Job spec built (JobId: %v, TimeElapsed: %v)",
                 joblet->JobId,
                 timer.GetElapsedTime());
             return jobSpecProto;
@@ -1324,7 +1328,7 @@ void TTask::StopTiming()
     CompletionTime_ = TInstant::Now();
 }
 
-std::optional<EScheduleJobFailReason> TTask::GetScheduleFailReason(ISchedulingContext* /*context*/)
+std::optional<EScheduleAllocationFailReason> TTask::GetScheduleFailReason(ISchedulingContext* /*context*/)
 {
     return std::nullopt;
 }
@@ -1339,7 +1343,7 @@ void TTask::DoCheckResourceDemandSanity(const TJobResources& neededResources)
         // It seems nobody can satisfy the demand.
         TaskHost_->OnOperationFailed(
             TError(
-                EErrorCode::NoOnlineNodeToScheduleJob,
+                EErrorCode::NoOnlineNodeToScheduleAllocation,
                 "No online node can satisfy the resource demand")
                 << TErrorAttribute("task_name", GetTitle())
                 << TErrorAttribute("needed_resources", neededResources));
@@ -1764,7 +1768,7 @@ bool TTask::IsInputDataWeightHistogramSupported() const
     return true;
 }
 
-TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto::TScheduleJobSpec& scheduleJobSpec)
+TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto::TScheduleAllocationSpec& scheduleAllocationSpec)
 {
     VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
@@ -1786,12 +1790,12 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto:
     }
 
     std::optional<TDuration> waitingJobTimeout;
-    if (TaskHost_->GetSpec()->WaitingJobTimeout && scheduleJobSpec.has_waiting_job_timeout()) {
-        waitingJobTimeout = std::max(*TaskHost_->GetSpec()->WaitingJobTimeout, FromProto<TDuration>(scheduleJobSpec.waiting_job_timeout()));
+    if (TaskHost_->GetSpec()->WaitingJobTimeout && scheduleAllocationSpec.has_waiting_for_resources_on_node_timeout()) {
+        waitingJobTimeout = std::max(*TaskHost_->GetSpec()->WaitingJobTimeout, FromProto<TDuration>(scheduleAllocationSpec.waiting_for_resources_on_node_timeout()));
     } else if (TaskHost_->GetSpec()->WaitingJobTimeout) {
         waitingJobTimeout = *TaskHost_->GetSpec()->WaitingJobTimeout;
-    } else if (scheduleJobSpec.has_waiting_job_timeout()) {
-        waitingJobTimeout = FromProto<TDuration>(scheduleJobSpec.waiting_job_timeout());
+    } else if (scheduleAllocationSpec.waiting_for_resources_on_node_timeout()) {
+        waitingJobTimeout = FromProto<TDuration>(scheduleAllocationSpec.waiting_for_resources_on_node_timeout());
     }
 
     if (waitingJobTimeout) {

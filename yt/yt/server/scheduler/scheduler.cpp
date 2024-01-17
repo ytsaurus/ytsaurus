@@ -101,7 +101,6 @@ using namespace NApi;
 using namespace NObjectClient;
 using namespace NHydra;
 using namespace NChunkClient;
-using namespace NJobProberClient;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
 using namespace NNodeTrackerClient::NProto;
@@ -543,7 +542,7 @@ public:
             NScheduler::ValidateOperationAccess(
                 user,
                 operationId,
-                TJobId(),
+                TAllocationId(),
                 permissions,
                 operation->GetRuntimeParameters()->Acl,
                 GetClient(),
@@ -563,7 +562,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_DEBUG("Validating job shell access (User: %v, Name: %v, Owners: %v)",
+        YT_LOG_DEBUG(
+            "Validating job shell access (User: %v, Name: %v, Owners: %v)",
             user,
             jobShellName,
             jobShellOwners);
@@ -748,7 +748,7 @@ public:
     TFuture<void> SuspendOperation(
         const TOperationPtr& operation,
         const TString& user,
-        bool abortRunningJobs)
+        bool abortRunningAllocations)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -771,8 +771,8 @@ public:
         DoSuspendOperation(
             operation,
             TError("Suspend operation by user request"),
-            abortRunningJobs,
-            /* setAlert */ false);
+            abortRunningAllocations,
+            /*setAlert*/ false);
 
         return MasterConnector_->FlushOperationNode(operation);
     }
@@ -799,7 +799,7 @@ public:
                 operation->GetState()));
         }
 
-        NodeManager_->ResumeOperationJobs(operation->GetId());
+        NodeManager_->ResumeOperationAllocations(operation->GetId());
 
         operation->SetSuspended(false);
         DoSetOperationAlert(operation->GetId(), EOperationAlertType::OperationSuspended, TError());
@@ -889,8 +889,8 @@ public:
             MakeStrong(this),
             operation,
             error,
-            /* abortRunningJobs */ true,
-            /* setAlert */ true));
+            /*abortRunningAllocations*/ true,
+            /*setAlert*/ true));
     }
 
     void OnOperationAgentUnregistered(const TOperationPtr& operation)
@@ -922,15 +922,19 @@ public:
         AddOperationToTransientQueue(operation);
     }
 
-    void OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId, const std::vector<TJobId>& jobIds)
+    void OnOperationBannedInTentativeTree(
+        const TOperationPtr& operation,
+        const TString& treeId,
+        const std::vector<TAllocationId>& allocationIds)
     {
-        YT_LOG_INFO("Operation banned in tentative tree (OperationId: %v, TreeId: %v)",
+        YT_LOG_INFO(
+            "Operation banned in tentative tree (OperationId: %v, TreeId: %v)",
             operation->GetId(),
             treeId);
 
-        auto error = TError("Job was in banned tentative pool tree")
+        auto error = TError("Allocation was in banned tentative pool tree")
             << TErrorAttribute("abort_reason", EAbortReason::BannedInTentativeTree);
-        NodeManager_->AbortJobs(jobIds, error, EAbortReason::BannedInTentativeTree);
+        NodeManager_->AbortAllocations(allocationIds, error, EAbortReason::BannedInTentativeTree);
 
         LogEventFluently(&SchedulerStructuredLogger, ELogEventType::OperationBannedInTree)
             .Item("operation_id").Value(operation->GetId())
@@ -1077,9 +1081,9 @@ public:
             .Run();
     }
 
-    TFuture<TNodeDescriptor> GetJobNode(TJobId jobId) const
+    TFuture<TNodeDescriptor> GetAllocationNode(TAllocationId allocationId) const
     {
-        return NodeManager_->GetJobNode(jobId);
+        return NodeManager_->GetAllocationNode(allocationId);
     }
 
     void ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context)
@@ -1165,7 +1169,7 @@ public:
         std::vector<TFuture<void>> futures;
         if (operation->GetRevivedFromSnapshot()) {
             operation->SetStateAndEnqueueEvent(EOperationState::RevivingJobs);
-            futures.push_back(RegisterJobsFromRevivedOperation(operation));
+            futures.push_back(RegisterAllocationsFromRevivedOperation(operation));
         } else {
             operation->SetStateAndEnqueueEvent(EOperationState::Materializing);
             asyncMaterializeResult = operation->GetController()->Materialize();
@@ -1284,8 +1288,8 @@ public:
             DoSuspendOperation(
                 operation,
                 TError("Operation suspended due to suspend_operation_after_materialization spec option"),
-                /* abortRunningJobs */ false,
-                /* setAlert */ false);
+                /*abortRunningAllocations*/ false,
+                /*setAlert*/ false);
         }
 
         LogEventFluently(&SchedulerStructuredLogger, ELogEventType::OperationMaterialized)
@@ -1634,9 +1638,9 @@ public:
         }
     }
 
-    TFuture<TOperationId> FindOperationIdByJobId(TJobId jobId) const
+    TFuture<TOperationId> FindOperationIdByAllocationId(TAllocationId allocationId) const
     {
-        return NodeManager_->FindOperationIdByAllocationId(AllocationIdFromJobId(jobId));
+        return NodeManager_->FindOperationIdByAllocationId(allocationId);
     }
 
     const IResponseKeeperPtr& GetOperationServiceResponseKeeper() const
@@ -1652,8 +1656,7 @@ public:
         result.AllocationId = allocationId;
 
         if (requestedAllocationInfo.NodeDescriptor) {
-            // JobId is currently equal to AllocationId.
-            result.NodeDescriptor = WaitFor(GetJobNode(TJobId(allocationId.Underlying())))
+            result.NodeDescriptor = WaitFor(GetAllocationNode(allocationId))
                 .ValueOrThrow();
         }
 
@@ -1669,7 +1672,7 @@ public:
 
         if (!operationId) {
             THROW_ERROR_EXCEPTION(
-                NScheduler::EErrorCode::NoSuchJob,
+                NScheduler::EErrorCode::NoSuchAllocation,
                 "Allocation %v not found",
                 allocationId);
         }
@@ -2015,7 +2018,7 @@ private:
                 if (operation->Alias()) {
                     RegisterOperationAlias(operation);
                 }
-                RegisterOperation(operation, /* jobsReady */ false);
+                RegisterOperation(operation, /*waitingForRevival*/ true);
 
                 AddOperationToTransientQueue(operation);
             }
@@ -2052,10 +2055,10 @@ private:
         TotalResourceUsageProfiler_.Init(SchedulerProfiler.WithPrefix("/total_resource_usage"));
 
         SchedulerProfiler.AddFuncGauge("/jobs/registered_job_count", MakeStrong(this), [this] {
-            return NodeManager_->GetActiveJobCount();
+            return NodeManager_->GetActiveAllocationCount();
         });
         SchedulerProfiler.AddFuncGauge("/jobs/submit_to_strategy_count", MakeStrong(this), [this] {
-            return NodeManager_->GetSubmitToStrategyJobCount();
+            return NodeManager_->GetSubmitToStrategyAllocationCount();
         });
         SchedulerProfiler.AddFuncGauge("/total_scheduling_heartbeat_complexity", MakeStrong(this), [this] {
             return NodeManager_->GetTotalConcurrentHeartbeatComplexity();
@@ -2527,9 +2530,9 @@ private:
         return result;
     }
 
-    void AbortJobsAtNode(TNodeId nodeId, EAbortReason reason) override
+    void AbortAllocationsAtNode(TNodeId nodeId, EAbortReason reason) override
     {
-        NodeManager_->AbortJobsAtNode(nodeId, reason);
+        NodeManager_->AbortAllocationsAtNode(nodeId, reason);
     }
 
     void DoStartOperation(const TOperationPtr& operation)
@@ -2616,7 +2619,7 @@ private:
 
             ValidateOperationState(operation, EOperationState::Starting);
 
-            RegisterOperation(operation, /*jobsReady*/ true);
+            RegisterOperation(operation, /*waitingForRevival*/ false);
 
             if (operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree.empty()) {
                 UnregisterOperation(operation);
@@ -2800,12 +2803,12 @@ private:
 
                 operation->ControllerAttributes().PrepareAttributes = result.Attributes;
                 operation->SetRevivedFromSnapshot(result.RevivedFromSnapshot);
-                operation->RevivedJobs() = std::move(result.RevivedJobs);
+                operation->RevivedAllocations() = std::move(result.RevivedAllocations);
                 for (const auto& bannedTreeId : result.RevivedBannedTreeIds) {
                     // If operation is already erased from the tree, UnregisterOperationFromTree() will produce unnecessary log messages.
                     // However, I believe that this way the code is simpler and more concise.
-                    // NB(eshcherbin): this procedure won't abort jobs that are running in banned tentative trees.
-                    // So in case of an unfortunate scheduler failure, these jobs will continue running.
+                    // NB(eshcherbin): this procedure won't abort allocations that are running in banned tentative trees.
+                    // So in case of an unfortunate scheduler failure, these allocations will continue running.
                     const auto& schedulingOptionsPerPoolTree = operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree;
                     if (schedulingOptionsPerPoolTree.find(bannedTreeId) != schedulingOptionsPerPoolTree.end()) {
                         UnregisterOperationFromTree(operation, bannedTreeId);
@@ -2835,24 +2838,25 @@ private:
         TryStartOperationMaterialization(operation);
     }
 
-    TFuture<void> RegisterJobsFromRevivedOperation(const TOperationPtr& operation)
+    TFuture<void> RegisterAllocationsFromRevivedOperation(const TOperationPtr& operation)
     {
-        auto jobs = std::move(operation->RevivedJobs());
-        YT_LOG_INFO("Registering running jobs from the revived operation (OperationId: %v, JobCount: %v)",
+        auto allocations = std::move(operation->RevivedAllocations());
+        YT_LOG_INFO(
+            "Registering running allocations from the revived operation (OperationId: %v, AllocationCount: %v)",
             operation->GetId(),
-            jobs.size());
+            allocations.size());
 
-        if (auto delay = operation->Spec()->TestingOperationOptions->DelayInsideRegisterJobsFromRevivedOperation) {
+        if (auto delay = operation->Spec()->TestingOperationOptions->DelayInsideRegisterAllocationsFromRevivedOperation) {
             TDelayedExecutor::WaitForDuration(*delay);
         }
 
-        // First, unfreeze operation and register jobs in strategy. Do this synchronously as we are in the scheduler control thread.
-        Strategy_->RegisterJobsFromRevivedOperation(operation->GetId(), jobs);
+        // First, unfreeze operation and register allocations in strategy. Do this synchronously as we are in the scheduler control thread.
+        Strategy_->RegisterAllocationsFromRevivedOperation(operation->GetId(), allocations);
 
-        // Second, register jobs at the node manager.
+        // Second, register allocations at the node manager.
         return NodeManager_->FinishOperationRevival(
             operation->GetId(),
-            std::move(jobs));
+            std::move(allocations));
     }
 
     void BuildOperationOrchid(const TOperationPtr& operation, IYsonConsumer* consumer)
@@ -2914,7 +2918,7 @@ private:
         }
     }
 
-    void RegisterOperation(const TOperationPtr& operation, bool jobsReady)
+    void RegisterOperation(const TOperationPtr& operation, bool waitingForRevival)
     {
         YT_VERIFY(operation->GetState() == EOperationState::Starting || operation->GetState() == EOperationState::Orphaned);
         YT_VERIFY(IdToOperation_.emplace(operation->GetId(), operation).second);
@@ -2940,17 +2944,18 @@ private:
             operation->GetId(),
             operation->ControllerEpoch(),
             operation->GetController(),
-            jobsReady);
+            waitingForRevival);
 
         MasterConnector_->RegisterOperation(operation);
 
         auto service = CreateOperationOrchidService(operation);
         YT_VERIFY(IdToOperationService_.emplace(operation->GetId(), service).second);
 
-        YT_LOG_DEBUG("Operation registered (OperationId: %v, OperationAlias: %v, JobsReady: %v)",
+        YT_LOG_DEBUG(
+            "Operation registered (OperationId: %v, OperationAlias: %v, WaitingForRevival: %v)",
             operation->GetId(),
             operation->Alias(),
-            jobsReady);
+            waitingForRevival);
     }
 
     void RegisterAssignedOperation(const TOperationPtr& operation)
@@ -3005,12 +3010,13 @@ private:
             operation->GetId());
     }
 
-    void AbortOperationJobs(const TOperationPtr& operation, const TError& error, EAbortReason abortReason, bool terminated)
+    void AbortOperationAllocations(const TOperationPtr& operation, const TError& error, EAbortReason abortReason, bool terminated)
     {
-        NodeManager_->AbortOperationJobs(operation->GetId(), error, abortReason, terminated);
+        NodeManager_->AbortOperationAllocations(operation->GetId(), error, abortReason, terminated);
 
-        YT_LOG_INFO(error,
-            "All operations jobs aborted at scheduler (OperationId: %v)",
+        YT_LOG_INFO(
+            error,
+            "All operations allocations aborted at scheduler (OperationId: %v)",
             operation->GetId());
 
         const auto& agent = operation->FindAgent();
@@ -3020,7 +3026,7 @@ private:
                     .ThrowOnError();
                 YT_LOG_DEBUG(
                     "Full heartbeat from agent processed, "
-                    "aborted jobs supposed to be considered by controller agent (OperationId: %v)",
+                    "aborted allocations supposed to be considered by controller agent (OperationId: %v)",
                     operation->GetId());
             } catch (const std::exception& ex) {
                 YT_LOG_INFO(ex, "Failed to wait full heartbeat from agent (OperationId: %v)", operation->GetId());
@@ -3076,7 +3082,7 @@ private:
         // Notify controller that it is going to be disposed.
         auto unregisterFuture = controller->Unregister();
         std::vector<TFuture<void>> futures = {unregisterFuture.As<void>()};
-        // NB(eshcherbin): We wait for full heartbeat to ensure that job metrics have been fully collected. See: YT-12207.
+        // NB(eshcherbin): We wait for full heartbeat to ensure that allocation metrics have been fully collected. See: YT-12207.
         if (Config_->WaitForAgentHeartbeatDuringOperationUnregistrationAtController) {
             futures.push_back(controller->GetFullHeartbeatProcessed());
         }
@@ -3114,8 +3120,8 @@ private:
         operation->SetStateAndEnqueueEvent(EOperationState::Completing);
         operation->SetSuspended(false);
 
-        // The operation may still have running jobs (e.g. those started speculatively).
-        AbortOperationJobs(
+        // The operation may still have running allocations (e.g. those started speculatively).
+        AbortOperationAllocations(
             operation,
             TError("Operation completed"),
             EAbortReason::OperationCompleted,
@@ -3244,7 +3250,7 @@ private:
     void DoSuspendOperation(
         const TOperationPtr& operation,
         const TError& error,
-        bool abortRunningJobs,
+        bool abortRunningAllocations,
         bool setAlert)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -3259,8 +3265,8 @@ private:
 
         operation->SetSuspended(true);
 
-        if (abortRunningJobs) {
-            AbortOperationJobs(
+        if (abortRunningAllocations) {
+            AbortOperationAllocations(
                 operation,
                 error
                     << TErrorAttribute("abort_reason", EAbortReason::OperationSuspended),
@@ -3366,17 +3372,17 @@ private:
         operation->SetSuspended(false);
 
         YT_VERIFY(finalState == EOperationState::Aborted || finalState == EOperationState::Failed);
-        auto jobAbortReason = finalState == EOperationState::Aborted
+        auto allocationAbortReason = finalState == EOperationState::Aborted
             ? EAbortReason::OperationAborted
             : EAbortReason::OperationFailed;
 
-        AbortOperationJobs(
+        AbortOperationAllocations(
             operation,
             TError("Operation terminated")
                 << TErrorAttribute("state", initialState)
-                << TErrorAttribute("abort_reason", jobAbortReason)
+                << TErrorAttribute("abort_reason", allocationAbortReason)
                 << error,
-            jobAbortReason,
+            allocationAbortReason,
             /* terminated */ true);
 
         // First flush: ensure that all stderrs are attached and the
@@ -4473,9 +4479,9 @@ TFuture<void> TScheduler::AbortOperation(
 TFuture<void> TScheduler::SuspendOperation(
     TOperationPtr operation,
     const TString& user,
-    bool abortRunningJobs)
+    bool abortRunningAllocations)
 {
-    return Impl_->SuspendOperation(operation, user, abortRunningJobs);
+    return Impl_->SuspendOperation(operation, user, abortRunningAllocations);
 }
 
 TFuture<void> TScheduler::ResumeOperation(
@@ -4518,9 +4524,9 @@ void TScheduler::OnOperationAgentUnregistered(const TOperationPtr& operation)
     Impl_->OnOperationAgentUnregistered(operation);
 }
 
-void TScheduler::OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId, const std::vector<TJobId>& jobIds)
+void TScheduler::OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId, const std::vector<TAllocationId>& allocationIds)
 {
-    Impl_->OnOperationBannedInTentativeTree(operation, treeId, jobIds);
+    Impl_->OnOperationBannedInTentativeTree(operation, treeId, allocationIds);
 }
 
 TFuture<void> TScheduler::UpdateOperationParameters(
@@ -4579,9 +4585,9 @@ TFuture<void> TScheduler::ValidateJobShellAccess(
     return Impl_->ValidateJobShellAccess(user, jobShellName, jobShellOwners);
 }
 
-TFuture<TOperationId> TScheduler::FindOperationIdByJobId(TJobId jobId) const
+TFuture<TOperationId> TScheduler::FindOperationIdByAllocationId(TAllocationId allocationId) const
 {
-    return Impl_->FindOperationIdByJobId(jobId);
+    return Impl_->FindOperationIdByAllocationId(allocationId);
 }
 
 const IResponseKeeperPtr& TScheduler::GetOperationServiceResponseKeeper() const

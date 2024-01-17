@@ -1,6 +1,6 @@
 package NYT.NControllerAgent.NProto;
 
-import "yt/ytlib/scheduler/proto/job.proto";
+import "yt/ytlib/scheduler/proto/resources.proto";
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
 
@@ -181,9 +181,9 @@ message TRspMaterializeOperation
 
 message TReviveOperationResult
 {
-    message TRevivedJob
+    message TRevivedAllocation
     {
-        required NYT.NProto.TGuid job_id = 1;
+        required NYT.NProto.TGuid allocation_id = 1;
         required uint64 start_time = 2; // TInstant
         required NScheduler.NProto.TJobResources resource_limits = 3;
         required string tree_id = 4;
@@ -194,7 +194,7 @@ message TReviveOperationResult
 
     required bytes attributes = 1; // YSON
     required bool revived_from_snapshot = 2;
-    repeated TRevivedJob revived_jobs = 3;
+    repeated TRevivedAllocation revived_allocations = 3;
     repeated string revived_banned_tree_ids = 4;
     required TCompositeNeededResources composite_needed_resources = 5;
     repeated NScheduler.NProto.TJobResourcesWithQuota min_needed_resources = 6;

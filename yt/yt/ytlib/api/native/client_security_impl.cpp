@@ -17,7 +17,7 @@
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 

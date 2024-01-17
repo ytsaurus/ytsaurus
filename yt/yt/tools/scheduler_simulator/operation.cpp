@@ -36,16 +36,16 @@ std::optional<NScheduler::EUnschedulableReason> TOperation::CheckUnschedulable(c
 {
     if (treeId) {
         if (Controller_->GetNeededResources().GetNeededResourcesForTree(treeId.value()).GetUserSlots() == 0) {
-            return NScheduler::EUnschedulableReason::NoPendingJobs;
+            return NScheduler::EUnschedulableReason::NoPendingAllocations;
         }
     } else if (Controller_->GetNeededResources().DefaultResources.GetUserSlots() == 0) {
         // Check needed resources of all trees.
-        bool noPendingJobs = true;
+        bool noPendingAllocations = true;
         for (const auto& [treeId, neededResources] : Controller_->GetNeededResources().ResourcesByPoolTree) {
-            noPendingJobs = noPendingJobs && neededResources.GetUserSlots() == 0;
+            noPendingAllocations = noPendingAllocations && neededResources.GetUserSlots() == 0;
         }
-        if (noPendingJobs) {
-            return NScheduler::EUnschedulableReason::NoPendingJobs;
+        if (noPendingAllocations) {
+            return NScheduler::EUnschedulableReason::NoPendingAllocations;
         }
     }
 

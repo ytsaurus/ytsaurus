@@ -26,62 +26,62 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJob
+class TAllocation
     : public TRefCounted
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(TJobId, Id);
+    DEFINE_BYVAL_RO_PROPERTY(TAllocationId, Id);
 
-    //! The id of operation the job belongs to.
+    //! The id of operation the allocation belongs to.
     DEFINE_BYVAL_RO_PROPERTY(TOperationId, OperationId);
 
-    //! The incarnation of the controller agent responsible for this job.
+    //! The incarnation of the controller agent responsible for this allocation.
     DEFINE_BYVAL_RO_PROPERTY(TIncarnationId, IncarnationId);
 
-    //! The epoch of the controller of operation job belongs to.
+    //! The epoch of the controller of operation allocation belongs to.
     DEFINE_BYVAL_RW_PROPERTY(TControllerEpoch, ControllerEpoch);
 
-    //! Exec node where the job is running.
+    //! Exec node where the allocation is running.
     DEFINE_BYVAL_RO_PROPERTY(TExecNodePtr, Node);
 
-    //! Node id obtained from corresponding joblet during the revival process.
+    //! Node id obtained from corresponding allocation during the revival process.
     DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerClient::TNodeId, RevivalNodeId, NNodeTrackerClient::InvalidNodeId);
 
-    //! Node address obtained from corresponding joblet during the revival process.
+    //! Node address obtained from corresponding allocation during the revival process.
     DEFINE_BYVAL_RO_PROPERTY(TString, RevivalNodeAddress);
 
-    //! The time when the job was started.
+    //! The time when the allocation was created.
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
 
-    //! True if job was already unregistered.
+    //! True if allocation was already unregistered.
     DEFINE_BYVAL_RW_PROPERTY(bool, Unregistered, false);
 
     //! Current state of the allocation.
-    DEFINE_BYVAL_RW_PROPERTY(EAllocationState, AllocationState, EAllocationState::Scheduled);
+    DEFINE_BYVAL_RW_PROPERTY(EAllocationState, State, EAllocationState::Scheduled);
 
-    //! Fair-share tree this job belongs to.
+    //! Fair-share tree this allocation belongs to.
     DEFINE_BYVAL_RO_PROPERTY(TString, TreeId);
 
     DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceUsage);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
     DEFINE_BYREF_RO_PROPERTY(TDiskQuota, DiskQuota);
 
-    //! Temporary flag used during heartbeat jobs processing to mark found jobs.
+    //! Temporary flag used during heartbeat allocations processing to mark found allocations.
     DEFINE_BYVAL_RW_PROPERTY(bool, FoundOnNode);
 
-    //! Preemption mode which says how to preempt job.
+    //! Preemption mode which says how to preempt allocation.
     DEFINE_BYVAL_RO_PROPERTY(EPreemptionMode, PreemptionMode);
 
-    //! Index of operation when job was scheduled.
+    //! Index of operation when allocation was scheduled.
     DEFINE_BYVAL_RO_PROPERTY(int, SchedulingIndex);
 
-    //! Stage job was scheduled at.
-    DEFINE_BYVAL_RO_PROPERTY(std::optional<EJobSchedulingStage>, SchedulingStage);
+    //! Stage allocation was scheduled at.
+    DEFINE_BYVAL_RO_PROPERTY(std::optional<EAllocationSchedulingStage>, SchedulingStage);
 
     //! String describing preemption reason.
     DEFINE_BYVAL_RW_PROPERTY(TString, PreemptionReason);
 
-    //! Preemptor job id and operation id.
+    //! Preemptor allocation id and operation id.
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TPreemptedFor>, PreemptedFor);
 
     //! Preemptor operation was starvation status corresponded to the preemptive scheduling stage type.
@@ -90,23 +90,23 @@ public:
     //! Is preemption requested for allocation.
     DEFINE_BYVAL_RW_PROPERTY(bool, Preempted, false);
 
-    //! Timeout for job to be preempted (considering by node).
+    //! Timeout for allocation to be preempted (considering by node).
     DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuDuration, PreemptionTimeout, 0);
 
-    //! Deadline for running job.
-    DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuInstant, RunningJobUpdateDeadline, 0);
+    //! Deadline for running allocation.
+    DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuInstant, RunningAllocationUpdateDeadline, 0);
 
     //! Time that will be wasted if allocation is preempted.
     DEFINE_BYVAL_RW_PROPERTY(TDuration, PreemptibleProgressTime);
 
-    //! Logger for this job.
+    //! Logger for this allocation.
     DEFINE_BYREF_RO_PROPERTY(NLogging::TLogger, Logger);
 
     DEFINE_BYREF_RO_PROPERTY(TString, CodicilString);
 
 public:
-    TJob(
-        TJobId id,
+    TAllocation(
+        TAllocationId id,
         TOperationId operationId,
         TIncarnationId incarnationId,
         TControllerEpoch controllerEpoch,
@@ -117,7 +117,7 @@ public:
         EPreemptionMode preemptionMode,
         TString treeId,
         int schedulingIndex,
-        std::optional<EJobSchedulingStage> schedulingStage = std::nullopt,
+        std::optional<EAllocationSchedulingStage> schedulingStage = std::nullopt,
         NNodeTrackerClient::TNodeId revivalNodeId = NNodeTrackerClient::InvalidNodeId,
         TString revivalNodeAddress = TString());
 
@@ -130,7 +130,7 @@ private:
     NLogging::TLogger CreateLogger();
 };
 
-DEFINE_REFCOUNTED_TYPE(TJob)
+DEFINE_REFCOUNTED_TYPE(TAllocation)
 
 ////////////////////////////////////////////////////////////////////////////////
 

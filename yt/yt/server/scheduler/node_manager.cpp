@@ -140,7 +140,7 @@ void TNodeManager::RegisterOperation(
     TOperationId operationId,
     TControllerEpoch controllerEpoch,
     const IOperationControllerPtr& controller,
-    bool jobsReady)
+    bool waitingForRevival)
 {
     for (const auto& nodeShard : NodeShards_) {
         nodeShard->GetInvoker()->Invoke(BIND(
@@ -149,7 +149,7 @@ void TNodeManager::RegisterOperation(
             operationId,
             controllerEpoch,
             controller,
-            jobsReady));
+            waitingForRevival));
     }
 }
 
@@ -166,19 +166,19 @@ void TNodeManager::StartOperationRevival(TOperationId operationId, TControllerEp
 
 TFuture<void> TNodeManager::FinishOperationRevival(
     TOperationId operationId,
-    std::vector<TJobPtr> jobs)
+    std::vector<TAllocationPtr> allocations)
 {
-    std::vector<std::vector<TJobPtr>> jobsPerShard(NodeShards_.size());
-    for (auto& job : jobs) {
-        auto shardId = GetNodeShardId(NodeIdFromJobId(job->GetId()));
-        jobsPerShard[shardId].push_back(std::move(job));
+    std::vector<std::vector<TAllocationPtr>> allocationsPerShard(NodeShards_.size());
+    for (auto& allocation : allocations) {
+        auto shardId = GetNodeShardId(NodeIdFromAllocationId(allocation->GetId()));
+        allocationsPerShard[shardId].push_back(std::move(allocation));
     }
 
     std::vector<TFuture<void>> asyncResults;
     for (int shardId = 0; shardId < std::ssize(NodeShards_); ++shardId) {
         auto asyncResult = BIND(&TNodeShard::FinishOperationRevival, NodeShards_[shardId])
             .AsyncVia(NodeShards_[shardId]->GetInvoker())
-            .Run(operationId, std::move(jobsPerShard[shardId]));
+            .Run(operationId, std::move(allocationsPerShard[shardId]));
         asyncResults.emplace_back(std::move(asyncResult));
     }
     return AllSucceeded(asyncResults);
@@ -206,10 +206,10 @@ void TNodeManager::UnregisterOperation(TOperationId operationId)
     }
 }
 
-void TNodeManager::AbortJobsAtNode(TNodeId nodeId, EAbortReason reason)
+void TNodeManager::AbortAllocationsAtNode(TNodeId nodeId, EAbortReason reason)
 {
     auto nodeShard = GetNodeShard(nodeId);
-    YT_UNUSED_FUTURE(BIND(&TNodeShard::AbortJobsAtNode, nodeShard, nodeId, reason)
+    YT_UNUSED_FUTURE(BIND(&TNodeShard::AbortAllocationsAtNode, nodeShard, nodeId, reason)
         .AsyncVia(nodeShard->GetInvoker())
         .Run());
 }
@@ -286,7 +286,7 @@ TError TNodeManager::HandleNodesAttributes(const NYTree::IListNodePtr& nodeList)
     return {};
 }
 
-void TNodeManager::AbortOperationJobs(
+void TNodeManager::AbortOperationAllocations(
     TOperationId operationId,
     const TError& error,
     EAbortReason abortReason,
@@ -294,7 +294,7 @@ void TNodeManager::AbortOperationJobs(
 {
     std::vector<TFuture<void>> abortFutures;
     for (const auto& nodeShard : NodeShards_) {
-        abortFutures.push_back(BIND(&TNodeShard::AbortOperationJobs, nodeShard)
+        abortFutures.push_back(BIND(&TNodeShard::AbortOperationAllocations, nodeShard)
             .AsyncVia(nodeShard->GetInvoker())
             .Run(operationId, error, abortReason, terminated));
     }
@@ -302,11 +302,11 @@ void TNodeManager::AbortOperationJobs(
         .ThrowOnError();
 }
 
-void TNodeManager::ResumeOperationJobs(TOperationId operationId)
+void TNodeManager::ResumeOperationAllocations(TOperationId operationId)
 {
     std::vector<TFuture<void>> futures;
     for (const auto& nodeShard : NodeShards_) {
-        futures.push_back(BIND(&TNodeShard::ResumeOperationJobs, nodeShard)
+        futures.push_back(BIND(&TNodeShard::ResumeOperationAllocations, nodeShard)
             .AsyncVia(nodeShard->GetInvoker())
             .Run(operationId));
     }
@@ -314,12 +314,11 @@ void TNodeManager::ResumeOperationJobs(TOperationId operationId)
         .ThrowOnError();
 }
 
-TFuture<TNodeDescriptor> TNodeManager::GetJobNode(TJobId jobId)
+TFuture<TNodeDescriptor> TNodeManager::GetAllocationNode(TAllocationId allocationId)
 {
-    const auto& nodeShard = GetNodeShardByAllocationId(
-        AllocationIdFromJobId(jobId));
+    const auto& nodeShard = GetNodeShardByAllocationId(allocationId);
 
-    return BIND(&TNodeShard::GetJobNode, nodeShard, jobId)
+    return BIND(&TNodeShard::GetAllocationNode, nodeShard, allocationId)
         .AsyncVia(nodeShard->GetInvoker())
         .Run();
 }
@@ -333,24 +332,27 @@ TFuture<TAllocationDescription> TNodeManager::GetAllocationDescription(TAllocati
         .Run();
 }
 
-void TNodeManager::AbortJobs(const std::vector<TJobId>& jobIds, const TError& error, EAbortReason abortReason)
+void TNodeManager::AbortAllocations(
+    const std::vector<TAllocationId>& allocationIds,
+    const TError& error,
+    EAbortReason abortReason)
 {
-    std::vector<std::vector<TJobId>> jobIdsPerShard(NodeShards_.size());
-    for (auto jobId : jobIds) {
-        auto shardId = GetNodeShardId(NodeIdFromJobId(jobId));
-        jobIdsPerShard[shardId].push_back(jobId);
+    std::vector<std::vector<TAllocationId>> allocationIdsPerShard(NodeShards_.size());
+    for (auto allocationId : allocationIds) {
+        auto shardId = GetNodeShardId(NodeIdFromAllocationId(allocationId));
+        allocationIdsPerShard[shardId].push_back(allocationId);
     }
 
     for (int shardId = 0; shardId < std::ssize(NodeShards_); ++shardId) {
-        if (jobIdsPerShard[shardId].empty()) {
+        if (allocationIdsPerShard[shardId].empty()) {
             continue;
         }
 
         const auto& nodeShard = NodeShards_[shardId];
         nodeShard->GetInvoker()->Invoke(BIND(
-            &TNodeShard::AbortJobs,
+            &TNodeShard::AbortAllocations,
             nodeShard,
-            Passed(std::move(jobIdsPerShard[shardId])),
+            Passed(std::move(allocationIdsPerShard[shardId])),
             error,
             abortReason));
     }
@@ -407,13 +409,13 @@ TJobResources TNodeManager::GetResourceUsage(const TSchedulingTagFilter& filter)
     return result;
 }
 
-int TNodeManager::GetActiveJobCount() const
+int TNodeManager::GetActiveAllocationCount() const
 {
-    int activeJobCount = 0;
+    int activeAllocationCount = 0;
     for (const auto& nodeShard : NodeShards_) {
-        activeJobCount += nodeShard->GetActiveJobCount();
+        activeAllocationCount += nodeShard->GetActiveAllocationCount();
     }
-    return activeJobCount;
+    return activeAllocationCount;
 }
 
 int TNodeManager::GetExecNodeCount() const
@@ -438,15 +440,15 @@ int TNodeManager::GetTotalNodeCount() const
     return totalNodeCount;
 }
 
-int TNodeManager::GetSubmitToStrategyJobCount() const
+int TNodeManager::GetSubmitToStrategyAllocationCount() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    int submitToStrategyJobCount = 0;
+    int submitToStrategyAllocationCount = 0;
     for (const auto& nodeShard : NodeShards_) {
-        submitToStrategyJobCount += nodeShard->GetSubmitToStrategyJobCount();
+        submitToStrategyAllocationCount += nodeShard->GetSubmitToStrategyAllocationCount();
     }
-    return submitToStrategyJobCount;
+    return submitToStrategyAllocationCount;
 }
 
 int TNodeManager::GetTotalConcurrentHeartbeatComplexity() const
@@ -570,7 +572,8 @@ const TNodeShardPtr& TNodeManager::GetNodeShardByAllocationId(TAllocationId allo
 }
 
 template <typename TCallback>
-auto TNodeManager::ExecuteInNodeShards(TCallback callback) const -> std::vector<typename TFutureTraits<decltype(callback(std::declval<const TNodeShardPtr&>()))>::TWrapped>
+auto TNodeManager::ExecuteInNodeShards(TCallback callback) const
+    -> std::vector<typename TFutureTraits<decltype(callback(std::declval<const TNodeShardPtr&>()))>::TWrapped>
 {
     using TCallbackReturnType = decltype(callback(std::declval<const TNodeShardPtr&>()));
     std::vector<typename TFutureTraits<TCallbackReturnType>::TWrapped> result;

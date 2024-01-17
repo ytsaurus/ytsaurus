@@ -22,13 +22,13 @@ public:
         int nodeShardId,
         TSchedulerConfigPtr config,
         TExecNodePtr node,
-        const std::vector<TJobPtr>& runningJobs,
+        const std::vector<TAllocationPtr>& runningAllocations,
         const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
         : TSchedulingContextBase(
             nodeShardId,
             std::move(config),
             std::move(node),
-            runningJobs,
+            runningAllocations,
             mediumDirectory)
     { }
 
@@ -38,13 +38,13 @@ public:
     }
 };
 
-void Serialize(const TScheduleJobsStatistics& statistics, IYsonConsumer* consumer)
+void Serialize(const TScheduleAllocationsStatistics& statistics, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginMap()
-        .Item("unconditionally_preemptible_job_count").Value(statistics.UnconditionallyPreemptibleJobCount)
-        .Item("controller_schedule_job_count").Value(statistics.ControllerScheduleJobCount)
-        .Item("controller_schedule_job_timed_out_count").Value(statistics.ControllerScheduleJobTimedOutCount)
-        .Item("schedule_job_attempt_count_per_stage").Value(statistics.ScheduleJobAttemptCountPerStage)
+        .Item("unconditionally_preemptible_job_count").Value(statistics.UnconditionallyPreemptibleAllocationCount)
+        .Item("controller_schedule_job_count").Value(statistics.ControllerScheduleAllocationCount)
+        .Item("controller_schedule_job_timed_out_count").Value(statistics.ControllerScheduleAllocationTimedOutCount)
+        .Item("schedule_job_attempt_count_per_stage").Value(statistics.ScheduleAllocationAttemptCountPerStage)
         .Item("operation_count_by_preemption_priority").Value(statistics.OperationCountByPreemptionPriority)
         .Item("unconditional_resource_usage_discount").Value(statistics.UnconditionalResourceUsageDiscount)
         .Item("resource_usage").Value(statistics.ResourceUsage)
@@ -54,27 +54,27 @@ void Serialize(const TScheduleJobsStatistics& statistics, IYsonConsumer* consume
     .EndMap();
 }
 
-TString FormatPreemptibleInfoCompact(const TScheduleJobsStatistics& statistics)
+TString FormatPreemptibleInfoCompact(const TScheduleAllocationsStatistics& statistics)
 {
     return Format("{UJC: %v, UD: %v, TCJC: %v, MCJCPP: %v, MCD: %v}",
-        statistics.UnconditionallyPreemptibleJobCount,
+        statistics.UnconditionallyPreemptibleAllocationCount,
         FormatResources(statistics.UnconditionalResourceUsageDiscount),
-        statistics.TotalConditionallyPreemptibleJobCount,
-        statistics.MaxConditionallyPreemptibleJobCountInPool,
+        statistics.TotalConditionallyPreemptibleAllocationCount,
+        statistics.MaxConditionallyPreemptibleAllocationCountInPool,
         FormatResources(statistics.MaxConditionalResourceUsageDiscount));
 }
 
-TString FormatScheduleJobAttemptsCompact(const TScheduleJobsStatistics& statistics)
+TString FormatScheduleAllocationAttemptsCompact(const TScheduleAllocationsStatistics& statistics)
 {
     return Format("{RH: %v, RM: %v, PSA: %v, PSN: %v, PA: %v, PN: %v, C: %v, TO: %v, MNPSI: %v}",
-        statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::RegularHighPriority],
-        statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::RegularMediumPriority],
-        statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::PreemptiveSsdAggressive],
-        statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::PreemptiveSsdNormal],
-        statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::PreemptiveAggressive],
-        statistics.ScheduleJobAttemptCountPerStage[EJobSchedulingStage::PreemptiveNormal],
-        statistics.ControllerScheduleJobCount,
-        statistics.ControllerScheduleJobTimedOutCount,
+        statistics.ScheduleAllocationAttemptCountPerStage[EAllocationSchedulingStage::RegularHighPriority],
+        statistics.ScheduleAllocationAttemptCountPerStage[EAllocationSchedulingStage::RegularMediumPriority],
+        statistics.ScheduleAllocationAttemptCountPerStage[EAllocationSchedulingStage::PreemptiveSsdAggressive],
+        statistics.ScheduleAllocationAttemptCountPerStage[EAllocationSchedulingStage::PreemptiveSsdNormal],
+        statistics.ScheduleAllocationAttemptCountPerStage[EAllocationSchedulingStage::PreemptiveAggressive],
+        statistics.ScheduleAllocationAttemptCountPerStage[EAllocationSchedulingStage::PreemptiveNormal],
+        statistics.ControllerScheduleAllocationCount,
+        statistics.ControllerScheduleAllocationTimedOutCount,
         statistics.MaxNonPreemptiveSchedulingIndex);
 }
 
@@ -95,14 +95,14 @@ ISchedulingContextPtr CreateSchedulingContext(
     int nodeShardId,
     TSchedulerConfigPtr config,
     TExecNodePtr node,
-    const std::vector<TJobPtr>& runningJobs,
+    const std::vector<TAllocationPtr>& runningAllocations,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
 {
     return New<TSchedulingContext>(
         nodeShardId,
         std::move(config),
         std::move(node),
-        runningJobs,
+        runningAllocations,
         mediumDirectory);
 }
 

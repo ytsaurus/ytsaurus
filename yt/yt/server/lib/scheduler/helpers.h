@@ -14,7 +14,7 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobId GenerateJobId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId);
+TAllocationId GenerateAllocationId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId);
 NNodeTrackerClient::TNodeId NodeIdFromAllocationId(TAllocationId allocationId);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,10 +31,6 @@ void ValidateInfinibandClusterName(const TString& name);
 //! Used for testing purposes.
 void Delay(TDuration delay, EDelayType delayType = EDelayType::Async);
 void MaybeDelay(const TDelayConfigPtr& delayConfig);
-
-////////////////////////////////////////////////////////////////////////////////
-
-EAllocationState JobStateToAllocationState(const EJobState jobState);
 
 ////////////////////////////////////////////////////////////////////////////////
 

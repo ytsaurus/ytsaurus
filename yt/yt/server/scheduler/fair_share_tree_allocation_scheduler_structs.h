@@ -11,7 +11,7 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRunningJobStatistics
+struct TRunningAllocationStatistics
 {
     //! In CPU*seconds.
     double TotalCpuTime = 0.0;
@@ -22,15 +22,15 @@ struct TRunningJobStatistics
     double PreemptibleGpuTime = 0.0;
 };
 
-void FormatValue(TStringBuilderBase* builder, const TRunningJobStatistics& statistics, TStringBuf /*format*/);
-TString ToString(const TRunningJobStatistics& statistics);
-TString FormatRunningJobStatisticsCompact(const TRunningJobStatistics& statistics);
-void Serialize(const TRunningJobStatistics& statistics, NYson::IYsonConsumer* consumer);
+void FormatValue(TStringBuilderBase* builder, const TRunningAllocationStatistics& statistics, TStringBuf /*format*/);
+TString ToString(const TRunningAllocationStatistics& statistics);
+TString FormatRunningAllocationStatisticsCompact(const TRunningAllocationStatistics& statistics);
+void Serialize(const TRunningAllocationStatistics& statistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(eshcherbin): Make this refcounted?
-struct TFairShareTreeJobSchedulerNodeState
+struct TFairShareTreeAllocationSchedulerNodeState
 {
     // NB: Descriptor may be missing if the node has only just registered and we haven't processed any heartbeats from it.
     TExecNodeDescriptorPtr Descriptor;
@@ -38,16 +38,16 @@ struct TFairShareTreeJobSchedulerNodeState
     ESchedulingSegment SchedulingSegment = ESchedulingSegment::Default;
     std::optional<ESchedulingSegment> SpecifiedSchedulingSegment;
 
-    TRunningJobStatistics RunningJobStatistics;
-    std::optional<NProfiling::TCpuInstant> LastRunningJobStatisticsUpdateTime;
-    bool ForceRunningJobStatisticsUpdate = false;
+    TRunningAllocationStatistics RunningAllocationStatistics;
+    std::optional<NProfiling::TCpuInstant> LastRunningAllocationStatisticsUpdateTime;
+    bool ForceRunningAllocationStatisticsUpdate = false;
 };
 
-using TFairShareTreeJobSchedulerNodeStateMap = THashMap<NNodeTrackerClient::TNodeId, TFairShareTreeJobSchedulerNodeState>;
+using TFairShareTreeAllocationSchedulerNodeStateMap = THashMap<NNodeTrackerClient::TNodeId, TFairShareTreeAllocationSchedulerNodeState>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFairShareTreeJobSchedulerOperationState final
+struct TFairShareTreeAllocationSchedulerOperationState final
 {
     const TStrategyOperationSpecPtr Spec;
     const bool IsGang;
@@ -61,13 +61,13 @@ struct TFairShareTreeJobSchedulerOperationState final
     std::optional<TInstant> FailingToScheduleAtModuleSince;
     std::optional<TInstant> FailingToAssignToModuleSince;
 
-    TFairShareTreeJobSchedulerOperationState(
+    TFairShareTreeAllocationSchedulerOperationState(
         TStrategyOperationSpecPtr spec,
         bool isGang);
 };
 
-using TFairShareTreeJobSchedulerOperationStatePtr = TIntrusivePtr<TFairShareTreeJobSchedulerOperationState>;
-using TFairShareTreeJobSchedulerOperationStateMap = THashMap<TOperationId, TFairShareTreeJobSchedulerOperationStatePtr>;
+using TFairShareTreeAllocationSchedulerOperationStatePtr = TIntrusivePtr<TFairShareTreeAllocationSchedulerOperationState>;
+using TFairShareTreeAllocationSchedulerOperationStateMap = THashMap<TOperationId, TFairShareTreeAllocationSchedulerOperationStatePtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -16,6 +16,7 @@
 #include <yt/yt/server/node/data_node/job_controller.h>
 
 #include <yt/yt/server/lib/exec_node/config.h>
+#include <yt/yt/server/lib/exec_node/helpers.h>
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 #include <yt/yt/server/lib/controller_agent/job_spec_service_proxy.h>
@@ -203,7 +204,7 @@ public:
         auto job = FindJob(jobId);
         if (!job) {
             THROW_ERROR_EXCEPTION(
-                NScheduler::EErrorCode::NoSuchJob,
+                NExecNode::EErrorCode::NoSuchJob,
                 "Job %v is unknown",
                 jobId);
         }

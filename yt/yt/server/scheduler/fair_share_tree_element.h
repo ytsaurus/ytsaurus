@@ -159,14 +159,14 @@ public:
     DEFINE_BYREF_RW_PROPERTY(int, SchedulablePoolCount, 0);
     DEFINE_BYREF_RW_PROPERTY(int, SchedulableOperationCount, 0);
 
-    // Assigned in preupdate, used in schedule jobs.
+    // Assigned in preupdate, used in schedule allocations.
     DEFINE_BYVAL_RO_PROPERTY(bool, Tentative, false);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TJobResources>, MaybeSpecifiedResourceLimits);
 
     // These fields are set in post update.
     DEFINE_BYREF_RO_PROPERTY(TResourceVector, LimitedDemandShare);
 
-    // These fields are set in post update and used in schedule jobs.
+    // These fields are set in post update and used in schedule allocations.
     DEFINE_BYVAL_RO_PROPERTY(int, TreeIndex, UnassignedTreeIndex);
 
     DEFINE_BYVAL_RO_PROPERTY(double, EffectiveFairShareStarvationTolerance, 1.0);
@@ -193,7 +193,7 @@ protected:
     // These fields calculated in preupdate and used for update.
     TJobResources SchedulingTagFilterResourceLimits_;
 
-    // These attributes are calculated during fair share update and further used in schedule jobs.
+    // These attributes are calculated during fair share update and further used in schedule allocations.
     TSchedulableAttributes Attributes_;
 
     // Used everywhere.
@@ -201,7 +201,7 @@ protected:
 
     // Assigned in preupdate, used in fair share update.
     TJobResources TotalResourceLimits_;
-    i64 PendingJobCount_ = 0;
+    i64 PendingAllocationCount_ = 0;
     TInstant StartTime_;
 
     const TString TreeId_;
@@ -291,7 +291,7 @@ public:
 
     virtual bool IsSchedulable() const = 0;
 
-    //! Schedule jobs interface.
+    //! Schedule allocations interface.
     double ComputeLocalSatisfactionRatio(const TJobResources& resourceUsage) const;
 
     // bool IsActive(const TDynamicAttributesList& dynamicAttributesList) const;
@@ -375,7 +375,7 @@ protected:
 private:
     // Update methods.
     virtual std::optional<double> GetSpecifiedWeight() const = 0;
-    i64 GetPendingJobCount() const;
+    i64 GetPendingAllocationCount() const;
 
     friend class TSchedulerCompositeElement;
     friend class TSchedulerOperationElement;
@@ -394,10 +394,10 @@ public:
     DEFINE_BYREF_RW_PROPERTY(int, OperationCount);
     DEFINE_BYREF_RW_PROPERTY(std::list<TOperationId>, PendingOperationIds);
 
-    // Computed in fair share update and used in schedule jobs.
+    // Computed in fair share update and used in schedule allocations.
     DEFINE_BYREF_RO_PROPERTY(TNonOwningElementList, SchedulableChildren);
 
-    // Computed in post update and used in schedule jobs.
+    // Computed in post update and used in schedule allocations.
     DEFINE_BYVAL_RO_PROPERTY(EFifoPoolSchedulingOrder, EffectiveFifoPoolSchedulingOrder);
     DEFINE_BYVAL_RO_PROPERTY(bool, EffectiveUsePoolSatisfactionForScheduling);
 
@@ -486,7 +486,7 @@ public:
     virtual std::optional<EFifoPoolSchedulingOrder> GetSpecifiedFifoPoolSchedulingOrder() const = 0;
     virtual std::optional<bool> ShouldUsePoolSatisfactionForScheduling() const = 0;
 
-    //! Schedule jobs related methods.
+    //! Schedule allocations related methods.
     bool ShouldUseFifoSchedulingOrder() const;
     bool HasHigherPriorityInFifoMode(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const;
 
@@ -704,9 +704,9 @@ public:
     // Used by trunk node.
     DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, PendingByPool);
 
-    DEFINE_BYREF_RO_PROPERTY(TJobResourcesWithQuotaList, DetailedMinNeededJobResources);
-    DEFINE_BYREF_RO_PROPERTY(TJobResources, AggregatedMinNeededJobResources);
-    DEFINE_BYREF_RO_PROPERTY(bool, ScheduleJobBackoffCheckEnabled, false);
+    DEFINE_BYREF_RO_PROPERTY(TJobResourcesWithQuotaList, DetailedMinNeededAllocationResources);
+    DEFINE_BYREF_RO_PROPERTY(TJobResources, AggregatedMinNeededAllocationResources);
+    DEFINE_BYREF_RO_PROPERTY(bool, ScheduleAllocationBackoffCheckEnabled, false);
 
     DEFINE_BYREF_RO_PROPERTY(THashSet<int>, DiskRequestMedia);
 
@@ -833,34 +833,34 @@ public:
     // TODO(eshcherbin): Maybe expose controller itself in the API?
     TControllerEpoch GetControllerEpoch() const;
 
-    void OnScheduleJobStarted(const ISchedulingContextPtr& schedulingContext);
-    void OnScheduleJobFinished(const ISchedulingContextPtr& schedulingContext);
+    void OnScheduleAllocationStarted(const ISchedulingContextPtr& schedulingContext);
+    void OnScheduleAllocationFinished(const ISchedulingContextPtr& schedulingContext);
 
-    bool IsMaxScheduleJobCallsViolated() const;
-    bool IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const;
-    bool IsMaxConcurrentScheduleJobExecDurationPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const;
-    bool HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const;
+    bool IsMaxScheduleAllocationCallsViolated() const;
+    bool IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const;
+    bool IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const;
+    bool HasRecentScheduleAllocationFailure(NProfiling::TCpuInstant now) const;
     bool IsSaturatedInTentativeTree(
         NProfiling::TCpuInstant now,
         const TString& treeId,
         TDuration saturationDeactivationTimeout) const;
 
     // TODO(eshcherbin): Rename?
-    TControllerScheduleJobResultPtr ScheduleJob(
+    TControllerScheduleAllocationResultPtr ScheduleAllocation(
         const ISchedulingContextPtr& context,
         const TJobResources& availableResources,
         const NNodeTrackerClient::NProto::TDiskResources& availableDiskResources,
         TDuration timeLimit,
         const TString& treeId,
         const TFairShareStrategyTreeConfigPtr& treeConfig);
-    void OnScheduleJobFailed(
+    void OnScheduleAllocationFailed(
         NProfiling::TCpuInstant now,
         const TString& treeId,
-        const TControllerScheduleJobResultPtr& scheduleJobResult);
-    void AbortJob(
-        TJobId jobId,
+        const TControllerScheduleAllocationResultPtr& scheduleAllocationResult);
+    void AbortAllocation(
+        TAllocationId allocationId,
         EAbortReason abortReason,
-        TControllerEpoch jobEpoch);
+        TControllerEpoch allocationEpoch);
 
     TJobResources GetAggregatedInitialMinNeededResources() const;
 

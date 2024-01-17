@@ -94,8 +94,8 @@ TFluentLogEvent TSchedulerStrategyHost::LogAccumulatedUsageEventFluently(TInstan
 
 TJobResources TSchedulerStrategyHost::GetResourceLimits(const TSchedulingTagFilter& filter) const
 {
-    auto it = FilterToJobResources_.find(filter);
-    if (it != FilterToJobResources_.end()) {
+    auto it = FilterToAllocationResources_.find(filter);
+    if (it != FilterToAllocationResources_.end()) {
         return it->second;
     }
 
@@ -106,7 +106,7 @@ TJobResources TSchedulerStrategyHost::GetResourceLimits(const TSchedulingTagFilt
         }
     }
 
-    FilterToJobResources_.insert({filter, result});
+    FilterToAllocationResources_.insert({filter, result});
 
     return result;
 }
@@ -154,14 +154,14 @@ TRefCountedExecNodeDescriptorMapPtr TSchedulerStrategyHost::CalculateExecNodeDes
 
     for (const auto& execNode : *ExecNodes_) {
         if (execNode->CanSchedule(filter)) {
-            YT_VERIFY(result->emplace(execNode->GetId(), execNode->BuildExecDescriptor()).second);
+            EmplaceOrCrash(*result, execNode->GetId(), execNode->BuildExecDescriptor());
         }
     }
 
     return result;
 }
 
-void TSchedulerStrategyHost::AbortJobsAtNode(TNodeId /*nodeId*/, NScheduler::EAbortReason /*reason*/)
+void TSchedulerStrategyHost::AbortAllocationsAtNode(TNodeId /*nodeId*/, NScheduler::EAbortReason /*reason*/)
 {
     // Nothing to do.
 }
@@ -222,10 +222,10 @@ void TSchedulerStrategyHost::FlushOperationNode(TOperationId /*operationId*/)
     YT_ABORT();
 }
 
-void TSchedulerStrategyHost::PreemptJob(const TJobPtr& job, TDuration /*interruptTimeout*/)
+void TSchedulerStrategyHost::PreemptAllocation(const TAllocationPtr& allocation, TDuration /*interruptTimeout*/)
 {
-    YT_VERIFY(job->GetNode()->Jobs().erase(job) == 1);
-    job->SetAllocationState(EAllocationState::Finished);
+    EraseOrCrash(allocation->GetNode()->Allocations(), allocation);
+    allocation->SetState(EAllocationState::Finished);
 }
 
 NYson::IYsonConsumer* TSchedulerStrategyHost::GetEventLogConsumer()

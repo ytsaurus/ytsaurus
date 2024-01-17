@@ -99,12 +99,12 @@ class TestSchedulerConfig(YTEnvSetup):
         assert get(op.get_path() + "/@full_spec/max_failed_job_count") == 50
 
     @authors("ignat")
-    def test_min_spare_job_resources_on_node(self):
+    def test_min_spare_allocation_resources_on_node(self):
         orchid_scheduler_config = "//sys/scheduler/orchid/scheduler/config"
-        min_spare_job_resources = get("{0}/min_spare_job_resources_on_node".format(orchid_scheduler_config))
+        min_spare_job_resources = get("{0}/min_spare_allocation_resources_on_node".format(orchid_scheduler_config))
         assert min_spare_job_resources["cpu"] == 1.0
         assert min_spare_job_resources["user_slots"] == 1
         assert min_spare_job_resources["memory"] == 256 * 1024 * 1024
 
-        set("//sys/scheduler/config/min_spare_job_resources_on_node", {"user_slots": 2})
-        wait(lambda: get("{0}/min_spare_job_resources_on_node".format(orchid_scheduler_config)) == {"user_slots": 2})
+        set("//sys/scheduler/config/min_spare_allocation_resources_on_node", {"user_slots": 2})
+        wait(lambda: get("{0}/min_spare_allocation_resources_on_node".format(orchid_scheduler_config)) == {"user_slots": 2})

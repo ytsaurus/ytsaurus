@@ -38,12 +38,12 @@ public:
     TFuture<TOperationControllerUnregisterResult> Unregister() override;
     TFuture<void> UpdateRuntimeParameters(TOperationRuntimeParametersUpdatePtr update) override;
 
-    void OnNonscheduledJobAborted(
-        TJobId jobId,
+    void OnNonscheduledAllocationAborted(
+        TAllocationId allocationId,
         EAbortReason abortReason,
-        TControllerEpoch jobEpoch) override;
-    void OnJobAborted(
-        const TJobPtr& job,
+        TControllerEpoch allocationEpoch) override;
+    void OnAllocationAborted(
+        const TAllocationPtr& allocation,
         const TError& error,
         bool scheduled,
         EAbortReason abortReason) override;
@@ -58,19 +58,19 @@ public:
 
     TFuture<void> GetFullHeartbeatProcessed() override;
 
-    TFuture<TControllerScheduleJobResultPtr> ScheduleJob(
+    TFuture<TControllerScheduleAllocationResultPtr> ScheduleAllocation(
         const ISchedulingContextPtr& context,
-        const TJobResources& jobLimits,
+        const TJobResources& allocationLimits,
         const NNodeTrackerClient::NProto::TDiskResources& diskResourceLimits,
         const TString& treeId,
         const TString& poolPath,
         const TFairShareStrategyTreeConfigPtr& treeConfig) override;
 
-    void UpdateMinNeededJobResources() override;
+    void UpdateMinNeededAllocationResources() override;
 
     TCompositeNeededResources GetNeededResources() const override;
-    TJobResourcesWithQuotaList GetMinNeededJobResources() const override;
-    TJobResourcesWithQuotaList GetInitialMinNeededJobResources() const override;
+    TJobResourcesWithQuotaList GetMinNeededAllocationResources() const override;
+    TJobResourcesWithQuotaList GetInitialMinNeededAllocationResources() const override;
     EPreemptionMode GetPreemptionMode() const override;
 
     std::pair<NApi::ITransactionPtr, TString> GetIntermediateMediumTransaction();
@@ -91,13 +91,12 @@ private:
     TIncarnationId IncarnationId_;
     TWeakPtr<TControllerAgent> Agent_;
     std::unique_ptr<NControllerAgent::TControllerAgentServiceProxy> ControllerAgentTrackerProxy_;
-    std::unique_ptr<NControllerAgent::TJobProberServiceProxy> ControllerAgentJobProberProxy_;
 
     std::atomic<TControllerEpoch> Epoch_;
 
     TSchedulerToAgentAbortedAllocationEventOutboxPtr AbortedAllocationEventsOutbox_;
     TSchedulerToAgentOperationEventOutboxPtr OperationEventsOutbox_;
-    TScheduleJobRequestOutboxPtr ScheduleJobRequestsOutbox_;
+    TScheduleAllocationRequestOutboxPtr ScheduleAllocationRequestsOutbox_;
 
     TPromise<TOperationControllerInitializeResult> PendingInitializeResult_;
     TPromise<TOperationControllerPrepareResult> PendingPrepareResult_;
@@ -111,7 +110,7 @@ private:
 
     bool EnqueueAbortedAllocationEvent(TAbortedAllocationSummary&& summary);
     void EnqueueOperationEvent(TSchedulerToAgentOperationEvent&& event);
-    void EnqueueScheduleJobRequest(TScheduleJobRequestPtr&& event);
+    void EnqueueScheduleAllocationRequest(TScheduleAllocationRequestPtr&& event);
 
     // TODO(ignat): move to inl
     template <class TResponse, class TRequest>

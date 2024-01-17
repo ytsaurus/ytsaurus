@@ -220,12 +220,7 @@ public:
                         .Item("acl").Value(MakeOperationArtifactAcl(operation->GetRuntimeParameters()->Acl))
                         .Item("has_secure_vault").Value(static_cast<bool>(operation->GetSecureVault()))
                     .EndAttributes()
-                    .BeginMap()
-                        .Item("jobs").BeginAttributes()
-                            .Item("opaque").Value(true)
-                        .EndAttributes()
-                        .BeginMap().EndMap()
-                    .EndMap();
+                    .BeginMap().EndMap();
                 ValidateYson(operationYson, GetYsonNestingLevelLimit());
 
                 auto req = TYPathProxy::Set(GetOperationPath(operationId));
@@ -1806,7 +1801,6 @@ private:
 
             auto operationPath = GetOperationPath(operation->GetId());
 
-            // Set "jobs" node ACL.
             if (operation->GetShouldFlushAcl()) {
                 auto aclBatchReq = StartObjectBatchRequest();
                 auto req = TYPathProxy::Set(GetOperationPath(operation->GetId()) + "/@acl");

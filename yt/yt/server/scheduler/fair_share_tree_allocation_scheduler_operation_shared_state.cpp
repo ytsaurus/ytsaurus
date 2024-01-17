@@ -24,142 +24,144 @@ static const TString InvalidCustomProfilingTag("invalid");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TJobResourcesConfigPtr EmptyJobResourcesConfig = New<TJobResourcesConfig>();
+static const TJobResourcesConfigPtr EmptyAllocationResourcesConfig = New<TJobResourcesConfig>();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairShareTreeJobSchedulerOperationSharedState::TFairShareTreeJobSchedulerOperationSharedState(
+TFairShareTreeAllocationSchedulerOperationSharedState::TFairShareTreeAllocationSchedulerOperationSharedState(
     ISchedulerStrategyHost* strategyHost,
-    int updatePreemptibleJobsListLoggingPeriod,
+    int updatePreemptibleAllocationsListLoggingPeriod,
     const NLogging::TLogger& logger)
     : StrategyHost_(strategyHost)
-    , UpdatePreemptibleJobsListLoggingPeriod_(updatePreemptibleJobsListLoggingPeriod)
+    , UpdatePreemptibleAllocationsListLoggingPeriod_(updatePreemptibleAllocationsListLoggingPeriod)
     , Logger(logger)
 { }
 
-TJobResources TFairShareTreeJobSchedulerOperationSharedState::Disable()
+TJobResources TFairShareTreeAllocationSchedulerOperationSharedState::Disable()
 {
     YT_LOG_DEBUG("Operation element disabled in strategy");
 
-    auto guard = WriterGuard(JobPropertiesMapLock_);
+    auto guard = WriterGuard(AllocationPropertiesMapLock_);
 
     Enabled_ = false;
 
     TJobResources resourceUsage;
-    for (const auto& [jobId, properties] : JobPropertiesMap_) {
+    for (const auto& [allocationId, properties] : AllocationPropertiesMap_) {
         resourceUsage += properties.ResourceUsage;
     }
 
     TotalDiskQuota_ = {};
-    RunningJobCount_ = 0;
-    JobPropertiesMap_.clear();
-    for (auto preemptionStatus : TEnumTraits<EJobPreemptionStatus>::GetDomainValues()) {
-        JobsPerPreemptionStatus_[preemptionStatus].clear();
+    RunningAllocationCount_ = 0;
+    AllocationPropertiesMap_.clear();
+    for (auto preemptionStatus : TEnumTraits<EAllocationPreemptionStatus>::GetDomainValues()) {
+        AllocationsPerPreemptionStatus_[preemptionStatus].clear();
         ResourceUsagePerPreemptionStatus_[preemptionStatus] = {};
     }
 
     return resourceUsage;
 }
 
-void TFairShareTreeJobSchedulerOperationSharedState::Enable()
+void TFairShareTreeAllocationSchedulerOperationSharedState::Enable()
 {
     YT_LOG_DEBUG("Operation element enabled in strategy");
 
-    auto guard = WriterGuard(JobPropertiesMapLock_);
+    auto guard = WriterGuard(AllocationPropertiesMapLock_);
 
     YT_VERIFY(!Enabled_);
     Enabled_ = true;
 }
 
-bool TFairShareTreeJobSchedulerOperationSharedState::IsEnabled()
+bool TFairShareTreeAllocationSchedulerOperationSharedState::IsEnabled()
 {
-    auto guard = ReaderGuard(JobPropertiesMapLock_);
+    auto guard = ReaderGuard(AllocationPropertiesMapLock_);
     return Enabled_;
 }
 
-void TFairShareTreeJobSchedulerOperationSharedState::RecordPackingHeartbeat(
+void TFairShareTreeAllocationSchedulerOperationSharedState::RecordPackingHeartbeat(
     const TPackingHeartbeatSnapshot& heartbeatSnapshot,
     const TFairShareStrategyPackingConfigPtr& packingConfig)
 {
     HeartbeatStatistics_.RecordHeartbeat(heartbeatSnapshot, packingConfig);
 }
 
-bool TFairShareTreeJobSchedulerOperationSharedState::CheckPacking(
+bool TFairShareTreeAllocationSchedulerOperationSharedState::CheckPacking(
     const TSchedulerOperationElement* operationElement,
     const TPackingHeartbeatSnapshot& heartbeatSnapshot,
-    const TJobResourcesWithQuota& jobResources,
+    const TJobResourcesWithQuota& allocationResources,
     const TJobResources& totalResourceLimits,
     const TFairShareStrategyPackingConfigPtr& packingConfig)
 {
     return HeartbeatStatistics_.CheckPacking(
         operationElement,
         heartbeatSnapshot,
-        jobResources,
+        allocationResources,
         totalResourceLimits,
         packingConfig);
 }
 
-TJobResources TFairShareTreeJobSchedulerOperationSharedState::SetJobResourceUsage(
-    TJobId jobId,
+TJobResources TFairShareTreeAllocationSchedulerOperationSharedState::SetAllocationResourceUsage(
+    TAllocationId allocationId,
     const TJobResources& resources)
 {
-    auto guard = WriterGuard(JobPropertiesMapLock_);
+    auto guard = WriterGuard(AllocationPropertiesMapLock_);
 
     if (!Enabled_) {
         return {};
     }
 
-    return SetJobResourceUsage(GetJobProperties(jobId), resources);
+    return SetAllocationResourceUsage(GetAllocationProperties(allocationId), resources);
 }
 
-TDiskQuota TFairShareTreeJobSchedulerOperationSharedState::GetTotalDiskQuota() const
+TDiskQuota TFairShareTreeAllocationSchedulerOperationSharedState::GetTotalDiskQuota() const
 {
-    auto guard = ReaderGuard(JobPropertiesMapLock_);
+    auto guard = ReaderGuard(AllocationPropertiesMapLock_);
     return TotalDiskQuota_;
 }
 
-void TFairShareTreeJobSchedulerOperationSharedState::PublishFairShare(const TResourceVector& fairShare)
+void TFairShareTreeAllocationSchedulerOperationSharedState::PublishFairShare(const TResourceVector& fairShare)
 {
     FairShare_.Store(fairShare);
 }
 
-bool TFairShareTreeJobSchedulerOperationSharedState::OnJobStarted(
+bool TFairShareTreeAllocationSchedulerOperationSharedState::OnAllocationStarted(
     TSchedulerOperationElement* operationElement,
-    TJobId jobId,
+    TAllocationId allocationId,
     const TJobResourcesWithQuota& resourceUsage,
     const TJobResources& precommitedResources,
-    TControllerEpoch scheduleJobEpoch,
+    TControllerEpoch scheduleAllocationEpoch,
     bool force)
 {
-    YT_ELEMENT_LOG_DETAILED(operationElement, "Adding job to strategy (JobId: %v)", jobId);
+    YT_ELEMENT_LOG_DETAILED(operationElement, "Adding allocation to strategy (AllocationId: %v)", allocationId);
 
-    if (!force && (!IsEnabled() || operationElement->GetControllerEpoch() != scheduleJobEpoch)) {
+    if (!force && (!IsEnabled() || operationElement->GetControllerEpoch() != scheduleAllocationEpoch)) {
         return false;
     }
 
-    AddJob(jobId, resourceUsage);
+    AddAllocation(allocationId, resourceUsage);
     operationElement->CommitHierarchicalResourceUsage(resourceUsage, precommitedResources);
-    UpdatePreemptibleJobsList(operationElement);
+    UpdatePreemptibleAllocationsList(operationElement);
 
     return true;
 }
 
-void TFairShareTreeJobSchedulerOperationSharedState::OnJobFinished(TSchedulerOperationElement* operationElement, TJobId jobId)
+void TFairShareTreeAllocationSchedulerOperationSharedState::OnAllocationFinished(
+    TSchedulerOperationElement* operationElement,
+    TAllocationId allocationId)
 {
-    YT_ELEMENT_LOG_DETAILED(operationElement, "Removing job from strategy (JobId: %v)", jobId);
+    YT_ELEMENT_LOG_DETAILED(operationElement, "Removing allocation from strategy (AllocationId: %v)", allocationId);
 
-    if (auto delta = RemoveJob(jobId)) {
+    if (auto delta = RemoveAllocation(allocationId)) {
         operationElement->IncreaseHierarchicalResourceUsage(-(*delta));
-        UpdatePreemptibleJobsList(operationElement);
+        UpdatePreemptibleAllocationsList(operationElement);
     }
 }
 
-void TFairShareTreeJobSchedulerOperationSharedState::UpdatePreemptibleJobsList(const TSchedulerOperationElement* element)
+void TFairShareTreeAllocationSchedulerOperationSharedState::UpdatePreemptibleAllocationsList(const TSchedulerOperationElement* element)
 {
     TWallTimer timer;
 
     int moveCount = 0;
-    DoUpdatePreemptibleJobsList(element, &moveCount);
+    DoUpdatePreemptibleAllocationsList(element, &moveCount);
 
     auto elapsed = timer.GetElapsedTime();
     YT_LOG_DEBUG_IF(elapsed > element->TreeConfig()->UpdatePreemptibleListDurationLoggingThreshold,
@@ -168,10 +170,10 @@ void TFairShareTreeJobSchedulerOperationSharedState::UpdatePreemptibleJobsList(c
         moveCount);
 }
 
-void TFairShareTreeJobSchedulerOperationSharedState::DoUpdatePreemptibleJobsList(const TSchedulerOperationElement* element, int* moveCount)
+void TFairShareTreeAllocationSchedulerOperationSharedState::DoUpdatePreemptibleAllocationsList(const TSchedulerOperationElement* element, int* moveCount)
 {
-    auto convertToShare = [&] (const TJobResources& jobResources) -> TResourceVector {
-        return TResourceVector::FromJobResources(jobResources, element->GetTotalResourceLimits());
+    auto convertToShare = [&] (const TJobResources& allocationResources) -> TResourceVector {
+        return TResourceVector::FromJobResources(allocationResources, element->GetTotalResourceLimits());
     };
 
     // NB(eshcherbin): It's possible to incorporate |resourceUsageBound| into |fairShareBound|,
@@ -186,33 +188,33 @@ void TFairShareTreeJobSchedulerOperationSharedState::DoUpdatePreemptibleJobsList
     };
 
     auto balanceLists = [&] (
-        TJobIdList* left,
-        TJobIdList* right,
+        TAllocationIdList* left,
+        TAllocationIdList* right,
         TJobResources resourceUsage,
         const TJobResources& resourceUsageBound,
         const TResourceVector& fairShareBound,
-        const std::function<void(TJobProperties*)>& onMovedLeftToRight,
-        const std::function<void(TJobProperties*)>& onMovedRightToLeft)
+        const std::function<void(TAllocationProperties*)>& onMovedLeftToRight,
+        const std::function<void(TAllocationProperties*)>& onMovedRightToLeft)
     {
         auto initialResourceUsage = resourceUsage;
 
         // Move from left to right and decrease |resourceUsage| until the next move causes
         // |operationElement->IsStrictlyDominatesNonBlocked(fairShareBound, getUsageShare(nextUsage))| to become true.
         // In particular, even if fair share is slightly less than it should be due to precision errors,
-        // we expect no problems, because the job which crosses the fair share boundary belongs to the left list.
+        // we expect no problems, because the allocation which crosses the fair share boundary belongs to the left list.
         while (!left->empty()) {
-            auto jobId = left->back();
-            auto* jobProperties = GetJobProperties(jobId);
+            auto allocationId = left->back();
+            auto* allocationProperties = GetAllocationProperties(allocationId);
 
-            auto nextUsage = resourceUsage - jobProperties->ResourceUsage;
+            auto nextUsage = resourceUsage - allocationProperties->ResourceUsage;
             if (isUsageBelowBounds(nextUsage, resourceUsageBound, fairShareBound)) {
                 break;
             }
 
             left->pop_back();
-            right->push_front(jobId);
-            jobProperties->JobIdListIterator = right->begin();
-            onMovedLeftToRight(jobProperties);
+            right->push_front(allocationId);
+            allocationProperties->AllocationIdListIterator = right->begin();
+            onMovedLeftToRight(allocationProperties);
 
             resourceUsage = nextUsage;
             ++(*moveCount);
@@ -220,53 +222,54 @@ void TFairShareTreeJobSchedulerOperationSharedState::DoUpdatePreemptibleJobsList
 
         // Move from right to left and increase |resourceUsage|.
         while (!right->empty() && isUsageBelowBounds(resourceUsage, resourceUsageBound, fairShareBound)) {
-            auto jobId = right->front();
-            auto* jobProperties = GetJobProperties(jobId);
+            auto allocationId = right->front();
+            auto* allocationProperties = GetAllocationProperties(allocationId);
 
             right->pop_front();
-            left->push_back(jobId);
-            jobProperties->JobIdListIterator = --left->end();
-            onMovedRightToLeft(jobProperties);
+            left->push_back(allocationId);
+            allocationProperties->AllocationIdListIterator = --left->end();
+            onMovedRightToLeft(allocationProperties);
 
-            resourceUsage += jobProperties->ResourceUsage;
+            resourceUsage += allocationProperties->ResourceUsage;
             ++(*moveCount);
         }
 
         return resourceUsage - initialResourceUsage;
     };
 
-    auto setPreemptible = [] (TJobProperties* properties) {
-        properties->PreemptionStatus = EJobPreemptionStatus::Preemptible;
+    auto setPreemptible = [] (TAllocationProperties* properties) {
+        properties->PreemptionStatus = EAllocationPreemptionStatus::Preemptible;
     };
 
-    auto setAggressivelyPreemptible = [] (TJobProperties* properties) {
-        properties->PreemptionStatus = EJobPreemptionStatus::AggressivelyPreemptible;
+    auto setAggressivelyPreemptible = [] (TAllocationProperties* properties) {
+        properties->PreemptionStatus = EAllocationPreemptionStatus::AggressivelyPreemptible;
     };
 
-    auto setNonPreemptible = [] (TJobProperties* properties) {
-        properties->PreemptionStatus = EJobPreemptionStatus::NonPreemptible;
+    auto setNonPreemptible = [] (TAllocationProperties* properties) {
+        properties->PreemptionStatus = EAllocationPreemptionStatus::NonPreemptible;
     };
 
-    auto guard = WriterGuard(JobPropertiesMapLock_);
+    auto guard = WriterGuard(AllocationPropertiesMapLock_);
 
     bool enableLogging =
-        (UpdatePreemptibleJobsListCount_.fetch_add(1) % UpdatePreemptibleJobsListLoggingPeriod_) == 0 ||
+        (UpdatePreemptibleAllocationsListCount_.fetch_add(1) % UpdatePreemptibleAllocationsListLoggingPeriod_) == 0 ||
             element->AreDetailedLogsEnabled();
 
     auto fairShare = FairShare_.Load();
     auto preemptionSatisfactionThreshold = element->TreeConfig()->PreemptionSatisfactionThreshold;
     auto aggressivePreemptionSatisfactionThreshold = element->TreeConfig()->AggressivePreemptionSatisfactionThreshold;
 
-    // NB: |element->EffectiveNonPreemptibleResourceUsageThresholdConfig()| can be null during revived jobs registration.
+    // NB: |element->EffectiveNonPreemptibleResourceUsageThresholdConfig()| can be null during revived allocations registration.
     // We don't care about this, because the next fair share update will bring correct config.
     const auto& nonPreemptibleResourceUsageConfig = element->EffectiveNonPreemptibleResourceUsageThresholdConfig()
         ? element->EffectiveNonPreemptibleResourceUsageThresholdConfig()
-        : EmptyJobResourcesConfig;
+        : EmptyAllocationResourcesConfig;
     auto nonPreemptibleResourceUsageThreshold = nonPreemptibleResourceUsageConfig->IsNonTrivial()
         ? ToJobResources(nonPreemptibleResourceUsageConfig, TJobResources::Infinite())
         : TJobResources();
 
-    YT_LOG_DEBUG_IF(enableLogging,
+    YT_LOG_DEBUG_IF(
+        enableLogging,
         "Update preemptible lists inputs (FairShare: %.6g, TotalResourceLimits: %v, NonPreemptibleResourceUsageConfig: %v, "
         "PreemptionSatisfactionThreshold: %v, AggressivePreemptionSatisfactionThreshold: %v)",
         fairShare,
@@ -276,53 +279,54 @@ void TFairShareTreeJobSchedulerOperationSharedState::DoUpdatePreemptibleJobsList
         aggressivePreemptionSatisfactionThreshold);
 
     // NB: We need 2 iterations since thresholds may change significantly such that we need
-    // to move job from preemptible list to non-preemptible list through aggressively preemptible list.
+    // to move allocation from preemptible list to non-preemptible list through aggressively preemptible list.
     for (int iteration = 0; iteration < 2; ++iteration) {
         YT_LOG_DEBUG_IF(enableLogging,
             "Preemptible lists usage bounds before update "
             "(NonPreemptibleResourceUsage: %v, AggressivelyPreemptibleResourceUsage: %v, PreemptibleResourceUsage: %v, Iteration: %v)",
-            FormatResources(ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::NonPreemptible]),
-            FormatResources(ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::AggressivelyPreemptible]),
-            FormatResources(ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::Preemptible]),
+            FormatResources(ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::NonPreemptible]),
+            FormatResources(ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::AggressivelyPreemptible]),
+            FormatResources(ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::Preemptible]),
             iteration);
 
         {
             auto usageDelta = balanceLists(
-                &JobsPerPreemptionStatus_[EJobPreemptionStatus::NonPreemptible],
-                &JobsPerPreemptionStatus_[EJobPreemptionStatus::AggressivelyPreemptible],
-                ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::NonPreemptible],
+                &AllocationsPerPreemptionStatus_[EAllocationPreemptionStatus::NonPreemptible],
+                &AllocationsPerPreemptionStatus_[EAllocationPreemptionStatus::AggressivelyPreemptible],
+                ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::NonPreemptible],
                 nonPreemptibleResourceUsageThreshold,
                 fairShare * aggressivePreemptionSatisfactionThreshold,
                 setAggressivelyPreemptible,
                 setNonPreemptible);
-            ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::NonPreemptible] += usageDelta;
-            ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::AggressivelyPreemptible] -= usageDelta;
+            ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::NonPreemptible] += usageDelta;
+            ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::AggressivelyPreemptible] -= usageDelta;
         }
 
         {
             auto usageDelta = balanceLists(
-                &JobsPerPreemptionStatus_[EJobPreemptionStatus::AggressivelyPreemptible],
-                &JobsPerPreemptionStatus_[EJobPreemptionStatus::Preemptible],
-                ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::NonPreemptible] +
-                    ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::AggressivelyPreemptible],
+                &AllocationsPerPreemptionStatus_[EAllocationPreemptionStatus::AggressivelyPreemptible],
+                &AllocationsPerPreemptionStatus_[EAllocationPreemptionStatus::Preemptible],
+                ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::NonPreemptible] +
+                    ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::AggressivelyPreemptible],
                 nonPreemptibleResourceUsageThreshold,
                 Preemptible_ ? fairShare * preemptionSatisfactionThreshold : TResourceVector::Infinity(),
                 setPreemptible,
                 setAggressivelyPreemptible);
-            ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::AggressivelyPreemptible] += usageDelta;
-            ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::Preemptible] -= usageDelta;
+            ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::AggressivelyPreemptible] += usageDelta;
+            ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::Preemptible] -= usageDelta;
         }
     }
 
-    YT_LOG_DEBUG_IF(enableLogging,
+    YT_LOG_DEBUG_IF(
+        enableLogging,
         "Preemptible lists usage bounds after update "
         "(NonPreemptibleResourceUsage: %v, AggressivelyPreemptibleResourceUsage: %v, PreemptibleResourceUsage: %v)",
-        FormatResources(ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::NonPreemptible]),
-        FormatResources(ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::AggressivelyPreemptible]),
-        FormatResources(ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::Preemptible]));
+        FormatResources(ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::NonPreemptible]),
+        FormatResources(ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::AggressivelyPreemptible]),
+        FormatResources(ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::Preemptible]));
 }
 
-void TFairShareTreeJobSchedulerOperationSharedState::SetPreemptible(bool value)
+void TFairShareTreeAllocationSchedulerOperationSharedState::SetPreemptible(bool value)
 {
     bool oldValue = Preemptible_;
     if (oldValue != value) {
@@ -332,129 +336,130 @@ void TFairShareTreeJobSchedulerOperationSharedState::SetPreemptible(bool value)
     }
 }
 
-bool TFairShareTreeJobSchedulerOperationSharedState::GetPreemptible() const
+bool TFairShareTreeAllocationSchedulerOperationSharedState::GetPreemptible() const
 {
     return Preemptible_;
 }
 
-bool TFairShareTreeJobSchedulerOperationSharedState::IsJobKnown(TJobId jobId) const
+bool TFairShareTreeAllocationSchedulerOperationSharedState::IsAllocationKnown(TAllocationId allocationId) const
 {
-    auto guard = ReaderGuard(JobPropertiesMapLock_);
+    auto guard = ReaderGuard(AllocationPropertiesMapLock_);
 
-    return JobPropertiesMap_.find(jobId) != JobPropertiesMap_.end();
+    return AllocationPropertiesMap_.find(allocationId) != AllocationPropertiesMap_.end();
 }
 
-EJobPreemptionStatus TFairShareTreeJobSchedulerOperationSharedState::GetJobPreemptionStatus(TJobId jobId) const
+EAllocationPreemptionStatus TFairShareTreeAllocationSchedulerOperationSharedState::GetAllocationPreemptionStatus(TAllocationId allocationId) const
 {
-    auto guard = ReaderGuard(JobPropertiesMapLock_);
+    auto guard = ReaderGuard(AllocationPropertiesMapLock_);
 
     if (!Enabled_) {
-        return EJobPreemptionStatus::NonPreemptible;
+        return EAllocationPreemptionStatus::NonPreemptible;
     }
 
-    return GetJobProperties(jobId)->PreemptionStatus;
+    return GetAllocationProperties(allocationId)->PreemptionStatus;
 }
 
-int TFairShareTreeJobSchedulerOperationSharedState::GetRunningJobCount() const
+int TFairShareTreeAllocationSchedulerOperationSharedState::GetRunningAllocationCount() const
 {
-    return RunningJobCount_;
+    return RunningAllocationCount_;
 }
 
-int TFairShareTreeJobSchedulerOperationSharedState::GetPreemptibleJobCount() const
+int TFairShareTreeAllocationSchedulerOperationSharedState::GetPreemptibleAllocationCount() const
 {
-    auto guard = ReaderGuard(JobPropertiesMapLock_);
+    auto guard = ReaderGuard(AllocationPropertiesMapLock_);
 
-    return JobsPerPreemptionStatus_[EJobPreemptionStatus::Preemptible].size();
+    return AllocationsPerPreemptionStatus_[EAllocationPreemptionStatus::Preemptible].size();
 }
 
-int TFairShareTreeJobSchedulerOperationSharedState::GetAggressivelyPreemptibleJobCount() const
+int TFairShareTreeAllocationSchedulerOperationSharedState::GetAggressivelyPreemptibleAllocationCount() const
 {
-    auto guard = ReaderGuard(JobPropertiesMapLock_);
+    auto guard = ReaderGuard(AllocationPropertiesMapLock_);
 
-    return JobsPerPreemptionStatus_[EJobPreemptionStatus::AggressivelyPreemptible].size();
+    return AllocationsPerPreemptionStatus_[EAllocationPreemptionStatus::AggressivelyPreemptible].size();
 }
 
-void TFairShareTreeJobSchedulerOperationSharedState::AddJob(TJobId jobId, const TJobResourcesWithQuota& resourceUsage)
+void TFairShareTreeAllocationSchedulerOperationSharedState::AddAllocation(
+    TAllocationId allocationId,
+    const TJobResourcesWithQuota& resourceUsage)
 {
-    auto guard = WriterGuard(JobPropertiesMapLock_);
+    auto guard = WriterGuard(AllocationPropertiesMapLock_);
 
-    LastScheduleJobSuccessTime_ = TInstant::Now();
+    LastScheduleAllocationSuccessTime_ = TInstant::Now();
 
-    auto& preemptibleJobs = JobsPerPreemptionStatus_[EJobPreemptionStatus::Preemptible];
-    preemptibleJobs.push_back(jobId);
+    auto& preemptibleAllocations = AllocationsPerPreemptionStatus_[EAllocationPreemptionStatus::Preemptible];
+    preemptibleAllocations.push_back(allocationId);
 
     auto it = EmplaceOrCrash(
-        JobPropertiesMap_,
-        jobId,
-        TJobProperties{
-            .PreemptionStatus = EJobPreemptionStatus::Preemptible,
-            .JobIdListIterator = --preemptibleJobs.end(),
+        AllocationPropertiesMap_,
+        allocationId,
+        TAllocationProperties{
+            .PreemptionStatus = EAllocationPreemptionStatus::Preemptible,
+            .AllocationIdListIterator = --preemptibleAllocations.end(),
             .ResourceUsage = {},
             .DiskQuota = resourceUsage.DiskQuota(),
         });
 
-    ++RunningJobCount_;
+    ++RunningAllocationCount_;
 
-    SetJobResourceUsage(&it->second, resourceUsage.ToJobResources());
+    SetAllocationResourceUsage(&it->second, resourceUsage.ToJobResources());
 
     TotalDiskQuota_ += resourceUsage.DiskQuota();
 }
 
-std::optional<TJobResources> TFairShareTreeJobSchedulerOperationSharedState::RemoveJob(TJobId jobId)
+std::optional<TJobResources> TFairShareTreeAllocationSchedulerOperationSharedState::RemoveAllocation(TAllocationId allocationId)
 {
-    auto guard = WriterGuard(JobPropertiesMapLock_);
+    auto guard = WriterGuard(AllocationPropertiesMapLock_);
 
     if (!Enabled_) {
         return std::nullopt;
     }
 
-    auto it = JobPropertiesMap_.find(jobId);
-    YT_VERIFY(it != JobPropertiesMap_.end());
+    auto it = GetIteratorOrCrash(AllocationPropertiesMap_, allocationId);
 
     auto* properties = &it->second;
-    JobsPerPreemptionStatus_[properties->PreemptionStatus].erase(properties->JobIdListIterator);
+    AllocationsPerPreemptionStatus_[properties->PreemptionStatus].erase(properties->AllocationIdListIterator);
 
-    --RunningJobCount_;
+    --RunningAllocationCount_;
 
     auto resourceUsage = properties->ResourceUsage;
-    SetJobResourceUsage(properties, TJobResources());
+    SetAllocationResourceUsage(properties, TJobResources());
 
     TotalDiskQuota_ -= properties->DiskQuota;
 
-    JobPropertiesMap_.erase(it);
+    AllocationPropertiesMap_.erase(it);
 
     return resourceUsage;
 }
 
-void TFairShareTreeJobSchedulerOperationSharedState::UpdatePreemptionStatusStatistics(EOperationPreemptionStatus status)
+void TFairShareTreeAllocationSchedulerOperationSharedState::UpdatePreemptionStatusStatistics(EOperationPreemptionStatus status)
 {
     auto guard = Guard(PreemptionStatusStatisticsLock_);
 
     ++PreemptionStatusStatistics_[status];
 }
 
-TPreemptionStatusStatisticsVector TFairShareTreeJobSchedulerOperationSharedState::GetPreemptionStatusStatistics() const
+TPreemptionStatusStatisticsVector TFairShareTreeAllocationSchedulerOperationSharedState::GetPreemptionStatusStatistics() const
 {
     auto guard = Guard(PreemptionStatusStatisticsLock_);
 
     return PreemptionStatusStatistics_;
 }
 
-TJobPreemptionStatusMap TFairShareTreeJobSchedulerOperationSharedState::GetJobPreemptionStatusMap() const
+TAllocationPreemptionStatusMap TFairShareTreeAllocationSchedulerOperationSharedState::GetAllocationPreemptionStatusMap() const
 {
-    TJobPreemptionStatusMap jobPreemptionStatuses;
+    TAllocationPreemptionStatusMap allocationPreemptionStatuses;
 
-    auto guard = ReaderGuard(JobPropertiesMapLock_);
+    auto guard = ReaderGuard(AllocationPropertiesMapLock_);
 
-    jobPreemptionStatuses.reserve(JobPropertiesMap_.size());
-    for (const auto& [jobId, properties] : JobPropertiesMap_) {
-        YT_VERIFY(jobPreemptionStatuses.emplace(jobId, properties.PreemptionStatus).second);
+    allocationPreemptionStatuses.reserve(AllocationPropertiesMap_.size());
+    for (const auto& [allocationId, properties] : AllocationPropertiesMap_) {
+        EmplaceOrCrash(allocationPreemptionStatuses, allocationId, properties.PreemptionStatus);
     }
 
-    return jobPreemptionStatuses;
+    return allocationPreemptionStatuses;
 }
 
-void TFairShareTreeJobSchedulerOperationSharedState::OnMinNeededResourcesUnsatisfied(
+void TFairShareTreeAllocationSchedulerOperationSharedState::OnMinNeededResourcesUnsatisfied(
     const ISchedulingContextPtr& schedulingContext,
     const TJobResources& availableResources,
     const TJobResources& minNeededResources)
@@ -468,49 +473,49 @@ void TFairShareTreeJobSchedulerOperationSharedState::OnMinNeededResourcesUnsatis
 #undef XX
 }
 
-TEnumIndexedVector<EJobResourceType, int> TFairShareTreeJobSchedulerOperationSharedState::GetMinNeededResourcesUnsatisfiedCount()
+TEnumIndexedVector<EJobResourceType, int> TFairShareTreeAllocationSchedulerOperationSharedState::GetMinNeededResourcesUnsatisfiedCount()
 {
     UpdateDiagnosticCounters();
 
     return MinNeededResourcesUnsatisfiedCount_;
 }
 
-void TFairShareTreeJobSchedulerOperationSharedState::OnOperationDeactivated(const ISchedulingContextPtr& schedulingContext, EDeactivationReason reason)
+void TFairShareTreeAllocationSchedulerOperationSharedState::OnOperationDeactivated(const ISchedulingContextPtr& schedulingContext, EDeactivationReason reason)
 {
     auto& shard = StateShards_[schedulingContext->GetNodeShardId()];
     IncrementAtomicCounterUnsafely(&shard.DeactivationReasons[reason]);
     IncrementAtomicCounterUnsafely(&shard.DeactivationReasonsFromLastNonStarvingTime[reason]);
 }
 
-TEnumIndexedVector<EDeactivationReason, int> TFairShareTreeJobSchedulerOperationSharedState::GetDeactivationReasons()
+TEnumIndexedVector<EDeactivationReason, int> TFairShareTreeAllocationSchedulerOperationSharedState::GetDeactivationReasons()
 {
     UpdateDiagnosticCounters();
 
     return DeactivationReasons_;
 }
 
-TEnumIndexedVector<EDeactivationReason, int> TFairShareTreeJobSchedulerOperationSharedState::GetDeactivationReasonsFromLastNonStarvingTime()
+TEnumIndexedVector<EDeactivationReason, int> TFairShareTreeAllocationSchedulerOperationSharedState::GetDeactivationReasonsFromLastNonStarvingTime()
 {
     UpdateDiagnosticCounters();
 
     return DeactivationReasonsFromLastNonStarvingTime_;
 }
 
-void TFairShareTreeJobSchedulerOperationSharedState::IncrementOperationScheduleJobAttemptCount(const ISchedulingContextPtr& schedulingContext)
+void TFairShareTreeAllocationSchedulerOperationSharedState::IncrementOperationScheduleAllocationAttemptCount(const ISchedulingContextPtr& schedulingContext)
 {
     auto& shard = StateShards_[schedulingContext->GetNodeShardId()];
 
-    IncrementAtomicCounterUnsafely(&shard.ScheduleJobAttemptCount);
+    IncrementAtomicCounterUnsafely(&shard.ScheduleAllocationAttemptCount);
 }
 
-int TFairShareTreeJobSchedulerOperationSharedState::GetOperationScheduleJobAttemptCount()
+int TFairShareTreeAllocationSchedulerOperationSharedState::GetOperationScheduleAllocationAttemptCount()
 {
     UpdateDiagnosticCounters();
 
-    return ScheduleJobAttemptCount_;
+    return ScheduleAllocationAttemptCount_;
 }
 
-void TFairShareTreeJobSchedulerOperationSharedState::ProcessUpdatedStarvationStatus(EStarvationStatus status)
+void TFairShareTreeAllocationSchedulerOperationSharedState::ProcessUpdatedStarvationStatus(EStarvationStatus status)
 {
     if (StarvationStatusAtLastUpdate_ == EStarvationStatus::NonStarving && status != EStarvationStatus::NonStarving) {
         std::fill(DeactivationReasonsFromLastNonStarvingTime_.begin(), DeactivationReasonsFromLastNonStarvingTime_.end(), 0);
@@ -531,7 +536,7 @@ void TFairShareTreeJobSchedulerOperationSharedState::ProcessUpdatedStarvationSta
     StarvationStatusAtLastUpdate_ = status;
 }
 
-void TFairShareTreeJobSchedulerOperationSharedState::UpdateDiagnosticCounters()
+void TFairShareTreeAllocationSchedulerOperationSharedState::UpdateDiagnosticCounters()
 {
     auto now = TInstant::Now();
     if (now < LastDiagnosticCountersUpdateTime_ + UpdateStateShardsBackoff_) {
@@ -541,7 +546,7 @@ void TFairShareTreeJobSchedulerOperationSharedState::UpdateDiagnosticCounters()
     std::fill(DeactivationReasons_.begin(), DeactivationReasons_.end(), 0);
     std::fill(DeactivationReasonsFromLastNonStarvingTime_.begin(), DeactivationReasonsFromLastNonStarvingTime_.end(), 0);
     std::fill(MinNeededResourcesUnsatisfiedCount_.begin(), MinNeededResourcesUnsatisfiedCount_.end(), 0);
-    i64 scheduleJobAttemptCount = 0;
+    i64 scheduleAllocationAttemptCount = 0;
 
     for (int shardId = 0; shardId < std::ssize(StrategyHost_->GetNodeShardInvokers()); ++shardId) {
         auto& shard = StateShards_[shardId];
@@ -554,18 +559,18 @@ void TFairShareTreeJobSchedulerOperationSharedState::UpdateDiagnosticCounters()
             MinNeededResourcesUnsatisfiedCount_[resource] +=
                 shard.MinNeededResourcesUnsatisfiedCount[resource].load();
         }
-        scheduleJobAttemptCount += shard.ScheduleJobAttemptCount;
+        scheduleAllocationAttemptCount += shard.ScheduleAllocationAttemptCount;
     }
 
-    ScheduleJobAttemptCount_ = scheduleJobAttemptCount;
+    ScheduleAllocationAttemptCount_ = scheduleAllocationAttemptCount;
     LastDiagnosticCountersUpdateTime_ = now;
 }
 
-TInstant TFairShareTreeJobSchedulerOperationSharedState::GetLastScheduleJobSuccessTime() const
+TInstant TFairShareTreeAllocationSchedulerOperationSharedState::GetLastScheduleAllocationSuccessTime() const
 {
-    auto guard = ReaderGuard(JobPropertiesMapLock_);
+    auto guard = ReaderGuard(AllocationPropertiesMapLock_);
 
-    return LastScheduleJobSuccessTime_;
+    return LastScheduleAllocationSuccessTime_;
 }
 
 std::optional<TString> TSchedulerOperationElement::GetCustomProfilingTag() const
@@ -598,8 +603,8 @@ std::optional<TString> TSchedulerOperationElement::GetCustomProfilingTag() const
     return tagName;
 }
 
-TJobResources TFairShareTreeJobSchedulerOperationSharedState::SetJobResourceUsage(
-    TJobProperties* properties,
+TJobResources TFairShareTreeAllocationSchedulerOperationSharedState::SetAllocationResourceUsage(
+    TAllocationProperties* properties,
     const TJobResources& resources)
 {
     auto delta = resources - properties->ResourceUsage;
@@ -609,17 +614,19 @@ TJobResources TFairShareTreeJobSchedulerOperationSharedState::SetJobResourceUsag
     return delta;
 }
 
-TFairShareTreeJobSchedulerOperationSharedState::TJobProperties* TFairShareTreeJobSchedulerOperationSharedState::GetJobProperties(TJobId jobId)
+TFairShareTreeAllocationSchedulerOperationSharedState::TAllocationProperties*
+TFairShareTreeAllocationSchedulerOperationSharedState::GetAllocationProperties(TAllocationId allocationId)
 {
-    auto it = JobPropertiesMap_.find(jobId);
-    YT_ASSERT(it != JobPropertiesMap_.end());
+    auto it = AllocationPropertiesMap_.find(allocationId);
+    YT_ASSERT(it != AllocationPropertiesMap_.end());
     return &it->second;
 }
 
-const TFairShareTreeJobSchedulerOperationSharedState::TJobProperties* TFairShareTreeJobSchedulerOperationSharedState::GetJobProperties(TJobId jobId) const
+const TFairShareTreeAllocationSchedulerOperationSharedState::TAllocationProperties*
+TFairShareTreeAllocationSchedulerOperationSharedState::GetAllocationProperties(TAllocationId allocationId) const
 {
-    auto it = JobPropertiesMap_.find(jobId);
-    YT_ASSERT(it != JobPropertiesMap_.end());
+    auto it = AllocationPropertiesMap_.find(allocationId);
+    YT_ASSERT(it != AllocationPropertiesMap_.end());
     return &it->second;
 }
 

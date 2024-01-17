@@ -86,6 +86,7 @@ DEFINE_ENUM(EFifoSortParameter,
     (Weight)
     (StartTime)
     (PendingJobCount)
+    (PendingAllocationCount)
 );
 
 DEFINE_ENUM(EFifoPoolSchedulingOrder,
@@ -165,8 +166,6 @@ struct TDiskQuota;
 class TJobResourcesWithQuota;
 
 class TOperationServiceProxy;
-
-using NJobTrackerClient::EJobType;
 
 ////////////////////////////////////////////////////////////////////////////////
 

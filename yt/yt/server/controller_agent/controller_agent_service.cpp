@@ -75,7 +75,8 @@ private:
 
         auto operationId = FromProto<TOperationId>(request->operation_id());
 
-        context->SetRequestInfo("OperationId: %v",
+        context->SetRequestInfo(
+            "OperationId: %v",
             operationId);
 
         auto result = WaitFor(controllerAgent->BuildOperationInfo(operationId))
@@ -116,7 +117,8 @@ private:
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
         auto clean = request->clean();
-        context->SetRequestInfo("IncarnationId: %v, OperationId: %v, Clean: %v",
+        context->SetRequestInfo(
+            "IncarnationId: %v, OperationId: %v, Clean: %v",
             incarnationId,
             operationId,
             clean);
@@ -150,7 +152,8 @@ private:
     {
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
-        context->SetRequestInfo("IncarnationId: %v, OperationId: %v",
+        context->SetRequestInfo(
+            "IncarnationId: %v, OperationId: %v",
             incarnationId,
             operationId);
 
@@ -176,7 +179,8 @@ private:
     {
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
-        context->SetRequestInfo("IncarnationId: %v, OperationId: %v",
+        context->SetRequestInfo(
+            "IncarnationId: %v, OperationId: %v",
             incarnationId,
             operationId);
 
@@ -193,7 +197,8 @@ private:
             if (maybeResult) {
                 ToProto(response->mutable_result(), *maybeResult);
 
-                context->SetIncrementalResponseInfo("Suspend: %v, InitialNeededResources: %v",
+                context->SetIncrementalResponseInfo(
+                    "Suspend: %v, InitialNeededResources: %v",
                     maybeResult->Suspend,
                     FormatResources(maybeResult->InitialNeededResources));
             }
@@ -206,7 +211,8 @@ private:
     {
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
-        context->SetRequestInfo("IncarnationId: %v, OperationId: %v",
+        context->SetRequestInfo(
+            "IncarnationId: %v, OperationId: %v",
             incarnationId,
             operationId);
 
@@ -223,9 +229,10 @@ private:
             if (maybeResult) {
                 ToProto(response->mutable_result(), *maybeResult);
 
-                context->SetIncrementalResponseInfo("RevivedFromSnapshot: %v, RevivedJobCount: %v, RevivedBannedTreeIds: %v, NeededResources: %v",
+                context->SetIncrementalResponseInfo(
+                    "RevivedFromSnapshot: %v, RevivedAllocationCount: %v, RevivedBannedTreeIds: %v, NeededResources: %v",
                     maybeResult->RevivedFromSnapshot,
-                    maybeResult->RevivedJobs.size(),
+                    maybeResult->RevivedAllocations.size(),
                     maybeResult->RevivedBannedTreeIds,
                     FormatResources(maybeResult->NeededResources));
             }
@@ -238,7 +245,8 @@ private:
     {
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
-        context->SetRequestInfo("IncarnationId: %v, OperationId: %v",
+        context->SetRequestInfo(
+            "IncarnationId: %v, OperationId: %v",
             incarnationId,
             operationId);
 
@@ -264,7 +272,8 @@ private:
     {
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
-        context->SetRequestInfo("IncarnationId: %v, OperationId: %v",
+        context->SetRequestInfo(
+            "IncarnationId: %v, OperationId: %v",
             incarnationId,
             operationId);
 
@@ -286,7 +295,8 @@ private:
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
         auto controllerFinalState = static_cast<EControllerState>(request->controller_final_state());
-        context->SetRequestInfo("IncarnationId: %v, OperationId: %v, ControllerFinalState: %v",
+        context->SetRequestInfo(
+            "IncarnationId: %v, OperationId: %v, ControllerFinalState: %v",
             incarnationId,
             operationId,
             controllerFinalState);
@@ -314,7 +324,8 @@ private:
     {
         auto operationId = FromProto<TOperationId>(request->operation_id());
 
-        context->SetRequestInfo("OperationId: %v",
+        context->SetRequestInfo(
+            "OperationId: %v",
             operationId);
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
@@ -332,7 +343,8 @@ private:
     {
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
-        context->SetRequestInfo("IncarnationId: %v, OperationId: %v",
+        context->SetRequestInfo(
+            "IncarnationId: %v, OperationId: %v",
             incarnationId,
             operationId);
 
@@ -345,7 +357,8 @@ private:
                 .ValueOrThrow();
             ToProto(response->mutable_residual_job_metrics(), result.ResidualJobMetrics);
 
-            context->SetResponseInfo("TreesWithResidualJobMetrics: %v",
+            context->SetResponseInfo(
+                "TreesWithResidualJobMetrics: %v",
                 MakeFormattableView(result.ResidualJobMetrics, [] (auto* builder, const auto& treeTaggedJobMetrics) {
                     builder->AppendString(treeTaggedJobMetrics.TreeId);
                 }));
@@ -357,7 +370,8 @@ private:
     {
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
         auto operationId = FromProto<TOperationId>(request->operation_id());
-        context->SetRequestInfo("IncarnationId: %v, OperationId: %v",
+        context->SetRequestInfo(
+            "IncarnationId: %v, OperationId: %v",
             incarnationId,
             operationId);
 

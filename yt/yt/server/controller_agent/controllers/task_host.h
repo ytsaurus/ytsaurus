@@ -142,7 +142,9 @@ struct ITaskHost
 
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const = 0;
 
-    virtual TSharedRef BuildJobSpecProto(const TJobletPtr& joblet, const NScheduler::NProto::TScheduleJobSpec& scheduleJobSpec) = 0;
+    virtual TSharedRef BuildJobSpecProto(
+        const TJobletPtr& joblet,
+        const NScheduler::NProto::TScheduleAllocationSpec& scheduleAllocationSpec) = 0;
 
     virtual void RegisterOutputTables(const std::vector<NYPath::TRichYPath>& outputTablePaths) = 0;
 

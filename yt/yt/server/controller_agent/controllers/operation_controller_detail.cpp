@@ -130,7 +130,7 @@
 #include <yt/yt/library/erasure/impl/codec.h>
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/crash_handler.h>
@@ -283,7 +283,7 @@ TOperationControllerBase::TOperationControllerBase(
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         BIND(&TThis::UpdateAggregatedRunningJobStatistics, MakeWeak(this)),
         Config->RunningJobStatisticsUpdatePeriod))
-    , ScheduleJobStatistics_(New<TScheduleJobStatistics>(Config->ScheduleJobStatisticsMovingAverageWindowSize))
+    , ScheduleAllocationStatistics_(New<TScheduleAllocationStatistics>(Config->ScheduleAllocationStatisticsMovingAverageWindowSize))
     , CheckTimeLimitExecutor(New<TPeriodicExecutor>(
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         BIND(&TThis::CheckTimeLimit, MakeWeak(this)),
@@ -327,10 +327,10 @@ TOperationControllerBase::TOperationControllerBase(
     , FastIntermediateMediumLimit_(std::min(
         Spec_->FastIntermediateMediumLimit,
         Config->FastIntermediateMediumLimit))
-    , SendRunningJobTimeStatisticsUpdatesExecutor_(New<TPeriodicExecutor>(
+    , SendRunningAllocationTimeStatisticsUpdatesExecutor_(New<TPeriodicExecutor>(
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::JobEvents),
-        BIND_NO_PROPAGATE(&TThis::SendRunningJobTimeStatisticsUpdates, MakeWeak(this)),
-        Config->RunningJobTimeStatisticsUpdatesSendPeriod))
+        BIND_NO_PROPAGATE(&TThis::SendRunningAllocationTimeStatisticsUpdates, MakeWeak(this)),
+        Config->RunningAllocationTimeStatisticsUpdatesSendPeriod))
 {
     // Attach user transaction if any. Don't ping it.
     TTransactionAttachOptions userAttachOptions;
@@ -340,8 +340,8 @@ TOperationControllerBase::TOperationControllerBase(
         ? Host->GetClient()->AttachTransaction(UserTransactionId, userAttachOptions)
         : nullptr;
 
-    for (const auto& reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
-        ExternalScheduleJobFailureCounts_[reason] = 0;
+    for (const auto& reason : TEnumTraits<EScheduleAllocationFailReason>::GetDomainValues()) {
+        ExternalScheduleAllocationFailureCounts_[reason] = 0;
     }
 
     TSchedulingTagFilter filter(Spec_->SchedulingTagFilter);
@@ -383,9 +383,9 @@ const TProgressCounterPtr& TOperationControllerBase::GetTotalJobCounter() const
     return TotalJobCounter_;
 }
 
-const TScheduleJobStatisticsPtr& TOperationControllerBase::GetScheduleJobStatistics() const
+const TScheduleAllocationStatisticsPtr& TOperationControllerBase::GetScheduleAllocationStatistics() const
 {
-    return ScheduleJobStatistics_;
+    return ScheduleAllocationStatistics_;
 }
 
 const TAggregatedJobStatistics& TOperationControllerBase::GetAggregatedFinishedJobStatistics() const
@@ -1284,7 +1284,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         InitInputChunkScraper();
         InitIntermediateChunkScraper();
 
-        UpdateMinNeededJobResources();
+        UpdateMinNeededAllocationResources();
         // NB(eshcherbin): This update is done to ensure that needed resources amount is computed.
         UpdateAllTasks();
 
@@ -1298,7 +1298,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         CheckTentativeTreeEligibilityExecutor_->Start();
         UpdateAccountResourceUsageLeasesExecutor_->Start();
         RunningJobStatisticsUpdateExecutor_->Start();
-        SendRunningJobTimeStatisticsUpdatesExecutor_->Start();
+        SendRunningAllocationTimeStatisticsUpdatesExecutor_->Start();
 
         if (auto maybeDelay = Spec_->TestingOperationOptions->DelayInsideMaterialize) {
             TDelayedExecutor::WaitForDuration(*maybeDelay);
@@ -1318,7 +1318,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         return result;
     }
 
-    InitialMinNeededResources_ = GetMinNeededJobResources();
+    InitialMinNeededResources_ = GetMinNeededAllocationResources();
 
     result.Suspend = Spec_->SuspendOperationAfterMaterialization;
     result.InitialNeededResources = GetNeededResources();
@@ -1402,7 +1402,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
         IntermediateChunkScraper->Start();
     }
 
-    UpdateMinNeededJobResources();
+    UpdateMinNeededAllocationResources();
     // NB(eshcherbin): This update is done to ensure that needed resources amount is computed.
     UpdateAllTasks();
 
@@ -1435,23 +1435,23 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     CheckTentativeTreeEligibilityExecutor_->Start();
     UpdateAccountResourceUsageLeasesExecutor_->Start();
     RunningJobStatisticsUpdateExecutor_->Start();
-    SendRunningJobTimeStatisticsUpdatesExecutor_->Start();
+    SendRunningAllocationTimeStatisticsUpdatesExecutor_->Start();
 
-    result.RevivedJobs.reserve(std::size(JobletMap));
+    result.RevivedAllocations.reserve(std::size(JobletMap));
 
     for (const auto& [_, joblet] : JobletMap) {
-        result.RevivedJobs.push_back({
-            joblet->JobId,
-            joblet->StartTime,
-            joblet->ResourceLimits,
-            joblet->DiskQuota,
-            joblet->TreeId,
-            joblet->NodeDescriptor.Id,
-            joblet->NodeDescriptor.Address
+        result.RevivedAllocations.push_back(TOperationControllerReviveResult::TRevivedAllocation{
+            .AllocationId = AllocationIdFromJobId(joblet->JobId),
+            .StartTime = joblet->StartTime,
+            .ResourceLimits = joblet->ResourceLimits,
+            .DiskQuota = joblet->DiskQuota,
+            .TreeId = joblet->TreeId,
+            .NodeId = joblet->NodeDescriptor.Id,
+            .NodeAddress = joblet->NodeDescriptor.Address,
         });
     }
 
-    result.MinNeededResources = GetMinNeededJobResources();
+    result.MinNeededResources = GetMinNeededAllocationResources();
     result.InitialMinNeededResources = InitialMinNeededResources_;
 
     // Monitoring tags are transient by design.
@@ -3663,7 +3663,7 @@ void TOperationControllerBase::OnJobRunning(std::unique_ptr<TRunningJobSummary> 
     joblet->Task->OnJobRunning(joblet, *jobSummary);
 
     if (const auto& timeStatistics = jobSummary->TimeStatistics; timeStatistics.ExecDuration || timeStatistics.PrepareDuration) {
-        RunningJobTimeStatisticsUpdates_[jobId] = {
+        RunningAllocationTimeStatisticsUpdates_[AllocationIdFromJobId(jobId)] = {
             .PreparationTime = timeStatistics.PrepareDuration.value_or(TDuration{}),
             .ExecutionTime = timeStatistics.ExecDuration.value_or(TDuration{})
         };
@@ -4446,9 +4446,9 @@ void TOperationControllerBase::CheckAvailableExecNodes()
 
     if (!AvailableExecNodesObserved_) {
         OnOperationFailed(TError(
-            EErrorCode::NoOnlineNodeToScheduleJob,
+            EErrorCode::NoOnlineNodeToScheduleAllocation,
             "No online nodes that match operation scheduling tag filter %Qv "
-            "and have sufficient resources to schedule a job found in trees %v",
+            "and have sufficient resources to schedule an allocation found in trees %v",
             Spec_->SchedulingTagFilter.GetFormula(),
             GetKeys(PoolTreeControllerSettingsMap_))
             << TErrorAttribute("non_matching_filter_node_count", nonMatchingFilterNodeCount)
@@ -4493,7 +4493,7 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
         if (!Dominates(*CachedMaxAvailableExecNodeResources_, neededResources.ToJobResources())) {
             OnOperationFailed(
                 TError(
-                    EErrorCode::NoOnlineNodeToScheduleJob,
+                    EErrorCode::NoOnlineNodeToScheduleAllocation,
                     "No online node can satisfy the resource demand")
                     << TErrorAttribute("task_name", task->GetTitle())
                     << TErrorAttribute("needed_resources", neededResources.ToJobResources())
@@ -4502,26 +4502,26 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
     }
 }
 
-TControllerScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
+TControllerScheduleAllocationResultPtr TOperationControllerBase::SafeScheduleAllocation(
     ISchedulingContext* context,
     const TJobResources& jobLimits,
     const TString& treeId)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->ScheduleJobControllerQueue));
+    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->ScheduleAllocationControllerQueue));
 
-    MaybeDelay(Spec_->TestingOperationOptions->ScheduleJobDelay);
+    MaybeDelay(Spec_->TestingOperationOptions->ScheduleAllocationDelay);
 
     if (State != EControllerState::Running) {
         YT_LOG_DEBUG("Stale schedule job attempt");
         return nullptr;
     }
 
-    // SafeScheduleJob must be synchronous; context switches are prohibited.
+    // SafeScheduleAllocation must be synchronous; context switches are prohibited.
     TForbidContextSwitchGuard contextSwitchGuard;
 
     TWallTimer timer;
-    auto scheduleJobResult = New<TControllerScheduleJobResult>();
-    DoScheduleJob(context, jobLimits, treeId, scheduleJobResult.Get());
+    auto scheduleJobResult = New<TControllerScheduleAllocationResult>();
+    DoScheduleAllocation(context, jobLimits, treeId, scheduleJobResult.Get());
     auto scheduleJobDuration = timer.GetElapsedTime();
     if (scheduleJobResult->StartDescriptor) {
         AvailableExecNodesObserved_ = true;
@@ -4529,20 +4529,21 @@ TControllerScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     scheduleJobResult->Duration = scheduleJobDuration;
     scheduleJobResult->ControllerEpoch = ControllerEpoch;
 
-    ScheduleJobStatistics_->RecordJobResult(*scheduleJobResult);
-    scheduleJobResult->NextDurationEstimate = ScheduleJobStatistics_->SuccessfulDurationMovingAverage().GetAverage();
+    ScheduleAllocationStatistics_->RecordJobResult(*scheduleJobResult);
+    scheduleJobResult->NextDurationEstimate = ScheduleAllocationStatistics_->SuccessfulDurationMovingAverage().GetAverage();
 
     auto now = NProfiling::GetCpuInstant();
-    if (now > ScheduleJobStatisticsLogDeadline_) {
-        AccountExternalScheduleJobFailures();
+    if (now > ScheduleAllocationStatisticsLogDeadline_) {
+        AccountExternalScheduleAllocationFailures();
 
-        YT_LOG_DEBUG("Schedule job statistics (Count: %v, TotalDuration: %v, SuccessfulDurationEstimate: %v, FailureReasons: %v)",
-            ScheduleJobStatistics_->GetCount(),
-            ScheduleJobStatistics_->GetTotalDuration(),
-            ScheduleJobStatistics_->SuccessfulDurationMovingAverage().GetAverage(),
-            ScheduleJobStatistics_->Failed());
+        YT_LOG_DEBUG(
+            "Schedule allocation statistics (Count: %v, TotalDuration: %v, SuccessfulDurationEstimate: %v, FailureReasons: %v)",
+            ScheduleAllocationStatistics_->GetCount(),
+            ScheduleAllocationStatistics_->GetTotalDuration(),
+            ScheduleAllocationStatistics_->SuccessfulDurationMovingAverage().GetAverage(),
+            ScheduleAllocationStatistics_->Failed());
 
-        ScheduleJobStatisticsLogDeadline_ = now + NProfiling::DurationToCpuDuration(Config->ScheduleJobStatisticsLogBackoff);
+        ScheduleAllocationStatisticsLogDeadline_ = now + NProfiling::DurationToCpuDuration(Config->ScheduleAllocationStatisticsLogBackoff);
     }
 
     return scheduleJobResult;
@@ -4588,15 +4589,16 @@ bool TOperationControllerBase::IsThrottling() const noexcept
     // Check invoker wait time.
     bool waitTimeThrottling = false;
     {
-        auto scheduleJobInvokerStatistics = GetInvokerStatistics(Config->ScheduleJobControllerQueue);
-        auto scheduleJobWaitTime = scheduleJobInvokerStatistics.TotalTimeEstimate;
-        waitTimeThrottling = scheduleJobWaitTime > Config->ScheduleJobTotalTimeThreshold;
+        auto scheduleAllocationInvokerStatistics = GetInvokerStatistics(Config->ScheduleAllocationControllerQueue);
+        auto scheduleJobWaitTime = scheduleAllocationInvokerStatistics.TotalTimeEstimate;
+        waitTimeThrottling = scheduleJobWaitTime > Config->ScheduleAllocationTotalTimeThreshold;
 
         if (waitTimeThrottling || forceLogging) {
-            YT_LOG_DEBUG("Throttling statistics for wait time "
-                "(ScheduleJobWaitTime: %v, Threshold: %v, WaitTimeThrottling: %v)",
+            YT_LOG_DEBUG(
+                "Throttling statistics for wait time "
+                "(ScheduleAllocationWaitTime: %v, Threshold: %v, WaitTimeThrottling: %v)",
                 scheduleJobWaitTime,
-                Config->ScheduleJobTotalTimeThreshold,
+                Config->ScheduleAllocationTotalTimeThreshold,
                 waitTimeThrottling);
         }
     }
@@ -4604,11 +4606,11 @@ bool TOperationControllerBase::IsThrottling() const noexcept
     return jobSpecThrottling || waitTimeThrottling;
 }
 
-void TOperationControllerBase::RecordScheduleJobFailure(EScheduleJobFailReason reason) noexcept
+void TOperationControllerBase::RecordScheduleAllocationFailure(EScheduleAllocationFailReason reason) noexcept
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    ExternalScheduleJobFailureCounts_[reason].fetch_add(1);
+    ExternalScheduleAllocationFailureCounts_[reason].fetch_add(1);
 }
 
 void TOperationControllerBase::AccountBuildingJobSpecDelta(int countDelta, i64 totalSliceCountDelta) noexcept
@@ -4626,9 +4628,9 @@ void TOperationControllerBase::UpdateConfig(const TControllerAgentConfigPtr& con
     Config = config;
 
     RunningJobStatisticsUpdateExecutor_->SetPeriod(config->RunningJobStatisticsUpdatePeriod);
-    SendRunningJobTimeStatisticsUpdatesExecutor_->SetPeriod(config->RunningJobTimeStatisticsUpdatesSendPeriod);
+    SendRunningAllocationTimeStatisticsUpdatesExecutor_->SetPeriod(config->RunningAllocationTimeStatisticsUpdatesSendPeriod);
 
-    ScheduleJobStatistics_->SetMovingAverageWindowSize(config->ScheduleJobStatisticsMovingAverageWindowSize);
+    ScheduleAllocationStatistics_->SetMovingAverageWindowSize(config->ScheduleAllocationStatisticsMovingAverageWindowSize);
 }
 
 void TOperationControllerBase::CustomizeJoblet(const TJobletPtr& /*joblet*/)
@@ -4721,49 +4723,49 @@ void TOperationControllerBase::ResetTaskLocalityDelays()
     }
 }
 
-void TOperationControllerBase::DoScheduleJob(
+void TOperationControllerBase::DoScheduleAllocation(
     ISchedulingContext* context,
     const TJobResources& jobLimits,
     const TString& treeId,
-    TControllerScheduleJobResult* scheduleJobResult)
+    TControllerScheduleAllocationResult* scheduleJobResult)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->ScheduleJobControllerQueue));
+    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->ScheduleAllocationControllerQueue));
 
     if (!IsRunning()) {
         YT_LOG_TRACE("Operation is not running, scheduling request ignored");
-        scheduleJobResult->RecordFail(EScheduleJobFailReason::OperationNotRunning);
+        scheduleJobResult->RecordFail(EScheduleAllocationFailReason::OperationNotRunning);
         return;
     }
 
     if (GetPendingJobCount().GetJobCountFor(treeId) == 0) {
         YT_LOG_TRACE("No pending jobs left, scheduling request ignored");
-        scheduleJobResult->RecordFail(EScheduleJobFailReason::NoPendingJobs);
+        scheduleJobResult->RecordFail(EScheduleAllocationFailReason::NoPendingJobs);
         return;
     }
 
     if (BannedNodeIds_.find(context->GetNodeDescriptor()->Id) != BannedNodeIds_.end()) {
         YT_LOG_TRACE("Node is banned, scheduling request ignored");
-        scheduleJobResult->RecordFail(EScheduleJobFailReason::NodeBanned);
+        scheduleJobResult->RecordFail(EScheduleAllocationFailReason::NodeBanned);
         return;
     }
 
-    MaybeDelay(Spec_->TestingOperationOptions->InsideScheduleJobDelay);
+    MaybeDelay(Spec_->TestingOperationOptions->InsideScheduleAllocationDelay);
 
-    TryScheduleJob(context, jobLimits, treeId, scheduleJobResult, /*scheduleLocalJob*/ true);
+    TryScheduleAllocation(context, jobLimits, treeId, scheduleJobResult, /*scheduleLocalJob*/ true);
     if (!scheduleJobResult->StartDescriptor) {
-        TryScheduleJob(context, jobLimits, treeId, scheduleJobResult, /*scheduleLocalJob*/ false);
+        TryScheduleAllocation(context, jobLimits, treeId, scheduleJobResult, /*scheduleLocalJob*/ false);
     }
 }
 
-void TOperationControllerBase::TryScheduleJob(
+void TOperationControllerBase::TryScheduleAllocation(
     ISchedulingContext* context,
     const TJobResources& jobLimits,
     const TString& treeId,
-    TControllerScheduleJobResult* scheduleJobResult,
+    TControllerScheduleAllocationResult* scheduleAllocationResult,
     bool scheduleLocalJob)
 {
     if (!IsRunning()) {
-        scheduleJobResult->RecordFail(EScheduleJobFailReason::OperationNotRunning);
+        scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::OperationNotRunning);
         return;
     }
 
@@ -4772,7 +4774,7 @@ void TOperationControllerBase::TryScheduleJob(
     auto now = NProfiling::CpuInstantToInstant(context->GetNow());
 
     for (const auto& task : Tasks) {
-        if (scheduleJobResult->IsScheduleStopNeeded()) {
+        if (scheduleAllocationResult->IsScheduleStopNeeded()) {
             break;
         }
 
@@ -4782,7 +4784,7 @@ void TOperationControllerBase::TryScheduleJob(
         if (!Dominates(jobLimits, minNeededResources.ToJobResources()) ||
             !CanSatisfyDiskQuotaRequest(context->DiskResources(), minNeededResources.DiskQuota()))
         {
-            scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
+            scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::NotEnoughResources);
             continue;
         }
 
@@ -4792,7 +4794,7 @@ void TOperationControllerBase::TryScheduleJob(
             // Make sure that the task has positive locality.
             if (locality <= 0) {
                 // NB: This is one of the possible reasons, hopefully the most probable.
-                scheduleJobResult->RecordFail(EScheduleJobFailReason::NoLocalJobs);
+                scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::NoLocalJobs);
                 continue;
             }
         } else {
@@ -4802,10 +4804,11 @@ void TOperationControllerBase::TryScheduleJob(
 
             auto deadline = *task->GetDelayedTime() + task->GetLocalityTimeout();
             if (deadline > now) {
-                YT_LOG_DEBUG("Task delayed (Task: %v, Deadline: %v)",
+                YT_LOG_DEBUG(
+                    "Task delayed (Task: %v, Deadline: %v)",
                     task->GetTitle(),
                     deadline);
-                scheduleJobResult->RecordFail(EScheduleJobFailReason::TaskDelayed);
+                scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::TaskDelayed);
                 continue;
             }
         }
@@ -4828,19 +4831,19 @@ void TOperationControllerBase::TryScheduleJob(
 
         if (!HasEnoughChunkLists(task->IsStderrTableEnabled(), task->IsCoreTableEnabled())) {
             YT_LOG_DEBUG("Job chunk list demand is not met");
-            scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughChunkLists);
+            scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::NotEnoughChunkLists);
             break;
         }
 
-        task->ScheduleJob(context, jobLimits, treeId, IsTreeTentative(treeId), IsTreeProbing(treeId), scheduleJobResult);
-        if (scheduleJobResult->StartDescriptor) {
-            RegisterTestingSpeculativeJobIfNeeded(task, scheduleJobResult->StartDescriptor->Id);
+        task->ScheduleAllocation(context, jobLimits, treeId, IsTreeTentative(treeId), IsTreeProbing(treeId), scheduleAllocationResult);
+        if (scheduleAllocationResult->StartDescriptor) {
+            RegisterTestingSpeculativeJobIfNeeded(task, JobIdFromAllocationId(scheduleAllocationResult->StartDescriptor->Id));
             UpdateTask(task);
             return;
         }
     }
 
-    scheduleJobResult->RecordFail(EScheduleJobFailReason::NoCandidateTasks);
+    scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::NoCandidateTasks);
 }
 
 bool TOperationControllerBase::IsTreeTentative(const TString& treeId) const
@@ -4866,7 +4869,7 @@ void TOperationControllerBase::MaybeBanInTentativeTree(const TString& treeId)
 
     Host->OnOperationBannedInTentativeTree(
         treeId,
-        GetJobIdsByTreeId(treeId));
+        GetAllocationIdsByTreeId(treeId));
 
     auto error = TError("Operation was banned from tentative tree")
         << TErrorAttribute("tree_id", treeId);
@@ -5051,14 +5054,14 @@ TCompositeNeededResources TOperationControllerBase::GetNeededResources() const
     return CachedNeededResources;
 }
 
-TJobResourcesWithQuotaList TOperationControllerBase::GetMinNeededJobResources() const
+TJobResourcesWithQuotaList TOperationControllerBase::GetMinNeededAllocationResources() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return CachedMinNeededJobResources.Load();
+    return CachedMinNeededAllocationResources.Load();
 }
 
-void TOperationControllerBase::SafeUpdateMinNeededJobResources()
+void TOperationControllerBase::SafeUpdateMinNeededAllocationResources()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
 
@@ -5086,19 +5089,20 @@ void TOperationControllerBase::SafeUpdateMinNeededJobResources()
     for (const auto& [taskTitle, resources] : minNeededJobResourcesPerTask) {
         minNeededResources.push_back(resources);
 
-        YT_LOG_DEBUG("Aggregated minimum needed resources for jobs (Task: %v, MinNeededResources: %v)",
+        YT_LOG_DEBUG(
+            "Aggregated minimum needed resources for allocations (Task: %v, MinNeededResources: %v)",
             taskTitle,
             FormatResources(resources));
     }
 
-    CachedMinNeededJobResources.Exchange(minNeededResources);
+    CachedMinNeededAllocationResources.Exchange(minNeededResources);
 }
 
-TJobResources TOperationControllerBase::GetAggregatedMinNeededJobResources() const
+TJobResources TOperationControllerBase::GetAggregatedMinNeededAllocationResources() const
 {
     auto result = GetNeededResources().DefaultResources;
-    for (const auto& jobResources : GetMinNeededJobResources()) {
-        result = Min(result, jobResources.ToJobResources());
+    for (const auto& allocationResources : GetMinNeededAllocationResources()) {
+        result = Min(result, allocationResources.ToJobResources());
     }
     return result;
 }
@@ -8855,7 +8859,7 @@ TJobletPtr TOperationControllerBase::GetJobletOrThrow(TJobId jobId) const
     auto joblet = FindJoblet(jobId);
     if (!joblet) {
         THROW_ERROR_EXCEPTION(
-            NScheduler::EErrorCode::NoSuchJob,
+            EErrorCode::NoSuchJob,
             "No such job %v",
             jobId);
     }
@@ -8956,15 +8960,15 @@ void TOperationControllerBase::UnregisterJoblet(const TJobletPtr& joblet)
     JobletMap.erase(allocationJobletIt);
 }
 
-std::vector<TJobId> TOperationControllerBase::GetJobIdsByTreeId(const TString& treeId)
+std::vector<TAllocationId> TOperationControllerBase::GetAllocationIdsByTreeId(const TString& treeId)
 {
-    std::vector<TJobId> jobIds;
+    std::vector<TAllocationId> allocationIds;
     for (const auto& [_, joblet] : JobletMap) {
         if (joblet->TreeId == treeId) {
-            jobIds.push_back(joblet->JobId);
+            allocationIds.push_back(AllocationIdFromJobId(joblet->JobId));
         }
     }
-    return jobIds;
+    return allocationIds;
 }
 
 void TOperationControllerBase::SetProgressAttributesUpdated()
@@ -9046,7 +9050,7 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
         return;
     }
 
-    AccountExternalScheduleJobFailures();
+    AccountExternalScheduleAllocationFailures();
 
     auto fullJobStatistics = MergeJobStatistics(
         AggregatedFinishedJobStatistics_,
@@ -9076,13 +9080,13 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
             .Item("stderr_supported").Value(static_cast<bool>(StderrTable_))
         .EndMap()
         .Item("schedule_job_statistics").BeginMap()
-            .Item("count").Value(ScheduleJobStatistics_->GetCount())
-            .Item("total_duration").Value(ScheduleJobStatistics_->GetTotalDuration())
+            .Item("count").Value(ScheduleAllocationStatistics_->GetCount())
+            .Item("total_duration").Value(ScheduleAllocationStatistics_->GetTotalDuration())
             // COMPAT(eshcherbin)
-            .Item("duration").Value(ScheduleJobStatistics_->GetTotalDuration())
-            .Item("failed").Value(ScheduleJobStatistics_->Failed())
+            .Item("duration").Value(ScheduleAllocationStatistics_->GetTotalDuration())
+            .Item("failed").Value(ScheduleAllocationStatistics_->Failed())
             .Item("successful_duration_estimate_us").Value(
-                ScheduleJobStatistics_->SuccessfulDurationMovingAverage().GetAverage().value_or(TDuration::Zero()).MicroSeconds())
+                ScheduleAllocationStatistics_->SuccessfulDurationMovingAverage().GetAverage().value_or(TDuration::Zero()).MicroSeconds())
         .EndMap()
         // COMPAT(gritukan): Drop it in favour of "total_job_counter".
         .Item("jobs").Value(GetTotalJobCounter())
@@ -9260,7 +9264,7 @@ void TOperationControllerBase::CheckTentativeTreeEligibility()
     }
 }
 
-TSharedRef TOperationControllerBase::SafeBuildJobSpecProto(const TJobletPtr& joblet, const NScheduler::NProto::TScheduleJobSpec& scheduleJobSpec)
+TSharedRef TOperationControllerBase::SafeBuildJobSpecProto(const TJobletPtr& joblet, const NScheduler::NProto::TScheduleAllocationSpec& scheduleAllocationSpec)
 {
     VERIFY_INVOKER_AFFINITY(JobSpecBuildInvoker_);
 
@@ -9268,7 +9272,7 @@ TSharedRef TOperationControllerBase::SafeBuildJobSpecProto(const TJobletPtr& job
         Sleep(*buildJobSpecProtoDelay);
     }
 
-    return joblet->Task->BuildJobSpecProto(joblet, scheduleJobSpec);
+    return joblet->Task->BuildJobSpecProto(joblet, scheduleAllocationSpec);
 }
 
 TJobStartInfo TOperationControllerBase::SettleJob(TAllocationId allocationId)
@@ -10313,7 +10317,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
 
     Persist(context, JobIndexGenerator);
     Persist(context, AggregatedFinishedJobStatistics_);
-    Persist(context, ScheduleJobStatistics_);
+    Persist(context, ScheduleAllocationStatistics_);
     Persist(context, RowCountLimitTableIndex);
     Persist(context, RowCountLimit);
     Persist(context, EstimatedInputDataSizeHistogram_);
@@ -10383,7 +10387,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     }
 
     if (context.IsLoad()) {
-        ScheduleJobStatistics_->SetMovingAverageWindowSize(Config->ScheduleJobStatisticsMovingAverageWindowSize);
+        ScheduleAllocationStatistics_->SetMovingAverageWindowSize(Config->ScheduleAllocationStatisticsMovingAverageWindowSize);
     }
 }
 
@@ -10902,13 +10906,13 @@ std::vector<TTaskPtr> TOperationControllerBase::GetTopologicallyOrderedTasks() c
     return tasks;
 }
 
-void TOperationControllerBase::AccountExternalScheduleJobFailures() const
+void TOperationControllerBase::AccountExternalScheduleAllocationFailures() const
 {
     VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
-    for (const auto& reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
-        auto count = ExternalScheduleJobFailureCounts_[reason].exchange(0);
-        ScheduleJobStatistics_->Failed()[reason] += count;
+    for (const auto& reason : TEnumTraits<EScheduleAllocationFailReason>::GetDomainValues()) {
+        auto count = ExternalScheduleAllocationFailureCounts_[reason].exchange(0);
+        ScheduleAllocationStatistics_->Failed()[reason] += count;
     }
 }
 
@@ -10978,26 +10982,26 @@ void TOperationControllerBase::ReportControllerStateToArchive(const TJobletPtr& 
         .ControllerState(state));
 }
 
-void TOperationControllerBase::SendRunningJobTimeStatisticsUpdates()
+void TOperationControllerBase::SendRunningAllocationTimeStatisticsUpdates()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::JobEvents));
 
-    std::vector<TAgentToSchedulerRunningJobStatistics> runningJobTimeStatisticsUpdates;
-    runningJobTimeStatisticsUpdates.reserve(std::size(RunningJobTimeStatisticsUpdates_));
+    std::vector<TAgentToSchedulerRunningAllocationStatistics> runningAllocationTimeStatisticsUpdates;
+    runningAllocationTimeStatisticsUpdates.reserve(std::size(RunningAllocationTimeStatisticsUpdates_));
 
-    for (auto [jobId, timeStatistics] : RunningJobTimeStatisticsUpdates_) {
-        runningJobTimeStatisticsUpdates.push_back({jobId, timeStatistics.PreparationTime + timeStatistics.ExecutionTime});
+    for (auto [allocationId, timeStatistics] : RunningAllocationTimeStatisticsUpdates_) {
+        runningAllocationTimeStatisticsUpdates.push_back({allocationId, timeStatistics.PreparationTime + timeStatistics.ExecutionTime});
     }
 
-    if (std::empty(runningJobTimeStatisticsUpdates)) {
-        YT_LOG_DEBUG("No running job statistics received since last sending");
+    if (std::empty(runningAllocationTimeStatisticsUpdates)) {
+        YT_LOG_DEBUG("No running allocation statistics received since last sending");
         return;
     }
 
-    YT_LOG_DEBUG("Send running job statistics updates (UpdateCount: %v)", std::size(runningJobTimeStatisticsUpdates));
+    YT_LOG_DEBUG("Send running allocation statistics updates (UpdateCount: %v)", std::size(runningAllocationTimeStatisticsUpdates));
 
-    Host->UpdateRunningJobsStatistics(std::move(runningJobTimeStatisticsUpdates));
-    RunningJobTimeStatisticsUpdates_.clear();
+    Host->UpdateRunningAllocationsStatistics(std::move(runningAllocationTimeStatisticsUpdates));
+    RunningAllocationTimeStatisticsUpdates_.clear();
 }
 
 void TOperationControllerBase::RemoveRemainingJobsOnOperationFinished()

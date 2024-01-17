@@ -17,7 +17,7 @@ DECLARE_REFCOUNTED_STRUCT(IFairShareTree)
 DECLARE_REFCOUNTED_STRUCT(IFairShareTreeElementHost)
 
 struct IFairShareTreeHost;
-struct IFairShareTreeJobSchedulerHost;
+struct IFairShareTreeAllocationSchedulerHost;
 
 DECLARE_REFCOUNTED_CLASS(TSchedulerElement)
 DECLARE_REFCOUNTED_CLASS(TSchedulerOperationElement)
@@ -28,16 +28,16 @@ DECLARE_REFCOUNTED_CLASS(TSchedulerRootElement)
 DECLARE_REFCOUNTED_CLASS(TResourceTree)
 DECLARE_REFCOUNTED_CLASS(TResourceTreeElement)
 
-DECLARE_REFCOUNTED_CLASS(TScheduleJobsContext)
+DECLARE_REFCOUNTED_CLASS(TScheduleAllocationsContext)
 
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyOperationController)
-DECLARE_REFCOUNTED_CLASS(TFairShareTreeJobScheduler)
+DECLARE_REFCOUNTED_CLASS(TFairShareTreeAllocationScheduler)
 DECLARE_REFCOUNTED_CLASS(TFairShareTreeSnapshot)
 DECLARE_REFCOUNTED_CLASS(TFairShareTreeSetSnapshot)
 DECLARE_REFCOUNTED_CLASS(TFairShareTreeSchedulingSnapshot)
 DECLARE_REFCOUNTED_CLASS(TFairShareTreeProfileManager)
 
-class TJobMetrics;
+class TAllocationMetrics;
 
 DECLARE_REFCOUNTED_STRUCT(TDynamicAttributesListSnapshot)
 
@@ -61,12 +61,6 @@ using TNodeYsonList = std::vector<std::pair<NNodeTrackerClient::TNodeId, NYson::
 DEFINE_ENUM(ESchedulableStatus,
     (Normal)
     (BelowFairShare)
-);
-
-DEFINE_ENUM(EJobRevivalPhase,
-    (RevivingControllers)
-    (ConfirmingJobs)
-    (Finished)
 );
 
 DEFINE_ENUM(EResourceTreeIncreaseResult,
@@ -102,7 +96,7 @@ DEFINE_ENUM(EOperationPreemptionStatus,
     (ForbiddenInAncestorConfig)
 );
 
-DEFINE_ENUM(EJobPreemptionLevel,
+DEFINE_ENUM(EAllocationPreemptionLevel,
     (SsdNonPreemptible)
     (SsdAggressivelyPreemptible)
     (NonPreemptible)
@@ -110,13 +104,13 @@ DEFINE_ENUM(EJobPreemptionLevel,
     (Preemptible)
 );
 
-DEFINE_ENUM(EJobPreemptionStatus,
+DEFINE_ENUM(EAllocationPreemptionStatus,
     (NonPreemptible)
     (AggressivelyPreemptible)
     (Preemptible)
 );
 
-DEFINE_ENUM(EJobSchedulingStage,
+DEFINE_ENUM(EAllocationSchedulingStage,
     (RegularHighPriority)
     (RegularMediumPriority)
     (RegularPackingFallback)
@@ -127,7 +121,7 @@ DEFINE_ENUM(EJobSchedulingStage,
     (PreemptiveSsdAggressive)
 );
 
-DEFINE_ENUM(EJobPreemptionReason,
+DEFINE_ENUM(EAllocationPreemptionReason,
     (Preemption)
     (AggressivePreemption)
     (SsdPreemption)
@@ -147,10 +141,10 @@ using TOperationCountsByPreemptionPriorityParameters = THashMap<TOperationPreemp
 
 using TPreemptionStatusStatisticsVector = TEnumIndexedVector<EOperationPreemptionStatus, int>;
 
-using TJobPreemptionStatusMap = THashMap<TJobId, EJobPreemptionStatus>;
-using TJobPreemptionStatusMapPerOperation = THashMap<TOperationId, TJobPreemptionStatusMap>;
+using TAllocationPreemptionStatusMap = THashMap<TAllocationId, EAllocationPreemptionStatus>;
+using TAllocationPreemptionStatusMapPerOperation = THashMap<TOperationId, TAllocationPreemptionStatusMap>;
 
-DECLARE_REFCOUNTED_STRUCT(TRefCountedJobPreemptionStatusMapPerOperation)
+DECLARE_REFCOUNTED_STRUCT(TRefCountedAllocationPreemptionStatusMapPerOperation)
 
 ////////////////////////////////////////////////////////////////////////////////
 

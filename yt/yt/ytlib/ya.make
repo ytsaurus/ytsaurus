@@ -347,7 +347,7 @@ SRCS(
     scheduler/scheduler_channel.cpp
 
     scheduler/proto/allocation.proto
-    scheduler/proto/job.proto
+    scheduler/proto/resources.proto
     scheduler/proto/pool_ypath.proto
     scheduler/proto/scheduler_service.proto
 

@@ -72,42 +72,42 @@ double ComponentsSum(const TJobResourcesRatio& ratio)
     return ratio.GetCpuRatio() + ratio.GetMemoryRatio();
 }
 
-TJobResourcesRatio ToRatio(const TJobResources& jobResources, const TJobResources& totalResourceLimits)
+TJobResourcesRatio ToRatio(const TJobResources& allocationResources, const TJobResources& totalResourceLimits)
 {
     return TJobResourcesRatio(
-        static_cast<double>(jobResources.GetCpu()) / static_cast<double>(totalResourceLimits.GetCpu()),
-        static_cast<double>(jobResources.GetMemory()) / static_cast<double>(totalResourceLimits.GetMemory()));
+        static_cast<double>(allocationResources.GetCpu()) / static_cast<double>(totalResourceLimits.GetCpu()),
+        static_cast<double>(allocationResources.GetMemory()) / static_cast<double>(totalResourceLimits.GetMemory()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 double AngleLengthPackingMetric(
     const TPackingNodeResourcesSnapshot& nodeResourcesSnapshot,
-    const TJobResourcesWithQuota& jobResourcesWithQuota,
+    const TJobResourcesWithQuota& allocationResourcesWithQuota,
     const TJobResources& totalResourceLimits)
 {
     auto nodeFree = ToRatio(nodeResourcesSnapshot.Free(), totalResourceLimits);
-    auto jobDemand = ToRatio(jobResourcesWithQuota.ToJobResources(), totalResourceLimits);
+    auto allocationDemand = ToRatio(allocationResourcesWithQuota.ToJobResources(), totalResourceLimits);
 
-    double angleMetric = 1 - CosBetween(jobDemand, nodeFree);  // Between 0 and 1.
-    double lengthMetric = Length(nodeFree) / Length(jobDemand);  // At least 1.
+    double angleMetric = 1 - CosBetween(allocationDemand, nodeFree);  // Between 0 and 1.
+    double lengthMetric = Length(nodeFree) / Length(allocationDemand);  // At least 1.
 
     return angleMetric * lengthMetric;
 }
 
 double AnglePackingMetric(
     const TPackingNodeResourcesSnapshot& nodeResourcesSnapshot,
-    const TJobResourcesWithQuota& jobResourcesWithQuota,
+    const TJobResourcesWithQuota& allocationResourcesWithQuota,
     const TJobResources& totalResourceLimits)
 {
     auto nodeFree = ToRatio(nodeResourcesSnapshot.Free(), totalResourceLimits);
-    auto jobDemand = ToRatio(jobResourcesWithQuota.ToJobResources(), totalResourceLimits);
-    return 1 - CosBetween(jobDemand, nodeFree);
+    auto allocationDemand = ToRatio(allocationResourcesWithQuota.ToJobResources(), totalResourceLimits);
+    return 1 - CosBetween(allocationDemand, nodeFree);
 }
 
 double PackingMetric(
     const TPackingNodeResourcesSnapshot& nodeResourcesSnapshot,
-    const TJobResourcesWithQuota& jobResourcesWithQuota,
+    const TJobResourcesWithQuota& allocationResourcesWithQuota,
     const TJobResources& totalResourceLimits,
     const TFairShareStrategyPackingConfigPtr& config)
 {
@@ -124,7 +124,7 @@ double PackingMetric(
         }
     };
 
-    return getMetricFunction(config->Metric)(nodeResourcesSnapshot, jobResourcesWithQuota, totalResourceLimits);
+    return getMetricFunction(config->Metric)(nodeResourcesSnapshot, allocationResourcesWithQuota, totalResourceLimits);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

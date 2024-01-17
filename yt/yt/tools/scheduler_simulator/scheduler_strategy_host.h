@@ -57,7 +57,7 @@ public:
 
     const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override;
     int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId) const override;
-    void AbortJobsAtNode(NNodeTrackerClient::TNodeId nodeId, NScheduler::EAbortReason reason) override;
+    void AbortAllocationsAtNode(NNodeTrackerClient::TNodeId nodeId, NScheduler::EAbortReason reason) override;
 
     std::optional<int> FindMediumIndexByName(const TString& mediumName) const override;
     const TString& GetMediumNameByIndex(int mediumIndex) const override;
@@ -81,7 +81,7 @@ public:
     void AbortOperation(NScheduler::TOperationId operationId, const TError& error) override;
     void FlushOperationNode(NScheduler::TOperationId operationId) override;
 
-    void PreemptJob(const NScheduler::TJobPtr& job, TDuration interruptTimeout);
+    void PreemptAllocation(const NScheduler::TAllocationPtr& allocation, TDuration interruptTimeout);
 
     NYson::IYsonConsumer* GetEventLogConsumer() override;
 
@@ -116,7 +116,7 @@ public:
 private:
     const std::vector<NScheduler::TExecNodePtr>* ExecNodes_;
     NScheduler::TJobResources TotalResourceLimits_;
-    mutable THashMap<NScheduler::TSchedulingTagFilter, NScheduler::TJobResources> FilterToJobResources_;
+    mutable THashMap<NScheduler::TSchedulingTagFilter, NScheduler::TJobResources> FilterToAllocationResources_;
     mutable THashMap<NScheduler::TSchedulingTagFilter, NScheduler::TMemoryDistribution> FilterToMemoryDistribution_;
     std::optional<NYson::TYsonWriter> LocalEventLogWriter_;
 

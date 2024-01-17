@@ -12,7 +12,7 @@
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
 

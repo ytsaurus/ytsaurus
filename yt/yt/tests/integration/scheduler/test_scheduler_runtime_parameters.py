@@ -655,7 +655,7 @@ class TestOperationDetailedLogs(YTEnvSetup):
         }
     }
 
-    def get_scheduled_job_log_entries(self):
+    def get_scheduled_allocation_log_entries(self):
         scheduler_debug_logs_filename = self.Env.configs["scheduler"][0]["logging"]["writers"]["debug"]["file_name"]
 
         if scheduler_debug_logs_filename.endswith(".zst"):
@@ -668,7 +668,7 @@ class TestOperationDetailedLogs(YTEnvSetup):
         else:
             logfile = open(scheduler_debug_logs_filename, "b")
 
-        return [line for line in logfile if "Scheduled a job" in line]
+        return [line for line in logfile if "Scheduled an allocation" in line]
 
     @authors("antonkikh")
     def test_enable_detailed_logs(self):
@@ -680,7 +680,7 @@ class TestOperationDetailedLogs(YTEnvSetup):
 
         # Check that there are no detailed logs by default.
 
-        assert len(self.get_scheduled_job_log_entries()) == 0
+        assert len(self.get_scheduled_allocation_log_entries()) == 0
 
         # Enable detailed logging and check that expected the expected log entries are produced.
 
@@ -698,8 +698,8 @@ class TestOperationDetailedLogs(YTEnvSetup):
         set("//sys/pool_trees/default/fake_pool/@resource_limits/user_slots", 3)
         wait(lambda: len(op.get_running_jobs()) == 3)
 
-        wait(lambda: len(self.get_scheduled_job_log_entries()) == 2)
-        log_entries = self.get_scheduled_job_log_entries()
+        wait(lambda: len(self.get_scheduled_allocation_log_entries()) == 2)
+        log_entries = self.get_scheduled_allocation_log_entries()
         for log_entry in log_entries:
             assert "OperationId: {}".format(op.id) in log_entry
             assert "TreeId: default" in log_entry
@@ -720,7 +720,7 @@ class TestOperationDetailedLogs(YTEnvSetup):
         set("//sys/pool_trees/default/fake_pool/@resource_limits/user_slots", 4)
         wait(lambda: len(op.get_running_jobs()) == 4)
 
-        log_entries = self.get_scheduled_job_log_entries()
+        log_entries = self.get_scheduled_allocation_log_entries()
         assert len(log_entries) == 2
 
         op.abort()

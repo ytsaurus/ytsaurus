@@ -24,39 +24,39 @@ TFairShareTreeSchedulingSnapshot::TFairShareTreeSchedulingSnapshot(
     TStaticAttributesList staticAttributesList,
     TOperationElementsBySchedulingPriority schedulableOperationsPerPriority,
     THashSet<int> ssdPriorityPreemptionMedia,
-    TCachedJobPreemptionStatuses cachedJobPreemptionStatuses,
+    TCachedAllocationPreemptionStatuses cachedAllocationPreemptionStatuses,
     std::vector<TSchedulingTagFilter> knownSchedulingTagFilters,
     TOperationCountsByPreemptionPriorityParameters operationCountsByPreemptionPriorityParameters,
-    TFairShareTreeJobSchedulerOperationStateMap operationIdToState,
-    TFairShareTreeJobSchedulerSharedOperationStateMap operationIdToSharedState)
+    TFairShareTreeAllocationSchedulerOperationStateMap operationIdToState,
+    TFairShareTreeAllocationSchedulerSharedOperationStateMap operationIdToSharedState)
     : StaticAttributesList_(std::move(staticAttributesList))
     , SchedulableOperationsPerPriority_(std::move(schedulableOperationsPerPriority))
     , SsdPriorityPreemptionMedia_(std::move(ssdPriorityPreemptionMedia))
-    , CachedJobPreemptionStatuses_(std::move(cachedJobPreemptionStatuses))
+    , CachedAllocationPreemptionStatuses_(std::move(cachedAllocationPreemptionStatuses))
     , KnownSchedulingTagFilters_(std::move(knownSchedulingTagFilters))
     , OperationCountsByPreemptionPriorityParameters_(std::move(operationCountsByPreemptionPriorityParameters))
     , OperationIdToState_(std::move(operationIdToState))
     , OperationIdToSharedState_(std::move(operationIdToSharedState))
 { }
 
-const TFairShareTreeJobSchedulerOperationStatePtr& TFairShareTreeSchedulingSnapshot::GetOperationState(const TSchedulerOperationElement* element) const
+const TFairShareTreeAllocationSchedulerOperationStatePtr& TFairShareTreeSchedulingSnapshot::GetOperationState(const TSchedulerOperationElement* element) const
 {
     return GetOrCrash(OperationIdToState_, element->GetOperationId());
 }
 
-const TFairShareTreeJobSchedulerOperationSharedStatePtr& TFairShareTreeSchedulingSnapshot::GetOperationSharedState(const TSchedulerOperationElement* element) const
+const TFairShareTreeAllocationSchedulerOperationSharedStatePtr& TFairShareTreeSchedulingSnapshot::GetOperationSharedState(const TSchedulerOperationElement* element) const
 {
     return GetOrCrash(OperationIdToSharedState_, element->GetOperationId());
 }
 
-const TFairShareTreeJobSchedulerOperationStatePtr& TFairShareTreeSchedulingSnapshot::GetEnabledOperationState(const TSchedulerOperationElement* element) const
+const TFairShareTreeAllocationSchedulerOperationStatePtr& TFairShareTreeSchedulingSnapshot::GetEnabledOperationState(const TSchedulerOperationElement* element) const
 {
     const auto& operationState = StaticAttributesList_.AttributesOf(element).OperationState;
     YT_ASSERT(operationState);
     return operationState;
 }
 
-const TFairShareTreeJobSchedulerOperationSharedStatePtr& TFairShareTreeSchedulingSnapshot::GetEnabledOperationSharedState(const TSchedulerOperationElement* element) const
+const TFairShareTreeAllocationSchedulerOperationSharedStatePtr& TFairShareTreeSchedulingSnapshot::GetEnabledOperationSharedState(const TSchedulerOperationElement* element) const
 {
     const auto& operationSharedState = StaticAttributesList_.AttributesOf(element).OperationSharedState;
     YT_ASSERT(operationSharedState);

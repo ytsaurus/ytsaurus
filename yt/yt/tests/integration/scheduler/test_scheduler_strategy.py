@@ -84,7 +84,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
     def setup_method(self, method):
         super(TestResourceUsage, self).setup_method(method)
         set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
-        set("//sys/pool_trees/default/@config/max_unpreemptible_running_job_count", 0)
+        set("//sys/pool_trees/default/@config/max_unpreemptible_running_allocation_count", 0)
         time.sleep(0.5)
 
     def _check_running_jobs(self, op, desired_running_jobs):
@@ -1430,7 +1430,7 @@ class TestSchedulerHangingOperations(YTEnvSetup):
 
         result = str(get(op.get_path() + "/@result"))
         assert "scheduling hung" in result
-        assert "no successful scheduled jobs" in result
+        assert "no successful scheduled allocations" in result
 
     @authors("eshcherbin")
     def test_disable_limiting_ancestor_check_for_operation(self):
@@ -2287,7 +2287,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "running_jobs_update_period": 100,  # 100 msec
+            "running_allocations_update_period": 100,  # 100 msec
         }
     }
 

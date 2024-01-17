@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 #include <yt/yt/ytlib/scheduler/proto/scheduler_service.pb.h>
 
 #include <yt/yt/ytlib/transaction_client/public.h>
@@ -105,7 +105,7 @@ TError GetUserTransactionAbortedError(NObjectClient::TTransactionId transactionI
 void ValidateOperationAccess(
     const std::optional<TString>& user,
     TOperationId operationId,
-    TJobId jobId,
+    TAllocationId allocationId,
     NYTree::EPermissionSet permissionSet,
     const NSecurityClient::TSerializableAccessControlList& acl,
     const NApi::IClientPtr& client,

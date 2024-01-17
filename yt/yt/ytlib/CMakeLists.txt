@@ -1001,7 +1001,7 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/orchid/proto/orchid_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/replicated_table_tracker_client/proto/replicated_table_tracker_client.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/allocation.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/job.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/resources.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/pool_ypath.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/scheduler_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/security_client/proto/account_ypath.proto

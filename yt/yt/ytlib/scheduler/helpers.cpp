@@ -353,7 +353,7 @@ TError GetUserTransactionAbortedError(TTransactionId transactionId)
 void ValidateOperationAccess(
     const std::optional<TString>& user,
     TOperationId operationId,
-    TJobId jobId,
+    TAllocationId allocationId,
     EPermissionSet permissionSet,
     const NSecurityClient::TSerializableAccessControlList& acl,
     const IClientPtr& client,
@@ -376,9 +376,10 @@ void ValidateOperationAccess(
         .ValueOrThrow();
 
     if (!results.empty() && !results.front().MissingSubjects.empty()) {
-        YT_LOG_DEBUG("Operation has missing subjects in ACL (OperationId: %v, JobId: %v, MissingSubjects: %v)",
+        YT_LOG_DEBUG(
+            "Operation has missing subjects in ACL (OperationId: %v, AllocationId: %v, MissingSubjects: %v)",
             operationId ? ToString(operationId) : "<unknown>",
-            jobId ? ToString(jobId) : "<unknown>",
+            allocationId ? ToString(allocationId) : "<unknown>",
             results.front().MissingSubjects);
     }
 
@@ -396,16 +397,17 @@ void ValidateOperationAccess(
             if (operationId) {
                 error = error << TErrorAttribute("operation_id", operationId);
             }
-            if (jobId) {
-                error = error << TErrorAttribute("job_id", jobId);
+            if (allocationId) {
+                error = error << TErrorAttribute("allocation_id", allocationId);
             }
             THROW_ERROR error;
         }
     }
 
-    YT_LOG_DEBUG("Operation access successfully validated (OperationId: %v, JobId: %v, User: %v, Permissions: %v, Acl: %v)",
+    YT_LOG_DEBUG(
+        "Operation access successfully validated (OperationId: %v, AllocationId: %v, User: %v, Permissions: %v, Acl: %v)",
         operationId ? ToString(operationId) : "<unknown>",
-        jobId ? ToString(jobId) : "<unknown>",
+        allocationId ? ToString(allocationId) : "<unknown>",
         user,
         permissionSet,
         ConvertToYsonString(acl, EYsonFormat::Text));

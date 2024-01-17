@@ -128,10 +128,9 @@
         "node_shard_exec_nodes_cache_update_period" = 100;
         "orchid_keys_update_period" = 100;
         "validate_node_tags_period" = 100;
-        "job_revival_abort_timeout" = 2000;
         "lock_transaction_timeout" = 30000;
         "parse_operation_attributes_batch_size" = 2;
-        "schedule_job_time_limit" = 5000;
+        "schedule_allocation_time_limit" = 5000;
         "exec_node_descriptors_update_period" = 100;
     };
     "solomon_exporter" = {

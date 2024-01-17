@@ -455,8 +455,9 @@ void TJobProxy::RetrieveJobSpec()
     Ports_ = FromProto<std::vector<int>>(rsp->ports());
 
     auto authenticatedUser = GetJobSpecHelper()->GetJobSpecExt().authenticated_user();
-    YT_LOG_INFO("Job spec received (JobType: %v, AuthenticatedUser: %v, ResourceLimits: {Cpu: %v, Memory: %v, Network: %v})",
-        NScheduler::EJobType(rsp->job_spec().type()),
+    YT_LOG_INFO(
+        "Job spec received (JobType: %v, AuthenticatedUser: %v, ResourceLimits: {Cpu: %v, Memory: %v, Network: %v})",
+        EJobType(rsp->job_spec().type()),
         authenticatedUser,
         resourceUsage.cpu(),
         resourceUsage.memory(),
@@ -594,29 +595,29 @@ IJobPtr TJobProxy::CreateBuiltinJob()
 {
     auto jobType = GetJobSpecHelper()->GetJobType();
     switch (jobType) {
-        case NScheduler::EJobType::OrderedMerge:
+        case EJobType::OrderedMerge:
             return CreateOrderedMergeJob(this);
 
-        case NScheduler::EJobType::UnorderedMerge:
+        case EJobType::UnorderedMerge:
             return CreateUnorderedMergeJob(this);
 
-        case NScheduler::EJobType::SortedMerge:
+        case EJobType::SortedMerge:
             return CreateSortedMergeJob(this);
 
-        case NScheduler::EJobType::FinalSort:
-        case NScheduler::EJobType::IntermediateSort:
+        case EJobType::FinalSort:
+        case EJobType::IntermediateSort:
             return CreatePartitionSortJob(this);
 
-        case NScheduler::EJobType::SimpleSort:
+        case EJobType::SimpleSort:
             return CreateSimpleSortJob(this);
 
-        case NScheduler::EJobType::Partition:
+        case EJobType::Partition:
             return CreatePartitionJob(this);
 
-        case NScheduler::EJobType::RemoteCopy:
+        case EJobType::RemoteCopy:
             return CreateRemoteCopyJob(this);
 
-        case NScheduler::EJobType::ShallowMerge:
+        case EJobType::ShallowMerge:
             return CreateShallowMergeJob(this);
 
         default:

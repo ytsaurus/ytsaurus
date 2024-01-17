@@ -34,7 +34,7 @@ TFairShareTreeProfileManager::TFairShareTreeProfileManager(
     TProfiler profiler,
     bool sparsifyMetrics,
     const IInvokerPtr& profilingInvoker,
-    TFairShareTreeJobSchedulerPtr treeScheduler)
+    TFairShareTreeAllocationSchedulerPtr treeScheduler)
     : Profiler_(std::move(profiler))
     , SparsifyMetrics_(sparsifyMetrics)
     , ProfilingInvoker_(profilingInvoker)
@@ -325,7 +325,7 @@ void TFairShareTreeProfileManager::ProfileElement(
         }
     }
 
-    for (auto preemptionReason : TEnumTraits<EJobPreemptionReason>::GetDomainValues()) {
+    for (auto preemptionReason : TEnumTraits<EAllocationPreemptionReason>::GetDomainValues()) {
         auto preemptedResourcesIt = PreemptedResourcesByReasonMap_[preemptionReason].find(element->GetId());
         auto preemptedResourceTimesIt = PreemptedResourceTimesByReasonMap_[preemptionReason].find(element->GetId());
         auto improperlyPreemptedResourceIt = ImproperlyPreemptedResourcesByReasonMap_[preemptionReason].find(element->GetId());
@@ -596,10 +596,10 @@ void TFairShareTreeProfileManager::ApplyJobMetricsDelta(
 
 void TFairShareTreeProfileManager::ApplyScheduledAndPreemptedResourcesDelta(
     const TFairShareTreeSnapshotPtr& treeSnapshot,
-    const THashMap<std::optional<EJobSchedulingStage>, TOperationIdToJobResources>& scheduledJobResources,
-    const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResources,
-    const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& preemptedJobResourceTimes,
-    const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& improperlyPreemptedJobResources)
+    const THashMap<std::optional<EAllocationSchedulingStage>, TOperationIdToJobResources>& scheduledAllocationResources,
+    const TEnumIndexedVector<EAllocationPreemptionReason, TOperationIdToJobResources>& preemptedAllocationResources,
+    const TEnumIndexedVector<EAllocationPreemptionReason, TOperationIdToJobResources>& preemptedAllocationResourceTimes,
+    const TEnumIndexedVector<EAllocationPreemptionReason, TOperationIdToJobResources>& improperlyPreemptedAllocationResources)
 {
     VERIFY_INVOKER_AFFINITY(ProfilingInvoker_);
 
@@ -618,14 +618,14 @@ void TFairShareTreeProfileManager::ApplyScheduledAndPreemptedResourcesDelta(
         }
     };
 
-    for (const auto& [schedulingStage, scheduledJobResourcesDeltas] : scheduledJobResources) {
-        applyDeltas(scheduledJobResourcesDeltas, ScheduledResourcesByStageMap_[schedulingStage]);
+    for (const auto& [schedulingStage, scheduledAllocationResourcesDeltas] : scheduledAllocationResources) {
+        applyDeltas(scheduledAllocationResourcesDeltas, ScheduledResourcesByStageMap_[schedulingStage]);
     }
 
-    for (auto preemptionReason : TEnumTraits<EJobPreemptionReason>::GetDomainValues()) {
-        applyDeltas(preemptedJobResources[preemptionReason], PreemptedResourcesByReasonMap_[preemptionReason]);
-        applyDeltas(preemptedJobResourceTimes[preemptionReason], PreemptedResourceTimesByReasonMap_[preemptionReason]);
-        applyDeltas(improperlyPreemptedJobResources[preemptionReason], ImproperlyPreemptedResourcesByReasonMap_[preemptionReason]);
+    for (auto preemptionReason : TEnumTraits<EAllocationPreemptionReason>::GetDomainValues()) {
+        applyDeltas(preemptedAllocationResources[preemptionReason], PreemptedResourcesByReasonMap_[preemptionReason]);
+        applyDeltas(preemptedAllocationResourceTimes[preemptionReason], PreemptedResourceTimesByReasonMap_[preemptionReason]);
+        applyDeltas(improperlyPreemptedAllocationResources[preemptionReason], ImproperlyPreemptedResourcesByReasonMap_[preemptionReason]);
     }
 }
 

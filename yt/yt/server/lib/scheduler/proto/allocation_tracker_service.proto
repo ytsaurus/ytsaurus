@@ -3,7 +3,7 @@ package NYT.NScheduler.NProto.NNode;
 import "yt/ytlib/controller_agent/proto/controller_agent_descriptor.proto";
 
 import "yt/ytlib/scheduler/proto/allocation.proto";
-import "yt/ytlib/scheduler/proto/job.proto";
+import "yt/ytlib/scheduler/proto/resources.proto";
 
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 

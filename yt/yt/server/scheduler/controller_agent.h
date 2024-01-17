@@ -22,8 +22,6 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TStartedJobSummary = NControllerAgent::TStartedJobSummary;
-using TFinishedJobSummary = NControllerAgent::TFinishedJobSummary;
 using TAbortedAllocationSummary = NControllerAgent::TAbortedAllocationSummary;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,33 +34,33 @@ struct TSchedulerToAgentOperationEvent
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TScheduleJobSpec
+struct TScheduleAllocationSpec
 {
-    std::optional<TDuration> WaitingJobTimeout;
+    std::optional<TDuration> WaitingForResourcesOnNodeTimeout;
 };
 
-struct TScheduleJobRequest
+struct TScheduleAllocationRequest
 {
     TOperationId OperationId;
-    TJobId JobId;
-    TJobResources JobResourceLimits;
+    TAllocationId AllocationId;
+    TJobResources AllocationResourceLimits;
     TString TreeId;
     TString PoolPath;
     NNodeTrackerClient::TNodeId NodeId;
     TJobResources NodeResourceLimits;
     NNodeTrackerClient::NProto::TDiskResources NodeDiskResources;
-    TScheduleJobSpec Spec;
+    TScheduleAllocationSpec Spec;
 };
 
-using TScheduleJobRequestPtr = std::unique_ptr<TScheduleJobRequest>;
+using TScheduleAllocationRequestPtr = std::unique_ptr<TScheduleAllocationRequest>;
 
-void ToProto(NProto::TScheduleJobRequest* protoRequest, const TScheduleJobRequest& request);
+void ToProto(NProto::TScheduleAllocationRequest* protoRequest, const TScheduleAllocationRequest& request);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 using TSchedulerToAgentAbortedAllocationEventOutboxPtr = TIntrusivePtr<TMessageQueueOutbox<TAbortedAllocationSummary>>;
 using TSchedulerToAgentOperationEventOutboxPtr = TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>>;
-using TScheduleJobRequestOutboxPtr = TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>>;
+using TScheduleAllocationRequestOutboxPtr = TIntrusivePtr<TMessageQueueOutbox<TScheduleAllocationRequestPtr>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -137,12 +135,12 @@ public:
     void SetIncarnationTransaction(NApi::ITransactionPtr transaction);
 
     TMessageQueueInbox* GetOperationEventsInbox();
-    TMessageQueueInbox* GetRunningJobStatisticsUpdatesInbox();
-    TMessageQueueInbox* GetScheduleJobResponsesInbox();
+    TMessageQueueInbox* GetRunningAllocationStatisticsUpdatesInbox();
+    TMessageQueueInbox* GetScheduleAllocationResponsesInbox();
 
     const TSchedulerToAgentAbortedAllocationEventOutboxPtr& GetAbortedAllocationEventsOutbox();
     const TSchedulerToAgentOperationEventOutboxPtr& GetOperationEventsOutbox();
-    const TScheduleJobRequestOutboxPtr& GetScheduleJobRequestsOutbox();
+    const TScheduleAllocationRequestOutboxPtr& GetScheduleAllocationRequestsOutbox();
 
     void Cancel(const TError& error);
     const IInvokerPtr& GetCancelableInvoker();
@@ -169,12 +167,12 @@ private:
     NApi::ITransactionPtr IncarnationTransaction_;
 
     std::unique_ptr<TMessageQueueInbox> OperationEventsInbox_;
-    std::unique_ptr<TMessageQueueInbox> RunningJobStatisticsUpdatesInbox_;
-    std::unique_ptr<TMessageQueueInbox> ScheduleJobResponsesInbox_;
+    std::unique_ptr<TMessageQueueInbox> RunningAllocationStatisticsUpdatesInbox_;
+    std::unique_ptr<TMessageQueueInbox> ScheduleAllocationResponsesInbox_;
 
     TSchedulerToAgentAbortedAllocationEventOutboxPtr AbortedAllocationEventsOutbox_;
     TSchedulerToAgentOperationEventOutboxPtr OperationEventsOutbox_;
-    TScheduleJobRequestOutboxPtr ScheduleJobRequestsOutbox_;
+    TScheduleAllocationRequestOutboxPtr ScheduleAllocationRequestsOutbox_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, MemoryStatisticsLock_);
     std::optional<TControllerAgentMemoryStatistics> MemoryStatistics_;

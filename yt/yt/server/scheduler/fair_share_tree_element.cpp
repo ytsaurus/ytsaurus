@@ -24,7 +24,6 @@
 namespace NYT::NScheduler {
 
 using namespace NConcurrency;
-using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NYson;
 using namespace NYTree;
@@ -264,9 +263,9 @@ TInstant TSchedulerElement::GetStartTime() const
     return StartTime_;
 }
 
-i64 TSchedulerElement::GetPendingJobCount() const
+i64 TSchedulerElement::GetPendingAllocationCount() const
 {
-    return PendingJobCount_;
+    return PendingAllocationCount_;
 }
 
 ESchedulableStatus TSchedulerElement::GetStatus() const
@@ -744,7 +743,7 @@ void TSchedulerCompositeElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
 
         ResourceUsageAtUpdate_ += child->GetResourceUsageAtUpdate();
         ResourceDemand_ += child->GetResourceDemand();
-        PendingJobCount_ += child->GetPendingJobCount();
+        PendingAllocationCount_ += child->GetPendingAllocationCount();
 
         if (IsInferringChildrenWeightsFromHistoricUsageEnabled()) {
             // NB(eshcherbin): This is a lazy parameters update so it has to be done every time.
@@ -1106,11 +1105,12 @@ bool TSchedulerCompositeElement::HasHigherPriorityInFifoMode(const TSchedulerEle
                 }
                 break;
             }
-            case EFifoSortParameter::PendingJobCount: {
-                int lhsPendingJobCount = lhs->GetPendingJobCount();
-                int rhsPendingJobCount = rhs->GetPendingJobCount();
-                if (lhsPendingJobCount != rhsPendingJobCount) {
-                    return lhsPendingJobCount < rhsPendingJobCount;
+            case EFifoSortParameter::PendingJobCount:
+            case EFifoSortParameter::PendingAllocationCount: {
+                int lhsPendingAllocationCount = lhs->GetPendingAllocationCount();
+                int rhsPendingAllocationCount = rhs->GetPendingAllocationCount();
+                if (lhsPendingAllocationCount != rhsPendingAllocationCount) {
+                    return lhsPendingAllocationCount < rhsPendingAllocationCount;
                 }
                 break;
             }
@@ -1765,10 +1765,10 @@ void TSchedulerOperationElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
     YT_VERIFY(Mutable_);
 
     TotalNeededResources_ = Controller_->GetNeededResources().GetNeededResourcesForTree(TreeId_);
-    PendingJobCount_ = TotalNeededResources_.GetUserSlots();
-    DetailedMinNeededJobResources_ = Controller_->GetDetailedMinNeededJobResources();
-    AggregatedMinNeededJobResources_ = Controller_->GetAggregatedMinNeededJobResources();
-    ScheduleJobBackoffCheckEnabled_ = Controller_->ScheduleJobBackoffObserved();
+    PendingAllocationCount_ = TotalNeededResources_.GetUserSlots();
+    DetailedMinNeededAllocationResources_ = Controller_->GetDetailedMinNeededAllocationResources();
+    AggregatedMinNeededAllocationResources_ = Controller_->GetAggregatedMinNeededAllocationResources();
+    ScheduleAllocationBackoffCheckEnabled_ = Controller_->ScheduleAllocationBackoffObserved();
 
     UnschedulableReason_ = ComputeUnschedulableReason();
     ResourceUsageAtUpdate_ = GetInstantResourceUsage();
@@ -1785,7 +1785,7 @@ void TSchedulerOperationElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
             Min(ResourceDemand_, *MaybeSpecifiedResourceLimits_) - ResourceUsageAtUpdate_,
             TJobResources());
         ResourceDemand_ = ResourceUsageAtUpdate_ + TotalNeededResources_;
-        PendingJobCount_ = TotalNeededResources_.GetUserSlots();
+        PendingAllocationCount_ = TotalNeededResources_.GetUserSlots();
     }
 
     // NB: It was moved from regular fair share update for performing split.
@@ -1806,8 +1806,8 @@ void TSchedulerOperationElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
             PersistentAttributes_.BestAllocationShare);
     }
 
-    for (const auto& jobResourcesWithQuota : DetailedMinNeededJobResources_) {
-        for (auto [index, _] : jobResourcesWithQuota.DiskQuota().DiskSpacePerMedium) {
+    for (const auto& allocationResourcesWithQuota : DetailedMinNeededAllocationResources_) {
+        for (auto [index, _] : allocationResourcesWithQuota.DiskQuota().DiskSpacePerMedium) {
             DiskRequestMedia_.insert(index);
         }
     }
@@ -1830,14 +1830,14 @@ void TSchedulerOperationElement::UpdateRecursiveAttributes()
     TSchedulerElement::UpdateRecursiveAttributes();
 
     // TODO(eshcherbin): Consider deleting this option from operation spec, as it is useless.
-    if (auto unpreemptibleJobCount = Spec_->MaxUnpreemptibleRunningJobCount) {
+    if (auto unpreemptibleAllocationCount = Spec_->MaxUnpreemptibleRunningAllocationCount) {
         auto effectiveThresholdConfig = EffectiveNonPreemptibleResourceUsageThresholdConfig_->Clone();
         if (effectiveThresholdConfig->UserSlots) {
             effectiveThresholdConfig->UserSlots = std::min(
                 *effectiveThresholdConfig->UserSlots,
-                *unpreemptibleJobCount);
+                *unpreemptibleAllocationCount);
         } else {
-            effectiveThresholdConfig->UserSlots = *unpreemptibleJobCount;
+            effectiveThresholdConfig->UserSlots = *unpreemptibleAllocationCount;
         }
 
         EffectiveNonPreemptibleResourceUsageThresholdConfig_ = std::move(effectiveThresholdConfig);
@@ -1861,9 +1861,10 @@ void TSchedulerOperationElement::BuildLoggingStringAttributes(TDelimitedStringBu
 {
     TSchedulerElement::BuildLoggingStringAttributes(delimitedBuilder);
 
-    delimitedBuilder->AppendFormat("PendingJobs: %v, AggregatedMinNeededResources: %v",
-        PendingJobCount_,
-        AggregatedMinNeededJobResources_);
+    delimitedBuilder->AppendFormat(
+        "PendingAllocations: %v, AggregatedMinNeededResources: %v",
+        PendingAllocationCount_,
+        AggregatedMinNeededAllocationResources_);
 }
 
 bool TSchedulerOperationElement::AreDetailedLogsEnabled() const
@@ -1968,10 +1969,10 @@ void TSchedulerOperationElement::CheckForStarvation(TInstant now)
     auto fairShareStarvationTimeout = EffectiveFairShareStarvationTimeout_;
     auto fairShareAggressiveStarvationTimeout = TreeConfig_->FairShareAggressiveStarvationTimeout;
 
-    double jobCountRatio = GetPendingJobCount() / TreeConfig_->JobCountPreemptionTimeoutCoefficient;
-    if (jobCountRatio < 1.0) {
-        fairShareStarvationTimeout *= jobCountRatio;
-        fairShareAggressiveStarvationTimeout *= jobCountRatio;
+    double allocationCountRatio = GetPendingAllocationCount() / TreeConfig_->AllocationCountPreemptionTimeoutCoefficient;
+    if (allocationCountRatio < 1.0) {
+        fairShareStarvationTimeout *= allocationCountRatio;
+        fairShareAggressiveStarvationTimeout *= allocationCountRatio;
     }
 
     TSchedulerElement::CheckForStarvationImpl(
@@ -2042,8 +2043,8 @@ bool TSchedulerOperationElement::IsSchedulable() const
 std::optional<EUnschedulableReason> TSchedulerOperationElement::ComputeUnschedulableReason() const
 {
     auto result = OperationHost_->CheckUnschedulable(TreeId_);
-    if (!result && IsMaxScheduleJobCallsViolated()) {
-        result = EUnschedulableReason::MaxScheduleJobCallsViolated;
+    if (!result && IsMaxScheduleAllocationCallsViolated()) {
+        result = EUnschedulableReason::MaxScheduleAllocationCallsViolated;
     }
     return result;
 }
@@ -2053,38 +2054,38 @@ TControllerEpoch TSchedulerOperationElement::GetControllerEpoch() const
     return Controller_->GetEpoch();
 }
 
-void TSchedulerOperationElement::OnScheduleJobStarted(const ISchedulingContextPtr& schedulingContext)
+void TSchedulerOperationElement::OnScheduleAllocationStarted(const ISchedulingContextPtr& schedulingContext)
 {
-    Controller_->OnScheduleJobStarted(schedulingContext);
+    Controller_->OnScheduleAllocationStarted(schedulingContext);
 }
 
-void TSchedulerOperationElement::OnScheduleJobFinished(const ISchedulingContextPtr& schedulingContext)
+void TSchedulerOperationElement::OnScheduleAllocationFinished(const ISchedulingContextPtr& schedulingContext)
 {
-    Controller_->OnScheduleJobFinished(schedulingContext);
+    Controller_->OnScheduleAllocationFinished(schedulingContext);
 }
 
-bool TSchedulerOperationElement::IsMaxScheduleJobCallsViolated() const
+bool TSchedulerOperationElement::IsMaxScheduleAllocationCallsViolated() const
 {
-    return Controller_->CheckMaxScheduleJobCallsOverdraft(
-        Spec_->MaxConcurrentControllerScheduleJobCalls.value_or(
-            ControllerConfig_->MaxConcurrentControllerScheduleJobCalls));
+    return Controller_->CheckMaxScheduleAllocationCallsOverdraft(
+        Spec_->MaxConcurrentControllerScheduleAllocationCalls.value_or(
+            ControllerConfig_->MaxConcurrentControllerScheduleAllocationCalls));
 }
 
-bool TSchedulerOperationElement::IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(
+bool TSchedulerOperationElement::IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(
     const ISchedulingContextPtr& schedulingContext) const
 {
-    return Controller_->IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(schedulingContext);
+    return Controller_->IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(schedulingContext);
 }
 
-bool TSchedulerOperationElement::IsMaxConcurrentScheduleJobExecDurationPerNodeShardViolated(
+bool TSchedulerOperationElement::IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(
     const ISchedulingContextPtr& schedulingContext) const
 {
-    return Controller_->IsMaxConcurrentScheduleJobExecDurationPerNodeShardViolated(schedulingContext);
+    return Controller_->IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(schedulingContext);
 }
 
-bool TSchedulerOperationElement::HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const
+bool TSchedulerOperationElement::HasRecentScheduleAllocationFailure(NProfiling::TCpuInstant now) const
 {
-    return Controller_->HasRecentScheduleJobFailure(now);
+    return Controller_->HasRecentScheduleAllocationFailure(now);
 }
 
 bool TSchedulerOperationElement::IsSaturatedInTentativeTree(
@@ -2095,7 +2096,7 @@ bool TSchedulerOperationElement::IsSaturatedInTentativeTree(
     return Controller_->IsSaturatedInTentativeTree(now, treeId, saturationDeactivationTimeout);
 }
 
-TControllerScheduleJobResultPtr TSchedulerOperationElement::ScheduleJob(
+TControllerScheduleAllocationResultPtr TSchedulerOperationElement::ScheduleAllocation(
     const ISchedulingContextPtr& context,
     const TJobResources& availableResources,
     const NNodeTrackerClient::NProto::TDiskResources& availableDiskResources,
@@ -2103,23 +2104,29 @@ TControllerScheduleJobResultPtr TSchedulerOperationElement::ScheduleJob(
     const TString& treeId,
     const TFairShareStrategyTreeConfigPtr& treeConfig)
 {
-    return Controller_->ScheduleJob(context, availableResources, availableDiskResources, timeLimit, treeId, GetParent()->GetFullPath(/*explicitOnly*/ false), treeConfig);
+    return Controller_->ScheduleAllocation(
+        context,
+        availableResources,
+        availableDiskResources,
+        timeLimit,
+        treeId,
+        GetParent()->GetFullPath(/*explicitOnly*/ false), treeConfig);
 }
 
-void TSchedulerOperationElement::OnScheduleJobFailed(
+void TSchedulerOperationElement::OnScheduleAllocationFailed(
     TCpuInstant now,
     const TString& treeId,
-    const TControllerScheduleJobResultPtr& scheduleJobResult)
+    const TControllerScheduleAllocationResultPtr& scheduleAllocationResult)
 {
-    Controller_->OnScheduleJobFailed(now, treeId, scheduleJobResult);
+    Controller_->OnScheduleAllocationFailed(now, treeId, scheduleAllocationResult);
 }
 
-void TSchedulerOperationElement::AbortJob(
-    TJobId jobId,
+void TSchedulerOperationElement::AbortAllocation(
+    TAllocationId allocationId,
     EAbortReason abortReason,
-    TControllerEpoch jobEpoch)
+    TControllerEpoch allocationEpoch)
 {
-    Controller_->AbortJob(jobId, abortReason, jobEpoch);
+    Controller_->AbortAllocation(allocationId, abortReason, allocationEpoch);
 }
 
 TJobResources TSchedulerOperationElement::GetAggregatedInitialMinNeededResources() const
@@ -2129,7 +2136,7 @@ TJobResources TSchedulerOperationElement::GetAggregatedInitialMinNeededResources
         return *cypressMinNeededResources;
     }
 
-    return Controller_->GetAggregatedInitialMinNeededJobResources();
+    return Controller_->GetAggregatedInitialMinNeededAllocationResources();
 }
 
 EResourceTreeIncreaseResult TSchedulerOperationElement::TryIncreaseHierarchicalResourceUsagePrecommit(
@@ -2332,7 +2339,7 @@ void TSchedulerRootElement::PreUpdate(NVectorHdrf::TFairShareUpdateContext* cont
 
 /// Steps of fair share post update:
 ///
-/// 1. Publish the computed fair share to the shared resource tree and update the operations' preemptible job lists.
+/// 1. Publish the computed fair share to the shared resource tree and update the operations' preemptible allocation lists.
 ///
 /// 2. Update dynamic attributes based on the calculated fair share (for orchid).
 void TSchedulerRootElement::PostUpdate(TFairSharePostUpdateContext* postUpdateContext)

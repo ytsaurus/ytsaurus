@@ -39,7 +39,7 @@ struct TAgentToSchedulerOperationEvent
         TOperationId operationId,
         NScheduler::TControllerEpoch controllerEpoch,
         TString treeId,
-        std::vector<TJobId> jobIds);
+        std::vector<TAllocationId> allocationIds);
     static TAgentToSchedulerOperationEvent CreateHeavyControllerActionFinishedEvent(
         TOperationId operationId,
         NScheduler::TControllerEpoch controllerEpoch,
@@ -71,7 +71,7 @@ struct TAgentToSchedulerOperationEvent
     NScheduler::TControllerEpoch ControllerEpoch;
     TError Error;
     TString TentativeTreeId;
-    std::vector<TJobId> TentativeTreeJobIds;
+    std::vector<TAllocationId> TentativeTreeAllocationIds;
     std::optional<TOperationControllerInitializeResult> InitializeResult;
     std::optional<TOperationControllerPrepareResult> PrepareResult;
     std::optional<TOperationControllerMaterializeResult> MaterializeResult;
@@ -80,7 +80,7 @@ struct TAgentToSchedulerOperationEvent
 };
 
 using TAgentToSchedulerOperationEventOutboxPtr = TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerOperationEvent>>;
-using TAgentToSchedulerRunningJobStatisticsOutboxPtr = TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerRunningJobStatistics>>;
+using TAgentToSchedulerRunningAllocationStatisticsOutboxPtr = TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerRunningAllocationStatistics>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,7 +93,7 @@ public:
         IInvokerPtr cancelableControlInvoker,
         IInvokerPtr uncancelableControlInvoker,
         TAgentToSchedulerOperationEventOutboxPtr operationEventsOutbox,
-        TAgentToSchedulerRunningJobStatisticsOutboxPtr runningJobStatisticsUpdatesOutbox,
+        TAgentToSchedulerRunningAllocationStatisticsOutboxPtr runningAllocationStatisticsUpdatesOutbox,
         TBootstrap* bootstrap);
 
     void SetJobTrackerOperationHandler(TJobTrackerOperationHandlerPtr jobTrackerOperationHandler);
@@ -103,7 +103,7 @@ public:
 
     void InterruptJob(TJobId jobId, EInterruptReason reason, TDuration timeout) override;
     void RequestJobGracefulAbort(TJobId jobId, EAbortReason reason) override;
-    void UpdateRunningJobsStatistics(std::vector<TAgentToSchedulerRunningJobStatistics> runningJobStatisticsUpdates) override;
+    void UpdateRunningAllocationsStatistics(std::vector<TAgentToSchedulerRunningAllocationStatistics> runningAllocationStatisticsUpdates) override;
 
     void RegisterJob(TStartedJobInfo jobInfo) override;
     void ReviveJobs(std::vector<TStartedJobInfo> jobs) override;
@@ -159,7 +159,9 @@ public:
     void OnOperationAborted(const TError& error) override;
     void OnOperationFailed(const TError& error) override;
     void OnOperationSuspended(const TError& error) override;
-    void OnOperationBannedInTentativeTree(const TString& treeId, const std::vector<TJobId>& jobIds) override;
+    void OnOperationBannedInTentativeTree(
+        const TString& treeId,
+        const std::vector<TAllocationId>& allocationIds) override;
 
     void ValidateOperationAccess(
         const TString& user,
@@ -175,7 +177,7 @@ private:
     const IInvokerPtr UncancelableControlInvoker_;
     TJobTrackerOperationHandlerPtr JobTrackerOperationHandler_;
     const TAgentToSchedulerOperationEventOutboxPtr OperationEventsOutbox_;
-    const TAgentToSchedulerRunningJobStatisticsOutboxPtr RunningJobStatisticsUpdatesOutbox_;
+    const TAgentToSchedulerRunningAllocationStatisticsOutboxPtr RunningAllocationStatisticsUpdatesOutbox_;
     TBootstrap* const Bootstrap_;
     const TIncarnationId IncarnationId_;
     const NScheduler::TControllerEpoch ControllerEpoch_;

@@ -11,8 +11,8 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJob::TJob(
-    TJobId id,
+TAllocation::TAllocation(
+    TAllocationId id,
     TOperationId operationId,
     TIncarnationId incarnationId,
     TControllerEpoch controllerEpoch,
@@ -23,7 +23,7 @@ TJob::TJob(
     EPreemptionMode preemptionMode,
     TString treeId,
     int schedulingIndex,
-    std::optional<EJobSchedulingStage> schedulingStage,
+    std::optional<EAllocationSchedulingStage> schedulingStage,
     NNodeTrackerClient::TNodeId revivalNodeId,
     TString revivalNodeAddress)
     : Id_(id)
@@ -42,23 +42,23 @@ TJob::TJob(
     , SchedulingIndex_(schedulingIndex)
     , SchedulingStage_(schedulingStage)
     , Logger_(CreateLogger())
-    , CodicilString_(Format("JobId: %v, OperationId: %v", Id_, OperationId_))
+    , CodicilString_(Format("AllocationId: %v, OperationId: %v", Id_, OperationId_))
 { }
 
-void TJob::SetNode(const TExecNodePtr& node)
+void TAllocation::SetNode(const TExecNodePtr& node)
 {
     Node_ = node;
     Logger_ = CreateLogger();
 }
 
-bool TJob::IsRevived() const
+bool TAllocation::IsRevived() const
 {
     return RevivalNodeId_ != NNodeTrackerClient::InvalidNodeId;
 }
 
-NLogging::TLogger TJob::CreateLogger()
+NLogging::TLogger TAllocation::CreateLogger()
 {
-    return SchedulerLogger.WithTag("JobId: %v, OperationId: %v, Address: %v",
+    return SchedulerLogger.WithTag("AllocationId: %v, OperationId: %v, Address: %v",
         Id_,
         OperationId_,
         Node_ ? Node_->GetDefaultAddress() : "<unknown>");

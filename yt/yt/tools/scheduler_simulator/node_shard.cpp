@@ -25,10 +25,10 @@ using namespace NNodeTrackerClient;
 
 namespace {
 
-std::unique_ptr<TCompletedJobSummary> BuildCompletedJobSummary(const TJobPtr& job)
+std::unique_ptr<TCompletedJobSummary> BuildCompletedJobSummary(const TAllocationPtr& allocation)
 {
     TCompletedJobSummary jobSummary;
-    jobSummary.Id = job->GetId();
+    jobSummary.Id = JobIdFromAllocationId(allocation->GetId());
     jobSummary.State = EJobState::Completed;
     jobSummary.FinishTime = TInstant::Now();
 
@@ -105,14 +105,14 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
             TJobResources(node->GetResourceUsage()),
             TJobResources(node->GetResourceLimits()),
             node->GetDiskResources()),
-        node->Jobs().size());
+        node->Allocations().size());
 
     // Prepare scheduling context.
-    const auto& jobsSet = node->Jobs();
-    std::vector<TJobPtr> nodeJobs(jobsSet.begin(), jobsSet.end());
+    const auto& allocationsSet = node->Allocations();
+    std::vector<TAllocationPtr> nodeAllocations(allocationsSet.begin(), allocationsSet.end());
     // NB(eshcherbin): We usually create a lot of simulator node shards running over a small thread pool to
     // introduce artificial contention. Thus we need to reduce the shard id to the range [0, MaxNodeShardCount).
-    auto schedulingContext = New<TSchedulingContext>(Id_, SchedulerConfig_, node, nodeJobs, MediumDirectory_);
+    auto schedulingContext = New<TSchedulingContext>(Id_, SchedulerConfig_, node, nodeAllocations, MediumDirectory_);
     schedulingContext->SetNow(NProfiling::InstantToCpuInstant(event.Time));
 
     auto strategyProxy = SchedulingStrategy_->CreateNodeHeartbeatStrategyProxy(
@@ -127,45 +127,46 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
     node->SetResourceUsage(schedulingContext->ResourceUsage());
 
     // Create events for all started jobs.
-    for (const auto& job : schedulingContext->StartedJobs()) {
-        const auto& duration = GetOrCrash(schedulingContext->GetStartedJobsDurations(), job->GetId());
+    for (const auto& allocation : schedulingContext->StartedAllocations()) {
+        const auto& duration = GetOrCrash(schedulingContext->GetStartedAllocationsDurations(), allocation->GetId());
 
         // Notify scheduler.
-        job->SetAllocationState(EAllocationState::Running);
+        allocation->SetState(EAllocationState::Running);
 
-        YT_LOG_DEBUG("Job started (VirtualTimestamp: %v, JobId: %v, OperationId: %v, FinishTime: %v, NodeId: %v)",
+        YT_LOG_DEBUG(
+            "Allocation started (VirtualTimestamp: %v, AllocationId: %v, OperationId: %v, FinishTime: %v, NodeId: %v)",
             event.Time,
-            job->GetId(),
-            job->GetOperationId(),
+            allocation->GetId(),
+            allocation->GetOperationId(),
             event.Time + duration,
             event.NodeId);
 
         // Schedule new event.
-        Events_->InsertNodeEvent(CreateJobFinishedNodeEvent(
+        Events_->InsertNodeEvent(CreateAllocationFinishedNodeEvent(
             event.Time + duration,
-            job,
+            allocation,
             node,
             event.NodeId));
 
         // Update stats.
-        OperationStatistics_->OnJobStarted(job->GetOperationId(), duration);
+        OperationStatistics_->OnJobStarted(allocation->GetOperationId(), duration);
 
-        YT_VERIFY(node->Jobs().insert(job).second);
+        EmplaceOrCrash(node->Allocations(), allocation);
         JobAndOperationCounter_->OnJobStarted();
     }
 
-    // Process all preempted jobs.
-    for (const auto& preemptedJob : schedulingContext->PreemptedJobs()) {
-        auto& job = preemptedJob.Job;
-        auto duration = event.Time - job->GetStartTime();
+    // Process all preempted allocations.
+    for (const auto& preemptedAllocation : schedulingContext->PreemptedAllocations()) {
+        auto& allocation = preemptedAllocation.Allocation;
+        auto duration = event.Time - allocation->GetStartTime();
 
-        PreemptJob(job, Config_->EnableFullEventLog);
-        auto operation = RunningOperationsMap_->Get(job->GetOperationId());
+        PreemptAllocation(allocation, Config_->EnableFullEventLog);
+        auto operation = RunningOperationsMap_->Get(allocation->GetOperationId());
         auto controller = operation->GetControllerStrategyHost();
-        controller->OnNonscheduledJobAborted(job->GetId(), EAbortReason::Preemption, TControllerEpoch{});
+        controller->OnNonscheduledAllocationAborted(allocation->GetId(), EAbortReason::Preemption, TControllerEpoch{});
 
         // Update stats
-        OperationStatistics_->OnJobPreempted(job->GetOperationId(), duration);
+        OperationStatistics_->OnJobPreempted(allocation->GetOperationId(), duration);
 
         JobAndOperationCounter_->OnJobPreempted();
     }
@@ -185,96 +186,96 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
         "Heartbeat finished "
         "(VirtualTimestamp: %v, NodeId: %v, NodeAddress: %v, "
         "StartedJobs: %v, PreemptedJobs: %v, "
-        "JobsScheduledDuringPreemption: %v, UnconditionallyPreemptibleJobCount: %v, UnconditionalDiscount: %v, "
-        "TotalConditionalJobCount: %v, MaxConditionalJobCountPerPool: %v, MaxConditionalDiscount: %v, "
-        "ControllerScheduleJobCount: %v, ScheduleJobAttemptCountPerStage: %v, "
+        "AllocationsScheduledDuringPreemption: %v, UnconditionallyPreemptibleJobCount: %v, UnconditionalDiscount: %v, "
+        "TotalConditionalAllocationCount: %v, MaxConditionalAllocationCountPerPool: %v, MaxConditionalDiscount: %v, "
+        "ControllerScheduleAllocationCount: %v, ScheduleAllocationAttemptCountPerStage: %v, "
         "OperationCountByPreemptionPriority: %v, %v)",
         event.Time,
         event.NodeId,
         node->GetDefaultAddress(),
-        schedulingContext->StartedJobs().size(),
-        schedulingContext->PreemptedJobs().size(),
+        schedulingContext->StartedAllocations().size(),
+        schedulingContext->PreemptedAllocations().size(),
         statistics.ScheduledDuringPreemption,
-        statistics.UnconditionallyPreemptibleJobCount,
+        statistics.UnconditionallyPreemptibleAllocationCount,
         FormatResources(statistics.UnconditionalResourceUsageDiscount),
-        statistics.TotalConditionallyPreemptibleJobCount,
-        statistics.MaxConditionallyPreemptibleJobCountInPool,
+        statistics.TotalConditionallyPreemptibleAllocationCount,
+        statistics.MaxConditionallyPreemptibleAllocationCountInPool,
         FormatResources(statistics.MaxConditionalResourceUsageDiscount),
-        statistics.ControllerScheduleJobCount,
-        statistics.ScheduleJobAttemptCountPerStage,
+        statistics.ControllerScheduleAllocationCount,
+        statistics.ScheduleAllocationAttemptCountPerStage,
         statistics.OperationCountByPreemptionPriority,
         schedulingAttributesBuilder.Flush());
 }
 
-void TSimulatorNodeShard::OnJobFinished(const TNodeEvent& event)
+void TSimulatorNodeShard::OnAllocationFinished(const TNodeEvent& event)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    auto job = event.Job;
+    auto allocation = event.Allocation;
 
     // When job is aborted by scheduler, events list is not updated, so aborted
     // job will still have corresponding JobFinished event that should be ignored.
-    if (job->GetAllocationState() != EAllocationState::Running) {
+    if (allocation->GetState() != EAllocationState::Running) {
         return;
     }
 
-    YT_VERIFY(job->GetNode()->Jobs().erase(job) == 1);
+    EraseOrCrash(allocation->GetNode()->Allocations(), allocation);
 
     YT_LOG_DEBUG(
-        "Job finished (VirtualTimestamp: %v, JobId: %v, OperationId: %v, NodeId: %v)",
+        "Allocation finished (VirtualTimestamp: %v, AllocationId: %v, OperationId: %v, NodeId: %v)",
         event.Time,
-        job->GetId(),
-        job->GetOperationId(),
+        allocation->GetId(),
+        allocation->GetOperationId(),
         event.NodeId);
 
     JobAndOperationCounter_->OnJobFinished();
 
-    job->SetAllocationState(EAllocationState::Finished);
+    allocation->SetState(EAllocationState::Finished);
 
     if (Config_->EnableFullEventLog) {
-        LogFinishedJobFluently(ELogEventType::JobCompleted, job);
+        LogFinishedAllocationFluently(ELogEventType::JobCompleted, allocation);
     }
 
-    auto jobSummary = BuildCompletedJobSummary(job);
+    auto jobSummary = BuildCompletedJobSummary(allocation);
 
     // Notify scheduler.
-    auto operation = RunningOperationsMap_->Get(job->GetOperationId());
+    auto operation = RunningOperationsMap_->Get(allocation->GetOperationId());
     auto operationController = operation->GetController();
     operationController->OnJobCompleted(std::move(jobSummary));
     if (operationController->IsOperationCompleted()) {
         operation->SetState(EOperationState::Completed);
     }
 
-    std::vector<TJobUpdate> jobUpdates({TJobUpdate{
-        EJobUpdateStatus::Finished,
-        job->GetOperationId(),
-        job->GetId(),
-        job->GetTreeId(),
+    std::vector<TAllocationUpdate> allocationUpdates({TAllocationUpdate{
+        EAllocationUpdateStatus::Finished,
+        allocation->GetOperationId(),
+        allocation->GetId(),
+        allocation->GetTreeId(),
         TJobResources(),
-        /*jobDataCenter*/ std::nullopt,
-        /*jobInfinibandCluster*/ std::nullopt,
+        /*allocationDataCenter*/ std::nullopt,
+        /*allocationInfinibandCluster*/ std::nullopt,
     }});
 
     {
-        THashSet<TJobId> jobsToPostpone;
-        THashMap<TJobId, EAbortReason> jobsToAbort;
-        SchedulingStrategy_->ProcessJobUpdates(
-            jobUpdates,
-            &jobsToPostpone,
-            &jobsToAbort);
-        YT_VERIFY(jobsToPostpone.empty());
-        YT_VERIFY(jobsToAbort.empty());
+        THashSet<TAllocationId> allocationsToPostpone;
+        THashMap<TAllocationId, EAbortReason> allocationsToAbort;
+        SchedulingStrategy_->ProcessAllocationUpdates(
+            allocationUpdates,
+            &allocationsToPostpone,
+            &allocationsToAbort);
+        YT_VERIFY(allocationsToPostpone.empty());
+        YT_VERIFY(allocationsToAbort.empty());
     }
 
     // Schedule out of band heartbeat.
     Events_->InsertNodeEvent(CreateHeartbeatNodeEvent(event.Time, event.NodeId, /*scheduledOutOfBand*/ true));
 
     // Update statistics.
-    OperationStatistics_->OnJobFinished(operation->GetId(), event.Time - job->GetStartTime());
+    OperationStatistics_->OnJobFinished(operation->GetId(), event.Time - allocation->GetStartTime());
 
     const auto& node = IdToNode_[event.NodeId];
-    YT_VERIFY(node == event.JobNode);
-    node->SetResourceUsage(node->GetResourceUsage() - job->ResourceUsage());
+    YT_VERIFY(node == event.AllocationNode);
+    node->SetResourceUsage(node->GetResourceUsage() - allocation->ResourceUsage());
 
     if (operation->GetState() == EOperationState::Completed && operation->SetCompleting()) {
         // Notify scheduler.
@@ -326,13 +327,13 @@ void TSimulatorNodeShard::BuildNodeYson(const TExecNodePtr& node, TFluentMap flu
         .EndMap();
 }
 
-void TSimulatorNodeShard::PreemptJob(const NScheduler::TJobPtr& job, bool shouldLogEvent)
+void TSimulatorNodeShard::PreemptAllocation(const NScheduler::TAllocationPtr& allocation, bool shouldLogEvent)
 {
-    SchedulingStrategy_->PreemptJob(job);
+    SchedulingStrategy_->PreemptAllocation(allocation);
 
     if (shouldLogEvent) {
-        auto fluent = LogFinishedJobFluently(ELogEventType::JobAborted, job);
-        if (auto preemptedFor = job->GetPreemptedFor()) {
+        auto fluent = LogFinishedAllocationFluently(ELogEventType::JobAborted, allocation);
+        if (auto preemptedFor = allocation->GetPreemptedFor()) {
             fluent
                 .Item("preempted_for").Value(preemptedFor);
         }
@@ -350,15 +351,17 @@ const NLogging::TLogger* TSimulatorNodeShard::GetEventLogger()
     return nullptr;
 }
 
-NEventLog::TFluentLogEvent TSimulatorNodeShard::LogFinishedJobFluently(ELogEventType eventType, const TJobPtr& job)
+NEventLog::TFluentLogEvent TSimulatorNodeShard::LogFinishedAllocationFluently(
+    ELogEventType eventType,
+    const TAllocationPtr& allocation)
 {
-    YT_LOG_INFO("Logging job event");
+    YT_LOG_INFO("Logging allocation event");
 
     return LogEventFluently(StrategyHost_->GetEventLogger(), eventType)
-        .Item("job_id").Value(job->GetId())
-        .Item("operation_id").Value(job->GetOperationId())
-        .Item("start_time").Value(job->GetStartTime())
-        .Item("resource_limits").Value(job->ResourceLimits());
+        .Item("allocation_id").Value(allocation->GetId())
+        .Item("operation_id").Value(allocation->GetOperationId())
+        .Item("start_time").Value(allocation->GetStartTime())
+        .Item("resource_limits").Value(allocation->ResourceLimits());
 }
 
 int GetNodeShardId(TNodeId nodeId, int nodeShardCount)

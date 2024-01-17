@@ -11,7 +11,7 @@
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 
 #include <yt/yt/ytlib/security_client/helpers.h>
 

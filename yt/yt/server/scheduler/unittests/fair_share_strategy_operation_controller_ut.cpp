@@ -35,7 +35,7 @@ public:
         return TControllerEpoch(0);
     }
 
-    MOCK_METHOD(TFuture<TControllerScheduleJobResultPtr>, ScheduleJob, (
+    MOCK_METHOD(TFuture<TControllerScheduleAllocationResultPtr>, ScheduleAllocation, (
         const ISchedulingContextPtr& context,
         const TJobResources& jobLimits,
         const NNodeTrackerClient::NProto::TDiskResources& diskResourceLimits,
@@ -43,7 +43,7 @@ public:
         const TString& poolPath,
         const TFairShareStrategyTreeConfigPtr& treeConfig), (override));
 
-    MOCK_METHOD(void, OnNonscheduledJobAborted, (TJobId, EAbortReason, TControllerEpoch), (override));
+    MOCK_METHOD(void, OnNonscheduledAllocationAborted, (TAllocationId, EAbortReason, TControllerEpoch), (override));
 
     TCompositeNeededResources GetNeededResources() const override
     {
@@ -54,10 +54,10 @@ public:
         return TCompositeNeededResources{.DefaultResources = totalResources};
     }
 
-    void UpdateMinNeededJobResources() override
+    void UpdateMinNeededAllocationResources() override
     { }
 
-    TJobResourcesWithQuotaList GetMinNeededJobResources() const override
+    TJobResourcesWithQuotaList GetMinNeededAllocationResources() const override
     {
         TJobResourcesWithQuotaList minNeededResourcesList;
         for (const auto& resources : JobResourcesList_) {
@@ -75,9 +75,9 @@ public:
         return minNeededResourcesList;
     }
 
-    TJobResourcesWithQuotaList GetInitialMinNeededJobResources() const override
+    TJobResourcesWithQuotaList GetInitialMinNeededAllocationResources() const override
     {
-        return GetMinNeededJobResources();
+        return GetMinNeededAllocationResources();
     }
 
     EPreemptionMode PreemptionMode = EPreemptionMode::Normal;
@@ -277,26 +277,26 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentScheduleJobCallsThrottling)
+TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentScheduleAllocationCallsThrottling)
 {
     const int JobCount = 10;
-    SchedulerConfig_->MaxConcurrentControllerScheduleJobCalls = JobCount;
-    SchedulerConfig_->ConcurrentControllerScheduleJobCallsRegularization = 1.0;
+    SchedulerConfig_->MaxConcurrentControllerScheduleAllocationCalls = JobCount;
+    SchedulerConfig_->ConcurrentControllerScheduleAllocationCallsRegularization = 1.0;
 
     auto operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
     auto controller = CreateTestOperationController(operation.Get());
 
     auto readyToGo = NewPromise<void>();
-    std::atomic<int> concurrentScheduleJobCalls = 0;
+    std::atomic<int> concurrentScheduleAllocationCalls = 0;
     EXPECT_CALL(
         operation->GetOperationControllerStrategyHost(),
-        ScheduleJob(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
+        ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
         .Times(JobCount)
         .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
-            ++concurrentScheduleJobCalls;
+            ++concurrentScheduleAllocationCalls;
             EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
-            return MakeFuture<TControllerScheduleJobResultPtr>(
-                TErrorOr<TControllerScheduleJobResultPtr>(New<TControllerScheduleJobResult>()));
+            return MakeFuture<TControllerScheduleAllocationResultPtr>(
+                TErrorOr<TControllerScheduleAllocationResultPtr>(New<TControllerScheduleAllocationResult>()));
         }));
 
     TJobResourcesWithQuota nodeResources;
@@ -306,28 +306,28 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentScheduleJobCalls
     auto execNode = CreateTestExecNode(nodeResources);
 
     auto actionQueue = New<NConcurrency::TActionQueue>();
-    std::vector<TFuture<TControllerScheduleJobResultPtr>> futures;
+    std::vector<TFuture<TControllerScheduleAllocationResultPtr>> futures;
     std::vector<ISchedulingContextPtr> contexts;
     int concurrentCallsThrottlingCount = 0;
     int concurrentExecDurationThrottlingCount = 0;
     for (int i = 0; i < 2 * JobCount; ++i) {
         auto context = CreateTestSchedulingContext(execNode);
 
-        if (controller->IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(context)) {
+        if (controller->IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(context)) {
             ++concurrentCallsThrottlingCount;
             continue;
         }
-        if (controller->IsMaxConcurrentScheduleJobExecDurationPerNodeShardViolated(context)) {
+        if (controller->IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(context)) {
             ++concurrentExecDurationThrottlingCount;
             continue;
         }
 
         contexts.push_back(context);
 
-        controller->OnScheduleJobStarted(context);
+        controller->OnScheduleAllocationStarted(context);
 
         auto future = BIND([&, context] {
-            return controller->ScheduleJob(
+            return controller->ScheduleAllocation(
                 context,
                 nodeResources,
                 context->DiskResources(),
@@ -346,7 +346,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentScheduleJobCalls
     EXPECT_EQ(JobCount, concurrentCallsThrottlingCount);
     EXPECT_EQ(0, concurrentExecDurationThrottlingCount);
 
-    while (concurrentScheduleJobCalls != JobCount) {
+    while (concurrentScheduleAllocationCalls != JobCount) {
         // Actively waiting.
     }
 
@@ -354,39 +354,39 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentScheduleJobCalls
     EXPECT_TRUE(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2)).Get().IsOK());
 
     for (const auto& context : contexts) {
-        controller->OnScheduleJobFinished(context);
+        controller->OnScheduleAllocationFinished(context);
     }
 }
 
-TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentScheduleJobExecDurationThrottling)
+TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentScheduleAllocationExecDurationThrottling)
 {
     const int JobCount = 10;
-    SchedulerConfig_->MaxConcurrentControllerScheduleJobExecDuration = TDuration::Seconds(1);
-    SchedulerConfig_->EnableConcurrentScheduleJobExecDurationThrottling = true;
-    SchedulerConfig_->ConcurrentControllerScheduleJobCallsRegularization = 1.0;
+    SchedulerConfig_->MaxConcurrentControllerScheduleAllocationExecDuration = TDuration::Seconds(1);
+    SchedulerConfig_->EnableConcurrentScheduleAllocationExecDurationThrottling = true;
+    SchedulerConfig_->ConcurrentControllerScheduleAllocationCallsRegularization = 1.0;
 
     auto operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
     auto controller = CreateTestOperationController(operation.Get());
 
     auto readyToGo = NewPromise<void>();
-    std::atomic<int> concurrentScheduleJobCalls = 0;
+    std::atomic<int> concurrentScheduleAllocationCalls = 0;
     EXPECT_CALL(
         operation->GetOperationControllerStrategyHost(),
-        ScheduleJob(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
+        ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
         .Times(JobCount + 1)
         .WillOnce(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
-            auto result = New<TControllerScheduleJobResult>();
+            auto result = New<TControllerScheduleAllocationResult>();
             result->NextDurationEstimate = TDuration::MilliSeconds(100);
-            return MakeFuture<TControllerScheduleJobResultPtr>(
-                TErrorOr<TControllerScheduleJobResultPtr>(result));
+            return MakeFuture<TControllerScheduleAllocationResultPtr>(
+                TErrorOr<TControllerScheduleAllocationResultPtr>(result));
         }))
         .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
-            ++concurrentScheduleJobCalls;
+            ++concurrentScheduleAllocationCalls;
             EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
-            auto result = New<TControllerScheduleJobResult>();
+            auto result = New<TControllerScheduleAllocationResult>();
             result->NextDurationEstimate = TDuration::MilliSeconds(100);
-            return MakeFuture<TControllerScheduleJobResultPtr>(
-                TErrorOr<TControllerScheduleJobResultPtr>(result));
+            return MakeFuture<TControllerScheduleAllocationResultPtr>(
+                TErrorOr<TControllerScheduleAllocationResultPtr>(result));
         }));
 
     TJobResourcesWithQuota nodeResources;
@@ -399,12 +399,12 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentScheduleJobExecD
     {
         auto context = CreateTestSchedulingContext(execNode);
 
-        EXPECT_FALSE(controller->IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(context));
-        EXPECT_FALSE(controller->IsMaxConcurrentScheduleJobExecDurationPerNodeShardViolated(context));
+        EXPECT_FALSE(controller->IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(context));
+        EXPECT_FALSE(controller->IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(context));
 
-        controller->OnScheduleJobStarted(context);
+        controller->OnScheduleAllocationStarted(context);
 
-        controller->ScheduleJob(
+        controller->ScheduleAllocation(
             context,
             nodeResources,
             context->DiskResources(),
@@ -413,32 +413,32 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentScheduleJobExecD
             /*poolPath*/ "/pool",
             /*treeConfig*/ {});
 
-        controller->OnScheduleJobFinished(context);
+        controller->OnScheduleAllocationFinished(context);
     }
 
     auto actionQueue = New<NConcurrency::TActionQueue>();
-    std::vector<TFuture<TControllerScheduleJobResultPtr>> futures;
+    std::vector<TFuture<TControllerScheduleAllocationResultPtr>> futures;
     std::vector<ISchedulingContextPtr> contexts;
     int concurrentCallsThrottlingCount = 0;
     int concurrentExecDurationThrottlingCount = 0;
     for (int i = 0; i < 2 * JobCount; ++i) {
         auto context = CreateTestSchedulingContext(execNode);
 
-        if (controller->IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(context)) {
+        if (controller->IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(context)) {
             ++concurrentCallsThrottlingCount;
             continue;
         }
-        if (controller->IsMaxConcurrentScheduleJobExecDurationPerNodeShardViolated(context)) {
+        if (controller->IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(context)) {
             ++concurrentExecDurationThrottlingCount;
             continue;
         }
 
         contexts.push_back(context);
 
-        controller->OnScheduleJobStarted(context);
+        controller->OnScheduleAllocationStarted(context);
 
         auto future = BIND([&, context] {
-            return controller->ScheduleJob(
+            return controller->ScheduleAllocation(
                 context,
                 nodeResources,
                 context->DiskResources(),
@@ -457,7 +457,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentScheduleJobExecD
     EXPECT_EQ(0, concurrentCallsThrottlingCount);
     EXPECT_EQ(JobCount, concurrentExecDurationThrottlingCount);
 
-    while (concurrentScheduleJobCalls != JobCount) {
+    while (concurrentScheduleAllocationCalls != JobCount) {
         // Actively waiting.
     }
 
@@ -465,31 +465,31 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentScheduleJobExecD
     EXPECT_TRUE(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2)).Get().IsOK());
 
     for (const auto& context : contexts) {
-        controller->OnScheduleJobFinished(context);
+        controller->OnScheduleAllocationFinished(context);
     }
 }
 
-TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentControllerScheduleJobCallsRegularization)
+TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentControllerScheduleAllocationCallsRegularization)
 {
     const int JobCount = 10;
-    SchedulerConfig_->MaxConcurrentControllerScheduleJobCalls = JobCount;
-    SchedulerConfig_->ConcurrentControllerScheduleJobCallsRegularization = 2.0;
+    SchedulerConfig_->MaxConcurrentControllerScheduleAllocationCalls = JobCount;
+    SchedulerConfig_->ConcurrentControllerScheduleAllocationCallsRegularization = 2.0;
 
     const int NodeShardCount = 2;
     auto operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
     auto controller = CreateTestOperationController(operation.Get(), NodeShardCount);
 
     auto readyToGo = NewPromise<void>();
-    std::atomic<int> concurrentScheduleJobCalls = 0;
+    std::atomic<int> concurrentScheduleAllocationCalls = 0;
     EXPECT_CALL(
         operation->GetOperationControllerStrategyHost(),
-        ScheduleJob(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
+        ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
         .Times(2 * JobCount)
         .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
-            ++concurrentScheduleJobCalls;
+            ++concurrentScheduleAllocationCalls;
             EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
-            return MakeFuture<TControllerScheduleJobResultPtr>(
-                TErrorOr<TControllerScheduleJobResultPtr>(New<TControllerScheduleJobResult>()));
+            return MakeFuture<TControllerScheduleAllocationResultPtr>(
+                TErrorOr<TControllerScheduleAllocationResultPtr>(New<TControllerScheduleAllocationResult>()));
         }));
 
     TJobResourcesWithQuota nodeResources;
@@ -499,7 +499,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentControllerSchedu
     auto execNode = CreateTestExecNode(nodeResources);
 
     auto actionQueue = New<NConcurrency::TActionQueue>();
-    std::vector<TFuture<TControllerScheduleJobResultPtr>> futures;
+    std::vector<TFuture<TControllerScheduleAllocationResultPtr>> futures;
     std::vector<ISchedulingContextPtr> contexts;
     int concurrentCallsThrottlingCount = 0;
     int concurrentExecDurationThrottlingCount = 0;
@@ -507,21 +507,21 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentControllerSchedu
         int nodeShardId = i % NodeShardCount;
         auto context = CreateTestSchedulingContext(execNode, nodeShardId);
 
-        if (controller->IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(context)) {
+        if (controller->IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(context)) {
             ++concurrentCallsThrottlingCount;
             continue;
         }
-        if (controller->IsMaxConcurrentScheduleJobExecDurationPerNodeShardViolated(context)) {
+        if (controller->IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(context)) {
             ++concurrentExecDurationThrottlingCount;
             continue;
         }
 
         contexts.push_back(context);
 
-        controller->OnScheduleJobStarted(context);
+        controller->OnScheduleAllocationStarted(context);
 
         auto future = BIND([&, context] {
-            return controller->ScheduleJob(
+            return controller->ScheduleAllocation(
                 context,
                 nodeResources,
                 context->DiskResources(),
@@ -540,7 +540,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentControllerSchedu
     EXPECT_EQ(0, concurrentCallsThrottlingCount);
     EXPECT_EQ(0, concurrentExecDurationThrottlingCount);
 
-    while (concurrentScheduleJobCalls != 2 * JobCount) {
+    while (concurrentScheduleAllocationCalls != 2 * JobCount) {
         // Actively waiting.
     }
 
@@ -548,27 +548,27 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentControllerSchedu
     EXPECT_TRUE(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2)).Get().IsOK());
 
     for (const auto& context : contexts) {
-        controller->OnScheduleJobFinished(context);
+        controller->OnScheduleAllocationFinished(context);
     }
 }
 
-TEST_F(TFairShareStrategyOperationControllerTest, TestScheduleJobTimeout)
+TEST_F(TFairShareStrategyOperationControllerTest, TestScheduleAllocationTimeout)
 {
     auto operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
     auto controller = CreateTestOperationController(operation.Get());
 
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
-    auto firstJobId = TJobId(TGuid::Create());
-    auto secondJobId = TJobId(TGuid::Create());
+    auto firstAllocationId = TAllocationId(TGuid::Create());
+    auto secondAllocationId = TAllocationId(TGuid::Create());
     EXPECT_CALL(
         operation->GetOperationControllerStrategyHost(),
-        ScheduleJob(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
+        ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
         .WillOnce(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
             return BIND([&] {
                 Sleep(TDuration::Seconds(2));
 
-                return New<TControllerScheduleJobResult>();
+                return New<TControllerScheduleAllocationResult>();
             })
                 .AsyncVia(actionQueue->GetInvoker())
                 .Run();
@@ -577,8 +577,8 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestScheduleJobTimeout)
             return BIND([&] {
                 Sleep(TDuration::Seconds(2));
 
-                auto result = New<TControllerScheduleJobResult>();
-                result->StartDescriptor.emplace(firstJobId, /*resourceLimits*/ TJobResources());
+                auto result = New<TControllerScheduleAllocationResult>();
+                result->StartDescriptor.emplace(firstAllocationId, /*resourceLimits*/ TJobResources());
                 return result;
             })
                 .AsyncVia(actionQueue->GetInvoker())
@@ -588,8 +588,8 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestScheduleJobTimeout)
             return BIND([&] {
                 Sleep(TDuration::MilliSeconds(10));
 
-                auto result = New<TControllerScheduleJobResult>();
-                result->StartDescriptor.emplace(secondJobId, /*resourceLimits*/ TJobResources());
+                auto result = New<TControllerScheduleAllocationResult>();
+                result->StartDescriptor.emplace(secondAllocationId, /*resourceLimits*/ TJobResources());
                 return result;
             })
                 .AsyncVia(actionQueue->GetInvoker())
@@ -597,7 +597,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestScheduleJobTimeout)
         }));
     EXPECT_CALL(
         operation->GetOperationControllerStrategyHost(),
-        OnNonscheduledJobAborted(firstJobId, EAbortReason::SchedulingTimeout, testing::_))
+        OnNonscheduledAllocationAborted(firstAllocationId, EAbortReason::SchedulingTimeout, testing::_))
         .Times(1);
 
     TJobResourcesWithQuota nodeResources;
@@ -608,7 +608,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestScheduleJobTimeout)
 
     for (int i = 0; i < 2; ++i) {
         auto context = CreateTestSchedulingContext(execNode);
-        auto result = controller->ScheduleJob(
+        auto result = controller->ScheduleAllocation(
             context,
             nodeResources,
             context->DiskResources(),
@@ -618,12 +618,12 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestScheduleJobTimeout)
             /*treeConfig*/ {});
 
         EXPECT_FALSE(result->StartDescriptor);
-        EXPECT_EQ(1, result->Failed[EScheduleJobFailReason::Timeout]);
+        EXPECT_EQ(1, result->Failed[EScheduleAllocationFailReason::Timeout]);
     }
 
     {
         auto context = CreateTestSchedulingContext(execNode);
-        auto result = controller->ScheduleJob(
+        auto result = controller->ScheduleAllocation(
             context,
             nodeResources,
             context->DiskResources(),
@@ -633,7 +633,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestScheduleJobTimeout)
             /*treeConfig*/ {});
 
         ASSERT_TRUE(result->StartDescriptor);
-        EXPECT_EQ(secondJobId, result->StartDescriptor->Id);
+        EXPECT_EQ(secondAllocationId, result->StartDescriptor->Id);
     }
 
     auto finished = NewPromise<void>();

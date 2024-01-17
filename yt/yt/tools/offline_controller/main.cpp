@@ -279,7 +279,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void OnOperationBannedInTentativeTree(const TString&, const std::vector<TJobId>&) override
+    void OnOperationBannedInTentativeTree(const TString&, const std::vector<TAllocationId>&) override
     {
         YT_UNIMPLEMENTED();
     }
@@ -316,7 +316,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void UpdateRunningJobsStatistics(std::vector<TAgentToSchedulerRunningJobStatistics> /*runningJobStatisticsUpdates*/) override
+    void UpdateRunningAllocationsStatistics(std::vector<TAgentToSchedulerRunningAllocationStatistics> /*runningAllocationStatisticsUpdates*/) override
     {
         YT_UNIMPLEMENTED();
     }

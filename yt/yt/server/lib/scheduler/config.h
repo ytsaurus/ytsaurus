@@ -44,7 +44,7 @@ DEFINE_ENUM(EDeactivationReason,
     (IsNotEligibleForPreemptiveScheduling)
     (IsNotEligibleForSsdAggressivelyPreemptiveScheduling)
     (IsNotEligibleForSsdPreemptiveScheduling)
-    (ScheduleJobFailed)
+    (ScheduleAllocationFailed)
     (NoBestLeafDescendant)
     (MinNeededResourcesUnsatisfied)
     (ResourceLimitsExceeded)
@@ -52,12 +52,12 @@ DEFINE_ENUM(EDeactivationReason,
     (OperationDisabled)
     (BadPacking)
     (FairShareExceeded)
-    (MaxConcurrentScheduleJobCallsPerNodeShardViolated)
-    (MaxConcurrentScheduleJobExecDurationPerNodeShardViolated)
-    (RecentScheduleJobFailed)
+    (MaxConcurrentScheduleAllocationCallsPerNodeShardViolated)
+    (MaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated)
+    (RecentScheduleAllocationFailed)
     (IncompatibleSchedulingSegment)
     (NoAvailableDemand)
-    (RegularJobOnSsdNodeForbidden)
+    (RegularAllocationOnSsdNodeForbidden)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,9 +82,9 @@ class TFairShareStrategyControllerThrottling
     : public virtual NYTree::TYsonStruct
 {
 public:
-    TDuration ScheduleJobStartBackoffTime;
-    TDuration ScheduleJobMaxBackoffTime;
-    double ScheduleJobBackoffMultiplier;
+    TDuration ScheduleAllocationStartBackoffTime;
+    TDuration ScheduleAllocationMaxBackoffTime;
+    double ScheduleAllocationBackoffMultiplier;
 
     REGISTER_YSON_STRUCT(TFairShareStrategyControllerThrottling);
 
@@ -100,33 +100,33 @@ class TFairShareStrategyOperationControllerConfig
     : public virtual NYTree::TYsonStruct
 {
 public:
-    //! Limits on the number and total duration of concurrent schedule job calls to a single controller.
-    int MaxConcurrentControllerScheduleJobCalls;
-    TDuration MaxConcurrentControllerScheduleJobExecDuration;
+    //! Limits on the number and total duration of concurrent schedule allocation calls to a single controller.
+    int MaxConcurrentControllerScheduleAllocationCalls;
+    TDuration MaxConcurrentControllerScheduleAllocationExecDuration;
 
-    //! Enable throttling of total duration of concurrent schedule job calls.
-    bool EnableConcurrentScheduleJobExecDurationThrottling;
+    //! Enable throttling of total duration of concurrent schedule allocation calls.
+    bool EnableConcurrentScheduleAllocationExecDurationThrottling;
 
-    //! How much times averaged MaxConcurrentControllerScheduleJobCalls can be exceeded on each NodeShard.
-    double ConcurrentControllerScheduleJobCallsRegularization;
+    //! How much times averaged MaxConcurrentControllerScheduleAllocationCalls can be exceeded on each NodeShard.
+    double ConcurrentControllerScheduleAllocationCallsRegularization;
 
-    //! Maximum allowed time for single job scheduling.
-    TDuration ScheduleJobTimeLimit;
+    //! Maximum allowed time for single allocation scheduling.
+    TDuration ScheduleAllocationTimeLimit;
 
-    //! Backoff time after controller schedule job failure.
-    TDuration ScheduleJobFailBackoffTime;
+    //! Backoff time after controller schedule allocation failure.
+    TDuration ScheduleAllocationFailBackoffTime;
 
-    //! Configuration of schedule job backoffs in case of throttling from controller.
+    //! Configuration of schedule allocation backoffs in case of throttling from controller.
     TFairShareStrategyControllerThrottlingPtr ControllerThrottling;
 
-    //! Timeout after which "schedule job timed out" alert is expired and unset.
-    TDuration ScheduleJobTimeoutAlertResetTime;
+    //! Timeout after which "schedule allocation timed out" alert is expired and unset.
+    TDuration ScheduleAllocationTimeoutAlertResetTime;
 
-    //! Timeout for schedule jobs in fair share strategy.
-    TDuration ScheduleJobsTimeout;
+    //! Timeout for schedule allocations in fair share strategy.
+    TDuration ScheduleAllocationsTimeout;
 
-    //! Schedule job that longer this duration will be logged.
-    TDuration LongScheduleJobLoggingThreshold;
+    //! Schedule allocation that longer this duration will be logged.
+    TDuration LongScheduleAllocationLoggingThreshold;
 
     REGISTER_YSON_STRUCT(TFairShareStrategyOperationControllerConfig);
 
@@ -228,7 +228,7 @@ class TBatchOperationSchedulingConfig
 public:
     int BatchSize;
 
-    TJobResourcesConfigPtr FallbackMinSpareJobResources;
+    TJobResourcesConfigPtr FallbackMinSpareAllocationResources;
 
     REGISTER_YSON_STRUCT(TBatchOperationSchedulingConfig);
 
@@ -271,8 +271,8 @@ public:
     bool EnableAggressiveStarvation;
 
     // TODO(eshcherbin): Remove in favor of NonPreemptibleResourceUsageThreshold.
-    //! Any operation with less than this number of running jobs cannot be preempted.
-    std::optional<int> MaxUnpreemptibleRunningJobCount;
+    //! Any operation with less than this number of running allocations cannot be preempted.
+    std::optional<int> MaxUnpreemptibleRunningAllocationCount;
 
     //! Any operation which resource usage is not greater than this cannot be preempted.
     TJobResourcesConfigPtr NonPreemptibleResourceUsageThreshold;
@@ -289,11 +289,11 @@ public:
     //! Forbid immediate operations in root.
     bool ForbidImmediateOperationsInRoot;
 
-    // Preemption timeout for operations with small number of jobs will be
+    // Preemption timeout for operations with small number of allocations will be
     // discounted proportionally to this coefficient.
-    double JobCountPreemptionTimeoutCoefficient;
+    double AllocationCountPreemptionTimeoutCoefficient;
 
-    //! Thresholds to partition jobs of operation
+    //! Thresholds to partition allocations of operation
     //! to preemptible, aggressively preemptible and non-preemptible lists.
     double PreemptionSatisfactionThreshold;
     double AggressivePreemptionSatisfactionThreshold;
@@ -323,7 +323,7 @@ public:
     //! Duration after scheduler restart, during which total resource limits might not be stable yet, because nodes are still reconnecting.
     TDuration NodeReconnectionTimeout;
 
-    //! Backoff for scheduling with preemption on the node (it is need to decrease number of calls of PrescheduleJob).
+    //! Backoff for scheduling with preemption on the node (it is need to decrease number of calls of PrescheduleAllocation).
     TDuration PreemptiveSchedulingBackoff;
 
     //! Period of ban from the moment of operation saturation in tentative tree.
@@ -351,11 +351,11 @@ public:
     bool PreemptionCheckStarvation;
     bool PreemptionCheckSatisfaction;
 
-    // Job preemption timeout.
-    TDuration JobPreemptionTimeout;
+    // Allocation preemption timeout.
+    TDuration AllocationPreemptionTimeout;
 
-    // Job graceful preemption timeout.
-    TDuration JobGracefulPreemptionTimeout;
+    // Allocation graceful preemption timeout.
+    TDuration AllocationGracefulPreemptionTimeout;
 
     TFairShareStrategySchedulingSegmentsConfigPtr SchedulingSegments;
 
@@ -368,7 +368,7 @@ public:
     THashSet<EJobResourceType> ProfiledPoolResources;
     THashSet<EJobResourceType> ProfiledOperationResources;
 
-    std::optional<TDuration> WaitingJobTimeout;
+    std::optional<TDuration> WaitingForResourcesOnNodeTimeout;
 
     // If pool has at least #MinChildHeapSize children,
     // then it uses heap for maintaining best active child.
@@ -388,8 +388,8 @@ public:
 
     TDuration AllowedResourceUsageStaleness;
 
-    //! How often to update job preemption statuses snapshot.
-    TDuration CachedJobPreemptionStatusesUpdatePeriod;
+    //! How often to update allocation preemption statuses snapshot.
+    TDuration CachedAllocationPreemptionStatusesUpdatePeriod;
 
     bool ShouldDistributeFreeVolumeAmongChildren;
 
@@ -424,7 +424,7 @@ public:
 
     EOperationPreemptionPriorityScope SchedulingPreemptionPriorityScope;
 
-    TDuration RunningJobStatisticsUpdatePeriod;
+    TDuration RunningAllocationStatisticsUpdatePeriod;
 
     TBatchOperationSchedulingConfigPtr BatchOperationScheduling;
 
@@ -478,7 +478,7 @@ public:
     TDuration FairShareLogPeriod;
     TDuration AccumulatedUsageLogPeriod;
 
-    //! How often min needed resources for jobs are retrieved from controller.
+    //! How often min needed resources for allocations are retrieved from controller.
     TDuration MinNeededResourcesUpdatePeriod;
 
     //! How often to build and log resource usage and guarantee statistics.
@@ -496,10 +496,10 @@ public:
     //! During this timeout after activation operation can not be considered as unschedulable.
     TDuration OperationHangupSafeTimeout;
 
-    //! Operation that has less than this number of schedule job calls can not be considered as unschedulable.
-    int OperationHangupMinScheduleJobAttempts;
+    //! Operation that has less than this number of schedule allocation calls can not be considered as unschedulable.
+    int OperationHangupMinScheduleAllocationAttempts;
 
-    //! Reasons that consider as unsuccessful in schedule job attempts.
+    //! Reasons that consider as unsuccessful in schedule allocation attempts.
     THashSet<EDeactivationReason> OperationHangupDeactivationReasons;
 
     //! During this timeout after activation operation can not be considered as unschedulable due to limiting ancestor.
@@ -731,7 +731,7 @@ public:
     // Tag to threshols for alive agents with the tag
     THashMap<TString, TAliveControllerAgentThresholds> TagToAliveControllerAgentThresholds;
 
-    i64 MaxMessageJobEventCount;
+    i64 MaxMessageAllocationEventCount;
 
     int MessageOffloadThreadCount;
 
@@ -798,16 +798,14 @@ public:
 
     TDuration AlertsUpdatePeriod;
 
-    //! All update and completed jobs submitted to strategy with at least such frequency.
-    TDuration NodeShardSubmitJobsToStrategyPeriod;
+    //! All update and completed allocations submitted to strategy with at least such frequency.
+    TDuration NodeShardSubmitAllocationsToStrategyPeriod;
 
     TDuration LockTransactionTimeout;
 
     TDuration PoolTreesLockTransactionTimeout;
 
     TDuration PoolTreesLockCheckBackoff;
-
-    TDuration JobProberRpcTimeout;
 
     TDuration ClusterInfoLoggingPeriod;
 
@@ -817,17 +815,17 @@ public:
 
     bool AlwaysSendControllerAgentDescriptors;
 
-    bool SendFullControllerAgentDescriptorsForJobs;
+    bool SendFullControllerAgentDescriptorsForAllocations;
 
-    //! Jobs running on node are logged periodically or when they change their state.
-    TDuration JobsLoggingPeriod;
+    //! Allocations running on node are logged periodically or when they change their state.
+    TDuration AllocationsLoggingPeriod;
 
-    //! Statistics and resource usages of jobs running on a node are updated
+    //! Statistics and resource usages of allocations running on a node are updated
     //! not more often then this period.
-    TDuration RunningJobsUpdatePeriod;
+    TDuration RunningAllocationsUpdatePeriod;
 
-    //! Missing jobs are checked not more often then this period.
-    TDuration MissingJobsCheckPeriod;
+    //! Missing allocations are checked not more often then this period.
+    TDuration MissingAllocationsCheckPeriod;
 
     TDuration TransientOperationQueueScanPeriod;
 
@@ -835,8 +833,8 @@ public:
 
     TDuration OperationToAgentAssignmentBackoff;
 
-    //! Maximum number of jobs to start within a single heartbeat.
-    std::optional<int> MaxStartedJobsPerHeartbeat;
+    //! Maximum number of allocations to start within a single heartbeat.
+    std::optional<int> MaxStartedAllocationsPerHeartbeat;
 
     //! Timeout to store cached value of exec nodes information
     //! for scheduling tag filter without access.
@@ -863,19 +861,19 @@ public:
 
     bool EnableUnrecognizedAlert;
 
-    // How much time we wait before aborting the revived job that was not confirmed
+    // How much time we wait before aborting the revived allocation that was not confirmed
     // by the corresponding execution node.
-    TDuration JobRevivalAbortTimeout;
+    TDuration AllocationRevivalAbortTimeout;
 
     //! Timeout of cached exec nodes information entries
     //! per scheduling tag filters.
     TDuration SchedulingTagFilterExpireTimeout;
 
-    //! Timeout of finished job storing before forced removal.
-    TDuration FinishedJobStoringTimeout;
+    //! Timeout of finished allocation storing before forced removal.
+    TDuration FinishedAllocationStoringTimeout;
 
-    //! Timeout of finished operation jobs storing before forced removal.
-    TDuration FinishedOperationJobStoringTimeout;
+    //! Timeout of finished operation allocations storing before forced removal.
+    TDuration FinishedOperationAllocationStoringTimeout;
 
     TDuration OperationsUpdatePeriod;
 
@@ -902,7 +900,7 @@ public:
     bool PoolChangeIsAllowed;
 
     TDuration MaxOfflineNodeAge;
-    TDuration MaxNodeUnseenPeriodToAbortJobs;
+    TDuration MaxNodeUnseenPeriodToAbortAllocations;
 
     //! By default, when the scheduler encounters a malformed operation spec during revival, it disconnects.
     //! This serves as a safeguard protecting us from accidentally failing all operations in case a bug
@@ -920,7 +918,7 @@ public:
     //! The number of threads for background activity.
     int BackgroundThreadCount;
 
-    //! Allowed resources overcommit duration before scheduler initiate job abortions.
+    //! Allowed resources overcommit duration before scheduler initiate allocation abortions.
     TDuration AllowedNodeResourcesOvercommitDuration;
 
     //! Path to Cypress root node with pool tree and pool configs.
@@ -932,8 +930,8 @@ public:
     //! Period of scanning node infos to check that it belongs to some fair share tree.
     TDuration ValidateNodeTagsPeriod;
 
-    //! Enable immediate job abort if node reported zero number of user slots.
-    bool EnableJobAbortOnZeroUserSlots;
+    //! Enable immediate allocation abort if node reported zero number of user slots.
+    bool EnableAllocationAbortOnZeroUserSlots;
 
     //! Option to manage subbatch size for fetching operation during registration.
     //! Increase this value to speedup registration.
@@ -948,15 +946,15 @@ public:
     //! All registered scheduler experiments keyed by experiment names.
     THashMap<TString, TExperimentConfigPtr> Experiments;
 
-    //! Minimum amount of resources to continue schedule job attempts.
-    std::optional<TJobResourcesConfigPtr> MinSpareJobResourcesOnNode;
+    //! Minimum amount of resources to continue schedule allocation attempts.
+    std::optional<TJobResourcesConfigPtr> MinSpareAllocationResourcesOnNode;
 
     bool SendPreemptionReasonInNodeHeartbeat;
 
     bool ConsiderDiskQuotaInPreemptiveSchedulingDiscount;
 
-    //! Duration of ScheduleJob call to log this result.
-    TDuration ScheduleJobDurationLoggingThreshold;
+    //! Duration of ScheduleAllocation call to log this result.
+    TDuration ScheduleAllocationDurationLoggingThreshold;
 
     //! Enables updating last metering log time.
     bool UpdateLastMeteringLogTime;
@@ -966,14 +964,14 @@ public:
     bool EnableOperationHeavyAttributesArchivation;
     TDuration OperationHeavyAttributesArchivationTimeout;
 
-    TDuration ScheduleJobEntryRemovalTimeout;
-    TDuration ScheduleJobEntryCheckPeriod;
+    TDuration ScheduleAllocationEntryRemovalTimeout;
+    TDuration ScheduleAllocationEntryCheckPeriod;
 
     NRpc::TResponseKeeperConfigPtr OperationServiceResponseKeeper;
 
     bool WaitForAgentHeartbeatDuringOperationUnregistrationAtController;
 
-    bool CrashOnJobHeartbeatProcessingException;
+    bool CrashOnAllocationHeartbeatProcessingException;
 
     int MinRequiredArchiveVersion;
 

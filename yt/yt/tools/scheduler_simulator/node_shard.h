@@ -37,7 +37,7 @@ public:
     void BuildNodesYson(NYTree::TFluentMap fluent);
 
     void OnHeartbeat(const TNodeEvent& event);
-    void OnJobFinished(const TNodeEvent& event);
+    void OnAllocationFinished(const TNodeEvent& event);
 
     const IInvokerPtr& GetInvoker() const;
 
@@ -69,12 +69,14 @@ private:
     std::unique_ptr<NYson::IYsonConsumer> RemoteEventLogConsumer_;
 
     void BuildNodeYson(const NScheduler::TExecNodePtr& node, NYTree::TFluentMap fluent) const;
-    void PreemptJob(const NScheduler::TJobPtr& job, bool shouldLogEvent);
+    void PreemptAllocation(const NScheduler::TAllocationPtr& allocation, bool shouldLogEvent);
 
     NYson::IYsonConsumer* GetEventLogConsumer() override;
     const NLogging::TLogger* GetEventLogger() override;
 
-    NEventLog::TFluentLogEvent LogFinishedJobFluently(NScheduler::ELogEventType eventType, const NScheduler::TJobPtr& job);
+    NEventLog::TFluentLogEvent LogFinishedAllocationFluently(
+        NScheduler::ELogEventType eventType,
+        const NScheduler::TAllocationPtr& allocation);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSimulatorNodeShard)

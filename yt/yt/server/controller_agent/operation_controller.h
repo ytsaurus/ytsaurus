@@ -98,9 +98,9 @@ void ToProto(NProto::TMaterializeOperationResult* resultProto, const TOperationC
 struct TOperationControllerReviveResult
     : public TOperationControllerPrepareResult
 {
-    struct TRevivedJob
+    struct TRevivedAllocation
     {
-        TJobId JobId;
+        TAllocationId AllocationId;
         TInstant StartTime;
         TJobResources ResourceLimits;
         NScheduler::TDiskQuota DiskQuota;
@@ -110,7 +110,7 @@ struct TOperationControllerReviveResult
     };
 
     bool RevivedFromSnapshot = false;
-    std::vector<TRevivedJob> RevivedJobs;
+    std::vector<TRevivedAllocation> RevivedAllocations;
     THashSet<TString> RevivedBannedTreeIds;
     NScheduler::TCompositeNeededResources NeededResources;
     NScheduler::TJobResourcesWithQuotaList MinNeededResources;
@@ -152,15 +152,15 @@ struct TOperationSnapshot
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TAgentToSchedulerRunningJobStatistics
+struct TAgentToSchedulerRunningAllocationStatistics
 {
-    TJobId JobId;
+    TAllocationId AllocationId;
     TDuration PreemptibleProgressTime;
 };
 
 void ToProto(
-    NScheduler::NProto::TAgentToSchedulerRunningJobStatistics* jobStatisticsProto,
-    const TAgentToSchedulerRunningJobStatistics& jobStatistics);
+    NScheduler::NProto::TAgentToSchedulerRunningAllocationStatistics* jobStatisticsProto,
+    const TAgentToSchedulerRunningAllocationStatistics& allocationStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -176,7 +176,8 @@ struct IOperationControllerHost
 
     virtual void InterruptJob(TJobId jobId, EInterruptReason reason, TDuration timeout) = 0;
     virtual void RequestJobGracefulAbort(TJobId jobId, EAbortReason reason) = 0;
-    virtual void UpdateRunningJobsStatistics(std::vector<TAgentToSchedulerRunningJobStatistics> runningJobStatisticsUpdates) = 0;
+    virtual void UpdateRunningAllocationsStatistics(
+        std::vector<TAgentToSchedulerRunningAllocationStatistics> runningAllocationsStatisticsUpdates) = 0;
 
     virtual void RegisterJob(TStartedJobInfo jobInfo) = 0;
     virtual void ReviveJobs(std::vector<TStartedJobInfo> jobs) = 0;
@@ -239,7 +240,9 @@ struct IOperationControllerHost
     virtual void OnOperationAborted(const TError& error) = 0;
     virtual void OnOperationFailed(const TError& error) = 0;
     virtual void OnOperationSuspended(const TError& error) = 0;
-    virtual void OnOperationBannedInTentativeTree(const TString& treeId, const std::vector<TJobId>& jobIds) = 0;
+    virtual void OnOperationBannedInTentativeTree(
+        const TString& treeId,
+        const std::vector<TAllocationId>& allocationIds) = 0;
 
     virtual void ValidateOperationAccess(
         const TString& user,
@@ -449,19 +452,19 @@ struct IOperationController
     /*!
      *  \note Invoker affinity: cancelable controller invoker
      */
-    virtual NScheduler::TControllerScheduleJobResultPtr ScheduleJob(
+    virtual NScheduler::TControllerScheduleAllocationResultPtr ScheduleAllocation(
         ISchedulingContext* context,
-        const NScheduler::TJobResources& jobLimits,
+        const NScheduler::TJobResources& allocationLimits,
         const TString& treeId) = 0;
 
-    //! Called during schedule job when failure happens even before calling #IOperationController::ScheduleJob().
+    //! Called during schedule allocation when failure happens even before calling #IOperationController::ScheduleAllocation().
     //! Used to account such failures in operation progress.
     /*!
      *  \note Thread affinity: any
      */
-    virtual void RecordScheduleJobFailure(EScheduleJobFailReason reason) = 0;
+    virtual void RecordScheduleAllocationFailure(EScheduleAllocationFailReason reason) = 0;
 
-    //! A mean for backpressuring #ScheduleJob requests.
+    //! A mean for backpressuring #ScheduleAllocation requests.
     //! Returns |true| iff amount of already ongoing work by controller is
     //! enough not to schedule any more jobs (i.e. total size estimate of all job specs
     //! to serialize reaches some limit).
@@ -484,19 +487,19 @@ struct IOperationController
     /*!
      *  \note Thread affinity: Controller invoker.
      */
-    virtual void UpdateMinNeededJobResources() = 0;
+    virtual void UpdateMinNeededAllocationResources() = 0;
 
     //! Returns the cached min needed resources estimate.
     /*!
      *  \note Thread affinity: any
      */
-    virtual NScheduler::TJobResourcesWithQuotaList GetMinNeededJobResources() const = 0;
+    virtual NScheduler::TJobResourcesWithQuotaList GetMinNeededAllocationResources() const = 0;
 
-    //! Returns the number of jobs the controller is able to start right away.
+    //! Returns the number of allocations the controller is able to start right away.
     /*!
      *  \note Thread affinity: any
      */
-    virtual NScheduler::TCompositePendingJobCount GetPendingJobCount() const = 0;
+    virtual TCompositePendingJobCount GetPendingJobCount() const = 0;
     virtual i64 GetFailedJobCount() const = 0;
 
     virtual bool ShouldUpdateLightOperationAttributes() const = 0;

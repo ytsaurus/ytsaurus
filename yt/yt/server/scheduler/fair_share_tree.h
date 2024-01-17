@@ -72,11 +72,11 @@ struct IFairShareTree
     : public virtual TRefCounted
 {
     //! Methods below rely on presence of snapshot.
-    virtual TFuture<void> ProcessSchedulingHeartbeat(const ISchedulingContextPtr& schedulingContext, bool skipScheduleJobs) = 0;
-    virtual void ProcessJobUpdates(
-        const std::vector<TJobUpdate>& jobUpdates,
-        THashSet<TJobId>* jobsToPostpone,
-        THashMap<TJobId, EAbortReason>* jobsToAbort) = 0;
+    virtual TFuture<void> ProcessSchedulingHeartbeat(const ISchedulingContextPtr& schedulingContext, bool skipScheduleAllocations) = 0;
+    virtual void ProcessAllocationUpdates(
+        const std::vector<TAllocationUpdate>& allocationUpdates,
+        THashSet<TAllocationId>* allocationsToPostpone,
+        THashMap<TAllocationId, EAbortReason>* allocationsToAbort) = 0;
 
     virtual int GetSchedulingHeartbeatComplexity() const = 0;
 
@@ -87,8 +87,8 @@ struct IFairShareTree
     virtual std::optional<TSchedulerElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const = 0;
     virtual void BuildSchedulingAttributesStringForNode(NNodeTrackerClient::TNodeId nodeId, TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
     virtual void BuildSchedulingAttributesForNode(NNodeTrackerClient::TNodeId nodeId, NYTree::TFluentMap fluent) const = 0;
-    virtual void BuildSchedulingAttributesStringForOngoingJobs(
-        const std::vector<TJobPtr>& jobs,
+    virtual void BuildSchedulingAttributesStringForOngoingAllocations(
+        const std::vector<TAllocationPtr>& allocations,
         TInstant now,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
 
@@ -146,7 +146,7 @@ struct IFairShareTree
         TOperationId operationId,
         const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters) = 0;
 
-    virtual void RegisterJobsFromRevivedOperation(TOperationId operationId, std::vector<TJobPtr> jobs) = 0;
+    virtual void RegisterAllocationsFromRevivedOperation(TOperationId operationId, std::vector<TAllocationPtr> allocations) = 0;
 
     virtual void RegisterNode(NNodeTrackerClient::TNodeId nodeId) = 0;
     virtual void UnregisterNode(NNodeTrackerClient::TNodeId nodeId) = 0;
@@ -156,7 +156,7 @@ struct IFairShareTree
     virtual TError CheckOperationIsHung(
         TOperationId operationId,
         TDuration safeTimeout,
-        int minScheduleJobCallAttempts,
+        int minScheduleAllocationCallAttempts,
         const THashSet<EDeactivationReason>& deactivationReasons,
         TDuration limitingAncestorSafeTimeout) = 0;
 

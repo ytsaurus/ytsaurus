@@ -150,7 +150,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void AbortJobsAtNode(NNodeTrackerClient::TNodeId /*nodeId*/, EAbortReason /*reason*/) override
+    void AbortAllocationsAtNode(NNodeTrackerClient::TNodeId /*nodeId*/, EAbortReason /*reason*/) override
     {
         YT_UNIMPLEMENTED();
     }
@@ -266,8 +266,8 @@ class TOperationControllerStrategyHostMock
     : public IOperationControllerStrategyHost
 {
 public:
-    explicit TOperationControllerStrategyHostMock(TJobResourcesWithQuotaList jobResourcesList)
-        : JobResourcesList_(std::move(jobResourcesList))
+    explicit TOperationControllerStrategyHostMock(TJobResourcesWithQuotaList allocationResourcesList)
+        : AllocationResourcesList_(std::move(allocationResourcesList))
     { }
 
     TControllerEpoch GetEpoch() const override
@@ -275,32 +275,32 @@ public:
         return TControllerEpoch(0);
     }
 
-    MOCK_METHOD(TFuture<TControllerScheduleJobResultPtr>, ScheduleJob, (
+    MOCK_METHOD(TFuture<TControllerScheduleAllocationResultPtr>, ScheduleAllocation, (
         const ISchedulingContextPtr& context,
-        const TJobResources& jobLimits,
+        const TJobResources& allocationLimits,
         const NNodeTrackerClient::NProto::TDiskResources& diskResourceLimits,
         const TString& treeId,
         const TString& poolPath,
         const TFairShareStrategyTreeConfigPtr& treeConfig), (override));
 
-    MOCK_METHOD(void, OnNonscheduledJobAborted, (TJobId, EAbortReason, TControllerEpoch), (override));
+    MOCK_METHOD(void, OnNonscheduledAllocationAborted, (TAllocationId, EAbortReason, TControllerEpoch), (override));
 
     TCompositeNeededResources GetNeededResources() const override
     {
         TJobResources totalResources;
-        for (const auto& resources : JobResourcesList_) {
+        for (const auto& resources : AllocationResourcesList_) {
             totalResources += resources.ToJobResources();
         }
         return TCompositeNeededResources{.DefaultResources = totalResources};
     }
 
-    void UpdateMinNeededJobResources() override
+    void UpdateMinNeededAllocationResources() override
     { }
 
-    TJobResourcesWithQuotaList GetMinNeededJobResources() const override
+    TJobResourcesWithQuotaList GetMinNeededAllocationResources() const override
     {
         TJobResourcesWithQuotaList minNeededResourcesList;
-        for (const auto& resources : JobResourcesList_) {
+        for (const auto& resources : AllocationResourcesList_) {
             bool dominated = false;
             for (const auto& minNeededResourcesElement : minNeededResourcesList) {
                 if (Dominates(resources.ToJobResources(), minNeededResourcesElement.ToJobResources())) {
@@ -315,9 +315,9 @@ public:
         return minNeededResourcesList;
     }
 
-    TJobResourcesWithQuotaList GetInitialMinNeededJobResources() const override
+    TJobResourcesWithQuotaList GetInitialMinNeededAllocationResources() const override
     {
-        return GetMinNeededJobResources();
+        return GetMinNeededAllocationResources();
     }
 
     EPreemptionMode PreemptionMode = EPreemptionMode::Normal;
@@ -328,7 +328,7 @@ public:
     }
 
 private:
-    TJobResourcesWithQuotaList JobResourcesList_;
+    TJobResourcesWithQuotaList AllocationResourcesList_;
 };
 
 using TOperationControllerStrategyHostMockPtr = TIntrusivePtr<TOperationControllerStrategyHostMock>;
@@ -340,10 +340,10 @@ class TOperationStrategyHostMock
     , public IOperationStrategyHost
 {
 public:
-    explicit TOperationStrategyHostMock(const TJobResourcesWithQuotaList& jobResourcesList)
+    explicit TOperationStrategyHostMock(const TJobResourcesWithQuotaList& allocationResourcesList)
         : StartTime_(TInstant::Now())
         , Id_(TGuid::Create())
-        , Controller_(New<TOperationControllerStrategyHostMock>(jobResourcesList))
+        , Controller_(New<TOperationControllerStrategyHostMock>(allocationResourcesList))
     { }
 
     EOperationType GetType() const override
@@ -584,17 +584,17 @@ protected:
         return operationElement;
     }
 
-    std::pair<TSchedulerOperationElementPtr, TOperationStrategyHostMockPtr> CreateOperationWithJobs(
-        int jobCount,
+    std::pair<TSchedulerOperationElementPtr, TOperationStrategyHostMockPtr> CreateOperationWithAllocations(
+        int allocationCount,
         ISchedulerStrategyHost* strategyHost,
         TSchedulerCompositeElement* parent)
     {
-        TJobResourcesWithQuota jobResources;
-        jobResources.SetUserSlots(1);
-        jobResources.SetCpu(1);
-        jobResources.SetMemory(10_MB);
+        TJobResourcesWithQuota allocationResources;
+        allocationResources.SetUserSlots(1);
+        allocationResources.SetCpu(1);
+        allocationResources.SetMemory(10_MB);
 
-        auto operationHost = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount, jobResources));
+        auto operationHost = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(allocationCount, allocationResources));
         auto operationElement = CreateTestOperationElement(strategyHost, operationHost.Get(), parent);
         return {operationElement, operationHost};
     }
@@ -735,10 +735,10 @@ TEST_F(TFairShareTreeElementTest, TestSatisfactionRatio)
     nodeResources.SetCpu(10);
     nodeResources.SetMemory(100);
 
-    TJobResourcesWithQuota jobResources;
-    jobResources.SetUserSlots(1);
-    jobResources.SetCpu(1);
-    jobResources.SetMemory(10);
+    TJobResourcesWithQuota allocationResources;
+    allocationResources.SetUserSlots(1);
+    allocationResources.SetCpu(1);
+    allocationResources.SetMemory(10);
 
     auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(10, nodeResources));
 
@@ -762,7 +762,7 @@ TEST_F(TFairShareTreeElementTest, TestSatisfactionRatio)
     std::array<TSchedulerOperationElementPtr, OperationCount> operationElements;
 
     for (auto& operation : operations) {
-        operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, jobResources));
+        operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, allocationResources));
     }
 
     for (int i = 0; i < OperationCount; ++i) {
@@ -781,14 +781,14 @@ TEST_F(TFairShareTreeElementTest, TestSatisfactionRatio)
     }
 
     for (int i = 0; i < 10; ++i) {
-        IncreaseOperationResourceUsage(operationElements[0], jobResources.ToJobResources());
-        IncreaseOperationResourceUsage(operationElements[2], jobResources.ToJobResources());
+        IncreaseOperationResourceUsage(operationElements[0], allocationResources.ToJobResources());
+        IncreaseOperationResourceUsage(operationElements[2], allocationResources.ToJobResources());
     }
 
     {
         DoFairShareUpdate(strategyHost.Get(), rootElement);
 
-        // Demand increased to 0.2 due to started jobs, so did fair share.
+        // Demand increased to 0.2 due to started allocations, so did fair share.
         // usage(0.1) / fair_share(0.2) = 0.5
         EXPECT_EQ(0.5, operationElements[0]->PostUpdateAttributes().SatisfactionRatio);
         EXPECT_EQ(0.0, operationElements[1]->PostUpdateAttributes().SatisfactionRatio);
@@ -810,14 +810,14 @@ TEST_F(TFairShareTreeElementTest, TestSatisfactionRatio)
     }
 
     for (int i = 0; i < 10; ++i) {
-        IncreaseOperationResourceUsage(operationElements[1], jobResources.ToJobResources());
-        IncreaseOperationResourceUsage(operationElements[3], jobResources.ToJobResources());
+        IncreaseOperationResourceUsage(operationElements[1], allocationResources.ToJobResources());
+        IncreaseOperationResourceUsage(operationElements[3], allocationResources.ToJobResources());
     }
 
     {
         DoFairShareUpdate(strategyHost.Get(), rootElement);
 
-        // Demand increased to 0.2 due to started jobs, so did fair share.
+        // Demand increased to 0.2 due to started allocations, so did fair share.
         // usage(0.1) / fair_share(0.2) = 0.5
         EXPECT_EQ(0.5, operationElements[0]->PostUpdateAttributes().SatisfactionRatio);
         EXPECT_EQ(0.5, operationElements[1]->PostUpdateAttributes().SatisfactionRatio);
@@ -966,17 +966,17 @@ TEST_F(TFairShareTreeElementTest, TestSchedulingTagFilterResourceLimits)
     auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
 
-    TJobResourcesWithQuota jobResources;
-    jobResources.SetUserSlots(1);
-    jobResources.SetCpu(1);
-    jobResources.SetMemory(10);
+    TJobResourcesWithQuota allocationResources;
+    allocationResources.SetUserSlots(1);
+    allocationResources.SetCpu(1);
+    allocationResources.SetMemory(10);
 
-    auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, jobResources));
+    auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, allocationResources));
     auto specX = New<TStrategyOperationSpec>();
     specX->SchedulingTagFilter = MakeBooleanFormula("tag_1 | tag_2 | tag_5");
     auto operationElementX = CreateTestOperationElement(strategyHost.Get(), operationX.Get(), rootElement.Get(), operationOptions, specX);
 
-    auto operationY = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(5, jobResources));
+    auto operationY = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(5, allocationResources));
     auto operationElementY = CreateTestOperationElement(strategyHost.Get(), operationX.Get(), poolD.Get(), operationOptions);
 
     {
@@ -1044,10 +1044,10 @@ TEST_F(TFairShareTreeElementTest, TestBestAllocationShare)
     nodeResourcesB.SetCpu(10);
     nodeResourcesB.SetMemory(200);
 
-    TJobResourcesWithQuota jobResources;
-    jobResources.SetUserSlots(1);
-    jobResources.SetCpu(1);
-    jobResources.SetMemory(150);
+    TJobResourcesWithQuota allocationResources;
+    allocationResources.SetUserSlots(1);
+    allocationResources.SetCpu(1);
+    allocationResources.SetMemory(150);
 
     auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
@@ -1059,14 +1059,14 @@ TEST_F(TFairShareTreeElementTest, TestBestAllocationShare)
 
     auto rootElement = CreateTestRootElement(strategyHost.Get());
 
-    auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(3, jobResources));
+    auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(3, allocationResources));
     auto operationElementX = CreateTestOperationElement(strategyHost.Get(), operationX.Get(), rootElement.Get(), operationOptions);
 
     DoFairShareUpdate(strategyHost.Get(), rootElement);
 
     auto totalResources = nodeResourcesA * 2. + nodeResourcesB.ToJobResources();
-    auto demandShare = TResourceVector::FromJobResources(jobResources * 3., totalResources);
-    auto fairShare = TResourceVector::FromJobResources(jobResources, totalResources);
+    auto demandShare = TResourceVector::FromJobResources(allocationResources * 3., totalResources);
+    auto fairShare = TResourceVector::FromJobResources(allocationResources, totalResources);
     EXPECT_EQ(demandShare, operationElementX->Attributes().DemandShare);
     EXPECT_EQ(0.375, operationElementX->PersistentAttributes().BestAllocationShare[EJobResourceType::Memory]);
     EXPECT_RV_NEAR(fairShare, operationElementX->Attributes().FairShare.Total);
@@ -1127,27 +1127,27 @@ TEST_F(TFairShareTreeElementTest, TestIncorrectStatusDueToPrecisionError)
 
     pool->AttachParent(rootElement.Get());
 
-    TJobResources jobResourcesA;
-    jobResourcesA.SetUserSlots(1);
-    jobResourcesA.SetCpu(3.81);
-    jobResourcesA.SetMemory(107340424507);
-    jobResourcesA.SetNetwork(0);
-    jobResourcesA.SetGpu(1);
+    TJobResources allocationResourcesA;
+    allocationResourcesA.SetUserSlots(1);
+    allocationResourcesA.SetCpu(3.81);
+    allocationResourcesA.SetMemory(107340424507);
+    allocationResourcesA.SetNetwork(0);
+    allocationResourcesA.SetGpu(1);
 
     auto operationA = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
     auto operationElementA = CreateTestOperationElement(strategyHost.Get(), operationA.Get(), pool.Get());
-    IncreaseOperationResourceUsage(operationElementA, jobResourcesA);
+    IncreaseOperationResourceUsage(operationElementA, allocationResourcesA);
 
-    TJobResources jobResourcesB;
-    jobResourcesB.SetUserSlots(1);
-    jobResourcesB.SetCpu(4);
-    jobResourcesB.SetMemory(107340424507);
-    jobResourcesB.SetNetwork(0);
-    jobResourcesB.SetGpu(1);
+    TJobResources allocationResourcesB;
+    allocationResourcesB.SetUserSlots(1);
+    allocationResourcesB.SetCpu(4);
+    allocationResourcesB.SetMemory(107340424507);
+    allocationResourcesB.SetNetwork(0);
+    allocationResourcesB.SetGpu(1);
 
     auto operationB = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
     auto operationElementB = CreateTestOperationElement(strategyHost.Get(), operationB.Get(), pool.Get());
-    IncreaseOperationResourceUsage(operationElementB, jobResourcesB);
+    IncreaseOperationResourceUsage(operationElementB, allocationResourcesB);
 
     DoFairShareUpdate(strategyHost.Get(), rootElement);
 

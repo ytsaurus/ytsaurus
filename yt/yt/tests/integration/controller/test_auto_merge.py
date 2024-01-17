@@ -34,7 +34,7 @@ class TestSchedulerAutoMergeBase(YTEnvSetup):
         "scheduler": {
             "watchers_update_period": 100,
             "operations_update_period": 10,
-            "running_jobs_update_period": 10,
+            "running_allocations_update_period": 10,
         },
     }
 

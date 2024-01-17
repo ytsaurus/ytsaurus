@@ -91,14 +91,14 @@ static const auto& Logger = ControllerAgentLogger;
 
 ////////////////////////////////////////////////////////////////////
 
-struct TAgentToSchedulerScheduleJobResponse
+struct TAgentToSchedulerScheduleAllocationResponse
 {
-    TJobId JobId;
+    TAllocationId AllocationId;
     TOperationId OperationId;
-    TControllerScheduleJobResultPtr Result;
+    TControllerScheduleAllocationResultPtr Result;
 };
 
-using TAgentToSchedulerScheduleJobResponseOutboxPtr = TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerScheduleJobResponse>>;
+using TAgentToSchedulerScheduleAllocationResponseOutboxPtr = TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerScheduleAllocationResponse>>;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -107,13 +107,13 @@ class TSchedulingContext
 {
 public:
     TSchedulingContext(
-        const NScheduler::NProto::TScheduleJobRequest* request,
+        const NScheduler::NProto::TScheduleAllocationRequest* request,
         const TExecNodeDescriptorPtr& nodeDescriptor,
-        const NScheduler::NProto::TScheduleJobSpec& scheduleJobSpec)
+        const NScheduler::NProto::TScheduleAllocationSpec& scheduleAllocationSpec)
         : DiskResources_(request->node_disk_resources())
-        , JobId_(FromProto<TJobId>(request->job_id()))
+        , AllocationId_(FromProto<TAllocationId>(request->allocation_id()))
         , NodeDescriptor_(nodeDescriptor)
-        , ScheduleJobSpec_(scheduleJobSpec)
+        , ScheduleAllocationSpec_(scheduleAllocationSpec)
         , PoolPath_(YT_PROTO_OPTIONAL(*request, pool_path))
     { }
 
@@ -132,9 +132,9 @@ public:
         return DiskResources_;
     }
 
-    TJobId GetJobId() const override
+    TAllocationId GetAllocationId() const override
     {
-        return JobId_;
+        return AllocationId_;
     }
 
     NProfiling::TCpuInstant GetNow() const override
@@ -142,16 +142,16 @@ public:
         return NProfiling::GetCpuInstant();
     }
 
-    const NScheduler::NProto::TScheduleJobSpec& GetScheduleJobSpec() const override
+    const NScheduler::NProto::TScheduleAllocationSpec& GetScheduleAllocationSpec() const override
     {
-        return ScheduleJobSpec_;
+        return ScheduleAllocationSpec_;
     }
 
 private:
     const NNodeTrackerClient::NProto::TDiskResources& DiskResources_;
-    const TJobId JobId_;
+    const TAllocationId AllocationId_;
     const TExecNodeDescriptorPtr& NodeDescriptor_;
-    const NScheduler::NProto::TScheduleJobSpec ScheduleJobSpec_;
+    const NScheduler::NProto::TScheduleAllocationSpec ScheduleAllocationSpec_;
     const std::optional<TString> PoolPath_;
 };
 
@@ -486,8 +486,8 @@ public:
             HeartbeatExecutor_->SetPeriod(Config_->SchedulerHeartbeatPeriod);
         }
 
-        if (ScheduleJobHeartbeatExecutor_) {
-            ScheduleJobHeartbeatExecutor_->SetPeriod(Config_->ScheduleJobHeartbeatPeriod);
+        if (ScheduleAllocationHeartbeatExecutor_) {
+            ScheduleAllocationHeartbeatExecutor_->SetPeriod(Config_->ScheduleAllocationHeartbeatPeriod);
         }
 
         StaticOrchidService_->SetCachePeriod(Config_->StaticOrchidCacheUpdatePeriod);
@@ -613,7 +613,7 @@ public:
                 CancelableControlInvoker_,
                 Bootstrap_->GetControlInvoker(),
                 OperationEventsOutbox_,
-                RunningJobStatisticsUpdatesOutbox_,
+                RunningAllocationStatisticsUpdatesOutbox_,
                 Bootstrap_);
             operation->SetHost(host);
 
@@ -1035,7 +1035,7 @@ public:
         NScheduler::ValidateOperationAccess(
             user,
             operationId,
-            TJobId(),
+            TAllocationId(),
             permission,
             GetOperationOrThrow(operationId)->GetAcl(),
             Bootstrap_->GetClient(),
@@ -1147,18 +1147,18 @@ private:
     TInstant LastSuspiciousJobsSendTime_;
 
     TAgentToSchedulerOperationEventOutboxPtr OperationEventsOutbox_;
-    TAgentToSchedulerScheduleJobResponseOutboxPtr ScheduleJobResponsesOutbox_;
-    TAgentToSchedulerRunningJobStatisticsOutboxPtr RunningJobStatisticsUpdatesOutbox_;
+    TAgentToSchedulerScheduleAllocationResponseOutboxPtr ScheduleAllocationResponsesOutbox_;
+    TAgentToSchedulerRunningAllocationStatisticsOutboxPtr RunningAllocationStatisticsUpdatesOutbox_;
 
     std::unique_ptr<TMessageQueueInbox> AbortedAllocationEventsInbox_;
     std::unique_ptr<TMessageQueueInbox> OperationEventsInbox_;
-    std::unique_ptr<TMessageQueueInbox> ScheduleJobRequestsInbox_;
+    std::unique_ptr<TMessageQueueInbox> ScheduleAllocationRequestsInbox_;
 
     TIntrusivePtr<NYTree::ICachedYPathService> StaticOrchidService_;
     TZombieOperationOrchidsPtr ZombieOperationOrchids_;
 
     TPeriodicExecutorPtr HeartbeatExecutor_;
-    TPeriodicExecutorPtr ScheduleJobHeartbeatExecutor_;
+    TPeriodicExecutorPtr ScheduleAllocationHeartbeatExecutor_;
 
     TMemoryWatchdogPtr MemoryWatchdog_;
 
@@ -1315,40 +1315,46 @@ private:
         Connected_ = true;
         ConnectionTime_.store(TInstant::Now());
 
-        YT_LOG_INFO("Controller agent connected (IncarnationId: %v)",
+        YT_LOG_INFO(
+            "Controller agent connected (IncarnationId: %v)",
             IncarnationId_);
 
         OperationEventsOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerOperationEvent>>(
-            ControllerAgentLogger.WithTag("Kind: AgentToSchedulerOperations, IncarnationId: %v",
+            ControllerAgentLogger.WithTag(
+                "Kind: AgentToSchedulerOperations, IncarnationId: %v",
                 IncarnationId_),
             ControllerAgentProfiler.WithTag("queue", "operation_events"),
             CancelableControlInvoker_);
-        ScheduleJobResponsesOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerScheduleJobResponse>>(
-            ControllerAgentLogger.WithTag("Kind: AgentToSchedulerScheduleJobResponses, IncarnationId: %v",
+        ScheduleAllocationResponsesOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerScheduleAllocationResponse>>(
+            ControllerAgentLogger.WithTag(
+                "Kind: AgentToSchedulerScheduleAllocationResponses, IncarnationId: %v",
                 IncarnationId_),
             ControllerAgentProfiler.WithTag("queue", "schedule_job_responses"),
             Bootstrap_->GetControlInvoker(),
             /*supportTracing*/ true);
 
-        RunningJobStatisticsUpdatesOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerRunningJobStatistics>>(
+        RunningAllocationStatisticsUpdatesOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerRunningAllocationStatistics>>(
             ControllerAgentLogger.WithTag(
-                "Kind: AgentToSchedulerRunningJobStatistics, IncarnationId: %v",
+                "Kind: AgentToSchedulerRunningAllocationStatistics, IncarnationId: %v",
                 IncarnationId_),
-            ControllerAgentProfiler.WithTag("queue", "running_job_statistics"),
+            ControllerAgentProfiler.WithTag("queue", "running_allocation_statistics"),
             Bootstrap_->GetControlInvoker());
 
         AbortedAllocationEventsInbox_ = std::make_unique<TMessageQueueInbox>(
-            ControllerAgentLogger.WithTag("Kind: SchedulerToAgentAbortedAllocations, IncarnationId: %v",
+            ControllerAgentLogger.WithTag(
+                "Kind: SchedulerToAgentAbortedAllocations, IncarnationId: %v",
                 IncarnationId_),
             ControllerAgentProfiler.WithTag("queue", "job_events"),
             JobEventsInvoker_);
         OperationEventsInbox_ = std::make_unique<TMessageQueueInbox>(
-            ControllerAgentLogger.WithTag("Kind: SchedulerToAgentOperations, IncarnationId: %v",
+            ControllerAgentLogger.WithTag(
+                "Kind: SchedulerToAgentOperations, IncarnationId: %v",
                 IncarnationId_),
             ControllerAgentProfiler.WithTag("queue", "operation_events"),
             CancelableControlInvoker_);
-        ScheduleJobRequestsInbox_ = std::make_unique<TMessageQueueInbox>(
-            ControllerAgentLogger.WithTag("Kind: SchedulerToAgentScheduleJobRequests, IncarnationId: %v",
+        ScheduleAllocationRequestsInbox_ = std::make_unique<TMessageQueueInbox>(
+            ControllerAgentLogger.WithTag(
+                "Kind: SchedulerToAgentScheduleAllocationRequests, IncarnationId: %v",
                 IncarnationId_),
             ControllerAgentProfiler.WithTag("queue", "schedule_job_requests"),
             Bootstrap_->GetControlInvoker());
@@ -1363,11 +1369,11 @@ private:
             Config_->SchedulerHeartbeatPeriod);
         HeartbeatExecutor_->Start();
 
-        ScheduleJobHeartbeatExecutor_ = New<TPeriodicExecutor>(
+        ScheduleAllocationHeartbeatExecutor_ = New<TPeriodicExecutor>(
             CancelableControlInvoker_,
-            BIND(&TControllerAgent::TImpl::SendScheduleJobHeartbeat, MakeWeak(this)),
-            Config_->ScheduleJobHeartbeatPeriod);
-        ScheduleJobHeartbeatExecutor_->Start();
+            BIND(&TControllerAgent::TImpl::SendScheduleAllocationHeartbeat, MakeWeak(this)),
+            Config_->ScheduleAllocationHeartbeatPeriod);
+        ScheduleAllocationHeartbeatExecutor_->Start();
 
         ZombieOperationOrchids_->Clean();
         ZombieOperationOrchids_->StartPeriodicCleaning(CancelableControlInvoker_);
@@ -1428,12 +1434,12 @@ private:
 
         MemoryWatchdog_.Reset();
         OperationEventsOutbox_.Reset();
-        ScheduleJobResponsesOutbox_.Reset();
-        RunningJobStatisticsUpdatesOutbox_.Reset();
+        ScheduleAllocationResponsesOutbox_.Reset();
+        RunningAllocationStatisticsUpdatesOutbox_.Reset();
 
         AbortedAllocationEventsInbox_.reset();
         OperationEventsInbox_.reset();
-        ScheduleJobRequestsInbox_.reset();
+        ScheduleAllocationRequestsInbox_.reset();
     }
 
     struct TPreparedHeartbeatRequest
@@ -1477,7 +1483,7 @@ private:
                         break;
                     case EAgentToSchedulerOperationEventType::BannedInTentativeTree:
                         ToProto(protoEvent->mutable_tentative_tree_id(), event.TentativeTreeId);
-                        ToProto(protoEvent->mutable_tentative_tree_job_ids(), event.TentativeTreeJobIds);
+                        ToProto(protoEvent->mutable_tentative_tree_allocation_ids(), event.TentativeTreeAllocationIds);
                         break;
                     case EAgentToSchedulerOperationEventType::InitializationFinished:
                         ToProto(protoEvent->mutable_error(), event.Error);
@@ -1534,8 +1540,8 @@ private:
                 }
             });
 
-        RunningJobStatisticsUpdatesOutbox_->BuildOutcoming(
-            request->mutable_agent_to_scheduler_running_job_statistics_updates(),
+        RunningAllocationStatisticsUpdatesOutbox_->BuildOutcoming(
+            request->mutable_agent_to_scheduler_running_allocation_statistics_updates(),
             [] (auto* protoStatistics, const auto& statistics) {
                 ToProto(protoStatistics, statistics);
             },
@@ -1550,7 +1556,7 @@ private:
         YT_LOG_FATAL_IF(!error.IsOK(), error, "Failed to report job event inbox status");
 
         OperationEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_operation_events());
-        ScheduleJobRequestsInbox_->ReportStatus(request->mutable_scheduler_to_agent_schedule_job_requests());
+        ScheduleAllocationRequestsInbox_->ReportStatus(request->mutable_scheduler_to_agent_schedule_allocation_requests());
 
         auto now = TInstant::Now();
         preparedRequest.ExecNodesRequested = LastExecNodesUpdateTime_ + Config_->ExecNodesUpdatePeriod < now;
@@ -1589,8 +1595,12 @@ private:
                 protoOperation->set_suspicious_jobs(controller->GetSuspiciousJobsYson().ToString());
             }
 
-            ToProto(protoOperation->mutable_composite_needed_resources(), controller->GetNeededResources());
-            ToProto(protoOperation->mutable_min_needed_resources(), controller->GetMinNeededJobResources());
+            ToProto(
+                protoOperation->mutable_composite_needed_resources(),
+                controller->GetNeededResources());
+            ToProto(
+                protoOperation->mutable_min_needed_resources(),
+                controller->GetMinNeededAllocationResources());
         }
 
         request->set_exec_nodes_requested(preparedRequest.ExecNodesRequested);
@@ -1652,7 +1662,7 @@ private:
         const auto& rsp = rspOrError.Value();
 
         OperationEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_operation_events());
-        RunningJobStatisticsUpdatesOutbox_->HandleStatus(rsp->agent_to_scheduler_running_job_statistics_updates());
+        RunningAllocationStatisticsUpdatesOutbox_->HandleStatus(rsp->agent_to_scheduler_running_allocation_statistics_updates());
 
         HandleAbortedAllocationEvents(rsp);
         HandleOperationEvents(rsp);
@@ -1666,9 +1676,10 @@ private:
                 if (descriptor->Online) {
                     ++onlineExecNodeCount;
                 }
-                YT_VERIFY(execNodeDescriptors->emplace(
+                EmplaceOrCrash(
+                    *execNodeDescriptors,
                     protoDescriptor.node_id(),
-                    std::move(descriptor)).second);
+                    std::move(descriptor));
             }
 
             JobTracker_->UpdateExecNodes(execNodeDescriptors);
@@ -1697,27 +1708,27 @@ private:
         ConfirmHeartbeatRequest(preparedRequest);
     }
 
-    void BuildOutcomingScheduleJobResponses(
-        const TControllerAgentTrackerServiceProxy::TReqScheduleJobHeartbeatPtr&  req)
+    void BuildOutcomingScheduleAllocationResponses(
+        const TControllerAgentTrackerServiceProxy::TReqScheduleAllocationHeartbeatPtr&  req)
     {
-        ScheduleJobResponsesOutbox_->BuildOutcoming(
-            req->mutable_agent_to_scheduler_schedule_job_responses(),
+        ScheduleAllocationResponsesOutbox_->BuildOutcoming(
+            req->mutable_agent_to_scheduler_schedule_allocation_responses(),
             [] (auto* protoResponse, const auto& response) {
                 const auto& scheduleJobResult = *response.Result;
-                ToProto(protoResponse->mutable_job_id(), response.JobId);
+                ToProto(protoResponse->mutable_allocation_id(), response.AllocationId);
                 ToProto(protoResponse->mutable_operation_id(), response.OperationId);
                 protoResponse->set_controller_epoch(scheduleJobResult.ControllerEpoch.Underlying());
                 protoResponse->set_success(static_cast<bool>(scheduleJobResult.StartDescriptor));
                 if (scheduleJobResult.StartDescriptor) {
                     const auto& startDescriptor = *scheduleJobResult.StartDescriptor;
-                    YT_ASSERT(response.JobId == startDescriptor.Id);
+                    YT_ASSERT(response.AllocationId == startDescriptor.Id);
                     ToProto(protoResponse->mutable_resource_limits(), startDescriptor.ResourceLimits);
                 }
                 protoResponse->set_duration(ToProto<i64>(scheduleJobResult.Duration));
                 if (scheduleJobResult.NextDurationEstimate) {
                     protoResponse->set_next_duration_estimate(ToProto<i64>(*scheduleJobResult.NextDurationEstimate));
                 }
-                for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
+                for (auto reason : TEnumTraits<EScheduleAllocationFailReason>::GetDomainValues()) {
                     if (scheduleJobResult.Failed[reason] > 0) {
                         auto* protoCounter = protoResponse->add_failed();
                         protoCounter->set_reason(static_cast<int>(reason));
@@ -1727,152 +1738,181 @@ private:
             });
     }
 
-    void HandleScheduleJobRequests(
-        const TControllerAgentTrackerServiceProxy::TRspScheduleJobHeartbeatPtr& rsp,
+    void HandleScheduleAllocationRequests(
+        const TControllerAgentTrackerServiceProxy::TRspScheduleAllocationHeartbeatPtr& rsp,
         TRequestId requestId,
         const TRefCountedExecNodeDescriptorMapPtr& execNodeDescriptors)
     {
-        auto outbox = ScheduleJobResponsesOutbox_;
+        auto outbox = ScheduleAllocationResponsesOutbox_;
 
-        auto replyWithFailure = [=] (TOperationId operationId, TJobId jobId, EScheduleJobFailReason reason) {
-            TAgentToSchedulerScheduleJobResponse response;
-            response.JobId = jobId;
+        auto replyWithFailure = [=] (TOperationId operationId, TAllocationId allocationId, EScheduleAllocationFailReason reason) {
+            TAgentToSchedulerScheduleAllocationResponse response;
+            response.AllocationId = allocationId;
             response.OperationId = operationId;
-            response.Result = New<TControllerScheduleJobResult>();
+            response.Result = New<TControllerScheduleAllocationResult>();
             response.Result->RecordFail(reason);
             outbox->Enqueue(std::move(response));
         };
 
-        // Some failures are handled in HandleScheduleJobRequests function, even though they are definitely related
+        // Some failures are handled in HandleScheduleAllocationRequests function, even though they are definitely related
         // to controller. We want to see their statistics in operation progress, so we have to account them in controller's
-        // ScheduleJobStatistics.
+        // ScheduleAllocationStatistics.
         auto replyWithFailureAndRecordInController = [=] (
             TOperationId operationId,
-            TJobId jobId,
-            EScheduleJobFailReason reason,
+            TAllocationId allocationId,
+            EScheduleAllocationFailReason reason,
             IOperationControllerPtr controller)
         {
-            replyWithFailure(operationId, jobId, reason);
-            controller->RecordScheduleJobFailure(reason);
+            replyWithFailure(operationId, allocationId, reason);
+            controller->RecordScheduleAllocationFailure(reason);
         };
 
-        ScheduleJobRequestsInbox_->HandleIncoming(
-            rsp->mutable_scheduler_to_agent_schedule_job_requests(),
+        ScheduleAllocationRequestsInbox_->HandleIncoming(
+            rsp->mutable_scheduler_to_agent_schedule_allocation_requests(),
             [&] (auto* protoRequest) {
-                auto jobId = FromProto<TJobId>(protoRequest->job_id());
+                auto allocationId = FromProto<TAllocationId>(protoRequest->allocation_id());
                 auto operationId = FromProto<TOperationId>(protoRequest->operation_id());
-                YT_LOG_DEBUG("Processing schedule job request (OperationId: %v, JobId: %v)",
+                YT_LOG_DEBUG(
+                    "Processing schedule allocation request (OperationId: %v, AllocationId: %v)",
                     operationId,
-                    jobId);
+                    allocationId);
 
                 auto operation = this->FindOperation(operationId);
                 if (!operation) {
-                    replyWithFailure(operationId, jobId, EScheduleJobFailReason::UnknownOperation);
-                    YT_LOG_DEBUG("Failed to schedule job due to unknown operation (OperationId: %v, JobId: %v)",
+                    replyWithFailure(operationId, allocationId, EScheduleAllocationFailReason::UnknownOperation);
+                    YT_LOG_DEBUG(
+                        "Failed to schedule allocation due to unknown operation (OperationId: %v, AllocationId: %v)",
                         operationId,
-                        jobId);
+                        allocationId);
                     return;
                 }
 
                 auto controller = operation->GetController();
 
                 if (controller->IsThrottling()) {
-                    YT_LOG_DEBUG("Schedule job request skipped since controller is throttling (OperationId: %v, JobId: %v)",
+                    YT_LOG_DEBUG(
+                        "Schedule allocation request skipped since controller is throttling (OperationId: %v, AllocationId: %v)",
                         operationId,
-                        jobId);
-                    replyWithFailureAndRecordInController(operationId, jobId, EScheduleJobFailReason::ControllerThrottling, controller);
+                        allocationId);
+                    replyWithFailureAndRecordInController(
+                        operationId,
+                        allocationId,
+                        EScheduleAllocationFailReason::ControllerThrottling,
+                        controller);
                     return;
                 }
 
-                auto scheduleJobInvoker = controller->GetCancelableInvoker(Config_->ScheduleJobControllerQueue);
+                auto scheduleAllocationInvoker = controller->GetCancelableInvoker(Config_->ScheduleAllocationControllerQueue);
                 auto requestDequeueInstant = TInstant::Now();
 
                 auto traceContext = TTraceContext::NewChildFromRpc(
                     protoRequest->tracing_ext(),
-                    /*spanName*/ Format("ScheduleJob:%v", jobId),
+                    /*spanName*/ Format("ScheduleAllocation:%v", allocationId),
                     requestId,
                     /*forceTracing*/ false);
 
                 GuardedInvoke(
-                    scheduleJobInvoker,
+                    scheduleAllocationInvoker,
                     BIND([=, rsp = rsp, this_ = MakeStrong(this)] {
                         TCurrentTraceContextGuard traceContextGuard(traceContext);
 
                         auto controllerInvocationInstant = TInstant::Now();
 
-                        YT_LOG_DEBUG("Processing schedule job in controller invoker (OperationId: %v, JobId: %v, InvocationWaitDuration: %v)",
+                        YT_LOG_DEBUG(
+                            "Processing schedule allocation in controller invoker (OperationId: %v, AllocationId: %v, InvocationWaitDuration: %v)",
                             operationId,
-                            jobId,
+                            allocationId,
                             controllerInvocationInstant - requestDequeueInstant);
 
                         if (controller->IsThrottling()) {
-                            YT_LOG_DEBUG("Schedule job request skipped since controller is throttling (OperationId: %v, JobId: %v)",
+                            YT_LOG_DEBUG(
+                                "Schedule allocation request skipped since controller is throttling (OperationId: %v, AllocationId: %v)",
                                 operationId,
-                                jobId);
-                            replyWithFailureAndRecordInController(operationId, jobId, EScheduleJobFailReason::ControllerThrottling, controller);
+                                allocationId);
+                            replyWithFailureAndRecordInController(
+                                operationId,
+                                allocationId,
+                                EScheduleAllocationFailReason::ControllerThrottling,
+                                controller);
                             return;
                         }
 
-                        auto nodeId = NodeIdFromJobId(jobId);
+                        auto nodeId = NodeIdFromAllocationId(allocationId);
                         auto descriptorIt = execNodeDescriptors->find(nodeId);
                         if (descriptorIt == execNodeDescriptors->end()) {
-                            replyWithFailureAndRecordInController(operationId, jobId, EScheduleJobFailReason::UnknownNode, controller);
-                            YT_LOG_DEBUG("Failed to schedule job due to unknown node (OperationId: %v, JobId: %v, NodeId: %v)",
+                            YT_LOG_DEBUG(
+                                "Failed to schedule allocation due to unknown node (OperationId: %v, AllocationId: %v, NodeId: %v)",
                                 operationId,
-                                jobId,
+                                allocationId,
                                 nodeId);
+                            replyWithFailureAndRecordInController(
+                                operationId,
+                                allocationId,
+                                EScheduleAllocationFailReason::UnknownNode,
+                                controller);
                             return;
                         }
 
                         const auto& execNodeDescriptor = *descriptorIt->second;
                         if (!execNodeDescriptor.Online) {
-                            replyWithFailureAndRecordInController(operationId, jobId, EScheduleJobFailReason::NodeOffline, controller);
-                            YT_LOG_DEBUG("Failed to schedule job due to node is offline (OperationId: %v, JobId: %v, NodeId: %v)",
+                            YT_LOG_DEBUG(
+                                "Failed to schedule allocation due to node is offline (OperationId: %v, AllocationId: %v, NodeId: %v)",
                                 operationId,
-                                jobId,
+                                allocationId,
                                 nodeId);
+                            replyWithFailureAndRecordInController(
+                                operationId,
+                                allocationId,
+                                EScheduleAllocationFailReason::NodeOffline,
+                                controller);
                             return;
                         }
 
-                        auto jobLimits = FromProto<TJobResources>(protoRequest->job_resource_limits());
+                        auto allocationLimits = FromProto<TJobResources>(protoRequest->allocation_resource_limits());
                         const auto& treeId = protoRequest->tree_id();
 
-                        TAgentToSchedulerScheduleJobResponse response;
+                        TAgentToSchedulerScheduleAllocationResponse response;
                         TSchedulingContext context(protoRequest, descriptorIt->second, protoRequest->spec());
 
                         response.OperationId = operationId;
-                        response.JobId = jobId;
-                        response.Result = controller->ScheduleJob(
+                        response.AllocationId = allocationId;
+                        response.Result = controller->ScheduleAllocation(
                             &context,
-                            jobLimits,
+                            allocationLimits,
                             treeId);
-                        auto scheduleJobFinishInstant = TInstant::Now();
-                        YT_LOG_DEBUG("Schedule job finished (OperationId: %v, JobId: %v, ScheduleJobDuration: %v)",
+                        auto scheduleAllocationFinishInstant = TInstant::Now();
+                        YT_LOG_DEBUG(
+                            "Schedule allocation finished (OperationId: %v, AllocationId: %v, ScheduleAllocationDuration: %v)",
                             operationId,
-                            jobId,
-                            scheduleJobFinishInstant - controllerInvocationInstant);
+                            allocationId,
+                            scheduleAllocationFinishInstant - controllerInvocationInstant);
 
                         if (!response.Result) {
-                            response.Result = New<TControllerScheduleJobResult>();
+                            response.Result = New<TControllerScheduleAllocationResult>();
                         }
 
                         outbox->Enqueue(std::move(response));
-                        YT_LOG_DEBUG("Job schedule response enqueued (OperationId: %v, JobId: %v)",
+                        YT_LOG_DEBUG(
+                            "Allocation schedule response enqueued (OperationId: %v, AllocationId: %v)",
                             operationId,
-                            jobId);
+                            allocationId);
                     }),
                     BIND([=, this_ = MakeStrong(this)] {
-                        replyWithFailure(operationId, jobId, EScheduleJobFailReason::UnknownOperation);
-                        YT_LOG_DEBUG("Failed to schedule job due to operation cancelation (OperationId: %v, JobId: %v)",
+                        YT_LOG_DEBUG(
+                            "Failed to schedule job due to operation cancelation (OperationId: %v, AllocationId: %v)",
                             operationId,
-                            jobId);
+                            allocationId);
+                        replyWithFailure(
+                            operationId,
+                            allocationId,
+                            EScheduleAllocationFailReason::UnknownOperation);
                     }));
             });
     }
 
-    void SendScheduleJobHeartbeat()
+    void SendScheduleAllocationHeartbeat()
     {
-        auto req = SchedulerProxy_.ScheduleJobHeartbeat();
+        auto req = SchedulerProxy_.ScheduleAllocationHeartbeat();
 
         req->SetTimeout(Config_->SchedulerHeartbeatRpcTimeout);
         req->SetRequestHeavy(true);
@@ -1881,12 +1921,13 @@ private:
         ToProto(req->mutable_incarnation_id(), IncarnationId_);
         GenerateMutationId(req);
 
-        BuildOutcomingScheduleJobResponses(req);
+        BuildOutcomingScheduleAllocationResponses(req);
 
-        ScheduleJobRequestsInbox_->ReportStatus(req->mutable_scheduler_to_agent_schedule_job_requests());
+        ScheduleAllocationRequestsInbox_->ReportStatus(req->mutable_scheduler_to_agent_schedule_allocation_requests());
 
-        YT_LOG_DEBUG("Sending schedule jobs heartbeat (ScheduleJobResponseCount: %v)",
-            req->agent_to_scheduler_schedule_job_responses().items_size());
+        YT_LOG_DEBUG(
+            "Sending schedule jobs heartbeat (ScheduleAllocationResponseCount: %v)",
+            req->agent_to_scheduler_schedule_allocation_responses().items_size());
 
         auto rspOrError = WaitFor(req->Invoke());
         if (!rspOrError.IsOK()) {
@@ -1903,9 +1944,9 @@ private:
 
         const auto& rsp = rspOrError.Value();
 
-        ScheduleJobResponsesOutbox_->HandleStatus(rsp->agent_to_scheduler_schedule_job_responses());
+        ScheduleAllocationResponsesOutbox_->HandleStatus(rsp->agent_to_scheduler_schedule_allocation_responses());
 
-        HandleScheduleJobRequests(rsp, req->GetRequestId(), GetExecNodeDescriptors({}));
+        HandleScheduleAllocationRequests(rsp, req->GetRequestId(), GetExecNodeDescriptors({}));
     }
 
     void HandleAbortedAllocationEvents(const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp)
@@ -1965,8 +2006,8 @@ private:
                 controller->GetCancelableInvoker(EOperationControllerQueue::Default)->Invoke(
                     BIND([controller, eventType] {
                         switch (eventType) {
-                            case ESchedulerToAgentOperationEventType::UpdateMinNeededJobResources:
-                                controller->UpdateMinNeededJobResources();
+                            case ESchedulerToAgentOperationEventType::UpdateMinNeededAllocationResources:
+                                controller->UpdateMinNeededAllocationResources();
                                 break;
 
                             default:

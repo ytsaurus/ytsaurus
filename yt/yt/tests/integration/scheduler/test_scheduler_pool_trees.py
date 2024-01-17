@@ -552,7 +552,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
                     "filter": "custom_.*",
                     "config": {
                         "enable_aggressive_starvation": True,
-                        "max_unpreemptible_running_job_count": 731,
+                        "max_unpreemptible_running_allocation_count": 731,
                         "max_running_operation_count": 21
                     },
                 },
@@ -595,7 +595,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
                     "max_running_operation_count_per_pool": 180,
                     "enable_aggressive_starvation": True,
                     "max_running_operation_count": 93,
-                    "max_unpreemptible_running_job_count": 731,
+                    "max_unpreemptible_running_allocation_count": 731,
                 }
             )
 
@@ -609,7 +609,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
                     "filter": "custom_.*",
                     "config": {
                         "enable_aggressive_starvation": False,
-                        "max_unpreemptible_running_job_count": 1,
+                        "max_unpreemptible_running_allocation_count": 1,
                         "max_running_operation_count": 1
                     },
                 },

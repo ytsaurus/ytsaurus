@@ -41,7 +41,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         "scheduler": {
             "watchers_update_period": 100,
             "operations_update_period": 10,
-            "running_jobs_update_period": 10,
+            "running_allocations_update_period": 10,
         }
     }
 
@@ -2134,7 +2134,7 @@ class TestInputOutputFormats(YTEnvSetup):
         "scheduler": {
             "watchers_update_period": 100,
             "operations_update_period": 10,
-            "running_jobs_update_period": 10,
+            "running_allocations_update_period": 10,
         }
     }
 
@@ -2455,7 +2455,7 @@ class TestNestingLevelLimitOperations(YTEnvSetup):
         "scheduler": {
             "watchers_update_period": 100,
             "operations_update_period": 10,
-            "running_jobs_update_period": 10,
+            "running_allocations_update_period": 10,
         },
         "cluster_connection": {
             "cypress_write_yson_nesting_level_limit": YSON_DEPTH_LIMIT,

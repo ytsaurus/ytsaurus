@@ -332,7 +332,7 @@ class TestSchedulerControllerThrottling(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    DELTA_SCHEDULER_CONFIG = {"scheduler": {"schedule_job_time_limit": 100, "operations_update_period": 10}}
+    DELTA_SCHEDULER_CONFIG = {"scheduler": {"schedule_allocation_time_limit": 100, "operations_update_period": 10}}
 
     @authors("ignat")
     def test_time_based_throttling(self):

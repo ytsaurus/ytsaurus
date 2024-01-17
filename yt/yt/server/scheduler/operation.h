@@ -106,11 +106,11 @@ using TOperationAlertMap = TCompactFlatMap<
 DEFINE_ENUM(EUnschedulableReason,
     (IsNotRunning)
     (Suspended)
-    (NoPendingJobs)
+    (NoPendingAllocations)
 
     // NB(eshcherbin): This is not exactly an "unschedulable" reason, but it is
     // reasonable in our architecture to put it here anyway.
-    (MaxScheduleJobCallsViolated)
+    (MaxScheduleAllocationCallsViolated)
     (FifoSchedulableElementCountLimitReached)
 );
 
@@ -209,7 +209,7 @@ public:
 public:
     // By default, all new operations are not activated.
     // When operation passes admission control and scheduler decides
-    // that it's ready to start jobs, it is marked as active.
+    // that it's ready to start allocations, it is marked as active.
     bool IsRunningInStrategy() const;
     void SetRunningInStrategy();
 
@@ -219,7 +219,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TControllerAttributes, ControllerAttributes);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, RevivedFromSnapshot);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<NScheduler::TJobPtr>, RevivedJobs);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<NScheduler::TAllocationPtr>, RevivedAllocations);
 
     // A YSON map that is stored under ACL in Cypress.
     // NB: It should not be present in operation spec as it may contain
@@ -332,7 +332,7 @@ public:
     //! Delegates to #NYT::NScheduler::IsOperationFinishing.
     bool IsFinishingState() const;
 
-    //! Checks whether current operation state doesn't allow starting new jobs.
+    //! Checks whether current operation state doesn't allow starting new allocations.
     std::optional<EUnschedulableReason> CheckUnschedulable(const std::optional<TString>& treeId) const override;
 
     IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;

@@ -218,7 +218,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "operations_update_period": 100,
-            "schedule_job_time_limit": 3000,
+            "schedule_allocation_time_limit": 3000,
             "event_log": {"flush_period": 1000},
         }
     }

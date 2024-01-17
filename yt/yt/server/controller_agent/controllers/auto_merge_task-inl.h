@@ -17,10 +17,10 @@ class TAutoMergeableOutputMixin
 public:
     using TUnderlyingTask::TUnderlyingTask;
 
-    virtual NScheduler::TCompositePendingJobCount GetPendingJobCount() const override
+    virtual TCompositePendingJobCount GetPendingJobCount() const override
     {
         if (!CanScheduleJob_) {
-            return NScheduler::TCompositePendingJobCount{};
+            return TCompositePendingJobCount{};
         }
 
         auto result = TUnderlyingTask::GetPendingJobCount();
@@ -31,9 +31,9 @@ public:
         return result;
     }
 
-    virtual std::optional<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* /*context*/) override
+    virtual std::optional<EScheduleAllocationFailReason> GetScheduleFailReason(ISchedulingContext* /*context*/) override
     {
-        return CanScheduleJob_ ? std::nullopt : std::make_optional(EScheduleJobFailReason::TaskRefusal);
+        return CanScheduleJob_ ? std::nullopt : std::make_optional(EScheduleAllocationFailReason::TaskRefusal);
     }
 
     virtual void OnTaskCompleted() override

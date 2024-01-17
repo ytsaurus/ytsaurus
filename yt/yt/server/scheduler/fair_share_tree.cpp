@@ -49,7 +49,6 @@
 namespace NYT::NScheduler {
 
 using namespace NConcurrency;
-using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NYson;
@@ -225,7 +224,7 @@ static const auto EmptyListYsonString = BuildYsonStringFluently()
 class TFairShareTree
     : public IFairShareTree
     , public IFairShareTreeElementHost
-    , public IFairShareTreeJobSchedulerHost
+    , public IFairShareTreeAllocationSchedulerHost
 {
 public:
     using TFairShareTreePtr = TIntrusivePtr<TFairShareTree>;
@@ -250,7 +249,7 @@ public:
                 .WithGlobal()
                 .WithProducerRemoveSupport()
                 .WithRequiredTag("tree", TreeId_))
-        , TreeScheduler_(New<TFairShareTreeJobScheduler>(
+        , TreeScheduler_(New<TFairShareTreeAllocationScheduler>(
             TreeId_,
             Logger,
             MakeWeak(this),
@@ -546,12 +545,12 @@ public:
         }
     }
 
-    void RegisterJobsFromRevivedOperation(TOperationId operationId, std::vector<TJobPtr> jobs) override
+    void RegisterAllocationsFromRevivedOperation(TOperationId operationId, std::vector<TAllocationPtr> allocations) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         const auto& element = FindOperationElement(operationId);
-        TreeScheduler_->RegisterJobsFromRevivedOperation(element.Get(), std::move(jobs));
+        TreeScheduler_->RegisterAllocationsFromRevivedOperation(element.Get(), std::move(allocations));
     }
 
     void RegisterNode(TNodeId nodeId) override
@@ -583,7 +582,7 @@ public:
     TError CheckOperationIsHung(
         TOperationId operationId,
         TDuration safeTimeout,
-        int minScheduleJobCallAttempts,
+        int minScheduleAllocationCallAttempts,
         const THashSet<EDeactivationReason>& deactivationReasons,
         TDuration limitingAncestorSafeTimeout) override
     {
@@ -614,8 +613,8 @@ public:
             }
         }
 
-        bool hasMinNeededResources = !element->DetailedMinNeededJobResources().empty();
-        auto aggregatedMinNeededResources = element->AggregatedMinNeededJobResources();
+        bool hasMinNeededResources = !element->DetailedMinNeededAllocationResources().empty();
+        auto aggregatedMinNeededResources = element->AggregatedMinNeededAllocationResources();
         bool shouldCheckLimitingAncestor = hasMinNeededResources &&
             Config_->EnableLimitingAncestorCheck &&
             element->IsLimitingAncestorCheckEnabled();
@@ -634,7 +633,9 @@ public:
                 if (activationTime + limitingAncestorSafeTimeout < now &&
                     firstFoundLimitingAncestorTime + limitingAncestorSafeTimeout < now)
                 {
-                    return TError("Operation has an ancestor whose specified resource limits are too small to satisfy operation's minimum job resource demand")
+                    return TError(
+                        "Operation has an ancestor whose specified resource limits are too small to satisfy "
+                        "operation's minimum allocation resource demand")
                         << TErrorAttribute("safe_timeout", limitingAncestorSafeTimeout)
                         << TErrorAttribute("limiting_ancestor", limitingAncestor->GetId())
                         << TErrorAttribute("resource_limits", limitingAncestor->MaybeSpecifiedResourceLimits())
@@ -645,16 +646,16 @@ public:
             }
         }
 
-        auto jobSchedulerError = TFairShareTreeJobScheduler::CheckOperationIsHung(
+        auto allocationSchedulerError = TFairShareTreeAllocationScheduler::CheckOperationIsHung(
             GetTreeSnapshot(),
             element,
             now,
             activationTime,
             safeTimeout,
-            minScheduleJobCallAttempts,
+            minScheduleAllocationCallAttempts,
             deactivationReasons);
-        if (!jobSchedulerError.IsOK()) {
-            return jobSchedulerError;
+        if (!allocationSchedulerError.IsOK()) {
+            return allocationSchedulerError;
         }
 
         return TError();
@@ -905,7 +906,7 @@ public:
             }
         }
 
-        result->JobSchedulerState = TreeScheduler_->BuildPersistentState();
+        result->AllocationSchedulerState = TreeScheduler_->BuildPersistentState();
 
         return result;
     }
@@ -931,7 +932,7 @@ public:
             }
         }
 
-        TreeScheduler_->InitPersistentState(persistentState->JobSchedulerState);
+        TreeScheduler_->InitPersistentState(persistentState->AllocationSchedulerState);
     }
 
     void OnOperationMaterialized(TOperationId operationId) override
@@ -1172,7 +1173,7 @@ private:
     TResourceTreePtr ResourceTree_;
 
     const NProfiling::TProfiler TreeProfiler_;
-    TFairShareTreeJobSchedulerPtr TreeScheduler_;
+    TFairShareTreeAllocationSchedulerPtr TreeScheduler_;
     TFairShareTreeProfileManagerPtr TreeProfileManager_;
 
     const std::vector<IInvokerPtr> FeasibleInvokers_;
@@ -1201,7 +1202,7 @@ private:
 
     TSchedulerRootElementPtr RootElement_;
 
-    // NB(eshcherbin): We have the set of nodes both in strategy and in tree job scheduler.
+    // NB(eshcherbin): We have the set of nodes both in strategy and in tree allocation scheduler.
     // Here we only keep current node count to have it ready for snapshot.
     int NodeCount_ = 0;
 
@@ -1595,7 +1596,7 @@ private:
             .TreeConfig = Config_,
             .Now = updateContext.Now,
         };
-        auto jobSchedulerPostUpdateContext = TreeScheduler_->CreatePostUpdateContext(rootElement.Get());
+        auto allocationSchedulerPostUpdateContext = TreeScheduler_->CreatePostUpdateContext(rootElement.Get());
 
         auto asyncUpdate = BIND([&]
             {
@@ -1609,7 +1610,7 @@ private:
                     rootElement->PostUpdate(&fairSharePostUpdateContext);
                     rootElement->UpdateStarvationStatuses(now, fairSharePostUpdateContext.TreeConfig->EnablePoolStarvation);
 
-                    TreeScheduler_->PostUpdate(&fairSharePostUpdateContext, &jobSchedulerPostUpdateContext);
+                    TreeScheduler_->PostUpdate(&fairSharePostUpdateContext, &allocationSchedulerPostUpdateContext);
                 }
 
                 MaybeDelay(fairSharePostUpdateContext.TreeConfig->TestingOptions->DelayInsideFairShareUpdate);
@@ -1649,7 +1650,7 @@ private:
         rootElement->MarkImmutable();
 
         auto treeSnapshotId = TTreeSnapshotId::Create();
-        auto treeSchedulingSnapshot = TreeScheduler_->CreateSchedulingSnapshot(&jobSchedulerPostUpdateContext);
+        auto treeSchedulingSnapshot = TreeScheduler_->CreateSchedulingSnapshot(&allocationSchedulerPostUpdateContext);
         auto treeSnapshot = New<TFairShareTreeSnapshot>(
             treeSnapshotId,
             std::move(rootElement),
@@ -2014,7 +2015,9 @@ private:
     }
 
     // Finds the lowest ancestor of |element| whose resource limits are too small to satisfy |neededResources|.
-    const TSchedulerElement* FindAncestorWithInsufficientSpecifiedResourceLimits(const TSchedulerElement* element, const TJobResources& neededResources) const
+    const TSchedulerElement* FindAncestorWithInsufficientSpecifiedResourceLimits(
+        const TSchedulerElement* element,
+        const TJobResources& neededResources) const
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2327,7 +2330,7 @@ private:
         return nullptr;
     }
 
-    TFuture<void> ProcessSchedulingHeartbeat(const ISchedulingContextPtr& schedulingContext, bool skipScheduleJobs) override
+    TFuture<void> ProcessSchedulingHeartbeat(const ISchedulingContextPtr& schedulingContext, bool skipScheduleAllocations) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -2336,11 +2339,11 @@ private:
         YT_VERIFY(treeSnapshot);
 
         auto processSchedulingHeartbeatFuture = BIND(
-            &TFairShareTreeJobScheduler::ProcessSchedulingHeartbeat,
+            &TFairShareTreeAllocationScheduler::ProcessSchedulingHeartbeat,
             TreeScheduler_,
             schedulingContext,
             treeSnapshot,
-            skipScheduleJobs)
+            skipScheduleAllocations)
             .AsyncVia(GetCurrentInvoker())
             .Run();
 
@@ -2363,10 +2366,10 @@ private:
         return treeSnapshot->RootElement()->SchedulableElementCount();
     }
 
-    void ProcessJobUpdates(
-        const std::vector<TJobUpdate>& jobUpdates,
-        THashSet<TJobId>* jobsToPostpone,
-        THashMap<TJobId, EAbortReason>* jobsToAbort) override
+    void ProcessAllocationUpdates(
+        const std::vector<TAllocationUpdate>& allocationUpdates,
+        THashSet<TAllocationId>* allocationsToPostpone,
+        THashMap<TAllocationId, EAbortReason>* allocationsToAbort) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -2374,36 +2377,37 @@ private:
 
         YT_VERIFY(treeSnapshot);
 
-        for (const auto& jobUpdate : jobUpdates) {
-            switch (jobUpdate.Status) {
-                case EJobUpdateStatus::Running: {
+        for (const auto& allocationUpdate : allocationUpdates) {
+            switch (allocationUpdate.Status) {
+                case EAllocationUpdateStatus::Running: {
                     std::optional<EAbortReason> maybeAbortReason;
-                    ProcessUpdatedJob(
+                    ProcessUpdatedAllocation(
                         treeSnapshot,
-                        jobUpdate.OperationId,
-                        jobUpdate.JobId,
-                        jobUpdate.JobResources,
-                        jobUpdate.JobDataCenter,
-                        jobUpdate.JobInfinibandCluster,
+                        allocationUpdate.OperationId,
+                        allocationUpdate.AllocationId,
+                        allocationUpdate.AllocationResources,
+                        allocationUpdate.AllocationDataCenter,
+                        allocationUpdate.AllocationInfinibandCluster,
                         &maybeAbortReason);
 
                     if (maybeAbortReason) {
-                        EmplaceOrCrash(*jobsToAbort, jobUpdate.JobId, *maybeAbortReason);
-                        // NB(eshcherbin): We want the node shard to send us a job finished update,
-                        // this is why we have to postpone the job here. This is very ad-hoc, but I hope it'll
+                        EmplaceOrCrash(*allocationsToAbort, allocationUpdate.AllocationId, *maybeAbortReason);
+                        // NB(eshcherbin): We want the node shard to send us a allocation finished update,
+                        // this is why we have to postpone the allocation here. This is very ad-hoc, but I hope it'll
                         // soon be rewritten as a part of the new GPU scheduler. See: YT-15062.
-                        jobsToPostpone->insert(jobUpdate.JobId);
+                        allocationsToPostpone->insert(allocationUpdate.AllocationId);
                     }
 
                     break;
                 }
-                case EJobUpdateStatus::Finished: {
-                    if (!ProcessFinishedJob(treeSnapshot, jobUpdate.OperationId, jobUpdate.JobId)) {
-                        YT_LOG_DEBUG("Postpone job update since operation is disabled or missing in snapshot (OperationId: %v, JobId: %v)",
-                            jobUpdate.OperationId,
-                            jobUpdate.JobId);
+                case EAllocationUpdateStatus::Finished: {
+                    if (!ProcessFinishedAllocation(treeSnapshot, allocationUpdate.OperationId, allocationUpdate.AllocationId)) {
+                        YT_LOG_DEBUG(
+                            "Postpone allocation update since operation is disabled or missing in snapshot (OperationId: %v, AllocationId: %v)",
+                            allocationUpdate.OperationId,
+                            allocationUpdate.AllocationId);
 
-                        jobsToPostpone->insert(jobUpdate.JobId);
+                        allocationsToPostpone->insert(allocationUpdate.AllocationId);
                     }
                     break;
                 }
@@ -2413,37 +2417,41 @@ private:
         }
     }
 
-    void ProcessUpdatedJob(
+    void ProcessUpdatedAllocation(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
         TOperationId operationId,
-        TJobId jobId,
-        const TJobResources& jobResources,
-        const std::optional<TString>& jobDataCenter,
-        const std::optional<TString>& jobInfinibandCluster,
+        TAllocationId allocationId,
+        const TJobResources& allocationResources,
+        const std::optional<TString>& allocationDataCenter,
+        const std::optional<TString>& allocationInfinibandCluster,
         std::optional<EAbortReason>* maybeAbortReason)
     {
         // NB: Should be filtered out on large clusters.
-        YT_LOG_DEBUG("Processing updated job (OperationId: %v, JobId: %v, Resources: %v)", operationId, jobId, jobResources);
+        YT_LOG_DEBUG(
+            "Processing updated allocation (OperationId: %v, AllocationId: %v, Resources: %v)",
+            operationId,
+            allocationId,
+            allocationResources);
 
         if (auto* operationElement = treeSnapshot->FindEnabledOperationElement(operationId)) {
-            TreeScheduler_->ProcessUpdatedJob(
+            TreeScheduler_->ProcessUpdatedAllocation(
                 treeSnapshot,
                 operationElement,
-                jobId,
-                jobResources,
-                jobDataCenter,
-                jobInfinibandCluster,
+                allocationId,
+                allocationResources,
+                allocationDataCenter,
+                allocationInfinibandCluster,
                 maybeAbortReason);
         }
     }
 
-    bool ProcessFinishedJob(const TFairShareTreeSnapshotPtr& treeSnapshot, TOperationId operationId, TJobId jobId)
+    bool ProcessFinishedAllocation(const TFairShareTreeSnapshotPtr& treeSnapshot, TOperationId operationId, TAllocationId allocationId)
     {
         // NB: Should be filtered out on large clusters.
-        YT_LOG_DEBUG("Processing finished job (OperationId: %v, JobId: %v)", operationId, jobId);
+        YT_LOG_DEBUG("Processing finished allocation (OperationId: %v, AllocationId: %v)", operationId, allocationId);
 
         if (auto* operationElement = treeSnapshot->FindEnabledOperationElement(operationId)) {
-            TreeScheduler_->ProcessFinishedJob(treeSnapshot, operationElement, jobId);
+            TreeScheduler_->ProcessFinishedAllocation(treeSnapshot, operationElement, allocationId);
             return true;
         }
 
@@ -2496,27 +2504,27 @@ private:
             return;
         }
 
-        THashMap<std::optional<EJobSchedulingStage>, TOperationIdToJobResources> scheduledJobResources;
-        TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources> preemptedJobResources;
-        TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources> preemptedJobResourceTimes;
-        TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources> improperlyPreemptedJobResources;
+        THashMap<std::optional<EAllocationSchedulingStage>, TOperationIdToJobResources> scheduledAllocationResources;
+        TEnumIndexedVector<EAllocationPreemptionReason, TOperationIdToJobResources> preemptedAllocationResources;
+        TEnumIndexedVector<EAllocationPreemptionReason, TOperationIdToJobResources> preemptedAllocationResourceTimes;
+        TEnumIndexedVector<EAllocationPreemptionReason, TOperationIdToJobResources> improperlyPreemptedAllocationResources;
 
-        for (const auto& job : schedulingContext->StartedJobs()) {
-            TOperationId operationId = job->GetOperationId();
-            const TJobResources& scheduledResourcesDelta = job->ResourceLimits();
-            scheduledJobResources[job->GetSchedulingStage()][operationId] += scheduledResourcesDelta;
+        for (const auto& allocation : schedulingContext->StartedAllocations()) {
+            TOperationId operationId = allocation->GetOperationId();
+            const TJobResources& scheduledResourcesDelta = allocation->ResourceLimits();
+            scheduledAllocationResources[allocation->GetSchedulingStage()][operationId] += scheduledResourcesDelta;
         }
-        for (const auto& preemptedJob : schedulingContext->PreemptedJobs()) {
-            const TJobPtr& job = preemptedJob.Job;
-            TOperationId operationId = job->GetOperationId();
-            const TJobResources& preemptedResourcesDelta = job->ResourceLimits();
-            EJobPreemptionReason preemptionReason = preemptedJob.PreemptionReason;
-            preemptedJobResources[preemptionReason][operationId] += preemptedResourcesDelta;
-            preemptedJobResourceTimes[preemptionReason][operationId] += preemptedResourcesDelta * static_cast<i64>(
-                job->GetPreemptibleProgressTime().Seconds());
+        for (const auto& preemptedAllocation : schedulingContext->PreemptedAllocations()) {
+            const TAllocationPtr& allocation = preemptedAllocation.Allocation;
+            TOperationId operationId = allocation->GetOperationId();
+            const TJobResources& preemptedResourcesDelta = allocation->ResourceLimits();
+            EAllocationPreemptionReason preemptionReason = preemptedAllocation.PreemptionReason;
+            preemptedAllocationResources[preemptionReason][operationId] += preemptedResourcesDelta;
+            preemptedAllocationResourceTimes[preemptionReason][operationId] += preemptedResourcesDelta * static_cast<i64>(
+                allocation->GetPreemptibleProgressTime().Seconds());
 
-            if (job->GetPreemptedFor() && !job->GetPreemptedForProperlyStarvingOperation()) {
-                improperlyPreemptedJobResources[preemptionReason][operationId] += preemptedResourcesDelta;
+            if (allocation->GetPreemptedFor() && !allocation->GetPreemptedForProperlyStarvingOperation()) {
+                improperlyPreemptedAllocationResources[preemptionReason][operationId] += preemptedResourcesDelta;
             }
         }
 
@@ -2524,10 +2532,10 @@ private:
             &TFairShareTreeProfileManager::ApplyScheduledAndPreemptedResourcesDelta,
             TreeProfileManager_,
             treeSnapshot,
-            Passed(std::move(scheduledJobResources)),
-            Passed(std::move(preemptedJobResources)),
-            Passed(std::move(preemptedJobResourceTimes)),
-            Passed(std::move(improperlyPreemptedJobResources))));
+            Passed(std::move(scheduledAllocationResources)),
+            Passed(std::move(preemptedAllocationResources)),
+            Passed(std::move(preemptedAllocationResourceTimes)),
+            Passed(std::move(improperlyPreemptedAllocationResources))));
     }
 
     TJobResources GetSnapshottedTotalResourceLimits() const override
@@ -2579,12 +2587,12 @@ private:
         TreeScheduler_->BuildSchedulingAttributesForNode(nodeId, fluent);
     }
 
-    void BuildSchedulingAttributesStringForOngoingJobs(
-        const std::vector<TJobPtr>& jobs,
+    void BuildSchedulingAttributesStringForOngoingAllocations(
+        const std::vector<TAllocationPtr>& allocations,
         TInstant now,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const override
     {
-        TreeScheduler_->BuildSchedulingAttributesStringForOngoingJobs(GetAtomicTreeSnapshot(), jobs, now, delimitedBuilder);
+        TreeScheduler_->BuildSchedulingAttributesStringForOngoingAllocations(GetAtomicTreeSnapshot(), allocations, now, delimitedBuilder);
     }
 
     void ProfileFairShare() const override
@@ -3062,13 +3070,13 @@ private:
             .Item("start_time").Value(element->GetStartTime())
             .OptionalItem("fifo_index", element->Attributes().FifoIndex)
             .Item("detailed_min_needed_job_resources").BeginList()
-                .DoFor(element->DetailedMinNeededJobResources(), [&] (TFluentList fluent, const TJobResourcesWithQuota& jobResourcesWithQuota) {
+                .DoFor(element->DetailedMinNeededAllocationResources(), [&] (TFluentList fluent, const TJobResourcesWithQuota& jobResourcesWithQuota) {
                     fluent.Item().Do([&] (TFluentAny fluent) {
                         strategyHost->SerializeResources(jobResourcesWithQuota, fluent.GetConsumer());
                     });
                 })
             .EndList()
-            .Item("aggregated_min_needed_job_resources").Value(element->AggregatedMinNeededJobResources())
+            .Item("aggregated_min_needed_job_resources").Value(element->AggregatedMinNeededAllocationResources())
             .Item("tentative").Value(element->GetRuntimeParameters()->Tentative)
             .Item("probing").Value(element->GetRuntimeParameters()->Probing)
             .Item("offloading").Value(element->GetRuntimeParameters()->Offloading)
@@ -3079,7 +3087,7 @@ private:
                 fluent.Item().Value(strategyHost->GetMediumNameByIndex(mediumIndex));
             })
             .Item("unschedulable_reason").Value(element->GetUnschedulableReason())
-            .Do(BIND(&TFairShareTreeJobScheduler::BuildOperationProgress, ConstRef(treeSnapshot), Unretained(element), strategyHost))
+            .Do(BIND(&TFairShareTreeAllocationScheduler::BuildOperationProgress, ConstRef(treeSnapshot), Unretained(element), strategyHost))
             .Do(BIND(&TFairShareTree::DoBuildElementYson, ConstRef(treeSnapshot), Unretained(element), TFieldsFilter{}));
     }
 
@@ -3199,7 +3207,7 @@ private:
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "local_satisfaction_ratio", element->PostUpdateAttributes().LocalSatisfactionRatio)
 
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "schedulable", element->IsSchedulable())
-            .Do(BIND(&TFairShareTreeJobScheduler::BuildElementYson, ConstRef(treeSnapshot), Unretained(element), filter));
+            .Do(BIND(&TFairShareTreeAllocationScheduler::BuildElementYson, ConstRef(treeSnapshot), Unretained(element), filter));
     }
 
     void DoBuildEssentialFairShareInfo(const TFairShareTreeSnapshotPtr& treeSnapshot, TFluentMap fluent) const

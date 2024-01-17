@@ -12,8 +12,8 @@ using namespace NControllerAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobStartDescriptor::TJobStartDescriptor(
-    TJobId id,
+TAllocationStartDescriptor::TAllocationStartDescriptor(
+    TAllocationId id,
     const TJobResourcesWithQuota& resourceLimits)
     : Id(id)
     , ResourceLimits(resourceLimits)
@@ -21,26 +21,26 @@ TJobStartDescriptor::TJobStartDescriptor(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TControllerScheduleJobResult::RecordFail(EScheduleJobFailReason reason)
+void TControllerScheduleAllocationResult::RecordFail(EScheduleAllocationFailReason reason)
 {
     ++Failed[reason];
 }
 
-bool TControllerScheduleJobResult::IsBackoffNeeded() const
+bool TControllerScheduleAllocationResult::IsBackoffNeeded() const
 {
     return
         !StartDescriptor &&
-        Failed[EScheduleJobFailReason::NotEnoughResources] == 0 &&
-        Failed[EScheduleJobFailReason::NoLocalJobs] == 0 &&
-        Failed[EScheduleJobFailReason::NodeBanned] == 0 &&
-        Failed[EScheduleJobFailReason::DataBalancingViolation] == 0;
+        Failed[EScheduleAllocationFailReason::NotEnoughResources] == 0 &&
+        Failed[EScheduleAllocationFailReason::NoLocalJobs] == 0 &&
+        Failed[EScheduleAllocationFailReason::NodeBanned] == 0 &&
+        Failed[EScheduleAllocationFailReason::DataBalancingViolation] == 0;
 }
 
-bool TControllerScheduleJobResult::IsScheduleStopNeeded() const
+bool TControllerScheduleAllocationResult::IsScheduleStopNeeded() const
 {
     return
-        Failed[EScheduleJobFailReason::NotEnoughChunkLists] > 0 ||
-        Failed[EScheduleJobFailReason::JobSpecThrottling] > 0;
+        Failed[EScheduleAllocationFailReason::NotEnoughChunkLists] > 0 ||
+        Failed[EScheduleAllocationFailReason::JobSpecThrottling] > 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,7 +87,7 @@ void FromProto(
 
 bool TPreemptedFor::operator == (const TPreemptedFor& other) const noexcept
 {
-    return JobId == other.JobId && OperationId == other.OperationId;
+    return AllocationId == other.AllocationId && OperationId == other.OperationId;
 }
 
 bool TPreemptedFor::operator != (const TPreemptedFor& other) const noexcept
@@ -98,20 +98,20 @@ bool TPreemptedFor::operator != (const TPreemptedFor& other) const noexcept
 TString ToString(const TPreemptedFor& preemptedFor)
 {
     return Format(
-        "{OperationId: %v, JobId: %v}",
+        "{OperationId: %v, AllocationId: %v}",
         preemptedFor.OperationId,
-        preemptedFor.JobId);
+        preemptedFor.AllocationId);
 }
 
 void ToProto(NProto::TPreemptedFor* proto, const TPreemptedFor& preemptedFor)
 {
-    ToProto(proto->mutable_allocation_id(), preemptedFor.JobId);
+    ToProto(proto->mutable_allocation_id(), preemptedFor.AllocationId);
     ToProto(proto->mutable_operation_id(), preemptedFor.OperationId);
 }
 
 void FromProto(TPreemptedFor* preemptedFor, const NProto::TPreemptedFor& proto)
 {
-    FromProto(&preemptedFor->JobId, proto.allocation_id());
+    FromProto(&preemptedFor->AllocationId, proto.allocation_id());
     FromProto(&preemptedFor->OperationId, proto.operation_id());
 }
 
@@ -119,132 +119,16 @@ void Serialize(const TPreemptedFor& preemptedFor, NYson::IYsonConsumer* consumer
 {
     NYTree::BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("job_id").Value(preemptedFor.JobId)
+            .Item("job_id").Value(preemptedFor.AllocationId)
             .Item("operation_id").Value(preemptedFor.OperationId)
         .EndMap();
 }
 
+// TODO(pogorelov): Use allocation_id here
 void Deserialize(TPreemptedFor& preemptedFor, const NYTree::INodePtr& node)
 {
-    Deserialize(preemptedFor.JobId, node->AsMap()->GetChildOrThrow("job_id"));
+    Deserialize(preemptedFor.AllocationId, node->AsMap()->GetChildOrThrow("job_id"));
     Deserialize(preemptedFor.OperationId, node->AsMap()->GetChildOrThrow("operation_id"));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool TCompositePendingJobCount::IsZero() const
-{
-    if (DefaultCount != 0) {
-        return false;
-    }
-
-    for (const auto& [_, count] : CountByPoolTree) {
-        if (count != 0) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-int TCompositePendingJobCount::GetJobCountFor(const TString& tree) const
-{
-    auto it = CountByPoolTree.find(tree);
-    return it != CountByPoolTree.end()
-        ? it->second
-        : DefaultCount;
-}
-
-void TCompositePendingJobCount::Persist(const TStreamPersistenceContext &context)
-{
-    using NYT::Persist;
-    Persist(context, DefaultCount);
-    Persist(context, CountByPoolTree);
-}
-
-void Serialize(const TCompositePendingJobCount& jobCount, NYson::IYsonConsumer* consumer)
-{
-    NYTree::BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("absolute").Value(jobCount.DefaultCount)
-            .Item("count_by_pool_tree").Value(jobCount.CountByPoolTree)
-        .EndMap();
-}
-
-void FormatValue(TStringBuilderBase* builder, const TCompositePendingJobCount& jobCount, TStringBuf /* format */)
-{
-    if (jobCount.CountByPoolTree.empty()) {
-        builder->AppendFormat("%v", jobCount.DefaultCount);
-    } else {
-        builder->AppendFormat("{DefaultCount: %v, CountByPoolTree: %v}",
-            jobCount.DefaultCount,
-            jobCount.CountByPoolTree);
-    }
-}
-
-bool operator == (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs)
-{
-    if (lhs.DefaultCount != rhs.DefaultCount) {
-        return false;
-    }
-
-    if (lhs.CountByPoolTree.size() != rhs.CountByPoolTree.size()) {
-        return false;
-    }
-
-    for (const auto& [tree, lhsCount] : lhs.CountByPoolTree) {
-        auto rhsIt = rhs.CountByPoolTree.find(tree);
-        if (rhsIt == rhs.CountByPoolTree.end()) {
-            return false;
-        }
-        if (lhsCount != rhsIt->second) {
-            return false;
-        }
-    }
-    return true;
-}
-
-bool operator != (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs)
-{
-    return !(lhs == rhs);
-}
-
-TCompositePendingJobCount operator + (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs)
-{
-    TCompositePendingJobCount result;
-    result.DefaultCount = lhs.DefaultCount + rhs.DefaultCount;
-    for (const auto& [tree, lhsCount] : lhs.CountByPoolTree) {
-        auto rhsIt = rhs.CountByPoolTree.find(tree);
-        if (rhsIt == rhs.CountByPoolTree.end()) {
-            result.CountByPoolTree[tree] = lhsCount;
-        } else {
-            result.CountByPoolTree[tree] = lhsCount + rhsIt->second;
-        }
-    }
-
-    for (const auto& [tree, rhsCount] : rhs.CountByPoolTree) {
-        if (result.CountByPoolTree.find(tree) == result.CountByPoolTree.end()) {
-            result.CountByPoolTree[tree] = rhsCount;
-        }
-    }
-
-    return result;
-}
-
-TCompositePendingJobCount operator - (const TCompositePendingJobCount& count)
-{
-    TCompositePendingJobCount result;
-    result.DefaultCount = -count.DefaultCount;
-    for (const auto& [tree, countPerTree] : count.CountByPoolTree) {
-        result.CountByPoolTree[tree] = -countPerTree;
-    }
-
-    return result;
-}
-
-TCompositePendingJobCount operator - (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs)
-{
-    return lhs + (-rhs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

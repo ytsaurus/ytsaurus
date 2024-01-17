@@ -111,7 +111,7 @@ public:
         TPreprocessedSpec preprocessedSpec);
 
     TFuture<void> AbortOperation(TOperationPtr operation, const TError& error, const TString& user);
-    TFuture<void> SuspendOperation(TOperationPtr operation, const TString& user, bool abortRunningJobs);
+    TFuture<void> SuspendOperation(TOperationPtr operation, const TString& user, bool abortRunningAllocations);
     TFuture<void> ResumeOperation(TOperationPtr operation, const TString& user);
     TFuture<void> CompleteOperation(
         TOperationPtr operation,
@@ -131,7 +131,7 @@ public:
     void OnOperationBannedInTentativeTree(
         const TOperationPtr& operation,
         const TString& treeId,
-        const std::vector<TJobId>& jobIds);
+        const std::vector<TAllocationId>& allocationIds);
 
     using TCtxNodeHeartbeat = NRpc::TTypedServiceContext<
         NProto::NNode::TReqHeartbeat,
@@ -166,8 +166,6 @@ public:
         const TString& user,
         const TString& jobShellName,
         const std::vector<TString>& jobShellOwners);
-
-    TFuture<TOperationId> FindOperationIdByJobId(TJobId jobId) const;
 
     TFuture<TOperationId> FindOperationIdByAllocationId(TAllocationId allocationId) const;
 

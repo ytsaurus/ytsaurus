@@ -110,7 +110,7 @@ class TestSchedulerPreemption(YTEnvSetup):
             "preemption_satisfaction_threshold": 0.99,
             "fair_share_starvation_tolerance": 0.8,
             "fair_share_starvation_timeout": 1000,
-            "max_unpreemptible_running_job_count": 0,
+            "max_unpreemptible_running_allocation_count": 0,
             "preemptive_scheduling_backoff": 0,
             "allocation_graceful_preemption_timeout": 10000,
         })
@@ -487,7 +487,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         set("//sys/pool_trees/default/@config/waiting_job_timeout", 600000)
         set("//sys/pool_trees/default/@config/allocation_preemption_timeout", 600000)
 
-        set("//sys/scheduler/config/running_jobs_update_period", 100)
+        set("//sys/scheduler/config/running_allocations_update_period", 100)
 
         total_cpu_limit = int(get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu"))
         create_pool("pool1", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
@@ -547,14 +547,14 @@ class TestSchedulerPreemption(YTEnvSetup):
         assert job["abort_reason"] == "preemption"
         assert job["error"]["attributes"]["abort_reason"] == "preemption"
         preemption_reason = job["error"]["attributes"]["preemption_reason"]
-        assert preemption_reason.startswith("Preempted to start job") and \
+        assert preemption_reason.startswith("Preempted to start allocation") and \
             "of operation {}".format(op2.id) in preemption_reason
 
     @authors("eshcherbin")
     def test_conditional_preemption(self):
-        update_scheduler_config("min_spare_job_resources_on_node", {"cpu": 0.5, "user_slots": 1})
+        update_scheduler_config("min_spare_allocation_resources_on_node", {"cpu": 0.5, "user_slots": 1})
 
-        set("//sys/pool_trees/default/@config/max_unpreemptible_running_job_count", 1)
+        set("//sys/pool_trees/default/@config/max_unpreemptible_running_allocation_count", 1)
         set("//sys/pool_trees/default/@config/enable_conditional_preemption", False)
         wait(lambda: not get(scheduler_orchid_default_pool_tree_config_path() + "/enable_conditional_preemption"))
 
@@ -603,7 +603,7 @@ class TestSchedulerPreemption(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_job_preemption_order(self):
-        update_scheduler_config("min_spare_job_resources_on_node", {"cpu": 0.5, "user_slots": 1}, wait_for_orchid=False)
+        update_scheduler_config("min_spare_allocation_resources_on_node", {"cpu": 0.5, "user_slots": 1}, wait_for_orchid=False)
         update_scheduler_config("operation_hangup_check_period", 1000000000)
 
         create_pool("production", attributes={"strong_guarantee_resources": {"cpu": 3.0}})
@@ -649,7 +649,7 @@ class TestSchedulerPreemption(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_retain_preemptible_status_after_revive(self):
-        update_scheduler_config("min_spare_job_resources_on_node", {"cpu": 0.5, "user_slots": 1}, wait_for_orchid=False)
+        update_scheduler_config("min_spare_allocation_resources_on_node", {"cpu": 0.5, "user_slots": 1}, wait_for_orchid=False)
 
         create_pool("research", attributes={"resource_limits": {"user_slots": 5}})
         create_pool("production", attributes={"strong_guarantee_resources": {"cpu": 0.5}})
@@ -696,8 +696,8 @@ class TestNonPreemptibleResourceUsageThreshold(YTEnvSetup):
     def setup_method(self, method):
         super(TestNonPreemptibleResourceUsageThreshold, self).setup_method(method)
 
-        remove("//sys/pool_trees/default/@config/max_unpreemptible_running_job_count", force=True),
-        update_pool_tree_config_option("default", "max_unpreemptible_running_job_count", yson.YsonEntity())
+        remove("//sys/pool_trees/default/@config/max_unpreemptible_running_allocation_count", force=True),
+        update_pool_tree_config_option("default", "max_unpreemptible_running_allocation_count", yson.YsonEntity())
         update_pool_tree_config("default", {
             "aggressive_preemption_satisfaction_threshold": 0.4,
             "preemption_satisfaction_threshold": 0.9,
@@ -755,34 +755,34 @@ class TestNonPreemptibleResourceUsageThreshold(YTEnvSetup):
         wait_no_assert(lambda: self._check_preemptible_job_count(op, 0, 0))
 
     @authors("eshcherbin")
-    def test_max_unpreemptible_running_job_count(self):
+    def test_max_unpreemptible_running_allocation_count(self):
         op = run_sleeping_vanilla(job_count=15)
         wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/cpu", default=None) == 10.0)
 
         wait_no_assert(lambda: self._check_preemptible_job_count(op, 1, 5))
 
-        remove("//sys/pool_trees/default/@config/max_unpreemptible_running_job_count", force=True)
+        remove("//sys/pool_trees/default/@config/max_unpreemptible_running_allocation_count", force=True)
         update_pool_tree_config_option(
             "default",
-            "max_unpreemptible_running_job_count",
+            "max_unpreemptible_running_allocation_count",
             0)
         wait_no_assert(lambda: self._check_preemptible_job_count(op, 1, 5))
 
         update_pool_tree_config_option(
             "default",
-            "max_unpreemptible_running_job_count",
+            "max_unpreemptible_running_allocation_count",
             4)
         wait_no_assert(lambda: self._check_preemptible_job_count(op, 1, 5))
 
         update_pool_tree_config_option(
             "default",
-            "max_unpreemptible_running_job_count",
+            "max_unpreemptible_running_allocation_count",
             7)
         wait_no_assert(lambda: self._check_preemptible_job_count(op, 1, 2))
 
         update_pool_tree_config_option(
             "default",
-            "max_unpreemptible_running_job_count",
+            "max_unpreemptible_running_allocation_count",
             10)
         wait_no_assert(lambda: self._check_preemptible_job_count(op, 0, 0))
 
@@ -791,16 +791,16 @@ class TestNonPreemptibleResourceUsageThreshold(YTEnvSetup):
         config_option_orchid_path = scheduler_orchid_pool_tree_config_path("default") + "/non_preemptible_resource_usage_threshold"
         assert get(config_option_orchid_path) == {}
 
-        remove("//sys/pool_trees/default/@config/max_unpreemptible_running_job_count", force=True)
+        remove("//sys/pool_trees/default/@config/max_unpreemptible_running_allocation_count", force=True)
         update_pool_tree_config_option(
             "default",
-            "max_unpreemptible_running_job_count",
+            "max_unpreemptible_running_allocation_count",
             0)
         assert get(config_option_orchid_path) == {"user_slots": 0}
 
         update_pool_tree_config_option(
             "default",
-            "max_unpreemptible_running_job_count",
+            "max_unpreemptible_running_allocation_count",
             7)
         assert get(config_option_orchid_path) == {"user_slots": 7}
 
@@ -850,7 +850,7 @@ class TestNonPreemptibleResourceUsageThreshold(YTEnvSetup):
         wait_no_assert(lambda: self._check_preemptible_job_count(op, 1, 2))
 
     @authors("eshcherbin")
-    def test_operation_max_unpreemptible_running_job_count(self):
+    def test_operation_max_unpreemptible_running_allocation_count(self):
         op = run_sleeping_vanilla(job_count=15, spec={"max_unpreemptible_job_count": 7})
         wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/cpu", default=None) == 10.0)
 
@@ -876,7 +876,7 @@ class TestPreemptionPriorityScope(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "running_jobs_update_period": 10,
+            "running_allocations_update_period": 10,
             "fair_share_update_period": 100,
             "operation_hangup_check_period": 1000000000,
         },
@@ -905,7 +905,7 @@ class TestPreemptionPriorityScope(YTEnvSetup):
                 "preemption_satisfaction_threshold": 0.8,
                 "fair_share_starvation_timeout": 1000,
                 "fair_share_starvation_tolerance": 0.95,
-                "max_unpreemptible_running_job_count": 0,
+                "max_unpreemptible_running_allocation_count": 0,
                 "preemptive_scheduling_backoff": 0,
                 "scheduling_preemption_priority_scope": "operation_only",
             })
@@ -954,7 +954,7 @@ class TestRacyPreemption(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "fair_share_update_period": 100,
-            "schedule_job_time_limit": 20000,
+            "schedule_allocation_time_limit": 20000,
         },
     }
 
@@ -963,7 +963,7 @@ class TestRacyPreemption(YTEnvSetup):
         update_pool_tree_config("default", {
             "preemption_satisfaction_threshold": 1.0,
             "fair_share_starvation_tolerance": 1.0,
-            "max_unpreemptible_running_job_count": 0,
+            "max_unpreemptible_running_allocation_count": 0,
             "fair_share_starvation_timeout": 0,
             "preemptive_scheduling_backoff": 0,
         })
@@ -1195,7 +1195,7 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
             "aggressive_preemption_satisfaction_threshold": 0.2,
             "preemption_satisfaction_threshold": 1.0,
             "fair_share_starvation_tolerance": 0.9,
-            "max_unpreemptible_running_job_count": 0,
+            "max_unpreemptible_running_allocation_count": 0,
             "fair_share_starvation_timeout": 100,
             "fair_share_aggressive_starvation_timeout": 200,
             "preemptive_scheduling_backoff": 0,
@@ -1362,7 +1362,7 @@ class TestSchedulerAggressivePreemption2(YTEnvSetup):
             "preemption_check_starvation": False,
             "preemption_check_satisfaction": False,
             "fair_share_starvation_timeout": 100,
-            "max_unpreemptible_running_job_count": 2,
+            "max_unpreemptible_running_allocation_count": 2,
             "preemptive_scheduling_backoff": 0,
         })
 
@@ -1496,7 +1496,7 @@ class TestIncreasedStarvationToleranceForFullySatisfiedDemand(YTEnvSetup):
             "aggressive_preemption_satisfaction_threshold": 0.2,
             "preemption_satisfaction_threshold": 1.0,
             "fair_share_starvation_tolerance": 0.8,
-            "max_unpreemptible_running_job_count": 0,
+            "max_unpreemptible_running_allocation_count": 0,
             "fair_share_starvation_timeout": 100,
             "fair_share_aggressive_starvation_timeout": 200,
             "preemptive_scheduling_backoff": 0,
@@ -1603,7 +1603,7 @@ class BaseTestDiskPreemption(YTEnvSetup):
         "aggressive_preemption_satisfaction_threshold": 0.2,
         "preemption_satisfaction_threshold": 1.0,
         "fair_share_starvation_tolerance": 0.9,
-        "max_unpreemptible_running_job_count": 0,
+        "max_unpreemptible_running_allocation_count": 0,
         "fair_share_starvation_timeout": 100,
         "fair_share_aggressive_starvation_timeout": 200,
         "preemptive_scheduling_backoff": 0,
@@ -1765,7 +1765,7 @@ class TestSsdPriorityPreemption(BaseTestDiskPreemption):
 
     @authors("eshcherbin")
     def test_regular_ssd_priority_preemption_many_operations(self):
-        update_pool_tree_config_option("default", "max_unpreemptible_running_job_count", 1)
+        update_pool_tree_config_option("default", "max_unpreemptible_running_allocation_count", 1)
 
         create_pool("first", wait_for_orchid=False)
         create_pool("second")

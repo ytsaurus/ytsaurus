@@ -42,7 +42,7 @@ public:
 public:
     TPackingHeartbeatSnapshot(NProfiling::TCpuInstant time, const TPackingNodeResourcesSnapshot& resources);
 
-    bool CanSchedule(const TJobResourcesWithQuota& jobResourcesWithQuota) const;
+    bool CanSchedule(const TJobResourcesWithQuota& allocationResourcesWithQuota) const;
 };
 
 TPackingHeartbeatSnapshot CreateHeartbeatSnapshot(const ISchedulingContextPtr& schedulingContext);
@@ -59,7 +59,7 @@ public:
     bool CheckPacking(
         const TSchedulerOperationElement* operationElement,
         const TPackingHeartbeatSnapshot& heartbeatSnapshot,
-        const TJobResourcesWithQuota& jobResourcesWithQuota,
+        const TJobResourcesWithQuota& allocationResourcesWithQuota,
         const TJobResources& totalResourceLimits,
         const TFairShareStrategyPackingConfigPtr& config) const;
 

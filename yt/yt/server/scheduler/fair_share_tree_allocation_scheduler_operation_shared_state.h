@@ -10,42 +10,42 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairShareTreeJobSchedulerOperationSharedState final
+class TFairShareTreeAllocationSchedulerOperationSharedState final
 {
 public:
-    TFairShareTreeJobSchedulerOperationSharedState(
+    TFairShareTreeAllocationSchedulerOperationSharedState(
         ISchedulerStrategyHost* strategyHost,
-        int updatePreemptibleJobsListLoggingPeriod,
+        int updatePreemptibleAllocationsListLoggingPeriod,
         const NLogging::TLogger& logger);
 
     // Returns resources change.
-    TJobResources SetJobResourceUsage(TJobId jobId, const TJobResources& resources);
+    TJobResources SetAllocationResourceUsage(TAllocationId allocationId, const TJobResources& resources);
 
     TDiskQuota GetTotalDiskQuota() const;
 
     void PublishFairShare(const TResourceVector& fairShare);
 
-    bool OnJobStarted(
+    bool OnAllocationStarted(
         TSchedulerOperationElement* operationElement,
-        TJobId jobId,
+        TAllocationId allocationId,
         const TJobResourcesWithQuota& resourceUsage,
         const TJobResources& precommittedResources,
-        TControllerEpoch scheduleJobEpoch,
+        TControllerEpoch scheduleAllocationEpoch,
         bool force = false);
-    void OnJobFinished(TSchedulerOperationElement* operationElement, TJobId jobId);
-    void UpdatePreemptibleJobsList(const TSchedulerOperationElement* element);
+    void OnAllocationFinished(TSchedulerOperationElement* operationElement, TAllocationId allocationId);
+    void UpdatePreemptibleAllocationsList(const TSchedulerOperationElement* element);
 
     bool GetPreemptible() const;
     void SetPreemptible(bool value);
 
-    bool IsJobKnown(TJobId jobId) const;
+    bool IsAllocationKnown(TAllocationId allocationId) const;
 
-    int GetRunningJobCount() const;
-    int GetPreemptibleJobCount() const;
-    int GetAggressivelyPreemptibleJobCount() const;
+    int GetRunningAllocationCount() const;
+    int GetPreemptibleAllocationCount() const;
+    int GetAggressivelyPreemptibleAllocationCount() const;
 
-    EJobPreemptionStatus GetJobPreemptionStatus(TJobId jobId) const;
-    TJobPreemptionStatusMap GetJobPreemptionStatusMap() const;
+    EAllocationPreemptionStatus GetAllocationPreemptionStatus(TAllocationId allocationId) const;
+    TAllocationPreemptionStatusMap GetAllocationPreemptionStatusMap() const;
 
     void UpdatePreemptionStatusStatistics(EOperationPreemptionStatus status);
     TPreemptionStatusStatisticsVector GetPreemptionStatusStatistics() const;
@@ -56,15 +56,15 @@ public:
         const TJobResources& minNeededResources);
     TEnumIndexedVector<EJobResourceType, int> GetMinNeededResourcesUnsatisfiedCount();
 
-    void IncrementOperationScheduleJobAttemptCount(const ISchedulingContextPtr& schedulingContext);
-    int GetOperationScheduleJobAttemptCount();
+    void IncrementOperationScheduleAllocationAttemptCount(const ISchedulingContextPtr& schedulingContext);
+    int GetOperationScheduleAllocationAttemptCount();
 
     void OnOperationDeactivated(const ISchedulingContextPtr& schedulingContext, EDeactivationReason reason);
     TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasons();
     void ProcessUpdatedStarvationStatus(EStarvationStatus status);
     TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasonsFromLastNonStarvingTime();
 
-    TInstant GetLastScheduleJobSuccessTime() const;
+    TInstant GetLastScheduleAllocationSuccessTime() const;
 
     TJobResources Disable();
     void Enable();
@@ -76,7 +76,7 @@ public:
     bool CheckPacking(
         const TSchedulerOperationElement* operationElement,
         const TPackingHeartbeatSnapshot& heartbeatSnapshot,
-        const TJobResourcesWithQuota& jobResources,
+        const TJobResourcesWithQuota& allocationResources,
         const TJobResources& totalResourceLimits,
         const TFairShareStrategyPackingConfigPtr& config);
 
@@ -86,41 +86,41 @@ private:
     // This value is read and modified only during post update in fair share update invoker.
     EStarvationStatus StarvationStatusAtLastUpdate_ = EStarvationStatus::NonStarving;
 
-    using TJobIdList = std::list<TJobId>;
-    TEnumIndexedVector<EJobPreemptionStatus, TJobIdList> JobsPerPreemptionStatus_;
+    using TAllocationIdList = std::list<TAllocationId>;
+    TEnumIndexedVector<EAllocationPreemptionStatus, TAllocationIdList> AllocationsPerPreemptionStatus_;
 
     // NB(eshcherbin): We need to have the most recent fair share during scheduling for correct determination
-    // of jobs' preemption statuses. This is why we use this value, which is shared between all snapshots,
+    // of allocations' preemption statuses. This is why we use this value, which is shared between all snapshots,
     // and keep it updated, instead of using fair share from current snapshot.
     TAtomicObject<TResourceVector> FairShare_;
 
     std::atomic<bool> Preemptible_ = {true};
 
-    std::atomic<int> RunningJobCount_ = {0};
-    TEnumIndexedVector<EJobPreemptionStatus, TJobResources> ResourceUsagePerPreemptionStatus_;
+    std::atomic<int> RunningAllocationCount_ = {0};
+    TEnumIndexedVector<EAllocationPreemptionStatus, TJobResources> ResourceUsagePerPreemptionStatus_;
 
-    std::atomic<int> UpdatePreemptibleJobsListCount_ = {0};
-    const int UpdatePreemptibleJobsListLoggingPeriod_;
+    std::atomic<int> UpdatePreemptibleAllocationsListCount_ = {0};
+    const int UpdatePreemptibleAllocationsListLoggingPeriod_;
 
     // TODO(ignat): make it configurable.
     TDuration UpdateStateShardsBackoff_ = TDuration::Seconds(5);
 
-    struct TJobProperties
+    struct TAllocationProperties
     {
-        //! Determines whether job belongs to the preemptible, aggressively preemptible or non-preemptible jobs list.
-        EJobPreemptionStatus PreemptionStatus;
+        //! Determines whether allocation belongs to the preemptible, aggressively preemptible or non-preemptible allocations list.
+        EAllocationPreemptionStatus PreemptionStatus;
 
-        //! Iterator in the per-operation list pointing to this particular job.
-        TJobIdList::iterator JobIdListIterator;
+        //! Iterator in the per-operation list pointing to this particular allocation.
+        TAllocationIdList::iterator AllocationIdListIterator;
 
         TJobResources ResourceUsage;
 
         TDiskQuota DiskQuota;
     };
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, JobPropertiesMapLock_);
-    THashMap<TJobId, TJobProperties> JobPropertiesMap_;
-    TInstant LastScheduleJobSuccessTime_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, AllocationPropertiesMapLock_);
+    THashMap<TAllocationId, TAllocationProperties> AllocationPropertiesMap_;
+    TInstant LastScheduleAllocationSuccessTime_;
     TDiskQuota TotalDiskQuota_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PreemptionStatusStatisticsLock_);
@@ -135,7 +135,7 @@ private:
     TInstant LastDiagnosticCountersUpdateTime_;
 
     //! Thread affinity: control, profiling.
-    std::atomic<i64> ScheduleJobAttemptCount_;
+    std::atomic<i64> ScheduleAllocationAttemptCount_;
 
     struct alignas(CacheLineSize) TStateShard
     {
@@ -143,7 +143,7 @@ private:
         TEnumIndexedVector<EDeactivationReason, std::atomic<int>> DeactivationReasonsFromLastNonStarvingTime;
         TEnumIndexedVector<EJobResourceType, std::atomic<int>> MinNeededResourcesUnsatisfiedCount;
 
-        std::atomic<i64> ScheduleJobAttemptCount;
+        std::atomic<i64> ScheduleAllocationAttemptCount;
     };
     std::array<TStateShard, MaxNodeShardCount> StateShards_;
 
@@ -151,22 +151,22 @@ private:
 
     TPackingStatistics HeartbeatStatistics_;
 
-    void DoUpdatePreemptibleJobsList(const TSchedulerOperationElement* element, int* moveCount);
+    void DoUpdatePreemptibleAllocationsList(const TSchedulerOperationElement* element, int* moveCount);
 
-    void AddJob(TJobId jobId, const TJobResourcesWithQuota& resourceUsage);
-    std::optional<TJobResources> RemoveJob(TJobId jobId);
+    void AddAllocation(TAllocationId allocationId, const TJobResourcesWithQuota& resourceUsage);
+    std::optional<TJobResources> RemoveAllocation(TAllocationId allocationId);
 
-    TJobResources SetJobResourceUsage(TJobProperties* properties, const TJobResources& resources);
+    TJobResources SetAllocationResourceUsage(TAllocationProperties* properties, const TJobResources& resources);
 
-    TJobProperties* GetJobProperties(TJobId jobId);
-    const TJobProperties* GetJobProperties(TJobId jobId) const;
+    TAllocationProperties* GetAllocationProperties(TAllocationId allocationId);
+    const TAllocationProperties* GetAllocationProperties(TAllocationId allocationId) const;
 
     // Collect up-to-date values from node shards local counters.
     void UpdateDiagnosticCounters();
 };
 
-using TFairShareTreeJobSchedulerOperationSharedStatePtr = TIntrusivePtr<TFairShareTreeJobSchedulerOperationSharedState>;
-using TFairShareTreeJobSchedulerSharedOperationStateMap = THashMap<TOperationId, TFairShareTreeJobSchedulerOperationSharedStatePtr>;
+using TFairShareTreeAllocationSchedulerOperationSharedStatePtr = TIntrusivePtr<TFairShareTreeAllocationSchedulerOperationSharedState>;
+using TFairShareTreeAllocationSchedulerSharedOperationStateMap = THashMap<TOperationId, TFairShareTreeAllocationSchedulerOperationSharedStatePtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

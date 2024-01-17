@@ -45,32 +45,32 @@ public:
         TOperationId operationId,
         TControllerEpoch controllerEpoch,
         const IOperationControllerPtr& controller,
-        bool jobsReady);
+        bool waitingForRevival);
     void StartOperationRevival(TOperationId operationId, TControllerEpoch newControllerEpoch);
     TFuture<void> FinishOperationRevival(
         TOperationId operationId,
-        std::vector<TJobPtr> jobs);
+        std::vector<TAllocationPtr> allocations);
     TFuture<void> ResetOperationRevival(const TOperationPtr& operation);
     void UnregisterOperation(TOperationId operationId);
 
-    void AbortJobsAtNode(NNodeTrackerClient::TNodeId nodeId, EAbortReason reason);
+    void AbortAllocationsAtNode(NNodeTrackerClient::TNodeId nodeId, EAbortReason reason);
 
     TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors();
 
     TError HandleNodesAttributes(const NYTree::IListNodePtr& nodeList);
 
-    void AbortOperationJobs(
+    void AbortOperationAllocations(
         TOperationId operationId,
         const TError& error,
         EAbortReason abortReason,
         bool terminated);
-    void ResumeOperationJobs(TOperationId operationId);
+    void ResumeOperationAllocations(TOperationId operationId);
 
-    TFuture<NNodeTrackerClient::TNodeDescriptor> GetJobNode(TJobId jobId);
+    TFuture<NNodeTrackerClient::TNodeDescriptor> GetAllocationNode(TAllocationId allocationId);
 
     TFuture<TAllocationDescription> GetAllocationDescription(TAllocationId allocationId);
 
-    void AbortJobs(const std::vector<TJobId>& jobIds, const TError& error, EAbortReason abortReason);
+    void AbortAllocations(const std::vector<TAllocationId>& allocationIds, const TError& error, EAbortReason abortReason);
 
     TNodeYsonList BuildNodeYsonList() const;
 
@@ -79,10 +79,10 @@ public:
     TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) const;
     TJobResources GetResourceUsage(const TSchedulingTagFilter& filter) const;
 
-    int GetActiveJobCount() const;
+    int GetActiveAllocationCount() const;
     int GetExecNodeCount() const;
     int GetTotalNodeCount() const;
-    int GetSubmitToStrategyJobCount() const;
+    int GetSubmitToStrategyAllocationCount() const;
 
     int GetTotalConcurrentHeartbeatComplexity() const;
 

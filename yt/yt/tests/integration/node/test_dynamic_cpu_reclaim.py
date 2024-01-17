@@ -36,7 +36,7 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "running_jobs_update_period": 10,
+            "running_allocations_update_period": 10,
             "fair_share_update_period": 100,
             "profiling_update_period": 100,
             "fair_share_profiling_period": 100,
@@ -208,7 +208,7 @@ class TestSchedulerAbortsJobOnLackOfCpu(YTEnvSetup):
 
     @authors("renadeen")
     def test_scheduler_aborts_job_on_lack_of_cpu(self):
-        set("//sys/pool_trees/default/@config/max_unpreemptible_running_job_count", 0)
+        set("//sys/pool_trees/default/@config/max_unpreemptible_running_allocation_count", 0)
         set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
         set("//sys/pool_trees/default/@config/aggressive_preemption_satisfaction_threshold", 0.1)
         set("//sys/pool_trees/default/@config/preemption_satisfaction_threshold", 0.1)

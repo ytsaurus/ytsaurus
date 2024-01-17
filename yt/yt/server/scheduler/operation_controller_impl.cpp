@@ -18,8 +18,6 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/ytlib/job_proxy/public.h>
-
 namespace NYT::NScheduler {
 
 using namespace NConcurrency;
@@ -77,13 +75,12 @@ void TOperationControllerImpl::AssignAgent(const TControllerAgentPtr& agent, TCo
     Agent_ = agent;
 
     ControllerAgentTrackerProxy_ = std::make_unique<TControllerAgentServiceProxy>(agent->GetChannel());
-    ControllerAgentJobProberProxy_ = std::make_unique<TJobProberServiceProxy>(agent->GetChannel());
 
     Epoch_.store(epoch);
 
     AbortedAllocationEventsOutbox_ = agent->GetAbortedAllocationEventsOutbox();
     OperationEventsOutbox_ = agent->GetOperationEventsOutbox();
-    ScheduleJobRequestsOutbox_ = agent->GetScheduleJobRequestsOutbox();
+    ScheduleAllocationRequestsOutbox_ = agent->GetScheduleAllocationRequestsOutbox();
 }
 
 bool TOperationControllerImpl::RevokeAgent()
@@ -103,7 +100,6 @@ bool TOperationControllerImpl::RevokeAgent()
     PendingCommitResult_ = TPromise<TOperationControllerCommitResult>();
 
     ControllerAgentTrackerProxy_.reset();
-    ControllerAgentJobProberProxy_.reset();
 
     IncarnationId_ = {};
     Agent_.Reset();
@@ -482,25 +478,25 @@ void TOperationControllerImpl::OnAllocationAborted(
         allocationId);
 }
 
-void TOperationControllerImpl::OnJobAborted(
-    const TJobPtr& job,
+void TOperationControllerImpl::OnAllocationAborted(
+    const TAllocationPtr& allocation,
     const TError& error,
     bool scheduled,
     EAbortReason abortReason)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    OnAllocationAborted(AllocationIdFromJobId(job->GetId()), error, scheduled, abortReason, job->GetControllerEpoch());
+    OnAllocationAborted(allocation->GetId(), error, scheduled, abortReason, allocation->GetControllerEpoch());
 }
 
-void TOperationControllerImpl::OnNonscheduledJobAborted(
-    TJobId jobId,
+void TOperationControllerImpl::OnNonscheduledAllocationAborted(
+    TAllocationId allocationId,
     EAbortReason abortReason,
-    TControllerEpoch jobEpoch)
+    TControllerEpoch allocationEpoch)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    OnAllocationAborted(AllocationIdFromJobId(jobId), TError{}, false, abortReason, jobEpoch);
+    OnAllocationAborted(allocationId, TError{}, false, abortReason, allocationEpoch);
 }
 
 void TOperationControllerImpl::OnInitializationFinished(const TErrorOr<TOperationControllerInitializeResult>& resultOrError)
@@ -572,10 +568,10 @@ void TOperationControllerImpl::OnRevivalFinished(const TErrorOr<TOperationContro
 
         YT_LOG_DEBUG(
             "Successful revival result received "
-            "(RevivedFromSnapshot: %v, RevivedJobCount: %v, RevivedBannedTreeIds: %v, "
+            "(RevivedFromSnapshot: %v, RevivedAllocationCount: %v, RevivedBannedTreeIds: %v, "
             "NeededResources: %v, InitialMinNeededResources: %v)",
             result.RevivedFromSnapshot,
-            result.RevivedJobs.size(),
+            result.RevivedAllocations.size(),
             result.RevivedBannedTreeIds,
             FormatResources(result.NeededResources),
             MakeFormattableView(
@@ -621,9 +617,9 @@ TFuture<void> TOperationControllerImpl::GetFullHeartbeatProcessed()
     return agent->GetFullHeartbeatProcessed();
 }
 
-TFuture<TControllerScheduleJobResultPtr> TOperationControllerImpl::ScheduleJob(
+TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::ScheduleAllocation(
     const ISchedulingContextPtr& context,
-    const TJobResources& jobLimits,
+    const TJobResources& allocationLimits,
     const NNodeTrackerClient::NProto::TDiskResources& diskResourceLimits,
     const TString& treeId,
     const TString& poolPath,
@@ -633,40 +629,42 @@ TFuture<TControllerScheduleJobResultPtr> TOperationControllerImpl::ScheduleJob(
 
     auto nodeId = context->GetNodeDescriptor()->Id;
     auto cellTag = Bootstrap_->GetClient()->GetNativeConnection()->GetPrimaryMasterCellTag();
-    auto jobId = GenerateJobId(cellTag, nodeId);
+    auto allocationId = GenerateAllocationId(cellTag, nodeId);
 
     const auto& nodeManager = Bootstrap_->GetScheduler()->GetNodeManager();
     const auto shardId = nodeManager->GetNodeShardId(nodeId);
     const auto& nodeShard = nodeManager->GetNodeShards()[shardId];
 
     if (!nodeShard->IsOperationRegistered(OperationId_)) {
-        YT_LOG_DEBUG("Job schedule request cannot be served since operation is not registered at node shard (JobId: %v)",
-            jobId);
+        YT_LOG_DEBUG(
+            "Allocation schedule request cannot be served since operation is not registered at node shard (AllocationId: %v)",
+            allocationId);
 
-        auto result = New<TControllerScheduleJobResult>();
-        result->RecordFail(NControllerAgent::EScheduleJobFailReason::OperationNotRunning);
+        auto result = New<TControllerScheduleAllocationResult>();
+        result->RecordFail(NControllerAgent::EScheduleAllocationFailReason::OperationNotRunning);
         return MakeFuture(std::move(result));
     }
 
-    if (nodeShard->AreNewJobsForbiddenForOperation(OperationId_)) {
-        YT_LOG_DEBUG("Job schedule request cannot be served since new jobs are forbidden for operation (JobId: %v)",
-            jobId);
+    if (nodeShard->AreNewAllocationsForbiddenForOperation(OperationId_)) {
+        YT_LOG_DEBUG(
+            "Allocation schedule request cannot be served since new allocations are forbidden for operation (AllocationId: %v)",
+            allocationId);
 
-        auto result = New<TControllerScheduleJobResult>();
-        result->RecordFail(NControllerAgent::EScheduleJobFailReason::NewJobsForbidden);
+        auto result = New<TControllerScheduleAllocationResult>();
+        result->RecordFail(NControllerAgent::EScheduleAllocationFailReason::NewJobsForbidden);
         return MakeFuture(std::move(result));
     }
 
-    auto request = std::make_unique<TScheduleJobRequest>();
+    auto request = std::make_unique<TScheduleAllocationRequest>();
     request->OperationId = OperationId_;
-    request->JobId = jobId;
-    request->JobResourceLimits = jobLimits;
+    request->AllocationId = allocationId;
+    request->AllocationResourceLimits = allocationLimits;
     request->TreeId = treeId;
     request->PoolPath = poolPath;
     request->NodeId = nodeId;
     request->NodeResourceLimits = context->ResourceLimits();
     request->NodeDiskResources = diskResourceLimits;
-    request->Spec.WaitingJobTimeout = treeConfig->WaitingJobTimeout;
+    request->Spec.WaitingForResourcesOnNodeTimeout = treeConfig->WaitingForResourcesOnNodeTimeout;
 
     TIncarnationId incarnationId;
     {
@@ -674,35 +672,37 @@ TFuture<TControllerScheduleJobResultPtr> TOperationControllerImpl::ScheduleJob(
         if (!IncarnationId_) {
             guard.Release();
 
-            YT_LOG_DEBUG("Job schedule request cannot be served since no agent is assigned (JobId: %v)",
-                jobId);
+            YT_LOG_DEBUG(
+                "Allocation schedule request cannot be served since no agent is assigned (AllocationId: %v)",
+                allocationId);
 
-            auto result = New<TControllerScheduleJobResult>();
-            result->RecordFail(EScheduleJobFailReason::NoAgentAssigned);
+            auto result = New<TControllerScheduleAllocationResult>();
+            result->RecordFail(EScheduleAllocationFailReason::NoAgentAssigned);
 
             return MakeFuture(result);
         }
 
         incarnationId = IncarnationId_;
-        ScheduleJobRequestsOutbox_->Enqueue(std::move(request));
+        ScheduleAllocationRequestsOutbox_->Enqueue(std::move(request));
     }
 
-    YT_LOG_TRACE("Job schedule request enqueued (JobId: %v, NodeAddress: %v)",
-        jobId,
+    YT_LOG_TRACE(
+        "Allocation schedule request enqueued (AllocationId: %v, NodeAddress: %v)",
+        allocationId,
         context->GetNodeDescriptor()->Address);
 
-    return nodeShard->BeginScheduleJob(incarnationId, OperationId_, jobId);
+    return nodeShard->BeginScheduleAllocation(incarnationId, OperationId_, allocationId);
 }
 
-void TOperationControllerImpl::UpdateMinNeededJobResources()
+void TOperationControllerImpl::UpdateMinNeededAllocationResources()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     EnqueueOperationEvent({
-        ESchedulerToAgentOperationEventType::UpdateMinNeededJobResources,
-        OperationId_
+        .EventType = ESchedulerToAgentOperationEventType::UpdateMinNeededAllocationResources,
+        .OperationId = OperationId_,
     });
-    YT_LOG_DEBUG("Min needed job resources update request enqueued");
+    YT_LOG_DEBUG("Min needed allocation resources update request enqueued");
 }
 
 TCompositeNeededResources TOperationControllerImpl::GetNeededResources() const
@@ -712,14 +712,14 @@ TCompositeNeededResources TOperationControllerImpl::GetNeededResources() const
     return ControllerRuntimeData_->GetNeededResources();
 }
 
-TJobResourcesWithQuotaList TOperationControllerImpl::GetMinNeededJobResources() const
+TJobResourcesWithQuotaList TOperationControllerImpl::GetMinNeededAllocationResources() const
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     return ControllerRuntimeData_->MinNeededResources();
 }
 
-TJobResourcesWithQuotaList TOperationControllerImpl::GetInitialMinNeededJobResources() const
+TJobResourcesWithQuotaList TOperationControllerImpl::GetInitialMinNeededAllocationResources() const
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -754,8 +754,8 @@ bool TOperationControllerImpl::EnqueueAbortedAllocationEvent(TAbortedAllocationS
         AbortedAllocationEventsOutbox_->Enqueue(std::move(summary));
         return true;
     } else {
-        // All job notifications must be dropped after agent disconnection.
-        // Job revival machinery will reconsider this event further.
+        // All allocation notifications must be dropped after agent disconnection.
+        // Allocation revival machinery will reconsider this event further.
         return false;
     }
 }
@@ -766,10 +766,10 @@ void TOperationControllerImpl::EnqueueOperationEvent(TSchedulerToAgentOperationE
     OperationEventsOutbox_->Enqueue(std::move(event));
 }
 
-void TOperationControllerImpl::EnqueueScheduleJobRequest(TScheduleJobRequestPtr&& event)
+void TOperationControllerImpl::EnqueueScheduleAllocationRequest(TScheduleAllocationRequestPtr&& event)
 {
     YT_VERIFY(IncarnationId_);
-    ScheduleJobRequestsOutbox_->Enqueue(std::move(event));
+    ScheduleAllocationRequestsOutbox_->Enqueue(std::move(event));
 }
 
 void TOperationControllerImpl::ProcessControllerAgentError(const TError& error)

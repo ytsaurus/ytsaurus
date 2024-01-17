@@ -136,12 +136,12 @@ private:
     {
         auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
-        bool abortRunningJobs = request->abort_running_jobs();
+        bool abortRunningAllocations = request->abort_running_jobs();
 
         context->SetRequestInfo(
-            "OperationId: %v, AbortRunningJobs: %v",
+            "OperationId: %v, AbortRunningAllocations: %v",
             operationIdOrAlias,
-            abortRunningJobs);
+            abortRunningAllocations);
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
@@ -154,7 +154,7 @@ private:
         auto asyncResult = scheduler->SuspendOperation(
             operation,
             context->GetAuthenticationIdentity().User,
-            abortRunningJobs);
+            abortRunningAllocations);
 
         context->ReplyFrom(asyncResult);
     }

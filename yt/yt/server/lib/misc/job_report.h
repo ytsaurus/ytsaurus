@@ -16,7 +16,7 @@
 
 #include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 
 #include <yt/yt/core/yson/string.h>
 

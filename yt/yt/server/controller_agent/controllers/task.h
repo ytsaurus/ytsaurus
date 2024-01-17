@@ -108,8 +108,8 @@ public:
     //! with the vertex descriptor and a task level in brackets (if applicable).
     virtual TString GetTitle() const;
 
-    virtual NScheduler::TCompositePendingJobCount GetPendingJobCount() const;
-    NScheduler::TCompositePendingJobCount GetPendingJobCountDelta();
+    virtual TCompositePendingJobCount GetPendingJobCount() const;
+    TCompositePendingJobCount GetPendingJobCountDelta();
     bool HasNoPendingJobs() const;
     bool HasNoPendingJobs(const TString& poolTree) const;
 
@@ -149,13 +149,13 @@ public:
 
     virtual bool ValidateChunkCount(int chunkCount);
 
-    void ScheduleJob(
+    void ScheduleAllocation(
         ISchedulingContext* context,
         const NScheduler::TJobResources& jobLimits,
         const TString& treeId,
         bool treeIsTentative,
         bool treeIsProbing,
-        NScheduler::TControllerScheduleJobResult* scheduleJobResult);
+        NScheduler::TControllerScheduleAllocationResult* scheduleAllocationResult);
 
     bool TryRegisterSpeculativeJob(const TJobletPtr& joblet);
     std::optional<EAbortReason> ShouldAbortCompletingJob(const TJobletPtr& joblet);
@@ -218,7 +218,7 @@ public:
 
     void LogTentativeTreeStatistics() const;
 
-    TSharedRef BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto::TScheduleJobSpec& scheduleJobSpec);
+    TSharedRef BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto::TScheduleAllocationSpec& scheduleAllocationSpec);
 
     //! Checks if jobs can be interrupted. Subclasses should call the base method
     //! but may add extra restrictions.
@@ -276,7 +276,7 @@ protected:
 
     NChunkPools::TInputChunkMappingPtr InputChunkMapping_;
 
-    virtual std::optional<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context);
+    virtual std::optional<EScheduleAllocationFailReason> GetScheduleFailReason(ISchedulingContext* context);
 
     virtual void OnTaskCompleted();
 
@@ -398,7 +398,7 @@ protected:
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TTask, 0x81ab3cd3);
 
-    NScheduler::TCompositePendingJobCount CachedPendingJobCount_;
+    TCompositePendingJobCount CachedPendingJobCount_;
     int CachedTotalJobCount_;
 
     std::vector<std::optional<i64>> MaximumUsedTmpfsSizes_;

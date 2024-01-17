@@ -40,30 +40,30 @@ class TExecNode
     : public TRefCounted
 {
 private:
-    using TJobMap = THashMap<TJobId, TJobPtr>;
-    using TJobsToAbortMap = THashMap<TJobId, EAbortReason>;
+    using TAllocationMap = THashMap<TAllocationId, TAllocationPtr>;
+    using TAllocationsToAbortMap = THashMap<TAllocationId, EAbortReason>;
 
 public:
     DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerClient::TNodeId, Id);
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::TNodeDescriptor, NodeDescriptor);
 
-    //! Jobs that are currently running on this node.
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TJobPtr>, Jobs);
+    //! Allocations that are currently running on this node.
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TAllocationPtr>, Allocations);
 
     //! Mapping from job id to job on this node.
-    DEFINE_BYREF_RW_PROPERTY(TJobMap, IdToJob);
+    DEFINE_BYREF_RW_PROPERTY(TAllocationMap, IdToAllocation);
 
-    //! Jobs that were aborted by scheduler.
-    DEFINE_BYREF_RW_PROPERTY(TJobsToAbortMap, JobsToAbort);
+    //! Allocations that were aborted by scheduler.
+    DEFINE_BYREF_RW_PROPERTY(TAllocationsToAbortMap, AllocationsToAbort);
 
     //! A set of scheduling tags assigned to this node.
     DEFINE_BYREF_RO_PROPERTY(TBooleanFormulaTags, Tags);
 
     //! Last time when logging of jobs on node took place.
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<NProfiling::TCpuInstant>, LastJobsLogTime);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<NProfiling::TCpuInstant>, LastAllocationsLogTime);
 
     //! Last time when missing jobs were checked on this node.
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<NProfiling::TCpuInstant>, LastCheckMissingJobsTime);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<NProfiling::TCpuInstant>, LastCheckMissingAllocationsTime);
 
     //! Last time when heartbeat from node was processed.
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
@@ -103,15 +103,15 @@ public:
     //! Has value iff the node jobs must be aborted but node also has an ongoing
     //! heartbeat so jobs abortion has to be postponed until the heartbeat processing
     //! is complete.
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<EAbortReason>, PendingJobsAbortionReason);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<EAbortReason>, PendingAllocationsAbortionReason);
 
     DEFINE_BYVAL_RO_PROPERTY(double, IOWeight);
 
     //! Mark that node has large job archivation queues.
     DEFINE_BYVAL_RW_PROPERTY(bool, JobReporterQueueIsTooLarge);
 
-    DEFINE_BYVAL_RW_PROPERTY(TScheduleJobsStatistics, LastPreemptiveHeartbeatStatistics);
-    DEFINE_BYVAL_RW_PROPERTY(TScheduleJobsStatistics, LastNonPreemptiveHeartbeatStatistics);
+    DEFINE_BYVAL_RW_PROPERTY(TScheduleAllocationsStatistics, LastPreemptiveHeartbeatStatistics);
+    DEFINE_BYVAL_RW_PROPERTY(TScheduleAllocationsStatistics, LastNonPreemptiveHeartbeatStatistics);
 
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, InfinibandCluster);
 

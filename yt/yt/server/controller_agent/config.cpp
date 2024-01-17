@@ -666,7 +666,8 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("scheduler_heartbeat_period", &TThis::SchedulerHeartbeatPeriod)
         .Default(TDuration::MilliSeconds(100));
 
-    registrar.Parameter("schedule_job_heartbeat_period", &TThis::ScheduleJobHeartbeatPeriod)
+    registrar.Parameter("schedule_allocation_heartbeat_period", &TThis::ScheduleAllocationHeartbeatPeriod)
+        .Alias("schedule_job_heartbeat_period")
         .Default(TDuration::MilliSeconds(10));
 
     registrar.Parameter("config_update_period", &TThis::ConfigUpdatePeriod)
@@ -957,10 +958,12 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("docker_registry", &TThis::DockerRegistry)
         .DefaultNew();
 
-    registrar.Parameter("schedule_job_statistics_log_backoff", &TThis::ScheduleJobStatisticsLogBackoff)
+    registrar.Parameter("schedule_allocation_statistics_log_backoff", &TThis::ScheduleAllocationStatisticsLogBackoff)
+        .Alias("schedule_job_statistics_log_backoff")
         .Default(TDuration::Seconds(1));
 
-    registrar.Parameter("schedule_job_statistics_moving_average_window_size", &TThis::ScheduleJobStatisticsMovingAverageWindowSize)
+    registrar.Parameter("schedule_allocation_statistics_moving_average_window_size", &TThis::ScheduleAllocationStatisticsMovingAverageWindowSize)
+        .Alias("schedule_job_statistics_moving_average_window_size")
         .Default(50)
         .GreaterThanOrEqual(0);
 
@@ -982,13 +985,14 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("total_controller_memory_limit", &TThis::TotalControllerMemoryLimit)
         .Default();
 
-    registrar.Parameter("schedule_job_controller_queue", &TThis::ScheduleJobControllerQueue)
+    registrar.Parameter("schedule_allocation_controller_queue", &TThis::ScheduleAllocationControllerQueue)
+        .Alias("schedule_job_controller_queue")
         .Default(EOperationControllerQueue::Default);
 
     registrar.Parameter("job_events_controller_queue", &TThis::JobEventsControllerQueue)
         .Default(EOperationControllerQueue::Default);
 
-    registrar.Parameter("schedule_job_total_time_threshold", &TThis::ScheduleJobTotalTimeThreshold)
+    registrar.Parameter("schedule_allocation_total_time_threshold", &TThis::ScheduleAllocationTotalTimeThreshold)
         .Alias("schedule_job_wait_time_threshold")
         .Default(TDuration::Seconds(5));
 
@@ -1079,7 +1083,8 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_running_job_statistics_update_count_per_heartbeat", &TThis::MaxRunningJobStatisticsUpdateCountPerHeartbeat)
         .Default(std::numeric_limits<int>::max());
 
-    registrar.Parameter("running_job_time_statistics_updates_send_period", &TThis::RunningJobTimeStatisticsUpdatesSendPeriod)
+    registrar.Parameter("running_allocation_time_statistics_updates_send_period", &TThis::RunningAllocationTimeStatisticsUpdatesSendPeriod)
+        .Alias("running_job_time_statistics_updates_send_period")
         .Default(TDuration::Seconds(2));
 
     registrar.Parameter("job_tracker", &TThis::JobTracker)

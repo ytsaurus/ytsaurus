@@ -44,7 +44,7 @@ DECLARE_REFCOUNTED_STRUCT(TOutputStreamDescriptor)
 
 DECLARE_REFCOUNTED_STRUCT(TBriefJobStatistics)
 
-DECLARE_REFCOUNTED_CLASS(TScheduleJobStatistics)
+DECLARE_REFCOUNTED_CLASS(TScheduleAllocationStatistics)
 
 DECLARE_REFCOUNTED_CLASS(TJobExperimentBase)
 

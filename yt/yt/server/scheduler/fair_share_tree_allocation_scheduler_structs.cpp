@@ -8,30 +8,32 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, const TRunningJobStatistics& statistics, TStringBuf /*format*/)
+void FormatValue(TStringBuilderBase* builder, const TRunningAllocationStatistics& statistics, TStringBuf /*format*/)
 {
-    builder->AppendFormat("{TotalCpuTime: %v, PreemptibleCpuTime: %v, TotalGpuTime: %v, PreemptibleGpuTime: %v}",
+    builder->AppendFormat(
+        "{TotalCpuTime: %v, PreemptibleCpuTime: %v, TotalGpuTime: %v, PreemptibleGpuTime: %v}",
         statistics.TotalCpuTime,
         statistics.PreemptibleCpuTime,
         statistics.TotalGpuTime,
         statistics.PreemptibleGpuTime);
 }
 
-TString ToString(const TRunningJobStatistics& statistics)
+TString ToString(const TRunningAllocationStatistics& statistics)
 {
     return ToStringViaBuilder(statistics);
 }
 
-TString FormatRunningJobStatisticsCompact(const TRunningJobStatistics& statistics)
+TString FormatRunningAllocationStatisticsCompact(const TRunningAllocationStatistics& statistics)
 {
-    return Format("{TCT: %v, PCT: %v, TGT: %v, PGT: %v}",
+    return Format(
+        "{TCT: %v, PCT: %v, TGT: %v, PGT: %v}",
         statistics.TotalCpuTime,
         statistics.PreemptibleCpuTime,
         statistics.TotalGpuTime,
         statistics.PreemptibleGpuTime);
 }
 
-void Serialize(const TRunningJobStatistics& statistics, NYson::IYsonConsumer* consumer)
+void Serialize(const TRunningAllocationStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
     NYTree::BuildYsonFluently(consumer)
         .BeginMap()
@@ -44,7 +46,7 @@ void Serialize(const TRunningJobStatistics& statistics, NYson::IYsonConsumer* co
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairShareTreeJobSchedulerOperationState::TFairShareTreeJobSchedulerOperationState(
+TFairShareTreeAllocationSchedulerOperationState::TFairShareTreeAllocationSchedulerOperationState(
     TStrategyOperationSpecPtr spec,
     bool isGang)
     : Spec(std::move(spec))

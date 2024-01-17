@@ -16,13 +16,13 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr int LargeGpuSegmentJobGpuDemand = 8;
+static constexpr int LargeGpuSegmentAllocationGpuDemand = 8;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
 
-double GetNodeResourceLimit(const TFairShareTreeJobSchedulerNodeState& node, EJobResourceType resourceType)
+double GetNodeResourceLimit(const TFairShareTreeAllocationSchedulerNodeState& node, EJobResourceType resourceType)
 {
     return node.Descriptor->Online
         ? GetResource(node.Descriptor->ResourceLimits, resourceType)
@@ -40,22 +40,22 @@ EJobResourceType GetSegmentBalancingKeyResource(ESegmentedSchedulingMode mode)
 }
 
 TNodeMovePenalty GetMovePenaltyForNode(
-    const TFairShareTreeJobSchedulerNodeState& node,
+    const TFairShareTreeAllocationSchedulerNodeState& node,
     ESegmentedSchedulingMode mode)
 {
     auto keyResource = GetSegmentBalancingKeyResource(mode);
     switch (keyResource) {
         case EJobResourceType::Gpu:
             return TNodeMovePenalty{
-                .PriorityPenalty = node.RunningJobStatistics.TotalGpuTime -
-                    node.RunningJobStatistics.PreemptibleGpuTime,
-                .RegularPenalty = node.RunningJobStatistics.TotalGpuTime
+                .PriorityPenalty = node.RunningAllocationStatistics.TotalGpuTime -
+                    node.RunningAllocationStatistics.PreemptibleGpuTime,
+                .RegularPenalty = node.RunningAllocationStatistics.TotalGpuTime
             };
         default:
             return TNodeMovePenalty{
-                .PriorityPenalty = node.RunningJobStatistics.TotalCpuTime -
-                    node.RunningJobStatistics.PreemptibleCpuTime,
-                .RegularPenalty = node.RunningJobStatistics.TotalCpuTime
+                .PriorityPenalty = node.RunningAllocationStatistics.TotalCpuTime -
+                    node.RunningAllocationStatistics.PreemptibleCpuTime,
+                .RegularPenalty = node.RunningAllocationStatistics.TotalCpuTime
             };
     }
 }
@@ -161,7 +161,7 @@ void TSchedulingSegmentManager::UpdateSchedulingSegments(TUpdateSchedulingSegmen
 
 void TSchedulingSegmentManager::InitOrUpdateOperationSchedulingSegment(
     TOperationId operationId,
-    const TFairShareTreeJobSchedulerOperationStatePtr& operationState) const
+    const TFairShareTreeAllocationSchedulerOperationStatePtr& operationState) const
 {
     if (!operationState->AggregatedInitialMinNeededResources) {
         // May happen if we're updating segments config, and there's an operation that hasn't materialized yet.
@@ -176,9 +176,9 @@ void TSchedulingSegmentManager::InitOrUpdateOperationSchedulingSegment(
         switch (Config_->Mode) {
             case ESegmentedSchedulingMode::LargeGpu: {
                 bool meetsGangCriterion = operationState->IsGang || !Config_->AllowOnlyGangOperationsInLargeSegment;
-                auto jobGpuDemand = operationState->AggregatedInitialMinNeededResources->GetGpu();
-                bool meetsJobGpuDemandCriterion = (jobGpuDemand == LargeGpuSegmentJobGpuDemand);
-                return meetsGangCriterion && meetsJobGpuDemandCriterion
+                auto allocationGpuDemand = operationState->AggregatedInitialMinNeededResources->GetGpu();
+                bool meetsAllocationGpuDemandCriterion = (allocationGpuDemand == LargeGpuSegmentAllocationGpuDemand);
+                return meetsGangCriterion && meetsAllocationGpuDemandCriterion
                     ? ESchedulingSegment::LargeGpu
                     : ESchedulingSegment::Default;
             }
@@ -255,7 +255,7 @@ void TSchedulingSegmentManager::ResetOperationModule(const TSchedulerOperationEl
     context->FairResourceAmountPerSegment.At(*segment).MutableAt(operationModule) -= operationFairResourceAmount;
     context->RemainingCapacityPerModule[operationModule] += operationFairResourceAmount;
 
-    // NB: We will abort all jobs that are running in the wrong module.
+    // NB: We will abort all allocations that are running in the wrong module.
     operation->SchedulingSegmentModule.reset();
     operation->FailingToScheduleAtModuleSince.reset();
 }
@@ -564,7 +564,7 @@ void TSchedulingSegmentManager::ResetOperationModuleAssignments(TUpdateSchedulin
 
             if (*failingToScheduleAtModuleSince + Config_->ModuleReconsiderationTimeout < context->Now) {
                 YT_LOG_DEBUG(
-                    "Operation has failed to schedule all jobs for too long, revoking its module assignment "
+                    "Operation has failed to schedule all allocations for too long, revoking its module assignment "
                     "(OperationId: %v, SchedulingSegment: %v, PreviousModule: %v, ResourceUsage: %v, ResourceDemand: %v, Timeout: %v, "
                     "InitializationDeadline: %v)",
                     operationId,
@@ -607,7 +607,7 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
     struct TOperationStateWithElement
     {
         TOperationId OperationId;
-        TFairShareTreeJobSchedulerOperationState* Operation;
+        TFairShareTreeAllocationSchedulerOperationState* Operation;
         TSchedulerOperationElement* Element;
         bool OperationHasPriority;
     };
@@ -1120,7 +1120,7 @@ void TSchedulingSegmentManager::GetMovableNodes(
             YT_LOG_DEBUG(
                 "Considering node for scheduling segment rebalancing "
                 "(NodeId: %v, Address: %v, Segment: %v, SpecifiedSegment: %v, Module: %v, "
-                "MovePenalty: %v, RunningJobStatistics: %v, LastRunningJobStatisticsUpdateTime: %v, "
+                "MovePenalty: %v, RunningAllocationStatistics: %v, LastRunningAllocationStatisticsUpdateTime: %v, "
                 "MovableNodeIndex: %v, AggressivelyMovableNodeIndex: %v)",
                 nodeId,
                 node.Descriptor->Address,
@@ -1128,15 +1128,15 @@ void TSchedulingSegmentManager::GetMovableNodes(
                 node.SpecifiedSchedulingSegment,
                 GetNodeModule(node),
                 GetMovePenaltyForNode(node, Config_->Mode),
-                node.RunningJobStatistics,
-                CpuInstantToInstant(node.LastRunningJobStatisticsUpdateTime.value_or(0)),
+                node.RunningAllocationStatistics,
+                CpuInstantToInstant(node.LastRunningAllocationStatisticsUpdateTime.value_or(0)),
                 getNodeMovableIndex(nodeId),
                 getNodeAggressivelyMovableIndex(nodeId));
         }
     }
 }
 
-const TSchedulingSegmentModule& TSchedulingSegmentManager::GetNodeModule(const TFairShareTreeJobSchedulerNodeState& node) const
+const TSchedulingSegmentModule& TSchedulingSegmentManager::GetNodeModule(const TFairShareTreeAllocationSchedulerNodeState& node) const
 {
     YT_ASSERT(node.Descriptor);
 
@@ -1144,7 +1144,7 @@ const TSchedulingSegmentModule& TSchedulingSegmentManager::GetNodeModule(const T
 }
 
 void TSchedulingSegmentManager::SetNodeSegment(
-    TFairShareTreeJobSchedulerNodeState* node,
+    TFairShareTreeAllocationSchedulerNodeState* node,
     ESchedulingSegment segment,
     TUpdateSchedulingSegmentsContext* context) const
 {

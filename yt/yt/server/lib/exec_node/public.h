@@ -52,6 +52,7 @@ YT_DEFINE_ERROR_ENUM(
     ((DockerImagePullingFailed)              (1132))
     ((InvalidImage)                          (1133))
     ((AbortByControllerAgent)                (1134))
+    ((NoSuchJob)                             (1135))
 );
 
 DEFINE_ENUM(ESandboxKind,

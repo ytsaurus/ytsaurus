@@ -22,7 +22,7 @@
 #include <yt/yt/server/tools/tools.h>
 #include <yt/yt/server/tools/proc.h>
 
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 
 #include <yt/yt/library/program/program.h>
 

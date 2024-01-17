@@ -1226,7 +1226,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         write_table("//tmp/t_in", [{"k": 0}])
 
         set("//sys/pool_trees/default/@config/main_resource", "gpu")
-        set("//sys/pool_trees/default/@config/max_unpreemptible_running_job_count", 0)
+        set("//sys/pool_trees/default/@config/max_unpreemptible_running_allocation_count", 0)
         set("//sys/pool_trees/default/@config/fair_share_starvation_timeout", 1000)
         create_pool("pool_without_guarantee")
         create_pool("pool_with_guarantee", attributes={"strong_guarantee_resources": {"gpu": 1}})

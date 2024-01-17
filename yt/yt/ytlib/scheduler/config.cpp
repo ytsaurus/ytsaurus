@@ -236,9 +236,11 @@ void TDelayConfig::Register(TRegistrar registrar)
 // TODO(eshcherbin): Change all delays to TDelayConfigPtr.
 void TTestingOperationOptions::Register(TRegistrar registrar)
 {
-    registrar.Parameter("schedule_job_delay", &TThis::ScheduleJobDelay)
+    registrar.Parameter("schedule_allocation_delay", &TThis::ScheduleAllocationDelay)
+        .Alias("schedule_job_delay")
         .Default();
-    registrar.Parameter("inside_schedule_job_delay", &TThis::InsideScheduleJobDelay)
+    registrar.Parameter("inside_schedule_allocation_delay", &TThis::InsideScheduleAllocationDelay)
+        .Alias("inside_schedule_job_delay")
         .Default();
     registrar.Parameter("delay_inside_revive", &TThis::DelayInsideRevive)
         .Default();
@@ -252,13 +254,15 @@ void TTestingOperationOptions::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("delay_inside_operation_commit", &TThis::DelayInsideOperationCommit)
         .Default();
-    registrar.Parameter("schedule_job_delay_scheduler", &TThis::ScheduleJobDelayScheduler)
+    registrar.Parameter("schedule_allocation_delay_scheduler", &TThis::ScheduleAllocationDelayScheduler)
+        .Alias("schedule_job_delay_scheduler")
         .Default();
     registrar.Parameter("delay_inside_materialize_scheduler", &TThis::DelayInsideMaterializeScheduler)
         .Default();
     registrar.Parameter("delay_inside_abort", &TThis::DelayInsideAbort)
         .Default();
-    registrar.Parameter("delay_inside_register_jobs_from_revived_operation", &TThis::DelayInsideRegisterJobsFromRevivedOperation)
+    registrar.Parameter("delay_inside_register_allocations_from_revived_operation", &TThis::DelayInsideRegisterAllocationsFromRevivedOperation)
+        .Alias("delay_inside_register_jobs_from_revived_operation")
         .Default();
     registrar.Parameter("delay_inside_validate_runtime_parameters", &TThis::DelayInsideValidateRuntimeParameters)
         .Default();
@@ -294,7 +298,7 @@ void TTestingOperationOptions::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Postprocessor([] (TTestingOperationOptions* config) {
-        if (const auto& delay = config->InsideScheduleJobDelay;
+        if (const auto& delay = config->InsideScheduleAllocationDelay;
             delay && delay->Type != EDelayType::Sync)
         {
             THROW_ERROR_EXCEPTION("\"inside_schedule_job_delay\" must be sync, use \"schedule_job_delay\" instead");
@@ -1960,7 +1964,8 @@ void TPoolPresetConfig::Register(TRegistrar registrar)
 {
     registrar.UnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
 
-    registrar.Parameter("allow_regular_jobs_on_ssd_nodes", &TThis::AllowRegularJobsOnSsdNodes)
+    registrar.Parameter("allow_regular_allocations_on_ssd_nodes", &TThis::AllowRegularAllocationsOnSsdNodes)
+        .Alias("allow_regular_jobs_on_ssd_nodes")
         .Default(true);
 }
 
@@ -2200,7 +2205,8 @@ void TStrategyOperationSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("pool_trees", &TThis::PoolTrees)
         .Default();
-    registrar.Parameter("max_concurrent_schedule_job_calls", &TThis::MaxConcurrentControllerScheduleJobCalls)
+    registrar.Parameter("max_concurrent_schedule_allocation_calls", &TThis::MaxConcurrentControllerScheduleAllocationCalls)
+        .Alias("max_concurrent_schedule_job_calls")
         .Alias("max_concurrent_controller_schedule_job_calls")
         .Default();
     registrar.Parameter("schedule_in_single_tree", &TThis::ScheduleInSingleTree)
@@ -2213,12 +2219,14 @@ void TStrategyOperationSpec::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("tentative_tree_eligibility", &TThis::TentativeTreeEligibility)
         .DefaultNew();
-    registrar.Parameter("update_preemptible_jobs_list_logging_period", &TThis::UpdatePreemptibleJobsListLoggingPeriod)
+    registrar.Parameter("update_preemptible_allocations_list_logging_period", &TThis::UpdatePreemptibleAllocationsListLoggingPeriod)
+        .Alias("update_preemptible_jobs_list_logging_period")
         .Alias("update_preemptable_jobs_list_logging_period")
         .Default(1000);
     registrar.Parameter("custom_profiling_tag", &TThis::CustomProfilingTag)
         .Default();
-    registrar.Parameter("max_unpreemptible_job_count", &TThis::MaxUnpreemptibleRunningJobCount)
+    registrar.Parameter("max_unpreemptible_allocation_count", &TThis::MaxUnpreemptibleRunningAllocationCount)
+        .Alias("max_unpreemptible_job_count")
         .Alias("max_unpreemptable_job_count")
         .Default();
     registrar.Parameter("try_avoid_duplicating_jobs", &TThis::TryAvoidDuplicatingJobs)

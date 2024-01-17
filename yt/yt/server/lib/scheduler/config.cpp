@@ -29,7 +29,7 @@ TJobResourcesConfigPtr GetDefaultRequiredResourceLimitsForRemoteCopy()
     return config;
 }
 
-TJobResourcesConfigPtr GetDefaultMinSpareJobResourcesOnNode()
+TJobResourcesConfigPtr GetDefaultMinSpareAllocationResourcesOnNode()
 {
     auto config = New<TJobResourcesConfig>();
     config->UserSlots = 1;
@@ -38,7 +38,7 @@ TJobResourcesConfigPtr GetDefaultMinSpareJobResourcesOnNode()
     return config;
 }
 
-TJobResourcesConfigPtr GetDefaultLowPriorityFallbackMinSpareJobResources()
+TJobResourcesConfigPtr GetDefaultLowPriorityFallbackMinSpareAllocationResources()
 {
     auto config = New<TJobResourcesConfig>();
     config->UserSlots = 1;
@@ -74,11 +74,14 @@ void TStrategyTestingOptions::Register(TRegistrar registrar)
 
 void TFairShareStrategyControllerThrottling::Register(TRegistrar registrar)
 {
-    registrar.Parameter("schedule_job_start_backoff_time", &TThis::ScheduleJobStartBackoffTime)
+    registrar.Parameter("schedule_allocation_start_backoff_time", &TThis::ScheduleAllocationStartBackoffTime)
+        .Alias("schedule_job_start_backoff_time")
         .Default(TDuration::MilliSeconds(100));
-    registrar.Parameter("schedule_job_max_backoff_time", &TThis::ScheduleJobMaxBackoffTime)
+    registrar.Parameter("schedule_allocation_max_backoff_time", &TThis::ScheduleAllocationMaxBackoffTime)
+        .Alias("schedule_job_max_backoff_time")
         .Default(TDuration::Seconds(10));
-    registrar.Parameter("schedule_job_backoff_multiplier", &TThis::ScheduleJobBackoffMultiplier)
+    registrar.Parameter("schedule_allocation_backoff_multiplier", &TThis::ScheduleAllocationBackoffMultiplier)
+        .Alias("schedule_job_backoff_multiplier")
         .Default(1.1);
 }
 
@@ -86,36 +89,45 @@ void TFairShareStrategyControllerThrottling::Register(TRegistrar registrar)
 
 void TFairShareStrategyOperationControllerConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("max_concurrent_controller_schedule_job_calls", &TThis::MaxConcurrentControllerScheduleJobCalls)
+    registrar.Parameter("max_concurrent_controller_schedule_allocation_calls", &TThis::MaxConcurrentControllerScheduleAllocationCalls)
+        .Alias("max_concurrent_controller_schedule_job_calls")
         .Default(100)
         .GreaterThan(0);
-    registrar.Parameter("max_concurrent_controller_schedule_job_exec_duration", &TThis::MaxConcurrentControllerScheduleJobExecDuration)
+    registrar.Parameter("max_concurrent_controller_schedule_allocation_exec_duration", &TThis::MaxConcurrentControllerScheduleAllocationExecDuration)
+        .Alias("max_concurrent_controller_schedule_job_exec_duration")
         .Default(TDuration::Seconds(1))
         .GreaterThan(TDuration::Zero());
 
-    registrar.Parameter("enable_concurrent_schedule_job_exec_duration_throttling", &TThis::EnableConcurrentScheduleJobExecDurationThrottling)
+    registrar.Parameter("enable_concurrent_schedule_allocation_exec_duration_throttling", &TThis::EnableConcurrentScheduleAllocationExecDurationThrottling)
+        .Alias("enable_concurrent_schedule_job_exec_duration_throttling")
         .Default(false);
 
-    registrar.Parameter("concurrent_controller_schedule_job_calls_regularization", &TThis::ConcurrentControllerScheduleJobCallsRegularization)
+    registrar.Parameter("concurrent_controller_schedule_allocation_calls_regularization", &TThis::ConcurrentControllerScheduleAllocationCallsRegularization)
+        .Alias("concurrent_controller_schedule_job_calls_regularization")
         .Default(2.0)
         .GreaterThanOrEqual(1.0);
 
-    registrar.Parameter("schedule_job_time_limit", &TThis::ScheduleJobTimeLimit)
+    registrar.Parameter("schedule_allocation_time_limit", &TThis::ScheduleAllocationTimeLimit)
+        .Alias("schedule_job_time_limit")
         .Default(TDuration::Seconds(30));
 
-    registrar.Parameter("schedule_job_fail_backoff_time", &TThis::ScheduleJobFailBackoffTime)
+    registrar.Parameter("schedule_allocation_fail_backoff_time", &TThis::ScheduleAllocationFailBackoffTime)
+        .Alias("schedule_job_fail_backoff_time")
         .Default(TDuration::MilliSeconds(100));
 
     registrar.Parameter("controller_throttling", &TThis::ControllerThrottling)
         .DefaultNew();
 
-    registrar.Parameter("schedule_job_timeout_alert_reset_time", &TThis::ScheduleJobTimeoutAlertResetTime)
+    registrar.Parameter("schedule_allocation_timeout_alert_reset_time", &TThis::ScheduleAllocationTimeoutAlertResetTime)
+        .Alias("schedule_job_timeout_alert_reset_time")
         .Default(TDuration::Minutes(15));
 
-    registrar.Parameter("schedule_jobs_timeout", &TThis::ScheduleJobsTimeout)
+    registrar.Parameter("schedule_allocations_timeout", &TThis::ScheduleAllocationsTimeout)
+        .Alias("schedule_jobs_timeout")
         .Default(TDuration::Seconds(40));
 
-    registrar.Parameter("long_schedule_job_logging_threshold", &TThis::LongScheduleJobLoggingThreshold)
+    registrar.Parameter("long_schedule_allocation_logging_threshold", &TThis::LongScheduleAllocationLoggingThreshold)
+        .Alias("long_schedule_job_logging_threshold")
         .Default(TDuration::Seconds(10));
 }
 
@@ -265,10 +277,11 @@ void TBatchOperationSchedulingConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0)
         .Default(1000);
 
-    registrar.Parameter("fallback_min_spare_job_resources", &TThis::FallbackMinSpareJobResources)
+    registrar.Parameter("fallback_min_spare_allocation_resources", &TThis::FallbackMinSpareAllocationResources)
+        .Alias("fallback_min_spare_job_resources")
         // COMPAT(eshcherbin)
         .Alias("low_priority_fallback_min_spare_job_resources")
-        .DefaultCtor(&GetDefaultLowPriorityFallbackMinSpareJobResources);
+        .DefaultCtor(&GetDefaultLowPriorityFallbackMinSpareAllocationResources);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -301,7 +314,8 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_aggressive_starvation", &TThis::EnableAggressiveStarvation)
         .Default(false);
 
-    registrar.Parameter("max_unpreemptible_running_job_count", &TThis::MaxUnpreemptibleRunningJobCount)
+    registrar.Parameter("max_unpreemptible_running_allocation_count", &TThis::MaxUnpreemptibleRunningAllocationCount)
+        .Alias("max_unpreemptible_running_job_count")
         .Alias("max_unpreemptable_running_job_count")
         .Default();
 
@@ -333,7 +347,8 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("forbid_immediate_operations_in_root", &TThis::ForbidImmediateOperationsInRoot)
         .Default(true);
 
-    registrar.Parameter("job_count_preemption_timeout_coefficient", &TThis::JobCountPreemptionTimeoutCoefficient)
+    registrar.Parameter("allocation_count_preemption_timeout_coefficient", &TThis::AllocationCountPreemptionTimeoutCoefficient)
+        .Alias("job_count_preemption_timeout_coefficient")
         .Default(1.0)
         .GreaterThanOrEqual(1.0);
 
@@ -409,11 +424,11 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("preemption_check_satisfaction", &TThis::PreemptionCheckSatisfaction)
         .Default(true);
 
-    registrar.Parameter("allocation_preemption_timeout", &TThis::JobPreemptionTimeout)
+    registrar.Parameter("allocation_preemption_timeout", &TThis::AllocationPreemptionTimeout)
         .Alias("job_interrupt_timeout")
         .Default(TDuration::Seconds(10));
 
-    registrar.Parameter("allocation_graceful_preemption_timeout", &TThis::JobGracefulPreemptionTimeout)
+    registrar.Parameter("allocation_graceful_preemption_timeout", &TThis::AllocationGracefulPreemptionTimeout)
         .Alias("job_graceful_interrupt_timeout")
         .Default(TDuration::Seconds(60));
 
@@ -450,7 +465,8 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
             EJobResourceType::Network
         });
 
-    registrar.Parameter("waiting_job_timeout", &TThis::WaitingJobTimeout)
+    registrar.Parameter("waiting_for_resources_on_node_timeout", &TThis::WaitingForResourcesOnNodeTimeout)
+        .Alias("waiting_job_timeout")
         .Default();
 
     registrar.Parameter("min_child_heap_size", &TThis::MinChildHeapSize)
@@ -478,7 +494,8 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("allowed_resource_usage_staleness", &TThis::AllowedResourceUsageStaleness)
         .Default(TDuration::MilliSeconds(100));
 
-    registrar.Parameter("cached_job_preemption_statuses_update_period", &TThis::CachedJobPreemptionStatusesUpdatePeriod)
+    registrar.Parameter("cached_allocation_preemption_statuses_update_period", &TThis::CachedAllocationPreemptionStatusesUpdatePeriod)
+        .Alias("cached_job_preemption_statuses_update_period")
         .Default(TDuration::Seconds(15));
 
     registrar.Parameter("should_distribute_free_volume_among_children", &TThis::ShouldDistributeFreeVolumeAmongChildren)
@@ -529,7 +546,8 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("scheduling_preemption_priority_scope", &TThis::SchedulingPreemptionPriorityScope)
         .Default(EOperationPreemptionPriorityScope::OperationAndAncestors);
 
-    registrar.Parameter("running_job_statistics_update_period", &TThis::RunningJobStatisticsUpdatePeriod)
+    registrar.Parameter("running_allocation_statistics_update_period", &TThis::RunningAllocationStatisticsUpdatePeriod)
+        .Alias("running_job_statistics_update_period")
         .Default(TDuration::Seconds(1));
 
     registrar.Parameter("batch_operation_scheduling", &TThis::BatchOperationScheduling)
@@ -572,7 +590,7 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
 
         auto& nonPreemptibleUserSlotsUsage = config->NonPreemptibleResourceUsageThreshold->UserSlots;
         if (!nonPreemptibleUserSlotsUsage) {
-            nonPreemptibleUserSlotsUsage = config->MaxUnpreemptibleRunningJobCount;
+            nonPreemptibleUserSlotsUsage = config->MaxUnpreemptibleRunningAllocationCount;
         }
     });
 
@@ -642,13 +660,14 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
         .Alias("operation_unschedulable_safe_timeout")
         .Default(TDuration::Minutes(60));
 
-    registrar.Parameter("operation_hangup_min_schedule_job_attempts", &TThis::OperationHangupMinScheduleJobAttempts)
+    registrar.Parameter("operation_hangup_min_schedule_allocation_attempts", &TThis::OperationHangupMinScheduleAllocationAttempts)
+        .Alias("operation_hangup_min_schedule_job_attempts")
         .Alias("operation_unschedulable_min_schedule_job_attempts")
         .Default(1000);
 
     registrar.Parameter("operation_hangup_deactivation_reasons", &TThis::OperationHangupDeactivationReasons)
         .Alias("operation_unschedulable_deactivation_reasons")
-        .Default({EDeactivationReason::ScheduleJobFailed, EDeactivationReason::MinNeededResourcesUnsatisfied});
+        .Default({EDeactivationReason::ScheduleAllocationFailed, EDeactivationReason::MinNeededResourcesUnsatisfied});
 
     registrar.Parameter("operation_hangup_due_to_limiting_ancestor_safe_timeout", &TThis::OperationHangupDueToLimitingAncestorSafeTimeout)
         .Alias("operation_unschedulable_due_to_limiting_ancestor_safe_timeout")
@@ -874,7 +893,8 @@ void TControllerAgentTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("tag_to_alive_controller_agent_thresholds", &TThis::TagToAliveControllerAgentThresholds)
         .Default();
 
-    registrar.Parameter("max_message_job_event_count", &TThis::MaxMessageJobEventCount)
+    registrar.Parameter("max_message_allocation_event_count", &TThis::MaxMessageAllocationEventCount)
+        .Alias("max_message_job_event_count")
         .Default(10000)
         .GreaterThan(0);
 
@@ -946,7 +966,8 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("alerts_update_period", &TThis::AlertsUpdatePeriod)
         .Default(TDuration::Seconds(1));
-    registrar.Parameter("node_shard_submit_jobs_to_strategy_period", &TThis::NodeShardSubmitJobsToStrategyPeriod)
+    registrar.Parameter("node_shard_submit_allocations_to_strategy_period", &TThis::NodeShardSubmitAllocationsToStrategyPeriod)
+        .Alias("node_shard_submit_jobs_to_strategy_period")
         .Default(TDuration::MilliSeconds(100));
 
     // NB: This setting is NOT synchronized with the Cypress while scheduler is connected to master.
@@ -957,9 +978,6 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("pool_trees_lock_check_backoff", &TThis::PoolTreesLockCheckBackoff)
         .Default(TDuration::MilliSeconds(500));
 
-    registrar.Parameter("job_prober_rpc_timeout", &TThis::JobProberRpcTimeout)
-        .Default(TDuration::Seconds(300));
-
     registrar.Parameter("cluster_info_logging_period", &TThis::ClusterInfoLoggingPeriod)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("nodes_info_logging_period", &TThis::NodesInfoLoggingPeriod)
@@ -969,13 +987,17 @@ void TSchedulerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("always_send_controller_agent_descriptors", &TThis::AlwaysSendControllerAgentDescriptors)
         .Default(true);
-    registrar.Parameter("send_full_controller_agent_descriptors_for_jobs", &TThis::SendFullControllerAgentDescriptorsForJobs)
+    registrar.Parameter("send_full_controller_agent_descriptors_for_allocations", &TThis::SendFullControllerAgentDescriptorsForAllocations)
+        .Alias("send_full_controller_agent_descriptors_for_jobs")
         .Default(true);
-    registrar.Parameter("jobs_logging_period", &TThis::JobsLoggingPeriod)
+    registrar.Parameter("allocations_logging_period", &TThis::AllocationsLoggingPeriod)
+        .Alias("jobs_logging_period")
         .Default(TDuration::Seconds(30));
-    registrar.Parameter("running_jobs_update_period", &TThis::RunningJobsUpdatePeriod)
+    registrar.Parameter("running_allocations_update_period", &TThis::RunningAllocationsUpdatePeriod)
+        .Alias("running_jobs_update_period")
         .Default(TDuration::Seconds(10));
-    registrar.Parameter("missing_jobs_check_period", &TThis::MissingJobsCheckPeriod)
+    registrar.Parameter("missing_allocations_check_period", &TThis::MissingAllocationsCheckPeriod)
+        .Alias("missing_jobs_check_period")
         .Default(TDuration::Seconds(10));
     registrar.Parameter("transient_operation_queue_scan_period", &TThis::TransientOperationQueueScanPeriod)
         .Default(TDuration::MilliSeconds(100));
@@ -985,7 +1007,8 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("operation_to_agent_assignment_backoff", &TThis::OperationToAgentAssignmentBackoff)
         .Default(TDuration::Seconds(1));
 
-    registrar.Parameter("max_started_jobs_per_heartbeat", &TThis::MaxStartedJobsPerHeartbeat)
+    registrar.Parameter("max_started_allocations_per_heartbeat", &TThis::MaxStartedAllocationsPerHeartbeat)
+        .Alias("max_started_jobs_per_heartbeat")
         .Default()
         .GreaterThan(0);
 
@@ -1017,9 +1040,6 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_unrecognized_alert", &TThis::EnableUnrecognizedAlert)
         .Default(true);
 
-    registrar.Parameter("job_revival_abort_timeout", &TThis::JobRevivalAbortTimeout)
-        .Default(TDuration::Minutes(5));
-
     registrar.Parameter("scheduling_tag_filter_expire_timeout", &TThis::SchedulingTagFilterExpireTimeout)
         .Default(TDuration::Seconds(10));
 
@@ -1029,7 +1049,8 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("operations_update_period", &TThis::OperationsUpdatePeriod)
         .Default(TDuration::Seconds(3));
 
-    registrar.Parameter("finished_operation_job_storing_timeout", &TThis::FinishedOperationJobStoringTimeout)
+    registrar.Parameter("finished_operation_allocation_storing_timeout", &TThis::FinishedOperationAllocationStoringTimeout)
+        .Alias("finished_operation_job_storing_timeout")
         .Default(TDuration::Seconds(10));
 
     registrar.Parameter("testing_options", &TThis::TestingOptions)
@@ -1067,7 +1088,8 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_offline_node_age", &TThis::MaxOfflineNodeAge)
         .Default(TDuration::Hours(12));
 
-    registrar.Parameter("max_node_unseen_period_to_abort_jobs", &TThis::MaxNodeUnseenPeriodToAbortJobs)
+    registrar.Parameter("max_node_unseen_period_to_abort_allocations", &TThis::MaxNodeUnseenPeriodToAbortAllocations)
+        .Alias("max_node_unseen_period_to_abort_jobs")
         .Default(TDuration::Minutes(5));
 
     registrar.Parameter("orchid_worker_thread_count", &TThis::OrchidWorkerThreadCount)
@@ -1094,7 +1116,8 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("validate_node_tags_period", &TThis::ValidateNodeTagsPeriod)
         .Default(TDuration::Seconds(30));
 
-    registrar.Parameter("enable_job_abort_on_zero_user_slots", &TThis::EnableJobAbortOnZeroUserSlots)
+    registrar.Parameter("enable_allocation_abort_on_zero_user_slots", &TThis::EnableAllocationAbortOnZeroUserSlots)
+        .Alias("enable_job_abort_on_zero_user_slots")
         .Default(true);
 
     registrar.Parameter("fetch_operation_attributes_subbatch_size", &TThis::FetchOperationAttributesSubbatchSize)
@@ -1109,10 +1132,12 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("experiments", &TThis::Experiments)
         .Default();
 
-    registrar.Parameter("min_spare_job_resources_on_node", &TThis::MinSpareJobResourcesOnNode)
-        .DefaultCtor(&GetDefaultMinSpareJobResourcesOnNode);
+    registrar.Parameter("min_spare_allocation_resources_on_node", &TThis::MinSpareAllocationResourcesOnNode)
+        .Alias("min_spare_job_resources_on_node")
+        .DefaultCtor(&GetDefaultMinSpareAllocationResourcesOnNode);
 
-    registrar.Parameter("schedule_job_duration_logging_threshold", &TThis::ScheduleJobDurationLoggingThreshold)
+    registrar.Parameter("schedule_allocation_duration_logging_threshold", &TThis::ScheduleAllocationDurationLoggingThreshold)
+        .Alias("schedule_job_duration_logging_threshold")
         .Default(TDuration::MilliSeconds(500));
 
     registrar.Parameter("send_preemption_reason_in_node_heartbeat", &TThis::SendPreemptionReasonInNodeHeartbeat)
@@ -1133,16 +1158,19 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("operation_heavy_attributes_archivation_timeout", &TThis::OperationHeavyAttributesArchivationTimeout)
         .Default(TDuration::Seconds(3));
 
-    registrar.Parameter("schedule_job_entry_removal_timeout", &TThis::ScheduleJobEntryRemovalTimeout)
+    registrar.Parameter("schedule_allocation_entry_removal_timeout", &TThis::ScheduleAllocationEntryRemovalTimeout)
+        .Alias("schedule_job_entry_removal_timeout")
         .Default(TDuration::Minutes(2));
 
-    registrar.Parameter("schedule_job_entry_check_period", &TThis::ScheduleJobEntryCheckPeriod)
+    registrar.Parameter("schedule_allocation_entry_check_period", &TThis::ScheduleAllocationEntryCheckPeriod)
+        .Alias("schedule_job_entry_check_period")
         .Default(TDuration::Minutes(1));
 
     registrar.Parameter("wait_for_agent_heartbeat_during_operation_unregistration_at_controller", &TThis::WaitForAgentHeartbeatDuringOperationUnregistrationAtController)
         .Default(true);
 
-    registrar.Parameter("crash_on_job_heartbeat_processing_exception", &TThis::CrashOnJobHeartbeatProcessingException)
+    registrar.Parameter("crash_on_allocation_heartbeat_processing_exception", &TThis::CrashOnAllocationHeartbeatProcessingException)
+        .Alias("crash_on_job_heartbeat_processing_exception")
         .Default(false);
 
     registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)

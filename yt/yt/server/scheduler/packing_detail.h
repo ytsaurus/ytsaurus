@@ -42,23 +42,23 @@ double MinComponent(const TJobResourcesRatio& ratio);
 
 double ComponentsSum(const TJobResourcesRatio& ratio);
 
-TJobResourcesRatio ToRatio(const TJobResources& jobResources, const TJobResources& totalResourceLimits);
+TJobResourcesRatio ToRatio(const TJobResources& allocationResources, const TJobResources& totalResourceLimits);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 double AngleLengthPackingMetric(
     const TPackingNodeResourcesSnapshot& nodeResourcesSnapshot,
-    const TJobResourcesWithQuota& jobResourcesWithQuota,
+    const TJobResourcesWithQuota& allocationResourcesWithQuota,
     const TJobResources& totalResourceLimits);
 
 double AnglePackingMetric(
     const TPackingNodeResourcesSnapshot& nodeResourcesSnapshot,
-    const TJobResourcesWithQuota& jobResourcesWithQuota,
+    const TJobResourcesWithQuota& allocationResourcesWithQuota,
     const TJobResources& totalResourceLimits);
 
 double PackingMetric(
     const TPackingNodeResourcesSnapshot& nodeResourcesSnapshot,
-    const TJobResourcesWithQuota& jobResourcesWithQuota,
+    const TJobResourcesWithQuota& allocationResourcesWithQuota,
     const TJobResources& totalResourceLimits,
     const TFairShareStrategyPackingConfigPtr& config);
 

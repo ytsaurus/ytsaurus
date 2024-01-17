@@ -61,7 +61,7 @@ using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
-using namespace NControllerAgent::NProto;
+using namespace NControllerAgent;
 using namespace NScheduler;
 using namespace NControllerAgent::NProto;
 using namespace NTableClient;

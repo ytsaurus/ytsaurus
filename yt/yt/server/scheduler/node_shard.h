@@ -42,30 +42,6 @@ struct INodeShardHost
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobTimeStatisticsDelta
-{
-    void Reset()
-    {
-        CompletedJobTimeDelta = 0;
-        FailedJobTimeDelta = 0;
-        AbortedJobTimeDelta = 0;
-    }
-
-    TJobTimeStatisticsDelta& operator += (const TJobTimeStatisticsDelta& rhs)
-    {
-        CompletedJobTimeDelta += rhs.CompletedJobTimeDelta;
-        FailedJobTimeDelta += rhs.FailedJobTimeDelta;
-        AbortedJobTimeDelta += rhs.AbortedJobTimeDelta;
-        return *this;
-    }
-
-    ui64 CompletedJobTimeDelta = 0;
-    ui64 FailedJobTimeDelta = 0;
-    ui64 AbortedJobTimeDelta = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TNodeShardMasterHandshakeResult final
 {
     THashSet<TOperationId> OperationIds;
@@ -98,18 +74,18 @@ public:
         TOperationId operationId,
         TControllerEpoch controllerEpoch,
         const IOperationControllerPtr& controller,
-        bool jobsReady);
+        bool waitingForRevival);
     void StartOperationRevival(TOperationId operationId, TControllerEpoch newControllerEpoch);
     void FinishOperationRevival(
         TOperationId operationId,
-        const std::vector<TJobPtr>& jobs);
+        const std::vector<TAllocationPtr>& allocations);
     void ResetOperationRevival(TOperationId operationId);
     void UnregisterOperation(TOperationId operationId);
 
     void ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
 
     void UnregisterAndRemoveNodeById(NNodeTrackerClient::TNodeId nodeId);
-    void AbortJobsAtNode(NNodeTrackerClient::TNodeId nodeId, EAbortReason reason);
+    void AbortAllocationsAtNode(NNodeTrackerClient::TNodeId nodeId, EAbortReason reason);
 
 
     TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors();
@@ -118,19 +94,22 @@ public:
     void RemoveMissingNodes(const std::vector<TString>& nodeAddresses);
     std::vector<TError> HandleNodesAttributes(const std::vector<std::pair<TString, NYTree::INodePtr>>& nodeMaps);
 
-    void AbortOperationJobs(
+    void AbortOperationAllocations(
         TOperationId operationId,
         const TError& abortError,
         EAbortReason abortReason,
         bool controllerTerminated);
-    void ResumeOperationJobs(TOperationId operationId);
+    void ResumeOperationAllocations(TOperationId operationId);
 
-    NNodeTrackerClient::TNodeDescriptor GetJobNode(TJobId jobId);
+    NNodeTrackerClient::TNodeDescriptor GetAllocationNode(TAllocationId allocationId);
 
     TAllocationDescription GetAllocationDescription(TAllocationId allocationId);
 
-    void AbortJob(TJobId jobId, const TError& error, EAbortReason abortReason);
-    void AbortJobs(const std::vector<TJobId>& jobIds, const TError& error, EAbortReason abortReason);
+    void AbortAllocation(TAllocationId allocationId, const TError& error, EAbortReason abortReason);
+    void AbortAllocations(
+        const std::vector<TAllocationId>& allocationIds,
+        const TError& error,
+        EAbortReason abortReason);
 
     TNodeYsonList BuildNodeYsonList() const;
 
@@ -139,30 +118,30 @@ public:
     TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) const;
     TJobResources GetResourceUsage(const TSchedulingTagFilter& filter) const;
 
-    int GetActiveJobCount() const;
+    int GetActiveAllocationCount() const;
     int GetExecNodeCount() const;
     int GetTotalNodeCount() const;
-    int GetSubmitToStrategyJobCount() const;
+    int GetSubmitToStrategyAllocationCount() const;
 
     int GetTotalConcurrentHeartbeatComplexity() const;
 
-    TFuture<TControllerScheduleJobResultPtr> BeginScheduleJob(
+    TFuture<TControllerScheduleAllocationResultPtr> BeginScheduleAllocation(
         TIncarnationId incarnationId,
         TOperationId operationId,
-        TJobId jobId);
-    void EndScheduleJob(
-        const NProto::TScheduleJobResponse& response);
-    void RemoveOutdatedScheduleJobEntries();
+        TAllocationId allocationId);
+    void EndScheduleAllocation(
+        const NProto::TScheduleAllocationResponse& response);
+    void RemoveOutdatedScheduleAllocationEntries();
 
     int ExtractJobReporterWriteFailuresCount();
     int GetJobReporterQueueIsTooLargeNodeCount();
 
     TControllerEpoch GetOperationControllerEpoch(TOperationId operationId);
-    TControllerEpoch GetJobControllerEpoch(TJobId jobId);
+    TControllerEpoch GetAllocationControllerEpoch(TAllocationId allocationId);
 
     bool IsOperationControllerTerminated(TOperationId operationId) const noexcept;
     bool IsOperationRegistered(TOperationId operationId) const noexcept;
-    bool AreNewJobsForbiddenForOperation(TOperationId operationId) const noexcept;
+    bool AreNewAllocationsForbiddenForOperation(TOperationId operationId) const noexcept;
 
     int GetOnGoingHeartbeatCount() const noexcept;
 
@@ -172,17 +151,17 @@ public:
         TIncarnationId incarnationId);
     void UnregisterAgent(TAgentId id);
 
-    struct TRunningJobTimeStatistics
+    struct TRunningAllocationTimeStatistics
     {
         TDuration PreemptibleProgressTime;
     };
 
-    struct TRunningJobStatisticsUpdate
+    struct TRunningAllocationStatisticsUpdate
     {
-        TJobId JobId;
-        TRunningJobTimeStatistics TimeStatistics;
+        TAllocationId AllocationId;
+        TRunningAllocationTimeStatistics TimeStatistics;
     };
-    void UpdateRunningJobsStatistics(const std::vector<TRunningJobStatisticsUpdate>& updates);
+    void UpdateRunningAllocationsStatistics(const std::vector<TRunningAllocationStatisticsUpdate>& updates);
 
 private:
     const int Id_;
@@ -213,7 +192,7 @@ private:
 
     bool HasOngoingNodesAttributesUpdate_ = false;
 
-    std::atomic<int> ActiveJobCount_ = 0;
+    std::atomic<int> ActiveAllocationCount_ = 0;
 
     TAtomicIntrusivePtr<TRefCountedExecNodeDescriptorMap> CachedExecNodeDescriptors_{New<TRefCountedExecNodeDescriptorMap>()};
 
@@ -241,32 +220,32 @@ private:
     NProfiling::TCounter HardConcurrentHeartbeatLimitReachedCounter_;
     NProfiling::TCounter SoftConcurrentHeartbeatLimitReachedCounter_;
     NProfiling::TCounter ConcurrentHeartbeatComplexityLimitReachedCounter_;
-    NProfiling::TCounter HeartbeatWithScheduleJobsCounter_;
-    NProfiling::TCounter HeartbeatJobCount_;
+    NProfiling::TCounter HeartbeatWithScheduleAllocationsCounter_;
+    NProfiling::TCounter HeartbeatAllocationCount_;
     NProfiling::TCounter HeartbeatCount_;
     NProfiling::TCounter HeartbeatRequestProtoMessageBytes_;
     NProfiling::TCounter HeartbeatResponseProtoMessageBytes_;
     NProfiling::TCounter HeartbeatRegisteredControllerAgentsBytes_;
 
-    THashMap<TJobId, TJobUpdate> JobsToSubmitToStrategy_;
-    std::atomic<int> SubmitToStrategyJobCount_;
+    THashMap<TAllocationId, TAllocationUpdate> AllocationsToSubmitToStrategy_;
+    std::atomic<int> SubmitToStrategyAllocationCount_;
 
-    struct TScheduleJobEntry
+    struct TScheduleAllocationEntry
     {
         TOperationId OperationId;
         TIncarnationId IncarnationId;
-        TPromise<TControllerScheduleJobResultPtr> Promise;
-        THashMultiMap<TOperationId, THashMap<TJobId, TScheduleJobEntry>::iterator>::iterator OperationIdToJobIdsIterator;
+        TPromise<TControllerScheduleAllocationResultPtr> Promise;
+        THashMultiMap<TOperationId, THashMap<TAllocationId, TScheduleAllocationEntry>::iterator>::iterator OperationIdToAllocationIdsIterator;
         NProfiling::TCpuInstant StartTime;
     };
     // NB: It is important to use THash* instead of std::unordered_* since we rely on
     // iterators not to be invalidated.
-    THashMap<TJobId, TScheduleJobEntry> JobIdToScheduleEntry_;
-    THashMultiMap<TOperationId, THashMap<TJobId, TScheduleJobEntry>::iterator> OperationIdToJobIterators_;
+    THashMap<TAllocationId, TScheduleAllocationEntry> AllocationIdToScheduleEntry_;
+    THashMultiMap<TOperationId, THashMap<TAllocationId, TScheduleAllocationEntry>::iterator> OperationIdToAllocationIterators_;
 
-    NConcurrency::TPeriodicExecutorPtr RemoveOutdatedScheduleJobEntryExecutor_;
+    NConcurrency::TPeriodicExecutorPtr RemoveOutdatedScheduleAllocationEntryExecutor_;
 
-    NConcurrency::TPeriodicExecutorPtr SubmitJobsToStrategyExecutor_;
+    NConcurrency::TPeriodicExecutorPtr SubmitAllocationsToStrategyExecutor_;
 
     using TShardEpoch = ui64;
 
@@ -274,26 +253,24 @@ private:
     {
         TOperationState(
             IOperationControllerPtr controller,
-            bool jobsReady,
+            bool waitingForRevival,
             TShardEpoch shardEpoch,
             TControllerEpoch controllerEpoch)
             : Controller(std::move(controller))
-            , JobsReady(jobsReady)
+            , WaitingForRevival(waitingForRevival)
             , ShardEpoch(shardEpoch)
             , ControllerEpoch(controllerEpoch)
         { }
 
-        THashMap<TJobId, TJobPtr> Jobs;
-        THashSet<TJobId> JobsToSubmitToStrategy;
-        //! Used only to avoid multiple log messages per job about 'operation is not ready'.
-        THashSet<TJobId> OperationUnreadyLoggedJobIds;
+        THashMap<TAllocationId, TAllocationPtr> Allocations;
+        THashSet<TAllocationId> AllocationsToSubmitToStrategy;
+        //! Used only to avoid multiple log messages per allocation about 'operation is not ready'.
+        THashSet<TAllocationId> OperationUnreadyLoggedAllocationIds;
         IOperationControllerPtr Controller;
         bool ControllerTerminated = false;
-        //! Raised to prevent races between suspension and scheduler strategy scheduling new jobs.
-        bool ForbidNewJobs = false;
-        //! Flag showing that we already know about all jobs of this operation
-        //! and it is OK to abort unknown jobs that claim to be a part of this operation.
-        bool JobsReady = false;
+        //! Raised to prevent races between suspension and scheduler strategy scheduling new allocations.
+        bool ForbidNewAllocations = false;
+        bool WaitingForRevival = true;
         TShardEpoch ShardEpoch;
         TControllerEpoch ControllerEpoch;
     };
@@ -325,32 +302,32 @@ private:
     // NB: 'node' passed by value since we want to own it after remove.
     void RemoveNode(TExecNodePtr node);
 
-    void AbortAllJobsAtNode(const TExecNodePtr& node, EAbortReason reason);
-    void DoAbortAllJobsAtNode(const TExecNodePtr& node, EAbortReason reason);
+    void AbortAllAllocationsAtNode(const TExecNodePtr& node, EAbortReason reason);
+    void DoAbortAllAllocationsAtNode(const TExecNodePtr& node, EAbortReason reason);
 
-    void ProcessHeartbeatJobs(
+    void ProcessHeartbeatAllocations(
         TScheduler::TCtxNodeHeartbeat::TTypedRequest* request,
         TScheduler::TCtxNodeHeartbeat::TTypedResponse* response,
         const TExecNodePtr& node,
         const INodeHeartbeatStrategyProxyPtr& strategyProxy,
-        std::vector<TJobPtr>* runningJobs,
-        bool* hasWaitingJobs);
+        std::vector<TAllocationPtr>* runningAllocations,
+        bool* hasWaitingAllocations);
 
-    TJobPtr ProcessJobHeartbeat(
+    TAllocationPtr ProcessAllocationHeartbeat(
         const TExecNodePtr& node,
         NProto::NNode::TRspHeartbeat* response,
-        NProto::TAllocationStatus* jobStatus);
+        NProto::TAllocationStatus* allocationStatus);
 
     bool IsHeartbeatThrottlingWithComplexity(
         const TExecNodePtr& node,
         const INodeHeartbeatStrategyProxyPtr& strategyProxy);
     bool IsHeartbeatThrottlingWithCount(const TExecNodePtr& node);
 
-    using TAllocationStateToJobList = TEnumIndexedVector<EAllocationState, std::vector<TJobPtr>>;
-    void LogOngoingJobsOnHeartbeat(
+    using TStateToAllocationList = TEnumIndexedVector<EAllocationState, std::vector<TAllocationPtr>>;
+    void LogOngoingAllocationsOnHeartbeat(
         const INodeHeartbeatStrategyProxyPtr& strategyProxy,
         TInstant now,
-        const TAllocationStateToJobList& ongoingJobsByAllocationState) const;
+        const TStateToAllocationList& ongoingAllocationsByState) const;
 
     void SubtractNodeResources(const TExecNodePtr& node);
     void AddNodeResources(const TExecNodePtr& node);
@@ -363,50 +340,48 @@ private:
     void BeginNodeHeartbeatProcessing(const TExecNodePtr& node);
     void EndNodeHeartbeatProcessing(const TExecNodePtr& node);
 
-    void SubmitJobsToStrategy();
+    void SubmitAllocationsToStrategy();
 
-    void ProcessScheduledAndPreemptedJobs(
+    void ProcessScheduledAndPreemptedAllocations(
         const ISchedulingContextPtr& schedulingContext,
         NProto::NNode::TRspHeartbeat* response);
 
-    void OnJobFinished(const TJobPtr& job);
-    void OnJobAborted(
-        const TJobPtr& job,
+    void OnAllocationFinished(const TAllocationPtr& allocation);
+    void OnAllocationAborted(
+        const TAllocationPtr& allocation,
         const TError& error,
         EAbortReason abortReason);
-    void OnJobRunning(const TJobPtr& job, NProto::TAllocationStatus* status);
+    void OnAllocationRunning(const TAllocationPtr& allocation, NProto::TAllocationStatus* status);
 
-    void UpdateProfilingCounter(const TJobPtr& job, int value);
+    void UpdateProfilingCounter(const TAllocationPtr& allocation, int value);
 
-    void SetAllocationState(const TJobPtr& job, EAllocationState state);
+    void SetAllocationState(const TAllocationPtr& allocation, EAllocationState state);
 
-    void RegisterJob(const TJobPtr& job);
-    void UnregisterJob(const TJobPtr& job, bool causedByRevival = false);
+    void RegisterAllocation(const TAllocationPtr& allocation);
+    void UnregisterAllocation(const TAllocationPtr& allocation, bool causedByRevival = false);
 
-    void ProcessPreemptedJob(
+    void ProcessPreemptedAllocation(
         NProto::NNode::TRspHeartbeat* response,
-        const TJobPtr& job,
+        const TAllocationPtr& allocation,
         TDuration preemptionTimeout);
-    void PreemptJob(const TJobPtr& job, NProfiling::TCpuDuration preemptionTimeout);
-    void SendPreemptedJobToNode(
+    void PreemptAllocation(const TAllocationPtr& allocation, NProfiling::TCpuDuration preemptionTimeout);
+    void SendPreemptedAllocationToNode(
         NProto::NNode::TRspHeartbeat* response,
-        const TJobPtr& job,
+        const TAllocationPtr& allocation,
         TDuration preemptionTimeout) const;
-    void DoPreemptJob(
-        const TJobPtr& job,
+    void DoPreemptAllocation(
+        const TAllocationPtr& allocation,
         NProfiling::TCpuDuration preemptionTimeout = 0);
 
-    void ProcessJobsToAbort(NProto::NNode::TRspHeartbeat* response, const TExecNodePtr& node);
+    void ProcessAllocationsToAbort(NProto::NNode::TRspHeartbeat* response, const TExecNodePtr& node);
 
-    TExecNodePtr FindNodeByJob(TJobId jobId);
+    TExecNodePtr FindNodeByAllocation(TAllocationId allocationId);
 
-    bool IsJobAborted(TJobId jobId, const TExecNodePtr& node);
+    bool IsAllocationAborted(TAllocationId avId, const TExecNodePtr& node);
 
-    TJobPtr FindJob(TJobId jobId, const TExecNodePtr& node);
-    TJobPtr FindJob(TAllocationId allocationId, const TExecNodePtr& node);
-    TJobPtr FindJob(TJobId jobId);
-    TJobPtr FindJob(TAllocationId allocationId);
-    TJobPtr GetJobOrThrow(TJobId jobId);
+    TAllocationPtr FindAllocation(TAllocationId allocationId, const TExecNodePtr& node);
+    TAllocationPtr FindAllocation(TAllocationId allocationId);
+    TAllocationPtr GetAllocationOrThrow(TAllocationId allocationId);
 
     TOperationState* FindOperationState(TOperationId operationId) noexcept;
     const TOperationState* FindOperationState(TOperationId operationId) const noexcept;
@@ -421,9 +396,9 @@ private:
         ENodeState newSchedulerState,
         const TError& error = TError());
 
-    void RemoveOperationScheduleJobEntries(TOperationId operationId);
+    void RemoveOperationScheduleAllocationEntries(TOperationId operationId);
 
-    void SetFinishedState(const TJobPtr& job);
+    void SetFinishedState(const TAllocationPtr& allocation);
 
     void ProcessOperationInfoHeartbeat(
         const TScheduler::TCtxNodeHeartbeat::TTypedRequest* request,
@@ -434,7 +409,7 @@ private:
 
     void SetMinSpareResources(TScheduler::TCtxNodeHeartbeat::TTypedResponse* response);
 
-    void UpdateJobTimeStatisticsIfNeeded(const TJobPtr& job, TRunningJobTimeStatistics timeStatistics);
+    void UpdateAllocationTimeStatisticsIfNeeded(const TAllocationPtr& allocation, TRunningAllocationTimeStatistics timeStatistics);
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeShard)

@@ -115,7 +115,8 @@ void TMessageQueueOutbox<TItem>::BuildOutcoming(TProtoMessage* message, TBuilder
         }
         Queue_.move_forward(it);
     }
-    YT_LOG_DEBUG("Sending outbox items (ItemIds: %v-%v, ItemCount: %v, RetainedCount: %v)",
+    YT_LOG_DEBUG(
+        "Sending outbox items (ItemIds: %v-%v, ItemCount: %v, RetainedCount: %v)",
         firstItemId,
         lastItemId,
         itemCount,
@@ -153,7 +154,8 @@ void TMessageQueueOutbox<TItem>::HandleStatus(const TProtoMessage& message)
         return;
     }
     if (nextExpectedItemId < FirstItemId_) {
-        YT_LOG_DEBUG("Stale outbox items confirmed (NextExpectedItemId: %v, FirstItemId: %v)",
+        YT_LOG_DEBUG(
+            "Stale outbox items confirmed (NextExpectedItemId: %v, FirstItemId: %v)",
             nextExpectedItemId,
             FirstItemId_);
         return;
@@ -167,7 +169,8 @@ void TMessageQueueOutbox<TItem>::HandleStatus(const TProtoMessage& message)
 
     HandledItemsCounter_.Increment(lastConfirmedItemId - firstConfirmedItemId);
 
-    YT_LOG_DEBUG("Outbox items confirmed (ItemIds: %v-%v, ItemCount: %v)",
+    YT_LOG_DEBUG(
+        "Outbox items confirmed (ItemIds: %v-%v, ItemCount: %v)",
         firstConfirmedItemId,
         lastConfirmedItemId,
         lastConfirmedItemId - firstConfirmedItemId + 1);
@@ -191,7 +194,8 @@ void TMessageQueueInbox::ReportStatus(TProtoRequest* request)
 
     request->set_next_expected_item_id(NextExpectedItemId_);
 
-    YT_LOG_DEBUG("Inbox status reported (NextExpectedItemId: %v)",
+    YT_LOG_DEBUG(
+        "Inbox status reported (NextExpectedItemId: %v)",
         NextExpectedItemId_);
 }
 
@@ -222,14 +226,16 @@ void TMessageQueueInbox::HandleIncoming(TProtoMessage* message, TConsumer protoI
     HandledItemsCounter_.Increment(message->items_size());
 
     if (firstConsumedItemId >= 0) {
-        YT_LOG_DEBUG("Inbox items received and consumed (ReceivedIds: %v-%v, ConsumedIds: %v-%v, ItemCount: %v)",
+        YT_LOG_DEBUG(
+            "Inbox items received and consumed (ReceivedIds: %v-%v, ConsumedIds: %v-%v, ItemCount: %v)",
             message->first_item_id(),
             message->first_item_id() + message->items_size() - 1,
             firstConsumedItemId,
             lastConsumedItemId,
             message->items_size());
     } else {
-        YT_LOG_DEBUG("Inbox items received but none consumed (ReceivedIds: %v-%v)",
+        YT_LOG_DEBUG(
+            "Inbox items received but none consumed (ReceivedIds: %v-%v)",
             message->first_item_id(),
             message->first_item_id() + message->items_size() - 1);
     }

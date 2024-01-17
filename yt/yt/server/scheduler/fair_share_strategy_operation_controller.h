@@ -17,26 +17,26 @@ public:
         const TFairShareStrategyOperationControllerConfigPtr& config,
         int nodeShardCount);
 
-    void OnScheduleJobStarted(const ISchedulingContextPtr& schedulingContext);
-    void OnScheduleJobFinished(const ISchedulingContextPtr& schedulingContext);
+    void OnScheduleAllocationStarted(const ISchedulingContextPtr& schedulingContext);
+    void OnScheduleAllocationFinished(const ISchedulingContextPtr& schedulingContext);
 
     TControllerEpoch GetEpoch() const;
 
     TCompositeNeededResources GetNeededResources() const;
-    TJobResourcesWithQuotaList GetDetailedMinNeededJobResources() const;
-    TJobResources GetAggregatedMinNeededJobResources() const;
-    TJobResources GetAggregatedInitialMinNeededJobResources() const;
+    TJobResourcesWithQuotaList GetDetailedMinNeededAllocationResources() const;
+    TJobResources GetAggregatedMinNeededAllocationResources() const;
+    TJobResources GetAggregatedInitialMinNeededAllocationResources() const;
 
-    void UpdateMinNeededJobResources();
+    void UpdateMinNeededAllocationResources();
 
-    void UpdateConcurrentScheduleJobThrottlingLimits(const TFairShareStrategyOperationControllerConfigPtr& config);
-    bool CheckMaxScheduleJobCallsOverdraft(int maxScheduleJobCalls) const;
-    bool IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const;
-    bool IsMaxConcurrentScheduleJobExecDurationPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const;
-    bool HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const;
-    bool ScheduleJobBackoffObserved() const;
+    void UpdateConcurrentScheduleAllocationThrottlingLimits(const TFairShareStrategyOperationControllerConfigPtr& config);
+    bool CheckMaxScheduleAllocationCallsOverdraft(int maxScheduleAllocationCalls) const;
+    bool IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const;
+    bool IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const;
+    bool HasRecentScheduleAllocationFailure(NProfiling::TCpuInstant now) const;
+    bool ScheduleAllocationBackoffObserved() const;
 
-    TControllerScheduleJobResultPtr ScheduleJob(
+    TControllerScheduleAllocationResultPtr ScheduleAllocation(
         const ISchedulingContextPtr& schedulingContext,
         const TJobResources& availableResources,
         const NNodeTrackerClient::NProto::TDiskResources& availableDiskResources,
@@ -46,15 +46,15 @@ public:
         const TFairShareStrategyTreeConfigPtr& treeConfig);
 
     // TODO(eshcherbin): Move to private.
-    void AbortJob(
-        TJobId jobId,
+    void AbortAllocation(
+        TAllocationId allocationId,
         EAbortReason abortReason,
-        TControllerEpoch jobEpoch);
+        TControllerEpoch allocationEpoch);
 
-    void OnScheduleJobFailed(
+    void OnScheduleAllocationFailed(
         NProfiling::TCpuInstant now,
         const TString& treeId,
-        const TControllerScheduleJobResultPtr& scheduleJobResult);
+        const TControllerScheduleAllocationResultPtr& scheduleAllocationResult);
 
     bool IsSaturatedInTentativeTree(
         NProfiling::TCpuInstant now,
@@ -77,29 +77,29 @@ private:
 
     struct alignas(CacheLineSize) TStateShard
     {
-        mutable std::atomic<int> ScheduleJobCallsSinceLastUpdate = 0;
+        mutable std::atomic<int> ScheduleAllocationCallsSinceLastUpdate = 0;
 
         char Padding[CacheLineSize];
 
-        int ConcurrentScheduleJobCalls = 0;
-        TDuration ConcurrentScheduleJobExecDuration;
+        int ConcurrentScheduleAllocationCalls = 0;
+        TDuration ConcurrentScheduleAllocationExecDuration;
 
-        TDuration ScheduleJobExecDurationEstimate;
+        TDuration ScheduleAllocationExecDurationEstimate;
     };
     std::array<TStateShard, MaxNodeShardCount> StateShards_;
 
     const int NodeShardCount_;
 
-    std::atomic<int> MaxConcurrentControllerScheduleJobCallsPerNodeShard_;
-    std::atomic<TDuration> MaxConcurrentControllerScheduleJobExecDurationPerNodeShard_;
+    std::atomic<int> MaxConcurrentControllerScheduleAllocationCallsPerNodeShard_;
+    std::atomic<TDuration> MaxConcurrentControllerScheduleAllocationExecDurationPerNodeShard_;
 
-    std::atomic<bool> EnableConcurrentScheduleJobExecDurationThrottling_ = false;
+    std::atomic<bool> EnableConcurrentScheduleAllocationExecDurationThrottling_ = false;
 
-    mutable int ScheduleJobCallsOverdraft_ = 0;
+    mutable int ScheduleAllocationCallsOverdraft_ = 0;
 
-    std::atomic<NProfiling::TCpuDuration> ScheduleJobControllerThrottlingBackoff_;
-    std::atomic<NProfiling::TCpuInstant> ScheduleJobBackoffDeadline_ = ::Min<NProfiling::TCpuInstant>();
-    std::atomic<bool> ScheduleJobBackoffObserved_ = {false};
+    std::atomic<NProfiling::TCpuDuration> ScheduleAllocationControllerThrottlingBackoff_;
+    std::atomic<NProfiling::TCpuInstant> ScheduleAllocationBackoffDeadline_ = ::Min<NProfiling::TCpuInstant>();
+    std::atomic<bool> ScheduleAllocationBackoffObserved_ = {false};
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SaturatedTentativeTreesLock_);
     THashMap<TString, NProfiling::TCpuInstant> TentativeTreeIdToSaturationTime_;

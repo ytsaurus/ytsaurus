@@ -24,7 +24,7 @@ TSchedulingContextBase::TSchedulingContextBase(
     int nodeShardId,
     TSchedulerConfigPtr config,
     TExecNodePtr node,
-    const std::vector<TJobPtr>& runningJobs,
+    const std::vector<TAllocationPtr>& runningAllocations,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
     : NodeShardId_(nodeShardId)
     , Config_(std::move(config))
@@ -32,14 +32,14 @@ TSchedulingContextBase::TSchedulingContextBase(
     , NodeDescriptor_(Node_->BuildExecDescriptor())
     , NodeTags_(Node_->Tags())
     , MediumDirectory_(mediumDirectory)
-    , DefaultMinSpareJobResources_(
-        Config_->MinSpareJobResourcesOnNode
-        ? ToJobResources(*Config_->MinSpareJobResourcesOnNode, TJobResources())
+    , DefaultMinSpareAllocationResources_(
+        Config_->MinSpareAllocationResourcesOnNode
+        ? ToJobResources(*Config_->MinSpareAllocationResourcesOnNode, TJobResources())
         : TJobResources())
     , ResourceUsage_(Node_->GetResourceUsage())
     , ResourceLimits_(Node_->GetResourceLimits())
     , DiskResources_(Node_->GetDiskResources())
-    , RunningJobs_(runningJobs)
+    , RunningAllocations_(runningAllocations)
 {
     if (const auto& diskLocationResources = DiskResources_.disk_location_resources();
         diskLocationResources.size() == 1 &&
@@ -84,12 +84,12 @@ TJobResourcesWithQuota TSchedulingContextBase::GetMaxConditionalDiscount() const
     return MaxConditionalDiscount_;
 }
 
-void TSchedulingContextBase::IncreaseUnconditionalDiscount(const TJobResourcesWithQuota& jobResources)
+void TSchedulingContextBase::IncreaseUnconditionalDiscount(const TJobResourcesWithQuota& allocationResources)
 {
-    UnconditionalDiscount_.SetJobResources(UnconditionalDiscount_.ToJobResources() + jobResources.ToJobResources());
+    UnconditionalDiscount_.SetJobResources(UnconditionalDiscount_.ToJobResources() + allocationResources.ToJobResources());
 
     if (DiscountMediumIndex_) {
-        auto compactedDiskQuota = GetDiskQuotaWithCompactedDefaultMedium(jobResources.DiskQuota());
+        auto compactedDiskQuota = GetDiskQuotaWithCompactedDefaultMedium(allocationResources.DiskQuota());
         UnconditionalDiscount_.DiskQuota().DiskSpacePerMedium[*DiscountMediumIndex_] +=
             GetOrDefault(compactedDiskQuota.DiskSpacePerMedium, *DiscountMediumIndex_);
     }
@@ -116,40 +116,40 @@ const TExecNodeDescriptorPtr& TSchedulingContextBase::GetNodeDescriptor() const
 }
 
 bool TSchedulingContextBase::CanSatisfyResourceRequest(
-    const TJobResources& jobResources,
+    const TJobResources& allocationResources,
     const TJobResources& conditionalDiscount) const
 {
     return Dominates(
         ResourceLimits_,
-        ResourceUsage_ + jobResources - (UnconditionalDiscount_.ToJobResources() + conditionalDiscount));
+        ResourceUsage_ + allocationResources - (UnconditionalDiscount_.ToJobResources() + conditionalDiscount));
 }
 
-bool TSchedulingContextBase::CanStartJobForOperation(
-    const TJobResourcesWithQuota& jobResourcesWithQuota,
+bool TSchedulingContextBase::CanStartAllocationForOperation(
+    const TJobResourcesWithQuota& allocationResourcesWithQuota,
     TOperationId operationId) const
 {
     std::vector<NScheduler::TDiskQuota> diskRequests(DiskRequests_);
     auto diskRequest = Max(TDiskQuota{},
-        GetDiskQuotaWithCompactedDefaultMedium(jobResourcesWithQuota.DiskQuota()) - (UnconditionalDiscount_.DiskQuota() + GetConditionalDiscountForOperation(operationId).DiskQuota()));
+        GetDiskQuotaWithCompactedDefaultMedium(allocationResourcesWithQuota.DiskQuota()) - (UnconditionalDiscount_.DiskQuota() + GetConditionalDiscountForOperation(operationId).DiskQuota()));
     diskRequests.push_back(std::move(diskRequest));
 
     return
         CanSatisfyResourceRequest(
-            jobResourcesWithQuota.ToJobResources(),
+            allocationResourcesWithQuota.ToJobResources(),
             GetConditionalDiscountForOperation(operationId).ToJobResources()) &&
         CanSatisfyDiskQuotaRequests(DiskResources_, diskRequests);
 }
 
-bool TSchedulingContextBase::CanStartMoreJobs(
-    const std::optional<TJobResources>& customMinSpareJobResources) const
+bool TSchedulingContextBase::CanStartMoreAllocations(
+    const std::optional<TJobResources>& customMinSpareAllocationResources) const
 {
-    auto minSpareJobResources = customMinSpareJobResources.value_or(DefaultMinSpareJobResources_);
-    if (!CanSatisfyResourceRequest(minSpareJobResources, MaxConditionalDiscount_.ToJobResources())) {
+    auto minSpareAllocationResources = customMinSpareAllocationResources.value_or(DefaultMinSpareAllocationResources_);
+    if (!CanSatisfyResourceRequest(minSpareAllocationResources, MaxConditionalDiscount_.ToJobResources())) {
         return false;
     }
 
-    auto limit = Config_->MaxStartedJobsPerHeartbeat;
-    return !limit || std::ssize(StartedJobs_) < *limit;
+    auto limit = Config_->MaxStartedAllocationsPerHeartbeat;
+    return !limit || std::ssize(StartedAllocations_) < *limit;
 }
 
 bool TSchedulingContextBase::CanSchedule(const TSchedulingTagFilter& filter) const
@@ -157,7 +157,7 @@ bool TSchedulingContextBase::CanSchedule(const TSchedulingTagFilter& filter) con
     return filter.IsEmpty() || filter.CanSchedule(NodeTags_);
 }
 
-bool TSchedulingContextBase::ShouldAbortJobsSinceResourcesOvercommit() const
+bool TSchedulingContextBase::ShouldAbortAllocationsSinceResourcesOvercommit() const
 {
     bool resourcesOvercommitted = !Dominates(ResourceLimits(), ResourceUsage());
     auto now = NProfiling::CpuInstantToInstant(GetNow());
@@ -167,37 +167,37 @@ bool TSchedulingContextBase::ShouldAbortJobsSinceResourcesOvercommit() const
     return resourcesOvercommitted && allowedOvercommitTimePassed;
 }
 
-const std::vector<TJobPtr>& TSchedulingContextBase::StartedJobs() const
+const std::vector<TAllocationPtr>& TSchedulingContextBase::StartedAllocations() const
 {
-    return StartedJobs_;
+    return StartedAllocations_;
 }
 
-const std::vector<TJobPtr>& TSchedulingContextBase::RunningJobs() const
+const std::vector<TAllocationPtr>& TSchedulingContextBase::RunningAllocations() const
 {
-    return RunningJobs_;
+    return RunningAllocations_;
 }
 
-const std::vector<TPreemptedJob>& TSchedulingContextBase::PreemptedJobs() const
+const std::vector<TPreemptedAllocation>& TSchedulingContextBase::PreemptedAllocations() const
 {
-    return PreemptedJobs_;
+    return PreemptedAllocations_;
 }
 
-void TSchedulingContextBase::StartJob(
+void TSchedulingContextBase::StartAllocation(
     const TString& treeId,
     TOperationId operationId,
     TIncarnationId incarnationId,
     TControllerEpoch controllerEpoch,
-    const TJobStartDescriptor& startDescriptor,
+    const TAllocationStartDescriptor& startDescriptor,
     EPreemptionMode preemptionMode,
     int schedulingIndex,
-    EJobSchedulingStage schedulingStage)
+    EAllocationSchedulingStage schedulingStage)
 {
     ResourceUsage_ += startDescriptor.ResourceLimits.ToJobResources();
     if (startDescriptor.ResourceLimits.DiskQuota()) {
         DiskRequests_.push_back(startDescriptor.ResourceLimits.DiskQuota());
     }
     auto startTime = NProfiling::CpuInstantToInstant(GetNow());
-    auto job = New<TJob>(
+    auto allocation = New<TAllocation>(
         startDescriptor.Id,
         operationId,
         incarnationId,
@@ -210,16 +210,16 @@ void TSchedulingContextBase::StartJob(
         treeId,
         schedulingIndex,
         schedulingStage);
-    StartedJobs_.push_back(job);
+    StartedAllocations_.push_back(std::move(allocation));
 }
 
-void TSchedulingContextBase::PreemptJob(const TJobPtr& job, TDuration preemptionTimeout, EJobPreemptionReason preemptionReason)
+void TSchedulingContextBase::PreemptAllocation(const TAllocationPtr& allocation, TDuration preemptionTimeout, EAllocationPreemptionReason preemptionReason)
 {
-    YT_VERIFY(job->GetNode() == Node_);
-    PreemptedJobs_.push_back({job, preemptionTimeout, preemptionReason});
+    YT_VERIFY(allocation->GetNode() == Node_);
+    PreemptedAllocations_.push_back({allocation, preemptionTimeout, preemptionReason});
 
-    if (auto it = DiskRequestIndexPerJobId_.find(job->GetId());
-        it != DiskRequestIndexPerJobId_.end() && DiscountMediumIndex_)
+    if (auto it = DiskRequestIndexPerAllocationId_.find(allocation->GetId());
+        it != DiskRequestIndexPerAllocationId_.end() && DiscountMediumIndex_)
     {
         DiskRequests_[it->second] = TDiskQuota{};
     }
@@ -253,28 +253,28 @@ NNodeTrackerClient::NProto::TDiskResources TSchedulingContextBase::GetDiskResour
     return diskResources;
 }
 
-TScheduleJobsStatistics TSchedulingContextBase::GetSchedulingStatistics() const
+TScheduleAllocationsStatistics TSchedulingContextBase::GetSchedulingStatistics() const
 {
     return SchedulingStatistics_;
 }
 
-void TSchedulingContextBase::SetSchedulingStatistics(TScheduleJobsStatistics statistics)
+void TSchedulingContextBase::SetSchedulingStatistics(TScheduleAllocationsStatistics statistics)
 {
     SchedulingStatistics_ = statistics;
 }
 
-void TSchedulingContextBase::StoreScheduleJobExecDurationEstimate(TDuration duration)
+void TSchedulingContextBase::StoreScheduleAllocationExecDurationEstimate(TDuration duration)
 {
-    YT_ASSERT(!ScheduleJobExecDurationEstimate_);
+    YT_ASSERT(!ScheduleAllocationExecDurationEstimate_);
 
-    ScheduleJobExecDurationEstimate_ = duration;
+    ScheduleAllocationExecDurationEstimate_ = duration;
 }
 
-TDuration TSchedulingContextBase::ExtractScheduleJobExecDurationEstimate()
+TDuration TSchedulingContextBase::ExtractScheduleAllocationExecDurationEstimate()
 {
-    YT_ASSERT(ScheduleJobExecDurationEstimate_);
+    YT_ASSERT(ScheduleAllocationExecDurationEstimate_);
 
-    return *std::exchange(ScheduleJobExecDurationEstimate_, {});
+    return *std::exchange(ScheduleAllocationExecDurationEstimate_, {});
 }
 
 void TSchedulingContextBase::ResetDiscounts()

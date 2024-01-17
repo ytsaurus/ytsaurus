@@ -62,8 +62,8 @@ void TSimulatorNodeWorker::RunOnce()
             break;
         }
 
-        case ENodeEventType::JobFinished: {
-            OnJobFinished(event);
+        case ENodeEventType::AllocationFinished: {
+            OnAllocationFinished(event);
             break;
         }
     }
@@ -85,16 +85,17 @@ void TSimulatorNodeWorker::OnHeartbeat(const TNodeEvent& event)
         .ThrowOnError();
 }
 
-void TSimulatorNodeWorker::OnJobFinished(const TNodeEvent& event)
+void TSimulatorNodeWorker::OnAllocationFinished(const TNodeEvent& event)
 {
-    YT_LOG_DEBUG("Processing job finished event (NodeId: %v, VirtualTimestamp: %v, JobId: %v)",
+    YT_LOG_DEBUG(
+        "Processing allocation finished event (NodeId: %v, VirtualTimestamp: %v, AllocationId: %v)",
         event.NodeId,
         event.Time,
-        event.Job->GetId());
+        event.Allocation->GetId());
 
     int shardId = TSimulatorNodeShard::GetNodeShardId(event.NodeId, std::ssize(NodeShards_));
     const auto& nodeShard = NodeShards_[shardId];
-    auto future = BIND(&TSimulatorNodeShard::OnJobFinished, nodeShard, event)
+    auto future = BIND(&TSimulatorNodeShard::OnAllocationFinished, nodeShard, event)
         .AsyncVia(nodeShard->GetInvoker())
         .Run();
     WaitFor(future)

@@ -112,7 +112,7 @@ class TestSchedulingSegments(YTEnvSetup):
         return get(scheduler_orchid_operation_path(op, tree) + "/fair_share_ratio", default=0.0)
 
     def _get_persistent_node_segment_states_path(self, tree="default"):
-        return "//sys/scheduler/strategy_state/tree_states/{}/job_scheduler_state/scheduling_segments_state/node_states".format(tree)
+        return "//sys/scheduler/strategy_state/tree_states/{}/allocation_scheduler_state/scheduling_segments_state/node_states".format(tree)
 
     # NB(eshcherbin): This method always returns NO nodes for the default segment.
     def _get_nodes_for_segment_in_tree(self, segment, tree="default"):
@@ -146,7 +146,7 @@ class TestSchedulingSegments(YTEnvSetup):
             "preemptive_scheduling_backoff": 0,
             "fair_share_starvation_timeout": 100,
             "fair_share_starvation_tolerance": 0.95,
-            "max_unpreemptible_running_job_count": 0,
+            "max_unpreemptible_running_allocation_count": 0,
         })
 
         # NB(eshcherbin): This is done to reset node segments.
@@ -307,7 +307,7 @@ class TestSchedulingSegments(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_rebalancing_heuristic_choose_node_with_preemptible_job(self):
-        set("//sys/pool_trees/default/@config/cached_job_preemption_statuses_update_period", 500)
+        set("//sys/pool_trees/default/@config/cached_allocation_preemption_statuses_update_period", 500)
         set("//sys/pool_trees/default/large_gpu/@strong_guarantee_resources", {"gpu": 72})
         set("//sys/pool_trees/default/small_gpu/@strong_guarantee_resources", {"gpu": 8})
         create_pool(
@@ -372,7 +372,7 @@ class TestSchedulingSegments(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_rebalancing_heuristic_choose_node_with_job_from_other_segment(self):
-        update_pool_tree_config_option("default", "cached_job_preemption_statuses_update_period", 500)
+        update_pool_tree_config_option("default", "cached_allocation_preemption_statuses_update_period", 500)
         set("//sys/pool_trees/default/large_gpu/@strong_guarantee_resources", {"gpu": 44})
         set("//sys/pool_trees/default/small_gpu/@strong_guarantee_resources", {"gpu": 36})
 
@@ -1097,10 +1097,10 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             set("//sys/cluster_nodes/{}/@user_tags/end".format(node), "infiniband_cluster_tag:{}".format(ibc))
 
     def _get_persistent_node_segment_states_path(self, tree="default"):
-        return "//sys/scheduler/strategy_state/tree_states/{}/job_scheduler_state/scheduling_segments_state/node_states".format(tree)
+        return "//sys/scheduler/strategy_state/tree_states/{}/allocation_scheduler_state/scheduling_segments_state/node_states".format(tree)
 
     def _get_persistent_operation_segment_states_path(self, tree="default"):
-        return "//sys/scheduler/strategy_state/tree_states/{}/job_scheduler_state/scheduling_segments_state/operation_states".format(tree)
+        return "//sys/scheduler/strategy_state/tree_states/{}/allocation_scheduler_state/scheduling_segments_state/operation_states".format(tree)
 
     def setup_method(self, method):
         super(BaseTestSchedulingSegmentsMultiModule, self).setup_method(method)
@@ -1130,7 +1130,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             "preemptive_scheduling_backoff": 0,
             "fair_share_starvation_timeout": 100,
             "fair_share_starvation_tolerance": 0.95,
-            "max_unpreemptible_running_job_count": 0,
+            "max_unpreemptible_running_allocation_count": 0,
         })
 
         # NB(eshcherbin): This is done to reset node segments.
@@ -1663,7 +1663,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_abort_jobs_in_wrong_module(self):
-        update_scheduler_config("running_jobs_update_period", 1000)
+        update_scheduler_config("running_allocations_update_period", 1000)
 
         op = run_sleeping_vanilla(
             job_count=3,
@@ -1847,7 +1847,7 @@ class TestInfinibandClusterTagValidation(YTEnvSetup):
         assert message in alert["inner_errors"][0]["inner_errors"][0]["message"]
 
     def _get_persistent_node_segment_states_path(self, tree="default"):
-        return "//sys/scheduler/strategy_state/tree_states/{}/job_scheduler_state/scheduling_segments_state/node_states".format(tree)
+        return "//sys/scheduler/strategy_state/tree_states/{}/allocation_scheduler_state/scheduling_segments_state/node_states".format(tree)
 
     def setup_method(self, method):
         super(TestInfinibandClusterTagValidation, self).setup_method(method)
@@ -1985,7 +1985,7 @@ class TestRunningJobStatistics(YTEnvSetup):
         return get(scheduler_orchid_operation_path(op, tree) + "/dominant_usage_share", default=0.0)
 
     def _get_persistent_node_segment_states_path(self, tree="default"):
-        return "//sys/scheduler/strategy_state/tree_states/{}/job_scheduler_state/scheduling_segments_state/node_states".format(tree)
+        return "//sys/scheduler/strategy_state/tree_states/{}/allocation_scheduler_state/scheduling_segments_state/node_states".format(tree)
 
     # TODO(eshcherbin): Do something with copy-paste in this long setup method.
     def setup_method(self, method):
@@ -2013,7 +2013,7 @@ class TestRunningJobStatistics(YTEnvSetup):
             "preemptive_scheduling_backoff": 0,
             "fair_share_starvation_timeout": 100,
             "fair_share_starvation_tolerance": 0.95,
-            "max_unpreemptible_running_job_count": 0,
+            "max_unpreemptible_running_allocation_count": 0,
         })
 
         # NB(eshcherbin): This is done to reset node segments.

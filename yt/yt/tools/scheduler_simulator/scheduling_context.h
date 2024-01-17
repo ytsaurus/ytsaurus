@@ -20,23 +20,23 @@ public:
         int shardId,
         NScheduler::TSchedulerConfigPtr schedulerConfig,
         NScheduler::TExecNodePtr node,
-        const std::vector<NScheduler::TJobPtr>& runningJobs,
+        const std::vector<NScheduler::TAllocationPtr>& runningAllocations,
         const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
-        : TSchedulingContextBase(shardId, schedulerConfig, node, runningJobs, mediumDirectory)
+        : TSchedulingContextBase(shardId, schedulerConfig, node, runningAllocations, mediumDirectory)
     { }
 
-    void SetDurationForStartedJob(NScheduler::TJobId jobId, const TDuration& duration)
+    void SetDurationForStartedAllocation(NScheduler::TAllocationId allocationId, const TDuration& duration)
     {
-        Durations_[jobId] = duration;
+        Durations_[allocationId] = duration;
     }
 
-    const THashMap<NScheduler::TJobId, TDuration>& GetStartedJobsDurations() const
+    const THashMap<NScheduler::TAllocationId, TDuration>& GetStartedAllocationsDurations() const
     {
         return Durations_;
     }
 
 private:
-    THashMap<NScheduler::TJobId, TDuration> Durations_;
+    THashMap<NScheduler::TAllocationId, TDuration> Durations_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

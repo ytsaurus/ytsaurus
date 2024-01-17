@@ -809,7 +809,7 @@ protected:
             return Controller_->Spec->EnableIntermediateOutputRecalculation;
         }
 
-        std::optional<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context) override
+        std::optional<EScheduleAllocationFailReason> GetScheduleFailReason(ISchedulingContext* context) override
         {
             // We don't have a job at hand here, let's make a guess.
             auto approximateStatistics = GetChunkPoolOutput()->GetApproximateStripeStatistics();
@@ -820,7 +820,7 @@ protected:
             const auto& node = context->GetNodeDescriptor();
 
             if (DataBalancer_ && !DataBalancer_->CanScheduleJob(node, approximateStatistics.front().DataWeight)) {
-                return EScheduleJobFailReason::DataBalancingViolation;
+                return EScheduleAllocationFailReason::DataBalancingViolation;
             }
 
             return std::nullopt;

@@ -27,9 +27,9 @@ TPackingHeartbeatSnapshot::TPackingHeartbeatSnapshot(
     , Resources_(resources)
 { }
 
-bool TPackingHeartbeatSnapshot::CanSchedule(const TJobResourcesWithQuota& jobResourcesWithQuota) const
+bool TPackingHeartbeatSnapshot::CanSchedule(const TJobResourcesWithQuota& allocationResourcesWithQuota) const
 {
-    return Dominates(Resources().Free(), jobResourcesWithQuota);
+    return Dominates(Resources().Free(), allocationResourcesWithQuota);
 }
 
 TPackingHeartbeatSnapshot CreateHeartbeatSnapshot(const ISchedulingContextPtr& schedulingContext)
@@ -71,12 +71,12 @@ void TPackingStatistics::RecordHeartbeat(
 bool TPackingStatistics::CheckPacking(
     const TSchedulerOperationElement* operationElement,
     const TPackingHeartbeatSnapshot& heartbeatSnapshot,
-    const TJobResourcesWithQuota& jobResourcesWithQuota,
+    const TJobResourcesWithQuota& allocationResourcesWithQuota,
     const TJobResources& totalResourceLimits,
     const TFairShareStrategyPackingConfigPtr& config) const
 {
-    auto metric = [&] (const auto& snapshot, const auto& jobResources) -> double {
-        return PackingMetric(snapshot.Resources(), jobResources, totalResourceLimits, config);
+    auto metric = [&] (const auto& snapshot, const auto& allocationResources) -> double {
+        return PackingMetric(snapshot.Resources(), allocationResources, totalResourceLimits, config);
     };
 
     auto betterThan = [&] (double lhsMetricValue, double rhsMetricValue) -> bool {
@@ -85,7 +85,7 @@ bool TPackingStatistics::CheckPacking(
     };
 
     auto timeThreshold = heartbeatSnapshot.Time() - NProfiling::DurationToCpuDuration(config->MaxHeartbeatAge);
-    auto currentMetricValue = metric(heartbeatSnapshot, jobResourcesWithQuota);
+    auto currentMetricValue = metric(heartbeatSnapshot, allocationResourcesWithQuota);
     int betterPastSnapshots = 0;
 
     std::deque<TPackingHeartbeatSnapshot> windowOfHeartbeats;
@@ -99,10 +99,10 @@ bool TPackingStatistics::CheckPacking(
         if (pastSnapshot.Time() < timeThreshold) {
             continue;
         }
-        if (!pastSnapshot.CanSchedule(jobResourcesWithQuota)) {
+        if (!pastSnapshot.CanSchedule(allocationResourcesWithQuota)) {
             continue;
         }
-        auto pastSnapshotMetricValue = metric(pastSnapshot, jobResourcesWithQuota);
+        auto pastSnapshotMetricValue = metric(pastSnapshot, allocationResourcesWithQuota);
         if (betterThan(pastSnapshotMetricValue, currentMetricValue)) {
             betterPastSnapshots++;
         }
@@ -111,9 +111,10 @@ bool TPackingStatistics::CheckPacking(
     bool decision = std::ssize(WindowOfHeartbeats_) >= config->MinWindowSizeForSchedule
         && betterPastSnapshots < config->MaxBetterPastSnapshots;
 
-    YT_ELEMENT_LOG_DETAILED(operationElement,
+    YT_ELEMENT_LOG_DETAILED(
+        operationElement,
         "Packing decision made (BetterPastSnapshots: %v, CurrentMetricValue: %v, "
-        "WindowSize: %v, NodeResources: %v, JobResources: %v, Decision: %v)",
+        "WindowSize: %v, NodeResources: %v, AllocationResources: %v, Decision: %v)",
         betterPastSnapshots,
         currentMetricValue,
         WindowOfHeartbeats_.size(),

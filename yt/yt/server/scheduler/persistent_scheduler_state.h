@@ -36,7 +36,7 @@ class TPersistentTreeState
 public:
     THashMap<TString, TPersistentPoolStatePtr> PoolStates;
 
-    NYTree::INodePtr JobSchedulerState;
+    NYTree::INodePtr AllocationSchedulerState;
 
     REGISTER_YSON_STRUCT(TPersistentTreeState);
 

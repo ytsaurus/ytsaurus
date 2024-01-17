@@ -16,7 +16,7 @@
 
 #include <yt/yt/ytlib/scheduler/config.h>
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 
 #include <yt/yt/core/tracing/trace_context.h>
 
@@ -101,15 +101,15 @@ void ToProto(NProto::TReviveOperationResult* resultProto, const TOperationContro
 {
     resultProto->set_attributes(result.Attributes.ToString());
     resultProto->set_revived_from_snapshot(result.RevivedFromSnapshot);
-    for (const auto& job : result.RevivedJobs) {
-        auto* jobProto = resultProto->add_revived_jobs();
-        ToProto(jobProto->mutable_job_id(), job.JobId);
-        jobProto->set_start_time(ToProto<ui64>(job.StartTime));
-        ToProto(jobProto->mutable_resource_limits(), job.ResourceLimits);
-        ToProto(jobProto->mutable_disk_quota(), job.DiskQuota);
-        jobProto->set_tree_id(job.TreeId);
-        jobProto->set_node_id(ToProto<ui32>(job.NodeId));
-        jobProto->set_node_address(job.NodeAddress);
+    for (const auto& allocation : result.RevivedAllocations) {
+        auto* allocationProto = resultProto->add_revived_allocations();
+        ToProto(allocationProto->mutable_allocation_id(), allocation.AllocationId);
+        allocationProto->set_start_time(ToProto<ui64>(allocation.StartTime));
+        ToProto(allocationProto->mutable_resource_limits(), allocation.ResourceLimits);
+        ToProto(allocationProto->mutable_disk_quota(), allocation.DiskQuota);
+        allocationProto->set_tree_id(allocation.TreeId);
+        allocationProto->set_node_id(ToProto<ui32>(allocation.NodeId));
+        allocationProto->set_node_address(allocation.NodeAddress);
     }
     ToProto(resultProto->mutable_revived_banned_tree_ids(), result.RevivedBannedTreeIds);
     ToProto(resultProto->mutable_composite_needed_resources(), result.NeededResources);
@@ -126,12 +126,12 @@ void ToProto(NProto::TCommitOperationResult* /* resultProto */, const TOperation
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(
-    NScheduler::NProto::TAgentToSchedulerRunningJobStatistics* jobStatisticsProto,
-    const TAgentToSchedulerRunningJobStatistics& jobStatistics)
+    NScheduler::NProto::TAgentToSchedulerRunningAllocationStatistics* allocationStatisticsProto,
+    const TAgentToSchedulerRunningAllocationStatistics& allocationStatistics)
 {
-    ToProto(jobStatisticsProto->mutable_job_id(), jobStatistics.JobId);
+    ToProto(allocationStatisticsProto->mutable_allocation_id(), allocationStatistics.AllocationId);
 
-    jobStatisticsProto->set_preemptible_progress_time(ToProto<i64>(jobStatistics.PreemptibleProgressTime));
+    allocationStatisticsProto->set_preemptible_progress_time(ToProto<i64>(allocationStatistics.PreemptibleProgressTime));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -298,9 +298,9 @@ public:
         return Underlying_->IsThrottling();
     }
 
-    void RecordScheduleJobFailure(EScheduleJobFailReason reason) noexcept override
+    void RecordScheduleAllocationFailure(EScheduleAllocationFailReason reason) noexcept override
     {
-        return Underlying_->RecordScheduleJobFailure(reason);
+        return Underlying_->RecordScheduleAllocationFailure(reason);
     }
 
     void UpdateRuntimeParameters(const TOperationRuntimeParametersUpdatePtr& update) override
@@ -373,14 +373,14 @@ public:
         return DoExecuteGuarded(&IOperationController::GetNeededResources);
     }
 
-    void UpdateMinNeededJobResources() override
+    void UpdateMinNeededAllocationResources() override
     {
-        return DoExecuteGuarded(&IOperationController::UpdateMinNeededJobResources);
+        return DoExecuteGuarded(&IOperationController::UpdateMinNeededAllocationResources);
     }
 
-    TJobResourcesWithQuotaList GetMinNeededJobResources() const override
+    TJobResourcesWithQuotaList GetMinNeededAllocationResources() const override
     {
-        return DoExecuteGuarded(&IOperationController::GetMinNeededJobResources);
+        return DoExecuteGuarded(&IOperationController::GetMinNeededAllocationResources);
     }
 
     void OnAllocationAborted(TAbortedAllocationSummary&& abortedAllocationSummary) override
@@ -408,12 +408,12 @@ public:
         return DoExecuteGuarded(&IOperationController::AbortJobByJobTracker, jobId, abortReason);
     }
 
-    TControllerScheduleJobResultPtr ScheduleJob(
+    TControllerScheduleAllocationResultPtr ScheduleAllocation(
         ISchedulingContext* context,
-        const TJobResources& jobLimits,
+        const TJobResources& allocationLimits,
         const TString& treeId) override
     {
-        return DoExecuteGuarded(&IOperationController::ScheduleJob, context, jobLimits, treeId);
+        return DoExecuteGuarded(&IOperationController::ScheduleAllocation, context, allocationLimits, treeId);
     }
 
     void UpdateConfig(const TControllerAgentConfigPtr& config) override

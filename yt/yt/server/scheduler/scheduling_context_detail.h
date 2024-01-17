@@ -17,7 +17,7 @@ public:
         int nodeShardId,
         TSchedulerConfigPtr config,
         TExecNodePtr node,
-        const std::vector<TJobPtr>& runningJobs,
+        const std::vector<TAllocationPtr>& runningAllocations,
         const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 
     int GetNodeShardId() const override;
@@ -25,7 +25,7 @@ public:
     void ResetDiscounts() override;
 
     const TJobResourcesWithQuota& UnconditionalDiscount() const override;
-    void IncreaseUnconditionalDiscount(const TJobResourcesWithQuota& jobResources) override;
+    void IncreaseUnconditionalDiscount(const TJobResourcesWithQuota& allocationResources) override;
 
     TJobResourcesWithQuota GetMaxConditionalDiscount() const override;
     TJobResourcesWithQuota GetConditionalDiscountForOperation(TOperationId operationId) const override;
@@ -46,35 +46,35 @@ public:
 
     const TExecNodeDescriptorPtr& GetNodeDescriptor() const override;
 
-    bool CanStartJobForOperation(
-        const TJobResourcesWithQuota& jobResourcesWithQuota,
+    bool CanStartAllocationForOperation(
+        const TJobResourcesWithQuota& allocationResourcesWithQuota,
         TOperationId operationId) const override;
-    bool CanStartMoreJobs(
-        const std::optional<TJobResources>& customMinSpareJobResources) const override;
+    bool CanStartMoreAllocations(
+        const std::optional<TJobResources>& customMinSpareAllocationResources) const override;
     bool CanSchedule(const TSchedulingTagFilter& filter) const override;
-    bool ShouldAbortJobsSinceResourcesOvercommit() const override;
+    bool ShouldAbortAllocationsSinceResourcesOvercommit() const override;
 
-    const std::vector<TJobPtr>& StartedJobs() const override;
-    const std::vector<TJobPtr>& RunningJobs() const override;
-    const std::vector<TPreemptedJob>& PreemptedJobs() const override;
+    const std::vector<TAllocationPtr>& StartedAllocations() const override;
+    const std::vector<TAllocationPtr>& RunningAllocations() const override;
+    const std::vector<TPreemptedAllocation>& PreemptedAllocations() const override;
 
-    void StartJob(
+    void StartAllocation(
         const TString& treeId,
         TOperationId operationId,
         TIncarnationId incarnationId,
         TControllerEpoch controllerEpoch,
-        const TJobStartDescriptor& startDescriptor,
+        const TAllocationStartDescriptor& startDescriptor,
         EPreemptionMode preemptionMode,
         int schedulingIndex,
-        EJobSchedulingStage schedulingStage) override;
+        EAllocationSchedulingStage schedulingStage) override;
 
-    void PreemptJob(const TJobPtr& job, TDuration preemptionTimeout, EJobPreemptionReason preemptionReason) override;
+    void PreemptAllocation(const TAllocationPtr& allocation, TDuration preemptionTimeout, EAllocationPreemptionReason preemptionReason) override;
 
-    TScheduleJobsStatistics GetSchedulingStatistics() const override;
-    void SetSchedulingStatistics(TScheduleJobsStatistics statistics) override;
+    TScheduleAllocationsStatistics GetSchedulingStatistics() const override;
+    void SetSchedulingStatistics(TScheduleAllocationsStatistics statistics) override;
 
-    virtual void StoreScheduleJobExecDurationEstimate(TDuration duration) override;
-    virtual TDuration ExtractScheduleJobExecDurationEstimate() override;
+    virtual void StoreScheduleAllocationExecDurationEstimate(TDuration duration) override;
+    virtual TDuration ExtractScheduleAllocationExecDurationEstimate() override;
 
 private:
     const int NodeShardId_;
@@ -83,7 +83,7 @@ private:
     const TExecNodeDescriptorPtr NodeDescriptor_;
     const TBooleanFormulaTags NodeTags_;
     const NChunkClient::TMediumDirectoryPtr MediumDirectory_;
-    const TJobResources DefaultMinSpareJobResources_;
+    const TJobResources DefaultMinSpareAllocationResources_;
 
     TJobResourcesWithQuota UnconditionalDiscount_;
     TJobResourcesWithQuota MaxConditionalDiscount_;
@@ -94,22 +94,22 @@ private:
     NNodeTrackerClient::NProto::TDiskResources DiskResources_;
     std::optional<int> DiscountMediumIndex_;
 
-    std::vector<TJobPtr> StartedJobs_;
-    std::vector<TJobPtr> RunningJobs_;
-    std::vector<TPreemptedJob> PreemptedJobs_;
+    std::vector<TAllocationPtr> StartedAllocations_;
+    std::vector<TAllocationPtr> RunningAllocations_;
+    std::vector<TPreemptedAllocation> PreemptedAllocations_;
 
     std::vector<TDiskQuota> DiskRequests_;
-    THashMap<TJobId, int> DiskRequestIndexPerJobId_;
+    THashMap<TAllocationId, int> DiskRequestIndexPerAllocationId_;
 
     // TODO(eshcherbin): Should we optimize and use tree index instead of operation ID here?
     THashMap<TOperationId, TJobResourcesWithQuota> ConditionalDiscountMap_;
 
-    TScheduleJobsStatistics SchedulingStatistics_;
+    TScheduleAllocationsStatistics SchedulingStatistics_;
 
-    std::optional<TDuration> ScheduleJobExecDurationEstimate_;
+    std::optional<TDuration> ScheduleAllocationExecDurationEstimate_;
 
     bool CanSatisfyResourceRequest(
-        const TJobResources& jobResources,
+        const TJobResources& allocationResources,
         const TJobResources& conditionalDiscount) const;
 
     TDiskQuota GetDiskQuotaWithCompactedDefaultMedium(TDiskQuota diskQuota) const;

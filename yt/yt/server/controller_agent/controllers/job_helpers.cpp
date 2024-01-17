@@ -252,29 +252,29 @@ void UpdateJobletFromSummary(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TScheduleJobStatistics::TScheduleJobStatistics(int movingAverageWindowSize)
+TScheduleAllocationStatistics::TScheduleAllocationStatistics(int movingAverageWindowSize)
     : SuccessfulDurationMovingAverage_(movingAverageWindowSize)
 { }
 
-void TScheduleJobStatistics::RecordJobResult(const TControllerScheduleJobResult& scheduleJobResult)
+void TScheduleAllocationStatistics::RecordJobResult(const TControllerScheduleAllocationResult& scheduleAllocationResult)
 {
-    for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
-        Failed_[reason] += scheduleJobResult.Failed[reason];
+    for (auto reason : TEnumTraits<EScheduleAllocationFailReason>::GetDomainValues()) {
+        Failed_[reason] += scheduleAllocationResult.Failed[reason];
     }
-    TotalDuration_ += scheduleJobResult.Duration;
+    TotalDuration_ += scheduleAllocationResult.Duration;
     ++Count_;
 
-    if (scheduleJobResult.StartDescriptor) {
-        SuccessfulDurationMovingAverage_.AddValue(scheduleJobResult.Duration);
+    if (scheduleAllocationResult.StartDescriptor) {
+        SuccessfulDurationMovingAverage_.AddValue(scheduleAllocationResult.Duration);
     }
 }
 
-void TScheduleJobStatistics::SetMovingAverageWindowSize(int movingAverageWindowSize)
+void TScheduleAllocationStatistics::SetMovingAverageWindowSize(int movingAverageWindowSize)
 {
     SuccessfulDurationMovingAverage_.SetWindowSize(movingAverageWindowSize);
 }
 
-void TScheduleJobStatistics::Persist(const TPersistenceContext& context)
+void TScheduleAllocationStatistics::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Failed_);
@@ -282,7 +282,7 @@ void TScheduleJobStatistics::Persist(const TPersistenceContext& context)
     Persist(context, Count_);
 }
 
-DECLARE_DYNAMIC_PHOENIX_TYPE(TScheduleJobStatistics, 0x1ba9c7e0);
+DECLARE_DYNAMIC_PHOENIX_TYPE(TScheduleAllocationStatistics, 0x1ba9c7e0);
 
 ////////////////////////////////////////////////////////////////////////////////
 

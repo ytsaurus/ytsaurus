@@ -824,7 +824,7 @@ public:
     TDuration SchedulerHeartbeatPeriod;
 
     //! Controller agent-to-scheduler heartbeat with schedule jobs period.
-    TDuration ScheduleJobHeartbeatPeriod;
+    TDuration ScheduleAllocationHeartbeatPeriod;
 
     //! Period for requesting exec nodes from scheduler.
     TDuration ExecNodesUpdatePeriod;
@@ -1068,8 +1068,8 @@ public:
     TDuration CachedRunningJobsUpdatePeriod;
 
     //! Backoff between schedule job statistics logging.
-    TDuration ScheduleJobStatisticsLogBackoff;
-    int ScheduleJobStatisticsMovingAverageWindowSize;
+    TDuration ScheduleAllocationStatisticsLogBackoff;
+    int ScheduleAllocationStatisticsMovingAverageWindowSize;
 
     //! Backoff between controller throttling logging.
     TDuration ControllerThrottlingLogBackoff;
@@ -1083,10 +1083,10 @@ public:
 
     std::optional<i64> TotalControllerMemoryLimit;
 
-    EOperationControllerQueue ScheduleJobControllerQueue;
+    EOperationControllerQueue ScheduleAllocationControllerQueue;
     EOperationControllerQueue JobEventsControllerQueue;
 
-    TDuration ScheduleJobTotalTimeThreshold;
+    TDuration ScheduleAllocationTotalTimeThreshold;
 
     // TODO(levysotsky): Get rid of this option when everybody migrates to new operation ACLs.
     bool AllowUsersGroupReadIntermediateData;
@@ -1162,7 +1162,7 @@ public:
     bool EnableJobProfiling;
 
     int MaxRunningJobStatisticsUpdateCountPerHeartbeat;
-    TDuration RunningJobTimeStatisticsUpdatesSendPeriod;
+    TDuration RunningAllocationTimeStatisticsUpdatesSendPeriod;
 
     bool ReleaseFailedJobOnException;
 

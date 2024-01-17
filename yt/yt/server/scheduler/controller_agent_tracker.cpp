@@ -44,8 +44,6 @@ using namespace NYTree;
 using namespace NControllerAgent;
 using namespace NTracing;
 
-using NControllerAgent::TReleaseJobFlags;
-
 using NYT::FromProto;
 using NYT::ToProto;
 
@@ -94,11 +92,11 @@ void FromProto(TOperationInfo* operationInfo, const NProto::TOperationInfo& oper
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProcessScheduleJobMailboxes(
-    const TControllerAgentTracker::TCtxAgentScheduleJobHeartbeatPtr& context,
+void ProcessScheduleAllocationMailboxes(
+    const TControllerAgentTracker::TCtxAgentScheduleAllocationHeartbeatPtr& context,
     const TControllerAgentPtr& agent,
     const TNodeManagerPtr& nodeManager,
-    std::vector<std::vector<const NProto::TScheduleJobResponse*>>& groupedScheduleJobResponses)
+    std::vector<std::vector<const NProto::TScheduleAllocationResponse*>>& groupedScheduleAllocationResponses)
 {
     auto* request = &context->Request();
     auto* response = &context->Response();
@@ -106,40 +104,40 @@ void ProcessScheduleJobMailboxes(
     const auto Logger = SchedulerLogger
         .WithTag("RequestId: %v, IncarnationId: %v", context->GetRequestId(), request->agent_id());
 
-    YT_LOG_DEBUG("Processing schedule job mailboxes");
+    YT_LOG_DEBUG("Processing schedule allocation mailboxes");
 
-    agent->GetScheduleJobResponsesInbox()->HandleIncoming(
-        request->mutable_agent_to_scheduler_schedule_job_responses(),
+    agent->GetScheduleAllocationResponsesInbox()->HandleIncoming(
+        request->mutable_agent_to_scheduler_schedule_allocation_responses(),
         [&] (auto* protoEvent) {
-            auto jobId = FromProto<TJobId>(protoEvent->job_id());
-            auto shardId = nodeManager->GetNodeShardId(NodeIdFromJobId(jobId));
-            groupedScheduleJobResponses[shardId].push_back(protoEvent);
+            auto allocationId = FromProto<TAllocationId>(protoEvent->allocation_id());
+            auto shardId = nodeManager->GetNodeShardId(NodeIdFromAllocationId(allocationId));
+            groupedScheduleAllocationResponses[shardId].push_back(protoEvent);
         });
-    agent->GetScheduleJobResponsesInbox()->ReportStatus(
-        response->mutable_agent_to_scheduler_schedule_job_responses());
+    agent->GetScheduleAllocationResponsesInbox()->ReportStatus(
+        response->mutable_agent_to_scheduler_schedule_allocation_responses());
 
-    agent->GetScheduleJobRequestsOutbox()->HandleStatus(
-        request->scheduler_to_agent_schedule_job_requests());
-    agent->GetScheduleJobRequestsOutbox()->BuildOutcoming(
-        response->mutable_scheduler_to_agent_schedule_job_requests(),
+    agent->GetScheduleAllocationRequestsOutbox()->HandleStatus(
+        request->scheduler_to_agent_schedule_allocation_requests());
+    agent->GetScheduleAllocationRequestsOutbox()->BuildOutcoming(
+        response->mutable_scheduler_to_agent_schedule_allocation_requests(),
         [] (auto* protoRequest, const auto& request) {
             ToProto(protoRequest, *request);
         });
 
-    YT_LOG_DEBUG("Schedule job mailboxes processed");
+    YT_LOG_DEBUG("Schedule allocation mailboxes processed");
 }
 
-void ProcessScheduleJobResponses(
-    TControllerAgentTracker::TCtxAgentScheduleJobHeartbeatPtr context,
+void ProcessScheduleAllocationResponses(
+    TControllerAgentTracker::TCtxAgentScheduleAllocationHeartbeatPtr context,
     const std::vector<TNodeShardPtr>& nodeShards,
     const std::vector<IInvokerPtr>& nodeShardInvokers,
-    std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses,
+    std::vector<std::vector<const NProto::TScheduleAllocationResponse*>> groupedScheduleAllocationResponses,
     const IInvokerPtr& dtorInvoker)
 {
     auto Logger = SchedulerLogger
         .WithTag("RequestId: %v, IncarnationId: %v", context->GetRequestId(), context->Request().agent_id());
 
-    YT_LOG_DEBUG("Processing schedule job responses");
+    YT_LOG_DEBUG("Processing schedule allocation responses");
 
     std::vector<TFuture<void>> futures;
     for (int shardId = 0; shardId < std::ssize(nodeShards); ++shardId) {
@@ -147,18 +145,18 @@ void ProcessScheduleJobResponses(
             BIND([
                 context,
                 nodeShard = nodeShards[shardId],
-                protoResponses = std::move(groupedScheduleJobResponses[shardId]),
+                protoResponses = std::move(groupedScheduleAllocationResponses[shardId]),
                 Logger = SchedulerLogger
             ] {
                 for (const auto* protoResponse : protoResponses) {
                     auto operationId = FromProto<TOperationId>(protoResponse->operation_id());
-                    auto jobId = FromProto<TJobId>(protoResponse->job_id());
+                    auto allocationId = FromProto<TAllocationId>(protoResponse->allocation_id());
                     auto controllerEpoch = TControllerEpoch(protoResponse->controller_epoch());
                     auto expectedControllerEpoch = nodeShard->GetOperationControllerEpoch(operationId);
 
                     auto traceContext = TTraceContext::NewChildFromRpc(
                         protoResponse->tracing_ext(),
-                        /*spanName*/ Format("ScheduleJob:%v", jobId),
+                        /*spanName*/ Format("ScheduleAllocation:%v", allocationId),
                         context->GetRequestId(),
                         /*forceTracing*/ false);
 
@@ -167,23 +165,23 @@ void ProcessScheduleJobResponses(
 
                         if (controllerEpoch != expectedControllerEpoch) {
                             YT_LOG_DEBUG(
-                                "Received job schedule result with unexpected controller epoch; result is ignored "
-                                "(OperationId: %v, JobId: %v, ControllerEpoch: %v, ExpectedControllerEpoch: %v)",
+                                "Received allocation schedule result with unexpected controller epoch; result is ignored "
+                                "(OperationId: %v, AllocationId: %v, ControllerEpoch: %v, ExpectedControllerEpoch: %v)",
                                 operationId,
-                                jobId,
+                                allocationId,
                                 controllerEpoch,
                                 expectedControllerEpoch);
                             continue;
                         }
                         if (nodeShard->IsOperationControllerTerminated(operationId)) {
                             YT_LOG_DEBUG(
-                                "Received job schedule result for operation whose controller is terminated; "
-                                "result is ignored (OperationId: %v, JobId: %v)",
+                                "Received allocation schedule result for operation whose controller is terminated; "
+                                "result is ignored (OperationId: %v, AllocationId: %v)",
                                 operationId,
-                                jobId);
+                                allocationId);
                             continue;
                         }
-                        nodeShard->EndScheduleJob(*protoResponse);
+                        nodeShard->EndScheduleAllocation(*protoResponse);
                     }
                 }
             })
@@ -199,7 +197,7 @@ void ProcessScheduleJobResponses(
             })
             .Via(dtorInvoker));
 
-    YT_LOG_DEBUG("Schedule job responses are processed");
+    YT_LOG_DEBUG("Schedule allocation responses are processed");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -624,43 +622,43 @@ public:
 
         auto nodeManager = scheduler->GetNodeManager();
 
-        struct TNodeShardJobUpdates
+        struct TNodeShardAllocationUpdates
         {
-            std::vector<const NProto::TAgentToSchedulerRunningJobStatistics*> RunningJobStatisticsUpdates;
+            std::vector<const NProto::TAgentToSchedulerRunningAllocationStatistics*> RunningAllocationStatisticsUpdates;
         };
 
-        auto groupedJobUpdates = RunInMessageOffloadInvoker(
+        auto groupedAllocationUpdates = RunInMessageOffloadInvoker(
             agent,
             [agent, nodeManager, request, response, context, config{Config_}] () {
                 const auto Logger = SchedulerLogger
                     .WithTag("RequestId: %v, IncarnationId: %v", context->GetRequestId(), request->agent_id());
 
-                YT_LOG_DEBUG("Group running job updates by node shards");
+                YT_LOG_DEBUG("Group running allocation updates by node shards");
 
-                std::vector<TNodeShardJobUpdates> groupedJobUpdates(nodeManager->GetNodeShardCount());
+                std::vector<TNodeShardAllocationUpdates> groupedAllocationUpdates(nodeManager->GetNodeShardCount());
 
-                agent->GetRunningJobStatisticsUpdatesInbox()->HandleIncoming(
-                    request->mutable_agent_to_scheduler_running_job_statistics_updates(),
+                agent->GetRunningAllocationStatisticsUpdatesInbox()->HandleIncoming(
+                    request->mutable_agent_to_scheduler_running_allocation_statistics_updates(),
                     [&] (auto* protoStatisticsUpdate) {
-                        auto jobId = FromProto<TJobId>(protoStatisticsUpdate->job_id());
-                        auto shardId = nodeManager->GetNodeShardId(NodeIdFromJobId(jobId));
-                        groupedJobUpdates[shardId].RunningJobStatisticsUpdates.push_back(protoStatisticsUpdate);
+                        auto allocationId = FromProto<TAllocationId>(protoStatisticsUpdate->allocation_id());
+                        auto shardId = nodeManager->GetNodeShardId(NodeIdFromAllocationId(allocationId));
+                        groupedAllocationUpdates[shardId].RunningAllocationStatisticsUpdates.push_back(protoStatisticsUpdate);
                     });
 
-                YT_LOG_DEBUG("Running job updates grouped by node shards");
+                YT_LOG_DEBUG("Running allocation updates grouped by node shards");
 
-                agent->GetRunningJobStatisticsUpdatesInbox()->ReportStatus(
-                    response->mutable_agent_to_scheduler_running_job_statistics_updates());
+                agent->GetRunningAllocationStatisticsUpdatesInbox()->ReportStatus(
+                    response->mutable_agent_to_scheduler_running_allocation_statistics_updates());
 
-                YT_LOG_DEBUG("Handling job events outbox");
+                YT_LOG_DEBUG("Handling allocation events outbox");
 
                 agent->GetAbortedAllocationEventsOutbox()->HandleStatus(
                     request->scheduler_to_agent_aborted_allocation_events());
                 agent->GetAbortedAllocationEventsOutbox()->BuildOutcoming(
                     response->mutable_scheduler_to_agent_aborted_allocation_events(),
-                    config->MaxMessageJobEventCount);
+                    config->MaxMessageAllocationEventCount);
 
-                YT_LOG_DEBUG("Job events outbox handled");
+                YT_LOG_DEBUG("Allocation events outbox handled");
 
                 YT_LOG_DEBUG("Handling operation events outbox");
 
@@ -675,7 +673,7 @@ public:
 
                 YT_LOG_DEBUG("Operation events outbox handled");
 
-                return groupedJobUpdates;
+                return groupedAllocationUpdates;
             })
             .ValueOrThrow();
 
@@ -717,8 +715,8 @@ public:
                         break;
                     case EAgentToSchedulerOperationEventType::BannedInTentativeTree: {
                         auto treeId = protoEvent->tentative_tree_id();
-                        auto jobIds = FromProto<std::vector<TJobId>>(protoEvent->tentative_tree_job_ids());
-                        scheduler->OnOperationBannedInTentativeTree(operation, treeId, jobIds);
+                        auto allocationIds = FromProto<std::vector<TAllocationId>>(protoEvent->tentative_tree_allocation_ids());
+                        scheduler->OnOperationBannedInTentativeTree(operation, treeId, allocationIds);
                         break;
                     }
                     case EAgentToSchedulerOperationEventType::InitializationFinished: {
@@ -831,38 +829,38 @@ public:
                 context,
                 nodeShards = nodeManager->GetNodeShards(),
                 nodeShardInvokers = nodeManager->GetNodeShardInvokers(),
-                groupedJobUpdates = std::move(groupedJobUpdates),
+                groupedAllocationUpdates = std::move(groupedAllocationUpdates),
                 dtorInvoker = MessageOffloadThreadPool_->GetInvoker()
             ] {
                 const auto Logger = SchedulerLogger
                     .WithTag("RequestId: %v, IncarnationId: %v", context->GetRequestId(), context->Request().agent_id());
 
-                YT_LOG_DEBUG("Processing job events");
+                YT_LOG_DEBUG("Processing allocation events");
 
                 for (int shardId = 0; shardId < std::ssize(nodeShards); ++shardId) {
                     nodeShardInvokers[shardId]->Invoke(
                         BIND([
                             context,
                             nodeShard = nodeShards[shardId],
-                            protoUpdates = std::move(groupedJobUpdates[shardId]),
+                            protoUpdates = std::move(groupedAllocationUpdates[shardId]),
                             Logger = SchedulerLogger
                         ] {
-                            std::vector<TNodeShard::TRunningJobStatisticsUpdate> runningJobStatisticsUpdates;
-                            runningJobStatisticsUpdates.reserve(std::size(protoUpdates.RunningJobStatisticsUpdates));
-                            for (const auto* protoStatisticsUpdate : protoUpdates.RunningJobStatisticsUpdates) {
-                                auto jobId = FromProto<TJobId>(protoStatisticsUpdate->job_id());
+                            std::vector<TNodeShard::TRunningAllocationStatisticsUpdate> runningAllocationStatisticsUpdates;
+                            runningAllocationStatisticsUpdates.reserve(std::size(protoUpdates.RunningAllocationStatisticsUpdates));
+                            for (const auto* protoStatisticsUpdate : protoUpdates.RunningAllocationStatisticsUpdates) {
+                                auto allocationId = FromProto<TAllocationId>(protoStatisticsUpdate->allocation_id());
 
                                 auto preemptibleProgressTime = NYT::FromProto<TDuration>(protoStatisticsUpdate->preemptible_progress_time());
 
-                                runningJobStatisticsUpdates.push_back({jobId, {preemptibleProgressTime}});
+                                runningAllocationStatisticsUpdates.push_back({allocationId, {preemptibleProgressTime}});
                             }
 
-                            if (!std::empty(runningJobStatisticsUpdates)) {
-                                nodeShard->UpdateRunningJobsStatistics(runningJobStatisticsUpdates);
+                            if (!std::empty(runningAllocationStatisticsUpdates)) {
+                                nodeShard->UpdateRunningAllocationsStatistics(runningAllocationStatisticsUpdates);
                             }
                         }));
                 }
-                YT_LOG_DEBUG("Job events are processed");
+                YT_LOG_DEBUG("Allocation events are processed");
             })
             .ThrowOnError();
 
@@ -873,7 +871,7 @@ public:
         context->Reply();
     }
 
-    void ProcessAgentScheduleJobHeartbeat(const TCtxAgentScheduleJobHeartbeatPtr& context)
+    void ProcessAgentScheduleAllocationHeartbeat(const TCtxAgentScheduleAllocationHeartbeatPtr& context)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -916,13 +914,13 @@ public:
             nodeShardInvokers = nodeManager->GetNodeShardInvokers(),
             dtorInvoker = MessageOffloadThreadPool_->GetInvoker()
         ] {
-                std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses(nodeManager->GetNodeShardCount());
-                ProcessScheduleJobMailboxes(context, agent, nodeManager, groupedScheduleJobResponses);
-                ProcessScheduleJobResponses(
+                std::vector<std::vector<const NProto::TScheduleAllocationResponse*>> groupedScheduleAllocationResponses(nodeManager->GetNodeShardCount());
+                ProcessScheduleAllocationMailboxes(context, agent, nodeManager, groupedScheduleAllocationResponses);
+                ProcessScheduleAllocationResponses(
                     context,
                     nodeShards,
                     nodeShardInvokers,
-                    std::move(groupedScheduleJobResponses),
+                    std::move(groupedScheduleAllocationResponses),
                     dtorInvoker);
             })
             .ThrowOnError();
@@ -1301,9 +1299,9 @@ void TControllerAgentTracker::ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr&
     Impl_->ProcessAgentHeartbeat(context);
 }
 
-void TControllerAgentTracker::ProcessAgentScheduleJobHeartbeat(const TCtxAgentScheduleJobHeartbeatPtr& context)
+void TControllerAgentTracker::ProcessAgentScheduleAllocationHeartbeat(const TCtxAgentScheduleAllocationHeartbeatPtr& context)
 {
-    Impl_->ProcessAgentScheduleJobHeartbeat(context);
+    Impl_->ProcessAgentScheduleAllocationHeartbeat(context);
 }
 
 void TControllerAgentTracker::ProcessAgentHandshake(const TCtxAgentHandshakePtr& context)

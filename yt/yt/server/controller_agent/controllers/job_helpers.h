@@ -64,14 +64,14 @@ void UpdateJobletFromSummary(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TScheduleJobStatistics
+class TScheduleAllocationStatistics
     : public TRefCounted
     , public IPersistent
 {
 public:
     //! Persistent statistics.
-    using TScheduleJobFailReasonCounter = TEnumIndexedVector<EScheduleJobFailReason, int>;
-    DEFINE_BYREF_RW_PROPERTY(TScheduleJobFailReasonCounter, Failed);
+    using TScheduleAllocationFailReasonCounter = TEnumIndexedVector<EScheduleAllocationFailReason, int>;
+    DEFINE_BYREF_RW_PROPERTY(TScheduleAllocationFailReasonCounter, Failed);
 
     DEFINE_BYVAL_RO_PROPERTY(TDuration, TotalDuration);
     DEFINE_BYVAL_RO_PROPERTY(i64, Count);
@@ -81,17 +81,17 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TMovingAverage<TDuration>, SuccessfulDurationMovingAverage);
 
 public:
-    TScheduleJobStatistics() = default;
-    explicit TScheduleJobStatistics(int movingAverageWindowSize);
+    TScheduleAllocationStatistics() = default;
+    explicit TScheduleAllocationStatistics(int movingAverageWindowSize);
 
-    void RecordJobResult(const NScheduler::TControllerScheduleJobResult& scheduleJobResult);
+    void RecordJobResult(const NScheduler::TControllerScheduleAllocationResult& scheduleAllocationResult);
 
     void SetMovingAverageWindowSize(int movingAverageWindowSize);
 
     void Persist(const TPersistenceContext& context);
 };
 
-DEFINE_REFCOUNTED_TYPE(TScheduleJobStatistics)
+DEFINE_REFCOUNTED_TYPE(TScheduleAllocationStatistics)
 
 ////////////////////////////////////////////////////////////////////////////////
 

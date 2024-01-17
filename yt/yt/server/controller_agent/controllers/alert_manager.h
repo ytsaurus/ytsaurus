@@ -30,7 +30,7 @@ struct IAlertManagerHost
     virtual const TProgressCounterPtr& GetTotalJobCounter() const = 0;
     virtual i64 GetUnavailableInputChunkCount() const = 0;
 
-    virtual const TScheduleJobStatisticsPtr& GetScheduleJobStatistics() const = 0;
+    virtual const TScheduleAllocationStatisticsPtr& GetScheduleAllocationStatistics() const = 0;
     virtual const TAggregatedJobStatistics& GetAggregatedFinishedJobStatistics() const = 0;
     virtual const TAggregatedJobStatistics& GetAggregatedRunningJobStatistics() const = 0;
 

@@ -37,10 +37,10 @@ TError CheckControllerRuntimeData(const TControllerRuntimeDataPtr& runtimeData)
         }
     }
 
-    for (const auto& jobResources : runtimeData->MinNeededResources()) {
-        if (!Dominates(jobResources.ToJobResources(), TJobResources())) {
-            return TError("Controller has reported negative min needed job resources element")
-                << TErrorAttribute("min_needed_job_resources", runtimeData->MinNeededResources());
+    for (const auto& allocationResources : runtimeData->MinNeededResources()) {
+        if (!Dominates(allocationResources.ToJobResources(), TJobResources())) {
+            return TError("Controller has reported negative min needed allocation resources element")
+                << TErrorAttribute("min_needed_allocation_resources", runtimeData->MinNeededResources());
         }
     }
     return TError();
@@ -106,24 +106,24 @@ void FromProto(
 {
     result->Attributes = TYsonString(resultProto.attributes(), EYsonType::MapFragment);
     result->RevivedFromSnapshot = resultProto.revived_from_snapshot();
-    for (const auto& jobProto : resultProto.revived_jobs()) {
-        auto job = New<TJob>(
-            FromProto<TJobId>(jobProto.job_id()),
+    for (const auto& allocationProto : resultProto.revived_allocations()) {
+        auto allocation = New<TAllocation>(
+            FromProto<TAllocationId>(allocationProto.allocation_id()),
             operationId,
             incarnationId,
             TControllerEpoch(resultProto.controller_epoch()),
             /*execNode*/ nullptr,
-            FromProto<TInstant>(jobProto.start_time()),
-            FromProto<TJobResources>(jobProto.resource_limits()),
-            FromProto<TDiskQuota>(jobProto.disk_quota()),
+            FromProto<TInstant>(allocationProto.start_time()),
+            FromProto<TJobResources>(allocationProto.resource_limits()),
+            FromProto<TDiskQuota>(allocationProto.disk_quota()),
             preemptionMode,
-            jobProto.tree_id(),
+            allocationProto.tree_id(),
             UndefinedSchedulingIndex,
             /*schedulingStage*/ std::nullopt,
-            FromProto<NNodeTrackerClient::TNodeId>(jobProto.node_id()),
-            jobProto.node_address());
-        job->SetAllocationState(EAllocationState::Running);
-        result->RevivedJobs.push_back(job);
+            FromProto<NNodeTrackerClient::TNodeId>(allocationProto.node_id()),
+            allocationProto.node_address());
+        allocation->SetState(EAllocationState::Running);
+        result->RevivedAllocations.push_back(allocation);
     }
     result->RevivedBannedTreeIds = FromProto<THashSet<TString>>(resultProto.revived_banned_tree_ids());
     result->NeededResources = FromProto<TCompositeNeededResources>(resultProto.composite_needed_resources());

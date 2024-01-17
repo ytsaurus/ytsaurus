@@ -198,18 +198,16 @@ def get_scheduler_config():
         nodes_attributes_update_period = 100;
         scheduling_tag_filter_expire_timeout = 100;
         node_shard_exec_nodes_cache_update_period = 100;
-        schedule_job_time_limit = 5000;
+        schedule_allocation_time_limit = 5000;
         exec_node_descriptors_update_period = 100;
         static_orchid_cache_update_period = 100;
         operation_to_agent_assignment_backoff = 100;
         orchid_keys_update_period = 100;
 
         always_send_controller_agent_descriptors = %false;
-        send_full_controller_agent_descriptors_for_jobs = %false;
+        send_full_controller_agent_descriptors_for_allocations = %false;
 
         min_needed_resources_update_period = 100;
-
-        job_revival_abort_timeout = 2000;
 
         validate_node_tags_period = 100;
         parse_operation_attributes_batch_size = 2;
@@ -222,7 +220,7 @@ def get_scheduler_config():
             heartbeat_timeout = 10000;
             enable_response_keeper = %true;
         };
-        crash_on_job_heartbeat_processing_exception = %true;
+        crash_on_allocation_heartbeat_processing_exception = %true;
     };
 }
 """)

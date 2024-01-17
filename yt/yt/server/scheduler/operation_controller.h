@@ -35,7 +35,7 @@ struct IOperationControllerStrategyHost
     virtual TControllerEpoch GetEpoch() const = 0;
 
     //! Called during heartbeat processing to request actions the node must perform.
-    virtual TFuture<TControllerScheduleJobResultPtr> ScheduleJob(
+    virtual TFuture<TControllerScheduleAllocationResultPtr> ScheduleAllocation(
         const ISchedulingContextPtr& context,
         const TJobResources& availableResources,
         const NNodeTrackerClient::NProto::TDiskResources& availableDiskResources,
@@ -43,26 +43,26 @@ struct IOperationControllerStrategyHost
         const TString& poolPath,
         const TFairShareStrategyTreeConfigPtr& treeConfig) = 0;
 
-    //! Called during scheduling to notify the controller that a (nonscheduled) job has been aborted.
-    virtual void OnNonscheduledJobAborted(
-        TJobId jobId,
+    //! Called during scheduling to notify the controller that a (nonscheduled) allocation has been aborted.
+    virtual void OnNonscheduledAllocationAborted(
+        TAllocationId allocationId,
         EAbortReason abortReason,
-        TControllerEpoch jobEpoch) = 0;
+        TControllerEpoch allocationEpoch) = 0;
 
     //! Returns the total resources that are additionally needed.
     virtual TCompositeNeededResources GetNeededResources() const = 0;
 
     //! Initiates updating min needed resources estimates.
     //! Note that the actual update may happen in background.
-    virtual void UpdateMinNeededJobResources() = 0;
+    virtual void UpdateMinNeededAllocationResources() = 0;
 
     //! Returns the cached min needed resources estimate.
-    virtual TJobResourcesWithQuotaList GetMinNeededJobResources() const = 0;
+    virtual TJobResourcesWithQuotaList GetMinNeededAllocationResources() const = 0;
 
     //! Returns initial min needed resources estimate (right after materialization).
-    virtual TJobResourcesWithQuotaList GetInitialMinNeededJobResources() const = 0;
+    virtual TJobResourcesWithQuotaList GetInitialMinNeededAllocationResources() const = 0;
 
-    //! Returns the mode which says how to preempt jobs of this operation.
+    //! Returns the mode which says how to preempt allocations of this operation.
     virtual EPreemptionMode GetPreemptionMode() const = 0;
 };
 
@@ -110,7 +110,7 @@ struct TOperationControllerReviveResult
     : public TOperationControllerPrepareResult
 {
     bool RevivedFromSnapshot = false;
-    std::vector<TJobPtr> RevivedJobs;
+    std::vector<TAllocationPtr> RevivedAllocations;
     THashSet<TString> RevivedBannedTreeIds;
     TCompositeNeededResources NeededResources;
     TJobResourcesWithQuotaList MinNeededResources;
@@ -197,12 +197,12 @@ struct IOperationController
 
     // These methods can be called even without agent being assigned.
 
-    //! Called to notify the controller that a job has been aborted by scheduler.
+    //! Called to notify the controller that an allocation has been aborted by scheduler.
     /*!
      *  \note Thread affinity: any
      */
-    virtual void OnJobAborted(
-        const TJobPtr& job,
+    virtual void OnAllocationAborted(
+        const TAllocationPtr& allocation,
         const TError& error,
         bool scheduled,
         EAbortReason abortReason) = 0;

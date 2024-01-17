@@ -31,7 +31,7 @@
 
 #include <yt/yt/server/lib/misc/release_queue.h>
 
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
@@ -186,7 +186,7 @@ private: \
         (jobId, timeout),
         false)
 
-    IMPLEMENT_SAFE_METHOD(void, UpdateMinNeededJobResources, (), (), true)
+    IMPLEMENT_SAFE_METHOD(void, UpdateMinNeededAllocationResources, (), (), true)
 
     IMPLEMENT_SAFE_METHOD(void, Commit, (), (), false)
     IMPLEMENT_SAFE_METHOD(void, Terminate, (EControllerState finalState), (finalState), false)
@@ -194,8 +194,8 @@ private: \
     IMPLEMENT_SAFE_METHOD(void, Complete, (), (), false)
 
     IMPLEMENT_SAFE_METHOD(
-        NScheduler::TControllerScheduleJobResultPtr,
-        ScheduleJob,
+        NScheduler::TControllerScheduleAllocationResultPtr,
+        ScheduleAllocation,
         (ISchedulingContext* context, const NScheduler::TJobResources& jobLimits, const TString& treeId),
         (context, jobLimits, treeId),
         true)
@@ -230,8 +230,8 @@ private: \
     IMPLEMENT_SAFE_METHOD(
         TSharedRef,
         BuildJobSpecProto,
-        (const TJobletPtr& joblet, const NScheduler::NProto::TScheduleJobSpec& scheduleJobSpec),
-        (joblet, scheduleJobSpec),
+        (const TJobletPtr& joblet, const NScheduler::NProto::TScheduleAllocationSpec& scheduleAllocationSpec),
+        (joblet, scheduleAllocationSpec),
         false)
 
     IMPLEMENT_SAFE_METHOD(
@@ -264,7 +264,7 @@ public:
 
     bool IsThrottling() const noexcept override;
 
-    void RecordScheduleJobFailure(EScheduleJobFailReason reason) noexcept override;
+    void RecordScheduleAllocationFailure(EScheduleAllocationFailReason reason) noexcept override;
 
     void OnTransactionsAborted(const std::vector<NTransactionClient::TTransactionId>& transactionIds) override;
 
@@ -273,14 +273,14 @@ public:
     TCancelableContextPtr GetCancelableContext() const override;
     IInvokerPtr GetInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
 
-    NScheduler::TCompositePendingJobCount GetPendingJobCount() const override;
+    TCompositePendingJobCount GetPendingJobCount() const override;
     i64 GetFailedJobCount() const override;
     NScheduler::TCompositeNeededResources GetNeededResources() const override;
 
     bool ShouldUpdateLightOperationAttributes() const override;
     void SetLightOperationAttributesUpdated() override;
 
-    NScheduler::TJobResourcesWithQuotaList GetMinNeededJobResources() const override;
+    NScheduler::TJobResourcesWithQuotaList GetMinNeededAllocationResources() const override;
 
     bool IsRunning() const override;
 
@@ -612,7 +612,7 @@ protected:
 
     std::vector<std::vector<char>> TestingAllocationVector_;
 
-    // NB: these values are accessed from BuildJobSpecProto invoker queue, ScheduleJob invoker queue and from control invoker.
+    // NB: these values are accessed from BuildJobSpecProto invoker queue, ScheduleAllocation invoker queue and from control invoker.
     // Slight discrepancy in their values due to concurrent modification and access is OK.
     // These values are transient.
     std::atomic<int> BuildingJobSpecCount_ = {0};
@@ -654,17 +654,17 @@ protected:
 
     void CheckMinNeededResourcesSanity();
 
-    void DoScheduleJob(
+    void DoScheduleAllocation(
         ISchedulingContext* context,
         const NScheduler::TJobResources& jobLimits,
         const TString& treeId,
-        NScheduler::TControllerScheduleJobResult* scheduleJobResult);
+        NScheduler::TControllerScheduleAllocationResult* scheduleJobResult);
 
-    void TryScheduleJob(
+    void TryScheduleAllocation(
         ISchedulingContext* context,
         const NScheduler::TJobResources& jobLimits,
         const TString& treeId,
-        NScheduler::TControllerScheduleJobResult* scheduleJobResult,
+        NScheduler::TControllerScheduleAllocationResult* scheduleJobResult,
         bool scheduleLocalJob);
 
     TJobletPtr FindJoblet(TJobId jobId) const;
@@ -673,7 +673,7 @@ protected:
 
     void UnregisterJoblet(const TJobletPtr& joblet);
 
-    std::vector<TJobId> GetJobIdsByTreeId(const TString& treeId);
+    std::vector<TAllocationId> GetAllocationIdsByTreeId(const TString& treeId);
 
     // Initialization.
     virtual void DoInitialize();
@@ -790,7 +790,7 @@ protected:
 
     const TProgressCounterPtr& GetTotalJobCounter() const override;
 
-    const TScheduleJobStatisticsPtr& GetScheduleJobStatistics() const override;
+    const TScheduleAllocationStatisticsPtr& GetScheduleAllocationStatistics() const override;
     const TAggregatedJobStatistics& GetAggregatedFinishedJobStatistics() const override;
     const TAggregatedJobStatistics& GetAggregatedRunningJobStatistics() const override;
 
@@ -1087,13 +1087,13 @@ private:
     THashMap<NObjectClient::TCellTag, int> CellTagToRequiredOutputChunkListCount_;
     THashMap<NObjectClient::TCellTag, int> CellTagToRequiredDebugChunkListCount_;
 
-    TAtomicObject<NScheduler::TCompositePendingJobCount> CachedPendingJobCount = {};
+    TAtomicObject<TCompositePendingJobCount> CachedPendingJobCount = {};
     int CachedTotalJobCount = 0;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CachedNeededResourcesLock);
     NScheduler::TCompositeNeededResources CachedNeededResources;
 
-    TAtomicObject<NScheduler::TJobResourcesWithQuotaList> CachedMinNeededJobResources;
+    TAtomicObject<NScheduler::TJobResourcesWithQuotaList> CachedMinNeededAllocationResources;
 
     NScheduler::TJobResourcesWithQuotaList InitialMinNeededResources_;
 
@@ -1161,10 +1161,10 @@ private:
     NProfiling::TCpuInstant LastJobMetricsDeltaReportTime_ = 0;
 
     //! Aggregated schedule job statistics.
-    mutable TScheduleJobStatisticsPtr ScheduleJobStatistics_;
+    mutable TScheduleAllocationStatisticsPtr ScheduleAllocationStatistics_;
 
     //! Deadline after which schedule job statistics can be logged.
-    NProfiling::TCpuInstant ScheduleJobStatisticsLogDeadline_ = 0;
+    NProfiling::TCpuInstant ScheduleAllocationStatisticsLogDeadline_ = 0;
 
     //! Runs periodic time limit checks that fail operation on timeout.
     NConcurrency::TPeriodicExecutorPtr CheckTimeLimitExecutor;
@@ -1285,9 +1285,9 @@ private:
     bool CommitSleepStarted_ = false;
 
     //! Schedule job failures that happened outside of controller.
-    //! These values are added to corresponding values in ScheduleJobStatistics_
+    //! These values are added to corresponding values in ScheduleAllocationStatistics_
     //! on each access in thread-safe manner.
-    mutable TEnumIndexedVector<EScheduleJobFailReason, std::atomic<int>> ExternalScheduleJobFailureCounts_;
+    mutable TEnumIndexedVector<EScheduleAllocationFailReason, std::atomic<int>> ExternalScheduleAllocationFailureCounts_;
 
     TInstant FinishTime_;
     std::vector<NScheduler::TExperimentAssignmentPtr> ExperimentAssignments_;
@@ -1327,16 +1327,16 @@ private:
     //! in the public intermediate account.
     i64 FastIntermediateMediumLimit_ = 0;
 
-    struct TRunningJobTimeStatistics
+    struct TRunningAllocationTimeStatistics
     {
         TDuration PreparationTime;
         TDuration ExecutionTime;
     };
-    THashMap<TJobId, TRunningJobTimeStatistics> RunningJobTimeStatisticsUpdates_;
+    THashMap<TAllocationId, TRunningAllocationTimeStatistics> RunningAllocationTimeStatisticsUpdates_;
 
-    const NConcurrency::TPeriodicExecutorPtr SendRunningJobTimeStatisticsUpdatesExecutor_;
+    const NConcurrency::TPeriodicExecutorPtr SendRunningAllocationTimeStatisticsUpdatesExecutor_;
 
-    void AccountExternalScheduleJobFailures() const;
+    void AccountExternalScheduleAllocationFailures() const;
 
     void InitializeOrchid();
 
@@ -1362,7 +1362,7 @@ private:
 
     void UpdateAllTasksIfNeeded();
 
-    TJobResources GetAggregatedMinNeededJobResources() const;
+    TJobResources GetAggregatedMinNeededAllocationResources() const;
 
     void IncreaseNeededResources(const NScheduler::TCompositeNeededResources& resourcesDelta);
 
@@ -1487,7 +1487,7 @@ private:
     void UnregisterUnavailableInputChunk(NChunkClient::TChunkId chunkId);
     bool NeedEraseOffloadingTrees() const;
 
-    void SendRunningJobTimeStatisticsUpdates();
+    void SendRunningAllocationTimeStatisticsUpdates();
 
     void RemoveRemainingJobsOnOperationFinished();
 

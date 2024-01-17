@@ -20,17 +20,17 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(eshcherbin): Refactor TScheduleJobsStatistics to allow for different scheduling strategies.
-struct TScheduleJobsStatistics
+// TODO(eshcherbin): Refactor TScheduleAllocationsStatistics to allow for different scheduling strategies.
+struct TScheduleAllocationsStatistics
 {
-    int ControllerScheduleJobCount = 0;
-    int ControllerScheduleJobTimedOutCount = 0;
-    TEnumIndexedVector<EJobSchedulingStage, int> ScheduleJobAttemptCountPerStage;
+    int ControllerScheduleAllocationCount = 0;
+    int ControllerScheduleAllocationTimedOutCount = 0;
+    TEnumIndexedVector<EAllocationSchedulingStage, int> ScheduleAllocationAttemptCountPerStage;
     int MaxNonPreemptiveSchedulingIndex = -1;
     int ScheduledDuringPreemption = 0;
-    int UnconditionallyPreemptibleJobCount = 0;
-    int TotalConditionallyPreemptibleJobCount = 0;
-    int MaxConditionallyPreemptibleJobCountInPool = 0;
+    int UnconditionallyPreemptibleAllocationCount = 0;
+    int TotalConditionallyPreemptibleAllocationCount = 0;
+    int MaxConditionallyPreemptibleAllocationCountInPool = 0;
     bool ScheduleWithPreemption = false;
     TEnumIndexedVector<EOperationPreemptionPriority, int> OperationCountByPreemptionPriority;
     TJobResources ResourceLimits;
@@ -41,21 +41,21 @@ struct TScheduleJobsStatistics
     THashSet<int> SsdPriorityPreemptionMedia;
 };
 
-void Serialize(const TScheduleJobsStatistics& statistics, NYson::IYsonConsumer* consumer);
+void Serialize(const TScheduleAllocationsStatistics& statistics, NYson::IYsonConsumer* consumer);
 
-TString FormatPreemptibleInfoCompact(const TScheduleJobsStatistics& statistics);
-TString FormatScheduleJobAttemptsCompact(const TScheduleJobsStatistics& statistics);
+TString FormatPreemptibleInfoCompact(const TScheduleAllocationsStatistics& statistics);
+TString FormatScheduleAllocationAttemptsCompact(const TScheduleAllocationsStatistics& statistics);
 
 TString FormatOperationCountByPreemptionPriorityCompact(
     const TEnumIndexedVector<EOperationPreemptionPriority, int>& operationsPerPriority);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPreemptedJob
+struct TPreemptedAllocation
 {
-    TJobPtr Job;
+    TAllocationPtr Allocation;
     TDuration PreemptionTimeout;
-    EJobPreemptionReason PreemptionReason;
+    EAllocationPreemptionReason PreemptionReason;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,7 +75,7 @@ struct ISchedulingContext
     //! Used during preemption to allow second-chance scheduling.
     virtual void ResetDiscounts() = 0;
     virtual const TJobResourcesWithQuota& UnconditionalDiscount() const = 0;
-    virtual void IncreaseUnconditionalDiscount(const TJobResourcesWithQuota& jobResources) = 0;
+    virtual void IncreaseUnconditionalDiscount(const TJobResourcesWithQuota& allocationResources) = 0;
     virtual TJobResourcesWithQuota GetMaxConditionalDiscount() const = 0;
     virtual TJobResourcesWithQuota GetConditionalDiscountForOperation(TOperationId operationId) const = 0;
     virtual void SetConditionalDiscountForOperation(TOperationId operationId, const TJobResourcesWithQuota& discount) = 0;
@@ -84,40 +84,40 @@ struct ISchedulingContext
     virtual TJobResources GetNodeFreeResourcesWithDiscount() const = 0;
     virtual TJobResources GetNodeFreeResourcesWithDiscountForOperation(TOperationId operationId) const = 0;
 
-    virtual const std::vector<TJobPtr>& StartedJobs() const = 0;
-    virtual const std::vector<TJobPtr>& RunningJobs() const = 0;
-    virtual const std::vector<TPreemptedJob>& PreemptedJobs() const = 0;
+    virtual const std::vector<TAllocationPtr>& StartedAllocations() const = 0;
+    virtual const std::vector<TAllocationPtr>& RunningAllocations() const = 0;
+    virtual const std::vector<TPreemptedAllocation>& PreemptedAllocations() const = 0;
 
-    //! Returns |true| if node has enough resources to start job with given limits.
-    virtual bool CanStartJobForOperation(const TJobResourcesWithQuota& jobResources, TOperationId operationId) const = 0;
-    //! Returns |true| if any more new jobs can be scheduled at this node.
-    virtual bool CanStartMoreJobs(
-        const std::optional<TJobResources>& customMinSpareJobResources = {}) const = 0;
-    //! Returns |true| if the node can handle jobs demanding a certain #tag.
+    //! Returns |true| if node has enough resources to start allocation with given limits.
+    virtual bool CanStartAllocationForOperation(const TJobResourcesWithQuota& allocationResources, TOperationId operationId) const = 0;
+    //! Returns |true| if any more new allocations can be scheduled at this node.
+    virtual bool CanStartMoreAllocations(
+        const std::optional<TJobResources>& customMinSpareAllocationResources = {}) const = 0;
+    //! Returns |true| if the node can handle allocations demanding a certain #tag.
     virtual bool CanSchedule(const TSchedulingTagFilter& filter) const = 0;
 
-    //! Returns |true| if strategy should abort jobs since resources overcommit.
-    virtual bool ShouldAbortJobsSinceResourcesOvercommit() const = 0;
+    //! Returns |true| if strategy should abort allocations since resources overcommit.
+    virtual bool ShouldAbortAllocationsSinceResourcesOvercommit() const = 0;
 
-    virtual void StartJob(
+    virtual void StartAllocation(
         const TString& treeId,
         TOperationId operationId,
         TIncarnationId incarnationId,
         TControllerEpoch controllerEpoch,
-        const TJobStartDescriptor& startDescriptor,
+        const TAllocationStartDescriptor& startDescriptor,
         EPreemptionMode preemptionMode,
         int schedulingIndex,
-        EJobSchedulingStage schedulingStage) = 0;
+        EAllocationSchedulingStage schedulingStage) = 0;
 
-    virtual void PreemptJob(const TJobPtr& job, TDuration preemptionTimeout, EJobPreemptionReason preemptionReason) = 0;
+    virtual void PreemptAllocation(const TAllocationPtr& allocation, TDuration preemptionTimeout, EAllocationPreemptionReason preemptionReason) = 0;
 
     virtual NProfiling::TCpuInstant GetNow() const = 0;
 
-    virtual TScheduleJobsStatistics GetSchedulingStatistics() const = 0;
-    virtual void SetSchedulingStatistics(TScheduleJobsStatistics statistics) = 0;
+    virtual TScheduleAllocationsStatistics GetSchedulingStatistics() const = 0;
+    virtual void SetSchedulingStatistics(TScheduleAllocationsStatistics statistics) = 0;
 
-    virtual void StoreScheduleJobExecDurationEstimate(TDuration duration) = 0;
-    virtual TDuration ExtractScheduleJobExecDurationEstimate() = 0;
+    virtual void StoreScheduleAllocationExecDurationEstimate(TDuration duration) = 0;
+    virtual TDuration ExtractScheduleAllocationExecDurationEstimate() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulingContext)
@@ -128,7 +128,7 @@ ISchedulingContextPtr CreateSchedulingContext(
     int nodeShardId,
     TSchedulerConfigPtr config,
     TExecNodePtr node,
-    const std::vector<TJobPtr>& runningJobs,
+    const std::vector<TAllocationPtr>& runningAllocations,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 
 ////////////////////////////////////////////////////////////////////////////////

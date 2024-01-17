@@ -17,7 +17,7 @@ public:
         NProfiling::TProfiler profiler,
         bool sparsifyMetrics,
         const IInvokerPtr& profilingInvoker,
-        TFairShareTreeJobSchedulerPtr treeScheduler);
+        TFairShareTreeAllocationSchedulerPtr treeScheduler);
 
     // Thread affinity: Control thread.
     NProfiling::TProfiler GetProfiler() const;
@@ -37,21 +37,21 @@ public:
     // Thread affinity: Profiler thread.
     void ApplyJobMetricsDelta(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
-        const THashMap<TOperationId, TJobMetrics>& jobMetricsPerOperation);
+        const THashMap<TOperationId, TJobMetrics>& allocationMetricsPerOperation);
 
     // Thread affinity: Profiler thread.
     void ApplyScheduledAndPreemptedResourcesDelta(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
-        const THashMap<std::optional<EJobSchedulingStage>, TOperationIdToJobResources>& operationIdWithStageToScheduledJobResourcesDeltas,
-        const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedJobResourcesDeltas,
-        const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedJobResourceTimeDeltas,
-        const TEnumIndexedVector<EJobPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToImproperlyPreemptedJobResourcesDeltas);
+        const THashMap<std::optional<EAllocationSchedulingStage>, TOperationIdToJobResources>& operationIdWithStageToScheduledAllocationResourcesDeltas,
+        const TEnumIndexedVector<EAllocationPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedAllocationResourcesDeltas,
+        const TEnumIndexedVector<EAllocationPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedAllocationResourceTimeDeltas,
+        const TEnumIndexedVector<EAllocationPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToImproperlyPreemptedAllocationResourcesDeltas);
 
 private:
     const NProfiling::TProfiler Profiler_;
     const bool SparsifyMetrics_;
     const IInvokerPtr ProfilingInvoker_;
-    const TFairShareTreeJobSchedulerPtr TreeScheduler_;
+    const TFairShareTreeAllocationSchedulerPtr TreeScheduler_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -96,10 +96,10 @@ private:
     NProfiling::TGauge TotalElementCountGauge_;
 
     THashMap<TString, TJobMetrics> JobMetricsMap_;
-    THashMap<std::optional<EJobSchedulingStage>, THashMap<TString, TJobResources>> ScheduledResourcesByStageMap_;
-    TEnumIndexedVector<EJobPreemptionReason, THashMap<TString, TJobResources>> PreemptedResourcesByReasonMap_;
-    TEnumIndexedVector<EJobPreemptionReason, THashMap<TString, TJobResources>> PreemptedResourceTimesByReasonMap_;
-    TEnumIndexedVector<EJobPreemptionReason, THashMap<TString, TJobResources>> ImproperlyPreemptedResourcesByReasonMap_;
+    THashMap<std::optional<EAllocationSchedulingStage>, THashMap<TString, TJobResources>> ScheduledResourcesByStageMap_;
+    TEnumIndexedVector<EAllocationPreemptionReason, THashMap<TString, TJobResources>> PreemptedResourcesByReasonMap_;
+    TEnumIndexedVector<EAllocationPreemptionReason, THashMap<TString, TJobResources>> PreemptedResourceTimesByReasonMap_;
+    TEnumIndexedVector<EAllocationPreemptionReason, THashMap<TString, TJobResources>> ImproperlyPreemptedResourcesByReasonMap_;
 
     THashMap<TOperationId, TOperationProfilingEntry> OperationIdToProfilingEntry_;
     THashMap<TOperationId, TResourceVolume> OperationIdToAccumulatedResourceUsage_;

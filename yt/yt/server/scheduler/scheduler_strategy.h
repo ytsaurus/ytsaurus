@@ -54,7 +54,7 @@ struct ISchedulerStrategyHost
     // TODO(eshcherbin): Add interface for node manager to be used by strategy.
     virtual const std::vector<IInvokerPtr>& GetNodeShardInvokers() const = 0;
     virtual int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId) const = 0;
-    virtual void AbortJobsAtNode(NNodeTrackerClient::TNodeId nodeId, EAbortReason reason) = 0;
+    virtual void AbortAllocationsAtNode(NNodeTrackerClient::TNodeId nodeId, EAbortReason reason) = 0;
 
     virtual TString FormatResources(const TJobResourcesWithQuota& resources) const = 0;
     virtual TString FormatResourceUsage(
@@ -109,36 +109,36 @@ struct ISchedulerStrategyHost
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EJobUpdateStatus,
+DEFINE_ENUM(EAllocationUpdateStatus,
     (Running)
     (Finished)
 );
 
-struct TJobUpdate
+struct TAllocationUpdate
 {
-    EJobUpdateStatus Status;
+    EAllocationUpdateStatus Status;
     TOperationId OperationId;
-    TJobId JobId;
+    TAllocationId AllocationId;
     TString TreeId;
-    // It is used to update job resources in case of EJobUpdateStatus::Running status.
-    TJobResources JobResources;
-    // It is used to determine whether the job should be aborted if the operation is running in a module-aware scheduling segment.
-    std::optional<TString> JobDataCenter;
-    std::optional<TString> JobInfinibandCluster;
+    // It is used to update allocation resources in case of EAllocationUpdateStatus::Running status.
+    TJobResources AllocationResources;
+    // It is used to determine whether the allocation should be aborted if the operation is running in a module-aware scheduling segment.
+    std::optional<TString> AllocationDataCenter;
+    std::optional<TString> AllocationInfinibandCluster;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRefCountedJobPreemptionStatusMapPerOperation
+struct TRefCountedAllocationPreemptionStatusMapPerOperation
     : public TRefCounted
-    , public TJobPreemptionStatusMapPerOperation
+    , public TAllocationPreemptionStatusMapPerOperation
 { };
 
-DEFINE_REFCOUNTED_TYPE(TRefCountedJobPreemptionStatusMapPerOperation)
+DEFINE_REFCOUNTED_TYPE(TRefCountedAllocationPreemptionStatusMapPerOperation)
 
-struct TCachedJobPreemptionStatuses
+struct TCachedAllocationPreemptionStatuses
 {
-    TRefCountedJobPreemptionStatusMapPerOperationPtr Value;
+    TRefCountedAllocationPreemptionStatusMapPerOperationPtr Value;
     TInstant UpdateTime;
 };
 
@@ -147,18 +147,18 @@ struct TCachedJobPreemptionStatuses
 struct INodeHeartbeatStrategyProxy
     : public virtual TRefCounted
 {
-    //! Processes running jobs and schedules new jobs.
+    //! Processes running allocations and schedules new allocations.
     virtual TFuture<void> ProcessSchedulingHeartbeat(
         const ISchedulingContextPtr& schedulingContext,
-        bool skipScheduleJobs) = 0;
+        bool skipScheduleAllocations) = 0;
 
     virtual int GetSchedulingHeartbeatComplexity() const = 0;
 
     virtual void BuildSchedulingAttributesString(
         TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
 
-    virtual void BuildSchedulingAttributesStringForOngoingJobs(
-        const std::vector<TJobPtr>& jobs,
+    virtual void BuildSchedulingAttributesStringForOngoingAllocations(
+        const std::vector<TAllocationPtr>& allocations,
         TInstant now,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
 
@@ -181,11 +181,11 @@ struct ISchedulerStrategy
         const TBooleanFormulaTags& tags,
         TMatchingTreeCookie cookie) const = 0;
 
-    //! Notify strategy about job updates.
-    virtual void ProcessJobUpdates(
-        const std::vector<TJobUpdate>& jobUpdates,
-        THashSet<TJobId>* jobsToPostpone,
-        THashMap<TJobId, EAbortReason>* jobsToAbort) = 0;
+    //! Notify strategy about allocation updates.
+    virtual void ProcessAllocationUpdates(
+        const std::vector<TAllocationUpdate>& allocationUpdates,
+        THashSet<TAllocationId>* allocationsToPostpone,
+        THashMap<TAllocationId, EAbortReason>* allocationsToAbort) = 0;
 
     //! Save some strategy-specific attributes from handshake result.
     virtual void OnMasterHandshake(const TMasterHandshakeResult& result) = 0;
@@ -235,7 +235,7 @@ struct ISchedulerStrategy
         std::vector<TString>* unknownTreeIds,
         TPoolTreeControllerSettingsMap* poolTreeControllerSettingsMap) = 0;
 
-    //! Disable operation. Remove all operation jobs from tree.
+    //! Disable operation. Remove all operation allocations from tree.
     /*!
      *  The implementation must throw no exceptions.
      */
@@ -252,12 +252,15 @@ struct ISchedulerStrategy
 
     virtual void UnregisterOperationFromTree(TOperationId operationId, const TString& treeId) = 0;
 
-    //! Register jobs that are already created somewhere outside strategy.
-    virtual void RegisterJobsFromRevivedOperation(TOperationId operationId, const std::vector<TJobPtr>& job) = 0;
+    //! Register allocations that are already created somewhere outside strategy.
+    virtual void RegisterAllocationsFromRevivedOperation(TOperationId operationId, const std::vector<TAllocationPtr>& allocation) = 0;
 
     //! Out of the pool trees specified for the operation, choose one most suitable tree
     //! depending on the operation's demand and current resource usage in each tree.
-    virtual TErrorOr<TString> ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources newDemand, bool considerGuaranteesForSingleTree) = 0;
+    virtual TErrorOr<TString> ChooseBestSingleTreeForOperation(
+        TOperationId operationId,
+        TJobResources newDemand,
+        bool considerGuaranteesForSingleTree) = 0;
 
     //! Error results in operation's failure.
     virtual TError OnOperationMaterialized(TOperationId operationId) = 0;

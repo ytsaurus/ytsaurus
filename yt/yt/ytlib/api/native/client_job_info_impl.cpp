@@ -215,8 +215,9 @@ static void ValidateJobSpecVersion(
 static bool IsNoSuchJobOrOperationError(const TError& error)
 {
     return
-        error.FindMatching(NScheduler::EErrorCode::NoSuchJob) ||
-        error.FindMatching(NScheduler::EErrorCode::NoSuchOperation);
+        error.FindMatching(NScheduler::EErrorCode::NoSuchAllocation) ||
+        error.FindMatching(NScheduler::EErrorCode::NoSuchOperation) ||
+        error.FindMatching(NControllerAgent::EErrorCode::NoSuchJob);
 }
 
 // Get job node descriptor from scheduler and check that user has |requiredPermissions|
@@ -463,10 +464,10 @@ void TClient::ValidateOperationAccess(
     NScheduler::ValidateOperationAccess(
         Options_.GetAuthenticatedUser(),
         operationId,
-        jobId,
+        AllocationIdFromJobId(jobId),
         permissions,
         acl,
-        this,
+        StaticPointerCast<IClient>(MakeStrong(this)),
         Logger);
 }
 
@@ -491,10 +492,10 @@ void TClient::ValidateOperationAccess(
     NScheduler::ValidateOperationAccess(
         /*user*/ std::nullopt,
         TOperationId(),
-        jobId,
+        AllocationIdFromJobId(jobId),
         permissions,
         acl,
-        this,
+        StaticPointerCast<IClient>(MakeStrong(this)),
         Logger);
 }
 
@@ -507,7 +508,7 @@ void TClient::ValidateOperationAccess(
     NScheduler::ValidateOperationAccess(
         Options_.GetAuthenticatedUser(),
         operationId,
-        jobId,
+        AllocationIdFromJobId(jobId),
         permissions,
         operationAcl,
         StaticPointerCast<IClient>(MakeStrong(this)),
@@ -908,7 +909,7 @@ TSharedRef TClient::DoGetJobStderr(
         return stderrRef;
     }
 
-    THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::NoSuchJob, "Job stderr is not found")
+    THROW_ERROR_EXCEPTION(NControllerAgent::EErrorCode::NoSuchJob, "Job stderr is not found")
         << TErrorAttribute("operation_id", operationId)
         << TErrorAttribute("job_id", jobId);
 }
@@ -1028,7 +1029,7 @@ TSharedRef TClient::DoGetJobFailContext(
         return failContextRef;
     }
     THROW_ERROR_EXCEPTION(
-        NScheduler::EErrorCode::NoSuchJob,
+        NControllerAgent::EErrorCode::NoSuchJob,
         "Job fail context is not found")
         << TErrorAttribute("operation_id", operationId)
         << TErrorAttribute("job_id", jobId);

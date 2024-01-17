@@ -80,11 +80,11 @@ DEFINE_ENUM(EControllerState,
 using NVectorHdrf::TJobResources;
 
 using NScheduler::TOperationId;
-using NScheduler::TJobId;
+using NJobTrackerClient::TJobId;
 using NScheduler::EAbortReason;
 using NScheduler::EInterruptReason;
 using NScheduler::EOperationType;
-using NScheduler::EJobType;
+using NJobTrackerClient::EJobType;
 using NScheduler::TOperationSpecBasePtr;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -100,7 +100,7 @@ DECLARE_REFCOUNTED_CLASS(TProgressCounter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EScheduleJobFailReason,
+DEFINE_ENUM(EScheduleAllocationFailReason,
     ((Unknown)                       ( 0))
     ((OperationNotRunning)           ( 1))
     ((NoPendingJobs)                 ( 2))
@@ -131,11 +131,12 @@ DEFINE_ENUM(EScheduleJobFailReason,
 
 YT_DEFINE_ERROR_ENUM(
     ((AgentCallFailed)                            (4400))
-    ((NoOnlineNodeToScheduleJob)                  (4410))
+    ((NoOnlineNodeToScheduleAllocation)           (4410))
     ((MaterializationFailed)                      (4415))
     ((OperationControllerMemoryLimitExceeded)     (4416))
     ((IncarnationMismatch)                        (4417))
     ((AgentDisconnected)                          (4418))
+    ((NoSuchJob)                                  (4419))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

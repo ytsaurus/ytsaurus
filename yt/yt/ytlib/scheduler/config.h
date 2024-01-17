@@ -240,7 +240,7 @@ class TPoolPresetConfig
     : public TPoolPreemptionConfig
 {
 public:
-    bool AllowRegularJobsOnSsdNodes;
+    bool AllowRegularAllocationsOnSsdNodes;
 
     REGISTER_YSON_STRUCT(TPoolPresetConfig);
 
@@ -415,8 +415,8 @@ public:
 
     // NB(eshcherbin): This limit is only checked once every fair share update. Finer throttling is achieved
     // via the "per node shard" limit in controller config.
-    //! Limit on the number of concurrent calls to ScheduleJob of single controller.
-    std::optional<int> MaxConcurrentControllerScheduleJobCalls;
+    //! Limit on the number of concurrent calls to ScheduleAllocation of single controller.
+    std::optional<int> MaxConcurrentControllerScheduleAllocationCalls;
 
     //! If set and several regular pool trees have been specified, then the scheduler will choose
     //! one of those trees based on some heuristic, and all jobs will be scheduled only in the chosen tree.
@@ -442,11 +442,11 @@ public:
     // whether a job should (or shouldn't) be launched in a pool tree marked as tentative.
     TTentativeTreeEligibilityConfigPtr TentativeTreeEligibility;
 
-    int UpdatePreemptibleJobsListLoggingPeriod;
+    int UpdatePreemptibleAllocationsListLoggingPeriod;
 
     std::optional<TString> CustomProfilingTag;
 
-    std::optional<int> MaxUnpreemptibleRunningJobCount;
+    std::optional<int> MaxUnpreemptibleRunningAllocationCount;
 
     bool TryAvoidDuplicatingJobs;
 
@@ -575,8 +575,8 @@ class TTestingOperationOptions
 public:
     //! The following delays are used inside the operation controller.
 
-    TDelayConfigPtr ScheduleJobDelay;
-    TDelayConfigPtr InsideScheduleJobDelay;
+    TDelayConfigPtr ScheduleAllocationDelay;
+    TDelayConfigPtr InsideScheduleAllocationDelay;
 
     std::optional<TDuration> DelayInsideOperationCommit;
     std::optional<EDelayInsideOperationCommitStage> DelayInsideOperationCommitStage;
@@ -594,13 +594,13 @@ public:
 
     //! The following delays are used inside the scheduler.
 
-    TDelayConfigPtr ScheduleJobDelayScheduler;
+    TDelayConfigPtr ScheduleAllocationDelayScheduler;
 
     TDelayConfigPtr DelayInsideMaterializeScheduler;
 
     std::optional<TDuration> DelayInsideAbort;
 
-    std::optional<TDuration> DelayInsideRegisterJobsFromRevivedOperation;
+    std::optional<TDuration> DelayInsideRegisterAllocationsFromRevivedOperation;
 
     std::optional<TDuration> DelayInsideValidateRuntimeParameters;
 

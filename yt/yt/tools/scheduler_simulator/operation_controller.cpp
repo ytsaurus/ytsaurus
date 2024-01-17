@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
+#include <yt/yt/ytlib/scheduler/public.h>
+
 #include <yt/yt/client/job_tracker_client/public.h>
 
 namespace NYT::NSchedulerSimulator {
@@ -83,19 +85,19 @@ public:
     bool FindJobToSchedule(
         const TJobResources& nodeLimits,
         TJobDescription* jobToScheduleOutput,
-        EScheduleJobFailReason* failReasonOutput)
+        EScheduleAllocationFailReason* failReasonOutput)
     {
         YT_VERIFY(InitializationFinished_);
 
         if (PendingJobs_.empty()) {
-            *failReasonOutput = EScheduleJobFailReason::NoPendingJobs;
+            *failReasonOutput = EScheduleAllocationFailReason::NoPendingJobs;
             return false;
         }
         auto jobDescription = PendingJobs_.front();
 
         // TODO(ignat, antonkikh): support disk quota in scheduler simulator (YT-9009)
         if (!Dominates(nodeLimits, jobDescription.ResourceLimits)) {
-            *failReasonOutput = EScheduleJobFailReason::NotEnoughResources;
+            *failReasonOutput = EScheduleAllocationFailReason::NotEnoughResources;
             return false;
         }
 
@@ -197,12 +199,12 @@ public:
 
     void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) override;
 
-    void OnNonscheduledJobAborted(TJobId jobId, EAbortReason /*abortReason*/, TControllerEpoch /*epoch*/) override;
+    void OnNonscheduledAllocationAborted(TAllocationId allocationId, EAbortReason /*abortReason*/, TControllerEpoch /*epoch*/) override;
 
     bool IsOperationCompleted() const override;
 
     //! Called during heartbeat processing to request actions the node must perform.
-    TFuture<TControllerScheduleJobResultPtr> ScheduleJob(
+    TFuture<TControllerScheduleAllocationResultPtr> ScheduleAllocation(
         const ISchedulingContextPtr& context,
         const TJobResources& nodeLimits,
         const NNodeTrackerClient::NProto::TDiskResources& diskResourceLimits,
@@ -210,9 +212,9 @@ public:
         const TString& /* poolPath */,
         const TFairShareStrategyTreeConfigPtr& /* treeConfig */) override;
 
-    void UpdateMinNeededJobResources() override;
-    TJobResourcesWithQuotaList GetMinNeededJobResources() const override;
-    TJobResourcesWithQuotaList GetInitialMinNeededJobResources() const override;
+    void UpdateMinNeededAllocationResources() override;
+    TJobResourcesWithQuotaList GetMinNeededAllocationResources() const override;
+    TJobResourcesWithQuotaList GetInitialMinNeededAllocationResources() const override;
 
     TString GetLoggingProgress() const override;
 
@@ -244,7 +246,7 @@ private:
     bool FindJobToSchedule(
         const TJobResourcesWithQuota& nodeLimits,
         TJobDescription* jobToScheduleOutput,
-        EScheduleJobFailReason* failReasonOutput);
+        EScheduleAllocationFailReason* failReasonOutput);
 
     TJobBuckets InitializeJobBuckets(const TOperationDescription* operationDescription);
 };
@@ -331,8 +333,8 @@ TSimulatorOperationController::TSimulatorOperationController(
         bucket->FinishInitialization();
     }
 
-    UpdateMinNeededJobResources();
-    InitialMinNeededResources_ = GetMinNeededJobResources();
+    UpdateMinNeededAllocationResources();
+    InitialMinNeededResources_ = GetMinNeededAllocationResources();
 }
 
 // Lock_ must be acquired.
@@ -386,9 +388,9 @@ void TSimulatorOperationController::OnJobCompleted(std::unique_ptr<TCompletedJob
     }
 }
 
-void TSimulatorOperationController::OnNonscheduledJobAborted(TJobId jobId, EAbortReason /*abortReason*/, TControllerEpoch /*epoch*/)
+void TSimulatorOperationController::OnNonscheduledAllocationAborted(TAllocationId allocationId, EAbortReason /*abortReason*/, TControllerEpoch /*epoch*/)
 {
-    const auto& jobDescription = IdToDescription_.Get(jobId);
+    const auto& jobDescription = IdToDescription_.Get(JobIdFromAllocationId(allocationId));
 
     auto& jobBucket = GetOrCrash(JobBuckets_, jobDescription.Type);
 
@@ -414,22 +416,22 @@ bool TSimulatorOperationController::IsOperationCompleted() const
 bool TSimulatorOperationController::FindJobToSchedule(
     const TJobResourcesWithQuota& nodeLimits,
     TJobDescription* jobToScheduleOutput,
-    EScheduleJobFailReason* failReasonOutput)
+    EScheduleAllocationFailReason* failReasonOutput)
 {
-    EScheduleJobFailReason commonFailReason = EScheduleJobFailReason::NoPendingJobs;
+    EScheduleAllocationFailReason commonFailReason = EScheduleAllocationFailReason::NoPendingJobs;
 
     for (auto& activeBucket : ActiveBuckets_) {
-        EScheduleJobFailReason lastFailReason;
+        EScheduleAllocationFailReason lastFailReason;
         if (activeBucket->FindJobToSchedule(nodeLimits, jobToScheduleOutput, &lastFailReason)) {
             return true;
         }
 
         switch (lastFailReason) {
-            case EScheduleJobFailReason::NotEnoughResources: {
+            case EScheduleAllocationFailReason::NotEnoughResources: {
                 commonFailReason = lastFailReason;
                 break;
             }
-            case EScheduleJobFailReason::NoPendingJobs: {
+            case EScheduleAllocationFailReason::NoPendingJobs: {
                 // Nothing to do.
                 break;
             }
@@ -443,7 +445,7 @@ bool TSimulatorOperationController::FindJobToSchedule(
     return false;
 }
 
-TFuture<TControllerScheduleJobResultPtr> TSimulatorOperationController::ScheduleJob(
+TFuture<TControllerScheduleAllocationResultPtr> TSimulatorOperationController::ScheduleAllocation(
     const ISchedulingContextPtr& context,
     const TJobResources& nodeLimits,
     const NNodeTrackerClient::NProto::TDiskResources& /*diskResourceLimits*/,
@@ -455,31 +457,32 @@ TFuture<TControllerScheduleJobResultPtr> TSimulatorOperationController::Schedule
 
     auto guard = Guard(Lock_);
 
-    auto scheduleJobResult = New<TControllerScheduleJobResult>();
+    auto scheduleAllocationResult = New<TControllerScheduleAllocationResult>();
 
     TJobDescription jobToSchedule;
-    EScheduleJobFailReason failReason;
+    EScheduleAllocationFailReason failReason;
     if (!FindJobToSchedule(nodeLimits, &jobToSchedule, &failReason)) {
-        scheduleJobResult->RecordFail(failReason);
-        return MakeFuture(scheduleJobResult);
+        scheduleAllocationResult->RecordFail(failReason);
+        return MakeFuture(scheduleAllocationResult);
     }
 
     auto jobId = TJobId(TGuid::Create());
-    scheduleJobResult->StartDescriptor.emplace(
-        jobId,
+    auto allocationId = AllocationIdFromJobId(jobId);
+    scheduleAllocationResult->StartDescriptor.emplace(
+        allocationId,
         jobToSchedule.ResourceLimits);
 
-    dynamic_cast<TSchedulingContext*>(context.Get())->SetDurationForStartedJob(jobId, jobToSchedule.Duration);
+    dynamic_cast<TSchedulingContext*>(context.Get())->SetDurationForStartedAllocation(allocationId, jobToSchedule.Duration);
     IdToDescription_.Insert(jobId, jobToSchedule);
 
     NeededResources_ -= jobToSchedule.ResourceLimits;
     PendingJobCount_ -= 1;
     RunningJobCount_ += 1;
 
-    return MakeFuture(scheduleJobResult);
+    return MakeFuture(scheduleAllocationResult);
 }
 
-void TSimulatorOperationController::UpdateMinNeededJobResources()
+void TSimulatorOperationController::UpdateMinNeededAllocationResources()
 {
     auto guard = Guard(Lock_);
     TJobResourcesWithQuotaList result;
@@ -499,13 +502,13 @@ void TSimulatorOperationController::UpdateMinNeededJobResources()
     CachedMinNeededJobResources = std::move(result);
 }
 
-TJobResourcesWithQuotaList TSimulatorOperationController::GetMinNeededJobResources() const
+TJobResourcesWithQuotaList TSimulatorOperationController::GetMinNeededAllocationResources() const
 {
     auto guard = Guard(Lock_);
     return CachedMinNeededJobResources;
 }
 
-TJobResourcesWithQuotaList TSimulatorOperationController::GetInitialMinNeededJobResources() const
+TJobResourcesWithQuotaList TSimulatorOperationController::GetInitialMinNeededAllocationResources() const
 {
     return InitialMinNeededResources_;
 }

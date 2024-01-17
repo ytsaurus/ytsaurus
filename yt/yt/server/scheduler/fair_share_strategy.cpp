@@ -35,7 +35,6 @@
 namespace NYT::NScheduler {
 
 using namespace NConcurrency;
-using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NYson;
@@ -80,9 +79,9 @@ public:
             BIND(&TFairShareStrategy::OnLogAccumulatedUsage, MakeWeak(this)),
             Config_->AccumulatedUsageLogPeriod);
 
-        MinNeededJobResourcesUpdateExecutor_ = New<TPeriodicExecutor>(
+        MinNeededAllocationResourcesUpdateExecutor_ = New<TPeriodicExecutor>(
             Host_->GetControlInvoker(EControlQueue::FairShareStrategy),
-            BIND(&TFairShareStrategy::OnMinNeededJobResourcesUpdate, MakeWeak(this)),
+            BIND(&TFairShareStrategy::OnMinNeededAllocationResourcesUpdate, MakeWeak(this)),
             Config_->MinNeededResourcesUpdatePeriod);
 
         ResourceMeteringExecutor_ = New<TPeriodicExecutor>(
@@ -132,7 +131,7 @@ public:
         FairShareUpdateExecutor_->Start();
         FairShareLoggingExecutor_->Start();
         AccumulatedUsageLoggingExecutor_->Start();
-        MinNeededJobResourcesUpdateExecutor_->Start();
+        MinNeededAllocationResourcesUpdateExecutor_->Start();
         ResourceMeteringExecutor_->Start();
         ResourceUsageUpdateExecutor_->Start();
         SchedulerTreeAlertsUpdateExecutor_->Start();
@@ -148,7 +147,7 @@ public:
         YT_UNUSED_FUTURE(FairShareUpdateExecutor_->Stop());
         YT_UNUSED_FUTURE(YT_UNUSED_FUTURE(FairShareLoggingExecutor_->Stop()));
         YT_UNUSED_FUTURE(AccumulatedUsageLoggingExecutor_->Stop());
-        YT_UNUSED_FUTURE(MinNeededJobResourcesUpdateExecutor_->Stop());
+        YT_UNUSED_FUTURE(MinNeededAllocationResourcesUpdateExecutor_->Stop());
         YT_UNUSED_FUTURE(ResourceMeteringExecutor_->Stop());
         YT_UNUSED_FUTURE(ResourceUsageUpdateExecutor_->Stop());
         YT_UNUSED_FUTURE(SchedulerTreeAlertsUpdateExecutor_->Stop());
@@ -177,20 +176,20 @@ public:
         OnFairShareUpdateAt(TInstant::Now());
     }
 
-    void OnMinNeededJobResourcesUpdate()
+    void OnMinNeededAllocationResourcesUpdate()
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        YT_LOG_INFO("Starting min needed job resources update");
+        YT_LOG_INFO("Starting min needed allocation resources update");
 
         for (const auto& [operationId, state] : OperationIdToOperationState_) {
             auto maybeUnschedulableReason = state->GetHost()->CheckUnschedulable();
-            if (!maybeUnschedulableReason || maybeUnschedulableReason == EUnschedulableReason::NoPendingJobs) {
-                state->GetController()->UpdateMinNeededJobResources();
+            if (!maybeUnschedulableReason || maybeUnschedulableReason == EUnschedulableReason::NoPendingAllocations) {
+                state->GetController()->UpdateMinNeededAllocationResources();
             }
         }
 
-        YT_LOG_INFO("Min needed job resources successfully updated");
+        YT_LOG_INFO("Min needed allocation resources successfully updated");
     }
 
     void OnFairShareLogging()
@@ -528,7 +527,7 @@ public:
                 auto error = GetTree(treeName)->CheckOperationIsHung(
                     operationId,
                     Config_->OperationHangupSafeTimeout,
-                    Config_->OperationHangupMinScheduleJobAttempts,
+                    Config_->OperationHangupMinScheduleAllocationAttempts,
                     Config_->OperationHangupDeactivationReasons,
                     Config_->OperationHangupDueToLimitingAncestorSafeTimeout);
                 if (error.IsOK()) {
@@ -564,7 +563,7 @@ public:
         FairShareUpdateExecutor_->SetPeriod(Config_->FairShareUpdatePeriod);
         FairShareLoggingExecutor_->SetPeriod(Config_->FairShareLogPeriod);
         AccumulatedUsageLoggingExecutor_->SetPeriod(Config_->AccumulatedUsageLogPeriod);
-        MinNeededJobResourcesUpdateExecutor_->SetPeriod(Config_->MinNeededResourcesUpdatePeriod);
+        MinNeededAllocationResourcesUpdateExecutor_->SetPeriod(Config_->MinNeededResourcesUpdatePeriod);
         ResourceMeteringExecutor_->SetPeriod(Config_->ResourceMeteringPeriod);
         ResourceUsageUpdateExecutor_->SetPeriod(Config_->ResourceUsageSnapshotUpdatePeriod);
         SchedulerTreeAlertsUpdateExecutor_->SetPeriod(Config_->SchedulerTreeAlertsUpdatePeriod);
@@ -1006,21 +1005,22 @@ public:
         return treeIdToUsage;
     }
 
-    void ProcessJobUpdates(
-        const std::vector<TJobUpdate>& jobUpdates,
-        THashSet<TJobId>* jobsToPostpone,
-        THashMap<TJobId, EAbortReason>* jobsToAbort) override
+    void ProcessAllocationUpdates(
+        const std::vector<TAllocationUpdate>& allocationUpdates,
+        THashSet<TAllocationId>* allocationsToPostpone,
+        THashMap<TAllocationId, EAbortReason>* allocationsToAbort) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YT_VERIFY(jobsToPostpone->empty());
-        YT_VERIFY(jobsToAbort->empty());
+        YT_VERIFY(allocationsToPostpone->empty());
+        YT_VERIFY(allocationsToAbort->empty());
 
-        YT_LOG_DEBUG("Processing job updates in strategy (UpdateCount: %v)",
-            jobUpdates.size());
+        YT_LOG_DEBUG(
+            "Processing allocation updates in strategy (UpdateCount: %v)",
+            allocationUpdates.size());
 
-        THashMap<TString, std::vector<TJobUpdate>> jobUpdatesPerTree;
-        for (const auto& jobUpdate : jobUpdates) {
-            jobUpdatesPerTree[jobUpdate.TreeId].push_back(jobUpdate);
+        THashMap<TString, std::vector<TAllocationUpdate>> allocationUpdatesPerTree;
+        for (const auto& allocationUpdate : allocationUpdates) {
+            allocationUpdatesPerTree[allocationUpdate.TreeId].push_back(allocationUpdate);
         }
 
         THashMap<TString, IFairShareTreePtr> idToTree;
@@ -1030,20 +1030,21 @@ public:
             return;
         }
 
-        for (const auto& [treeId, treeJobUpdates] : jobUpdatesPerTree) {
+        for (const auto& [treeId, treeAllocationUpdates] : allocationUpdatesPerTree) {
             auto it = idToTree.find(treeId);
             if (it == idToTree.end()) {
-                for (const auto& jobUpdate : treeJobUpdates) {
-                    switch (jobUpdate.Status) {
-                        case EJobUpdateStatus::Running:
-                            // Job is orphaned (does not belong to any tree), aborting it.
-                            EmplaceOrCrash(*jobsToAbort, jobUpdate.JobId, EAbortReason::NonexistentPoolTree);
+                for (const auto& allocationUpdate : treeAllocationUpdates) {
+                    switch (allocationUpdate.Status) {
+                        case EAllocationUpdateStatus::Running:
+                            // Allocation is orphaned (does not belong to any tree), aborting it.
+                            EmplaceOrCrash(*allocationsToAbort, allocationUpdate.AllocationId, EAbortReason::NonexistentPoolTree);
                             break;
-                        case EJobUpdateStatus::Finished:
-                            // Job is finished but tree does not exist, nothing to do.
-                            YT_LOG_DEBUG("Dropping job update since pool tree is missing (OperationId: %v, JobId: %v)",
-                                jobUpdate.OperationId,
-                                jobUpdate.JobId);
+                        case EAllocationUpdateStatus::Finished:
+                            // Allocation is finished but tree does not exist, nothing to do.
+                            YT_LOG_DEBUG(
+                                "Dropping allocation update since pool tree is missing (OperationId: %v, AllocationId: %v)",
+                                allocationUpdate.OperationId,
+                                allocationUpdate.AllocationId);
                             break;
                         default:
                             YT_ABORT();
@@ -1054,26 +1055,27 @@ public:
             }
 
             const auto& tree = it->second;
-            tree->ProcessJobUpdates(treeJobUpdates, jobsToPostpone, jobsToAbort);
+            tree->ProcessAllocationUpdates(treeAllocationUpdates, allocationsToPostpone, allocationsToAbort);
         }
     }
 
-    void RegisterJobsFromRevivedOperation(TOperationId operationId, const std::vector<TJobPtr>& jobs) override
+    void RegisterAllocationsFromRevivedOperation(TOperationId operationId, const std::vector<TAllocationPtr>& allocations) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        THashMap<TString, std::vector<TJobPtr>> jobsByTreeId;
-        for (const auto& job : jobs) {
-            jobsByTreeId[job->GetTreeId()].push_back(job);
+        THashMap<TString, std::vector<TAllocationPtr>> allocationsByTreeId;
+        for (const auto& allocation : allocations) {
+            allocationsByTreeId[allocation->GetTreeId()].push_back(allocation);
         }
 
-        for (auto&& [treeId, jobs] : jobsByTreeId) {
+        for (auto&& [treeId, allocations] : allocationsByTreeId) {
             auto tree = FindTree(treeId);
             // NB: operation can be missing in tree since ban.
             if (tree && tree->HasOperation(operationId)) {
-                tree->RegisterJobsFromRevivedOperation(operationId, std::move(jobs));
+                tree->RegisterAllocationsFromRevivedOperation(operationId, std::move(allocations));
             } else {
-                YT_LOG_INFO("Jobs are not registered in tree since operation is missing (OperationId: %v, TreeId: %v)",
+                YT_LOG_INFO(
+                    "Allocations are not registered in tree since operation is missing (OperationId: %v, TreeId: %v)",
                     operationId,
                     treeId);
             }
@@ -1093,8 +1095,8 @@ public:
             }
         }
         auto maybeUnschedulableReason = host->CheckUnschedulable();
-        if (!maybeUnschedulableReason || maybeUnschedulableReason == EUnschedulableReason::NoPendingJobs) {
-            state->GetController()->UpdateMinNeededJobResources();
+        if (!maybeUnschedulableReason || maybeUnschedulableReason == EUnschedulableReason::NoPendingAllocations) {
+            state->GetController()->UpdateMinNeededAllocationResources();
         }
     }
 
@@ -1408,7 +1410,7 @@ private:
     TPeriodicExecutorPtr FairShareUpdateExecutor_;
     TPeriodicExecutorPtr FairShareLoggingExecutor_;
     TPeriodicExecutorPtr AccumulatedUsageLoggingExecutor_;
-    TPeriodicExecutorPtr MinNeededJobResourcesUpdateExecutor_;
+    TPeriodicExecutorPtr MinNeededAllocationResourcesUpdateExecutor_;
     TPeriodicExecutorPtr ResourceMeteringExecutor_;
     TPeriodicExecutorPtr ResourceUsageUpdateExecutor_;
     TPeriodicExecutorPtr SchedulerTreeAlertsUpdateExecutor_;
@@ -2133,7 +2135,7 @@ private:
 
         currentDescriptor.TreeId = newTreeId;
 
-        Host_->AbortJobsAtNode(nodeId, EAbortReason::NodeFairShareTreeChanged);
+        Host_->AbortAllocationsAtNode(nodeId, EAbortReason::NodeFairShareTreeChanged);
     }
 
     void ProcessNodesWithoutPoolTreeAlert()
@@ -2335,10 +2337,10 @@ private:
 
         TFuture<void> ProcessSchedulingHeartbeat(
             const ISchedulingContextPtr& schedulingContext,
-            bool skipScheduleJobs) override
+            bool skipScheduleAllocations) override
         {
             if (Tree_) {
-                return Tree_->ProcessSchedulingHeartbeat(schedulingContext, skipScheduleJobs);
+                return Tree_->ProcessSchedulingHeartbeat(schedulingContext, skipScheduleAllocations);
             }
             return VoidFuture;
         }
@@ -2356,13 +2358,13 @@ private:
             }
         }
 
-        void BuildSchedulingAttributesStringForOngoingJobs(
-            const std::vector<TJobPtr>& jobs,
+        void BuildSchedulingAttributesStringForOngoingAllocations(
+            const std::vector<TAllocationPtr>& allocations,
             TInstant now,
             TDelimitedStringBuilderWrapper& delimitedBuilder) const override
         {
             if (Tree_) {
-                Tree_->BuildSchedulingAttributesStringForOngoingJobs(jobs, now, delimitedBuilder);
+                Tree_->BuildSchedulingAttributesStringForOngoingAllocations(allocations, now, delimitedBuilder);
             }
         }
 

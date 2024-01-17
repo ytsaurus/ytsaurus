@@ -23,15 +23,12 @@ class TAllocationToAbort;
 
 class TAllocationStatus;
 
-class TSchedulerToAgentJobEvent;
+class TSchedulerToAgentAllocationEvent;
+
+class TReqScheduleAllocationHeartbeat;
+class TRspScheduleAllocationHeartbeat;
 
 } // namespace NProto
-
-////////////////////////////////////////////////////////////////////////////////
-
-using NJobTrackerClient::TJobId;
-using NJobTrackerClient::EJobType;
-using NJobTrackerClient::EJobState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -122,7 +119,7 @@ DEFINE_ENUM(EAgentToSchedulerOperationEventType,
 );
 
 DEFINE_ENUM(ESchedulerToAgentOperationEventType,
-    ((UpdateMinNeededJobResources)(0))
+    ((UpdateMinNeededAllocationResources) (0))
 );
 
 DEFINE_ENUM(EControlQueue,
@@ -212,9 +209,9 @@ DECLARE_REFCOUNTED_STRUCT(TRefCountedExecNodeDescriptorMap)
 
 class TSchedulingTagFilter;
 
-DECLARE_REFCOUNTED_STRUCT(TControllerScheduleJobResult)
+DECLARE_REFCOUNTED_STRUCT(TControllerScheduleAllocationResult)
 
-struct TJobStartDescriptor;
+struct TAllocationStartDescriptor;
 struct TOperationControllerInitializeAttributes;
 
 struct TPreemptedFor;

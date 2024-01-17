@@ -20,7 +20,7 @@ namespace NYT::NSchedulerSimulator {
 
 DEFINE_ENUM(ENodeEventType,
     (Heartbeat)
-    (JobFinished)
+    (AllocationFinished)
 );
 
 struct TNodeEvent
@@ -28,8 +28,8 @@ struct TNodeEvent
     ENodeEventType Type;
     TInstant Time;
     NNodeTrackerClient::TNodeId NodeId;
-    NScheduler::TJobPtr Job;
-    NScheduler::TExecNodePtr JobNode;
+    NScheduler::TAllocationPtr Allocation;
+    NScheduler::TExecNodePtr AllocationNode;
     bool ScheduledOutOfBand = false;
 };
 
@@ -39,9 +39,9 @@ bool operator<(const TNodeEvent& lhs, const TNodeEvent& rhs);
 
 TNodeEvent CreateHeartbeatNodeEvent(TInstant time, NNodeTrackerClient::TNodeId nodeId, bool scheduledOutOfBand);
 
-TNodeEvent CreateJobFinishedNodeEvent(
+TNodeEvent CreateAllocationFinishedNodeEvent(
     TInstant time,
-    const NScheduler::TJobPtr& job,
+    const NScheduler::TAllocationPtr& allocation,
     const NScheduler::TExecNodePtr& execNode,
     NNodeTrackerClient::TNodeId nodeId);
 
@@ -212,12 +212,12 @@ public:
         const TBooleanFormulaTags& tags,
         NScheduler::TMatchingTreeCookie cookie) const;
 
-    void PreemptJob(const NScheduler::TJobPtr& job);
+    void PreemptAllocation(const NScheduler::TAllocationPtr& allocation);
 
-    void ProcessJobUpdates(
-        const std::vector<NScheduler::TJobUpdate>& jobUpdates,
-        THashSet<NScheduler::TJobId>* jobsToPostpone,
-        THashMap<NScheduler::TJobId, NScheduler::EAbortReason>* jobsToAbort);
+    void ProcessAllocationUpdates(
+        const std::vector<NScheduler::TAllocationUpdate>& allocationUpdates,
+        THashSet<NScheduler::TAllocationId>* allocationsToPostpone,
+        THashMap<NScheduler::TAllocationId, NScheduler::EAbortReason>* allocationsToAbort);
 
     void UnregisterOperation(NScheduler::IOperationStrategyHost* operation);
 

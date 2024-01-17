@@ -54,7 +54,7 @@ class TestSchedulerCommon(YTEnvSetup):
         "scheduler": {
             "watchers_update_period": 100,
             "operations_update_period": 10,
-            "running_jobs_update_period": 10,
+            "running_allocations_update_period": 10,
         }
     }
 
@@ -1750,7 +1750,7 @@ class TestSchedulerObjectsDestruction(YTEnvSetup):
 
         statistics = get("//sys/scheduler/orchid/monitoring/ref_counted/statistics")
         schedule_job_entry_object_type = \
-            "NYT::NDetail::TPromiseState<NYT::TIntrusivePtr<NYT::NScheduler::TControllerScheduleJobResult> >"
+            "NYT::NDetail::TPromiseState<NYT::TIntrusivePtr<NYT::NScheduler::TControllerScheduleAllocationResult> >"
         records = [record for record in statistics if record["name"] == schedule_job_entry_object_type]
         assert len(records) == 1
 
