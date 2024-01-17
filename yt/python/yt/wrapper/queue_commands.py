@@ -182,7 +182,7 @@ def advance_consumer(consumer_path, queue_path, partition_index, old_offset, new
     :type old_offset: None or int
     :param new_offset: new offset to set
     :type new_offset: int
-    :param client_side: use client side implementation
+    :param client_side: use client-side implementation
     :type client_side: bool
     """
 
