@@ -110,7 +110,7 @@ yt remount-table //path/to/table
 Если выполнить `remount-table`, настройка применится сразу ко всем таблетам таблицы. При работе с таблицами размером от терабайта это может создать всплеск нагрузки как на бандл таблицы, так и на кластер целиком. Поэтому рекомендуется выполнять `remount` разных таблетов в разное время. Для этого используйте команду `yt remount-table --first-tablet-index X --last-tablet-index Y`. Время, в течение которого стоит перемонтировать всю таблицу, можно приблизительно посчитать по формуле `table_data_weight / bundle_node_count / (100 Mb/s)`.
 
 {% if audience == "internal" %}
-Для автоматического равномерного перемонтирования таблицы можно использовать скрипт [gradual_remount.py](https://a.yandex-team.ru/arc_vcs/yt/yt/scripts/dynamic_tables/gradual_remount.py).
+Для автоматического равномерного перемонтирования таблицы можно использовать скрипт [gradual_remount](https://a.yandex-team.ru/arc_vcs/yt/yt/scripts/gradual_remount).
 
 Следить за количеством обработанных чанков можно по графику [store_compactor.out_store_count.rate](https://nda.ya.ru/t/QTBvO-Wf5Xoyr8).
 {% endif %}
