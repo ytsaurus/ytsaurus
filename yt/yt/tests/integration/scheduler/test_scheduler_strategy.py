@@ -3482,14 +3482,15 @@ class TestSatisfactionRatio(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_use_pool_satisfaction_for_scheduling(self):
-        create_pool("first", attributes={"strong_guarantee_resources": {"cpu": 3.0}})
+        create_pool("first", attributes={
+            "strong_guarantee_resources": {"cpu": 3.0},
+            "resource_limits": {"user_slots": 1},
+        })
         create_pool("second", attributes={
             "use_pool_satisfaction_for_scheduling": True,
-            "strong_guarantee_resources": {"cpu": 3.0}
+            "strong_guarantee_resources": {"cpu": 3.0},
+            "resource_limits": {"user_slots": 1},
         })
-
-        set("//sys/pool_trees/default/first/@resource_limits", {"user_slots": 1})
-        set("//sys/pool_trees/default/second/@resource_limits", {"user_slots": 1})
 
         wait(lambda: get(scheduler_orchid_pool_path("second") + "/effective_use_pool_satisfaction_for_scheduling", default=None))
         wait(lambda: not get(scheduler_orchid_pool_path("first") + "/effective_use_pool_satisfaction_for_scheduling"))
