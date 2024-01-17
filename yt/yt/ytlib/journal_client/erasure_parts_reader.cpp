@@ -48,7 +48,7 @@ public:
         , Options_(options)
         , FirstRowIndex_(firstRowIndex)
         , ReadRowCount_(readRowCount)
-        , Logger(Reader_->Logger.WithTag("SessionId: %v", TGuid::Create()))
+        , Logger(Reader_->Logger.WithTag("ErasurePartsReaderSessionId: %v", TGuid::Create()))
     { }
 
     TFuture<std::vector<std::vector<TSharedRef>>> Run()

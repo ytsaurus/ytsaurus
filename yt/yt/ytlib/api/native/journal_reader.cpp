@@ -244,6 +244,7 @@ private:
             IChunkReader::TReadBlocksOptions readBlocksOptions{
                 .ClientOptions = TClientChunkReadOptions{
                     .WorkloadDescriptor = Config_->WorkloadDescriptor,
+                    .ReadSessionId = TGuid::Create(),
                 },
             };
 
