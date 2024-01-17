@@ -13,8 +13,8 @@ def run_check(secrets, yt_client, logger, options, states):
 
     generic_alerts_by_stage_cluster = defaultdict(lambda: defaultdict(dict))
 
-    # assuming options["queue_agent_stage_clusters"] is a dict {cluster_name: proxy}
-    for queue_agent_stage_cluster, proxy in queue_agent_stage_clusters.items():
+    # Assuming options["queue_agent_stage_clusters"] is a dictionary from cluster name to proxy address.
+    for queue_agent_stage_cluster, queue_agent_stage_proxy in queue_agent_stage_clusters.items():
         # Each queue agent stage has a corresponding host cluster.
         # General unavailability of the host cluster or the queue agent itself
         # should only cause this check to fail when running on the host cluster.
@@ -32,7 +32,7 @@ def run_check(secrets, yt_client, logger, options, states):
         logger.info("Checking for relevant queue agent alerts from queue agent stage on cluster %s", queue_agent_stage_cluster)
 
         queue_agent_stage_client = YtClient(
-            proxy=proxy,
+            proxy=queue_agent_stage_proxy,
             token=secrets["yt_token"],
             config={"proxy": {"retries": {"count": 1, "enable": False}}})
 
@@ -61,7 +61,7 @@ def run_check(secrets, yt_client, logger, options, states):
                         # we consider this alert generic for the corresponding queue agent.
                         generic_alerts_by_stage_cluster[queue_agent_stage_cluster][instance][alert] = error
 
-    if cluster_name in queue_agent_stage_clusters.keys():
+    if cluster_name in queue_agent_stage_clusters:
         logger.info("Checking for generic alerts for queue agent stage on our cluster %s", cluster_name)
         alerts_by_instance = generic_alerts_by_stage_cluster[cluster_name]
 
