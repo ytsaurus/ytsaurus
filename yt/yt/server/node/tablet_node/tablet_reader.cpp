@@ -328,6 +328,21 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
         boundaries.push_back(store->GetMinKey());
     }
 
+    TColumnFilter enrichedColumnFilter;
+    if (!columnFilter.IsUniversal()) {
+        auto indexes = columnFilter.GetIndexes();
+        auto keyColumnCount = tabletSnapshot->QuerySchema->GetKeyColumnCount();
+
+        for (int index = 0; index < keyColumnCount; ++index) {
+            indexes.push_back(index);
+        }
+
+        std::sort(indexes.begin(), indexes.end());
+        indexes.erase(std::unique(indexes.begin(), indexes.end()), indexes.end());
+
+        enrichedColumnFilter = TColumnFilter(std::move(indexes));
+    }
+
     auto reader = CreateSchemafulOverlappingRangeReader(
         std::move(boundaries),
         std::move(rowMerger),
@@ -343,7 +358,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
                 boundsPerStore[index],
                 timestamp,
                 false,
-                columnFilter,
+                enrichedColumnFilter,
                 chunkReadOptions,
                 workloadCategory);
         },

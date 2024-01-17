@@ -46,7 +46,8 @@ private:
 // Returns ordered unique group ids. Can determine group index via binary search.
 TCompactVector<ui16, 32> GetGroupsIds(
     const TPreparedChunkMeta& preparedChunkMeta,
-    ui16 keyColumnCount,
+    ui16 readItemWidth,
+    TRange<ui16> keyColumnIndexes,
     TRange<TColumnIdMapping> valuesIdMapping);
 
 std::vector<TGroupBlockHolder> CreateGroupBlockHolders(

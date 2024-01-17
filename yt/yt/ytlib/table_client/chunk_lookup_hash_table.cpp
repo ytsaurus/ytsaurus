@@ -179,7 +179,7 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
             NTransactionClient::AllCommittedTimestamp,
             chunkMeta,
             tableSchema,
-            TColumnFilter(0),
+            TColumnFilter(tableSchema->GetKeyColumnCount()),
             nullptr,
             blockManagerFactory,
             true);

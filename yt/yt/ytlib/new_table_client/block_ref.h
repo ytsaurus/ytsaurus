@@ -27,7 +27,7 @@ public:
     // Copy constructor cannot be inherited. Pass object by pointer.
     explicit TColumnBase(const TColumnBase* columnInfo);
 
-    TColumnBase(const TBlockRef* blockRef, ui16 indexInGroup);
+    TColumnBase(const TBlockRef* blockRef, ui16 indexInGroup, ui16 columnId);
 
     bool IsNull() const;
 
@@ -39,9 +39,12 @@ public:
     template <class TMeta>
     const TMeta* SkipToSegment(ui32 rowIndex) const;
 
+    ui16 GetColumnId() const;
+
 private:
     const TBlockRef* BlockRef_;
     ui16 IndexInGroup_;
+    ui16 ColumnId_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

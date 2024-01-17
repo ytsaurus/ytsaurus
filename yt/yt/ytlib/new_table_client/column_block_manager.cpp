@@ -107,15 +107,30 @@ TRange<ui32> TGroupBlockHolder::GetBlockIds() const
 
 TCompactVector<ui16, 32> GetGroupsIds(
     const TPreparedChunkMeta& preparedChunkMeta,
-    ui16 keyColumnCount,
+    ui16 readItemWidth,
+    TRange<ui16> keyColumnIndexes,
     TRange<TColumnIdMapping> valuesIdMapping)
 {
+    int extraKeyColumnCount = 0;
+    for (auto id : keyColumnIndexes) {
+        if (id >= readItemWidth) {
+            ++extraKeyColumnCount;
+        }
+    }
+
     TCompactVector<ui16, 32> groupIds;
-    groupIds.resize(keyColumnCount + std::ssize(valuesIdMapping) + 1);
+    groupIds.resize(readItemWidth + extraKeyColumnCount + std::ssize(valuesIdMapping) + 1);
     // Use raw data pointer because TCompactVector has branch in index operator.
     auto* groupIdsData = groupIds.data();
 
-    for (int index = 0; index < keyColumnCount; ++index) {
+    for (int index = 0; index < readItemWidth; ++index) {
+        *groupIdsData++ = preparedChunkMeta.ColumnInfos[index].GroupId;
+    }
+
+    for (auto index : keyColumnIndexes) {
+        if (index < readItemWidth) {
+            continue;
+        }
         *groupIdsData++ = preparedChunkMeta.ColumnInfos[index].GroupId;
     }
 

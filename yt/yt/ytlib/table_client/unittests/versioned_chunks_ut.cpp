@@ -799,7 +799,14 @@ protected:
         TTimestamp timestamp,
         bool produceAllVersions)
     {
-        auto expectedRows = CreateExpected(initialRows, writeSchema, readSchema, ranges, timestamp, columnFilter);
+        auto expectedRows = CreateExpectedRows(
+            initialRows,
+            writeSchema,
+            readSchema,
+            ranges,
+            timestamp,
+            columnFilter,
+            GetTestOptions().UseNewReader);
 
         auto chunkMeta = memoryReader->GetMeta(/*chunkReadOptions*/ {})
             .Apply(BIND(
@@ -905,7 +912,14 @@ protected:
         TTimestamp timestamp,
         bool produceAllVersions)
     {
-        auto expectedRows = CreateExpectedRows(initialRows, writeSchema, readSchema, lookupKeys, timestamp, columnFilter);
+        auto expectedRows = CreateExpectedRows(
+            initialRows,
+            writeSchema,
+            readSchema,
+            lookupKeys,
+            timestamp,
+            columnFilter,
+            GetTestOptions().UseNewReader);
 
         auto chunkMeta = memoryReader->GetMeta(/*chunkReadOptions*/ {})
             .Apply(BIND(
@@ -1210,13 +1224,14 @@ protected:
         return true;
     }
 
-    std::vector<TVersionedRow> CreateExpected(
+    std::vector<TVersionedRow> CreateExpectedRows(
         TRange<TVersionedRow> rows,
         const TTableSchemaPtr& writeSchema,
         const TTableSchemaPtr& readSchema,
         const TSharedRange<TRowRange>& ranges,
         TTimestamp timestamp,
-        const TColumnFilter& columnFilter)
+        const TColumnFilter& columnFilter,
+        bool considerColumnFilterForKeys)
     {
         YT_VERIFY(writeSchema->GetKeyColumnCount() <= readSchema->GetKeyColumnCount());
 
@@ -1225,6 +1240,10 @@ protected:
         }
 
         std::vector<TVersionedRow> expectedRows;
+
+        auto tableKeyColumnCount = readSchema->GetKeyColumnCount();
+
+        auto keyColumnIndexes = NNewTableClient::ExtractKeyColumnIndexes(columnFilter, tableKeyColumnCount, false);
 
         auto idMapping = BuildIdMapping(writeSchema, readSchema, columnFilter);
 
@@ -1264,8 +1283,14 @@ protected:
                 continue;
             }
 
-            for (const auto& value : key) {
-                builder.AddKey(value);
+            if (considerColumnFilterForKeys) {
+                for (auto keyColumnIndex : keyColumnIndexes) {
+                    builder.AddKey(key[keyColumnIndex]);
+                }
+            } else {
+                for (const auto& value : key) {
+                    builder.AddKey(value);
+                }
             }
 
             if (CreateExpectedRow(&builder, row, timestamp, idMapping, readSchema->Columns())) {
@@ -1285,13 +1310,18 @@ protected:
         const TTableSchemaPtr& readSchema,
         const TSharedRange<TUnversionedRow>& keys,
         TTimestamp timestamp,
-        const TColumnFilter& columnFilter)
+        const TColumnFilter& columnFilter,
+        bool considerColumnFilterForKeys)
     {
         YT_VERIFY(writeSchema->GetKeyColumnCount() <= readSchema->GetKeyColumnCount());
         int keyColumnCount = writeSchema->GetKeyColumnCount();
 
         std::vector<TVersionedRow> expectedRows;
         expectedRows.reserve(keys.size());
+
+        auto tableKeyColumnCount = readSchema->GetKeyColumnCount();
+
+        auto keyColumnIndexes = NNewTableClient::ExtractKeyColumnIndexes(columnFilter, tableKeyColumnCount, true);
 
         auto idMapping = BuildIdMapping(writeSchema, readSchema, columnFilter);
 
@@ -1315,8 +1345,14 @@ protected:
                 nullPadding &&
                 CompareValueRanges(rowsIt->Keys(), key.FirstNElements(keyColumnCount)) == 0)
             {
-                for (const auto& value : key) {
-                    builder.AddKey(value);
+                if (considerColumnFilterForKeys) {
+                    for (auto keyColumnIndex : keyColumnIndexes) {
+                        builder.AddKey(key[keyColumnIndex]);
+                    }
+                } else {
+                    for (const auto& value : key) {
+                        builder.AddKey(value);
+                    }
                 }
 
                 if (CreateExpectedRow(&builder, *rowsIt, timestamp, idMapping, readSchema->Columns())) {

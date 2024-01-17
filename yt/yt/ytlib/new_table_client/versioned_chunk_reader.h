@@ -31,6 +31,13 @@ TBlockManagerFactory CreateSyncBlockWindowManagerFactory(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCompactVector<ui16, 8> ExtractKeyColumnIndexes(
+    const NTableClient::TColumnFilter& columnFilter,
+    int tableKeyColumnCount,
+    bool forceAllKeyColumns);
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TReadItems>
 NTableClient::IVersionedReaderPtr CreateVersionedChunkReader(
     TReadItems readItems,

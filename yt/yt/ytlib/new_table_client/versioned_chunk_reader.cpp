@@ -275,6 +275,27 @@ std::vector<TSpanMatching> BuildReadWindows(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+ui32 GetReadItemWidth(TRange<TRowRange> keyRanges, int /*keyColumnCount*/)
+{
+    ui32 maxCount = 0;
+    for (auto [lower, upper] : keyRanges) {
+        maxCount = std::max(maxCount, std::max(lower.GetCount(), upper.GetCount()));
+    }
+    return maxCount;
+}
+
+ui32 GetReadItemWidth(TRange<TLegacyKey> /*keyRanges*/, int keyColumnCount)
+{
+    return keyColumnCount;
+}
+
+ui32 GetReadItemWidth(const TKeysWithHints& /*keysWithHints*/, int keyColumnCount)
+{
+    return keyColumnCount;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TVersionedChunkReader
 {
 public:
@@ -589,14 +610,33 @@ size_t GetReadItemCount(const TSharedRange<TLegacyKey>& readItems)
     return readItems.size();
 }
 
-size_t GetReadItemCount(const std::vector<ui32>& readItems)
-{
-    return readItems.size();
-}
-
 size_t GetReadItemCount(const TKeysWithHints& readItems)
 {
     return readItems.Keys.size();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCompactVector<ui16, 8> ExtractKeyColumnIndexes(
+    const TColumnFilter& columnFilter,
+    int tableKeyColumnCount,
+    bool forceAllKeyColumns)
+{
+    TCompactVector<ui16, 8> keyColumnIndexes;
+    if (columnFilter.IsUniversal() || forceAllKeyColumns) {
+        keyColumnIndexes.resize(tableKeyColumnCount);
+        for (int index = 0; index < tableKeyColumnCount; ++index) {
+            keyColumnIndexes[index] = index;
+        }
+    } else {
+        auto indexes = MakeRange(columnFilter.GetIndexes());
+        for (auto index : indexes) {
+            if (index < tableKeyColumnCount) {
+                keyColumnIndexes.push_back(index);
+            }
+        }
+    }
+    return keyColumnIndexes;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -628,9 +668,11 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
     TCpuDurationIncrementingGuard timingGuard(&readerStatistics->InitTime);
 
+    auto tableKeyColumnCount = tableSchema->GetKeyColumnCount();
     auto chunkKeyColumnCount = chunkMeta->GetChunkKeyColumnCount();
     const auto& chunkSchema = chunkMeta->ChunkSchema();
 
+    // Lightweight duration counter.
     TCpuDuration lastCpuInstant = GetCpuInstant();
     auto getDurationAndReset = [&] {
         auto startCpuInstant = lastCpuInstant;
@@ -638,8 +680,14 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         return lastCpuInstant - startCpuInstant;
     };
 
+    // Read item width is used to infer read spans.
+    int readItemWidth = GetReadItemWidth(readItems, tableKeyColumnCount);
+    readItemWidth = std::min(readItemWidth, tableKeyColumnCount);
+
+    auto keyColumnIndexes = ExtractKeyColumnIndexes(columnFilter, tableKeyColumnCount, IsKeys(readItems));
+
     auto preparedChunkMeta = chunkMeta->GetPreparedChunkMeta();
-    auto windowsList = BuildReadWindows(readItems, chunkMeta, tableSchema->GetKeyColumnCount());
+    auto windowsList = BuildReadWindows(readItems, chunkMeta, tableKeyColumnCount);
     readerStatistics->BuildReadWindowsTime = getDurationAndReset();
 
     auto valuesIdMapping = chunkColumnMapping
@@ -648,7 +696,11 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             .BuildVersionedSimpleSchemaIdMapping(columnFilter);
     readerStatistics->GetValuesIdMappingTime = getDurationAndReset();
 
-    auto groupIds = GetGroupsIds(*preparedChunkMeta, chunkKeyColumnCount, valuesIdMapping);
+    auto groupIds = GetGroupsIds(
+        *preparedChunkMeta,
+        readItemWidth,
+        keyColumnIndexes,
+        valuesIdMapping);
     auto groupBlockHolders = CreateGroupBlockHolders(*preparedChunkMeta, groupIds);
     readerStatistics->CreateColumnBlockHoldersTime = getDurationAndReset();
 
@@ -656,48 +708,60 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     auto valueSchema = GetValuesSchema(tableSchema, valuesIdMapping);
     readerStatistics->GetTypesFromSchemaTime = getDurationAndReset();
 
-    TCompactVector<TColumnBase, 32> columnInfos;
-    columnInfos.resize(std::ssize(keyTypes) + std::ssize(valuesIdMapping) + 1);
+    TCompactVector<TColumnBase, 32> columnBases;
+    columnBases.resize(std::ssize(keyTypes) + std::ssize(valuesIdMapping) + 1);
     // Use raw data pointer because TCompactVector has branch in index operator.
-    auto* columnInfosData = columnInfos.data();
+    auto* columnBasesData = columnBases.data();
 
-    for (int keyColumnIndex = 0; keyColumnIndex < std::ssize(keyTypes); ++keyColumnIndex) {
-        const TBlockRef* blockRef = nullptr;
-        if (keyColumnIndex < chunkMeta->GetChunkKeyColumnCount()) {
-            auto groupId = preparedChunkMeta->ColumnInfos[keyColumnIndex].GroupId;
-            auto blockHolderIndex = LowerBound(groupIds.begin(), groupIds.end(), groupId) - groupIds.begin();
-            YT_VERIFY(blockHolderIndex < std::ssize(groupIds) && groupIds[blockHolderIndex] == groupId);
-            blockRef = &groupBlockHolders[blockHolderIndex];
-        }
-
-        *columnInfosData++ = {blockRef, preparedChunkMeta->ColumnInfos[keyColumnIndex].IndexInGroup};
-    }
-
-    for (auto [chunkSchemaIndex, readerSchemaIndex] : valuesIdMapping) {
-        auto groupId = preparedChunkMeta->ColumnInfos[chunkSchemaIndex].GroupId;
+    auto makeColumnBase = [&] (const TPreparedChunkMeta::TColumnInfo& columnInfo, ui16 columnId) {
+        auto groupId = columnInfo.GroupId;
         auto blockHolderIndex = LowerBound(groupIds.begin(), groupIds.end(), groupId) - groupIds.begin();
         YT_VERIFY(blockHolderIndex < std::ssize(groupIds) && groupIds[blockHolderIndex] == groupId);
         const auto* blockRef = &groupBlockHolders[blockHolderIndex];
 
-        *columnInfosData++ = {blockRef, preparedChunkMeta->ColumnInfos[chunkSchemaIndex].IndexInGroup};
+        *columnBasesData++ = {blockRef, columnInfo.IndexInGroup, columnId};
+    };
+
+    auto makeKeyColumnBase = [&] (int keyColumnIndex) {
+        const auto& columnInfo = preparedChunkMeta->ColumnInfos[keyColumnIndex];
+        if (keyColumnIndex < chunkKeyColumnCount) {
+            makeColumnBase(columnInfo, keyColumnIndex);
+        } else {
+            *columnBasesData++ = {nullptr, columnInfo.IndexInGroup, ui16(keyColumnIndex)};
+        }
+    };
+
+    for (int keyColumnIndex = 0; keyColumnIndex < readItemWidth; ++keyColumnIndex) {
+        makeKeyColumnBase(keyColumnIndex);
+    }
+
+    for (auto keyColumnIndex : keyColumnIndexes) {
+        if (keyColumnIndex < readItemWidth) {
+            continue;
+        }
+
+        makeKeyColumnBase(keyColumnIndex);
+    }
+
+    for (auto [chunkSchemaIndex, readerSchemaIndex] : valuesIdMapping) {
+        makeColumnBase(preparedChunkMeta->ColumnInfos[chunkSchemaIndex], readerSchemaIndex);
     }
 
     {
         // Timestamp column info.
-        auto groupId = preparedChunkMeta->ColumnInfos.back().GroupId;
-        auto blockHolderIndex = LowerBound(groupIds.begin(), groupIds.end(), groupId) - groupIds.begin();
-        YT_VERIFY(blockHolderIndex < std::ssize(groupIds) && groupIds[blockHolderIndex] == groupId);
-        const auto* blockRef = &groupBlockHolders[blockHolderIndex];
-
-        *columnInfosData++ = {blockRef, preparedChunkMeta->ColumnInfos.back().IndexInGroup};
+        makeColumnBase(preparedChunkMeta->ColumnInfos.back(), 0);
     }
+
+    columnBases.resize(columnBasesData - columnBases.data());
 
     readerStatistics->BuildColumnInfosTime = getDurationAndReset();
 
     auto rowsetBuilder = CreateRowsetBuilder(std::move(readItems), {
         keyTypes,
+        static_cast<ui16>(readItemWidth),
+        std::move(keyColumnIndexes),
         valueSchema,
-        columnInfos,
+        columnBases,
         timestamp,
         produceAll,
         preparedChunkMeta->FullNewMeta
@@ -806,7 +870,7 @@ TSharedRange<TRowRange> ClipRanges(
             std::move(ranges.ReleaseHolder()),
             std::move(holder));
     } else {
-        return TSharedRange<TRowRange>(); // Empty ranges.
+        return {}; // Empty ranges.
     }
 }
 

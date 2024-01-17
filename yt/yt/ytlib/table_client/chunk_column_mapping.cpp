@@ -114,10 +114,10 @@ std::vector<TColumnIdMapping> TChunkColumnMapping::BuildVersionedSimpleSchemaIdM
                 continue;
             }
 
-            TColumnIdMapping mapping;
-            mapping.ChunkSchemaIndex = chunkIndex;
-            mapping.ReaderSchemaIndex = schemaValueIndex + TableKeyColumnCount_;
-            valueIdMapping.push_back(mapping);
+            valueIdMapping.push_back({
+                .ChunkSchemaIndex = chunkIndex,
+                .ReaderSchemaIndex = TableKeyColumnCount_ + schemaValueIndex
+            });
         }
     } else {
         auto indexes = MakeRange(columnFilter.GetIndexes());
@@ -133,10 +133,10 @@ std::vector<TColumnIdMapping> TChunkColumnMapping::BuildVersionedSimpleSchemaIdM
                 continue;
             }
 
-            TColumnIdMapping mapping;
-            mapping.ChunkSchemaIndex = chunkIndex;
-            mapping.ReaderSchemaIndex = index;
-            valueIdMapping.push_back(mapping);
+            valueIdMapping.push_back({
+                .ChunkSchemaIndex = chunkIndex,
+                .ReaderSchemaIndex = index
+            });
         }
     }
 

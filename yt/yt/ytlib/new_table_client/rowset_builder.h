@@ -54,6 +54,8 @@ struct TRowsetBuilderParams
 {
     // Const qualifier is used to force all fields initialization.
     const TRange<EValueType> KeyTypes;
+    const ui16 ReadItemWidth;
+    const TCompactVector<ui16, 8> KeyColumnIndexes;
     const TRange<TValueSchema> ValueSchema;
     const TRange<TColumnBase> ColumnInfos;
     const TTimestamp Timestamp;

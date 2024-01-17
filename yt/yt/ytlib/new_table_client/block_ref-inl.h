@@ -13,9 +13,10 @@ inline TColumnBase::TColumnBase(const TColumnBase* columnInfo)
     : TColumnBase(*columnInfo)
 { }
 
-inline TColumnBase::TColumnBase(const TBlockRef* blockRef, ui16 indexInGroup)
+inline TColumnBase::TColumnBase(const TBlockRef* blockRef, ui16 indexInGroup, ui16 columnId)
     : BlockRef_(blockRef)
     , IndexInGroup_(indexInGroup)
+    , ColumnId_(columnId)
 { }
 
 inline bool TColumnBase::IsNull() const
@@ -59,6 +60,11 @@ const TMeta* TColumnBase::SkipToSegment(ui32 rowIndex) const
 
     // Iterator can be out of range when reading sentinel rows after chunk row limit.
     return segmentIt != segmentMetas.end() ? segmentIt : nullptr;
+}
+
+inline ui16 TColumnBase::GetColumnId() const
+{
+    return ColumnId_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
