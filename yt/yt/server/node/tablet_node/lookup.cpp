@@ -96,17 +96,20 @@ class TUnversionedAdapter
 protected:
     using TMutableRow = TMutableUnversionedRow;
 
-    const std::unique_ptr<IWireProtocolWriter> Writer_;
+    const std::unique_ptr<IWireProtocolWriter> Writer_ = CreateWireProtocolWriter();
 
     TSchemafulRowMerger Merger_;
 
+    DEFINE_BYVAL_RO_PROPERTY(int, FoundRowCount, 0);
+    DEFINE_BYVAL_RO_PROPERTY(i64, FoundDataWeight, 0);
+
+protected:
     TUnversionedAdapter(
         const TTabletSnapshotPtr& tabletSnapshot,
         const TColumnFilter& columnFilter,
         const TRetentionConfigPtr& /*retentionConfig*/,
         const TReadTimestampRange& timestampRange)
-        : Writer_(CreateWireProtocolWriter())
-        , Merger_(
+        : Merger_(
             New<TRowBuffer>(TLookupSessionBufferTag()),
             tabletSnapshot->PhysicalSchema->GetColumnCount(),
             tabletSnapshot->PhysicalSchema->GetKeyColumnCount(),
@@ -117,6 +120,8 @@ protected:
 
     void WriteRow(TUnversionedRow row)
     {
+        FoundRowCount_ += static_cast<bool>(row);
+        FoundDataWeight_ += GetDataWeight(row);
         Writer_->WriteSchemafulRow(row);
     }
 };
@@ -126,17 +131,20 @@ class TVersionedAdapter
 protected:
     using TMutableRow = TMutableVersionedRow;
 
-    const std::unique_ptr<IWireProtocolWriter> Writer_;
+    const std::unique_ptr<IWireProtocolWriter> Writer_ = CreateWireProtocolWriter();
 
     TVersionedRowMerger Merger_;
 
+    DEFINE_BYVAL_RO_PROPERTY(int, FoundRowCount, 0);
+    DEFINE_BYVAL_RO_PROPERTY(i64, FoundDataWeight, 0);
+
+protected:
     TVersionedAdapter(
         const TTabletSnapshotPtr& tabletSnapshot,
         const TColumnFilter& columnFilter,
         const TRetentionConfigPtr& retentionConfig,
         const TReadTimestampRange& timestampRange)
-        : Writer_(CreateWireProtocolWriter())
-        , Merger_(
+        : Merger_(
             New<TRowBuffer>(TLookupSessionBufferTag()),
             tabletSnapshot->PhysicalSchema->GetColumnCount(),
             tabletSnapshot->PhysicalSchema->GetKeyColumnCount(),
@@ -151,6 +159,8 @@ protected:
 
     void WriteRow(TVersionedRow row)
     {
+        FoundRowCount_ += static_cast<bool>(row);
+        FoundDataWeight_ += GetDataWeight(row);
         Writer_->WriteVersionedRow(row);
     }
 };
@@ -164,10 +174,6 @@ class TSimplePipeline
 protected:
     using typename TRowAdapter::TMutableRow;
 
-    DEFINE_BYVAL_RO_PROPERTY(int, FoundRowCount, 0);
-    DEFINE_BYVAL_RO_PROPERTY(i64, FoundDataWeight, 0);
-
-protected:
     TSimplePipeline(
         const TTabletSnapshotPtr& tabletSnapshot,
         const TColumnFilter& columnFilter,
@@ -206,15 +212,13 @@ protected:
 
     TMutableRow GetMergedRow()
     {
-        auto mergedRow = Merger_.BuildMergedRow();
-        FoundRowCount_ += static_cast<bool>(mergedRow);
-        FoundDataWeight_ += GetDataWeight(mergedRow);
-        return mergedRow;
+        return Merger_.BuildMergedRow();
     }
 
     void FinishRow()
     {
-        TRowAdapter::WriteRow(GetMergedRow());
+        auto mergedRow = GetMergedRow();
+        TRowAdapter::WriteRow(mergedRow);
     }
 
     TFuture<std::vector<TSharedRef>> PostprocessTabletLookup(TRefCountedPtr /*owner*/)
@@ -236,10 +240,6 @@ class TRowCachePipeline
 protected:
     using TMutableRow = TMutableVersionedRow;
 
-    DEFINE_BYVAL_RO_PROPERTY(int, FoundRowCount, 0);
-    DEFINE_BYVAL_RO_PROPERTY(i64, FoundDataWeight, 0);
-
-protected:
     TRowCachePipeline(
         const TTabletSnapshotPtr& tabletSnapshot,
         const TColumnFilter& columnFilter,
@@ -383,10 +383,7 @@ protected:
         auto mergedRow = IsLookupInChunkNeeded(CurrentRowIndex_)
             ? CacheRowMerger_.BuildMergedRow()
             : SimpleRowMerger_.BuildMergedRow(RowBuffer_);
-        auto rowFromActiveStore = RowsFromActiveStore_[CurrentRowIndex_];
 
-        FoundRowCount_ += static_cast<bool>(mergedRow) || static_cast<bool>(rowFromActiveStore);
-        FoundDataWeight_ += GetDataWeight(mergedRow) + GetDataWeight(rowFromActiveStore);
         ++CurrentRowIndex_;
         return mergedRow;
     }
