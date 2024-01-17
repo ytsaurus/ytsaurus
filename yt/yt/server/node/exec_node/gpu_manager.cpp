@@ -180,6 +180,8 @@ TGpuManager::TGpuManager(IBootstrap* bootstrap)
         return;
     }
 
+    HasGpuDevices_ = true;
+
     auto now = TInstant::Now();
     for (const auto& descriptor : descriptors) {
         GpuDevices_.push_back(descriptor.DeviceName);
@@ -435,6 +437,13 @@ int TGpuManager::GetUsedGpuCount() const
 
     auto guard = Guard(SpinLock_);
     return !Enabled_ || IsDriverLayerMissing() ? 0 : (HealthyGpuInfoMap_.size() - FreeSlots_.size());
+}
+
+bool TGpuManager::HasGpuDevices() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return HasGpuDevices_;
 }
 
 THashMap<int, TGpuInfo> TGpuManager::GetGpuInfoMap() const
