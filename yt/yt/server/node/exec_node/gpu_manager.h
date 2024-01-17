@@ -85,6 +85,8 @@ public:
     int GetTotalGpuCount() const;
     int GetFreeGpuCount() const;
     int GetUsedGpuCount() const;
+    bool HasGpuDevices() const;
+
     const std::vector<TString>& GetGpuDevices() const;
     THashMap<int, NGpu::TGpuInfo> GetGpuInfoMap() const;
 
@@ -114,6 +116,8 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     THashMap<int, NGpu::TGpuInfo> HealthyGpuInfoMap_;
     THashSet<int> LostGpuDeviceIndices_;
+
+    bool HasGpuDevices_ = false;
 
     THashSet<int> AcquiredGpuDeviceIndices_;
     std::vector<int> FreeSlots_;
