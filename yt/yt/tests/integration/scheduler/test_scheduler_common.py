@@ -1708,8 +1708,8 @@ class TestSchedulerObjectsDestruction(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "scheduler_connector": {
-                    "heartbeat_executor_options": {
-                        "periodic_options": {
+                    "heartbeats": {
+                        "periodic": {
                             "period": 1,  # 1 msec
                         },
                     },
@@ -1769,8 +1769,8 @@ class TestScheduleJobDelayAndRevive(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "scheduler_connector": {
-                    "heartbeat_executor_options": {
-                        "periodic_options": {
+                    "heartbeats": {
+                        "periodic": {
                             "period": 1,  # 1 msec
                         },
                     },

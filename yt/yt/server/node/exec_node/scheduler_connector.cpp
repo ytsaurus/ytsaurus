@@ -53,7 +53,7 @@ TSchedulerConnector::TSchedulerConnector(IBootstrap* bootstrap)
         BIND([this_ = MakeWeak(this)] {
             return this_.Lock()->SendHeartbeat();
         }),
-        DynamicConfig_.Acquire()->HeartbeatExecutorOptions))
+        DynamicConfig_.Acquire()->Heartbeats))
     , TimeBetweenSentHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_sent_heartbeats"))
     , TimeBetweenAcknowledgedHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_acknowledged_heartbeats"))
     , TimeBetweenFullyProcessedHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_fully_processed_heartbeats"))
@@ -93,12 +93,12 @@ void TSchedulerConnector::OnDynamicConfigChanged(
 
     YT_LOG_DEBUG(
         "Set new scheduler heartbeat options (NewPeriod: %v, NewSplay: %v, NewMinBackoff: %v, NewMaxBackoff: %v, NewBackoffMultiplier: %v)",
-        newConfig->HeartbeatExecutorOptions.PeriodicOptions.Period,
-        newConfig->HeartbeatExecutorOptions.PeriodicOptions.Splay,
-        newConfig->HeartbeatExecutorOptions.BackoffOptions.MinBackoff,
-        newConfig->HeartbeatExecutorOptions.BackoffOptions.MaxBackoff,
-        newConfig->HeartbeatExecutorOptions.BackoffOptions.BackoffMultiplier);
-    HeartbeatExecutor_->SetOptions(newConfig->HeartbeatExecutorOptions);
+        newConfig->Heartbeats.Periodic.Period,
+        newConfig->Heartbeats.Periodic.Splay,
+        newConfig->Heartbeats.BackoffStrategy.MinBackoff,
+        newConfig->Heartbeats.BackoffStrategy.MaxBackoff,
+        newConfig->Heartbeats.BackoffStrategy.BackoffMultiplier);
+    HeartbeatExecutor_->SetOptions(newConfig->Heartbeats);
 }
 
 void TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded()

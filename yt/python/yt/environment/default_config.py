@@ -676,7 +676,7 @@ def get_dynamic_node_config():
         };
         exec_node = {
             job_controller = {
-                operation_info_request_backoff_options = {
+                operation_info_request_backoff_strategy = {
                     backoff = 1000;
                 };
                 job_common = {
@@ -690,7 +690,7 @@ def get_dynamic_node_config():
             };
 
             controller_agent_connector = {
-                total_confirmation_backoff_options = {
+                total_confirmation_backoff_strategy = {
                     backoff = 5000;
                 };
                 heartbeat_period = 100;
@@ -705,11 +705,11 @@ def get_dynamic_node_config():
                 failed_heartbeat_backoff_max_time = 50;
                 failed_heartbeat_backoff_multiplier = 1.0;
                 heartbeat_period = 100;
-                heartbeat_executor_options = {
-                    periodic_options = {
+                heartbeats = {
+                    periodic = {
                         period = 100;
                     };
-                    backoff_options = {
+                    backoff_strategy = {
                         min_backoff = 200;
                         max_backoff = 200;
                         backoff_multiplier = 1.0;

@@ -179,12 +179,12 @@ DYNAMIC_NODE_CONFIG_PATCHES = [
                 "failed_heartbeat_backoff_start_time": 50,
                 "failed_heartbeat_backoff_max_time": 50,
                 "failed_heartbeat_backoff_multiplier": 1.0,
-                "heartbeat_executor_options": {
-                    "periodic_options": {
+                "heartbeats": {
+                    "periodic": {
                         "period": 100,
                         "splay": 50,
                     },
-                    "backoff_options": {
+                    "backoff_strategy": {
                         "min_backoff": 50,
                         "max_backoff": 50,
                         "backoff_multiplier": 1.0,

@@ -218,7 +218,7 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
         .Default(50);
     registrar.Parameter("max_consecutive_job_aborts", &TThis::MaxConsecutiveJobAborts)
         .Default(500);
-    registrar.Parameter("disable_jobs_backoff_options", &TThis::DisableJobsBackoffOptions)
+    registrar.Parameter("disable_jobs_backoff_strategy", &TThis::DisableJobsBackoffStrategy)
         .Default({
             .Backoff = TDuration::Minutes(10),
             .BackoffJitter = 1.0,
@@ -501,7 +501,7 @@ void TControllerAgentConnectorDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(30));
     registrar.Parameter("use_job_tracker_service_to_settle_jobs", &TThis::UseJobTrackerServiceToSettleJobs)
         .Default(false);
-    registrar.Parameter("total_confirmation_backoff_options", &TThis::TotalConfirmationBackoffOptions)
+    registrar.Parameter("total_confirmation_backoff_strategy", &TThis::TotalConfirmationBackoffStrategy)
         .Default({
             .Backoff = TDuration::Minutes(10),
             .BackoffJitter = 0.1,
@@ -520,14 +520,14 @@ void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
 
 void TSchedulerConnectorDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("heartbeat_executor_options", &TThis::HeartbeatExecutorOptions)
+    registrar.Parameter("heartbeats", &TThis::Heartbeats)
         .Default(TRetryingPeriodicExecutorOptions{
-            .PeriodicOptions = {
+            .Periodic = {
                 .Period = TDuration::Seconds(3),
                 .Splay = TDuration::Seconds(1),
                 .Jitter = 0.0,
             },
-            .BackoffOptions = {
+            .BackoffStrategy = {
                 .MinBackoff = TDuration::Seconds(5),
                 .MaxBackoff = TDuration::Seconds(60),
                 .BackoffMultiplier = 2.0,
@@ -686,7 +686,7 @@ void TJobCommonConfig::Register(TRegistrar registrar)
 
 void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("operation_info_request_backoff_options", &TThis::OperationInfoRequestBackoffOptions)
+    registrar.Parameter("operation_info_request_backoff_strategy", &TThis::OperationInfoRequestBackoffStrategy)
         .Default({
             .Backoff = TDuration::Seconds(5),
             .BackoffJitter = 0.1,

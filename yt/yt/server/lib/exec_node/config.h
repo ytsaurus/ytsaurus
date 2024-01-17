@@ -289,7 +289,7 @@ public:
 
     int MaxConsecutiveJobAborts;
 
-    TConstantBackoffOptions DisableJobsBackoffOptions;
+    TConstantBackoffOptions DisableJobsBackoffStrategy;
 
     // COMPAT(psushin): temporary flag to disable CloseAllDescriptors machinery.
     bool ShouldCloseDescriptors;
@@ -402,7 +402,7 @@ class TControllerAgentConnectorDynamicConfig
     : public THeartbeatReporterDynamicConfigBase
 {
 public:
-    TConstantBackoffOptions TotalConfirmationBackoffOptions;
+    TConstantBackoffOptions TotalConfirmationBackoffStrategy;
 
     TDuration SettleJobsTimeout;
 
@@ -442,7 +442,7 @@ class TSchedulerConnectorDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
-    NConcurrency::TRetryingPeriodicExecutorOptions HeartbeatExecutorOptions;
+    NConcurrency::TRetryingPeriodicExecutorOptions Heartbeats;
 
     bool SendHeartbeatOnJobFinished;
 
@@ -606,7 +606,7 @@ class TJobControllerDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
-    TConstantBackoffOptions OperationInfoRequestBackoffOptions;
+    TConstantBackoffOptions OperationInfoRequestBackoffStrategy;
 
     TDuration WaitingJobsTimeout;
 

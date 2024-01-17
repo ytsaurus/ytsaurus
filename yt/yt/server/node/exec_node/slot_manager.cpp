@@ -60,7 +60,7 @@ TSlotManager::TSlotManager(IBootstrap* bootstrap)
         New<TPortoExecutorDynamicConfig>(),
         Bootstrap_->GetControlInvoker(),
         Logger))
-    , DisableJobsBackoffStrategy_(DynamicConfig_.Acquire()->DisableJobsBackoffOptions)
+    , DisableJobsBackoffStrategy_(DynamicConfig_.Acquire()->DisableJobsBackoffStrategy)
 {
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
@@ -257,7 +257,7 @@ void TSlotManager::OnDynamicConfigChanged(
             this,
             this_ = MakeStrong(this)
         ] {
-            DisableJobsBackoffStrategy_.UpdateOptions(newConfig->DisableJobsBackoffOptions);
+            DisableJobsBackoffStrategy_.UpdateOptions(newConfig->DisableJobsBackoffStrategy);
             if (JobEnvironment_) {
                 try {
                     JobEnvironment_->OnDynamicConfigChanged(oldConfig, newConfig);

@@ -53,7 +53,7 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
         }))
     , StatisticsThrottler_(CreateReconfigurableThroughputThrottler(
         GetConfig()->StatisticsThrottler))
-    , TotalConfirmationRequestBackoffStrategy_(GetConfig()->TotalConfirmationBackoffOptions)
+    , TotalConfirmationRequestBackoffStrategy_(GetConfig()->TotalConfirmationBackoffStrategy)
 {
     YT_LOG_DEBUG("Controller agent connector created (AgentAddress: %v, IncarnationId: %v)",
         ControllerAgentDescriptor_.Address,
@@ -317,7 +317,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnConfigUpdated(
 
     HeartbeatExecutor_->SetPeriod(newConfig->HeartbeatPeriod);
     StatisticsThrottler_->Reconfigure(newConfig->StatisticsThrottler);
-    TotalConfirmationRequestBackoffStrategy_.UpdateOptions(newConfig->TotalConfirmationBackoffOptions);
+    TotalConfirmationRequestBackoffStrategy_.UpdateOptions(newConfig->TotalConfirmationBackoffStrategy);
 }
 
 TControllerAgentConnectorPool::TControllerAgentConnector::~TControllerAgentConnector()

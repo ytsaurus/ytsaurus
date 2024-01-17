@@ -123,8 +123,8 @@ class LowCpuUsageSchedulerAlertBase(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "scheduler_connector": {
-                    "heartbeat_executor_options": {
-                        "periodic_options": {
+                    "heartbeats": {
+                        "periodic": {
                             "period": 200,  # 200 msec
                         },
                     },
@@ -195,8 +195,8 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "scheduler_connector": {
-                    "heartbeat_executor_options": {
-                        "periodic_options": {
+                    "heartbeats": {
+                        "periodic": {
                             "period": 200,  # 200 msec
                         },
                     },

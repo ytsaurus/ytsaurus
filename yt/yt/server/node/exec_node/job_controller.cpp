@@ -116,7 +116,7 @@ public:
     TJobController(IBootstrapBase* bootstrap)
         : Bootstrap_(bootstrap)
         , DynamicConfig_(New<TJobControllerDynamicConfig>())
-        , OperationInfoRequestBackoffStrategy_(DynamicConfig_.Acquire()->OperationInfoRequestBackoffOptions)
+        , OperationInfoRequestBackoffStrategy_(DynamicConfig_.Acquire()->OperationInfoRequestBackoffStrategy)
         , Profiler_("/job_controller")
         , CacheHitArtifactsSizeCounter_(Profiler_.Counter("/chunk_cache/cache_hit_artifacts_size"))
         , CacheMissArtifactsSizeCounter_(Profiler_.Counter("/chunk_cache/cache_miss_artifacts_size"))
@@ -425,7 +425,7 @@ public:
 
         DynamicConfig_.Store(newConfig);
 
-        OperationInfoRequestBackoffStrategy_.UpdateOptions(newConfig->OperationInfoRequestBackoffOptions);
+        OperationInfoRequestBackoffStrategy_.UpdateOptions(newConfig->OperationInfoRequestBackoffStrategy);
         ProfilingExecutor_->SetPeriod(
             newConfig->ProfilingPeriod);
         ResourceAdjustmentExecutor_->SetPeriod(
