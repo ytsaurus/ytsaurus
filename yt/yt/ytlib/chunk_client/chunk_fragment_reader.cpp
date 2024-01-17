@@ -1510,7 +1510,8 @@ private:
                 MakeStrong(this),
                 std::move(req),
                 plan,
-                bytesToThrottle));
+                bytesToThrottle)
+                .Via(SessionInvoker_));
         }
     }
 
