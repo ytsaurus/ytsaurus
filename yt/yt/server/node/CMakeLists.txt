@@ -196,6 +196,7 @@ target_sources(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/chaos_agent.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/chunk_view_size_fetcher.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/compaction_hint_fetcher.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/compression_dictionary_builder.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/distributed_throttler_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/dynamic_store_bits.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/hedging_manager_registry.cpp

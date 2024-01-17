@@ -722,7 +722,7 @@ private:
         TabletEpochActive_.store(false);
     }
 
-    virtual bool IsTabletEpochActive() const override
+    bool IsTabletEpochActive() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

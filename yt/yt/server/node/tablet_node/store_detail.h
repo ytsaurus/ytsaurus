@@ -258,6 +258,16 @@ public:
 
     NChunkClient::IBlockCachePtr GetBlockCache();
 
+    // Fast path.
+    NTableClient::TCachedVersionedChunkMetaPtr FindCachedVersionedChunkMeta(
+        bool prepareColumnarMeta);
+
+    // Slow path.
+    TFuture<NTableClient::TCachedVersionedChunkMetaPtr> GetCachedVersionedChunkMeta(
+        const NChunkClient::IChunkReaderPtr& chunkReader,
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+        bool prepareColumnarMeta);
+
 protected:
     const NChunkClient::IBlockCachePtr BlockCache_;
     const IVersionedChunkMetaManagerPtr ChunkMetaManager_;
@@ -291,16 +301,6 @@ protected:
     EMemoryCategory GetMemoryCategory() const override;
 
     NTableClient::TChunkStatePtr FindPreloadedChunkState() const;
-
-    // Fast path.
-    NTableClient::TCachedVersionedChunkMetaPtr FindCachedVersionedChunkMeta(
-        bool prepareColumnarMeta);
-
-    // Slow path.
-    TFuture<NTableClient::TCachedVersionedChunkMetaPtr> GetCachedVersionedChunkMeta(
-        const NChunkClient::IChunkReaderPtr& chunkReader,
-        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-        bool prepareColumnarMeta);
 
     virtual const NTableClient::TKeyComparer& GetKeyComparer() const = 0;
 

@@ -354,6 +354,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
         .Default()
         .DontSerializeDefault();
 
+    registrar.Parameter("value_dictionary_compression", &TThis::ValueDictionaryCompression)
+        .DefaultNew();
+
     registrar.Postprocessor([&] (TCustomTableMountConfig* config) {
         if (config->MaxDynamicStoreRowCount > config->MaxDynamicStoreValueCount) {
             THROW_ERROR_EXCEPTION("\"max_dynamic_store_row_count\" must be less than or equal to \"max_dynamic_store_value_count\"");
@@ -841,6 +844,32 @@ void TMediumThrottlersConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TCompressionDictionaryBuilderConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
+        .GreaterThan(0)
+        .Default(1);
+    registrar.Parameter("max_concurrent_build_tasks", &TThis::MaxConcurrentBuildTasks)
+        .GreaterThan(0)
+        .Default(2);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCompressionDictionaryBuilderDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(true);
+    registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
+        .GreaterThan(0)
+        .Optional();
+    registrar.Parameter("max_concurrent_build_tasks", &TThis::MaxConcurrentBuildTasks)
+        .GreaterThan(0)
+        .Optional();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("slots", &TThis::Slots)
@@ -869,6 +898,8 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("partition_balancer", &TThis::PartitionBalancer)
         .DefaultNew();
     registrar.Parameter("in_memory_manager", &TThis::InMemoryManager)
+        .DefaultNew();
+    registrar.Parameter("compression_dictionary_builder", &TThis::CompressionDictionaryBuilder)
         .DefaultNew();
 
     registrar.Parameter("versioned_chunk_meta_cache", &TThis::VersionedChunkMetaCache)
@@ -955,6 +986,8 @@ void TTabletNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("hint_manager", &TThis::HintManager)
         .DefaultNew();
     registrar.Parameter("table_config_manager", &TThis::TableConfigManager)
+        .DefaultNew();
+    registrar.Parameter("compression_dictionary_builder", &TThis::CompressionDictionaryBuilder)
         .DefaultNew();
 
     registrar.Parameter("versioned_chunk_meta_cache", &TThis::VersionedChunkMetaCache)

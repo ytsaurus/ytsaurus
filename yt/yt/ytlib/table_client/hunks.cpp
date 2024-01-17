@@ -953,8 +953,8 @@ public:
                         if (payloadLength < *maxInlineHunkSize) {
                             // Leave as is.
                             if (columnarStatisticsThunk) {
-                            columnarStatisticsThunk->UpdateStatistics(
-                                value.Id, inlineHunkValue);
+                                columnarStatisticsThunk->UpdateStatistics(
+                                    value.Id, inlineHunkValue);
                             }
                             return;
                         }
@@ -963,8 +963,7 @@ public:
                         TotalHunkLength_ += payloadLength;
 
                         auto [blockIndex, blockOffset, hunkWriterReady] =
-                            HunkChunkPayloadWriter_->WriteHunk(
-                                inlineHunkValue.Payload);
+                            HunkChunkPayloadWriter_->WriteHunk(inlineHunkValue.Payload);
                         ready &= hunkWriterReady;
 
                         TLocalRefHunkValue localRefHunkValue{

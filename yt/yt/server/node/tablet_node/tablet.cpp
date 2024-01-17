@@ -89,6 +89,20 @@ TPreloadStatistics& TPreloadStatistics::operator+=(const TPreloadStatistics& oth
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TCompressionDictionaryInfo::Save(TSaveContext& context) const
+{
+    using NYT::Save;
+    Save(context, ChunkId);
+}
+
+void TCompressionDictionaryInfo::Load(TLoadContext& context)
+{
+    using NYT::Load;
+    Load(context, ChunkId);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp)
 {
     if (timestamp < tabletSnapshot->RetainedTimestamp) {
@@ -744,6 +758,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, LastDiscardStoresRevision_);
     Save(context, PreparedReplicatorTransactionIds_);
     Save(context, IdGenerator_);
+    Save(context, CompressionDictionaryInfos_);
 
     HunkLockManager_->Save(context);
 }
@@ -895,6 +910,24 @@ void TTablet::Load(TLoadContext& context)
             // Make first ids look like 1-1-... rather than 0-1-...
             /*counter*/ 1ull << 32,
             /*seed*/ seed);
+    }
+
+    // COMPAT(akozhikhov)
+    if (context.GetVersion() >= ETabletReign::ValueDictionaryCompression ||
+        (context.GetVersion() < ETabletReign::NoMountRevisionCheckInBulkInsert &&
+         context.GetVersion() >= ETabletReign::ValueDictionaryCompression_23_2))
+    {
+        Load(context, CompressionDictionaryInfos_);
+        for (auto policy : TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()) {
+            auto chunkId = CompressionDictionaryInfos_[policy].ChunkId;
+            if (chunkId == NullChunkId) {
+                continue;
+            }
+            auto dictionaryHunkChunk = GetHunkChunk(chunkId);
+            YT_VERIFY(!dictionaryHunkChunk->GetAttachedCompressionDictionary());
+            dictionaryHunkChunk->SetAttachedCompressionDictionary(true);
+            UpdateDanglingHunkChunks(dictionaryHunkChunk);
+        }
     }
 
     // COMPAT(aleksandra-zh)
@@ -1083,6 +1116,17 @@ void TTablet::Clear()
 void TTablet::OnAfterSnapshotLoaded()
 {
     TabletWriteManager_->OnAfterSnapshotLoaded();
+
+    for (auto& dictionaryInfo : CompressionDictionaryInfos_) {
+        auto chunkId = dictionaryInfo.ChunkId;
+        if (chunkId == NullChunkId) {
+            continue;
+        }
+        auto dictionaryHunkChunk = GetHunkChunk(chunkId);
+        YT_VERIFY(dictionaryHunkChunk->GetCreationTime() != TInstant::Zero());
+        dictionaryInfo.RebuildBackoffTime = dictionaryHunkChunk->GetCreationTime() +
+            Settings_.MountConfig->ValueDictionaryCompression->RebuildPeriod;
+    }
 }
 
 const std::vector<std::unique_ptr<TPartition>>& TTablet::PartitionList() const
@@ -1456,6 +1500,26 @@ THunkChunkPtr TTablet::GetHunkChunkOrThrow(TChunkId id)
     return hunkChunk;
 }
 
+void TTablet::AttachCompressionDictionary(
+    NTableClient::EDictionaryCompressionPolicy policy,
+    NChunkClient::TChunkId id)
+{
+    auto oldDictionaryId = CompressionDictionaryInfos_[policy].ChunkId;
+    CompressionDictionaryInfos_[policy].ChunkId = id;
+
+    if (oldDictionaryId != NullChunkId) {
+        auto oldDictionaryHunkChunk = GetHunkChunk(oldDictionaryId);
+        YT_VERIFY(oldDictionaryHunkChunk->GetAttachedCompressionDictionary());
+        oldDictionaryHunkChunk->SetAttachedCompressionDictionary(false);
+        UpdateDanglingHunkChunks(oldDictionaryHunkChunk);
+    }
+
+    auto dictionaryHunkChunk = GetHunkChunk(id);
+    YT_VERIFY(!dictionaryHunkChunk->GetAttachedCompressionDictionary());
+    dictionaryHunkChunk->SetAttachedCompressionDictionary(true);
+    UpdateDanglingHunkChunks(dictionaryHunkChunk);
+}
+
 void TTablet::UpdatePreparedStoreRefCount(const THunkChunkPtr& hunkChunk, int delta)
 {
     hunkChunk->SetPreparedStoreRefCount(hunkChunk->GetPreparedStoreRefCount() + delta);
@@ -1598,6 +1662,7 @@ void TTablet::Reconfigure(const ITabletSlotPtr& slot)
     ReconfigureRowCache(slot);
     InvalidateChunkReaders();
     ReconfigureHedgingManagerRegistry();
+    ReconfigureCompressionDictionaries();
 }
 
 void TTablet::StartEpoch(const ITabletSlotPtr& slot)
@@ -1694,10 +1759,12 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
     snapshot->StoreFlushIndex = StoreFlushIndex_;
     snapshot->DistributedThrottlers = DistributedThrottlers_;
     snapshot->HedgingManagerRegistry = HedgingManagerRegistry_;
+    snapshot->CompressionDictionaryInfos = CompressionDictionaryInfos_;
 
     auto addStoreStatistics = [&] (const IStorePtr& store) {
         if (store->IsChunk()) {
             auto chunkStore = store->AsChunk();
+
             auto preloadState = chunkStore->GetPreloadState();
             switch (preloadState) {
                 case EStorePreloadState::Scheduled:
@@ -1867,6 +1934,25 @@ void TTablet::ReconfigureHedgingManagerRegistry()
         Settings_.StoreReaderConfig->HedgingManager,
         Settings_.HunkReaderConfig->HedgingManager,
         TableProfiler_->GetProfiler());
+}
+
+void TTablet::ReconfigureCompressionDictionaries()
+{
+    if (Settings_.MountConfig->ValueDictionaryCompression->Enable) {
+        for (auto policy : TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()) {
+            if (CompressionDictionaryInfos_[policy].ChunkId != NullChunkId &&
+                !Settings_.MountConfig->ValueDictionaryCompression->AppliedPolicies.contains(policy))
+            {
+                CompressionDictionaryInfos_[policy].ChunkId = NullChunkId;
+                CompressionDictionaryInfos_[policy].RebuildBackoffTime = TInstant::Zero();
+            }
+        }
+    } else {
+        for (auto policy : TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()) {
+            CompressionDictionaryInfos_[policy].ChunkId = NullChunkId;
+            CompressionDictionaryInfos_[policy].RebuildBackoffTime = TInstant::Zero();
+        }
+    }
 }
 
 void TTablet::ReconfigureProfiling()
@@ -2459,6 +2545,31 @@ TTimestamp TTablet::GetOrderedChaosReplicationMinTimestamp()
 const IHunkLockManagerPtr& TTablet::GetHunkLockManager() const
 {
     return HunkLockManager_;
+}
+
+bool TTablet::IsDictionaryBuildingInProgress(
+    NTableClient::EDictionaryCompressionPolicy policy) const
+{
+    return CompressionDictionaryInfos_[policy].BuildingInProgress;
+}
+
+void TTablet::SetDictionaryBuildingInProgress(
+    NTableClient::EDictionaryCompressionPolicy policy, bool flag)
+{
+    CompressionDictionaryInfos_[policy].BuildingInProgress = flag;
+}
+
+TInstant TTablet::GetCompressionDictionaryRebuildBackoffTime(
+    NTableClient::EDictionaryCompressionPolicy policy) const
+{
+    return CompressionDictionaryInfos_[policy].RebuildBackoffTime;
+}
+
+void TTablet::SetCompressionDictionaryRebuildBackoffTime(
+    EDictionaryCompressionPolicy policy,
+    TInstant backoffTime)
+{
+    CompressionDictionaryInfos_[policy].RebuildBackoffTime = backoffTime;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

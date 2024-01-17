@@ -33,7 +33,7 @@ struct TClientChunkReadOptions
     // |ChunkReaderStatistics|.
     NTableClient::IHunkChunkReaderStatisticsPtr HunkChunkReaderStatistics;
 
-    // If non-null, |HedgingManager| determines hedging policy shared between various chunk readers.
+    // Unless null, |HedgingManager| determines hedging policy shared between various chunk readers.
     IHedgingManagerPtr HedgingManager;
 
     IMemoryReferenceTrackerPtr MemoryReferenceTracker;

@@ -1111,6 +1111,11 @@ private:
 
         tablet->SetState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
 
+        // NB: We do not store previously attached dictionary chunk ids. We just build new ones upon mount.
+        for (auto policy : TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()) {
+            tablet->SetCompressionDictionaryRebuildBackoffTime(policy, TInstant::Now());
+        }
+
         if (masterAvenueEndpointId) {
             tablet->SetMasterAvenueEndpointId(masterAvenueEndpointId);
             Slot_->RegisterTabletAvenue(tablet->GetId(), masterAvenueEndpointId);
@@ -2211,6 +2216,7 @@ private:
             }
         }
 
+        std::vector<TChunkId> compressionDictionaryIds;
         THashSet<THunkChunkPtr> addedHunkChunks;
         for (const auto& descriptor : request->hunk_chunks_to_add()) {
             auto chunkId = FromProto<TChunkId>(descriptor.chunk_id());
@@ -2241,6 +2247,14 @@ private:
                     tablet->GetLoggingTag(),
                     chunkId);
                 InsertOrCrash(addedHunkChunks, hunkChunk);
+            }
+
+            if (auto miscExt = FindProtoExtension<TMiscExt>(descriptor.chunk_meta().extensions())) {
+                if (miscExt->has_dictionary_compression_policy()) {
+                    auto policy = CheckedEnumCast<EDictionaryCompressionPolicy>(miscExt->dictionary_compression_policy());
+                    tablet->AttachCompressionDictionary(policy, chunkId);
+                    compressionDictionaryIds.push_back(chunkId);
+                }
             }
         }
 
@@ -2365,13 +2379,14 @@ private:
 
         YT_LOG_INFO("Tablet stores update committed "
             "(%v, TransactionId: %v, AddedStoreIds: %v, RemovedStoreIds: %v, AddedHunkChunkIds: %v, RemovedHunkChunkIds: %v, "
-            "RetainedTimestamp: %v, UpdateReason: %v)",
+            "AddedCompressionDictionaryIds: %v, RetainedTimestamp: %v, UpdateReason: %v)",
             tablet->GetLoggingTag(),
             transaction->GetId(),
             MakeFormattableView(addedStores, TStoreIdFormatter()),
             removedStoreIds,
             MakeFormattableView(addedHunkChunks, THunkChunkIdFormatter()),
             removedHunkChunkIds,
+            compressionDictionaryIds,
             retainedTimestamp,
             updateReason);
 
@@ -3707,6 +3722,10 @@ private:
 
         if (auto replicationCardId = tablet->GetReplicationCardId()) {
             StopChaosReplicaEpoch(tablet);
+        }
+
+        for (auto policy : TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()) {
+            tablet->SetDictionaryBuildingInProgress(policy, false);
         }
     }
 
