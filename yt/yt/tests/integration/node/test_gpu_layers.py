@@ -267,7 +267,6 @@ class TestGpuLayer(YTEnvSetup):
             "gpu_manager": {
                 "driver_layer_directory_path": "//tmp/drivers",
                 "driver_version": "test_version",
-                "driver_layer_fetch_splay": 1000,
                 "testing": {
                     "test_resource": True,
                     "test_layers": True,
@@ -295,7 +294,10 @@ class TestGpuLayer(YTEnvSetup):
                     },
                 },
                 "gpu_manager": {
-                    "driver_layer_fetch_period": 10000,
+                    "driver_layer_fetching": {
+                        "period": 10000,
+                        "splay": 1000,
+                    }
                 },
             },
         },
@@ -389,7 +391,6 @@ class TestGpuLayerUpdate(YTEnvSetup):
             "gpu_manager": {
                 "driver_layer_directory_path": "//tmp/drivers",
                 "driver_version": "test_version",
-                "driver_layer_fetch_splay": 1000,
                 "testing": {
                     "test_resource": True,
                     "test_layers": True,
@@ -413,7 +414,10 @@ class TestGpuLayerUpdate(YTEnvSetup):
                     },
                 },
                 "gpu_manager": {
-                    "driver_layer_fetch_period": 10000,
+                    "driver_layer_fetching": {
+                        "period": 10000,
+                        "splay": 1000,
+                    }
                 },
             },
         },

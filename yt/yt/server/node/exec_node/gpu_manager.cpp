@@ -118,10 +118,7 @@ TGpuManager::TGpuManager(IBootstrap* bootstrap)
     , FetchDriverLayerExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetJobInvoker(),
         BIND(&TGpuManager::OnFetchDriverLayerInfo, MakeWeak(this)),
-        TPeriodicExecutorOptions{
-            .Period = DynamicConfig_.Acquire()->DriverLayerFetchPeriod,
-            .Splay = StaticConfig_->DriverLayerFetchSplay,
-        }))
+        DynamicConfig_.Acquire()->DriverLayerFetching))
     , TestGpuInfoUpdateExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetJobInvoker(),
         BIND(&TGpuManager::OnTestGpuInfoUpdate, MakeWeak(this)),
@@ -215,7 +212,7 @@ void TGpuManager::OnDynamicConfigChanged(
     YT_ASSERT(newConfig);
 
     HealthCheckExecutor_->SetPeriod(newConfig->HealthCheckPeriod);
-    FetchDriverLayerExecutor_->SetPeriod(newConfig->DriverLayerFetchPeriod);
+    FetchDriverLayerExecutor_->SetOptions(newConfig->DriverLayerFetching);
     if (newConfig->GpuInfoSource) {
         // XXX(ignat): avoid this hack.
         if (!newConfig->GpuInfoSource->NvGpuManagerDevicesCgroupPath) {
