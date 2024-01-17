@@ -425,7 +425,7 @@ class TestSchedulingSegments(YTEnvSetup):
         def check():
             stats = get(scheduler_orchid_node_path(shared_node) + "/running_job_statistics")
             return are_almost_equal(stats["total_gpu_time"], stats["preemptible_gpu_time"])
-        wait(lambda: check)
+        wait(check)
 
         update_pool_tree_config_option("default", "scheduling_segments/unsatisfied_segments_rebalancing_timeout", 100)
         wait(lambda: get(scheduler_orchid_node_path(shared_node) + "/scheduling_segment") == "default")
