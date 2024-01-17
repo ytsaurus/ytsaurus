@@ -604,6 +604,12 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("fetch_replicas_from_sequoia", &TThis::FetchReplicasFromSequoia)
         .Default(false);
 
+    registrar.Parameter("store_sequoia_replicas_on_master", &TThis::StoreSequoiaReplicasOnMaster)
+        .Default(true);
+
+    registrar.Parameter("processed_removed_sequoia_replicas_on_master", &TThis::ProcessRemovedSequoiaReplicasOnMaster)
+        .Default(true);
+
     registrar.Parameter("removal_job_schedule_delay", &TThis::RemovalJobScheduleDelay)
         .Default(TDuration::Minutes(3))
         .DontSerializeDefault();
@@ -642,6 +648,11 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
                 auto jobThrottler = EmplaceOrCrash(jobTypeToThrottler, jobType, New<NConcurrency::TThroughputThrottlerConfig>());
                 jobThrottler->second->Limit = 10'000;
             }
+        }
+
+        if (config->StoreSequoiaReplicasOnMaster && !config->ProcessRemovedSequoiaReplicasOnMaster) {
+            THROW_ERROR_EXCEPTION("Cannot disable removed sequoia replicas processing on master while master still stores "
+                "new sequoia replicas");
         }
     });
 }

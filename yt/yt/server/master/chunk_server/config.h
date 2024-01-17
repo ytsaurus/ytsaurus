@@ -631,6 +631,8 @@ public:
     int SequoiaReplicaRemovalBatchSize;
 
     bool FetchReplicasFromSequoia;
+    bool StoreSequoiaReplicasOnMaster;
+    bool ProcessRemovedSequoiaReplicasOnMaster;
 
     //! When set of active chunk replicator shards is changed, no removal jobs
     //! will be scheduled within this period.

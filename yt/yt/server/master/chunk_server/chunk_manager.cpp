@@ -3376,8 +3376,13 @@ private:
             node->ValidateRegistered();
         }
 
-        ProcessAddedReplicas(locationDirectory, node, request->added_chunks());
-        ProcessRemovedReplicas(locationDirectory, node, request->removed_chunks());
+        const auto& config = GetDynamicConfig();
+        if (config->StoreSequoiaReplicasOnMaster) {
+            ProcessAddedReplicas(locationDirectory, node, request->added_chunks());
+        }
+        if (config->ProcessRemovedSequoiaReplicasOnMaster) {
+            ProcessRemovedReplicas(locationDirectory, node, request->removed_chunks());
+        }
     }
 
     static TYsonString GetReplicasYson(
