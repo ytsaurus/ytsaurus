@@ -157,6 +157,12 @@ static TString CreateNamedPipePath()
     return GetRealPath(CombinePaths("./pipes", name));
 }
 
+static TNamedPipePtr CreateNamedPipe()
+{
+    auto path = CreateNamedPipePath();
+    return TNamedPipe::Create(path, 0666);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserJob
@@ -985,8 +991,8 @@ private:
             auto wrappingError = TError("Error writing to output table %v", i);
 
             auto reader = (UserJobSpec_.use_yamr_descriptors() && jobDescriptor == 3)
-                ? PrepareOutputPipe({1, jobDescriptor}, TableOutputs_[i].get(), &OutputActions_, wrappingError)
-                : PrepareOutputPipe({jobDescriptor}, TableOutputs_[i].get(), &OutputActions_, wrappingError);
+                ? PrepareOutputPipeReader(CreateNamedPipe(), {1, jobDescriptor}, TableOutputs_[i].get(), &OutputActions_, wrappingError)
+                : PrepareOutputPipeReader(CreateNamedPipe(), {jobDescriptor}, TableOutputs_[i].get(), &OutputActions_, wrappingError);
             TablePipeReaders_.push_back(reader);
         }
 
@@ -1010,15 +1016,13 @@ private:
         }));
     }
 
-    IConnectionReaderPtr PrepareOutputPipe(
+    IConnectionReaderPtr PrepareOutputPipeReader(
+        TNamedPipePtr pipe,
         const std::vector<int>& jobDescriptors,
         IOutputStream* output,
         std::vector<TCallback<void()>>* actions,
         const TError& wrappingError)
     {
-        auto path = CreateNamedPipePath();
-        auto pipe = TNamedPipe::Create(path, 0666);
-
         for (auto jobDescriptor : jobDescriptors) {
             // Since inside job container we see another rootfs, we must adjust pipe path.
             auto pipeConfig = TNamedPipeConfig::Create(Host_->AdjustPath(pipe->GetPath()), jobDescriptor, true);
@@ -1030,7 +1034,7 @@ private:
         actions->push_back(BIND([=, this, this_ = MakeStrong(this)] {
             try {
                 PipeInputToOutput(asyncInput, output, BufferSize);
-                YT_LOG_INFO("Data successfully read from pipe (Pipe: %v)", path);
+                YT_LOG_INFO("Data successfully read from pipe (PipePath: %v)", pipe->GetPath());
             } catch (const std::exception& ex) {
                 auto error = wrappingError
                     << ex;
@@ -1128,7 +1132,8 @@ private:
         // all input streams into fd == 0.
 
         // Configure stderr pipe.
-        StderrPipeReader_ = PrepareOutputPipe(
+        StderrPipeReader_ = PrepareOutputPipeReader(
+            CreateNamedPipe(),
             {STDERR_FILENO},
             CreateErrorOutput(),
             &StderrActions_,
@@ -1137,14 +1142,21 @@ private:
         PrepareOutputTablePipes();
 
         if (!UserJobSpec_.use_yamr_descriptors()) {
-            StatisticsPipeReader_ = PrepareOutputPipe(
+            StatisticsPipeReader_ = PrepareOutputPipeReader(
+                CreateNamedPipe(),
                 {JobStatisticsFD},
                 CreateStatisticsOutput(),
                 &OutputActions_,
                 TError("Error writing custom job statistics"));
 
             if (auto* profileOutput = JobProfiler_->GetUserJobProfileOutput()) {
-                ProfilePipeReader_ = PrepareOutputPipe(
+                auto pipe = CreateNamedPipe();
+
+                auto typeStr = FormatEnum(JobProfiler_->GetUserJobProfilerSpec()->Type);
+                Environment_.push_back(Format("YT_%v_PROFILER_PATH=%v", to_upper(typeStr), Host_->AdjustPath(pipe->GetPath())));
+
+                ProfilePipeReader_ = PrepareOutputPipeReader(
+                    std::move(pipe),
                     {JobProfileFD},
                     profileOutput,
                     &StderrActions_,
