@@ -301,12 +301,14 @@ yt merge --src _table --dst _table --spec '{job_io = {table_writer = {desired_ch
 
 Подробнее можно прочитать в [посте](https://clubs.at.yandex-team.ru/yt/3685) в Этушке.
 
+{% endif %}
+
 ------
-#### **Q: При работе джобов, написанных с использованием пакета yandex-yt-python, возникает ошибка "Unicode symbols above 255 are not supported". Что делать?**
+#### **Q: При работе джобов, написанных с использованием пакета ytsaurus-client, возникает ошибка "Unicode symbols above 255 are not supported". Что делать?**
 
 **A:** Следует прочитать в разделе [Форматы](../../user-guide/storage/formats#json) про формат JSON. Можно либо отказаться от использования JSON в пользу [YSON](../../user-guide/storage/formats#yson), либо указать `encode_utf8=false`.
 
-{% endif %}
+
 
 ------
 #### **Q: Из-за чего возникает ошибка «Too many dynamic store locate retries failed»?**
