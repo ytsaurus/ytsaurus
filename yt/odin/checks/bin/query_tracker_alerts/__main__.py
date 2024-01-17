@@ -8,7 +8,7 @@ def run_check(secrets, yt_client, logger, options, states):
     logger.info("Checking for relevant query tracker alerts from query tracker stage on cluster %s", cluster_name)
 
     query_tracker_stage_client = YtClient(
-        proxy=cluster_name,
+        proxy=yt_client.config["proxy"]["url"],
         token=secrets["yt_token"],
         config={"proxy": {"retries": {"count": 1, "enable": False}}})
 
