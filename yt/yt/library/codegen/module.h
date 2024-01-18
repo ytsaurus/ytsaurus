@@ -31,11 +31,21 @@ namespace NYT::NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EExecutionBackend,
+    (Native)
+    (WebAssembly)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCGModule
     : public TRefCounted
 {
 public:
-    static TCGModulePtr Create(TRoutineRegistry* routineRegistry, const TString& moduleName = "module");
+    static TCGModulePtr Create(
+        TRoutineRegistry* routineRegistry,
+        EExecutionBackend backend = EExecutionBackend::Native,
+        const TString& moduleName = "module");
 
     ~TCGModule();
 
@@ -61,6 +71,9 @@ public:
     bool IsModuleLoaded(TRef data) const;
     void AddLoadedModule(TRef data);
 
+    void BuildWebAssembly();
+    TRef GetWebAssemblyBytecode() const;
+
 private:
     class TImpl;
     std::unique_ptr<TImpl> Impl_;
@@ -69,6 +82,8 @@ private:
 
     explicit TCGModule(std::unique_ptr<TImpl> impl);
     uint64_t GetFunctionAddress(const TString& name);
+
+    EExecutionBackend GetBackend() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCGModule)
@@ -80,4 +95,3 @@ DEFINE_REFCOUNTED_TYPE(TCGModule)
 #define CODEGEN_MODULE_INL_H_
 #include "module-inl.h"
 #undef CODEGEN_MODULE_INL_H_
-

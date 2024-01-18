@@ -23,10 +23,12 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IR/PassManager.h>
 #include <llvm/IR/Verifier.h>
+#include <llvm/MC/MCContext.h>
 #include <llvm/Object/ObjectFile.h>
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/Support/Host.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/SmallVectorMemoryBuffer.h>
 #include <llvm/CodeGen/Passes.h>
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
@@ -125,8 +127,12 @@ private:
 class TCGModule::TImpl
 {
 public:
-    TImpl(TRoutineRegistry* routineRegistry, const TString& moduleName)
+    TImpl(
+        TRoutineRegistry* routineRegistry,
+        EExecutionBackend backend,
+        const TString& moduleName)
         : RoutineRegistry_(routineRegistry)
+        , ExecutionBackend_(backend)
     {
         InitializeCodegen();
 
@@ -136,30 +142,40 @@ public:
         Context_.setDiagnosticHandlerCallBack(&TImpl::DiagnosticHandler, nullptr);
 #endif
 
-        // Infer host parameters.
-        auto hostCpu = llvm::sys::getHostCPUName();
-        auto hostTriple = llvm::Triple::normalize(
-            llvm::sys::getProcessTriple()
+        llvm::StringRef cpu;
+        std::string triple;
+        if (ExecutionBackend_ == EExecutionBackend::WebAssembly) {
+            cpu = "generic";
+
+            llvm::Triple wasm64Triple;
+            wasm64Triple.setArch(llvm::Triple::wasm64);
+            triple = wasm64Triple.normalize();
+        } else {
+            // Infer host parameters.
+            cpu = llvm::sys::getHostCPUName();
+            triple = llvm::Triple::normalize(
+                llvm::sys::getProcessTriple()
 #ifdef _win_
-            + "-elf"
+                + "-elf"
 #endif
-        );
+            );
 #ifdef _darwin_
-        // Modules generated with Clang contain macosx10.11.0 OS signature,
-        // whereas LLVM modules contains darwin15.0.0.
-        // So we rebuild triple to match with Clang object files.
-        auto triple = llvm::Triple(hostTriple);
-        llvm::VersionTuple version;
-        triple.getMacOSXVersion(version);
-        auto formattedOsName = Format("macosx%v.%v.%v", version.getMajor(), *version.getMinor(), *version.getSubminor());
-        auto osNameAsTwine = llvm::Twine(std::string_view(formattedOsName));
-        auto fixedTriple = llvm::Triple(triple.getArchName(), triple.getVendorName(), osNameAsTwine);
-        hostTriple = llvm::Triple::normalize(fixedTriple.getTriple());
+            // Modules generated with Clang contain macosx10.11.0 OS signature,
+            // whereas LLVM modules contains darwin15.0.0.
+            // So we rebuild triple to match with Clang object files.
+            auto llvmTriple = llvm::Triple(triple);
+            llvm::VersionTuple version;
+            llvmTriple.getMacOSXVersion(version);
+            auto formattedOsName = Format("macosx%v.%v.%v", version.getMajor(), *version.getMinor(), *version.getSubminor());
+            auto osNameAsTwine = llvm::Twine(std::string_view(formattedOsName));
+            auto fixedTriple = llvm::Triple(llvmTriple.getArchName(), llvmTriple.getVendorName(), osNameAsTwine);
+            triple = llvm::Triple::normalize(fixedTriple.getTriple());
 #endif
+        }
 
         // Create module.
         auto module = std::make_unique<llvm::Module>(moduleName.c_str(), Context_);
-        module->setTargetTriple(hostTriple);
+        module->setTargetTriple(triple);
         Module_ = module.get();
 
         llvm::TargetOptions targetOptions;
@@ -172,9 +188,14 @@ public:
             .setEngineKind(llvm::EngineKind::JIT)
             .setOptLevel(llvm::CodeGenOpt::Default)
             .setMCJITMemoryManager(std::make_unique<TCGMemoryManager>(RoutineRegistry_))
-            .setMCPU(hostCpu)
+            .setMCPU(cpu)
             .setErrorStr(&what)
             .setTargetOptions(targetOptions);
+
+        if (ExecutionBackend_ == EExecutionBackend::Native) {
+            builder
+                .setMCJITMemoryManager(std::make_unique<TCGMemoryManager>(RoutineRegistry_));
+        }
 
         Engine_.reset(builder.create());
 
@@ -259,6 +280,27 @@ public:
         LoadedModules_.insert(TString(TStringBuf(data.Begin(), data.Size())));
     }
 
+    void BuildWebAssembly()
+    {
+        YT_VERIFY(ExecutionBackend_ == EExecutionBackend::WebAssembly);
+
+        if (!Compiled_) {
+            Finalize();
+        }
+    }
+
+    TRef GetWebAssemblyBytecode() const
+    {
+        YT_VERIFY(ExecutionBackend_ == EExecutionBackend::WebAssembly);
+
+        return {WebAssemblyBytecode_.data(), WebAssemblyBytecode_.size()};
+    }
+
+    EExecutionBackend GetBackend() const
+    {
+        return ExecutionBackend_;
+    }
+
 private:
     void Finalize()
     {
@@ -341,6 +383,11 @@ private:
 
         functionPassManager.doInitialization();
         for (auto it = Module_->begin(), jt = Module_->end(); it != jt; ++it) {
+            if (ExecutionBackend_ == EExecutionBackend::WebAssembly) {
+                it->removeFnAttr("target-cpu");
+                it->removeFnAttr("target-features");
+            }
+
             if (!it->isDeclaration()) {
                 functionPassManager.run(*it);
             }
@@ -355,7 +402,9 @@ private:
 
     void OptimizeIR() const
     {
-        if constexpr (NSan::MSanIsOn()) {
+        if (NSan::MSanIsOn() &&
+            ExecutionBackend_ == EExecutionBackend::Native) // NB(dtorilov): MSan at WebAssembly is not supported.
+        {
             OptimizeAndAddMSanViaNewPassManager();
         } else {
             OptimizeViaLegacyPassManager();
@@ -406,7 +455,11 @@ private:
 
         YT_LOG_DEBUG("Finalizing module");
 
-        Engine_->finalizeObject();
+        if (ExecutionBackend_ == EExecutionBackend::WebAssembly) {
+            BuildWebAssemblyImpl();
+        } else {
+            Engine_->finalizeObject();
+        }
 
 #ifdef PRINT_PASSES_TIME
         if (IsPassesTimeDumpEnabled()) {
@@ -417,6 +470,30 @@ private:
 
         YT_LOG_DEBUG("Finished compiling module");
         // TODO(sandello): Clean module here.
+    }
+
+    void BuildWebAssemblyImpl()
+    {
+        YT_VERIFY(ExecutionBackend_ == EExecutionBackend::WebAssembly);
+
+        std::lock_guard locked(Engine_->lock);
+        llvm::cantFail(Module_->materializeAll());
+        {
+            llvm::legacy::PassManager passManager;
+            llvm::raw_svector_ostream stream(WebAssemblyBytecode_);
+            llvm::MCContext* context = nullptr;
+
+            if (Engine_->getTargetMachine()->addPassesToEmitMC(
+                passManager,
+                context,
+                stream,
+                !Engine_->getVerifyModules()))
+            {
+                llvm::report_fatal_error("Target does not support MC emission!");
+            }
+
+            passManager.run(*Module_);
+        }
     }
 
     static void DiagnosticHandler(const llvm::DiagnosticInfo& info, void* /*opaque*/)
@@ -493,6 +570,8 @@ private:
     // RoutineRegistry is supposed to be a static object.
     TRoutineRegistry* const RoutineRegistry_;
 
+    const EExecutionBackend ExecutionBackend_;
+
     llvm::LLVMContext Context_;
     llvm::Module* Module_;
 
@@ -506,13 +585,18 @@ private:
     THashSet<TString> LoadedModules_;
 
     bool Compiled_ = false;
+
+    llvm::SmallVector<char, 0> WebAssemblyBytecode_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCGModulePtr TCGModule::Create(TRoutineRegistry* routineRegistry, const TString& moduleName)
+TCGModulePtr TCGModule::Create(
+    TRoutineRegistry* routineRegistry,
+    EExecutionBackend backend,
+    const TString& moduleName)
 {
-    return New<TCGModule>(std::make_unique<TImpl>(routineRegistry, moduleName));
+    return New<TCGModule>(std::make_unique<TImpl>(routineRegistry, backend, moduleName));
 }
 
 TCGModule::TCGModule(std::unique_ptr<TImpl> impl)
@@ -582,7 +666,21 @@ void TCGModule::AddLoadedModule(TRef data)
     Impl_->AddLoadedModule(data);
 }
 
+void TCGModule::BuildWebAssembly()
+{
+    Impl_->BuildWebAssembly();
+}
+
+TRef TCGModule::GetWebAssemblyBytecode() const
+{
+    return Impl_->GetWebAssemblyBytecode();
+}
+
+EExecutionBackend TCGModule::GetBackend() const
+{
+    return Impl_->GetBackend();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCodegen
-

@@ -13,18 +13,29 @@ TString MangleSymbol(const TString& name);
 TString DemangleSymbol(const TString& name);
 
 template <typename TSignature>
-class FunctionTypeBuilder;
+class TFunctionTypeBuilder;
 
 template <typename R, typename... Args>
-class FunctionTypeBuilder<R(Args...)>
+class TFunctionTypeBuilder<R(Args...)>
 {
 public:
-    static llvm::FunctionType *Get(llvm::LLVMContext &Context) {
+    static llvm::FunctionType *Get(llvm::LLVMContext &Context)
+    {
         llvm::Type *params[] = {
             TTypeBuilder<Args>::Get(Context)...
         };
         return llvm::FunctionType::get(TTypeBuilder<R>::Get(Context),
             params, false);
+    }
+};
+
+template <typename R>
+class TFunctionTypeBuilder<R()>
+{
+public:
+    static llvm::FunctionType *Get(llvm::LLVMContext &Context)
+    {
+        return llvm::FunctionType::get(TTypeBuilder<R>::Get(Context), false);
     }
 };
 
@@ -42,7 +53,7 @@ public:
         RegisterRoutineImpl(
             symbol,
             reinterpret_cast<uint64_t>(fp),
-            std::bind(&FunctionTypeBuilder<TResult(TArgs...)>::Get, _1));
+            std::bind(&TFunctionTypeBuilder<TResult(TArgs...)>::Get, _1));
     }
 
     uint64_t GetAddress(const TString& symbol) const;
@@ -62,4 +73,3 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCodegen
-

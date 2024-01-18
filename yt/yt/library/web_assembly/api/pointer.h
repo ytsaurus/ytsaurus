@@ -8,8 +8,6 @@ namespace NYT::NWebAssembly {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ICompartment;
-
 DEFINE_ENUM(EAddressSpace,
     (Host)
     (WebAssembly)

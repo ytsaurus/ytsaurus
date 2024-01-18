@@ -27,6 +27,8 @@ target_link_libraries(yt-library-codegen PUBLIC
   llvm16-lib-Target
   lib-Target-X86
   Target-X86-AsmParser
+  lib-Target-WebAssembly
+  Target-WebAssembly-AsmParser
   llvm16-lib-Passes
   yt-yt-core
 )

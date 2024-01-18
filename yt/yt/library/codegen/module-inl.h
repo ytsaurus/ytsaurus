@@ -16,6 +16,8 @@ namespace NYT::NCodegen {
 template <class TSignature>
 TCallback<TSignature> TCGModule::GetCompiledFunction(const TString& name)
 {
+    YT_VERIFY(GetBackend() == EExecutionBackend::Native);
+
     auto type = TTypeBuilder<TSignature>::Get(GetContext());
     YT_VERIFY(type == GetModule()->getFunction(name.c_str())->getFunctionType());
     auto function = reinterpret_cast<TSignature*>(GetFunctionAddress(name));
@@ -35,4 +37,3 @@ TCallback<TSignature> TCGModule::GetCompiledFunction(const TString& name)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCodegen
-

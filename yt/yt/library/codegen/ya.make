@@ -23,6 +23,8 @@ PEERDIR(
     contrib/libs/llvm16/lib/Target
     contrib/libs/llvm16/lib/Target/X86
     contrib/libs/llvm16/lib/Target/X86/AsmParser
+    contrib/libs/llvm16/lib/Target/WebAssembly
+    contrib/libs/llvm16/lib/Target/WebAssembly/AsmParser
     contrib/libs/llvm16/lib/Passes
     yt/yt/core
 )

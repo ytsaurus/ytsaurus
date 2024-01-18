@@ -16,6 +16,12 @@ static void InitializeCodegenImpl()
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmParser();
     llvm::InitializeNativeTargetAsmPrinter();
+
+    LLVMInitializeWebAssemblyTarget();
+    LLVMInitializeWebAssemblyTargetInfo();
+    LLVMInitializeWebAssemblyTargetMC();
+    LLVMInitializeWebAssemblyAsmParser();
+    LLVMInitializeWebAssemblyAsmPrinter();
 }
 
 void InitializeCodegen()
@@ -27,4 +33,3 @@ void InitializeCodegen()
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCodegen
-
