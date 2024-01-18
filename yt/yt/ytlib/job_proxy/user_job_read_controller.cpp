@@ -57,7 +57,7 @@ public:
     { }
 
     //! Returns closure that launches data transfer to given async output.
-    TCallback<TFuture<void>()> PrepareJobInputTransfer(const IAsyncOutputStreamPtr& asyncOutput) override
+    TCallback<TFuture<void>()> PrepareJobInputTransfer(const IAsyncOutputStreamPtr& asyncOutput, bool enableContextSaving) override
     {
         const auto& jobSpecExt = JobSpecHelper_->GetJobSpecExt();
 
@@ -65,9 +65,9 @@ public:
 
         auto format = ConvertTo<TFormat>(TYsonString(userJobSpec.input_format()));
         if (jobSpecExt.has_input_query_spec()) {
-            return PrepareInputActionsQuery(jobSpecExt.input_query_spec(), format, asyncOutput);
+            return PrepareInputActionsQuery(jobSpecExt.input_query_spec(), format, asyncOutput, enableContextSaving);
         } else {
-            return PrepareInputActionsPassthrough(format, asyncOutput);
+            return PrepareInputActionsPassthrough(format, asyncOutput, enableContextSaving);
         }
     }
 
@@ -177,7 +177,8 @@ private:
 private:
     TCallback<TFuture<void>()> PrepareInputActionsPassthrough(
         const TFormat& format,
-        const IAsyncOutputStreamPtr& asyncOutput)
+        const IAsyncOutputStreamPtr& asyncOutput,
+        bool enableContextSaving)
     {
         InitializeReader();
 
@@ -198,7 +199,7 @@ private:
             Reader_->GetNameTable(),
             schemas,
             asyncOutput,
-            true,
+            enableContextSaving,
             JobSpecHelper_->GetJobIOConfig()->ControlAttributes,
             JobSpecHelper_->GetKeySwitchColumnCount());
 
@@ -226,7 +227,8 @@ private:
     TCallback<TFuture<void>()> PrepareInputActionsQuery(
         const TQuerySpec& querySpec,
         const TFormat& format,
-        const IAsyncOutputStreamPtr& asyncOutput)
+        const IAsyncOutputStreamPtr& asyncOutput,
+        bool enableContextSaving)
     {
         if (JobSpecHelper_->GetJobIOConfig()->ControlAttributes->EnableKeySwitch) {
             THROW_ERROR_EXCEPTION("enable_key_switch is not supported when query is set");
@@ -247,7 +249,7 @@ private:
                         std::move(nameTable),
                         {std::move(schema)},
                         asyncOutput,
-                        true,
+                        enableContextSaving,
                         JobSpecHelper_->GetJobIOConfig()->ControlAttributes,
                         0);
 
@@ -285,7 +287,7 @@ class TVanillaUserJobReadController
     : public IUserJobReadController
 {
 public:
-    TCallback<TFuture<void>()> PrepareJobInputTransfer(const IAsyncOutputStreamPtr& /*asyncOutput*/) override
+    TCallback<TFuture<void>()> PrepareJobInputTransfer(const IAsyncOutputStreamPtr& /*asyncOutput*/, bool /*enableContextSaving*/) override
     {
         return BIND([] { return VoidFuture; });
     }

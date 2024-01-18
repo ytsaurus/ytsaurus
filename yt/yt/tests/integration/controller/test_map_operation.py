@@ -11,7 +11,7 @@ from yt_commands import (
     map, merge, sort, interrupt_job, get_first_chunk_id,
     get_singular_chunk_id, check_all_stderrs,
     create_test_tables, assert_statistics, extract_statistic_v2,
-    ban_node, unban_node)
+    ban_node, unban_node, update_inplace)
 
 from yt_type_helpers import make_schema, normalize_schema, make_column
 
@@ -228,7 +228,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert get("//tmp/t2/@row_count") == 1
 
-        wait(lambda: assert_statistics(op, "data.input.row_count", lambda row_count: row_count == 1, env=self.Env))
+        wait(lambda: assert_statistics(op, "data.input.row_count", lambda row_count: row_count == 1))
 
     @authors("psushin")
     def test_multiple_output_row_count(self):
@@ -244,8 +244,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
         )
         assert get("//tmp/t2/@row_count") == 5
 
-        wait(lambda: assert_statistics(op, "data.output.0.row_count", lambda row_count: row_count == 5, env=self.Env))
-        wait(lambda: assert_statistics(op, "data.output.1.row_count", lambda row_count: row_count == 1, env=self.Env))
+        wait(lambda: assert_statistics(op, "data.output.0.row_count", lambda row_count: row_count == 5))
+        wait(lambda: assert_statistics(op, "data.output.1.row_count", lambda row_count: row_count == 1))
 
     @authors("renadeen")
     def test_codec_statistics(self):
@@ -260,8 +260,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
         )  # so much to see non-zero decode CPU usage in release mode
 
         op = map(command="cat", in_="//tmp/t1", out="//tmp/t2")
-        wait(lambda: assert_statistics(op, "codec.cpu.decode.lzma_9", lambda decode_time: decode_time > 0, env=self.Env))
-        wait(lambda: assert_statistics(op, "codec.cpu.encode.0.lzma_1", lambda encode_time: encode_time > 0, env=self.Env))
+        wait(lambda: assert_statistics(op, "codec.cpu.decode.lzma_9", lambda decode_time: decode_time > 0))
+        wait(lambda: assert_statistics(op, "codec.cpu.encode.0.lzma_1", lambda encode_time: encode_time > 0))
 
     @authors("psushin")
     @pytest.mark.parametrize("sort_kind", ["sorted_by", "ascending", "descending"])
@@ -680,8 +680,7 @@ print row + table_index
             assertion=lambda value: value == expected_value,
             job_state="failed" if throw_on_failure else "completed",
             job_type="map",
-            summary_type="max",
-            env=self.Env))
+            summary_type="max"))
 
     @authors("ogorod")
     def test_check_input_fully_consumed_statistics_simple(self):
@@ -1344,6 +1343,56 @@ print row + table_index
 
         assert read_table("//tmp/t_output") == rows
 
+    def _run_interruptible_map_operation(self, ordered, output, spec_patch={}):
+        spec = {
+            "mapper": {"format": "json"},
+            "max_failed_job_count": 1,
+            "job_io": {
+                "buffer_row_count": 1,
+            },
+            "enable_job_splitting": False,
+        }
+
+        update_inplace(spec, spec_patch)
+
+        mapper = b"""
+#!/usr/bin/python3
+
+import json
+
+input = json.loads(raw_input())
+old_value = input["value"]
+input["value"] = "(job)"
+print(json.dumps(input))
+input["value"] = old_value
+print(json.dumps(input))
+
+"""
+
+        create("file", "//tmp/mapper.py")
+        write_file("//tmp/mapper.py", mapper)
+
+        # NB(arkady-e1ppa): we force no bufferisation because otherwise we may read something like
+        # "row1End\nrow2Start" and discard row2start completely.
+        map_cmd = """python -u mapper.py ; BREAKPOINT ; cat"""
+
+        op = map(
+            ordered=ordered,
+            track=False,
+            in_="//tmp/in_1",
+            out=output,
+            file="//tmp/mapper.py",
+            command=with_breakpoint(map_cmd),
+            spec=spec,
+        )
+
+        jobs = wait_breakpoint()
+        op.interrupt_job(jobs[0])
+        release_breakpoint()
+        op.track()
+
+        return op
+
     @authors("klyachin")
     @pytest.mark.parametrize("ordered", [False, True])
     def test_map_interrupt_job(self, ordered):
@@ -1352,6 +1401,7 @@ print row + table_index
             "//tmp/in_1",
             [{"key": "%08d" % i, "value": "(t_1)", "data": "a" * (2 * 1024 * 1024)} for i in range(3)],
             table_writer={"block_size": 1024, "desired_chunk_size": 1024},
+            output_format="json",
         )
 
         output = "//tmp/output"
@@ -1361,27 +1411,7 @@ print row + table_index
             job_type = "ordered_map"
         create("table", output)
 
-        op = map(
-            ordered=ordered,
-            track=False,
-            label="interrupt_job",
-            in_="//tmp/in_1",
-            out=output,
-            command=with_breakpoint("""read; echo "${REPLY/(???)/(job)}"; echo "$REPLY" ; BREAKPOINT ; cat"""),
-            spec={
-                "mapper": {"format": "dsv"},
-                "max_failed_job_count": 1,
-                "job_io": {
-                    "buffer_row_count": 1,
-                },
-                "enable_job_splitting": False,
-            },
-        )
-
-        jobs = wait_breakpoint()
-        op.interrupt_job(jobs[0])
-        release_breakpoint()
-        op.track()
+        op = self._run_interruptible_map_operation(ordered=ordered, output=output)
 
         result = read_table("//tmp/output", verbose=False)
         for row in result:
@@ -1403,8 +1433,69 @@ print row + table_index
             op,
             key="data.input.row_count",
             assertion=lambda row_count: row_count == len(result) - 2,
-            job_type=job_type,
-            env=self.Env))
+            job_type=job_type))
+
+    @authors("arkady-e1ppa")
+    @pytest.mark.parametrize("ordered", [False, True])
+    @pytest.mark.parametrize("small_pipe", [False, True])
+    def test_map_interrupt_job_with_pipe_capacity(self, ordered, small_pipe):
+        if "23_2" in getattr(self, "ARTIFACT_COMPONENTS", {}):
+            pytest.xfail("Is not supported for older versions of server components")
+
+        create("table", "//tmp/in_1")
+        write_table(
+            "//tmp/in_1",
+            [{"key": "%08d" % i, "value": "(t_1)", "data": "a" * (1 * 4 * 1024)} for i in range(3)],
+            table_writer={"block_size": 1024, "desired_chunk_size": 1024},
+            output_format="json",
+        )
+
+        output = "//tmp/output"
+        job_type = "map"
+        if ordered:
+            output = "<sorted_by=[key]>" + output
+            job_type = "ordered_map"
+        create("table", output)
+
+        pipe_capacity = 4096
+        if not small_pipe:
+            pipe_capacity = 16 * 4096
+
+        op = self._run_interruptible_map_operation(ordered, output, spec_patch={
+            "job_io": {
+                "pipe_capacity": pipe_capacity,
+            },
+        })
+
+        result = read_table("//tmp/output")
+        print_debug(result)
+        for row in result:
+            print_debug("key:", row["key"], "value:", row["value"], "data size:", len(row["data"]))
+
+        added_rows = 2
+        if not small_pipe:
+            added_rows = 1
+
+        assert len(result) == 3 + added_rows
+        if not ordered:
+            result = sorted_dicts(result)
+        row_index = 0
+        job_indexes = []
+        for row in result:
+            assert row["key"] == "%08d" % row_index
+            if row["value"] == "(job)":
+                job_indexes.append(int(row["key"]))
+            else:
+                row_index += 1
+
+        if small_pipe:
+            assert job_indexes[1] == 2
+
+        wait(lambda: assert_statistics(
+            op,
+            key="data.input.row_count",
+            assertion=lambda row_count: row_count == len(result) - added_rows,
+            job_type=job_type))
 
     @authors("dakovalkov", "gritukan")
     @pytest.mark.xfail(run=False, reason="YT-14467")
@@ -1451,7 +1542,6 @@ print row + table_index
         op = map(
             ordered=ordered,
             track=False,
-            label="interrupt_job",
             in_="//tmp/in_1",
             out=output,
             command="true",
@@ -1559,7 +1649,6 @@ done
         op = map(
             ordered=ordered,
             track=False,
-            label="split_job",
             in_=input_,
             out=output,
             command=command,
@@ -1801,7 +1890,7 @@ done
             command="sleep 1",
         )
 
-        wait(lambda: assert_statistics(op, "chunk_reader_statistics.idle_time", lambda idle_time: idle_time > 1000, env=self.Env))
+        wait(lambda: assert_statistics(op, "chunk_reader_statistics.idle_time", lambda idle_time: idle_time > 1000))
 
     @authors("egor-gutrov")
     def test_auto_create(self):

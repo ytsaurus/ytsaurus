@@ -141,11 +141,14 @@ using NChunkClient::TDataSliceDescriptor;
 
 #ifdef _unix_
 
-static const int JobStatisticsFD = 5;
-static const int JobProfileFD = 8;
-static const size_t BufferSize = 1_MB;
+constexpr int JobStatisticsFD = 5;
+constexpr int JobProfileFD = 8;
+constexpr size_t BufferSize = 1_MB;
 
-static const size_t MaxCustomStatisticsPathLength = 512;
+constexpr size_t MaxCustomStatisticsPathLength = 512;
+
+constexpr int DefaultArtifactPermissions = 0666;
+constexpr int ExecutableArtifactPermissions = 0777;
 
 static TNullOutput NullOutput;
 
@@ -160,7 +163,7 @@ static TString CreateNamedPipePath()
 static TNamedPipePtr CreateNamedPipe()
 {
     auto path = CreateNamedPipePath();
-    return TNamedPipe::Create(path, 0666);
+    return TNamedPipe::Create(path, DefaultArtifactPermissions);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -412,7 +415,7 @@ public:
 
             PrepareArtifact(
                 file.file_name(),
-                file.executable() ? 0777 : 0666);
+                file.executable() ? ExecutableArtifactPermissions : DefaultArtifactPermissions);
         }
 
         // We need to give read access to sandbox directory to yt_node/yt_job_proxy effective user (usually yt:yt)
@@ -1058,9 +1061,15 @@ private:
 
     void PrepareInputTablePipe()
     {
+        YT_LOG_DEBUG(
+            "Creating input table pipe (Path: %v, Permission: %v, CustomCapacity: %v)",
+            InputPipePath_,
+            DefaultArtifactPermissions,
+            JobIOConfig_->PipeCapacity);
+
         int jobDescriptor = 0;
         InputPipePath_= CreateNamedPipePath();
-        auto pipe = TNamedPipe::Create(InputPipePath_, 0666);
+        auto pipe = TNamedPipe::Create(InputPipePath_, DefaultArtifactPermissions, JobIOConfig_->PipeCapacity);
         auto pipeConfig = TNamedPipeConfig::Create(Host_->AdjustPath(pipe->GetPath()), jobDescriptor, false);
         PipeConfigs_.emplace_back(std::move(pipeConfig));
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
@@ -1070,7 +1079,11 @@ private:
 
         TablePipeWriters_.push_back(asyncOutput);
 
-        auto transferInput = UserJobReadController_->PrepareJobInputTransfer(asyncOutput);
+        //! NB: Context saving effectively forces writer to ignore pipe capacity limit
+        //! as it only ever flushes once the socket is closed.
+        auto transferInput = UserJobReadController_->PrepareJobInputTransfer(
+            asyncOutput,
+            /*enableContextSaving*/ !JobIOConfig_->PipeCapacity.has_value());
         InputActions_.push_back(BIND([=] {
             try {
                 auto transferComplete = transferInput();

@@ -498,6 +498,7 @@ public:
     NApi::TFileWriterConfigPtr ErrorFileWriter;
 
     i64 BufferRowCount;
+    std::optional<int> PipeCapacity;
 
     int PipeIOPoolSize;
 

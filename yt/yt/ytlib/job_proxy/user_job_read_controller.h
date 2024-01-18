@@ -27,7 +27,9 @@ struct IUserJobReadController
     : public TRefCounted
 {
     //! Returns closure that launches data transfer to given async output.
-    virtual TCallback<TFuture<void>()> PrepareJobInputTransfer(const NConcurrency::IAsyncOutputStreamPtr& asyncOutput) = 0;
+    virtual TCallback<TFuture<void>()> PrepareJobInputTransfer(
+        const NConcurrency::IAsyncOutputStreamPtr& asyncOutput,
+        bool enableContextSaving = true) = 0;
 
     virtual double GetProgress() const = 0;
     virtual TFuture<std::vector<TBlob>> GetInputContext() const = 0;

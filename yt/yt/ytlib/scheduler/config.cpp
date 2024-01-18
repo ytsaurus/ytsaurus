@@ -197,6 +197,10 @@ void TJobIOConfig::Register(TRegistrar registrar)
         .Default(10 * 1000)
         .GreaterThan(0);
 
+    registrar.Parameter("pipe_capacity", &TThis::PipeCapacity)
+        .Default()
+        .GreaterThan(0);
+
     registrar.Parameter("pipe_io_pool_size", &TThis::PipeIOPoolSize)
         .Default(1)
         .GreaterThan(0);

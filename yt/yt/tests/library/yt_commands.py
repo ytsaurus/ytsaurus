@@ -2576,8 +2576,7 @@ def assert_statistics(
     assertion,
     job_state="completed",
     job_type="map",
-    summary_type="sum",
-    env=None
+    summary_type="sum"
 ):
     deprecated_statistics = get(operation.get_path() + "/@progress/job_statistics")
     deprecated_statistic_value = extract_deprecated_statistic(deprecated_statistics, key, job_state, job_type, summary_type)
