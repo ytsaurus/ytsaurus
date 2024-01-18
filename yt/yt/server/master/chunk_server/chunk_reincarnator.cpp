@@ -1609,6 +1609,9 @@ private:
             }
         } skipped;
 
+        auto verboseLoggingEnabled = config->EnableVerboseLogging;
+        std::vector<TChunkId> skippedBecauseOfAccountSettings;
+
         while (
             scannedChunkBudget-- > 0 &&
             ChunkScanner_.HasUnscannedChunk() &&
@@ -1671,6 +1674,11 @@ private:
             if (!(config->IgnoreAccountSettings || options.IgnoreAccountSettings)) {
                 if (!IsReincarnationAllowedByAccountSettings(chunk)) {
                     ++skipped.AccountSettings;
+
+                    if (verboseLoggingEnabled) {
+                        skippedBecauseOfAccountSettings.push_back(chunk->GetId());
+                    }
+
                     continue;
                 }
             }
@@ -1752,6 +1760,11 @@ private:
             skipped.WrongFormat,
             skipped.AccountSettings,
             skipped.AfterTraverse);
+
+        YT_LOG_DEBUG_IF(!skippedBecauseOfAccountSettings.empty(),
+            "Chunks were not reincarnated because of account settings (ChunkCount: %v, ChunkIds: %v)",
+            skippedBecauseOfAccountSettings.size(),
+            skippedBecauseOfAccountSettings);
     }
 
     bool IsReincarnationAllowedByAccountSettings(TChunk* chunk)

@@ -239,6 +239,10 @@ void TDynamicChunkReincarnatorConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("ignore_account_settings", &TThis::IgnoreAccountSettings)
         .Default(false);
+
+    registrar.Parameter("enable_verbose_logging", &TThis::EnableVerboseLogging)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 bool TDynamicChunkReincarnatorConfig::ShouldRescheduleAfterChange(
