@@ -28,12 +28,19 @@ public class RangeLimit {
     public final long rowIndex;
     @SuppressWarnings("VisibilityModifier")
     public final long offset;
+    @SuppressWarnings("VisibilityModifier")
+    public final long tabletIndex;
 
     RangeLimit(List<YTreeNode> key, @Nullable KeyBound keyBound, long rowIndex, long offset) {
+        this(key, keyBound, rowIndex, offset, -1);
+    }
+
+    RangeLimit(List<YTreeNode> key, @Nullable KeyBound keyBound, long rowIndex, long offset, long tabletIndex) {
         this.key = key;
         this.keyBound = keyBound;
         this.rowIndex = rowIndex;
         this.offset = offset;
+        this.tabletIndex = tabletIndex;
     }
 
     public static Builder builder() {
@@ -51,13 +58,14 @@ public class RangeLimit {
         RangeLimit that = (RangeLimit) o;
         return rowIndex == that.rowIndex
                 && offset == that.offset
+                && tabletIndex == that.tabletIndex
                 && Objects.equals(key, that.key)
                 && Objects.equals(keyBound, that.keyBound);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(key, keyBound, rowIndex, offset);
+        return Objects.hash(key, keyBound, rowIndex, offset, tabletIndex);
     }
 
     public static RangeLimit row(long rowIndex) {
@@ -89,6 +97,7 @@ public class RangeLimit {
                 })
                 .when(rowIndex != -1, b -> b.key("row_index").value(rowIndex))
                 .when(offset != -1, b -> b.key("offset").value(offset))
+                .when(tabletIndex != -1, b -> b.key("tablet_index").value(tabletIndex))
                 .endMap();
     }
 
@@ -97,7 +106,8 @@ public class RangeLimit {
                 .setKeyBound(keyBound)
                 .setKey(key)
                 .setRowIndex(rowIndex)
-                .setOffset(offset);
+                .setOffset(offset)
+                .setTabletIndex(tabletIndex);
     }
 
     @NonNullApi
@@ -108,6 +118,7 @@ public class RangeLimit {
         private KeyBound keyBound = null;
         private long rowIndex = -1;
         private long offset = -1;
+        private long tabletIndex = -1;
 
         public Builder() {
         }
@@ -136,8 +147,13 @@ public class RangeLimit {
             return this;
         }
 
+        public Builder setTabletIndex(long tabletIndex) {
+            this.tabletIndex = tabletIndex;
+            return this;
+        }
+
         public RangeLimit build() {
-            return new RangeLimit(new ArrayList<>(key), keyBound, rowIndex, offset);
+            return new RangeLimit(new ArrayList<>(key), keyBound, rowIndex, offset, tabletIndex);
         }
     }
 }

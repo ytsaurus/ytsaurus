@@ -139,5 +139,15 @@ public class RichYPathParserTest {
         Assert.assertEquals(RichYPathParser.parse(" <a=b> //home"),
                 RichYPath.simple("//home").withAdditionalAttributes(Map.of("a", YTree.stringNode("b"))));
 
+        Assert.assertEquals(
+                RichYPathParser.parse(
+                        "<\"ranges\"=[{" +
+                                "\"lower_limit\"={\"row_index\"=0;\"tablet_index\"=0;};" +
+                                "\"upper_limit\"={\"row_index\"=1;\"tablet_index\"=0;};};];>" +
+                                "//home"),
+                RichYPath.simple("//home")
+                        .withRange(
+                            RangeLimit.builder().setRowIndex(0).setTabletIndex(0).build(),
+                            RangeLimit.builder().setRowIndex(1).setTabletIndex(0).build()));
     }
 }
