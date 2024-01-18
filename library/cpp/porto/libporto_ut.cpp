@@ -4,10 +4,10 @@
 #include <signal.h>
 #include <cassert>
 
-#define Expect(a)   assert(a)
-#define ExpectEq(a, b)   assert((a) == (b))
-#define ExpectNeq(a, b)   assert((a) != (b))
-#define ExpectSuccess(ret) assert((ret) == Porto::EError::Success)
+#define Expect(a)   UNIT_ASSERT(a)
+#define ExpectEq(a, b)   UNIT_ASSERT_EQUAL((a), (b))
+#define ExpectNeq(a, b)   UNIT_ASSERT_UNEQUAL((a), (b))
+#define ExpectSuccess(ret) UNIT_ASSERT_EQUAL((ret), Porto::EError::Success)
 
 const TString CT_NAME = "test-a";
 
