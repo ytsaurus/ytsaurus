@@ -74,9 +74,12 @@ private:
             }
         }
 
-        const auto& rsp = rspOrError.Value();
+        auto login = ConvertTo<TString>(rspOrError.Value());
+        YT_LOG_DEBUG("Cypress authentication succeeded (TokenHash: %v, Login: %v)",
+            tokenHash,
+            login);
         return TAuthenticationResult{
-            .Login = ConvertTo<TString>(rsp),
+            .Login = login,
         };
     }
 };
