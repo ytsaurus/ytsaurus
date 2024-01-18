@@ -6,7 +6,4 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(client)
-add_subdirectory(core)
-add_subdirectory(flow)
-add_subdirectory(formats)
+add_subdirectory(lib)

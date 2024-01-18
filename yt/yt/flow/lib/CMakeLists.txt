@@ -7,6 +7,3 @@
 
 
 add_subdirectory(client)
-add_subdirectory(core)
-add_subdirectory(flow)
-add_subdirectory(formats)

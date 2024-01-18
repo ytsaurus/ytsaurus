@@ -47,6 +47,8 @@
 #include <yt/yt/client/api/internal_client.h>
 #include <yt/yt/client/bundle_controller_client/bundle_controller_settings.h>
 
+#include <yt/yt/flow/lib/client/controller/controller_service_proxy.h>
+
 #include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -767,32 +769,27 @@ public:
         const TString& newPasswordSha256,
         const TSetUserPasswordOptions& options),
         (user, currentPasswordSha256, newPasswordSha256, options))
-
     IMPLEMENT_METHOD(TIssueTokenResult, IssueToken, (
         const TString& user,
         const TString& passwordSha256,
         const TIssueTokenOptions& options),
         (user, passwordSha256, options))
-
     IMPLEMENT_METHOD(TIssueTokenResult, IssueTemporaryToken, (
         const TString& user,
         const NYTree::IAttributeDictionaryPtr& attributes,
         const TIssueTemporaryTokenOptions& options),
         (user, attributes, options))
-
     IMPLEMENT_METHOD(void, RefreshTemporaryToken, (
         const TString& user,
         const TString& token,
         const TRefreshTemporaryTokenOptions& options),
         (user, token, options))
-
     IMPLEMENT_METHOD(void, RevokeToken, (
         const TString& user,
         const TString& passwordSha256,
         const TString& tokenSha256,
         const TRevokeTokenOptions& options),
         (user, passwordSha256, tokenSha256, options))
-
     IMPLEMENT_METHOD(TListUserTokensResult, ListUserTokens, (
         const TString& user,
         const TString& passwordSha256,
@@ -803,12 +800,28 @@ public:
         const TString& bundleName,
         const NBundleControllerClient::TGetBundleConfigOptions& options),
         (bundleName, options))
-
     IMPLEMENT_METHOD(void, SetBundleConfig, (
         const TString& bundleName,
         const NBundleControllerClient::TBundleTargetConfigPtr& bundleConfig,
         const NBundleControllerClient::TSetBundleConfigOptions& options),
         (bundleName, bundleConfig, options))
+
+    IMPLEMENT_METHOD(void, StartPipeline, (
+        const NYPath::TYPath& pipelinePath,
+        const TStartPipelineOptions& options),
+        (pipelinePath, options))
+    IMPLEMENT_METHOD(void, StopPipeline, (
+        const NYPath::TYPath& pipelinePath,
+        const TStopPipelineOptions& options),
+        (pipelinePath, options))
+    IMPLEMENT_METHOD(void, PausePipeline, (
+        const NYPath::TYPath& pipelinePath,
+        const TPausePipelineOptions& options),
+        (pipelinePath, options))
+    IMPLEMENT_METHOD(TPipelineStatus, GetPipelineStatus, (
+        const NYPath::TYPath& pipelinePath,
+        const TGetPipelineStatusOptions& options),
+        (pipelinePath, options))
 
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
@@ -1888,7 +1901,7 @@ private:
         const TTimeoutOptions& options);
 
     //
-    // BundleController
+    // Bundle Controller
     //
 
     NBundleControllerClient::TBundleConfigDescriptorPtr DoGetBundleConfig(
@@ -1899,6 +1912,27 @@ private:
         const TString& bundleName,
         const NBundleControllerClient::TBundleTargetConfigPtr& bundleConfig,
         const NBundleControllerClient::TSetBundleConfigOptions& options);
+
+    //
+    // Flow
+    //
+
+    TString DiscoverPipelineControllerLeader(const NYPath::TYPath& pipelinePath);
+
+    NFlow::NController::TControllerServiceProxy CreatePipelineControllerLeaderProxy(const NYPath::TYPath& pipelinePath);
+
+    void DoStartPipeline(
+        const NYPath::TYPath& pipelinePath,
+        const TStartPipelineOptions& options);
+    void DoStopPipeline(
+        const NYPath::TYPath& pipelinePath,
+        const TStopPipelineOptions& options);
+    void DoPausePipeline(
+        const NYPath::TYPath& pipelinePath,
+        const TPausePipelineOptions& options);
+    TPipelineStatus DoGetPipelineStatus(
+        const NYPath::TYPath& pipelinePath,
+        const TGetPipelineStatusOptions& options);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)

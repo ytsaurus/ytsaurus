@@ -26,6 +26,7 @@ SRCS(
     api/native/client_files_impl.cpp
     api/native/client_impl.cpp
     api/native/client_internal_impl.cpp
+    api/native/client_flow_impl.cpp
     api/native/client_job_info_impl.cpp
     api/native/client_jobs_impl.cpp
     api/native/client_journals_impl.cpp
@@ -580,6 +581,7 @@ PEERDIR(
     yt/yt/ytlib/discovery_client
     yt/yt/ytlib/query_tracker_client
     yt/yt_proto/yt/client
+    yt/yt/flow/lib/client
 )
 
 END()

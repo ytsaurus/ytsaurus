@@ -342,6 +342,8 @@ public:
 
     bool DisableNewRangeInference;
 
+    TDuration FlowPipelineControllerRpcTimeout;
+
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);
 
     static void Register(TRegistrar registrar);

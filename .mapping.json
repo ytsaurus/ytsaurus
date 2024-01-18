@@ -889,6 +889,9 @@
   "yt/yt/experiments/public/uring/CMakeLists.txt":"",
   "yt/yt/experiments/public/value_dictionary_compression/CMakeLists.txt":"",
   "yt/yt/experiments/public/ytserver_dummy/CMakeLists.txt":"",
+  "yt/yt/flow/CMakeLists.txt":"",
+  "yt/yt/flow/lib/CMakeLists.txt":"",
+  "yt/yt/flow/lib/client/CMakeLists.txt":"",
   "yt/yt/library/CMakeLists.txt":"",
   "yt/yt/library/auth/CMakeLists.txt":"",
   "yt/yt/library/auth/unittests/CMakeLists.txt":"",
@@ -1166,6 +1169,9 @@
   "yt/yt_proto/yt/client/hedging/CMakeLists.txt":"",
   "yt/yt_proto/yt/core/CMakeLists.txt":"",
   "yt/yt_proto/yt/core/build.gradle.kts":"",
+  "yt/yt_proto/yt/flow/CMakeLists.txt":"",
+  "yt/yt_proto/yt/flow/controller/CMakeLists.txt":"",
+  "yt/yt_proto/yt/flow/controller/proto/CMakeLists.txt":"",
   "yt/yt_proto/yt/formats/CMakeLists.txt":"",
   "yt/yt_proto/yt/formats/build.gradle.kts":""
 }

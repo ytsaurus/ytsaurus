@@ -6,7 +6,12 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(client)
-add_subdirectory(core)
-add_subdirectory(flow)
-add_subdirectory(formats)
+
+add_library(flow-lib-client INTERFACE)
+target_link_libraries(flow-lib-client INTERFACE
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  yt-yt-core
+  flow-controller-proto
+)

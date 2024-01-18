@@ -38,4 +38,5 @@ target_sources(yt-client-driver PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/table_commands.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/transaction_commands.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/internal_commands.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/flow_commands.cpp
 )

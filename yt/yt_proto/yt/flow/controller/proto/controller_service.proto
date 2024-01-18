@@ -1,0 +1,141 @@
+package NYT.NFlow.NController.NProto;
+
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetFlowView
+{
+    optional bytes path = 1 [default = ""];
+}
+
+message TRspGetFlowView
+{
+    required bytes flow_view = 1 [(NYT.NYson.NProto.yson_string) = true];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetSpec
+{
+    optional string path = 1;
+}
+
+message TRspGetSpec
+{
+    required int64 version = 1;
+    required bytes value = 2 [(NYT.NYson.NProto.yson_string) = true];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSetSpec
+{
+    optional string path = 1;
+    required bytes value = 2 [(NYT.NYson.NProto.yson_string) = true];
+
+    // Update spec even if process is not stopped, just paused.
+    optional bool force = 3;
+}
+
+message TRspSetSpec
+{
+    required int64 version = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRemoveSpec
+{
+    optional string path = 1;
+
+    // Update spec even if process is not stopped, just paused.
+    optional bool force = 3;
+}
+
+message TRspRemoveSpec
+{
+    required int64 version = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetDynamicSpec
+{
+    optional string path = 1;
+}
+
+message TRspGetDynamicSpec
+{
+    required int64 version = 1;
+    required bytes value = 2 [(NYT.NYson.NProto.yson_string) = true];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSetDynamicSpec
+{
+    optional string path = 1;
+    optional bytes value = 2 [(NYT.NYson.NProto.yson_string) = true];
+}
+
+message TRspSetDynamicSpec
+{
+    optional int64 version = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRemoveDynamicSpec
+{
+    optional string path = 1;
+}
+
+message TRspRemoveDynamicSpec
+{
+    optional int64 version = 1;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetPipelineStatus
+{
+}
+
+message TRspGetPipelineStatus
+{
+    required int32 state = 1; // EPipelineState
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqStartPipeline
+{
+}
+
+message TRspStartPipeline
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPausePipeline
+{
+}
+
+message TRspPausePipeline
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqStopPipeline
+{
+}
+
+message TRspStopPipeline
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////

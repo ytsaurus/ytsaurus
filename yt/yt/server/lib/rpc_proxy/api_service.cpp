@@ -764,12 +764,16 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteTable)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PartitionTables));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetFileFromCache));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PutFileToCache));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PartitionTables));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartPipeline));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(StopPipeline));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PausePipeline));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetPipelineStatus));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckClusterLiveness));
 
@@ -5390,93 +5394,6 @@ private:
             false /* feedbackEnabled */);
     }
 
-    ////////////////////////////////////////////////////////////////////////////////
-    // FILE CACHING
-    ////////////////////////////////////////////////////////////////////////////////
-
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetFileFromCache)
-    {
-        auto client = GetAuthenticatedClientOrThrow(context, request);
-
-        auto md5 = request->md5();
-
-        TGetFileFromCacheOptions options;
-        SetTimeoutOptions(&options, context.Get());
-
-        options.CachePath = request->cache_path();
-        if (request->has_transactional_options()) {
-            FromProto(&options, request->transactional_options());
-        }
-        if (request->has_master_read_options()) {
-            FromProto(&options, request->master_read_options());
-        }
-
-        context->SetRequestInfo("MD5: %v, CachePath: %v",
-            md5,
-            options.CachePath);
-
-        ExecuteCall(
-            context,
-            [=] {
-                return client->GetFileFromCache(md5, options);
-            },
-            [] (const auto& context, const auto& result) {
-                auto* response = &context->Response();
-                ToProto(response->mutable_result(), result);
-
-                context->SetResponseInfo("Path: %v",
-                    result.Path);
-            });
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PutFileToCache)
-    {
-        auto client = GetAuthenticatedClientOrThrow(context, request);
-
-        auto path = request->path();
-        auto md5 = request->md5();
-
-        TPutFileToCacheOptions options;
-        SetTimeoutOptions(&options, context.Get());
-        SetMutatingOptions(&options, request, context.Get());
-
-        options.CachePath = request->cache_path();
-        if (request->has_preserve_expiration_timeout()) {
-            options.PreserveExpirationTimeout = request->preserve_expiration_timeout();
-        }
-        if (request->has_transactional_options()) {
-            FromProto(&options, request->transactional_options());
-        }
-        if (request->has_prerequisite_options()) {
-            FromProto(&options, request->prerequisite_options());
-        }
-        if (request->has_master_read_options()) {
-            FromProto(&options, request->master_read_options());
-        }
-
-        context->SetRequestInfo("Path: %v, MD5: %v, CachePath: %v",
-            path,
-            md5,
-            options.CachePath);
-
-        ExecuteCall(
-            context,
-            [=] {
-                return client->PutFileToCache(path, md5, options);
-            },
-            [] (const auto& context, const auto& result) {
-                auto* response = &context->Response();
-                ToProto(response->mutable_result(), result);
-
-                context->SetResponseInfo("Path: %v",
-                    result.Path);
-            });
-    }
-
-    ////////////////////////////////////////////////////////////////////////////////
-    // MISC
-    ////////////////////////////////////////////////////////////////////////////////
-
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetColumnarStatistics)
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
@@ -5584,6 +5501,172 @@ private:
                 context->SetResponseInfo("PartitionCount: %v", result.Partitions.size());
             });
     }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // FILE CACHING
+    ////////////////////////////////////////////////////////////////////////////////
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetFileFromCache)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto md5 = request->md5();
+
+        TGetFileFromCacheOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        options.CachePath = request->cache_path();
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        if (request->has_master_read_options()) {
+            FromProto(&options, request->master_read_options());
+        }
+
+        context->SetRequestInfo("MD5: %v, CachePath: %v",
+            md5,
+            options.CachePath);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->GetFileFromCache(md5, options);
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_result(), result);
+
+                context->SetResponseInfo("Path: %v",
+                    result.Path);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PutFileToCache)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto path = request->path();
+        auto md5 = request->md5();
+
+        TPutFileToCacheOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        SetMutatingOptions(&options, request, context.Get());
+
+        options.CachePath = request->cache_path();
+        if (request->has_preserve_expiration_timeout()) {
+            options.PreserveExpirationTimeout = request->preserve_expiration_timeout();
+        }
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
+        }
+        if (request->has_master_read_options()) {
+            FromProto(&options, request->master_read_options());
+        }
+
+        context->SetRequestInfo("Path: %v, MD5: %v, CachePath: %v",
+            path,
+            md5,
+            options.CachePath);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->PutFileToCache(path, md5, options);
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_result(), result);
+
+                context->SetResponseInfo("Path: %v",
+                    result.Path);
+            });
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // FLOW
+    ////////////////////////////////////////////////////////////////////////////////
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StartPipeline)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TStartPipelineOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        auto pipelinePath = FromProto<TYPath>(request->pipeline_path());
+        context->SetRequestInfo("PipelinePath: %v", pipelinePath);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->StartPipeline(pipelinePath, options);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StopPipeline)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TStopPipelineOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        auto pipelinePath = FromProto<TYPath>(request->pipeline_path());
+        context->SetRequestInfo("PipelinePath: %v", pipelinePath);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->StopPipeline(pipelinePath, options);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PausePipeline)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TPausePipelineOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        auto pipelinePath = FromProto<TYPath>(request->pipeline_path());
+        context->SetRequestInfo("PipelinePath: %v", pipelinePath);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->PausePipeline(pipelinePath, options);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetPipelineStatus)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TGetPipelineStatusOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        auto pipelinePath = FromProto<TYPath>(request->pipeline_path());
+        context->SetRequestInfo("PipelinePath: %v", pipelinePath);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->GetPipelineStatus(pipelinePath, options);
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                response->set_state(ToProto<int>(result.State));
+
+                context->SetResponseInfo("State: %v",
+                    result.State);
+            });
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // MISC
+    ////////////////////////////////////////////////////////////////////////////////
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CheckClusterLiveness)
     {

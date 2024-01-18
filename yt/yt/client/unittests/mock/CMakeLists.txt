@@ -7,12 +7,17 @@
 
 
 
-add_library(client-unittests-mock INTERFACE)
-target_link_libraries(client-unittests-mock INTERFACE
+add_library(client-unittests-mock)
+target_compile_options(client-unittests-mock PRIVATE
+  -Wdeprecated-this-capture
+)
+target_link_libraries(client-unittests-mock PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   cpp-testing-gtest_extensions
-  yt-yt-build
-  yt-yt-core
+  yt-yt-client
+)
+target_sources(client-unittests-mock PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/mock/client.cpp
 )
