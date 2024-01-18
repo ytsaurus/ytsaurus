@@ -825,10 +825,6 @@ void TOperationControllerBase::InitializeStructures()
                 false));
         }
 
-        if (!userJobSpec->LayerPaths.empty()) {
-            Spec_->DefaultBaseLayerPath = std::nullopt;
-        }
-
         // Add layer files.
         auto layerPaths = GetLayerPaths(userJobSpec);
         for (const auto& path : layerPaths) {
