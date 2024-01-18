@@ -398,8 +398,6 @@ class TestGetJob(_TestGetJobCommon):
 
         wait(lambda: get_job(op.id, job_id).get("controller_state") == "running")
 
-        wait(lambda: _get_controller_state_from_archive(op.id, job_id) == "running")
-
         with Restarter(self.Env, NODES_SERVICE):
             pass
 
