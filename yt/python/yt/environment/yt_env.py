@@ -2145,7 +2145,7 @@ class YTInstance(object):
 
             return True
 
-        wait(check, error_message="Dynamic config from master didn't reach nodes in time")
+        wait(check, error_message="Dynamic config from master didn't reach nodes in time", ignore_exceptions=True)
 
     def _wait_for_queue_agent_dynamic_config(self, expected_config, client):
         instances = client.list("//sys/queue_agents/instances")
