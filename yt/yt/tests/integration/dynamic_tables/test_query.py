@@ -153,8 +153,11 @@ class TestQuery(DynamicTablesBase):
         self._sample_data(path="//tmp/t")
         expected = [{"s": 2 * i + 10 * i - 1} for i in range(1, 10)]
 
-        for _ in range(100):
+        for _ in range(200):
             actual = select_rows("2 * a + b - 1 as s from [//tmp/t]")
+            assert_items_equal(actual, expected)
+
+            actual = select_rows("2 * a + b - 1 as s from [//tmp/t] limit 1000")
             assert expected == actual
 
     @authors("sandello")
