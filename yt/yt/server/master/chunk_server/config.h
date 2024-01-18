@@ -259,6 +259,8 @@ public:
 
     bool IgnoreAccountSettings;
 
+    bool EnableVerboseLogging;
+
     bool ShouldRescheduleAfterChange(
         const TDynamicChunkReincarnatorConfig& that) const noexcept;
 
