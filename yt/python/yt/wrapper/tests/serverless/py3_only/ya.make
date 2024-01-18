@@ -1,6 +1,10 @@
 PY3TEST()
 
 SIZE(MEDIUM)
+
+REQUIREMENTS(
+    cpu:2
+)
     
 PEERDIR(
     yt/python/yt/wrapper

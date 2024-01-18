@@ -7,6 +7,10 @@ SIZE(MEDIUM)
 # Required for test_thread_pool.py
 FORK_TEST_FILES()
 
+REQUIREMENTS(
+    cpu:4
+)
+
 PEERDIR(
     yt/python/yt/wrapper
     yt/python/yt/testlib
