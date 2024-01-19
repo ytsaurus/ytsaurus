@@ -5615,7 +5615,7 @@ private:
                 if (location->AddDestroyedReplica(chunkIdWithIndexes)) {
                     ++DestroyedReplicaCount_;
                 } else {
-                    YT_LOG_ALERT("Replica is already present in destroyed set (LocationUuid: %v, ChunkId: %v)",
+                    YT_LOG_INFO("Replica is already present in destroyed set (LocationUuid: %v, ChunkId: %v)",
                         locationUuid,
                         chunkId);
                 }
