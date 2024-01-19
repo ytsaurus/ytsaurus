@@ -490,7 +490,9 @@ public:
 
     bool EnableDryRun;
 
-    TGuid TabletCellId;
+    TCellId TabletCellId;
+
+    NApi::TClusterTag ClockClusterTag;
 
     REGISTER_YSON_STRUCT(THydraDryRunConfig);
 

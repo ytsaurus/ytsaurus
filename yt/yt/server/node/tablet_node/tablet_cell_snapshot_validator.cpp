@@ -38,7 +38,10 @@ static const TString FakeBundle = "fake-bundle";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ICellarOccupantPtr CreateFakeOccupant(IBootstrapBase* bootstrap, TGuid cellId)
+ICellarOccupantPtr CreateFakeOccupant(
+    IBootstrapBase* bootstrap,
+    TCellId cellId,
+    NApi::TClusterTag clockClusterTag)
 {
     const auto& cellarManager = bootstrap
         ->GetCellarNodeBootstrap()
@@ -51,6 +54,7 @@ ICellarOccupantPtr CreateFakeOccupant(IBootstrapBase* bootstrap, TGuid cellId)
         auto options = New<TTabletCellOptions>();
         options->SnapshotAccount = FakeAccount;
         options->ChangelogAccount = FakeAccount;
+        options->ClockClusterTag = clockClusterTag;
 
         TCreateCellSlotInfo protoInfo;
         ToProto(protoInfo.mutable_cell_id(), cellId);
