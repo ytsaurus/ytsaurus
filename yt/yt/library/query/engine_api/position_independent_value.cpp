@@ -163,13 +163,15 @@ int CompareRows(const TPIValue* lhsBegin, const TPIValue* lhsEnd, const TPIValue
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToAny(TPIValue* result, TPIValue* value, TRowBuffer* rowBuffer)
+void ToAny(TPIValue* result, TPIValue* value, TExpressionContext* context)
 {
     auto unversionedResult = BorrowFromPI(result);
     auto unversionedValue = BorrowFromPI(value);
+
+    // NB: TRowBuffer should be used with caution while executing via WebAssembly engine.
     *unversionedResult.GetValue() = EncodeUnversionedAnyValue(
         *unversionedValue.GetValue(),
-        rowBuffer->GetPool());
+        context->GetRowBuffer()->GetPool());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -8,33 +8,33 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMutablePIValueRange AllocatePIValueRange(TRowBuffer* buffer, int valueCount)
+TMutablePIValueRange AllocatePIValueRange(TExpressionContext* context, int valueCount)
 {
-    auto* data = buffer->GetPool()->AllocateAligned(sizeof(TPIValue) * valueCount);
+    auto* data = context->AllocateAligned(sizeof(TPIValue) * valueCount);
     return TMutablePIValueRange(
         reinterpret_cast<TPIValue*>(data),
         static_cast<size_t>(valueCount));
 }
 
-void CapturePIValue(TRowBuffer* buffer, TPIValue* value)
+void CapturePIValue(TExpressionContext* context, TPIValue* value)
 {
     if (IsStringLikeType(value->Type)) {
-        char* dst = buffer->GetPool()->AllocateUnaligned(value->Length);
-        ::memcpy(dst, value->AsStringBuf().Data(), value->AsStringBuf().Size());
-        value->SetStringPosition(dst);
+        auto copy = context->AllocateUnaligned(value->Length);
+        ::memcpy(copy, value->AsStringBuf().Data(), value->AsStringBuf().Size());
+        value->SetStringPosition(copy);
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TMutablePIValueRange CapturePIValueRange(
-    TRowBuffer* buffer,
+    TExpressionContext* context,
     TPIValueRange values,
     bool captureValues)
 {
     int count = static_cast<int>(values.Size());
 
-    auto capturedRange = AllocatePIValueRange(buffer, values.Size());
+    auto capturedRange = AllocatePIValueRange(context, values.Size());
 
     for (size_t index = 0; index < values.Size(); ++index) {
         CopyPositionIndependent(&capturedRange[index], values[index]);
@@ -42,7 +42,7 @@ TMutablePIValueRange CapturePIValueRange(
 
     if (captureValues) {
         for (int index = 0; index < count; ++index) {
-            CapturePIValue(buffer, &capturedRange[index]);
+            CapturePIValue(context, &capturedRange[index]);
         }
     }
 
@@ -50,11 +50,11 @@ TMutablePIValueRange CapturePIValueRange(
 }
 
 TMutablePIValueRange CapturePIValueRange(
-    TRowBuffer* buffer,
+    TExpressionContext* context,
     TUnversionedValueRange values,
     bool captureValues)
 {
-    auto captured = buffer->CaptureRow(values, captureValues);
+    auto captured = context->CaptureRow(values, captureValues);
     InplaceConvertToPI(captured);
     return TMutablePIValueRange(
         reinterpret_cast<TPIValue*>(captured.Begin()),
@@ -86,6 +86,18 @@ TRowBufferHolderPtr MakeRowBufferHolder(TRowBufferPtr rowBuffer)
 
 struct TPIValueTransferBufferTag
 { };
+
+static TMutablePIValueRange CapturePIValueRange(
+    TRowBuffer* buffer,
+    TUnversionedValueRange values,
+    bool captureValues)
+{
+    auto captured = buffer->CaptureRow(values, captureValues);
+    InplaceConvertToPI(captured);
+    return TMutablePIValueRange(
+        reinterpret_cast<TPIValue*>(captured.Begin()),
+        static_cast<size_t>(captured.GetCount()));
+}
 
 TSharedRange<TRange<TPIValue>> CopyAndConvertToPI(
     const TSharedRange<TUnversionedRow>& rows,
@@ -174,27 +186,26 @@ TSharedRange<TPIRowRange> CopyAndConvertToPI(
 ////////////////////////////////////////////////////////////////////////////////
 
 TMutableUnversionedRow CopyAndConvertFromPI(
-    TRowBuffer* buffer,
+    TExpressionContext* context,
     TPIValueRange values,
     bool captureValues)
 {
-    auto capturedRow = TMutableUnversionedRow::Allocate(
-        buffer->GetPool(),
-        values.Size());
+    auto bytes = context->AllocateAligned(GetUnversionedRowByteSize(values.Size()));
+    auto capturedRow = TMutableUnversionedRow::Create(bytes, values.Size());
 
     for (size_t index = 0; index < values.Size(); ++index) {
         MakeUnversionedFromPositionIndependent(&capturedRow[index], values[index]);
     }
 
     if (captureValues) {
-        buffer->CaptureValues(capturedRow);
+        context->CaptureValues(capturedRow);
     }
 
     return capturedRow;
 }
 
 std::vector<TUnversionedRow> CopyAndConvertFromPI(
-    TRowBuffer* buffer,
+    TExpressionContext* context,
     const std::vector<TPIValueRange>& rows,
     bool captureValues)
 {
@@ -202,7 +213,7 @@ std::vector<TUnversionedRow> CopyAndConvertFromPI(
     result.reserve(rows.size());
 
     for (auto& row : rows) {
-        result.push_back(CopyAndConvertFromPI(buffer, row, captureValues));
+        result.push_back(CopyAndConvertFromPI(context, row, captureValues));
     }
 
     return result;

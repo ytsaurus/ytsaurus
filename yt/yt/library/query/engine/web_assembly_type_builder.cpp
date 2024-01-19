@@ -30,6 +30,7 @@ namespace NYT::NWebAssembly {
     XX(TSharedRange<TRange<NQueryClient::TPositionIndependentValue>>*, EWebAssemblyValueType::UintPtr)
 
     XX(NTableClient::TRowBuffer*, EWebAssemblyValueType::UintPtr)
+    XX(NQueryClient::TExpressionContext*, EWebAssemblyValueType::UintPtr)
 
     XX(NQueryClient::TFunctionContext*, EWebAssemblyValueType::UintPtr)
 

@@ -1643,7 +1643,7 @@ TEST_P(TInferRangesTest, Stress)
 
             // Evaluate predicate.
             TUnversionedValue resultValue{};
-            instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &resultValue, row.Elements(), rowBuffer.Get());
+            instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &resultValue, row.Elements(), rowBuffer);
 
             // Validate row in ranges.
             auto foundIt = BinarySearch(inferredRanges.begin(), inferredRanges.end(), [&] (TRowRange* rowRange) {

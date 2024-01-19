@@ -134,7 +134,7 @@ std::pair<const TPIValue*, int> TTopCollector::Capture(const TPIValue* row)
                 buffersToRows[Rows_[rowId].second].push_back(rowId);
             }
 
-            auto buffer = New<TRowBuffer>(TTopCollectorBufferTag(), MemoryChunkProvider_);
+            auto buffer = MakeExpressionContext(TTopCollectorBufferTag(), MemoryChunkProvider_);
 
             TotalMemorySize_ = 0;
             AllocatedMemorySize_ = 0;
@@ -144,41 +144,41 @@ std::pair<const TPIValue*, int> TTopCollector::Capture(const TPIValue* row)
                 for (auto rowId : buffersToRows[bufferId]) {
                     auto& row = Rows_[rowId].first;
 
-                    auto savedSize = buffer->GetSize();
-                    row = CapturePIValueRange(buffer.Get(), MakeRange(row, RowSize_)).Begin();
-                    AllocatedMemorySize_ += buffer->GetSize() - savedSize;
+                    auto savedSize = buffer.GetSize();
+                    row = CapturePIValueRange(&buffer, MakeRange(row, RowSize_)).Begin();
+                    AllocatedMemorySize_ += buffer.GetSize() - savedSize;
                 }
 
-                TotalMemorySize_ += buffer->GetCapacity();
+                TotalMemorySize_ += buffer.GetCapacity();
 
-                if (buffer->GetSize() < BufferLimit) {
+                if (buffer.GetSize() < BufferLimit) {
                     EmptyBufferIds_.push_back(bufferId);
                 }
 
                 std::swap(buffer, Buffers_[bufferId]);
-                buffer->Clear();
+                buffer.Clear();
             }
         } else {
             // Allocate buffer and add to emptyBufferIds.
             EmptyBufferIds_.push_back(Buffers_.size());
-            Buffers_.push_back(New<TRowBuffer>(TTopCollectorBufferTag(), MemoryChunkProvider_));
+            Buffers_.push_back(MakeExpressionContext(TTopCollectorBufferTag(), MemoryChunkProvider_));
         }
     }
 
     YT_VERIFY(!EmptyBufferIds_.empty());
 
     auto bufferId = EmptyBufferIds_.back();
-    auto buffer = Buffers_[bufferId];
+    auto& buffer = Buffers_[bufferId];
 
-    auto savedSize = buffer->GetSize();
-    auto savedCapacity = buffer->GetCapacity();
+    auto savedSize = buffer.GetSize();
+    auto savedCapacity = buffer.GetCapacity();
 
-    TPIValue* capturedRow = CapturePIValueRange(buffer.Get(), MakeRange(row, RowSize_)).Begin();
+    TPIValue* capturedRow = CapturePIValueRange(&buffer, MakeRange(row, RowSize_)).Begin();
 
-    AllocatedMemorySize_ += buffer->GetSize() - savedSize;
-    TotalMemorySize_ += buffer->GetCapacity() - savedCapacity;
+    AllocatedMemorySize_ += buffer.GetSize() - savedSize;
+    TotalMemorySize_ += buffer.GetCapacity() - savedCapacity;
 
-    if (buffer->GetSize() >= BufferLimit) {
+    if (buffer.GetSize() >= BufferLimit) {
         EmptyBufferIds_.pop_back();
     }
 
@@ -231,7 +231,7 @@ TMultiJoinClosure::TItem::TItem(
     TCompartmentFunction<TComparerFunction> prefixEqComparer,
     TCompartmentFunction<THasherFunction> lookupHasher,
     TCompartmentFunction<TComparerFunction> lookupEqComparer)
-    : Buffer(New<TRowBuffer>(TPermanentBufferTag(), std::move(chunkProvider)))
+    : Buffer(MakeExpressionContext(TPermanentBufferTag(), std::move(chunkProvider)))
     , KeySize(keySize)
     , PrefixEqComparer(prefixEqComparer)
     , Lookup(
@@ -245,7 +245,7 @@ TMultiJoinClosure::TItem::TItem(
 ////////////////////////////////////////////////////////////////////////////////
 
 TWriteOpClosure::TWriteOpClosure(IMemoryChunkProviderPtr chunkProvider)
-    : OutputBuffer(New<TRowBuffer>(TOutputBufferTag(), std::move(chunkProvider)))
+    : OutputBuffer(MakeExpressionContext(TOutputBufferTag(), std::move(chunkProvider)))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -284,7 +284,7 @@ void TCGExpressionInstance::Run(
     TRange<void*> opaqueData,
     TValue* result,
     TRange<TValue> inputRow,
-    TRowBuffer* buffer)
+    const TRowBufferPtr& buffer)
 {
     Callback_(literalValues, opaqueData, result, inputRow, buffer);
 }
@@ -316,22 +316,22 @@ TCGAggregateInstance::TCGAggregateInstance(TCGAggregateCallbacks callbacks)
     : Callbacks_(std::move(callbacks))
 { }
 
-void TCGAggregateInstance::RunInit(TRowBuffer* buffer, TValue* state)
+void TCGAggregateInstance::RunInit(const TRowBufferPtr& buffer, TValue* state)
 {
     Callbacks_.Init(buffer, state);
 }
 
-void TCGAggregateInstance::RunUpdate(TRowBuffer* buffer, TValue* state, TRange<TValue> arguments)
+void TCGAggregateInstance::RunUpdate(const TRowBufferPtr& buffer, TValue* state, TRange<TValue> arguments)
 {
     Callbacks_.Update(buffer, state, arguments);
 }
 
-void TCGAggregateInstance::RunMerge(TRowBuffer* buffer, TValue* firstState, const TValue* secondState)
+void TCGAggregateInstance::RunMerge(const TRowBufferPtr& buffer, TValue* firstState, const TValue* secondState)
 {
     Callbacks_.Merge(buffer, firstState, secondState);
 }
 
-void TCGAggregateInstance::RunFinalize(TRowBuffer* buffer, TValue* firstState, const TValue* secondState)
+void TCGAggregateInstance::RunFinalize(const TRowBufferPtr& buffer, TValue* firstState, const TValue* secondState)
 {
     Callbacks_.Finalize(buffer, firstState, secondState);
 }

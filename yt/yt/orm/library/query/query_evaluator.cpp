@@ -59,7 +59,7 @@ std::unique_ptr<TQueryEvaluationContext> CreateQueryEvaluationContext(
 TValue EvaluateQuery(
     const TQueryEvaluationContext& evaluationContext,
     TRange<TValue> inputValues,
-    TRowBuffer* expressionContext)
+    const TRowBufferPtr& expressionContext)
 {
     // Pre-zero value to avoid garbage after evaluator.
     auto outputValue = MakeUnversionedNullValue();

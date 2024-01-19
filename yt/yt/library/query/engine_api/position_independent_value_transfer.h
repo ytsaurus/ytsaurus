@@ -1,5 +1,6 @@
 #pragma once
 
+#include "expression_context.h"
 #include "position_independent_value.h"
 
 #include <yt/yt/client/table_client/unversioned_row.h>
@@ -8,16 +9,16 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMutablePIValueRange AllocatePIValueRange(TRowBuffer* buffer, int valueCount);
+TMutablePIValueRange AllocatePIValueRange(TExpressionContext* context, int valueCount);
 
-void CapturePIValue(TRowBuffer* buffer, TPIValue* value);
+void CapturePIValue(TExpressionContext* context, TPIValue* value);
 
 TMutablePIValueRange CapturePIValueRange(
-    TRowBuffer* buffer,
+    TExpressionContext* context,
     TPIValueRange values,
     bool captureValues = true);
 TMutablePIValueRange CapturePIValueRange(
-    TRowBuffer* buffer,
+    TExpressionContext* context,
     TUnversionedValueRange Values,
     bool captureValues = true);
 
@@ -29,11 +30,11 @@ TSharedRange<TPIRowRange> CopyAndConvertToPI(
     bool captureValues = true);
 
 TMutableUnversionedRow CopyAndConvertFromPI(
-    TRowBuffer* buffer,
+    TExpressionContext* context,
     TPIValueRange values,
     bool captureValues = true);
 std::vector<TUnversionedRow> CopyAndConvertFromPI(
-    TRowBuffer* buffer,
+    TExpressionContext* context,
     const std::vector<TPIValueRange>& rows,
     bool captureValues = true);
 

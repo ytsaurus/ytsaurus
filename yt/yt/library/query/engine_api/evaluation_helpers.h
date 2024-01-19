@@ -1,5 +1,6 @@
 #pragma once
 
+#include "expression_context.h"
 #include "position_independent_value.h"
 
 #include "public.h"
@@ -154,7 +155,7 @@ struct TMultiJoinClosure
 
     struct TItem
     {
-        TRowBufferPtr Buffer;
+        TExpressionContext Buffer;
         size_t KeySize;
         NWebAssembly::TCompartmentFunction<TComparerFunction> PrefixEqComparer;
 
@@ -170,7 +171,7 @@ struct TMultiJoinClosure
             NWebAssembly::TCompartmentFunction<TComparerFunction> lookupEqComparer);
     };
 
-    TRowBufferPtr Buffer;
+    TExpressionContext Buffer;
 
     std::vector<TPIValue*> PrimaryRows;
 
@@ -186,7 +187,7 @@ class TGroupByClosure;
 
 struct TWriteOpClosure
 {
-    TRowBufferPtr OutputBuffer;
+    TExpressionContext OutputBuffer;
 
     // Rows stored in OutputBuffer
     std::vector<TRow> OutputRowsBatch;
@@ -194,8 +195,6 @@ struct TWriteOpClosure
 
     explicit TWriteOpClosure(IMemoryChunkProviderPtr chunkProvider);
 };
-
-using TExpressionContext = TRowBuffer;
 
 #define CHECK_STACK() (void) 0;
 
@@ -274,7 +273,7 @@ private:
     size_t RowSize_;
     IMemoryChunkProviderPtr MemoryChunkProvider_;
 
-    std::vector<TRowBufferPtr> Buffers_;
+    std::vector<TExpressionContext> Buffers_;
     std::vector<int> EmptyBufferIds_;
     std::vector<std::pair<const TPIValue*, int>> Rows_;
 
@@ -320,11 +319,11 @@ using TCGPIAggregateMergeSignature = void(TExpressionContext*, TPIValue*, const 
 using TCGPIAggregateFinalizeSignature = void(TExpressionContext*, TPIValue*, const TPIValue*);
 
 using TCGQuerySignature = void(TRange<TPIValue>, TRange<void*>, TExecutionContext*);
-using TCGExpressionSignature = void(TRange<TPIValue>, TRange<void*>, TValue*, TRange<TValue>, TRowBuffer*);
-using TCGAggregateInitSignature = void(TExpressionContext*, TValue*);
-using TCGAggregateUpdateSignature = void(TExpressionContext*, TValue*, TRange<TValue>);
-using TCGAggregateMergeSignature = void(TExpressionContext*, TValue*, const TValue*);
-using TCGAggregateFinalizeSignature = void(TExpressionContext*, TValue*, const TValue*);
+using TCGExpressionSignature = void(TRange<TPIValue>, TRange<void*>, TValue*, TRange<TValue>, const TRowBufferPtr&);
+using TCGAggregateInitSignature = void(const TRowBufferPtr&, TValue*);
+using TCGAggregateUpdateSignature = void(const TRowBufferPtr&, TValue*, TRange<TValue>);
+using TCGAggregateMergeSignature = void(const TRowBufferPtr&, TValue*, const TValue*);
+using TCGAggregateFinalizeSignature = void(const TRowBufferPtr&, TValue*, const TValue*);
 
 using TCGQueryCallback = TCallback<TCGQuerySignature>;
 using TCGExpressionCallback = TCallback<TCGExpressionSignature>;
@@ -382,7 +381,7 @@ public:
         TRange<void*> opaqueData,
         TValue* result,
         TRange<TValue> inputRow,
-        TRowBuffer* buffer);
+        const TRowBufferPtr& buffer);
 
     operator bool() const;
 
@@ -411,10 +410,10 @@ public:
     TCGAggregateInstance() = default;
     explicit TCGAggregateInstance(TCGAggregateCallbacks callbacks);
 
-    void RunInit(TRowBuffer* buffer, TValue* state);
-    void RunUpdate(TRowBuffer* buffer, TValue* state, TRange<TValue> arguments);
-    void RunMerge(TRowBuffer* buffer, TValue* firstState, const TValue* secondState);
-    void RunFinalize(TRowBuffer* buffer, TValue* firstState, const TValue* secondState);
+    void RunInit(const TRowBufferPtr& buffer, TValue* state);
+    void RunUpdate(const TRowBufferPtr& buffer, TValue* state, TRange<TValue> arguments);
+    void RunMerge(const TRowBufferPtr& buffer, TValue* firstState, const TValue* secondState);
+    void RunFinalize(const TRowBufferPtr& buffer, TValue* firstState, const TValue* secondState);
 
 private:
     TCGAggregateCallbacks Callbacks_;

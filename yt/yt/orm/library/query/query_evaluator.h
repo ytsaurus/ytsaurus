@@ -30,7 +30,7 @@ std::unique_ptr<TQueryEvaluationContext> CreateQueryEvaluationContext(
 NQueryClient::TValue EvaluateQuery(
     const TQueryEvaluationContext& evaluationContext,
     TRange<NQueryClient::TValue> inputValues,
-    NQueryClient::TRowBuffer* expressionContext);
+    const NQueryClient::TRowBufferPtr& expressionContext);
 
 ////////////////////////////////////////////////////////////////////////////////
 

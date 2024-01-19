@@ -88,7 +88,7 @@ void TColumnEvaluator::InitAggregate(
     TUnversionedValue* state,
     const TRowBufferPtr& buffer) const
 {
-    Columns_[index].AggregateInstance.RunInit(buffer.Get(), state);
+    Columns_[index].AggregateInstance.RunInit(buffer, state);
     state->Id = index;
 }
 
@@ -98,7 +98,7 @@ void TColumnEvaluator::UpdateAggregate(
     const TRange<TUnversionedValue> update,
     const TRowBufferPtr& buffer) const
 {
-    Columns_[index].AggregateInstance.RunUpdate(buffer.Get(), state, update);
+    Columns_[index].AggregateInstance.RunUpdate(buffer, state, update);
     state->Id = index;
 }
 
@@ -108,7 +108,7 @@ void TColumnEvaluator::MergeAggregate(
     const TUnversionedValue& mergeeState,
     const TRowBufferPtr& buffer) const
 {
-    Columns_[index].AggregateInstance.RunMerge(buffer.Get(), state, &mergeeState);
+    Columns_[index].AggregateInstance.RunMerge(buffer, state, &mergeeState);
     state->Id = index;
 }
 
@@ -118,7 +118,7 @@ void TColumnEvaluator::FinalizeAggregate(
     const TUnversionedValue& state,
     const TRowBufferPtr& buffer) const
 {
-    Columns_[index].AggregateInstance.RunFinalize(buffer.Get(), result, &state);
+    Columns_[index].AggregateInstance.RunFinalize(buffer, result, &state);
     result->Id = index;
 }
 

@@ -999,7 +999,7 @@ TEST_F(TExpressionTest, FunctionNullArgument)
 
         auto image = Profile(expr, schema, nullptr, &variables)();
         auto instance = image.Instantiate();
-        instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
+        instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer);
 
         EXPECT_EQ(result, MakeNull());
     }
@@ -1025,7 +1025,7 @@ TEST_F(TExpressionTest, FunctionNullArgument)
 
         auto image = Profile(expr, schema, nullptr, &variables)();
         auto instance = image.Instantiate();
-        instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
+        instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer);
 
         EXPECT_EQ(result, MakeNull());
     }
@@ -1039,7 +1039,7 @@ TEST_F(TExpressionTest, FunctionNullArgument)
 
         auto image = Profile(expr, schema, nullptr, &variables)();
         auto instance = image.Instantiate();
-        instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
+        instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer);
 
         EXPECT_EQ(result, MakeNull());
     }
@@ -1060,7 +1060,7 @@ TEST_F(TExpressionTest, Aliasing)
 
     auto image = Profile(expr, schema, nullptr, &variables)();
     auto instance = image.Instantiate();
-    instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &value, TRange<TValue>(&value, 1), buffer.Get());
+    instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &value, TRange<TValue>(&value, 1), buffer);
 
     EXPECT_EQ(value.AsStringBuf(), "abcd");
 }
@@ -1119,7 +1119,7 @@ TEST_P(TExpressionTest, Evaluate)
 
     auto buffer = New<TRowBuffer>();
 
-    instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
+    instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer);
 
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(row);
@@ -1157,7 +1157,7 @@ TEST_P(TExpressionTest, EvaluateLhsValueRhsLiteral)
 
     auto buffer = New<TRowBuffer>();
 
-    instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
+    instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer);
 
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(row);
@@ -1195,7 +1195,7 @@ TEST_P(TExpressionTest, EvaluateLhsLiteralRhsValue)
 
     auto buffer = New<TRowBuffer>();
 
-    instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
+    instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer);
 
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(row);
@@ -1577,7 +1577,7 @@ TEST_F(TArithmeticExpressionTest, Test)
                                     variables.GetOpaqueData(),
                                     &result,
                                     row.Elements(),
-                                    buffer.Get());
+                                    buffer);
 
                                 EXPECT_EQ(result, expectedValue)
                                     << "row: " << ::testing::PrintToString(row);
@@ -1627,13 +1627,13 @@ TEST_P(TTernaryLogicTest, Evaluate)
     TCGVariables variables1;
     auto image1 = Profile(expr1, New<TTableSchema>(), nullptr, &variables1)();
     auto instance1 = image1.Instantiate();
-    instance1.Run(variables1.GetLiteralValues(), variables1.GetOpaqueData(), &result, row.Elements(), buffer.Get());
+    instance1.Run(variables1.GetLiteralValues(), variables1.GetOpaqueData(), &result, row.Elements(), buffer);
     EXPECT_TRUE(CompareRowValues(result, expected) == 0);
 
     TCGVariables variables2;
     auto image2 = Profile(expr2, New<TTableSchema>(), nullptr, &variables2)();
     auto instance2 = image2.Instantiate();
-    instance2.Run(variables2.GetLiteralValues(), variables2.GetOpaqueData(), &result, row.Elements(), buffer.Get());
+    instance2.Run(variables2.GetLiteralValues(), variables2.GetOpaqueData(), &result, row.Elements(), buffer);
     EXPECT_TRUE(CompareRowValues(result, expected) == 0);
 }
 
@@ -1742,14 +1742,14 @@ TEST_P(TCompareWithNullTest, Simple)
         auto image = Profile(expr, schema, &nonCanonId, &variables, /*useCanonicalNullRelations*/ false)();
         auto instance = image.Instantiate();
 
-        instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &nonCanonResult, row.Elements(), buffer.Get());
+        instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &nonCanonResult, row.Elements(), buffer);
     }
 
     {
         auto image = Profile(expr, schema, &canonId, &variables, /*useCanonicalNullRelations*/ true)();
         auto instance = image.Instantiate();
 
-        instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &canonResult, row.Elements(), buffer.Get());
+        instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &canonResult, row.Elements(), buffer);
     }
 
     EXPECT_NE(nonCanonId, canonId);
@@ -1828,36 +1828,36 @@ TEST_F(TEvaluateAggregationTest, AggregateFlag)
     auto value = MakeUint64(0);
 
     // Init sets aggregate flag to true.
-    instance.RunInit(buffer.Get(), &state);
+    instance.RunInit(buffer, &state);
     EXPECT_EQ(EValueFlags::Aggregate, state.Flags);
 
     value.Flags |= EValueFlags::Aggregate;
-    instance.RunUpdate(buffer.Get(), &state, TRange<TValue>(&value, 1));
+    instance.RunUpdate(buffer, &state, TRange<TValue>(&value, 1));
     EXPECT_EQ(EValueFlags::None, state.Flags);
 
-    instance.RunUpdate(buffer.Get(), &state, TRange<TValue>(&value, 1));
+    instance.RunUpdate(buffer, &state, TRange<TValue>(&value, 1));
     EXPECT_EQ(EValueFlags::Aggregate, state.Flags);
 
     value.Flags &= ~EValueFlags::Aggregate;
-    instance.RunUpdate(buffer.Get(), &state, TRange<TValue>(&value, 1));
+    instance.RunUpdate(buffer, &state, TRange<TValue>(&value, 1));
     EXPECT_EQ(EValueFlags::Aggregate, state.Flags);
 
     value.Flags &= ~EValueFlags::Aggregate;
-    instance.RunMerge(buffer.Get(), &state, &value);
+    instance.RunMerge(buffer, &state, &value);
     EXPECT_EQ(EValueFlags::Aggregate, state.Flags);
 
     value.Flags |= EValueFlags::Aggregate;
-    instance.RunMerge(buffer.Get(), &state, &value);
+    instance.RunMerge(buffer, &state, &value);
     EXPECT_EQ(EValueFlags::None, state.Flags);
 
     TUnversionedValue result{};
     // Finalize preserves aggregate flag.
     state.Flags &= ~EValueFlags::Aggregate;
-    instance.RunFinalize(buffer.Get(), &result, &state);
+    instance.RunFinalize(buffer, &result, &state);
     EXPECT_EQ(EValueFlags::None, state.Flags);
 
     state.Flags |= EValueFlags::Aggregate;
-    instance.RunFinalize(buffer.Get(), &result, &state);
+    instance.RunFinalize(buffer, &result, &state);
     EXPECT_EQ(EValueFlags::Aggregate, state.Flags);
 }
 
@@ -1892,19 +1892,19 @@ TEST_F(TEvaluateAggregationTest, Aliasing)
         auto buffer = New<TRowBuffer>();
 
         auto result = MakeUnversionedNullValue();
-        instance.RunInit(buffer.Get(), &result);
+        instance.RunInit(buffer, &result);
 
         auto input = MakeUnversionedStringValue("abc");
-        instance.RunUpdate(buffer.Get(), &result, TRange<TValue>(&input, 1));
+        instance.RunUpdate(buffer, &result, TRange<TValue>(&input, 1));
         EXPECT_EQ(result.AsStringBuf(), "abc");
 
         input = MakeUnversionedStringValue("def");
-        instance.RunMerge(buffer.Get(), &result, &input);
+        instance.RunMerge(buffer, &result, &input);
         EXPECT_EQ(result.AsStringBuf(), "abcdef");
 
         auto result2 = MakeUnversionedNullValue();
 
-        instance.RunFinalize(buffer.Get(), &result2, &result);
+        instance.RunFinalize(buffer, &result2, &result);
         EXPECT_EQ(result2.AsStringBuf(), "abcdef");
     }
 
@@ -1912,17 +1912,17 @@ TEST_F(TEvaluateAggregationTest, Aliasing)
         auto buffer = New<TRowBuffer>();
 
         auto result = MakeUnversionedNullValue();
-        instance.RunInit(buffer.Get(), &result);
+        instance.RunInit(buffer, &result);
 
         auto input = MakeUnversionedStringValue("abc");
-        instance.RunUpdate(buffer.Get(), &result, TRange<TValue>(&input, 1));
+        instance.RunUpdate(buffer, &result, TRange<TValue>(&input, 1));
         EXPECT_EQ(result.AsStringBuf(), "abc");
 
         input = MakeUnversionedStringValue("def");
-        instance.RunUpdate(buffer.Get(), &result, TRange<TValue>(&input, 1));
+        instance.RunUpdate(buffer, &result, TRange<TValue>(&input, 1));
         EXPECT_EQ(result.AsStringBuf(), "abcdef");
 
-        instance.RunFinalize(buffer.Get(), &result, &result);
+        instance.RunFinalize(buffer, &result, &result);
         EXPECT_EQ(result.AsStringBuf(), "abcdef");
     }
 
@@ -1930,19 +1930,19 @@ TEST_F(TEvaluateAggregationTest, Aliasing)
         auto buffer = New<TRowBuffer>();
 
         auto result = MakeUnversionedNullValue();
-        instance.RunInit(buffer.Get(), &result);
+        instance.RunInit(buffer, &result);
 
         auto input = MakeUnversionedStringValue("abc");
-        instance.RunUpdate(buffer.Get(), &result, TRange<TValue>(&input, 1));
+        instance.RunUpdate(buffer, &result, TRange<TValue>(&input, 1));
         EXPECT_EQ(result.AsStringBuf(), "abc");
 
-        instance.RunUpdate(buffer.Get(), &result, TRange<TValue>(&result, 1));
+        instance.RunUpdate(buffer, &result, TRange<TValue>(&result, 1));
         EXPECT_EQ(result.AsStringBuf(), "abcabc");
 
-        instance.RunMerge(buffer.Get(), &result, &result);
+        instance.RunMerge(buffer, &result, &result);
         EXPECT_EQ(result.AsStringBuf(), "abcabcabcabc");
 
-        instance.RunFinalize(buffer.Get(), &result, &result);
+        instance.RunFinalize(buffer, &result, &result);
         EXPECT_EQ(result.AsStringBuf(), "abcabcabcabc");
     }
 }
@@ -1966,24 +1966,24 @@ TEST_P(TEvaluateAggregationTest, Basic)
     auto buffer = New<TRowBuffer>();
 
     TUnversionedValue state1{};
-    instance.RunInit(buffer.Get(), &state1);
+    instance.RunInit(buffer, &state1);
     EXPECT_EQ(EValueType::Null, state1.Type);
 
-    instance.RunUpdate(buffer.Get(), &state1, TRange<TValue>(&value1, 1));
+    instance.RunUpdate(buffer, &state1, TRange<TValue>(&value1, 1));
     EXPECT_EQ(value1, state1);
 
     TUnversionedValue state2{};
-    instance.RunInit(buffer.Get(), &state2);
+    instance.RunInit(buffer, &state2);
     EXPECT_EQ(EValueType::Null, state2.Type);
 
-    instance.RunUpdate(buffer.Get(), &state2, TRange<TValue>(&value2, 1));
+    instance.RunUpdate(buffer, &state2, TRange<TValue>(&value2, 1));
     EXPECT_EQ(value2, state2);
 
-    instance.RunMerge(buffer.Get(), &state1, &state2);
+    instance.RunMerge(buffer, &state1, &state2);
     EXPECT_EQ(expected, state1);
 
     TUnversionedValue result{};
-    instance.RunFinalize(buffer.Get(), &result, &state1);
+    instance.RunFinalize(buffer, &result, &state1);
     EXPECT_EQ(expected, result);
 }
 
@@ -2088,28 +2088,28 @@ TEST_P(TEvaluateAggregationWithStringStateTest, Basic)
     auto buffer = New<TRowBuffer>();
 
     TUnversionedValue state1{};
-    instance.RunInit(buffer.Get(), &state1);
+    instance.RunInit(buffer, &state1);
     EXPECT_EQ(EValueType::Null, state1.Type);
 
     for (int index = 0; index < std::ssize(argumentPackList1); ++index) {
-        instance.RunUpdate(buffer.Get(), &state1, TRange<TValue>(argumentPackList1[index]));
+        instance.RunUpdate(buffer, &state1, TRange<TValue>(argumentPackList1[index]));
         EXPECT_EQ(state1, MakeString(expectedValuesOnUpdate1[index]));
     }
 
     TUnversionedValue state2{};
-    instance.RunInit(buffer.Get(), &state2);
+    instance.RunInit(buffer, &state2);
     EXPECT_EQ(EValueType::Null, state2.Type);
 
     for (int index = 0; index < std::ssize(argumentPackList2); ++index) {
-        instance.RunUpdate(buffer.Get(), &state2, TRange<TValue>(argumentPackList2[index]));
+        instance.RunUpdate(buffer, &state2, TRange<TValue>(argumentPackList2[index]));
         EXPECT_EQ(state2, MakeString(expectedValuesOnUpdate2[index]));
     }
 
-    instance.RunMerge(buffer.Get(), &state1, &state2);
+    instance.RunMerge(buffer, &state1, &state2);
     EXPECT_EQ(state1, MakeString(afterMergeValue));
 
     TUnversionedValue result{};
-    instance.RunFinalize(buffer.Get(), &result, &state1);
+    instance.RunFinalize(buffer, &result, &state1);
     EXPECT_EQ(result, expectedFinalValue);
 }
 
@@ -2234,7 +2234,7 @@ void EvaluateExpression(
 
     auto row = YsonToSchemafulRow(rowString, *schema, true);
 
-    instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), result, row.Elements(), buffer.Get());
+    instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), result, row.Elements(), buffer);
 }
 
 class TEvaluateExpressionTest

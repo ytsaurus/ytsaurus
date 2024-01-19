@@ -1,5 +1,7 @@
 #pragma once
 
+#include "expression_context.h"
+
 #include <yt/yt/client/table_client/row_base.h>
 #include <yt/yt/client/table_client/unversioned_value.h>
 
@@ -132,7 +134,7 @@ int CompareRowValues(const TPIValue& lhs, const TPIValue& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToAny(TPIValue* result, TPIValue* value, TRowBuffer* rowBuffer);
+void ToAny(TPIValue* result, TPIValue* value, TExpressionContext* context);
 
 ////////////////////////////////////////////////////////////////////////////////
 

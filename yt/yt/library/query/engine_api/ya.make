@@ -6,16 +6,17 @@ PROTO_NAMESPACE(yt)
 
 SRCS(
     append_function_implementation.cpp
+    builtin_function_profiler.cpp
     column_evaluator.cpp
     config.cpp
     coordinator.cpp
     evaluation_helpers.cpp
     evaluator.cpp
-    builtin_function_profiler.cpp
-    range_inferrer.cpp
+    expression_context.cpp
     new_range_inferrer.cpp
     position_independent_value.cpp
     position_independent_value_transfer.cpp
+    range_inferrer.cpp
 )
 
 ADDINCL(

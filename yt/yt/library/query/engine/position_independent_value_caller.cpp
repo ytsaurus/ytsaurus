@@ -19,7 +19,7 @@ void TCGPICaller<TCGExpressionSignature, TCGPIExpressionSignature>::Run(
     TRange<void*> opaqueData,
     TValue* result,
     TRange<TValue> row,
-    TRowBuffer* buffer)
+    const TRowBufferPtr& buffer)
 {
     auto* positionIndependentLiteralValues = literalValues.Empty()
         ? nullptr
@@ -33,12 +33,14 @@ void TCGPICaller<TCGExpressionSignature, TCGPIExpressionSignature>::Run(
 
     auto positionIndependentRow = BorrowFromNonPI(row);
 
+    auto context = TExpressionContext(buffer);
+
     Callback_(
         positionIndependentLiteralValues,
         opaqueData.Empty() ? nullptr : &opaqueData.Front(),
         positionIndependentResult.GetPIValue(),
         positionIndependentRow.Begin(),
-        buffer);
+        &context);
 }
 
 template <>
@@ -59,19 +61,21 @@ void TCGPICaller<TCGQuerySignature, TCGPIQuerySignature>::Run(
 
 template <>
 void TCGPICaller<TCGAggregateInitSignature, TCGPIAggregateInitSignature>::Run(
-    TExpressionContext* context,
+    const TRowBufferPtr& buffer,
     TValue* result)
 {
     auto positionIndependentResult = BorrowFromNonPI(result);
 
+    auto context = TExpressionContext(buffer);
+
     Callback_(
-        context,
+        &context,
         positionIndependentResult.GetPIValue());
 }
 
 template <>
 void TCGPICaller<TCGAggregateUpdateSignature, TCGPIAggregateUpdateSignature>::Run(
-    TExpressionContext* context,
+    const TRowBufferPtr& buffer,
     TValue* result,
     TRange<TValue> input)
 {
@@ -83,15 +87,17 @@ void TCGPICaller<TCGAggregateUpdateSignature, TCGPIAggregateUpdateSignature>::Ru
 
     auto positionIndependentInput = BorrowFromNonPI(input);
 
+    auto context = TExpressionContext(buffer);
+
     Callback_(
-        context,
+        &context,
         positionIndependentResult.GetPIValue(),
         positionIndependentInput.Begin());
 }
 
 template <>
 void TCGPICaller<TCGAggregateMergeSignature, TCGPIAggregateMergeSignature>::Run(
-    TExpressionContext* context,
+    const TRowBufferPtr& buffer,
     TValue* result,
     const TValue* state)
 {
@@ -104,8 +110,10 @@ void TCGPICaller<TCGAggregateMergeSignature, TCGPIAggregateMergeSignature>::Run(
 
     auto positionIndependentState = BorrowFromNonPI(const_cast<TValue*>(state));
 
+    auto context = TExpressionContext(buffer);
+
     Callback_(
-        context,
+        &context,
         positionIndependentResult.GetPIValue(),
         positionIndependentState.GetPIValue());
 }
