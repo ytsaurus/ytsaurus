@@ -29,7 +29,7 @@ DEFINE_ENUM(EPipelineState,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const TString PipelineFormatVersionAttribute("flow_pipline_format_version");
+inline const TString PipelineFormatVersionAttribute("flow_pipeline_format_version");
 inline const TString LeaderControllerAddressAttribute("leader_controller_address");
 
 constexpr int CurrentPipelineFormatVersion = 1;
