@@ -41,6 +41,12 @@ void PipeReaderToWriter(
     const IUnversionedRowsetWriterPtr& writer,
     const TPipeReaderToWriterOptions& options);
 
+void PipeReaderToWriterByBatches(
+    const ISchemalessChunkReaderPtr& reader,
+    const NFormats::ISchemalessFormatWriterPtr& writer,
+    const TRowBatchReadOptions& options,
+    TDuration pipeDelay);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Checks whether chunk with `chunkSortColumns' sort columns

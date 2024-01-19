@@ -144,8 +144,21 @@ void PipeReaderToWriter(
 {
     PipeReaderToWriter(
         CreateApiFromSchemalessChunkReaderAdapter(reader),
-        std::move(writer),
+        writer,
         options);
+}
+
+void PipeReaderToWriterByBatches(
+    const ISchemalessChunkReaderPtr& reader,
+    const NFormats::ISchemalessFormatWriterPtr& writer,
+    const TRowBatchReadOptions& options,
+    TDuration pipeDelay)
+{
+    PipeReaderToWriterByBatches(
+        CreateApiFromSchemalessChunkReaderAdapter(reader),
+        writer,
+        options,
+        pipeDelay);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

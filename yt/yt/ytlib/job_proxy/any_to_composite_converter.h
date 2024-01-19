@@ -26,6 +26,8 @@ public:
     i64 GetWrittenSize() const override;
     TFuture<void> Close() override;
     TFuture<void> Flush() override;
+    i64 GetEncodedRowBatchCount() const override;
+    i64 GetEncodedColumnarBatchCount() const override;
 
 private:
     NFormats::ISchemalessFormatWriterPtr UnderlyingWriter_;
