@@ -1365,9 +1365,10 @@ type QueryTrackerOptions struct {
 }
 
 type StartQueryOptions struct {
-	Settings    any   `http:"settings,omitnil"`
-	Draft       *bool `http:"draft,omitnil"`
-	Annotations any   `http:"annotations,omitnil"`
+	Settings            any     `http:"settings,omitnil"`
+	Draft               *bool   `http:"draft,omitnil"`
+	Annotations         any     `http:"annotations,omitnil"`
+	AccessControlObject *string `http:"access_control_object,omitnil"`
 
 	*QueryTrackerOptions
 }
@@ -1415,7 +1416,8 @@ type ReadQueryResultOptions struct {
 }
 
 type AlterQueryOptions struct {
-	Annotations any `http:"annotations,omitnil"`
+	Annotations         any     `http:"annotations,omitnil"`
+	AccessControlObject *string `http:"access_control_object,omitnil"`
 
 	*QueryTrackerOptions
 }
