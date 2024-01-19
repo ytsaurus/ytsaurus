@@ -85,6 +85,9 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_actions_per_group", &TThis::MaxActionsPerGroup)
         .Default(300)
         .GreaterThan(0);
+    registrar.Parameter("max_actions_per_reshard_type", &TThis::MaxActionsPerReshardType)
+        .Default(150)
+        .GreaterThan(0);
     registrar.Parameter("action_manager", &TThis::ActionManager)
         .DefaultNew();
 

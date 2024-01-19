@@ -73,6 +73,7 @@ public:
     i64 MinDesiredTabletSize;
 
     int MaxActionsPerGroup;
+    int MaxActionsPerReshardType;
 
     TActionManagerConfigPtr ActionManager;
 

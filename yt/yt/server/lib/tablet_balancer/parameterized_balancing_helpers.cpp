@@ -1105,11 +1105,17 @@ TReshardDescriptor TParameterizedResharder::SplitTablet(
         tabletMetric / tabletCount,
         correlationId);
 
+    auto deviation = std::max(
+        tabletMetric / statistics.DesiredTabletMetric,
+        static_cast<double>(tabletSize) / statistics.DesiredTabletSize);
+
     return TReshardDescriptor{
         .Tablets = std::vector<TTabletId>{tabletId},
         .TabletCount = tabletCount,
         .DataSize = tabletSize,
-        .CorrelationId = correlationId};
+        .CorrelationId = correlationId,
+        .Priority = std::make_tuple(/*IsSplit*/ true, -tabletCount, -deviation)
+    };
 }
 
 std::optional<TReshardDescriptor> TParameterizedResharder::MergeTablets(
@@ -1126,6 +1132,10 @@ std::optional<TReshardDescriptor> TParameterizedResharder::MergeTablets(
 
     auto tabletCount = std::ssize(table->Tablets);
 
+    auto deviation = std::min(
+        statistics.TabletMetrics[tabletIndex] / statistics.DesiredTabletMetric,
+        static_cast<double>(statistics.TabletSizes[tabletIndex]) / statistics.DesiredTabletSize);
+
     while (AreMoreTabletsNeeded(statistics, enlargedTabletSize, enlargedTabletMetric) &&
         leftTabletIndex > 0 &&
         !touchedTabletIndexes->contains(leftTabletIndex - 1) &&
@@ -1134,6 +1144,11 @@ std::optional<TReshardDescriptor> TParameterizedResharder::MergeTablets(
         --leftTabletIndex;
         enlargedTabletSize += statistics.TabletSizes[leftTabletIndex];
         enlargedTabletMetric += statistics.TabletMetrics[leftTabletIndex];
+
+        deviation = std::min({
+            deviation,
+            statistics.TabletMetrics[leftTabletIndex] / statistics.DesiredTabletMetric,
+            static_cast<double>(statistics.TabletSizes[leftTabletIndex]) / statistics.DesiredTabletSize});
     }
 
     while (AreMoreTabletsNeeded(statistics, enlargedTabletSize, enlargedTabletMetric) &&
@@ -1144,6 +1159,11 @@ std::optional<TReshardDescriptor> TParameterizedResharder::MergeTablets(
         enlargedTabletSize += statistics.TabletSizes[rightTabletIndex];
         enlargedTabletMetric += statistics.TabletMetrics[rightTabletIndex];
         ++rightTabletIndex;
+
+        deviation = std::min({
+            deviation,
+            statistics.TabletMetrics[rightTabletIndex] / statistics.DesiredTabletMetric,
+            static_cast<double>(statistics.TabletSizes[rightTabletIndex]) / statistics.DesiredTabletSize});
     }
 
     if (rightTabletIndex - leftTabletIndex == 1) {
@@ -1175,7 +1195,8 @@ std::optional<TReshardDescriptor> TParameterizedResharder::MergeTablets(
         .Tablets = std::move(tabletsToMerge),
         .TabletCount = 1,
         .DataSize = enlargedTabletSize,
-        .CorrelationId = correlationId
+        .CorrelationId = correlationId,
+        .Priority = std::make_tuple(false, -(rightTabletIndex - leftTabletIndex), deviation)
     };
 }
 

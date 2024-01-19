@@ -29,6 +29,13 @@ using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TReshardDescriptor::operator<(const TReshardDescriptor& descriptor) const
+{
+    return Priority < descriptor.Priority;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTabletSizeConfig
 {
     i64 MinTabletSize = 0;

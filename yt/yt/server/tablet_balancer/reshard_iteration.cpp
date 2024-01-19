@@ -153,7 +153,7 @@ public:
     }
 
     void UpdateProfilingCounters(
-        const TTablePtr& /*table*/,
+        const TTable* /*table*/,
         const TTableProfilingCounters& profilingCounters,
         const TReshardDescriptor& descriptor) override
     {
@@ -245,7 +245,7 @@ public:
     }
 
     void UpdateProfilingCounters(
-        const TTablePtr& table,
+        const TTable* table,
         const TTableProfilingCounters& profilingCounters,
         const TReshardDescriptor& descriptor) override
     {

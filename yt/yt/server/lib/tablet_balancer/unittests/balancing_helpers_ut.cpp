@@ -22,6 +22,8 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
+#include <random>
+
 namespace NYT::NTabletBalancer {
 namespace {
 
@@ -1251,6 +1253,59 @@ INSTANTIATE_TEST_SUITE_P(
                    "{cell_index=2; memory_size=50; node_address=home}];"
             "nodes=[{node_address=home; memory_used=0; memory_limit=100}]}",
             /*errorText*/ "Tablet metric must be nonnegative")));
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTestReshardDescriptorSorting
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<std::vector<TReshardDescriptor>>
+{ };
+
+TEST_P(TTestReshardDescriptorSorting, Sort)
+{
+    std::mt19937 generator;
+    const auto& expectedDesciptors = GetParam();
+    auto desciptors = expectedDesciptors;
+
+    std::shuffle(desciptors.begin(), desciptors.end(), generator);
+    std::sort(desciptors.begin(), desciptors.end());
+
+    EXPECT_EQ(std::ssize(desciptors), std::ssize(expectedDesciptors));
+    for (int index = 0; index < std::ssize(desciptors); ++index) {
+        EXPECT_EQ(desciptors[index].Priority, expectedDesciptors[index].Priority);
+    }
+}
+
+TReshardDescriptor CreateMergeDescriptor(int tabletToMerge, double minDeviation = 0.0)
+{
+    return TReshardDescriptor{
+        .Priority = std::make_tuple(/*isSplit*/ false, -tabletToMerge, minDeviation)};
+}
+
+TReshardDescriptor CreateSplitDescriptor(int newTabletCount, double maxDeviation = 0.0)
+{
+    return TReshardDescriptor{
+        .Priority = std::make_tuple(/*isSplit*/ true, -newTabletCount, -maxDeviation)};
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TTestReshardDescriptorSorting,
+    TTestReshardDescriptorSorting,
+    ::testing::Values(
+        std::vector<TReshardDescriptor>{CreateMergeDescriptor(1), CreateSplitDescriptor(1)},
+        std::vector<TReshardDescriptor>{CreateMergeDescriptor(5), CreateMergeDescriptor(2)},
+        std::vector<TReshardDescriptor>{CreateSplitDescriptor(5), CreateSplitDescriptor(2)},
+        std::vector<TReshardDescriptor>{CreateMergeDescriptor(2, 100.), CreateMergeDescriptor(2, 200.)},
+        std::vector<TReshardDescriptor>{CreateSplitDescriptor(2, 500.), CreateSplitDescriptor(2, 400.)},
+        std::vector<TReshardDescriptor>{
+            CreateMergeDescriptor(3, 50.),
+            CreateMergeDescriptor(3, 100.),
+            CreateMergeDescriptor(2, 50.),
+            CreateMergeDescriptor(2, 100.),
+            CreateSplitDescriptor(5, 400.),
+            CreateSplitDescriptor(5, 100.),
+            CreateSplitDescriptor(2, 300.),
+            CreateSplitDescriptor(2, 200.)}));
 
 ////////////////////////////////////////////////////////////////////////////////
 
