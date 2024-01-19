@@ -695,25 +695,7 @@ public class RichYPath implements YPath {
         if (!parentMapNode.containsKey(key)) {
             return null;
         }
-        YTreeMapNode mapNode = parentMapNode.getOrThrow(key).mapNode();
-        List<YTreeNode> limitKey = new ArrayList<>();
-        if (mapNode.containsKey("key")) {
-            limitKey = mapNode.getOrThrow("key").asList();
-        }
-        long rowIndex = -1;
-        if (mapNode.containsKey("row_index")) {
-            rowIndex = mapNode.getOrThrow("row_index").longValue();
-        }
-        long offset = -1;
-        if (mapNode.containsKey("offset")) {
-            offset = mapNode.getOrThrow("offset").longValue();
-        }
-        long tabletIndex = -1;
-        if (mapNode.containsKey("tablet_index")) {
-            tabletIndex = mapNode.getOrThrow("tablet_index").longValue();
-        }
-        return RangeLimit.builder().setKey(limitKey).setRowIndex(rowIndex).setOffset(offset).setTabletIndex(tabletIndex)
-                .build();
+        return RangeLimit.fromTree(parentMapNode.getOrThrow(key));
     }
 }
 

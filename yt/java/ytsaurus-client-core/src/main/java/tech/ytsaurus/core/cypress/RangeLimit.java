@@ -11,6 +11,7 @@ import javax.annotation.Nullable;
 import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.ysontree.YTreeBuilder;
+import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeNode;
 
 
@@ -86,6 +87,37 @@ public class RangeLimit {
 
     public static RangeLimit key(Relation relation, YTreeNode... key) {
         return new RangeLimit(Collections.emptyList(), KeyBound.of(relation, key), -1, -1);
+    }
+
+    public static RangeLimit fromTree(YTreeNode node) {
+        YTreeMapNode mapNode = node.mapNode();
+        List<YTreeNode> limitKey = new ArrayList<>();
+        if (mapNode.containsKey("key")) {
+            limitKey = mapNode.getOrThrow("key").asList();
+        }
+        KeyBound keyBound = null;
+        if (mapNode.containsKey("key_bound")) {
+            keyBound = KeyBound.fromTree(mapNode.getOrThrow("key_bound"));
+        }
+        long rowIndex = -1;
+        if (mapNode.containsKey("row_index")) {
+            rowIndex = mapNode.getOrThrow("row_index").longValue();
+        }
+        long offset = -1;
+        if (mapNode.containsKey("offset")) {
+            offset = mapNode.getOrThrow("offset").longValue();
+        }
+        long tabletIndex = -1;
+        if (mapNode.containsKey("tablet_index")) {
+            tabletIndex = mapNode.getOrThrow("tablet_index").longValue();
+        }
+        return RangeLimit.builder()
+                .setKey(limitKey)
+                .setKeyBound(keyBound)
+                .setRowIndex(rowIndex)
+                .setOffset(offset)
+                .setTabletIndex(tabletIndex)
+                .build();
     }
 
     public YTreeBuilder toTree(YTreeBuilder builder) {

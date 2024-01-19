@@ -25,4 +25,13 @@ public enum Relation implements StringValueEnum {
     public String value() {
         return value;
     }
+
+    public static Relation fromValue(String value) {
+        for (Relation relation : Relation.values()) {
+            if (relation.value.equals(value)) {
+                return relation;
+            }
+        }
+        throw new IllegalArgumentException("Unknown relation value: " + value);
+    }
 }
