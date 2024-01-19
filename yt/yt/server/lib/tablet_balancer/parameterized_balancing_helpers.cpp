@@ -125,7 +125,9 @@ protected:
                 THROW_ERROR_EXCEPTION(
                     "Tablet metric value type is not numerical: got %Qlv",
                     value.Type)
-                    << TErrorAttribute("metric_formula", Metric_);
+                    << TErrorAttribute("metric_formula", Metric_)
+                    << TErrorAttribute("tablet_id", tablet->Id)
+                    << TErrorAttribute("table_id", tablet->Table->Id);
         }
     }
 };
