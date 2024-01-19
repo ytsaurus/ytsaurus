@@ -3133,7 +3133,10 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
         // Validate all node ids of the output chunks and populate the local node directory.
         // In case any id is not known, abort the job.
         for (const auto& chunkSpec : jobResultExt.output_chunk_specs()) {
-            RegisterOutputChunkReplicas(*jobSummary, chunkSpec);
+            if (auto abortedJobSummary = RegisterOutputChunkReplicas(*jobSummary, chunkSpec)) {
+                OnJobAborted(std::move(abortedJobSummary));
+                return;
+            }
         }
     }
 
@@ -11014,7 +11017,7 @@ void TOperationControllerBase::InterruptJob(TJobId jobId, EInterruptReason inter
     Host->InterruptJob(jobId, interruptionReason, timeout);
 }
 
-void TOperationControllerBase::RegisterOutputChunkReplicas(
+std::unique_ptr<TAbortedJobSummary> TOperationControllerBase::RegisterOutputChunkReplicas(
     const TJobSummary& jobSummary,
     const NChunkClient::NProto::TChunkSpec& chunkSpec)
 {
@@ -11035,13 +11038,13 @@ void TOperationControllerBase::RegisterOutputChunkReplicas(
                 "(JobId: %v, NodeId: %v)",
                 jobSummary.Id,
                 nodeId);
-            auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(jobSummary, EAbortReason::Other);
-            OnJobAborted(std::move(abortedJobSummary));
-            return;
+            return std::make_unique<TAbortedJobSummary>(jobSummary, EAbortReason::Other);
         }
 
         InputNodeDirectory_->AddDescriptor(nodeId, *descriptor);
     }
+
+    return nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

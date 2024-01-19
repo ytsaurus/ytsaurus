@@ -1474,7 +1474,7 @@ private:
     void ReportJobCookieToArchive(const TJobletPtr& joblet);
     void ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state);
 
-    void RegisterOutputChunkReplicas(
+    std::unique_ptr<TAbortedJobSummary> RegisterOutputChunkReplicas(
         const TJobSummary& jobSummary,
         const NChunkClient::NProto::TChunkSpec& chunkSpec);
 
