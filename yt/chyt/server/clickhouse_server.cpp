@@ -1,16 +1,16 @@
 #include "clickhouse_server.h"
 
 #include "clickhouse_config.h"
-#include "config.h"
-#include "config_repository.h"
-#include "logger.h"
-#include "http_handler.h"
-#include "tcp_handler.h"
-#include "poco_config.h"
-#include "host.h"
-#include "helpers.h"
 #include "clickhouse_singletons.h"
+#include "config_repository.h"
+#include "config.h"
 #include "format.h"
+#include "helpers.h"
+#include "host.h"
+#include "http_handler.h"
+#include "logger.h"
+#include "poco_config.h"
+#include "tcp_handler.h"
 #include "user_defined_sql_objects_storage.h"
 
 #include <yt/yt/core/misc/fs.h>
@@ -310,11 +310,12 @@ private:
             DB::SensitiveDataMasker::setInstance(std::make_unique<DB::SensitiveDataMasker>(*LayeredConfig_, "query_masking_rules"));
         }
 
-        if (Config_->UserDefinedSqlObjectsStorage->Enabled) {
+        auto ytConfig = Host_->GetConfig();
+        if (ytConfig->UserDefinedSqlObjectsStorage->Enabled) {
             YT_LOG_DEBUG("Setting up user defined SQL objects storage");
             ServerContext_->setUserDefinedSQLObjectsStorage(CreateUserDefinedSqlObjectsYTStorage(
                 ServerContext_,
-                Config_->UserDefinedSqlObjectsStorage,
+                ytConfig->UserDefinedSqlObjectsStorage,
                 Host_));
             ServerContext_->getUserDefinedSQLObjectsStorage().loadObjects();
         }

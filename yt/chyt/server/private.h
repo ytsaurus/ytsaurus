@@ -52,6 +52,7 @@ namespace NProto {
 
 class TSubquerySpec;
 class TChytRequest;
+class TSqlObjectInfo;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,9 +115,12 @@ class TSubquerySpec;
 struct TSubquery;
 struct TQueryAnalysisResult;
 class TClickHouseIndexBuilder;
+struct TSqlObjectInfo;
 
 struct IStorageDistributor;
 using IStorageDistributorPtr = std::shared_ptr<IStorageDistributor>;
+
+struct IUserDefinedSqlObjectsYTStorage;
 
 ////////////////////////////////////////////////////////////////////////////////
 

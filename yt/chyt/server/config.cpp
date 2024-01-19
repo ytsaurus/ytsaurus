@@ -441,6 +441,26 @@ void TQueryLogConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TUserDefinedSqlObjectsStorageConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(false);
+    registrar.Parameter("path", &TThis::Path)
+        .Default();
+    registrar.Parameter("update_period", &TThis::UpdatePeriod)
+        .Default(TDuration::Seconds(5));
+    registrar.Parameter("expire_after_successful_sync_time", &TThis::ExpireAfterSuccessfulSyncTime)
+        .Default(TDuration::Seconds(60));
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->Enabled && config->Path.empty()) {
+            THROW_ERROR_EXCEPTION("No path is set for SQL UDF storage");
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TYtConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("clique_id", &TThis::CliqueId)
@@ -547,6 +567,9 @@ void TYtConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("query_log", &TThis::QueryLog)
+        .DefaultNew();
+
+    registrar.Parameter("user_defined_sql_objects_storage", &TThis::UserDefinedSqlObjectsStorage)
         .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {

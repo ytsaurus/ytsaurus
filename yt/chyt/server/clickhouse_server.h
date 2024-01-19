@@ -16,7 +16,6 @@ struct IClickHouseServer
     virtual DB::ContextMutablePtr GetContext() = 0;
 };
 
-
 DEFINE_REFCOUNTED_TYPE(IClickHouseServer)
 
 ////////////////////////////////////////////////////////////////////////////////

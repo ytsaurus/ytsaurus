@@ -14,6 +14,16 @@ class TestSqlUdf(ClickHouseTestBase):
         create_access_control_object(name="clique", namespace="chyt")
 
     @authors("gudqeit")
+    def test_no_udf_storage(self):
+        # If no alias is set, SQL UDF storage is not configured.
+        with Clique(1) as clique:
+            with raises_yt_error("it's necessary to have the grant CREATE FUNCTION"):
+                clique.make_query("create function linear_equation as (x, k, b) -> k*x + b")
+
+            with raises_yt_error("it's necessary to have the grant DROP FUNCTION"):
+                clique.make_query("drop function linear_equation")
+
+    @authors("gudqeit")
     def test_permissions_to_create_function(self):
         create_user("u1")
         create_user("u2")
@@ -28,8 +38,6 @@ class TestSqlUdf(ClickHouseTestBase):
 
             clique.make_query(query, user="u1")
 
-            time.sleep(0.4)
-
             with raises_yt_error("Access denied"):
                 clique.make_query("drop function linear_equation", user="u2")
 
@@ -43,8 +51,6 @@ class TestSqlUdf(ClickHouseTestBase):
 
             clique.make_query("create function linear_equation as (x, k, b) -> k*x + b")
 
-            time.sleep(0.4)
-
             query = "select number, linear_equation(number, 2, 1) as result from numbers(2)"
             assert clique.make_query(query) == [
                 {"number": 0, "result": 1},
@@ -56,8 +62,6 @@ class TestSqlUdf(ClickHouseTestBase):
         with Clique(2, alias="*clique") as clique:
             clique.make_query("create function linear_equation as (x, k, b) -> k*x + b")
 
-            time.sleep(0.4)
-
             query = "select number, linear_equation(number, 2, 1) as result from numbers(2)"
 
             instances = clique.get_active_instances()
@@ -66,6 +70,12 @@ class TestSqlUdf(ClickHouseTestBase):
                     {"number": 0, "result": 1},
                     {"number": 1, "result": 3},
                 ]
+
+            clique.make_query("drop function linear_equation")
+
+            for instance in instances:
+                with raises_yt_error(QueryFailedError):
+                    clique.make_direct_query(instance, "select number, linear_equation(number, 2, 1) from numbers(3)")
 
     @authors("gudqeit")
     def test_drop_udf(self):
@@ -77,14 +87,10 @@ class TestSqlUdf(ClickHouseTestBase):
 
             clique.make_query("create function linear_equation as (x, k, b) -> k*x + b")
 
-            time.sleep(0.4)
-
             query = "select number, linear_equation(number, 2, 1) as result from numbers(1)"
             assert clique.make_query(query) == [{"number": 0, "result": 1}]
 
             clique.make_query("drop function linear_equation")
-
-            time.sleep(0.4)
 
             with raises_yt_error(QueryFailedError):
                 clique.make_query("select number, linear_equation(number, 2, 1) from numbers(3)")
@@ -94,14 +100,10 @@ class TestSqlUdf(ClickHouseTestBase):
         with Clique(2, alias="*clique") as clique:
             clique.make_query("create function linear_equation as (x, k, b) -> k*x + b")
 
-            time.sleep(0.4)
-
             query = "select number, linear_equation(number, 2, 1) as result from numbers(1)"
             assert clique.make_query(query) == [{"number": 0, "result": 1}]
 
             clique.make_query("create or replace function linear_equation as (x, k) -> k*x")
-
-            time.sleep(0.4)
 
             query = "select number, linear_equation(number, 2) as result from numbers(1)"
 
@@ -138,8 +140,6 @@ class TestSqlUdf(ClickHouseTestBase):
     def test_failed_object_sync(self):
         with Clique(1, alias="*clique") as clique:
             clique.make_query("create function linear_equation as (x, k) -> k*x")
-
-            time.sleep(0.4)
 
             clique.make_query("select linear_equation(number, 5) as result from numbers(1)")
 

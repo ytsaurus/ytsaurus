@@ -1,9 +1,10 @@
 #include "health_checker.h"
 
 #include "config.h"
-#include "query_context.h"
 #include "helpers.h"
+#include "host.h"
 #include "private.h"
+#include "query_context.h"
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -102,7 +103,10 @@ THealthChecker::THealthChecker(
         BIND(&THealthChecker::ExecuteQueries, MakeWeak(this)),
         Config_->Period))
 {
-    RegisterNewUser(getContext()->getAccessControl(), DatabaseUser_);
+    RegisterNewUser(
+        getContext()->getAccessControl(),
+        DatabaseUser_,
+        Host_->HasUserDefinedSqlObjectStorage());
 
     for (int i = 0; i < std::ssize(Config_->Queries); ++i) {
         QueryIndexToStatus_.push_back(ClickHouseYtProfiler

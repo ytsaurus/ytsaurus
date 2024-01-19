@@ -31,7 +31,7 @@ func asMapNode(ysonNode any) (asMap map[string]any, err error) {
 	return
 }
 
-func (c Controller) getPatchedClickHouseConfig(oplet *strawberry.Oplet, speclet *Speclet) (config any, err error) {
+func getPatchedClickHouseConfig(oplet *strawberry.Oplet, speclet *Speclet) (config any, err error) {
 	config, err = cloneNode(speclet.ClickHouseConfig)
 	if err != nil {
 		return
@@ -78,24 +78,6 @@ func (c Controller) getPatchedClickHouseConfig(oplet *strawberry.Oplet, speclet 
 		settings["max_temporary_non_const_columns"] = 1234
 	}
 
-	if _, ok := configAsMap["user_defined_sql_objects_storage"]; !ok {
-		configAsMap["user_defined_sql_objects_storage"] = make(map[string]any)
-	}
-	sqlUDFStorage, err := asMapNode(configAsMap["user_defined_sql_objects_storage"])
-	if err != nil {
-		err = fmt.Errorf("invalid user_defined_sql_objects_storage config: %v", err)
-		return
-	}
-	if _, ok := sqlUDFStorage["path"]; ok {
-		err = fmt.Errorf("path in user_defined_sql_objects_storage config cannot be set by user")
-		return
-	} else {
-		sqlUDFStorage["path"] = c.sqlUDFDir(oplet.Alias())
-	}
-	if _, ok := sqlUDFStorage["enabled"]; !ok {
-		sqlUDFStorage["enabled"] = true
-	}
-
 	return
 }
 
@@ -107,7 +89,7 @@ func getDiscoveryServerAddresses(ctx context.Context, ytc yt.Client) (addresses 
 	return
 }
 
-func getPatchedYtConfig(ctx context.Context, ytc yt.Client, oplet *strawberry.Oplet, speclet *Speclet) (config any, err error) {
+func (c Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet) (config any, err error) {
 	config, err = cloneNode(speclet.YTConfig)
 	if err != nil {
 		return
@@ -155,7 +137,7 @@ func getPatchedYtConfig(ctx context.Context, ytc yt.Client, oplet *strawberry.Op
 	}
 	if _, ok := discovery["server_addresses"]; !ok {
 		var serverAddresses []string
-		serverAddresses, err = getDiscoveryServerAddresses(ctx, ytc)
+		serverAddresses, err = getDiscoveryServerAddresses(ctx, c.ytc)
 		if err != nil {
 			serverAddresses = []string{}
 		}
@@ -175,6 +157,24 @@ func getPatchedYtConfig(ctx context.Context, ytc yt.Client, oplet *strawberry.Op
 	}
 	if _, ok := healthChecker["period"]; !ok {
 		healthChecker["period"] = 60 * 1000
+	}
+
+	if _, ok := configAsMap["user_defined_sql_objects_storage"]; !ok {
+		configAsMap["user_defined_sql_objects_storage"] = make(map[string]any)
+	}
+	sqlUDFStorage, err := asMapNode(configAsMap["user_defined_sql_objects_storage"])
+	if err != nil {
+		err = fmt.Errorf("invalid user_defined_sql_objects_storage config: %v", err)
+		return
+	}
+	if _, ok := sqlUDFStorage["path"]; ok {
+		err = fmt.Errorf("path in user_defined_sql_objects_storage config cannot be set by user")
+		return
+	} else {
+		sqlUDFStorage["path"] = c.sqlUDFDir(oplet.Alias())
+	}
+	if _, ok := sqlUDFStorage["enabled"]; !ok {
+		sqlUDFStorage["enabled"] = true
 	}
 
 	return
@@ -278,11 +278,11 @@ func (c *Controller) createOpaqueDirIfNotExists(ctx context.Context, dir ypath.P
 func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet, filePaths *[]ypath.Rich) error {
 	r := speclet.Resources
 
-	clickhouseConfig, err := c.getPatchedClickHouseConfig(oplet, speclet)
+	clickhouseConfig, err := getPatchedClickHouseConfig(oplet, speclet)
 	if err != nil {
 		return fmt.Errorf("invalid clickhouse config: %v", err)
 	}
-	ytConfig, err := getPatchedYtConfig(ctx, c.ytc, oplet, speclet)
+	ytConfig, err := c.getPatchedYtConfig(ctx, oplet, speclet)
 	if err != nil {
 		return fmt.Errorf("invalid yt config: %v", err)
 	}

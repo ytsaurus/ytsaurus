@@ -119,7 +119,10 @@ private:
         auto& chytRequest = Request_->chyt_request();
         Query_ = chytRequest.query();
 
-        RegisterNewUser(Host_->GetContext()->getAccessControl(), User_);
+        RegisterNewUser(
+            Host_->GetContext()->getAccessControl(),
+            User_,
+            Host_->HasUserDefinedSqlObjectStorage());
 
         // Query context is inherited from session context like it was made in ClickHouse gRPC server.
         DB::Session session(Host_->GetContext(), DB::ClientInfo::Interface::GRPC);

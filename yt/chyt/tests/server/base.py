@@ -86,9 +86,7 @@ class Clique(object):
                     "heartbeat_period": 400,
                     "attribute_update_period": 2000,
                     "lease_timeout": 1000,
-                }
-            },
-            "clickhouse": {
+                },
                 "user_defined_sql_objects_storage": {
                     "update_period": 300,
                     "expire_after_successful_sync_time": 1000,
@@ -113,8 +111,8 @@ class Clique(object):
             create("map_node", Clique.sql_udf_path, recursive=True, attributes={
                 "acl": [ace],
             })
-            config["clickhouse"]["user_defined_sql_objects_storage"]["path"] = Clique.sql_udf_path
-            config["clickhouse"]["user_defined_sql_objects_storage"]["enabled"] = True
+            config["yt"]["user_defined_sql_objects_storage"]["path"] = Clique.sql_udf_path
+            config["yt"]["user_defined_sql_objects_storage"]["enabled"] = True
 
         spec = {"pool": None}
         self.is_tracing = False

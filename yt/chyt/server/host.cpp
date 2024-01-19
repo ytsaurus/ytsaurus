@@ -15,6 +15,7 @@
 #include "storage_distributor.h"
 #include "storage_system_clique.h"
 #include "table_functions.h"
+#include "user_defined_sql_objects_storage.h"
 #include "yt_database.h"
 
 #include <yt/yt/server/lib/misc/address_helpers.h>
@@ -592,6 +593,80 @@ public:
         return TableColumnarStatisticsCache_;
     }
 
+    bool HasUserDefinedSqlObjectStorage() const
+    {
+        return Config_->UserDefinedSqlObjectsStorage->Enabled;
+    }
+
+    IUserDefinedSqlObjectsYTStorage* GetUserDefinedSqlObjectStorage()
+    {
+        return dynamic_cast<IUserDefinedSqlObjectsYTStorage*>(
+            &getContext()->getUserDefinedSQLObjectsStorage());
+    }
+
+    void SetSqlObjectOnOtherInstances(const TString& objectName, const NClickHouseServer::TSqlObjectInfo& info) const
+    {
+        YT_LOG_DEBUG("Setting SQL object on other instances (ObjectName: %v)", objectName);
+
+        auto instances = Discovery_->List();
+
+        using TResponse = NRpc::TTypedClientResponse<TRspSetSqlObject>::TResult;
+        std::vector<TFuture<TResponse>> futures;
+        futures.reserve(instances.size());
+
+        for (auto [instanceId, attributes] : instances) {
+            if (instanceId == ToString(Config_->InstanceId)) {
+                // We don't want to set object on the current instance.
+                continue;
+            }
+
+            auto channel = ChannelFactory_->CreateChannel(
+                attributes->Get<TString>("host") + ":" + ToString(attributes->Get<ui64>("rpc_port")));
+            TClickHouseServiceProxy proxy(channel);
+
+            auto req = proxy.SetSqlObject();
+            req->set_object_name(objectName);
+            ToProto(req->mutable_object_info(), info);
+
+            futures.push_back(req->Invoke());
+        }
+
+        WaitFor(AllSet(futures))
+            .ThrowOnError();
+    }
+
+    void RemoveSqlObjectOnOtherInstances(const TString& objectName, NHydra::TRevision revision) const
+    {
+        YT_LOG_DEBUG("Removing SQL object on other instances (ObjectName: %v)",
+            objectName);
+
+        auto instances = Discovery_->List();
+
+        using TResponse = NRpc::TTypedClientResponse<TRspRemoveSqlObject>::TResult;
+        std::vector<TFuture<TResponse>> futures;
+        futures.reserve(instances.size());
+
+        for (auto [instanceId, attributes] : instances) {
+            if (instanceId == ToString(Config_->InstanceId)) {
+                // We don't want to remove object on the current instance.
+                continue;
+            }
+
+            auto channel = ChannelFactory_->CreateChannel(
+                attributes->Get<TString>("host") + ":" + ToString(attributes->Get<ui64>("rpc_port")));
+            TClickHouseServiceProxy proxy(channel);
+
+            auto req = proxy.RemoveSqlObject();
+            req->set_object_name(objectName);
+            req->set_revision(revision);
+
+            futures.push_back(req->Invoke());
+        }
+
+        WaitFor(AllSet(futures))
+            .ThrowOnError();
+    }
+
 private:
     THost* Owner_;
     const IInvokerPtr ControlInvoker_;
@@ -1073,6 +1148,27 @@ NTableClient::TTableColumnarStatisticsCachePtr THost::GetTableColumnarStatistics
 }
 
 THost::~THost() = default;
+
+
+bool THost::HasUserDefinedSqlObjectStorage() const
+{
+    return Impl_->HasUserDefinedSqlObjectStorage();
+}
+
+IUserDefinedSqlObjectsYTStorage* THost::GetUserDefinedSqlObjectStorage()
+{
+    return Impl_->GetUserDefinedSqlObjectStorage();
+}
+
+void THost::SetSqlObjectOnOtherInstances(const TString& objectName, const NClickHouseServer::TSqlObjectInfo& info) const
+{
+    Impl_->SetSqlObjectOnOtherInstances(objectName, info);
+}
+
+void THost::RemoveSqlObjectOnOtherInstances(const TString& objectName, NHydra::TRevision revision) const
+{
+    Impl_->RemoveSqlObjectOnOtherInstances(objectName, revision);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

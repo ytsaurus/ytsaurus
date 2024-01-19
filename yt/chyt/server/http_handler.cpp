@@ -134,7 +134,10 @@ public:
         }
 
         YT_LOG_DEBUG("Registering new user (UserName: %v)", userName);
-        RegisterNewUser(Server_.context()->getAccessControl(), TString(userName));
+        RegisterNewUser(
+            Server_.context()->getAccessControl(),
+            TString(userName),
+            Host_->HasUserDefinedSqlObjectStorage());
         YT_LOG_DEBUG("User registered");
 
         DB::HTTPHandler::handleRequest(request, response);

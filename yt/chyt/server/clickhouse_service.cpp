@@ -1,8 +1,9 @@
 #include "clickhouse_service.h"
 
+#include "clickhouse_service_proxy.h"
 #include "config.h"
 #include "host.h"
-#include "clickhouse_service_proxy.h"
+#include "user_defined_sql_objects_storage.h"
 
 #include <yt/yt/core/rpc/message.h>
 #include <yt/yt/core/rpc/service_detail.h>
@@ -27,6 +28,8 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ProcessGossip));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(InvalidateCachedObjectAttributes));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SetSqlObject));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveSqlObject));
     }
 
 private:
@@ -52,11 +55,47 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, InvalidateCachedObjectAttributes)
     {
-        auto paths = FromProto<std::vector<TString>>(request->table_paths());
+        auto paths = NYT::FromProto<std::vector<TString>>(request->table_paths());
 
         context->SetRequestInfo("Paths: %v", paths);
 
         Host_->InvalidateCachedObjectAttributes(paths);
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, SetSqlObject)
+    {
+        auto objectName = request->object_name();
+
+        TSqlObjectInfo objectInfo;
+        FromProto(&objectInfo, request->object_info());
+
+        context->SetRequestInfo("Setting object (ObjectName: %v, Revision: %v)",
+            objectName,
+            objectInfo.Revision);
+
+        auto* storage = Host_->GetUserDefinedSqlObjectStorage();
+        YT_VERIFY(storage);
+
+        storage->TrySetObject(objectName, objectInfo);
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, RemoveSqlObject)
+    {
+        auto objectName = request->object_name();
+        auto revision = request->revision();
+
+        context->SetRequestInfo("Removing object (ObjectName: %v, Revision: %v)",
+            objectName,
+            revision);
+
+        auto* storage = Host_->GetUserDefinedSqlObjectStorage();
+        YT_VERIFY(storage);
+
+        storage->TryRemoveObject(objectName, revision);
 
         context->Reply();
     }

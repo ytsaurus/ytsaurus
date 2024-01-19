@@ -26,7 +26,10 @@ namespace NYT::NClickHouseServer {
 
 TGuid ToGuid(DB::UUID uuid);
 
-void RegisterNewUser(DB::AccessControl& accessControl, TString userName);
+void RegisterNewUser(
+    DB::AccessControl& accessControl,
+    TString userName,
+    bool allowSqlUdfManagement = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

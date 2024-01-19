@@ -158,24 +158,6 @@ DEFINE_REFCOUNTED_TYPE(TPocoOpenSslConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserDefinedSqlObjectsStorageConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    bool Enabled;
-    NYPath::TYPath Path;
-    TDuration UpdatePeriod;
-    TDuration ExpireAfterSuccessfulSyncTime;
-
-    REGISTER_YSON_STRUCT(TUserDefinedSqlObjectsStorageConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TUserDefinedSqlObjectsStorageConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Config containing native clickhouse settings. Do not add our own settings here.
 class TClickHouseConfig
     : public NYTree::TYsonStruct
@@ -230,8 +212,6 @@ public:
     TPocoOpenSslConfigPtr OpenSsl;
 
     NYTree::IMapNodePtr QueryMaskingRules;
-
-    TUserDefinedSqlObjectsStorageConfigPtr UserDefinedSqlObjectsStorage;
 
     REGISTER_YSON_STRUCT(TClickHouseConfig);
 

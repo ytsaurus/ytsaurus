@@ -1,8 +1,10 @@
 #include "user_defined_sql_objects_storage.h"
 
-#include "clickhouse_config.h"
+#include "config.h"
 #include "host.h"
 #include "private.h"
+
+#include <yt/chyt/server/protos/clickhouse_service.pb.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -28,6 +30,7 @@ namespace NYT::NClickHouseServer {
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NCypressClient;
+using namespace NHydra;
 using namespace NRe2;
 using namespace NYPath;
 using namespace NYTree;
@@ -39,11 +42,26 @@ static const auto& Logger = ClickHouseYtLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class UserDefinedSqlObjectsYTStorage
+void ToProto(NProto::TSqlObjectInfo* protoInfo, const TSqlObjectInfo& info)
+{
+    protoInfo->set_revision(info.Revision);
+    protoInfo->set_create_object_query(info.CreateObjectQuery);
+}
+
+void FromProto(TSqlObjectInfo* info, const NProto::TSqlObjectInfo& protoInfo)
+{
+    info->Revision = protoInfo.revision();
+    info->CreateObjectQuery = protoInfo.create_object_query();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUserDefinedSqlObjectsYTStorage
     : public DB::UserDefinedSQLObjectsStorageBase
+    , public IUserDefinedSqlObjectsYTStorage
 {
 public:
-    UserDefinedSqlObjectsYTStorage(
+    TUserDefinedSqlObjectsYTStorage(
         DB::ContextPtr globalContext,
         TUserDefinedSqlObjectsStorageConfigPtr config,
         THost* host)
@@ -57,9 +75,11 @@ public:
             ActionQueue_->GetInvoker(),
             // It's ok to use here 'this' instead of MakeWeak(this),
             // because executor's lifetime is less than UserDefinedSqlObjectsYTStorage's one.
-            BIND(&UserDefinedSqlObjectsYTStorage::SyncObjectsNonThrowing, this),
+            BIND(&TUserDefinedSqlObjectsYTStorage::SyncObjectsNonThrowing, this),
             Config_->UpdatePeriod))
     { }
+
+    // DB::IUserDefinedSQLObjectsStorage overrides:
 
     bool isReplicated() const override
     {
@@ -96,6 +116,58 @@ public:
             "Method reloadObject should not be called; this is a bug");
     }
 
+    // IUserDefinedSqlObjectsYTStorage overrides:
+
+    bool TrySetObject(const String& objectName, const TSqlObjectInfo& info) override
+    {
+        YT_LOG_DEBUG("Setting object (ObjectName: %v, Revision: %v)",
+            objectName,
+            info.Revision);
+
+        auto lock = getLock();
+
+        auto iterator = LastSeenObjectRevisions_.find(objectName);
+        if (iterator != LastSeenObjectRevisions_.end() &&
+            iterator->second >= info.Revision)
+        {
+            return false;
+        }
+
+        setObject(objectName, *ParseCreateObjectQuery(objectName, info.CreateObjectQuery));
+        LastSeenObjectRevisions_[objectName] = info.Revision;
+        LastSeenRevision_ = std::max(LastSeenRevision_, info.Revision);
+
+        return true;
+    }
+
+    bool TryRemoveObject(const String& objectName, TRevision revision) override
+    {
+        YT_LOG_DEBUG("Removing object (ObjectName: %v, Revision: %v)",
+            objectName,
+            revision);
+
+        auto lock = getLock();
+
+        auto iterator = LastSeenObjectRevisions_.find(objectName);
+        if (iterator == LastSeenObjectRevisions_.end() ||
+            iterator->second >= revision)
+        {
+            return false;
+        }
+
+        removeObject(objectName);
+
+        if (revision >= LastSeenRevision_) {
+            LastSeenObjectRevisions_.erase(objectName);
+        } else {
+            LastSeenObjectRevisions_[objectName] = revision;
+        }
+
+        LastSeenRevision_ = std::max(LastSeenRevision_, revision);
+
+        return true;
+    }
+
 private:
     const DB::ContextPtr GlobalContext_;
     const TUserDefinedSqlObjectsStorageConfigPtr Config_;
@@ -107,6 +179,9 @@ private:
 
     std::atomic<bool> ObjectsLoaded_ = false;
     TInstant LastSuccessfulSyncTime_ = TInstant::Now();
+
+    THashMap<TString, TRevision> LastSeenObjectRevisions_;
+    TRevision LastSeenRevision_ = NHydra::NullRevision;
 
     bool storeObjectImpl(
         const DB::ContextPtr& currentContext,
@@ -131,10 +206,23 @@ private:
         options.Force = !throwIfExists && replaceIfExists;
         options.IgnoreExisting = !throwIfExists && !replaceIfExists;
 
-        WaitFor(Client_->CreateNode(path, EObjectType::Document, options))
-            .ThrowOnError();
+        auto nodeId = WaitFor(Client_->CreateNode(path, EObjectType::Document, options))
+            .ValueOrThrow();
 
-        return true;
+        auto revisionPath = Format("#%v/@revision", nodeId);
+        auto revisionOrError = WaitFor(Client_->GetNode(revisionPath));
+        if (revisionOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            return false;
+        }
+
+        TSqlObjectInfo info{
+            .Revision = ConvertTo<TRevision>(revisionOrError.ValueOrThrow()),
+            .CreateObjectQuery = createStatement,
+        };
+
+        Host_->SetSqlObjectOnOtherInstances(TString(objectName), info);
+
+        return TrySetObject(objectName, info);
     }
 
     bool removeObjectImpl(
@@ -155,7 +243,27 @@ private:
         WaitFor(Client_->RemoveNode(path, options))
             .ThrowOnError();
 
-        return true;
+        auto nodes = GetObjectMapNodeWithAttributes({"revision"});
+        auto revision = nodes->Attributes().Get<TRevision>("revision");
+        auto objectNode = nodes->FindChild(TString(objectName));
+
+        if (objectNode) {
+            return false;
+        }
+
+        Host_->RemoveSqlObjectOnOtherInstances(TString(objectName), revision);
+
+        return TryRemoveObject(objectName, revision);
+    }
+
+    IMapNodePtr GetObjectMapNodeWithAttributes(std::vector<TString> attributes) const
+    {
+        TGetNodeOptions options;
+        options.Attributes = std::move(attributes);
+        auto nodesYson = WaitFor(Client_->GetNode(Config_->Path, options))
+            .ValueOrThrow();
+
+        return ConvertTo<IMapNodePtr>(nodesYson);
     }
 
     TYPath GetCypressPath(DB::UserDefinedSQLObjectType objectType, const String& objectName) const
@@ -198,47 +306,68 @@ private:
     {
         YT_LOG_DEBUG("Synchronizing user-defined objects");
 
-        TGetNodeOptions options;
-        options.Attributes = {"value"};
-        auto nodesYson = WaitFor(Client_->GetNode(Config_->Path, options))
-            .ValueOrThrow();
+        auto nodes = GetObjectMapNodeWithAttributes({"value", "revision"});
+        auto rootRevision = nodes->Attributes().Get<TRevision>("revision");
 
-        auto nodes = ConvertTo<IMapNodePtr>(nodesYson);
-
-        std::vector<std::pair<String, DB::ASTPtr>> newFunctions;
-        newFunctions.reserve(nodes->GetChildren().size());
+        THashMap<TString, TSqlObjectInfo> newObjectInfos;
 
         for (const auto& [name, node] : nodes->GetChildren()) {
             auto createStatement = node->Attributes().Get<TString>("value");
-
-            DB::ParserCreateFunctionQuery parser;
-            DB::ASTPtr ast;
-            try {
-                ast = DB::parseQuery(
-                    parser,
-                    createStatement.data(),
-                    createStatement.data() + createStatement.size(),
-                    "" /*description*/,
-                    0 /*maxQuerySize*/,
-                    GlobalContext_->getSettingsRef().max_parser_depth);
-            } catch (const std::exception& ex) {
-                auto errorStatement = Format("create function %v as () -> throwIf(true, 'Failed to parse user defined function %v: %v')", name, name, ex.what());
-                ast = DB::parseQuery(
-                    parser,
-                    errorStatement.data(),
-                    errorStatement.data() + errorStatement.size(),
-                    "" /*description*/,
-                    0 /*maxQuerySize*/,
-                    GlobalContext_->getSettingsRef().max_parser_depth);
-            }
-
-            newFunctions.emplace_back(name, ast);
+            newObjectInfos[name] = TSqlObjectInfo{
+                .Revision = node->Attributes().Get<TRevision>("revision"),
+                .CreateObjectQuery = createStatement,
+            };
         }
 
-        auto lock = getLock();
-        setAllObjects(newFunctions);
+        UpdateObjectInfos(rootRevision, std::move(newObjectInfos));
 
         LastSuccessfulSyncTime_ = TInstant::Now();
+    }
+
+    void UpdateObjectInfos(TRevision rootRevision, THashMap<TString, TSqlObjectInfo> newObjectInfos)
+    {
+        auto lock = getLock();
+
+        YT_LOG_DEBUG("Updating object information (Revision: %v)", rootRevision);
+
+        std::vector<TString> toErase;
+        for (const auto& [objectName, objectRevision] : LastSeenObjectRevisions_) {
+            if (!newObjectInfos.contains(objectName) && rootRevision > objectRevision) {
+                toErase.emplace_back(objectName);
+            }
+        }
+        for (const auto& objectName : toErase) {
+            TryRemoveObject(objectName, rootRevision);
+        }
+
+        for (const auto& [objectName, info] : newObjectInfos) {
+            TrySetObject(objectName, info);
+        }
+    }
+
+    DB::ASTPtr ParseCreateObjectQuery(const String& objectName, const TString& createObjectQuery)
+    {
+        DB::ParserCreateFunctionQuery parser;
+        DB::ASTPtr ast;
+        try {
+            ast = DB::parseQuery(
+                parser,
+                createObjectQuery.data(),
+                createObjectQuery.data() + createObjectQuery.size(),
+                "" /*description*/,
+                0 /*maxQuerySize*/,
+                GlobalContext_->getSettingsRef().max_parser_depth);
+        } catch (const std::exception& ex) {
+            auto errorStatement = Format("create function %v as () -> throwIf(true, 'Failed to parse user defined function %v: %v')", objectName, objectName, ex.what());
+            ast = DB::parseQuery(
+                parser,
+                errorStatement.data(),
+                errorStatement.data() + errorStatement.size(),
+                "" /*description*/,
+                0 /*maxQuerySize*/,
+                GlobalContext_->getSettingsRef().max_parser_depth);
+        }
+        return ast;
     }
 };
 
@@ -249,7 +378,7 @@ std::unique_ptr<DB::IUserDefinedSQLObjectsStorage> CreateUserDefinedSqlObjectsYT
     TUserDefinedSqlObjectsStorageConfigPtr config,
     THost* host)
 {
-    return std::make_unique<UserDefinedSqlObjectsYTStorage>(
+    return std::make_unique<TUserDefinedSqlObjectsYTStorage>(
         std::move(globalContext),
         std::move(config),
         host);

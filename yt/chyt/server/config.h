@@ -536,6 +536,25 @@ DEFINE_REFCOUNTED_TYPE(TQueryLogConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUserDefinedSqlObjectsStorageConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool Enabled;
+    NYPath::TYPath Path;
+    TDuration UpdatePeriod;
+    TDuration ExpireAfterSuccessfulSyncTime;
+
+    REGISTER_YSON_STRUCT(TUserDefinedSqlObjectsStorageConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TUserDefinedSqlObjectsStorageConfig)
+
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TYtConfig
     : public NYTree::TYsonStruct
 {
@@ -616,6 +635,8 @@ public:
     TQuerySamplingConfigPtr QuerySampling;
 
     TQueryLogConfigPtr QueryLog;
+
+    TUserDefinedSqlObjectsStorageConfigPtr UserDefinedSqlObjectsStorage;
 
     REGISTER_YSON_STRUCT(TYtConfig);
 

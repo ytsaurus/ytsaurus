@@ -116,6 +116,12 @@ public:
 
     NTableClient::TTableColumnarStatisticsCachePtr GetTableColumnarStatisticsCache() const;
 
+    bool HasUserDefinedSqlObjectStorage() const;
+    IUserDefinedSqlObjectsYTStorage* GetUserDefinedSqlObjectStorage();
+
+    void SetSqlObjectOnOtherInstances(const TString& objectName, const TSqlObjectInfo& info) const;
+    void RemoveSqlObjectOnOtherInstances(const TString& objectName, NHydra::TRevision revision) const;
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

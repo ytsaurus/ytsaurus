@@ -1,6 +1,7 @@
 #include "tcp_handler.h"
 
 #include "helpers.h"
+#include "host.h"
 #include "query_context.h"
 #include "secondary_query_header.h"
 
@@ -78,7 +79,10 @@ Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(
             TTraceContextPtr traceContext = New<TTraceContext>(*header->SpanContext, "TcpHandler");
 
             YT_LOG_DEBUG("Registering new user (UserName: %v)", user);
-            RegisterNewUser(context->getAccessControl(), TString(user));
+            RegisterNewUser(
+                context->getAccessControl(),
+                TString(user),
+                Host_->HasUserDefinedSqlObjectStorage());
             YT_LOG_DEBUG("User registered");
 
             SetupHostContext(

@@ -115,26 +115,6 @@ void TPocoOpenSslConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUserDefinedSqlObjectsStorageConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("enabled", &TThis::Enabled)
-        .Default(false);
-    registrar.Parameter("path", &TThis::Path)
-        .Default();
-    registrar.Parameter("update_period", &TThis::UpdatePeriod)
-        .Default(TDuration::Seconds(5));
-    registrar.Parameter("expire_after_successful_sync_time", &TThis::ExpireAfterSuccessfulSyncTime)
-        .Default(TDuration::Seconds(60));
-
-    registrar.Postprocessor([] (TThis* config) {
-        if (config->Enabled && config->Path.empty()) {
-            THROW_ERROR_EXCEPTION("No path is set for SQL UDF storage");
-        }
-    });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TClickHouseConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("users", &TThis::Users)
@@ -229,9 +209,6 @@ void TClickHouseConfig::Register(TRegistrar registrar)
                         .EndMap()
                 .EndMap()->AsMap();
         });
-
-    registrar.Parameter("user_defined_sql_objects_storage", &TThis::UserDefinedSqlObjectsStorage)
-        .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {
         config->Settings["max_memory_usage_for_all_queries"] = NYTree::ConvertToNode(9_GB);
