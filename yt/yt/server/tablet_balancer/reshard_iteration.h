@@ -23,7 +23,7 @@ struct IReshardIteration
         const IInvokerPtr& invoker) = 0;
 
     virtual void UpdateProfilingCounters(
-        const TTablePtr& table,
+        const TTable* table,
         const TTableProfilingCounters& profilingCounters,
         const TReshardDescriptor& descriptor) = 0;
 
