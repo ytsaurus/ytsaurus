@@ -4,6 +4,7 @@ on:
   pull_request_target:
     branches:
       - main
+      - stable/[0-9]+\.[0-9]+
     types:
       - opened
 
