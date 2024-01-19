@@ -16,13 +16,6 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString MockHostSanitize(TStringBuf)
-{
-    return "";
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TMutationContext::TMutationContext(
     TMutationContext* parent,
     const TMutationRequest* request)
@@ -31,10 +24,9 @@ TMutationContext::TMutationContext(
         parent->GetTimestamp(),
         parent->GetRandomSeed(),
         parent->RandomGenerator(),
-        parent->HostNameSanitizer_)
+        parent->GetLocalHostName())
     , Parent_(parent)
     , Request_(request)
-    , HostNameSanitizer_(parent->HostNameSanitizer_)
     , PrevRandomSeed_(Parent_->GetPrevRandomSeed())
     , SequenceNumber_(Parent_->GetSequenceNumber())
     , StateHash_(Parent_->GetStateHash())
@@ -50,15 +42,14 @@ TMutationContext::TMutationContext(
     i64 sequenceNumber,
     ui64 stateHash,
     int term,
-    TErrorSanitizerGuard::THostNameSanitizer hostNameSanitizer)
+    TSharedRef localHostNameOverride)
     : THydraContext(
         version,
         timestamp,
         randomSeed,
-        hostNameSanitizer)
+        std::move(localHostNameOverride))
     , Parent_(nullptr)
     , Request_(request)
-    , HostNameSanitizer_(hostNameSanitizer)
     , PrevRandomSeed_(prevRandomSeed)
     , SequenceNumber_(sequenceNumber)
     , StateHash_(stateHash)
@@ -70,10 +61,9 @@ TMutationContext::TMutationContext(TTestingTag)
         TVersion(),
         /*timestamp*/ TInstant::Zero(),
         /*randomSeed*/ 0,
-        BIND(&MockHostSanitize))
+        /*localHostNameOverride*/ TSharedRef::FromString("<unknown-testing>"))
     , Parent_(nullptr)
     , Request_(nullptr)
-    , HostNameSanitizer_({})
     , PrevRandomSeed_(0)
     , SequenceNumber_(0)
     , StateHash_(0)
@@ -170,7 +160,8 @@ void SetCurrentMutationContext(TMutationContext* context)
 ////////////////////////////////////////////////////////////////////////////////
 
 TMutationContextGuard::TMutationContextGuard(TMutationContext* context)
-    : Context_(context)
+    : ErrorSanitizerGuard_(context->GetTimestamp(), context->GetLocalHostName())
+    , Context_(context)
     , SavedContext_(TryGetCurrentMutationContext())
 {
     YT_ASSERT(Context_);

@@ -3,6 +3,7 @@
 #include "automaton.h"
 #include "changelog.h"
 #include "config.h"
+#include "helpers.h"
 #include "serialize.h"
 #include "snapshot.h"
 #include "state_hash_checker.h"
@@ -25,6 +26,7 @@
 #include <yt/yt/core/misc/finally.h>
 
 #include <yt/yt/core/net/connection.h>
+#include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/utilex/random.h>
 
@@ -46,8 +48,6 @@
 #include <util/system/file.h>
 #include <util/system/spinlock.h>
 
-#include <algorithm> // for std::max
-
 namespace NYT::NHydra {
 
 using namespace NConcurrency;
@@ -56,6 +56,7 @@ using namespace NLogging;
 using namespace NPipes;
 using namespace NProfiling;
 using namespace NRpc;
+using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -835,7 +836,7 @@ void TDecoratedAutomaton::ResetState()
             TVersion(),
             TInstant::Zero(),
             /*randomSeed*/ 0,
-            BIND(&TDecoratedAutomaton::SanitizeLocalHostNameOrCrash, MakeStrong(this)));
+            /*localHostNameOverride*/ TSharedRef::FromString("<unknown>"));
         THydraContextGuard hydraContextGuard(&hydraContext);
 
         ClearState();
@@ -982,7 +983,7 @@ void TDecoratedAutomaton::LoadSnapshot(
             hydraContextVersion,
             timestamp,
             hydraContextRandomSeed,
-            BIND(&TDecoratedAutomaton::SanitizeLocalHostNameOrCrash, MakeStrong(this)));
+            SanitizedLocalHostName_);
         THydraContextGuard hydraContextGuard(&hydraContext);
 
         Automaton_->PrepareState();
@@ -1066,7 +1067,7 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
         header.sequence_number(),
         StateHash_,
         header.term(),
-        BIND(&TDecoratedAutomaton::SanitizeLocalHostNameOrCrash, MakeStrong(this)));
+        SanitizedLocalHostName_);
 
     TFiberMinLogLevelGuard minLogLevelGuard(Config_->Get()->RecoveryMinLogLevel);
 
@@ -1198,12 +1199,19 @@ void TDecoratedAutomaton::PublishMutationApplicationResults(std::vector<TMutatio
     }
 }
 
-TString TDecoratedAutomaton::SanitizeLocalHostNameOrCrash(TStringBuf host) const
+TSharedRef TDecoratedAutomaton::SanitizeLocalHostName(TStringBuf host) const
 {
     if (Config_->Get()->EnableHostSanitizing) {
-        return SanitizeLocalHostName(Logger, GetEpochContext()->CellManager->GetClusterPeersAddressesOrCrash(), host);
+        const auto& peers = GetEpochContext()->CellManager->GetClusterPeersAddressesOrCrash();
+        auto sanitizedHost = NHydra::SanitizeLocalHostName(peers, host);
+        if (sanitizedHost) {
+            return *sanitizedHost;
+        }
+
+        YT_LOG_ALERT("Failed to sanitize local host name, perhaps the hosts have different lengths (Hosts: %v)",
+            peers);
     }
-    return TString(host);
+    return TSharedRef::FromString(ToString(host));
 }
 
 TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutation(
@@ -1221,7 +1229,7 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
         mutation->SequenceNumber,
         StateHash_,
         mutation->Term,
-        BIND(&TDecoratedAutomaton::SanitizeLocalHostNameOrCrash, MakeStrong(this)));
+        SanitizedLocalHostName_);
 
     TMutationApplicationResult result;
 
@@ -1456,6 +1464,9 @@ void TDecoratedAutomaton::ReleaseSystemLock()
 void TDecoratedAutomaton::StartEpoch(TEpochContextPtr epochContext)
 {
     YT_VERIFY(!EpochContext_.Exchange(std::move(epochContext)));
+
+    SanitizedLocalHostName_ = SanitizeLocalHostName(ReadLocalHostName());
+    YT_VERIFY(!SanitizedLocalHostName_.Empty());
 }
 
 void TDecoratedAutomaton::CancelSnapshot(const TError& error)
@@ -1477,6 +1488,7 @@ void TDecoratedAutomaton::StopEpoch()
     CancelSnapshot(error);
 
     EpochContext_.Store(nullptr);
+    SanitizedLocalHostName_.Reset();
 }
 
 void TDecoratedAutomaton::UpdateLastSuccessfulSnapshotInfo(const TErrorOr<TRemoteSnapshotParams>& snapshotInfoOrError)
@@ -1586,35 +1598,6 @@ TReign TDecoratedAutomaton::GetCurrentReign() const
 EFinalRecoveryAction TDecoratedAutomaton::GetFinalRecoveryAction() const
 {
     return Automaton_->GetFinalRecoveryAction();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TString SanitizeLocalHostName(
-    const NLogging::TLogger& Logger,
-    const THashSet<TString>& clusterPeersAddresses,
-    TStringBuf host)
-{
-    if (clusterPeersAddresses.contains(host)) {
-        TString unifiedHost(host);
-        for (int i = 0; i < ssize(host); ++i) {
-            for (const auto& peerAddress : clusterPeersAddresses) {
-                if (host.size() != peerAddress.size()) {
-                    YT_LOG_ALERT("Hosts have different sizes, skip host sanitizing (Hosts: %v)",
-                        clusterPeersAddresses);
-                    return TString(host);
-                }
-                if (host[i] != peerAddress[i]) {
-                    unifiedHost[i] = '*';
-                    break;
-                }
-            }
-        }
-
-        return unifiedHost;
-    }
-
-    return TString(host);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

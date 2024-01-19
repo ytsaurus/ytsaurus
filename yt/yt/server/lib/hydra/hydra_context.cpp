@@ -16,12 +16,12 @@ THydraContext::THydraContext(
     TVersion version,
     TInstant timestamp,
     ui64 randomSeed,
-    TErrorSanitizerGuard::THostNameSanitizer hostNameSanitizer)
+    TSharedRef localHostNameOverride)
     : Version_(version)
     , Timestamp_(timestamp)
     , RandomSeed_(randomSeed)
     , RandomGenerator_(New<TRandomGenerator>(randomSeed))
-    , ErrorSanitizerGuard_(/*datetimeOverride*/ timestamp, hostNameSanitizer)
+    , LocalHostName_(std::move(localHostNameOverride))
 { }
 
 THydraContext::THydraContext(
@@ -29,12 +29,12 @@ THydraContext::THydraContext(
     TInstant timestamp,
     ui64 randomSeed,
     TIntrusivePtr<TRandomGenerator> randomGenerator,
-    TErrorSanitizerGuard::THostNameSanitizer hostNameSanitizer)
+    TSharedRef localHostNameOverride)
     : Version_(version)
     , Timestamp_(timestamp)
     , RandomSeed_(randomSeed)
     , RandomGenerator_(std::move(randomGenerator))
-    , ErrorSanitizerGuard_(/*datetimeOverride*/ timestamp, hostNameSanitizer)
+    , LocalHostName_(std::move(localHostNameOverride))
 { }
 
 TVersion THydraContext::GetVersion() const
@@ -57,10 +57,16 @@ const TIntrusivePtr<TRandomGenerator>& THydraContext::RandomGenerator()
     return RandomGenerator_;
 }
 
+const TSharedRef& THydraContext::GetLocalHostName() const
+{
+    return LocalHostName_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 THydraContextGuard::THydraContextGuard(THydraContext* context)
-    : Context_(context)
+    : ErrorSanitizerGuard_(context->GetTimestamp(), context->GetLocalHostName())
+    , Context_(context)
     , SavedContext_(TryGetCurrentHydraContext())
 {
     SetCurrentHydraContext(Context_);

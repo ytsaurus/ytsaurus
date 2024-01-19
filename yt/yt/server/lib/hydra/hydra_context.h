@@ -18,14 +18,14 @@ public:
         TVersion version,
         TInstant timestamp,
         ui64 randomSeed,
-        TErrorSanitizerGuard::THostNameSanitizer hostNameSanitizer);
+        TSharedRef localHostNameOverride);
 
     THydraContext(
         TVersion version,
         TInstant timestamp,
         ui64 randomSeed,
         TIntrusivePtr<TRandomGenerator> randomGenerator,
-        TErrorSanitizerGuard::THostNameSanitizer hostNameSanitizer);
+        TSharedRef localHostNameOverride);
 
     TVersion GetVersion() const;
 
@@ -33,6 +33,8 @@ public:
 
     ui64 GetRandomSeed() const;
     const TIntrusivePtr<TRandomGenerator>& RandomGenerator();
+
+    const TSharedRef& GetLocalHostName() const;
 
 private:
     const TVersion Version_;
@@ -42,13 +44,13 @@ private:
     const ui64 RandomSeed_;
     const TIntrusivePtr<TRandomGenerator> RandomGenerator_;
 
-    //! Makes all errors inside mutation deterministic.
-    const TErrorSanitizerGuard ErrorSanitizerGuard_;
+    const TSharedRef LocalHostName_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class THydraContextGuard
+    //! Makes all errors inside mutation deterministic.
     : public TNonCopyable
 {
 public:
@@ -56,6 +58,7 @@ public:
     ~THydraContextGuard();
 
 private:
+    TErrorSanitizerGuard ErrorSanitizerGuard_;
     THydraContext* Context_;
     THydraContext* SavedContext_;
 };

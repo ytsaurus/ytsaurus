@@ -1,13 +1,9 @@
-#include <yt/yt/server/lib/hydra/decorated_automaton.h>
+#include <yt/yt/server/lib/hydra/helpers.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT::NHydra {
 namespace {
-
-////////////////////////////////////////////////////////////////////////////////
-
-const NLogging::TLogger TestLogger("Test");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,11 +29,15 @@ TEST(TLocalHostNameSanitizer, SingleDataCenterSanitizing)
     };
 
     for (const auto& peerAddress : clusterPeers) {
-        EXPECT_EQ("m***-cluster-vla.vla.yp-c.yandex.net", SanitizeLocalHostName(TestLogger, clusterPeers, peerAddress));
+        auto sanitizedHost = SanitizeLocalHostName(clusterPeers, peerAddress);
+        EXPECT_TRUE(sanitizedHost);
+        EXPECT_EQ("m***-cluster-vla.vla.yp-c.yandex.net", sanitizedHost->ToStringBuf());
     }
 
     for (const auto& peerAddress : peers) {
-        EXPECT_EQ(peerAddress, SanitizeLocalHostName(TestLogger, clusterPeers, peerAddress));
+        auto sanitizedHost = SanitizeLocalHostName(clusterPeers, peerAddress);
+        EXPECT_TRUE(sanitizedHost);
+        EXPECT_EQ(peerAddress, sanitizedHost->ToStringBuf());
     }
 }
 
@@ -55,7 +55,9 @@ TEST(TLocalHostNameSanitizer, CrossDataCenterSanitizing)
     };
 
     for (const auto& peerAddress : clusterPeers) {
-        EXPECT_EQ("m***-cluster.***.yp-c.yandex.net", SanitizeLocalHostName(TestLogger, clusterPeers, peerAddress));
+        auto sanitizedHost = SanitizeLocalHostName(clusterPeers, peerAddress);
+        EXPECT_TRUE(sanitizedHost);
+        EXPECT_EQ("m***-cluster.***.yp-c.yandex.net", sanitizedHost->ToStringBuf());
     }
 }
 

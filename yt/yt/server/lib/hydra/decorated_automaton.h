@@ -316,7 +316,9 @@ private:
 
     TForkCountersPtr ForkCounters_;
 
-    TString SanitizeLocalHostNameOrCrash(TStringBuf host) const;
+    TSharedRef SanitizedLocalHostName_;
+
+    TSharedRef SanitizeLocalHostName(TStringBuf host) const;
 
     TMutationApplicationResult ApplyMutationDuringRecovery(const TSharedRef& recordData);
     TMutationApplicationResult ApplyMutation(const TPendingMutationPtr& mutation);
@@ -350,13 +352,6 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TDecoratedAutomaton)
-
-////////////////////////////////////////////////////////////////////////////////
-
-TString SanitizeLocalHostName(
-    const NLogging::TLogger& Logger,
-    const THashSet<TString>& clusterPeersAddresses,
-    TStringBuf host);
 
 ////////////////////////////////////////////////////////////////////////////////
 
