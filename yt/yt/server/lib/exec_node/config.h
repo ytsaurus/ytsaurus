@@ -423,9 +423,11 @@ DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterConnectorDynamicConfig
-    : public THeartbeatReporterDynamicConfigBase
+    : public NYTree::TYsonStruct
 {
 public:
+    NConcurrency::TRetryingPeriodicExecutorOptions Heartbeats;
+
     //! Timeout of the exec node heartbeat RPC request.
     TDuration HeartbeatTimeout;
 

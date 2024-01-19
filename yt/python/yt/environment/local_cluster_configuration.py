@@ -194,6 +194,12 @@ DYNAMIC_NODE_CONFIG_PATCHES = [
             "master_connector": {
                 "heartbeat_period": 300,
                 "heartbeat_splay": 50,
+                "heartbeats": {
+                    "periodic": {
+                        "period": 300,
+                        "splay": 50,
+                    },
+                },
             },
         },
     },

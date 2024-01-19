@@ -3,17 +3,18 @@
 #include "bootstrap.h"
 #include "job_controller.h"
 #include "private.h"
+#include "slot_location.h"
+#include "slot_manager.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/yt/server/node/exec_node/slot_location.h>
-#include <yt/yt/server/node/exec_node/slot_manager.h>
-
 #include <yt/yt/server/lib/exec_node/config.h>
 
 #include <yt/yt/ytlib/exec_node_tracker_client/exec_node_tracker_service_proxy.h>
+
+#include <yt/yt/core/concurrency/retrying_periodic_executor.h>
 
 #include <yt/yt/core/rpc/helpers.h>
 
@@ -58,6 +59,13 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         DynamicConfig_ = newConfig;
+
+        //! NB(arkady-e1ppa): HeartbeatExecutor is created once OnMasterRegistrationSignal is fired.
+        //! This happens after the first time DynamicConfigManager applies dynamic config.
+        //! Therefore we must be ready to encounter null HeartbeatExecutor_.
+        if (HeartbeatExecutor_) {
+            HeartbeatExecutor_->SetOptions(DynamicConfig_->Heartbeats);
+        }
     }
 
     TReqHeartbeat GetHeartbeatRequest() const
@@ -99,39 +107,43 @@ private:
 
     TMasterConnectorDynamicConfigPtr DynamicConfig_;
 
+    TRetryingPeriodicExecutorPtr HeartbeatExecutor_;
+    TFuture<void> OldHeartbeatExecutorStoppedEvent_;
+
     IInvokerPtr HeartbeatInvoker_;
 
     void OnMasterConnected(TNodeId /*nodeId*/)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        HeartbeatInvoker_ = Bootstrap_->GetMasterConnectionInvoker();
+        if (OldHeartbeatExecutorStoppedEvent_ &&
+            !OldHeartbeatExecutorStoppedEvent_.IsSet())
+        {
+            YT_LOG_DEBUG("Waiting for the old heartbeat executor to stop.");
+            auto error = WaitFor(std::move(OldHeartbeatExecutorStoppedEvent_));
 
-        StartHeartbeats();
-    }
+            YT_LOG_FATAL_UNLESS(
+                error.IsOK(),
+                error,
+                "Unexpected failure while waiting for old heartbeat executor to shut down.");
+        }
 
-    void StartHeartbeats()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        //! MasterConnectionInvoker changes after every registration
+        //! and so we have to make a new HeartbeatExecutor.
+        //! Technically, we could support "UpdateInvoker" method,
+        //! but there is no reason to preserve HeartbeatExecutor's state.
+        HeartbeatExecutor_ = New<TRetryingPeriodicExecutor>(
+            Bootstrap_->GetMasterConnectionInvoker(),
+            BIND([this_ = MakeWeak(this)] {
+                return this_.Lock()->ReportHeartbeat();
+            }),
+            DynamicConfig_->Heartbeats);
 
         YT_LOG_INFO("Starting exec node heartbeats");
-        ScheduleHeartbeat(/* immediately */ true);
+        HeartbeatExecutor_->Start();
     }
 
-    void ScheduleHeartbeat(bool immediately)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto delay = immediately
-            ? TDuration::Zero()
-            : DynamicConfig_->HeartbeatPeriod + RandomDuration(DynamicConfig_->HeartbeatSplay);
-        TDelayedExecutor::Submit(
-            BIND(&TMasterConnector::ReportHeartbeat, MakeWeak(this)),
-            delay,
-            HeartbeatInvoker_);
-    }
-
-    void ReportHeartbeat()
+    TError ReportHeartbeat()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -153,14 +165,16 @@ private:
 
             YT_LOG_INFO("Successfully reported exec node heartbeat to master");
 
-            // Schedule next heartbeat.
-            ScheduleHeartbeat(/* immediately */ false);
+            return TError();
         } else {
             YT_LOG_WARNING(rspOrError, "Error reporting exec node heartbeat to master");
             if (IsRetriableError(rspOrError)) {
-                ScheduleHeartbeat(/* immediately*/ false);
+                //! TODO(arkady-e1ppa): Maybe backoff in this case?
+                return TError();
             } else {
+                OldHeartbeatExecutorStoppedEvent_ = HeartbeatExecutor_->Stop();
                 Bootstrap_->ResetAndRegisterAtMaster();
+                return TError("Unretryable error received from master.");
             }
         }
     }

@@ -720,6 +720,12 @@ def get_dynamic_node_config():
             master_connector = {
                 heartbeat_period = 100;
                 heartbeat_splay = 30;
+                heartbeats = {
+                    periodic = {
+                        period = 100;
+                        splay = 30;
+                    };
+                };
             };
 
             slot_manager = {
