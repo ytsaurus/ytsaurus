@@ -180,8 +180,7 @@ void ScanOpHelper(
     TUnversionedRowsConsumer consumeRowsFunction,
     TRowSchemaInformation* rowSchemaInformation)
 {
-    auto* compartment = GetCurrentCompartment();
-    auto consumeRows = PrepareFunction(compartment, consumeRowsFunction);
+    auto consumeRows = PrepareFunction(consumeRowsFunction);
 
     auto finalLogger = Finally([&] () {
         YT_LOG_DEBUG("Finalizing scan helper");
@@ -387,19 +386,17 @@ struct TJoinComparersCallbacks
 
 std::vector<TJoinComparersCallbacks> MakeJoinComparersCallbacks(TRange<TJoinComparers> comparers)
 {
-    auto* compartment = GetCurrentCompartment();
-
     std::vector<TJoinComparersCallbacks> result;
     result.reserve(comparers.Size());
     for (size_t joinId = 0; joinId < comparers.Size(); ++joinId) {
         result.push_back({
-            PrepareFunction(compartment, comparers[joinId].PrefixEqComparer),
-            PrepareFunction(compartment, comparers[joinId].SuffixHasher),
-            PrepareFunction(compartment, comparers[joinId].SuffixEqComparer),
-            PrepareFunction(compartment, comparers[joinId].SuffixLessComparer),
-            PrepareFunction(compartment, comparers[joinId].ForeignPrefixEqComparer),
-            PrepareFunction(compartment, comparers[joinId].ForeignSuffixLessComparer),
-            PrepareFunction(compartment, comparers[joinId].FullTernaryComparer),
+            PrepareFunction(comparers[joinId].PrefixEqComparer),
+            PrepareFunction(comparers[joinId].SuffixHasher),
+            PrepareFunction(comparers[joinId].SuffixEqComparer),
+            PrepareFunction(comparers[joinId].SuffixLessComparer),
+            PrepareFunction(comparers[joinId].ForeignPrefixEqComparer),
+            PrepareFunction(comparers[joinId].ForeignSuffixLessComparer),
+            PrepareFunction(comparers[joinId].FullTernaryComparer),
         });
     }
 
@@ -421,9 +418,8 @@ void MultiJoinOpHelper(
     TRowsConsumer consumeRowsFunction)
 {
     auto comparers = NDetail::MakeJoinComparersCallbacks(MakeRange(comparersOffsets, parameters->Items.size()));
-    auto* compartment = GetCurrentCompartment();
-    auto collectRows = PrepareFunction(compartment, collectRowsFunction);
-    auto consumeRows = PrepareFunction(compartment, consumeRowsFunction);
+    auto collectRows = PrepareFunction(collectRowsFunction);
+    auto consumeRows = PrepareFunction(consumeRowsFunction);
 
     auto finalLogger = Finally([&] () {
         YT_LOG_DEBUG("Finalizing multijoin helper");
@@ -1287,15 +1283,14 @@ void GroupOpHelper(
     void** consumeTotalsClosure,
     TRowsConsumer consumeTotalsFunction)
 {
-    auto* compartment = GetCurrentCompartment();
-    auto collectRows = PrepareFunction(compartment, collectRowsFunction);
-    auto prefixEqComparer = PrepareFunction(compartment, prefixEqComparerFunction);
-    auto groupHasher = PrepareFunction(compartment, groupHasherFunction);
-    auto groupComparer = PrepareFunction(compartment, groupComparerFunction);
-    auto consumeIntermediate = PrepareFunction(compartment, consumeIntermediateFunction);
-    auto consumeFinal = PrepareFunction(compartment, consumeFinalFunction);
-    auto consumeDeltaFinal = PrepareFunction(compartment, consumeDeltaFinalFunction);
-    auto consumeTotals = PrepareFunction(compartment, consumeTotalsFunction);
+    auto collectRows = PrepareFunction(collectRowsFunction);
+    auto prefixEqComparer = PrepareFunction(prefixEqComparerFunction);
+    auto groupHasher = PrepareFunction(groupHasherFunction);
+    auto groupComparer = PrepareFunction(groupComparerFunction);
+    auto consumeIntermediate = PrepareFunction(consumeIntermediateFunction);
+    auto consumeFinal = PrepareFunction(consumeFinalFunction);
+    auto consumeDeltaFinal = PrepareFunction(consumeDeltaFinalFunction);
+    auto consumeTotals = PrepareFunction(consumeTotalsFunction);
 
     TGroupByClosure closure(
         context->MemoryChunkProvider,
@@ -1344,8 +1339,7 @@ void GroupTotalsOpHelper(
     TGroupTotalsCollector collectRowsFunction)
 {
     auto buffer = MakeExpressionContext(TIntermediateBufferTag());
-    auto* compartment = GetCurrentCompartment();
-    auto collectRows = PrepareFunction(compartment, collectRowsFunction);
+    auto collectRows = PrepareFunction(collectRowsFunction);
     collectRows(collectRowsClosure, &buffer);
 }
 
@@ -1374,10 +1368,9 @@ void OrderOpHelper(
     TRowsConsumer consumeRowsFunction,
     size_t rowSize)
 {
-    auto* compartment = GetCurrentCompartment();
-    auto comparer = PrepareFunction(compartment, comparerFunction);
-    auto collectRows = PrepareFunction(compartment, collectRowsFunction);
-    auto consumeRows = PrepareFunction(compartment, consumeRowsFunction);
+    auto comparer = PrepareFunction(comparerFunction);
+    auto collectRows = PrepareFunction(collectRowsFunction);
+    auto consumeRows = PrepareFunction(consumeRowsFunction);
 
     auto finalLogger = Finally([&] () {
         YT_LOG_DEBUG("Finalizing order helper");
@@ -1414,8 +1407,7 @@ void WriteOpHelper(
     void** collectRowsClosure,
     void (*collectRowsFunction)(void** closure, TWriteOpClosure* writeOpClosure))
 {
-    auto* compartment = GetCurrentCompartment();
-    auto collectRows = PrepareFunction(compartment, collectRowsFunction);
+    auto collectRows = PrepareFunction(collectRowsFunction);
 
     TWriteOpClosure closure(context->MemoryChunkProvider);
     closure.RowSize = rowSize;
@@ -1468,10 +1460,9 @@ TPIValue* LookupInRowset(
     TSharedRange<TRange<TPIValue>>* rowset,
     std::unique_ptr<TLookupRows>* lookupTable)
 {
-    auto* compartment = GetCurrentCompartment();
-    auto comparer = PrepareFunction(compartment, comparerFunction);
-    auto hasher = PrepareFunction(compartment, hasherFunction);
-    auto eqComparer = PrepareFunction(compartment, eqComparerFunction);
+    auto comparer = PrepareFunction(comparerFunction);
+    auto hasher = PrepareFunction(hasherFunction);
+    auto eqComparer = PrepareFunction(eqComparerFunction);
 
     if (rowset->Size() < 32) {
         auto found = std::lower_bound(

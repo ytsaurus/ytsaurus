@@ -19,7 +19,7 @@ void WavmInvoke(
 {
     const auto wavmType = IR::FunctionType(
         IR::FunctionType::Encoding{
-            std::bit_cast<Uptr>(type.Id)});
+            std::bit_cast<Uptr>(type)});
 
     Runtime::invokeFunction(
         static_cast<Runtime::Context*>(compartment->GetContext()),

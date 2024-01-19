@@ -19,19 +19,16 @@ DEFINE_ENUM(EWebAssemblyValueType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TWebAssemblyRuntimeType
-{
-    void* Id;
-};
+YT_DEFINE_STRONG_TYPEDEF(TWebAssemblyRuntimeType, void*);
 
-template <class TSignature>
+template <bool IsIntrinsic, class TSignature>
 struct TFunctionTypeBuilder
 { };
 
-template <typename TResult, typename... TArguments>
-struct TFunctionTypeBuilder<TResult(TArguments...)>
+template <bool IsIntrinsic, typename TResult, typename... TArguments>
+struct TFunctionTypeBuilder<IsIntrinsic, TResult(TArguments...)>
 {
-    static TWebAssemblyRuntimeType Get(bool intrinsic);
+    static TWebAssemblyRuntimeType Get();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

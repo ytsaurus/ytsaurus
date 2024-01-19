@@ -32,7 +32,6 @@ private:
 
 template <typename TResult, typename... TArgs>
 TCompartmentFunction<TResult(TArgs...)> PrepareFunction(
-    IWebAssemblyCompartment* compartment,
     TResult(*function)(TArgs...));
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -35,12 +35,15 @@ Y_FORCE_INLINE void InferTypes(TMutableRange<EWebAssemblyValueType> range)
     }
 }
 
-template <typename TResult, typename... TArguments>
-Y_FORCE_INLINE TWebAssemblyRuntimeType TFunctionTypeBuilder<TResult(TArguments...)>::Get(bool intrinsic)
+template <bool IsIntrinsic, typename TResult, typename... TArguments>
+Y_FORCE_INLINE TWebAssemblyRuntimeType TFunctionTypeBuilder<IsIntrinsic, TResult(TArguments...)>::Get()
 {
-    std::array<EWebAssemblyValueType, sizeof...(TArguments)> argumentTypes;
-    InferTypes<TArguments...>(MakeMutableRange(argumentTypes));
-    return GetTypeId(intrinsic, InferType<TResult>(), MakeRange(argumentTypes));
+    static const auto typeId = [] {
+        std::array<EWebAssemblyValueType, sizeof...(TArguments)> argumentTypes;
+        InferTypes<TArguments...>(MakeMutableRange(argumentTypes));
+        return GetTypeId(IsIntrinsic, InferType<TResult>(), MakeRange(argumentTypes));
+    }();
+    return typeId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
