@@ -2,7 +2,7 @@ from helpers import get_object_attribute_cache_config, get_schema_from_descripti
 
 from yt_commands import (authors, raises_yt_error, create, create_user, make_ace, exists, abort_job, write_table, get,
                          get_table_columnar_statistics, set_banned_flag, ls, abort_transaction, remove, read_table,
-                         sync_create_cells, sync_mount_table, insert_rows, print_debug, merge,
+                         sync_create_cells, sync_mount_table, sync_unmount_table, insert_rows, print_debug, merge,
                          set, remove_user)
 
 from base import ClickHouseTestBase, Clique, QueryFailedError, UserJobFailed, InstanceUnavailableCode
@@ -1580,6 +1580,45 @@ class TestClickHouseCommon(ClickHouseTestBase):
             # but works for now because of https://github.com/ClickHouse/ClickHouse/issues/58826
             # with raises_yt_error(QueryFailedError):
             #     clique.make_query(query.format(1000 * 1000), settings=settings, verbose=False)
+
+    @authors("dakovalkov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_reader_memory_manager(self, optimize_for):
+        create("table", "//tmp/st", attributes={"schema": [{"name": "a", "type": "int64"}], "optimize_for": optimize_for})
+        write_table("//tmp/st", [{"a": 1}])
+
+        sync_create_cells(1)
+        create("table", "//tmp/dt1", attributes={
+            "dynamic": True,
+            "enable_dynamic_store_read": True,
+            "optimize_for": optimize_for,
+            "schema": [{"name": "a", "type": "int64"}],
+            "dynamic_store_auto_flush_period": yson.YsonEntity(),
+        })
+        create("table", "//tmp/dt2", attributes={
+            "dynamic": True,
+            "enable_dynamic_store_read": True,
+            "optimize_for": optimize_for,
+            "schema": [{"name": "a", "type": "int64"}],
+            "dynamic_store_auto_flush_period": yson.YsonEntity(),
+        })
+        sync_mount_table("//tmp/dt1")
+        sync_mount_table("//tmp/dt2")
+        insert_rows("//tmp/dt1", [{"a": 1}])
+        insert_rows("//tmp/dt2", [{"a": 1}])
+
+        # flush dynamic store.
+        sync_unmount_table("//tmp/dt2")
+        sync_mount_table("//tmp/dt2")
+
+        with Clique(1) as clique:
+            mem = clique.get_profiler_gauge("chunk_reader/memory/usage")
+
+            assert clique.make_query('select * from "//tmp/st"') == [{"a": 1}]
+            assert clique.make_query('select * from "//tmp/dt1"') == [{"a": 1}]
+            assert clique.make_query('select * from "//tmp/dt2"') == [{"a": 1}]
+
+            wait(lambda: mem.get() == 0)
 
 
 class TestClickHouseNoCache(ClickHouseTestBase):

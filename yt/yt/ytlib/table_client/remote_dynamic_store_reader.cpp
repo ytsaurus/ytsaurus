@@ -10,9 +10,10 @@
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_memory_manager.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
@@ -729,6 +730,9 @@ public:
 
     virtual ~TRetryingRemoteDynamicStoreReaderBase() override
     {
+        // NB: Usually memory manager is finalized in underlying reader,
+        // but it isn't always created. It's safe to finalize twice, though.
+        YT_UNUSED_FUTURE(ReaderMemoryManager_->Finalize());
         YT_LOG_DEBUG("Retrying remote dynamic store reader destroyed");
     }
 
