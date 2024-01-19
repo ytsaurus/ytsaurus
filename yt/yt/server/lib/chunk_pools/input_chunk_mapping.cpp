@@ -47,8 +47,6 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripeGuarded(const TChunkStripePtr
         return stripe;
     }
 
-    int chunksMapped = 0;
-
     auto mappedStripe = New<TChunkStripe>();
     for (const auto& dataSlice : stripe->DataSlices) {
         if (dataSlice->Type == EDataSourceType::UnversionedTable) {
@@ -73,7 +71,6 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripeGuarded(const TChunkStripePtr
                             "(From: %v, To: %v, Legacy: True, Single: True)",
                             chunk->GetChunkId(),
                             substituteChunk->GetChunkId());
-                        ++chunksMapped;
                         auto chunkSlice = CreateInputChunkSlice(substituteChunk);
                         chunkSlice->LegacyLowerLimit() = dataSlice->ChunkSlices[0]->LegacyLowerLimit();
                         chunkSlice->LegacyUpperLimit() = dataSlice->ChunkSlices[0]->LegacyUpperLimit();
@@ -90,7 +87,6 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripeGuarded(const TChunkStripePtr
                                 "(From: %v, To: %v, Legacy: True, Single: False)",
                                 chunk->GetChunkId(),
                                 substituteChunk->GetChunkId());
-                            ++chunksMapped;
                             mappedStripe->DataSlices.emplace_back(New<TLegacyDataSlice>(
                                 dataSlice->Type,
                                 TLegacyDataSlice::TChunkSliceList{CreateInputChunkSlice(substituteChunk)} ));
@@ -106,7 +102,6 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripeGuarded(const TChunkStripePtr
                             "(From: %v, To: %v, Legacy: False, Single: True)",
                             chunk->GetChunkId(),
                             substituteChunk->GetChunkId());
-                        ++chunksMapped;
 
                         auto mappedDataSlice = CreateInputDataSlice(dataSlice);
                         mappedDataSlice->ChunkSlices[0]->SetInputChunk(substituteChunk);
@@ -119,7 +114,6 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripeGuarded(const TChunkStripePtr
                                 "(From: %v, To: %v, Legacy: False, Single: False)",
                                 chunk->GetChunkId(),
                                 substituteChunk->GetChunkId());
-                            ++chunksMapped;
                             auto mappedDataSlice = CreateInputDataSlice(dataSlice);
                             mappedDataSlice->ChunkSlices[0]->SetInputChunk(substituteChunk);
                             mappedDataSlice->CopyPayloadFrom(*dataSlice);
