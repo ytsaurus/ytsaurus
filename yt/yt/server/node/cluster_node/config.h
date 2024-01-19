@@ -433,6 +433,12 @@ public:
 
     bool UsePortoNetworkLimitInThrottler;
 
+    double MemoryUsageIsCloseToLimitThreshold;
+
+    double TotalMemoryLimitExceededThreshold;
+
+    double MemoryLimitExceededForCategoryThreshold;
+
     REGISTER_YSON_STRUCT(TClusterNodeDynamicConfig);
 
     static void Register(TRegistrar registrar);

@@ -473,6 +473,12 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("use_porto_network_limit_in_throttler", &TThis::UsePortoNetworkLimitInThrottler)
         .Default(true);
+    registrar.Parameter("total_memory_limit_exceeded_threshold", &TThis::TotalMemoryLimitExceededThreshold)
+        .Default(1.0);
+    registrar.Parameter("memory_usage_is_close_to_limit_threshold", &TThis::MemoryUsageIsCloseToLimitThreshold)
+        .Default(1.0);
+    registrar.Parameter("memory_limit_exceeded_for_category_threshold", &TThis::MemoryLimitExceededForCategoryThreshold)
+        .Default(1.1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
