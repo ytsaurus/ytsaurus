@@ -18,7 +18,6 @@ message TRspGetFlowView
 
 message TReqGetSpec
 {
-    optional string path = 1;
 }
 
 message TRspGetSpec
@@ -32,10 +31,11 @@ message TRspGetSpec
 message TReqSetSpec
 {
     optional string path = 1;
-    required bytes value = 2 [(NYT.NYson.NProto.yson_string) = true];
+    optional int64 expected_version = 2;
+    required bytes value = 3 [(NYT.NYson.NProto.yson_string) = true];
 
     // Update spec even if process is not stopped, just paused.
-    optional bool force = 3;
+    optional bool force = 4;
 }
 
 message TRspSetSpec
@@ -45,24 +45,8 @@ message TRspSetSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqRemoveSpec
-{
-    optional string path = 1;
-
-    // Update spec even if process is not stopped, just paused.
-    optional bool force = 3;
-}
-
-message TRspRemoveSpec
-{
-    required int64 version = 1;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 message TReqGetDynamicSpec
 {
-    optional string path = 1;
 }
 
 message TRspGetDynamicSpec
@@ -76,26 +60,14 @@ message TRspGetDynamicSpec
 message TReqSetDynamicSpec
 {
     optional string path = 1;
-    optional bytes value = 2 [(NYT.NYson.NProto.yson_string) = true];
+    optional int64 expected_version = 2;
+    optional bytes value = 3 [(NYT.NYson.NProto.yson_string) = true];
 }
 
 message TRspSetDynamicSpec
 {
-    optional int64 version = 1;
+    required int64 version = 1;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqRemoveDynamicSpec
-{
-    optional string path = 1;
-}
-
-message TRspRemoveDynamicSpec
-{
-    optional int64 version = 1;
-}
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

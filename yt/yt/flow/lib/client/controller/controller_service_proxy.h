@@ -18,12 +18,12 @@ public:
         .SetProtocolVersion(1));
 
     DEFINE_RPC_PROXY_METHOD(NProto, GetFlowView);
+
     DEFINE_RPC_PROXY_METHOD(NProto, GetSpec);
     DEFINE_RPC_PROXY_METHOD(NProto, SetSpec);
-    DEFINE_RPC_PROXY_METHOD(NProto, RemoveSpec);
+
     DEFINE_RPC_PROXY_METHOD(NProto, GetDynamicSpec);
     DEFINE_RPC_PROXY_METHOD(NProto, SetDynamicSpec);
-    DEFINE_RPC_PROXY_METHOD(NProto, RemoveDynamicSpec);
 
     DEFINE_RPC_PROXY_METHOD(NProto, GetPipelineStatus);
 
