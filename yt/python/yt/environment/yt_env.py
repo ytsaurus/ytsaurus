@@ -2081,4 +2081,4 @@ class YTInstance(object):
 
             return True
 
-        wait(check, error_message="Dynamic config from master didn't reach nodes in time")
+        wait(check, error_message="Dynamic config from master didn't reach nodes in time", ignore_exceptions=True)
