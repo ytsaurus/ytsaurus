@@ -890,6 +890,7 @@ public:
 
     ~TSchemalessMergingMultiChunkReader()
     {
+        YT_UNUSED_FUTURE(ParallelReaderMemoryManager_->Finalize());
         YT_LOG_DEBUG("Schemaless merging multi chunk reader data statistics (DataStatistics: %v)", TSchemalessMergingMultiChunkReader::GetDataStatistics());
     }
 
@@ -1236,7 +1237,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
                 timestamp,
                 multiReaderMemoryManager->CreateChunkReaderMemoryManager(
                     DefaultRemoteDynamicStoreReaderMemoryEstimate),
-                    BIND(createVersionedChunkReader));
+                BIND(createVersionedChunkReader));
         } else {
             return createVersionedChunkReader(chunkSpec, nullptr);
         }

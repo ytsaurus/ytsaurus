@@ -1684,6 +1684,17 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const TChunkReaderMemoryManagerPtr& memoryManager,
     IInvokerPtr sessionInvoker)
 {
+    // NB: memory managers are not RAII and should be always finalized.
+    // The finalization should be done somewhere in the reader, but if
+    // no reader with memory manager is created, we need to finalize it
+    // by ourselfs.
+    bool readerWithMemoryManagerCreated = false;
+    auto memoryManagerGuard = Finally([&] {
+        if (!readerWithMemoryManagerCreated && memoryManager) {
+            YT_UNUSED_FUTURE(memoryManager->Finalize());
+        }
+    });
+
     const auto& blockCache = chunkState->BlockCache;
 
     auto getCappedBounds = [&ranges, &singletonClippingRange] {
@@ -1738,6 +1749,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     singletonClippingRange,
                     memoryManager,
                     sessionInvoker);
+
+                readerWithMemoryManagerCreated = true;
             };
 
             switch (chunkMeta->GetChunkFormat()) {
@@ -1782,6 +1795,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     timestamp,
                     memoryManager,
                     sessionInvoker);
+
+                readerWithMemoryManagerCreated = true;
             };
 
             if (timestamp == AllCommittedTimestamp) {
@@ -1824,6 +1839,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 auto upperKeyBound = KeyBoundFromLegacyRow(cappedBounds.Front().second, /*isUpper*/ true, keyColumnCount);
 
                 TReadRange readRange(TReadLimit{lowerKeyBound}, TReadLimit{upperKeyBound});
+
+                readerWithMemoryManagerCreated = true;
 
                 return CreateSchemalessRangeChunkReader(
                     chunkState,
