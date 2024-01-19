@@ -459,9 +459,9 @@ class TestSecondaryIndexReplicatedMaster(TestSecondaryIndexReplicatedBase, TestS
         collocation_id = create_table_collocation(table_ids=[stranger_id, table_id, index_table_id])
         index_id = create_secondary_index("//tmp/table", "//tmp/index_table", "full_sync")
 
-        with raises_yt_error(f"Cannot remove table {table_id} from collocation"):
+        with raises_yt_error("Cannot remove table //tmp/table from collocation"):
             remove("//tmp/table/@replication_collocation_id")
-        with raises_yt_error(f"Cannot remove table {index_table_id} from collocation"):
+        with raises_yt_error("Cannot remove table //tmp/index_table from collocation"):
             remove("//tmp/index_table/@replication_collocation_id")
         with raises_yt_error("Cannot remove collocation"):
             remove(f"#{collocation_id}")

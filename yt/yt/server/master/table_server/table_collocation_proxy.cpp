@@ -35,7 +35,7 @@ private:
         const auto* collocation = GetThisImpl();
         for (const auto* table : collocation->Tables()) {
             if (table->GetIndexTo() || !table->SecondaryIndices().empty()) {
-                THROW_ERROR_EXCEPTION("Cannot remove collocation %v because table %v has or is an index",
+                THROW_ERROR_EXCEPTION("Cannot remove collocation %v because table %v has an index or is one itself",
                     collocation->GetId(),
                     table->GetId());
             }

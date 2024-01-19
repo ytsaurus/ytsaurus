@@ -1277,6 +1277,8 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
         case EInternedAttributeKey::ReplicationCollocationId: {
             ValidateNoTransaction();
 
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+
             auto* lockedTable = LockThisImpl();
             if (auto* collocation = lockedTable->GetReplicationCollocation()) {
                 YT_VERIFY(lockedTable->IsDynamic() && lockedTable->IsReplicated());
@@ -1284,10 +1286,10 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
 
                 if (lockedTable->GetIndexTo()) {
                     THROW_ERROR_EXCEPTION("Cannot remove table %v from collocation due to it being a secondary index",
-                        lockedTable->GetId());
+                        cypressManager->GetNodePath(lockedTable, nullptr));
                 } else if (!lockedTable->SecondaryIndices().empty()) {
                     THROW_ERROR_EXCEPTION("Cannot remove table %v from collocation due to it having a secondary index",
-                        lockedTable->GetId());
+                        cypressManager->GetNodePath(lockedTable, nullptr));
                 }
 
                 tableManager->RemoveTableFromCollocation(
