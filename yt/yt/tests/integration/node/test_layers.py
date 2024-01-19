@@ -3,7 +3,8 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 from yt_commands import (
     authors, wait, create, ls, get, set, remove, link, exists,
     write_file, write_table, get_job, abort_job,
-    raises_yt_error, read_table, run_test_vanilla, map, sort, wait_for_nodes, update_nodes_dynamic_config)
+    raises_yt_error, read_table, run_test_vanilla, map, map_reduce,
+    sort, wait_for_nodes, update_nodes_dynamic_config)
 
 from yt.common import YtError, update
 import yt.yson as yson
@@ -208,6 +209,36 @@ class TestLayers(TestLayersBase):
             spec={
                 "max_failed_job_count": 1,
                 "default_base_layer_path": "//tmp/layer1",
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        for job_id in job_ids:
+            assert b"static-bin" in op.read_stderr(job_id)
+
+    @authors("galtsev")
+    @pytest.mark.timeout(600)
+    def test_default_base_layer_with_layer_paths(self):
+        self.setup_files()
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"k": 0}], sorted_by="k")
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            mapper_command="./static_cat; ls $YT_ROOT_FS 1>&2",
+            reducer_command="if [ ! -e test ]; then exit 1; fi; cat",
+            mapper_file=["//tmp/static_cat"],
+            sort_by=["k"],
+            spec={
+                "max_failed_job_count": 1,
+                "default_base_layer_path": "//tmp/layer1",
+                "reducer": {
+                    "layer_paths": ["//tmp/layer2"],
+                },
             },
         )
 
