@@ -769,14 +769,15 @@ void TNode::ClearReplicas()
 void TNode::AddToChunkPushReplicationQueue(TChunkIdWithIndex replica, int targetMediumIndex, int priority)
 {
     YT_ASSERT(ReportedDataNodeHeartbeat());
-    ChunkPushReplicationQueues_[priority][replica].set(targetMediumIndex);
+
+    ChunkPushReplicationQueues_[priority].Add(replica, targetMediumIndex);
 }
 
 void TNode::AddToChunkPullReplicationQueue(TChunkIdWithIndex replica, int targetMediumIndex, int priority)
 {
     YT_ASSERT(ReportedDataNodeHeartbeat());
 
-    ChunkPullReplicationQueues_[priority][replica].set(targetMediumIndex);
+    ChunkPullReplicationQueues_[priority].Add(replica, targetMediumIndex);
 }
 
 void TNode::RefChunkBeingPulled(TChunkId chunkId, int targetMediumIndex)
@@ -856,11 +857,11 @@ void TNode::UnrefChunkBeingPulled(TChunkId chunkId, int targetMediumIndex)
 void TNode::RemoveFromChunkReplicationQueues(TChunkIdWithIndex replica)
 {
     for (auto& queue : ChunkPushReplicationQueues_) {
-        queue.erase(replica);
+        queue.Erase(replica);
     }
 
     for (auto& queue : ChunkPullReplicationQueues_) {
-        queue.erase(replica);
+        queue.Erase(replica);
     }
 
     PushReplicationTargetNodeIds_.erase(replica.Id);
@@ -963,10 +964,10 @@ void TNode::DetachCell(const TCellBase* cell)
 void TNode::ShrinkHashTables()
 {
     for (auto& queue : ChunkPushReplicationQueues_) {
-        ShrinkHashTable(queue);
+        queue.Shrink();
     }
     for (auto& queue : ChunkPullReplicationQueues_) {
-        ShrinkHashTable(queue);
+        queue.Shrink();
     }
     ShrinkHashTable(ChunksBeingPulled_);
     for (auto* location : ChunkLocations_) {
@@ -1307,10 +1308,10 @@ TCellNodeStatistics TNode::ComputeCellStatistics() const
         result.DestroyedChunkReplicaCount += location->GetDestroyedReplicasCount();
     }
     for (const auto& queue : ChunkPushReplicationQueues_) {
-        result.ChunkPushReplicationQueuesSize += std::ssize(queue);
+        result.ChunkPushReplicationQueuesSize += queue.size();
     }
     for (const auto& queue : ChunkPullReplicationQueues_) {
-        result.ChunkPullReplicationQueuesSize += std::ssize(queue);
+        result.ChunkPullReplicationQueuesSize += queue.size();
     }
     result.PullReplicationChunkCount += std::ssize(ChunksBeingPulled_);
     return result;
