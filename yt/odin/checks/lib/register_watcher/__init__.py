@@ -5,15 +5,38 @@ from copy import deepcopy
 from datetime import datetime, timedelta
 
 
-STATE_PATH = "//sys/admin/odin/register_watcher"
+STATE_TABLE_PATH = "//sys/admin/odin/register_watcher"
+STATE_TABLE_SCHEMA = [
+    {
+        "name": "fqdn",
+        "type": "string",
+        "sort_order": "ascending",
+    },
+    {
+        "name": "register_time",
+        "type": "int64",
+        "sort_order": "ascending",
+    },
+    {
+        "name": "reason",
+        "type": "string",
+    },
+]
+
 WATCH_PERIOD_DAYS = 3
 WATCH_THRESHOLD = int((datetime.utcnow() - timedelta(days=WATCH_PERIOD_DAYS)).strftime('%s'))
 
 
 def run_check_impl(yt_client, logger, options, states, node_tag_filter=["internal", "nirvana"]):
-    tablet_state = yt_client.get("{}/@tablet_state".format(STATE_PATH))
+    if not yt_client.exists(STATE_TABLE_PATH):
+        yt_client.create("table", STATE_TABLE_PATH, attributes={
+            "schema": STATE_TABLE_SCHEMA,
+            "dynamic": True,
+        })
+        yt_client.mount_table(STATE_TABLE_PATH, sync=True)
+    tablet_state = yt_client.get("{}/@tablet_state".format(STATE_TABLE_PATH))
     if tablet_state != "mounted":
-        message = "{}/@tablet_state is {} but should be mounted".format(STATE_PATH, tablet_state)
+        message = "{}/@tablet_state is {} but should be mounted".format(STATE_TABLE_PATH, tablet_state)
         logger.error(message)
         return states.UNAVAILABLE_STATE, message
 
@@ -22,8 +45,8 @@ def run_check_impl(yt_client, logger, options, states, node_tag_filter=["interna
 
     def load_state():
         state = defaultdict(list)
-        if yt_client.exists(STATE_PATH):
-            for k in yt_client.select_rows("fqdn, register_time, reason FROM [{}]".format(STATE_PATH)):
+        if yt_client.exists(STATE_TABLE_PATH):
+            for k in yt_client.select_rows("fqdn, register_time, reason FROM [{}]".format(STATE_TABLE_PATH)):
                 if is_timestamp_fresh_enough(k["register_time"]):
                     if k["reason"] is None:
                         state[k["fqdn"]].append(k["register_time"])
@@ -37,7 +60,7 @@ def run_check_impl(yt_client, logger, options, states, node_tag_filter=["interna
                     continue
                 rows.append({"fqdn": node, "register_time": register_time_unix})
         if rows:
-            yt_client.insert_rows(STATE_PATH, rows)
+            yt_client.insert_rows(STATE_TABLE_PATH, rows)
 
     state = load_state()
     saved_state = deepcopy(state)
@@ -99,6 +122,6 @@ def run_check_impl(yt_client, logger, options, states, node_tag_filter=["interna
         top, [datetime_to_string(datetime.utcfromtimestamp(k)) for k in sorted(state[top], reverse=True)][:42])
     )
     logger.info("Review or clean register timestamps at {}@{} via yt-admin/register_watcher_helper.py"
-                .format(STATE_PATH, options["cluster_name"]))
+                .format(STATE_TABLE_PATH, options["cluster_name"]))
     logger.info("Timestamps older than {} days are skipped from computing CRIT state".format(WATCH_PERIOD_DAYS))
     return return_state, message[:1024]
