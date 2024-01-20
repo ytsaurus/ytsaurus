@@ -29,8 +29,6 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
-#include <functional>
-#include <deque>
 #include <optional>
 
 namespace NYT::NChunkServer {
@@ -205,11 +203,14 @@ private:
     const std::unique_ptr<TChunkRefreshScanner> BlobRefreshScanner_;
     const std::unique_ptr<TChunkRefreshScanner> JournalRefreshScanner_;
 
+    NConcurrency::TPeriodicExecutorPtr ScheduleChunkRequisitionUpdatesExecutor_;
     NConcurrency::TPeriodicExecutorPtr RequisitionUpdateExecutor_;
     const std::unique_ptr<TChunkScanner> BlobRequisitionUpdateScanner_;
     const std::unique_ptr<TChunkScanner> JournalRequisitionUpdateScanner_;
 
     NConcurrency::TPeriodicExecutorPtr FinishedRequisitionTraverseFlushExecutor_;
+
+    std::queue<TChunkId> ChunkIdsAwaitingRequisitionUpdateScheduling_;
 
     // Contains the chunk list ids for which requisition update traversals
     // have finished. These confirmations are batched and then flushed.
@@ -358,6 +359,8 @@ private:
     //! Same as corresponding #TChunk method but the result is capped by the medium-specific bound.
     int GetChunkAggregatedReplicationFactor(const TChunk* chunk, int mediumIndex);
 
+    void OnScheduledChunkRequisitionUpdatesFlush();
+
     void OnRequisitionUpdate();
     void ComputeChunkRequisitionUpdate(TChunk* chunk, NProto::TReqUpdateChunkRequisition* request);
 
@@ -416,11 +419,11 @@ private:
     bool IsConsistentChunkPlacementEnabled() const;
     bool UsePullReplication(TChunk* chunk) const;
 
-    void StartRefresh(int shardIndex);
-    void StopRefresh(int shardIndex);
+    void StartRefreshes(int shardIndex);
+    void StopRefreshes(int shardIndex);
 
-    void StartRequisitionUpdate();
-    void StopRequisitionUpdate();
+    void StartRequisitionUpdates(int shardIndex);
+    void StopRequisitionUpdates(int shardIndex);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReplicator)

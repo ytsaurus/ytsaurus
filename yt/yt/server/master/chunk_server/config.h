@@ -519,6 +519,10 @@ public:
     bool EnableChunkRequisitionUpdate;
     //! Interval between consequent chunk requisition update iterations.
     std::optional<TDuration> ChunkRequisitionUpdatePeriod;
+    //! Chunks are propagated to incumbent peers for requisition update within this period.
+    TDuration ScheduledChunkRequisitionUpdatesFlushPeriod;
+    //! Maximum number of chunks to delegate to incumbents for requisition update per flush.
+    int MaxChunksPerRequisitionUpdateScheduling;
     //! Maximum number of chunks to process during a requisition update iteration.
     int MaxBlobChunksPerRequisitionUpdate;
     //! Maximum amount of time allowed to spend during a requisition update iteration.

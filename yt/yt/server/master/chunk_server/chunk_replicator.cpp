@@ -93,7 +93,6 @@ using namespace NChunkServer::NProto;
 using namespace NCellMaster;
 using namespace NTransactionClient;
 
-using NChunkClient::TLegacyReadLimit;
 using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -399,6 +398,12 @@ void TChunkReplicator::OnEpochStarted()
         GetDynamicConfig()->ReplicatorEnabledCheckPeriod);
     EnabledCheckExecutor_->Start();
 
+    RequisitionUpdateExecutor_ = New<TPeriodicExecutor>(
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkRequisitionUpdater),
+        BIND(&TChunkReplicator::OnRequisitionUpdate, MakeWeak(this)),
+        GetDynamicConfig()->ChunkRequisitionUpdatePeriod);
+    RequisitionUpdateExecutor_->Start();
+
     // Just in case.
     Enabled_ = false;
 }
@@ -410,6 +415,11 @@ void TChunkReplicator::OnEpochFinished()
     if (RefreshExecutor_) {
         YT_UNUSED_FUTURE(RefreshExecutor_->Stop());
         RefreshExecutor_.Reset();
+    }
+
+    if (ScheduleChunkRequisitionUpdatesExecutor_) {
+        YT_UNUSED_FUTURE(ScheduleChunkRequisitionUpdatesExecutor_->Stop());
+        ScheduleChunkRequisitionUpdatesExecutor_.Reset();
     }
 
     if (RequisitionUpdateExecutor_) {
@@ -427,7 +437,13 @@ void TChunkReplicator::OnEpochFinished()
         EnabledCheckExecutor_.Reset();
     }
 
+    ClearChunkRequisitionCache();
+    TmpRequisitionRegistry_.Clear();
     ChunkListIdsWithFinishedRequisitionTraverse_.clear();
+    {
+        std::queue<TChunkId> queue;
+        ChunkIdsAwaitingRequisitionUpdateScheduling_.swap(queue);
+    }
 
     for (auto queueKind : TEnumTraits<EChunkRepairQueue>::GetDomainValues()) {
         for (auto& queue : ChunkRepairQueues(queueKind)) {
@@ -453,13 +469,13 @@ void TChunkReplicator::OnEpochFinished()
 
 void TChunkReplicator::OnLeadingStarted()
 {
-    StartRequisitionUpdate();
+    YT_VERIFY(!std::exchange(RequisitionUpdateRunning_, true));
 
-    RequisitionUpdateExecutor_ = New<TPeriodicExecutor>(
+    ScheduleChunkRequisitionUpdatesExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkRequisitionUpdater),
-        BIND(&TChunkReplicator::OnRequisitionUpdate, MakeWeak(this)),
-        GetDynamicConfig()->ChunkRequisitionUpdatePeriod);
-    RequisitionUpdateExecutor_->Start();
+        BIND(&TChunkReplicator::OnScheduledChunkRequisitionUpdatesFlush, MakeWeak(this)),
+        GetDynamicConfig()->ScheduledChunkRequisitionUpdatesFlushPeriod);
+    ScheduleChunkRequisitionUpdatesExecutor_->Start();
 
     FinishedRequisitionTraverseFlushExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkRequisitionUpdater),
@@ -470,24 +486,23 @@ void TChunkReplicator::OnLeadingStarted()
 
 void TChunkReplicator::OnLeadingFinished()
 {
-    StopRequisitionUpdate();
-
-    ClearChunkRequisitionCache();
-    TmpRequisitionRegistry_.Clear();
+    RequisitionUpdateRunning_ = false;
 }
 
 void TChunkReplicator::OnIncumbencyStarted(int shardIndex)
 {
     TShardedIncumbentBase::OnIncumbencyStarted(shardIndex);
 
-    StartRefresh(shardIndex);
+    StartRefreshes(shardIndex);
+    StartRequisitionUpdates(shardIndex);
 }
 
 void TChunkReplicator::OnIncumbencyFinished(int shardIndex)
 {
     TShardedIncumbentBase::OnIncumbencyFinished(shardIndex);
 
-    StopRefresh(shardIndex);
+    StopRefreshes(shardIndex);
+    StopRequisitionUpdates(shardIndex);
 }
 
 void TChunkReplicator::TouchChunk(TChunk* chunk)
@@ -2961,6 +2976,7 @@ void TChunkReplicator::OnProfiling(TSensorBuffer* buffer, TSensorBuffer* crpBuff
     buffer->AddGauge("/blob_requisition_update_queue_size", BlobRequisitionUpdateScanner_->GetQueueSize());
     buffer->AddGauge("/journal_refresh_queue_size", JournalRefreshScanner_->GetQueueSize());
     buffer->AddGauge("/journal_requisition_update_queue_size", JournalRequisitionUpdateScanner_->GetQueueSize());
+    buffer->AddGauge("/chunk_ids_awaiting_requisition_update_scheduling", ChunkIdsAwaitingRequisitionUpdateScheduling_.size());
 
     buffer->AddGauge("/lost_chunk_count", LostChunks_.size());
     buffer->AddGauge("/lost_vital_chunk_count", LostVitalChunks_.size());
@@ -3099,7 +3115,7 @@ void TChunkReplicator::OnJobFailed(const TJobPtr& job)
 
 void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
 {
-    // Fast path.
+    // NB: only leader is responsible for chunk lists requisition traversal.
     if (!RequisitionUpdateRunning_) {
         return;
     }
@@ -3140,7 +3156,7 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
             const NChunkClient::TReadLimit& /*endLimit*/,
             const TChunkViewModifier* /*modifier*/) override
         {
-            Owner_->ScheduleRequisitionUpdate(chunk);
+            Owner_->ChunkIdsAwaitingRequisitionUpdateScheduling_.push(chunk->GetId());
             return true;
         }
 
@@ -3174,19 +3190,18 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
 
 void TChunkReplicator::ScheduleRequisitionUpdate(TChunk* chunk)
 {
-    // Fast path.
-    if (!RequisitionUpdateRunning_) {
+    if (!IsObjectAlive(chunk)) {
         return;
     }
 
-    if (!IsObjectAlive(chunk)) {
+    if (!ShouldProcessChunk(chunk)) {
         return;
     }
 
     GetChunkRequisitionUpdateScanner(chunk)->EnqueueChunk(chunk);
 }
 
-void TChunkReplicator::OnRequisitionUpdate()
+void TChunkReplicator::OnScheduledChunkRequisitionUpdatesFlush()
 {
     if (!RequisitionUpdateRunning_) {
         return;
@@ -3196,6 +3211,29 @@ void TChunkReplicator::OnRequisitionUpdate()
         return;
     }
 
+    auto limit = std::min<int>(
+        GetDynamicConfig()->MaxChunksPerRequisitionUpdateScheduling,
+        std::ssize(ChunkIdsAwaitingRequisitionUpdateScheduling_));
+
+    TReqScheduleChunkRequisitionUpdates request;
+    request.mutable_chunk_ids()->Reserve(limit);
+    for (auto i = 0; i < limit; ++i) {
+        ToProto(request.add_chunk_ids(), ChunkIdsAwaitingRequisitionUpdateScheduling_.front());
+        ChunkIdsAwaitingRequisitionUpdateScheduling_.pop();
+    }
+
+    if (request.chunk_ids_size() > 0) {
+        YT_LOG_DEBUG("Flushing chunks scheduled for requisition update (Count: %v)",
+            request.chunk_ids_size());
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto mutation = chunkManager->CreateScheduleChunkRequisitionUpdatesMutation(request);
+        YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
+    }
+}
+
+void TChunkReplicator::OnRequisitionUpdate()
+{
     if (!GetDynamicConfig()->EnableChunkRequisitionUpdate) {
         YT_LOG_DEBUG("Chunk requisition update disabled");
         return;
@@ -3266,10 +3304,9 @@ void TChunkReplicator::OnRequisitionUpdate()
 
     if (request.updates_size() > 0) {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto asyncResult = chunkManager
-            ->CreateUpdateChunkRequisitionMutation(request)
-            ->CommitAndLog(Logger);
-        Y_UNUSED(WaitFor(asyncResult));
+        auto mutation = chunkManager->CreateUpdateChunkRequisitionMutation(request);
+        mutation->SetAllowLeaderForwarding(true);
+        Y_UNUSED(WaitFor(mutation->CommitAndLog(Logger)));
     }
 }
 
@@ -3610,6 +3647,9 @@ void TChunkReplicator::OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig
     if (EnabledCheckExecutor_) {
         EnabledCheckExecutor_->SetPeriod(GetDynamicConfig()->ReplicatorEnabledCheckPeriod);
     }
+    if (ScheduleChunkRequisitionUpdatesExecutor_) {
+        ScheduleChunkRequisitionUpdatesExecutor_->SetPeriod(GetDynamicConfig()->ScheduledChunkRequisitionUpdatesFlushPeriod);
+    }
     if (RequisitionUpdateExecutor_) {
         RequisitionUpdateExecutor_->SetPeriod(GetDynamicConfig()->ChunkRequisitionUpdatePeriod);
     }
@@ -3637,7 +3677,7 @@ bool TChunkReplicator::UsePullReplication(TChunk* chunk) const
         GetDynamicConfig()->ConsistentReplicaPlacement->EnablePullReplication;
 }
 
-void TChunkReplicator::StartRefresh(int shardIndex)
+void TChunkReplicator::StartRefreshes(int shardIndex)
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     BlobRefreshScanner_->Start(chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
@@ -3650,12 +3690,12 @@ void TChunkReplicator::StartRefresh(int shardIndex)
 
     LastActiveShardSetUpdateTime_ = TInstant::Now();
 
-    YT_LOG_INFO("Chunk refresh started (ShardIndex: %v, JobEpoch: %v)",
+    YT_LOG_INFO("Chunk refreshes started (ShardIndex: %v, JobEpoch: %v)",
         shardIndex,
         jobEpoch);
 }
 
-void TChunkReplicator::StopRefresh(int shardIndex)
+void TChunkReplicator::StopRefreshes(int shardIndex)
 {
     BlobRefreshScanner_->Stop(shardIndex);
     JournalRefreshScanner_->Stop(shardIndex);
@@ -3702,36 +3742,28 @@ void TChunkReplicator::StopRefresh(int shardIndex)
 
     LastActiveShardSetUpdateTime_ = TInstant::Now();
 
-    YT_LOG_INFO("Chunk refresh stopped (ShardIndex: %v, JobEpoch: %v)",
+    YT_LOG_INFO("Chunk refreshes stopped (ShardIndex: %v, JobEpoch: %v)",
         shardIndex,
         previousJobEpoch);
 }
 
-void TChunkReplicator::StartRequisitionUpdate()
+void TChunkReplicator::StartRequisitionUpdates(int shardIndex)
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
-    for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
-        BlobRequisitionUpdateScanner_->Start(chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
-        JournalRequisitionUpdateScanner_->Start(chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
-    }
+    BlobRequisitionUpdateScanner_->Start(chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
+    JournalRequisitionUpdateScanner_->Start(chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
 
-    YT_VERIFY(!std::exchange(RequisitionUpdateRunning_, true));
-
-    YT_LOG_INFO("Chunk requisition update started");
+    YT_LOG_INFO("Chunk requisition updates started (ShardIndex: %v)",
+        shardIndex);
 }
 
-void TChunkReplicator::StopRequisitionUpdate()
+void TChunkReplicator::StopRequisitionUpdates(int shardIndex)
 {
-    if (!std::exchange(RequisitionUpdateRunning_, false)) {
-        return;
-    }
+    BlobRequisitionUpdateScanner_->Stop(shardIndex);
+    JournalRequisitionUpdateScanner_->Stop(shardIndex);
 
-    for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
-        BlobRequisitionUpdateScanner_->Stop(shardIndex);
-        JournalRequisitionUpdateScanner_->Stop(shardIndex);
-    }
-
-    YT_LOG_INFO("Chunk requisition update stopped");
+    YT_LOG_INFO("Chunk requisition updates stopped (ShardIndex: %v)",
+        shardIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

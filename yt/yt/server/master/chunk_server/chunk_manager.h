@@ -46,6 +46,8 @@ struct IChunkManager
         const NProto::TReqConfirmChunkListsRequisitionTraverseFinished& request) = 0;
     virtual std::unique_ptr<NHydra::TMutation> CreateRegisterChunkEndorsementsMutation(
         const NProto::TReqRegisterChunkEndorsements& request) = 0;
+    virtual std::unique_ptr<NHydra::TMutation> CreateScheduleChunkRequisitionUpdatesMutation(
+        const NProto::TReqScheduleChunkRequisitionUpdates& request) = 0;
 
     using TCtxExportChunks = NRpc::TTypedServiceContext<
         NChunkClient::NProto::TReqExportChunks,

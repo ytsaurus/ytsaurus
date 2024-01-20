@@ -176,7 +176,6 @@ using namespace NQueryClient;
 using namespace NApi;
 
 using NChunkClient::TSessionId;
-using NDataNodeTrackerClient::TChunkLocationDirectory;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -391,6 +390,7 @@ public:
         RegisterMethod(BIND(&TChunkManager::HydraConfirmChunkListsRequisitionTraverseFinished, Unretained(this)));
         RegisterMethod(BIND(&TChunkManager::HydraUpdateChunkRequisition, Unretained(this)));
         RegisterMethod(BIND(&TChunkManager::HydraRegisterChunkEndorsements, Unretained(this)));
+        RegisterMethod(BIND(&TChunkManager::HydraScheduleChunkRequisitionUpdates, Unretained(this)));
         RegisterMethod(BIND(&TChunkManager::HydraExportChunks, Unretained(this)));
         RegisterMethod(BIND(&TChunkManager::HydraImportChunks, Unretained(this)));
         RegisterMethod(BIND(&TChunkManager::HydraExecuteBatch, Unretained(this)));
@@ -596,6 +596,16 @@ public:
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             request,
             &TChunkManager::HydraRegisterChunkEndorsements,
+            this);
+    }
+
+    std::unique_ptr<TMutation> CreateScheduleChunkRequisitionUpdatesMutation(
+        const NProto::TReqScheduleChunkRequisitionUpdates& request) override
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            request,
+            &TChunkManager::HydraScheduleChunkRequisitionUpdates,
             this);
     }
 
@@ -2020,6 +2030,8 @@ public:
 
     void ScheduleChunkRequisitionUpdate(TChunk* chunk)
     {
+        YT_VERIFY(HasMutationContext());
+
         ChunkReplicator_->ScheduleRequisitionUpdate(chunk);
     }
 
@@ -4131,6 +4143,14 @@ private:
         }
 
         maybeFlushLogQueue(true);
+    }
+
+    void HydraScheduleChunkRequisitionUpdates(NProto::TReqScheduleChunkRequisitionUpdates* request)
+    {
+        for (const auto& protoChunkId : request->chunk_ids()) {
+            auto chunkId = FromProto<TChunkId>(protoChunkId);
+            ScheduleChunkRequisitionUpdate(FindChunk(chunkId));
+        }
     }
 
     struct TRequisitionUpdate

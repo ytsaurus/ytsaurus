@@ -466,9 +466,14 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_chunk_requisition_update", &TThis::EnableChunkRequisitionUpdate)
         .Default(true);
+    registrar.Parameter("scheduled_chunk_requisition_updates_flush_period", &TThis::ScheduledChunkRequisitionUpdatesFlushPeriod)
+        .Default(TDuration::MilliSeconds(100));
     registrar.Parameter("chunk_requisition_update_period", &TThis::ChunkRequisitionUpdatePeriod)
         .Default(TDuration::MilliSeconds(100));
 
+    registrar.Parameter("max_chunks_per_requisition_update_scheduling", &TThis::MaxChunksPerRequisitionUpdateScheduling)
+        .GreaterThan(0)
+        .Default(14000);
     registrar.Parameter("max_blob_chunks_per_requisition_update", &TThis::MaxBlobChunksPerRequisitionUpdate)
         .Default(8000)
         .Alias("max_chunks_per_requisition_update");
