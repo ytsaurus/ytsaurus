@@ -719,6 +719,8 @@ public:
         YT_VERIFY(JobEpoch_ == InvalidJobEpoch);
         const auto& jobRegistry = Bootstrap_->GetChunkManager()->GetJobRegistry();
         JobEpoch_ = jobRegistry->StartEpoch();
+
+        LastReplacement_ = NProfiling::GetInstant();
     }
 
     void OnStopLeading() override
@@ -947,6 +949,8 @@ private:
         TChunkReincarnationOptions Options;
     };
     std::queue<TReincarnationRequest> ChunksToReplace_;
+
+    TInstant LastReplacement_;
 
     // Metrics.
     TEnumIndexedVector<EReincarnationResult, NProfiling::TCounter> Metrics_;
@@ -1180,7 +1184,7 @@ private:
                 previousTransactionId);
 
             if (IsLeader()) {
-                UpdateTransactions(/*rescheduleReincarnations*/ false);
+                UpdateTransactions(/*rescheduleReincarnations*/ true);
             }
 
             return;
@@ -1253,6 +1257,10 @@ private:
             return;
         }
 
+        if (NProfiling::GetInstant() - LastReplacement_ >= config->ForcedUnderfilledBatchReplacementPeriod) {
+            allowUnderfilledBatch = true;
+        }
+
         const int batchSize = config->ReplacedChunkBatchSize;
 
         auto hasReadyToReplaceChunks = [&] {
@@ -1265,6 +1273,10 @@ private:
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+        if (hasReadyToReplaceChunks()) {
+            LastReplacement_ = NProfiling::GetInstant();
+        }
 
         while (hasReadyToReplaceChunks()) {
             TCompactFlatMap<

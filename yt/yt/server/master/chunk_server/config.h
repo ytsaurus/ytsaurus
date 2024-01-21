@@ -261,6 +261,8 @@ public:
 
     bool EnableVerboseLogging;
 
+    TDuration ForcedUnderfilledBatchReplacementPeriod;
+
     bool ShouldRescheduleAfterChange(
         const TDynamicChunkReincarnatorConfig& that) const noexcept;
 

@@ -243,6 +243,10 @@ void TDynamicChunkReincarnatorConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_verbose_logging", &TThis::EnableVerboseLogging)
         .Default(false)
         .DontSerializeDefault();
+
+    registrar.Parameter("forced_underfilled_batch_replacement_period", &TThis::ForcedUnderfilledBatchReplacementPeriod)
+        .Default(TDuration::Minutes(5))
+        .DontSerializeDefault();
 }
 
 bool TDynamicChunkReincarnatorConfig::ShouldRescheduleAfterChange(
