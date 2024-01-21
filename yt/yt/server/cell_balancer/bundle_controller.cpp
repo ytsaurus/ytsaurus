@@ -708,7 +708,7 @@ private:
                 auto it = sensors->AssignedBundleNodesPerDC.find(dataCenter);
                 if (it == sensors->AssignedBundleNodesPerDC.end()) {
                     auto gauge = sensors->Profiler.WithTag("data_center", dataCenter).Gauge("/assigned_bundle_nodes");
-                    it = sensors->AssignedBundleNodesPerDC.insert(make_pair(dataCenter, gauge)).first;
+                    it = sensors->AssignedBundleNodesPerDC.insert(std::pair(dataCenter, gauge)).first;
                 }
                 it->second.Update(nodeCount);
             }
