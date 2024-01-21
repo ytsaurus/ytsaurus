@@ -27,7 +27,10 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCachedObjectServiceResponseTag
+struct TObjectServiceCacheRequestTag
+{ };
+
+struct TObjectServiceCacheResponseTag
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -363,12 +366,19 @@ void TObjectServiceCache::EndLookup(
     }
     MaybeEraseTopEntry(key);
 
+    // Avoid storing the whole TSharedRefs as keys and values as these may actually hold
+    // a much larger piece of memory.
+    auto sanitizedKey = key;
+    sanitizedKey.RequestBody = TSharedRef::MakeCopy(key.RequestBody, GetRefCountedTypeCookie<TObjectServiceCacheRequestTag>());
+
+    auto sanitizedResponseMessage = TSharedRefArray::MakeCopy(responseMessage, GetRefCountedTypeCookie<TObjectServiceCacheResponseTag>());
+
     auto entry = New<TObjectServiceCacheEntry>(
-        key,
+        sanitizedKey,
         success,
         revision,
         TInstant::Now(),
-        TSharedRefArray::MakeCopy(responseMessage, GetRefCountedTypeCookie<TCachedObjectServiceResponseTag>()),
+        std::move(sanitizedResponseMessage),
         AggregationPeriod_.load(std::memory_order::relaxed),
         expiredEntry);
     TouchEntry(entry, /*forceRenewTop*/ true);
