@@ -1056,7 +1056,9 @@ public:
                 }
 
                 auto underlying = weakUnderlying.Lock();
-                YT_VERIFY(underlying);
+                if (!underlying) {
+                    return;
+                }
 
                 YT_LOG_DEBUG("Hunk chunk references written (StoreId: %v, HunkChunkRefs: %v)",
                     underlying->GetChunkId(),
