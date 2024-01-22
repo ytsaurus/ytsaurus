@@ -11084,7 +11084,7 @@ std::unique_ptr<TAbortedJobSummary> TOperationControllerBase::RegisterOutputChun
                 "(JobId: %v, NodeId: %v)",
                 jobSummary.Id,
                 nodeId);
-            return std::make_unique<TAbortedJobSummary>(jobSummary, EAbortReason::Other);
+            return std::make_unique<TAbortedJobSummary>(jobSummary, EAbortReason::NodeUnresolved);
         }
 
         InputNodeDirectory_->AddDescriptor(nodeId, *descriptor);
