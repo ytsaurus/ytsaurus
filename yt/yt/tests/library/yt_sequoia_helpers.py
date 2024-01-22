@@ -26,14 +26,29 @@ def _use_ground_driver(kwargs):
             kwargs["driver"] = get_ground_driver()
 
 
-def lookup_rows_in_ground(*args, **kwargs):
-    _use_ground_driver(kwargs)
-    return lookup_rows(*args, **kwargs)
+# Select from a sorted table is not guaranteed to be sorted if limit is not specified.
+# It's a good idea to always add some sort of limit unless user specifically requested another value, or None (to remove limits).
+def _add_limit_to_request(query, kwargs):
+    if "limit" in query:
+        return query
+
+    limit = kwargs.get("limit", 100000)
+    if limit is None:
+        return query
+
+    query += f" limit {limit}"
+    return query
 
 
-def select_rows_from_ground(*args, **kwargs):
+def lookup_rows_in_ground(path, queries, **kwargs):
     _use_ground_driver(kwargs)
-    return select_rows(*args, **kwargs)
+    return lookup_rows(path, queries, **kwargs)
+
+
+def select_rows_from_ground(query, **kwargs):
+    _use_ground_driver(kwargs)
+    updated_query = _add_limit_to_request(query, kwargs)
+    return select_rows(updated_query, **kwargs)
 
 
 def _build_children_map_from_tables(id):
