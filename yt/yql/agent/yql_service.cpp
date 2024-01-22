@@ -49,7 +49,9 @@ private:
 
         auto responseFuture = YqlAgent_->StartQuery(queryId, impersonationUser, *request);
 
-        context->SubscribeCanceled(BIND([=, this, this_ = MakeStrong(this)] {
+        context->SubscribeCanceled(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
+            YT_LOG_INFO(error, "Query is cancelled (QueryId: %v)", queryId);
+
             try {
                 WaitFor(YqlAgent_->AbortQuery(queryId))
                     .ThrowOnError();
