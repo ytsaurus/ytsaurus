@@ -1079,8 +1079,6 @@ public:
 
     bool AdjustDynamicTableDataSlices;
 
-    bool EnableChunkListsPreallocation;
-
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
     static void Register(TRegistrar registrar);

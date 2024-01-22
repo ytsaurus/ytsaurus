@@ -1802,15 +1802,13 @@ void TOperationControllerBase::InitChunkListPools()
         ++CellTagToRequiredDebugChunkListCount_[CoreTable_->ExternalCellTag];
     }
 
-    if (Spec_->EnableChunkListsPreallocation) {
-        YT_LOG_DEBUG("Preallocating chunk lists");
-        for (const auto& [cellTag, count] : CellTagToRequiredOutputChunkListCount_) {
-            OutputChunkListPool_->HasEnough(cellTag, count);
-        }
-        for (const auto& [cellTag, count] : CellTagToRequiredDebugChunkListCount_) {
-            YT_VERIFY(DebugChunkListPool_);
-            DebugChunkListPool_->HasEnough(cellTag, count);
-        }
+    YT_LOG_DEBUG("Preallocating chunk lists");
+    for (const auto& [cellTag, count] : CellTagToRequiredOutputChunkListCount_) {
+        OutputChunkListPool_->HasEnough(cellTag, count);
+    }
+    for (const auto& [cellTag, count] : CellTagToRequiredDebugChunkListCount_) {
+        YT_VERIFY(DebugChunkListPool_);
+        DebugChunkListPool_->HasEnough(cellTag, count);
     }
 }
 
