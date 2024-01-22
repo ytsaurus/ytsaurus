@@ -278,10 +278,10 @@ void TJob::DoStart()
             SetJobPhase(EJobPhase::PreparingNodeDirectory);
 
             // This is a heavy part of preparation, offload it to compression invoker.
-            BIND(&TJob::PrepareNodeDirectory, MakeWeak(this))
+            BIND(&TJob::PrepareNodeDirectory, MakeStrong(this))
                 .AsyncVia(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker())
                 .Run()
-                .Subscribe(
+                .SubscribeUnique(
                     BIND(&TJob::OnNodeDirectoryPrepared, MakeWeak(this))
                         .Via(Invoker_));
         });
@@ -1729,7 +1729,7 @@ void TJob::ValidateJobPhase(EJobPhase expectedPhase) const
 }
 
 // Event handlers.
-void TJob::OnNodeDirectoryPrepared(const TError& error)
+void TJob::OnNodeDirectoryPrepared(TErrorOr<std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory>>&& protoNodeDirectoryOrError)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -1742,9 +1742,14 @@ void TJob::OnNodeDirectoryPrepared(const TError& error)
         "OnNodeDirectoryPrepared",
         [&] {
             ValidateJobPhase(EJobPhase::PreparingNodeDirectory);
-            THROW_ERROR_EXCEPTION_IF_FAILED(error,
+            THROW_ERROR_EXCEPTION_IF_FAILED(protoNodeDirectoryOrError,
                 NExecNode::EErrorCode::NodeDirectoryPreparationFailed,
                 "Failed to prepare job node directory");
+
+            if (auto& protoNodeDirectory = protoNodeDirectoryOrError.Value()) {
+                auto* jobSpecExt = JobSpec_.MutableExtension(TJobSpecExt::job_spec_ext);
+                jobSpecExt->mutable_input_node_directory()->Swap(protoNodeDirectory.get());
+            }
 
             SetJobPhase(EJobPhase::DownloadingArtifacts);
 
@@ -2276,15 +2281,14 @@ TFuture<void> TJob::GetCleanupFinishedEvent()
 }
 
 // Preparation.
-void TJob::PrepareNodeDirectory()
+std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDirectory()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto* jobSpecExt = JobSpec_.MutableExtension(TJobSpecExt::job_spec_ext);
-
-    if (jobSpecExt->has_input_node_directory()) {
+    const auto& jobSpecExt = JobSpec_.GetExtension(TJobSpecExt::job_spec_ext);
+    if (jobSpecExt.has_input_node_directory()) {
         YT_LOG_INFO("Node directory is provided by scheduler");
-        return;
+        return nullptr;
     }
 
     YT_LOG_INFO("Start preparing node directory");
@@ -2321,8 +2325,8 @@ void TJob::PrepareNodeDirectory()
             }
         };
 
-        validateTableSpecs(jobSpecExt->input_table_specs());
-        validateTableSpecs(jobSpecExt->foreign_input_table_specs());
+        validateTableSpecs(jobSpecExt.input_table_specs());
+        validateTableSpecs(jobSpecExt.foreign_input_table_specs());
 
         // NB: No need to add these descriptors to the input node directory.
         for (const auto& artifact : Artifacts_) {
@@ -2349,16 +2353,12 @@ void TJob::PrepareNodeDirectory()
         TDelayedExecutor::WaitForDuration(CommonConfig_->NodeDirectoryPrepareBackoffTime);
     }
 
-    try {
-        WaitFor(BIND(&TNodeDirectory::DumpTo, nodeDirectory)
-            .AsyncVia(Invoker_)
-            .Run(jobSpecExt->mutable_input_node_directory()))
-            .ThrowOnError();
-    } catch (const std::exception& ex) {
-        YT_LOG_FATAL(ex, "Preparing node directory failed");
-    }
+    auto protoNodeDirectory = std::make_unique<NNodeTrackerClient::NProto::TNodeDirectory>();
+    nodeDirectory->DumpTo(protoNodeDirectory.get());
 
     YT_LOG_INFO("Finish preparing node directory");
+
+    return protoNodeDirectory;
 }
 
 std::vector<NJobProxy::TBindConfigPtr> TJob::GetRootFsBinds()
