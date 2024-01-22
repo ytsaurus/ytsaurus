@@ -336,6 +336,7 @@ private:
             iter == AcquiredQueries_.end() || iter->second.Incarnation != incarnation)
         {
             YT_LOG_DEBUG("Cancelling obsolete ping");
+            DetachQuery(queryId);
             return false;
         }
 
@@ -354,6 +355,7 @@ private:
 
             if (!activeQueryRecord) {
                 YT_LOG_INFO("Query record is missing, cancelling ping");
+                DetachQuery(queryId);
                 return false;
             }
 
