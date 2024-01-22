@@ -73,7 +73,7 @@ public:
     std::unique_ptr<IFlushableValueConsumer> CreateConsumer(int index, TTableSchemaPtr schema)
     {
         YT_VERIFY(!Closed_);
-        ++OpenWriterCount_;
+
         return std::make_unique<TStreamWritingValueConsumer>(
             this,
             index,
@@ -88,7 +88,6 @@ private:
     const IInvokerPtr SerializedInvoker_;
 
     bool Closed_ = false;
-    int OpenWriterCount_ = 0;
 
 private:
     using TMultiplexingWriterPtr = TIntrusivePtr<TMultiplexingWriter>;
