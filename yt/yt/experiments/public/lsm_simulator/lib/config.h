@@ -2,14 +2,14 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NLsm::NTesting {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TWriterSpec
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     bool AlmostIncreasing;
     i64 IncreasingBegin;
@@ -33,37 +33,39 @@ struct TWriterSpec
 
     i64 SleepTime;
 
-    TWriterSpec()
+    REGISTER_YSON_STRUCT(TWriterSpec);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("almost_increasing", AlmostIncreasing)
+        registrar.Parameter("almost_increasing", &TThis::AlmostIncreasing)
             .Default(false);
-        RegisterParameter("increasing_begin", IncreasingBegin)
+        registrar.Parameter("increasing_begin", &TThis::IncreasingBegin)
             .Default(0);
-        RegisterParameter("increasing_end", IncreasingEnd)
+        registrar.Parameter("increasing_end", &TThis::IncreasingEnd)
             .Default(10000);
-        RegisterParameter("increasing_splay", IncreasingSplay)
+        registrar.Parameter("increasing_splay", &TThis::IncreasingSplay)
             .Default(100);
-        RegisterParameter("bulk_insert", BulkInsert)
+        registrar.Parameter("bulk_insert", &TThis::BulkInsert)
             .Default(false);
-        RegisterParameter("bulk_insert_chunk_count", BulkInsertChunkCount)
+        registrar.Parameter("bulk_insert_chunk_count", &TThis::BulkInsertChunkCount)
             .Default(1);
-        RegisterParameter("delete_after_insert", DeleteAfterInsert)
+        registrar.Parameter("delete_after_insert", &TThis::DeleteAfterInsert)
             .Default(false);
-        RegisterParameter("deletion_window_size", DeletionWindowSize)
+        registrar.Parameter("deletion_window_size", &TThis::DeletionWindowSize)
             .Default(100);
-        RegisterParameter("write_rate", WriteRate)
+        registrar.Parameter("write_rate", &TThis::WriteRate)
             .Default(1_MB);
-        RegisterParameter("total_data_size", TotalDataSize)
+        registrar.Parameter("total_data_size", &TThis::TotalDataSize)
             .Default(1_GB);
-        RegisterParameter("min_value_size", MinValueSize)
+        registrar.Parameter("min_value_size", &TThis::MinValueSize)
             .Default();
-        RegisterParameter("max_value_size", MaxValueSize)
+        registrar.Parameter("max_value_size", &TThis::MaxValueSize)
             .Default();
-        RegisterParameter("min_key", MinKey)
+        registrar.Parameter("min_key", &TThis::MinKey)
             .Default();
-        RegisterParameter("max_key", MaxKey)
+        registrar.Parameter("max_key", &TThis::MaxKey)
             .Default();
-        RegisterParameter("sleep_time", SleepTime)
+        registrar.Parameter("sleep_time", &TThis::SleepTime)
             .Default();
     }
 };
@@ -71,7 +73,7 @@ struct TWriterSpec
 DEFINE_REFCOUNTED_TYPE(TWriterSpec)
 
 struct TInitialDataDescription
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     std::vector<i64> Eden;
     std::vector<std::vector<i64>> Partitions;
@@ -81,19 +83,21 @@ struct TInitialDataDescription
     i64 MinValueSize;
     i64 MaxValueSize;
 
-    TInitialDataDescription()
+    REGISTER_YSON_STRUCT(TInitialDataDescription);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("eden", Eden)
+        registrar.Parameter("eden", &TThis::Eden)
             .Default();
-        RegisterParameter("partitions", Partitions)
+        registrar.Parameter("partitions", &TThis::Partitions)
             .Default();
-        RegisterParameter("min_key", MinKey)
+        registrar.Parameter("min_key", &TThis::MinKey)
             .Default(0);
-        RegisterParameter("max_key", MaxKey)
+        registrar.Parameter("max_key", &TThis::MaxKey)
             .Default(1'000'000'000);
-        RegisterParameter("min_value_size", MinValueSize)
+        registrar.Parameter("min_value_size", &TThis::MinValueSize)
             .Default(10_KB);
-        RegisterParameter("max_value_size", MaxValueSize)
+        registrar.Parameter("max_value_size", &TThis::MaxValueSize)
             .Default(100_KB);
     }
 };
@@ -101,10 +105,10 @@ struct TInitialDataDescription
 DEFINE_REFCOUNTED_TYPE(TInitialDataDescription)
 
 struct TMountConfigOptimizerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     struct TParameter
-        : public NYTree::TYsonSerializable
+        : public NYTree::TYsonStruct
     {
         double Min;
         double Max;
@@ -113,17 +117,19 @@ struct TMountConfigOptimizerConfig
         std::vector<TString> LessThan;
         std::vector<TString> LessThanOrEqual;
 
-        TParameter()
+        REGISTER_YSON_STRUCT(TParameter);
+
+    static void Register(TRegistrar registrar)
         {
-            RegisterParameter("min", Min);
-            RegisterParameter("max", Max);
-            RegisterParameter("weight", Weight)
+            registrar.Parameter("min", &TThis::Min);
+            registrar.Parameter("max", &TThis::Max);
+            registrar.Parameter("weight", &TThis::Weight)
                 .Default(1.0);
-            RegisterParameter("integer", Integer)
+            registrar.Parameter("integer", &TThis::Integer)
                 .Default(true);
-            RegisterParameter("less_than", LessThan)
+            registrar.Parameter("less_than", &TThis::LessThan)
                 .Default();
-            RegisterParameter("less_than_or_equal", LessThanOrEqual)
+            registrar.Parameter("less_than_or_equal", &TThis::LessThanOrEqual)
                 .Default();
         }
     };
@@ -135,17 +141,19 @@ struct TMountConfigOptimizerConfig
     double InitialStep;
     double StepMultiple;
 
-    TMountConfigOptimizerConfig()
-    {
-        RegisterParameter("parameters", Parameters);
+    REGISTER_YSON_STRUCT(TMountConfigOptimizerConfig);
 
-        RegisterParameter("num_iterations", NumIterations)
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("parameters", &TThis::Parameters);
+
+        registrar.Parameter("num_iterations", &TThis::NumIterations)
             .Default(30);
-        RegisterParameter("num_directions", NumDirections)
+        registrar.Parameter("num_directions", &TThis::NumDirections)
             .Default(5);
-        RegisterParameter("initial_step", InitialStep)
+        registrar.Parameter("initial_step", &TThis::InitialStep)
             .Default(0.2);
-        RegisterParameter("step_multiple", StepMultiple)
+        registrar.Parameter("step_multiple", &TThis::StepMultiple)
             .Default(0.9);
     }
 };
@@ -153,7 +161,7 @@ struct TMountConfigOptimizerConfig
 DEFINE_REFCOUNTED_TYPE(TMountConfigOptimizerConfig)
 
 struct TLsmSimulatorConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     TDuration LsmScanPeriod;
     TDuration FlushPeriod;
@@ -196,76 +204,78 @@ struct TLsmSimulatorConfig
 
     TInitialDataDescriptionPtr InitialData;
 
-    TLsmSimulatorConfig()
+    REGISTER_YSON_STRUCT(TLsmSimulatorConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("lsm_scan_period", LsmScanPeriod)
+        registrar.Parameter("lsm_scan_period", &TThis::LsmScanPeriod)
             .Default(TDuration::Seconds(1));
-        RegisterParameter("flush_period", FlushPeriod)
+        registrar.Parameter("flush_period", &TThis::FlushPeriod)
             .Default(TDuration::MilliSeconds(1234));
 
-        RegisterParameter("compaction_throttler", CompactionThrottler)
+        registrar.Parameter("compaction_throttler", &TThis::CompactionThrottler)
             .Default(100_MB);
-        RegisterParameter("partitioning_throttler", PartitioningThrottler)
+        registrar.Parameter("partitioning_throttler", &TThis::PartitioningThrottler)
             .Default(100_MB);
 
-        RegisterParameter("min_key", MinKey)
+        registrar.Parameter("min_key", &TThis::MinKey)
             .Default(0);
-        RegisterParameter("max_key", MaxKey)
+        registrar.Parameter("max_key", &TThis::MaxKey)
             .Default(1000);
-        RegisterParameter("min_value_size", MinValueSize)
+        registrar.Parameter("min_value_size", &TThis::MinValueSize)
             .Default(10_KB);
-        RegisterParameter("max_value_size", MaxValueSize)
+        registrar.Parameter("max_value_size", &TThis::MaxValueSize)
             .Default(100_KB);
 
-        RegisterParameter("insertion_policy", InsertionPolicy)
+        registrar.Parameter("insertion_policy", &TThis::InsertionPolicy)
             .Default("random");
 
-        RegisterParameter("writers", Writers)
+        registrar.Parameter("writers", &TThis::Writers)
             .Default({New<TWriterSpec>()});
 
-        RegisterParameter("insertion_period", InsertionPeriod)
+        registrar.Parameter("insertion_period", &TThis::InsertionPeriod)
             .Default(TDuration::MilliSeconds(100));
 
-        RegisterParameter("increasing_begin", IncreasingBegin)
+        registrar.Parameter("increasing_begin", &TThis::IncreasingBegin)
             .Default(0);
-        RegisterParameter("increasing_end", IncreasingEnd)
+        registrar.Parameter("increasing_end", &TThis::IncreasingEnd)
             .Default(10000);
-        RegisterParameter("increasing_splay", IncreasingSplay)
+        registrar.Parameter("increasing_splay", &TThis::IncreasingSplay)
             .Default(10);
 
-        RegisterParameter("compression_ratio", CompressionRatio)
+        registrar.Parameter("compression_ratio", &TThis::CompressionRatio)
             .Default(1.0);
 
-        RegisterParameter("compaction_delay", CompactionDelay)
+        registrar.Parameter("compaction_delay", &TThis::CompactionDelay)
             .Default(TDuration::Seconds(3));
-        RegisterParameter("partitioning_delay", PartitioningDelay)
+        registrar.Parameter("partitioning_delay", &TThis::PartitioningDelay)
             .Default(TDuration::Seconds(3));
-        RegisterParameter("get_samples_delay", GetSamplesDelay)
+        registrar.Parameter("get_samples_delay", &TThis::GetSamplesDelay)
             .Default(TDuration::Seconds(1));
 
-        RegisterParameter("reverse_compaction_comparator", ReverseCompactionComparator)
+        registrar.Parameter("reverse_compaction_comparator", &TThis::ReverseCompactionComparator)
             .Default(false);
 
-        RegisterParameter("enable_structure_logging", EnableStructureLogging)
+        registrar.Parameter("enable_structure_logging", &TThis::EnableStructureLogging)
             .Default(false);
 
-        RegisterParameter("logging_fields", LoggingFields)
+        registrar.Parameter("logging_fields", &TThis::LoggingFields)
             .Default();
-        RegisterParameter("logging_fields_final", LoggingFieldsFinal)
+        registrar.Parameter("logging_fields_final", &TThis::LoggingFieldsFinal)
             .Default();
-        RegisterParameter("logging_period", LoggingPeriod)
+        registrar.Parameter("logging_period", &TThis::LoggingPeriod)
             .Default(TDuration::Seconds(1));
-        RegisterParameter("reset_statistics_after_loggers", ResetStatisticsAfterLoggers)
+        registrar.Parameter("reset_statistics_after_loggers", &TThis::ResetStatisticsAfterLoggers)
             .Default();
-        RegisterParameter("sum_compaction_and_partitioning_in_logging", SumCompactionAndPartitioningInLogging)
+        registrar.Parameter("sum_compaction_and_partitioning_in_logging", &TThis::SumCompactionAndPartitioningInLogging)
             .Default(false);
-        RegisterParameter("statistics_window_size", StatisticsWindowSize)
+        registrar.Parameter("statistics_window_size", &TThis::StatisticsWindowSize)
             .Default(30);
 
-        RegisterParameter("optimizer", Optimizer)
+        registrar.Parameter("optimizer", &TThis::Optimizer)
             .Default(); // Sic!
 
-        RegisterParameter("initial_data", InitialData)
+        registrar.Parameter("initial_data", &TThis::InitialData)
             .Default();
     }
 };

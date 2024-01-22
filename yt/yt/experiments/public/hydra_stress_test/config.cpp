@@ -4,54 +4,59 @@ namespace NYT::NHydraStressTest {
 
 //////////////////////////////////////////////////////////////////////////////////
 
-TConfig::TConfig()
+void TConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("peer_count", PeerCount);
-    RegisterParameter("voting_peer_count", VotingPeerCount)
-        .Default(PeerCount);
+    registrar.Parameter("peer_count", &TThis::PeerCount);
+    registrar.Parameter("voting_peer_count", &TThis::VotingPeerCount);
 
-    RegisterParameter("client_count", ClientCount);
-    RegisterParameter("client_increment", ClientIncrement)
+    registrar.Parameter("client_count", &TThis::ClientCount);
+    registrar.Parameter("client_increment", &TThis::ClientIncrement)
         .Default(100);
-    RegisterParameter("client_interval", ClientInterval)
+    registrar.Parameter("client_interval", &TThis::ClientInterval)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("client_write_cas_delay", ClientWriteCasDelay)
+    registrar.Parameter("client_write_cas_delay", &TThis::ClientWriteCasDelay)
         .Default(TDuration::MilliSeconds(100));
 
-    RegisterParameter("default_proxy_timeout", DefaultProxyTimeout)
+    registrar.Parameter("default_proxy_timeout", &TThis::DefaultProxyTimeout)
         .Default(TDuration::Seconds(10));
 
-    RegisterParameter("max_random_partition_count", MaxRandomPartitionIterations)
+    registrar.Parameter("max_random_partition_count", &TThis::MaxRandomPartitionIterations)
         .Default(5);
-    RegisterParameter("random_partition_delay", RandomPartitionDelay)
+    registrar.Parameter("random_partition_delay", &TThis::RandomPartitionDelay)
         .Default(TDuration::Seconds(10));
-    RegisterParameter("quorum_partition_delay", QuorumPartitionDelay)
+    registrar.Parameter("quorum_partition_delay", &TThis::QuorumPartitionDelay)
         .Default(TDuration::Seconds(600));
 
-    RegisterParameter("clear_state_period", ClearStatePeriod)
+    registrar.Parameter("clear_state_period", &TThis::ClearStatePeriod)
         .Default(TDuration::Seconds(50));
 
-    RegisterParameter("build_snapshot_perion", BuildSnapshotPeriod)
+    registrar.Parameter("build_snapshot_perion", &TThis::BuildSnapshotPeriod)
         .Default(TDuration::Seconds(100));
 
-    RegisterParameter("leader_switch_period", LeaderSwitchPeriod)
+    registrar.Parameter("leader_switch_period", &TThis::LeaderSwitchPeriod)
         .Default(TDuration::Seconds(200));
 
-    RegisterParameter("unavailability_timeout", UnavailabilityTimeout)
+    registrar.Parameter("unavailability_timeout", &TThis::UnavailabilityTimeout)
         .Default(TDuration::Seconds(20));
-    RegisterParameter("resurrection_timeout", ResurrectionTimeout)
+    registrar.Parameter("resurrection_timeout", &TThis::ResurrectionTimeout)
         .Default(TDuration::Seconds(200));
 
-    RegisterParameter("hydra_manager", HydraManager)
+    registrar.Parameter("hydra_manager", &TThis::HydraManager)
         .DefaultNew();
-    RegisterParameter("election_manager", ElectionManager)
+    registrar.Parameter("election_manager", &TThis::ElectionManager)
         .DefaultNew();
-    RegisterParameter("changelogs", Changelogs)
+    registrar.Parameter("changelogs", &TThis::Changelogs)
         .DefaultNew();
-    RegisterParameter("snapshots", Snapshots)
+    registrar.Parameter("snapshots", &TThis::Snapshots)
         .DefaultNew();
-    RegisterParameter("logging", Logging)
-        .Default(nullptr);
+    registrar.Parameter("logging", &TThis::Logging)
+        .Optional();
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->VotingPeerCount == 0) {
+            config->VotingPeerCount = config->PeerCount;
+        }
+    });
 }
 
 //////////////////////////////////////////////////////////////////////////////////

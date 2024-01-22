@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/logging/config.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/server/lib/hydra/config.h>
 
@@ -15,7 +15,7 @@ namespace NYT::NHydraStressTest {
 //////////////////////////////////////////////////////////////////////////////////
 
 class TConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     int PeerCount;
@@ -45,7 +45,9 @@ public:
     NElection::TDistributedElectionManagerConfigPtr ElectionManager;
     NLogging::TLogManagerConfigPtr Logging;
 
-    TConfig();
+    REGISTER_YSON_STRUCT(TConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TConfig)
