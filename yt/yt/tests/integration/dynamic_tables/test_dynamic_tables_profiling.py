@@ -267,7 +267,6 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
                 eden_store_count,
                 data_weight,
                 uncompressed_data_size,
-                compressed_data_size,
                 row_count,
                 chunk_count,
                 hunk_count,
@@ -278,7 +277,7 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
                 and profiling.get_counter("tablet/eden_store_count") == eden_store_count
                 and profiling.get_counter("tablet/data_weight") == data_weight
                 and profiling.get_counter("tablet/uncompressed_data_size") == uncompressed_data_size
-                and profiling.get_counter("tablet/compressed_data_size") == compressed_data_size
+                and profiling.get_counter("tablet/compressed_data_size") == uncompressed_data_size
                 and profiling.get_counter("tablet/row_count") == row_count
                 and profiling.get_counter("tablet/chunk_count") == chunk_count
                 and profiling.get_counter("tablet/hunk_count") == hunk_count
@@ -291,6 +290,7 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
         _create_table(
             self._create_simple_table,
             path=table_sorted,
+            compression_codec="none",
             schema=[
                 {"name": "key", "type": "int64", "sort_order": "ascending"},
                 {"name": "value", "type": "string", "max_inline_hunk_size": 1},
@@ -305,7 +305,6 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
         sync_flush_table(table_sorted)
         wait_sorted(data_weight=29,
                     uncompressed_data_size=77,
-                    compressed_data_size=121,
                     row_count=1,
                     chunk_count=1,
                     hunk_count=1,
@@ -316,7 +315,6 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
         sync_flush_table(table_sorted)
         wait_sorted(data_weight=87,
                     uncompressed_data_size=215,
-                    compressed_data_size=285,
                     row_count=3,
                     chunk_count=2,
                     hunk_count=3,
@@ -328,6 +326,7 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
         _create_table(
             self._create_ordered_table,
             path=table_ordered,
+            compression_codec="none",
             tablet_count=2,
             schema=[
                 {"name": "key", "type": "int64"},
@@ -343,7 +342,6 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
         sync_flush_table(table_ordered)
         wait_ordered(data_weight=109,
                      uncompressed_data_size=112,
-                     compressed_data_size=48,
                      row_count=1,
                      chunk_count=1,
                      hunk_count=0,
@@ -354,7 +352,6 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
         sync_flush_table(table_ordered)
         wait_ordered(data_weight=218,
                      uncompressed_data_size=224,
-                     compressed_data_size=96,
                      row_count=2,
                      chunk_count=2,
                      hunk_count=0,
