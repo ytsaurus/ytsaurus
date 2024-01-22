@@ -31,6 +31,7 @@ using namespace NRpc;
 using namespace NElection;
 using namespace NConcurrency;
 using namespace NHydra::NProto;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,6 +68,7 @@ TRecoveryBase::TRecoveryBase(
 void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+    TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("Recovery"));
 
     auto epochContext = EpochContext_;
 
