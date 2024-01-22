@@ -7,7 +7,7 @@
 
 #include <yt/yt/core/misc/tls_guard.h>
 
-namespace NYT::NNewTableClient {
+namespace NYT::NColumnarChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -163,7 +163,7 @@ void BuildReadRowRanges(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNewTableClient
+} // namespace NYT::NColumnarChunkFormat
 
 #define READ_SPAN_REFINER_INL_H_
 #include "read_span_refiner-inl.h"

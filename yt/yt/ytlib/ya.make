@@ -289,12 +289,12 @@ SRCS(
     misc/memory_usage_tracker.cpp
     misc/synchronizer_detail.cpp
 
-    new_table_client/column_block_manager.cpp
-    new_table_client/memory_helpers.cpp
-    new_table_client/prepared_meta.cpp
-    new_table_client/rowset_builder.cpp
-    new_table_client/segment_readers.cpp
-    new_table_client/versioned_chunk_reader.cpp
+    columnar_chunk_format/column_block_manager.cpp
+    columnar_chunk_format/memory_helpers.cpp
+    columnar_chunk_format/prepared_meta.cpp
+    columnar_chunk_format/rowset_builder.cpp
+    columnar_chunk_format/segment_readers.cpp
+    columnar_chunk_format/versioned_chunk_reader.cpp
 
     node_tracker_client/channel.cpp
     node_tracker_client/config.cpp

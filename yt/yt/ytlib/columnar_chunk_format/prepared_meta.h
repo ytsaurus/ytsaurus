@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/misc/public.h>
 
-namespace NYT::NNewTableClient {
+namespace NYT::NColumnarChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -244,7 +244,7 @@ void VerifyRawVersionedSegmentMeta(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNewTableClient
+} // namespace NYT::NColumnarChunkFormat
 
 #define PREPARED_META_INL_H_
 #include "prepared_meta-inl.h"

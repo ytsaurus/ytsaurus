@@ -12,7 +12,7 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
-namespace NYT::NNewTableClient {
+namespace NYT::NColumnarChunkFormat {
 
 using TIdRange = std::pair<ui32, ui32>;
 
@@ -77,4 +77,4 @@ std::unique_ptr<IRowsetBuilder> CreateRowsetBuilder(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNewTableClient
+} // namespace NYT::NColumnarChunkFormat

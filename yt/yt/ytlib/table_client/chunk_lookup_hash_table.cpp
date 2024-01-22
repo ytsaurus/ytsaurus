@@ -8,7 +8,7 @@
 
 #include <yt/yt/ytlib/table_chunk_format/slim_versioned_block_reader.h>
 
-#include <yt/yt/ytlib/new_table_client/versioned_chunk_reader.h>
+#include <yt/yt/ytlib/columnar_chunk_format/versioned_chunk_reader.h>
 
 #include <yt/yt/ytlib/chunk_client/block_fetcher.h>
 #include <yt/yt/ytlib/chunk_client/preloaded_block_cache.h>
@@ -169,12 +169,12 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
     if (chunkFormat == EChunkFormat::TableVersionedColumnar) {
         auto chunkRowCount = chunkMeta->Misc().row_count();
 
-        auto blockManagerFactory = NNewTableClient::CreateSyncBlockWindowManagerFactory(
+        auto blockManagerFactory = NColumnarChunkFormat::CreateSyncBlockWindowManagerFactory(
             blockCache,
             chunkMeta,
             chunkId);
 
-        auto keysReader = NNewTableClient::CreateVersionedChunkReader(
+        auto keysReader = NColumnarChunkFormat::CreateVersionedChunkReader(
             MakeSingletonRowRange(MinKey(), MaxKey()),
             NTransactionClient::AllCommittedTimestamp,
             chunkMeta,

@@ -91,7 +91,7 @@ private:
         segmentInfo.SegmentMeta.set_type(0);
         segmentInfo.SegmentMeta.set_version(0);
 
-        NNewTableClient::TValueMeta<EValueType::Boolean> rawMeta;
+        NColumnarChunkFormat::TValueMeta<EValueType::Boolean> rawMeta;
         memset(&rawMeta, 0, sizeof(rawMeta));
         rawMeta.DataOffset = TColumnWriterBase::GetOffset();
         rawMeta.ChunkRowCount = RowCount_;
@@ -180,7 +180,7 @@ private:
 
         DumpBooleanValues(&segmentInfo, Values_, NullBitmap_);
 
-        NNewTableClient::TKeyMeta<EValueType::Boolean> rawMeta;
+        NColumnarChunkFormat::TKeyMeta<EValueType::Boolean> rawMeta;
         memset(&rawMeta, 0, sizeof(rawMeta));
         rawMeta.DataOffset = TColumnWriterBase::GetOffset();
         rawMeta.ChunkRowCount = RowCount_;

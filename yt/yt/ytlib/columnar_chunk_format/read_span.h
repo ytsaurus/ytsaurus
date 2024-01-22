@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/misc/public.h>
 
-namespace NYT::NNewTableClient {
+namespace NYT::NColumnarChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,4 +37,4 @@ struct TSpanMatching
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNewTableClient
+} // namespace NYT::NColumnarChunkFormat

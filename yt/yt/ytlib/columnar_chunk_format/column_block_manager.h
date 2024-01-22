@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/actions/public.h>
 
-namespace NYT::NNewTableClient {
+namespace NYT::NColumnarChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,4 +74,4 @@ struct IBlockManager
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNewTableClient
+} // namespace NYT::NColumnarChunkFormat

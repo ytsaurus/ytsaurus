@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/misc/bitmap.h>
 
-namespace NYT::NNewTableClient {
+namespace NYT::NColumnarChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,7 +81,7 @@ auto AllocateCombined(TMemoryHolderBase* holder, TSize<Types>... count);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNewTableClient
+} // namespace NYT::NColumnarChunkFormat
 
 #define YT_MEMORY_HELPERS_INL_H
 #include "memory_helpers-inl.h"

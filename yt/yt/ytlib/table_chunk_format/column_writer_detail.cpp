@@ -173,7 +173,7 @@ void TVersionedColumnWriterBase::AddValues(
     }
 }
 
-void TVersionedColumnWriterBase::DumpVersionedData(TSegmentInfo* segmentInfo, NNewTableClient::TMultiValueIndexMeta* rawIndexMeta)
+void TVersionedColumnWriterBase::DumpVersionedData(TSegmentInfo* segmentInfo, NColumnarChunkFormat::TMultiValueIndexMeta* rawIndexMeta)
 {
     ui32 expectedValuesPerRow;
     ui32 maxDiffFromExpected;

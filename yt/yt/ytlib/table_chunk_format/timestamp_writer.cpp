@@ -1,7 +1,7 @@
 #include "timestamp_writer.h"
 #include "data_block_writer.h"
 
-#include <yt/yt/ytlib/new_table_client/prepared_meta.h>
+#include <yt/yt/ytlib/columnar_chunk_format/prepared_meta.h>
 
 #include <yt/yt/client/table_client/versioned_row.h>
 
@@ -66,7 +66,7 @@ public:
 
         CurrentBlockSegments_.clear();
 
-        size_t metaSize = sizeof(NNewTableClient::TTimestampMeta) * CurrentBlockSegmentMetas_.size();
+        size_t metaSize = sizeof(NColumnarChunkFormat::TTimestampMeta) * CurrentBlockSegmentMetas_.size();
 
         auto mergedMeta = TSharedMutableRef::Allocate(metaSize);
         char* metasData = mergedMeta.Begin();
@@ -159,7 +159,7 @@ private:
     i64 MetaSize_ = 0;
 
     // Segment metas are stored in block in new columnar format.
-    std::vector<NNewTableClient::TTimestampMeta> CurrentBlockSegmentMetas_;
+    std::vector<NColumnarChunkFormat::TTimestampMeta> CurrentBlockSegmentMetas_;
 
     ui32 RegisterTimestamp(TTimestamp timestamp)
     {
@@ -205,7 +205,7 @@ private:
             timestamp -= MinSegmentTimestamp_;
         }
 
-        NNewTableClient::TTimestampMeta rawMeta;
+        NColumnarChunkFormat::TTimestampMeta rawMeta;
         memset(&rawMeta, 0, sizeof(rawMeta));
 
         rawMeta.BaseTimestamp = MinSegmentTimestamp_;

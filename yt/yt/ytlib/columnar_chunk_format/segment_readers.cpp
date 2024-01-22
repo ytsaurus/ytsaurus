@@ -2,7 +2,7 @@
 
 #define UNROLL_LOOPS
 
-namespace NYT::NNewTableClient {
+namespace NYT::NColumnarChunkFormat {
 
 struct TWriteIdsTag { };
 struct TRowToValueTag { };
@@ -1578,4 +1578,4 @@ const ui64* TScanMultiValueIndexExtractor::InitIndex(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNewTableClient
+} // namespace NYT::NColumnarChunkFormat

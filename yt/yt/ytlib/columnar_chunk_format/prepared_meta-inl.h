@@ -5,7 +5,7 @@
 #endif
 #undef PREPARED_META_INL_H_
 
-namespace NYT::NNewTableClient {
+namespace NYT::NColumnarChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,4 +84,4 @@ void VerifyRawVersionedSegmentMeta(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNewTableClient
+} // namespace NYT::NColumnarChunkFormat

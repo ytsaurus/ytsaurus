@@ -5,7 +5,7 @@
 #endif
 #undef DISPATCH_BY_TYPE_INL_H_
 
-namespace NYT::NNewTableClient {
+namespace NYT::NColumnarChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,5 +47,5 @@ auto DispatchByDataType(NTableClient::EValueType type, TArgs&&... args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNewTableClient
+} // namespace NYT::NColumnarChunkFormat
 

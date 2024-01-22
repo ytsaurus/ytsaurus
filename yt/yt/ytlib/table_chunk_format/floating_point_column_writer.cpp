@@ -100,7 +100,7 @@ private:
         segmentInfo.SegmentMeta.set_type(0);
         segmentInfo.SegmentMeta.set_version(0);
 
-        NNewTableClient::TValueMeta<EValueType::Double> rawMeta;
+        NColumnarChunkFormat::TValueMeta<EValueType::Double> rawMeta;
         memset(&rawMeta, 0, sizeof(rawMeta));
         rawMeta.DataOffset = TColumnWriterBase::GetOffset();
         rawMeta.ChunkRowCount = RowCount_;
@@ -201,7 +201,7 @@ private:
         segmentInfo.SegmentMeta.set_row_count(Values_.size());
         segmentInfo.SegmentMeta.set_chunk_row_count(RowCount_);
 
-        NNewTableClient::TKeyMeta<EValueType::Double> rawMeta;
+        NColumnarChunkFormat::TKeyMeta<EValueType::Double> rawMeta;
         memset(&rawMeta, 0, sizeof(rawMeta));
         rawMeta.DataOffset = TColumnWriterBase::GetOffset();
         rawMeta.ChunkRowCount = RowCount_;

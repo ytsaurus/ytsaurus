@@ -8,7 +8,7 @@
 
 #include <yt/yt/core/misc/bit_packing.h>
 
-namespace NYT::NNewTableClient {
+namespace NYT::NColumnarChunkFormat {
 
 using TSegmentMetas = TRange<const NProto::TSegmentMeta*>;
 
@@ -472,4 +472,4 @@ void TPreparedChunkMeta::VerifyEquality(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNewTableClient
+} // namespace NYT::NColumnarChunkFormat

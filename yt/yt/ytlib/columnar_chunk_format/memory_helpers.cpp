@@ -1,6 +1,6 @@
 #include "memory_helpers.h"
 
-namespace NYT::NNewTableClient {
+namespace NYT::NColumnarChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 TMemoryHolderBase::TMemoryHolderBase(TMemoryHolderBase&& other)
@@ -72,4 +72,4 @@ size_t TMemoryHolderBase::GetSize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNewTableClient
+} // namespace NYT::NColumnarChunkFormat

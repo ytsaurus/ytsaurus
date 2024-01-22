@@ -116,30 +116,30 @@ i64 TCachedVersionedChunkMeta::GetMemoryUsage() const
         + PreparedMetaSize_.load();
 }
 
-TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> TCachedVersionedChunkMeta::GetPreparedChunkMeta(
-    NNewTableClient::IBlockDataProvider* blockProvider)
+TIntrusivePtr<NColumnarChunkFormat::TPreparedChunkMeta> TCachedVersionedChunkMeta::GetPreparedChunkMeta(
+    NColumnarChunkFormat::IBlockDataProvider* blockProvider)
 {
     auto currentMeta = PreparedMeta_.Acquire();
-    TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> newPreparedMeta = nullptr;
+    TIntrusivePtr<NColumnarChunkFormat::TPreparedChunkMeta> newPreparedMeta = nullptr;
     while (!currentMeta || (blockProvider && !currentMeta->FullNewMeta)) {
         if (!newPreparedMeta) {
             if (ColumnGroupInfos()) {
-                newPreparedMeta = NNewTableClient::TPreparedChunkMeta::FromSegmentMetasStoredInBlocks(
+                newPreparedMeta = NColumnarChunkFormat::TPreparedChunkMeta::FromSegmentMetasStoredInBlocks(
                     ColumnGroupInfos(),
                     DataBlockMeta());
 
-                auto fromProtoMeta = NNewTableClient::TPreparedChunkMeta::FromProtoSegmentMetas(
+                auto fromProtoMeta = NColumnarChunkFormat::TPreparedChunkMeta::FromProtoSegmentMetas(
                     ChunkSchema_,
                     ColumnMeta(),
                     DataBlockMeta(),
                     blockProvider);
 
-                NNewTableClient::TPreparedChunkMeta::VerifyEquality(
+                NColumnarChunkFormat::TPreparedChunkMeta::VerifyEquality(
                     *fromProtoMeta,
                     *newPreparedMeta,
                     DataBlockMeta());
             } else {
-                newPreparedMeta = NNewTableClient::TPreparedChunkMeta::FromProtoSegmentMetas(
+                newPreparedMeta = NColumnarChunkFormat::TPreparedChunkMeta::FromProtoSegmentMetas(
                     ChunkSchema_,
                     ColumnMeta(),
                     DataBlockMeta(),

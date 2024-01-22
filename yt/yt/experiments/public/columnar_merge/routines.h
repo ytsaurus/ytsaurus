@@ -8,7 +8,7 @@
 #include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/yt/ytlib/new_table_client/versioned_chunk_reader.h>
+#include <yt/yt/ytlib/columnar_chunk_format/versioned_chunk_reader.h>
 
 namespace NYT {
 
@@ -56,7 +56,7 @@ NTableClient::IVersionedReaderPtr CreateChunkReader(
     const TTableSchemaPtr schema,
     TSharedRange<TItem> readItems,
     TReaderOptions options,
-    NNewTableClient::TReaderStatisticsPtr timeStatistics = nullptr);
+    NColumnarChunkFormat::TReaderStatisticsPtr timeStatistics = nullptr);
 
 template <class TItem>
 NTableClient::ISchemafulUnversionedReaderPtr CreateMergingReader(

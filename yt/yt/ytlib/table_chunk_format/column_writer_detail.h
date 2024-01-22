@@ -5,7 +5,7 @@
 
 #include <yt/yt/client/table_client/public.h>
 
-#include <yt/yt/ytlib/new_table_client/prepared_meta.h>
+#include <yt/yt/ytlib/columnar_chunk_format/prepared_meta.h>
 
 #include <yt/yt/core/misc/bitmap.h>
 
@@ -79,7 +79,7 @@ protected:
         TRange<NTableClient::TVersionedRow> rows,
         std::function<bool (const NTableClient::TVersionedValue& value)> onValue);
 
-    void DumpVersionedData(TSegmentInfo* segmentInfo, NNewTableClient::TMultiValueIndexMeta* rawIndexMeta);
+    void DumpVersionedData(TSegmentInfo* segmentInfo, NColumnarChunkFormat::TMultiValueIndexMeta* rawIndexMeta);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

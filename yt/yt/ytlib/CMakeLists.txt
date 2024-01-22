@@ -1216,12 +1216,12 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/misc/memory_reference_tracker.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/misc/memory_usage_tracker.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/misc/synchronizer_detail.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/new_table_client/column_block_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/new_table_client/memory_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/new_table_client/prepared_meta.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/new_table_client/rowset_builder.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/new_table_client/segment_readers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/new_table_client/versioned_chunk_reader.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/column_block_manager.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/memory_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/prepared_meta.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/rowset_builder.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/segment_readers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/versioned_chunk_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/channel.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/helpers.cpp

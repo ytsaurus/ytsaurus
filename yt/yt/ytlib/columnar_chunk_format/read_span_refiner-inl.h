@@ -5,7 +5,7 @@
 #endif
 #undef READ_SPAN_REFINER_INL_H_
 
-namespace NYT::NNewTableClient {
+namespace NYT::NColumnarChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -403,4 +403,4 @@ void BuildReadRowRanges(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNewTableClient
+} // namespace NYT::NColumnarChunkFormat

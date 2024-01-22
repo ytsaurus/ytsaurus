@@ -53,7 +53,7 @@ using NTableClient::EValueType;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NNewTableClient {
+namespace NColumnarChunkFormat {
 
 TString ToString(const TReaderStatistics& statistics);
 
@@ -495,7 +495,7 @@ void TestVersionedScanRead(TString chunkName, TOptions options)
     auto readItems = MakeSingletonRowRange(MinKey(), MaxKey());
 
     for (int index = 0; index < options.Repeat; ++index) {
-        auto timeStatistics = New<NNewTableClient::TReaderStatistics>();
+        auto timeStatistics = New<NColumnarChunkFormat::TReaderStatistics>();
         auto versionedReader = CreateChunkReader(
             readerData,
             tableSchema,
@@ -620,7 +620,7 @@ void TestVersionedLookupRead(TString chunkName, TOptions options, int nth)
 
     // Prefetch code.
     {
-        auto timeStatistics = New<NNewTableClient::TReaderStatistics>();
+        auto timeStatistics = New<NColumnarChunkFormat::TReaderStatistics>();
         auto versionedReader = CreateChunkReader(
             readerData,
             tableSchema,
@@ -639,7 +639,7 @@ void TestVersionedLookupRead(TString chunkName, TOptions options, int nth)
     for (int index = 0; index < options.Repeat; ++index) {
         TFiberWallTimer createReaderTimer;
 
-        auto timeStatistics = New<NNewTableClient::TReaderStatistics>();
+        auto timeStatistics = New<NColumnarChunkFormat::TReaderStatistics>();
         auto versionedReader = CreateChunkReader(
             readerData,
             tableSchema,
@@ -739,7 +739,7 @@ void DoBenchmark(
     TReadItems readItems,
     TReaderOptions options)
 {
-    auto timeStatistics = New<NNewTableClient::TReaderStatistics>();
+    auto timeStatistics = New<NColumnarChunkFormat::TReaderStatistics>();
 
     auto versionedReader = CreateChunkReader(
         readerData,

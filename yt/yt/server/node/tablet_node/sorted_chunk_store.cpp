@@ -35,7 +35,7 @@
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_reader_adapter.h>
 
-#include <yt/yt/ytlib/new_table_client/versioned_chunk_reader.h>
+#include <yt/yt/ytlib/columnar_chunk_format/versioned_chunk_reader.h>
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
@@ -500,13 +500,13 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     if (enableNewScanReader && chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
         // Chunk view support.
-        ranges = NNewTableClient::ClipRanges(
+        ranges = NColumnarChunkFormat::ClipRanges(
             ranges,
             ReadRange_.Size() > 0 ? ReadRange_.Front().first : TUnversionedRow(),
             ReadRange_.Size() > 0 ? ReadRange_.Front().second : TUnversionedRow(),
             ReadRange_.GetHolder());
 
-        auto blockManagerFactory = NNewTableClient::CreateAsyncBlockWindowManagerFactory(
+        auto blockManagerFactory = NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory(
             std::move(backendReaders.ReaderConfig),
             std::move(backendReaders.ChunkReader),
             chunkState->BlockCache,
@@ -517,7 +517,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
         return wrapReaderWithPerformanceCounting(
             MaybeWrapWithTimestampResettingAdapter(
-                NNewTableClient::CreateVersionedChunkReader(
+                NColumnarChunkFormat::CreateVersionedChunkReader(
                     std::move(ranges),
                     timestamp,
                     chunkState->ChunkMeta,
@@ -565,18 +565,18 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
 
     if (enableNewScanReader && chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
         // Chunk view support.
-        ranges = NNewTableClient::ClipRanges(
+        ranges = NColumnarChunkFormat::ClipRanges(
             ranges,
             singletonClippingRange.Size() > 0 ? singletonClippingRange.Front().first : TUnversionedRow(),
             singletonClippingRange.Size() > 0 ? singletonClippingRange.Front().second : TUnversionedRow(),
             singletonClippingRange.GetHolder());
 
-        auto blockManagerFactory = NNewTableClient::CreateSyncBlockWindowManagerFactory(
+        auto blockManagerFactory = NColumnarChunkFormat::CreateSyncBlockWindowManagerFactory(
             chunkState->BlockCache,
             chunkMeta,
             ChunkId_);
 
-        return NNewTableClient::CreateVersionedChunkReader(
+        return NColumnarChunkFormat::CreateVersionedChunkReader(
             std::move(ranges),
             timestamp,
             chunkMeta,
@@ -932,7 +932,7 @@ private:
         if (IsNewScanReaderEnabled(mountConfig) &&
             chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar)
         {
-            auto blockManagerFactory = NNewTableClient::CreateAsyncBlockWindowManagerFactory(
+            auto blockManagerFactory = NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory(
                 std::move(backendReaders.ReaderConfig),
                 std::move(backendReaders.ChunkReader),
                 chunkState->BlockCache,
@@ -941,7 +941,7 @@ private:
 
             MaybeWrapUnderlyingReader(
                 chunk,
-                NNewTableClient::CreateVersionedChunkReader(
+                NColumnarChunkFormat::CreateVersionedChunkReader(
                     std::move(keys),
                     timestamp,
                     std::move(chunkMeta),
@@ -1116,18 +1116,18 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
     const auto& chunkMeta = chunkState->ChunkMeta;
 
     if (enableNewScanReader && chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
-        auto blockManagerFactory = NNewTableClient::CreateSyncBlockWindowManagerFactory(
+        auto blockManagerFactory = NColumnarChunkFormat::CreateSyncBlockWindowManagerFactory(
             chunkState->BlockCache,
             chunkMeta,
             ChunkId_);
 
         if (InMemoryMode_ == NTabletClient::EInMemoryMode::Uncompressed) {
             if (auto* lookupHashTable = chunkState->LookupHashTable.Get()) {
-                auto keysWithHints = NNewTableClient::BuildKeyHintsUsingLookupTable(
+                auto keysWithHints = NColumnarChunkFormat::BuildKeyHintsUsingLookupTable(
                     *lookupHashTable,
                     std::move(keys));
 
-                return NNewTableClient::CreateVersionedChunkReader(
+                return NColumnarChunkFormat::CreateVersionedChunkReader(
                     std::move(keysWithHints),
                     timestamp,
                     chunkMeta,
@@ -1139,7 +1139,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
             }
         }
 
-        return NNewTableClient::CreateVersionedChunkReader(
+        return NColumnarChunkFormat::CreateVersionedChunkReader(
             std::move(keys),
             timestamp,
             chunkMeta,

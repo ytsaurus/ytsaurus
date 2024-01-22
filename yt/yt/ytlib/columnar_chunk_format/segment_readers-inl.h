@@ -7,7 +7,7 @@
 
 #include <library/cpp/yt/coding/zig_zag.h>
 
-namespace NYT::NNewTableClient {
+namespace NYT::NColumnarChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -881,4 +881,4 @@ void TLookupVersionExtractor<Aggregate>::Prefetch(ui32 valueIdx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNewTableClient
+} // namespace NYT::NColumnarChunkFormat

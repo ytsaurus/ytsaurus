@@ -144,7 +144,7 @@ TInMemoryChunkDataPtr CreateInMemoryChunkData(
         YT_VERIFY(startBlockIndex == 0);
 
         class TBlockProvider
-            : public NNewTableClient::IBlockDataProvider
+            : public NColumnarChunkFormat::IBlockDataProvider
         {
         public:
             TBlockProvider(const std::vector<TBlock>& blocks)

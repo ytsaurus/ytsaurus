@@ -15,7 +15,7 @@
 
 #include <yt/yt/library/query/base/coordination_helpers.h>
 
-namespace NYT::NNewTableClient {
+namespace NYT::NColumnarChunkFormat {
 
 using NProfiling::TCpuDurationIncrementingGuard;
 
@@ -924,4 +924,4 @@ TKeysWithHints BuildKeyHintsUsingLookupTable(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNewTableClient
+} // namespace NYT::NColumnarChunkFormat

@@ -6,7 +6,7 @@
 
 #include <library/cpp/yt/memory/shared_range.h>
 
-namespace NYT::NNewTableClient {
+namespace NYT::NColumnarChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,5 +62,5 @@ struct TKeysWithHints
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNewTableClient
+} // namespace NYT::NColumnarChunkFormat
 

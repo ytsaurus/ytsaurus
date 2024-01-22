@@ -4,7 +4,7 @@
 
 #include <library/cpp/yt/cpu_clock/clock.h>
 
-namespace NYT::NNewTableClient {
+namespace NYT::NColumnarChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,4 +48,4 @@ using TReaderStatisticsPtr = TIntrusivePtr<TReaderStatistics>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNewTableClient
+} // namespace NYT::NColumnarChunkFormat

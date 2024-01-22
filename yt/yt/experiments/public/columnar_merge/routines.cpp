@@ -4,8 +4,6 @@
 #include <yt/yt/server/lib/io/chunk_file_reader_adapter.h>
 #include <yt/yt/server/lib/io/io_engine.h>
 
-#include <yt/yt/ytlib/new_table_client/versioned_chunk_reader.h>
-
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/memory_reader.h>
@@ -132,7 +130,7 @@ DEFINE_REFCOUNTED_TYPE(TPreloadedBlockCache)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TBlockProvider
-    : public NNewTableClient::IBlockDataProvider
+    : public NColumnarChunkFormat::IBlockDataProvider
 {
     TChunkId ChunkId;
     IBlockCachePtr BlockCache;
@@ -236,7 +234,7 @@ TReaderData::TReaderData(TTableSchemaPtr /*schema*/, TRefCountedChunkMetaPtr met
 void TReaderData::PrepareMeta()
 {
     struct TBlockProvider
-        : public NNewTableClient::IBlockDataProvider
+        : public NColumnarChunkFormat::IBlockDataProvider
     {
         TChunkId ChunkId;
         NChunkClient::IBlockCachePtr BlockCache;
@@ -287,7 +285,7 @@ IVersionedReaderPtr CreateChunkReader(
     const TTableSchemaPtr schema,
     TSharedRange<TItem> readItems,
     TReaderOptions options,
-    NNewTableClient::TReaderStatisticsPtr timeStatistics)
+    NColumnarChunkFormat::TReaderStatisticsPtr timeStatistics)
 {
     NTableClient::TColumnFilter columnFilter;
 
@@ -299,11 +297,11 @@ IVersionedReaderPtr CreateChunkReader(
     auto timestamp = options.AllCommitted ? AllCommittedTimestamp : AsyncLastCommittedTimestamp;
     if (options.NewReader) {
         auto blockManagerFactory = options.NoBlockFetcher
-            ? NNewTableClient::CreateSyncBlockWindowManagerFactory(
+            ? NColumnarChunkFormat::CreateSyncBlockWindowManagerFactory(
                 readerData.BlockCache,
                 readerData.ChunkMeta,
                 readerData.ChunkReader->GetChunkId())
-            : NNewTableClient::CreateAsyncBlockWindowManagerFactory(
+            : NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory(
                 TChunkReaderConfig::GetDefault(),
                 readerData.ChunkReader,
                 readerData.BlockCache,
@@ -313,11 +311,11 @@ IVersionedReaderPtr CreateChunkReader(
         if constexpr (std::is_same_v<TItem, TLegacyKey>) {
             if (readerData.LookupHashTable) {
 
-                auto keysWithHints = NNewTableClient::BuildKeyHintsUsingLookupTable(
+                auto keysWithHints = NColumnarChunkFormat::BuildKeyHintsUsingLookupTable(
                     *readerData.LookupHashTable,
                     std::move(readItems));
 
-                return NNewTableClient::CreateVersionedChunkReader(
+                return NColumnarChunkFormat::CreateVersionedChunkReader(
                     std::move(keysWithHints),
                     timestamp,
                     readerData.ChunkMeta,
@@ -331,7 +329,7 @@ IVersionedReaderPtr CreateChunkReader(
             }
         }
 
-        return NNewTableClient::CreateVersionedChunkReader(
+        return NColumnarChunkFormat::CreateVersionedChunkReader(
             readItems,
             timestamp,
             readerData.ChunkMeta,
@@ -382,7 +380,7 @@ IVersionedReaderPtr CreateChunkReader<TRowRange>(
     const TTableSchemaPtr schema,
     TSharedRange<TRowRange> readItems,
     TReaderOptions options,
-    NNewTableClient::TReaderStatisticsPtr timeStatistics);
+    NColumnarChunkFormat::TReaderStatisticsPtr timeStatistics);
 
 template
 IVersionedReaderPtr CreateChunkReader<TLegacyKey>(
@@ -390,7 +388,7 @@ IVersionedReaderPtr CreateChunkReader<TLegacyKey>(
     const TTableSchemaPtr schema,
     TSharedRange<TLegacyKey> readItems,
     TReaderOptions options,
-    NNewTableClient::TReaderStatisticsPtr timeStatistics);
+    NColumnarChunkFormat::TReaderStatisticsPtr timeStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 

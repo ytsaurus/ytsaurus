@@ -6,7 +6,7 @@
 
 #include <library/cpp/yt/memory/ref.h>
 
-namespace NYT::NNewTableClient {
+namespace NYT::NColumnarChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,7 +49,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNewTableClient
+} // namespace NYT::NColumnarChunkFormat
 
 #define BLOCK_REF_INL_H_
 #include "block_ref-inl.h"

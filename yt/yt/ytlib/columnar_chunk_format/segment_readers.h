@@ -19,7 +19,7 @@
 // Now it is used for benchmark and debug purpose.
 #define FULL_UNPACK
 
-namespace NYT::NNewTableClient {
+namespace NYT::NColumnarChunkFormat {
 
 // KEY SEGMENTS FORMAT:
 // DirectDense
@@ -709,7 +709,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNewTableClient
+} // namespace NYT::NColumnarChunkFormat
 
 #define SEGMENT_READERS_INL_H_
 #include "segment_readers-inl.h"

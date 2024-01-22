@@ -5,7 +5,7 @@
 #endif
 #undef BLOCK_REF_INL_H_
 
-namespace NYT::NNewTableClient {
+namespace NYT::NColumnarChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,4 +69,4 @@ inline ui16 TColumnBase::GetColumnId() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNewTableClient
+} // namespace NYT::NColumnarChunkFormat

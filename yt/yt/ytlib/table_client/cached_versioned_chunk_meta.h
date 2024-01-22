@@ -11,7 +11,7 @@
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/yt/ytlib/new_table_client/prepared_meta.h>
+#include <yt/yt/ytlib/columnar_chunk_format/prepared_meta.h>
 
 #include <yt/yt/core/misc/memory_usage_tracker.h>
 
@@ -76,7 +76,7 @@ public:
 
     i64 GetMemoryUsage() const override;
 
-    TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> GetPreparedChunkMeta(NNewTableClient::IBlockDataProvider* blockProvider = nullptr);
+    TIntrusivePtr<NColumnarChunkFormat::TPreparedChunkMeta> GetPreparedChunkMeta(NColumnarChunkFormat::IBlockDataProvider* blockProvider = nullptr);
 
     int GetChunkKeyColumnCount() const;
 
@@ -92,7 +92,7 @@ private:
 
     TMemoryUsageTrackerGuard MemoryTrackerGuard_;
 
-    TAtomicIntrusivePtr<NNewTableClient::TPreparedChunkMeta> PreparedMeta_;
+    TAtomicIntrusivePtr<NColumnarChunkFormat::TPreparedChunkMeta> PreparedMeta_;
     std::atomic<size_t> PreparedMetaSize_ = 0;
 
     std::map<int, TXorFilterMeta> XorFilterMetaByLength_;

@@ -6,7 +6,7 @@
 
 #include <yt/yt/ytlib/table_client/key_filter.h>
 
-namespace NYT::NNewTableClient {
+namespace NYT::NColumnarChunkFormat {
 
 using NTableClient::NullTimestamp;
 
@@ -2448,4 +2448,4 @@ std::unique_ptr<IRowsetBuilder> CreateRowsetBuilder(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNewTableClient
+} // namespace NYT::NColumnarChunkFormat

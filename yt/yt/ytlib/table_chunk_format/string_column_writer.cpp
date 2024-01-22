@@ -140,7 +140,7 @@ protected:
         return value;
     }
 
-    void DumpDictionaryValues(TSegmentInfo* segmentInfo, NNewTableClient::TBlobMeta* rawBlobMeta)
+    void DumpDictionaryValues(TSegmentInfo* segmentInfo, NColumnarChunkFormat::TBlobMeta* rawBlobMeta)
     {
         auto dictionaryData = TSharedMutableRef::Allocate<TSegmentWriterTag>(DictionaryByteSize_, {.InitializeStorage = false});
 
@@ -194,7 +194,7 @@ protected:
         rawBlobMeta->ExpectedLength = expectedLength;
     }
 
-    void DumpDirectValues(TSegmentInfo* segmentInfo, TSharedRef nullBitmap, NNewTableClient::TBlobMeta* rawBlobMeta)
+    void DumpDirectValues(TSegmentInfo* segmentInfo, TSharedRef nullBitmap, NColumnarChunkFormat::TBlobMeta* rawBlobMeta)
     {
         auto offsets = GetDirectDenseOffsets();
 
@@ -312,7 +312,7 @@ private:
         TSegmentInfo segmentInfo;
         segmentInfo.SegmentMeta.set_version(0);
 
-        NNewTableClient::TValueMeta<ValueType> rawMeta;
+        NColumnarChunkFormat::TValueMeta<ValueType> rawMeta;
         memset(&rawMeta, 0, sizeof(rawMeta));
         rawMeta.DataOffset = TColumnWriterBase::GetOffset();
         rawMeta.ChunkRowCount = RowCount_;
@@ -466,7 +466,7 @@ private:
         return nullBitmap.Flush<TSegmentWriterTag>();
     }
 
-    void DumpDirectRleData(TSegmentInfo* segmentInfo, NNewTableClient::TKeyIndexMeta* rawIndexMeta, NNewTableClient::TBlobMeta* rawBlobMeta)
+    void DumpDirectRleData(TSegmentInfo* segmentInfo, NColumnarChunkFormat::TKeyIndexMeta* rawIndexMeta, NColumnarChunkFormat::TBlobMeta* rawBlobMeta)
     {
         auto stringData = TSharedMutableRef::Allocate<TSegmentWriterTag>(DirectRleSize_, {.InitializeStorage = false});
         std::vector<ui32> offsets;
@@ -510,7 +510,7 @@ private:
         rawBlobMeta->ExpectedLength = expectedLength;
     }
 
-    void DumpDictionaryRleData(TSegmentInfo* segmentInfo, NNewTableClient::TKeyIndexMeta* rawIndexMeta, NNewTableClient::TBlobMeta* rawBlobMeta)
+    void DumpDictionaryRleData(TSegmentInfo* segmentInfo, NColumnarChunkFormat::TKeyIndexMeta* rawIndexMeta, NColumnarChunkFormat::TBlobMeta* rawBlobMeta)
     {
         auto dictionaryData = TSharedMutableRef::Allocate<TSegmentWriterTag>(DictionaryByteSize_, {.InitializeStorage = false});
 
@@ -577,7 +577,7 @@ private:
         segmentInfo.SegmentMeta.set_version(0);
         segmentInfo.SegmentMeta.set_row_count(Values_.size());
 
-        NNewTableClient::TKeyMeta<ValueType> rawMeta;
+        NColumnarChunkFormat::TKeyMeta<ValueType> rawMeta;
         memset(&rawMeta, 0, sizeof(rawMeta));
         rawMeta.DataOffset = TColumnWriterBase::GetOffset();
         rawMeta.RowCount = Values_.size();

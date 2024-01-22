@@ -5,7 +5,7 @@
 #endif
 #undef YT_MEMORY_HELPERS_INL_H
 
-namespace NYT::NNewTableClient {
+namespace NYT::NColumnarChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -103,4 +103,4 @@ auto AllocateCombined(TMemoryHolderBase* holder, TSize<Types>... count)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNewTableClient
+} // namespace NYT::NColumnarChunkFormat

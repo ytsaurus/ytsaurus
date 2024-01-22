@@ -10,7 +10,7 @@
 #include <yt/yt/ytlib/table_client/public.h>
 #include <yt/yt/ytlib/chunk_client/public.h>
 
-namespace NYT::NNewTableClient {
+namespace NYT::NColumnarChunkFormat {
 
 struct TPreparedChunkMeta;
 
@@ -70,4 +70,4 @@ TKeysWithHints BuildKeyHintsUsingLookupTable(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNewTableClient
+} // namespace NYT::NColumnarChunkFormat

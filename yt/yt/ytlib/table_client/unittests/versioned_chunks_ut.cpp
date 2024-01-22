@@ -22,7 +22,7 @@
 
 #include <yt/yt/ytlib/table_client/chunk_lookup_hash_table.h>
 
-#include <yt/yt/ytlib/new_table_client/versioned_chunk_reader.h>
+#include <yt/yt/ytlib/columnar_chunk_format/versioned_chunk_reader.h>
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
@@ -130,7 +130,7 @@ private:
 };
 
 struct TBlockProvider
-    : public NNewTableClient::IBlockDataProvider
+    : public NColumnarChunkFormat::IBlockDataProvider
 {
     TChunkId ChunkId;
     IBlockCachePtr BlockCache;
@@ -431,18 +431,18 @@ protected:
             IVersionedReaderPtr versionedReader;
             if (testOptions.UseNewReader) {
                 auto blockManagerFactory = testOptions.CacheBased
-                    ? NNewTableClient::CreateSyncBlockWindowManagerFactory(
+                    ? NColumnarChunkFormat::CreateSyncBlockWindowManagerFactory(
                         CreateDisposingBlockCache(GetPreloadedBlockCache(MemoryReader)),
                         chunkMeta,
                         MemoryReader->GetChunkId())
-                    : NNewTableClient::CreateAsyncBlockWindowManagerFactory(
+                    : NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory(
                         TChunkReaderConfig::GetDefault(),
                         MemoryReader,
                         chunkState->BlockCache,
                         /* chunkReadOptions */ {},
                         chunkMeta);
 
-                versionedReader = NNewTableClient::CreateVersionedChunkReader(
+                versionedReader = NColumnarChunkFormat::CreateVersionedChunkReader(
                     sharedKeys,
                     MaxTimestamp,
                     chunkMeta,
@@ -831,18 +831,18 @@ protected:
             chunkMeta->GetPreparedChunkMeta(&blockProvider);
 
             auto blockManagerFactory = GetTestOptions().CacheBased
-                ? NNewTableClient::CreateSyncBlockWindowManagerFactory(
+                ? NColumnarChunkFormat::CreateSyncBlockWindowManagerFactory(
                     CreateDisposingBlockCache(blockCache),
                     chunkMeta,
                     memoryReader->GetChunkId())
-                : NNewTableClient::CreateAsyncBlockWindowManagerFactory(
+                : NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory(
                     TChunkReaderConfig::GetDefault(),
                     memoryReader,
                     chunkState->BlockCache,
                     /* chunkReadOptions */ {},
                     chunkMeta);
 
-            versionedReader = NNewTableClient::CreateVersionedChunkReader(
+            versionedReader = NColumnarChunkFormat::CreateVersionedChunkReader(
                 ranges,
                 timestamp,
                 chunkMeta,
@@ -945,11 +945,11 @@ protected:
             chunkMeta->GetPreparedChunkMeta(&blockProvider);
 
             auto blockManagerFactory = GetTestOptions().CacheBased
-                ? NNewTableClient::CreateSyncBlockWindowManagerFactory(
+                ? NColumnarChunkFormat::CreateSyncBlockWindowManagerFactory(
                     CreateDisposingBlockCache(blockCache),
                     chunkMeta,
                     memoryReader->GetChunkId())
-                : NNewTableClient::CreateAsyncBlockWindowManagerFactory(
+                : NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory(
                     TChunkReaderConfig::GetDefault(),
                     memoryReader,
                     chunkState->BlockCache,
@@ -958,11 +958,11 @@ protected:
 
             if (chunkState->LookupHashTable) {
 
-                auto keysWithHints = NNewTableClient::BuildKeyHintsUsingLookupTable(
+                auto keysWithHints = NColumnarChunkFormat::BuildKeyHintsUsingLookupTable(
                     *chunkState->LookupHashTable,
                     lookupKeys);
 
-                versionedReader = NNewTableClient::CreateVersionedChunkReader(
+                versionedReader = NColumnarChunkFormat::CreateVersionedChunkReader(
                     std::move(keysWithHints),
                     timestamp,
                     chunkMeta,
@@ -972,7 +972,7 @@ protected:
                     blockManagerFactory,
                     produceAllVersions);
             } else {
-                versionedReader = NNewTableClient::CreateVersionedChunkReader(
+                versionedReader = NColumnarChunkFormat::CreateVersionedChunkReader(
                     lookupKeys,
                     timestamp,
                     chunkMeta,
@@ -1243,7 +1243,7 @@ protected:
 
         auto tableKeyColumnCount = readSchema->GetKeyColumnCount();
 
-        auto keyColumnIndexes = NNewTableClient::ExtractKeyColumnIndexes(columnFilter, tableKeyColumnCount, false);
+        auto keyColumnIndexes = NColumnarChunkFormat::ExtractKeyColumnIndexes(columnFilter, tableKeyColumnCount, false);
 
         auto idMapping = BuildIdMapping(writeSchema, readSchema, columnFilter);
 
@@ -1321,7 +1321,7 @@ protected:
 
         auto tableKeyColumnCount = readSchema->GetKeyColumnCount();
 
-        auto keyColumnIndexes = NNewTableClient::ExtractKeyColumnIndexes(columnFilter, tableKeyColumnCount, true);
+        auto keyColumnIndexes = NColumnarChunkFormat::ExtractKeyColumnIndexes(columnFilter, tableKeyColumnCount, true);
 
         auto idMapping = BuildIdMapping(writeSchema, readSchema, columnFilter);
 

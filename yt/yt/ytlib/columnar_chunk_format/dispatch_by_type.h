@@ -2,7 +2,7 @@
 
 #include <yt/yt/client/table_client/row_base.h>
 
-namespace NYT::NNewTableClient {
+namespace NYT::NColumnarChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,7 +11,7 @@ auto DispatchByDataType(NTableClient::EValueType type, TArgs&&... args);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNewTableClient
+} // namespace NYT::NColumnarChunkFormat
 
 #define DISPATCH_BY_TYPE_INL_H_
 #include "dispatch_by_type-inl.h"

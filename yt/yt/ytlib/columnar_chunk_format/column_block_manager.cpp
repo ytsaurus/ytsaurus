@@ -15,7 +15,7 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
-namespace NYT::NNewTableClient {
+namespace NYT::NColumnarChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -509,4 +509,4 @@ TBlockManagerFactory CreateSyncBlockWindowManagerFactory(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNewTableClient
+} // namespace NYT::NColumnarChunkFormat

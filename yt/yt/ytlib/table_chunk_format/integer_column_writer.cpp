@@ -59,7 +59,7 @@ protected:
         DistinctValues_.emplace(value, DistinctValues_.size() + 1);
     }
 
-    void DumpDirectValues(TSegmentInfo* segmentInfo, TBitmapOutput& nullBitmap, NNewTableClient::TIntegerMeta* rawMeta)
+    void DumpDirectValues(TSegmentInfo* segmentInfo, TBitmapOutput& nullBitmap, NColumnarChunkFormat::TIntegerMeta* rawMeta)
     {
         for (i64 index = 0; index < std::ssize(Values_); ++index) {
             if (!nullBitmap[index]) {
@@ -77,7 +77,7 @@ protected:
         segmentInfo->Data.push_back(nullBitmap.Flush<TSegmentWriterTag>());
     }
 
-    void DumpDictionaryValues(TSegmentInfo* segmentInfo, TBitmapOutput& nullBitmap, NNewTableClient::TIntegerMeta* rawMeta)
+    void DumpDictionaryValues(TSegmentInfo* segmentInfo, TBitmapOutput& nullBitmap, NColumnarChunkFormat::TIntegerMeta* rawMeta)
     {
         std::vector<ui64> dictionary;
         dictionary.reserve(DistinctValues_.size());
@@ -204,7 +204,7 @@ private:
 
         constexpr EValueType ValueType = std::is_same_v<ui64, TValue> ? EValueType::Uint64 : EValueType::Int64;
 
-        NNewTableClient::TValueMeta<ValueType> rawMeta;
+        NColumnarChunkFormat::TValueMeta<ValueType> rawMeta;
         memset(&rawMeta, 0, sizeof(rawMeta));
         rawMeta.DataOffset = TColumnWriterBase::GetOffset();
         rawMeta.ChunkRowCount = RowCount_;
@@ -367,7 +367,7 @@ private:
     }
 
     // TODO(lukyan): Rewrite this routines via DumpDirectValues and DumpDictionaryValues
-    void DumpDirectRleValues(TSegmentInfo* segmentInfo, NNewTableClient::TKeyIndexMeta* rawIndexMeta, NNewTableClient::TIntegerMeta* rawMeta)
+    void DumpDirectRleValues(TSegmentInfo* segmentInfo, NColumnarChunkFormat::TKeyIndexMeta* rawIndexMeta, NColumnarChunkFormat::TIntegerMeta* rawMeta)
     {
         TBitmapOutput rleNullBitmap(RunCount_);
         std::vector<ui64> rowIndexes;
@@ -410,7 +410,7 @@ private:
         segmentInfo->Data.push_back(BitpackVector(MakeRange(rowIndexes), rowIndexes.back(), &rawIndexMeta->RowIndexesSize, &rawIndexMeta->RowIndexesWidth));
     }
 
-    void DumpDictionaryRleValues(TSegmentInfo* segmentInfo, NNewTableClient::TKeyIndexMeta* rawIndexMeta, NNewTableClient::TIntegerMeta* rawMeta)
+    void DumpDictionaryRleValues(TSegmentInfo* segmentInfo, NColumnarChunkFormat::TKeyIndexMeta* rawIndexMeta, NColumnarChunkFormat::TIntegerMeta* rawMeta)
     {
         std::vector<ui64> dictionary;
         dictionary.reserve(DistinctValues_.size());
@@ -479,7 +479,7 @@ private:
         auto minElement = std::min_element(sizes.begin(), sizes.end());
         auto type = EUnversionedIntegerSegmentType(std::distance(sizes.begin(), minElement));
 
-        NNewTableClient::TKeyMeta<EValueType::Int64> rawMeta;
+        NColumnarChunkFormat::TKeyMeta<EValueType::Int64> rawMeta;
         memset(&rawMeta, 0, sizeof(rawMeta));
         rawMeta.DataOffset = TColumnWriterBase::GetOffset();
         rawMeta.RowCount = Values_.size();
