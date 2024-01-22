@@ -176,7 +176,7 @@ def add_start_subparser(subparsers):
     parser.add_argument("--https-proxy-port", type=int, nargs="+", dest="https_proxy_ports",
                         help="proxy ports for https proxy; number of values should be equal to http-proxy-count.")
     parser.add_argument("--rpc-proxy-port", type=int, nargs="+", dest="rpc_proxy_ports",
-                        help="ports for rpc proxues; number of values should be equal to rpc-proxy-count.")
+                        help="ports for rpc proxies; number of values should be equal to rpc-proxy-count.")
     parser.add_argument("--enable-debug-logging", action="store_true", default=False,
                         help="set logging level threshold to DEBUG")
     parser.add_argument("--enable-structured-logging", action="store_true", default=False,
