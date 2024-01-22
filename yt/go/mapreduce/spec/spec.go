@@ -19,6 +19,13 @@ type File struct {
 	CypressPath ypath.Path `yson:",value"`
 }
 
+type DiskRequest struct {
+	DiskSpace  int64  `yson:"disk_space,omitempty"`
+	InodeCount int64  `yson:"inode_count,omitempty"`
+	Account    string `yson:"account,omitempty"`
+	MediumName string `yson:"medium_name,omitempty"`
+}
+
 type UserScript struct {
 	// Command specifies shell command that would be executed inside job.
 	//
@@ -45,6 +52,7 @@ type UserScript struct {
 	MemoryReserveFactor float64       `yson:"memory_reserve_factor,omitempty"`
 	GPULimit            int           `yson:"gpu_limit,omitempty"`
 	JobTimeLimit        yson.Duration `yson:"job_time_limit,omitempty"`
+	DiskRequest         *DiskRequest  `yson:"disk_request,omitempty"`
 
 	NetworkProject string `yson:"network_project,omitempty"`
 
