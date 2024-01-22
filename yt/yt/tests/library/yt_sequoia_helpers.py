@@ -1,7 +1,6 @@
 from yt_commands import lookup_rows, select_rows, get_driver, get
 
 from yt.yson import YsonMap
-import re
 
 from dataclasses import dataclass
 from typing import Any, Dict, List
@@ -37,8 +36,8 @@ def select_rows_from_ground(*args, **kwargs):
     return select_rows(*args, **kwargs)
 
 
-def _build_children_map_from_tables(path):
-    rows = select_rows_from_ground(f"child_key, child_id from [{CHILD_NODE_TABLE.get_path()}] where parent_path = \"{re.escape(path)}\"")
+def _build_children_map_from_tables(id):
+    rows = select_rows_from_ground(f"child_key, child_id from [{CHILD_NODE_TABLE.get_path()}] where parent_id = \"{id}\"")
     result = YsonMap()
     for row in rows:
         result[row["child_key"]] = row["child_id"]
@@ -60,9 +59,9 @@ def validate_sequoia_tree_consistency(cluster="primary"):
         # Alternative way of looking things up can be written using a combination of ls and get commands.
         # Might want to check consistency using both methods.
         # TODO(h0pless): Think about it.
-        unmangled_path = row['path'][:-1]
+        unmangled_path = row["path"][:-1]
         children_master = get(f"{unmangled_path}/@children")
-        children_tables = _build_children_map_from_tables(row["path"])
+        children_tables = _build_children_map_from_tables(row["node_id"])
 
         if children_tables != children_master:
             tables_info_set = set(children_tables.items())
@@ -102,7 +101,7 @@ NODE_ID_TO_PATH_TABLE = SequoiaTable(
 CHILD_NODE_TABLE = SequoiaTable(
     name="child_node",
     schema=[
-        {"name": "parent_path", "type": "string", "sort_order": "ascending"},
+        {"name": "parent_id", "type": "string", "sort_order": "ascending"},
         {"name": "child_key", "type": "string", "sort_order": "ascending"},
         {"name": "child_id", "type": "string"},
     ])

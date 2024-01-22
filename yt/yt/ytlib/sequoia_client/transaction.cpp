@@ -12,6 +12,8 @@
 #include <yt/yt/ytlib/api/native/tablet_helpers.h>
 #include <yt/yt/ytlib/api/native/transaction_helpers.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
 #include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
@@ -176,11 +178,13 @@ public:
     virtual TFuture<TSelectRowsResult> SelectRows(
         ESequoiaTable table,
         const std::vector<TString>& whereConjuncts,
+        const std::vector<TString>& orderByExpressions,
         std::optional<i64> limit) override
     {
         return SequoiaClient_->SelectRows(
             table,
             whereConjuncts,
+            orderByExpressions,
             limit,
             Transaction_->GetStartTimestamp());
     }
@@ -276,6 +280,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        if (cellTag == InvalidCellTag) {
+            cellTag = GetRandomSequoiaNodeHostCellTag();
+        }
+
         auto guard = Guard(Lock_);
 
         auto id = MakeSequoiaId(
@@ -291,6 +299,20 @@ public:
         }
 
         return id;
+    }
+
+    TCellTag GetRandomSequoiaNodeHostCellTag() const override
+    {
+        auto connection = NativeRootClient_->GetNativeConnection();
+
+        YT_LOG_DEBUG("Started synchronizing master cell directory");
+        const auto& cellDirectorySynchronizer = connection->GetMasterCellDirectorySynchronizer();
+        WaitFor(cellDirectorySynchronizer->RecentSync())
+            .ThrowOnError();
+        YT_LOG_DEBUG("Master cell directory synchronized successfully");
+
+        return connection->GetRandomMasterCellTagWithRoleOrThrow(
+            NCellMasterClient::EMasterCellRole::SequoiaNodeHost);
     }
 
     const TRowBufferPtr& GetRowBuffer() const override

@@ -1106,7 +1106,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/a/@attr/key/@embedded_attr") == "emb"
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_get_with_attributes(self):
         set("//tmp/a/b", {}, recursive=True, force=True)
         expected = yson.to_yson_type(
@@ -1124,7 +1123,6 @@ class TestCypress(YTEnvSetup):
         assert ls("//tmp/a", attributes={"keys": ["type"]}) == expected
 
     @authors("kiselyovp")
-    @not_implemented_in_sequoia
     def test_get_with_attributes_objects(self):
         assert get("//sys/accounts/tmp", attributes=["name"]) == yson.to_yson_type({}, {"name": "tmp"})
         assert get("//sys/users/root", attributes=["name", "type"]) == yson.to_yson_type(
@@ -1183,7 +1181,6 @@ class TestCypress(YTEnvSetup):
         assert schemas[0][1].attributes["value"][0]["name"] == "i_am_column_name"
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_get_with_attributes_virtual_maps(self):
         tx = start_transaction()
         txs = get("//sys/transactions", attributes=["type"])

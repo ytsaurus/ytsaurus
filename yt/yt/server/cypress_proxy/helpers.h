@@ -45,6 +45,13 @@ NCypressClient::TNodeId LookupNodeId(
     const NYPath::TYPath& path,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
+//! Returns bottommost created node ID.
+NCypressClient::TNodeId CreateIntermediateNodes(
+    const NYPath::TYPath& parentPath,
+    NCypressClient::TNodeId parentId,
+    const std::vector<NYPath::TYPathBuf>& nodeKeys,
+    const NSequoiaClient::ISequoiaTransactionPtr& transaction);
+
 NCypressClient::TNodeId CopySubtree(
     const std::vector<NSequoiaClient::NRecords::TPathToNodeId>& sourceNodes,
     const NYPath::TYPath& sourceRootPath,
@@ -52,11 +59,19 @@ NCypressClient::TNodeId CopySubtree(
     const TCopyOptions& options,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
-//! This function intentionally does not support the removal of a scion with a #removeRoot flag set to true.
+//! Select subtree and remove it. #subtreeParentIdHint is only used when #removeRoot is set to true.
 TFuture<void> RemoveSubtree(
     const NYPath::TYPath& path,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction,
-    bool removeRoot = true);
+    bool removeRoot = true,
+    NCypressClient::TNodeId subtreeParentIdHint = NObjectClient::NullObjectId);
+
+//! Same as RemoveSubtree, but does not provoke an additional select.
+void RemoveSelectedSubtree(
+    const std::vector<NSequoiaClient::NRecords::TPathToNodeId>& nodesToRemove,
+    const NSequoiaClient::ISequoiaTransactionPtr& transaction,
+    bool removeRoot = true,
+    NCypressClient::TNodeId subtreeParentIdHint = NObjectClient::NullObjectId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

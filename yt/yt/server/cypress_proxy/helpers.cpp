@@ -2,9 +2,10 @@
 #include "helpers.h"
 #include "action_helpers.h"
 
-#include <yt/ytlib/sequoia_client/records/child_node.record.h>
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
+
+#include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -111,6 +112,21 @@ void ThrowNoSuchChild(const TYPath& existingPath, const TYPathBuf& missingPath)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(h0pless): Change this to TFuture<std::vector>.
+std::vector<NRecords::TPathToNodeId> SelectSubtree(
+    const TYPath& path,
+    const ISequoiaTransactionPtr& transaction)
+{
+    auto mangledPath = MangleSequoiaPath(path);
+    return WaitFor(transaction->SelectRows<NRecords::TPathToNodeIdKey>(
+        {
+            Format("path >= %Qv", mangledPath),
+            Format("path <= %Qv", MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(mangledPath)),
+        },
+        /* orderBy */ {"path"}))
+        .ValueOrThrow();
+}
+
 TNodeId LookupNodeId(
     const TYPath& path,
     const ISequoiaTransactionPtr& transaction)
@@ -133,18 +149,29 @@ TNodeId LookupNodeId(
     return rows[0]->NodeId;
 }
 
-// TODO(h0pless): Change this to TFuture<std::vector>.
-std::vector<NRecords::TPathToNodeId> SelectSubtree(
-    const TYPath& path,
+TNodeId CreateIntermediateNodes(
+    const TYPath& parentPath,
+    TNodeId parentId,
+    const std::vector<TYPathBuf>& nodeKeys,
     const ISequoiaTransactionPtr& transaction)
 {
-    auto mangledPath = MangleSequoiaPath(path);
-    return WaitFor(transaction->SelectRows<NRecords::TPathToNodeIdKey>(
-        {
-            Format("path >= %Qv", mangledPath),
-            Format("path <= %Qv", MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(mangledPath)),
-        }))
-        .ValueOrThrow();
+    auto currentNodePath = parentPath;
+    auto prevNodeId = parentId;
+    for (auto key : nodeKeys) {
+        // TODO(h0pless): Maybe use a different function here? This doesn't seem terribly efficient.
+        // Replace this with something better once TYPath will be refactored.
+        currentNodePath = JoinNestedNodesToPath(currentNodePath, {key});
+        auto currentNodeId = transaction->GenerateObjectId(EObjectType::SequoiaMapNode);
+
+        CreateNode(
+            EObjectType::SequoiaMapNode,
+            currentNodeId,
+            currentNodePath,
+            transaction);
+        AttachChild(prevNodeId, currentNodeId, TYPath(key), transaction);
+        prevNodeId = currentNodeId;
+    }
+    return prevNodeId;
 }
 
 TNodeId CopySubtree(
@@ -181,41 +208,68 @@ TNodeId CopySubtree(
     return destinationNodeId;
 }
 
+void RemoveSelectedSubtree(
+    const std::vector<NRecords::TPathToNodeId>& subtreeNodes,
+    const ISequoiaTransactionPtr& transaction,
+    bool removeRoot,
+    TNodeId subtreeParentIdHint)
+{
+    YT_VERIFY(!subtreeNodes.empty());
+
+    THashMap<TYPath, TNodeId> pathToNodeId;
+    pathToNodeId.reserve(subtreeNodes.size());
+    for (const auto& node : subtreeNodes) {
+        pathToNodeId[DemangleSequoiaPath(node.Key.Path)] = node.NodeId;
+    }
+
+    for (auto nodeIt = subtreeNodes.begin() + (removeRoot ? 0 : 1); nodeIt != subtreeNodes.end(); ++nodeIt) {
+        RemoveNode(nodeIt->NodeId, nodeIt->Key.Path, transaction);
+    }
+
+    for (auto it = subtreeNodes.rbegin(); it < subtreeNodes.rend(); ++it) {
+        auto [parentPath, childKey] = DirNameAndBaseName(DemangleSequoiaPath(it->Key.Path));
+        if (auto parentIt = pathToNodeId.find(parentPath)) {
+            DetachChild(parentIt->second, childKey, transaction);
+        }
+    }
+
+    auto rootType = TypeFromId(subtreeNodes.front().NodeId);
+    if (!removeRoot || rootType == EObjectType::Scion) {
+        return;
+    }
+
+    auto subtreeRootPath = DemangleSequoiaPath(subtreeNodes.front().Key.Path);
+    auto [subtreeRootParentPath, subtreeRootKey] = DirNameAndBaseName(subtreeRootPath);
+    if (!subtreeParentIdHint) {
+        subtreeParentIdHint = LookupNodeId(subtreeRootParentPath, transaction);
+    }
+    DetachChild(subtreeParentIdHint, subtreeRootKey, transaction);
+}
+
 TFuture<void> RemoveSubtree(
     const TYPath& path,
     const ISequoiaTransactionPtr& transaction,
-    bool removeRoot)
+    bool removeRoot,
+    TNodeId subtreeParentIdHint)
 {
-    auto topmostRemainingNodePath = removeRoot ? DirNameAndBaseName(path).first : path;
-    auto topmostRemainingNodeId = LookupNodeId(topmostRemainingNodePath, transaction);
+    if (!subtreeParentIdHint && removeRoot) {
+        auto subtreeParentPath = removeRoot ? DirNameAndBaseName(path).first : path;
+        subtreeParentIdHint = LookupNodeId(subtreeParentPath, transaction);
+    }
 
     auto mangledPath = MangleSequoiaPath(path);
-    TString rootComparator = removeRoot ? ">=" : ">";
-    auto removeFuture = transaction->SelectRows<NRecords::TPathToNodeIdKey>({
-        Format("path " + rootComparator + " %Qv", mangledPath),
+    return transaction->SelectRows<NRecords::TPathToNodeIdKey>({
+        Format("path >= %Qv", mangledPath),
         Format("path <= %Qv", MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(mangledPath)),
-    }).Apply(
-        BIND([transaction] (const std::vector<NRecords::TPathToNodeId>& nodesToRemove) {
-            for (const auto& node : nodesToRemove) {
-                RemoveNode(node.NodeId, node.Key.Path, transaction);
-            }
+    },
+    /* orderBy */ {"path"}).Apply(
+        BIND([transaction, removeRoot, subtreeParentIdHint] (const std::vector<NRecords::TPathToNodeId>& nodesToRemove) {
+            RemoveSelectedSubtree(
+                nodesToRemove,
+                transaction,
+                removeRoot,
+                subtreeParentIdHint);
         }));
-
-    if (removeRoot) {
-        DetachChild(topmostRemainingNodeId, DirNameAndBaseName(path).second, transaction);
-        return removeFuture;
-    } else {
-        auto detachFuture = transaction->SelectRows<NRecords::TChildNodeKey>({
-            Format("parent_path = %Qv", mangledPath),
-        }).Apply(
-            BIND([transaction, topmostRemainingNodeId] (const std::vector<NRecords::TChildNode>& childrenRows) {
-                for (const auto& row : childrenRows) {
-                    DetachChild(topmostRemainingNodeId, row.Key.ChildKey, transaction);
-                }
-            }));
-
-        return AllSucceeded(std::vector{removeFuture, detachFuture});
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -11,6 +11,8 @@ from yt_sequoia_helpers import (
 )
 
 from yt.common import YtError
+import yt.yson as yson
+
 import pytest
 import builtins
 
@@ -55,6 +57,38 @@ class TestSequoiaInternals(YTEnvSetup):
         "10": {"roles": ["sequoia_node_host"]},
         "11": {"roles": ["sequoia_node_host"]},
     }
+
+    @authors("h0pless")
+    def test_get(self):
+        create("map_node", "//tmp/test_node")
+        assert get("//tmp") == {"test_node": {}}
+        assert get("//tmp/test_node") == {}
+        create("int64_node", "//tmp/test_node/test_int")
+        set("//tmp/test_node/test_int", 1337)
+        assert get("//tmp/test_node") == {"test_int": 1337}
+        assert get("//tmp/test_node/test_int") == 1337
+
+    @authors("h0pless")
+    def test_get_recursive(self):
+        # These paths should be seen in get result.
+        create("string_node", "//tmp/more/nodes/to", recursive=True)
+        create("int64_node", "//tmp/more/stuff/to/break", recursive=True)
+        create("map_node", "//tmp/more/memes", recursive=True)
+        set("//tmp/more/nodes/to", "test")
+        set("//tmp/more/stuff/to/break", 1337)
+
+        # These ones should be not.
+        create("map_node", "//tmp/less/gameplay/less", recursive=True)
+        create("map_node", "//tmp/w/please", recursive=True)
+
+        # All nodes should be printed.
+        assert get("//tmp/more") == {"memes": {}, "nodes": {"to": "test"}, "stuff": {"to": {"break": 1337}}}
+        # Node "memes" should be printed as an empty node, others should be opaque.
+        assert get("//tmp/more", max_size=3) == {"memes": {}, "nodes": yson.YsonEntity(), "stuff": yson.YsonEntity()}
+
+        create("map_node", "//tmp/more/memes/hi")
+        # All 3 nodes should be opaque.
+        assert get("//tmp/more", max_size=3) == {"memes": yson.YsonEntity(), "nodes": yson.YsonEntity(), "stuff": yson.YsonEntity()}
 
     @authors("kvk1920", "cherepashka")
     def test_create_and_remove(self):

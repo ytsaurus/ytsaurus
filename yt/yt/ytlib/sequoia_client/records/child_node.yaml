@@ -3,9 +3,9 @@ namespace: NYT::NSequoiaClient::NRecords
 types:
   - type_name: TChildNode
     fields:
-      - cpp_name: ParentPath
-        cpp_type: TMangledSequoiaPath
-        column_name: parent_path
+      - cpp_name: ParentId
+        cpp_type: NCypressClient::TNodeId
+        column_name: parent_id
         column_type: String
         sort_order: Ascending
 

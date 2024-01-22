@@ -1,10 +1,11 @@
 #include "node_proxy.h"
 
-#include "private.h"
 #include "action_helpers.h"
 #include "bootstrap.h"
 #include "helpers.h"
 #include "path_resolver.h"
+#include "private.h"
+#include "sequoia_tree_visitor.h"
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -49,6 +50,7 @@ using namespace NSequoiaClient;
 using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NYPath;
+using namespace NYson;
 using namespace NYTree;
 
 using NYT::FromProto;
@@ -62,6 +64,7 @@ static const auto& Logger = CypressProxyLogger;
 
 class TNodeProxyBase
     : public TYPathServiceBase
+    , public virtual TSupportsGet
     , public virtual TSupportsSet
     , public virtual TSupportsRemove
 {
@@ -95,8 +98,6 @@ protected:
     const TYPath Path_;
     const ISequoiaTransactionPtr Transaction_;
 
-    DECLARE_YPATH_SERVICE_METHOD(NYTree::NProto, Get);
-
     bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Get);
@@ -116,6 +117,15 @@ protected:
         return Bootstrap_->GetNativeConnection()->GetMasterCellId(CellTagFromId(id));
     }
 
+    TObjectServiceProxy CreateReadProxyToCell(TCellTag cellTag)
+    {
+        return CreateObjectServiceReadProxy(
+            Bootstrap_->GetNativeRootClient(),
+            EMasterChannelKind::Follower,
+            cellTag,
+            Bootstrap_->GetNativeConnection()->GetStickyGroupSizeCache());
+    }
+
     TObjectServiceProxy CreateReadProxyForObject(TObjectId id)
     {
         return CreateObjectServiceReadProxy(
@@ -130,20 +140,6 @@ protected:
         return CreateObjectServiceWriteProxy(
             Bootstrap_->GetNativeRootClient(),
             CellTagFromId(id));
-    }
-
-    TCellTag GetRandomSequoiaNodeHostCellTag() const
-    {
-        auto connection = Bootstrap_->GetNativeConnection();
-
-        YT_LOG_DEBUG("Started synchronizing master cell directory");
-        const auto& cellDirectorySynchronizer = connection->GetMasterCellDirectorySynchronizer();
-        WaitFor(cellDirectorySynchronizer->RecentSync())
-            .ThrowOnError();
-        YT_LOG_DEBUG("Master cell directory synchronized successfully");
-
-        return connection->GetRandomMasterCellTagWithRoleOrThrow(
-            NCellMasterClient::EMasterCellRole::SequoiaNodeHost);
     }
 
     TCellTag RemoveRootstock()
@@ -186,6 +182,132 @@ protected:
         context->Reply();
     }
 
+    void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
+    {
+        auto attributeFilter = request->has_attributes()
+            ? FromProto<TAttributeFilter>(request->attributes())
+            : TAttributeFilter();
+
+        auto limit = YT_PROTO_OPTIONAL(*request, limit);
+        // NB: This is an arbitrary value, it can be freely changed.
+        // TODO(h0pless): Think about moving global limit to dynamic config.
+        ui64 responseSizeLimit = limit ? static_cast<ui64>(*limit) : 100'000;
+
+        context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
+            limit,
+            attributeFilter);
+
+        // Fetch nodes from child nodes table.
+        std::queue<TNodeId> childrenLookupQueue;
+        childrenLookupQueue.push(Id_);
+
+        THashMap<TNodeId, std::vector<NRecords::TChildNode>> nodeIdToChildren;
+        nodeIdToChildren[Id_] = {};
+
+        i64 maxRetrievedDepth = 0;
+
+        // NB: 1 node is root node and it should not count towards the limit.
+        // If the number of nodes in a subtree of certain depth it equal to the limit, then we should
+        // fetch the next layer, so opaques can be set correctly.
+        while (nodeIdToChildren.size() <= responseSizeLimit + 1) {
+            std::vector<TFuture<std::vector<NRecords::TChildNode>>> asyncNextLayer;
+            while (!childrenLookupQueue.empty()) {
+                auto childrenFuture = Transaction_->SelectRows<NRecords::TChildNodeKey>(
+                    {
+                        Format("parent_id = %Qv", childrenLookupQueue.front()),
+                    },
+                    /* orderBy */ {"parent_id", "child_key"});
+
+                childrenLookupQueue.pop();
+                asyncNextLayer.push_back(std::move(childrenFuture));
+            }
+
+            // This means that we finished tree traversal.
+            if (asyncNextLayer.empty()) {
+                break;
+            }
+
+            // This should lead to a retry, but retries are not implemented in Sequoia yet.
+            // TODO(h0pless): Update error once Sequoia retries are implemented.
+            auto currentSubtreeLayerChildren = WaitFor(AllSucceeded(asyncNextLayer))
+                .ValueOrThrow();
+
+            for (const auto& children : currentSubtreeLayerChildren) {
+                for (const auto& child : children) {
+                    nodeIdToChildren[child.Key.ParentId].push_back(child);
+                    nodeIdToChildren[child.ChildId] = {};
+                    childrenLookupQueue.push(child.ChildId);
+                }
+            }
+
+            ++maxRetrievedDepth;
+        }
+
+        // Find all nodes that need to be requested from master cells.
+        THashMap<TCellTag, std::vector<TNodeId>> cellTagToNodeIds;
+        for (const auto& [nodeId, _] : nodeIdToChildren) {
+            auto nodeType = TypeFromId(nodeId);
+            if (IsScalarType(nodeType) || attributeFilter) {
+                cellTagToNodeIds[CellTagFromId(nodeId)].push_back(nodeId);
+            }
+        }
+
+        // Send master requests.
+        std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
+        asyncResults.reserve(cellTagToNodeIds.size());
+        for (const auto& [cellTag, nodeIds] : cellTagToNodeIds) {
+            auto proxy = CreateReadProxyToCell(cellTag);
+            // TODO(h0pless): Create a new type of request to make Get request amplification less drastic (see YT-20911).
+            auto batchReq = proxy.ExecuteBatch();
+
+            for (auto nodeId : nodeIds) {
+                auto masterRequest = TYPathProxy::Get(FromObjectId(nodeId));
+                // NB: When copying only the body of a given request gets copied, header stays intact.
+                // And path or id are stored in the header.
+                masterRequest->CopyFrom(*request);
+                masterRequest->Tag() = nodeId;
+                batchReq->AddRequest(masterRequest);
+            }
+            asyncResults.push_back(batchReq->Invoke());
+        }
+
+        auto results = WaitFor(AllSucceeded(asyncResults))
+            .ValueOrThrow();
+
+        THashMap<TNodeId, TYPathProxy::TRspGetPtr> nodeIdToMasterResponse;
+        nodeIdToMasterResponse.reserve(cellTagToNodeIds.size());
+        for (const auto& batchRsp : results) {
+            // TODO(kvk1920): In case of race between Get(path) and Create(path, force=true)
+            // for the same path we can get an error "no such node".
+            // Retry is needed if a given path still exists.
+            // Since retry mechanism is not implemented yet, this will do for now.
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRsp), "Error getting requsted information from master");
+
+            for (const auto& rspOrError : batchRsp->GetResponses<TYPathProxy::TRspGet>()) {
+                const auto& rsp = rspOrError.Value();
+                auto nodeId = std::any_cast<TNodeId>(rsp->Tag());
+                nodeIdToMasterResponse[nodeId] = rsp;
+            }
+        }
+
+        // Build a DFS over this mess.
+        TStringStream stream;
+        TYsonWriter writer(&stream);
+
+        VisitSequoiaTree(
+            Id_,
+            maxRetrievedDepth,
+            &writer,
+            attributeFilter,
+            std::move(nodeIdToChildren),
+            std::move(nodeIdToMasterResponse));
+
+        writer.Flush();
+
+        response->set_value(stream.Str());
+        context->Reply();
+    }
+
     void SetSelf(TReqSet* request, TRspSet* /*response*/, const TCtxSetPtr& context) override
     {
         bool force = request->force();
@@ -225,15 +347,15 @@ protected:
             THROW_ERROR_EXCEPTION("Remove with \"force\" flag is not supported in Sequoia yet");
         }
 
+        TNodeId parentId;
         TCellTag subtreeRootCell;
         if (TypeFromId(Id_) == EObjectType::Scion) {
             subtreeRootCell = RemoveRootstock();
         } else {
-            auto [parentPath, thisName] = DirNameAndBaseName(Path_);
+            auto [parentPath, _] = DirNameAndBaseName(Path_);
             LockRowInPathToIdTable(parentPath, Transaction_);
 
-            auto parentId = LookupNodeId(parentPath, Transaction_);
-            DetachChild(parentId, thisName, Transaction_);
+            parentId = LookupNodeId(parentPath, Transaction_);
             subtreeRootCell = CellTagFromId(parentId);
         }
 
@@ -248,6 +370,7 @@ protected:
                 Format("path >= %Qv", mangledPath),
                 Format("path <= %Qv", MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(mangledPath)),
             },
+            /* orderBy */ {"path"},
             selectedRowsLimit))
             .ValueOrThrow();
         YT_VERIFY(nodesToRemove.size() >= 1);
@@ -256,9 +379,11 @@ protected:
             THROW_ERROR_EXCEPTION("Cannot remove non-empty composite node");
         }
 
-        for (const auto& node : nodesToRemove) {
-            RemoveNode(node.NodeId, node.Key.Path, Transaction_);
-        }
+        RemoveSelectedSubtree(
+            nodesToRemove,
+            Transaction_,
+            /* removeRoot */ true,
+            parentId);
 
         WaitFor(Transaction_->Commit({
             .CoordinatorCellId = CellIdFromCellTag(subtreeRootCell),
@@ -268,6 +393,18 @@ protected:
             .ThrowOnError();
 
         context->Reply();
+    }
+
+    void GetAttribute(
+        const TYPath& /*path*/,
+        TReqGet* request,
+        TRspGet* response,
+        const TCtxGetPtr& context) override
+    {
+        context->SetRequestInfo();
+        auto newRequest = TYPathProxy::Get();
+        newRequest->CopyFrom(*request);
+        ForwardRequest(std::move(newRequest), response, context);
     }
 
     void SetAttribute(
@@ -295,37 +432,6 @@ protected:
     }
 };
 
-DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Get)
-{
-    // TODO(kvk1920): Optimize.
-    // NB: There are 3 kinds of attributes:
-    //  1. Already known (path, id);
-    //  2. Replicated to Sequoia tables;
-    //  3. Master-only.
-    // If request contains at least 1 attribute of 3d kind we can just redirect
-    // whole request to master.
-
-    // TODO(kvk1920): In case of race between Get(path) and Create(path, force=true)
-    // for the same path we can get an error "no such node".
-    // Retry is needed if a given path still exists.
-
-    auto attributeFilter = request->has_attributes()
-        ? FromProto<TAttributeFilter>(request->attributes())
-        : TAttributeFilter();
-
-    auto limit = request->has_limit()
-        ? std::make_optional(request->limit())
-        : std::nullopt;
-
-    context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
-        limit,
-        attributeFilter);
-
-    auto newRequest = TYPathProxy::Get();
-    newRequest->CopyFrom(*request);
-    ForwardRequest(std::move(newRequest), response, context);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMapLikeNodeProxy
@@ -347,48 +453,6 @@ private:
         return TNodeProxyBase::DoInvoke(context);
     }
 
-    struct TRecursiveCreateResult
-    {
-        TString SubtreeRootKey;
-        TNodeId SubtreeRootId;
-        TNodeId DesignatedNodeId;
-    };
-
-    template <class TCallback>
-    TRecursiveCreateResult CreateRecursive(
-        const TYPath& parentPath,
-        const std::vector<TYPathBuf>& childKeys,
-        const TCallback& createDesignatedNode)
-    {
-        YT_VERIFY(!childKeys.empty());
-        auto designatedPath = JoinNestedNodesToPath(parentPath, childKeys);
-        auto designatedNodeId = createDesignatedNode(designatedPath);
-        auto designatedNodeKey = TYPath(childKeys.back());
-        auto prevNode = std::pair(designatedNodeId, designatedNodeKey);
-        auto nestedPath = TYPathBuf(designatedPath).Chop(designatedNodeKey.size() + 1);
-        for (auto it = std::next(childKeys.rbegin()); it != childKeys.rend(); ++it) {
-            auto key = *it;
-            auto id = Transaction_->GenerateObjectId(
-                EObjectType::SequoiaMapNode,
-                GetRandomSequoiaNodeHostCellTag());
-
-            CreateNode(
-                EObjectType::SequoiaMapNode,
-                id,
-                TYPath(nestedPath),
-                Transaction_);
-            AttachChild(id, prevNode.first, prevNode.second, Transaction_);
-
-            nestedPath.Chop(key.size() + 1);
-            prevNode = std::pair(id, key);
-        }
-        return TRecursiveCreateResult{
-            .SubtreeRootKey = prevNode.second,
-            .SubtreeRootId = prevNode.first,
-            .DesignatedNodeId = designatedNodeId,
-        };
-    }
-
     void ValidateCreateOptions(
         const TCtxCreatePtr& context,
         const TReqCreate* request)
@@ -404,6 +468,8 @@ private:
         }
     }
 
+    // TODO(h0pless): This class can be moved to helpers.
+    // It only uses Owner_->Transaction_, it's safe to change owner's type from proxy to transaction.
     class TTreeBuilder
         : public NYson::TForwardingYsonConsumer
     {
@@ -507,8 +573,7 @@ private:
         std::stack<std::pair<TString, TNodeId>> NodeStack_;
 
         TNodeId CreateNode(EObjectType type) {
-            auto cellTag = Owner_->GetRandomSequoiaNodeHostCellTag();
-            auto nodeId = Owner_->Transaction_->GenerateObjectId(type, cellTag);
+            auto nodeId = Owner_->Transaction_->GenerateObjectId(type);
             NCypressProxy::CreateNode(type, nodeId, Format("%v/%v", ParentPath_, Key_), Owner_->Transaction_);
             return nodeId;
         }
@@ -566,7 +631,8 @@ private:
             ClearRequest_ = RemoveSubtree(
                 Owner_->Path_,
                 Owner_->Transaction_,
-                /*removeRoot*/ false);
+                /*removeRoot*/ false,
+                Owner_->Id_);
         }
 
         void OnMyKeyedItem(TStringBuf key) override
@@ -624,6 +690,31 @@ private:
         context->Reply();
     }
 
+    void GetRecursive(
+        const TYPath& path,
+        TReqGet* request,
+        TRspGet* /*response*/,
+        const TCtxGetPtr& context) override
+    {
+        auto attributeFilter = request->has_attributes()
+            ? FromProto<TAttributeFilter>(request->attributes())
+            : TAttributeFilter();
+
+        auto limit = YT_PROTO_OPTIONAL(*request, limit);
+
+        context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
+            limit,
+            attributeFilter);
+
+        NYPath::TTokenizer tokenizer(path);
+        tokenizer.Advance();
+        tokenizer.Expect(NYPath::ETokenType::Literal);
+
+        // There is no composite node type other than Sequoia map node. If we
+        // have unresolved suffix it can be either attribute or non-existent child.
+        ThrowNoSuchChild(Path_, tokenizer.GetToken());
+    }
+
     void SetRecursive(
         const TYPath& path,
         TReqSet* request,
@@ -634,35 +725,38 @@ private:
         context->SetRequestInfo();
 
         auto unresolvedSuffix = "/" + path;
-        auto pathTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
+        auto destinationPath = Path_ + unresolvedSuffix;
+        auto unresolvedSuffixDirectoryTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
+        auto targetName = unresolvedSuffixDirectoryTokens.back();
+        unresolvedSuffixDirectoryTokens.pop_back();
 
-        if (!request->recursive() && std::ssize(pathTokens) > 1) {
-            ThrowNoSuchChild(Path_, pathTokens[0]);
+        if (!request->recursive() && !unresolvedSuffixDirectoryTokens.empty()) {
+            ThrowNoSuchChild(Path_, unresolvedSuffixDirectoryTokens[0]);
         }
 
-        const auto& parentPath = Path_;
-        auto parentId = Id_;
-
         // Acquire shared lock on parent node.
-        LockRowInPathToIdTable(parentPath, Transaction_);
+        LockRowInPathToIdTable(Path_, Transaction_);
 
-        auto createDesignatedNode = [&] (const TYPath& path) {
-            TTreeBuilder builder(this);
-            builder.BeginTree(path);
-            auto producer = ConvertToProducer(NYson::TYsonString(request->value()));
-            producer.Run(&builder);
-            return builder.EndTree();
-        };
-        auto createResult = CreateRecursive(
-            parentPath,
-            pathTokens,
-            createDesignatedNode);
+        auto targetParentId = CreateIntermediateNodes(
+            Path_,
+            Id_,
+            unresolvedSuffixDirectoryTokens,
+            Transaction_);
 
-        // Attach child on parent cell.
-        AttachChild(parentId, createResult.SubtreeRootId, createResult.SubtreeRootKey, Transaction_);
+        TTreeBuilder builder(this);
+        builder.BeginTree(destinationPath);
+        auto producer = ConvertToProducer(NYson::TYsonString(request->value()));
+        producer.Run(&builder);
+        auto targetNodeId = builder.EndTree();
+
+        AttachChild(
+            targetParentId,
+            targetNodeId,
+            TYPath(targetName),
+            Transaction_);
 
         WaitFor(Transaction_->Commit({
-            .CoordinatorCellId = CellIdFromObjectId(parentId),
+            .CoordinatorCellId = CellIdFromObjectId(Id_),
             .Force2PC = true,
             .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
         }))
@@ -684,9 +778,9 @@ private:
             recursive,
             force);
 
-        TTokenizer tokenizer(path);
+        NYPath::TTokenizer tokenizer(path);
         tokenizer.Advance();
-        tokenizer.Expect(ETokenType::Literal);
+        tokenizer.Expect(NYPath::ETokenType::Literal);
 
         // There is no composite node type other than Sequoia map node. If we
         // have unresolved suffix it can be either attribute or non-existent child.
@@ -736,8 +830,8 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
     }
 
     auto unresolvedSuffix = GetRequestTargetYPath(context->GetRequestHeader());
-    auto pathTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
-    if (pathTokens.empty() && !force) {
+    auto unresolvedSuffixDirectoryTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
+    if (unresolvedSuffixDirectoryTokens.empty() && !force) {
         if (!ignoreExisting) {
             ThrowAlreadyExists(Path_);
         }
@@ -752,41 +846,46 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
         return;
     }
 
-    if (!recursive && std::ssize(pathTokens) > 1) {
-        ThrowNoSuchChild(Path_, pathTokens[0]);
+    if (!recursive && std::ssize(unresolvedSuffixDirectoryTokens) > 1) {
+        ThrowNoSuchChild(Path_, unresolvedSuffixDirectoryTokens[0]);
     }
 
     auto parentPath = Path_;
     auto parentId = Id_;
+    auto requestedChildPath = Path_ + unresolvedSuffix;
 
-    // This should be in the if statement below, but because pathTokens works with TYPathBuf and DirNameAndBaseName returns TString
-    // there is no other option but to create this weird holder.
-    // TODO(h0pless): Fix this weirdness.
-    auto [updatedParentPath, childKeyHolder] = DirNameAndBaseName(Path_);
-    if (pathTokens.empty() && force) {
+    TString targetName;
+    if (unresolvedSuffixDirectoryTokens.empty() && force) {
+        auto [updatedParentPath, updatedTargetName] = DirNameAndBaseName(Path_);
         parentPath = std::move(updatedParentPath);
+        targetName = std::move(updatedTargetName);
+        // TODO(h0pless): Maybe add parentId to resolve result, then it can be passed here to avoid another lookup.
         parentId = LookupNodeId(parentPath, Transaction_);
-        pathTokens.push_back(childKeyHolder);
 
         auto removeFuture = RemoveSubtree(Path_, Transaction_);
         WaitFor(removeFuture)
             .ThrowOnError();
+    } else {
+        targetName = TYPath(unresolvedSuffixDirectoryTokens.back());
+        unresolvedSuffixDirectoryTokens.pop_back();
     }
 
     LockRowInPathToIdTable(parentPath, Transaction_);
 
-    auto createDesignatedNode = [&] (const TYPath& path) {
-        auto id = Transaction_->GenerateObjectId(type, GetRandomSequoiaNodeHostCellTag());
-        CreateNode(type, id, path, Transaction_);
-        return id;
-    };
-    auto createResult = CreateRecursive(
+    auto intermediateParentId = CreateIntermediateNodes(
         parentPath,
-        pathTokens,
-        createDesignatedNode);
+        parentId,
+        unresolvedSuffixDirectoryTokens,
+        Transaction_);
 
-    // Attach child on parent cell.
-    AttachChild(parentId, createResult.SubtreeRootId, createResult.SubtreeRootKey, Transaction_);
+    auto childCellTag = Transaction_->GetRandomSequoiaNodeHostCellTag();
+    auto childId = Transaction_->GenerateObjectId(type, childCellTag);
+    CreateNode(
+        type,
+        childId,
+        requestedChildPath,
+        Transaction_);
+    AttachChild(intermediateParentId, childId, targetName, Transaction_);
 
     WaitFor(Transaction_->Commit({
         .CoordinatorCellId = CellIdFromObjectId(parentId),
@@ -795,8 +894,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
     }))
         .ThrowOnError();
 
-    auto childCellTag = CellTagFromId(createResult.DesignatedNodeId);
-    ToProto(response->mutable_node_id(), createResult.DesignatedNodeId);
+    ToProto(response->mutable_node_id(), childId);
     response->set_cell_tag(ToProto<int>(childCellTag));
     context->Reply();
 }
@@ -807,26 +905,25 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, List)
         ? FromProto<TAttributeFilter>(request->attributes())
         : TAttributeFilter();
 
-    auto limit = request->has_limit()
-        ? std::make_optional(request->limit())
-        : std::nullopt;
+    auto limit = YT_PROTO_OPTIONAL(*request, limit);
 
     context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
         limit,
         attributeFilter);
 
     auto unresolvedSuffix = GetRequestTargetYPath(context->GetRequestHeader());
-    if (auto pathTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
-        !pathTokens.empty())
+    if (auto unresolvedSuffixDirectoryTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
+        !unresolvedSuffixDirectoryTokens.empty())
     {
-        ThrowNoSuchChild(Path_, pathTokens[0]);
+        ThrowNoSuchChild(Path_, unresolvedSuffixDirectoryTokens[0]);
     }
 
     LockRowInPathToIdTable(Path_, Transaction_);
     auto selectRows = WaitFor(Transaction_->SelectRows<NRecords::TChildNodeKey>(
         {
-            Format("parent_path = %Qv", MangleSequoiaPath(Path_)),
+            Format("parent_id = %Qv", Id_),
         },
+        /* orderBy */ {"parent_id", "child_key"},
         limit))
         .ValueOrThrow();
 
@@ -911,14 +1008,14 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Copy)
     // NB: Rewriting in case there were symlinks in the original source path.
     const auto& sourceRootPath = payload->ResolvedPrefix;
     if (!payload->UnresolvedSuffix.empty()) {
-        auto unresolvedPathTokens = TokenizeUnresolvedSuffix(payload->UnresolvedSuffix);
-        ThrowNoSuchChild(sourceRootPath, unresolvedPathTokens[0]);
+        auto unresolvedSuffixDirectoryTokens = TokenizeUnresolvedSuffix(payload->UnresolvedSuffix);
+        ThrowNoSuchChild(sourceRootPath, unresolvedSuffixDirectoryTokens[0]);
     }
 
     // Validate there are no duplicate or missing destination nodes.
     auto unresolvedDestinationSuffix = GetRequestTargetYPath(context->GetRequestHeader());
-    auto destinationPathTokens = TokenizeUnresolvedSuffix(unresolvedDestinationSuffix);
-    if (destinationPathTokens.empty() && !force) {
+    auto destinationSuffixDirectoryTokens = TokenizeUnresolvedSuffix(unresolvedDestinationSuffix);
+    if (destinationSuffixDirectoryTokens.empty() && !force) {
         if (!ignoreExisting) {
             ThrowAlreadyExists(Path_);
         }
@@ -932,39 +1029,35 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Copy)
         return;
     }
 
-    if (!recursive && std::ssize(destinationPathTokens) > 1) {
-        ThrowNoSuchChild(Path_, destinationPathTokens[0]);
+    if (!recursive && std::ssize(destinationSuffixDirectoryTokens) > 1) {
+        ThrowNoSuchChild(Path_, destinationSuffixDirectoryTokens[0]);
     }
 
     auto nodesToCopy = SelectSubtree(sourceRootPath, Transaction_);
     auto destinationRootPath = Path_ + unresolvedDestinationSuffix;
     auto parentPath = Path_;
     auto parentId = Id_;
+    TString targetName;
 
-    auto overwriteDestinationSubtree = destinationPathTokens.empty() && force;
-    // Same weirdness as the above. See Create.
-    auto [updatedParentPath, childKey] = DirNameAndBaseName(Path_);
+    auto overwriteDestinationSubtree = destinationSuffixDirectoryTokens.empty() && force;
     if (overwriteDestinationSubtree) {
+        auto [updatedParentPath, updatedTargetName] = DirNameAndBaseName(Path_);
         parentPath = std::move(updatedParentPath);
+        targetName = std::move(updatedTargetName);
         parentId = LookupNodeId(parentPath, Transaction_);
-        DetachChild(parentId, childKey, Transaction_);
-        destinationPathTokens.push_back(childKey);
-    }
-
-    if (options.Mode == ENodeCloneMode::Move) {
-        auto [sourceParentPath, sourceRootKey] = DirNameAndBaseName(sourceRootPath);
-        auto sourceParentId = LookupNodeId(sourceParentPath, Transaction_);
-        DetachChild(sourceParentId, sourceRootKey, Transaction_);
+    } else {
+        targetName = destinationSuffixDirectoryTokens.back();
+        destinationSuffixDirectoryTokens.pop_back();
     }
 
     std::vector<NRecords::TPathToNodeId> nodesToRemove;
     if (overwriteDestinationSubtree) {
         nodesToRemove = SelectSubtree(destinationRootPath, Transaction_);
-        for (auto nodeToRemove : nodesToRemove) {
-            // NB: Calling DelteRow and WriteRow under one transaction does not lead to conflict.
-            // NB: It's fine to call RemoveNode early, since actions will be sorted in sequoia transaction.
-            RemoveNode(nodeToRemove.NodeId, nodeToRemove.Key.Path, Transaction_);
-        }
+        RemoveSelectedSubtree(
+            nodesToRemove,
+            Transaction_,
+            /* removeRoot */ true,
+            parentId);
     }
 
     // Select returns sorted entries and destination subtree cannot include source subtree.
@@ -974,26 +1067,21 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Copy)
         sourceRootPath < DemangleSequoiaPath(nodesToRemove.front().Key.Path) ||
         DemangleSequoiaPath(nodesToRemove.back().Key.Path) < sourceRootPath))
     {
-        for (auto nodesToCopy : nodesToCopy) {
-            // NB: It's fine to call RemoveNode early, since actions will be sorted in sequoia transaction.
-            RemoveNode(nodesToCopy.NodeId, nodesToCopy.Key.Path, Transaction_);
-        }
+        // TODO(h0pless): Maybe add parentId to resolve result, then it can be passed here to avoid another lookup.
+        RemoveSelectedSubtree(nodesToCopy, Transaction_);
     }
 
     LockRowInPathToIdTable(parentPath, Transaction_);
 
+    auto bottommostCreatedNodeId = CreateIntermediateNodes(
+        parentPath,
+        parentId,
+        destinationSuffixDirectoryTokens,
+        Transaction_);
+
     auto destinationId = CopySubtree(nodesToCopy, sourceRootPath, destinationRootPath, options, Transaction_);
 
-    // Designated node is cloned source root node. It has already been created and it's ID is known, yet it hasn't been attached.
-    auto getDesignatedNodeId = [&] (const TYPath& path) {
-        YT_VERIFY(path == destinationRootPath);
-        return destinationId;
-    };
-    auto createResult = CreateRecursive(
-        parentPath,
-        destinationPathTokens,
-        getDesignatedNodeId);
-    AttachChild(parentId, createResult.SubtreeRootId, createResult.SubtreeRootKey, Transaction_);
+    AttachChild(bottommostCreatedNodeId, destinationId, targetName, Transaction_);
 
     WaitFor(Transaction_->Commit({
         .CoordinatorCellId = CellIdFromObjectId(parentId),

@@ -54,6 +54,7 @@ public:
     TFuture<NApi::TSelectRowsResult> SelectRows(
         ESequoiaTable table,
         const std::vector<TString>& whereConjuncts,
+        const std::vector<TString>& orderByExpressions,
         std::optional<i64> limit,
         NTransactionClient::TTimestamp timestamp) override
     {
@@ -63,6 +64,9 @@ public:
         builder.AddSelectExpression("*");
         for (const auto& whereConjunct : whereConjuncts) {
             builder.AddWhereConjunct(whereConjunct);
+        }
+        for (const auto& orderByExpression : orderByExpressions) {
+            builder.AddOrderByExpression(orderByExpression);
         }
         if (limit) {
             builder.SetLimit(*limit);

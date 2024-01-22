@@ -30,11 +30,13 @@ struct ISequoiaTransaction
     virtual TFuture<NApi::TSelectRowsResult> SelectRows(
         ESequoiaTable table,
         const std::vector<TString>& whereConjuncts,
+        const std::vector<TString>& orderByExpressions,
         std::optional<i64> limit) = 0;
 
     template <class TRecordKey>
     TFuture<std::vector<typename TRecordKey::TRecordDescriptor::TRecord>> SelectRows(
         const std::vector<TString>& whereConjunts,
+        const std::vector<TString>& orderByExpressions = {},
         std::optional<i64> limit = std::nullopt);
 
     virtual void DatalessLockRow(
@@ -83,8 +85,10 @@ struct ISequoiaTransaction
 
     virtual NObjectClient::TObjectId GenerateObjectId(
         NObjectClient::EObjectType objectType,
-        NObjectClient::TCellTag cellTag,
+        NObjectClient::TCellTag cellTag = NObjectClient::InvalidCellTag,
         bool sequoia = true) = 0;
+
+    virtual NObjectClient::TCellTag GetRandomSequoiaNodeHostCellTag() const = 0;
 
     virtual const NTableClient::TRowBufferPtr& GetRowBuffer() const = 0;
     virtual const ISequoiaClientPtr& GetClient() const = 0;

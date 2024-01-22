@@ -44,10 +44,11 @@ public:
     virtual TFuture<NApi::TSelectRowsResult> SelectRows(
         ESequoiaTable table,
         const std::vector<TString>& whereConjuncts,
+        const std::vector<TString>& orderByExpressions,
         std::optional<i64> limit,
         NTransactionClient::TTimestamp timestamp) override
     {
-        FORWARD_METHOD(SelectRows, (table, whereConjuncts, limit, timestamp))
+        FORWARD_METHOD(SelectRows, (table, whereConjuncts, orderByExpressions, limit, timestamp))
     }
 
     virtual TFuture<ISequoiaTransactionPtr> StartTransaction(

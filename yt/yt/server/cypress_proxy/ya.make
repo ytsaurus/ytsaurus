@@ -14,6 +14,7 @@ SRCS(
     program.cpp
     rootstock_proxy.cpp
     sequoia_service.cpp
+    sequoia_tree_visitor.cpp
 )
 
 PEERDIR(

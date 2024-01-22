@@ -48,13 +48,6 @@ void WriteSequoiaNodeRows(
         .Key = {.NodeId = id},
         .Path = path,
     });
-    transaction->WriteRow(NRecords::TChildNode{
-        .Key = {
-            .ParentPath = MangleSequoiaPath(parentPath),
-            .ChildKey = ToStringLiteral(childKey),
-        },
-        .ChildId = id,
-    });
 }
 
 void DeleteSequoiaNodeRows(
@@ -73,15 +66,6 @@ void DeleteSequoiaNodeRows(
     transaction->DeleteRow(NRecords::TNodeIdToPathKey{
         .NodeId = id,
     });
-
-    if (TypeFromId(id) != EObjectType::Scion) {
-        // Remove from child table.
-        auto [parentPath, childKey] = DirNameAndBaseName(DemangleSequoiaPath(path));
-        transaction->DeleteRow(NRecords::TChildNodeKey{
-            .ParentPath = MangleSequoiaPath(parentPath),
-            .ChildKey = ToStringLiteral(childKey),
-        });
-    }
 }
 
 void SetNode(
@@ -141,16 +125,16 @@ TNodeId CopyNode(
 }
 
 void RemoveNode(
-    TNodeId nodeId,
+    TNodeId id,
     const TMangledSequoiaPath& path,
     const ISequoiaTransactionPtr& transaction)
 {
-    DeleteSequoiaNodeRows(nodeId, path, transaction);
+    DeleteSequoiaNodeRows(id, path, transaction);
 
     NCypressServer::NProto::TReqRemoveNode reqRemoveNode;
-    ToProto(reqRemoveNode.mutable_node_id(), nodeId);
+    ToProto(reqRemoveNode.mutable_node_id(), id);
     transaction->AddTransactionAction(
-        CellTagFromId(nodeId),
+        CellTagFromId(id),
         MakeTransactionActionData(reqRemoveNode));
 }
 
@@ -160,6 +144,14 @@ void AttachChild(
     const TYPath& childKey,
     const ISequoiaTransactionPtr& transaction)
 {
+    transaction->WriteRow(NRecords::TChildNode{
+        .Key = {
+            .ParentId = parentId,
+            .ChildKey = ToStringLiteral(childKey),
+        },
+        .ChildId = childId,
+    });
+
     NCypressServer::NProto::TReqAttachChild attachChildRequest;
     ToProto(attachChildRequest.mutable_parent_id(), parentId);
     ToProto(attachChildRequest.mutable_child_id(), childId);
@@ -172,9 +164,14 @@ void DetachChild(
     const TString& childKey,
     const ISequoiaTransactionPtr& transaction)
 {
+    transaction->DeleteRow(NRecords::TChildNodeKey{
+        .ParentId = parentId,
+        .ChildKey = ToStringLiteral(childKey),
+    });
+
     NCypressServer::NProto::TReqDetachChild reqDetachChild;
     ToProto(reqDetachChild.mutable_parent_id(), parentId);
-    reqDetachChild.set_key(childKey);
+    reqDetachChild.set_key(ToStringLiteral(childKey));
     transaction->AddTransactionAction(
         CellTagFromId(parentId),
         MakeTransactionActionData(reqDetachChild));

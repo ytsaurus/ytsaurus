@@ -513,6 +513,8 @@ public:
 
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
+
+    void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
