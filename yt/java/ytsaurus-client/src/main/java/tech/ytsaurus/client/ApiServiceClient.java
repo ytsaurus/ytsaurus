@@ -33,6 +33,7 @@ import tech.ytsaurus.client.request.ListJobsResult;
 import tech.ytsaurus.client.request.LookupRowsRequest;
 import tech.ytsaurus.client.request.MountTable;
 import tech.ytsaurus.client.request.PingTransaction;
+import tech.ytsaurus.client.request.PullConsumer;
 import tech.ytsaurus.client.request.RemountTable;
 import tech.ytsaurus.client.request.ReshardTable;
 import tech.ytsaurus.client.request.ResumeOperation;
@@ -44,6 +45,7 @@ import tech.ytsaurus.client.request.UnfreezeTable;
 import tech.ytsaurus.client.request.UnmountTable;
 import tech.ytsaurus.client.request.UpdateOperationParameters;
 import tech.ytsaurus.client.rows.ConsumerSource;
+import tech.ytsaurus.client.rows.QueueRowset;
 import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rows.VersionedRowset;
 import tech.ytsaurus.core.GUID;
@@ -304,6 +306,8 @@ public interface ApiServiceClient extends TransactionalClient {
     );
 
     CompletableFuture<Void> alterTableReplica(AlterTableReplica req);
+
+    CompletableFuture<QueueRowset> pullConsumer(PullConsumer req);
 
     CompletableFuture<YTreeNode> getOperation(GetOperation req);
 

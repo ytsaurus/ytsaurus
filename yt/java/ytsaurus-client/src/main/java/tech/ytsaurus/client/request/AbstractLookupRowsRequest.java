@@ -38,6 +38,8 @@ public abstract class AbstractLookupRowsRequest<
     protected final YtTimestamp timestamp;
     @Nullable
     protected final YtTimestamp retentionTimestamp;
+    @Nullable
+    protected final ReplicaConsistency replicaConsistency;
 
     // NB. Java default of keepMissingRows is different from YT default for historical reasons,
     // now we have to keep backward compatibility.
@@ -54,6 +56,7 @@ public abstract class AbstractLookupRowsRequest<
         this.timestamp = builder.timestamp;
         this.retentionTimestamp = builder.retentionTimestamp;
         this.keepMissingRows = builder.keepMissingRows;
+        this.replicaConsistency = builder.replicaConsistency;
     }
 
     /**
@@ -99,6 +102,15 @@ public abstract class AbstractLookupRowsRequest<
      */
     public Optional<YtTimestamp> getRetentionTimestamp() {
         return Optional.ofNullable(retentionTimestamp);
+    }
+
+    /**
+     * Get replica-consistency parameter.
+     *
+     * @see Builder#setReplicaConsistency(ReplicaConsistency)
+     */
+    public Optional<ReplicaConsistency> getReplicaConsistency() {
+        return Optional.ofNullable(replicaConsistency);
     }
 
     /**
@@ -149,6 +161,9 @@ public abstract class AbstractLookupRowsRequest<
                 }
                 if (getRetentionTimestamp().isPresent()) {
                     builder.body().setRetentionTimestamp(getRetentionTimestamp().get().getValue());
+                }
+                if (getReplicaConsistency().isPresent()) {
+                    builder.body().setReplicaConsistency(getReplicaConsistency().get().getProtoValue());
                 }
                 builder.body().setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(getSchema()));
                 serializeRowsetTo(builder.attachments());
@@ -205,6 +220,8 @@ public abstract class AbstractLookupRowsRequest<
         private YtTimestamp timestamp;
         @Nullable
         private YtTimestamp retentionTimestamp;
+        @Nullable
+        private ReplicaConsistency replicaConsistency;
         // NB. Java default of keepMissingRows is different from YT default for historical reasons,
         // now we have to keep backward compatibility.
         private boolean keepMissingRows = false;
@@ -265,6 +282,14 @@ public abstract class AbstractLookupRowsRequest<
          */
         public TBuilder setRetentionTimestamp(@Nullable YtTimestamp retentionTimestamp) {
             this.retentionTimestamp = retentionTimestamp;
+            return self();
+        }
+
+        /**
+         * Set requested read consistency for chaos replicas.
+         */
+        public TBuilder setReplicaConsistency(@Nullable ReplicaConsistency replicaConsistency) {
+            this.replicaConsistency = replicaConsistency;
             return self();
         }
 
@@ -332,6 +357,15 @@ public abstract class AbstractLookupRowsRequest<
          */
         public Optional<YtTimestamp> getRetentionTimestamp() {
             return Optional.ofNullable(retentionTimestamp);
+        }
+
+        /**
+         * Get value of requested read consistency for chaos replicas.
+         *
+         * @see #setReplicaConsistency
+         */
+        public Optional<ReplicaConsistency> getReplicaConsistency() {
+            return Optional.ofNullable(replicaConsistency);
         }
 
         /**

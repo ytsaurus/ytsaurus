@@ -76,6 +76,7 @@ import tech.ytsaurus.client.request.MutateNode;
 import tech.ytsaurus.client.request.MutatingOptions;
 import tech.ytsaurus.client.request.PartitionTables;
 import tech.ytsaurus.client.request.PingTransaction;
+import tech.ytsaurus.client.request.PullConsumer;
 import tech.ytsaurus.client.request.PutFileToCache;
 import tech.ytsaurus.client.request.PutFileToCacheResult;
 import tech.ytsaurus.client.request.ReadFile;
@@ -107,6 +108,7 @@ import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.rows.ConsumerSource;
 import tech.ytsaurus.client.rows.ConsumerSourceRet;
 import tech.ytsaurus.client.rows.EntitySkiffSerializer;
+import tech.ytsaurus.client.rows.QueueRowset;
 import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rows.VersionedRowset;
 import tech.ytsaurus.client.rpc.RpcClient;
@@ -1033,6 +1035,20 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         return RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.PUT_FILE_TO_CACHE.createRequestBuilder(rpcOptions)),
                 response -> new PutFileToCacheResult(YPath.simple(response.body().getResult().getPath())));
+    }
+
+    @Override
+    public CompletableFuture<QueueRowset> pullConsumer(PullConsumer req) {
+        return RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.PULL_CONSUMER.createRequestBuilder(rpcOptions)),
+                response -> new QueueRowset(
+                        ApiServiceUtil.deserializeUnversionedRowset(
+                                response.body().getRowsetDescriptor(),
+                                response.attachments()
+                        ),
+                        response.body().getStartOffset()
+                )
+        );
     }
 
     @Override

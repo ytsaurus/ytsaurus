@@ -39,6 +39,8 @@ public class SelectRowsRequest
     private final Long rangeExpansionLimit;
     @Nullable
     private final Boolean useCanonicalNullRelations;
+    @Nullable
+    private final ReplicaConsistency replicaConsistency;
 
     public SelectRowsRequest(BuilderBase<?> builder) {
         super(builder);
@@ -55,6 +57,7 @@ public class SelectRowsRequest
         this.allowFullScan = builder.allowFullScan;
         this.rangeExpansionLimit = builder.rangeExpansionLimit;
         this.useCanonicalNullRelations = builder.useCanonicalNullRelations;
+        this.replicaConsistency = builder.replicaConsistency;
     }
 
     private SelectRowsRequest(String query) {
@@ -121,6 +124,10 @@ public class SelectRowsRequest
         return Optional.ofNullable(useCanonicalNullRelations);
     }
 
+    public Optional<ReplicaConsistency> getReplicaConsistency() {
+        return Optional.ofNullable(replicaConsistency);
+    }
+
     /**
      * Internal method: prepare request to send over network.
      */
@@ -162,6 +169,9 @@ public class SelectRowsRequest
         }
         if (getUseCanonicalNullRelations().isPresent()) {
             builder.body().setUseCanonicalNullRelations(getUseCanonicalNullRelations().get());
+        }
+        if (getReplicaConsistency().isPresent()) {
+            builder.body().setReplicaConsistency(getReplicaConsistency().get().getProtoValue());
         }
     }
 
@@ -216,6 +226,9 @@ public class SelectRowsRequest
         if (useCanonicalNullRelations != null) {
             builder.setUseCanonicalNullRelations(useCanonicalNullRelations);
         }
+        if (replicaConsistency != null) {
+            builder.setReplicaConsistency(replicaConsistency);
+        }
         return builder;
     }
 
@@ -255,6 +268,8 @@ public class SelectRowsRequest
         private Long rangeExpansionLimit;
         @Nullable
         private Boolean useCanonicalNullRelations;
+        @Nullable
+        private ReplicaConsistency replicaConsistency;
 
         public BuilderBase() {
         }
@@ -274,6 +289,7 @@ public class SelectRowsRequest
             allowFullScan = builder.allowFullScan;
             rangeExpansionLimit = builder.rangeExpansionLimit;
             useCanonicalNullRelations = builder.useCanonicalNullRelations;
+            replicaConsistency = builder.replicaConsistency;
         }
 
         public TBuilder setQuery(String query) {
@@ -341,6 +357,11 @@ public class SelectRowsRequest
             return self();
         }
 
+        public TBuilder setReplicaConsistency(ReplicaConsistency replicaConsistency) {
+            this.replicaConsistency = replicaConsistency;
+            return self();
+        }
+
         public String getQuery() {
             return Objects.requireNonNull(query);
         }
@@ -391,6 +412,10 @@ public class SelectRowsRequest
 
         public Optional<Boolean> getUseCanonicalNullRelations() {
             return Optional.ofNullable(useCanonicalNullRelations);
+        }
+
+        public Optional<ReplicaConsistency> getReplicaConsistency() {
+            return Optional.ofNullable(replicaConsistency);
         }
 
         @Override

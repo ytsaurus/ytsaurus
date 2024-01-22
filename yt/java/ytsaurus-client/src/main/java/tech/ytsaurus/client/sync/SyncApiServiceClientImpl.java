@@ -29,6 +29,7 @@ import tech.ytsaurus.client.request.ListJobs;
 import tech.ytsaurus.client.request.ListJobsResult;
 import tech.ytsaurus.client.request.MountTable;
 import tech.ytsaurus.client.request.PingTransaction;
+import tech.ytsaurus.client.request.PullConsumer;
 import tech.ytsaurus.client.request.RemountTable;
 import tech.ytsaurus.client.request.ReshardTable;
 import tech.ytsaurus.client.request.ResumeOperation;
@@ -40,6 +41,7 @@ import tech.ytsaurus.client.request.UnfreezeTable;
 import tech.ytsaurus.client.request.UnmountTable;
 import tech.ytsaurus.client.request.UpdateOperationParameters;
 import tech.ytsaurus.client.rows.ConsumerSource;
+import tech.ytsaurus.client.rows.QueueRowset;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.YtTimestamp;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
@@ -226,5 +228,10 @@ class SyncApiServiceClientImpl
     @Override
     public void updateOperationParameters(UpdateOperationParameters req) {
         client.updateOperationParameters(req).join();
+    }
+
+    @Override
+    public QueueRowset pullConsumer(PullConsumer req) {
+        return client.pullConsumer(req).join();
     }
 }

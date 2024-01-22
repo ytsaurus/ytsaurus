@@ -55,6 +55,7 @@ import tech.ytsaurus.client.request.MoveNode;
 import tech.ytsaurus.client.request.MultiTablePartition;
 import tech.ytsaurus.client.request.PartitionTables;
 import tech.ytsaurus.client.request.PingTransaction;
+import tech.ytsaurus.client.request.PullConsumer;
 import tech.ytsaurus.client.request.PutFileToCache;
 import tech.ytsaurus.client.request.PutFileToCacheResult;
 import tech.ytsaurus.client.request.ReadFile;
@@ -80,6 +81,7 @@ import tech.ytsaurus.client.request.VanillaOperation;
 import tech.ytsaurus.client.request.WriteFile;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.rows.ConsumerSource;
+import tech.ytsaurus.client.rows.QueueRowset;
 import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rows.VersionedRowset;
 import tech.ytsaurus.core.GUID;
@@ -247,6 +249,11 @@ public class MockYTsaurusClient implements BaseYTsaurusClient {
     @Override
     public CompletableFuture<List<MultiTablePartition>> partitionTables(PartitionTables req) {
         return (CompletableFuture<List<MultiTablePartition>>) callMethod("partitionTables");
+    }
+
+    @Override
+    public CompletableFuture<QueueRowset> pullConsumer(PullConsumer req) {
+        return (CompletableFuture<QueueRowset>) callMethod("pullConsumer");
     }
 
     @Override

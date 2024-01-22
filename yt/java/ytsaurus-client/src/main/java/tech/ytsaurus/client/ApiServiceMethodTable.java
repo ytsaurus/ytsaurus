@@ -44,6 +44,7 @@ import tech.ytsaurus.rpcproxy.TReqMountTable;
 import tech.ytsaurus.rpcproxy.TReqMoveNode;
 import tech.ytsaurus.rpcproxy.TReqPartitionTables;
 import tech.ytsaurus.rpcproxy.TReqPingTransaction;
+import tech.ytsaurus.rpcproxy.TReqPullConsumer;
 import tech.ytsaurus.rpcproxy.TReqPutFileToCache;
 import tech.ytsaurus.rpcproxy.TReqReadFile;
 import tech.ytsaurus.rpcproxy.TReqReadTable;
@@ -99,6 +100,7 @@ import tech.ytsaurus.rpcproxy.TRspMountTable;
 import tech.ytsaurus.rpcproxy.TRspMoveNode;
 import tech.ytsaurus.rpcproxy.TRspPartitionTables;
 import tech.ytsaurus.rpcproxy.TRspPingTransaction;
+import tech.ytsaurus.rpcproxy.TRspPullConsumer;
 import tech.ytsaurus.rpcproxy.TRspPutFileToCache;
 import tech.ytsaurus.rpcproxy.TRspReadFile;
 import tech.ytsaurus.rpcproxy.TRspReadTable;
@@ -274,6 +276,9 @@ public class ApiServiceMethodTable {
     public static final RpcMethodDescriptor<TReqCheckClusterLiveness.Builder, TRspCheckClusterLiveness>
             CHECK_CLUSTER_LIVENESS = apiServiceMethod(
             "CheckClusterLiveness", TReqCheckClusterLiveness::newBuilder, TRspCheckClusterLiveness.parser());
+
+    public static final RpcMethodDescriptor<TReqPullConsumer.Builder, TRspPullConsumer> PULL_CONSUMER =
+            apiServiceMethod("PullConsumer", TReqPullConsumer::newBuilder, TRspPullConsumer.parser());
 
     public static final RpcMethodDescriptor<TReqReadTable.Builder, TRspReadTable> READ_TABLE =
             apiServiceMethod("ReadTable", TReqReadTable::newBuilder, TRspReadTable.parser());
