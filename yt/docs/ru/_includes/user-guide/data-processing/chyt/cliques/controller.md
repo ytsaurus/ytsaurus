@@ -129,7 +129,7 @@ yt clickhouse ctl set-option chyt_version '"stable-2.08"'
 
 Опциональный аргумент `--alias <alias>` задает алиас клики, к которой необходимо применить изменения. Данный аргумент может быть опущен, в таком случае его значение будет взято из переменной окружения `CHYT_ALIAS`. Если и оно пусто, то будет возвращена ошибка.
 
-Все выставленные опции можно посмотреть с помощью команды [get-speclet](#get-speclet). Описание всех доступных опций приведено в разделе [Конфигурация](../reference/configuration.md#options).
+Все выставленные опции можно посмотреть с помощью команды [get-speclet](#get-speclet). Описание всех доступных опций приведено в разделе [Конфигурация](../../../../../user-guide/data-processing/chyt/reference/configuration.md#options).
 
 ### Remove-option { #remove_option }
 
@@ -185,5 +185,5 @@ $ yt clickhouse ctl start test_clique_name
 
 ## Доступные опции { #options }
 
-Опции клики, доступные для установки через команду `set-option`, можно посмотреть в разделе [Конфигурация](../reference/configuration.md#options).
+Опции клики, доступные для установки через команду `set-option`, можно посмотреть в разделе [Конфигурация](../../../../../user-guide/data-processing/chyt/reference/configuration.md#options).
 

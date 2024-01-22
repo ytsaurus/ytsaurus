@@ -306,7 +306,7 @@ yt merge --src _table --dst _table --spec '{job_io = {table_writer = {desired_ch
 ------
 #### **Q: При работе джобов, написанных с использованием пакета ytsaurus-client, возникает ошибка "Unicode symbols above 255 are not supported". Что делать?**
 
-**A:** Следует прочитать в разделе [Форматы](../../user-guide/storage/formats#json) про формат JSON. Можно либо отказаться от использования JSON в пользу [YSON](../../user-guide/storage/formats#yson), либо указать `encode_utf8=false`.
+**A:** Следует прочитать в разделе [Форматы](../../../user-guide/storage/formats.md#json) про формат JSON. Можно либо отказаться от использования JSON в пользу [YSON](../../../user-guide/storage/formats.md#yson), либо указать `encode_utf8=false`.
 
 
 

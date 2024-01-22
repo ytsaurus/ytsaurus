@@ -187,4 +187,4 @@ FROM concatYtTables("//home/dev/username/t0", "//home/dev/username/t1");
 
 {% endnote %}
 
-По умолчанию, если попробовать прочитать динамическую таблицу без атрибута `enable_dynamic_store_read = %true`, запрос завершится ошибкой. Если действительно нужны данные только из chunk stores (с отставанием на десятки минут), то можно установить настройку `chyt.dynamic_table.enable_dynamic_store_read` в значение `0`, после чего CHYT форсированно начнет читать только chunk stores (смотрите страницу с [настройками запросов](../../../../user-guide/data-processing/chyt/reference/settings.md).
+По умолчанию, если попробовать прочитать динамическую таблицу без атрибута `enable_dynamic_store_read = %true`, запрос завершится ошибкой. Если действительно нужны данные только из chunk stores (с отставанием на десятки минут), то можно установить настройку `chyt.dynamic_table.enable_dynamic_store_read` в значение `0`, после чего CHYT форсированно начнет читать только chunk stores (смотрите страницу с [настройками запросов](../../../../user-guide/data-processing/chyt/reference/settings.md)).

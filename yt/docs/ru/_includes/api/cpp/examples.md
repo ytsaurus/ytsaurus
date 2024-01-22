@@ -1,6 +1,6 @@
 # Примеры использования
 
-Перед запуском примеров необходимо получить [YT-токен](../../user-guide/storage/auth.md).
+Перед запуском примеров необходимо получить [YT-токен](../../../user-guide/storage/auth.md).
 
 Запускать примеры нужно из-под `Linux` без аргументов.
 
@@ -13,7 +13,7 @@ ya make
 
 Рекомендуется установить уровень логирования в `INFO` или `DEBUG`, тогда программы будут выводить ссылки на веб-интерфейс, где можно следить за выполнением операций.
 
-Уровень логирования устанавливается с помощью переменной окружения такой командой (см. так же [документацию](../../api/cpp/description.md#logging)):
+Уровень логирования устанавливается с помощью переменной окружения такой командой (см. так же [документацию](../../../api/cpp/description.md#logging)):
 
 ```bash
 export YT_LOG_LEVEL=INFO
@@ -37,7 +37,7 @@ export YT_LOG_LEVEL=INFO
 
 ### Простой Map (Protobuf-версия)
 
-Если известно, как устроена таблица, то может быть удобно воспользоваться форматом [Protobuf](../../api/cpp/protobuf.md), который:
+Если известно, как устроена таблица, то может быть удобно воспользоваться форматом [Protobuf](../../../api/cpp/protobuf.md), который:
 
 - несколько быстрее;
 - помогает избежать опечаток в названиях колонок и проверит работу с типами.
@@ -96,7 +96,7 @@ export YT_LOG_LEVEL=INFO
  {% endnote %}
 
 
-[Reducer](../../user-guide/data-processing/operations/reduce.md) пишется естественным образом.
+[Reducer](../../../user-guide/data-processing/operations/reduce.md) пишется естественным образом.
 
 {% code '/yt/cpp/mapreduce/examples/tutorial/protobuf_complex_types/main.cpp' lang='c++' %}
 
@@ -144,7 +144,7 @@ export YT_LOG_LEVEL=INFO
 
 ### Чтение и запись таблиц
 
-{{product-name}} позволяет писать в таблицы и дописывать данные в них. По чтению таблиц тоже есть несколько режимов: можно читать как всю таблицу, так и отдельные диапазоны по номеру строки или ключу. См. также разделы про [чтение и запись данных](../../user-guide/storage/formats.md#table_data) и [таблицы](../../user-guide/storage/objects.md#tables).
+{{product-name}} позволяет писать в таблицы и дописывать данные в них. По чтению таблиц тоже есть несколько режимов: можно читать как всю таблицу, так и отдельные диапазоны по номеру строки или ключу. См. также разделы про [чтение и запись данных](../../../user-guide/storage/formats.md#table_data) и [таблицы](../../../user-guide/storage/objects.md#tables).
 
 Пример лежит в [yt/cpp/mapreduce/examples/tutorial/table_read_write_tnode]({{source-root}}/yt/cpp/mapreduce/examples/tutorial/table_read_write_tnode).
 
@@ -160,7 +160,7 @@ export YT_LOG_LEVEL=INFO
 
 ### Операция MapReduce (Protobuf-версия)
 
-В {{product-name}} есть слитная операция [MapReduce](../../user-guide/data-processing/operations/mapreduce.md), которая работает несколько быстрее нежели [Map](../../user-guide/data-processing/operations/map.md) + [Sort](../../user-guide/data-processing/operations/sort.md) + [Reduce](../../user-guide/data-processing/operations/reduce.md). Чтобы по таблице с пользователями ещё раз посчитать статистику, сколько раз встречается то или иное имя, перед подсчётом нормализируем имена, приведя их к нижнему регистру. Это нужно, чтобы люди с именами `АРКАДИЙ` и `Аркадий` считались как одно.
+В {{product-name}} есть слитная операция [MapReduce](../../../user-guide/data-processing/operations/mapreduce.md), которая работает несколько быстрее нежели [Map](../../../user-guide/data-processing/operations/map.md) + [Sort](../../../user-guide/data-processing/operations/sort.md) + [Reduce](../../../user-guide/data-processing/operations/reduce.md). Чтобы по таблице с пользователями ещё раз посчитать статистику, сколько раз встречается то или иное имя, перед подсчётом нормализируем имена, приведя их к нижнему регистру. Это нужно, чтобы люди с именами `АРКАДИЙ` и `Аркадий` считались как одно.
 
 Пример лежит в [yt/cpp/mapreduce/examples/tutorial/mapreduce_protobuf]({{source-root}}/yt/cpp/mapreduce/examples/tutorial/mapreduce_protobuf).
 
@@ -176,7 +176,7 @@ export YT_LOG_LEVEL=INFO
 
 ### Подготовка операции в классе джоба { #prepare_operation }
 
-Есть возможность настраивать параметры операции, перегружая метод `IJob::PrepareOperation`, подробности см. в разделе [Описание](../../api/cpp/description.md#prepare_operation).
+Есть возможность настраивать параметры операции, перегружая метод `IJob::PrepareOperation`, подробности см. в разделе [Описание](../../../api/cpp/description.md#prepare_operation).
 
 {% code '/yt/cpp/mapreduce/examples/tutorial/prepare_operation/grepper.proto' lang='protobuf' %}
 
@@ -232,7 +232,7 @@ export YT_LOG_LEVEL=INFO
 
 ### Базовая работа с динамическими таблицами
 
-{{product-name}} поддерживает [динамические таблицы](../../user-guide/dynamic-tables/overview.md). Wrapper С++ предоставляет возможность совершать базовые операции с такими таблицами.
+{{product-name}} поддерживает [динамические таблицы](../../../user-guide/dynamic-tables/overview.md). Wrapper С++ предоставляет возможность совершать базовые операции с такими таблицами.
 
 {% note warning "Внимание" %}
 

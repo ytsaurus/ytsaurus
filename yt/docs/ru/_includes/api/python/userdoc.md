@@ -105,7 +105,7 @@ client = yt.YtClient(config=my_config)
 
 Для изменения настроек логирования необходимо изменять `LOGGER`.
 
-Первичная настройка логгера (при загрузке модуля) регулируется переменными окружения `YT_LOG_LEVEL` и `YT_LOG_PATTERN`. Переменная `YT_LOG_LEVEL`, регулирующая уровень логирования, принимает одно из значений `DEBUG`, `INFO`, `WARNING`, `ERROR`, переменная `YT_LOG_PATTERN`, регулирующая форматирование лог-сообщений принимает строку форматирования логгера, подробнее можно прочитать в[документации](https://docs.python.org/3/library/logging.html#logging.Formatter) по Python.
+Первичная настройка логгера (при загрузке модуля) регулируется переменными окружения `YT_LOG_LEVEL` и `YT_LOG_PATTERN`. Переменная `YT_LOG_LEVEL`, регулирующая уровень логирования, принимает одно из значений `DEBUG`, `INFO`, `WARNING`, `ERROR`, переменная `YT_LOG_PATTERN`, регулирующая форматирование лог-сообщений принимает строку форматирования логгера, подробнее можно прочитать в [документации](https://docs.python.org/3/library/logging.html#logging.Formatter) по Python.
 
 По умолчанию уровень логирования равен INFO, и логирование происходит в stderr.
 
@@ -460,7 +460,7 @@ yt.get("//home/table/@path")
 
 ### Работа с файлами { #file_commands }
 
-Подробнее про файлы в Кипарисе можно прочитать в [разделе](../../../user-guide/storage/files.md) .
+Подробнее про файлы в Кипарисе можно прочитать в [разделе](../../../user-guide/storage/files.md).
 
 - [read_file](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.read_file)
 
@@ -918,7 +918,7 @@ with yt.Transaction():
 - [run_map](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.run_map) — [операция Map](../../../user-guide/data-processing/operations/map.md).
 - [run_reduce](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.run_reduce) — [операция Reduce](../../../user-guide/data-processing/operations/reduce.md).
 - [run_join_reduce](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.run_join_reduce) — [операция JoinReduce](../../../user-guide/data-processing/operations/reduce.md#foreign_tables).
-- [run_operation](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.run_operation)– запускает операцию.
+- [run_operation](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.run_operation) – запускает операцию.
   По умолчанию команда запускает необходимую операцию as is, опция `enable_optimizations` разрешает оптимизации `treat_unexisting_as_empty`, `run_map_reduce_if_source_is_not_sorted`, `run_merge_instead_of_sort_if_input_tables_are_sorted`, если они включены в конфиге
 - [run_remote_copy](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.run_remote_copy) — [операция RemoteCopy](../../../user-guide/data-processing/operations/remote-copy.md)
   Скопировать таблицу с одного {{product-name}} кластера на другой.
@@ -1061,7 +1061,7 @@ for op in client.iterate_operations(state="running"):
 
 {% endnote %}
 
-Для отладки невыполнившихся (failed) джобов удобно использовать [job tool](../../user-guide/problems/jobstatistics.md). Данная утилита позволяет подготовить окружение, аналогичное окружению джоба и запустить его для тех же входных данных.
+Для отладки невыполнившихся (failed) джобов удобно использовать [job tool](../../../user-guide/problems/jobstatistics.md). Данная утилита позволяет подготовить окружение, аналогичное окружению джоба и запустить его для тех же входных данных.
 
 #### Operation { #operation_class }
 
@@ -1419,7 +1419,7 @@ def reducer(key, rows):
    other_s == s # True
    ```
 
-2. В формате YSON имеется два целочисленных типа: [int64 и uint64](../../../user-guide/storage/yson.md) . В то время, как в python с точки зрения модели данных тип один и никаких ограничений не имеет. Поэтому при чтении данных беззнаковый тип представляется как YsonUint64, в то время, как знаковый представляется обычным int-ом. При записи int-ов сделана автоматика: числа в диапазоне [-2^63, 2^63) представляются как знаковые, а числа в диапазоне [2^63, 2^64) как беззнаковые. Но всегда можно явно указать тип, создав явно Yson-объект.
+2. В формате YSON имеется два целочисленных типа: [int64 и uint64](../../../user-guide/storage/yson.md). В то время, как в python с точки зрения модели данных тип один и никаких ограничений не имеет. Поэтому при чтении данных беззнаковый тип представляется как YsonUint64, в то время, как знаковый представляется обычным int-ом. При записи int-ов сделана автоматика: числа в диапазоне [-2^63, 2^63) представляются как знаковые, а числа в диапазоне [2^63, 2^64) как беззнаковые. Но всегда можно явно указать тип, создав явно Yson-объект.
 
 3. Unicode-строки. Так как в {{product-name}} все строки байтовые, то python unicode-строки по умолчанию кодируются в байтовые строки utf-8 кодировкой. При чтении в Python3 происходит попытка раскодировать байтовые строки с помощью utf-8 декодера, если же это не получается, то возвращается специальный объект [YsonStringProxy](https://pydoc.ytsaurus.tech/yt.yson.html#yt.yson.yson_types.YsonStringProxy). Более подробно смотрите соответствующий [раздел](#python3_strings).
 
@@ -1427,7 +1427,7 @@ def reducer(key, rows):
 
 #### Контрольные атрибуты { #control_attributes }
 
-Кроме потока записей при чтении из таблицы (или в джобе) можно заказать разные [контрольные атрибуты](../../../user-guide/storage/io-configuration.md#control_attributes) . Работа с контрольными атрибутами зависит от формата, например в форматах, отличных от Yamr, JSON и YSON, большинство контрольных атрибутов не представимы.
+Кроме потока записей при чтении из таблицы (или в джобе) можно заказать разные [контрольные атрибуты](../../../user-guide/storage/io-configuration.md#control_attributes). Работа с контрольными атрибутами зависит от формата, например в форматах, отличных от Yamr, JSON и YSON, большинство контрольных атрибутов не представимы.
 
 В формате Yamr в python API корректно поддержан парсинг атрибутов row_index и table_index, которые будут представлены как поля tableIndex и recordIndex и объектов типа Record.
 

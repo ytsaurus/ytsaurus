@@ -1,6 +1,6 @@
 ## Yson
 
-Управление поведением Yson UDF по умолчанию, Подробнее можно прочитать в[документации по ней](../../../udf/list/yson.md) и в частности [Yson::Options](../../../udf/list/yson.md#ysonoptions).
+Управление поведением Yson UDF по умолчанию, Подробнее можно прочитать в [документации по ней](../../../udf/list/yson.md) и в частности [Yson::Options](../../../udf/list/yson.md#ysonoptions).
 
 ### `yson.AutoConvert`
 

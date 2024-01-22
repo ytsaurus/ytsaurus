@@ -57,8 +57,7 @@
 |`user_job/cpu/*` | Аналогично `job_proxy/cpu/*`, но для процессов пользовательского джоба.  |
 |`user_job/block_io/bytes_read`, `user_job/block_io/bytes_written`, `user_job/block_io/io_read`, `user_job/block_io/io_write`, `user_job/block_io/io_total` | Block IO статистики для пользовательского джоба. Аналогично `job_proxy/block_io/*`. |
 |`user_job/cumulative_memory_mb_sec` | Интеграл используемой памяти в МБ*сек. |
-|`user_job/current_memory/major_page_faults` | Число [major page faults](https://en.wikipedia.org/wiki/Page_fault#Major), случившихся в пользовательском процессе. Значение 
-получается из секции `pgmajfault` файла `memory.stat` из `memory` cgroup. Может помочь при изучении повышенного значения статистики `user_job/block_io/read`. В штуках. |
+|`user_job/current_memory/major_page_faults` | Число [major page faults](https://en.wikipedia.org/wiki/Page_fault#Major), случившихся в пользовательском процессе. Значение получается из секции `pgmajfault` файла `memory.stat` из `memory` cgroup. Может помочь при изучении повышенного значения статистики `user_job/block_io/read`. В штуках. |
 |`user_job/current_memory/rss` | Размер RSS на момент окончания джоба. Значение получается из секции `rss` файла `memory.stat` соответствующей cgroup. В байтах. |
 |`user_job/current_memory/mapped_file` | Размер memory mapped files на момент окончания джоба. Значение получается из секции `mapped_file` файла `memory.stat` соответствующей cgroup. В байтах. |
 |`user_job/tmpfs_size` | Текущий **занятый** объем `tmpfs` в процессе работы джоба. Вычисляется как разница между `total` и `free` размерами, полученными вызовом `statfs` на tmpfs mount point. В байтах. |
