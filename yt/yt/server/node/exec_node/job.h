@@ -396,7 +396,7 @@ private:
     void ValidateJobPhase(EJobPhase expectedPhase) const;
 
     // Event handlers.
-    void OnNodeDirectoryPrepared(const TError& error);
+    void OnNodeDirectoryPrepared(TErrorOr<std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory>>&& protoNodeDirectoryOrError);
 
     void OnArtifactsDownloaded(const TErrorOr<std::vector<NDataNode::IChunkPtr>>& errorOrArtifacts);
 
@@ -444,7 +444,7 @@ private:
     void CleanupNbdExports();
 
     // Preparation.
-    void PrepareNodeDirectory();
+    std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> PrepareNodeDirectory();
 
     NJobProxy::TJobProxyConfigPtr CreateConfig();
     std::vector<NJobProxy::TBindConfigPtr> GetRootFsBinds();
