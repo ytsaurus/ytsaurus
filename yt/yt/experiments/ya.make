@@ -4,7 +4,6 @@ RECURSE(
 
 IF (NOT OPENSOURCE)
     RECURSE(
-        flow
         private
     )
 ENDIF()
