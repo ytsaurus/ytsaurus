@@ -31,9 +31,11 @@ static const TString MountSuffix = "mount";
 
 TJobWorkspaceBuilder::TJobWorkspaceBuilder(
     IInvokerPtr invoker,
+    IInvokerPtr ioInvoker,
     TJobWorkspaceBuildingContext context,
     IJobDirectoryManagerPtr directoryManager)
     : Invoker_(std::move(invoker))
+    , IOInvoker_(std::move(ioInvoker))
     , Context_(std::move(context))
     , DirectoryManager_(std::move(directoryManager))
     , Logger(Context_.Logger)
@@ -194,34 +196,43 @@ void TJobWorkspaceBuilder::PrepareArtifactBinds()
         "Setting permissions for artifacts (ArtifactCount: %v)",
         std::size(Context_.Artifacts));
 
+    std::vector<TFuture<void>> ioOperationFutures;
+    ioOperationFutures.reserve(Context_.Artifacts.size());
+
     for (const auto& artifact : Context_.Artifacts) {
         if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
             YT_VERIFY(artifact.Chunk);
 
-            int permissions = artifact.Executable ? 0755 : 0644;
+            ioOperationFutures.push_back(BIND([=, this, this_ = MakeWeak(this)] () {
+                int permissions = artifact.Executable ? 0755 : 0644;
 
-            YT_LOG_INFO(
-                "Set permissions for artifact (FileName: %v, Permissions: "
-                "%v, SandboxKind: %v, CompressedDataSize: %v)",
-                artifact.Name,
-                permissions,
-                artifact.SandboxKind,
-                artifact.Key.GetCompressedDataSize());
+                YT_LOG_INFO(
+                    "Set permissions for artifact (FileName: %v, Permissions: "
+                    "%v, SandboxKind: %v, CompressedDataSize: %v)",
+                    artifact.Name,
+                    permissions,
+                    artifact.SandboxKind,
+                    artifact.Key.GetCompressedDataSize());
 
-            SetPermissions(
-                artifact.Chunk->GetFileName(),
-                permissions);
+                SetPermissions(
+                    artifact.Chunk->GetFileName(),
+                    permissions);
 
-            // Create mount-point path and file, to own it and be able to cleanup.
-            auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind);
-            auto artifactPath = CombinePaths(sandboxPath, artifact.Name);
-            MakeDirRecursive(GetDirectoryName(artifactPath));
-            TFile bindFile(artifactPath, CreateAlways | WrOnly);
+                // Create mount-point path and file, to own it and be able to cleanup.
+                auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind);
+                auto artifactPath = CombinePaths(sandboxPath, artifact.Name);
+                MakeDirRecursive(GetDirectoryName(artifactPath));
+                TFile bindFile(artifactPath, CreateAlways | WrOnly);
+            })
+            .AsyncVia(IOInvoker_)
+            .Run());
         } else {
             YT_VERIFY(artifact.SandboxKind == ESandboxKind::User);
         }
     }
 
+    WaitFor(AllSucceeded(ioOperationFutures))
+        .ThrowOnError();
     YT_LOG_INFO("Permissions for artifacts set");
 }
 
@@ -258,10 +269,12 @@ class TSimpleJobWorkspaceBuilder
 public:
     TSimpleJobWorkspaceBuilder(
         IInvokerPtr invoker,
+        IInvokerPtr ioInvoker,
         TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager)
         : TJobWorkspaceBuilder(
             std::move(invoker),
+            std::move(ioInvoker),
             std::move(context),
             std::move(directoryManager))
     {
@@ -355,11 +368,13 @@ private:
 
 TJobWorkspaceBuilderPtr CreateSimpleJobWorkspaceBuilder(
     IInvokerPtr invoker,
+    IInvokerPtr ioInvoker,
     TJobWorkspaceBuildingContext context,
     IJobDirectoryManagerPtr directoryManager)
 {
     return New<TSimpleJobWorkspaceBuilder>(
         std::move(invoker),
+        std::move(ioInvoker),
         std::move(context),
         std::move(directoryManager));
 }
@@ -374,10 +389,12 @@ class TPortoJobWorkspaceBuilder
 public:
     TPortoJobWorkspaceBuilder(
         IInvokerPtr invoker,
+        IInvokerPtr ioInvoker,
         TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager)
         : TJobWorkspaceBuilder(
             std::move(invoker),
+            std::move(ioInvoker),
             std::move(context),
             std::move(directoryManager))
     {
@@ -579,11 +596,13 @@ private:
 
 TJobWorkspaceBuilderPtr CreatePortoJobWorkspaceBuilder(
     IInvokerPtr invoker,
+    IInvokerPtr ioInvoker,
     TJobWorkspaceBuildingContext context,
     IJobDirectoryManagerPtr directoryManager)
 {
     return New<TPortoJobWorkspaceBuilder>(
         std::move(invoker),
+        std::move(ioInvoker),
         std::move(context),
         std::move(directoryManager));
 }
@@ -598,11 +617,13 @@ class TCriJobWorkspaceBuilder
 public:
     TCriJobWorkspaceBuilder(
         IInvokerPtr invoker,
+        IInvokerPtr ioInvoker,
         TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager,
         ICriExecutorPtr executor)
         : TJobWorkspaceBuilder(
             std::move(invoker),
+            std::move(ioInvoker),
             std::move(context),
             std::move(directoryManager))
         , Executor_(std::move(executor))
@@ -713,12 +734,14 @@ private:
 
 TJobWorkspaceBuilderPtr CreateCriJobWorkspaceBuilder(
     IInvokerPtr invoker,
+    IInvokerPtr ioInvoker,
     TJobWorkspaceBuildingContext context,
     IJobDirectoryManagerPtr directoryManager,
     ICriExecutorPtr executor)
 {
     return New<TCriJobWorkspaceBuilder>(
         std::move(invoker),
+        std::move(ioInvoker),
         std::move(context),
         std::move(directoryManager),
         std::move(executor));

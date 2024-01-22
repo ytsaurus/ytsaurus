@@ -1856,8 +1856,8 @@ void TJob::RunWithWorkspaceBuilder()
 
     auto workspaceBuilder = GetUserSlot()->CreateJobWorkspaceBuilder(
         Invoker_,
+        Bootstrap_->GetStorageLightInvoker(),
         std::move(context));
-
 
     workspaceBuilder->SubscribeUpdateArtifactStatistics(BIND_NO_PROPAGATE([this, this_ = MakeWeak(this)] (i64 compressedDataSize, bool cacheHit) {
         UpdateArtifactStatistics(compressedDataSize, cacheHit);

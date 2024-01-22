@@ -117,6 +117,7 @@ struct IUserSlot
 
     virtual TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
         IInvokerPtr invoker,
+        IInvokerPtr ioInvoker,
         TJobWorkspaceBuildingContext context) = 0;
 
     //! Must be called before any action with slot.
