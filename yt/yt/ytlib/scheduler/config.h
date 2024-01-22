@@ -789,6 +789,7 @@ DEFINE_ENUM(EProfilerType,
     ((Cpu)              (0))
     ((Memory)           (1))
     ((PeakMemory)       (2))
+    ((Cuda)             (3))
 );
 
 class TJobProfilerSpec

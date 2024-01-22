@@ -205,7 +205,7 @@ private:
 
     void InitializeUserJobProfiler(TJobProfilerSpecPtr spec)
     {
-        if (spec->Type != EProfilerType::Cpu && spec->Type != EProfilerType::Memory) {
+        if (!IsSupportedUserJobProfilerType(spec->Type)) {
             return;
         }
 
@@ -247,6 +247,13 @@ private:
                 .RunTool = RunSubprocess,
             });
         }
+    }
+
+    static bool IsSupportedUserJobProfilerType(EProfilerType type)
+    {
+        return type == EProfilerType::Cpu ||
+            type == EProfilerType::Memory ||
+            type == EProfilerType::Cuda;
     }
 
     static TString GetProfileTypeString(const TJobProfilerSpecPtr& spec)
