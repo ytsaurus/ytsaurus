@@ -126,6 +126,14 @@ private:
 
             return
                 BIND([writer = Owner_->Underlying_, rowBuffer = RowBuffer_, rows = std::move(Rows_)] {
+                    // NB: In multiplexing writer, there are multiple value consumers pointing to the same writer.
+                    // That's why we have to double-check writer's readiness to avoid writing to it concurrently
+                    // with another value consumer waiting writer to become ready.
+                    while (!writer->GetReadyEvent().IsSet() || !writer->GetReadyEvent().Get().IsOK()) {
+                        WaitFor(writer->GetReadyEvent())
+                            .ThrowOnError();
+                    }
+
                     writer->Write(rows);
                     rowBuffer->Clear();
                     return writer->GetReadyEvent();
