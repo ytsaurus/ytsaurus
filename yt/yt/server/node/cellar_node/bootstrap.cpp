@@ -268,12 +268,17 @@ private:
         }
 
         auto cellId = GetConfig()->DryRun->TabletCellId;
+        auto clockClusterTag = GetConfig()->DryRun->ClockClusterTag;
         YT_VERIFY(cellId);
 
-        YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Creating dry-run occupant (CellId: %v)",
-            cellId);
+        YT_LOG_EVENT(
+            DryRunLogger,
+            NLogging::ELogLevel::Info,
+            "Creating dry-run occupant (CellId: %v, ClockClusterTag: %v)",
+            cellId,
+            clockClusterTag);
 
-        DryRunOccupant_ = NTabletNode::CreateFakeOccupant(ClusterNodeBootstrap_, cellId);
+        DryRunOccupant_ = NTabletNode::CreateFakeOccupant(ClusterNodeBootstrap_, cellId, clockClusterTag);
     }
 
     void DoLoadSnapshot(

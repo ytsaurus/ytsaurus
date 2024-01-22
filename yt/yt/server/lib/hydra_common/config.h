@@ -511,6 +511,8 @@ public:
 
     TGuid TabletCellId;
 
+    NApi::TClusterTag ClockClusterTag;
+
     REGISTER_YSON_STRUCT(THydraDryRunConfig);
 
     static void Register(TRegistrar registrar);

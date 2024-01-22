@@ -66,6 +66,10 @@ public:
             .StoreResult(&CellId_)
             .RequiredArgument("CELL ID");
         Opts_
+            .AddLongOption("clock-cluster-tag", "tablet cell clock cluster tag")
+            .StoreResult(&ClockClusterTag_)
+            .Optional();
+        Opts_
             .AddLongOption("replay-changelogs", "replay one or more consecutive tablet cell changelogs\n"
                            "Usually used in conjunction with 'validate-snapshot' option to apply changelogs over a specific snapshot")
             .SplitHandler(&ChangelogFileNames_, ' ')
@@ -205,6 +209,9 @@ protected:
                 : NObjectClient::MakeWellKnownId(
                     NObjectClient::EObjectType::TabletCell,
                     NObjectClient::TCellTag(1));
+            config->DryRun->ClockClusterTag = ClockClusterTag_
+                ? NApi::TClusterTag(*ClockClusterTag_)
+                : NObjectClient::InvalidCellTag;
 
             const auto& cellarManager = config->CellarNode->CellarManager;
             for (auto& [type, cellarConfig] : cellarManager->Cellars) {
@@ -277,6 +284,7 @@ private:
     TString SnapshotPath_;
     std::vector<TString> ChangelogFileNames_;
     TString CellId_;
+    std::optional<ui16> ClockClusterTag_;
     TString SnapshotBuildDirectory_;
     NYson::TYsonString DryRunSnapshotMeta_;
     TString RemoteClusterProxy_;

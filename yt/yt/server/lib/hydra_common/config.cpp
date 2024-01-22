@@ -503,6 +503,8 @@ void THydraDryRunConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("tablet_cell_id", &TThis::TabletCellId)
         .Optional();
+    registrar.Parameter("clock_cluster_tag", &TThis::ClockClusterTag)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
