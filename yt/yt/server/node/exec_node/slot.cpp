@@ -352,12 +352,14 @@ public:
 
     TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
         IInvokerPtr invoker,
+        IInvokerPtr ioInvoker,
         TJobWorkspaceBuildingContext context) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         return JobEnvironment_->CreateJobWorkspaceBuilder(
             invoker,
+            ioInvoker,
             std::move(context),
             Location_->GetJobDirectoryManager());
     }
