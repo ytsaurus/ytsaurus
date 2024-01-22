@@ -2736,7 +2736,9 @@ void TOperationControllerBase::VerifySortedOutput(TOutputTablePtr table)
             int cmp = comparator.CompareKeys(next->first.AsBoundaryKeys().MinKey, current->first.AsBoundaryKeys().MaxKey);
 
             if (cmp < 0) {
-                THROW_ERROR_EXCEPTION("Output table %v is not sorted: job outputs have overlapping key ranges",
+                THROW_ERROR_EXCEPTION(
+                    NTableClient::EErrorCode::SortOrderViolation,
+                    "Output table %v is not sorted: job outputs have overlapping key ranges",
                     table->GetPath())
                     << TErrorAttribute("current_range_max_key", current->first.AsBoundaryKeys().MaxKey)
                     << TErrorAttribute("next_range_min_key", next->first.AsBoundaryKeys().MinKey)
@@ -2744,7 +2746,9 @@ void TOperationControllerBase::VerifySortedOutput(TOutputTablePtr table)
             }
 
             if (cmp == 0 && table->TableWriterOptions->ValidateUniqueKeys) {
-                THROW_ERROR_EXCEPTION("Output table %v contains duplicate keys: job outputs have overlapping key ranges",
+                THROW_ERROR_EXCEPTION(
+                    NTableClient::EErrorCode::UniqueKeyViolation,
+                    "Output table %v contains duplicate keys: job outputs have overlapping key ranges",
                     table->GetPath())
                     << TErrorAttribute("current_range_max_key", current->first.AsBoundaryKeys().MaxKey)
                     << TErrorAttribute("next_range_min_key", next->first.AsBoundaryKeys().MinKey)
