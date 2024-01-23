@@ -1903,15 +1903,15 @@ void TJob::OnWorkspacePreparationFinished(const TErrorOr<TJobWorkspaceBuildingRe
             // There may be a possible cancellation, but this is not happening now.
             YT_VERIFY(resultOrError.IsOK());
 
-            auto& holder = resultOrError.Value();
-            TmpfsPaths_ = holder.TmpfsPaths;
-            RootVolume_ = holder.RootVolume;
+            auto& result = resultOrError.Value();
+            TmpfsPaths_ = result.TmpfsPaths;
+            RootVolume_ = result.RootVolume;
             // Workspace builder may add or replace docker image.
-            DockerImage_ = holder.DockerImage;
-            SetupCommandCount_ = holder.SetupCommandCount;
+            DockerImage_ = result.DockerImage;
+            SetupCommandCount_ = result.SetupCommandCount;
 
             THROW_ERROR_EXCEPTION_IF_FAILED(
-                holder.LastBuildError,
+                result.LastBuildError,
                 "Job preparation failed");
 
             RunJobProxy();

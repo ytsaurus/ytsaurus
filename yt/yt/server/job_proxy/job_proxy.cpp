@@ -1115,7 +1115,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
             rootFS.Binds.push_back(TBind{
                 .SourcePath = tmpfsPath,
                 .TargetPath = AdjustPath(tmpfsPath),
-                .ReadOnly= false
+                .ReadOnly = false,
             });
         }
 
@@ -1125,20 +1125,20 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
         rootFS.Binds.push_back(TBind{
             .SourcePath = tmpPath,
             .TargetPath = "/tmp",
-            .ReadOnly = false
+            .ReadOnly = false,
         });
 
         rootFS.Binds.push_back(TBind{
             .SourcePath = tmpPath,
             .TargetPath = "/var/tmp",
-            .ReadOnly = false
+            .ReadOnly = false,
         });
 
         for (const auto& bind : Config_->Binds) {
             rootFS.Binds.push_back(TBind{
                 .SourcePath = bind->ExternalPath,
                 .TargetPath = bind->InternalPath,
-                .ReadOnly = bind->ReadOnly
+                .ReadOnly = bind->ReadOnly,
             });
         }
 
@@ -1155,7 +1155,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
         .EnableCudaGpuCoreDump = options.EnableGpuCoreDumps,
         .EnablePortoMemoryTracking = options.EnablePortoMemoryTracking,
         .EnablePorto = options.EnablePorto,
-        .ThreadLimit = options.ThreadLimit
+        .ThreadLimit = options.ThreadLimit,
     };
 
     if (options.EnableCoreDumps) {

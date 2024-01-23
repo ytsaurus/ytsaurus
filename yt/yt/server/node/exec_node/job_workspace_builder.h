@@ -11,6 +11,8 @@
 
 #include <yt/yt/server/lib/job_agent/public.h>
 
+#include <yt/yt/ytlib/scheduler/helpers.h>
+
 #include <yt/yt/library/containers/public.h>
 
 #include <yt/yt/library/containers/cri/public.h>
@@ -26,8 +28,6 @@
 #include <yt/yt/core/yson/string.h>
 
 #include <yt/yt/core/misc/public.h>
-
-#include <yt/yt/ytlib/scheduler/helpers.h>
 
 namespace NYT::NExecNode
 {
