@@ -211,7 +211,7 @@ private:
 
     Type* GetDynamicValueDataType(EValueType type)
     {
-        switch(type) {
+        switch (type) {
             case EValueType::Int64:
                 return TTypeBuilder<TDynamicValueData>::TInt64::Get(Builder_.Context_);
             case EValueType::Uint64:
@@ -286,7 +286,7 @@ private:
 
     Type* GetUnversionedValueDataType(EValueType type)
     {
-        switch(type) {
+        switch (type) {
             case EValueType::Int64:
                 return TTypeBuilder<TUnversionedValueData>::TInt64::Get(Builder_.Context_);
             case EValueType::Uint64:
@@ -384,7 +384,7 @@ BasicBlock* TComparerBuilder::CreateBB(const Twine& name)
 
 Value* TComparerBuilder::CreateCmp(Value* lhs, Value* rhs, EValueType type, bool isLessThan)
 {
-    switch(type) {
+    switch (type) {
         case EValueType::Int64:
             return CreateICmp(isLessThan ? CmpInst::ICMP_SLT : CmpInst::ICMP_SGT, lhs, rhs);
         case EValueType::Uint64:

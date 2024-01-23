@@ -496,7 +496,7 @@ Value* CodegenCompare(
     Value* rhsLength = nullptr)
 {
     Value* compareResult = nullptr;
-    switch(type) {
+    switch (type) {
         case EValueType::Int64:
             compareResult = builder->CreateICmpSLT(lhs, rhs);
             break;
@@ -1009,7 +1009,7 @@ private:
             stateSize = builder->getInt32(0);
 
             for (int index = 0; index < std::ssize(args); ++index) {
-                switch(argTypes[index]) {
+                switch (argTypes[index]) {
                     case EValueType::String:
                         stateSize = builder->CreateAdd(stateSize, args[index].GetLength());
                         stateSize = builder->CreateAdd(stateSize, builder->getInt32(4));
@@ -1086,7 +1086,7 @@ private:
         Value* iterator = span.GetTypedData(builder);
 
         for (int index = 0; index < std::ssize(argTypes); ++index) {
-            switch(argTypes[index]) {
+            switch (argTypes[index]) {
                 case EValueType::String: {
                     Value* length = builder->CreateLoad(builder->getInt32Ty(), iterator);
                     iterator = builder->CreateGEP(builder->getInt8Ty(), iterator, builder->getInt32(4));

@@ -657,7 +657,7 @@ private:
             : Options_.Files[operation.FileIndex].File.GetHandle();
 
         if (Options_.Config->FixedBuffers) {
-            switch(operation.Type) {
+            switch (operation.Type) {
                 case EOperationType::Read:
                     UringPrepareReadFixed(sqe, fd, reinterpret_cast<i64*>(request.Buffer.Begin()), operation.Size, operation.Offset, requestIndex);
                     break;
@@ -668,7 +668,7 @@ private:
                     YT_ABORT();
             }
         } else {
-            switch(operation.Type) {
+            switch (operation.Type) {
                 case EOperationType::Read:
                     UringPrepareReadv(sqe, fd, &request.Iovec, 1, operation.Offset);
                     break;

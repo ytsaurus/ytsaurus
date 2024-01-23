@@ -2774,7 +2774,7 @@ void TCypressMapNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
 
 bool TCypressMapNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
 {
-    switch(key) {
+    switch (key) {
         case EInternedAttributeKey::CoWCookie: {
             if (!Bootstrap_->GetConfig()->ExposeTestingFacilities) {
                 break;

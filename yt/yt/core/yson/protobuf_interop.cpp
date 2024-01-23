@@ -2511,7 +2511,7 @@ private:
 
                     case FieldDescriptor::TYPE_ENUM: {
                         ParseScalar([&] {
-                            switch(field->GetEnumYsonStorageType()) {
+                            switch (field->GetEnumYsonStorageType()) {
                                 case EEnumYsonStorageType::String:
                                     storeEnumAsString(unsignedValue);
                                     break;
@@ -2753,7 +2753,7 @@ private:
 
                     case FieldDescriptor::TYPE_ENUM: {
                         ParseVarintPacked<ui32>(length, field, [&] (auto value) {
-                            switch(field->GetEnumYsonStorageType()) {
+                            switch (field->GetEnumYsonStorageType()) {
                                 case EEnumYsonStorageType::String:
                                     storeEnumAsString(value);
                                     break;

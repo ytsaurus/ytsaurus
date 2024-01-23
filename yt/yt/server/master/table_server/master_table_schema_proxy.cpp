@@ -81,7 +81,7 @@ private:
     {
         const auto* schema = GetThisImpl();
 
-        switch(key) {
+        switch (key) {
             case EInternedAttributeKey::Value:
                 return schema->AsYsonAsync();
 

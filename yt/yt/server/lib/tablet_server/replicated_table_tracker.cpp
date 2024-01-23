@@ -895,7 +895,7 @@ public:
         void ChangeState(bool good, ETableReplicaMode mode)
         {
             if (good) {
-                switch(mode) {
+                switch (mode) {
                     case ETableReplicaMode::Sync:
                         State_ = EReplicaState::GoodSync;
                         break;
@@ -906,7 +906,7 @@ public:
                         YT_ABORT();
                 }
             } else {
-                switch(mode) {
+                switch (mode) {
                     case ETableReplicaMode::Sync:
                         State_ = EReplicaState::BadSync;
                         break;

@@ -1724,7 +1724,7 @@ private:
     void HandleReplicationCardStateTransition(TReplicationCard* replicationCard)
     {
         while (true) {
-            switch(replicationCard->GetState()) {
+            switch (replicationCard->GetState()) {
                 case EReplicationCardState::RevokingShortcutsForMigration:
                     if (replicationCard->Coordinators().empty()) {
                         MigrateReplicationCard(replicationCard);

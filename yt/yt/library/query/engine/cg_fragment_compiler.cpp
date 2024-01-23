@@ -1236,7 +1236,7 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
             Value* operandData = operandValue.GetTypedData(builder);
             Value* evalData = nullptr;
 
-            switch(opcode) {
+            switch (opcode) {
                 case EUnaryOp::Plus:
                     evalData = operandData;
                     break;
