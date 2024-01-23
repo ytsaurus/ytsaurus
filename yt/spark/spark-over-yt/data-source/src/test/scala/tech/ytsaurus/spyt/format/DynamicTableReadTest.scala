@@ -11,6 +11,8 @@ import tech.ytsaurus.spyt.test._
 import tech.ytsaurus.spyt.wrapper.YtWrapper.createTransaction
 import tech.ytsaurus.spyt.test.{DynTableTestUtils, TestRow}
 
+import java.time.Instant
+import java.time.temporal.{ChronoUnit, TemporalUnit}
 import scala.concurrent.duration.DurationInt
 import scala.language.postfixOps
 
@@ -42,6 +44,7 @@ class DynamicTableReadTest extends FlatSpec with Matchers with LocalSpark with T
 
     val tablesCount = 3
     val tablePaths = (1 to tablesCount).map(i => s"$tmpPath/$i")
+    val startTs = yt.generateTimestamps().join().getValue
     tablePaths.par.foreach(prepareTestTable(_, testData, Seq(Seq(), Seq(3))))
     val expectedResult = testData ++ testData ++ testData
 
@@ -53,7 +56,7 @@ class DynamicTableReadTest extends FlatSpec with Matchers with LocalSpark with T
           val df = spark.read.option("enable_inconsistent_read", "true").yt(tablePaths: _*)
           df.selectAs[TestRow].collect() should contain theSameElementsAs expectedResult
 
-          val df2 = spark.read.option("timestamp", "1").yt(tablePaths: _*)
+          val df2 = spark.read.option("timestamp", startTs).yt(tablePaths: _*)
           df2.selectAs[TestRow].collect() should contain theSameElementsAs Seq()
         }
       }

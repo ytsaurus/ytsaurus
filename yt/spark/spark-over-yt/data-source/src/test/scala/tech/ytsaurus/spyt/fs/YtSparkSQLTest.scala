@@ -10,7 +10,7 @@ import org.scalatest.{FlatSpec, Matchers, PrivateMethodTester}
 import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 import tech.ytsaurus.spyt._
 import tech.ytsaurus.spyt.serialization.YsonEncoder
-import tech.ytsaurus.spyt.test.{DynTableTestUtils, LocalSpark, TestRow, TestUtils, TmpDir}
+import tech.ytsaurus.spyt.test.{DynTableTestUtils, LocalSpark, LocalYt, TestRow, TestUtils, TmpDir}
 import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.spyt.wrapper.table.OptimizeMode
 
@@ -118,6 +118,21 @@ class YtSparkSQLTest extends FlatSpec with Matchers with LocalSpark with TmpDir
       res.collect() should contain theSameElementsAs Seq(
         Row(2, "b", 0.5),
         Row(3, "c", 1.0)
+      )
+    }
+  }
+
+  it should "read without specified scheme" in {
+    writeTableFromYson(Seq(
+      """{a = 1; b = "a"; c = 0.3}""",
+      """{a = 2; b = "b"; c = 0.5}"""
+    ), tmpPath, atomicSchema)
+
+    withConf("fs.null.impl", "tech.ytsaurus.spyt.fs.YtTableFileSystem") {
+      val res = spark.sql(s"SELECT * FROM yt.`$tmpPath`")
+      res.collect() should contain theSameElementsAs Seq(
+        Row(1, "a", 0.3),
+        Row(2, "b", 0.5)
       )
     }
   }

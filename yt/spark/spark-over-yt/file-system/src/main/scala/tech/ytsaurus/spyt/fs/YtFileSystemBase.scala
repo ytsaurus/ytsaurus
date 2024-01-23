@@ -38,7 +38,7 @@ abstract class YtFileSystemBase extends FileSystem with LogLazy {
     super.initialize(uri, conf)
     setConf(conf)
     this._uri = uri
-    this._ytConf = ytClientConfiguration(getConf, Option(uri.getAuthority).filter(_.nonEmpty))
+    this._ytConf = ytClientConfiguration(getConf)
   }
 
   private[fs] def ytClient: CompoundClient = yt  // For YtFs class
@@ -100,7 +100,6 @@ abstract class YtFileSystemBase extends FileSystem with LogLazy {
     YtWrapper.createDir(hadoopPathToYt(f), ignoreExisting = true)(yt)
     true
   }
-
 
   override def delete(f: Path, recursive: Boolean): Boolean = convertExceptions {
     log.debugLazy(s"Delete $f")
