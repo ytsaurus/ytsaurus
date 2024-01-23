@@ -126,16 +126,12 @@ public:
 
         auto lock = getLock();
 
-        auto iterator = LastSeenObjectRevisions_.find(objectName);
-        if (iterator != LastSeenObjectRevisions_.end() &&
-            iterator->second >= info.Revision)
-        {
+        if (GetLastSeenObjectRevision(objectName) >= info.Revision) {
             return false;
         }
 
         setObject(objectName, *ParseCreateObjectQuery(objectName, info.CreateObjectQuery));
         LastSeenObjectRevisions_[objectName] = info.Revision;
-        LastSeenRevision_ = std::max(LastSeenRevision_, info.Revision);
 
         return true;
     }
@@ -148,22 +144,12 @@ public:
 
         auto lock = getLock();
 
-        auto iterator = LastSeenObjectRevisions_.find(objectName);
-        if (iterator == LastSeenObjectRevisions_.end() ||
-            iterator->second >= revision)
-        {
+        if (GetLastSeenObjectRevision(objectName) >= revision) {
             return false;
         }
 
         removeObject(objectName);
-
-        if (revision >= LastSeenRevision_) {
-            LastSeenObjectRevisions_.erase(objectName);
-        } else {
-            LastSeenObjectRevisions_[objectName] = revision;
-        }
-
-        LastSeenRevision_ = std::max(LastSeenRevision_, revision);
+        LastSeenObjectRevisions_[objectName] = revision;
 
         return true;
     }
@@ -181,7 +167,7 @@ private:
     TInstant LastSuccessfulSyncTime_ = TInstant::Now();
 
     THashMap<TString, TRevision> LastSeenObjectRevisions_;
-    TRevision LastSeenRevision_ = NHydra::NullRevision;
+    TRevision LastSeenRootRevision_ = NullRevision;
 
     bool storeObjectImpl(
         const DB::ContextPtr& currentContext,
@@ -220,9 +206,10 @@ private:
             .CreateObjectQuery = createStatement,
         };
 
+        bool updated = TrySetObject(objectName, info);
         Host_->SetSqlObjectOnOtherInstances(TString(objectName), info);
 
-        return TrySetObject(objectName, info);
+        return updated;
     }
 
     bool removeObjectImpl(
@@ -251,9 +238,10 @@ private:
             return false;
         }
 
+        bool removed = TryRemoveObject(objectName, revision);
         Host_->RemoveSqlObjectOnOtherInstances(TString(objectName), revision);
 
-        return TryRemoveObject(objectName, revision);
+        return removed;
     }
 
     IMapNodePtr GetObjectMapNodeWithAttributes(std::vector<TString> attributes) const
@@ -320,8 +308,6 @@ private:
         }
 
         UpdateObjectInfos(rootRevision, std::move(newObjectInfos));
-
-        LastSuccessfulSyncTime_ = TInstant::Now();
     }
 
     void UpdateObjectInfos(TRevision rootRevision, THashMap<TString, TSqlObjectInfo> newObjectInfos)
@@ -330,19 +316,39 @@ private:
 
         YT_LOG_DEBUG("Updating object information (Revision: %v)", rootRevision);
 
-        std::vector<TString> toErase;
+        // Ignore delayed syncs.
+        if (rootRevision < LastSeenRootRevision_) {
+            return;
+        }
+
+        std::vector<TString> toRemove;
         for (const auto& [objectName, objectRevision] : LastSeenObjectRevisions_) {
-            if (!newObjectInfos.contains(objectName) && rootRevision > objectRevision) {
-                toErase.emplace_back(objectName);
+            if (!newObjectInfos.contains(objectName)) {
+                toRemove.push_back(objectName);
             }
         }
-        for (const auto& objectName : toErase) {
-            TryRemoveObject(objectName, rootRevision);
+        for (const auto& objectName : toRemove) {
+            if (TryRemoveObject(objectName, rootRevision)) {
+                LastSeenObjectRevisions_.erase(objectName);
+            }
         }
 
         for (const auto& [objectName, info] : newObjectInfos) {
             TrySetObject(objectName, info);
         }
+
+        LastSuccessfulSyncTime_ = TInstant::Now();
+        LastSeenRootRevision_ = rootRevision;
+    }
+
+    TRevision GetLastSeenObjectRevision(const String& objectName)
+    {
+        auto lock = getLock();
+
+        if (auto it = LastSeenObjectRevisions_.find(objectName); it != LastSeenObjectRevisions_.end()) {
+            return it->second;
+        }
+        return LastSeenRootRevision_;
     }
 
     DB::ASTPtr ParseCreateObjectQuery(const String& objectName, const TString& createObjectQuery)
