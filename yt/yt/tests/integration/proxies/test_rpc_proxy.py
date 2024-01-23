@@ -1218,7 +1218,7 @@ class TestRpcProxyHeapUsageStatisticsBase(TestRpcProxyBase):
 
         self._create_simple_table("//tmp/t_in", data=[self._sample_line], sorted=True, dynamic=True, authenticated_user=user)
         self._create_simple_table("//tmp/t_out", dynamic=False, sorted=True, authenticated_user=user)
-        map(in_="//tmp/t_in", out="//tmp/t_out", track=True, mapper_command="cat", authenticated_user=user)
+        map(in_="//tmp/t_in", out="//tmp/t_out", track=False, mapper_command="cat", authenticated_user=user)
 
     def check_memory_usage(self, memory_usage, user):
         tags = ["user", "rpc"]
