@@ -44,13 +44,12 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
     : ControllerAgentConnectorPool_(MakeStrong(controllerAgentConnectorPool))
     , ControllerAgentDescriptor_(std::move(controllerAgentDescriptor))
     , Channel_(ControllerAgentConnectorPool_->CreateChannel(ControllerAgentDescriptor_))
-    , HeartbeatExecutor_(New<TPeriodicExecutor>(
+    , HeartbeatExecutor_(New<TRetryingPeriodicExecutor>(
         ControllerAgentConnectorPool_->Bootstrap_->GetControlInvoker(),
-        BIND_NO_PROPAGATE(&TControllerAgentConnector::SendHeartbeat, MakeWeak(this)),
-        TPeriodicExecutorOptions{
-            .Period = GetConfig()->HeartbeatPeriod,
-            .Splay = GetConfig()->HeartbeatSplay
-        }))
+        BIND([this_ = MakeWeak(this)] {
+            return this_.Lock()->SendHeartbeat();
+        }),
+        GetConfig()->Heartbeats))
     , StatisticsThrottler_(CreateReconfigurableThroughputThrottler(
         GetConfig()->StatisticsThrottler))
     , TotalConfirmationRequestBackoffStrategy_(GetConfig()->TotalConfirmationBackoffStrategy)
@@ -312,10 +311,14 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnConfigUpdated(
     VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
 
     YT_LOG_DEBUG(
-        "Set new controller agent heartbeat period (NewPeriod: %v)",
-        newConfig->HeartbeatPeriod);
+        "Set new controller agent heartbeat options (NewPeriod: %v, NewSplay: %v, NewMinBackoff: %v, NewMaxBackoff: %v, NewBackoffMultiplier: %v)",
+        newConfig->Heartbeats.Periodic.Period,
+        newConfig->Heartbeats.Periodic.Splay,
+        newConfig->Heartbeats.BackoffStrategy.MinBackoff,
+        newConfig->Heartbeats.BackoffStrategy.MaxBackoff,
+        newConfig->Heartbeats.BackoffStrategy.BackoffMultiplier);
 
-    HeartbeatExecutor_->SetPeriod(newConfig->HeartbeatPeriod);
+    HeartbeatExecutor_->SetOptions(newConfig->Heartbeats);
     StatisticsThrottler_->Reconfigure(newConfig->StatisticsThrottler);
     TotalConfirmationRequestBackoffStrategy_.UpdateOptions(newConfig->TotalConfirmationBackoffStrategy);
 }
@@ -335,7 +338,7 @@ TControllerAgentConnectorPool::TControllerAgentConnector::GetConfig() const noex
     return ControllerAgentConnectorPool_->DynamicConfig_.Acquire();
 }
 
-void TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat()
+TError TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat()
 {
     const auto* bootstrap = ControllerAgentConnectorPool_->Bootstrap_;
 
@@ -345,15 +348,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat()
     auto nodeDescriptor = bootstrap->GetLocalDescriptor();
 
     if (!bootstrap->IsConnected() || nodeId == InvalidNodeId) {
-        return;
-    }
-
-    if (TInstant::Now() < HeartbeatInfo_.LastFailedHeartbeatTime + HeartbeatInfo_.FailedHeartbeatBackoffTime) {
-        YT_LOG_INFO(
-            "Skipping heartbeat to agent since backoff after previous heartbeat failure (AgentAddress: %v, IncarnationId: %v)",
-            ControllerAgentDescriptor_.Address,
-            ControllerAgentDescriptor_.IncarnationId);
-        return;
+        return TError();
     }
 
     TJobTrackerServiceProxy proxy(Channel_);
@@ -368,8 +363,6 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat()
 
     PrepareHeartbeatRequest(nodeId, nodeDescriptor, request, context);
 
-    HeartbeatInfo_.LastSentHeartbeatTime = TInstant::Now();
-
     auto requestFuture = request->Invoke();
     YT_LOG_INFO(
         "Heartbeat sent to agent (AgentAddress: %v, IncarnationId: %v)",
@@ -378,29 +371,16 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat()
 
     auto responseOrError = WaitFor(std::move(requestFuture));
     if (!responseOrError.IsOK()) {
-        HeartbeatInfo_.LastFailedHeartbeatTime = TInstant::Now();
-
-        auto heartbeatBackoffStartTime = currentConfig->FailedHeartbeatBackoffStartTime;
-        auto heartbeatBackoffMaxTime = currentConfig->FailedHeartbeatBackoffMaxTime;
-        auto heartbeatBackoffMultiplier = currentConfig->FailedHeartbeatBackoffMultiplier;
-
-        if (HeartbeatInfo_.FailedHeartbeatBackoffTime == TDuration::Zero()) {
-            HeartbeatInfo_.FailedHeartbeatBackoffTime = heartbeatBackoffStartTime;
-        } else {
-            HeartbeatInfo_.FailedHeartbeatBackoffTime = std::min(
-                HeartbeatInfo_.FailedHeartbeatBackoffTime * heartbeatBackoffMultiplier,
-                heartbeatBackoffMaxTime);
-        }
         YT_LOG_ERROR(responseOrError, "Error reporting heartbeat to agent (AgentAddress: %v, BackoffTime: %v)",
             ControllerAgentDescriptor_.Address,
-            HeartbeatInfo_.FailedHeartbeatBackoffTime);
+            HeartbeatExecutor_->GetBackoffTimeEstimate());
 
         if (responseOrError.GetCode() == NControllerAgent::EErrorCode::IncarnationMismatch) {
             ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker()->Invoke(BIND(
                 &TControllerAgentConnector::OnAgentIncarnationOutdated,
                 MakeStrong(this)));
         }
-        return;
+        return TError("Failed to report heartbeat to agent");
     }
 
     auto& response = responseOrError.Value();
@@ -411,15 +391,15 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat()
         ControllerAgentDescriptor_.Address,
         ControllerAgentDescriptor_.IncarnationId);
 
-    HeartbeatInfo_.FailedHeartbeatBackoffTime = TDuration::Zero();
+    return TError();
 }
 
 // This method will be called in control thread when controller agent controls job lifetime.
-void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
+TError TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
 {
     VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetControlInvoker());
 
-    DoSendHeartbeat();
+    return DoSendHeartbeat();
 }
 
 void TControllerAgentConnectorPool::TControllerAgentConnector::PrepareHeartbeatRequest(

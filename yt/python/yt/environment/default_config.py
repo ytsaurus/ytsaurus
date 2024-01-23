@@ -693,11 +693,16 @@ def get_dynamic_node_config():
                 total_confirmation_backoff_strategy = {
                     backoff = 5000;
                 };
-                heartbeat_period = 100;
                 total_confirmation_period = 5000;
                 running_job_statistics_sending_backoff = 0;
                 send_waiting_jobs = %true;
                 use_job_tracker_service_to_settle_jobs = %true;
+                heartbeat_period = 100;
+                heartbeats = {
+                    periodic = {
+                        period = 100;
+                    };
+                };
             };
 
             scheduler_connector = {

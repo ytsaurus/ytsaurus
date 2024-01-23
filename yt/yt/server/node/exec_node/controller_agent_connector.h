@@ -66,20 +66,12 @@ public:
     private:
         friend class TControllerAgentConnectorPool;
 
-        struct THeartbeatInfo
-        {
-            TInstant LastSentHeartbeatTime;
-            TInstant LastFailedHeartbeatTime;
-            TDuration FailedHeartbeatBackoffTime;
-        };
-        THeartbeatInfo HeartbeatInfo_;
-
         const TControllerAgentConnectorPoolPtr ControllerAgentConnectorPool_;
         const TControllerAgentDescriptor ControllerAgentDescriptor_;
 
         const NRpc::IChannelPtr Channel_;
 
-        const NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
+        const NConcurrency::TRetryingPeriodicExecutorPtr HeartbeatExecutor_;
 
         NConcurrency::IReconfigurableThroughputThrottlerPtr StatisticsThrottler_;
 
@@ -95,10 +87,10 @@ public:
 
         TControllerAgentConnectorDynamicConfigPtr GetConfig() const noexcept;
 
-        void SendHeartbeat();
+        TError SendHeartbeat();
         void OnAgentIncarnationOutdated() noexcept;
 
-        void DoSendHeartbeat();
+        TError DoSendHeartbeat();
 
         void PrepareHeartbeatRequest(
             NNodeTrackerClient::TNodeId nodeId,

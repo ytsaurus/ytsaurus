@@ -72,7 +72,13 @@ class TestSchedulingSegments(YTEnvSetup):
     DELTA_DYNAMIC_NODE_CONFIG = {
         "%true": {
             "exec_node": {
-                "controller_agent_connector": {"heartbeat_period": 500},  # 500 msec
+                "controller_agent_connector": {
+                    "heartbeats": {
+                        "periodic": {
+                            "period": 500,  # 500 msec
+                        },
+                    },
+                },
             },
         },
     }
@@ -997,7 +1003,13 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
     DELTA_DYNAMIC_NODE_CONFIG = {
         "%true": {
             "exec_node": {
-                "controller_agent_connector": {"heartbeat_period": 500},  # 500 msec
+                "controller_agent_connector": {
+                    "heartbeats": {
+                        "periodic": {
+                            "period": 500,  # 500 msec
+                        },
+                    },
+                },
             },
         },
     }

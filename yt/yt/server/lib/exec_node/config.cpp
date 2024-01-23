@@ -468,21 +468,19 @@ void TUserJobMonitoringDynamicConfig::Register(TRegistrar registrar)
 
 void THeartbeatReporterDynamicConfigBase::Register(TRegistrar registrar)
 {
-    registrar.Parameter("heartbeat_period", &TThis::HeartbeatPeriod)
-        .Default(TDuration::Seconds(5));
-    // TODO(arkady-e1ppa): Start updating splay in periodics
-    // when it supports doing so.
-    registrar.Parameter("heartbeat_splay", &TThis::HeartbeatSplay)
-        .Default(TDuration::Seconds(1));
-    registrar.Parameter("failed_heartbeat_backoff_start_time", &TThis::FailedHeartbeatBackoffStartTime)
-        .GreaterThan(TDuration::Zero())
-        .Default(TDuration::Seconds(5));
-    registrar.Parameter("failed_heartbeat_backoff_max_time", &TThis::FailedHeartbeatBackoffMaxTime)
-        .GreaterThan(TDuration::Zero())
-        .Default(TDuration::Seconds(60));
-    registrar.Parameter("failed_heartbeat_backoff_multiplier", &TThis::FailedHeartbeatBackoffMultiplier)
-        .GreaterThanOrEqual(1.0)
-        .Default(2.0);
+    registrar.Parameter("heartbeats", &TThis::Heartbeats)
+        .Default(TRetryingPeriodicExecutorOptions{
+            .Periodic = {
+                .Period = TDuration::Seconds(5),
+                .Splay = TDuration::Seconds(1),
+                .Jitter = 0.0,
+            },
+            .BackoffStrategy = {
+                .MinBackoff = TDuration::Seconds(5),
+                .MaxBackoff = TDuration::Seconds(60),
+                .BackoffMultiplier = 2.0,
+            },
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -512,42 +510,18 @@ void TControllerAgentConnectorDynamicConfig::Register(TRegistrar registrar)
 
 void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("heartbeats", &TThis::Heartbeats)
-        .Default(TRetryingPeriodicExecutorOptions{
-            .Periodic = {
-                .Period = TDuration::Seconds(3),
-                .Splay = TDuration::Seconds(1),
-                .Jitter = 0.3,
-            },
-            .BackoffStrategy = {
-                .MinBackoff = TDuration::Seconds(5),
-                .MaxBackoff = TDuration::Seconds(60),
-                .BackoffMultiplier = 2.0,
-            },
-        });
-
     registrar.Parameter("heartbeat_timeout", &TThis::HeartbeatTimeout)
         .Default(TDuration::Seconds(60));
+
+    registrar.Preprocessor([] (TThis* config) {
+        config->Heartbeats.Periodic.Jitter = 0.3;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TSchedulerConnectorDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("heartbeats", &TThis::Heartbeats)
-        .Default(TRetryingPeriodicExecutorOptions{
-            .Periodic = {
-                .Period = TDuration::Seconds(3),
-                .Splay = TDuration::Seconds(1),
-                .Jitter = 0.0,
-            },
-            .BackoffStrategy = {
-                .MinBackoff = TDuration::Seconds(5),
-                .MaxBackoff = TDuration::Seconds(60),
-                .BackoffMultiplier = 2.0,
-            },
-        });
-
     registrar.Parameter(
         "send_heartbeat_on_job_finished",
         &TSchedulerConnectorDynamicConfig::SendHeartbeatOnJobFinished)

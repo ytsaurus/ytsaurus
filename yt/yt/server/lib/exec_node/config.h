@@ -376,20 +376,7 @@ class THeartbeatReporterDynamicConfigBase
     : public NYTree::TYsonStruct
 {
 public:
-    //! Period between consequent heartbeats.
-    TDuration HeartbeatPeriod;
-
-    //! Random delay before first heartbeat.
-    TDuration HeartbeatSplay;
-
-    //! Start backoff for sending the next heartbeat after a failure.
-    TDuration FailedHeartbeatBackoffStartTime;
-
-    //! Maximum backoff for sending the next heartbeat after a failure.
-    TDuration FailedHeartbeatBackoffMaxTime;
-
-    //! Backoff multiplier for sending the next heartbeat after a failure.
-    double FailedHeartbeatBackoffMultiplier;
+    NConcurrency::TRetryingPeriodicExecutorOptions Heartbeats;
 
     REGISTER_YSON_STRUCT(THeartbeatReporterDynamicConfigBase);
 
@@ -423,11 +410,9 @@ DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterConnectorDynamicConfig
-    : public NYTree::TYsonStruct
+    : public THeartbeatReporterDynamicConfigBase
 {
 public:
-    NConcurrency::TRetryingPeriodicExecutorOptions Heartbeats;
-
     //! Timeout of the exec node heartbeat RPC request.
     TDuration HeartbeatTimeout;
 
@@ -441,11 +426,9 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerConnectorDynamicConfig
-    : public NYTree::TYsonStruct
+    : public THeartbeatReporterDynamicConfigBase
 {
 public:
-    NConcurrency::TRetryingPeriodicExecutorOptions Heartbeats;
-
     bool SendHeartbeatOnJobFinished;
 
     REGISTER_YSON_STRUCT(TSchedulerConnectorDynamicConfig);

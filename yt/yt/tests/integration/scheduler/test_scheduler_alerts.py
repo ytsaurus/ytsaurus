@@ -129,7 +129,13 @@ class LowCpuUsageSchedulerAlertBase(YTEnvSetup):
                         },
                     },
                 },
-                "controller_agent_connector": {"heartbeat_period": 200},  # 200 msec
+                "controller_agent_connector": {
+                    "heartbeats": {
+                        "periodic": {
+                            "period": 200,  # 200 msec
+                        }
+                    }
+                }
             }
         }
     }

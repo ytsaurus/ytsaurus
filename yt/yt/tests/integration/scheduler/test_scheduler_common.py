@@ -1714,7 +1714,13 @@ class TestSchedulerObjectsDestruction(YTEnvSetup):
                         },
                     },
                 },
-                "controller_agent_connector": {"heartbeat_period": 1},  # 1 msec
+                "controller_agent_connector": {
+                    "heartbeats": {
+                        "periodic": {
+                            "period": 1,  # 1 msec
+                        }
+                    }
+                },
             },
         },
     }
@@ -1775,7 +1781,13 @@ class TestScheduleJobDelayAndRevive(YTEnvSetup):
                         },
                     },
                 },
-                "controller_agent_connector": {"heartbeat_period": 1},  # 1 msec
+                "controller_agent_connector": {
+                    "heartbeats": {
+                        "periodic": {
+                            "period": 1,  # 1 msec
+                        },
+                    },
+                }
             }
         }
     }
@@ -1815,7 +1827,13 @@ class TestDelayInNodeHeartbeat(YTEnvSetup):
 
     DELTA_DYNAMIC_NODE_CONFIG = {
         "exec_node": {
-            "controller_agent_connector": {"heartbeat_period": 10},
+            "controller_agent_connector": {
+                "heartbeats": {
+                    "periodic": {
+                        "period": 10,  # 10 msec
+                    },
+                },
+            },
         },
     }
 
