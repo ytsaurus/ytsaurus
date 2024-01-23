@@ -334,6 +334,9 @@ items:
       - name: Импорт внешних данных
         when: audience == "public"
         href: user-guide/import.md
+      - name: Query tracker
+        when: audience == "public"
+        href: user-guide/query-tracker.md
   - name: API и справочник
     when: audience == "public"
     items:
