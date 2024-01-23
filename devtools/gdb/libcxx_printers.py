@@ -178,8 +178,8 @@ class StdStringViewPrinter:
         if type.code == gdb.TYPE_CODE_REF:
             type = type.target()
 
-        len = self.val['__size']
-        ptr = self.val['__data']
+        len = self.val['__size_']
+        ptr = self.val['__data_']
         return ptr.string(length = len)
 
     def display_hint (self):

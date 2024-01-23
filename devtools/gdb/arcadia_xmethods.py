@@ -236,7 +236,7 @@ class TStringBufSizeWorker(gdb.xmethod.XMethodWorker):
         return self.result_type
 
     def __call__(self, obj):
-        return obj['__size']
+        return obj['__size_']
 
 
 class TStringBufIndexWorker(gdb.xmethod.XMethodWorker):
@@ -253,7 +253,7 @@ class TStringBufIndexWorker(gdb.xmethod.XMethodWorker):
         return self.result_type
 
     def __call__(self, obj, idx):
-        return obj['__data'][idx].reference_value()
+        return obj['__data_'][idx].reference_value()
 
 
 class TStringBufDataWorker(gdb.xmethod.XMethodWorker):
@@ -269,7 +269,7 @@ class TStringBufDataWorker(gdb.xmethod.XMethodWorker):
         return self.result_type
 
     def __call__(self, obj):
-        return obj['__data'].cast(self.result_type)
+        return obj['__data_'].cast(self.result_type)
 
 
 class TStringBufMatcher(gdb.xmethod.XMethodMatcher):
