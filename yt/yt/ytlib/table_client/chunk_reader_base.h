@@ -26,7 +26,7 @@ public:
         NChunkClient::IChunkReaderPtr underlyingReader,
         NChunkClient::IBlockCachePtr blockCache,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-        const NChunkClient::TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
+        const NChunkClient::TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder = nullptr);
 
     ~TChunkReaderBase();
 
@@ -45,7 +45,7 @@ protected:
     const NChunkClient::TClientChunkReadOptions ChunkReadOptions_;
 
     NChunkClient::TSequentialBlockFetcherPtr SequentialBlockFetcher_;
-    NChunkClient::TChunkReaderMemoryManagerPtr MemoryManager_;
+    NChunkClient::TChunkReaderMemoryManagerHolderPtr MemoryManagerHolder_;
     TFuture<NChunkClient::TBlock> CurrentBlock_;
 
     bool BlockEnded_ = false;

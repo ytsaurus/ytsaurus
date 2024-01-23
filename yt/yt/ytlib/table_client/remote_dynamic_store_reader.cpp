@@ -62,12 +62,12 @@ using TIdMapping = TCompactVector<int, TypicalColumnCount>;
 template <class IReaderPtr>
 using TChunkReaderFactory = TCallback<IReaderPtr(
     TChunkSpec,
-    TChunkReaderMemoryManagerPtr)>;
+    TChunkReaderMemoryManagerHolderPtr)>;
 
 template <class IReaderPtr>
 using TAsyncChunkReaderFactory = TCallback<TFuture<IReaderPtr>(
     TChunkSpec,
-    TChunkReaderMemoryManagerPtr)>;
+    TChunkReaderMemoryManagerHolderPtr)>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -702,7 +702,7 @@ public:
         TRetryingRemoteDynamicStoreReaderConfigPtr config,
         TChunkReaderHostPtr chunkReaderHost,
         const TClientChunkReadOptions& chunkReadOptions,
-        TChunkReaderMemoryManagerPtr readerMemoryManager,
+        TChunkReaderMemoryManagerHolderPtr readerMemoryManagerHolder,
         TAsyncChunkReaderFactory<IReaderPtr> chunkReaderFactory)
         : ChunkSpec_(std::move(chunkSpec))
         , Schema_(std::move(schema))
@@ -712,7 +712,7 @@ public:
         , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory())
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
         , ChunkReadOptions_(chunkReadOptions)
-        , ReaderMemoryManager_(std::move(readerMemoryManager))
+        , ReaderMemoryManagerHolder_(std::move(readerMemoryManagerHolder))
         , ChunkReaderFactory_(chunkReaderFactory)
         , Logger(TableClientLogger.WithTag("ReaderId: %v", TGuid::Create()))
     {
@@ -730,9 +730,6 @@ public:
 
     virtual ~TRetryingRemoteDynamicStoreReaderBase() override
     {
-        // NB: Usually memory manager is finalized in underlying reader,
-        // but it isn't always created. It's safe to finalize twice, though.
-        YT_UNUSED_FUTURE(ReaderMemoryManager_->Finalize());
         YT_LOG_DEBUG("Retrying remote dynamic store reader destroyed");
     }
 
@@ -828,7 +825,7 @@ protected:
     const TNodeDirectoryPtr NodeDirectory_;
     const TNetworkPreferenceList Networks_;
     const TClientChunkReadOptions ChunkReadOptions_;
-    const TChunkReaderMemoryManagerPtr ReaderMemoryManager_;
+    const TChunkReaderMemoryManagerHolderPtr ReaderMemoryManagerHolder_;
 
     TAtomicIntrusivePtr<IReader> CurrentReader_;
     // NB: It is necessary to store failed reader until Read is called for the
@@ -1033,7 +1030,7 @@ protected:
             YT_LOG_DEBUG("Dynamic store located: falling back to chunk reader (ChunkId: %v)",
                 GetObjectIdFromChunkSpec(ChunkSpec_));
 
-            return ChunkReaderFactory_(ChunkSpec_, ReaderMemoryManager_)
+            return ChunkReaderFactory_(ChunkSpec_, ReaderMemoryManagerHolder_)
                 .Apply(BIND(&TRetryingRemoteDynamicStoreReaderBase::OnChunkReaderCreated, MakeStrong(this)));
         }
     }
@@ -1069,7 +1066,7 @@ public:
         const TColumnFilter& columnFilter,
         const TClientChunkReadOptions& chunkReadOptions,
         TTimestamp timestamp,
-        NChunkClient::TChunkReaderMemoryManagerPtr readerMemoryManager,
+        NChunkClient::TChunkReaderMemoryManagerHolderPtr readerMemoryManagerHolder,
         TAsyncChunkReaderFactory<IVersionedReaderPtr> chunkReaderFactory)
         : TRetryingRemoteDynamicStoreReaderBase(
             std::move(chunkSpec),
@@ -1077,7 +1074,7 @@ public:
             std::move(config),
             std::move(chunkReaderHost),
             chunkReadOptions,
-            std::move(readerMemoryManager),
+            std::move(readerMemoryManagerHolder),
             std::move(chunkReaderFactory))
         , ColumnFilter_(columnFilter)
         , Timestamp_(timestamp)
@@ -1167,16 +1164,16 @@ IVersionedReaderPtr CreateRetryingRemoteSortedDynamicStoreReader(
     const TClientChunkReadOptions& chunkReadOptions,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
-    TChunkReaderMemoryManagerPtr readerMemoryManager,
+    TChunkReaderMemoryManagerHolderPtr readerMemoryManagerHolder,
     TChunkReaderFactory<IVersionedReaderPtr> chunkReaderFactory)
 {
     auto asyncChunkReaderFactory = BIND([chunkReaderFactory = std::move(chunkReaderFactory)] (
         TChunkSpec chunkSpec,
-        TChunkReaderMemoryManagerPtr readerMemoryManager)
+        TChunkReaderMemoryManagerHolderPtr readerMemoryManagerHolder)
     {
         return MakeFuture(chunkReaderFactory(
             std::move(chunkSpec),
-            std::move(readerMemoryManager)));
+            std::move(readerMemoryManagerHolder)));
     });
 
     return New<TRetryingRemoteSortedDynamicStoreReader>(
@@ -1187,7 +1184,7 @@ IVersionedReaderPtr CreateRetryingRemoteSortedDynamicStoreReader(
         columnFilter,
         chunkReadOptions,
         timestamp,
-        std::move(readerMemoryManager),
+        std::move(readerMemoryManagerHolder),
         asyncChunkReaderFactory);
 }
 
@@ -1207,7 +1204,7 @@ public:
         const TClientChunkReadOptions& chunkReadOptions,
         TNameTablePtr nameTable,
         const std::optional<std::vector<TString>>& columns,
-        TChunkReaderMemoryManagerPtr readerMemoryManager,
+        TChunkReaderMemoryManagerHolderPtr readerMemoryManagerHolder,
         TAsyncChunkReaderFactory<ISchemalessChunkReaderPtr> chunkReaderFactory)
         : TRetryingRemoteDynamicStoreReaderBase(
             std::move(chunkSpec),
@@ -1215,7 +1212,7 @@ public:
             std::move(config),
             std::move(chunkReaderHost),
             chunkReadOptions,
-            std::move(readerMemoryManager),
+            std::move(readerMemoryManagerHolder),
             std::move(chunkReaderFactory))
         , ChunkReaderOptions_(std::move(chunkReaderOptions))
         , NameTable_(std::move(nameTable))
@@ -1354,7 +1351,7 @@ ISchemalessChunkReaderPtr CreateRetryingRemoteOrderedDynamicStoreReader(
     TChunkReaderHostPtr chunkReaderHost,
     const TClientChunkReadOptions& chunkReadOptions,
     const std::optional<std::vector<TString>>& columns,
-    TChunkReaderMemoryManagerPtr readerMemoryManager,
+    TChunkReaderMemoryManagerHolderPtr readerMemoryManagerHolder,
     TAsyncChunkReaderFactory<ISchemalessChunkReaderPtr> chunkReaderFactory)
 {
     return New<TRetryingRemoteOrderedDynamicStoreReader>(
@@ -1366,7 +1363,7 @@ ISchemalessChunkReaderPtr CreateRetryingRemoteOrderedDynamicStoreReader(
         chunkReadOptions,
         std::move(nameTable),
         columns,
-        std::move(readerMemoryManager),
+        std::move(readerMemoryManagerHolder),
         std::move(chunkReaderFactory));
 }
 

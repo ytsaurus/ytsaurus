@@ -252,6 +252,8 @@ using TDataCenterName = std::optional<TString>;
 
 DECLARE_REFCOUNTED_CLASS(TMemoryUsageGuard)
 
+DECLARE_REFCOUNTED_CLASS(TChunkReaderMemoryManagerHolder)
+
 DECLARE_REFCOUNTED_STRUCT(IMultiReaderMemoryManager)
 DECLARE_REFCOUNTED_STRUCT(IReaderMemoryManagerHost)
 

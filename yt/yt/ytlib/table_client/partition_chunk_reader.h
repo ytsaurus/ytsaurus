@@ -44,7 +44,7 @@ public:
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         int partitionTag,
         const NChunkClient::TDataSource& dataSource,
-        NChunkClient::TChunkReaderMemoryManagerPtr chunkReaderMemoryManager = nullptr);
+        NChunkClient::TChunkReaderMemoryManagerHolderPtr chunkReaderMemoryManagerHolder = nullptr);
 
     template <class TValueInsertIterator, class TRowDescriptorInsertIterator>
     bool Read(

@@ -30,7 +30,7 @@ using namespace NTracing;
 TBlockFetcher::TBlockFetcher(
     TBlockFetcherConfigPtr config,
     std::vector<TBlockInfo> blockInfos,
-    TChunkReaderMemoryManagerPtr memoryManager,
+    TChunkReaderMemoryManagerHolderPtr memoryManagerHolder,
     std::vector<IChunkReaderPtr> chunkReaders,
     IBlockCachePtr blockCache,
     NCompression::ECodec codecId,
@@ -48,7 +48,7 @@ TBlockFetcher::TBlockFetcher(
         ? SessionInvoker_
         : TDispatcher::Get()->GetReaderInvoker()))
     , CompressionRatio_(compressionRatio)
-    , MemoryManager_(std::move(memoryManager))
+    , MemoryManagerHolder_(std::move(memoryManagerHolder))
     , Codec_(NCompression::GetCodec(codecId))
     , ChunkReadOptions_(chunkReadOptions)
     , Logger(ChunkClientLogger)
@@ -144,8 +144,8 @@ TBlockFetcher::TBlockFetcher(
     // Now Window_ and BlockInfos_ correspond to each other.
     BlockInfos_.resize(windowSize);
 
-    MemoryManager_->SetTotalSize(totalBlockUncompressedSize + Config_->WindowSize);
-    MemoryManager_->SetPrefetchMemorySize(std::min(Config_->WindowSize, totalRemainingSize));
+    MemoryManagerHolder_->Get()->SetTotalSize(totalBlockUncompressedSize + Config_->WindowSize);
+    MemoryManagerHolder_->Get()->SetPrefetchMemorySize(std::min(Config_->WindowSize, totalRemainingSize));
 
     TStringBuilder builder;
     bool first = true;
@@ -165,7 +165,7 @@ TBlockFetcher::TBlockFetcher(
 
 TBlockFetcher::~TBlockFetcher()
 {
-    YT_UNUSED_FUTURE(MemoryManager_->Finalize());
+    YT_UNUSED_FUTURE(MemoryManagerHolder_->Get()->Finalize());
 }
 
 void TBlockFetcher::Start()
@@ -173,7 +173,7 @@ void TBlockFetcher::Start()
     YT_VERIFY(!Started_.exchange(true));
 
     FetchNextGroupMemoryFuture_ =
-        MemoryManager_->AsyncAcquire(
+        MemoryManagerHolder_->Get()->AsyncAcquire(
             std::min(TotalRemainingSize_.load(), Config_->GroupSize));
     FetchNextGroupMemoryFuture_.Subscribe(BIND(
         &TBlockFetcher::FetchNextGroup,
@@ -255,7 +255,7 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int readerIndex, int blockIndex)
             windowIndex);
 
         const auto& blockInfo = BlockInfos_[windowIndex];
-        windowSlot.MemoryUsageGuard = MemoryManager_->Acquire(
+        windowSlot.MemoryUsageGuard = MemoryManagerHolder_->Get()->Acquire(
             blockInfo.UncompressedDataSize);
 
         TBlockId blockId(chunkId, blockIndex);
@@ -468,14 +468,14 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
 
     if (windowIndexes.empty()) {
         FetchingCompleted_ = true;
-        YT_UNUSED_FUTURE(MemoryManager_->Finalize());
+        YT_UNUSED_FUTURE(MemoryManagerHolder_->Get()->Finalize());
         return;
     }
 
     if (TotalRemainingSize_ > 0) {
         auto nextGroupSize = std::min<i64>(TotalRemainingSize_, Config_->GroupSize);
-        MemoryManager_->SetPrefetchMemorySize(nextGroupSize);
-        FetchNextGroupMemoryFuture_ = MemoryManager_->AsyncAcquire(nextGroupSize);
+        MemoryManagerHolder_->Get()->SetPrefetchMemorySize(nextGroupSize);
+        FetchNextGroupMemoryFuture_ = MemoryManagerHolder_->Get()->AsyncAcquire(nextGroupSize);
         FetchNextGroupMemoryFuture_.Subscribe(BIND(
             &TBlockFetcher::FetchNextGroup,
                 MakeWeak(this))
@@ -644,7 +644,7 @@ TCodecDuration TBlockFetcher::GetDecompressionTime() const
 TSequentialBlockFetcher::TSequentialBlockFetcher(
     TBlockFetcherConfigPtr config,
     std::vector<TBlockInfo> blockInfos,
-    TChunkReaderMemoryManagerPtr memoryManager,
+    TChunkReaderMemoryManagerHolderPtr memoryManagerHolder,
     std::vector<IChunkReaderPtr> chunkReaders,
     IBlockCachePtr blockCache,
     NCompression::ECodec codecId,
@@ -654,7 +654,7 @@ TSequentialBlockFetcher::TSequentialBlockFetcher(
     : TBlockFetcher(
         std::move(config),
         blockInfos,
-        std::move(memoryManager),
+        std::move(memoryManagerHolder),
         std::move(chunkReaders),
         std::move(blockCache),
         codecId,

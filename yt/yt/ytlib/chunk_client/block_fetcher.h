@@ -51,7 +51,7 @@ public:
     TBlockFetcher(
         TBlockFetcherConfigPtr config,
         std::vector<TBlockInfo> blockInfos,
-        TChunkReaderMemoryManagerPtr memoryManager,
+        TChunkReaderMemoryManagerHolderPtr memoryManagerHolder,
         std::vector<IChunkReaderPtr> chunkReaders,
         IBlockCachePtr blockCache,
         NCompression::ECodec codecId,
@@ -108,7 +108,7 @@ private:
     const IInvokerPtr CompressionInvoker_;
     const IInvokerPtr ReaderInvoker_;
     const double CompressionRatio_;
-    const TChunkReaderMemoryManagerPtr MemoryManager_;
+    const TChunkReaderMemoryManagerHolderPtr MemoryManagerHolder_;
     NCompression::ICodec* const Codec_;
     const TClientChunkReadOptions ChunkReadOptions_;
     NLogging::TLogger Logger;
@@ -206,7 +206,7 @@ public:
     TSequentialBlockFetcher(
         TBlockFetcherConfigPtr config,
         std::vector<TBlockInfo> blockInfos,
-        TChunkReaderMemoryManagerPtr memoryManager,
+        TChunkReaderMemoryManagerHolderPtr memoryManagerHolder,
         std::vector<IChunkReaderPtr> chunkReaders,
         IBlockCachePtr blockCache,
         NCompression::ECodec codecId,

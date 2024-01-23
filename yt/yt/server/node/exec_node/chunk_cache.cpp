@@ -1033,19 +1033,19 @@ private:
                 });
             }
 
-            auto memoryManager = New<TChunkReaderMemoryManager>(
+            auto memoryManagerHolder = TChunkReaderMemoryManager::Create(
                 TChunkReaderMemoryManagerOptions(artifactCacheReaderConfig->WindowSize));
 
             i64 requiredMemory = 0;
             for (const auto& block : blocks) {
                 requiredMemory = std::max(requiredMemory, block.UncompressedDataSize);
             }
-            memoryManager->SetRequiredMemorySize(requiredMemory);
+            memoryManagerHolder->Get()->SetRequiredMemorySize(requiredMemory);
 
             auto blockFetcher = New<TBlockFetcher>(
                 artifactCacheReaderConfig,
                 std::move(blocks),
-                memoryManager,
+                std::move(memoryManagerHolder),
                 std::vector<IChunkReaderPtr>({chunkReader}),
                 GetNullBlockCache(),
                 NCompression::ECodec::None,

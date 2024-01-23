@@ -34,7 +34,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TSharedRange<TRowRange>& singletonClippingRange = {},
-    const NChunkClient::TChunkReaderMemoryManagerPtr& memoryManager = nullptr,
+    const NChunkClient::TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder = nullptr,
     IInvokerPtr sessionInvoker = nullptr,
     TKeyFilterStatisticsPtr keyFilterStatistics = nullptr);
 
@@ -49,7 +49,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions,
-    const NChunkClient::TChunkReaderMemoryManagerPtr& memoryManager = nullptr,
+    const NChunkClient::TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder = nullptr,
     IInvokerPtr sessionInvoker = nullptr,
     TKeyFilterStatisticsPtr keyFilterStatistics = nullptr);
 
@@ -68,7 +68,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions,
-    const NChunkClient::TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
+    const NChunkClient::TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

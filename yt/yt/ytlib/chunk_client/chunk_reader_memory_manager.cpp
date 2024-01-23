@@ -49,6 +49,14 @@ TChunkReaderMemoryManager::TChunkReaderMemoryManager(
         parentId);
 }
 
+TChunkReaderMemoryManagerHolderPtr TChunkReaderMemoryManager::Create(
+    TChunkReaderMemoryManagerOptions options,
+    TWeakPtr<IReaderMemoryManagerHost> hostMemoryManager)
+{
+    auto chunkMemoryManager = New<TChunkReaderMemoryManager>(std::move(options), std::move(hostMemoryManager));
+    return New<TChunkReaderMemoryManagerHolder>(std::move(chunkMemoryManager));
+}
+
 i64 TChunkReaderMemoryManager::GetRequiredMemorySize() const
 {
     if (Finalized_) {
@@ -339,6 +347,23 @@ void TMemoryUsageGuard::CaptureBlock(TSharedRef block)
 {
     YT_VERIFY(!Block_);
     Block_ = std::move(block);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChunkReaderMemoryManagerHolder::TChunkReaderMemoryManagerHolder(
+    TChunkReaderMemoryManagerPtr memoryManager)
+    : MemoryManager_(std::move(memoryManager))
+{ }
+
+const TChunkReaderMemoryManagerPtr& TChunkReaderMemoryManagerHolder::Get() const
+{
+    return MemoryManager_;
+}
+
+TChunkReaderMemoryManagerHolder::~TChunkReaderMemoryManagerHolder()
+{
+    YT_UNUSED_FUTURE(MemoryManager_->Finalize());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

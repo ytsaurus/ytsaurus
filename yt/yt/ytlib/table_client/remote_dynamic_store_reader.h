@@ -37,10 +37,10 @@ IVersionedReaderPtr CreateRetryingRemoteSortedDynamicStoreReader(
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
-    NChunkClient::TChunkReaderMemoryManagerPtr readerMemoryManager,
+    NChunkClient::TChunkReaderMemoryManagerHolderPtr readerMemoryManagerHolder,
     TCallback<IVersionedReaderPtr(
         NChunkClient::NProto::TChunkSpec,
-        NChunkClient::TChunkReaderMemoryManagerPtr)> chunkReaderFactory);
+        NChunkClient::TChunkReaderMemoryManagerHolderPtr)> chunkReaderFactory);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,10 +65,10 @@ ISchemalessChunkReaderPtr CreateRetryingRemoteOrderedDynamicStoreReader(
     NChunkClient::TChunkReaderHostPtr chunkReaderHost,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const std::optional<std::vector<TString>>& columns,
-    NChunkClient::TChunkReaderMemoryManagerPtr readerMemoryManager,
+    NChunkClient::TChunkReaderMemoryManagerHolderPtr readerMemoryManagerHolder,
     TCallback<TFuture<ISchemalessChunkReaderPtr>(
         NChunkClient::NProto::TChunkSpec,
-        NChunkClient::TChunkReaderMemoryManagerPtr)> chunkReaderFactory);
+        NChunkClient::TChunkReaderMemoryManagerHolderPtr)> chunkReaderFactory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

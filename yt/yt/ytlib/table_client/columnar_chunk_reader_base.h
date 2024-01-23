@@ -38,7 +38,7 @@ public:
         NChunkClient::IBlockCachePtr blockCache,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         std::function<void(int /*skippedRowCount*/)> onRowsSkipped,
-        const NChunkClient::TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
+        const NChunkClient::TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder = nullptr);
 
 protected:
     const TColumnarChunkMetaPtr ChunkMeta_;
@@ -54,7 +54,7 @@ protected:
 
     std::function<void(int)> OnRowsSkipped_;
 
-    NChunkClient::TChunkReaderMemoryManagerPtr MemoryManager_;
+    NChunkClient::TChunkReaderMemoryManagerHolderPtr MemoryManagerHolder_;
     NChunkClient::TBlockFetcherPtr BlockFetcher_;
 
     std::vector<TFuture<NChunkClient::TBlock>> PendingBlocks_;

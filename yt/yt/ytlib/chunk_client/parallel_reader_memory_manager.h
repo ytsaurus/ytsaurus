@@ -18,7 +18,7 @@ struct IMultiReaderMemoryManager
     //! Creates memory manager for particular chunk reader with `reservedMemorySize' reserved memory. Memory requirements of child memory manager will
     //! never become less than `requiredMemorySize' until its destruction.
     //! If not set `MaxInitialReaderReservedMemory' memory will be allocated.
-    virtual TChunkReaderMemoryManagerPtr CreateChunkReaderMemoryManager(
+    virtual TChunkReaderMemoryManagerHolderPtr CreateChunkReaderMemoryManager(
         std::optional<i64> reservedMemorySize = std::nullopt,
         const NProfiling::TTagList& profilingTagList = {}) = 0;
 

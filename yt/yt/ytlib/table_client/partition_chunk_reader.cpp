@@ -47,13 +47,13 @@ TPartitionChunkReader::TPartitionChunkReader(
     const TClientChunkReadOptions& chunkReadOptions,
     int partitionTag,
     const NChunkClient::TDataSource& dataSource,
-    TChunkReaderMemoryManagerPtr memoryManager)
+    TChunkReaderMemoryManagerHolderPtr memoryManagerHolder)
     : TChunkReaderBase(
         std::move(config),
         std::move(underlyingReader),
         std::move(blockCache),
         chunkReadOptions,
-        std::move(memoryManager))
+        std::move(memoryManagerHolder))
     , NameTable_(nameTable)
     , PartitionTag_(partitionTag)
 {

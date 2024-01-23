@@ -95,7 +95,7 @@ public:
         i64 startOffset,
         i64 endOffset,
         const NChunkClient::TDataSource& dataSource,
-        TChunkReaderMemoryManagerPtr chunkReaderMemoryManager)
+        TChunkReaderMemoryManagerHolderPtr chunkReaderMemoryManagerHolder)
         : Config_(std::move(config))
         , ChunkReader_(std::move(chunkReader))
         , BlockCache_(std::move(blockCache))
@@ -111,10 +111,10 @@ public:
 
         TCurrentTraceContextGuard guard(TraceContext_);
 
-        if (chunkReaderMemoryManager) {
-            MemoryManager_ = chunkReaderMemoryManager;
+        if (chunkReaderMemoryManagerHolder) {
+            MemoryManagerHolder_ = chunkReaderMemoryManagerHolder;
         } else {
-            MemoryManager_ = New<TChunkReaderMemoryManager>(TChunkReaderMemoryManagerOptions(Config_->WindowSize));
+            MemoryManagerHolder_ = TChunkReaderMemoryManager::Create(TChunkReaderMemoryManagerOptions(Config_->WindowSize));
         }
 
         Logger.AddTag("ChunkId: %v", ChunkReader_->GetChunkId());
@@ -151,7 +151,7 @@ public:
         *block = TBlock();
         if (BlockFetched_) {
             BlockFetched_ = false;
-            MemoryManager_->SetRequiredMemorySize(SequentialBlockFetcher_->GetNextBlockSize());
+            MemoryManagerHolder_->Get()->SetRequiredMemorySize(SequentialBlockFetcher_->GetNextBlockSize());
             CurrentBlock_ = SequentialBlockFetcher_->FetchNextBlock();
             ReadyEvent_ = CurrentBlock_.As<void>();
             if (!ReadyEvent_.IsSet()) {
@@ -209,7 +209,7 @@ private:
     i64 StartOffset_;
     i64 EndOffset_;
 
-    TChunkReaderMemoryManagerPtr MemoryManager_;
+    TChunkReaderMemoryManagerHolderPtr MemoryManagerHolder_;
 
     TSequentialBlockFetcherPtr SequentialBlockFetcher_;
     TFuture<void> ReadyEvent_;
@@ -309,7 +309,7 @@ private:
         SequentialBlockFetcher_ = New<TSequentialBlockFetcher>(
             Config_,
             std::move(blockSequence),
-            MemoryManager_,
+            MemoryManagerHolder_,
             std::vector{ChunkReader_},
             BlockCache_,
             CodecId_,
@@ -356,7 +356,7 @@ IFileReaderPtr CreateFileChunkReader(
     i64 startOffset,
     i64 endOffset,
     const NChunkClient::TDataSource& dataSource,
-    TChunkReaderMemoryManagerPtr chunkReaderMemoryManager)
+    TChunkReaderMemoryManagerHolderPtr chunkReaderMemoryManagerHolder)
 {
     return New<TFileChunkReader>(
         std::move(config),
@@ -367,7 +367,7 @@ IFileReaderPtr CreateFileChunkReader(
         startOffset,
         endOffset,
         dataSource,
-        std::move(chunkReaderMemoryManager));
+        std::move(chunkReaderMemoryManagerHolder));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

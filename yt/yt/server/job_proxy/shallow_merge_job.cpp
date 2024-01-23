@@ -465,7 +465,7 @@ private:
             }
         }
 
-        auto memoryManager = New<TChunkReaderMemoryManager>(
+        auto memoryManagerHolder = TChunkReaderMemoryManager::Create(
             TChunkReaderMemoryManagerOptions(ReaderConfig_->WindowSize));
 
         auto statisticsInvoker = CreateSerializedInvoker(GetCurrentInvoker(), "shallow_merge_job");
@@ -473,7 +473,7 @@ private:
         auto blockFetcher = New<TBlockFetcher>(
             ReaderConfig_,
             std::move(blockInfos),
-            std::move(memoryManager),
+            std::move(memoryManagerHolder),
             std::move(chunkReaders),
             /*blockCache*/ GetNullBlockCache(),
             /*compressionCodec*/ ECodec::None,
