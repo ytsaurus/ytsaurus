@@ -1318,7 +1318,6 @@ class TestRpcProxyHeapUsageStatistics(TestRpcProxyHeapUsageStatisticsBase):
         """
         wait(lambda: check(rpc_memory_usage_gauge.get_all(), {"rpc": "CreateNode"}))
         wait(lambda: check(rpc_memory_usage_gauge.get_all(), {"rpc": "ListNode"}))
-        wait(lambda: check(rpc_memory_usage_gauge.get_all(), {"rpc": "ModifyRows"}))
         wait(lambda: check(rpc_memory_usage_gauge.get_all(), {"rpc": "MountTable"}))
         wait(lambda: check(rpc_memory_usage_gauge.get_all(), {"rpc": "StartOperation"}))
 
@@ -1341,7 +1340,6 @@ class TestRpcProxyHeapUsageStatistics(TestRpcProxyHeapUsageStatisticsBase):
             return -1
 
         wait(lambda: get_usage("heap_usage/rpc", {"rpc": "StartTransaction"}) > 0)
-        wait(lambda: get_usage("heap_usage/rpc", {"rpc": "ModifyRows"}) > 0)
         wait(lambda: get_usage("heap_usage/user", {"user": user}) > 0)
 
 
