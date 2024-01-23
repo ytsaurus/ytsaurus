@@ -122,6 +122,7 @@ public:
         std::vector<TString> tags,
         IInvokerPtr invoker,
         std::optional<TDuration> updatePeriod,
+        std::optional<i64> samplingRate,
         NProfiling::TProfiler profiler = NProfiling::TProfiler{"/heap_usage/"});
 
 private:
@@ -141,7 +142,8 @@ DEFINE_REFCOUNTED_TYPE(THeapUsageProfiler)
 THeapUsageProfilerPtr CreateHeapProfilerWithTags(
     std::vector<TString>&& tags,
     IInvokerPtr invoker,
-    std::optional<TDuration> updatePeriod);
+    std::optional<TDuration> updatePeriod,
+    std::optional<i64> samplingRate);
 
 ////////////////////////////////////////////////////////////////////////////////
 

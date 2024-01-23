@@ -8,6 +8,8 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
+#include <yt/yt/library/program/config.h>
+
 namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,7 +20,7 @@ class THttpProxyHeapUsageProfiler
 public:
     THttpProxyHeapUsageProfiler(
         IInvokerPtr invoker,
-        std::optional<TDuration> updatePeriod);
+        THeapProfilerConfigPtr config);
 
 private:
     const THeapUsageProfilerPtr HeapProfiler_;

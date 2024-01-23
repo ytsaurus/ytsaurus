@@ -1194,6 +1194,7 @@ class TestRpcProxyHeapUsageStatisticsBase(TestRpcProxyBase):
     def setup_class(cls):
         cls.DELTA_RPC_PROXY_CONFIG.update({
             "heap_profiler": {
+                "sampling_rate": 32 << 10,
                 "snapshot_update_period": 20,
             },
         })

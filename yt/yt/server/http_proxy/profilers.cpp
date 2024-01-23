@@ -11,7 +11,7 @@ using namespace NProfiling;
 
 THttpProxyHeapUsageProfiler::THttpProxyHeapUsageProfiler(
     IInvokerPtr invoker,
-    std::optional<TDuration> updatePeriod)
+    THeapProfilerConfigPtr config)
     : HeapProfiler_(
         CreateHeapProfilerWithTags(
             {
@@ -19,7 +19,8 @@ THttpProxyHeapUsageProfiler::THttpProxyHeapUsageProfiler(
                 HttpProxyUserAllocationTag
             },
             std::move(invoker),
-            std::move(updatePeriod)))
+            std::move(config->SnapshotUpdatePeriod),
+            config->SamplingRate))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

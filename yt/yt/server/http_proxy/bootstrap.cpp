@@ -290,7 +290,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
 
     HttpProxyHeapUsageProfiler_ = New<THttpProxyHeapUsageProfiler>(
         GetControlInvoker(),
-        Config_->HeapProfiler->SnapshotUpdatePeriod);
+        Config_->HeapProfiler);
 }
 
 TBootstrap::~TBootstrap() = default;
