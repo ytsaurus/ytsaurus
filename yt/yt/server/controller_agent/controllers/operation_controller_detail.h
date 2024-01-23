@@ -667,6 +667,7 @@ protected:
         NScheduler::TControllerScheduleAllocationResult* scheduleJobResult,
         bool scheduleLocalJob);
 
+    TJobletPtr FindJoblet(TAllocationId allocationId) const;
     TJobletPtr FindJoblet(TJobId jobId) const;
     TJobletPtr GetJoblet(TJobId jobId) const;
     TJobletPtr GetJobletOrThrow(TJobId jobId) const;
@@ -1129,7 +1130,7 @@ private:
     TIntermediateChunkScraperPtr IntermediateChunkScraper;
 
     //! Maps scheduler's job ids to controller's joblets.
-    THashMap<TJobId, TJobletPtr> JobletMap;
+    THashMap<TAllocationId, TJobletPtr> JobletMap;
 
     NChunkClient::TChunkScraperPtr InputChunkScraper;
 
@@ -1336,6 +1337,8 @@ private:
 
     const NConcurrency::TPeriodicExecutorPtr SendRunningAllocationTimeStatisticsUpdatesExecutor_;
 
+    TJobId GenerateJobId(NScheduler::TAllocationId allocationId);
+
     void AccountExternalScheduleAllocationFailures() const;
 
     void InitializeOrchid();
@@ -1436,7 +1439,7 @@ private:
     bool IsTreeProbing(const TString& treeId) const;
     void MaybeBanInTentativeTree(const TString& treeId);
 
-    void RegisterTestingSpeculativeJobIfNeeded(const TTaskPtr& task, TJobId jobId);
+    void RegisterTestingSpeculativeJobIfNeeded(const TTaskPtr& task, TAllocationId allocationId);
 
     std::vector<NYPath::TRichYPath> GetLayerPaths(const NScheduler::TUserJobSpecPtr& userJobSpec) const;
 

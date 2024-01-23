@@ -130,36 +130,73 @@ private:
         TInterruptionRequestOptions,
         TGracefulAbortRequestOptions>;
 
-    struct TFinishedJobStatus { };
-    struct TRunningJobStatus
-    {
-        TRequestedActionInfo RequestedActionInfo;
-        TInstant DisappearedFromNodeSince;
-    };
-
-    struct TJobInfo
-    {
-        using TJobStatus = std::variant<
-            TRunningJobStatus,
-            TFinishedJobStatus>;
-
-        TJobStatus Status;
-        const TOperationId OperationId;
-    };
-
     struct TJobToConfirmInfo
     {
         TRequestedActionInfo RequestedActionInfo;
         const TOperationId OperationId;
     };
 
-    struct TNodeJobs
+    struct TRunningJobInfo
     {
-        THashMap<TJobId, TJobInfo> Jobs;
-        THashMap<TJobId, TJobToConfirmInfo> JobsToConfirm;
+        TRequestedActionInfo RequestedActionInfo;
+        TInstant DisappearedFromNodeSince;
+
+        const TJobId JobId;
+    };
+
+    struct TFinishedJobInfo { };
+
+    struct TAllocationInfo
+    {
+        const TOperationId OperationId;
+        std::optional<TRunningJobInfo> RunningJob;
+        THashMap<TJobId, TFinishedJobInfo> FinishedJobs;
+    };
+
+    class TNodeJobs
+    {
+    public:
+        //! Empty optional implies this iterator is pointing at
+        //! Running job.
+        struct TJobIterator
+        {
+            THashMap<TAllocationId, TAllocationInfo>::iterator Allocation;
+            std::optional<THashMap<TJobId, TFinishedJobInfo>::iterator> ConcreteJob;
+        };
+
+        //! NB(arkady-e1ppa): We store iterator to allocation to be able to delete
+        //! the outer map node once it is empty without making a lookup.
+        struct TJobToConfirmIterator
+        {
+            THashMap<TAllocationId, THashMap<TJobId, TJobToConfirmInfo>>::iterator Allocation;
+            THashMap<TJobId, TJobToConfirmInfo>::iterator ConcreteJob;
+        };
+
         THashMap<TJobId, TReleaseJobFlags> JobsToRelease;
         THashMap<TJobId, EAbortReason> JobsToAbort;
+        THashMap<TAllocationId, THashMap<TJobId, TJobToConfirmInfo>> JobsToConfirm;
+        THashMap<TAllocationId, TAllocationInfo> Allocations;
         THashMap<TAllocationId, TAbortedAllocationSummary> AbortedAllocations;
+
+        static bool IsRunning(const TJobIterator& jobIt);
+
+        //! All methods have JobTracker->GetInvoker() thread affinity.
+        std::optional<TJobToConfirmIterator> FindJobToConfirm(TJobId jobId) &;
+        void EraseJobToConfirm(TJobToConfirmIterator iterator) &;
+        TJobToConfirmIterator AddJobToConfirmOrCrash(TJobId jobId, TJobToConfirmInfo jobToConfirmInfo) &;
+        i64 JobToConfirmCount() const &;
+
+        template <CInvocable<void(TJobId, TJobToConfirmInfo)> TFunction>
+        void ForEachJobToConfirm(const TFunction& func) const &;
+
+        std::optional<TJobIterator> FindJob(TJobId jobId) &;
+        void EraseJobOrCrash(TJobId jobId) &;
+        void EraseJob(TJobIterator jobIt) &;
+        TJobIterator AddRunningJobOrCrash(TJobId jobId, TOperationId operationId, TRequestedActionInfo requestedAction) &;
+        i64 JobCount() const &;
+
+        template <class TFunction>
+        void ForEachJob(const TFunction& func) const &;
     };
 
     struct TNodeInfo
@@ -230,15 +267,13 @@ private:
     THeartbeatCounters DoProcessHeartbeat(
         THeartbeatProcessingContext heartbeatProcessingContext);
 
-    bool IsJobRunning(const TJobInfo& jobInfo) const;
-
     struct TJobsToProcessInOperationController
     {
         std::vector<std::unique_ptr<TJobSummary>> JobSummaries;
         std::vector<TJobToAbort> JobsToAbort;
     };
     void HandleJobInfo(
-        TJobInfo& jobInfo,
+        TNodeJobs::TJobIterator jobIt,
         TNodeJobs& nodeJobs,
         TOperationInfo& operationInfo,
         TJobsToProcessInOperationController& jobsToProcessInOperationController,
@@ -248,22 +283,20 @@ private:
         THeartbeatCounters& heartbeatCounters);
 
     void HandleRunningJobInfo(
-        TJobInfo& jobInfo,
+        TNodeJobs::TJobIterator jobIt,
         TNodeJobs& nodeJobs,
         TOperationInfo& operationInfo,
         TJobsToProcessInOperationController& jobsToProcessInOperationController,
         TCtxHeartbeat::TTypedResponse* response,
-        const TRunningJobStatus& jobStatus,
         std::unique_ptr<TJobSummary> jobSummary,
         const NLogging::TLogger& Logger,
         THeartbeatCounters& heartbeatCounters);
     void HandleFinishedJobInfo(
-        TJobInfo& jobInfo,
+        TNodeJobs::TJobIterator jobIt,
         TNodeJobs& nodeJobs,
         TOperationInfo& operationInfo,
         TJobsToProcessInOperationController& jobsToProcessInOperationController,
         TCtxHeartbeat::TTypedResponse* response,
-        const TFinishedJobStatus& jobStatus,
         std::unique_ptr<TJobSummary> jobSummary,
         const NLogging::TLogger& Logger,
         THeartbeatCounters& heartbeatCounters);

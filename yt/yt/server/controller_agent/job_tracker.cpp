@@ -131,9 +131,7 @@ public:
 
         auto producer = TYsonProducer(BIND([
             jobTracker = JobTracker_,
-            nodeId,
-            // Orchid service is a member of JobTracker.
-            this
+            nodeId
         ] (IYsonConsumer* consumer) {
             auto nodeIt = jobTracker->RegisteredNodes_.find(nodeId);
 
@@ -143,27 +141,41 @@ public:
 
             const auto& nodeJobs = nodeIt->second.Jobs;
 
+            auto jobYsonBuilder = [] <class TJobInfo> (TFluentMap fluent, TJobId jobId, TJobInfo jobInfo) {
+                fluent
+                    .Item(ToString(jobId)).BeginMap()
+                        .Item("operation_id").Value(jobInfo.OperationId)
+                        .Item("stage").Value(
+                            std::holds_alternative<TRunningJobInfo>(jobInfo.Info)
+                            ? EJobStage::Running
+                            : EJobStage::Finished)
+                    .EndMap();
+            };
+
+            auto jobToConfirmYsonBuilder = [] (TFluentMap fluent, TJobId jobId, TJobToConfirmInfo jobToConfirmInfo) {
+                fluent
+                .Item(ToString(jobId)).BeginMap()
+                    .Item("operation_id").Value(jobToConfirmInfo.OperationId)
+                .EndMap();
+            };
+
             BuildYsonFluently(consumer)
                 .BeginMap()
-                    .Item("jobs").DoMapFor(nodeJobs.Jobs, [&] (TFluentMap fluent, const auto& pair) {
-                        const auto& [jobId, jobInfo] = pair;
-
-                        fluent
-                            .Item(ToString(jobId)).BeginMap()
-                                .Item("operation_id").Value(jobInfo.OperationId)
-                                .Item("stage").Value(
-                                    JobTracker_->IsJobRunning(jobInfo)
-                                    ? EJobStage::Running
-                                    : EJobStage::Finished)
-                            .EndMap();
+                    .Item("jobs").DoMap([&] (TFluentMap fluent) {
+                        nodeJobs.ForEachJob(
+                            std::bind(
+                                jobYsonBuilder,
+                                fluent,
+                                std::placeholders::_1,
+                                std::placeholders::_2));
                     })
-                    .Item("jobs_waiting_for_confirmation").DoMapFor(nodeJobs.JobsToConfirm, [] (TFluentMap fluent, const auto& pair) {
-                        const auto& [jobId, jobToConfirmInfo] = pair;
-
-                        fluent
-                            .Item(ToString(jobId)).BeginMap()
-                                .Item("operation_id").Value(jobToConfirmInfo.OperationId)
-                            .EndMap();
+                    .Item("jobs_waiting_for_confirmation").DoMap([&] (TFluentMap fluent) {
+                        nodeJobs.ForEachJobToConfirm(
+                            std::bind(
+                                jobToConfirmYsonBuilder,
+                                fluent,
+                                std::placeholders::_1,
+                                std::placeholders::_2));
                     })
                     .Item("jobs_to_release").DoMapFor(nodeJobs.JobsToRelease, [] (TFluentMap fluent, const auto& pair) {
                         const auto& [jobId, releaseFlags] = pair;
@@ -208,8 +220,8 @@ public:
 
         for (const auto& [nodeId, nodeInfo] : JobTracker_->RegisteredNodes_) {
             const auto& nodeJobs = nodeInfo.Jobs;
-            size += std::ssize(nodeJobs.Jobs) +
-                std::ssize(nodeJobs.JobsToConfirm) +
+            size += nodeJobs.JobCount() +
+                nodeJobs.JobToConfirmCount() +
                 std::ssize(nodeJobs.JobsToRelease) +
                 std::ssize(nodeJobs.JobsToAbort);
         }
@@ -225,18 +237,24 @@ public:
         for (const auto& [nodeId, nodeInfo] : JobTracker_->RegisteredNodes_) {
             const auto& nodeJobs = nodeInfo.Jobs;
 
-            for (const auto& [jobId, _] : nodeJobs.Jobs) {
-                keys.push_back(ToString(jobId));
-                if (static_cast<i64>(keys.size()) >= limit) {
-                    return keys;
+            nodeJobs.ForEachJob([&] <class TJobInfo> (TJobId jobId, TJobInfo) {
+                if (static_cast<i64>(keys.size()) < limit) {
+                    keys.push_back(ToString(jobId));
                 }
+            });
+
+            if (static_cast<i64>(keys.size()) >= limit) {
+                return keys;
             }
 
-            for (const auto& [jobId, _] : nodeJobs.JobsToConfirm) {
-                keys.push_back(ToString(jobId));
-                if (static_cast<i64>(keys.size()) >= limit) {
-                    return keys;
+            nodeJobs.ForEachJobToConfirm([&] (TJobId jobId, TJobToConfirmInfo) {
+                if (static_cast<i64>(keys.size()) < limit) {
+                    keys.push_back(ToString(jobId));
                 }
+            });
+
+            if (static_cast<i64>(keys.size()) >= limit) {
+                return keys;
             }
 
             for (const auto& [jobId, _] : nodeJobs.JobsToAbort) {
@@ -279,31 +297,35 @@ public:
             nodeAddress
         ] = nodeInfoIt->second;
 
-        if (auto jobIt = nodeJobs.Jobs.find(jobId);
-            jobIt != std::end(nodeJobs.Jobs))
-        {
+        //! NB(arkady-e1ppa): const_cast's below are used instead of proper
+        //! const& overloads because they would require us to have a separate type
+        //! of const iterators or removal of "const&" from JobTracker.
+        //! I've decided that we should safely use const_cast over
+        //! adding more complexity to our iterators.
+        if (auto jobIt = const_cast<TNodeJobs&>(nodeJobs).FindJob(jobId)) {
+            auto operationId = jobIt->Allocation->second.OperationId;
+
             auto traceContextGuard = CreateOperationTraceContextGuard(
                 "JobTrackerJobOrchidService",
-                jobIt->second.OperationId);
+                operationId);
 
             jobYson = BuildYsonStringFluently().BeginMap()
                     .Item("stage").Value(
-                        JobTracker_->IsJobRunning(jobIt->second)
+                        TNodeJobs::IsRunning(*jobIt)
                         ? EJobStage::Running
                         : EJobStage::Finished)
-                    .Item("operation_id").Value(jobIt->second.OperationId)
+                    .Item("operation_id").Value(operationId)
                     .Item("node_address").Value(nodeAddress)
                 .EndMap();
-        } else if (auto jobToConfirmIt = nodeJobs.JobsToConfirm.find(jobId);
-            jobToConfirmIt != std::end(nodeJobs.JobsToConfirm))
-        {
+        } else if (auto jobToConfirmIt = const_cast<TNodeJobs&>(nodeJobs).FindJobToConfirm(jobId)) {
+            auto operationId = jobToConfirmIt->ConcreteJob->second.OperationId;
             auto traceContextGuard = CreateOperationTraceContextGuard(
                 "JobTrackerJobOrchidService",
-                jobToConfirmIt->second.OperationId);
+                operationId);
 
             jobYson = BuildYsonStringFluently().BeginMap()
                     .Item("stage").Value("confirmation")
-                    .Item("operation_id").Value(jobToConfirmIt->second.OperationId)
+                    .Item("operation_id").Value(operationId)
                     .Item("node_address").Value(nodeAddress)
                 .EndMap();
         } else if (auto jobToAbortIt = nodeJobs.JobsToAbort.find(jobId);
@@ -769,6 +791,192 @@ void TJobTracker::ProfileHeartbeatProperties(const THeartbeatCounters& heartbeat
     JobFailureRequestCount_.Increment(heartbeatCounters.JobFailureRequestCount);
 }
 
+bool TJobTracker::TNodeJobs::IsRunning(const TJobIterator& jobIt)
+{
+    return !jobIt.ConcreteJob.has_value();
+}
+
+std::optional<TJobTracker::TNodeJobs::TJobToConfirmIterator>
+TJobTracker::TNodeJobs::FindJobToConfirm(TJobId jobId) &
+{
+    auto allocationId = AllocationIdFromJobId(jobId);
+
+    if (auto it = JobsToConfirm.find(allocationId); it != std::end(JobsToConfirm)) {
+        if (auto jobIt = it->second.find(jobId); jobIt != std::end(it->second)) {
+            return TJobToConfirmIterator{
+                .Allocation = it,
+                .ConcreteJob = jobIt,
+            };
+        }
+    }
+
+    return std::nullopt;
+}
+
+void TJobTracker::TNodeJobs::EraseJobToConfirm(TJobTracker::TNodeJobs::TJobToConfirmIterator iterator) &
+{
+    iterator.Allocation->second.erase(iterator.ConcreteJob);
+
+    if (iterator.Allocation->second.empty()) {
+        JobsToConfirm.erase(iterator.Allocation);
+    }
+}
+
+TJobTracker::TNodeJobs::TJobToConfirmIterator
+TJobTracker::TNodeJobs::AddJobToConfirmOrCrash(TJobId jobId, TJobToConfirmInfo jobToConfirmInfo) &
+{
+    auto allocationId = AllocationIdFromJobId(jobId);
+
+    auto allocationIt = JobsToConfirm.emplace(allocationId, THashMap<TJobId, TJobToConfirmInfo>()).first;
+    auto jobIt = EmplaceOrCrash(allocationIt->second, jobId, std::move(jobToConfirmInfo));
+
+    return TJobToConfirmIterator{
+        .Allocation = allocationIt,
+        .ConcreteJob = jobIt,
+    };
+}
+
+i64 TJobTracker::TNodeJobs::JobToConfirmCount() const &
+{
+    i64 count = 0;
+
+    for (const auto& [_, jobsToConfirm] : JobsToConfirm) {
+        count += std::ssize(jobsToConfirm);
+    }
+
+    return count;
+}
+
+template <CInvocable<void(TJobId, TJobTracker::TJobToConfirmInfo)> TFunction>
+void TJobTracker::TNodeJobs::ForEachJobToConfirm(const TFunction& func) const &
+{
+    TForbidContextSwitchGuard guard;
+
+    for (const auto& [_, jobsToConfirm] : JobsToConfirm) {
+        for (const auto& [jobId, jobToConfirmInfo] : jobsToConfirm) {
+            func(jobId, jobToConfirmInfo);
+        }
+    }
+}
+
+std::optional<TJobTracker::TNodeJobs::TJobIterator>
+TJobTracker::TNodeJobs::FindJob(TJobId jobId) &
+{
+    auto allocationId = AllocationIdFromJobId(jobId);
+
+    if (auto it = Allocations.find(allocationId); it != std::end(Allocations)) {
+        if (it->second.RunningJob.has_value() && it->second.RunningJob->JobId == jobId) {
+            return TJobIterator{
+                .Allocation = it,
+                .ConcreteJob = std::nullopt,
+            };
+        }
+
+        auto& finishedJobs = it->second.FinishedJobs;
+
+        if (auto jobIt = finishedJobs.find(jobId); jobIt != std::end(finishedJobs)) {
+            return TJobIterator{
+                .Allocation = it,
+                .ConcreteJob = jobIt,
+            };
+        }
+    }
+
+    return std::nullopt;
+}
+
+void TJobTracker::TNodeJobs::EraseJobOrCrash(TJobId jobId) &
+{
+    auto it = FindJob(jobId);
+
+    YT_VERIFY(it);
+    EraseJob(*it);
+}
+
+void TJobTracker::TNodeJobs::EraseJob(TJobIterator jobIt) &
+{
+    auto& allocationInfo = jobIt.Allocation->second;
+
+    if (IsRunning(jobIt)) {
+        YT_VERIFY(allocationInfo.RunningJob.has_value());
+        allocationInfo.RunningJob.reset();
+    } else {
+        allocationInfo.FinishedJobs.erase(*jobIt.ConcreteJob);
+    }
+
+    if (!allocationInfo.RunningJob.has_value() && allocationInfo.FinishedJobs.empty()) {
+        Allocations.erase(jobIt.Allocation);
+    }
+}
+
+TJobTracker::TNodeJobs::TJobIterator
+TJobTracker::TNodeJobs::AddRunningJobOrCrash(TJobId jobId, TOperationId operationId, TRequestedActionInfo requestedAction) &
+{
+    auto allocationId = AllocationIdFromJobId(jobId);
+
+    auto allocationIt = Allocations.emplace(
+        allocationId,
+        TAllocationInfo{
+            .OperationId = operationId,
+        }).first;
+    auto& allocationInfo = allocationIt->second;
+
+    YT_VERIFY(!allocationInfo.RunningJob.has_value());
+
+    allocationInfo.RunningJob.emplace(TRunningJobInfo{
+        .RequestedActionInfo = std::move(requestedAction),
+        .JobId = jobId,
+    });
+
+    return TJobIterator{
+        .Allocation = allocationIt,
+        .ConcreteJob = std::nullopt,
+    };
+}
+
+i64 TJobTracker::TNodeJobs::JobCount() const &
+{
+    i64 count = 0;
+
+    for (const auto& [_, allocationInfo] : Allocations) {
+        count += std::ssize(allocationInfo.FinishedJobs) + allocationInfo.RunningJob.has_value();
+    }
+
+    return count;
+}
+
+template <class TFunction>
+void TJobTracker::TNodeJobs::ForEachJob(const TFunction& func) const &
+{
+    struct TJobInfoAdaptor
+    {
+        std::variant<TFinishedJobInfo, TRunningJobInfo> Info;
+        const TOperationId OperationId;
+    };
+
+    TForbidContextSwitchGuard guard;
+
+    for (const auto& [_, allocationInfo] : Allocations) {
+        if (allocationInfo.RunningJob.has_value()) {
+            func(
+                allocationInfo.RunningJob->JobId,
+                TJobInfoAdaptor{
+                    .Info = *allocationInfo.RunningJob,
+                    .OperationId = allocationInfo.OperationId,
+                });
+        }
+
+        for (const auto& [jobId, finishedJobInfo] : allocationInfo.FinishedJobs) {
+            func(
+                jobId,
+                TJobInfoAdaptor{
+                    .Info = finishedJobInfo,
+                    .OperationId = allocationInfo.OperationId,
+                });
+        }
+    }
+}
+
 IInvokerPtr TJobTracker::GetInvoker() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -874,17 +1082,15 @@ TJobTracker::THeartbeatCounters TJobTracker::DoProcessHeartbeat(
     {
         TOperationIdToJobsToAbort jobsToAbort;
         for (auto jobId : heartbeatProcessingContext.Request.UnconfirmedJobIds) {
-            if (auto jobToConfirmIt = nodeJobs.JobsToConfirm.find(jobId);
-                jobToConfirmIt != std::end(nodeJobs.JobsToConfirm))
-            {
-                auto operationId = jobToConfirmIt->second.OperationId;
+            if (auto jobToConfirmIt = nodeJobs.FindJobToConfirm(jobId)) {
+                auto operationId = jobToConfirmIt->ConcreteJob->second.OperationId;
 
                 if (nodeJobs.AbortedAllocations.erase(AllocationIdFromJobId(jobId))) {
                     YT_LOG_DEBUG(
                         "Ignore allocation abort since job is unconfirmed (JobId: %v, AllocationId: %v, OperationId: %v)",
                         jobId,
                         AllocationIdFromJobId(jobId),
-                        jobToConfirmIt->second.OperationId);
+                        operationId);
                 } else {
                     YT_LOG_DEBUG(
                         "Job unconfirmed, abort it (JobId: %v, OperationId: %v)",
@@ -898,8 +1104,7 @@ TJobTracker::THeartbeatCounters TJobTracker::DoProcessHeartbeat(
 
                 auto& operationInfo = GetOrCrash(RegisteredOperations_, operationId);
                 EraseOrCrash(operationInfo.TrackedJobIds, jobId);
-
-                nodeJobs.JobsToConfirm.erase(jobToConfirmIt);
+                nodeJobs.EraseJobToConfirm(*jobToConfirmIt);
             }
         }
 
@@ -1007,11 +1212,9 @@ TJobTracker::THeartbeatCounters TJobTracker::DoProcessHeartbeat(
 
             auto newJobStage = JobStageFromJobState(jobSummary->State);
 
-            if (auto jobIt = nodeJobs.Jobs.find(jobId); jobIt != std::end(nodeJobs.Jobs)) {
-                auto& jobInfo = jobIt->second;
-
+            if (auto iter = nodeJobs.FindJob(jobId)) {
                 HandleJobInfo(
-                    jobInfo,
+                    *iter,
                     nodeJobs,
                     operationInfo,
                     jobsToProcessInOperationController,
@@ -1023,34 +1226,27 @@ TJobTracker::THeartbeatCounters TJobTracker::DoProcessHeartbeat(
                 continue;
             }
 
-            if (auto jobToConfirmIt = nodeJobs.JobsToConfirm.find(jobId);
-                jobToConfirmIt != std::end(nodeJobs.JobsToConfirm))
-            {
+            if (auto jobToConfirmIt = nodeJobs.FindJobToConfirm(jobId)) {
+                auto& jobToConfirmInfo = jobToConfirmIt->ConcreteJob->second;
                 YT_LOG_DEBUG(
                     "Job confirmed (JobStage: %v)",
                     newJobStage);
-                YT_VERIFY(jobToConfirmIt->second.OperationId == operationId);
+                YT_VERIFY(jobToConfirmInfo.OperationId == operationId);
 
                 auto jobIt = [&, operationId = operationId] {
-                    auto requestedAction = std::move(jobToConfirmIt->second.RequestedActionInfo);
+                    auto requestedAction = std::move(jobToConfirmInfo.RequestedActionInfo);
 
-                    nodeJobs.JobsToConfirm.erase(jobToConfirmIt);
-                    return EmplaceOrCrash(
-                        nodeJobs.Jobs,
-                        jobId,
-                        TJobInfo{
-                            .Status = TRunningJobStatus{
-                                .RequestedActionInfo = std::move(requestedAction),
-                            },
-                            .OperationId = operationId,
-                        });
+                    nodeJobs.EraseJobToConfirm(*jobToConfirmIt);
+                    return nodeJobs.AddRunningJobOrCrash(
+                            jobId,
+                            operationId,
+                            std::move(requestedAction));
                 }();
 
                 ++heartbeatCounters.ConfirmedJobCount;
 
-                auto& jobInfo = jobIt->second;
                 HandleJobInfo(
-                    jobInfo,
+                    jobIt,
                     nodeJobs,
                     operationInfo,
                     jobsToProcessInOperationController,
@@ -1143,30 +1339,32 @@ TJobTracker::THeartbeatCounters TJobTracker::DoProcessHeartbeat(
         auto now = TInstant::Now();
 
         TOperationIdToJobsToAbort jobIdsToAbort;
-        for (auto& [jobId, jobInfo] : nodeJobs.Jobs) {
-            if (!IsJobRunning(jobInfo)) {
-                if (nodeJobs.AbortedAllocations.erase(AllocationIdFromJobId(jobId))) {
+
+        for (auto& [allocationId, allocationInfo] : nodeJobs.Allocations) {
+            if (!allocationInfo.RunningJob.has_value()) {
+                if (nodeJobs.AbortedAllocations.erase(allocationId)) {
                     YT_LOG_DEBUG(
-                        "Ignore allocation abort for job since job is not running (JobId: %v, AllocationId: %v)",
-                        jobId,
-                        AllocationIdFromJobId(jobId));
+                        "Ignore allocation abort since no job is running (AllocationId: %v)",
+                        allocationId);
                 }
                 continue;
             }
 
-            if (auto it = nodeJobs.AbortedAllocations.find(AllocationIdFromJobId(jobId));
+            auto& jobInfo = *allocationInfo.RunningJob;
+
+            if (auto it = nodeJobs.AbortedAllocations.find(allocationId);
                 it != std::end(nodeJobs.AbortedAllocations))
             {
                 auto abortReason = it->second.AbortReason;
                 YT_LOG_DEBUG(
                     "Job from aborted allocation not received from node; abort it"
                     " (JobId: %v, AllocationId: %v, OperationId: %v, AbortReason: %v)",
-                    jobId,
-                    AllocationIdFromJobId(jobId),
-                    jobInfo.OperationId,
+                    jobInfo.JobId,
+                    allocationId,
+                    allocationInfo.OperationId,
                     abortReason);
-                jobIdsToAbort[jobInfo.OperationId].push_back(TJobToAbort{
-                    .JobId = jobId,
+                jobIdsToAbort[allocationInfo.OperationId].push_back(TJobToAbort{
+                    .JobId = jobInfo.JobId,
                     .AbortReason = abortReason,
                 });
 
@@ -1174,31 +1372,29 @@ TJobTracker::THeartbeatCounters TJobTracker::DoProcessHeartbeat(
                 continue;
             }
 
-            if (heartbeatProcessingContext.Request.AllocationIdsRunningOnNode.contains(AllocationIdFromJobId(jobId))) {
+            if (heartbeatProcessingContext.Request.AllocationIdsRunningOnNode.contains(allocationId)) {
                 continue;
             }
 
-            auto& jobStatus = std::get<TRunningJobStatus>(jobInfo.Status);
-
-            if (!jobStatus.DisappearedFromNodeSince) {
-                jobStatus.DisappearedFromNodeSince = now;
+            if (!jobInfo.DisappearedFromNodeSince) {
+                jobInfo.DisappearedFromNodeSince = now;
                 continue;
             }
 
-            if (now - jobStatus.DisappearedFromNodeSince < Config_->DurationBeforeJobConsideredDisappearedFromNode) {
+            if (now - jobInfo.DisappearedFromNodeSince < Config_->DurationBeforeJobConsideredDisappearedFromNode) {
                 continue;
             }
 
             YT_LOG_DEBUG(
                 "Job disappeared from mode, aborting it (JobId: %v, OperationId: %v, Since: %v)",
-                jobId,
-                jobInfo.OperationId,
-                jobStatus.DisappearedFromNodeSince);
+                jobInfo.JobId,
+                allocationInfo.OperationId,
+                jobInfo.DisappearedFromNodeSince);
 
             ++heartbeatCounters.DisappearedFromNodeJobAbortCount;
 
-            jobIdsToAbort[jobInfo.OperationId].push_back(TJobToAbort{
-                .JobId = jobId,
+            jobIdsToAbort[allocationInfo.OperationId].push_back(TJobToAbort{
+                .JobId = jobInfo.JobId,
                 .AbortReason = EAbortReason::DisappearedFromNode,
             });
         }
@@ -1207,7 +1403,7 @@ TJobTracker::THeartbeatCounters TJobTracker::DoProcessHeartbeat(
             auto& operationInfo = GetOrCrash(RegisteredOperations_, operationId);
 
             for (auto jobToAbort : jobsToAbort) {
-                EraseOrCrash(nodeJobs.Jobs, jobToAbort.JobId);
+                nodeJobs.EraseJobOrCrash(jobToAbort.JobId);
                 EraseOrCrash(operationInfo.TrackedJobIds, jobToAbort.JobId);
             }
         }
@@ -1217,7 +1413,7 @@ TJobTracker::THeartbeatCounters TJobTracker::DoProcessHeartbeat(
 
     // NB(pogorelov): It is a rare situation, no need to call reserve here.
     THashMap<TAllocationId, TAbortedAllocationSummary> revivingJobsAbortedAllocations;
-    for (auto [jobId, jobToConfirmInfo] : nodeJobs.JobsToConfirm) {
+    nodeJobs.ForEachJobToConfirm([&] (TJobId jobId, TJobToConfirmInfo jobToConfirmInfo) {
         YT_LOG_DEBUG(
             "Request node to confirm job (JobId: %v)",
             jobId);
@@ -1234,7 +1430,7 @@ TJobTracker::THeartbeatCounters TJobTracker::DoProcessHeartbeat(
             revivingJobsAbortedAllocations[AllocationIdFromJobId(jobId)] = std::move(it->second);
             nodeJobs.AbortedAllocations.erase(it);
         }
-    }
+    });
 
     YT_VERIFY(std::empty(nodeJobs.AbortedAllocations));
     nodeJobs.AbortedAllocations = std::move(revivingJobsAbortedAllocations);
@@ -1242,15 +1438,8 @@ TJobTracker::THeartbeatCounters TJobTracker::DoProcessHeartbeat(
     return heartbeatCounters;
 }
 
-bool TJobTracker::IsJobRunning(const TJobInfo& jobInfo) const
-{
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
-
-    return std::holds_alternative<TRunningJobStatus>(jobInfo.Status);
-}
-
 void TJobTracker::HandleJobInfo(
-    TJobInfo& jobInfo,
+    TNodeJobs::TJobIterator jobIt,
     TNodeJobs& nodeJobs,
     TOperationInfo& operationInfo,
     TJobsToProcessInOperationController& jobsToProcessInOperationController,
@@ -1259,49 +1448,45 @@ void TJobTracker::HandleJobInfo(
     const NLogging::TLogger& Logger,
     THeartbeatCounters& heartbeatCounters)
 {
-    Visit(
-        jobInfo.Status,
-        [&] (const TRunningJobStatus& jobStatus) {
-            HandleRunningJobInfo(
-                jobInfo,
-                nodeJobs,
-                operationInfo,
-                jobsToProcessInOperationController,
-                response,
-                jobStatus,
-                std::move(jobSummary),
-                Logger,
-                heartbeatCounters);
-        },
-        [&] (const TFinishedJobStatus& jobStatus) {
-            HandleFinishedJobInfo(
-                jobInfo,
-                nodeJobs,
-                operationInfo,
-                jobsToProcessInOperationController,
-                response,
-                jobStatus,
-                std::move(jobSummary),
-                Logger,
-                heartbeatCounters);
-        });
+    if (TNodeJobs::IsRunning(jobIt)) {
+        HandleRunningJobInfo(
+            jobIt,
+            nodeJobs,
+            operationInfo,
+            jobsToProcessInOperationController,
+            response,
+            std::move(jobSummary),
+            Logger,
+            heartbeatCounters);
+    } else {
+        HandleFinishedJobInfo(
+            jobIt,
+            nodeJobs,
+            operationInfo,
+            jobsToProcessInOperationController,
+            response,
+            std::move(jobSummary),
+            Logger,
+            heartbeatCounters);
+    }
 }
 
 void TJobTracker::HandleRunningJobInfo(
-    TJobInfo& jobInfo,
+    TNodeJobs::TJobIterator jobIt,
     TNodeJobs& nodeJobs,
     TOperationInfo& operationInfo,
     TJobsToProcessInOperationController& jobsToProcessInOperationController,
     TCtxHeartbeat::TTypedResponse* response,
-    const TRunningJobStatus& jobStatus,
     std::unique_ptr<TJobSummary> jobSummary,
     const NLogging::TLogger& Logger,
     THeartbeatCounters& heartbeatCounters)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    auto& allocationInfo = jobIt.Allocation->second;
 
     auto newJobStage = JobStageFromJobState(jobSummary->State);
     auto jobId = jobSummary->Id;
+    const auto& requestedAction = allocationInfo.RunningJob->RequestedActionInfo;
 
     if (newJobStage == EJobStage::Running) {
         ++heartbeatCounters.RunningJobCount;
@@ -1326,7 +1511,7 @@ void TJobTracker::HandleRunningJobInfo(
                     .AbortReason = abortReason,
                 });
 
-            EraseOrCrash(nodeJobs.Jobs, jobId);
+            nodeJobs.EraseJobOrCrash(jobId);
             EraseOrCrash(operationInfo.TrackedJobIds, jobId);
 
             nodeJobs.AbortedAllocations.erase(it);
@@ -1335,7 +1520,7 @@ void TJobTracker::HandleRunningJobInfo(
         }
 
         Visit(
-            jobStatus.RequestedActionInfo,
+            requestedAction,
             [] (TNoActionRequested) {},
             [&] (const TInterruptionRequestOptions& requestOptions) {
                 ProcessInterruptionRequest(response, requestOptions, jobId, Logger, heartbeatCounters);
@@ -1363,7 +1548,7 @@ void TJobTracker::HandleRunningJobInfo(
     }
 
     Visit(
-        jobStatus.RequestedActionInfo,
+        requestedAction,
         [&] (TNoActionRequested) {
             YT_LOG_DEBUG("Received finished job info");
         },
@@ -1380,18 +1565,21 @@ void TJobTracker::HandleRunningJobInfo(
             .JobId = jobId
         });
 
-    jobInfo.Status = TFinishedJobStatus();
+    EmplaceOrCrash(
+        allocationInfo.FinishedJobs,
+        allocationInfo.RunningJob->JobId,
+        TFinishedJobInfo());
+    allocationInfo.RunningJob.reset();
 
     jobsToProcessInOperationController.JobSummaries.push_back(std::move(jobSummary));
 }
 
 void TJobTracker::HandleFinishedJobInfo(
-    TJobInfo& /*jobInfo*/,
+    TNodeJobs::TJobIterator /*jobIt*/,
     TNodeJobs& nodeJobs,
     TOperationInfo& /*operationInfo*/,
     TJobsToProcessInOperationController& /*jobsToProcessInOperationController*/,
     TCtxHeartbeat::TTypedResponse* response,
-    const TFinishedJobStatus& /*jobStatus*/,
     std::unique_ptr<TJobSummary> jobSummary,
     const NLogging::TLogger& Logger,
     THeartbeatCounters& heartbeatCounters)
@@ -1541,13 +1729,10 @@ void TJobTracker::DoRegisterJob(TStartedJobInfo jobInfo, TOperationId operationI
         nodeId,
         nodeAddress);
 
-    EmplaceOrCrash(
-        nodeJobs.Jobs,
+    nodeJobs.AddRunningJobOrCrash(
         jobInfo.JobId,
-        TJobInfo{
-            .Status = TRunningJobStatus(),
-            .OperationId = operationId,
-        });
+        operationId,
+        TNoActionRequested());
 
     auto& operationInfo = GetOrCrash(RegisteredOperations_, operationId);
     EmplaceOrCrash(operationInfo.TrackedJobIds, jobInfo.JobId);
@@ -1584,11 +1769,10 @@ void TJobTracker::DoReviveJobs(
     for (auto& jobInfo : jobs) {
         auto nodeId = NodeIdFromJobId(jobInfo.JobId);
         auto& nodeJobs = GetOrRegisterNode(nodeId, jobInfo.NodeAddress).Jobs;
-        EmplaceOrCrash(
-            nodeJobs.JobsToConfirm,
+        nodeJobs.AddJobToConfirmOrCrash(
             jobInfo.JobId,
             TJobToConfirmInfo{
-                .RequestedActionInfo = TRequestedActionInfo(),
+                .RequestedActionInfo = TNoActionRequested(),
                 .OperationId = operationId,
             });
 
@@ -1659,24 +1843,13 @@ void TJobTracker::DoReleaseJobs(
         auto& nodeJobs = nodeInfo->Jobs;
 
         for (const auto& jobToRelease : jobs) {
-            if (auto jobIt = nodeJobs.Jobs.find(jobToRelease.JobId);
-                jobIt != std::end(nodeJobs.Jobs))
-            {
-                YT_VERIFY(jobIt->second.OperationId == operationId);
+            if (auto jobIt = nodeJobs.FindJob(jobToRelease.JobId)) {
+                auto jobOperationId = jobIt->Allocation->second.OperationId;
 
-                if (nodeJobs.AbortedAllocations.erase(AllocationIdFromJobId(jobToRelease.JobId))) {
-                    YT_LOG_DEBUG(
-                        "Allocation abort ignored since job is already releasing"
-                        " (JobId: %v, AllocationId: %v, OperationId: %v, NodeId: %v, NodeAddress: %v)",
-                        jobToRelease.JobId,
-                        AllocationIdFromJobId(jobToRelease.JobId),
-                        operationId,
-                        nodeId,
-                        nodeInfo->NodeAddress);
-                }
+                YT_VERIFY(jobOperationId == operationId);
 
                 EraseOrCrash(operationJobs, jobToRelease.JobId);
-                nodeJobs.Jobs.erase(jobIt);
+                nodeJobs.EraseJob(*jobIt);
             }
 
             EmplaceOrCrash(nodeJobs.JobsToRelease, jobToRelease.JobId, jobToRelease.ReleaseFlags);
@@ -1718,8 +1891,8 @@ void TJobTracker::RequestJobAbortion(TJobId jobId, TOperationId operationId, EAb
         EraseOrCrash(operationInfo.TrackedJobIds, jobId);
     };
 
-    if (auto jobIt = nodeJobs.Jobs.find(jobId); jobIt != std::end(nodeJobs.Jobs)) {
-        nodeJobs.Jobs.erase(jobIt);
+    if (auto jobIt = nodeJobs.FindJob(jobId)) {
+        nodeJobs.EraseJob(*jobIt);
 
         removeJobFromOperation();
 
@@ -1739,10 +1912,8 @@ void TJobTracker::RequestJobAbortion(TJobId jobId, TOperationId operationId, EAb
 
             nodeJobs.AbortedAllocations.erase(it);
         }
-    } else if (auto jobToConfirmIt = nodeJobs.JobsToConfirm.find(jobId);
-        jobToConfirmIt != std::end(nodeJobs.JobsToConfirm))
-    {
-        nodeJobs.JobsToConfirm.erase(jobToConfirmIt);
+    } else if (auto jobToConfirmIt = nodeJobs.FindJobToConfirm(jobId)) {
+        nodeJobs.EraseJobToConfirm(*jobToConfirmIt);
 
         removeJobFromOperation();
 
@@ -1795,29 +1966,24 @@ void TJobTracker::TryRequestJobAction(
     auto& nodeJobs = nodeInfo->Jobs;
     const auto& nodeAddress = nodeInfo->NodeAddress;
 
-    if (auto jobIt = nodeJobs.Jobs.find(jobId); jobIt != std::end(nodeJobs.Jobs)) {
-        Visit(
-            jobIt->second.Status,
-            [&] (TRunningJobStatus& status) {
-                YT_LOG_DEBUG(
-                    "Requesting action (ActionName: %v, JobId: %v, OperationId: %v, NodeId: %v, NodeAddress: %v)",
-                    actionName,
-                    jobId,
-                    operationId,
-                    nodeId,
-                    nodeAddress);
+    if (auto jobIt = nodeJobs.FindJob(jobId)) {
+        if (TNodeJobs::IsRunning(*jobIt)) {
+            YT_LOG_DEBUG(
+                "Requesting action (ActionName: %v, JobId: %v, OperationId: %v, NodeId: %v, NodeAddress: %v)",
+                actionName,
+                jobId,
+                operationId,
+                nodeId,
+                nodeAddress);
 
-                action(status.RequestedActionInfo);
-            },
-            [&] (const TFinishedJobStatus& /*status*/) {
-                YT_LOG_DEBUG(
-                    "Job is already finished; skip action request (JobId: %v, OperationId: %v)",
-                    jobId,
-                    operationId);
-            });
-    } else if (auto jobToConfirmIt = nodeJobs.JobsToConfirm.find(jobId);
-        jobToConfirmIt != std::end(nodeJobs.JobsToConfirm))
-    {
+            action(jobIt->Allocation->second.RunningJob->RequestedActionInfo);
+        } else {
+            YT_LOG_DEBUG(
+                "Job is not running; skip action request (JobId: %v, OperationId: %v)",
+                jobId,
+                operationId);
+        }
+    } else if (auto jobToConfirmIt = nodeJobs.FindJobToConfirm(jobId)) {
         YT_LOG_DEBUG(
             "Job waiting for confirmation, requesting action "
             "(ActionName: %v, JobId: %v, OperationId: %v, NodeId: %v, NodeAddress: %v)",
@@ -1827,7 +1993,7 @@ void TJobTracker::TryRequestJobAction(
             nodeId,
             nodeAddress);
 
-        action(jobToConfirmIt->second.RequestedActionInfo);
+        action(jobToConfirmIt->ConcreteJob->second.RequestedActionInfo);
     } else {
         YT_LOG_DEBUG(
             "Job not found; skip action request "
@@ -2097,8 +2263,8 @@ void TJobTracker::UnregisterNode(TNodeId nodeId, const TString& nodeAddress, TGu
         TOperationIdToJobsToAbort jobIdsToAbort;
         THashMap<TOperationId, std::vector<TJobId>> finishedJobIds;
 
-        for (const auto& [jobId, jobInfo] : nodeJobs.Jobs) {
-            if (IsJobRunning(jobInfo)) {
+        nodeJobs.ForEachJob([&] <class TJobInfo> (TJobId jobId, TJobInfo jobInfo) {
+            if (std::holds_alternative<TRunningJobInfo>(jobInfo.Info)) {
                 auto abortReason = EAbortReason::NodeOffline;
                 if (auto it = nodeJobs.AbortedAllocations.find(AllocationIdFromJobId(jobId));
                     it != std::end(nodeInfo.Jobs.AbortedAllocations))
@@ -2129,9 +2295,9 @@ void TJobTracker::UnregisterNode(TNodeId nodeId, const TString& nodeAddress, TGu
                     jobInfo.OperationId);
                 finishedJobIds[jobInfo.OperationId].push_back(jobId);
             }
-        }
+        });
 
-        for (auto [jobId, jobToConfirmInfo] : nodeJobs.JobsToConfirm) {
+        nodeJobs.ForEachJobToConfirm([&] (TJobId jobId, TJobToConfirmInfo jobToConfirmInfo) {
             auto abortReason = EAbortReason::NodeOffline;
             if (auto it = nodeJobs.AbortedAllocations.find(AllocationIdFromJobId(jobId));
                 it != std::end(nodeInfo.Jobs.AbortedAllocations))
@@ -2155,7 +2321,7 @@ void TJobTracker::UnregisterNode(TNodeId nodeId, const TString& nodeAddress, TGu
                 .JobId = jobId,
                 .AbortReason = abortReason,
             });
-        }
+        });
 
         for (const auto& [operationId, jobIds] : jobIdsToAbort) {
             auto& operationInfo = GetOrCrash(RegisteredOperations_, operationId);
@@ -2284,8 +2450,15 @@ void TJobTracker::OnAllocationsAborted(
             continue;
         }
 
-        auto jobId = JobIdFromAllocationId(abortedAllocationSummary.Id);
-        if (!nodeInfo->Jobs.Jobs.contains(jobId) && !nodeInfo->Jobs.JobsToConfirm.contains(jobId)) {
+        auto allocationIt = nodeInfo->Jobs.Allocations.find(abortedAllocationSummary.Id);
+
+        bool noConfirmedRunningJobsOnAllocation =
+            allocationIt == std::end(nodeInfo->Jobs.Allocations) ||
+            !allocationIt->second.RunningJob.has_value();
+
+        if (noConfirmedRunningJobsOnAllocation &&
+            !nodeInfo->Jobs.JobsToConfirm.contains(abortedAllocationSummary.Id))
+        {
             logSendingEventToOperationController("Scheduler aborted empty allocation");
             emptyAllocations.push_back(std::move(abortedAllocationSummary));
             continue;
@@ -2414,24 +2587,24 @@ void TJobTracker::AbortUnconfirmedJobs(TOperationId operationId, std::vector<TJo
         auto& nodeJobs = nodeInfo->Jobs;
         const auto& nodeAddress = nodeInfo->NodeAddress;
 
-        if (auto unconfirmedJobIt = nodeJobs.JobsToConfirm.find(jobId);
-            unconfirmedJobIt != std::end(nodeJobs.JobsToConfirm))
+        if (auto unconfirmedJobIt = nodeJobs.FindJobToConfirm(jobId))
         {
+            auto operationId = unconfirmedJobIt->ConcreteJob->second.OperationId;
             if (nodeJobs.AbortedAllocations.erase(AllocationIdFromJobId(jobId))) {
                 YT_LOG_DEBUG(
                     "Ignore allocation abort since job was not confirmed (JobId: %v, AllocationId: %v, OperationId: %v)",
                     jobId,
                     AllocationIdFromJobId(jobId),
-                    unconfirmedJobIt->second.OperationId);
+                    operationId);
             } else {
                 YT_LOG_DEBUG(
                     "Job was not confirmed within timeout, abort it (JobId: %v, OperationId: %v, NodeId: %v, NodeAddress: %v)",
                     jobId,
-                    unconfirmedJobIt->second.OperationId,
+                    operationId,
                     nodeId,
                 nodeAddress);
             }
-            nodeJobs.JobsToConfirm.erase(unconfirmedJobIt);
+            nodeJobs.EraseJobToConfirm(*unconfirmedJobIt);
 
             jobsToAbort.push_back(TJobToAbort{
                 .JobId = jobId,
