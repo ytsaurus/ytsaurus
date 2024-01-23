@@ -568,6 +568,7 @@ public:
     void Disable(const TError& error, bool persistentDisable = true)
     {
         // TODO(don-dron): Research and fix unconditional Disabled.
+        auto guard = Guard(SpinLock_);
         if (State_.exchange(ELocationState::Disabled) != ELocationState::Enabled) {
             return;
         }
@@ -906,9 +907,11 @@ private:
                 << ex;
         }
 
-        ChangeState(ELocationState::Enabled);
+        {
+            auto guard = Guard(SpinLock_);
+            ChangeState(ELocationState::Enabled);
+        }
     }
-
 
     TLayerMeta DoInternalizeLayer(const TLayerMeta& layerMeta, TGuid tag)
     {
@@ -972,6 +975,7 @@ private:
 
         {
             auto guard = Guard(SpinLock_);
+            ValidateEnabled();
             Layers_[layerMeta.Id] = layerMeta;
 
             AvailableSpace_ -= layerMeta.size();
@@ -1079,13 +1083,12 @@ private:
 
     void DoRemoveLayer(const TLayerId& layerId)
     {
-        ValidateEnabled();
-
         auto layerPath = GetLayerPath(layerId);
         auto layerMetaPath = GetLayerMetaPath(layerId);
 
         {
             auto guard = Guard(SpinLock_);
+            ValidateEnabled();
 
             if (!Layers_.contains(layerId)) {
                 YT_LOG_FATAL("Layer already removed (LayerId: %v, LayerPath: %v)",
@@ -1110,7 +1113,13 @@ private:
 
             {
                 auto guard = Guard(SpinLock_);
+
+                if (!IsEnabled()) {
+                    return;
+                }
+
                 i64 layerSize = Layers_[layerId].size();
+
                 YT_VERIFY(Layers_.erase(layerId));
 
                 UsedSpace_ -= layerSize;
@@ -1196,6 +1205,7 @@ private:
 
             {
                 auto guard = Guard(SpinLock_);
+                ValidateEnabled();
                 YT_VERIFY(Volumes_.emplace(volumeId, volumeMeta).second);
 
                 if (VolumesReleaseEvent_.IsSet()) {
@@ -1379,14 +1389,13 @@ private:
 
     void DoRemoveVolume(NProfiling::TTagSet tagSet, const TVolumeId& volumeId)
     {
-        ValidateEnabled();
-
         auto volumePath = GetVolumePath(volumeId);
         auto mountPath = NFS::CombinePaths(volumePath, MountSuffix);
         auto volumeMetaPath = GetVolumeMetaPath(volumeId);
 
         {
             auto guard = Guard(SpinLock_);
+            ValidateEnabled();
 
             if (!Volumes_.contains(volumeId)) {
                 YT_LOG_FATAL("Volume already removed (VolumeId: %v, VolumePath: %v, VolumeMetaPath: %v)",
@@ -1416,6 +1425,11 @@ private:
 
             {
                 auto guard = Guard(SpinLock_);
+
+                if (!IsEnabled()) {
+                    return;
+                }
+
                 YT_VERIFY(Volumes_.erase(volumeId));
 
                 if (Volumes_.empty()) {
@@ -2580,7 +2594,7 @@ public:
                 locations.push_back(location);
                 initLocationResults.push_back(location->Initialize());
             } catch (const std::exception& ex) {
-                auto error = TError("Layer location at %v is disabled", locationConfig->Path)
+                auto error = TError("Layer location initialization failed (Path: %v)", locationConfig->Path)
                     << ex;
                 YT_LOG_WARNING(error);
                 Alerts_.push_back(error);
@@ -2602,7 +2616,7 @@ public:
                 Locations_.push_back(locations[index]);
             } else {
                 const auto& locationConfig = Config_->VolumeManager->LayerLocations[index];
-                auto wrappedError = TError("Layer location at %v is disabled", locationConfig->Path)
+                auto wrappedError = TError("Layer location async initialization failed (Path: %v)", locationConfig->Path)
                     << error;
                 YT_LOG_WARNING(wrappedError);
                 Alerts_.push_back(wrappedError);
