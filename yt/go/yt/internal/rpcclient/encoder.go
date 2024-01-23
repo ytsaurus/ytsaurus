@@ -1663,6 +1663,25 @@ func (e *Encoder) UpdateOperationParameters(
 	return
 }
 
+func (e *Encoder) getOperation(
+	ctx context.Context,
+	req *rpc_proxy.TReqGetOperation,
+) (status *yt.OperationStatus, err error) {
+	call := e.newCall(MethodGetOperation, NewGetOperationRequest(req), nil)
+
+	var rsp rpc_proxy.TRspGetOperation
+	err = e.Invoke(ctx, call, &rsp)
+	if err != nil {
+		return
+	}
+
+	status = &yt.OperationStatus{}
+	if err := yson.Unmarshal(rsp.Meta, status); err != nil {
+		return nil, err
+	}
+	return
+}
+
 func (e *Encoder) GetOperation(
 	ctx context.Context,
 	opID yt.OperationID,
@@ -1684,20 +1703,30 @@ func (e *Encoder) GetOperation(
 		MasterReadOptions:         convertMasterReadOptions(opts.MasterReadOptions),
 	}
 
-	call := e.newCall(MethodGetOperation, NewGetOperationRequest(req), nil)
+	return e.getOperation(ctx, req)
+}
 
-	var rsp rpc_proxy.TRspGetOperation
-	err = e.Invoke(ctx, call, &rsp)
-	if err != nil {
-		return
+func (e *Encoder) GetOperationByAlias(
+	ctx context.Context,
+	alias string,
+	opts *yt.GetOperationOptions,
+) (status *yt.OperationStatus, err error) {
+	if opts == nil {
+		opts = &yt.GetOperationOptions{}
 	}
 
-	status = &yt.OperationStatus{}
-	if err := yson.Unmarshal(rsp.Meta, status); err != nil {
-		return nil, err
+	req := &rpc_proxy.TReqGetOperation{
+		OperationIdOrAlias: &rpc_proxy.TReqGetOperation_OperationAlias{
+			OperationAlias: alias,
+		},
+		// COMPAT(max42): after 22.3 is everywhere, drop legacy field.
+		LegacyAttributes:          opts.Attributes,
+		Attributes:                convertAttributeFilter(opts.Attributes),
+		IncludeRuntime:            opts.IncludeRuntime,
+		MaximumCypressProgressAge: nil, // todo
+		MasterReadOptions:         convertMasterReadOptions(opts.MasterReadOptions),
 	}
-
-	return
+	return e.getOperation(ctx, req)
 }
 
 func (e *Encoder) ListOperations(

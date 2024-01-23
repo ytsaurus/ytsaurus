@@ -2607,6 +2607,45 @@ func (p *GetOperationParams) ReadRetryOptions() **yt.ReadRetryOptions {
 	return &p.options.ReadRetryOptions
 }
 
+type GetOperationByAliasParams struct {
+	verb    Verb
+	alias   string
+	options *yt.GetOperationOptions
+}
+
+func NewGetOperationByAliasParams(
+	alias string,
+	options *yt.GetOperationOptions,
+) *GetOperationByAliasParams {
+	if options == nil {
+		options = &yt.GetOperationOptions{}
+	}
+	optionsCopy := *options
+	return &GetOperationByAliasParams{
+		Verb("get_operation"),
+		alias,
+		&optionsCopy,
+	}
+}
+
+func (p *GetOperationByAliasParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *GetOperationByAliasParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *GetOperationByAliasParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("alias", p.alias),
+	}
+}
+
+func (p *GetOperationByAliasParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("operation_alias")
+	w.Any(p.alias)
+	writeGetOperationOptions(w, p.options)
+}
+
 type ListOperationsParams struct {
 	verb    Verb
 	options *yt.ListOperationsOptions

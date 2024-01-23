@@ -88,9 +88,10 @@ type variable struct {
 }
 
 type method struct {
-	name       string
-	httpVerb   string
-	httpParams []string
+	name        string
+	httpVerb    string
+	httpParams  []string
+	optionsName string
 
 	params  []variable
 	results []variable
@@ -210,6 +211,14 @@ func parseClient(typeSpec *ast.TypeSpec) (c *interfaceType, err error) {
 
 				m.results = append(m.results, paramToVariable(r))
 			}
+
+			opts := typ.Params.List[len(typ.Params.List)-1]
+			m.optionsName = paramToVariable(opts).typ
+			if !strings.HasPrefix(m.optionsName, "*") {
+				err = errorf(opts.Pos(), "options can be nil; options of %q should be ptr", m.name)
+				return
+			}
+			m.optionsName = m.optionsName[1:]
 
 			c.methods = append(c.methods, m)
 		}

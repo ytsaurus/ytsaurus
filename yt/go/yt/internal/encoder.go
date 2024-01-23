@@ -465,6 +465,19 @@ func (e *Encoder) GetOperation(
 	return
 }
 
+func (e *Encoder) GetOperationByAlias(
+	ctx context.Context,
+	alias string,
+	options *yt.GetOperationOptions,
+) (status *yt.OperationStatus, err error) {
+	status = &yt.OperationStatus{}
+	call := e.newCall(NewGetOperationByAliasParams(alias, options))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return res.decode(status)
+	})
+	return
+}
+
 func (e *Encoder) ListOperations(
 	ctx context.Context,
 	options *yt.ListOperationsOptions,

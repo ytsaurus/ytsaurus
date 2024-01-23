@@ -744,6 +744,14 @@ type LowLevelSchedulerClient interface {
 		options *GetOperationOptions,
 	) (status *OperationStatus, err error)
 
+	// http:verb:"get_operation"
+	// http:params:"operation_alias"
+	GetOperationByAlias(
+		ctx context.Context,
+		alias string,
+		options *GetOperationOptions,
+	) (status *OperationStatus, err error)
+
 	// http:verb:"list_operations"
 	ListOperations(
 		ctx context.Context,

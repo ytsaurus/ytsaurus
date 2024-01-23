@@ -58,7 +58,7 @@ func emit(f file, out io.Writer) error {
 			for i := 0; i < len(m.httpParams); i++ {
 				write("%s %s", m.params[i].name, m.params[i].typ)
 			}
-			write("options *yt.%sOptions", m.name)
+			write("options *yt.%s", m.optionsName)
 			write("}")
 
 			write("func New%sParams(", m.name)
@@ -69,10 +69,10 @@ func emit(f file, out io.Writer) error {
 
 				write("%s %s,", p.name, p.typ)
 			}
-			write("options *yt.%sOptions,", m.name)
+			write("options *yt.%s,", m.optionsName)
 			write(") *%sParams {", m.name)
 			write("if options == nil {")
-			write("options = &yt.%sOptions{}", m.name)
+			write("options = &yt.%s{}", m.optionsName)
 			write("}")
 			write("optionsCopy := *options")
 			write("return &%sParams{", m.name)
@@ -124,7 +124,7 @@ func emit(f file, out io.Writer) error {
 				write("w.Any(p.%s)", m.params[i].name)
 			}
 
-			write("write%sOptions(w, p.options)", m.name)
+			write("write%s(w, p.options)", m.optionsName)
 
 			write("}")
 			write("")

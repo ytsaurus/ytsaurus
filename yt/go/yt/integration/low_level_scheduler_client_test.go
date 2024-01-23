@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
@@ -24,6 +25,7 @@ func TestLowLevelSchedulerClient(t *testing.T) {
 		{Name: "UpdateOperationParameters", Test: suite.TestUpdateOperationParameters},
 		{Name: "ListOperations", Test: suite.TestListOperations},
 		{Name: "ListJobs", Test: suite.TestListJobs},
+		{Name: "GetOperationByAlias", Test: suite.TestGetOperationByAlias},
 	})
 }
 
@@ -290,6 +292,41 @@ func (s *Suite) TestListJobs(t *testing.T, yc yt.Client) {
 	result, err := yc.ListJobs(s.Ctx, opID, nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, result.Jobs)
+}
+
+func (s *Suite) TestGetOperationByAlias(t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	in := makeTable(t, s.Env, []Row{{"a": int64(1)}})
+	out := makeTable(t, s.Env, nil)
+
+	spec := map[string]any{
+		"input_table_paths":  []ypath.Path{in},
+		"output_table_paths": []ypath.Path{out},
+		"mapper": map[string]any{
+			"input_format":  "yson",
+			"output_format": "yson",
+			"command":       "cat -",
+		},
+		"alias": "*test-alias",
+	}
+
+	opID, err := yc.StartOperation(s.Ctx, yt.OperationMap, spec, nil)
+	require.NoError(t, err)
+
+	err = waitOpState(s.Ctx, yc, opID, yt.StateCompleted)
+	require.NoError(t, err)
+
+	status, err := yc.GetOperationByAlias(s.Ctx, "*test-alias", &yt.GetOperationOptions{
+		IncludeRuntime: ptr.Bool(true),
+	})
+	require.NoError(t, err)
+	require.Equal(t, opID, status.ID)
+
+	_, err = yc.GetOperationByAlias(s.Ctx, "*fake-alias", &yt.GetOperationOptions{
+		IncludeRuntime: ptr.Bool(true),
+	})
+	require.Error(t, err)
 }
 
 type Row map[string]any
