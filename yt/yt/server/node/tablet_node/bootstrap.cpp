@@ -362,7 +362,6 @@ public:
         BackingStoreCleaner_->Start();
         LsmInterop_->Start();
         HintManager_->Start();
-        InMemoryManager_->Start();
         TableDynamicConfigManager_->Start();
         SlotManager_->Start();
         OverloadController_->Start();

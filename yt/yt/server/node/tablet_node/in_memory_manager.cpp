@@ -229,6 +229,9 @@ public:
     {
         const auto& slotManager = Bootstrap_->GetSlotManager();
         slotManager->SubscribeScanSlot(BIND(&TInMemoryManager::ScanSlot, MakeWeak(this)));
+
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        dynamicConfigManager->SubscribeConfigChanged(BIND(&TInMemoryManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     TInMemoryChunkDataPtr EvictInterceptedChunkData(TChunkId chunkId) override
@@ -250,12 +253,6 @@ public:
             chunkData->InMemoryMode);
 
         return chunkData;
-    }
-
-    void Start() override
-    {
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(BIND(&TInMemoryManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     void FinalizeChunk(TChunkId chunkId, TInMemoryChunkDataPtr chunkData) override
