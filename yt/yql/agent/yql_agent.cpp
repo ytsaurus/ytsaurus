@@ -116,6 +116,13 @@ public:
             .Run();
     }
 
+    TFuture<void> AbortQuery(TQueryId queryId) override
+    {
+        return BIND(&TYqlAgent::DoAbortQuery, MakeStrong(this), queryId)
+            .AsyncVia(ThreadPool_->GetInvoker())
+            .Run();
+    }
+
     TRspGetQueryProgress GetQueryProgress(TQueryId queryId) override
     {
         YT_LOG_DEBUG("Getting query progress (QueryId: %v)", queryId);
@@ -224,6 +231,24 @@ private:
         }
     }
 
+    void DoAbortQuery(TQueryId queryId)
+    {
+        YT_LOG_INFO("Aborting query (QueryId: %v)", queryId);
+
+        TError error;
+
+        try {
+            auto abortResult = YqlPlugin_->Abort(queryId);
+            error = ConvertTo<TError>(abortResult.YsonError);
+        } catch (const std::exception& ex) {
+            auto error = TError("YQL plugin call failed") << TError(ex);
+            YT_LOG_INFO(error, "YQL plugin call failed");
+            THROW_ERROR error;
+        }
+
+        error.ThrowOnError();
+    }
+
     void ValidateAndFillYqlResponseField(TYqlResponse& yqlResponse, const std::optional<TString>& rawField, TString* (TYqlResponse::*mutableProtoFieldAccessor)())
     {
         if (!rawField) {
@@ -233,6 +258,8 @@ private:
         *((&yqlResponse)->*mutableProtoFieldAccessor)() = *rawField;
     };
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 IYqlAgentPtr CreateYqlAgent(
     TSingletonsConfigPtr singletonsConfig,
