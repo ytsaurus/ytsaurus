@@ -14,6 +14,8 @@ struct IQueueProfileManager
     virtual void Profile(
         const TQueueSnapshotPtr& previousQueueSnapshot,
         const TQueueSnapshotPtr& currentQueueSnapshot) = 0;
+
+    virtual NProfiling::TProfiler GetQueueProfiler() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IQueueProfileManager)

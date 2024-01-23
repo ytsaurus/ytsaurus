@@ -64,6 +64,8 @@ void TQueueControllerDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("enable_queue_static_export", &TThis::EnableQueueStaticExport)
         .Default(false);
+    registrar.Parameter("alert_manager", &TThis::AlertManager)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

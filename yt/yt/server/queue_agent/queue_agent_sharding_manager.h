@@ -24,14 +24,13 @@ struct IQueueAgentShardingManager
     virtual void OnDynamicConfigChanged(
         const TQueueAgentShardingManagerDynamicConfigPtr& oldConfig,
         const TQueueAgentShardingManagerDynamicConfigPtr& newConfig) = 0;
-
-    virtual void PopulateAlerts(std::vector<NAlertManager::TAlert>* alerts) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IQueueAgentShardingManager)
 
 IQueueAgentShardingManagerPtr CreateQueueAgentShardingManager(
     IInvokerPtr controlInvoker,
+    NAlertManager::IAlertCollectorPtr alertCollector,
     NQueueClient::TDynamicStatePtr dynamicState,
     NDiscoveryClient::IMemberClientPtr memberClient,
     NDiscoveryClient::IDiscoveryClientPtr discoveryClient,

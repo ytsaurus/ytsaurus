@@ -9,6 +9,8 @@
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
 
+#include <yt/yt/server/lib/alert_manager/alert_manager.h>
+
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/config.h>
 
@@ -155,6 +157,7 @@ TQueueAgent::TQueueAgent(
     IInvokerPtr controlInvoker,
     TDynamicStatePtr dynamicState,
     ICypressElectionManagerPtr electionManager,
+    IAlertCollectorPtr alertCollector,
     TString agentId)
     : Config_(std::move(config))
     , DynamicConfig_(New<TQueueAgentDynamicConfig>())
@@ -163,6 +166,7 @@ TQueueAgent::TQueueAgent(
     , ControlInvoker_(std::move(controlInvoker))
     , DynamicState_(std::move(dynamicState))
     , ElectionManager_(std::move(electionManager))
+    , AlertCollector_(std::move(alertCollector))
     , ControllerThreadPool_(CreateThreadPool(DynamicConfig_->ControllerThreadCount, "Controller"))
     , PassExecutor_(New<TPeriodicExecutor>(
         ControlInvoker_,
@@ -190,22 +194,6 @@ void TQueueAgent::Start()
     YT_LOG_INFO("Starting queue agent");
 
     PassExecutor_->Start();
-}
-
-void TQueueAgent::PopulateAlerts(std::vector<TAlert>* alerts) const
-{
-    WaitFor(
-        BIND(&TQueueAgent::DoPopulateAlerts, MakeStrong(this), alerts)
-        .AsyncVia(ControlInvoker_)
-        .Run())
-        .ThrowOnError();
-}
-
-void TQueueAgent::DoPopulateAlerts(std::vector<TAlert>* alerts) const
-{
-    VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
-
-    alerts->insert(alerts->end(), Alerts_.begin(), Alerts_.end());
 }
 
 IMapNodePtr TQueueAgent::GetOrchidNode() const
@@ -304,7 +292,8 @@ void TQueueAgent::Pass()
     // Collect queue and consumer rows.
 
     YT_LOG_INFO("Pass started");
-    auto logFinally = Finally([&] {
+    auto finalizePass = Finally([&] {
+        AlertCollector_->PublishAlerts();
         YT_LOG_INFO("Pass finished");
     });
 
@@ -325,11 +314,11 @@ void TQueueAgent::Pass()
     if (auto error = WaitFor(AllSucceeded(futures)); !error.IsOK()) {
         PassError_ = error;
         YT_LOG_ERROR(error, "Error while reading dynamic state");
-        auto alert = TError(
+        AlertCollector_->StageAlert(CreateAlert(
             NAlerts::EErrorCode::QueueAgentPassFailed,
-            "Error while reading dynamic state")
-            << error;
-        Alerts_ = {CreateAlert<NAlerts::EErrorCode>(alert)};
+            "Error while reading dynamic state",
+            /*tags*/ {},
+            error));
         return;
     }
     auto queueRows = asyncQueueRows.GetUnique().Value();
@@ -554,7 +543,6 @@ void TQueueAgent::Pass()
     }
 
     PassError_ = TError();
-    Alerts_.clear();
 
     Profile();
 }

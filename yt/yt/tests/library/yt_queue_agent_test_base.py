@@ -87,6 +87,34 @@ class OrchidWithRegularPasses(OrchidBase):
             raise error
 
 
+class ObjectAlertHelper:
+    def __init__(self, alerts):
+        self.alerts = alerts
+
+    def assert_matching(self, category, text=None, attributes=None):
+        assert category in self.alerts, f"Could not match alert category {category} against collected alerts {list(self.alerts.keys())}"
+
+        errors = self.alerts[category]["inner_errors"]
+
+        text = text or ""
+        attributes = attributes or dict()
+
+        def is_matching_error(error):
+            print_debug(str(error), text in str(error), update(error["attributes"], attributes), error["attributes"])
+            return text in str(error) and update(error["attributes"], attributes) == error["attributes"]
+
+        assert any(map(is_matching_error, errors)), f"Could not find matching error in category {category} with substring \"{text}\" and attributes {attributes} in {errors}"
+
+    def get_alert_count(self):
+        return sum(map(lambda alert: len(alert["inner_errors"]), self.alerts.values()))
+
+    def __str__(self):
+        return str(self.alerts)
+
+    def __repr__(self):
+        return repr(self.alerts)
+
+
 class ObjectOrchid(OrchidWithRegularPasses):
     OBJECT_TYPE = None
 
@@ -104,6 +132,9 @@ class ObjectOrchid(OrchidWithRegularPasses):
 
     def get_status(self):
         return get(f"{self.orchid_path()}/status")
+
+    def get_alerts(self):
+        return ObjectAlertHelper(get(f"{self.orchid_path()}/status/alerts"))
 
     def get_partitions(self):
         return get(f"{self.orchid_path()}/partitions")
