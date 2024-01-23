@@ -452,14 +452,14 @@ public:
         TRange<ESortOrder> sortOrders,
         int commonKeyPrefix,
         std::optional<int> partitionTag,
-        const TChunkReaderMemoryManagerPtr& memoryManager,
+        const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder,
         std::optional<i64> virtualRowIndex = std::nullopt)
         : TChunkReaderBase(
             config,
             underlyingReader,
             chunkState->BlockCache,
             chunkReadOptions,
-            memoryManager)
+            memoryManagerHolder)
         , TSchemalessChunkReaderBase(
             chunkState->ChunkSpec,
             config,
@@ -572,7 +572,7 @@ public:
         const TKeyWideningOptions& keyWideningOptions,
         const TReadRange& readRange,
         std::optional<int> partitionTag,
-        const TChunkReaderMemoryManagerPtr& memoryManager,
+        const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder,
         std::optional<i64> virtualRowIndex,
         int interruptDescriptorKeyLength)
         : THorizontalSchemalessChunkReaderBase(
@@ -588,7 +588,7 @@ public:
             sortOrders,
             commonKeyPrefix,
             partitionTag,
-            memoryManager,
+            memoryManagerHolder,
             virtualRowIndex)
         , ReadRange_(readRange)
         , InterruptDescriptorKeyLength_(interruptDescriptorKeyLength)
@@ -833,7 +833,7 @@ public:
         const TKeyWideningOptions& keyWideningOptions,
         const TSharedRange<TLegacyKey>& keys,
         std::optional<int> partitionTag = std::nullopt,
-        const TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
+        const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder = nullptr);
 
 protected:
     TSharedRange<TLegacyKey> Keys_;
@@ -883,7 +883,7 @@ public:
         const TKeyWideningOptions& keyWideningOptions,
         const TSharedRange<TLegacyKey>& keys,
         std::optional<int> partitionTag = std::nullopt,
-        const TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
+        const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder = nullptr);
 
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
 };
@@ -907,7 +907,7 @@ public:
         const TKeyWideningOptions& keyWideningOptions,
         const TSharedRange<TLegacyKey>& keyPrefixes,
         std::optional<int> partitionTag = std::nullopt,
-        const TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
+        const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder = nullptr);
 
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
 
@@ -933,7 +933,7 @@ THorizontalSchemalessLookupChunkReaderBase::THorizontalSchemalessLookupChunkRead
     const TKeyWideningOptions& keyWideningOptions,
     const TSharedRange<TLegacyKey>& keyPrefixes,
     std::optional<int> partitionTag,
-    const TChunkReaderMemoryManagerPtr& memoryManager)
+    const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder)
     : THorizontalSchemalessChunkReaderBase(
         chunkState,
         chunkMeta,
@@ -947,7 +947,7 @@ THorizontalSchemalessLookupChunkReaderBase::THorizontalSchemalessLookupChunkRead
         sortOrders,
         commonKeyPrefix,
         partitionTag,
-        memoryManager)
+        memoryManagerHolder)
     , Keys_(keyPrefixes)
     , KeyWideningOptions_(keyWideningOptions)
     , ChunkState_(chunkState)
@@ -1136,7 +1136,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
     const TKeyWideningOptions& keyWideningOptions,
     const TSharedRange<TLegacyKey>& keys,
     std::optional<int> partitionTag,
-    const TChunkReaderMemoryManagerPtr& memoryManager)
+    const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder)
     : THorizontalSchemalessLookupChunkReaderBase(
         chunkState,
         chunkMeta,
@@ -1152,7 +1152,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
         keyWideningOptions,
         keys,
         partitionTag,
-        memoryManager)
+        memoryManagerHolder)
 {
     const auto& misc = ChunkMeta_->Misc();
     if (!misc.unique_keys()) {
@@ -1190,7 +1190,7 @@ THorizontalSchemalessKeyRangesChunkReader::THorizontalSchemalessKeyRangesChunkRe
     const TKeyWideningOptions& keyWideningOptions,
     const TSharedRange<TLegacyKey>& keys,  // must be sorted.
     std::optional<int> partitionTag,
-    const TChunkReaderMemoryManagerPtr& memoryManager)
+    const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder)
     : THorizontalSchemalessLookupChunkReaderBase(
         chunkState,
         chunkMeta,
@@ -1206,7 +1206,7 @@ THorizontalSchemalessKeyRangesChunkReader::THorizontalSchemalessKeyRangesChunkRe
         keyWideningOptions,
         keys,
         partitionTag,
-        memoryManager)
+        memoryManagerHolder)
 {
     YT_LOG_DEBUG("Looking up prefix-ranges (Count: %v)", std::ssize(keys));
 
@@ -1539,7 +1539,7 @@ public:
         int commonKeyPrefix,
         const TKeyWideningOptions& keyWideningOptions,
         const TReadRange& readRange,
-        const TChunkReaderMemoryManagerPtr& memoryManager,
+        const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder,
         std::optional<i64> virtualRowIndex,
         int interruptDescriptorKeyLength)
         : TSchemalessChunkReaderBase(
@@ -1562,7 +1562,7 @@ public:
             chunkState->BlockCache,
             chunkReadOptions,
             BIND(&TColumnarSchemalessRangeChunkReader::OnRowsSkipped, MakeWeak(this)),
-            memoryManager)
+            memoryManagerHolder)
         , InterruptDescriptorKeyLength_(interruptDescriptorKeyLength)
     {
         TCurrentTraceContextGuard traceGuard(TraceContext_);
@@ -2107,7 +2107,7 @@ public:
         int commonKeyPrefix,
         const TKeyWideningOptions& keyWideningOptions,
         const TSharedRange<TLegacyKey>& keys,
-        const TChunkReaderMemoryManagerPtr& memoryManager)
+        const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder)
         : TSchemalessChunkReaderBase(
             chunkState->ChunkSpec,
             config,
@@ -2127,7 +2127,7 @@ public:
             chunkState->BlockCache,
             chunkReadOptions,
             [] (int) { YT_ABORT(); }, // Rows should not be skipped in lookup reader.
-            memoryManager)
+            memoryManagerHolder)
     {
         TCurrentTraceContextGuard traceGuard(TraceContext_);
 
@@ -2345,7 +2345,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     const TColumnFilter& columnFilter,
     const TReadRange& readRange,
     std::optional<int> partitionTag,
-    const TChunkReaderMemoryManagerPtr& memoryManager,
+    const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder,
     std::optional<i64> virtualRowIndex,
     int interruptDescriptorKeyLength)
 {
@@ -2392,7 +2392,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
                 params.KeyWideningOptions,
                 readRange,
                 partitionTag,
-                memoryManager,
+                memoryManagerHolder,
                 virtualRowIndex,
                 interruptDescriptorKeyLength);
 
@@ -2411,7 +2411,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
                 params.CommonKeyPrefix,
                 params.KeyWideningOptions,
                 readRange,
-                memoryManager,
+                memoryManagerHolder,
                 virtualRowIndex,
                 interruptDescriptorKeyLength);
 
@@ -2435,7 +2435,7 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
     const TColumnFilter& columnFilter,
     const TSharedRange<TLegacyKey>& keys,
     std::optional<int> partitionTag,
-    const TChunkReaderMemoryManagerPtr& memoryManager)
+    const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder)
 {
     YT_VERIFY(chunkState && chunkState->TableSchema);
     auto chunkSortColumns = chunkMeta->ChunkSchema()->GetSortColumns(
@@ -2473,7 +2473,7 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
                 params.KeyWideningOptions,
                 keys,
                 partitionTag,
-                memoryManager);
+                memoryManagerHolder);
 
         case EChunkFormat::TableUnversionedColumnar:
             return New<TColumnarSchemalessLookupChunkReader>(
@@ -2490,7 +2490,7 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
                 params.CommonKeyPrefix,
                 params.KeyWideningOptions,
                 keys,
-                memoryManager);
+                memoryManagerHolder);
 
         default:
             THROW_ERROR_EXCEPTION(
@@ -2512,7 +2512,7 @@ ISchemalessChunkReaderPtr CreateSchemalessKeyRangesChunkReader(
     const TColumnFilter& columnFilter,
     const TSharedRange<TLegacyKey>& keyPrefixes,
     std::optional<int> partitionTag,
-    const TChunkReaderMemoryManagerPtr& memoryManager)
+    const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder)
 {
     YT_VERIFY(chunkState && chunkState->TableSchema);
     auto chunkSortColumns = chunkMeta->ChunkSchema()->GetSortColumns(
@@ -2548,7 +2548,7 @@ ISchemalessChunkReaderPtr CreateSchemalessKeyRangesChunkReader(
         params.KeyWideningOptions,
         keyPrefixes,
         partitionTag,
-        memoryManager);
+        memoryManagerHolder);
 }
 ////////////////////////////////////////////////////////////////////////////////
 

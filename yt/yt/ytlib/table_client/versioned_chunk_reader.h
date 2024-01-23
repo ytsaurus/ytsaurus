@@ -34,7 +34,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TSharedRange<TRowRange>& singletonClippingRange = {},
-    const NChunkClient::TChunkReaderMemoryManagerPtr& memoryManager = nullptr,
+    const NChunkClient::TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder = nullptr,
     IInvokerPtr sessionInvoker = nullptr);
 
 IVersionedReaderPtr CreateVersionedChunkReader(
@@ -48,7 +48,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions,
-    const NChunkClient::TChunkReaderMemoryManagerPtr& memoryManager = nullptr,
+    const NChunkClient::TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder = nullptr,
     IInvokerPtr sessionInvoker = nullptr);
 
 //! Creates a versioned chunk reader for a given set of keys.
@@ -66,7 +66,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions,
-    const NChunkClient::TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
+    const NChunkClient::TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

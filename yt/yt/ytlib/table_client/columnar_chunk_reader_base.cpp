@@ -39,7 +39,7 @@ TColumnarChunkReaderBase::TColumnarChunkReaderBase(
     IBlockCachePtr blockCache,
     const TClientChunkReadOptions& chunkReadOptions,
     std::function<void(int)> onRowsSkipped,
-    const TChunkReaderMemoryManagerPtr& memoryManager)
+    const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder)
     : ChunkMeta_(std::move(chunkMeta))
     , Config_(std::move(config))
     , UnderlyingReader_(std::move(underlyingReader))
@@ -52,10 +52,10 @@ TColumnarChunkReaderBase::TColumnarChunkReaderBase(
     , TraceContext_(CreateTraceContextFromCurrent("ChunkReader"))
     , FinishGuard_(TraceContext_)
 {
-    if (memoryManager) {
-        MemoryManager_ = memoryManager;
+    if (memoryManagerHolder) {
+        MemoryManagerHolder_ = memoryManagerHolder;
     } else {
-        MemoryManager_ = New<TChunkReaderMemoryManager>(TChunkReaderMemoryManagerOptions(Config_->WindowSize));
+        MemoryManagerHolder_ = TChunkReaderMemoryManager::Create(TChunkReaderMemoryManagerOptions(Config_->WindowSize));
     }
 
     if (Config_->SamplingSeed) {
@@ -121,7 +121,7 @@ void TColumnarChunkReaderBase::FeedBlocksToReaders()
             if (columnReader->GetCurrentBlockIndex() != -1) {
                 RequiredMemorySize_ -= BlockFetcher_->GetBlockSize(columnReader->GetCurrentBlockIndex());
             }
-            MemoryManager_->SetRequiredMemorySize(RequiredMemorySize_);
+            MemoryManagerHolder_->Get()->SetRequiredMemorySize(RequiredMemorySize_);
 
             const auto& block = blockFuture.Get().Value();
             columnReader->SetCurrentBlock(block.Data, column.PendingBlockIndex);
@@ -441,7 +441,7 @@ void TColumnarRangeChunkReaderBase::InitBlockFetcher(IInvokerPtr sessionInvoker)
         BlockFetcher_ = New<TBlockFetcher>(
             Config_,
             std::move(blockInfos),
-            MemoryManager_,
+            MemoryManagerHolder_,
             std::vector{UnderlyingReader_},
             BlockCache_,
             CheckedEnumCast<NCompression::ECodec>(ChunkMeta_->Misc().compression_codec()),
@@ -466,7 +466,7 @@ TFuture<void> TColumnarRangeChunkReaderBase::RequestFirstBlocks()
         } else {
             column.PendingBlockIndex = column.BlockIndexSequence.front();
             RequiredMemorySize_ += BlockFetcher_->GetBlockSize(column.PendingBlockIndex);
-            MemoryManager_->SetRequiredMemorySize(RequiredMemorySize_);
+            MemoryManagerHolder_->Get()->SetRequiredMemorySize(RequiredMemorySize_);
             PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex));
             blockFetchResult.push_back(PendingBlocks_.back().template As<void>());
         }
@@ -526,7 +526,7 @@ bool TColumnarRangeChunkReaderBase::TryFetchNextRow()
             column.PendingBlockIndex = nextBlockIndex;
 
             RequiredMemorySize_ += BlockFetcher_->GetBlockSize(column.PendingBlockIndex);
-            MemoryManager_->SetRequiredMemorySize(RequiredMemorySize_);
+            MemoryManagerHolder_->Get()->SetRequiredMemorySize(RequiredMemorySize_);
             PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex));
             blockFetchResult.push_back(PendingBlocks_.back().template As<void>());
         }
@@ -588,14 +588,14 @@ void TColumnarLookupChunkReaderBase::InitBlockFetcher()
     if (blockInfos.empty()) {
         // NB(psushin): typically memory manager is finalized by block fetcher.
         // When block fetcher is not created, we should do it explicitly.
-        MemoryManager_->Finalize();
+        YT_UNUSED_FUTURE(MemoryManagerHolder_->Get()->Finalize());
         return;
     }
 
     BlockFetcher_ = New<TBlockFetcher>(
         Config_,
         std::move(blockInfos),
-        MemoryManager_,
+        MemoryManagerHolder_,
         std::vector{UnderlyingReader_},
         BlockCache_,
         CheckedEnumCast<NCompression::ECodec>(ChunkMeta_->Misc().compression_codec()),
@@ -635,7 +635,7 @@ TFuture<void> TColumnarLookupChunkReaderBase::RequestFirstBlocks()
 
             column.PendingBlockIndex = column.BlockIndexSequence[NextKeyIndex_];
             RequiredMemorySize_ += BlockFetcher_->GetBlockSize(column.PendingBlockIndex);
-            MemoryManager_->SetRequiredMemorySize(RequiredMemorySize_);
+            MemoryManagerHolder_->Get()->SetRequiredMemorySize(RequiredMemorySize_);
             PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex));
             blockFetchResult.push_back(PendingBlocks_.back().As<void>());
         }

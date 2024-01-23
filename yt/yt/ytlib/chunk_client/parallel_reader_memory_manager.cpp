@@ -65,7 +65,7 @@ public:
             Options_.EnableDetailedLogging);
     }
 
-    TChunkReaderMemoryManagerPtr CreateChunkReaderMemoryManager(
+    TChunkReaderMemoryManagerHolderPtr CreateChunkReaderMemoryManager(
         std::optional<i64> reservedMemorySize,
         const TTagList& profilingTagList) override
     {
@@ -75,13 +75,14 @@ public:
         initialReaderMemory = std::min<i64>(initialReaderMemory, Options_.MaxInitialReaderReservedMemory);
         initialReaderMemory = std::max<i64>(initialReaderMemory, 0);
 
-        auto memoryManager = New<TChunkReaderMemoryManager>(
+        auto memoryManagerHolder = TChunkReaderMemoryManager::Create(
             TChunkReaderMemoryManagerOptions(
                 initialReaderMemory,
                 profilingTagList,
                 Options_.EnableDetailedLogging,
                 Options_.MemoryUsageTracker),
             MakeWeak(this));
+        auto memoryManager = memoryManagerHolder->Get();
         FreeMemory_ -= initialReaderMemory;
 
         Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoAddReaderInfo, MakeStrong(this), memoryManager, true, false));
@@ -92,7 +93,7 @@ public:
 
         ScheduleRebalancing();
 
-        return memoryManager;
+        return memoryManagerHolder;
     }
 
     IMultiReaderMemoryManagerPtr CreateMultiReaderMemoryManager(

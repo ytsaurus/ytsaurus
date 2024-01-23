@@ -33,7 +33,7 @@ TChunkReaderBase::TChunkReaderBase(
     IChunkReaderPtr underlyingReader,
     IBlockCachePtr blockCache,
     const TClientChunkReadOptions& chunkReadOptions,
-    const TChunkReaderMemoryManagerPtr& memoryManager)
+    const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder)
     : Config_(std::move(config))
     , BlockCache_(std::move(blockCache))
     , UnderlyingReader_(std::move(underlyingReader))
@@ -42,13 +42,13 @@ TChunkReaderBase::TChunkReaderBase(
     , FinishGuard_(TraceContext_)
     , Logger(TableClientLogger.WithTag("ChunkId: %v", UnderlyingReader_->GetChunkId()))
 {
-    if (memoryManager) {
-        MemoryManager_ = memoryManager;
+    if (memoryManagerHolder) {
+        MemoryManagerHolder_ = memoryManagerHolder;
     } else {
-        MemoryManager_ = New<TChunkReaderMemoryManager>(TChunkReaderMemoryManagerOptions(Config_->WindowSize));
+        MemoryManagerHolder_ = TChunkReaderMemoryManager::Create(TChunkReaderMemoryManagerOptions(Config_->WindowSize));
     }
 
-    MemoryManager_->AddReadSessionInfo(ChunkReadOptions_.ReadSessionId);
+    MemoryManagerHolder_->Get()->AddReadSessionInfo(ChunkReadOptions_.ReadSessionId);
 
     if (ChunkReadOptions_.ReadSessionId) {
         Logger.AddTag("ReadSessionId: %v", ChunkReadOptions_.ReadSessionId);
@@ -71,14 +71,14 @@ TFuture<void> TChunkReaderBase::DoOpen(
     if (blockSequence.empty()) {
         // NB(psushin): typically memory manager is finalized by block fetcher.
         // When block fetcher is not created, we should do it explicitly.
-        MemoryManager_->Finalize();
+        YT_UNUSED_FUTURE(MemoryManagerHolder_->Get()->Finalize());
         return VoidFuture;
     }
 
     SequentialBlockFetcher_ = New<TSequentialBlockFetcher>(
         Config_,
         std::move(blockSequence),
-        MemoryManager_,
+        MemoryManagerHolder_,
         std::vector{UnderlyingReader_},
         BlockCache_,
         CheckedEnumCast<ECodec>(miscExt.compression_codec()),
@@ -89,7 +89,7 @@ TFuture<void> TChunkReaderBase::DoOpen(
 
     InitFirstBlockNeeded_ = true;
     YT_VERIFY(SequentialBlockFetcher_->HasMoreBlocks());
-    MemoryManager_->SetRequiredMemorySize(SequentialBlockFetcher_->GetNextBlockSize());
+    MemoryManagerHolder_->Get()->SetRequiredMemorySize(SequentialBlockFetcher_->GetNextBlockSize());
     // FIXME(akozhikhov): This may result in a redundant GetBlockSet call.
     CurrentBlock_ = SequentialBlockFetcher_->FetchNextBlock();
     return CurrentBlock_.As<void>();
@@ -128,7 +128,7 @@ bool TChunkReaderBase::OnBlockEnded()
         return false;
     }
 
-    MemoryManager_->SetRequiredMemorySize(SequentialBlockFetcher_->GetNextBlockSize());
+    MemoryManagerHolder_->Get()->SetRequiredMemorySize(SequentialBlockFetcher_->GetNextBlockSize());
     CurrentBlock_ = SequentialBlockFetcher_->FetchNextBlock();
     SetReadyEvent(CurrentBlock_.As<void>());
     InitNextBlockNeeded_ = true;

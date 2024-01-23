@@ -58,7 +58,7 @@ public:
         std::vector<IChunkReaderPtr> partReaders,
         const TSegmentPartFetchPlan& plan,
         const NProto::TStripedErasurePlacementExt& placement,
-        TChunkReaderMemoryManagerPtr memoryManager,
+        TChunkReaderMemoryManagerHolderPtr memoryManagerHolder,
         const IChunkReader::TReadBlocksOptions& readBlocksOptions)
         : Codec_(codec)
         , Placement_(placement)
@@ -146,7 +146,7 @@ public:
         BlockFetcher_ = New<TBlockFetcher>(
             std::move(config),
             std::move(blockInfos),
-            std::move(memoryManager),
+            std::move(memoryManagerHolder),
             std::move(partReaders),
             GetNullBlockCache(),
             NCompression::ECodec::None,
@@ -377,12 +377,12 @@ public:
         const TErasureReaderConfigPtr config,
         const NErasure::ICodec* codec,
         std::vector<IChunkReaderAllowingRepairPtr> partReaders,
-        TChunkReaderMemoryManagerPtr memoryManager,
+        TChunkReaderMemoryManagerHolderPtr memoryManagerHolder,
         IChunkReader::TReadBlocksOptions readBlocksOptions)
         : Config_(std::move(config))
         , Codec_(codec)
         , PartReaders_(std::move(partReaders))
-        , MemoryManager_(std::move(memoryManager))
+        , MemoryManagerHolder_(std::move(memoryManagerHolder))
         , ReadBlocksOptions_(std::move(readBlocksOptions))
     { }
 
@@ -392,7 +392,7 @@ protected:
     const NErasure::ICodec* const Codec_;
     const std::vector<IChunkReaderAllowingRepairPtr> PartReaders_;
 
-    const TChunkReaderMemoryManagerPtr MemoryManager_;
+    const TChunkReaderMemoryManagerHolderPtr MemoryManagerHolder_;
 
     const IChunkReader::TReadBlocksOptions ReadBlocksOptions_;
 
@@ -423,13 +423,13 @@ public:
         const NErasure::ICodec* codec,
         std::vector<IChunkReaderAllowingRepairPtr> partReaders,
         std::vector<IChunkWriterPtr> partWriters,
-        TChunkReaderMemoryManagerPtr memoryManager,
+        TChunkReaderMemoryManagerHolderPtr memoryManagerHolder,
         IChunkReader::TReadBlocksOptions readBlocksOptions)
         : TErasureReaderSessionBase(
             std::move(config),
             std::move(codec),
             std::move(partReaders),
-            std::move(memoryManager),
+            std::move(memoryManagerHolder),
             std::move(readBlocksOptions))
         , PartWriters_(std::move(partWriters))
     {
@@ -491,7 +491,7 @@ private:
                 std::move(readers),
                 fetchPlan,
                 PlacementExt_,
-                MemoryManager_,
+                MemoryManagerHolder_,
                 ReadBlocksOptions_);
         }
 
@@ -545,7 +545,7 @@ TFuture<void> RepairErasedPartsStriped(
     const NErasure::ICodec* codec,
     std::vector<IChunkReaderAllowingRepairPtr> partReaders,
     std::vector<IChunkWriterPtr> partWriters,
-    TChunkReaderMemoryManagerPtr memoryManager,
+    TChunkReaderMemoryManagerHolderPtr memoryManagerHolder,
     IChunkReader::TReadBlocksOptions readBlocksOptions)
 {
     auto repairSession = New<TErasureRepairSession>(
@@ -553,7 +553,7 @@ TFuture<void> RepairErasedPartsStriped(
         codec,
         std::move(partReaders),
         std::move(partWriters),
-        std::move(memoryManager),
+        std::move(memoryManagerHolder),
         std::move(readBlocksOptions));
     return repairSession->Run();
 }

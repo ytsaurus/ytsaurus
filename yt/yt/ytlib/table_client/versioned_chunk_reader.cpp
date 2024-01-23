@@ -119,7 +119,7 @@ public:
         IBlockCachePtr blockCache,
         const TClientChunkReadOptions& chunkReadOptions,
         int keyColumnCount,
-        const TChunkReaderMemoryManagerPtr& memoryManager,
+        const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder,
         TKeyComparer keyComparer = {});
 
     TFuture<void> Open() override
@@ -155,14 +155,14 @@ TSimpleVersionedChunkReaderBase::TSimpleVersionedChunkReaderBase(
     IBlockCachePtr blockCache,
     const TClientChunkReadOptions& chunkReadOptions,
     int keyColumnCount,
-    const TChunkReaderMemoryManagerPtr& memoryManager,
+    const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder,
     TKeyComparer keyComparer)
     : TChunkReaderBase(
         std::move(config),
         std::move(underlyingReader),
         std::move(blockCache),
         chunkReadOptions,
-        memoryManager)
+        memoryManagerHolder)
     , ChunkMeta_(std::move(chunkMeta))
     , CommonKeyPrefix_(ChunkMeta_->GetChunkKeyColumnCount())
     , KeyColumnCount_(keyColumnCount)
@@ -198,7 +198,7 @@ public:
         TTimestamp timestamp,
         bool produceAllVersions,
         const TSharedRange<TRowRange>& singletonClippingRange,
-        const TChunkReaderMemoryManagerPtr& memoryManager,
+        const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder,
         IInvokerPtr sessionInvoker)
         : TSimpleVersionedChunkReaderBase(
             std::move(config),
@@ -208,7 +208,7 @@ public:
             std::move(blockCache),
             chunkReadOptions,
             keyColumnCount,
-            memoryManager)
+            memoryManagerHolder)
         , TBlockReaderAdapter<TBlockReader>(
             timestamp,
             produceAllVersions,
@@ -460,7 +460,7 @@ public:
         TKeyComparer keyComparer,
         TTimestamp timestamp,
         bool produceAllVersions,
-        const TChunkReaderMemoryManagerPtr& memoryManager)
+        const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder)
         : TSimpleVersionedChunkReaderBase(
             std::move(config),
             std::move(chunkMeta),
@@ -469,7 +469,7 @@ public:
             std::move(blockCache),
             chunkReadOptions,
             keyColumnCount,
-            memoryManager,
+            memoryManagerHolder,
             std::move(keyComparer))
         , TBlockReaderAdapter<TBlockReader>(
             timestamp,
@@ -668,7 +668,7 @@ public:
         const TClientChunkReadOptions& chunkReadOptions,
         const std::vector<TColumnIdMapping>& schemaIdMapping,
         TTimestamp timestamp,
-        const TChunkReaderMemoryManagerPtr& memoryManager)
+        const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder)
         : TBase(
             chunkMeta,
             dataSource,
@@ -679,7 +679,7 @@ public:
             std::move(blockCache),
             chunkReadOptions,
             [] (int) { YT_ABORT(); }, // Rows should not be skipped in versioned reader.
-            memoryManager)
+            memoryManagerHolder)
         , ChunkMeta_(std::move(chunkMeta))
         , Timestamp_(timestamp)
         , SchemaIdMapping_(schemaIdMapping)
@@ -1084,7 +1084,7 @@ public:
         TSharedRange<TRowRange> ranges,
         const std::vector<TColumnIdMapping>& schemaIdMapping,
         TTimestamp timestamp,
-        const TChunkReaderMemoryManagerPtr& memoryManager,
+        const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder,
         IInvokerPtr sessionInvoker)
         : TColumnarVersionedChunkReaderBase(
             std::move(config),
@@ -1097,7 +1097,7 @@ public:
             chunkReadOptions,
             schemaIdMapping,
             timestamp,
-            memoryManager)
+            memoryManagerHolder)
         , RowBuilder_(
             chunkMeta,
             sortOrders.Size(),
@@ -1431,7 +1431,7 @@ public:
         const TSharedRange<TLegacyKey>& keys,
         const std::vector<TColumnIdMapping>& schemaIdMapping,
         TTimestamp timestamp,
-        const TChunkReaderMemoryManagerPtr& memoryManager)
+        const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder)
         : TColumnarVersionedChunkReaderBase(
             std::move(config),
             chunkMeta,
@@ -1443,7 +1443,7 @@ public:
             chunkReadOptions,
             schemaIdMapping,
             timestamp,
-            memoryManager)
+            memoryManagerHolder)
         , HasHunkColumns_(ChunkMeta_->ChunkSchema()->HasHunkColumns())
         , RowBuilder_(
             chunkMeta,
@@ -1681,20 +1681,9 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TSharedRange<TRowRange>& singletonClippingRange,
-    const TChunkReaderMemoryManagerPtr& memoryManager,
+    const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder,
     IInvokerPtr sessionInvoker)
 {
-    // NB: memory managers are not RAII and should be always finalized.
-    // The finalization should be done somewhere in the reader, but if
-    // no reader with memory manager is created, we need to finalize it
-    // by ourselfs.
-    bool readerWithMemoryManagerCreated = false;
-    auto memoryManagerGuard = Finally([&] {
-        if (!readerWithMemoryManagerCreated && memoryManager) {
-            YT_UNUSED_FUTURE(memoryManager->Finalize());
-        }
-    });
-
     const auto& blockCache = chunkState->BlockCache;
 
     auto getCappedBounds = [&ranges, &singletonClippingRange] {
@@ -1747,10 +1736,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     timestamp,
                     produceAllVersions,
                     singletonClippingRange,
-                    memoryManager,
+                    memoryManagerHolder,
                     sessionInvoker);
-
-                readerWithMemoryManagerCreated = true;
             };
 
             switch (chunkMeta->GetChunkFormat()) {
@@ -1793,10 +1780,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     getCappedBounds(),
                     schemaIdMapping,
                     timestamp,
-                    memoryManager,
+                    memoryManagerHolder,
                     sessionInvoker);
-
-                readerWithMemoryManagerCreated = true;
             };
 
             if (timestamp == AllCommittedTimestamp) {
@@ -1840,8 +1825,6 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
                 TReadRange readRange(TReadLimit{lowerKeyBound}, TReadLimit{upperKeyBound});
 
-                readerWithMemoryManagerCreated = true;
-
                 return CreateSchemalessRangeChunkReader(
                     chunkState,
                     chunkMeta,
@@ -1855,7 +1838,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     columnFilter,
                     readRange,
                     std::nullopt,
-                    memoryManager);
+                    memoryManagerHolder);
             };
             auto schemafulReaderFactory = [&] (const TTableSchemaPtr& schema, const TColumnFilter& columnFilter) {
                 return CreateSchemafulReaderAdapter(schemalessReaderFactory, schema, columnFilter, /*ignoreRequired*/ true);
@@ -1895,7 +1878,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions,
-    const TChunkReaderMemoryManagerPtr& memoryManager,
+    const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder,
     IInvokerPtr sessionInvoker)
 {
     return CreateVersionedChunkReader(
@@ -1909,7 +1892,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         timestamp,
         produceAllVersions,
         {},
-        memoryManager,
+        memoryManagerHolder,
         sessionInvoker);
 }
 
@@ -1925,7 +1908,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions,
-    const TChunkReaderMemoryManagerPtr& memoryManager)
+    const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder)
 {
     const auto& blockCache = chunkState->BlockCache;
     const auto& keyComparer = chunkState->KeyComparer;
@@ -1961,7 +1944,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     keyComparer,
                     timestamp,
                     produceAllVersions,
-                    memoryManager);
+                    memoryManagerHolder);
             };
 
             switch (chunkMeta->GetChunkFormat()) {
@@ -2005,7 +1988,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     std::move(keys),
                     schemaIdMapping,
                     timestamp,
-                    memoryManager);
+                    memoryManagerHolder);
             };
 
             if (produceAllVersions) {
@@ -2046,7 +2029,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     columnFilter,
                     std::move(keys),
                     std::nullopt,
-                    memoryManager);
+                    memoryManagerHolder);
             };
             auto schemafulReaderFactory = [&] (const TTableSchemaPtr& schema, const TColumnFilter& columnFilter) {
                 return CreateSchemafulReaderAdapter(schemalessReaderFactory, schema, columnFilter, /*ignoreRequired*/ true);

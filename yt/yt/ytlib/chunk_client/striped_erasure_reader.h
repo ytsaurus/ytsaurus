@@ -15,7 +15,7 @@ TFuture<void> RepairErasedPartsStriped(
     const NErasure::ICodec* codec,
     std::vector<IChunkReaderAllowingRepairPtr> partReaders,
     std::vector<IChunkWriterPtr> partWriters,
-    TChunkReaderMemoryManagerPtr memoryManager,
+    TChunkReaderMemoryManagerHolderPtr memoryManagerHolder,
     IChunkReader::TReadBlocksOptions readBlocksOptions);
 
 ////////////////////////////////////////////////////////////////////////////////

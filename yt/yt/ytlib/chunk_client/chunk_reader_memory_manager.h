@@ -75,7 +75,7 @@ class TChunkReaderMemoryManager
     : public IReaderMemoryManager
 {
 public:
-    explicit TChunkReaderMemoryManager(
+    static TChunkReaderMemoryManagerHolderPtr Create(
         TChunkReaderMemoryManagerOptions options,
         TWeakPtr<IReaderMemoryManagerHost> hostMemoryManager = nullptr);
 
@@ -120,6 +120,12 @@ public:
     i64 GetUsedMemorySize() const;
 
 private:
+    explicit TChunkReaderMemoryManager(
+        TChunkReaderMemoryManagerOptions options,
+        TWeakPtr<IReaderMemoryManagerHost> hostMemoryManager = nullptr);
+
+    DECLARE_NEW_FRIEND()
+
     void OnSemaphoreAcquired(TPromise<TMemoryUsageGuardPtr> promise, NConcurrency::TAsyncSemaphoreGuard semaphoreGuard);
 
     void OnMemoryRequirementsUpdated();
@@ -195,6 +201,26 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TMemoryUsageGuard)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! RAII holder for TChunkReaderMemoryManager.
+//! Finalizes the memory manager on destruction.
+class TChunkReaderMemoryManagerHolder
+    : public TRefCounted
+{
+public:
+    TChunkReaderMemoryManagerHolder(TChunkReaderMemoryManagerPtr memoryManager);
+
+    const TChunkReaderMemoryManagerPtr& Get() const;
+
+    ~TChunkReaderMemoryManagerHolder();
+
+private:
+    TChunkReaderMemoryManagerPtr MemoryManager_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TChunkReaderMemoryManagerHolder)
 
 ////////////////////////////////////////////////////////////////////////////////
 

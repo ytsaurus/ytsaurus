@@ -179,7 +179,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
 
                 auto createChunkReaderFromSpecAsync = BIND([=] (
                     const TChunkSpec& chunkSpec,
-                    TChunkReaderMemoryManagerPtr chunkReaderMemoryManager)
+                    TChunkReaderMemoryManagerHolderPtr chunkReaderMemoryManagerHolder)
                 {
                     IChunkReaderPtr remoteReader;
                     try {
@@ -243,8 +243,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                                 columnFilter.IsUniversal() ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
                                 readRange,
                                 partitionTag,
-                                chunkReaderMemoryManager
-                                    ? chunkReaderMemoryManager
+                                chunkReaderMemoryManagerHolder
+                                    ? chunkReaderMemoryManagerHolder
                                     : multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate),
                                 dataSliceDescriptor.VirtualRowIndex,
                                 interruptDescriptorKeyLength);
@@ -263,8 +263,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                                 columnFilter.IsUniversal() ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
                                 hintKeyPrefixes->HintPrefixes,
                                 partitionTag,
-                                chunkReaderMemoryManager
-                                    ? chunkReaderMemoryManager
+                                chunkReaderMemoryManagerHolder
+                                    ? chunkReaderMemoryManagerHolder
                                     : multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate));
                          }
                     }).AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
@@ -1131,7 +1131,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         Logger
     ] (
         const TChunkSpec& chunkSpec,
-        const TChunkReaderMemoryManagerPtr& chunkReaderMemoryManager) -> IVersionedReaderPtr
+        const TChunkReaderMemoryManagerHolderPtr& chunkReaderMemoryManagerHolder) -> IVersionedReaderPtr
     {
         auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
         auto replicas = GetReplicasFromChunkSpec(chunkSpec);
@@ -1203,8 +1203,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             TColumnFilter(),
             effectiveTimestamp,
             false,
-            chunkReaderMemoryManager
-                ? chunkReaderMemoryManager
+            chunkReaderMemoryManagerHolder
+                ? chunkReaderMemoryManagerHolder
                 : multiReaderMemoryManager->CreateChunkReaderMemoryManager(
                     versionedChunkMeta->Misc().uncompressed_data_size()));
     };

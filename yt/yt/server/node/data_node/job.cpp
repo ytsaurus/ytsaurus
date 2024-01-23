@@ -877,7 +877,7 @@ private:
 
         if (stripedErasure) {
             auto windowSize = DynamicConfig_->WindowSize;
-            auto memoryManager = New<TChunkReaderMemoryManager>(TChunkReaderMemoryManagerOptions(
+            auto memoryManagerHolder = TChunkReaderMemoryManager::Create(TChunkReaderMemoryManagerOptions(
                 windowSize,
                 {},
                 false));
@@ -887,7 +887,7 @@ private:
                 codec,
                 std::move(readers),
                 std::move(writers),
-                std::move(memoryManager),
+                std::move(memoryManagerHolder),
                 readBlocksOptions);
         } else {
             return RepairErasedParts(

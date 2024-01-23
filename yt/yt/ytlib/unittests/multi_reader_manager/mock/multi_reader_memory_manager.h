@@ -13,7 +13,7 @@ class TMultiReaderMemoryManagerMock
     , public IReaderMemoryManagerHost
 {
 public:
-    TChunkReaderMemoryManagerPtr CreateChunkReaderMemoryManager(
+    TChunkReaderMemoryManagerHolderPtr CreateChunkReaderMemoryManager(
         std::optional<i64> /*reservedMemorySize*/,
         const NProfiling::TTagList& /*profilingTagList*/) override
     {

@@ -29,6 +29,7 @@ using NChunkClient::EBlockType;
 
 using NChunkClient::TChunkReaderMemoryManager;
 using NChunkClient::TChunkReaderMemoryManagerOptions;
+using NChunkClient::TChunkReaderMemoryManagerHolder;
 using NChunkClient::TClientChunkReadOptions;
 
 using NChunkClient::IBlockCachePtr;
@@ -345,7 +346,7 @@ TBlockManagerFactory CreateAsyncBlockWindowManagerFactory(
         TBlockFetcherPtr blockFetcher;
         if (!blockInfos.empty()) {
             auto createBlockFetcherStartInstant = GetCpuInstant();
-            auto memoryManager = New<TChunkReaderMemoryManager>(TChunkReaderMemoryManagerOptions(config->WindowSize));
+            auto memoryManagerHolder = TChunkReaderMemoryManager::Create(TChunkReaderMemoryManagerOptions(config->WindowSize));
 
             auto compressedSize = chunkMeta->Misc().compressed_data_size();
             auto uncompressedSize = chunkMeta->Misc().uncompressed_data_size();
@@ -353,7 +354,7 @@ TBlockManagerFactory CreateAsyncBlockWindowManagerFactory(
             blockFetcher = New<TBlockFetcher>(
                 config,
                 std::move(blockInfos),
-                memoryManager,
+                memoryManagerHolder,
                 std::vector{underlyingReader},
                 blockCache,
                 CheckedEnumCast<NCompression::ECodec>(chunkMeta->Misc().compression_codec()),
