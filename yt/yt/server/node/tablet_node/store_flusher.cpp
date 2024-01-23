@@ -83,13 +83,13 @@ public:
         , Semaphore_(New<TProfiledAsyncSemaphore>(
             Config_->StoreFlusher->MaxConcurrentFlushes,
             Profiler.Gauge("/running_store_flushes")))
-    { }
-
-    void Start() override
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(BIND(&TStoreFlusher::OnDynamicConfigChanged, MakeWeak(this)));
+    }
 
+    void Start() override
+    {
         const auto& slotManager = Bootstrap_->GetSlotManager();
         slotManager->SubscribeBeginSlotScan(BIND(&TStoreFlusher::OnBeginSlotScan, MakeStrong(this)));
         slotManager->SubscribeScanSlot(BIND(&TStoreFlusher::OnScanSlot, MakeStrong(this)));
