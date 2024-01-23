@@ -770,6 +770,10 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetFileFromCache));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PutFileToCache));
 
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetPipelineSpec));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SetPipelineSpec));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetPipelineDynamicSpec));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SetPipelineDynamicSpec));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartPipeline));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StopPipeline));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PausePipeline));
@@ -5588,6 +5592,125 @@ private:
     ////////////////////////////////////////////////////////////////////////////////
     // FLOW
     ////////////////////////////////////////////////////////////////////////////////
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetPipelineSpec)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TGetPipelineSpecOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        auto pipelinePath = FromProto<TYPath>(request->pipeline_path());
+        context->SetRequestInfo("PipelinePath: %v", pipelinePath);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->GetPipelineSpec(pipelinePath, options);
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                response->set_version(ToProto<i64>(result.Version));
+                response->set_spec(result.Spec.ToString());
+
+                context->SetResponseInfo("Version: %v",
+                    result.Version);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SetPipelineSpec)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TSetPipelineSpecOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        auto pipelinePath = FromProto<TYPath>(request->pipeline_path());
+
+        auto spec = TYsonString(request->spec());
+
+        options.Force = request->force();
+
+        options.ExpectedVersion = request->has_expected_version()
+            ? std::make_optional<NFlow::TVersion>(request->expected_version())
+            : std::nullopt;
+
+        context->SetRequestInfo("PipelinePath: %v, Force: %v, ExpectedVersion: %v",
+            pipelinePath,
+            options.Force,
+            options.ExpectedVersion);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->SetPipelineSpec(pipelinePath, spec, options);
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                response->set_version(ToProto<i64>(result.Version));
+
+                context->SetResponseInfo("Version: %v",
+                    result.Version);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetPipelineDynamicSpec)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TGetPipelineDynamicSpecOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        auto pipelinePath = FromProto<TYPath>(request->pipeline_path());
+        context->SetRequestInfo("PipelinePath: %v", pipelinePath);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->GetPipelineDynamicSpec(pipelinePath, options);
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                response->set_version(ToProto<i64>(result.Version));
+                response->set_spec(result.Spec.ToString());
+
+                context->SetResponseInfo("Version: %v",
+                    result.Version);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SetPipelineDynamicSpec)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TSetPipelineDynamicSpecOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        auto pipelinePath = FromProto<TYPath>(request->pipeline_path());
+
+        auto spec = TYsonString(request->spec());
+
+        options.ExpectedVersion = request->has_expected_version()
+            ? std::make_optional<NFlow::TVersion>(request->expected_version())
+            : std::nullopt;
+
+        context->SetRequestInfo("PipelinePath: %v, ExpectedVersion: %v",
+            pipelinePath,
+            options.ExpectedVersion);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->SetPipelineDynamicSpec(pipelinePath, spec, options);
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                response->set_version(ToProto<i64>(result.Version));
+
+                context->SetResponseInfo("Version: %v",
+                    result.Version);
+            });
+    }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StartPipeline)
     {

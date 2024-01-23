@@ -13,6 +13,7 @@ namespace NYT::NApi::NNative {
 using namespace NConcurrency;
 using namespace NYPath;
 using namespace NYTree;
+using namespace NYson;
 using namespace NFlow;
 using namespace NFlow::NController;
 
@@ -66,6 +67,71 @@ TControllerServiceProxy TClient::CreatePipelineControllerLeaderProxy(const TYPat
     TControllerServiceProxy proxy(std::move(channel));
     proxy.SetDefaultTimeout(Connection_->GetConfig()->FlowPipelineControllerRpcTimeout);
     return proxy;
+}
+
+TGetPipelineSpecResult TClient::DoGetPipelineSpec(
+    const NYPath::TYPath& pipelinePath,
+    const TGetPipelineSpecOptions& /*options*/)
+{
+    auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
+    auto req = proxy.GetSpec();
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+    return {
+        .Version = FromProto<TVersion>(rsp->version()),
+        .Spec = TYsonString(rsp->spec()),
+    };
+}
+
+TSetPipelineSpecResult TClient::DoSetPipelineSpec(
+    const NYPath::TYPath& pipelinePath,
+    const NYson::TYsonString& spec,
+    const TSetPipelineSpecOptions& options)
+{
+    auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
+    auto req = proxy.SetSpec();
+    req->set_spec(spec.ToString());
+    req->set_force(options.Force);
+    if (options.ExpectedVersion) {
+        req->set_expected_version(ToProto<i64>(*options.ExpectedVersion));
+    }
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+    return {
+        .Version = FromProto<TVersion>(rsp->version()),
+    };
+}
+
+TGetPipelineDynamicSpecResult TClient::DoGetPipelineDynamicSpec(
+    const NYPath::TYPath& pipelinePath,
+    const TGetPipelineDynamicSpecOptions& /*options*/)
+{
+    auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
+    auto req = proxy.GetDynamicSpec();
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+    return {
+        .Version = FromProto<TVersion>(rsp->version()),
+        .Spec = TYsonString(rsp->spec()),
+    };
+}
+
+TSetPipelineDynamicSpecResult TClient::DoSetPipelineDynamicSpec(
+    const NYPath::TYPath& pipelinePath,
+    const NYson::TYsonString& spec,
+    const TSetPipelineDynamicSpecOptions& options)
+{
+    auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
+    auto req = proxy.SetDynamicSpec();
+    req->set_spec(spec.ToString());
+    if (options.ExpectedVersion) {
+        req->set_expected_version(ToProto<i64>(*options.ExpectedVersion));
+    }
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+    return {
+        .Version = FromProto<TVersion>(rsp->version()),
+    };
 }
 
 void TClient::DoStartPipeline(

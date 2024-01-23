@@ -806,6 +806,24 @@ public:
         const NBundleControllerClient::TSetBundleConfigOptions& options),
         (bundleName, bundleConfig, options))
 
+    IMPLEMENT_METHOD(TGetPipelineSpecResult, GetPipelineSpec, (
+        const NYPath::TYPath& pipelinePath,
+        const TGetPipelineSpecOptions& options),
+        (pipelinePath, options))
+    IMPLEMENT_METHOD(TSetPipelineSpecResult, SetPipelineSpec, (
+        const NYPath::TYPath& pipelinePath,
+        const NYson::TYsonString& spec,
+        const TSetPipelineSpecOptions& options),
+        (pipelinePath, spec, options))
+    IMPLEMENT_METHOD(TGetPipelineDynamicSpecResult, GetPipelineDynamicSpec, (
+        const NYPath::TYPath& pipelinePath,
+        const TGetPipelineDynamicSpecOptions& options),
+        (pipelinePath, options))
+    IMPLEMENT_METHOD(TSetPipelineDynamicSpecResult, SetPipelineDynamicSpec, (
+        const NYPath::TYPath& pipelinePath,
+        const NYson::TYsonString& spec,
+        const TSetPipelineDynamicSpecOptions& options),
+        (pipelinePath, spec, options))
     IMPLEMENT_METHOD(void, StartPipeline, (
         const NYPath::TYPath& pipelinePath,
         const TStartPipelineOptions& options),
@@ -1921,6 +1939,20 @@ private:
 
     NFlow::NController::TControllerServiceProxy CreatePipelineControllerLeaderProxy(const NYPath::TYPath& pipelinePath);
 
+    TGetPipelineSpecResult DoGetPipelineSpec(
+        const NYPath::TYPath& pipelinePath,
+        const TGetPipelineSpecOptions& options);
+    TSetPipelineSpecResult DoSetPipelineSpec(
+        const NYPath::TYPath& pipelinePath,
+        const NYson::TYsonString& spec,
+        const TSetPipelineSpecOptions& options);
+    TGetPipelineDynamicSpecResult DoGetPipelineDynamicSpec(
+        const NYPath::TYPath& pipelinePath,
+        const TGetPipelineDynamicSpecOptions& options);
+    TSetPipelineDynamicSpecResult DoSetPipelineDynamicSpec(
+        const NYPath::TYPath& pipelinePath,
+        const NYson::TYsonString& spec,
+        const TSetPipelineDynamicSpecOptions& options);
     void DoStartPipeline(
         const NYPath::TYPath& pipelinePath,
         const TStartPipelineOptions& options);

@@ -23,7 +23,7 @@ message TReqGetSpec
 message TRspGetSpec
 {
     required int64 version = 1;
-    required bytes value = 2 [(NYT.NYson.NProto.yson_string) = true];
+    required bytes spec = 2 [(NYT.NYson.NProto.yson_string) = true];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,9 +32,8 @@ message TReqSetSpec
 {
     optional string path = 1;
     optional int64 expected_version = 2;
-    required bytes value = 3 [(NYT.NYson.NProto.yson_string) = true];
-
-    // Update spec even if process is not stopped, just paused.
+    required bytes spec = 3 [(NYT.NYson.NProto.yson_string) = true];
+    // Update spec even if pipeline is not stopped, just paused.
     optional bool force = 4;
 }
 
@@ -52,7 +51,7 @@ message TReqGetDynamicSpec
 message TRspGetDynamicSpec
 {
     required int64 version = 1;
-    required bytes value = 2 [(NYT.NYson.NProto.yson_string) = true];
+    required bytes spec = 2 [(NYT.NYson.NProto.yson_string) = true];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,7 +60,7 @@ message TReqSetDynamicSpec
 {
     optional string path = 1;
     optional int64 expected_version = 2;
-    optional bytes value = 3 [(NYT.NYson.NProto.yson_string) = true];
+    optional bytes spec = 3 [(NYT.NYson.NProto.yson_string) = true];
 }
 
 message TRspSetDynamicSpec
