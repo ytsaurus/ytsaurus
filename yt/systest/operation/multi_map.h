@@ -36,6 +36,7 @@ public:
     virtual TRange<TDataColumn> OutputColumns() const override;
     virtual void ToProto(NProto::TMultiMapper* proto) const override;
     virtual TRange<TString> DeletedColumns() const override;
+    virtual bool Alterable() const override { return Inner_->Alterable(); }
 
     virtual std::vector<std::vector<TNode>> Run(TCallState* state, TRange<TNode> input) const override;
 

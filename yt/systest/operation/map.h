@@ -14,6 +14,7 @@ public:
     virtual TRange<int> InputColumns() const override;
     virtual TRange<TDataColumn> OutputColumns() const override;
     virtual void ToProto(NProto::TRowMapper* proto) const override;
+    virtual bool Alterable() const override { return true; }
 
     virtual std::vector<TNode> Run(TCallState* state, TRange<TNode> input) const override;
 
@@ -33,6 +34,7 @@ public:
     virtual TRange<int> InputColumns() const override;
     virtual TRange<TDataColumn> OutputColumns() const override;
     virtual void ToProto(NProto::TRowMapper* proto) const override;
+    virtual bool Alterable() const override { return true; }
 
     virtual std::vector<TNode> Run(TCallState* state, TRange<TNode> input) const override;
 
@@ -75,6 +77,7 @@ public:
     virtual TRange<TDataColumn> OutputColumns() const override;
     virtual void ToProto(NProto::TRowMapper* proto) const override;
     virtual TRange<TString> DeletedColumns() const override;
+    virtual bool Alterable() const override;
 
     virtual std::vector<TNode> Run(TCallState* state, TRange<TNode> input) const override;
 
@@ -98,6 +101,7 @@ public:
 
     virtual TRange<int> InputColumns() const override;
     virtual TRange<TDataColumn> OutputColumns() const override;
+    virtual bool Alterable() const override { return true; }
 
     virtual std::vector<TNode> Run(TCallState* state, TRange<TNode> input) const override;
     virtual void ToProto(NProto::TRowMapper* proto) const override;
@@ -120,6 +124,7 @@ public:
 
     virtual std::vector<TNode> Run(TCallState* state, TRange<TNode> input) const override;
     virtual void ToProto(NProto::TRowMapper* proto) const override;
+    virtual bool Alterable() const override { return true; }
 
 private:
     int Index_;

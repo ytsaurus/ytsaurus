@@ -44,6 +44,7 @@ public:
 
     virtual std::vector<TNode> Run(TCallState* state, TRange<TNode> input) const = 0;
     virtual void ToProto(NProto::TRowMapper* proto) const = 0;
+    virtual bool Alterable() const { return false; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,6 +56,7 @@ public:
 
     virtual std::vector<std::vector<TNode>> Run(TCallState* state, TRange<TNode> input) const = 0;
     virtual void ToProto(NProto::TMultiMapper* proto) const = 0;
+    virtual bool Alterable() const { return false; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,5 +103,13 @@ std::unique_ptr<IMultiMapper> CreateFromProto(
 std::unique_ptr<IReducer> CreateFromProto(
     const TTable& input,
     const NProto::TReducer& operationProto);
+
+///////////////////////////////////////////////////////////////////////////////
+
+TTable CreateTableFromMapOperation(const IMultiMapper& op);
+TTable CreateTableFromReduceOperation(
+    const TTable& source,
+    const TReduceOperation& op,
+    std::vector<int>* indices);
 
 }  // namespace NYT::NTest

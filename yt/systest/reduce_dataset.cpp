@@ -7,24 +7,6 @@ namespace NYT::NTest {
 
 using namespace NNodeCmp;
 
-static std::vector<int> computeIndices(
-    const std::vector<TString>& columns,
-    const std::vector<TDataColumn>& tableColumns,
-    const std::vector<int>& order)
-{
-    std::vector<int> result;
-    for (const TString& columnName : columns) {
-        auto position = std::lower_bound(order.begin(), order.end(), nullptr, [&](int pos, nullptr_t) {
-            return tableColumns[pos].Name < columnName;
-        });
-        if (position == order.end() || tableColumns[*position].Name != columnName) {
-            THROW_ERROR_EXCEPTION("Unknown column %v", columnName);
-        }
-        result.push_back(*position);
-    }
-    return result;
-}
-
 class TReduceDatasetIterator : public IDatasetIterator
 {
 public:
@@ -122,13 +104,7 @@ TReduceDataset::TReduceDataset(const IDataset& inner, const TReduceOperation& op
     : Inner_(inner)
     , Operation_(operation)
 {
-    ComputeColumnIndices();
-    for (int index : ReduceByIndices_) {
-        Table_.DataColumns.push_back(Inner_.table_schema().DataColumns[index]);
-    }
-    std::copy(Operation_.Reducer->OutputColumns().begin(), Operation_.Reducer->OutputColumns().end(),
-        std::back_inserter(Table_.DataColumns));
-    Table_.SortColumns = std::ssize(ReduceByIndices_);
+    Table_ = CreateTableFromReduceOperation(inner.table_schema(), Operation_, &ReduceByIndices_);
 }
 
 const TTable& TReduceDataset::table_schema() const
@@ -145,28 +121,6 @@ bool TReduceDataset::ReduceByEqual(const std::vector<TNode>& lhs, TRange<TNode> 
         }
     }
     return true;
-}
-
-void TReduceDataset::ComputeColumnIndices()
-{
-    std::vector<int> order;
-    const auto& columns = Inner_.table_schema().DataColumns;
-    for (int i = 0; i < std::ssize(columns); ++i) {
-        order.push_back(i);
-    }
-    std::sort(order.begin(), order.end(), [&columns](int lhs, int rhs) {
-        return columns[lhs].Name < columns[rhs].Name;
-    });
-
-    ReduceByIndices_ = computeIndices(Operation_.ReduceBy, columns, order);
-
-    const int sortColumns = Inner_.table_schema().SortColumns;
-    for (int index : ReduceByIndices_) {
-        if (index >= sortColumns) {
-            THROW_ERROR_EXCEPTION("Table must be sorted by a reduce column, column %v "
-                "not in %v sort columns", columns[index].Name, sortColumns);
-        }
-    }
 }
 
 std::unique_ptr<IDatasetIterator> TReduceDataset::NewIterator() const

@@ -1,0 +1,32 @@
+package NYT.NTest.NProto;
+
+import "yt/systest/proto/run_spec.proto";
+
+message TBootstrap {
+    required int64 num_records = 1;
+}
+
+message TYtOperationOptions {
+
+}
+
+message TTableEstimates {
+    optional int64 num_records = 1;
+    optional int64 record_bytes = 2;
+}
+
+message TTableSpec {
+    optional string name = 1;
+    optional string parent = 2;
+    oneof operation {
+        TBootstrap bootstrap = 10;
+        TMapRunSpec map = 11;
+        TReduceRunSpec reduce = 12;
+        TSortRunSpec sort = 13;
+    }
+    optional TTableEstimates estimates = 3;
+}
+
+message TSystestSpec {
+    repeated TTableSpec table = 1;
+}

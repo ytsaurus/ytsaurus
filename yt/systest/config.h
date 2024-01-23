@@ -2,7 +2,7 @@
 
 #include <library/cpp/getopt/last_getopt.h>
 
-#include <yt/systest/runner.h>
+#include <yt/systest/validator.h>
 
 namespace NYT::NTest {
 
@@ -11,10 +11,22 @@ struct TNetworkConfig {
     void RegisterOptions(NLastGetopt::TOpts* opts);
 };
 
+struct TTestConfig {
+    int NumPhases;
+    int Seed;
+    int64_t NumBootstrapRecords;
+
+    bool EnableReduce;
+    bool EnableRenames;
+    bool EnableDeletes;
+
+    void RegisterOptions(NLastGetopt::TOpts* opts);
+};
+
 struct TConfig {
-    TRunnerConfig RunnerConfig;
+    TTestConfig TestConfig;
     TValidatorConfig ValidatorConfig;
-    TNetworkConfig Network;
+    TNetworkConfig NetworkConfig;
 
     TString HomeDirectory;
     TString Pool;

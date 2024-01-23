@@ -8,6 +8,24 @@
 
 namespace NYT::NTest {
 
+static std::vector<int> computeIndices(
+    const std::vector<TString>& columns,
+    const std::vector<TDataColumn>& tableColumns,
+    const std::vector<int>& order)
+{
+    std::vector<int> result;
+    for (const TString& columnName : columns) {
+        auto position = std::lower_bound(order.begin(), order.end(), nullptr, [&](int pos, nullptr_t) {
+            return tableColumns[pos].Name < columnName;
+        });
+        if (position == order.end() || tableColumns[*position].Name != columnName) {
+            THROW_ERROR_EXCEPTION("Unknown column %v", columnName);
+        }
+        result.push_back(*position);
+    }
+    return result;
+}
+
 std::unique_ptr<IRowMapper> CreateFromProto(
     const TTable& input,
     const NProto::TRowMapper& operationProto)
@@ -92,6 +110,54 @@ std::unique_ptr<IReducer> CreateFromProto(
             break;
     }
     return nullptr;
+}
+
+TTable CreateTableFromMapOperation(const IMultiMapper& op)
+{
+    return TTable{
+        std::vector<TDataColumn>{
+            op.OutputColumns().begin(), op.OutputColumns().end()
+        },
+        std::vector<TString>{
+            op.DeletedColumns().begin(), op.DeletedColumns().end()
+        },
+        0  /*SortColumns*/
+    };
+}
+
+TTable CreateTableFromReduceOperation(
+    const TTable& source,
+    const TReduceOperation& op, std::vector<int>* indices)
+{
+    std::vector<int> order;
+    const auto& columns = source.DataColumns;
+    for (int i = 0; i < std::ssize(columns); ++i) {
+        order.push_back(i);
+    }
+
+    std::sort(order.begin(), order.end(), [&columns](int lhs, int rhs) {
+        return columns[lhs].Name < columns[rhs].Name;
+    });
+
+    *indices = computeIndices(op.ReduceBy, columns, order);
+
+    const int sortColumns = source.SortColumns;
+    for (int index : *indices) {
+        if (index >= sortColumns) {
+            THROW_ERROR_EXCEPTION("Table must be sorted by a reduce column, column %v "
+                "not in %v sort columns", columns[index].Name, sortColumns);
+        }
+    }
+
+    TTable result;
+    for (int index : *indices) {
+        result.DataColumns.push_back(source.DataColumns[index]);
+    }
+    std::copy(op.Reducer->OutputColumns().begin(), op.Reducer->OutputColumns().end(),
+        std::back_inserter(result.DataColumns));
+    result.SortColumns = std::ssize(*indices);
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -38,18 +38,21 @@ public:
     void Stop();
 
     TStoredDataset VerifyMap(
+        const TString& targetName,
         const TString& sourcePath,
         const TString& targetPath,
         const TTable& sourceTable,
         const IMultiMapper& operation);
 
     TStoredDataset VerifyReduce(
+        const TString& targetName,
         const TString& sourcePath,
         const TString& targetPath,
         const TTable& sourceTable,
         const TReduceOperation& reduceOperation);
 
     TStoredDataset VerifySort(
+        const TString& targetName,
         const TString& sourcePath,
         const TString& targetPath,
         const TTable& sourceTable,

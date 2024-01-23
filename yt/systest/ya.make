@@ -24,6 +24,7 @@ SRCS(
     table_dataset.cpp
     test_home.cpp
     test_program.cpp
+    test_spec.cpp
     util.cpp
     validator.cpp
     validator_job.cpp

@@ -336,6 +336,7 @@ TStoredDataset TValidator::CompareIntervals(
 }
 
 TStoredDataset TValidator::VerifyMap(
+    const TString& targetName,
     const TString& sourcePath,
     const TString& targetPath,
     const TTable& sourceTable,
@@ -354,7 +355,7 @@ TStoredDataset TValidator::VerifyMap(
         numIntervals);
 
     for (int index = 0; index < numIntervals; ++index) {
-        auto tempOutputPath = TestHome_.CreateRandomTablePath();
+        auto tempOutputPath = TestHome_.CreateIntervalPath(targetName, index);
         intervalPath.push_back(tempOutputPath);
 
         auto result = StartMapInterval(
@@ -383,6 +384,7 @@ TStoredDataset TValidator::VerifyMap(
 }
 
 TStoredDataset TValidator::VerifyReduce(
+    const TString& targetName,
     const TString& sourcePath,
     const TString& targetPath,
     const TTable& sourceTable,
@@ -403,7 +405,7 @@ TStoredDataset TValidator::VerifyReduce(
     std::vector<TString> intervalPath;
 
     for (int index = 0; index < numIntervals; ++index) {
-        auto tempOutputPath = TestHome_.CreateRandomTablePath();
+        auto tempOutputPath = TestHome_.CreateIntervalPath(targetName, index);
         intervalPath.push_back(tempOutputPath);
 
         auto result = StartReduceInterval(
@@ -432,6 +434,7 @@ TStoredDataset TValidator::VerifyReduce(
 }
 
 TStoredDataset TValidator::VerifySort(
+    const TString& targetName,
     const TString& sourcePath,
     const TString& targetPath,
     const TTable& sourceTable,
@@ -450,7 +453,7 @@ TStoredDataset TValidator::VerifySort(
     std::vector<TString> intervalPath;
 
     for (int index = 0; index < numIntervals; index++) {
-        auto tempOutputPath = TestHome_.CreateRandomTablePath();
+        auto tempOutputPath = TestHome_.CreateIntervalPath(targetName, index);
         intervalPath.push_back(tempOutputPath);
 
         YT_LOG_INFO("Will produce sorted table %v for interval %v", tempOutputPath, index);

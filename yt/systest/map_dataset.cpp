@@ -69,11 +69,7 @@ void TMapDatasetIterator::Next()
 TMapDataset::TMapDataset(const IDataset& inner, const IMultiMapper& operation)
     : Inner_(inner)
     , Operation_(operation)
-    , Table_{
-        std::vector<TDataColumn>{Operation_.OutputColumns().begin(), Operation_.OutputColumns().end()},
-        std::vector<TString>{Operation_.DeletedColumns().begin(), Operation_.DeletedColumns().end()},
-        0
-      }
+    , Table_(CreateTableFromMapOperation(operation))
 {
     for (const auto& dataColumn : Operation_.OutputColumns()) {
         ColumnStrings_.push_back(dataColumn.Name);

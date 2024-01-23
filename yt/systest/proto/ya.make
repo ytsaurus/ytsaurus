@@ -3,6 +3,7 @@ PROTO_LIBRARY()
 SRCS(
     operation.proto
     run_spec.proto
+    test_spec.proto
     table.proto
     validator.proto
 )

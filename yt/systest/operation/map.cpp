@@ -252,6 +252,16 @@ std::vector<TNode> TConcatenateColumnsRowMapper::Run(TCallState* state, TRange<T
     return result;
 }
 
+bool TConcatenateColumnsRowMapper::Alterable() const
+{
+    for (const auto& operation : Operations_) {
+        if (!operation->Alterable()) {
+            return false;
+        }
+    }
+    return true;
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////
 
 TDecorateWithDeletedColumnRowMapper::TDecorateWithDeletedColumnRowMapper(
@@ -298,7 +308,7 @@ void TDecorateWithDeletedColumnRowMapper::ToProto(NProto::TRowMapper* proto) con
     operationProto->set_stable_name(DeletedStableName_[0]);
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TRenameColumnRowMapper::TRenameColumnRowMapper(const TTable& input, int index, const TString& name)
     : IRowMapper(input)

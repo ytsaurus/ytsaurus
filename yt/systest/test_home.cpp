@@ -7,6 +7,48 @@
 
 namespace NYT::NTest {
 
+static void FillTimeBuf(const char* fmt, int len, char* timebuf)
+{
+    time_t currentTime = time(nullptr);
+    struct tm* curGmTime = gmtime(&currentTime);
+
+    if (curGmTime == nullptr) {
+        THROW_ERROR_EXCEPTION("gmtime() failed, error: %s", strerror(errno));
+    }
+
+    strftime(timebuf, len, fmt, curGmTime);
+}
+
+TString TTestHome::GenerateFullRandomId()
+{
+    const int Length = 256;
+    char timebuf[Length];
+    std::fill(timebuf, timebuf + Length, 0);
+
+    FillTimeBuf("%Y%m%d-%H%M", Length, timebuf);
+
+    char buf[Length];
+    std::snprintf(buf, Length, "%s-%04x", timebuf, UniformIntDistribution_(Engine_));
+
+    return buf;
+}
+
+TString TTestHome::GenerateShortRandomId()
+{
+    const int Length = 256;
+    char timebuf[Length];
+    std::fill(timebuf, timebuf + Length, 0);
+
+    FillTimeBuf("%H%M", Length, timebuf);
+
+    char buf[Length];
+    std::snprintf(buf, Length, "%s-%02hx", timebuf, UniformShortDistribution_(Engine_));
+
+    return buf;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
 TTestHome::TTestHome(IClientPtr client, const TString& homeDirectory)
     : HomeDirectory_(homeDirectory)
     , Client_(client)
@@ -16,23 +58,7 @@ TTestHome::TTestHome(IClientPtr client, const TString& homeDirectory)
 
 void TTestHome::Init()
 {
-    const int BUF_LEN = 256;
-    char timebuf[BUF_LEN];
-    std::fill(timebuf, timebuf + BUF_LEN, 0);
-
-    time_t currentTime = time(nullptr);
-    struct tm* curGmTime = gmtime(&currentTime);
-
-    if (curGmTime == nullptr) {
-        THROW_ERROR_EXCEPTION("gmtime() failed, error: %s", strerror(errno));
-    }
-
-    strftime(timebuf, BUF_LEN, "%Y%m%d-%H%M", curGmTime);
-
-    char buf[BUF_LEN];
-    std::snprintf(buf, BUF_LEN, "/%s-%04x", timebuf, UniformIntDistribution_(Engine_));
-
-    Dir_ = HomeDirectory_ + buf;
+    Dir_ = HomeDirectory_ + "/" + GenerateFullRandomId();
 
     CoreTable_ = Dir_ + "/core";
     StderrTable_ = Dir_ + "/stderr";
@@ -44,6 +70,16 @@ void TTestHome::Init()
 
     NLogging::TLogger Logger("test");
     YT_LOG_INFO("Initialized test home (Directory: %v)", Dir_);
+}
+
+TString TTestHome::TablePath(const TString& tableName)
+{
+    return Dir_ + "/" + tableName;
+}
+
+TString TTestHome::CreateIntervalPath(const TString& name, int index)
+{
+    return Dir_ + "/" + name + "_" + GenerateShortRandomId() + "_" + std::to_string(index);
 }
 
 TString TTestHome::CreateRandomTablePath()

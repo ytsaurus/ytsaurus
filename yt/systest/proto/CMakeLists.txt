@@ -54,6 +54,18 @@ get_built_tool_path(
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
 
 add_library(yt-systest-proto)
 target_link_libraries(yt-systest-proto PUBLIC
@@ -66,6 +78,7 @@ target_link_libraries(yt-systest-proto PUBLIC
 target_proto_messages(yt-systest-proto PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/systest/proto/operation.proto
   ${CMAKE_SOURCE_DIR}/yt/systest/proto/run_spec.proto
+  ${CMAKE_SOURCE_DIR}/yt/systest/proto/test_spec.proto
   ${CMAKE_SOURCE_DIR}/yt/systest/proto/table.proto
   ${CMAKE_SOURCE_DIR}/yt/systest/proto/validator.proto
 )

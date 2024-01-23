@@ -20,6 +20,7 @@
 #include <yt/systest/sort_dataset.h>
 #include <yt/systest/table_dataset.h>
 #include <yt/systest/test_home.h>
+#include <yt/systest/test_spec.h>
 #include <yt/systest/table.h>
 
 #include <yt/systest/rpc_client.h>
@@ -30,6 +31,22 @@
 #include <yt/yt/client/api/rpc_proxy/connection.h>
 
 namespace NYT::NTest {
+
+static void SetSysOptions(const TTestConfig& config, NApi::IClientPtr rpcClient)
+{
+    YT_VERIFY(config.EnableRenames || !config.EnableDeletes);
+
+    NYT::NLogging::TLogger Logger("test");
+    if (config.EnableRenames) {
+        YT_LOG_INFO("Set config nodes that enable column renames");
+        rpcClient->SetNode("//sys/@config/enable_table_column_renaming", NYson::TYsonString(TStringBuf("%true"))).Get().ThrowOnError();
+    }
+
+    if (config.EnableDeletes) {
+        YT_LOG_INFO("Set config nodes that enable column deletes");
+        rpcClient->SetNode("//sys/@config/enable_static_table_drop_column", NYson::TYsonString(TStringBuf("%true"))).Get().ThrowOnError();
+    }
+}
 
 TProgram::TProgram()
 {
@@ -44,8 +61,12 @@ void TProgram::DoRun(const NLastGetopt::TOptsParseResult&)
 
     YT_LOG_INFO("Starting tester");
 
+    auto testSpec = GenerateShortSystestSpec(Config_.TestConfig);
+
     auto client = NYT::CreateClientFromEnv();
-    auto rpcClient = CreateRpcClient(Config_.Network);
+    auto rpcClient = CreateRpcClient(Config_.NetworkConfig);
+
+    SetSysOptions(Config_.TestConfig, rpcClient);
 
     TTestHome testHome(client, Config_.HomeDirectory);
     testHome.Init();
@@ -54,7 +75,7 @@ void TProgram::DoRun(const NLastGetopt::TOptsParseResult&)
     YT_LOG_INFO("Starting validator");
     validator.Start();
 
-    TRunner runner(Config_.Pool, Config_.RunnerConfig, client, rpcClient, testHome, validator);
+    TRunner runner(Config_.Pool, testSpec, client, rpcClient, testHome, validator);
     runner.Run();
 
     validator.Stop();

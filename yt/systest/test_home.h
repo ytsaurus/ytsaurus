@@ -17,7 +17,9 @@ public:
     const TString& StderrTable() const { return StderrTable_; }
     TString ValidatorsDir() const { return Dir_ + "/validators"; }
 
+    TString TablePath(const TString& tableName);
     TString CreateRandomTablePath();
+    TString CreateIntervalPath(const TString& name, int index);
 
 private:
     const TString HomeDirectory_;
@@ -28,6 +30,10 @@ private:
     std::random_device RandDevice_;
     std::mt19937 Engine_;
     std::uniform_int_distribution<int32_t> UniformIntDistribution_;
+    std::uniform_int_distribution<int16_t> UniformShortDistribution_;
+
+    TString GenerateFullRandomId();
+    TString GenerateShortRandomId();
 };
 
 }  // namespace NYT::NTest

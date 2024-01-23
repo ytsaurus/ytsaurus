@@ -50,6 +50,7 @@ target_sources(yt-systest PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/systest/table_dataset.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/test_home.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/test_program.cpp
+  ${CMAKE_SOURCE_DIR}/yt/systest/test_spec.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/util.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/validator.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/validator_job.cpp
