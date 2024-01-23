@@ -533,7 +533,6 @@ class TestControllerAgentReconnection(YTEnvSetup):
         self._wait_for_state(op, "completed")
 
     @authors("alexkolodezny")
-    @flaky(max_runs=3)
     def test_complete_map_reduce_operation_on_controller_agent_connection(self):
         self._create_table("//tmp/t_in")
         self._create_table("//tmp/t_out")
@@ -548,7 +547,8 @@ class TestControllerAgentReconnection(YTEnvSetup):
             spec={
                 "testing": {
                     "delay_inside_revive": 10000,
-                }
+                },
+                "stderr_table_path": "<create=true>//tmp/stderr_table",
             },
             track=False,
         )
@@ -566,6 +566,8 @@ class TestControllerAgentReconnection(YTEnvSetup):
         self._wait_for_state(op, "running")
         op.complete()
 
+        wait(lambda: op.get_state() in ["completed", "failed"])
+        print_debug("stderr: {}".format(read_table("//tmp/stderr_table")))
         self._wait_for_state(op, "completed")
 
     @authors("ignat")
