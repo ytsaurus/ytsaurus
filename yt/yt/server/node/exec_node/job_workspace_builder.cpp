@@ -203,6 +203,9 @@ void TJobWorkspaceBuilder::PrepareArtifactBinds()
         if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
             YT_VERIFY(artifact.Chunk);
 
+            auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind);
+            auto artifactPath = CombinePaths(sandboxPath, artifact.Name);
+
             ioOperationFutures.push_back(BIND([=, this, this_ = MakeWeak(this)] () {
                 int permissions = artifact.Executable ? 0755 : 0644;
 
@@ -219,8 +222,6 @@ void TJobWorkspaceBuilder::PrepareArtifactBinds()
                     permissions);
 
                 // Create mount-point path and file, to own it and be able to cleanup.
-                auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind);
-                auto artifactPath = CombinePaths(sandboxPath, artifact.Name);
                 MakeDirRecursive(GetDirectoryName(artifactPath));
                 TFile bindFile(artifactPath, CreateAlways | WrOnly);
             })
