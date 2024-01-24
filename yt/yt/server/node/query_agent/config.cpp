@@ -68,6 +68,8 @@ void TQueryAgentDynamicConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("reject_upon_throttler_overdraft", &TThis::RejectUponThrottlerOverdraft)
         .Optional();
+    registrar.Parameter("reject_in_memory_requests_upon_throttler_overdraft", &TThis::RejectInMemoryRequestsUponThrottlerOverdraft)
+        .Default(false);
     registrar.Parameter("max_pull_queue_response_data_weight", &TThis::MaxPullQueueResponseDataWeight)
         .Optional();
 }

@@ -361,6 +361,7 @@ public:
         , DistributedSessionManager_(CreateDistributedSessionManager(
             bootstrap->GetQueryPoolInvoker(DefaultQLExecutionPoolName, DefaultQLExecutionTag)))
         , RejectUponThrottlerOverdraft_(Config_->RejectUponThrottlerOverdraft)
+        , RejectInMemoryRequestsUponThrottlerOverdraft_(Config_->RejectUponThrottlerOverdraft)
         , MaxPullQueueResponseDataWeight_(Config_->MaxPullQueueResponseDataWeight)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
@@ -410,6 +411,7 @@ private:
     const IDistributedSessionManagerPtr DistributedSessionManager_;
 
     std::atomic<bool> RejectUponThrottlerOverdraft_;
+    std::atomic<bool> RejectInMemoryRequestsUponThrottlerOverdraft_;
     std::atomic<i64> MaxPullQueueResponseDataWeight_;
 
     NProfiling::TCounter TabletErrorCountCounter_ = QueryAgentProfiler.Counter("/get_tablet_infos/errors/count");
@@ -525,6 +527,15 @@ private:
             });
     }
 
+    bool ShouldRejectUponNodeThrottlerOverdraft(EInMemoryMode mode) const
+    {
+        if (mode == EInMemoryMode::None) {
+            return RejectUponThrottlerOverdraft_.load(std::memory_order::relaxed);
+        }
+
+        return RejectInMemoryRequestsUponThrottlerOverdraft_.load(std::memory_order::relaxed);
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Multiread)
     {
         auto requestCodecId = CheckedEnumCast<NCompression::ECodec>(request->request_codec());
@@ -585,7 +596,7 @@ private:
             useLookupCache = request->use_lookup_cache();
         }
 
-        if (RejectUponThrottlerOverdraft_.load(std::memory_order::relaxed)) {
+        if (ShouldRejectUponNodeThrottlerOverdraft(inMemoryMode)) {
             ThrowUponNodeThrottlerOverdraft(
                 context->GetStartTime(),
                 context->GetTimeout(),
@@ -2058,6 +2069,8 @@ private:
     {
         RejectUponThrottlerOverdraft_.store(
             newConfig->QueryAgent->RejectUponThrottlerOverdraft.value_or(Config_->RejectUponThrottlerOverdraft));
+        RejectInMemoryRequestsUponThrottlerOverdraft_.store(
+            newConfig->QueryAgent->RejectInMemoryRequestsUponThrottlerOverdraft);
         MaxPullQueueResponseDataWeight_.store(
             newConfig->QueryAgent->MaxPullQueueResponseDataWeight.value_or(Config_->MaxPullQueueResponseDataWeight));
     }
