@@ -1,5 +1,5 @@
 RECURSE(
-    data-source/src/main
+    spyt-package/src/main
     python-examples/yamake_sample
     tools/release
 )

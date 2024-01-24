@@ -3,7 +3,6 @@ package tech.ytsaurus.spark.launcher
 import com.twitter.scalding.Args
 import org.slf4j.LoggerFactory
 import WorkerLogLauncher.WorkerLogConfig
-import WorkerLogLauncher.WorkerLogConfig.getSparkHomeDir
 import tech.ytsaurus.spyt.wrapper.Utils.parseDuration
 import tech.ytsaurus.spyt.wrapper.model.WorkerLogBlock
 import tech.ytsaurus.spyt.wrapper.model.WorkerLogSchema.{getMetaPath, metaSchema}
@@ -39,12 +38,8 @@ object WorkerLogLauncher extends VanillaLauncher {
       create(sparkConf, Args(args))
     }
 
-    def getSparkHomeDir: String = {
-      new File(env("SPARK_HOME", "/slot/sandbox/tmpfs/spark")).getAbsolutePath
-    }
-
     def getSparkWorkDir: String = {
-      sys.env.getOrElse("SPARK_WORKER_DIR", s"$getSparkHomeDir/work")
+      sys.env.getOrElse("SPARK_WORKER_DIR", s"$sparkHome/work")
     }
 
     def create(sparkConf: Map[String, String], args: Args): Option[WorkerLogConfig] = {

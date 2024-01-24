@@ -1,6 +1,5 @@
 package spyt
 
-import com.typesafe.sbt.packager.Compat.ProcessLogger
 import sbt._
 import sbtrelease.ReleasePlugin.autoImport.{ReleaseStep, releaseStepTask}
 import sbtrelease.Utilities.stateW
@@ -8,7 +7,7 @@ import sbtrelease.Versions
 import spyt.ReleaseUtils._
 import spyt.SpytPlugin.autoImport._
 
-import scala.sys.process.Process
+import scala.sys.process.{Process, ProcessLogger}
 import scala.util.Random
 import scala.util.control.NonFatal
 
@@ -182,8 +181,7 @@ object SpytSnapshot {
   private lazy val sparkInstallProcess: Seq[ReleaseStep] = Seq(
     setSparkForkSnapshotVersionMvn,
     ReleaseStep(releaseStepTask(deploySparkFork)),
-    unsetSparkForkSnapshotVersionMvn,
-    updateSparkForkDependency
+    unsetSparkForkSnapshotVersionMvn
   ).filter(_ => sparkInstallEnabled)
 
   private def sparkInstallEnabled: Boolean = {

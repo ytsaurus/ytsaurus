@@ -1,4 +1,0 @@
-global-exclude *.py[cod] __pycache__ .DS_Store
-recursive-include deps/spyt_jars *.jar
-recursive-include deps/pyspark_deps *
-recursive-include deps/bin *

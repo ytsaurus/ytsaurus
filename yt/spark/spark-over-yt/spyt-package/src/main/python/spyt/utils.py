@@ -308,6 +308,16 @@ def get_spyt_home():
     return spyt.__path__[0]
 
 
+def get_spark_patch_option(spyt_home):
+    spyt_jars = os.path.join(spyt_home, "jars")
+    spark_patch_jars = [jar for jar in os.listdir(spyt_jars) if 'spark-yt-spark-patch' in jar]
+    if len(spark_patch_jars) == 0:
+        raise RuntimeError("Can't find spark-yt-spark-patch jar. "
+                           "Maybe ytsaurus-spyt package is corrupted, we recommend to reinstall it")
+    spark_patch_jar = os.path.join(spyt_jars, spark_patch_jars[0])
+    return f"-javaagent:{spark_patch_jar}"
+
+
 # COMPAT(alex-shishkin): Remove when nobody use this instead of get_spark_home
 def spark_home():
     return get_spark_home()

@@ -2,7 +2,7 @@ from distutils.util import convert_path
 import os
 import setuptools
 
-ver_path = convert_path('spyt/version.py')
+ver_path = convert_path('deps/spyt/version.py')
 with open(ver_path) as ver_file:
     exec(ver_file.read())
 
@@ -29,9 +29,8 @@ setuptools.setup(
     packages=[
         'spyt',
         'spyt.jars',
-        'pyspark.bin',
-        'pyspark.conf',
-        'pyspark.jars',
+        'spyt.bin',
+        'spyt.conf',
     ],
     install_requires=[
         'ytsaurus-pyspark=={}'.format(__spark_version__),
@@ -41,10 +40,10 @@ setuptools.setup(
     scripts=scripts,
     license='http://www.apache.org/licenses/LICENSE-2.0',
     package_dir={
-        'spyt.jars': 'deps/spyt_jars',
-        'pyspark.bin': 'deps/pyspark_deps/bin',
-        'pyspark.conf': 'deps/pyspark_deps/conf',
-        'pyspark.jars': 'deps/pyspark_deps/jars',
+        'spyt': 'deps/spyt',
+        'spyt.jars': 'deps/spyt/jars',
+        'spyt.bin': 'deps/spyt/bin',
+        'spyt.conf': 'deps/spyt/conf',
     },
     package_data={
         'spyt.jars': ['*.jar'],

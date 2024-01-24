@@ -141,10 +141,6 @@ def validate_custom_params(params):
                            "Use argument 'enablers' instead")
 
 
-def spyt_jar_path(spyt_version):
-    return _get_spyt_version_path(spyt_version).join("spark-yt-data-source.jar")
-
-
 def spyt_python_path(spyt_version):
     return _get_spyt_version_path(spyt_version).join("spyt.zip")
 

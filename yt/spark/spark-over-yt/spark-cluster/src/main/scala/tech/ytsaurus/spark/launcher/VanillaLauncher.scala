@@ -1,7 +1,5 @@
 package tech.ytsaurus.spark.launcher
 
-import WorkerLogLauncher.WorkerLogConfig.getSparkHomeDir
-
 import java.io.{File, FileWriter}
 import java.nio.file.{Files, Path, StandardCopyOption}
 import scala.io.Source
@@ -19,6 +17,9 @@ trait VanillaLauncher {
       }
       .toMap
   }
+
+  val sparkHome: String = new File(env("SPARK_HOME", "./spark")).getAbsolutePath
+  val spytHome: String = new File(env("SPYT_HOME", "./spyt-package")).getAbsolutePath
 
   def path(path: String): String = replaceHome(path)
 
@@ -64,8 +65,8 @@ trait VanillaLauncher {
     val log4jProperties = if (logJson) "log4j.clusterLogJson.properties" else "log4j.clusterLog.properties"
 
     val path = Files.copy(
-      Path.of(getSparkHomeDir, "conf", log4jProperties),
-      Path.of(getSparkHomeDir, "conf", "log4j.properties"),
+      Path.of(spytHome, "conf", log4jProperties),
+      Path.of(spytHome, "conf", "log4j.properties"),
       StandardCopyOption.REPLACE_EXISTING
     )
 

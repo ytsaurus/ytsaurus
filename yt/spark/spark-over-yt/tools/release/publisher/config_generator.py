@@ -80,8 +80,7 @@ def get_spark_conf(proxy: str):
 def get_file_paths(conf_local_dir: str, root_path: str, versions: Versions) -> List[str]:
     file_paths = [
         f"{root_path}/{spyt_remote_dir(versions)}/spark.tgz",
-        f"{root_path}/{spyt_remote_dir(versions)}/spark-yt-launcher.jar",
-        f"{root_path}/{spyt_remote_dir(versions)}/spark-extra.zip",
+        f"{root_path}/{spyt_remote_dir(versions)}/spyt-package.zip",
         f"{root_path}/{spyt_remote_dir(versions)}/setup-spyt-env.sh",
     ]
     file_paths.extend([

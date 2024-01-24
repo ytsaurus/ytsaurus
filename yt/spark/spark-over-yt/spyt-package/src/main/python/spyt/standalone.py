@@ -17,6 +17,7 @@ from yt.wrapper.operation_commands import TimeWatcher, \
     abort_operation, get_operation_state  # noqa: E402
 from yt.wrapper.run_operation_commands import run_operation  # noqa: E402
 from yt.wrapper.spec_builders import VanillaSpecBuilder  # noqa: E402
+from .utils import get_spyt_home, get_spark_patch_option  # noqa: E402
 
 try:
     from yt.wrapper.operation_commands import process_operation_unsuccessful_finish_state
@@ -25,7 +26,7 @@ except Exception:
     from yt.wrapper.operation_commands \
         import process_operation_unsuccesful_finish_state as process_operation_unsuccessful_finish_state
 
-from .conf import read_remote_conf, validate_cluster_version, spyt_jar_path, spyt_python_path, \
+from .conf import read_remote_conf, validate_cluster_version, spyt_python_path, \
     validate_spyt_version, validate_versions_compatibility, latest_compatible_spyt_version, \
     latest_spyt_version, update_config_inplace, validate_custom_params, validate_mtn_config, \
     latest_ytserver_proxy_path, ytserver_proxy_attributes, read_global_conf, python_bin_path, \
@@ -116,9 +117,15 @@ def _create_spark_env(client, spark_home):
     yt_token = get_token(client=client)
     yt_user = get_user_name(client=client)
     yt_proxy = call_get_proxy_address_url(client=client)
+    spyt_home = get_spyt_home()
+    spark_patch_option = get_spark_patch_option(spyt_home)
     spark_env["SPARK_USER"] = yt_user
     spark_env["SPARK_YT_TOKEN"] = yt_token
     spark_env["SPARK_YT_PROXY"] = yt_proxy
+    spark_env["SPARK_CONF_DIR"] = os.path.join(spyt_home, "conf")
+    spark_env["SPYT_CLASSPATH"] = os.path.join(spyt_home, "jars/*")
+    spark_env["SPARK_SUBMIT_OPTS"] = spark_patch_option
+    spark_env["SPARK_LAUNCHER_OPTS"] = spark_patch_option
     if spark_home:
         spark_env["SPARK_HOME"] = spark_home
     return spark_env
@@ -302,7 +309,6 @@ def _add_spyt_deps(spyt_version, spark_args, discovery, client, jar_caching_enab
         spyt_version = latest_compatible_spyt_version(spark_cluster_version, client=client)
     _add_conf({
         "spark.yt.version": spyt_version,
-        "spark.yt.jars": wrap_cached_jar("yt:/{}".format(spyt_jar_path(spyt_version)), jar_caching_enabled),
         "spark.yt.pyFiles": wrap_cached_jar("yt:/{}".format(spyt_python_path(spyt_version)), jar_caching_enabled)
     }, spark_args)
 
@@ -345,11 +351,10 @@ def setup_spyt_env(spark_home, additional_parameters, setup_spyt_env_sh_exists):
         cmd = ["./setup-spyt-env.sh", "--spark-home", spark_home] + additional_parameters
         return " ".join(cmd)
 
-    spark_root = spark_home + "/spark"
     cmd = [
         f"mkdir -p {spark_home}",
         f"tar --warning=no-unknown-keyword -xf spark.tgz -C {spark_home}",
-        f"(if [ -f spark-extra.zip ]; then unzip -o spark-extra.zip -d {spark_root}; fi)"
+        f"(if [ -f spyt-package.zip ]; then unzip -o spyt-package.zip -d {spark_home}; fi)"
     ]
 
     if ("--enable-livy" in additional_parameters):
@@ -395,8 +400,9 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         setup_spyt_env_cmd = setup_spyt_env(spark_home, additional_parameters, setup_spyt_env_sh_exists)
 
         java_bin = os.path.join(default_java_home, 'bin', 'java')
-        extra_java_opts_str = " " + " ".join(extra_java_opts) if extra_java_opts else ""
-        run_launcher = "{} -Xmx{} -cp spark-yt-launcher.jar{}".format(java_bin, xmx, extra_java_opts_str)
+        classpath = f'{spark_home}/spyt-package/conf/:{spark_home}/spyt-package/lib/*:{spark_home}/spark/jars/*'
+        extra_java_opts_str = " ".join(extra_java_opts) if extra_java_opts else ""
+        run_launcher = "{} -Xmx{} -cp {} {}".format(java_bin, xmx, classpath, extra_java_opts_str)
         spark_conf = get_spark_conf(config=config, enablers=enablers)
 
         commands = [
@@ -491,7 +497,9 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     environment["SPARK_BASE_DISCOVERY_PATH"] = str(spark_discovery.base_discovery_path)
     environment["SPARK_DISCOVERY_PATH"] = str(spark_discovery.discovery())
     environment["SPARK_HOME"] = "$HOME/{}/spark".format(spark_home)
-    environment["SPARK_CLUSTER_VERSION"] = config["cluster_version"]
+    environment["SPYT_HOME"] = "$HOME/{}/spyt-package".format(spark_home)
+    environment["SPARK_CLUSTER_VERSION"] = config["cluster_version"]  # TODO Rename to SPYT_CLUSTER_VERSION
+    environment["SPYT_CLUSTER_VERSION"] = config["cluster_version"]
     environment["SPARK_YT_CLUSTER_CONF_PATH"] = str(spark_discovery.conf())
     environment["SPARK_YT_BYOP_PORT"] = "27002"
     environment["SPARK_YT_SOLOMON_ENABLED"] = str(enablers.enable_solomon_agent)

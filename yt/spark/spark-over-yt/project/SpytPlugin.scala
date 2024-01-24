@@ -47,8 +47,7 @@ object SpytPlugin extends AutoPlugin {
 
     val spytUpdatePythonVersion = taskKey[Unit]("Update versions in data-source/version.py")
 
-    val clientSpytBuild = taskKey[Unit]("Build Spyt .zip archive")
-    val clusterSpytBuild = taskKey[Unit]("Build Spyt binary")
+    val spytArtifacts = taskKey[Unit]("Build Spyt artifacts")
 
     val setupSpytEnvScript = taskKey[File]("Script for preparing SPYT environment inside YT job")
 
@@ -59,8 +58,6 @@ object SpytPlugin extends AutoPlugin {
     val spytSparkPomFile = settingKey[File]("ytsaurus-spark version")
     val spytSparkDependencyFile = settingKey[File]("ytsaurus-spark version")
     val spytBuildDirectory = settingKey[File]("Build directory")
-
-    val spytSparkForkDependency = settingKey[Seq[ModuleID]]("")
 
     def publishRepoEnabled: Boolean = Option(System.getProperty("publishRepo")).exists(_.toBoolean)
     def publishMavenCentralEnabled: Boolean = Option(System.getProperty("publishMavenCentral")).exists(_.toBoolean)

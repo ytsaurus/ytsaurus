@@ -1,0 +1,4 @@
+global-exclude *.py[cod] __pycache__ .DS_Store
+recursive-include deps/spyt/jars *.jar
+recursive-include deps/spyt/conf *
+recursive-include deps/spyt/bin *

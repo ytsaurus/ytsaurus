@@ -74,7 +74,7 @@ class SubmissionClient(proxy: String,
     launcher.setConf("spark.hadoop.yt.token", token)
 
     launcher.setConf("spark.yt.version", spytVersion)
-    launcher.setConf("spark.yt.jars", wrapCachedJar(s"yt:/${spytJarPath(spytVersion)}", jarCachingEnabled))
+//    launcher.setConf("spark.yt.jars", wrapCachedJar(s"yt:/${spytJarPath(spytVersion)}", jarCachingEnabled))
     launcher.setConf("spark.yt.pyFiles", wrapCachedJar(s"yt:/${spytPythonPath(spytVersion)}", jarCachingEnabled))
     launcher.setConf("spark.eventLog.dir", "ytEventLog:/" + eventLogPath)
 

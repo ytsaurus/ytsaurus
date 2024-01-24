@@ -7,7 +7,6 @@ object Dependencies {
   lazy val scalatestVersion = "3.1.0"
   lazy val sparkVersion = "3.2.2"
   lazy val ytsaurusClientVersion = "1.2.0"
-  lazy val slf4jVersion = "1.7.28"
   lazy val scalatraVersion = "2.7.0"
   lazy val mockitoVersion = "1.14.4"
   lazy val arrowVersion = "0.17.1"
@@ -35,7 +34,7 @@ object Dependencies {
 
   lazy val testDeps = Seq(
     "org.scalacheck" %% "scalacheck" % "1.14.3" % Test,
-    "org.scalactic" %% "scalactic" % scalatestVersion,
+    "org.scalactic" %% "scalactic" % scalatestVersion % Test,
     "org.scalatest" %% "scalatest" % scalatestVersion % Test,
     "org.scalatestplus" %% "scalacheck-1-14" % "3.1.0.0" % Test
   ) ++ mockito ++ dockerTest
@@ -57,47 +56,19 @@ object Dependencies {
     ExclusionRule(organization = "org.apache.httpcomponents")
   ).map(_ % Provided)
 
-  lazy val sparkRuntime = Seq(
-    "tech.ytsaurus.spark" %% "spark-core",
-    "tech.ytsaurus.spark" %% "spark-sql"
-  ).map(_ % sparkForkVersion).map(_ excludeAll
-    ExclusionRule(organization = "org.apache.httpcomponents")
-  ).excludeLogging
-
   lazy val ytsaurusClient = Seq(
-    "tech.ytsaurus" % "ytsaurus-client" % ytsaurusClientVersion excludeAll ExclusionRule(organization = "io.netty"),
-    "io.netty" % "netty-buffer" % nettyVersion,
-    "io.netty" % "netty-codec" % nettyVersion,
-    "io.netty" % "netty-common" % nettyVersion,
-    "io.netty" % "netty-handler" % nettyVersion,
-    "io.netty" % "netty-transport" % nettyVersion,
-    "io.netty" % "netty-transport-native-epoll" % nettyVersion classifier "linux-x86_64",
-  ).map(_ excludeAll(
+    "tech.ytsaurus" % "ytsaurus-client" % ytsaurusClientVersion excludeAll(
+    ExclusionRule(organization = "io.netty"),
     ExclusionRule(organization = "com.fasterxml.jackson.core"),
     ExclusionRule(organization = "org.apache.commons"),
     ExclusionRule(organization = "com.google.code.findbugs", name = "jsr305")
-  )).excludeLogging
-
-  lazy val grpc = Seq(
-    "io.grpc" % "grpc-netty" % scalapb.compiler.Version.grpcJavaVersion,
-    "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % scalapb.compiler.Version.scalapbVersion
-  )
+  ))
 
   lazy val scaldingArgs = Seq(
     "com.twitter" %% "scalding-args" % "0.17.4"
   )
 
-  lazy val py4j = Seq(
-    "net.sf.py4j" % "py4j" % "0.10.9"
-  )
-
   lazy val logging = Seq(
-    "org.slf4j" % "slf4j-log4j12",
-    "org.slf4j" % "slf4j-api",
-    "org.slf4j" % "jul-to-slf4j"
-  ).map(_ % slf4jVersion) ++ Seq(
-    "log4j" % "log4j" % "1.2.17"
-  ) ++ Seq(
     "net.logstash.log4j" % "jsonevent-layout" % "1.7"
   )
 
@@ -110,15 +81,4 @@ object Dependencies {
   lazy val sttp = Seq(
     "com.softwaremill.sttp.client" %% "core" % "2.1.4"
   )
-
-  lazy val metrics = Seq(
-    "io.dropwizard.metrics" % "metrics-core" % "4.2.0" % Compile
-  )
-
-  implicit class RichDependencies(deps: Seq[ModuleID]) {
-    def excludeLogging: Seq[ModuleID] = deps.map(_.excludeAll(
-      ExclusionRule(organization = "org.slf4j"),
-      ExclusionRule(organization = "log4j")
-    ))
-  }
 }

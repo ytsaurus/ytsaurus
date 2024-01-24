@@ -14,7 +14,7 @@ def run(command, args):
     required_file = "spark-{}-yt".format(command)
     module = None
     try:
-        required_module = "yt.spark.spark-over-yt.data-source.src.main.bin." + required_file
+        required_module = "yt.spark.spark-over-yt.spyt-package.src.main.bin." + required_file
         module = import_module(required_module)
     except ImportError as e:
         logger.info(f"Cannot import required module: {e}")

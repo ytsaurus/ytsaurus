@@ -88,7 +88,7 @@ object MasterLauncherArgs {
     YtClientConfiguration(args.optional),
     args.optional("discovery-path").getOrElse(sys.env("SPARK_DISCOVERY_PATH")),
     args.optional("operation-id").getOrElse(sys.env("YT_OPERATION_ID")),
-    args.optional("cluster-version").getOrElse(sys.env("SPARK_CLUSTER_VERSION"))
+    args.optional("cluster-version").getOrElse(sys.env("SPYT_CLUSTER_VERSION"))
   )
 
   def apply(args: Array[String]): MasterLauncherArgs = MasterLauncherArgs(Args(args))

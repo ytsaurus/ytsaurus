@@ -53,18 +53,21 @@ object PythonPlugin extends AutoPlugin {
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
     pythonCommand := "python3",
     pythonSetupName := "setup.py",
-    pythonBuildDir := sourceDirectory.value / "main" / "python",
+    pythonBuildDir := target.value / "python",
 
     pythonClean := {
       val dirs = Seq("dist", "build", "deps").map(pythonBuildDir.value / _)
       dirs.foreach(FileUtils.deleteDirectory(_, recursive = true))
     },
     pythonWheel := {
+      val pythonSources = sourceDirectory.value / "main" / "python"
+      if (pythonSources != null && pythonSources.listFiles() != null) {
+        createDeps(pythonBuildDir.value, pythonSources.listFiles().map(f => "" -> f))
+      }
       val deps = pythonBuildDir.value / "deps"
       createDeps(deps, pythonDeps.value)
       val command = s"${pythonCommand.value} ${pythonSetupName.value} sdist bdist_wheel"
       runCommand(command, pythonBuildDir.value)
-      FileUtils.deleteDirectory(deps, recursive = true)
       pythonBuildDir.value / "dist"
     },
     pythonUpload := {

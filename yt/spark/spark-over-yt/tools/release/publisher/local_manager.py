@@ -63,10 +63,8 @@ def check_existence(sources_path: str, files: List[str]) -> bool:
 def check_spyt_files(sources_path: str) -> bool:
     return check_existence(sources_path, [
         'spyt.zip',
-        'spark-yt-data-source.jar',
-        'spark-yt-launcher.jar',
         'conf',
-        'spark-extra.zip',
+        'spyt-package.zip',
         'setup-spyt-env.sh'])
 
 

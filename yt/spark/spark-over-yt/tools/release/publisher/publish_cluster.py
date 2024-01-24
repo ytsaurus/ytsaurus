@@ -34,11 +34,8 @@ def upload_spyt(uploader: Client, versions: Versions, sources_path: str, publish
     uploader.mkdir(spyt_remote_dir(versions), ttl=ttl, ignore_existing=publish_conf.ignore_existing)
     uploader.mkdir(conf_remote_dir(versions), ttl=ttl, ignore_existing=publish_conf.ignore_existing)
 
-    spark_yt_launcher_jar = join(sources_path, 'spark-yt-launcher.jar')
-    uploader.write_file(spark_yt_launcher_jar, f"{spyt_remote_dir(versions)}/spark-yt-launcher.jar")
-
-    spark_extra_zip = join(sources_path, 'spark-extra.zip')
-    uploader.write_file(spark_extra_zip, f"{spyt_remote_dir(versions)}/spark-extra.zip")
+    spark_extra_zip = join(sources_path, 'spyt-package.zip')
+    uploader.write_file(spark_extra_zip, f"{spyt_remote_dir(versions)}/spyt-package.zip")
 
     setup_spyt_env = join(sources_path, 'setup-spyt-env.sh')
     uploader.write_file(setup_spyt_env, f"{spyt_remote_dir(versions)}/setup-spyt-env.sh", executable=True)

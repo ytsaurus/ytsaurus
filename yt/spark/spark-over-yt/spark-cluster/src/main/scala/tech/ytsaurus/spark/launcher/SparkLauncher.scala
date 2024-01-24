@@ -42,10 +42,8 @@ trait SparkLauncher {
     }
   }
 
-  private val sparkHome: String = new File(env("SPARK_HOME", "./spark")).getAbsolutePath
   private val livyHome: String = new File(env("LIVY_HOME", "./livy")).getAbsolutePath
   private val javaHome: String = new File(env("JAVA_HOME", "/opt/jdk11")).getAbsolutePath
-  private val sparkPatchAgentOpt = Seq(s"-javaagent:$sparkHome/jars/spark-yt-spark-patch.jar")
 
   private def prepareSparkConf(): Unit = {
     copyToSparkConfIfExists("metrics.properties")
@@ -123,7 +121,7 @@ trait SparkLauncher {
       masterClass,
       config.memory,
       namedArgs = Map("host" -> ytHostnameOrIpAddress),
-      systemProperties = commonJavaOpts ++ reverseProxyUrlProp.toSeq ++ sparkPatchAgentOpt
+      systemProperties = commonJavaOpts ++ reverseProxyUrlProp.toSeq
     )
     val address = readAddressOrDie("master", config.startTimeout, thread)
     MasterService("Master", address, thread)
@@ -141,7 +139,7 @@ trait SparkLauncher {
         "host" -> ytHostnameOrIpAddress
       ),
       positionalArgs = Seq(s"spark://${master.hostAndPort}"),
-      systemProperties = commonJavaOpts ++ sparkPatchAgentOpt
+      systemProperties = commonJavaOpts
     )
     val address = readAddressOrDie("worker", config.startTimeout, thread)
 
@@ -277,14 +275,19 @@ trait SparkLauncher {
 
     log.info(s"Run command: $command")
 
-    val workerLog4j = s"-Dlog4j.configuration=file://$sparkHome/conf/log4j.worker.properties"
+    val workerLog4j = s"-Dlog4j.configuration=file://$spytHome/conf/log4j.worker.properties"
     val sparkLocalDirs = env("SPARK_LOCAL_DIRS", "./tmpfs")
     val javaOpts = (workerLog4j +: (systemProperties ++ sparkSystemProperties.map { case (k, v) => s"-D$k=$v" })).mkString(" ")
+    val sparkLauncherOpts = Files.readString(Path.of(spytHome, "conf", "java-opts"))
+    log.info(s"Spark launcher opts: $sparkLauncherOpts")
     Process(
       command,
       new File("."),
       "JAVA_HOME" -> javaHome,
       "SPARK_HOME" -> sparkHome,
+      "SPARK_CONF_DIR" -> s"$spytHome/conf",
+      "SPYT_CLASSPATH" -> s"$spytHome/lib/*",
+      "SPARK_LAUNCHER_OPTS" -> sparkLauncherOpts,
       "SPARK_LOCAL_DIRS" -> sparkLocalDirs,
       // when using MTN, Spark should use ip address and not hostname, because hostname is not in DNS
       "SPARK_LOCAL_HOSTNAME" -> ytHostnameOrIpAddress,

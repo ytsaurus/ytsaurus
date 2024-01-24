@@ -14,11 +14,8 @@ def download_spark_fork(downloader: Client, versions: Versions, sources_path: st
     downloader.read_file(f"{spark_remote_dir(versions)}/spark.tgz", spark_tgz)
 
 
-def download_cluster(downloader: Client, versions: Versions, sources_path: str):
-    logger.info("Downloading cluster files")
-    spark_yt_launcher_jar = join(sources_path, 'spark-yt-launcher.jar')
-    downloader.read_file(f"{spyt_remote_dir(versions)}/spark-yt-launcher.jar", spark_yt_launcher_jar)
-
+def download_spyt(downloader: Client, versions: Versions, sources_path: str):
+    logger.info("Downloading SPYT files")
     conf_local_dir = join(sources_path, 'conf')
     spark_launch_conf_file = join(conf_local_dir, 'spark-launch-conf')
     downloader.read_document(f"{conf_remote_dir(versions)}/spark-launch-conf", spark_launch_conf_file)
@@ -29,14 +26,10 @@ def download_cluster(downloader: Client, versions: Versions, sources_path: str):
     if not versions.spyt_version.is_snapshot:
         global_conf_file = join(conf_local_dir, 'global')
         downloader.read_document("conf/global", global_conf_file)
-
-
-def download_client(downloader: Client, versions: Versions, sources_path: str):
-    logger.info("Downloading client files")
     spyt_zip = join(sources_path, 'spyt.zip')
     downloader.read_file(f"{spyt_remote_dir(versions)}/spyt.zip", spyt_zip)
-    spark_yt_data_source_jar = join(sources_path, 'spark-yt-data-source.jar')
-    downloader.read_file(f"{spyt_remote_dir(versions)}/spark-yt-data-source.jar", spark_yt_data_source_jar)
+    spyt_package_zip = join(sources_path, 'spyt-package.zip')
+    downloader.read_file(f"{spyt_remote_dir(versions)}/spyt-package.zip", spyt_package_zip)
 
 
 def main(sources_path: str, downloader_builder: ClientBuilder):
@@ -45,10 +38,8 @@ def main(sources_path: str, downloader_builder: ClientBuilder):
     downloader = Client(downloader_builder)
     if release_level < ReleaseLevel.SPARK_FORK:
         download_spark_fork(downloader, versions, sources_path)
-    if release_level < ReleaseLevel.CLUSTER:
-        download_cluster(downloader, versions, sources_path)
-    if release_level < ReleaseLevel.CLIENT:
-        download_client(downloader, versions, sources_path)
+    if release_level < ReleaseLevel.SPYT:
+        download_spyt(downloader, versions, sources_path)
     logger.info("Downloaded successfully")
 
 

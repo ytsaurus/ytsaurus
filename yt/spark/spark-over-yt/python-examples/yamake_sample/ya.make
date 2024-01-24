@@ -1,7 +1,7 @@
 PY3_PROGRAM(smoke_test)
 
 PEERDIR(
-    yt/spark/spark-over-yt/data-source/src/main
+    yt/spark/spark-over-yt/spyt-package/src/main
 )
 
 PY_SRCS(

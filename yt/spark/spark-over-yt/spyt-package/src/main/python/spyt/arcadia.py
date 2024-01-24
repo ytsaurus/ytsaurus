@@ -42,7 +42,7 @@ def _extract_spark():
     logger.info(f"Created Spark temp dir {temp_dir}")
     pyspark_dir = "contrib/python/ytsaurus-pyspark/pyspark/"
     pyspark_subdirs = [f"{pyspark_dir}{subdir}" for subdir in ["bin", "conf", "jars"]]
-    spyt_spark_extra_dir = "yt/spark/spark-over-yt/data-source/src/main/spark-extra/"
+    spyt_spark_extra_dir = "yt/spark/spark-over-yt/spyt-package/src/main/spark-extra/"
     for pyspark_subdir in pyspark_subdirs:
         _extract_resources(pyspark_subdir, pyspark_dir, temp_dir.name)
     _extract_resources(spyt_spark_extra_dir, spyt_spark_extra_dir, temp_dir.name)
@@ -54,7 +54,7 @@ def _extract_spark():
 def _extract_spyt():
     temp_dir = TemporaryDirectory()
     logger.info(f"Created Spyt temp dir {temp_dir}")
-    spyt_original_dir = "yt/spark/spark-over-yt/data-source/src/main/spyt/"
+    spyt_original_dir = "yt/spark/spark-over-yt/spyt-package/src/main/spyt/"
     _extract_resources(spyt_original_dir, spyt_original_dir, temp_dir.name)
     logger.info("Spyt files extracted successfully")
     return temp_dir

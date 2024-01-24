@@ -45,15 +45,6 @@ object ReleaseUtils {
     st
   }
 
-  lazy val updateSparkForkDependency: ReleaseStep = { st: State =>
-    st.log.info(s"Updating spark fork dependency version to ${st.extract.get(spytSparkVersion)}")
-    updateSparkDependencyVersion(st.extract.get(spytSparkVersion), st.extract.get(spytSparkDependencyFile))
-    val newSparkDependency = st.extract.get(spytSparkForkDependency)
-      .map(module => module.withRevision(st.extract.get(spytSparkVersion)))
-    reapply(Seq(
-      ThisBuild / spytSparkForkDependency := newSparkDependency
-    ), st)
-  }
   lazy val setSparkForkSnapshotVersionMvn: ReleaseStep = { st: State =>
     writeVersionToPom(st.extract.get(spytSparkVersion), st.extract.get(spytSparkPomFile))
     st

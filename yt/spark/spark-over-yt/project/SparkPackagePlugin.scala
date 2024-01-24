@@ -1,6 +1,5 @@
 package spyt
 
-import com.typesafe.sbt.packager.linux.LinuxPackageMapping
 import sbt.Keys._
 import sbt.PluginTrigger.NoTrigger
 import sbt._
@@ -42,22 +41,6 @@ object SparkPackagePlugin extends AutoPlugin {
     val tarSparkArchiveBuild = taskKey[Unit]("Build Spark .tgz archive")
     val sparkMvnInstall = taskKey[Unit]("")
     val sparkMvnDeploy = taskKey[Unit]("")
-
-    def createPackageMapping(src: File, dst: String): LinuxPackageMapping = {
-
-      @tailrec
-      def inner(src: Seq[(File, String)], result: Seq[(File, String)]): Seq[(File, String)] = {
-        src.headOption match {
-          case None => result
-          case Some((f, d)) if f.isFile => inner(src.tail, (f, d) +: result)
-          case Some((f, d)) if f.isDirectory =>
-            val children = f.listFiles().map(f => f -> s"$d/${f.name}")
-            inner(src.tail ++ children, (f, d) +: result)
-        }
-      }
-
-      LinuxPackageMapping(inner(Seq(src -> dst), Nil))
-    }
   }
 
   private def readSparkDefaults(file: File): Map[String, String] = {

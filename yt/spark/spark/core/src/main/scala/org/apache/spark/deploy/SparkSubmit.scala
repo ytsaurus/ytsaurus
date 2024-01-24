@@ -358,9 +358,10 @@ private[spark] class SparkSubmit extends Logging {
       }
     }
 
-    val ytJars = sparkConf.get("spark.yt.jars", "")
-    args.jars = Option(args.jars).map(mergeFileLists(_, ytJars)).getOrElse(ytJars)
-
+//    val ytJars = sparkConf.get("spark.yt.jars", "")
+//    args.jars = Option(args.jars).map(mergeFileLists(_, ytJars)).getOrElse(ytJars)
+//
+// TODO: try to remove also these lines
     val ytPyFiles = sparkConf.get("spark.yt.pyFiles", "")
     args.pyFiles = Option(args.pyFiles).map(mergeFileLists(_, ytPyFiles)).getOrElse(ytPyFiles)
 

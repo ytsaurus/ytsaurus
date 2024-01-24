@@ -25,13 +25,15 @@ if [[ -z $spark_home ]]; then
   exit 1
 fi
 
-spark_root="$spark_home/spark"
+spyt_home="$HOME/$spark_home/spyt-package"
 
 mkdir -p $spark_home
 tar --warning=no-unknown-keyword -xf spark.tgz -C $spark_home
 
-if [ -f spark-extra.zip ]; then
-  unzip -o spark-extra.zip -d $spark_root
+if [ -f spyt-package.zip ]; then
+  unzip -o spyt-package.zip -d "$spark_home"
+  javaagent_opt="-javaagent:$(ls $spyt_home/lib/*spark-yt-spark-patch*)"
+  echo "$javaagent_opt" > $spyt_home/conf/java-opts
 fi
 
 if [ $enable_livy ]; then

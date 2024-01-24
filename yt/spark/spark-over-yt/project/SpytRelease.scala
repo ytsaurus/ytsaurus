@@ -84,10 +84,18 @@ object SpytRelease {
   private lazy val maybePushChanges: ReleaseStep = pushChanges
 
   private lazy val setReleaseSpytVersion: ReleaseStep = {
-    setVersion(spytVersions, Seq(spytVersion -> getReleaseVersion), spytVersionFile)
+    setVersion(
+      spytVersions,
+      Seq(spytVersion -> getReleaseVersion, spytPythonVersion -> getReleaseVersion),
+      spytVersionFile
+    )
   }
   private lazy val setNextSpytVersion: ReleaseStep = {
-    maybeSetVersion(spytVersions, Seq(spytVersion -> getNextVersion), spytVersionFile)
+    maybeSetVersion(
+      spytVersions,
+      Seq(spytVersion -> getNextVersion, spytPythonVersion -> getNextPythonVersion),
+      spytVersionFile
+    )
   }
 
   private lazy val minorReleaseVersions: ReleaseStep = { st: State =>
@@ -108,7 +116,7 @@ object SpytRelease {
   )
   private lazy val setCustomSpytVersions: ReleaseStep = {
     customSpytVersion.map { v =>
-      setVersionForced(Seq(spytVersion -> v), spytVersionFile)
+      setVersionForced(Seq(spytVersion -> v, spytPythonVersion -> v), spytVersionFile)
     }.getOrElse(ReleaseStep(identity))
   }
   private lazy val setCustomSparkForkVersions: ReleaseStep = {
@@ -126,8 +134,7 @@ object SpytRelease {
   private lazy val sparkMvnDeployProcess: Seq[ReleaseStep] = Seq(
     setSparkForkSnapshotVersionMvn,
     ReleaseStep(releaseStepTask(deploySparkFork)),
-    unsetSparkForkSnapshotVersionMvn,
-    updateSparkForkDependency
+    unsetSparkForkSnapshotVersionMvn
   )
 
 }

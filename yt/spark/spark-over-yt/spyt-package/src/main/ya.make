@@ -2,7 +2,7 @@ PY3_LIBRARY()
 
 PEERDIR(
     yt/python/yt/wrapper
-    yt/spark/spark-over-yt/data-source/src/main/python
+    yt/spark/spark-over-yt/spyt-package/src/main/python
     contrib/python/ytsaurus-pyspark
     contrib/python/pyarrow
     contrib/python/PyYAML
@@ -15,7 +15,7 @@ FROM_SANDBOX(
 )
 
 RESOURCE_FILES(
-    PREFIX yt/spark/spark-over-yt/data-source/src/main/
+    PREFIX yt/spark/spark-over-yt/spyt-package/src/main/
     spark-extra/bin/driver-op-discovery.sh
     spark-extra/bin/job-id-discovery.sh
     spark-extra/conf/log4j.clusterLog.properties
