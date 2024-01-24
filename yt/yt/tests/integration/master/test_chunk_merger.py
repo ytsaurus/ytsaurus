@@ -501,7 +501,6 @@ class TestChunkMerger(YTEnvSetup):
 
         assert get("//tmp/t/@chunk_list_id") != get("//tmp/t1/@chunk_list_id")
 
-
     @authors("aleksandra-zh")
     def test_copy_move(self):
         create("table", "//tmp/t")
