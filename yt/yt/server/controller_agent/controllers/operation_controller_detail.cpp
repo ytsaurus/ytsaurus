@@ -4676,6 +4676,10 @@ void TOperationControllerBase::RegisterTask(TTaskPtr task)
 
 void TOperationControllerBase::UpdateTask(const TTaskPtr& task)
 {
+    if (!task) {
+        return;
+    }
+
     auto oldPendingJobCount = CachedPendingJobCount.Load();
     auto newPendingJobCount = CachedPendingJobCount.Load() + task->GetPendingJobCountDelta();
     CachedPendingJobCount.Store(newPendingJobCount);
@@ -4702,7 +4706,7 @@ void TOperationControllerBase::UpdateTask(const TTaskPtr& task)
 
 void TOperationControllerBase::UpdateAllTasks()
 {
-    for (const auto& task: Tasks) {
+    for (const auto& task : Tasks) {
         UpdateTask(task);
     }
 }

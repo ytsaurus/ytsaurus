@@ -887,15 +887,9 @@ protected:
             } else if (Controller_->SimpleSort) {
                 Controller_->UpdateTask(Controller_->SimpleSortTask);
             } else {
-                if (Controller_->UnorderedMergeTask) {
-                    Controller_->UpdateTask(Controller_->UnorderedMergeTask);
-                }
-                if (Controller_->IntermediateSortTask) {
-                    Controller_->UpdateTask(Controller_->IntermediateSortTask);
-                }
-                if (Controller_->FinalSortTask) {
-                    Controller_->UpdateTask(Controller_->FinalSortTask);
-                }
+                Controller_->UpdateTask(Controller_->UnorderedMergeTask);
+                Controller_->UpdateTask(Controller_->IntermediateSortTask);
+                Controller_->UpdateTask(Controller_->FinalSortTask);
             }
 
             auto partitionIndex = GetPartitionIndex(joblet->InputStripeList);
@@ -1262,9 +1256,7 @@ protected:
 
             Controller_->UpdateTask(this);
             if (!Controller_->SimpleSort) {
-                if (const auto& partitionTask = Controller_->GetFinalPartitionTask()) {
-                    Controller_->UpdateTask(partitionTask);
-                }
+                Controller_->UpdateTask(Controller_->GetFinalPartitionTask());
             }
         }
 
@@ -2575,25 +2567,15 @@ protected:
 
     void UpdateSortTasks()
     {
-        if (SimpleSort) {
-            UpdateTask(SimpleSortTask);
-        }
-        if (IntermediateSortTask) {
-            UpdateTask(IntermediateSortTask);
-        }
-        if (FinalSortTask) {
-            UpdateTask(FinalSortTask);
-        }
+        UpdateTask(SimpleSortTask);
+        UpdateTask(IntermediateSortTask);
+        UpdateTask(FinalSortTask);
     }
 
     void UpdateMergeTasks()
     {
-        if (UnorderedMergeTask) {
-            UpdateTask(UnorderedMergeTask);
-        }
-        if (SortedMergeTask) {
-            UpdateTask(SortedMergeTask);
-        }
+        UpdateTask(UnorderedMergeTask);
+        UpdateTask(SortedMergeTask);
     }
 
     std::optional<TLocalityEntry> GetLocalityEntry(TNodeId nodeId) const
