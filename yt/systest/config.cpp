@@ -54,6 +54,10 @@ void TConfig::RegisterOptions(NLastGetopt::TOpts* opts)
         .StoreResult(&Pool)
         .DefaultValue("systest");
 
+    opts->AddLongOption("ttl")
+        .StoreResult(&Ttl)
+        .DefaultValue(TDuration::Zero());
+
     TestConfig.RegisterOptions(opts);
     NetworkConfig.RegisterOptions(opts);
     ValidatorConfig.RegisterOptions(opts);

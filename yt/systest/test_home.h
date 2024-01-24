@@ -10,6 +10,7 @@ class TTestHome
 {
 public:
     explicit TTestHome(IClientPtr client, const TString& homeDirectory);
+    explicit TTestHome(IClientPtr client, const TString& homeDirectory, TDuration ttl);
     void Init();
 
     const TString& Dir() const { return Dir_; }
@@ -23,6 +24,7 @@ public:
 
 private:
     const TString HomeDirectory_;
+    const TDuration Ttl_;
     IClientPtr Client_;
     TString Dir_;
     TString StderrTable_, CoreTable_;

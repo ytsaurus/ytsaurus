@@ -68,7 +68,7 @@ void TProgram::DoRun(const NLastGetopt::TOptsParseResult&)
 
     SetSysOptions(Config_.TestConfig, rpcClient);
 
-    TTestHome testHome(client, Config_.HomeDirectory);
+    TTestHome testHome(client, Config_.HomeDirectory, Config_.Ttl);
     testHome.Init();
 
     TValidator validator(Config_.Pool, Config_.ValidatorConfig, client, rpcClient, testHome);

@@ -7,6 +7,14 @@
 
 namespace NYT::NTest {
 
+TTestHome::TTestHome(IClientPtr client, const TString& homeDirectory, TDuration ttl)
+    : HomeDirectory_(homeDirectory)
+    , Ttl_(ttl)
+    , Client_(client)
+    , Engine_(RandDevice_())
+{
+}
+
 static void FillTimeBuf(const char* fmt, int len, char* timebuf)
 {
     time_t currentTime = time(nullptr);
@@ -63,7 +71,15 @@ void TTestHome::Init()
     CoreTable_ = Dir_ + "/core";
     StderrTable_ = Dir_ + "/stderr";
 
-    Client_->Create(Dir_, ENodeType::NT_MAP);
+    TCreateOptions options;
+    if (Ttl_ != TDuration::Zero()) {
+        TInstant expirationTime = TInstant::Now() + Ttl_;
+        NYT::TNode::TMapType attributes;
+        attributes["expiration_time"] = TNode(expirationTime.MilliSeconds());
+        options = options.Attributes(TNode(attributes));
+    }
+
+    Client_->Create(Dir_, ENodeType::NT_MAP, options);
     Client_->Create(ValidatorsDir(), ENodeType::NT_MAP);
     Client_->Create(CoreTable_, ENodeType::NT_TABLE);
     Client_->Create(StderrTable_, ENodeType::NT_TABLE);

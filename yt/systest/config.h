@@ -31,6 +31,8 @@ struct TConfig {
     TString HomeDirectory;
     TString Pool;
 
+    TDuration Ttl;
+
     TConfig();
 
     void RegisterOptions(NLastGetopt::TOpts* opts);
