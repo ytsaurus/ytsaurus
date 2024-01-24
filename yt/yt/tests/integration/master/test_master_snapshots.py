@@ -24,6 +24,7 @@ from yt.environment.helpers import assert_items_equal
 import pytest
 
 from copy import deepcopy
+import builtins
 import time
 
 ##################################################################
@@ -529,6 +530,61 @@ def check_performance_counters_refactoring():
     wait(lambda: get(perf_counter + "/dynamic_row_read_count") > 1)
 
 
+def check_queue_agent_objects():
+    revisions_path = "//sys/@queue_agent_object_revisions"
+
+    if not exists("//sys/chaos_cell_bundles/chaos_bundle"):
+        create_chaos_cell_bundle(name="chaos_bundle", peer_cluster_names=["primary"])
+    cell_id = generate_chaos_cell_id()
+    sync_create_chaos_cell("chaos_bundle", cell_id, ["primary"])
+    set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
+
+    queue_schema = [
+        {"name": "$timestamp", "type": "uint64"},
+        {"name": "$cumulative_data_weight", "type": "int64"},
+        {"name": "data", "type": "string"},
+    ]
+
+    consumer_schema = [
+        {"name": "queue_cluster", "type": "string", "sort_order": "ascending", "required": True},
+        {"name": "queue_path", "type": "string", "sort_order": "ascending", "required": True},
+        {"name": "partition_index", "type": "uint64", "sort_order": "ascending", "required": True},
+        {"name": "offset", "type": "uint64", "required": True},
+        {"name": "meta", "type": "any", "required": False},
+    ]
+
+    create("table", "//tmp/q", attributes={"dynamic": True, "schema": queue_schema})
+    create("replicated_table", "//tmp/rep_q", attributes={"dynamic": True, "schema": queue_schema})
+    create("chaos_replicated_table",
+           "//tmp/chaos_rep_q",
+           attributes={"chaos_cell_bundle": "chaos_bundle",
+                       "schema": queue_schema})
+
+    create("table",
+           "//tmp/c",
+           attributes={"dynamic": True,
+                       "schema": consumer_schema,
+                       "treat_as_queue_consumer": True})
+    create("replicated_table",
+           "//tmp/rep_c",
+           attributes={"dynamic": True,
+                       "schema": consumer_schema,
+                       "treat_as_queue_consumer": True})
+    create("chaos_replicated_table",
+           "//tmp/chaos_rep_c",
+           attributes={"chaos_cell_bundle": "chaos_bundle",
+                       "schema": consumer_schema,
+                       "treat_as_queue_consumer": True})
+    queue_agent_revision = get(revisions_path)
+    assert builtins.set(queue_agent_revision["queues"].keys()) == {"//tmp/q", "//tmp/rep_q", "//tmp/chaos_rep_q"}
+    assert builtins.set(queue_agent_revision["consumers"].keys()) == {"//tmp/c", "//tmp/rep_c", "//tmp/chaos_rep_c"}
+    yield
+
+    queue_agent_revision = get(revisions_path)
+    assert builtins.set(queue_agent_revision["queues"].keys()) == {"//tmp/q", "//tmp/rep_q", "//tmp/chaos_rep_q"}
+    assert builtins.set(queue_agent_revision["consumers"].keys()) == {"//tmp/c", "//tmp/rep_c", "//tmp/chaos_rep_c"}
+
+
 def get_monitoring(monitoring_prefix, master):
     return get(
         "{}/{}/orchid/monitoring/hydra".format(monitoring_prefix, master),
@@ -581,6 +637,7 @@ MASTER_SNAPSHOT_CHECKER_LIST = [
     check_chunk_locations,
     check_performance_counters_refactoring,
     check_account_resource_usage_lease,
+    check_queue_agent_objects,
     check_removed_account,  # keep this item last as it's sensitive to timings
 ]
 
@@ -591,6 +648,9 @@ MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST.remove(check_master_memory)
 
 # Chunk locations API has been changed, no way compat tests could work.
 MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST.remove(check_chunk_locations)
+
+# Test for fix of chaos replicated consumers for update from 23.1 to version 23.2, do not run it in compat from 23.2 to trunk.
+MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST.remove(check_queue_agent_objects)
 
 
 class TestMasterSnapshots(YTEnvSetup):

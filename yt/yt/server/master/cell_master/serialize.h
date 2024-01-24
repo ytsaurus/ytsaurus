@@ -195,6 +195,7 @@ DEFINE_ENUM(EMasterReign,
     ((AttributeBasedAccessControl)                                  (2455))  // shakurov
     ((CreateHunkStorageWithProperAttributes_23_2)                   (2456))  // akozhikhov
     ((FixChunkMergerCopy)                                           (2457))  // aleksandra-zh
+    ((ChaosReplicatedConsumersFix)                                  (2458))  // cherepashka
     // 23.3 starts here.
     ((SecondaryIndex)                                               (2500))  // sabdenovch
     ((SecondaryIndexReplication)                                    (2501))  // sabdenovch
