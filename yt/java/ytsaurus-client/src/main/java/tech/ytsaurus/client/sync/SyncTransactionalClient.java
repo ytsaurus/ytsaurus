@@ -10,6 +10,7 @@ import tech.ytsaurus.client.operations.RemoteCopySpec;
 import tech.ytsaurus.client.operations.SortSpec;
 import tech.ytsaurus.client.operations.VanillaSpec;
 import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
+import tech.ytsaurus.client.request.AdvanceConsumer;
 import tech.ytsaurus.client.request.CheckPermission;
 import tech.ytsaurus.client.request.ConcatenateNodes;
 import tech.ytsaurus.client.request.CopyNode;
@@ -81,14 +82,15 @@ public interface SyncTransactionalClient {
     /**
      * Run map operation. Wait for its completion and check status.
      * <p>
-     *     This method provides more possibilities for fine-tuning compared to
-     *     {@link #map(MapSpec)}.
+     * This method provides more possibilities for fine-tuning compared to
+     * {@link #map(MapSpec)}.
      */
     SyncOperation map(MapOperation req);
 
-    /** Run reduce operation. Wait for its completion and check status.
+    /**
+     * Run reduce operation. Wait for its completion and check status.
      * <p>
-     *     {@link #map(MapOperation)} provides more possibilities for fine-tuning.
+     * {@link #map(MapOperation)} provides more possibilities for fine-tuning.
      */
     default SyncOperation map(MapSpec spec) {
         return map(MapOperation.builder()
@@ -99,14 +101,15 @@ public interface SyncTransactionalClient {
     /**
      * Run reduce operation. Wait for its completion and check status.
      * <p>
-     *     This method provides more possibilities for fine-tuning compared to
-     *     {@link #reduce(ReduceSpec)}.
+     * This method provides more possibilities for fine-tuning compared to
+     * {@link #reduce(ReduceSpec)}.
      */
     SyncOperation reduce(ReduceOperation req);
 
-    /** Run reduce operation. Wait for its completion and check status.
+    /**
+     * Run reduce operation. Wait for its completion and check status.
      * <p>
-     *     {@link #reduce(ReduceOperation)} provides more possibilities for fine-tuning.
+     * {@link #reduce(ReduceOperation)} provides more possibilities for fine-tuning.
      */
     default SyncOperation reduce(ReduceSpec spec) {
         return reduce(ReduceOperation.builder()
@@ -117,14 +120,15 @@ public interface SyncTransactionalClient {
     /**
      * Run map-reduce operation. Wait for its completion and check status.
      * <p>
-     *     This method provides more possibilities for fine-tuning compared to
-     *     {@link #mapReduce(MapReduceSpec)}.
+     * This method provides more possibilities for fine-tuning compared to
+     * {@link #mapReduce(MapReduceSpec)}.
      */
     SyncOperation mapReduce(MapReduceOperation req);
 
-    /** Run map-reduce operation. Wait for its completion and check status.
+    /**
+     * Run map-reduce operation. Wait for its completion and check status.
      * <p>
-     *     {@link #mapReduce(MapReduceOperation)} provides more possibilities for fine-tuning.
+     * {@link #mapReduce(MapReduceOperation)} provides more possibilities for fine-tuning.
      */
     default SyncOperation mapReduce(MapReduceSpec spec) {
         return mapReduce(MapReduceOperation.builder()
@@ -135,14 +139,15 @@ public interface SyncTransactionalClient {
     /**
      * Run merge operation. Wait for its completion and check status.
      * <p>
-     *     This method provides more possibilities for fine-tuning compared to
-     *     {@link #merge(MergeSpec)}.
+     * This method provides more possibilities for fine-tuning compared to
+     * {@link #merge(MergeSpec)}.
      */
     SyncOperation merge(MergeOperation req);
 
-    /** Run merge operation. Wait for its completion and check status.
+    /**
+     * Run merge operation. Wait for its completion and check status.
      * <p>
-     *     {@link #merge(MergeOperation)} provides more possibilities for fine-tuning.
+     * {@link #merge(MergeOperation)} provides more possibilities for fine-tuning.
      */
     default SyncOperation merge(MergeSpec spec) {
         return merge(MergeOperation.builder()
@@ -153,14 +158,15 @@ public interface SyncTransactionalClient {
     /**
      * Run sort operation. Wait for its completion and check status.
      * <p>
-     *     This method provides more possibilities for fine-tuning compared to
-     *     {@link #sort(SortSpec)}.
+     * This method provides more possibilities for fine-tuning compared to
+     * {@link #sort(SortSpec)}.
      */
     SyncOperation sort(SortOperation req);
 
-    /** Run sort operation. Wait for its completion and check status.
+    /**
+     * Run sort operation. Wait for its completion and check status.
      * <p>
-     *     {@link #sort(SortOperation)} provides more possibilities for fine-tuning.
+     * {@link #sort(SortOperation)} provides more possibilities for fine-tuning.
      */
     default SyncOperation sort(SortSpec spec) {
         return sort(SortOperation.builder()
@@ -171,14 +177,15 @@ public interface SyncTransactionalClient {
     /**
      * Run vanilla operation. Wait for its completion and check status.
      * <p>
-     *     This method provides more possibilities for fine-tuning compared to
-     *     {@link #vanilla(VanillaSpec)}.
+     * This method provides more possibilities for fine-tuning compared to
+     * {@link #vanilla(VanillaSpec)}.
      */
     SyncOperation vanilla(VanillaOperation req);
 
-    /** Run vanilla operation. Wait for its completion and check status.
+    /**
+     * Run vanilla operation. Wait for its completion and check status.
      * <p>
-     *     {@link #vanilla(VanillaOperation)} provides more possibilities for fine-tuning.
+     * {@link #vanilla(VanillaOperation)} provides more possibilities for fine-tuning.
      */
     default SyncOperation vanilla(VanillaSpec spec) {
         return vanilla(VanillaOperation.builder()
@@ -189,14 +196,15 @@ public interface SyncTransactionalClient {
     /**
      * Run remote-copy operation. Wait for its completion and check status.
      * <p>
-     *     This method provides more possibilities for fine-tuning compared to
-     *     {@link #remoteCopy(RemoteCopySpec)}.
+     * This method provides more possibilities for fine-tuning compared to
+     * {@link #remoteCopy(RemoteCopySpec)}.
      */
     SyncOperation remoteCopy(RemoteCopyOperation req);
 
-    /** Run remote-copy operation. Wait for its completion and check status.
+    /**
+     * Run remote-copy operation. Wait for its completion and check status.
      * <p>
-     *     {@link #remoteCopy(RemoteCopyOperation)} provides more possibilities for fine-tuning.
+     * {@link #remoteCopy(RemoteCopyOperation)} provides more possibilities for fine-tuning.
      */
     default SyncOperation remoteCopy(RemoteCopySpec spec) {
         return remoteCopy(RemoteCopyOperation.builder()
@@ -223,6 +231,8 @@ public interface SyncTransactionalClient {
     GUID moveNode(MoveNode req);
 
     List<MultiTablePartition> partitionTables(PartitionTables req);
+
+    void advanceConsumer(AdvanceConsumer req);
 
     PutFileToCacheResult putFileToCache(PutFileToCache req);
 

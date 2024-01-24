@@ -21,6 +21,7 @@ import tech.ytsaurus.client.operations.Spec;
 import tech.ytsaurus.client.operations.SpecPreparationContext;
 import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
 import tech.ytsaurus.client.request.AbstractModifyRowsRequest;
+import tech.ytsaurus.client.request.AdvanceConsumer;
 import tech.ytsaurus.client.request.CheckPermission;
 import tech.ytsaurus.client.request.ConcatenateNodes;
 import tech.ytsaurus.client.request.CopyNode;
@@ -365,6 +366,10 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
         CompletableFuture<Void> result = client.modifyRows(id, request);
         modifyRowsResults.add(result);
         return result;
+    }
+
+    public CompletableFuture<Void> advanceConsumer(AdvanceConsumer req) {
+        return client.advanceConsumer(req.toBuilder().setTransactionId(id).build());
     }
 
     /* nodes */

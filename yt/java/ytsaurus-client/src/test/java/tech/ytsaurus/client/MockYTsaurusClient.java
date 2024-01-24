@@ -16,6 +16,7 @@ import tech.ytsaurus.client.request.AbortOperation;
 import tech.ytsaurus.client.request.AbortTransaction;
 import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
 import tech.ytsaurus.client.request.AbstractModifyRowsRequest;
+import tech.ytsaurus.client.request.AdvanceConsumer;
 import tech.ytsaurus.client.request.AlterTable;
 import tech.ytsaurus.client.request.AlterTableReplica;
 import tech.ytsaurus.client.request.BuildSnapshot;
@@ -61,6 +62,7 @@ import tech.ytsaurus.client.request.PutFileToCacheResult;
 import tech.ytsaurus.client.request.ReadFile;
 import tech.ytsaurus.client.request.ReadTable;
 import tech.ytsaurus.client.request.ReduceOperation;
+import tech.ytsaurus.client.request.RegisterQueueConsumer;
 import tech.ytsaurus.client.request.RemoteCopyOperation;
 import tech.ytsaurus.client.request.RemountTable;
 import tech.ytsaurus.client.request.RemoveNode;
@@ -254,6 +256,16 @@ public class MockYTsaurusClient implements BaseYTsaurusClient {
     @Override
     public CompletableFuture<QueueRowset> pullConsumer(PullConsumer req) {
         return (CompletableFuture<QueueRowset>) callMethod("pullConsumer");
+    }
+
+    @Override
+    public CompletableFuture<Void> advanceConsumer(AdvanceConsumer req) {
+        return (CompletableFuture<Void>) callMethod("advanceConsumer");
+    }
+
+    @Override
+    public CompletableFuture<Void> registerQueueConsumer(RegisterQueueConsumer req) {
+        return (CompletableFuture<Void>) callMethod("registerQueueConsumer");
     }
 
     @Override

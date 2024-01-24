@@ -13,7 +13,6 @@ import tech.ytsaurus.rpcproxy.TReqPullConsumer;
  * <p>
  *
  * @see tech.ytsaurus.client.ApiServiceClient#pullConsumer(PullConsumer)
- * </a>
  */
 public class PullConsumer extends RequestBase<PullConsumer.Builder, PullConsumer>
         implements HighLevelRequest<TReqPullConsumer.Builder> {
@@ -48,14 +47,18 @@ public class PullConsumer extends RequestBase<PullConsumer.Builder, PullConsumer
      */
     @Override
     public Builder toBuilder() {
-        Builder builder = builder();
-        builder.consumerPath = consumerPath;
-        builder.queuePath = queuePath;
-        builder.partitionIndex = partitionIndex;
-        builder.offset = offset;
-        builder.rowBatchReadOptions = rowBatchReadOptions;
-        builder.replicaConsistency = replicaConsistency;
-        return builder;
+        return builder()
+                .setConsumerPath(consumerPath)
+                .setQueuePath(queuePath)
+                .setPartitionIndex(partitionIndex)
+                .setOffset(offset)
+                .setRowBatchReadOptions(rowBatchReadOptions)
+                .setReplicaConsistency(replicaConsistency)
+                .setTimeout(timeout)
+                .setRequestId(requestId)
+                .setUserAgent(userAgent)
+                .setTraceId(traceId, traceSampled)
+                .setAdditionalData(additionalData);
     }
 
     @Override
@@ -110,7 +113,7 @@ public class PullConsumer extends RequestBase<PullConsumer.Builder, PullConsumer
             return self();
         }
 
-        public PullConsumer.Builder setOffset(long offset) {
+        public PullConsumer.Builder setOffset(@Nullable Long offset) {
             this.offset = offset;
             return self();
         }
@@ -125,7 +128,7 @@ public class PullConsumer extends RequestBase<PullConsumer.Builder, PullConsumer
             return self();
         }
 
-        public PullConsumer.Builder setReplicaConsistency(ReplicaConsistency replicaConsistency) {
+        public PullConsumer.Builder setReplicaConsistency(@Nullable ReplicaConsistency replicaConsistency) {
             this.replicaConsistency = replicaConsistency;
             return self();
         }

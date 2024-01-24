@@ -11,6 +11,7 @@ import tech.ytsaurus.rpc.TRspDiscover;
 import tech.ytsaurus.rpcproxy.TReqAbortJob;
 import tech.ytsaurus.rpcproxy.TReqAbortOperation;
 import tech.ytsaurus.rpcproxy.TReqAbortTransaction;
+import tech.ytsaurus.rpcproxy.TReqAdvanceConsumer;
 import tech.ytsaurus.rpcproxy.TReqAlterTable;
 import tech.ytsaurus.rpcproxy.TReqAlterTableReplica;
 import tech.ytsaurus.rpcproxy.TReqBuildSnapshot;
@@ -48,6 +49,7 @@ import tech.ytsaurus.rpcproxy.TReqPullConsumer;
 import tech.ytsaurus.rpcproxy.TReqPutFileToCache;
 import tech.ytsaurus.rpcproxy.TReqReadFile;
 import tech.ytsaurus.rpcproxy.TReqReadTable;
+import tech.ytsaurus.rpcproxy.TReqRegisterQueueConsumer;
 import tech.ytsaurus.rpcproxy.TReqRemountTable;
 import tech.ytsaurus.rpcproxy.TReqRemoveNode;
 import tech.ytsaurus.rpcproxy.TReqReshardTable;
@@ -67,6 +69,7 @@ import tech.ytsaurus.rpcproxy.TReqWriteTable;
 import tech.ytsaurus.rpcproxy.TRspAbortJob;
 import tech.ytsaurus.rpcproxy.TRspAbortOperation;
 import tech.ytsaurus.rpcproxy.TRspAbortTransaction;
+import tech.ytsaurus.rpcproxy.TRspAdvanceConsumer;
 import tech.ytsaurus.rpcproxy.TRspAlterTable;
 import tech.ytsaurus.rpcproxy.TRspAlterTableReplica;
 import tech.ytsaurus.rpcproxy.TRspBuildSnapshot;
@@ -104,6 +107,7 @@ import tech.ytsaurus.rpcproxy.TRspPullConsumer;
 import tech.ytsaurus.rpcproxy.TRspPutFileToCache;
 import tech.ytsaurus.rpcproxy.TRspReadFile;
 import tech.ytsaurus.rpcproxy.TRspReadTable;
+import tech.ytsaurus.rpcproxy.TRspRegisterQueueConsumer;
 import tech.ytsaurus.rpcproxy.TRspRemountTable;
 import tech.ytsaurus.rpcproxy.TRspRemoveNode;
 import tech.ytsaurus.rpcproxy.TRspReshardTable;
@@ -279,6 +283,15 @@ public class ApiServiceMethodTable {
 
     public static final RpcMethodDescriptor<TReqPullConsumer.Builder, TRspPullConsumer> PULL_CONSUMER =
             apiServiceMethod("PullConsumer", TReqPullConsumer::newBuilder, TRspPullConsumer.parser());
+
+    public static final RpcMethodDescriptor<TReqAdvanceConsumer.Builder, TRspAdvanceConsumer> ADVANCE_CONSUMER =
+            apiServiceMethod("AdvanceConsumer", TReqAdvanceConsumer::newBuilder, TRspAdvanceConsumer.parser());
+
+    public static final RpcMethodDescriptor<TReqRegisterQueueConsumer.Builder, TRspRegisterQueueConsumer>
+            REGISTER_QUEUE_CONSUMER = apiServiceMethod(
+            "RegisterQueueConsumer",
+            TReqRegisterQueueConsumer::newBuilder, TRspRegisterQueueConsumer.parser()
+    );
 
     public static final RpcMethodDescriptor<TReqReadTable.Builder, TRspReadTable> READ_TABLE =
             apiServiceMethod("ReadTable", TReqReadTable::newBuilder, TRspReadTable.parser());

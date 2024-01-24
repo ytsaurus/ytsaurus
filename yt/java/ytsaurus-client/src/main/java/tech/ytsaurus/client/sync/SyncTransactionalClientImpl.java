@@ -4,6 +4,7 @@ import java.util.List;
 
 import tech.ytsaurus.client.TransactionalClient;
 import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
+import tech.ytsaurus.client.request.AdvanceConsumer;
 import tech.ytsaurus.client.request.CheckPermission;
 import tech.ytsaurus.client.request.ConcatenateNodes;
 import tech.ytsaurus.client.request.CopyNode;
@@ -211,6 +212,11 @@ abstract class SyncTransactionalClientImpl implements SyncTransactionalClient {
     @Override
     public List<MultiTablePartition> partitionTables(PartitionTables req) {
         return client.partitionTables(req).join();
+    }
+
+    @Override
+    public void advanceConsumer(AdvanceConsumer req) {
+        client.advanceConsumer(req).join();
     }
 
     @Override

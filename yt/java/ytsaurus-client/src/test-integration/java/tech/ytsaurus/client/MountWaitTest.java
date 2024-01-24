@@ -32,14 +32,7 @@ public class MountWaitTest extends YTsaurusClientTestBase {
     @Test
     public void createMountAndWait() {
         yt.waitProxies().join();
-
-        while (!yt.getNode("//sys/tablet_cell_bundles/default/@health").join().stringValue().equals("good")) {
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
+        waitTabletCells(yt);
 
         String path = "//tmp/mount-table-and-wait-test" + UUID.randomUUID().toString();
 

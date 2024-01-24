@@ -177,6 +177,16 @@ public class YTsaurusClientTestBase {
         }
     }
 
+    protected void waitTabletCells(YTsaurusClient yt) {
+        while (!yt.getNode("//sys/tablet_cell_bundles/default/@health").join().stringValue().equals("good")) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
     @After
     public final void tearDown() throws Throwable {
         Throwable error = null;

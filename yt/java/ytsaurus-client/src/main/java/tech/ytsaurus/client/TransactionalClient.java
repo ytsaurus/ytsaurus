@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.operations.Operation;
+import tech.ytsaurus.client.request.AdvanceConsumer;
 import tech.ytsaurus.client.request.CheckPermission;
 import tech.ytsaurus.client.request.ConcatenateNodes;
 import tech.ytsaurus.client.request.CopyNode;
@@ -173,6 +174,8 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
     }
 
     CompletableFuture<List<MultiTablePartition>> partitionTables(PartitionTables req);
+
+    CompletableFuture<Void> advanceConsumer(AdvanceConsumer req);
 
     /**
      * @deprecated prefer to use {@link #readTable(ReadTable)}
