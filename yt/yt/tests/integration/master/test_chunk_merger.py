@@ -463,7 +463,7 @@ class TestChunkMerger(YTEnvSetup):
 
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
-    def test_copy_merge(self, merge_mode):
+    def test_copy_merge1(self, merge_mode):
         create("table", "//tmp/t")
         self._remove_merge_quotas("//tmp/t")
 
@@ -477,6 +477,30 @@ class TestChunkMerger(YTEnvSetup):
 
         assert get("//tmp/t/@chunk_count") > 1
         assert read_table("//tmp/t") == rows
+
+    @authors("aleksandra-zh")
+    @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
+    def test_copy_merge2(self, merge_mode):
+        create("table", "//tmp/t")
+        self._remove_merge_quotas("//tmp/t")
+
+        write_table("<append=true>//tmp/t", {"a": "b"})
+        write_table("<append=true>//tmp/t", {"a": "c"})
+        write_table("<append=true>//tmp/t", {"a": "c"})
+        write_table("<append=true>//tmp/t", {"a": "c"})
+
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
+        set("//tmp/t/@chunk_merger_mode", "deep")
+
+        copy("//tmp/t", "//tmp/t1")
+
+        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+
+        wait(lambda: get("//tmp/t/@chunk_count") == 1)
+        wait(lambda: get("//tmp/t1/@chunk_count") == 1)
+
+        assert get("//tmp/t/@chunk_list_id") != get("//tmp/t1/@chunk_list_id")
+
 
     @authors("aleksandra-zh")
     def test_copy_move(self):

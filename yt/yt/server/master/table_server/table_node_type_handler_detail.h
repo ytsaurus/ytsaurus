@@ -14,8 +14,8 @@ namespace NYT::NTableServer {
 
 template <class TImpl>
 class TTableNodeTypeHandlerBase
-    : public NTabletServer::TTabletOwnerTypeHandlerBase<TImpl>
-    , public TSchemafulNodeTypeHandlerBase<TImpl>
+    : public TSchemafulNodeTypeHandlerBase<TImpl>
+    , public NTabletServer::TTabletOwnerTypeHandlerBase<TImpl>
 {
 private:
     using TTabletOwnerTypeHandler = NTabletServer::TTabletOwnerTypeHandlerBase<TImpl>;
