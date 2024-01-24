@@ -164,7 +164,6 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/zstd_compression.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/arithmetic_formula.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/backoff_strategy.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/backoff_strategy_config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/bitmap.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/bit_packed_unsigned_vector.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/bit_packing.cpp

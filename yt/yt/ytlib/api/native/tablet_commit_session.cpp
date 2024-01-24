@@ -16,7 +16,6 @@
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/yt/core/misc/backoff_strategy.h>
-#include <yt/yt/core/misc/backoff_strategy_config.h>
 
 namespace NYT::NApi::NNative {
 

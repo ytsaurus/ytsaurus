@@ -18,7 +18,6 @@
 
 #include <yt/yt/core/misc/async_expiring_cache.h>
 #include <yt/yt/core/misc/backoff_strategy.h>
-#include <yt/yt/core/misc/backoff_strategy_config.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
