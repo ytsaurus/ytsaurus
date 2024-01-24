@@ -6,4 +6,5 @@ OWNER(
 RECURSE(
     cpp_style
     py_style
+    ruff
 )
