@@ -59,6 +59,7 @@ void TChaosReplicatedTableNode::Save(TSaveContext& context) const
     Save(context, ChaosCellBundle_);
     Save(context, ReplicationCardId_);
     Save(context, OwnsReplicationCard_);
+    Save(context, TreatAsConsumer_);
     Save(context, QueueAgentStage_);
 }
 
@@ -77,6 +78,11 @@ void TChaosReplicatedTableNode::Load(TLoadContext& context)
     Load(context, OwnsReplicationCard_);
     if (context.GetVersion() < EMasterReign::AddSchemafulNodeTypeHandler) {
         Load(context, Schema_);
+    }
+
+    // COMPAT(cherepashka)
+    if (context.GetVersion() >= EMasterReign::ChaosReplicatedConsumersFix) {
+        Load(context, TreatAsConsumer_);
     }
 
     // COMPAT(nadya73): Remove queue related attributes for old reigns.
