@@ -130,7 +130,7 @@ object SpytPlugin extends AutoPlugin {
 
     pypiRegistry := "https://pypi.org/simple",
 
-    spytVersionPyFile := baseDirectory.value / "data-source" / "src" / "main" / "python" / "spyt" / "version.py",
+    spytVersionPyFile := baseDirectory.value / "spyt-package" / "src" / "main" / "python" / "spyt" / "version.py",
     spytSparkVersionPyFile := (ThisBuild / sparkVersionPyFile).value,
 
     spytUpdatePythonVersion := {
