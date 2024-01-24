@@ -99,6 +99,8 @@ public:
     std::atomic<int> RunningSecondaryQueryCount = 0;
     std::atomic<int> HistoricalInitialQueryCount = 0;
     std::atomic<int> HistoricalSecondaryQueryCount = 0;
+    std::atomic<int> HistoricalFinishedInitialQueryCount = 0;
+    std::atomic<int> HistoricalFinishedSecondaryQueryCount = 0;
 
     TEnumIndexedVector<EQueryPhase, std::atomic<int>> PerPhaseRunningInitialQueryCount;
     TEnumIndexedVector<EQueryPhase, std::atomic<int>> PerPhaseRunningSecondaryQueryCount;
@@ -117,6 +119,13 @@ public:
         });
         profiler.AddFuncCounter("/historical_secondary_query_count", MakeStrong(this), [this] {
             return HistoricalSecondaryQueryCount.load();
+        });
+
+        profiler.AddFuncCounter("/historical_finished_initial_query_count", MakeStrong(this), [this] {
+            return HistoricalFinishedInitialQueryCount.load();
+        });
+        profiler.AddFuncCounter("/historical_finished_secondary_query_count", MakeStrong(this), [this] {
+            return HistoricalFinishedSecondaryQueryCount.load();
         });
 
         for (auto queryPhase : TEnumTraits<EQueryPhase>::GetDomainValues()) {
@@ -302,10 +311,12 @@ public:
         auto& userProfilingEntry = GetOrCrash(UserToUserProfilingEntry_, queryContext->User);
         switch (queryContext->QueryKind) {
             case EQueryKind::InitialQuery:
+                ++userProfilingEntry->HistoricalFinishedInitialQueryCount;
                 --userProfilingEntry->RunningInitialQueryCount;
                 --userProfilingEntry->PerPhaseRunningInitialQueryCount[queryContext->GetQueryPhase()];
                 break;
             case EQueryKind::SecondaryQuery:
+                ++userProfilingEntry->HistoricalFinishedSecondaryQueryCount;
                 --userProfilingEntry->RunningSecondaryQueryCount;
                 --userProfilingEntry->PerPhaseRunningSecondaryQueryCount[queryContext->GetQueryPhase()];
                 break;
