@@ -46,7 +46,7 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
     , Channel_(ControllerAgentConnectorPool_->CreateChannel(ControllerAgentDescriptor_))
     , HeartbeatExecutor_(New<TRetryingPeriodicExecutor>(
         ControllerAgentConnectorPool_->Bootstrap_->GetControlInvoker(),
-        BIND([this_ = MakeWeak(this)] {
+        BIND_NO_PROPAGATE([this_ = MakeWeak(this)] {
             return this_.Lock()->SendHeartbeat();
         }),
         GetConfig()->Heartbeats))
@@ -371,7 +371,9 @@ TError TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat
 
     auto responseOrError = WaitFor(std::move(requestFuture));
     if (!responseOrError.IsOK()) {
-        YT_LOG_ERROR(responseOrError, "Error reporting heartbeat to agent (AgentAddress: %v, BackoffTime: %v)",
+        YT_LOG_ERROR(
+            responseOrError,
+            "Error reporting heartbeat to agent (AgentAddress: %v, BackoffTime: %v)",
             ControllerAgentDescriptor_.Address,
             HeartbeatExecutor_->GetBackoffTimeEstimate());
 
