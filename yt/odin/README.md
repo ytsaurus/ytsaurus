@@ -73,3 +73,39 @@ yt_odin --config odin_config.json
 yt_odin_webservice --config odin_webservice_config.json
 ```
 
+
+### Docker image
+
+It is possible to build a self-confined Odin image using the provided [Dockerfile](./Dockerfile). The image will be built using a [multi-stage build](https://docs.docker.com/build/building/multi-stage/) approach where only the necessary runtime files and dependencies are preserved in the final stage.
+
+To build the image run the following commands:
+
+```bash
+cd $SOURCE_ROOT/yt/odin
+
+# ytsaurus-odin:latest is the label:tag of the resulting image
+docker build -t ytsaurus-odin:latest .
+```
+
+To run Odin inside a container do the following:
+
+* prepare `odin_config.json`, `checks_config.json` and `odin_webservice.json` files
+* run odin containers:
+
+```bash
+# run checker odin checker component
+docker run --name odin \
+  -v /path/to/odin_config.json:/path/to/odin_config.json:ro \
+  -v /path/to/checks_config.json:/path/to/checks_config.json:ro
+  --entrypoint yt_odin \
+  ytsaurus-odin:latest \
+  --config /path/to/odin_config.json
+
+# run checker odin webservice component
+docker run --name odin-webservice \
+  -v /path/to/odin_webservice.json:/path/to/odin_webservice.json:ro \
+  -p 8080:8080 \
+  --entrypoint yt_odin_webservice \
+  ytsaurus-odin:latest \
+  --config /path/to/odin_webservice.json
+```
