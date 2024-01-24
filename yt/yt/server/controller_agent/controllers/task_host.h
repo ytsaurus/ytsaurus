@@ -105,6 +105,7 @@ struct ITaskHost
     virtual void RegisterCores(const TJobletPtr& joblet, const TJobSummary& summary) = 0;
 
     virtual void RegisterJoblet(const TJobletPtr& joblet) = 0;
+    virtual TJobId GenerateJobId(NScheduler::TAllocationId allocationId) = 0;
 
     virtual std::optional<TJobMonitoringDescriptor> RegisterJobForMonitoring(TJobId jobId) = 0;
 

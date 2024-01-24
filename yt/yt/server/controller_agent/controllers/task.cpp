@@ -647,7 +647,7 @@ void TTask::ScheduleAllocation(
         return;
     }
 
-    joblet->JobId = JobIdFromAllocationId(context->GetAllocationId());
+    joblet->JobId = TaskHost_->GenerateJobId(context->GetAllocationId());
 
     for (auto* jobManager : JobManagers_) {
         jobManager->OnJobScheduled(joblet);

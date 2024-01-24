@@ -478,6 +478,8 @@ public:
     void InitializeJobExperiment();
     TJobExperimentBasePtr GetJobExperiment() override;
 
+    TJobId GenerateJobId(NScheduler::TAllocationId allocationId) override;
+
 protected:
     const IOperationControllerHostPtr Host;
     TControllerAgentConfigPtr Config;
@@ -1336,8 +1338,6 @@ private:
     THashMap<TAllocationId, TRunningAllocationTimeStatistics> RunningAllocationTimeStatisticsUpdates_;
 
     const NConcurrency::TPeriodicExecutorPtr SendRunningAllocationTimeStatisticsUpdatesExecutor_;
-
-    TJobId GenerateJobId(NScheduler::TAllocationId allocationId);
 
     void AccountExternalScheduleAllocationFailures() const;
 

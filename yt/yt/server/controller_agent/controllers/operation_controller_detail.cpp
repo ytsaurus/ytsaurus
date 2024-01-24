@@ -5511,6 +5511,11 @@ TJobExperimentBasePtr TOperationControllerBase::GetJobExperiment()
     return JobExperiment_;
 }
 
+TJobId TOperationControllerBase::GenerateJobId(NScheduler::TAllocationId allocationId)
+{
+    return TJobId(allocationId.Underlying());
+}
+
 void TOperationControllerBase::AsyncAbortJob(TJobId jobId, EAbortReason abortReason)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -9286,8 +9291,6 @@ TJobStartInfo TOperationControllerBase::SettleJob(TAllocationId allocationId)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::GetJobSpec));
 
-    TJobId jobId = GenerateJobId(allocationId);
-
     if (auto getJobSpecDelay = Spec_->TestingOperationOptions->GetJobSpecDelay) {
         Sleep(*getJobSpecDelay);
     }
@@ -9296,7 +9299,19 @@ TJobStartInfo TOperationControllerBase::SettleJob(TAllocationId allocationId)
         THROW_ERROR_EXCEPTION("Testing failure");
     }
 
-    auto joblet = GetJobletOrThrow(jobId);
+    auto joblet = FindJoblet(allocationId);
+
+    if (!joblet) {
+        YT_LOG_DEBUG(
+            "Stale settle job request, no such allocation; send error instead of spec "
+            "(AllocationId: %v)",
+            allocationId);
+        THROW_ERROR_EXCEPTION(
+            NScheduler::EErrorCode::NoSuchAllocation,
+            "No such allocation %v",
+            allocationId);
+    }
+
     if (!joblet->JobSpecProtoFuture) {
         THROW_ERROR_EXCEPTION("Job for allocation %v is missing", allocationId);
     }
@@ -9315,18 +9330,10 @@ TJobStartInfo TOperationControllerBase::SettleJob(TAllocationId allocationId)
         THROW_ERROR_EXCEPTION("Operation is not running");
     }
 
-    if (!FindJoblet(jobId)) {
-        YT_LOG_DEBUG(
-            "Stale settle job request, job is already finished; send error instead of spec "
-            "(AllocationId: %v)",
-            allocationId);
-        THROW_ERROR_EXCEPTION("Job is already finished");
-    }
-
     OnJobStarted(joblet);
 
     return TJobStartInfo{
-        .JobId = jobId,
+        .JobId = joblet->JobId,
         .JobSpecBlob = std::move(specBlob),
     };
 }
@@ -10911,11 +10918,6 @@ std::vector<TTaskPtr> TOperationControllerBase::GetTopologicallyOrderedTasks() c
         tasks.push_back(std::move(task));
     }
     return tasks;
-}
-
-TJobId TOperationControllerBase::GenerateJobId(NScheduler::TAllocationId allocationId)
-{
-    return JobIdFromAllocationId(allocationId);
 }
 
 void TOperationControllerBase::AccountExternalScheduleAllocationFailures() const

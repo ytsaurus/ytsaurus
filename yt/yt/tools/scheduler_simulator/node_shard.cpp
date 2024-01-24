@@ -25,6 +25,11 @@ using namespace NNodeTrackerClient;
 
 namespace {
 
+TJobId JobIdFromAllocationId(TAllocationId allocationId)
+{
+    return TJobId(allocationId.Underlying());
+}
+
 std::unique_ptr<TCompletedJobSummary> BuildCompletedJobSummary(const TAllocationPtr& allocation)
 {
     TCompletedJobSummary jobSummary;

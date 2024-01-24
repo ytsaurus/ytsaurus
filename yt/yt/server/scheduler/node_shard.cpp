@@ -2415,7 +2415,6 @@ void TNodeShard::ProcessAllocationsToAbort(NProto::NNode::TRspHeartbeat* respons
             "Sent allocation abort request to node (Reason: %v, AllocationId: %v)",
             abortReason,
             allocationId);
-        //! Allocation id is equal to allocation id.
         AddAllocationToAbort(response, {allocationId, abortReason});
     }
 

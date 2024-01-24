@@ -226,7 +226,7 @@ private:
 
     TDelayConfigPtr ScheduleJobDelay_;
 
-    TLockProtectedMap<TJobId, TJobDescription> IdToDescription_;
+    TLockProtectedMap<TAllocationId, TJobDescription> AllocationIdToJobDescription_;
     NLogging::TLogger Logger;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
@@ -376,7 +376,7 @@ TCompositeNeededResources TSimulatorOperationController::GetNeededResources() co
 
 void TSimulatorOperationController::OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary)
 {
-    const auto& jobDescription = IdToDescription_.Get(jobSummary->Id);
+    const auto& jobDescription = AllocationIdToJobDescription_.Get(AllocationIdFromJobId(jobSummary->Id));
 
     auto& jobBucket = GetOrCrash(JobBuckets_, jobDescription.Type);
 
@@ -390,7 +390,7 @@ void TSimulatorOperationController::OnJobCompleted(std::unique_ptr<TCompletedJob
 
 void TSimulatorOperationController::OnNonscheduledAllocationAborted(TAllocationId allocationId, EAbortReason /*abortReason*/, TControllerEpoch /*epoch*/)
 {
-    const auto& jobDescription = IdToDescription_.Get(JobIdFromAllocationId(allocationId));
+    const auto& jobDescription = AllocationIdToJobDescription_.Get(allocationId);
 
     auto& jobBucket = GetOrCrash(JobBuckets_, jobDescription.Type);
 
@@ -473,7 +473,7 @@ TFuture<TControllerScheduleAllocationResultPtr> TSimulatorOperationController::S
         jobToSchedule.ResourceLimits);
 
     dynamic_cast<TSchedulingContext*>(context.Get())->SetDurationForStartedAllocation(allocationId, jobToSchedule.Duration);
-    IdToDescription_.Insert(jobId, jobToSchedule);
+    AllocationIdToJobDescription_.Insert(allocationId, jobToSchedule);
 
     NeededResources_ -= jobToSchedule.ResourceLimits;
     PendingJobCount_ -= 1;
