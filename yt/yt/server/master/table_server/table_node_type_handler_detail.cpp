@@ -78,8 +78,8 @@ bool IsCompressionCodecValidationSuppressed()
 
 template<class TImpl>
 TTableNodeTypeHandlerBase<TImpl>::TTableNodeTypeHandlerBase(TBootstrap* bootstrap)
-    : TTabletOwnerTypeHandler(bootstrap)
-    , TSchemafulNodeTypeHandler(bootstrap)
+    : TSchemafulNodeTypeHandler(bootstrap)
+    , TTabletOwnerTypeHandler(bootstrap)
 {
     // NB: Due to virtual inheritance bootstrap has to be explicitly initialized.
     this->SetBootstrap(bootstrap);
@@ -473,8 +473,9 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     ENodeCloneMode mode,
     TAccount* account)
 {
-    TTabletOwnerTypeHandler::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
+    // Order is important: table schema might be used in TChunkOwnerTypeHandler::DoClone.
     TSchemafulNodeTypeHandler::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
+    TTabletOwnerTypeHandler::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
 
     clonedTrunkNode->SetHunkStorageNode(sourceNode->GetHunkStorageNode());
 

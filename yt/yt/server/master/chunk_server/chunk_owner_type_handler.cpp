@@ -572,6 +572,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
     clonedTrunkNode->SetEnableSkynetSharing(sourceNode->GetEnableSkynetSharing());
 
     if (!sourceNode->IsExternal()) {
+        const auto& chunkManager = TBase::GetBootstrap()->GetChunkManager();
         for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
             auto* chunkList = sourceNode->GetChunkList(contentType);
             YT_VERIFY(!clonedTrunkNode->GetChunkList(contentType));
@@ -579,10 +580,13 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
             if (chunkList) {
                 chunkList->AddOwningNode(clonedTrunkNode);
                 if (clonedTrunkNode->IsTrunk() && sourceNode->Account() != clonedTrunkNode->Account()) {
-                    const auto& chunkManager = TBase::GetBootstrap()->GetChunkManager();
                     chunkManager->ScheduleChunkRequisitionUpdate(chunkList);
                 }
             }
+        }
+
+        if (clonedTrunkNode->GetChunkMergerMode() != EChunkMergerMode::None) {
+            chunkManager->ScheduleChunkMerge(clonedTrunkNode);
         }
     }
 }
@@ -652,6 +656,11 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoEndCopy(
     trunkNode->SetEnableStripedErasure(Load<bool>(*context));
     trunkNode->SetEnableSkynetSharing(Load<bool>(*context));
     trunkNode->SetChunkMergerMode(Load<EChunkMergerMode>(*context));
+
+    if (trunkNode->GetChunkMergerMode() != EChunkMergerMode::None) {
+        const auto& chunkManager = TBase::GetBootstrap()->GetChunkManager();
+        chunkManager->ScheduleChunkMerge(trunkNode);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
