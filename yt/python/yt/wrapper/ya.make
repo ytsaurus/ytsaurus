@@ -133,6 +133,7 @@ SET(SRCS
     skiff.py
     spark.py
     spec_builders.py
+    spec_builder_helpers.py
     strawberry.py
     stream.py
     string_iter_io.py

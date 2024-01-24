@@ -12,6 +12,7 @@ from .file_commands import LocalFile, _touch_file_in_cache
 from .ypath import TablePath, FilePath
 from .py_wrapper import OperationParameters, TempfilesManager, get_local_temp_directory, WrapResult
 from .schema import TableSchema
+from .spec_builder_helpers import BaseLayerDetector
 from .table_commands import is_empty, is_sorted
 from .table_helpers import (FileManager, _prepare_operation_formats, _is_python_function,
                             _prepare_python_command, _prepare_source_tables, _prepare_destination_tables,
@@ -401,6 +402,10 @@ class UserJobSpecBuilder(object):
     @spec_option("The list of paths to Porto layers in Cypress")
     def layer_paths(self, paths):
         return _set_spec_value(self, "layer_paths", paths)
+
+    @spec_option("Docker image for root fs layer")
+    def docker_image(self, paths):
+        return _set_spec_value(self, "docker_image", paths)
 
     @spec_option("The format of tabular data")
     def format(self, format):
@@ -823,6 +828,7 @@ class UserJobSpecBuilder(object):
                         get_config(client)["yamr_mode"]["check_input_fully_consumed"])
         spec = self._prepare_tmpfs(spec, tmpfs_size, client)
         spec = self._prepare_memory_limit(spec, client)
+        spec = BaseLayerDetector.guess_base_layers(spec, client)
         spec = update(spec, self._user_spec)
         spec = update(get_config(client)["user_job_spec_defaults"], spec)
         return spec, input_tables, output_tables

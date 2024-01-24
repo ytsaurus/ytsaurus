@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from .common import update, get_arg_spec
-from .default_config import get_default_config, RemotePatchableValueBase, _get_settings_from_cluster_callback
+from .default_config import get_default_config, RemotePatchableValueBase, _get_settings_from_cluster_callback, _update_from_env_vars, FORCED_SHORTCUTS
 
 try:
     from yt.packages.six import PY3
@@ -117,6 +117,8 @@ def are_signatures_equal(lhs, rhs):
 def initialize_client(client, proxy, token, config):
     # type: (yt.wrapper.YtClient, str, str, dict) -> None
     client.config = get_default_config()
+    _update_from_env_vars(client.config, FORCED_SHORTCUTS)
+
     if config is not None:
         client.config = update(client.config, config)
 

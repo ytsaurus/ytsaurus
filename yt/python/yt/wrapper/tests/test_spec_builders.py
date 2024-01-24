@@ -2,8 +2,10 @@ from .conftest import authors
 from .helpers import TEST_DIR, check_rows_equality, get_test_file_path, set_config_option, get_python
 
 from yt.wrapper.common import update, get_started_by
+from yt.wrapper.driver import get_api_version
 from yt.wrapper.spec_builders import (ReduceSpecBuilder, MergeSpecBuilder, SortSpecBuilder,
                                       MapReduceSpecBuilder, MapSpecBuilder, VanillaSpecBuilder)
+from yt.wrapper.spec_builder_helpers import BaseLayerDetector, distro, platform  # noqa
 
 try:
     from yt.python.yt.cpp_wrapper import CppJob
@@ -13,6 +15,7 @@ except ImportError:
 
 import yt.wrapper as yt
 
+import mock
 import pytest
 
 from copy import deepcopy
@@ -527,3 +530,206 @@ class TestSpecBuilders(object):
             assert "title" in spec
             for part in ["Mapper", "Reducer", "cat"]:
                 assert part in spec["title"]
+
+    @authors("denvr")
+    def test_porto_auto_layer(self):
+
+        if get_api_version() != "v4":
+            pytest.skip()
+
+        client = yt.YtClient(config=yt.config.config)
+
+        with mock.patch("distro.id", return_value="ubuntu"):
+            with mock.patch("platform.python_version_tuple", return_value=("3", "6", "1",)), \
+                    mock.patch("distro.codename", return_value="bionic"):
+                assert BaseLayerDetector._detect_os_env() == ("ubuntu", "bionic", None), "Native python"
+
+            with mock.patch("platform.python_version_tuple", return_value=("3", "8", "1",)), \
+                    mock.patch("distro.codename", return_value="bionic"):
+                assert BaseLayerDetector._detect_os_env() == ("ubuntu", "bionic", (3, 8)), "Newer python"
+
+            with mock.patch("platform.python_version_tuple", return_value=("3", "12", "1",)), \
+                    mock.patch("distro.codename", return_value="obvious"):
+                assert BaseLayerDetector._detect_os_env() == ("ubuntu", "obvious", (3, 12)), "Unknown os"
+
+        # newer python version
+        with mock.patch("distro.id", return_value="ubuntu"), \
+                mock.patch("platform.python_version_tuple", return_value=("3", "11", "1",)), \
+                mock.patch("distro.codename", return_value="bionic"):
+
+            assert not client.exists(client.config["base_layers_registry_path"])
+
+            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") is None, "no registry, no regular"
+
+            client.create("file", "//porto_layers/base/focal/porto_layer_search_ubuntu_focal_app_lastest.tar.gz", recursive=True)
+            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") is None, "no registry, wrong regular"
+
+            client.create("file", "//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_lastest.tar.gz", recursive=True)
+            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_lastest.tar.gz"], \
+                "regular, wrong python"
+
+            # with registry
+            client.create("map_node", client.config["base_layers_registry_path"], recursive=True)
+            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_lastest.tar.gz"], \
+                "regular, wrong python, wrong registry"
+            client.remove(client.config["base_layers_registry_path"])
+
+            client.create("document", client.config["base_layers_registry_path"], recursive=True)
+            client.set(
+                client.config["base_layers_registry_path"],
+                ["", ""]
+            )
+            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_lastest.tar.gz"], \
+                "regular, wrong python, wrong registry"
+
+            client.set(
+                client.config["base_layers_registry_path"],
+                {
+                    "porto": {
+                        "//tmp/l1": {"os": "ubuntu", "base_layers": None, "tags": ""}
+                    }
+                }
+            )
+            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_lastest.tar.gz"], \
+                "regular, wrong python, wrong registry"
+            assert BaseLayerDetector._get_default_layer(client, layer_type="docker") == [], \
+                "no match"
+
+            client.set(
+                client.config["base_layers_registry_path"],
+                {
+                    "porto": {
+                        "//tmp/l_bionic_3.10": {"os": "ubuntu", "base_layers": None, "tags": ["python=3.10", "os_codename=bionic"]},
+                    },
+                    "docker": {
+                        "images/docker/image1": {"os": "ubuntu", "tags": ["python=default", "os_codename=bionic"]},
+                        "registry.cluster_name.yandex.net/images/docker/image1:tag1": {"os": "ubuntu", "tags": ["python=3.10", "os_codename=bionic"]}
+                    }
+                }
+            )
+            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_lastest.tar.gz"], \
+                "wrong python, use default form //porto_layers"
+            assert BaseLayerDetector._get_default_layer(client, layer_type="docker") == ["images/docker/image1"], \
+                "wrong python, use default from registry"
+
+            client.set(
+                client.config["base_layers_registry_path"],
+                {
+                    "porto": {
+                        "//tmp/l_bionic_latest": {"os": "ubuntu", "base_layers": None, "tags": ["python=default", "os_codename=bionic"]},
+                        "//tmp/l_bionic_3.10": {"os": "ubuntu", "base_layers": None, "tags": ["python=3.10", "os_codename=bionic"]},
+                        "//tmp/l_bionic_3.11": {"os": "ubuntu", "base_layers": ["//tmp/base1"], "tags": ["python=3.11", "os_codename=bionic"]},
+                    },
+                    "docker": {
+                        "images/docker/image1:latest": {"os": "ubuntu", "tags": ["python=default", "os_codename=bionic"]},
+                        "registry.cluster_name.yandex.net/images/docker/image1:py310": {"os": "ubuntu", "tags": ["python=3.10", "os_codename=bionic"]},
+                        "registry.cluster_name.yandex.net/images/docker/image1:py311": {"os": "ubuntu", "tags": ["python=3.11", "os_codename=bionic"]}
+                    }
+                }
+            )
+
+            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_lastest.tar.gz"], \
+                "regular, wrong python, missed files, fallback"
+            client.create("file", "//tmp/l_bionic_3.10", recursive=True)
+            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_lastest.tar.gz"], \
+                "regular, wrong python, missed registry file, fallback"
+            client.create("file", "//tmp/l_bionic_3.11", recursive=True)
+            client.create("file", "//tmp/l_bionic_latest", recursive=True)
+            client.create("file", "//tmp/base1", recursive=True)
+            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//tmp/l_bionic_3.11", "//tmp/base1"], \
+                "ok"
+            assert BaseLayerDetector._get_default_layer(client, layer_type="docker") == ["registry.cluster_name.yandex.net/images/docker/image1:py311"], \
+                "ok"
+
+            # interaction with operation
+            assert client.config["operation_base_layer"] is None
+            spec = MapSpecBuilder() \
+                .begin_mapper() \
+                    .layer_paths(["//some_path"]) \
+                    .command("cat") \
+                .end_mapper() \
+                .input_table_paths(["//tmp/t_in"]).output_table_paths(["//tmp/t_out"]) \
+                .build(client=client)  # noqa
+            assert spec["mapper"]["layer_paths"] == ["//some_path"], "regular operation"
+
+            spec = MapSpecBuilder() \
+                .begin_mapper() \
+                    .command("cat") \
+                .end_mapper() \
+                .input_table_paths(["//tmp/t_in"]).output_table_paths(["//tmp/t_out"]) \
+                .build(client=client)  # noqa
+            assert "layer_paths" not in spec["mapper"], "regular operation"
+
+            client.config["operation_base_layer"] = "porto:auto"
+
+            spec = MapSpecBuilder() \
+                .begin_mapper() \
+                    .layer_paths(["//some_path"]) \
+                    .command("cat") \
+                .end_mapper() \
+                .input_table_paths(["//tmp/t_in"]).output_table_paths(["//tmp/t_out"]) \
+                .build(client=client)  # noqa
+            assert spec["mapper"]["layer_paths"] == ["//some_path"], "regular operation - keep original layer"
+            spec = MapSpecBuilder() \
+                .begin_mapper() \
+                    .command("cat") \
+                .end_mapper() \
+                .input_table_paths(["//tmp/t_in"]).output_table_paths(["//tmp/t_out"]) \
+                .build(client=client)  # noqa
+            assert spec["mapper"]["layer_paths"] == ["//tmp/l_bionic_3.11", "//tmp/base1"], "guess base layer"
+            assert "docker_image" not in spec["mapper"]
+
+            client.config["operation_base_layer"] = "docker:auto"
+
+            spec = MapSpecBuilder() \
+                .begin_mapper() \
+                    .docker_image("some_image") \
+                    .command("cat") \
+                .end_mapper() \
+                .input_table_paths(["//tmp/t_in"]).output_table_paths(["//tmp/t_out"]) \
+                .build(client=client)  # noqa
+            assert spec["mapper"]["docker_image"] == "some_image", "regular operation - keep original layer"
+            spec = MapSpecBuilder() \
+                .begin_mapper() \
+                    .command("cat") \
+                .end_mapper() \
+                .input_table_paths(["//tmp/t_in"]).output_table_paths(["//tmp/t_out"]) \
+                .build(client=client)  # noqa
+            assert "layer_paths" not in spec["mapper"]
+            assert spec["mapper"]["docker_image"] == "images/docker/image1:py311", "guess base layer"
+
+            # user layers
+            spec = MapSpecBuilder() \
+                .begin_mapper() \
+                    .command("cat") \
+                .end_mapper() \
+                .input_table_paths(["//tmp/t_in"]).output_table_paths(["//tmp/t_out"])  # noqa
+            client.config["operation_base_layer"] = "//layer1"
+            assert deepcopy(spec).build(client=client)["mapper"]["layer_paths"] == ["//layer1"]
+            client.config["operation_base_layer"] = "  //layer1,  //layer2  "
+            assert deepcopy(spec).build(client=client)["mapper"]["layer_paths"] == ["//layer1", "//layer2"], "split layers"
+            client.config["operation_base_layer"] = "registry.cluster_name.yandex.net/yt/storage/some_image"
+            assert deepcopy(spec).build(client=client)["mapper"]["docker_image"] == "yt/storage/some_image", "docker: cut yt registry host"
+            client.config["operation_base_layer"] = "yt/storage/some_image:latest"
+            assert deepcopy(spec).build(client=client)["mapper"]["docker_image"] == "yt/storage/some_image:latest", "docker: local path"
+            client.config["operation_base_layer"] = "docker.io/some_image:latest"
+            assert deepcopy(spec).build(client=client)["mapper"]["docker_image"] == "docker.io/some_image:latest", "external docker: as is"
+
+        # native python version
+        with mock.patch("distro.id", return_value="ubuntu"), \
+                mock.patch("platform.python_version_tuple", return_value=("3", "6", "1",)), \
+                mock.patch("distro.codename", return_value="bionic"):
+
+            assert client.config["base_layers_registry_path"] == "//images/base_layers"
+
+            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//tmp/l_bionic_latest"], \
+                "ok, from registry"
+            assert BaseLayerDetector._get_default_layer(client, layer_type="docker") == ["images/docker/image1:latest"], \
+                "ok, from registry"
+
+            client.config["base_layers_registry_path"] = "//wrong_path"
+
+            assert BaseLayerDetector._get_default_layer(client, layer_type="porto") == ["//porto_layers/base/bionic/porto_layer_search_ubuntu_bionic_app_lastest.tar.gz"], \
+                "ok, from //porto_layers"
+            assert BaseLayerDetector._get_default_layer(client, layer_type="docker") == [], \
+                "no docker default image without registry"

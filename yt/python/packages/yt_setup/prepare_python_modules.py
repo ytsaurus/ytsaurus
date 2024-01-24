@@ -19,7 +19,7 @@ from .os_helpers import (
 YT_PYTHON_PACKAGE_LIST = [
     ("dill", "dill/py2"),
     "requests",
-    "distro",
+    ("distro", "distro/py2"),
     ("urllib3", "urllib3/src"),
     "chardet",
 ]

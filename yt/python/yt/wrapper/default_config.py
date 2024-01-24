@@ -477,6 +477,9 @@ default_config = {
     },
     "memory_limit": None,
     "pool": None,
+    # Default porto/docker layer to use in operations, coma separated string ("auto", "porto:auto", "docker:auto" has special meaning)
+    "operation_base_layer": None,
+    "base_layers_registry_path": "//images/base_layers",
 
     # Default value of table table writer configs.
     # It is passed to write_table and to job_io sections in operation specs.
@@ -669,10 +672,19 @@ def transform_value(value, original_value):
 
 def get_default_config():
     """Returns default configuration of python API."""
-    return VerifiedDict(
+    config = VerifiedDict(
         template_dict=deepcopy(default_config),
         keys_to_ignore=["spec_defaults", "spec_overrides", "table_writer", "user_job_spec_defaults"],
         transform_func=transform_value)
+
+    _update_from_env_vars(config, FORCED_SHORTCUTS)
+
+    return config
+
+
+FORCED_SHORTCUTS = {
+    "BASE_LAYER" : "operation_base_layer",
+}
 
 
 SHORTCUTS = {
@@ -727,6 +739,7 @@ SHORTCUTS = {
     "POOL": "pool",
     "MEMORY_LIMIT": "memory_limit",
     "SPEC": "spec_defaults",
+    "BASE_LAYER" : "operation_base_layer",
     "TABLE_WRITER": "table_writer",
 
     "RETRY_READ": "read_retries/enable",
@@ -762,8 +775,8 @@ def update_config_from_env(config):
     return config
 
 
-def _update_from_env_vars(config):
-    # type: (yt.wrapper.mappings.VerifiedDict) -> None
+def _update_from_env_vars(config, shortcuts=None):
+    # type: (yt.wrapper.mappings.VerifiedDict, dict | None) -> None
 
     def _get_var_type(value):
         var_type = type(value)
@@ -802,14 +815,17 @@ def _update_from_env_vars(config):
             d = d.get(k)
         return d
 
+    if not shortcuts:
+        shortcuts = SHORTCUTS
+
     for key, value in six.iteritems(os.environ):
         prefix = "YT_"
         if not key.startswith(prefix):
             continue
 
         key = key[len(prefix):]
-        if key in SHORTCUTS:
-            name = SHORTCUTS[key]
+        if key in shortcuts:
+            name = shortcuts[key]
             if name == "driver_config":
                 var_type = yson.loads
             else:

@@ -2032,6 +2032,17 @@ def add_show_default_config_parser(add_parser):
     parser.add_argument("--only-remote-patch", action="store_true", default=False, dest="only_remote_patch", help="show only patch from cluster")
 
 
+def detect_porto_layer(**kwargs):
+    if not yt.config["proxy"]["url"]:
+        raise yt.YtError("Missed '--proxy' flag")
+    layers = yt.spec_builders.BaseLayerDetector._get_default_layer(yt, layer_type="porto")
+    print_to_output(", ".join(layers) if layers else "-")
+
+
+def add_detect_porto_layer_parser(add_parser):
+    add_parser("detect-porto-layer", detect_porto_layer)
+
+
 def add_download_core_dump_parser(add_parser):
     parser = add_parser("download-core-dump",
                         function=yt.download_core_dump,
@@ -2548,6 +2559,7 @@ def main_func():
         add_sky_share_parser(add_parser)
 
     add_show_default_config_parser(add_parser)
+    add_detect_porto_layer_parser(add_parser)
     add_explain_id_parser(add_parser)
     add_show_spec_parser(add_parser)
 

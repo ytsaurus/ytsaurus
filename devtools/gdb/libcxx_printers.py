@@ -694,7 +694,7 @@ class StdMapPrinter:
         def __next__(self):
             item = next(self.rbiter)
             item = item.dereference()['__value_']
-            result = ('[%d] %s' % (self.count, str(item['__cc']['first'])), item['__cc']['second'])
+            result = ('[%d] %s' % (self.count, str(item['__cc_']['first'])), item['__cc_']['second'])
             self.count += 1
             return result
 
@@ -725,7 +725,7 @@ class StdMapIteratorPrinter:
     def to_string (self):
         internal = self.val['__i_']
         node_ptr_type = internal.type.template_argument(1)
-        entry = internal['__ptr_'].cast(node_ptr_type).dereference()['__value_']['__cc']
+        entry = internal['__ptr_'].cast(node_ptr_type).dereference()['__value_']['__cc_']
         return '[%s] %s' % (entry['first'], entry['second'])
 
 class HashtableIterator(Iterator):
@@ -768,7 +768,7 @@ class StdUnorderedMapIteratorPrinter:
     def to_string (self):
         internal = self.val['__i_']
         node_ptr_type = internal.type.template_argument(0)
-        entry = internal['__node_'].cast(node_ptr_type).dereference()['__value_']['__cc']
+        entry = internal['__node_'].cast(node_ptr_type).dereference()['__value_']['__cc_']
         return '[%s] %s' % (entry['first'], entry['second'])
 
 class UnorderedSetPrinter:
@@ -821,7 +821,7 @@ class UnorderedMapPrinter:
         result = []
         count = 0
         for elt in self.hashtableiter:
-            result.append(('[%d] %s' % (count, elt['__cc']['first']), elt['__cc']['second']))
+            result.append(('[%d] %s' % (count, elt['__cc_']['first']), elt['__cc_']['second']))
             count += 1
         return result
 
@@ -888,7 +888,7 @@ class StdVariantPrinter(object):
     def __init__(self, typename, val):
         self.typename = typename
         self.val = val
-        impl = val['__impl']
+        impl = val['__impl_']
         index = impl['__index']
         if index < 20000000000000000:
             self.itemtype = val.type.template_argument(index)
