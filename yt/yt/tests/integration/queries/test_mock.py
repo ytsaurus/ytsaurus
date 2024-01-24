@@ -281,6 +281,33 @@ class TestAccessControl(YTEnvSetup):
             q_u1.get(authenticated_user="u3")
 
     @authors("krock21")
+    def test_get_aco_in_response(self, query_tracker):
+        create_user("u1")
+        create_access_control_object(
+            "aco_get_aco_in_response",
+            "queries")
+        q_active = start_query("mock", "run_forever", authenticated_user="u1", access_control_object="aco_get_aco_in_response")
+        q_finished = start_query("mock", "complete_after", settings={"duration": 100}, authenticated_user="u1", access_control_object="aco_get_aco_in_response")
+        q_without_aco_active = start_query("mock", "run_forever", authenticated_user="u1")
+        q_without_aco_finished = start_query("mock", "complete_after", settings={"duration": 100}, authenticated_user="u1")
+
+        wait(lambda: q_finished.get_state() == "completed")
+        wait(lambda: q_without_aco_finished.get_state() == "completed")
+
+        assert q_active.get()["access_control_object"] == "aco_get_aco_in_response"
+        assert "access_control_object" not in q_active.get(attributes=["id"])
+
+        assert q_finished.get()["access_control_object"] == "aco_get_aco_in_response"
+        assert "access_control_object" not in q_finished.get(attributes=["id"])
+
+        # We may want to change behaviour here to return "nobody" in this case
+        assert "access_control_object" not in q_without_aco_active.get()
+        assert "access_control_object" not in q_without_aco_active.get(attributes=["id"])
+
+        assert "access_control_object" not in q_without_aco_finished.get()
+        assert "access_control_object" not in q_without_aco_finished.get(attributes=["id"])
+
+    @authors("krock21")
     def test_abort(self, query_tracker):
         create_user("u1")
         create_user("u2")
