@@ -89,6 +89,7 @@ public:
         , PodDescriptor_(podDescriptor)
         , PodSpec_(std::move(podSpec))
         , PollPeriod_(pollPeriod)
+        , Logger(NCri::Logger)
     {
         // Just for symmetry with sibling classes.
         AddArgument(Path_);
@@ -96,6 +97,16 @@ public:
 
     void Kill(int /*signal*/) override
     {
+        if (Finished_) {
+            return;
+        }
+        Finished_ = true;
+
+        if (!Started_) {
+            THROW_ERROR_EXCEPTION("Process is not started yet");
+        }
+
+        YT_LOG_DEBUG("Killing process");
         WaitFor(Executor_->StopContainer(ContainerDescriptor_))
             .ThrowOnError();
     }
@@ -122,6 +133,8 @@ private:
     const TCriPodSpecPtr PodSpec_;
     const TDuration PollPeriod_;
 
+    NLogging::TLogger Logger;
+
     TCriDescriptor ContainerDescriptor_;
 
     TPeriodicExecutorPtr AsyncWaitExecutor_;
@@ -134,14 +147,6 @@ private:
         ContainerSpec_->Arguments = std::vector<TString>(Args_.begin() + 1, Args_.end());
         ContainerSpec_->WorkingDirectory = WorkingDirectory_;
 
-        ContainerSpec_->BindMounts.emplace_back(
-            NCri::TCriBindMount {
-                .ContainerPath = WorkingDirectory_,
-                .HostPath = WorkingDirectory_,
-                .ReadOnly = false,
-            }
-        );
-
         for (const auto& keyVal : Env_) {
             TStringBuf key, val;
             if (TStringBuf(keyVal).TrySplit('=', key, val)) {
@@ -149,10 +154,27 @@ private:
             }
         }
 
+        Logger.AddTag("Pod: %v", PodDescriptor_);
+
+        YT_LOG_DEBUG("Creating container (Container: %v)",
+            ContainerSpec_->Name);
+
         ContainerDescriptor_ = WaitFor(Executor_->CreateContainer(ContainerSpec_, PodDescriptor_, PodSpec_))
             .ValueOrThrow();
 
-        YT_LOG_DEBUG("Spawning process (Command: %v, Container: %v)", ContainerSpec_->Command[0], ContainerDescriptor_);
+        Logger.AddTag("Container: %v", ContainerDescriptor_);
+
+        YT_LOG_DEBUG("Spawning process (Command: %v, Environment: %v)",
+            ContainerSpec_->Command[0],
+            ContainerSpec_->Environment);
+
+        YT_VERIFY(!Started_);
+        Started_ = true;
+
+        if (Finished_) {
+            THROW_ERROR_EXCEPTION("Process is already killed");
+        }
+
         WaitFor(Executor_->StartContainer(ContainerDescriptor_))
             .ThrowOnError();
 
@@ -180,7 +202,7 @@ private:
         auto status = response->status();
         if (status.state() == NProto::CONTAINER_EXITED) {
             auto error = DecodeExitCode(status.exit_code(), status.reason());
-            YT_LOG_DEBUG(error, "Process finished (Container: %v)", ContainerDescriptor_);
+            YT_LOG_DEBUG(error, "Process finished");
             YT_UNUSED_FUTURE(AsyncWaitExecutor_->Stop());
             FinishedPromise_.TrySet(error);
         }
@@ -199,8 +221,9 @@ public:
         TCriExecutorConfigPtr config,
         IChannelFactoryPtr channelFactory)
         : Config_(std::move(config))
-        , RuntimeApi_(CreateRetryingChannel(Config_, channelFactory->CreateChannel(Config_->RuntimeEndpoint)))
-        , ImageApi_(CreateRetryingChannel(Config_, channelFactory->CreateChannel(Config_->ImageEndpoint)))
+        , RuntimeApi_(CreateRetryingChannel(Config_, channelFactory->CreateChannel(Config_->RuntimeEndpoint), GetRetryChecker()))
+        , ImageApi_(CreateRetryingChannel(Config_, channelFactory->CreateChannel(Config_->ImageEndpoint), GetRetryChecker()))
+        , Attempt_(RandomNumber<ui32>())
     { }
 
     TString GetPodCgroup(TString podName) const override
@@ -281,9 +304,9 @@ public:
         std::function<void(NProto::ContainerFilter&)> initFilter = nullptr) override
     {
         return ListContainers(initFilter).Apply(BIND([=] (const TCriRuntimeApi::TRspListContainersPtr& rsp) {
-            for (const auto& ct : rsp->containers()) {
-                TCriDescriptor descriptor{.Name=ct.metadata().name(), .Id=ct.id()};
-                callback(descriptor, ct);
+            for (const auto& container : rsp->containers()) {
+                TCriDescriptor descriptor{.Name = container.metadata().name(), .Id = container.id()};
+                callback(descriptor, container);
             }
         }));
     }
@@ -343,7 +366,7 @@ public:
     }
 
     TFuture<TCriDescriptor> CreateContainer(
-        TCriContainerSpecPtr ctSpec,
+        TCriContainerSpecPtr containerSpec,
         const TCriPodDescriptor& podDescriptor,
         TCriPodSpecPtr podSpec) override
     {
@@ -354,24 +377,27 @@ public:
 
         {
             auto* metadata = config->mutable_metadata();
-            metadata->set_name(ctSpec->Name);
+            metadata->set_name(containerSpec->Name);
+
+            // Set unique attempt for each newly created container.
+            metadata->set_attempt(Attempt_++);
         }
 
         {
             auto& labels = *config->mutable_labels();
 
-            for (const auto& [key, val] : ctSpec->Labels) {
+            for (const auto& [key, val] : containerSpec->Labels) {
                 labels[key] = val;
             }
 
             labels[YTPodNamespaceLabel] = Config_->Namespace;
             labels[YTPodNameLabel] = podSpec->Name;
-            labels[YTContainerNameLabel] = ctSpec->Name;
+            labels[YTContainerNameLabel] = containerSpec->Name;
         }
 
-        FillImageSpec(config->mutable_image(), ctSpec->Image);
+        FillImageSpec(config->mutable_image(), containerSpec->Image);
 
-        for (const auto& mountSpec : ctSpec->BindMounts) {
+        for (const auto& mountSpec : containerSpec->BindMounts) {
             auto* mount = config->add_mounts();
             mount->set_container_path(mountSpec.ContainerPath);
             mount->set_host_path(mountSpec.HostPath);
@@ -380,12 +406,12 @@ public:
         }
 
         {
-            ToProto(config->mutable_command(), ctSpec->Command);
-            ToProto(config->mutable_args(), ctSpec->Arguments);
+            ToProto(config->mutable_command(), containerSpec->Command);
+            ToProto(config->mutable_args(), containerSpec->Arguments);
 
-            config->set_working_dir(ctSpec->WorkingDirectory);
+            config->set_working_dir(containerSpec->WorkingDirectory);
 
-            for (const auto& [key, val] : ctSpec->Environment) {
+            for (const auto& [key, val] : containerSpec->Environment) {
                 auto* env = config->add_envs();
                 env->set_key(key);
                 env->set_value(val);
@@ -394,29 +420,31 @@ public:
 
         {
             auto* linux = config->mutable_linux();
-            FillLinuxContainerResources(linux->mutable_resources(), ctSpec->Resources);
+            FillLinuxContainerResources(linux->mutable_resources(), containerSpec->Resources);
 
             auto* security = linux->mutable_security_context();
 
             auto* namespaces = security->mutable_namespace_options();
             namespaces->set_network(NProto::NODE);
 
-            security->set_readonly_rootfs(ctSpec->ReadOnlyRootFS);
+            security->set_readonly_rootfs(containerSpec->ReadOnlyRootFS);
 
-            if (ctSpec->Credentials.Uid) {
-                security->mutable_run_as_user()->set_value(*ctSpec->Credentials.Uid);
+            if (containerSpec->Credentials.Uid) {
+                security->mutable_run_as_user()->set_value(*containerSpec->Credentials.Uid);
             }
-            if (ctSpec->Credentials.Gid) {
-                security->mutable_run_as_group()->set_value(*ctSpec->Credentials.Gid);
+            if (containerSpec->Credentials.Gid) {
+                security->mutable_run_as_group()->set_value(*containerSpec->Credentials.Gid);
             }
-            ToProto(security->mutable_supplemental_groups(), ctSpec->Credentials.Groups);
+            ToProto(security->mutable_supplemental_groups(), containerSpec->Credentials.Groups);
         }
 
         FillPodSandboxConfig(req->mutable_sandbox_config(), *podSpec);
 
-        return req->Invoke().Apply(BIND([name = ctSpec->Name] (const TCriRuntimeApi::TRspCreateContainerPtr& rsp) -> TCriDescriptor {
-            return TCriDescriptor{.Name = "", .Id = rsp->container_id()};
-        }));
+        return req->Invoke()
+            .Apply(BIND([name = containerSpec->Name] (const TCriRuntimeApi::TRspCreateContainerPtr& rsp) -> TCriDescriptor {
+                return TCriDescriptor{.Name = name, .Id = rsp->container_id()};
+            }))
+            .ToUncancelable();
     }
 
     TFuture<void> StartContainer(const TCriDescriptor& descriptor) override
@@ -488,9 +516,9 @@ public:
         {
             std::vector<TFuture<void>> futures;
             futures.reserve(containers->containers_size());
-            for (const auto& ct : containers->containers()) {
-                TCriDescriptor ctDescriptor{.Name = ct.metadata().name(), .Id = ct.id()};
-                futures.push_back(StopContainer(ctDescriptor, TDuration::Zero()));
+            for (const auto& container : containers->containers()) {
+                TCriDescriptor containerDescriptor{.Name = container.metadata().name(), .Id = container.id()};
+                futures.push_back(StopContainer(containerDescriptor, TDuration::Zero()));
             }
             WaitFor(AllSucceeded(std::move(futures)))
                 .ThrowOnError();
@@ -499,9 +527,9 @@ public:
         {
             std::vector<TFuture<void>> futures;
             futures.reserve(containers->containers_size());
-            for (const auto& ct : containers->containers()) {
-                TCriDescriptor ctDescriptor{.Name = ct.metadata().name(), .Id = ct.id()};
-                futures.push_back(RemoveContainer(ctDescriptor));
+            for (const auto& container : containers->containers()) {
+                TCriDescriptor containerDescriptor{.Name = container.metadata().name(), .Id = container.id()};
+                futures.push_back(RemoveContainer(containerDescriptor));
             }
             WaitFor(AllSucceeded(std::move(futures)))
                 .ThrowOnError();
@@ -538,10 +566,35 @@ public:
             return GetImageStatus(image)
                 .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TCriImageApi::TRspImageStatusPtr& imageStatus) {
                     if (imageStatus->has_image()) {
-                        return MakeFuture(TCriImageDescriptor{.Image = imageStatus->image().id()});
+                        const auto& imageId = imageStatus->image().id();
+                        YT_LOG_DEBUG("Docker image found in cache (Image: %v, ImageId: %v)", image, imageId);
+                        return MakeFuture(TCriImageDescriptor{.Image = imageId});
                     }
                     return PullImage(image, /*always*/ true, authConfig, podSpec);
                 }));
+        }
+
+        auto pullComplete = NewPromise<void>();
+        {
+            auto guard = Guard(SpinLock_);
+            if (auto* pullFuture = InflightImagePulls_.FindPtr(image.Image)) {
+                YT_LOG_DEBUG("Waiting for in-flight docker image pull (Image: %v)", image);
+                return pullFuture->Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError&) {
+                    // Ignore errors and retry pull after end of previous concurrent attempt.
+                    return PullImage(image, /*always*/ false, authConfig, podSpec);
+                }));
+            }
+
+            // Future for in-flight pull should not be canceled by waiters,
+            // but could become canceled when original pull is canceled.
+            auto pullFuture = pullComplete.ToFuture().ToUncancelable();
+            EmplaceOrCrash(InflightImagePulls_, image.Image, pullFuture);
+            pullFuture.Subscribe(BIND([=, this, weakThis = MakeWeak(this)] (const TError&) {
+                if (auto this_ = weakThis.Lock()) {
+                    auto guard = Guard(SpinLock_);
+                    InflightImagePulls_.erase(image.Image);
+                }
+            }));
         }
 
         auto req = ImageApi_.PullImage();
@@ -552,8 +605,17 @@ public:
         if (podSpec) {
             FillPodSandboxConfig(req->mutable_sandbox_config(), *podSpec);
         }
-        return req->Invoke().Apply(BIND([] (const TCriImageApi::TRspPullImagePtr& rsp) -> TCriImageDescriptor {
-            return TCriImageDescriptor{.Image = rsp->image_ref()};
+
+        YT_LOG_DEBUG("Docker image pull started (Image: %v, Authenticated: %v)", image, (bool)authConfig);
+        auto pullFuture = req->Invoke();
+        pullComplete.SetFrom(pullFuture);
+
+        return pullFuture.Apply(BIND([=] (const TErrorOr<TCriImageApi::TRspPullImagePtr>& rspOrError) -> TCriImageDescriptor {
+            YT_LOG_DEBUG_UNLESS(rspOrError.IsOK(), rspOrError, "Docker image pull failed (Image: %v)", image);
+            const auto& rsp = rspOrError.ValueOrThrow();
+            const auto& imageId = rsp->image_ref();
+            YT_LOG_DEBUG("Docker image pull finished (Image: %v, ImageId: %v)", image, imageId);
+            return TCriImageDescriptor{.Image = imageId};
         }));
     }
 
@@ -577,6 +639,11 @@ private:
     const TCriExecutorConfigPtr Config_;
     TCriRuntimeApi RuntimeApi_;
     TCriImageApi ImageApi_;
+
+    std::atomic<ui32> Attempt_;
+
+    THashMap<TString, TFuture<void>> InflightImagePulls_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
 
     void FillLinuxContainerResources(NProto::LinuxContainerResources* resources, const TCriContainerResources& spec)
     {
@@ -653,6 +720,16 @@ private:
         if (!authConfig.RegistryToken.empty()) {
             auth->set_registry_token(authConfig.RegistryToken);
         }
+    }
+
+    static TRetryChecker GetRetryChecker()
+    {
+        static const auto Result = BIND_NO_PROPAGATE([] (const TError& error) {
+            return IsRetriableError(error) ||
+                   (error.GetCode() == NYT::EErrorCode::Generic &&
+                    error.GetMessage() == "server is not initialized yet");
+        });
+        return Result;
     }
 };
 

@@ -43,6 +43,7 @@
 #include <util/generic/guid.h>
 
 #include <util/system/execpath.h>
+#include <util/system/user.h>
 
 namespace NYT::NExecNode {
 
@@ -939,12 +940,19 @@ public:
                 podSpec->Name = Format("%v%v", SlotPodPrefix, slotIndex);
                 podSpec->Resources.CpuLimit = cpuLimit;
                 PodSpecs_.push_back(podSpec);
-                podFutures.push_back(Executor_->RunPodSandbox(podSpec));
+                auto podFuture = Executor_->RunPodSandbox(podSpec);
+                podFutures.push_back(podFuture);
+
+                // Wait for the first slot, otherwise containerd runs parallel
+                // pull for sandbox_image (pause) if it is not cached yet.
+                if (slotIndex == 0) {
+                    WaitFor(podFuture)
+                        .ThrowOnError();
+                }
 
                 SlotCpusetCpus_.push_back(EmptyCpuSet);
             }
 
-            // FIXME(khlebnikov) add pull policy "IfNotPresent'
             auto imageFuture = Executor_->PullImage(TCriImageDescriptor{
                 .Image = Config_->JobProxyImage,
             });
@@ -1045,6 +1053,29 @@ private:
             // FIXME(khlebnikov): Use own group or "nogroup"
         }
         spec->Credentials.Gid = ::getgid();
+
+        if (!spec->Environment.contains("USER")) {
+            TString username;
+            if (config->DoNotSetUserId) {
+                username = ::GetUsername();
+            } else {
+                username = Format("%v%v", SlotPodPrefix, slotIndex);
+            }
+            spec->Environment["USER"] = username;
+            spec->Environment["LOGNAME"] = username;
+        }
+
+        spec->BindMounts.push_back(NCri::TCriBindMount{
+            .ContainerPath = config->SlotPath,
+            .HostPath = config->SlotPath,
+            .ReadOnly = false,
+        });
+
+        spec->BindMounts.push_back(NCri::TCriBindMount{
+            .ContainerPath = "/slot",
+            .HostPath = config->SlotPath,
+            .ReadOnly = false,
+        });
 
         for (const auto& bind : Config_->JobProxyBindMounts) {
             spec->BindMounts.push_back(NCri::TCriBindMount{

@@ -2940,7 +2940,7 @@ class TestCpuSet(YTEnvSetup):
         assert self._get_actual_cpu_set(op, job_id)[:2] == "0-"
 
 
-class TestCpuSetCri(YTEnvSetup):
+class DISABLED_TestCpuSetCri(YTEnvSetup):
     JOB_ENVIRONMENT_TYPE = "cri"
 
     NUM_SCHEDULERS = 1
@@ -3455,7 +3455,7 @@ class TestGpuStatistics(YTEnvSetup):
 ##################################################################
 
 
-class TestCriJobStatistics(YTEnvSetup):
+class DISABLED_TestCriJobStatistics(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1

@@ -186,6 +186,45 @@ void TJobWorkspaceBuilder::MakeArtifactSymlinks()
     YT_LOG_INFO("Artifact symlinks are made");
 }
 
+void TJobWorkspaceBuilder::PrepareArtifactBinds()
+{
+    const auto& slot = Context_.Slot;
+
+    YT_LOG_INFO(
+        "Setting permissions for artifacts (ArtifactCount: %v)",
+        std::size(Context_.Artifacts));
+
+    for (const auto& artifact : Context_.Artifacts) {
+        if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
+            YT_VERIFY(artifact.Chunk);
+
+            int permissions = artifact.Executable ? 0755 : 0644;
+
+            YT_LOG_INFO(
+                "Set permissions for artifact (FileName: %v, Permissions: "
+                "%v, SandboxKind: %v, CompressedDataSize: %v)",
+                artifact.Name,
+                permissions,
+                artifact.SandboxKind,
+                artifact.Key.GetCompressedDataSize());
+
+            SetPermissions(
+                artifact.Chunk->GetFileName(),
+                permissions);
+
+            // Create mount-point path and file, to own it and be able to cleanup.
+            auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind);
+            auto artifactPath = CombinePaths(sandboxPath, artifact.Name);
+            MakeDirRecursive(GetDirectoryName(artifactPath));
+            TFile bindFile(artifactPath, CreateAlways | WrOnly);
+        } else {
+            YT_VERIFY(artifact.SandboxKind == ESandboxKind::User);
+        }
+    }
+
+    YT_LOG_INFO("Permissions for artifacts set");
+}
+
 TFuture<TJobWorkspaceBuildingResult> TJobWorkspaceBuilder::Run()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -346,37 +385,6 @@ public:
     }
 
 private:
-    void SetArtifactPermissions()
-    {
-        YT_LOG_INFO(
-            "Setting permissions for artifacts (ArtifactCount: %v)",
-            std::size(Context_.Artifacts));
-
-        for (const auto& artifact : Context_.Artifacts) {
-            if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
-                YT_VERIFY(artifact.Chunk);
-
-                int permissions = artifact.Executable ? 0755 : 0644;
-
-                YT_LOG_INFO(
-                    "Set permissions for artifact (FileName: %v, Permissions: "
-                    "%v, SandboxKind: %v, CompressedDataSize: %v)",
-                    artifact.Name,
-                    permissions,
-                    artifact.SandboxKind,
-                    artifact.Key.GetCompressedDataSize());
-
-                SetPermissions(
-                    artifact.Chunk->GetFileName(),
-                    permissions);
-            } else {
-                YT_VERIFY(artifact.SandboxKind == ESandboxKind::User);
-            }
-        }
-
-        YT_LOG_INFO("Permissions for artifacts set");
-    }
-
     TFuture<void> DoPrepareSandboxDirectories() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
@@ -390,10 +398,10 @@ private:
         ResultHolder_.TmpfsPaths = WaitFor(slot->PrepareSandboxDirectories(Context_.UserSandboxOptions))
             .ValueOrThrow();
 
-        if (Context_.LayerArtifactKeys.empty() || !Context_.UserSandboxOptions.EnableArtifactBinds) {
-            MakeArtifactSymlinks();
+        if (Context_.UserSandboxOptions.EnableArtifactBinds && !Context_.LayerArtifactKeys.empty()) {
+            PrepareArtifactBinds();
         } else {
-            SetArtifactPermissions();
+            MakeArtifactSymlinks();
         }
 
         YT_LOG_INFO("Finished preparing sandbox directories");
@@ -429,8 +437,8 @@ private:
 
         if (Context_.DockerImage) {
             return MakeFuture(TError(
-                EErrorCode::RootVolumePreparationFailed,
-                "Docker image is not supported in Porto job environment"));
+                EErrorCode::DockerImagePullingFailed,
+                "External docker image is not supported in Porto job environment"));
         }
 
         const auto& slot = Context_.Slot;
@@ -610,7 +618,11 @@ private:
         ResultHolder_.TmpfsPaths = WaitFor(slot->PrepareSandboxDirectories(Context_.UserSandboxOptions))
             .ValueOrThrow();
 
-        MakeArtifactSymlinks();
+        if (Context_.UserSandboxOptions.EnableArtifactBinds) {
+            PrepareArtifactBinds();
+        } else {
+            MakeArtifactSymlinks();
+        }
 
         YT_LOG_INFO("Finished preparing sandbox directories");
 
@@ -625,8 +637,9 @@ private:
         SetJobPhase(EJobPhase::PreparingRootVolume);
 
         if (!Context_.LayerArtifactKeys.empty()) {
-            return MakeFuture(TError(EErrorCode::RootVolumePreparationFailed,
-                "Proto layers are not supported in CRI job environment"));
+            return MakeFuture(TError(
+                EErrorCode::LayerUnpackingFailed,
+                "Porto layers are not supported in CRI job environment"));
         }
 
         if (const auto& dockerImage = Context_.DockerImage) {
