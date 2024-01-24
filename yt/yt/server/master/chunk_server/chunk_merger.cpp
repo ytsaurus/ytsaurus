@@ -841,6 +841,16 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer)
         }
     }
     AccountIdToNodeMergeDurations_.clear();
+
+    for (const auto& [nodeId, reschedulingCounter] : NodeToRescheduleCount_) {
+        TWithTagGuard tagGuard(buffer, "nodeId", ToString(nodeId));
+        buffer->AddGauge("/chunk_merger_node_reschedule_count", reschedulingCounter);
+    }
+
+    for (const auto& [accountId, stuckNodes] : AccountIdToStuckNodes_) {
+        TWithTagGuard tagGuard(buffer, "account", getAccountTag(accountId));
+        buffer->AddGauge("/chunk_merger_stuck_nodes_count", stuckNodes.size());
+    }
 }
 
 void TChunkMerger::OnJobWaiting(const TMergeJobPtr& job, IJobControllerCallbacks* callbacks)
@@ -1710,10 +1720,14 @@ void TChunkMerger::ValidateStatistics(
         newStatistics.data_weight());
 }
 
-void TChunkMerger::RemoveNodeFromRescheduleCounterMap(NCypressClient::TNodeId nodeId)
+void TChunkMerger::RemoveNodeFromRescheduleMaps(TAccountId accountId, NCypressClient::TNodeId nodeId)
 {
     // Doesn't guarantee the success of the operation, because nodeId is not always in the map when deleted.
     NodeToRescheduleCount_.erase(nodeId);
+    AccountIdToStuckNodes_[accountId].erase(nodeId);
+    if (AccountIdToStuckNodes_[accountId].empty()) {
+        AccountIdToStuckNodes_.erase(accountId);
+    }
 }
 
 void TChunkMerger::HydraCreateChunks(NProto::TReqCreateChunks* request)
@@ -2039,14 +2053,15 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
                 ++NodeToRescheduleCount_[nodeId];
             }
             ScheduleMerge(nodeId);
+            AccountIdToStuckNodes_[accountId].insert(nodeId);
             continue;
         } else if (result == EMergeSessionResult::PermanentFailure) {
-            RemoveNodeFromRescheduleCounterMap(nodeId);
+            RemoveNodeFromRescheduleMaps(accountId, nodeId);
             continue;
         }
 
         YT_VERIFY(result == EMergeSessionResult::OK);
-        RemoveNodeFromRescheduleCounterMap(nodeId);
+        RemoveNodeFromRescheduleMaps(accountId, nodeId);
 
         auto* oldRootChunkList = chunkOwner->GetChunkList();
         if (oldRootChunkList->GetKind() != EChunkListKind::Static) {

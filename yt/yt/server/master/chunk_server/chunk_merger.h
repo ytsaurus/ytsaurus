@@ -244,6 +244,7 @@ private:
 
     THashMap<NSecurityServer::TAccountId, std::vector<TDuration>> AccountIdToNodeMergeDurations_;
     THashMap<NObjectClient::TObjectId, int> NodeToRescheduleCount_;
+    THashMap<NSecurityServer::TAccountId, THashSet<NObjectClient::TObjectId>> AccountIdToStuckNodes_;
 
     void IncrementTracker(int TAccountQueuesUsage::* queue, NSecurityServer::TAccountId accountId);
     void DecrementTracker(int TAccountQueuesUsage::* queue, NSecurityServer::TAccountId accountId);
@@ -325,7 +326,7 @@ private:
         const NChunkClient::NProto::TDataStatistics& oldStatistics,
         const NChunkClient::NProto::TDataStatistics& newStatistics);
 
-    void RemoveNodeFromRescheduleCounterMap(NCypressClient::TNodeId nodeId);
+    void RemoveNodeFromRescheduleMaps(NSecurityServer::TAccountId accountId, NCypressClient::TNodeId nodeId);
 
     void HydraCreateChunks(NProto::TReqCreateChunks* request);
     void HydraReplaceChunks(NProto::TReqReplaceChunks* request);
