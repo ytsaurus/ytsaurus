@@ -19,7 +19,7 @@ Query tracker позволяет:
 
 На текущий момент поддерживаются следующие движки исполнения:
 
-+ [YT QL](../user-guide/dynamic-tables/dyn-query-language.md)
++ [YT QL](../../user-guide/dynamic-tables/dyn-query-language.md)
   + Встроенный в YT язык запросов. Поддерживает только динамические таблицы.
 + [YQL](../../yql/index.md)
   + Запрос исполняется в YQL агентах. Они разбивают запрос в YT операции (map, reduce, ...), запускают их, собирают и возвращают результат.
@@ -45,7 +45,7 @@ Query tracker позволяет:
 
 + `files` — список файлов для запроса в формате YSON.
 + `settings` — дополнительные параметры для запроса в формате YSON.
-  + В [CHYT](../user-guide/data-processing/chyt/about-chyt.md) необходимо указывать параметр `clique` — алиас клики. По умолчанию используется публичная клика.
+  + В [CHYT](../../user-guide/data-processing/chyt/about-chyt.md) необходимо указывать параметр `clique` — алиас клики. По умолчанию используется публичная клика.
   + В [SPYT](../../user-guide/data-processing/spyt/overview.md) необходимо указывать параметр `discovery_path` — директория для служебных данных существующего кластера Spark.
 + `draft` — является ли запрос черновиком. Такие запросы завершаются автоматически без исполнения.
 + `annotations` — произвольные аннотации к запросу. Позволяют осуществлять удобный поиск по запросам. В формате YSON.
@@ -150,7 +150,7 @@ Query tracker позволяет:
 
 Access Control Object (ACO) — это объект с атрибутом `@principal_acl`, который задаёт правила доступа тем же способом, что и `@acl` для нод Кипариса. Подробнее можно почитать в разделе [Контроль доступа](../../user-guide/storage/access-control.md).
 
-Создание ACO возможно через пользовательский интерфейс, либо с помощью вызова команды [create](../user-guide/storage/cypress-example.md#create): `yt create access_control_object --attr '{namespace=queries;name=my_aco}'`.
+Создание ACO возможно через пользовательский интерфейс, либо с помощью вызова команды [create](../../user-guide/storage/cypress-example.md#create): `yt create access_control_object --attr '{namespace=queries;name=my_aco}'`.
 
 Все API используют ACO для проверки доступа:
 
