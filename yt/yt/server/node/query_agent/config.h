@@ -52,6 +52,7 @@ public:
     std::optional<int> TableRowFetchThreadPoolSize;
 
     std::optional<bool> RejectUponThrottlerOverdraft;
+    bool RejectInMemoryRequestsUponThrottlerOverdraft;
 
     std::optional<i64> MaxPullQueueResponseDataWeight;
 
