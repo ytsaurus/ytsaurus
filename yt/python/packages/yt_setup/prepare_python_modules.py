@@ -19,7 +19,6 @@ from .os_helpers import (
 YT_PYTHON_PACKAGE_LIST = [
     ("dill", "dill/py2"),
     "requests",
-    ("distro", "distro/py2"),
     ("urllib3", "urllib3/src"),
     "chardet",
 ]
@@ -30,6 +29,7 @@ CONTRIB_PYTHON_PACKAGE_LIST = [
     ("cloudpickle", "cloudpickle/py2"),
     ("charset_normalizer", "charset-normalizer"),
     ("decorator", "decorator/py2"),
+    ("distro", "distro/py2"),
     ("backports_abc", "backports-abc"),
     "singledispatch",
     ("tornado", "tornado/tornado-4"),
