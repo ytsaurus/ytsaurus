@@ -23,3 +23,5 @@ compile_commands.json
 .idea
 .vscode
 .DS_Store
+
+test-results
