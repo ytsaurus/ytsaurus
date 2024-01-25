@@ -229,6 +229,8 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"data/input/erasure_disk_space", "Not used", ""},
         {"data/input/unmerged_data_weight", "Only for dynamic tables, logical size of unmerged data read by job", "bytes"},
         {"data/input/unmerged_row_count", "Only for dynamic tables, number of unmerged rows read by job", "pieces"},
+        {"data/input/encoded_row_batch_count", "Only for arrow input format, number of encoded row batches", "pieces"},
+        {"data/input/encoded_columnar_batch_count", "Only for arrow input format, number of encoded columnar batches", "pieces"},
 
         {"data/output/*/chunk_count", "Number of chunks written to the output table", "pieces"},
         {"data/output/*/row_count", "Number of rows written to the output table", "pieces"},

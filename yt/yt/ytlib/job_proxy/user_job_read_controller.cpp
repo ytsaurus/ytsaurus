@@ -114,7 +114,20 @@ public:
         if (!Initialized_) {
             return std::nullopt;
         }
-        return Reader_->GetDataStatistics();
+        auto dataStatistics = Reader_->GetDataStatistics();
+
+        i64 encodedRowBatchCount = 0;
+        i64 encodedColumnarBatchCount = 0;
+
+        for (const auto& writer : FormatWriters_) {
+            encodedRowBatchCount += writer->GetEncodedRowBatchCount();
+            encodedColumnarBatchCount += writer->GetEncodedColumnarBatchCount();
+        }
+
+        dataStatistics.set_encoded_columnar_batch_count(encodedColumnarBatchCount);
+        dataStatistics.set_encoded_row_batch_count(encodedRowBatchCount);
+
+        return dataStatistics;
     }
 
     std::optional<TCodecStatistics> GetDecompressionStatistics() const override
@@ -210,14 +223,15 @@ private:
 
         FormatWriters_.push_back(writer);
 
-        TPipeReaderToWriterOptions options;
-        options.BufferRowCount = JobSpecHelper_->GetJobIOConfig()->BufferRowCount;
-        options.PipeDelay = JobSpecHelper_->GetJobIOConfig()->Testing->PipeDelay;
+        NTableClient::TRowBatchReadOptions options;
+        options.Columnar = format.GetType() == EFormatType::Arrow;
+        options.MaxRowsPerRead = JobSpecHelper_->GetJobIOConfig()->BufferRowCount;
         return BIND([=, this, this_ = MakeStrong(this)] {
-            PipeReaderToWriter(
+            PipeReaderToWriterByBatches(
                 Reader_,
                 writer,
-                options);
+                options,
+                JobSpecHelper_->GetJobIOConfig()->Testing->PipeDelay);
             WaitFor(asyncOutput->Close())
                 .ThrowOnError();
         }).AsyncVia(SerializedInvoker_);

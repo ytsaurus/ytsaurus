@@ -892,8 +892,8 @@ TEST(Simple, MultiTable)
 
     // Check third batch
 
-    EXPECT_EQ(ReadInteger64Array(batches[2]->column(1)), intColumn2);
-    EXPECT_EQ(ReadStringArray(batches[2]->column(0)), stringColumn2);
+    EXPECT_EQ(ReadInteger64Array(batches[2]->column(0)), intColumn2);
+    EXPECT_EQ(ReadStringArray(batches[2]->column(1)), stringColumn2);
 
     // Check fourth batch
 

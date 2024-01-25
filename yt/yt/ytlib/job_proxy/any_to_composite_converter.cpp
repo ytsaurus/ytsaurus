@@ -119,6 +119,16 @@ TFuture<void> TAnyToCompositeConverter::Flush()
     return UnderlyingWriter_->Flush();
 }
 
+i64 TAnyToCompositeConverter::GetEncodedRowBatchCount() const
+{
+    return UnderlyingWriter_->GetEncodedRowBatchCount();
+}
+
+i64 TAnyToCompositeConverter::GetEncodedColumnarBatchCount() const
+{
+    return UnderlyingWriter_->GetEncodedColumnarBatchCount();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJobProxy
