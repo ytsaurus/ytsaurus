@@ -81,10 +81,12 @@ types:
         column_type: Int64
         lock: query_tracker
 
-      - cpp_name: PingTime
-        cpp_type: TInstant
-        column_name: ping_time
-        column_type: Timestamp
+      # Liveness of this master transaction corresponds to the
+      # current query incarnation.
+      - cpp_name: LeaseTransactionId
+        cpp_type: NCypressClient::TTransactionId
+        column_name: lease_transaction_id
+        column_type: String
         lock: query_tracker
 
       - cpp_name: AssignedTracker
