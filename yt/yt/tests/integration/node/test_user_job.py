@@ -15,7 +15,8 @@ from yt_commands import (
     update_nodes_dynamic_config, set_node_banned, check_all_stderrs,
     assert_statistics, assert_statistics_v2, extract_statistic_v2,
     heal_exec_node, ban_node,
-    make_random_string, raises_yt_error, update_controller_agent_config, update_scheduler_config)
+    make_random_string, raises_yt_error, update_controller_agent_config, update_scheduler_config,
+    get_supported_erasure_codecs)
 
 
 import subprocess
@@ -1832,7 +1833,7 @@ class TestUserFiles(YTEnvSetup):
         ]
 
     @authors("ignat")
-    @pytest.mark.parametrize("erasure_codec", ["reed_solomon_6_3", "isa_reed_solomon_6_3"])
+    @pytest.mark.parametrize("erasure_codec", get_supported_erasure_codecs(["reed_solomon_6_3", "isa_reed_solomon_6_3"]))
     def test_erasure_user_files(self, erasure_codec):
         create("table", "//tmp/input")
         write_table("//tmp/input", {"foo": "bar"})
