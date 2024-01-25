@@ -494,10 +494,15 @@ private:
     class TLamportClock
     {
     public:
-        TLogicalTime Tick(TLogicalTime requestTime = 0)
+        TLogicalTime Tick()
         {
-            LocalTime_ = std::max(LocalTime_, requestTime);
-            return ++LocalTime_;
+            return TLogicalTime(++LocalTime_.Underlying());
+        }
+
+        TLogicalTime Tick(TLogicalTime externalTime)
+        {
+            LocalTime_ = std::max(LocalTime_, externalTime);
+            return Tick();
         }
 
         TLogicalTime GetTime() const
@@ -518,8 +523,7 @@ private:
         }
 
     private:
-        TLogicalTime LocalTime_ = 0;
-
+        TLogicalTime LocalTime_{0};
     };
 
     TLamportClock LamportClock_;
@@ -1658,7 +1662,7 @@ private:
                         if (message.TraceContext) {
                             ToProto(protoMessage->mutable_tracing_ext(), message.TraceContext);
                         }
-                        protoMessage->set_logical_time(message.Time);
+                        protoMessage->set_logical_time(message.Time.Underlying());
                     }
                 };
 
@@ -1941,7 +1945,7 @@ private:
                 ConcatToString(TStringBuf("HiveManager:"), message.type()));
             traceContextGuard.emplace(std::move(traceContext));
         }
-        auto logicalTime = LamportClock_.Tick(message.logical_time());
+        auto logicalTime = LamportClock_.Tick(TLogicalTime(message.logical_time()));
 
         auto* mutationContext = GetCurrentMutationContext();
         YT_LOG_DEBUG("Applying reliable incoming message (%v, "
@@ -2237,7 +2241,7 @@ private:
         return RemovedCellIds_.size();
     }
 
-    int GetLamportTimestamp() const
+    TLogicalTime GetLamportTimestamp() const
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

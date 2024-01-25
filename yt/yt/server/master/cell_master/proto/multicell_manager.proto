@@ -42,9 +42,9 @@ message TReqSetMulticellStatistics
     repeated TReqSetCellStatistics statistics = 1;
 }
 
-message TReqSyncHiveClocks
+message TReqSyncHiveClocksAtMasters
 {
-    required bool returned = 1 [default = false];
+    required bool is_reply_from_secondary = 1 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

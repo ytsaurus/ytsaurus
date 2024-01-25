@@ -1540,7 +1540,7 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         for (const auto& entry : request->entries()) {
             auto nodeId = FromProto<TTableId>(entry.node_id());
-            ToProto(confirmRequest.add_requested_nodes(), nodeId);
+            ToProto(confirmRequest.add_requested_node_ids(), nodeId);
             auto* node = cypressManager->FindNode(TVersionedNodeId(nodeId));
             if (!IsObjectAlive(node)) {
                 continue;
@@ -1640,7 +1640,7 @@ private:
                 /*useNativeContentRevisionCas*/ true);
         }
 
-        for (const auto& protoNodeId : request->requested_nodes()) {
+        for (const auto& protoNodeId : request->requested_node_ids()) {
             auto nodeId = FromProto<TNodeId>(protoNodeId);
             auto it = NodeIdToOngoingStatisticsUpdate_.find(nodeId);
             if (it == NodeIdToOngoingStatisticsUpdate_.end()) {

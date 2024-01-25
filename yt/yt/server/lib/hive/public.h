@@ -34,7 +34,8 @@ DECLARE_REFCOUNTED_STRUCT(TMailboxRuntimeData)
 
 constexpr int TypicalMailboxCount = 16;
 using TMailboxList = TCompactVector<TMailbox*, TypicalMailboxCount>;
-using TLogicalTime = i64;
+
+YT_DEFINE_STRONG_TYPEDEF(TLogicalTime, i64);
 
 struct TPersistentMailboxState;
 

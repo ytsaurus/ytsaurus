@@ -93,7 +93,7 @@ public:
         TMasterAutomatonPart::RegisterMethod(BIND(&TMulticellManager::HydraStartSecondaryMasterRegistration, Unretained(this)));
         TMasterAutomatonPart::RegisterMethod(BIND(&TMulticellManager::HydraSetCellStatistics, Unretained(this)));
         TMasterAutomatonPart::RegisterMethod(BIND(&TMulticellManager::HydraSetMulticellStatistics, Unretained(this)));
-        TMasterAutomatonPart::RegisterMethod(BIND(&TMulticellManager::HydraSyncHiveClocks, Unretained(this)));
+        TMasterAutomatonPart::RegisterMethod(BIND(&TMulticellManager::HydraSyncHiveClocksAtMasters, Unretained(this)));
 
         RegisterLoader(
             "MulticellManager.Values",
@@ -879,18 +879,18 @@ private:
         RecomputeClusterCellStatistics();
     }
 
-    void HydraSyncHiveClocks(NProto::TReqSyncHiveClocks* request)
+    void HydraSyncHiveClocksAtMasters(NProto::TReqSyncHiveClocksAtMasters* request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (request->returned()) {
+        if (request->is_reply_from_secondary()) {
             return;
         }
 
         if (IsPrimaryMaster()) {
             PostToSecondaryMasters(*request, /*reliable*/ true);
         } else {
-            request->set_returned(true);
+            request->set_is_reply_from_secondary(true);
             PostToPrimaryMaster(*request, /*reliable*/ true);
         }
     }
@@ -1078,7 +1078,7 @@ private:
 
     void OnSyncHiveClocks()
     {
-        NProto::TReqSyncHiveClocks request;
+        NProto::TReqSyncHiveClocksAtMasters request;
         YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
             ->CommitAndLog(Logger));
     }

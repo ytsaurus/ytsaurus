@@ -8,7 +8,7 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, update_nodes_dynamic_config,
     start_transaction, abort_transaction, commit_transaction,
     sync_unmount_table, create_dynamic_table, wait_for_sys_config_sync,
-    get_singular_chunk_id)
+    get_singular_chunk_id, get_driver)
 
 from yt.test_helpers import assert_items_equal
 
@@ -1425,34 +1425,55 @@ class TestChunkMergerMulticell(TestChunkMerger):
         for chunk_id in chunk_ids:
             wait(lambda: not exists("#{}".format(chunk_id)))
 
-    @authors("danilalexeev")
-    def test_data_statistics_consistency_on_copy(self):
-        create("table", "//tmp/t", attirbutes={"external_cell_tag": 11})
-        write_table("<append=true>//tmp/t", {"a": "b"})
-        write_table("<append=true>//tmp/t", {"a": "c"})
-        write_table("<append=true>//tmp/t", {"a": "d"})
-
-        set("//sys/@config/tablet_manager/multicell_gossip/table_statistics_gossip_period", 6000)
-
-        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
-        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
-        set("//tmp/t/@chunk_merger_mode", "deep")
-
-        # Wait for merger to start
-        sleep(3)
-        copy("//tmp/t", "//tmp/t1")
-        assert get("//tmp/t/@chunk_count") == 3
-        assert get("//tmp/t1/@chunk_count") == 3
-
-        wait(lambda: get("//tmp/t/@chunk_count") == 1
-             and get("//tmp/t1/@chunk_count") == 1)
-
 
 class TestChunkMergerPortal(TestChunkMergerMulticell):
     NUM_TEST_PARTITIONS = 6
 
     ENABLE_TMP_PORTAL = True
     NUM_SECONDARY_MASTER_CELLS = 3
+
+
+class TestTableDataStatisticsConsistency(YTEnvSetup):
+    NUM_SECONDARY_MASTER_CELLS = 1
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["chunk_host"]},
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "chunk_merger": {
+                "enable": True,
+            }
+        }
+    }
+
+    @authors("danilalexeev")
+    def test_data_statistics_consistency_on_copy(self):
+        table_id = create("table", "//tmp/t", attirbutes={"external_cell_tag": 11})
+        write_table("<append=true>//tmp/t", {"a": "b"})
+        write_table("<append=true>//tmp/t", {"a": "c"})
+        write_table("<append=true>//tmp/t", {"a": "d"})
+
+        set("//sys/@config/tablet_manager/multicell_gossip/table_statistics_gossip_period", 100500)
+
+        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
+        set("//tmp/t/@chunk_merger_mode", "deep")
+
+        # Wait for merge
+        driver = get_driver(1)
+        wait(lambda: get(f"#{table_id}/@chunk_count", driver=driver) == 1)
+
+        copy("//tmp/t", "//tmp/t1")
+        assert get("//tmp/t/@chunk_count") == 3
+        assert get("//tmp/t1/@chunk_count") == 3
+
+        set("//sys/@config/tablet_manager/multicell_gossip/table_statistics_gossip_period", 1000)
+
+        wait(lambda: get("//tmp/t/@chunk_count") == 1
+             and get("//tmp/t1/@chunk_count") == 1)
 
 
 class TestShallowMergeValidation(YTEnvSetup):
