@@ -100,7 +100,7 @@ public:
         YT_PROFILE_TIMING("/node_tracker/node_dispose_time") {
             // Node was being disposed location by location, but smth needs it to be disposed right now.
             if (node->GetLocalState() == ENodeState::BeingDisposed) {
-                EraseFromDisposalQueueOrCrash(node->GetId());
+                EraseFromDisposalQueue(node->GetId());
                 const auto& nodeTracker = Bootstrap_->GetNodeTracker();
                 nodeTracker->SetNodeLocalState(node, ENodeState::Unregistered);
             }
@@ -203,12 +203,7 @@ private:
         }
 
         DisposeNodeSemaphore_->SetTotal(config->MaxConcurrentNodeUnregistrations);
-        while (std::ssize(NodesBeingDisposed_) < GetDynamicConfig()->MaxNodesBeingDisposed &&
-            !NodesAwaitingForBeingDisposed_.empty())
-        {
-            InsertOrCrash(NodesBeingDisposed_, NodesAwaitingForBeingDisposed_.front());
-            NodesAwaitingForBeingDisposed_.pop_front();
-        }
+        TopUpNodesBeingDisposed();
     }
 
     const TDynamicNodeTrackerConfigPtr& GetDynamicConfig()
@@ -378,15 +373,20 @@ private:
             node->GetDefaultAddress());
     }
 
-    void EraseFromDisposalQueueOrCrash(TNodeId nodeId)
+    void TopUpNodesBeingDisposed()
     {
-        EraseOrCrash(NodesBeingDisposed_, nodeId);
-        if (std::ssize(NodesBeingDisposed_) < GetDynamicConfig()->MaxNodesBeingDisposed &&
+        while (std::ssize(NodesBeingDisposed_) < GetDynamicConfig()->MaxNodesBeingDisposed &&
             !NodesAwaitingForBeingDisposed_.empty())
         {
             InsertOrCrash(NodesBeingDisposed_, NodesAwaitingForBeingDisposed_.front());
             NodesAwaitingForBeingDisposed_.pop_front();
         }
+    }
+
+    void EraseFromDisposalQueue(TNodeId nodeId)
+    {
+        EraseOrCrash(NodesBeingDisposed_, nodeId);
+        TopUpNodesBeingDisposed();
     }
 
     void HydraStartNodeDisposal(TReqStartNodeDisposal* request)
@@ -459,7 +459,7 @@ private:
         auto nodeId = FromProto<NNodeTrackerClient::TNodeId>(request->node_id());
         auto finalyGuard = Finally([&]() {
             if (NodesBeingDisposed_.contains(nodeId)) {
-                EraseFromDisposalQueueOrCrash(nodeId);
+                EraseFromDisposalQueue(nodeId);
             }
         });
 
