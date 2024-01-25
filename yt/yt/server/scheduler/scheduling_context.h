@@ -25,14 +25,14 @@ struct TScheduleAllocationsStatistics
 {
     int ControllerScheduleAllocationCount = 0;
     int ControllerScheduleAllocationTimedOutCount = 0;
-    TEnumIndexedVector<EAllocationSchedulingStage, int> ScheduleAllocationAttemptCountPerStage;
+    TEnumIndexedArray<EAllocationSchedulingStage, int> ScheduleAllocationAttemptCountPerStage;
     int MaxNonPreemptiveSchedulingIndex = -1;
     int ScheduledDuringPreemption = 0;
     int UnconditionallyPreemptibleAllocationCount = 0;
     int TotalConditionallyPreemptibleAllocationCount = 0;
     int MaxConditionallyPreemptibleAllocationCountInPool = 0;
     bool ScheduleWithPreemption = false;
-    TEnumIndexedVector<EOperationPreemptionPriority, int> OperationCountByPreemptionPriority;
+    TEnumIndexedArray<EOperationPreemptionPriority, int> OperationCountByPreemptionPriority;
     TJobResources ResourceLimits;
     TJobResources ResourceUsage;
     TJobResources UnconditionalResourceUsageDiscount;
@@ -47,7 +47,7 @@ TString FormatPreemptibleInfoCompact(const TScheduleAllocationsStatistics& stati
 TString FormatScheduleAllocationAttemptsCompact(const TScheduleAllocationsStatistics& statistics);
 
 TString FormatOperationCountByPreemptionPriorityCompact(
-    const TEnumIndexedVector<EOperationPreemptionPriority, int>& operationsPerPriority);
+    const TEnumIndexedArray<EOperationPreemptionPriority, int>& operationsPerPriority);
 
 ////////////////////////////////////////////////////////////////////////////////
 

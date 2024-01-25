@@ -6,7 +6,7 @@
 
 #include <yt/yt/ytlib/chunk_client/block.h>
 
-#include <util/system/file.h>
+#include <library/cpp/yt/misc/enum_indexed_array.h>
 
 #include <atomic>
 
@@ -111,12 +111,12 @@ private:
     IBlocksExtCache* const BlocksExtCache_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, DataFileHandleLock_);
-    TEnumIndexedVector<EDirectIOFlag, TFuture<TIOEngineHandlePtr>> DataFileHandleFuture_;
-    TEnumIndexedVector<EDirectIOFlag, TIOEngineHandlePtr> DataFileHandle_;
+    TEnumIndexedArray<EDirectIOFlag, TFuture<TIOEngineHandlePtr>> DataFileHandleFuture_;
+    TEnumIndexedArray<EDirectIOFlag, TIOEngineHandlePtr> DataFileHandle_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ChunkFragmentReadsLock_);
-    TEnumIndexedVector<EDirectIOFlag, TFuture<void>> ChunkFragmentReadsPreparedFuture_;
-    TEnumIndexedVector<EDirectIOFlag, std::atomic<bool>> ChunkFragmentReadsPrepared_;
+    TEnumIndexedArray<EDirectIOFlag, TFuture<void>> ChunkFragmentReadsPreparedFuture_;
+    TEnumIndexedArray<EDirectIOFlag, std::atomic<bool>> ChunkFragmentReadsPrepared_;
     // Permanently caches blocks extension for readers with PrepareToReadChunkFragments invoked.
     NIO::TBlocksExtPtr BlocksExt_;
 

@@ -302,8 +302,8 @@ private:
 
     TSolomonExporterPtr JobProxySolomonExporter_;
 
-    TEnumIndexedVector<EExecNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> RawThrottlers_;
-    TEnumIndexedVector<EExecNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
+    TEnumIndexedArray<EExecNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> RawThrottlers_;
+    TEnumIndexedArray<EExecNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
 
     TControllerAgentConnectorPoolPtr ControllerAgentConnectorPool_;
 

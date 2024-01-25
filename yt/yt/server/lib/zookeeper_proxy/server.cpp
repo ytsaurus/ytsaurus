@@ -87,7 +87,7 @@ private:
     THashMap<TConnectionId, TConnectionStatePtr> Connections_;
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ConnectionMapLock_);
 
-    TEnumIndexedVector<ERequestType, THandler> Handlers_;
+    TEnumIndexedArray<ERequestType, THandler> Handlers_;
     TStartSessionHandler StartSessionHandler_;
 
     using TStartSessionHandler = TTypedHandler<TReqStartSession, TRspStartSession>;

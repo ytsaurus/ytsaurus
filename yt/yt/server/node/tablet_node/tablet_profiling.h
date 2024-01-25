@@ -318,7 +318,7 @@ struct TStoreCompactionCounters
     TStoreCompactionCounterGroup StoreChunks;
 
     TStoreCompactionCounterGroup HunkChunks;
-    TEnumIndexedVector<EHunkCompactionReason, NProfiling::TCounter> InHunkChunkCountByReason;
+    TEnumIndexedArray<EHunkCompactionReason, NProfiling::TCounter> InHunkChunkCountByReason;
 };
 
 struct TPartitionBalancingCounters
@@ -342,7 +342,7 @@ public:
 
     void ProfileCompaction(
         NLsm::EStoreCompactionReason reason,
-        TEnumIndexedVector<EHunkCompactionReason, i64> hunkChunkCountByReason,
+        TEnumIndexedArray<EHunkCompactionReason, i64> hunkChunkCountByReason,
         bool isEden,
         const NChunkClient::NProto::TDataStatistics& readerStatistics,
         const NChunkClient::NProto::TDataStatistics& writerStatistics,
@@ -351,7 +351,7 @@ public:
 
     void ProfilePartitioning(
         NLsm::EStoreCompactionReason reason,
-        TEnumIndexedVector<EHunkCompactionReason, i64> hunkChunkCountByReason,
+        TEnumIndexedArray<EHunkCompactionReason, i64> hunkChunkCountByReason,
         const NChunkClient::NProto::TDataStatistics& readerStatistics,
         const NChunkClient::NProto::TDataStatistics& writerStatistics,
         const NTableClient::IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
@@ -361,15 +361,15 @@ public:
     void ProfilePartitionMerge();
 
 private:
-    TEnumIndexedVector<
+    TEnumIndexedArray<
         NLsm::EStoreRotationReason,
         TStoreRotationCounters> RotationCounters_;
 
     // Counters[reason][eden][compaction/partitioning].
-    TEnumIndexedVector<
+    TEnumIndexedArray<
         NLsm::EStoreCompactionReason,
         std::array<
-            TEnumIndexedVector<
+            TEnumIndexedArray<
                 NLsm::EStoreCompactorActivityKind,
                 TStoreCompactionCounters>, 2>> CompactionCounters_;
 
@@ -381,7 +381,7 @@ private:
         const NChunkClient::NProto::TDataStatistics& writerStatistics,
         const NTableClient::IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
         const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics,
-        TEnumIndexedVector<EHunkCompactionReason, i64> hunkChunkCountByReason);
+        TEnumIndexedArray<EHunkCompactionReason, i64> hunkChunkCountByReason);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -398,19 +398,19 @@ TTableProfilerPtr CreateTableProfiler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TChunkWriteCountersVector = TEnumIndexedVector<
+using TChunkWriteCountersVector = TEnumIndexedArray<
     EChunkWriteProfilingMethod,
     std::array<TChunkWriteCounters, 2>>;
 
-using TChunkReadCountersVector = TEnumIndexedVector<
+using TChunkReadCountersVector = TEnumIndexedArray<
     EChunkReadProfilingMethod,
     std::array<TChunkReadCounters, 2>>;
 
-using TTabletDistributedThrottlerTimersVector = TEnumIndexedVector<
+using TTabletDistributedThrottlerTimersVector = TEnumIndexedArray<
     ETabletDistributedThrottlerKind,
     NProfiling::TEventTimer>;
 
-using TTabletDistributedThrottlerCounters = TEnumIndexedVector<
+using TTabletDistributedThrottlerCounters = TEnumIndexedArray<
     ETabletDistributedThrottlerKind,
     NProfiling::TCounter>;
 

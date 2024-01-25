@@ -2813,7 +2813,7 @@ void TFairShareTreeAllocationScheduler::BuildSchedulingAttributesStringForOngoin
         ? treeSnapshot->SchedulingSnapshot()->CachedAllocationPreemptionStatuses()
         : TCachedAllocationPreemptionStatuses{.UpdateTime = now};
 
-    TEnumIndexedVector<EAllocationPreemptionStatus, std::vector<TAllocationId>> allocationIdsByPreemptionStatus;
+    TEnumIndexedArray<EAllocationPreemptionStatus, std::vector<TAllocationId>> allocationIdsByPreemptionStatus;
     std::vector<TAllocationId> unknownStatusAllocationIds;
     for (const auto& allocation : allocations) {
         if (auto status = GetCachedAllocationPreemptionStatus(allocation, cachedAllocationPreemptionStatuses)) {

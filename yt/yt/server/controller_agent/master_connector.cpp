@@ -312,7 +312,7 @@ private:
     TPeriodicExecutorPtr AlertsExecutor_;
     TPeriodicExecutorPtr UpdateIntermediateMediumUsageExecutor_;
 
-    TEnumIndexedVector<EControllerAgentAlertType, TError> Alerts_;
+    TEnumIndexedArray<EControllerAgentAlertType, TError> Alerts_;
 
     NProfiling::TCounter UpdateOperationProgressFailuresCounter_ = ControllerAgentProfiler
         .Counter("/operation_archive/update_progress_failures");

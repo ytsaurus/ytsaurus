@@ -1,7 +1,8 @@
 #include "dynamic_io_engine.h"
 
 #include "io_engine.h"
-#include "io_engine_uring.h"
+
+#include <library/cpp/yt/misc/enum_indexed_array.h>
 
 namespace NYT::NIO {
 
@@ -198,7 +199,7 @@ private:
     };
 
     std::atomic<EIOEngineType> CurrentType_;
-    mutable TEnumIndexedVector<EIOEngineType, TEngineEntry> TypeToEntry_;
+    mutable TEnumIndexedArray<EIOEngineType, TEngineEntry> TypeToEntry_;
 
     const IIOEnginePtr& GetCurrentEngine() const
     {

@@ -46,7 +46,7 @@ class TTableNode
     , public TSchemafulNode
 {
 private:
-    using TTabletStateIndexedVector = TEnumIndexedVector<
+    using TTabletStateIndexedVector = TEnumIndexedArray<
         NTabletClient::ETabletState,
         int,
         NTabletClient::MinValidTabletState,
@@ -75,7 +75,7 @@ private:
         bool EnableDetailedProfiling = false;
         bool EnableConsistentChunkReplicaPlacement = false;
         NTabletClient::ETableBackupState BackupState = NTabletClient::ETableBackupState::None;
-        TEnumIndexedVector<NTabletClient::ETabletBackupState, int> TabletCountByBackupState;
+        TEnumIndexedArray<NTabletClient::ETabletBackupState, int> TabletCountByBackupState;
         NTabletClient::ETabletBackupState AggregatedTabletBackupState = NTabletClient::ETabletBackupState::None;
         NTransactionClient::TTimestamp BackupCheckpointTimestamp = NTransactionClient::NullTimestamp;
         NTabletClient::EBackupMode BackupMode = NTabletClient::EBackupMode::None;

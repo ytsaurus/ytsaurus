@@ -323,7 +323,7 @@ private:
         const INodeHeartbeatStrategyProxyPtr& strategyProxy);
     bool IsHeartbeatThrottlingWithCount(const TExecNodePtr& node);
 
-    using TStateToAllocationList = TEnumIndexedVector<EAllocationState, std::vector<TAllocationPtr>>;
+    using TStateToAllocationList = TEnumIndexedArray<EAllocationState, std::vector<TAllocationPtr>>;
     void LogOngoingAllocationsOnHeartbeat(
         const INodeHeartbeatStrategyProxyPtr& strategyProxy,
         TInstant now,

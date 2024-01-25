@@ -310,8 +310,8 @@ private:
 
     ILocalHydraJanitorPtr LocalJanitor_;
 
-    TEnumIndexedVector<EAutomatonThreadQueue, IInvokerPtr> GuardedInvokers_;
-    TEnumIndexedVector<EAutomatonThreadQueue, IInvokerPtr> EpochInvokers_;
+    TEnumIndexedArray<EAutomatonThreadQueue, IInvokerPtr> GuardedInvokers_;
+    TEnumIndexedArray<EAutomatonThreadQueue, IInvokerPtr> EpochInvokers_;
 
     NObjectServer::TEpochContextPtr EpochContext_ = New<NObjectServer::TEpochContext>();
 

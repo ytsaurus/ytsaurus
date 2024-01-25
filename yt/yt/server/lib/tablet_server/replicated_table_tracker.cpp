@@ -943,7 +943,7 @@ public:
     };
 
     using TReplicaList = TCompactVector<TReplica*, TypicalTableReplicaCount>;
-    using TReplicasByState = TEnumIndexedVector<EReplicaState, TReplicaList>;
+    using TReplicasByState = TEnumIndexedArray<EReplicaState, TReplicaList>;
 
     class TReplicatedTable
     {

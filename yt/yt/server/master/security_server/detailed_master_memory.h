@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/yson/public.h>
 
+#include <library/cpp/yt/misc/enum_indexed_array.h>
+
 namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,7 +51,7 @@ public:
     friend void FormatValue(TStringBuilderBase* builder, const TDetailedMasterMemory& detailedMasterMemory, TStringBuf spec);
 
 private:
-    TEnumIndexedVector<EMasterMemoryType, i64> DetailedMasterMemory_;
+    TEnumIndexedArray<EMasterMemoryType, i64> DetailedMasterMemory_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

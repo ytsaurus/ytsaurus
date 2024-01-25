@@ -190,7 +190,7 @@ private:
     };
     THashMap<NCypressClient::TObjectId, TChunkMergerStatistics> AccountToChunkMergerStatistics_;
 
-    TEnumIndexedVector<NChunkClient::EChunkMergerMode, i64> CompletedJobCountPerMode_;
+    TEnumIndexedArray<NChunkClient::EChunkMergerMode, i64> CompletedJobCountPerMode_;
     i64 AutoMergeFallbackJobCount_ = 0;
 
     THashMap<NCypressClient::TObjectId, TChunkMergerSession> RunningSessions_;

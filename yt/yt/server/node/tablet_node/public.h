@@ -76,7 +76,7 @@ DEFINE_ENUM(EChunkViewSizeStatus,
     (CompactionNotRequired)
 );
 
-using TTabletDistributedThrottlersVector = TEnumIndexedVector<
+using TTabletDistributedThrottlersVector = TEnumIndexedArray<
     ETabletDistributedThrottlerKind,
     NConcurrency::IReconfigurableThroughputThrottlerPtr>;
 using THunkStoreId = NChunkClient::TChunkId;

@@ -190,7 +190,7 @@ void Serialize(const TSchedulingSegmentMap<TValue>& map, NYson::IYsonConsumer* c
 template <class TValue>
 void Deserialize(TSchedulingSegmentMap<TValue>& map, const NYTree::INodePtr& node)
 {
-    // NB(eshcherbin): This is almost a copy-paste from Deserialize implementation for TEnumIndexedVector.
+    // NB(eshcherbin): This is almost a copy-paste from Deserialize implementation for TEnumIndexedArray.
     // However, we need it here because we have to call the correct Deserialize function for different segments.
     map = {};
 

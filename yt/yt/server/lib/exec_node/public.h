@@ -8,6 +8,8 @@
 
 #include <library/cpp/yt/memory/ref_counted.h>
 
+#include <library/cpp/yt/misc/enum_indexed_array.h>
+
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -79,7 +81,7 @@ DEFINE_ENUM(EUserJobSensorSource,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const TEnumIndexedVector<ESandboxKind, TString> SandboxDirectoryNames;
+extern const TEnumIndexedArray<ESandboxKind, TString> SandboxDirectoryNames;
 extern const TString EmptyCpuSet;
 
 ////////////////////////////////////////////////////////////////////////////////

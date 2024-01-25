@@ -54,15 +54,15 @@ public:
         const ISchedulingContextPtr& schedulingContext,
         const TJobResources& availableResources,
         const TJobResources& minNeededResources);
-    TEnumIndexedVector<EJobResourceType, int> GetMinNeededResourcesUnsatisfiedCount();
+    TEnumIndexedArray<EJobResourceType, int> GetMinNeededResourcesUnsatisfiedCount();
 
     void IncrementOperationScheduleAllocationAttemptCount(const ISchedulingContextPtr& schedulingContext);
     int GetOperationScheduleAllocationAttemptCount();
 
     void OnOperationDeactivated(const ISchedulingContextPtr& schedulingContext, EDeactivationReason reason);
-    TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasons();
+    TEnumIndexedArray<EDeactivationReason, int> GetDeactivationReasons();
     void ProcessUpdatedStarvationStatus(EStarvationStatus status);
-    TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasonsFromLastNonStarvingTime();
+    TEnumIndexedArray<EDeactivationReason, int> GetDeactivationReasonsFromLastNonStarvingTime();
 
     TInstant GetLastScheduleAllocationSuccessTime() const;
 
@@ -87,7 +87,7 @@ private:
     EStarvationStatus StarvationStatusAtLastUpdate_ = EStarvationStatus::NonStarving;
 
     using TAllocationIdList = std::list<TAllocationId>;
-    TEnumIndexedVector<EAllocationPreemptionStatus, TAllocationIdList> AllocationsPerPreemptionStatus_;
+    TEnumIndexedArray<EAllocationPreemptionStatus, TAllocationIdList> AllocationsPerPreemptionStatus_;
 
     // NB(eshcherbin): We need to have the most recent fair share during scheduling for correct determination
     // of allocations' preemption statuses. This is why we use this value, which is shared between all snapshots,
@@ -97,7 +97,7 @@ private:
     std::atomic<bool> Preemptible_ = {true};
 
     std::atomic<int> RunningAllocationCount_ = {0};
-    TEnumIndexedVector<EAllocationPreemptionStatus, TJobResources> ResourceUsagePerPreemptionStatus_;
+    TEnumIndexedArray<EAllocationPreemptionStatus, TJobResources> ResourceUsagePerPreemptionStatus_;
 
     std::atomic<int> UpdatePreemptibleAllocationsListCount_ = {0};
     const int UpdatePreemptibleAllocationsListLoggingPeriod_;
@@ -129,9 +129,9 @@ private:
     const NLogging::TLogger Logger;
 
     //! Thread affinity: control.
-    TEnumIndexedVector<EDeactivationReason, int> DeactivationReasons_;
-    TEnumIndexedVector<EDeactivationReason, int> DeactivationReasonsFromLastNonStarvingTime_;
-    TEnumIndexedVector<EJobResourceType, int> MinNeededResourcesUnsatisfiedCount_;
+    TEnumIndexedArray<EDeactivationReason, int> DeactivationReasons_;
+    TEnumIndexedArray<EDeactivationReason, int> DeactivationReasonsFromLastNonStarvingTime_;
+    TEnumIndexedArray<EJobResourceType, int> MinNeededResourcesUnsatisfiedCount_;
     TInstant LastDiagnosticCountersUpdateTime_;
 
     //! Thread affinity: control, profiling.
@@ -139,9 +139,9 @@ private:
 
     struct alignas(CacheLineSize) TStateShard
     {
-        TEnumIndexedVector<EDeactivationReason, std::atomic<int>> DeactivationReasons;
-        TEnumIndexedVector<EDeactivationReason, std::atomic<int>> DeactivationReasonsFromLastNonStarvingTime;
-        TEnumIndexedVector<EJobResourceType, std::atomic<int>> MinNeededResourcesUnsatisfiedCount;
+        TEnumIndexedArray<EDeactivationReason, std::atomic<int>> DeactivationReasons;
+        TEnumIndexedArray<EDeactivationReason, std::atomic<int>> DeactivationReasonsFromLastNonStarvingTime;
+        TEnumIndexedArray<EJobResourceType, std::atomic<int>> MinNeededResourcesUnsatisfiedCount;
 
         std::atomic<i64> ScheduleAllocationAttemptCount;
     };

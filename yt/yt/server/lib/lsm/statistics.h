@@ -8,7 +8,7 @@ namespace NYT::NLsm {
 
 struct TTabletLsmStatistics
 {
-    TEnumIndexedVector<EStoreCompactionReason, int> PendingCompactionStoreCount;
+    TEnumIndexedArray<EStoreCompactionReason, int> PendingCompactionStoreCount;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

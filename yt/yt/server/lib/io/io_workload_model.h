@@ -2,7 +2,8 @@
 
 #include "io_engine.h"
 
-#include <array>
+#include <library/cpp/yt/misc/enum_indexed_array.h>
+
 #include <optional>
 
 namespace NYT::NIO {
@@ -57,8 +58,8 @@ public:
 struct TRequestSizes
 {
     // Request size distribution by workload category.
-    TEnumIndexedVector<EWorkloadCategory, TRequestSizeHistogram> Reads;
-    TEnumIndexedVector<EWorkloadCategory, TRequestSizeHistogram> Writes;
+    TEnumIndexedArray<EWorkloadCategory, TRequestSizeHistogram> Reads;
+    TEnumIndexedArray<EWorkloadCategory, TRequestSizeHistogram> Writes;
 
     // Modeling period duration
     TDuration Duration;
@@ -66,7 +67,7 @@ struct TRequestSizes
 
 void FormatValue(
     TStringBuilderBase* builder,
-    const TEnumIndexedVector<EWorkloadCategory, TRequestSizeHistogram>& statsByCategory,
+    const TEnumIndexedArray<EWorkloadCategory, TRequestSizeHistogram>& statsByCategory,
     TStringBuf /*spec*/);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,8 +83,8 @@ public:
 
 struct TRequestLatencies
 {
-    TEnumIndexedVector<EWorkloadCategory, TRequestLatencyHistogram> Reads;
-    TEnumIndexedVector<EWorkloadCategory, TRequestLatencyHistogram> Writes;
+    TEnumIndexedArray<EWorkloadCategory, TRequestLatencyHistogram> Reads;
+    TEnumIndexedArray<EWorkloadCategory, TRequestLatencyHistogram> Writes;
 
     // Measuring period duration.
     TDuration Duration;

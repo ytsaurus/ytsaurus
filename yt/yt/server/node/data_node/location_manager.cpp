@@ -360,7 +360,7 @@ void TLocationHealthChecker::OnLocationsHealthCheck()
 
 void TLocationHealthChecker::PushCounters(std::vector<TDiskInfo> diskInfos)
 {
-    TEnumIndexedVector<NContainers::EDiskState, TEnumIndexedVector<NContainers::EStorageClass, i64>> counters;
+    TEnumIndexedArray<NContainers::EDiskState, TEnumIndexedArray<NContainers::EStorageClass, i64>> counters;
 
     for (auto diskState : TEnumTraits<EDiskState>::GetDomainValues()) {
         for (auto storageClass : TEnumTraits<EStorageClass>::GetDomainValues()) {

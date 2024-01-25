@@ -79,7 +79,7 @@ TString FormatScheduleAllocationAttemptsCompact(const TScheduleAllocationsStatis
 }
 
 TString FormatOperationCountByPreemptionPriorityCompact(
-    const TEnumIndexedVector<EOperationPreemptionPriority, int>& operationCountByPriority)
+    const TEnumIndexedArray<EOperationPreemptionPriority, int>& operationCountByPriority)
 {
     return Format("{N: %v, R: %v, A: %v, SR: %v, SA: %v}",
         operationCountByPriority[EOperationPreemptionPriority::None],

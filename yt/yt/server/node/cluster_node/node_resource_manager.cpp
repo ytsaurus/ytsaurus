@@ -698,11 +698,11 @@ double TNodeResourceManager::GetNodeDedicatedCpu() const
     return dynamicConfig->NodeDedicatedCpu.value_or(*config->NodeDedicatedCpu);
 }
 
-TEnumIndexedVector<EMemoryCategory, TMemoryLimitPtr> TNodeResourceManager::GetMemoryLimits() const
+TEnumIndexedArray<EMemoryCategory, TMemoryLimitPtr> TNodeResourceManager::GetMemoryLimits() const
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    TEnumIndexedVector<EMemoryCategory, TMemoryLimitPtr> limits;
+    TEnumIndexedArray<EMemoryCategory, TMemoryLimitPtr> limits;
 
     const auto& config = Bootstrap_->GetConfig()->ResourceLimits;
 

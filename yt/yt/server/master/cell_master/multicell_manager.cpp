@@ -516,8 +516,8 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MasterCellRolesLock_);
     THashMap<TCellTag, EMasterCellRoles> MasterCellRolesMap_;
-    TEnumIndexedVector<EMasterCellRole, TCellTagList> RoleMasterCells_;
-    TEnumIndexedVector<EMasterCellRole, std::atomic<int>> RoleMasterCellCounts_;
+    TEnumIndexedArray<EMasterCellRole, TCellTagList> RoleMasterCells_;
+    TEnumIndexedArray<EMasterCellRole, std::atomic<int>> RoleMasterCellCounts_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MasterCellNamesLock_);
     THashMap<TCellTag, TString> MasterCellNameMap_;

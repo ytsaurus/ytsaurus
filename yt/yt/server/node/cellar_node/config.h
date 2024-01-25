@@ -14,7 +14,7 @@ namespace NYT::NCellarNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TMemoryLimitsEnumIndexedVector = TEnumIndexedVector<EMemoryCategory, NClusterNode::TMemoryLimitPtr>;
+using TMemoryLimitsEnumIndexedVector = TEnumIndexedArray<EMemoryCategory, NClusterNode::TMemoryLimitPtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

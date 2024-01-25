@@ -396,7 +396,7 @@ void TQueueAgent::Pass()
     auto leaderQueueRows = std::move(queueRows);
     auto leaderConsumerRows = std::move(consumerRows);
 
-    TEnumIndexedVector<EObjectKind, TObjectMap> freshObjects;
+    TEnumIndexedArray<EObjectKind, TObjectMap> freshObjects;
 
     auto getReplicatedTableMappingRow = [&] (const TCrossClusterReference& ref) -> std::optional<TReplicatedTableMappingTableRow> {
         if (auto* rowPtr = replicatedTableMapping.FindPtr(ref)) {

@@ -784,7 +784,7 @@ private:
         std::vector<TStoreId> StoreIds;
         NLsm::EStoreCompactionReason Reason;
 
-        TEnumIndexedVector<EHunkCompactionReason, i64> HunkChunkCountByReason;
+        TEnumIndexedArray<EHunkCompactionReason, i64> HunkChunkCountByReason;
 
         // True if the all chunks should be discarded. The task does not
         // require reading and writing chunks.

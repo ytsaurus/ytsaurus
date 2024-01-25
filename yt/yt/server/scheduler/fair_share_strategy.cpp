@@ -1452,7 +1452,7 @@ private:
     TYsonString LastPoolTreesYson_;
     TYsonString LastTemplatePoolTreeConfigMapYson_;
 
-    TEnumIndexedVector<ESchedulerAlertType, THashMap<TString, TError>> TreeAlerts_;
+    TEnumIndexedArray<ESchedulerAlertType, THashMap<TString, TError>> TreeAlerts_;
 
     bool Connected_ = false;
 

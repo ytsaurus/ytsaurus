@@ -4,6 +4,8 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
+#include <library/cpp/yt/misc/enum_indexed_array.h>
+
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,7 +23,7 @@ public:
     static TControllerAgentCounterManager* Get();
 
 private:
-    TEnumIndexedVector<NScheduler::EOperationType, NProfiling::TCounter> AssertionsFailed_;
+    TEnumIndexedArray<NScheduler::EOperationType, NProfiling::TCounter> AssertionsFailed_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

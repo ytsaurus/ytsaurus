@@ -239,8 +239,8 @@ struct TSchedulingStageProfilingCounters
     NProfiling::TCounter ControllerScheduleAllocationCount;
     NProfiling::TCounter ControllerScheduleAllocationTimedOutCount;
 
-    TEnumIndexedVector<NControllerAgent::EScheduleAllocationFailReason, NProfiling::TCounter> ControllerScheduleAllocationFail;
-    TEnumIndexedVector<EDeactivationReason, NProfiling::TCounter> DeactivationCount;
+    TEnumIndexedArray<NControllerAgent::EScheduleAllocationFailReason, NProfiling::TCounter> ControllerScheduleAllocationFail;
+    TEnumIndexedArray<EDeactivationReason, NProfiling::TCounter> DeactivationCount;
     std::array<NProfiling::TCounter, SchedulingIndexProfilingRangeCount + 1> SchedulingIndexCounters;
     std::array<NProfiling::TCounter, SchedulingIndexProfilingRangeCount + 1> MaxSchedulingIndexCounters;
 
@@ -405,14 +405,14 @@ private:
         TDuration PackingRecordHeartbeatDuration;
         TDuration PackingCheckDuration;
         TDuration AnalyzeAllocationsDuration;
-        TEnumIndexedVector<NControllerAgent::EScheduleAllocationFailReason, int> FailedScheduleAllocation;
+        TEnumIndexedArray<NControllerAgent::EScheduleAllocationFailReason, int> FailedScheduleAllocation;
 
         int ActiveOperationCount = 0;
         int ActiveTreeSize = 0;
         int TotalHeapElementCount = 0;
         int ScheduleAllocationAttemptCount = 0;
         int ScheduleAllocationFailureCount = 0;
-        TEnumIndexedVector<EDeactivationReason, int> DeactivationReasons;
+        TEnumIndexedArray<EDeactivationReason, int> DeactivationReasons;
         THashMap<int, int> SchedulingIndexToScheduleAllocationAttemptCount;
         int MaxSchedulingIndex = UndefinedSchedulingIndex;
     };
@@ -714,7 +714,7 @@ private:
 
     NConcurrency::TPeriodicExecutorPtr SchedulingSegmentsManagementExecutor_;
 
-    TEnumIndexedVector<EAllocationSchedulingStage, std::unique_ptr<TSchedulingStageProfilingCounters>> SchedulingStageProfilingCounters_;
+    TEnumIndexedArray<EAllocationSchedulingStage, std::unique_ptr<TSchedulingStageProfilingCounters>> SchedulingStageProfilingCounters_;
 
     TFairShareTreeAllocationSchedulerOperationStateMap OperationIdToState_;
     TFairShareTreeAllocationSchedulerSharedOperationStateMap OperationIdToSharedState_;

@@ -43,9 +43,9 @@ public:
     void ApplyScheduledAndPreemptedResourcesDelta(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
         const THashMap<std::optional<EAllocationSchedulingStage>, TOperationIdToJobResources>& operationIdWithStageToScheduledAllocationResourcesDeltas,
-        const TEnumIndexedVector<EAllocationPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedAllocationResourcesDeltas,
-        const TEnumIndexedVector<EAllocationPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedAllocationResourceTimeDeltas,
-        const TEnumIndexedVector<EAllocationPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToImproperlyPreemptedAllocationResourcesDeltas);
+        const TEnumIndexedArray<EAllocationPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedAllocationResourcesDeltas,
+        const TEnumIndexedArray<EAllocationPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedAllocationResourceTimeDeltas,
+        const TEnumIndexedArray<EAllocationPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToImproperlyPreemptedAllocationResourcesDeltas);
 
 private:
     const NProfiling::TProfiler Profiler_;
@@ -57,7 +57,7 @@ private:
 
     struct TUnregisterOperationCounters
     {
-        TEnumIndexedVector<EOperationState, NProfiling::TCounter> FinishedCounters;
+        TEnumIndexedArray<EOperationState, NProfiling::TCounter> FinishedCounters;
         NProfiling::TCounter BannedCounter;
     };
     THashMap<TString, TUnregisterOperationCounters> PoolToUnregisterOperationCounters_;
@@ -97,9 +97,9 @@ private:
 
     THashMap<TString, TJobMetrics> JobMetricsMap_;
     THashMap<std::optional<EAllocationSchedulingStage>, THashMap<TString, TJobResources>> ScheduledResourcesByStageMap_;
-    TEnumIndexedVector<EAllocationPreemptionReason, THashMap<TString, TJobResources>> PreemptedResourcesByReasonMap_;
-    TEnumIndexedVector<EAllocationPreemptionReason, THashMap<TString, TJobResources>> PreemptedResourceTimesByReasonMap_;
-    TEnumIndexedVector<EAllocationPreemptionReason, THashMap<TString, TJobResources>> ImproperlyPreemptedResourcesByReasonMap_;
+    TEnumIndexedArray<EAllocationPreemptionReason, THashMap<TString, TJobResources>> PreemptedResourcesByReasonMap_;
+    TEnumIndexedArray<EAllocationPreemptionReason, THashMap<TString, TJobResources>> PreemptedResourceTimesByReasonMap_;
+    TEnumIndexedArray<EAllocationPreemptionReason, THashMap<TString, TJobResources>> ImproperlyPreemptedResourcesByReasonMap_;
 
     THashMap<TOperationId, TOperationProfilingEntry> OperationIdToProfilingEntry_;
     THashMap<TOperationId, TResourceVolume> OperationIdToAccumulatedResourceUsage_;

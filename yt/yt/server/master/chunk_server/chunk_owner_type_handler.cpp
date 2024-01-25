@@ -377,7 +377,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
 
         bool isDynamic = false;
 
-        TEnumIndexedVector<EChunkListContentType, TChunkTree*> deltaTrees;
+        TEnumIndexedArray<EChunkListContentType, TChunkTree*> deltaTrees;
         TChunkLists originatingChunkLists;
         TChunkLists newOriginatingChunkLists;
 

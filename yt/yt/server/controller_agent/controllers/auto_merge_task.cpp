@@ -144,7 +144,10 @@ TAutoMergeTask::TAutoMergeTask(
     std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
     std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors)
     : TTask(taskHost, std::move(outputStreamDescriptors), std::move(inputStreamDescriptors))
-    , FakeProgressCounters_{New<TProgressCounter>(), New<TProgressCounter>()}
+    , FakeProgressCounters_{
+        {EMergeJobType::Deep, New<TProgressCounter>()},
+        {EMergeJobType::Shallow, New<TProgressCounter>()},
+    }
     , EnableShallowMerge_(taskHost->GetSpec()->AutoMerge->EnableShallowMerge)
 {
     ChunkPools_.reserve(OutputStreamDescriptors_.size());

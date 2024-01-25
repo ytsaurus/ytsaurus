@@ -473,7 +473,7 @@ void TFairShareTreeAllocationSchedulerOperationSharedState::OnMinNeededResources
 #undef XX
 }
 
-TEnumIndexedVector<EJobResourceType, int> TFairShareTreeAllocationSchedulerOperationSharedState::GetMinNeededResourcesUnsatisfiedCount()
+TEnumIndexedArray<EJobResourceType, int> TFairShareTreeAllocationSchedulerOperationSharedState::GetMinNeededResourcesUnsatisfiedCount()
 {
     UpdateDiagnosticCounters();
 
@@ -487,14 +487,14 @@ void TFairShareTreeAllocationSchedulerOperationSharedState::OnOperationDeactivat
     IncrementAtomicCounterUnsafely(&shard.DeactivationReasonsFromLastNonStarvingTime[reason]);
 }
 
-TEnumIndexedVector<EDeactivationReason, int> TFairShareTreeAllocationSchedulerOperationSharedState::GetDeactivationReasons()
+TEnumIndexedArray<EDeactivationReason, int> TFairShareTreeAllocationSchedulerOperationSharedState::GetDeactivationReasons()
 {
     UpdateDiagnosticCounters();
 
     return DeactivationReasons_;
 }
 
-TEnumIndexedVector<EDeactivationReason, int> TFairShareTreeAllocationSchedulerOperationSharedState::GetDeactivationReasonsFromLastNonStarvingTime()
+TEnumIndexedArray<EDeactivationReason, int> TFairShareTreeAllocationSchedulerOperationSharedState::GetDeactivationReasonsFromLastNonStarvingTime()
 {
     UpdateDiagnosticCounters();
 

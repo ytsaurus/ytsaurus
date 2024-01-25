@@ -36,7 +36,7 @@ class TIncumbentSchedulerConfig
     : public NYTree::TYsonStruct
 {
 public:
-    TEnumIndexedVector<NIncumbentClient::EIncumbentType, TIncumbentSchedulingConfigPtr> Incumbents;
+    TEnumIndexedArray<NIncumbentClient::EIncumbentType, TIncumbentSchedulingConfigPtr> Incumbents;
 
     //! If less than |MinAliveFollowers| followers are active according to leader,
     //! no incumbents are scheduled to followers.

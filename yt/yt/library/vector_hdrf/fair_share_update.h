@@ -2,14 +2,15 @@
 
 #include "public.h"
 
+#include "job_resources.h"
+#include "resource_vector.h"
+#include "resource_volume.h"
+
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
-#include <yt/yt/library/vector_hdrf/job_resources.h>
-#include <yt/yt/library/vector_hdrf/public.h>
-#include <yt/yt/library/vector_hdrf/resource_vector.h>
-#include <yt/yt/library/vector_hdrf/resource_volume.h>
+#include <library/cpp/yt/misc/enum_indexed_array.h>
 
 namespace NYT::NVectorHdrf {
 
@@ -141,7 +142,7 @@ private:
     std::optional<TVectorPiecewiseLinearFunction> FairShareBySuggestion_;
     std::optional<TScalarPiecewiseLinearFunction> MaxFitFactorBySuggestion_;
 
-    TEnumIndexedVector<EFairShareType, TResourceVector> TotalTruncatedFairShare_;
+    TEnumIndexedArray<EFairShareType, TResourceVector> TotalTruncatedFairShare_;
 
     virtual void PrepareFairShareFunctions(TFairShareUpdateContext* context);
     virtual void PrepareFairShareByFitFactor(TFairShareUpdateContext* context) = 0;

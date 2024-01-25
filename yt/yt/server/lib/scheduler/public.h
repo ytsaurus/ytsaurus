@@ -33,7 +33,7 @@ class TRspScheduleAllocationHeartbeat;
 ////////////////////////////////////////////////////////////////////////////////
 
 // NB: Please keep the range of values small as this type
-// is used as a key of TEnumIndexedVector.
+// is used as a key of TEnumIndexedArray.
 DEFINE_ENUM(EAllocationState,
     ((Scheduled)  (0))
     ((Waiting)    (1))

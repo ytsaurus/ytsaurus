@@ -899,7 +899,7 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, NodeStatisticsLock_);
     TCpuInstant NodeStatisticsUpdateDeadline_ = 0;
     TAggregatedNodeStatistics AggregatedNodeStatistics_;
-    TEnumIndexedVector<ENodeFlavor, TAggregatedNodeStatistics> FlavoredNodeStatistics_;
+    TEnumIndexedArray<ENodeFlavor, TAggregatedNodeStatistics> FlavoredNodeStatistics_;
 
     // Cf. YT-7009.
     // Maintain a dedicated counter of alive racks since RackMap_ may contain zombies.
@@ -924,9 +924,9 @@ private:
 
     const TAsyncSemaphorePtr HeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
 
-    TEnumIndexedVector<ENodeRole, TNodeListForRole> NodeListPerRole_;
+    TEnumIndexedArray<ENodeRole, TNodeListForRole> NodeListPerRole_;
 
-    TEnumIndexedVector<ENodeFlavor, THashSet<TNode*>> NodesWithFlavor_;
+    TEnumIndexedArray<ENodeFlavor, THashSet<TNode*>> NodesWithFlavor_;
 
     struct TNodeGroup
     {

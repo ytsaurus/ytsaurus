@@ -195,7 +195,7 @@ private:
     double IdlePolicyRequestedCpu_ = 0;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, AlertsLock_);
-    TEnumIndexedVector<ESlotManagerAlertType, TError> Alerts_;
+    TEnumIndexedArray<ESlotManagerAlertType, TError> Alerts_;
 
     //! If we observe too many consecutive aborts, we disable user slots on
     //! the node until restart or alert reset.
@@ -217,7 +217,7 @@ private:
 
         std::vector<TNumaNodeState> NumaNodeStates;
 
-        TEnumIndexedVector<ESlotManagerAlertType, TError> Alerts;
+        TEnumIndexedArray<ESlotManagerAlertType, TError> Alerts;
     };
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);

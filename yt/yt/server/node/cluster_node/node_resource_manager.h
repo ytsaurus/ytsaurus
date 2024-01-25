@@ -16,6 +16,8 @@
 
 #include <yt/yt/library/containers/public.h>
 
+#include <library/cpp/yt/misc/enum_indexed_array.h>
+
 namespace NYT::NClusterNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -199,7 +201,7 @@ private:
 
     void BuildOrchid(NYson::IYsonConsumer* consumer) const;
 
-    TEnumIndexedVector<EMemoryCategory, TMemoryLimitPtr> GetMemoryLimits() const;
+    TEnumIndexedArray<EMemoryCategory, TMemoryLimitPtr> GetMemoryLimits() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeResourceManager)

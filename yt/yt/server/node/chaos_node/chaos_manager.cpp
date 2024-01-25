@@ -2305,9 +2305,9 @@ private:
         ReplicatedTableDestroyed_.Fire(replicationCard->GetId());
     }
 
-    TEnumIndexedVector<EReplicationCardState, int> CountReplicationCardStates() const
+    TEnumIndexedArray<EReplicationCardState, int> CountReplicationCardStates() const
     {
-        TEnumIndexedVector<EReplicationCardState, int> counts;
+        TEnumIndexedArray<EReplicationCardState, int> counts;
         for (const auto& [_, replicationCard] : ReplicationCardMap_) {
             counts[replicationCard->GetState()]++;
         }

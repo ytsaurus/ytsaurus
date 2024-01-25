@@ -558,8 +558,8 @@ private:
 
     ITwoLevelFairShareThreadPoolPtr QueryThreadPool_;
 
-    TEnumIndexedVector<ETabletNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> LegacyRawThrottlers_;
-    TEnumIndexedVector<ETabletNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
+    TEnumIndexedArray<ETabletNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> LegacyRawThrottlers_;
+    TEnumIndexedArray<ETabletNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
 
     NQueryClient::IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     NQueryClient::IRowComparerProviderPtr RowComparerProvider_;

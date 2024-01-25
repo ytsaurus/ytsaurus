@@ -138,7 +138,7 @@ public:
     bool IsStatisticsFixNeeded() const;
 
 private:
-    TEnumIndexedVector<EChunkListContentType, NChunkServer::TChunkListPtr> ChunkLists_;
+    TEnumIndexedArray<EChunkListContentType, NChunkServer::TChunkListPtr> ChunkLists_;
 
     NChunkClient::NProto::TDataStatistics ComputeUpdateStatistics() const;
 

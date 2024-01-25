@@ -84,7 +84,7 @@ public:
     TMemoryLimitPtr TabletStatic;
     TMemoryLimitPtr TabletDynamic;
 
-    TEnumIndexedVector<EMemoryCategory, TMemoryLimitPtr> MemoryLimits;
+    TEnumIndexedArray<EMemoryCategory, TMemoryLimitPtr> MemoryLimits;
 
     // COMPAT(gritukan): Drop optional after configs migration.
     std::optional<i64> FreeMemoryWatermark;
@@ -144,7 +144,7 @@ public:
     TMemoryLimitPtr TabletStatic;
     TMemoryLimitPtr TabletDynamic;
 
-    TEnumIndexedVector<EMemoryCategory, TMemoryLimitPtr> MemoryLimits;
+    TEnumIndexedArray<EMemoryCategory, TMemoryLimitPtr> MemoryLimits;
 
     std::optional<i64> FreeMemoryWatermark;
 

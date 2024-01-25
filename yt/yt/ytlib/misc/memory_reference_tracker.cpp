@@ -130,7 +130,7 @@ private:
 
     std::array<TReferenceAddressMapShard, ReferenceAddressMapShardCount> ReferenceAddressToState_;
 
-    TEnumIndexedVector<EMemoryCategory, IMemoryReferenceTrackerPtr> CategoryTrackers_;
+    TEnumIndexedArray<EMemoryCategory, IMemoryReferenceTrackerPtr> CategoryTrackers_;
 
     std::atomic<bool> Enabled_ = true;
 

@@ -867,8 +867,8 @@ private:
 
     const std::vector<ITypeHandlerPtr> TypeHandlers_;
 
-    TEnumIndexedVector<EMasterChannelKind, THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>> MasterChannels_;
-    TEnumIndexedVector<EMasterChannelKind, THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>> CypressChannels_;
+    TEnumIndexedArray<EMasterChannelKind, THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>> MasterChannels_;
+    TEnumIndexedArray<EMasterChannelKind, THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>> CypressChannels_;
     NRpc::IChannelPtr SchedulerChannel_;
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, OperationsArchiveClientLock_);
     IClientPtr OperationsArchiveClient_;

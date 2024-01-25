@@ -147,7 +147,7 @@ private:
 
     TLease LocalLease_;
 
-    TEnumIndexedVector<EIncumbentType, IIncumbentPtr> Incumbents_;
+    TEnumIndexedArray<EIncumbentType, IIncumbentPtr> Incumbents_;
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {

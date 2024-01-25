@@ -542,7 +542,7 @@ private:
         { }
 
         TCellDescriptorPtr Descriptor;
-        TEnumIndexedVector<EPeerKind, IChannelPtr> Channels;
+        TEnumIndexedArray<EPeerKind, IChannelPtr> Channels;
     };
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);

@@ -615,9 +615,9 @@ private:
         }
     }
 
-    TEnumIndexedVector<EUnversionedStringSegmentType, i32> GetSegmentSizeVector() const
+    TEnumIndexedArray<EUnversionedStringSegmentType, i32> GetSegmentSizeVector() const
     {
-        TEnumIndexedVector<EUnversionedStringSegmentType, i32> sizes;
+        TEnumIndexedArray<EUnversionedStringSegmentType, i32> sizes;
         for (auto type : TEnumTraits<EUnversionedStringSegmentType>::GetDomainValues()) {
             sizes[type] = GetSegmentSize(type);
         }

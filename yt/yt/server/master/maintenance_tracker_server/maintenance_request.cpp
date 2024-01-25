@@ -7,16 +7,15 @@ namespace NYT::NMaintenanceTrackerServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 // COMPAT(kvk1920): After maintenance flag removal builtin ids will become unneeded.
-// Beware: Changing set of builtin ids can change mutation semantics.
+// Beware: Changing the set of builtin ids can change mutation semantics.
 // See TMaintenanceTracker::GenerateMaintenanceId().
-constexpr TEnumIndexedVector<EMaintenanceType, TMaintenanceId> BuiltinMaintenanceIds = {
-    // Zero id is reserved for None.
-    /*Banned*/ TMaintenanceId(0, 0, 0, 1),
-    /*Decommissioned*/ TMaintenanceId(0, 0, 0, 2),
-    /*DisableSchedulerJobs*/ TMaintenanceId(0, 0, 0, 3),
-    /*DisableWriteSessions*/ TMaintenanceId(0, 0, 0, 4),
-    /*DisableTabletCells*/ TMaintenanceId(0, 0, 0, 5),
-    /*PendingRestart*/ TMaintenanceId(0, 0, 0, 6),
+static TEnumIndexedArray<EMaintenanceType, TMaintenanceId> BuiltinMaintenanceIds{
+    {EMaintenanceType::Ban,                   TMaintenanceId(0, 0, 0, 1)},
+    {EMaintenanceType::Decommission,          TMaintenanceId(0, 0, 0, 2)},
+    {EMaintenanceType::DisableSchedulerJobs,  TMaintenanceId(0, 0, 0, 3)},
+    {EMaintenanceType::DisableWriteSessions,  TMaintenanceId(0, 0, 0, 4)},
+    {EMaintenanceType::DisableTabletCells,    TMaintenanceId(0, 0, 0, 5)},
+    {EMaintenanceType::PendingRestart,        TMaintenanceId(0, 0, 0, 6)},
 };
 
 TMaintenanceId GetBuiltinMaintenanceId(EMaintenanceType type)

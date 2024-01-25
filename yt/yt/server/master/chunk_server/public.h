@@ -23,6 +23,8 @@
 
 #include <library/cpp/yt/small_containers/compact_vector.h>
 
+#include <library/cpp/yt/misc/enum_indexed_array.h>
+
 #include <map>
 
 namespace NYT::NChunkServer {
@@ -263,7 +265,7 @@ using TMediumSet = std::bitset<MaxMediumCount>;
 
 constexpr int MediumDefaultPriority = 0;
 
-using TChunkLists = TEnumIndexedVector<EChunkListContentType, TChunkList*>;
+using TChunkLists = TEnumIndexedArray<EChunkListContentType, TChunkList*>;
 
 using TChunkRequisitionIndex = ui32;
 

@@ -297,7 +297,7 @@ void TLsmCounters::ProfileRotation(EStoreRotationReason reason, i64 rowCount, i6
 
 void TLsmCounters::ProfileCompaction(
     EStoreCompactionReason reason,
-    TEnumIndexedVector<EHunkCompactionReason, i64> hunkChunkCountByReason,
+    TEnumIndexedArray<EHunkCompactionReason, i64> hunkChunkCountByReason,
     bool isEden,
     const NChunkClient::NProto::TDataStatistics& readerStatistics,
     const NChunkClient::NProto::TDataStatistics& writerStatistics,
@@ -317,7 +317,7 @@ void TLsmCounters::ProfileCompaction(
 
 void TLsmCounters::ProfilePartitioning(
     EStoreCompactionReason reason,
-    TEnumIndexedVector<EHunkCompactionReason, i64> hunkChunkCountByReason,
+    TEnumIndexedArray<EHunkCompactionReason, i64> hunkChunkCountByReason,
     const NChunkClient::NProto::TDataStatistics& readerStatistics,
     const NChunkClient::NProto::TDataStatistics& writerStatistics,
     const IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
@@ -350,7 +350,7 @@ void TLsmCounters::DoProfileCompaction(
     const NChunkClient::NProto::TDataStatistics& writerStatistics,
     const IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
     const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics,
-    TEnumIndexedVector<EHunkCompactionReason, i64> hunkChunkCountByReason)
+    TEnumIndexedArray<EHunkCompactionReason, i64> hunkChunkCountByReason)
 {
     counters->StoreChunks.InDataWeight.Increment(readerStatistics.unmerged_data_weight());
     counters->StoreChunks.InStoreCount.Increment(readerStatistics.chunk_count());

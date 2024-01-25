@@ -1,6 +1,6 @@
 #include "helpers.h"
 
-#include <yt/yt/core/misc/fs.h>
+#include <library/cpp/yt/string/enum.h>
 
 namespace NYT::NExecNode {
 
@@ -10,10 +10,7 @@ using namespace NScheduler;
 
 TString GetSandboxRelPath(ESandboxKind sandboxKind)
 {
-    const auto& sandboxName = SandboxDirectoryNames[sandboxKind];
-    YT_ASSERT(sandboxName);
-
-    return sandboxName;
+    return FormatEnum(sandboxKind);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

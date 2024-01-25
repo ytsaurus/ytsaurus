@@ -2806,7 +2806,7 @@ private:
     THashMap<TString, TNetworkProject*> NetworkProjectNameMap_;
 
     NHydra::TEntityMap<TProxyRole> ProxyRoleMap_;
-    TEnumIndexedVector<EProxyKind, THashMap<TString, TProxyRole*>> ProxyRoleNameMaps_;
+    TEnumIndexedArray<EProxyKind, THashMap<TString, TProxyRole*>> ProxyRoleNameMaps_;
 
     TSyncMap<TString, TProfilerTagPtr> CpuProfilerTags_;
 

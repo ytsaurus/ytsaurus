@@ -224,7 +224,7 @@ public:
             oldRootChunkLists[contentType] = table->GetChunkList(contentType);
         }
 
-        TEnumIndexedVector<EChunkListContentType, std::vector<TChunkTree*>> newTabletChunkLists;
+        TEnumIndexedArray<EChunkListContentType, std::vector<TChunkTree*>> newTabletChunkLists;
         for (auto& tabletChunkLists : newTabletChunkLists) {
             tabletChunkLists.reserve(newTabletCount);
         }

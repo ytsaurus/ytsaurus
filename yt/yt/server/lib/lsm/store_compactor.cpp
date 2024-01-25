@@ -352,7 +352,7 @@ private:
 
         std::vector<TStoreWithReason> candidates;
 
-        TEnumIndexedVector<EStoreCompactionReason, int> storeCountByReason;
+        TEnumIndexedArray<EStoreCompactionReason, int> storeCountByReason;
 
         for (const auto& store : partition->Stores()) {
             if (!IsStoreCompactable(store.get())) {

@@ -53,8 +53,8 @@ struct TLocationPerformanceCounters
 {
     explicit TLocationPerformanceCounters(const NProfiling::TProfiler& profiler);
 
-    TEnumIndexedVector<EIODirection, TEnumIndexedVector<EIOCategory, std::atomic<i64>>> PendingIOSize;
-    TEnumIndexedVector<EIODirection, TEnumIndexedVector<EIOCategory, NProfiling::TCounter>> CompletedIOSize;
+    TEnumIndexedArray<EIODirection, TEnumIndexedArray<EIOCategory, std::atomic<i64>>> PendingIOSize;
+    TEnumIndexedArray<EIODirection, TEnumIndexedArray<EIOCategory, NProfiling::TCounter>> CompletedIOSize;
 
     NProfiling::TCounter ThrottledReads;
     std::atomic<NProfiling::TCpuInstant> LastReadThrottleTime{};
@@ -73,14 +73,14 @@ struct TLocationPerformanceCounters
     NProfiling::TEventTimer BlobChunkWriterAbortTime;
     NProfiling::TEventTimer BlobChunkWriterCloseTime;
 
-    TEnumIndexedVector<EWorkloadCategory, NProfiling::TSummary> BlobBlockReadSize;
+    TEnumIndexedArray<EWorkloadCategory, NProfiling::TSummary> BlobBlockReadSize;
 
-    TEnumIndexedVector<EWorkloadCategory, NProfiling::TEventTimer> BlobBlockReadTime;
+    TEnumIndexedArray<EWorkloadCategory, NProfiling::TEventTimer> BlobBlockReadTime;
     NProfiling::TCounter BlobBlockReadBytes;
     NProfiling::TCounter BlobBlockReadCount;
 
-    TEnumIndexedVector<EWorkloadCategory, NProfiling::TEventTimer> BlobBlockReadLatencies;
-    TEnumIndexedVector<EWorkloadCategory, NProfiling::TEventTimer> BlobChunkMetaReadLatencies;
+    TEnumIndexedArray<EWorkloadCategory, NProfiling::TEventTimer> BlobBlockReadLatencies;
+    TEnumIndexedArray<EWorkloadCategory, NProfiling::TEventTimer> BlobChunkMetaReadLatencies;
 
     NProfiling::TSummary BlobBlockWriteSize;
     NProfiling::TEventTimer BlobBlockWriteTime;
@@ -94,7 +94,7 @@ struct TLocationPerformanceCounters
     NProfiling::TEventTimer JournalChunkOpenTime;
     NProfiling::TEventTimer JournalChunkRemoveTime;
 
-    TEnumIndexedVector<ESessionType, std::atomic<int>> SessionCount;
+    TEnumIndexedArray<ESessionType, std::atomic<int>> SessionCount;
 
     NProfiling::TGauge UsedSpace;
     NProfiling::TGauge AvailableSpace;
@@ -413,7 +413,7 @@ protected:
 
     mutable std::atomic<i64> AvailableSpace_ = 0;
     std::atomic<i64> UsedSpace_ = 0;
-    TEnumIndexedVector<ESessionType, std::atomic<int>> PerTypeSessionCount_;
+    TEnumIndexedArray<ESessionType, std::atomic<int>> PerTypeSessionCount_;
     std::atomic<int> ChunkCount_ = 0;
 
     static TString GetRelativeChunkPath(TChunkId chunkId);
@@ -457,8 +457,8 @@ private:
     NProfiling::TDynamicTagPtr MediumTag_;
     NProfiling::TGauge MediumFlag_;
 
-    TEnumIndexedVector<EChunkLocationThrottlerKind, NConcurrency::IReconfigurableThroughputThrottlerPtr> ReconfigurableThrottlers_;
-    TEnumIndexedVector<EChunkLocationThrottlerKind, NConcurrency::IThroughputThrottlerPtr> Throttlers_;
+    TEnumIndexedArray<EChunkLocationThrottlerKind, NConcurrency::IReconfigurableThroughputThrottlerPtr> ReconfigurableThrottlers_;
+    TEnumIndexedArray<EChunkLocationThrottlerKind, NConcurrency::IThroughputThrottlerPtr> Throttlers_;
     NConcurrency::IThroughputThrottlerPtr UnlimitedInThrottler_;
     NConcurrency::IThroughputThrottlerPtr UnlimitedOutThrottler_;
 

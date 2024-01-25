@@ -231,7 +231,7 @@ public:
     //! Sets password salt for user. |std::nullopt| removes salt.
     void SetPasswordSalt(std::optional<TString> passwordSalt);
 
-    using TStatistics = TEnumIndexedVector<EUserWorkloadType, TUserWorkloadStatistics>;
+    using TStatistics = TEnumIndexedArray<EUserWorkloadType, TUserWorkloadStatistics>;
     DEFINE_BYREF_RW_PROPERTY(TStatistics, Statistics);
 
 public:

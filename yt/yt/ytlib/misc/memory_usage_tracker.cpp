@@ -2,16 +2,16 @@
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <algorithm>
-
-#include "public.h"
-
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/memory_usage_tracker.h>
 #include <yt/yt/core/misc/error.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
+
+#include <library/cpp/yt/misc/enum_indexed_array.h>
+
+#include <algorithm>
 
 namespace NYT {
 
@@ -61,6 +61,9 @@ public:
     void ClearTrackers() override;
 
 private:
+    const NLogging::TLogger Logger;
+    const NProfiling::TProfiler Profiler_;
+
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
 
     std::atomic<i64> TotalLimit_;
@@ -74,7 +77,7 @@ private:
         std::atomic<i64> Used = 0;
     };
 
-    TEnumIndexedVector<ECategory, TCategory> Categories_;
+    TEnumIndexedArray<ECategory, TCategory> Categories_;
 
     struct TPool
         : public TRefCounted
@@ -82,7 +85,7 @@ private:
     {
         TPoolTag Tag;
         std::atomic<i64> Weight = 0;
-        TEnumIndexedVector<ECategory, std::atomic<i64>> Used;
+        TEnumIndexedArray<ECategory, std::atomic<i64>> Used;
 
         TPool() = default;
     };
@@ -90,11 +93,8 @@ private:
     THashMap<TPoolTag, TIntrusivePtr<TPool>> Pools_;
     std::atomic<i64> TotalPoolWeight_ = 0;
 
-    TEnumIndexedVector<EMemoryCategory, ITypedNodeMemoryTrackerPtr> CategoryTrackers_;
-    THashMap<TPoolTag, TEnumIndexedVector<EMemoryCategory, ITypedNodeMemoryTrackerPtr>> PoolTrackers_;
-
-    const NLogging::TLogger Logger;
-    const NProfiling::TProfiler Profiler_;
+    TEnumIndexedArray<EMemoryCategory, ITypedNodeMemoryTrackerPtr> CategoryTrackers_;
+    THashMap<TPoolTag, TEnumIndexedArray<EMemoryCategory, ITypedNodeMemoryTrackerPtr>> PoolTrackers_;
 
     void InitCategoryTrackers();
 
@@ -188,10 +188,10 @@ TNodeMemoryTracker::TNodeMemoryTracker(
     const std::vector<std::pair<ECategory, i64>>& limits,
     const NLogging::TLogger& logger,
     const NProfiling::TProfiler& profiler)
-    : TotalLimit_(totalLimit)
-    , TotalFree_(totalLimit)
-    , Logger(logger)
+    : Logger(logger)
     , Profiler_(profiler.WithSparse())
+    , TotalLimit_(totalLimit)
+    , TotalFree_(totalLimit)
 {
     profiler.AddFuncGauge("/total_limit", MakeStrong(this), [this] {
         return GetTotalLimit();
@@ -574,7 +574,7 @@ ITypedNodeMemoryTrackerPtr TNodeMemoryTracker::WithCategory(
         auto it = PoolTrackers_.find(poolTag.value());
 
         if (it.IsEnd()) {
-            TEnumIndexedVector<EMemoryCategory, ITypedNodeMemoryTrackerPtr> trackers;
+            TEnumIndexedArray<EMemoryCategory, ITypedNodeMemoryTrackerPtr> trackers;
             auto tracker = New<TTypedMemoryTracker>(
                 this,
                 category,

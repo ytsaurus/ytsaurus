@@ -191,7 +191,7 @@ ETabletState TTabletOwnerBase::ComputeActualTabletState() const
         return ETabletState::None;
     }
     for (auto state : TEnumTraits<ETabletState>::GetDomainValues()) {
-        if (trunkNode->TabletCountByState().IsDomainValue(state)) {
+        if (trunkNode->TabletCountByState().IsValidIndex(state)) {
             if (std::ssize(trunkNode->Tablets()) == trunkNode->TabletCountByState()[state]) {
                 return state;
             }

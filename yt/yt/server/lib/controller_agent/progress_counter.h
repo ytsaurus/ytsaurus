@@ -92,11 +92,11 @@ public:
 
 private:
     i64 Running_ = 0;
-    TEnumIndexedVector<EInterruptReason, i64> Completed_;
+    TEnumIndexedArray<EInterruptReason, i64> Completed_;
     i64 Failed_ = 0;
     i64 Pending_ = 0;
     i64 Suspended_ = 0;
-    TEnumIndexedVector<EAbortReason, i64> Aborted_;
+    TEnumIndexedArray<EAbortReason, i64> Aborted_;
     i64 Lost_ = 0;
     i64 Invalidated_ = 0;
     i64 Uncategorized_ = 0;

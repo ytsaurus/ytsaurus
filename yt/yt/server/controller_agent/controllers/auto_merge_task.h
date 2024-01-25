@@ -137,9 +137,9 @@ private:
     //! Output chunk pool index -> number of the intermediate chunks in it.
     std::vector<int> CurrentChunkCounts_;
 
-    std::vector<TEnumIndexedVector<EMergeJobType, TJobSpec>> JobSpecTemplates_;
+    std::vector<TEnumIndexedArray<EMergeJobType, TJobSpec>> JobSpecTemplates_;
 
-    TEnumIndexedVector<EMergeJobType, TProgressCounterPtr> FakeProgressCounters_;
+    TEnumIndexedArray<EMergeJobType, TProgressCounterPtr> FakeProgressCounters_;
 
     std::atomic<bool> EnableShallowMerge_;
 

@@ -4,6 +4,8 @@
 #include "rusage.h"
 #include "meters.h"
 
+#include <library/cpp/yt/misc/enum_indexed_array.h>
+
 #include <util/datetime/base.h>
 
 namespace NYT::NIOTest {
@@ -49,7 +51,7 @@ struct TOperationTypeStatistics
 
 struct TQuantumStatistics
 {
-    TEnumIndexedVector<EOperationType, TOperationTypeStatistics> Operation;
+    TEnumIndexedArray<EOperationType, TOperationTypeStatistics> Operation;
     i64 OperationCount = 0;
     TRusage Rusage;
 

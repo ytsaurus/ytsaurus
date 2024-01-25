@@ -923,7 +923,7 @@ public:
 
     TTabletHunkLockManagerDynamicConfigPtr HunkLockManager;
 
-    TEnumIndexedVector<ETabletNodeThrottlerKind, NConcurrency::TRelativeThroughputThrottlerConfigPtr> Throttlers;
+    TEnumIndexedArray<ETabletNodeThrottlerKind, NConcurrency::TRelativeThroughputThrottlerConfigPtr> Throttlers;
 
     TStoreCompactorDynamicConfigPtr StoreCompactor;
     TStoreFlusherDynamicConfigPtr StoreFlusher;
@@ -1018,7 +1018,7 @@ public:
     TSlruCacheConfigPtr VersionedChunkMetaCache;
 
     //! Configuration for various Tablet Node throttlers.
-    TEnumIndexedVector<ETabletNodeThrottlerKind, NConcurrency::TRelativeThroughputThrottlerConfigPtr> Throttlers;
+    TEnumIndexedArray<ETabletNodeThrottlerKind, NConcurrency::TRelativeThroughputThrottlerConfigPtr> Throttlers;
 
     //! Interval between slots examination.
     TDuration SlotScanPeriod;

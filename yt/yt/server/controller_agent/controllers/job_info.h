@@ -80,8 +80,8 @@ struct TJoblet
     std::shared_ptr<const TStatistics> ControllerStatistics = std::make_shared<const TStatistics>();
 
     EJobPhase Phase = EJobPhase::Missing;
-    TEnumIndexedVector<EJobCompetitionType, TJobId> CompetitionIds;
-    TEnumIndexedVector<EJobCompetitionType, bool> HasCompetitors;
+    TEnumIndexedArray<EJobCompetitionType, TJobId> CompetitionIds;
+    TEnumIndexedArray<EJobCompetitionType, bool> HasCompetitors;
     TString TaskName;
 
     // Controller encapsulates lifetime of both, tasks and joblets.

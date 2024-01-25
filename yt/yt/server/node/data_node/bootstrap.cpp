@@ -449,8 +449,8 @@ private:
 
     TRestartManagerPtr RestartManager_;
 
-    TEnumIndexedVector<EDataNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> LegacyRawThrottlers_;
-    TEnumIndexedVector<EDataNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
+    TEnumIndexedArray<EDataNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> LegacyRawThrottlers_;
+    TEnumIndexedArray<EDataNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
 
     IJournalDispatcherPtr JournalDispatcher_;
 

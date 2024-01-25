@@ -24,7 +24,7 @@ public:
     TRequestQueue* GetQueue(const NRpc::NProto::TRequestHeader& header) override;
 
 private:
-    TEnumIndexedVector<EWorkloadCategory, TRequestQueuePtr> RequestQueues_;
+    TEnumIndexedArray<EWorkloadCategory, TRequestQueuePtr> RequestQueues_;
 };
 
 DECLARE_REFCOUNTED_CLASS(TPerWorkloadCategoryRequestQueueProvider)

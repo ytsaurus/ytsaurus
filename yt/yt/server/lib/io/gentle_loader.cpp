@@ -647,7 +647,7 @@ public:
 
     TRequestSampler(
         i64 defaultSize,
-        const TEnumIndexedVector<EWorkloadCategory, TRequestSizeHistogram>&  distribution)
+        const TEnumIndexedArray<EWorkloadCategory, TRequestSizeHistogram>&  distribution)
     {
         for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
             const auto& hist = distribution[category];

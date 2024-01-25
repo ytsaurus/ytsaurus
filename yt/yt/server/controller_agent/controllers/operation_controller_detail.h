@@ -1290,7 +1290,7 @@ private:
     //! Schedule job failures that happened outside of controller.
     //! These values are added to corresponding values in ScheduleAllocationStatistics_
     //! on each access in thread-safe manner.
-    mutable TEnumIndexedVector<EScheduleAllocationFailReason, std::atomic<int>> ExternalScheduleAllocationFailureCounts_;
+    mutable TEnumIndexedArray<EScheduleAllocationFailReason, std::atomic<int>> ExternalScheduleAllocationFailureCounts_;
 
     TInstant FinishTime_;
     std::vector<NScheduler::TExperimentAssignmentPtr> ExperimentAssignments_;

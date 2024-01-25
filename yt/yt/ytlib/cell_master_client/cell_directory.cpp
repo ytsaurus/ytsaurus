@@ -147,7 +147,7 @@ public:
     {
         THashMap<TCellTag, EMasterCellRoles> cellRoles;
         cellRoles.reserve(protoDirectory.items_size());
-        TEnumIndexedVector<EMasterCellRole, TCellTagList> roleCells;
+        TEnumIndexedArray<EMasterCellRole, TCellTagList> roleCells;
         THashMap<TCellTag, std::vector<TString>> cellAddresses;
         cellAddresses.reserve(protoDirectory.items_size());
         TCellTagList secondaryCellTags;
@@ -284,11 +284,11 @@ private:
     /*const*/ TCellTagList SecondaryMasterCellTags_;
     /*const*/ TCellIdList SecondaryMasterCellIds_;
 
-    /*const*/ THashMap<TCellTag, TEnumIndexedVector<EMasterChannelKind, IChannelPtr>> CellChannelMap_;
+    /*const*/ THashMap<TCellTag, TEnumIndexedArray<EMasterChannelKind, IChannelPtr>> CellChannelMap_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     THashMap<TCellTag, EMasterCellRoles> CellRoleMap_;
-    TEnumIndexedVector<EMasterCellRole, TCellTagList> RoleCells_;
+    TEnumIndexedArray<EMasterCellRole, TCellTagList> RoleCells_;
     TRandomGenerator RandomGenerator_;
 
     std::vector<IServicePtr> CachingObjectServices_;

@@ -232,7 +232,7 @@ private:
 
     std::vector<TChunkId> ChunkIdsPendingEndorsementRegistration_;
 
-    TEnumIndexedVector<EJobType, i64> MisscheduledJobs_;
+    TEnumIndexedArray<EJobType, i64> MisscheduledJobs_;
 
     std::optional<bool> Enabled_;
 

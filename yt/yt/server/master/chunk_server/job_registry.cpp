@@ -242,7 +242,7 @@ private:
     THashMap<TString, THashSet<TJobPtr>> NodeAddressToJobs_;
     THashMap<TJobEpoch, THashSet<TJobPtr>> EpochToJobs_;
 
-    TEnumIndexedVector<EJobType, TEnumIndexedVector<EJobState, TRingQueue<TJobPtr>>> FinishedJobQueues_;
+    TEnumIndexedArray<EJobType, TEnumIndexedArray<EJobState, TRingQueue<TJobPtr>>> FinishedJobQueues_;
     THashMap<TChunkId, TJobPtr> LastFinishedJobs_;
 
     TJobEpoch NextEpoch_ = 1;
@@ -253,7 +253,7 @@ private:
     using TPerTypeJobThrottlers = THashMap<EJobType, IReconfigurableThroughputThrottlerPtr>;
     const TPerTypeJobThrottlers PerTypeJobThrottlers_;
 
-    using TJobCounters = TEnumIndexedVector<EJobType, i64, FirstMasterJobType, LastMasterJobType>;
+    using TJobCounters = TEnumIndexedArray<EJobType, i64, FirstMasterJobType, LastMasterJobType>;
     TJobCounters RunningJobs_;
     TJobCounters JobsStarted_;
     TJobCounters JobsCompleted_;

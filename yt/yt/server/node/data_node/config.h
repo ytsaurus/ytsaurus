@@ -92,7 +92,7 @@ public:
     TString MediumName;
 
     //! Configuration for various per-location throttlers.
-    TEnumIndexedVector<EChunkLocationThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
+    TEnumIndexedArray<EChunkLocationThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
 
     //! IO engine type.
     NIO::EIOEngineType IOEngineType;
@@ -130,7 +130,7 @@ public:
     std::optional<NIO::EIOEngineType> IOEngineType;
     NYTree::INodePtr IOConfig;
 
-    TEnumIndexedVector<EChunkLocationThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
+    TEnumIndexedArray<EChunkLocationThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
     std::optional<TDuration> ThrottleDuration;
 
     std::optional<i64> CoalescedReadMaxGapSize;
@@ -902,7 +902,7 @@ public:
     TVolumeManagerConfigPtr VolumeManager;
 
     //! Configuration for various Data Node throttlers. Used when fair throttler is not enabled.
-    TEnumIndexedVector<EDataNodeThrottlerKind, NConcurrency::TRelativeThroughputThrottlerConfigPtr> Throttlers;
+    TEnumIndexedArray<EDataNodeThrottlerKind, NConcurrency::TRelativeThroughputThrottlerConfigPtr> Throttlers;
 
     //! Configuration for RPS out throttler.
     NConcurrency::TThroughputThrottlerConfigPtr ReadRpsOutThrottler;
@@ -985,7 +985,7 @@ public:
     //! Number of threads in MasterJob thread pool (used for master jobs execution).
     int MasterJobThreadCount;
 
-    TEnumIndexedVector<EDataNodeThrottlerKind, NConcurrency::TRelativeThroughputThrottlerConfigPtr> Throttlers;
+    TEnumIndexedArray<EDataNodeThrottlerKind, NConcurrency::TRelativeThroughputThrottlerConfigPtr> Throttlers;
     NConcurrency::TThroughputThrottlerConfigPtr ReadRpsOutThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr AnnounceChunkReplicaRpsOutThrottler;
 

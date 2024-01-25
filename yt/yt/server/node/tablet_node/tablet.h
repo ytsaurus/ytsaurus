@@ -128,7 +128,7 @@ DEFINE_REFCOUNTED_TYPE(TRefCountedReplicationProgress)
 
 struct TTabletErrors
 {
-    TEnumIndexedVector<NTabletClient::ETabletBackgroundActivity, TAtomicObject<TError>> BackgroundErrors;
+    TEnumIndexedArray<NTabletClient::ETabletBackgroundActivity, TAtomicObject<TError>> BackgroundErrors;
     TAtomicObject<TError> ConfigError;
 
     template <class TCallback>
@@ -155,7 +155,7 @@ struct TRuntimeTabletData
     std::atomic<NChaosClient::TReplicationEra> ReplicationEra = NChaosClient::InvalidReplicationEra;
     TAtomicIntrusivePtr<TRefCountedReplicationProgress> ReplicationProgress;
     TAtomicIntrusivePtr<NChaosClient::TReplicationCard> ReplicationCard;
-    TEnumIndexedVector<ETabletDynamicMemoryType, std::atomic<i64>> DynamicMemoryUsagePerType;
+    TEnumIndexedArray<ETabletDynamicMemoryType, std::atomic<i64>> DynamicMemoryUsagePerType;
     TTabletErrors Errors;
     NConcurrency::TAsyncBarrier PreparedTransactionBarrier;
 };
@@ -187,7 +187,7 @@ struct TCompressionDictionaryInfo
     void Load(TLoadContext& context);
 };
 
-using TCompressionDictionaryInfos = TEnumIndexedVector<
+using TCompressionDictionaryInfos = TEnumIndexedArray<
     NTableClient::EDictionaryCompressionPolicy,
     TCompressionDictionaryInfo>;
 
@@ -807,7 +807,7 @@ private:
 
     IStoreManagerPtr StoreManager_;
 
-    TEnumIndexedVector<EAutomatonThreadQueue, IInvokerPtr> EpochAutomatonInvokers_;
+    TEnumIndexedArray<EAutomatonThreadQueue, IInvokerPtr> EpochAutomatonInvokers_;
 
     std::unique_ptr<TPartition> Eden_;
 
@@ -829,7 +829,7 @@ private:
     TRowCachePtr RowCache_;
 
     //! Number of tablet locks, per lock type.
-    TEnumIndexedVector<ETabletLockType, i64> TabletLockCount_;
+    TEnumIndexedArray<ETabletLockType, i64> TabletLockCount_;
 
     //! Total number of tablet locks of all types.
     i64 TotalTabletLockCount_ = 0;

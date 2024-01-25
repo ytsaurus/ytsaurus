@@ -953,7 +953,7 @@ private:
     TInstant LastReplacement_;
 
     // Metrics.
-    TEnumIndexedVector<EReincarnationResult, NProfiling::TCounter> Metrics_;
+    TEnumIndexedArray<EReincarnationResult, NProfiling::TCounter> Metrics_;
     NProfiling::TCounter TeleportedReincarnationCounter_;
 
     // Persistent.

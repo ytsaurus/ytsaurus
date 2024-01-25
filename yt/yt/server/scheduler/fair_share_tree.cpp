@@ -2505,9 +2505,9 @@ private:
         }
 
         THashMap<std::optional<EAllocationSchedulingStage>, TOperationIdToJobResources> scheduledAllocationResources;
-        TEnumIndexedVector<EAllocationPreemptionReason, TOperationIdToJobResources> preemptedAllocationResources;
-        TEnumIndexedVector<EAllocationPreemptionReason, TOperationIdToJobResources> preemptedAllocationResourceTimes;
-        TEnumIndexedVector<EAllocationPreemptionReason, TOperationIdToJobResources> improperlyPreemptedAllocationResources;
+        TEnumIndexedArray<EAllocationPreemptionReason, TOperationIdToJobResources> preemptedAllocationResources;
+        TEnumIndexedArray<EAllocationPreemptionReason, TOperationIdToJobResources> preemptedAllocationResourceTimes;
+        TEnumIndexedArray<EAllocationPreemptionReason, TOperationIdToJobResources> improperlyPreemptedAllocationResources;
 
         for (const auto& allocation : schedulingContext->StartedAllocations()) {
             TOperationId operationId = allocation->GetOperationId();

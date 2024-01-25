@@ -29,8 +29,8 @@ public:
 protected:
     const NConcurrency::IEnumIndexedFairShareActionQueuePtr<EQueue> AutomatonQueue_;
 
-    TEnumIndexedVector<EQueue, TAtomicIntrusivePtr<IInvoker>> EpochAutomatonInvokers_;
-    TEnumIndexedVector<EQueue, TAtomicIntrusivePtr<IInvoker>> GuardedAutomatonInvokers_;
+    TEnumIndexedArray<EQueue, TAtomicIntrusivePtr<IInvoker>> EpochAutomatonInvokers_;
+    TEnumIndexedArray<EQueue, TAtomicIntrusivePtr<IInvoker>> GuardedAutomatonInvokers_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);

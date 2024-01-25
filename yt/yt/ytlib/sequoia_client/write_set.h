@@ -22,7 +22,7 @@ struct TLockedRowInfo
 };
 
 using TTableWriteSet = THashMap<NTableClient::TLegacyKey, TLockedRowInfo>;
-using TWriteSet = TEnumIndexedVector<ESequoiaTable, TTableWriteSet>;
+using TWriteSet = TEnumIndexedArray<ESequoiaTable, TTableWriteSet>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

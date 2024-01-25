@@ -123,7 +123,7 @@ THistogramSummary ComputeHistogramSummary(const TFixedBinsHistogramBase& hist)
 
 void FormatValue(
     TStringBuilderBase* builder,
-    const TEnumIndexedVector<EWorkloadCategory, TRequestSizeHistogram>& statsByCategory,
+    const TEnumIndexedArray<EWorkloadCategory, TRequestSizeHistogram>& statsByCategory,
     TStringBuf /*spec*/)
 {
     builder->AppendString("{");

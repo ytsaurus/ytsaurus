@@ -2560,7 +2560,7 @@ private:
     using TNameToAccessControlObjectNamespace = THashMap<TString, TAccessControlObjectNamespace*>;
     TNameToAccessControlObjectNamespace NameToAccessControlObjectNamespaceMap_;
 
-    TEnumIndexedVector<NObjectClient::EObjectType, INodeTypeHandlerPtr> TypeToHandler_;
+    TEnumIndexedArray<NObjectClient::EObjectType, INodeTypeHandlerPtr> TypeToHandler_;
 
     TNodeId RootNodeId_;
     TCypressMapNode* RootNode_ = nullptr;

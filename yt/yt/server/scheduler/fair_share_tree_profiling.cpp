@@ -597,9 +597,9 @@ void TFairShareTreeProfileManager::ApplyJobMetricsDelta(
 void TFairShareTreeProfileManager::ApplyScheduledAndPreemptedResourcesDelta(
     const TFairShareTreeSnapshotPtr& treeSnapshot,
     const THashMap<std::optional<EAllocationSchedulingStage>, TOperationIdToJobResources>& scheduledAllocationResources,
-    const TEnumIndexedVector<EAllocationPreemptionReason, TOperationIdToJobResources>& preemptedAllocationResources,
-    const TEnumIndexedVector<EAllocationPreemptionReason, TOperationIdToJobResources>& preemptedAllocationResourceTimes,
-    const TEnumIndexedVector<EAllocationPreemptionReason, TOperationIdToJobResources>& improperlyPreemptedAllocationResources)
+    const TEnumIndexedArray<EAllocationPreemptionReason, TOperationIdToJobResources>& preemptedAllocationResources,
+    const TEnumIndexedArray<EAllocationPreemptionReason, TOperationIdToJobResources>& preemptedAllocationResourceTimes,
+    const TEnumIndexedArray<EAllocationPreemptionReason, TOperationIdToJobResources>& improperlyPreemptedAllocationResources)
 {
     VERIFY_INVOKER_AFFINITY(ProfilingInvoker_);
 

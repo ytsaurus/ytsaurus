@@ -613,7 +613,7 @@ private:
     TBootstrap* const Bootstrap_;
 
     TCancelableContextPtr CancelableContext_;
-    TEnumIndexedVector<EControlQueue, IInvokerPtr> CancelableControlInvokers_;
+    TEnumIndexedArray<EControlQueue, IInvokerPtr> CancelableControlInvokers_;
 
     std::atomic<EMasterConnectorState> State_ = {EMasterConnectorState::Disconnected};
     std::atomic<TInstant> ConnectionTime_ = {};
@@ -640,10 +640,10 @@ private:
 
     std::vector<TWatcherRecord> CommonWatcherRecords_;
 
-    TEnumIndexedVector<EWatcherType, TCustomWatcherRecord> CustomWatcherRecords_;
-    TEnumIndexedVector<EWatcherType, TPeriodicExecutorPtr> CustomWatcherExecutors_;
+    TEnumIndexedArray<EWatcherType, TCustomWatcherRecord> CustomWatcherRecords_;
+    TEnumIndexedArray<EWatcherType, TPeriodicExecutorPtr> CustomWatcherExecutors_;
 
-    TEnumIndexedVector<ESchedulerAlertType, TError> Alerts_;
+    TEnumIndexedArray<ESchedulerAlertType, TError> Alerts_;
 
     std::optional<bool> ArchiveExists_;
 

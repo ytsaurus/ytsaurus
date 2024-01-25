@@ -38,7 +38,7 @@ struct TControllerScheduleAllocationResult
     bool IsScheduleStopNeeded() const;
 
     std::optional<TAllocationStartDescriptor> StartDescriptor;
-    TEnumIndexedVector<NControllerAgent::EScheduleAllocationFailReason, int> Failed;
+    TEnumIndexedArray<NControllerAgent::EScheduleAllocationFailReason, int> Failed;
     TDuration Duration;
     std::optional<TDuration> NextDurationEstimate;
     TIncarnationId IncarnationId;

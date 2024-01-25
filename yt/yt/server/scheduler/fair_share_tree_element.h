@@ -102,7 +102,7 @@ struct TFairSharePostUpdateContext
     const TFairShareStrategyTreeConfigPtr& TreeConfig;
     const TInstant Now;
 
-    TEnumIndexedVector<EUnschedulableReason, int> UnschedulableReasons;
+    TEnumIndexedArray<EUnschedulableReason, int> UnschedulableReasons;
 
     TNonOwningOperationElementMap EnabledOperationIdToElement;
     TNonOwningOperationElementMap DisabledOperationIdToElement;

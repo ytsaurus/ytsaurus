@@ -6,6 +6,8 @@
 
 #include <library/cpp/yt/small_containers/compact_vector.h>
 
+#include <library/cpp/yt/misc/enum_indexed_array.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,7 +104,7 @@ public:
     TModuleAwareValue<TValue>& At(ESchedulingSegment segment);
 
 private:
-    TEnumIndexedVector<ESchedulingSegment, TModuleAwareValue<TValue>> Map_;
+    TEnumIndexedArray<ESchedulingSegment, TModuleAwareValue<TValue>> Map_;
 
     friend void Serialize<>(const TSchedulingSegmentMap& map, NYson::IYsonConsumer* consumer);
     friend void Deserialize<>(TSchedulingSegmentMap& map, const NYTree::INodePtr& node);

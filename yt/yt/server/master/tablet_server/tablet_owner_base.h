@@ -15,7 +15,7 @@ class TTabletOwnerBase
     : public NChunkServer::TChunkOwnerBase
 {
 private:
-    using TTabletStateIndexedVector = TEnumIndexedVector<
+    using TTabletStateIndexedVector = TEnumIndexedArray<
         NTabletClient::ETabletState,
         int,
         NTabletClient::MinValidTabletState,

@@ -1793,7 +1793,7 @@ private:
 
     std::atomic<int> OperationArchiveVersion_ = -1;
 
-    TEnumIndexedVector<EOperationState, std::vector<TOperationPtr>> StateToTransientOperations_;
+    TEnumIndexedArray<EOperationState, std::vector<TOperationPtr>> StateToTransientOperations_;
     TInstant OperationToAgentAssignmentFailureTime_;
 
     std::optional<NSecurityClient::TSerializableAccessControlList> OperationBaseAcl_;

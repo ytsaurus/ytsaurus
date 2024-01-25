@@ -896,7 +896,7 @@ private:
     const ITypedNodeMemoryTrackerPtr UserMemoryUsageTracker_;
     THashSet<int> FreePorts_;
 
-    TEnumIndexedVector<EResourcesConsumerType, TCallbackList<void()>> ResourcesConsumerCallbacks_;
+    TEnumIndexedArray<EResourcesConsumerType, TCallbackList<void()>> ResourcesConsumerCallbacks_;
 
     TProfiler Profiler_;
     TPeriodicExecutorPtr ProfilingExecutor_;

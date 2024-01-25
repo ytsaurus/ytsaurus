@@ -4399,7 +4399,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
 
             const auto& neededResources = task->GetMinNeededResources();
             bool taskHasEnoughResources = true;
-            TEnumIndexedVector<EJobResourceType, bool> taskHasEnoughResourcesPerResource;
+            TEnumIndexedArray<EJobResourceType, bool> taskHasEnoughResourcesPerResource;
 
             auto processJobResourceType = [&] (auto resourceLimit, auto resource, EJobResourceType type) {
                 if (resource > resourceLimit) {

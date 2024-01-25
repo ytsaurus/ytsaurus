@@ -133,13 +133,13 @@ DEFINE_ENUM(EAllocationPreemptionReason,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TOperationElementsBySchedulingPriority = TEnumIndexedVector<EOperationSchedulingPriority, TNonOwningOperationElementList>;
+using TOperationElementsBySchedulingPriority = TEnumIndexedArray<EOperationSchedulingPriority, TNonOwningOperationElementList>;
 
-using TOperationCountByPreemptionPriority = TEnumIndexedVector<EOperationPreemptionPriority, int>;
+using TOperationCountByPreemptionPriority = TEnumIndexedArray<EOperationPreemptionPriority, int>;
 using TOperationPreemptionPriorityParameters = std::pair<EOperationPreemptionPriorityScope, /*ssdPriorityPreemptionEnabled*/ bool>;
 using TOperationCountsByPreemptionPriorityParameters = THashMap<TOperationPreemptionPriorityParameters, TOperationCountByPreemptionPriority>;
 
-using TPreemptionStatusStatisticsVector = TEnumIndexedVector<EOperationPreemptionStatus, int>;
+using TPreemptionStatusStatisticsVector = TEnumIndexedArray<EOperationPreemptionStatus, int>;
 
 using TAllocationPreemptionStatusMap = THashMap<TAllocationId, EAllocationPreemptionStatus>;
 using TAllocationPreemptionStatusMapPerOperation = THashMap<TOperationId, TAllocationPreemptionStatusMap>;

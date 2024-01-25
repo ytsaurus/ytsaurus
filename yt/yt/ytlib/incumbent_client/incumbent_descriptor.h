@@ -4,6 +4,8 @@
 
 #include <library/cpp/yt/yson/consumer.h>
 
+#include <library/cpp/yt/misc/enum_indexed_array.h>
+
 namespace NYT::NIncumbentClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -13,7 +15,7 @@ struct TIncumbentDescriptor
     std::vector<std::optional<TString>> Addresses;
 };
 
-using TIncumbentMap = TEnumIndexedVector<EIncumbentType, TIncumbentDescriptor>;
+using TIncumbentMap = TEnumIndexedArray<EIncumbentType, TIncumbentDescriptor>;
 
 void Serialize(const TIncumbentDescriptor& descriptor, NYson::IYsonConsumer* consumer);
 

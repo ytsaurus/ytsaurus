@@ -1443,7 +1443,10 @@ TEST_F(TChunkTreeTraversingTest, SortedHunkChunk)
     auto context = GetSyncChunkTraverserContext();
     auto visitor = New<TTestChunkVisitor>();
 
-    TChunkLists roots = {mainRoot, hunkRoot};
+    TChunkLists roots{
+        {EChunkListContentType::Main, mainRoot},
+        {EChunkListContentType::Hunk, hunkRoot},
+    };
 
     TraverseChunkTree(context, visitor, roots);
 

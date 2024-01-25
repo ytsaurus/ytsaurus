@@ -465,7 +465,7 @@ TSlotManager::TSlotManagerInfo TSlotManager::DoGetStateSnapshot() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    TEnumIndexedVector<ESlotManagerAlertType, TError> alerts;
+    TEnumIndexedArray<ESlotManagerAlertType, TError> alerts;
 
     {
         auto guard = ReaderGuard(AlertsLock_);

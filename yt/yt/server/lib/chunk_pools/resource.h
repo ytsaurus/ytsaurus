@@ -2,6 +2,8 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
+#include <library/cpp/yt/misc/enum_indexed_array.h>
+
 namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,7 +17,7 @@ DEFINE_ENUM(EResourceKind,
 //! Helper structure for representing job parameters.
 struct TResourceVector
 {
-    TEnumIndexedVector<EResourceKind, i64> Values;
+    TEnumIndexedArray<EResourceKind, i64> Values;
 
     static TResourceVector FromDataSlice(const NChunkClient::TLegacyDataSlicePtr& dataSlice, bool isPrimary);
     static TResourceVector Zero();
