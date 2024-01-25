@@ -185,7 +185,7 @@ TParallelFileWriter::TParallelFileWriter(
 
 TParallelFileWriter::~TParallelFileWriter()
 {
-    NDetail::FinishOrDie(this, "TParallelFileWriter");
+    NDetail::FinishOrDie(this, /*autoFinish*/ true, "TParallelFileWriter");
 }
 
 NThreading::TFuture<void> TParallelFileWriter::StartWriteTask(

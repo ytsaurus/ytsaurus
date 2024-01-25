@@ -17,7 +17,6 @@
 
 #include <yt/cpp/mapreduce/common/helpers.h>
 
-#include <library/cpp/threading/blocking_queue/blocking_queue.h>
 #include <library/cpp/threading/future/future.h>
 #include <library/cpp/threading/future/async.h>
 
@@ -92,12 +91,12 @@ public:
         const TRichYPath& path,
         const std::shared_ptr<IThreadPool>& threadPool,
         const TParallelTableWriterOptions& options)
-        : Transaction_(client->StartTransaction())
+        : ThreadCount_(options.ThreadCount_)
+        , Options_(WithoutAutoFinish(options.TableWriterOptions_))
+        , Transaction_(client->StartTransaction())
         , Path_(path)
-        , ThreadCount_(options.ThreadCount_)
         , ThreadPool_(threadPool)
-        , WritersPool_(options.ThreadCount_)
-        , Options_(options.TableWriterOptions_)
+        , WriterPool_(ThreadCount_)
         , RamLimiter_(options.RamLimiter_)
         , AcquireRamForBuffers_(options.AcquireRamForBuffers_)
     {
@@ -127,27 +126,8 @@ public:
 
         Transaction_->Lock(Path_.Path_, LM_SHARED);
 
-        StartWritersFuture_ = ::NThreading::Async([this, threadCount = options.ThreadCount_]() mutable {
-            try {
-                for (size_t i = 0; i < threadCount; ++i) {
-                    auto writer = Transaction_->CreateTableWriter<T>(Path_, Options_);
-
-                    if (RamLimiter_ && AcquireRamForBuffers_) {
-                        WriterMemoryGuards_.push_back({RamLimiter_, writer->GetBufferMemoryUsage(), EResourceLimiterLockType::HARD});
-                    }
-
-                    WritersPool_.Push(std::move(writer));
-                }
-                YT_LOG_DEBUG("All %v writers were created", threadCount);
-            } catch (std::exception& ex) {
-                WritersCreationWasFailed_ = true;
-                auto state = State_.exchange(EWriterState::Exception);
-                if (state == EWriterState::Ok) {
-                    Exception_ = std::current_exception();
-                    Stopped_ = true;
-                }
-            }
-        }, *ThreadPool_);
+        // Warming up. Create at least 1 writer for future use.
+        AddWriteTask(TWriteTask(TVector<T>{}, 0));
     }
 
     ~TParallelUnorderedTableWriterBase()
@@ -155,15 +135,14 @@ public:
         // This statement always true
         // because even in an exceptional situation
         // owner class call Finish in destructor
-        Y_ABORT_UNLESS(State_ == EWriterState::Finished);
+        Y_ABORT_UNLESS(Stopped_ == true);
     }
 
     void Abort() override
     {
         Transaction_->Abort();
         Stopped_ = true;
-        WaitAndFinish();
-        State_ = EWriterState::Finished;
+        ::NThreading::WaitAll(TaskFutures_).Wait();
     }
 
     size_t GetBufferMemoryUsage() const override
@@ -178,122 +157,163 @@ public:
 
     void FinishTable(size_t) override
     {
-        if (State_ != EWriterState::Finished) {
+        if (!Stopped_) {
             Stopped_ = true;
-            WaitAndFinish();
-        }
-        if (State_ == EWriterState::Exception) {
-            State_ = EWriterState::Finished;
-            Transaction_->Abort();
-            std::rethrow_exception(Exception_);
-        }
-        if (State_ == EWriterState::Ok) {
-            State_ = EWriterState::Finished;
+
+            ::NThreading::WaitAll(TaskFutures_).GetValueSync();
+            auto writerList = WriterPool_.Finish();
+            for (auto&& writer : writerList) {
+                try {
+                    writer->Finish();
+                } catch (const std::exception& ex) {
+                    Transaction_->Abort();
+                    throw;
+                }
+            }
             Transaction_->Commit();
         }
     }
 
-private:
-    void WaitAndFinish()
-    {
-        StartWritersFuture_.GetValueSync();
-
-        if (WritersCreationWasFailed_) {
-            WritersPool_.Stop();
-        }
-
-        ::NThreading::WaitAll(Futures_).GetValueSync();
-
-        WritersPool_.Stop();
-
-        while (auto writer = WritersPool_.Pop()) {
-            try {
-                (*writer)->Finish();
-            } catch (const std::exception&) {
-                auto state = State_.exchange(EWriterState::Exception);
-                if (state == EWriterState::Ok) {
-                    Exception_ = std::current_exception();
-                    Stopped_ = true;
-                }
-            }
-        }
-    }
-
 protected:
-    void AddRowError()
-    {
-        if (State_ == EWriterState::Exception) {
-            std::rethrow_exception(Exception_);
-        }
-        ythrow TApiUsageError() << "Can't write after Finish or Abort";
-    }
-
-    bool AddWriteTask(TWriteTask<T> task)
+    void AddWriteTask(TWriteTask<T> task)
     {
         if (Stopped_) {
-            return false;
+            ythrow TApiUsageError() << "Can't write after Finish or Abort";
         }
 
         if (RamLimiter_ && RamLimiter_->GetLimit() < task.GetWeight()) {
-            throw TApiUsageError() << "Weight of row/rowBatch is greater than RamLimiter limit";
+            ythrow TApiUsageError() << "Weight of row/rowBatch is greater than RamLimiter limit";
         }
 
-        std::optional<TResourceGuard> taskCountGuard = TaskCountLimiter_
+        auto taskCountGuard = TaskCountLimiter_
             ? std::make_optional<TResourceGuard>(TaskCountLimiter_, 1)
             : std::nullopt;
 
-        std::optional<TResourceGuard> memoryGuard = RamLimiter_
+        auto memoryGuard = RamLimiter_
             ? std::make_optional<TResourceGuard>(RamLimiter_, task.GetWeight())
             : std::nullopt;
 
-        Futures_.emplace_back(::NThreading::Async([
+        while (TaskFutures_.size() > 0) {
+            if (TaskFutures_.front().HasValue()) {
+                TaskFutures_.pop_front();
+                continue;
+            } else if (TaskFutures_.front().HasException()) {
+                Stopped_ = true;
+                TaskFutures_.front().TryRethrow();
+            } else {
+                break;
+            }
+        }
+
+        TaskFutures_.push_back(::NThreading::Async([
             this,
             task=std::move(task),
             taskCountGuard=std::move(taskCountGuard),
             memoryGuard=std::move(memoryGuard)
         ] () mutable {
-            try {
-                TMaybe<TTableWriterPtr<T>> writer = WritersPool_.Pop();
-                if (!writer) {
-                    return;
-                }
-                task.Process(*writer);
-                WritersPool_.Push(std::move(*writer));
-            } catch (const std::exception&) {
-                auto state = State_.exchange(EWriterState::Exception);
-                if (state == EWriterState::Ok) {
-                    Exception_ = std::current_exception();
-                    Stopped_ = true;
-                }
-            }
+            auto writer = WriterPool_.Acquire([&] {
+                auto writer = Transaction_->CreateTableWriter<T>(Path_, Options_);
 
-            return;
+                if (RamLimiter_ && AcquireRamForBuffers_) {
+                    WriterMemoryGuards_.push_back({RamLimiter_, writer->GetBufferMemoryUsage(), EResourceLimiterLockType::HARD});
+                }
+
+                return writer;
+            });
+            task.Process(writer);
+
+            // If exception in Process is thrown parallel writer is going to be aborted.
+            // No need to Release writer in this case.
+            WriterPool_.Release(std::move(writer));
         }, *ThreadPool_));
-
-        return true;
     }
 
 private:
-    enum class EWriterState
+    class TLazyWriterPool
     {
-        Ok,
-        Finished,
-        Exception
+    public:
+        TLazyWriterPool(size_t maxPoolSize)
+            : MaxPoolSize_(maxPoolSize)
+        { }
+
+        TTableWriterPtr<T> Acquire(const std::function<TTableWriterPtr<T>()>& createFunc)
+        {
+            auto g = Guard(Lock_);
+            Y_ABORT_IF(!Running_);
+            while (WriterPool_.empty() && PoolSize_ >= MaxPoolSize_) {
+                HasWriterCV_.Wait(Lock_);
+            }
+            if (!WriterPool_.empty()) {
+                auto writer = std::move(WriterPool_.front());
+                WriterPool_.pop_front();
+                return writer;
+            } else {
+                PoolSize_ += 1;
+                g.Release();
+
+                return createFunc();
+            }
+        }
+
+        void Release(TTableWriterPtr<T>&& writer)
+        {
+            auto g = Guard(Lock_);
+            if (!Running_) {
+                return;
+            }
+            WriterPool_.push_back(std::move(writer));
+            HasWriterCV_.Signal();
+        }
+
+        void Abort()
+        {
+            auto g = Guard(Lock_);
+            Running_ = false;
+        }
+
+        std::deque<TTableWriterPtr<T>> Finish()
+        {
+            auto g = Guard(Lock_);
+            Y_ABORT_IF(!Running_);
+            Running_ = false;
+
+            Y_ABORT_IF(WriterPool_.size() != PoolSize_,
+                "Finish is expected to be called after all writers are released, %ld != %ld",
+                WriterPool_.size(), PoolSize_);
+
+            return std::move(WriterPool_);
+        }
+
+    private:
+        const size_t MaxPoolSize_;
+
+        TMutex Lock_;
+        TCondVar HasWriterCV_;
+        std::deque<TTableWriterPtr<T>> WriterPool_;
+        size_t PoolSize_ = 0;
+        bool Running_ = true;
     };
 
 private:
+    static TTableWriterOptions WithoutAutoFinish(const TTableWriterOptions& options)
+    {
+        auto result = options;
+        result.AutoFinish(false);
+        return result;
+    }
+
+private:
+    const size_t ThreadCount_ = 0;
+    const TTableWriterOptions Options_;
+
     ITransactionPtr Transaction_;
     TRichYPath Path_;
 
-    const size_t ThreadCount_ = 0;
     std::shared_ptr<IThreadPool> ThreadPool_;
     std::atomic<bool> Stopped_{false};
-    std::atomic<bool> WritersCreationWasFailed_{false};
-    ::NThreading::TBlockingQueue<TTableWriterPtr<T>> WritersPool_;
-    std::vector<::NThreading::TFuture<void>> Futures_;
-    ::NThreading::TFuture<void> StartWritersFuture_;
+    TLazyWriterPool WriterPool_;
+    std::deque<::NThreading::TFuture<void>> TaskFutures_;
 
-    const TTableWriterOptions Options_;
     std::exception_ptr Exception_ = nullptr;
 
     IResourceLimiterPtr TaskCountLimiter_;
@@ -302,8 +322,6 @@ private:
     bool AcquireRamForBuffers_;
 
     std::vector<TResourceGuard> WriterMemoryGuards_;
-
-    std::atomic<EWriterState> State_ = EWriterState::Ok;
 };
 
 template <typename T, typename = void>
@@ -321,9 +339,7 @@ public:
 
     void AddRow(T&& row, size_t /*tableIndex*/, size_t rowWeight) override
     {
-        if (!TBase::AddWriteTask(TWriteTask<T>(std::move(row), rowWeight))) {
-            TBase::AddRowError();
-        }
+        TBase::AddWriteTask(TWriteTask<T>(std::move(row), rowWeight));
     }
 
     void AddRow(const T& row, size_t tableIndex) override
@@ -333,23 +349,17 @@ public:
 
     void AddRow(const T& row, size_t /*tableIndex*/, size_t rowWeight) override
     {
-        if (!TBase::AddWriteTask(TWriteTask<T>(row, rowWeight))) {
-            TBase::AddRowError();
-        }
+        TBase::AddWriteTask(TWriteTask<T>(row, rowWeight));
     }
 
     void AddRowBatch(TVector<T>&& rowBatch, size_t /*tableIndex*/, size_t rowBatchWeight) override
     {
-        if (!TBase::AddWriteTask(TWriteTask<T>(std::move(rowBatch), rowBatchWeight))) {
-            TBase::AddRowError();
-        }
+        TBase::AddWriteTask(TWriteTask<T>(std::move(rowBatch), rowBatchWeight));
     }
 
     void AddRowBatch(const TVector<T>& rowBatch, size_t /*tableIndex*/, size_t rowBatchWeight) override
     {
-        if (!TBase::AddWriteTask(TWriteTask<T>(rowBatch, rowBatchWeight))) {
-            TBase::AddRowError();
-        }
+        TBase::AddWriteTask(TWriteTask<T>(rowBatch, rowBatchWeight));
     }
 };
 
@@ -371,9 +381,7 @@ public:
 
     void AddRow(Message&& row, size_t /*tableIndex*/, size_t rowWeight) override
     {
-        if (!TBase::AddWriteTask(TWriteTask<T>(std::move(static_cast<T&&>(row)), rowWeight))) {
-            TBase::AddRowError();
-        }
+        TBase::AddWriteTask(TWriteTask<T>(std::move(static_cast<T&&>(row)), rowWeight));
     }
 
     void AddRow(const Message& row, size_t tableIndex) override
@@ -383,9 +391,7 @@ public:
 
     void AddRow(const Message& row, size_t /*tableIndex*/, size_t rowWeight) override
     {
-        if (!TBase::AddWriteTask(TWriteTask<T>(static_cast<const T&>(row), rowWeight))) {
-            TBase::AddRowError();
-        }
+        TBase::AddWriteTask(TWriteTask<T>(static_cast<const T&>(row), rowWeight));
     }
 };
 
