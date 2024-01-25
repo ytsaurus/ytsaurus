@@ -63,6 +63,71 @@ struct TStoreRangeFormatter
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUnversifyingReader
+    : public ISchemafulUnversionedReader
+{
+public:
+    TUnversifyingReader(
+        IVersionedReaderPtr versionedReader,
+        std::unique_ptr<TSchemafulRowMerger> rowMerger)
+        : VersionedReader_(std::move(versionedReader))
+        , RowMerger_(std::move(rowMerger))
+    {
+        YT_UNUSED_FUTURE(VersionedReader_->Open());
+    }
+
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options = {}) override
+    {
+        auto batch = VersionedReader_->Read(options);
+        if (!batch) {
+            return nullptr;
+        }
+
+        RowMerger_->Reset();
+        auto rowsRange = batch->MaterializeRows();
+        Rows_.reserve(rowsRange.Size());
+
+        for (auto versionedRow : rowsRange) {
+            RowMerger_->AddPartialRow(versionedRow);
+            Rows_.push_back(RowMerger_->BuildMergedRow());
+        }
+
+        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(Rows_), MakeStrong(this)));
+    }
+
+    NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    {
+        return VersionedReader_->GetDataStatistics();
+    }
+
+    TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return VersionedReader_->GetDecompressionStatistics();
+    }
+
+    bool IsFetchingCompleted() const override
+    {
+        return VersionedReader_->IsFetchingCompleted();
+    }
+
+    std::vector<TChunkId> GetFailedChunkIds() const override
+    {
+        return VersionedReader_->GetFailedChunkIds();
+    }
+
+    TFuture<void> GetReadyEvent() const override
+    {
+        return VersionedReader_->GetReadyEvent();
+    }
+
+private:
+    const IVersionedReaderPtr VersionedReader_;
+    const std::unique_ptr<TSchemafulRowMerger> RowMerger_;
+    std::vector<TUnversionedRow> Rows_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ThrowUponDistributedThrottlerOverdraft(
     ETabletDistributedThrottlerKind tabletThrottlerKind,
     const TTabletSnapshotPtr& tabletSnapshot,
@@ -241,7 +306,8 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
     TReadTimestampRange timestampRange,
     const TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
-    std::optional<EWorkloadCategory> workloadCategory)
+    std::optional<EWorkloadCategory> workloadCategory,
+    bool mergeVersionedRows)
 {
     auto timestamp = timestampRange.Timestamp;
     ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
@@ -302,7 +368,8 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
     }
 
     YT_LOG_DEBUG("Creating schemaful sorted tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, "
-        "LowerBound: %v, UpperBound: %v, WorkloadDescriptor: %v, ReadSessionId: %v, StoreIds: %v, StoreRanges: %v, BoundCount: %v)",
+        "LowerBound: %v, UpperBound: %v, WorkloadDescriptor: %v, ReadSessionId: %v, StoreIds: %v, "
+        "StoreRanges: %v, BoundCount: %v, MergeVersionedRows: %v)",
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
         timestamp,
@@ -312,15 +379,8 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
         chunkReadOptions.ReadSessionId,
         MakeFormattableView(stores, TStoreIdFormatter()),
         MakeFormattableView(stores, TStoreRangeFormatter()),
-        bounds.Size());
-
-    auto rowMerger = std::make_unique<TSchemafulRowMerger>(
-        New<TRowBuffer>(TTabletReaderPoolTag()),
-        tabletSnapshot->QuerySchema->GetColumnCount(),
-        tabletSnapshot->QuerySchema->GetKeyColumnCount(),
-        columnFilter,
-        tabletSnapshot->ColumnEvaluator,
-        timestampRange.RetentionTimestamp);
+        bounds.Size(),
+        mergeVersionedRows);
 
     std::vector<TLegacyOwningKey> boundaries;
     boundaries.reserve(stores.size());
@@ -343,28 +403,75 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
         enrichedColumnFilter = TColumnFilter(std::move(indexes));
     }
 
-    auto reader = CreateSchemafulOverlappingRangeReader(
-        std::move(boundaries),
-        std::move(rowMerger),
-        [
+    ISchemafulUnversionedReaderPtr reader;
+
+    if (mergeVersionedRows) {
+        auto rowMerger = std::make_unique<TSchemafulRowMerger>(
+            New<TRowBuffer>(TTabletReaderPoolTag()),
+            tabletSnapshot->QuerySchema->GetColumnCount(),
+            tabletSnapshot->QuerySchema->GetKeyColumnCount(),
+            columnFilter,
+            tabletSnapshot->ColumnEvaluator,
+            timestampRange.RetentionTimestamp);
+
+        reader = CreateSchemafulOverlappingRangeReader(
+            std::move(boundaries),
+            std::move(rowMerger),
+            [
+                =,
+                stores = std::move(stores),
+                boundsPerStore = std::move(boundsPerStore)
+            ] (int index) {
+                YT_ASSERT(index < std::ssize(stores));
+
+                return stores[index]->CreateReader(
+                    tabletSnapshot,
+                    boundsPerStore[index],
+                    timestamp,
+                    false,
+                    enrichedColumnFilter,
+                    chunkReadOptions,
+                    workloadCategory);
+            },
+            [keyComparer = tabletSnapshot->RowKeyComparer] (TUnversionedValueRange lhs, TUnversionedValueRange rhs) {
+                return keyComparer(lhs, rhs);
+            });
+    } else {
+        auto getNextReader = [
             =,
             stores = std::move(stores),
-            boundsPerStore = std::move(boundsPerStore)
-        ] (int index) {
-            YT_ASSERT(index < std::ssize(stores));
+            boundsPerStore = std::move(boundsPerStore),
+            index = 0
+        ] () mutable -> ISchemafulUnversionedReaderPtr {
+            if (index == std::ssize(stores)) {
+                return nullptr;
+            }
 
-            return stores[index]->CreateReader(
-                tabletSnapshot,
-                boundsPerStore[index],
-                timestamp,
-                false,
-                enrichedColumnFilter,
-                chunkReadOptions,
-                workloadCategory);
-        },
-        [keyComparer = tabletSnapshot->RowKeyComparer] (TUnversionedValueRange lhs, TUnversionedValueRange rhs) {
-            return keyComparer(lhs, rhs);
-        });
+            auto rowMerger = std::make_unique<TSchemafulRowMerger>(
+                New<TRowBuffer>(TTabletReaderPoolTag()),
+                tabletSnapshot->QuerySchema->GetColumnCount(),
+                tabletSnapshot->QuerySchema->GetKeyColumnCount(),
+                columnFilter,
+                tabletSnapshot->ColumnEvaluator,
+                timestampRange.RetentionTimestamp);
+
+            auto reader = New<TUnversifyingReader>(
+                stores[index]->CreateReader(
+                    tabletSnapshot,
+                    boundsPerStore[index],
+                    timestamp,
+                    /*produceAllVersions*/ false,
+                    enrichedColumnFilter,
+                    chunkReadOptions,
+                    workloadCategory),
+                std::move(rowMerger));
+            index++;
+
+            return reader;
+        };
+
+        reader = CreateUnorderedSchemafulReader(getNextReader, boundaries.size());
+    }
 
     return WrapSchemafulTabletReader(
         tabletThrottlerKind,

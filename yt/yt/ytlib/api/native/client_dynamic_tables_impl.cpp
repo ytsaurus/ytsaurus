@@ -1604,6 +1604,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     queryOptions.Deadline = options.Timeout.value_or(Connection_->GetConfig()->DefaultSelectRowsTimeout).ToDeadLine();
     queryOptions.SuppressAccessTracking = options.SuppressAccessTracking;
     queryOptions.UseCanonicalNullRelations = options.UseCanonicalNullRelations;
+    queryOptions.MergeVersionedRows = options.MergeVersionedRows;
 
     IUnversionedRowsetWriterPtr writer;
     TFuture<IUnversionedRowsetPtr> asyncRowset;

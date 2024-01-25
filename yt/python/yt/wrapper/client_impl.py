@@ -222,7 +222,8 @@ class YtClient(ClientState):
 
     def advance_consumer(
             self,
-            consumer_path, queue_path, partition_index, old_offset, new_offset, client_side=True):
+            consumer_path, queue_path, partition_index, old_offset, new_offset,
+            client_side=True):
         """
         Advances consumer offset for the given queue.
         If the old offset is specified, the command fails if it is not equal to the current stored offset.
@@ -237,11 +238,14 @@ class YtClient(ClientState):
         :type old_offset: None or int
         :param new_offset: new offset to set
         :type new_offset: int
+        :param client_side: use client side implementation
+        :type client_side: bool
 
         """
         return client_api.advance_consumer(
-            consumer_path, queue_path, partition_index, old_offset, new_offset, client_side,
-            client=self)
+            consumer_path, queue_path, partition_index, old_offset, new_offset,
+            client=self,
+            client_side=client_side)
 
     def alter_replication_card(
             self,
@@ -2320,7 +2324,7 @@ class YtClient(ClientState):
             fail_on_incomplete_result=None, verbose_logging=None, enable_code_cache=None, max_subqueries=None,
             workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None, format=None,
             raw=None, execution_pool=None, response_parameters=None, retention_timestamp=None, placeholder_values=None,
-            use_canonical_null_relations=None):
+            use_canonical_null_relations=None, merge_versioned_rows=None):
         """
         Executes a SQL-like query on dynamic table.
 
@@ -2341,7 +2345,8 @@ class YtClient(ClientState):
             verbose_logging=verbose_logging, enable_code_cache=enable_code_cache, max_subqueries=max_subqueries,
             workload_descriptor=workload_descriptor, allow_full_scan=allow_full_scan, allow_join_without_index=allow_join_without_index,
             format=format, raw=raw, execution_pool=execution_pool, response_parameters=response_parameters,
-            retention_timestamp=retention_timestamp, placeholder_values=placeholder_values, use_canonical_null_relations=use_canonical_null_relations)
+            retention_timestamp=retention_timestamp, placeholder_values=placeholder_values, use_canonical_null_relations=use_canonical_null_relations,
+            merge_versioned_rows=merge_versioned_rows)
 
     def set(
             self,

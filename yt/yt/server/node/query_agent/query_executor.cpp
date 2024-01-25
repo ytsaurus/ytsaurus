@@ -1210,7 +1210,8 @@ private:
                 QueryOptions_.TimestampRange,
                 ChunkReadOptions_,
                 ETabletDistributedThrottlerKind::Select,
-                ChunkReadOptions_.WorkloadDescriptor.Category);
+                ChunkReadOptions_.WorkloadDescriptor.Category,
+                QueryOptions_.MergeVersionedRows);
         }
 
         return New<TProfilingReaderWrapper>(

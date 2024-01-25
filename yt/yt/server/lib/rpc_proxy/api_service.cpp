@@ -3721,6 +3721,9 @@ private:
         if (request->has_use_canonical_null_relations()) {
             options.UseCanonicalNullRelations = request->use_canonical_null_relations();
         }
+        if (request->has_merge_versioned_rows()) {
+            options.MergeVersionedRows = request->merge_versioned_rows();
+        }
         auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
         options.DetailedProfilingInfo = detailedProfilingInfo;
 

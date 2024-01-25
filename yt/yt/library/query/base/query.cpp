@@ -1360,6 +1360,7 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
     }
     serialized->set_suppress_access_tracking(original.SuppressAccessTracking);
     serialized->set_range_expansion_limit(original.RangeExpansionLimit);
+    serialized->set_merge_versioned_rows(original.MergeVersionedRows);
 }
 
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
@@ -1367,8 +1368,6 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     original->TimestampRange.Timestamp = serialized.timestamp();
     original->TimestampRange.RetentionTimestamp = serialized.retention_timestamp();
     original->VerboseLogging = serialized.verbose_logging();
-    original->NewRangeInference = serialized.new_range_inference();
-    original->UseCanonicalNullRelations = serialized.use_canonical_null_relations();
     original->MaxSubqueries = serialized.max_subqueries();
     original->EnableCodeCache = serialized.enable_code_cache();
     original->WorkloadDescriptor = serialized.has_workload_descriptor()
@@ -1397,6 +1396,15 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
 
     if (serialized.has_range_expansion_limit()) {
         original->RangeExpansionLimit = serialized.range_expansion_limit();
+    }
+    if (serialized.has_new_range_inference()) {
+        original->NewRangeInference = serialized.new_range_inference();
+    }
+    if (serialized.has_use_canonical_null_relations()) {
+        original->UseCanonicalNullRelations = serialized.use_canonical_null_relations();
+    }
+    if (serialized.has_merge_versioned_rows()) {
+        original->MergeVersionedRows = serialized.merge_versioned_rows();
     }
 }
 

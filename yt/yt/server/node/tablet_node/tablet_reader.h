@@ -44,7 +44,8 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
     NTransactionClient::TReadTimestampRange timestampRange,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
-    std::optional<EWorkloadCategory> workloadCategory);
+    std::optional<EWorkloadCategory> workloadCategory,
+    bool mergeVersionedRows = true);
 
 //! Creates a range reader that handles ordered stores.
 /*!

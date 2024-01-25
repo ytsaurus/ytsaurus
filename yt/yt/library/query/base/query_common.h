@@ -158,6 +158,7 @@ struct TQueryBaseOptions
     bool UseCanonicalNullRelations = false;
     TReadSessionId ReadSessionId;
     size_t MemoryLimitPerNode = std::numeric_limits<size_t>::max();
+    bool MergeVersionedRows = true;
 };
 
 struct TQueryOptions

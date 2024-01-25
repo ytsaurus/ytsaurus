@@ -254,6 +254,7 @@ message TQueryOptions
     optional uint64 range_expansion_limit = 13;
     optional bool new_range_inference = 15;
     optional bool use_canonical_null_relations = 16;
+    optional bool merge_versioned_rows = 17 [default = true];
 }
 
 message TDataSource
