@@ -112,7 +112,7 @@ def _get_yt_versions(custom_paths):
             path_dir_to_binaries[path_dir].append(name)
 
     if missing_binaries:
-        logger.info("Binaries %s are not found", missing_binaries)
+        logger.info("Binaries %s are not found, custom_paths=%s", missing_binaries, custom_paths)
     for path_dir, binaries in iteritems(path_dir_to_binaries):
         logger.debug("Binaries %s found at directory %s", binaries, path_dir)
 
