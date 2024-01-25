@@ -278,7 +278,14 @@ void TJob::DoStart()
             SetJobPhase(EJobPhase::PreparingNodeDirectory);
 
             // This is a heavy part of preparation, offload it to compression invoker.
-            BIND(&TJob::PrepareNodeDirectory, MakeStrong(this))
+            // TODO(babenko): get rid of MakeWeak
+            BIND([weakThis = MakeWeak(this)] {
+                auto strongThis = weakThis.Lock();
+                if (!strongThis) {
+                    return std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory>();
+                }
+                return strongThis->PrepareNodeDirectory();
+            })
                 .AsyncVia(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker())
                 .Run()
                 .SubscribeUnique(
