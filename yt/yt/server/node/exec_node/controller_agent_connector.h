@@ -116,7 +116,7 @@ public:
 
         void OnJobRegistered(const TJobPtr& job);
 
-        void OnJobRegistrationFailed(TAllocationId allocationId);
+        void OnAllocationFailed(TAllocationId allocationId);
     };
 
     using TControllerAgentConnectorPtr = TIntrusivePtr<TControllerAgentConnector>;
@@ -171,7 +171,7 @@ private:
 
     void OnJobRegistered(const TJobPtr& job);
 
-    void OnJobRegistrationFailed(
+    void OnAllocationFailed(
         TAllocationId allocationId,
         TOperationId operationId,
         const TControllerAgentDescriptor& agentDescriptor,

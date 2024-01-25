@@ -111,7 +111,7 @@ private:
         const TRspHeartbeatPtr& response,
         const TSchedulerHeartbeatContextPtr& context);
 
-    void OnJobRegistrationFailed(
+    void OnAllocationFailed(
         TAllocationId allocationId,
         TOperationId operationId,
         const TControllerAgentDescriptor& agentDescriptor,

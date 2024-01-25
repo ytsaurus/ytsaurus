@@ -40,6 +40,7 @@ using namespace NChunkClient;
 using namespace NDataNode;
 using namespace NExecNode;
 using namespace NJobAgent;
+using namespace NControllerAgent;
 using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NYTree;
@@ -438,7 +439,8 @@ bool TSlotManager::HasNonFatalAlerts() const
     VERIFY_THREAD_AFFINITY_ANY();
     VERIFY_SPINLOCK_AFFINITY(AlertsLock_);
 
-    return !Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions].IsOK() ||
+    return
+        !Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions].IsOK() ||
         !Alerts_[ESlotManagerAlertType::JobProxyUnavailable].IsOK() ||
         HasGpuAlerts();
 }
@@ -503,7 +505,7 @@ bool TSlotManager::HasSlotDisablingAlert() const
 
     auto guard = ReaderGuard(AlertsLock_);
 
-    return !Alerts_[ESlotManagerAlertType::GenericPersistentError].IsOK() || HasNonFatalAlerts();
+    return HasFatalAlert() || HasNonFatalAlerts();
 }
 
 bool TSlotManager::CanResurrect() const
@@ -641,7 +643,12 @@ bool TSlotManager::Disable(const TError& error)
     auto dynamicConfig = DynamicConfig_.Acquire();
     auto timeout = dynamicConfig->SlotReleaseTimeout;
 
-    if (auto syncResult = WaitFor(Bootstrap_->GetJobController()->RemoveSchedulerJobs().WithTimeout(timeout));
+    auto jobsAbortionError = TError("Job aborted due to fatal alert")
+        << TErrorAttribute("abort_reason", EAbortReason::NodeWithDisabledJobs);
+
+    const auto& jobController = Bootstrap_->GetJobController();
+
+    if (auto syncResult = WaitFor(jobController->AbortAllJobs(jobsAbortionError).WithTimeout(timeout));
         dynamicConfig->AbortOnFreeSlotSynchronizationFailed)
     {
         YT_LOG_FATAL_IF(!syncResult.IsOK(), syncResult, "Free slot synchronization failed");

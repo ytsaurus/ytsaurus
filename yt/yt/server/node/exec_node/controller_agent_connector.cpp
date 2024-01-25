@@ -520,7 +520,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnJobRegistered(c
     EraseOrCrash(AllocationIdsWaitingForSpec_, job->GetAllocationId());
 }
 
-void TControllerAgentConnectorPool::TControllerAgentConnector::OnJobRegistrationFailed(TAllocationId allocationId)
+void TControllerAgentConnectorPool::TControllerAgentConnector::OnAllocationFailed(TAllocationId allocationId)
 {
     VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
 
@@ -551,8 +551,8 @@ void TControllerAgentConnectorPool::Start()
             MakeWeak(this))
         .Via(Bootstrap_->GetJobInvoker()));
 
-    jobController->SubscribeJobRegistrationFailed(BIND_NO_PROPAGATE(
-            &TControllerAgentConnectorPool::OnJobRegistrationFailed,
+    jobController->SubscribeAllocationFailed(BIND_NO_PROPAGATE(
+            &TControllerAgentConnectorPool::OnAllocationFailed,
             MakeWeak(this))
         .Via(Bootstrap_->GetJobInvoker()));
 }
@@ -767,7 +767,7 @@ void TControllerAgentConnectorPool::OnJobRegistered(const TJobPtr& job)
     }
 }
 
-void TControllerAgentConnectorPool::OnJobRegistrationFailed(
+void TControllerAgentConnectorPool::OnAllocationFailed(
     TAllocationId allocationId,
     TOperationId /*operationId*/,
     const TControllerAgentDescriptor& agentDescriptor,
@@ -782,7 +782,7 @@ void TControllerAgentConnectorPool::OnJobRegistrationFailed(
     if (auto connectorIt = ControllerAgentConnectors_.find(agentDescriptor);
         connectorIt != std::end(ControllerAgentConnectors_))
     {
-        connectorIt->second->OnJobRegistrationFailed(allocationId);
+        connectorIt->second->OnAllocationFailed(allocationId);
     }
 }
 

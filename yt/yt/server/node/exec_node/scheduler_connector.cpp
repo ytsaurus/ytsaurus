@@ -75,8 +75,8 @@ void TSchedulerConnector::Start()
             MakeWeak(this))
         .Via(Bootstrap_->GetJobInvoker()));
 
-    jobController->SubscribeJobRegistrationFailed(BIND_NO_PROPAGATE(
-            &TSchedulerConnector::OnJobRegistrationFailed,
+    jobController->SubscribeAllocationFailed(BIND_NO_PROPAGATE(
+            &TSchedulerConnector::OnAllocationFailed,
             MakeWeak(this))
         .Via(Bootstrap_->GetJobInvoker()));
 
@@ -347,7 +347,7 @@ void TSchedulerConnector::DoProcessHeartbeatResponse(
     RemoveSentJobs(std::move(context->JobsToForcefullySend));
 }
 
-void TSchedulerConnector::OnJobRegistrationFailed(
+void TSchedulerConnector::OnAllocationFailed(
     TAllocationId allocationId,
     TOperationId operationId,
     const TControllerAgentDescriptor& /*agentDescriptor*/,

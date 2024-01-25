@@ -108,7 +108,7 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(const TJobPtr& job), JobRegistered);
     DEFINE_SIGNAL_OVERRIDE(
         void(TAllocationId, TOperationId, const TControllerAgentDescriptor&, const TError&),
-        JobRegistrationFailed);
+        AllocationFailed);
     DEFINE_SIGNAL_OVERRIDE(void(const TJobPtr& job), JobFinished);
     DEFINE_SIGNAL_OVERRIDE(void(const TError& error), JobProxyBuildInfoUpdated);
 
@@ -230,11 +230,11 @@ public:
         }
     }
 
-    void SetDisableJobs(bool value) override
+    void SetJobsDisabledByMaster(bool value) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        DisableJobs_.store(value);
+        JobsDisabledByMaster_.store(value);
 
         if (value) {
             TError error{"All scheduler jobs are disabled"};
@@ -316,11 +316,13 @@ public:
         }
     }
 
-    bool AreSchedulerJobsDisabled() const noexcept override
+    bool AreJobsDisabled() const noexcept override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return DisableJobs_.load();
+        const auto& slotManager = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager();
+
+        return JobsDisabledByMaster_.load() || slotManager->HasFatalAlert();
     }
 
     void ScheduleStartJobs() override
@@ -366,11 +368,11 @@ public:
             << TErrorAttribute("abort_reason", NScheduler::EAbortReason::JobMemoryThrashing));
     }
 
-    TFuture<void> RemoveSchedulerJobs() override
+    TFuture<void> AbortAllJobs(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        YT_LOG_INFO("Remove scheduler jobs on fatal alert");
+        YT_LOG_INFO(error, "Abort all jobs");
 
         std::vector<TFuture<void>> jobResourceReleaseFutures;
         jobResourceReleaseFutures.reserve(std::size(JobsWaitingForCleanup_) + std::size(JobMap_));
@@ -379,19 +381,11 @@ public:
             jobResourceReleaseFutures.push_back(job->GetCleanupFinishedEvent());
         }
 
-        std::vector<TJobPtr> jobsToRemove;
-        jobsToRemove.reserve(std::size(JobMap_));
-
         for (TForbidContextSwitchGuard guard; const auto& [jobId, job] : JobMap_) {
-            YT_LOG_INFO("Removing job due to fatal alert (JobId: %v)", jobId);
-            job->Abort(TError("Job aborted due to fatal alert"));
+            YT_LOG_INFO("Aborting job (JobId: %v)", jobId);
+            job->Abort(error);
 
-            jobsToRemove.push_back(job);
             jobResourceReleaseFutures.push_back(job->GetCleanupFinishedEvent());
-        }
-
-        for (const auto& job : jobsToRemove) {
-            RemoveJob(job, NControllerAgent::TReleaseJobFlags{});
         }
 
         return AllSet(std::move(jobResourceReleaseFutures))
@@ -503,7 +497,7 @@ private:
 
     bool StartJobsScheduled_ = false;
 
-    std::atomic<bool> DisableJobs_ = false;
+    std::atomic<bool> JobsDisabledByMaster_ = false;
 
     std::optional<TInstant> UserMemoryOverdraftInstant_;
     std::optional<TInstant> CpuOverdraftInstant_;
@@ -563,6 +557,13 @@ private:
             allocationInfos);
     }
 
+    const TError& MakeJobsDisabledError() const
+    {
+        static const auto AllocationAbortingError = TError("Jobs disabled on node")
+            << TErrorAttribute("abort_reason", EAbortReason::NodeWithDisabledJobs);
+        return AllocationAbortingError;
+    }
+
     std::vector<TJobPtr> GetJobs()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
@@ -596,12 +597,37 @@ private:
             auto descriptor = controllerAgentConnectorPool->GetDescriptorByIncarnationId(incarnationId);
             YT_VERIFY(descriptor);
 
-            YT_LOG_DEBUG("Job spec will be requested (OperationId: %v, AllocationId: %v, ControllerAgentDescriptor: %v)",
+            YT_LOG_INFO(
+                "Requested to create allocation (OperationId: %v, AllocationId: %v, ControllerAgentDescriptor: %v)",
                 operationId,
                 allocationId,
                 descriptor);
 
             groupedStartInfoProtos[std::move(*descriptor)].push_back(std::move(startInfoProto));
+        }
+
+        if (AreJobsDisabled()) {
+            const auto& allocationAbortingError = MakeJobsDisabledError();
+            for (auto& [agentDescriptor, startInfoProtos] : groupedStartInfoProtos) {
+                for (const auto& startInfoProto : startInfoProtos) {
+                    auto operationId = FromProto<TOperationId>(startInfoProto.operation_id());
+                    auto allocationId = FromProto<TAllocationId>(startInfoProto.allocation_id());
+
+                    YT_LOG_INFO(
+                        "Allocation not created since jobs disabled on node (OperationId: %v, AllocationId: %v, ControllerAgentDescriptor: %v)",
+                        operationId,
+                        allocationId,
+                        agentDescriptor);
+
+                    AllocationFailed_.Fire(
+                        allocationId,
+                        operationId,
+                        agentDescriptor,
+                        allocationAbortingError);
+                }
+            }
+
+            return;
         }
 
         for (auto& [agentDescriptor, startInfoProtos] : groupedStartInfoProtos) {
@@ -610,7 +636,6 @@ private:
                 startInfoProtos);
 
             YT_VERIFY(std::size(startInfoProtos) == std::size(jobInfoFutures));
-
 
             for (int index = 0; index < std::ssize(startInfoProtos); ++index) {
                 auto& startInfoProto = startInfoProtos[index];
@@ -702,7 +727,7 @@ private:
                 operationId,
                 allocationId);
 
-            JobRegistrationFailed_.Fire(
+            AllocationFailed_.Fire(
                 allocationId,
                 operationId,
                 controllerAgentDescriptor,
@@ -885,18 +910,6 @@ private:
         const auto& agentDescriptor = context->ControllerAgentConnector->GetDescriptor();
 
         ToProto(request->mutable_controller_agent_incarnation_id(), agentDescriptor.IncarnationId);
-
-        auto* execNodeBootstrap = Bootstrap_->GetExecNodeBootstrap();
-        if (execNodeBootstrap->GetSlotManager()->HasFatalAlert()) {
-            // NB(psushin): if slot manager is disabled with fatal alert we might have experienced an unrecoverable failure (e.g. hanging Porto)
-            // and to avoid inconsistent state with scheduler we decide not to report to it any jobs at all.
-            // We also drop all scheduler jobs from |JobMap_|.
-            YT_UNUSED_FUTURE(RemoveSchedulerJobs());
-
-            request->set_confirmed_job_count(0);
-
-            return;
-        }
 
         auto getJobStatistics = [] (const TJobPtr& job) {
             auto statistics = job->GetStatistics();
@@ -1288,15 +1301,6 @@ private:
         auto* execNodeBootstrap = Bootstrap_->GetExecNodeBootstrap();
         auto slotManager = execNodeBootstrap->GetSlotManager();
 
-        if (slotManager->HasFatalAlert()) {
-            // NB(psushin): if slot manager is disabled with fatal alert we might have experienced an unrecoverable failure (e.g. hanging Porto)
-            // and to avoid inconsistent state with scheduler we decide not to report to it any jobs at all.
-            // We also drop all scheduler jobs from |JobMap_|.
-            Y_UNUSED(RemoveSchedulerJobs());
-
-            return;
-        }
-
         const bool requestOperationInfo = OperationInfoRequestBackoffStrategy_
             .RecordInvocationIfOverBackoff();
 
@@ -1563,7 +1567,8 @@ private:
                 "Scheduler job was not created (JobId: %v, OperationId: %v)",
                 jobId,
                 operationId);
-            JobRegistrationFailed_.Fire(
+
+            AllocationFailed_.Fire(
                 AllocationIdFromJobId(jobId),
                 operationId,
                 controllerAgentDescriptor,
@@ -1619,6 +1624,15 @@ private:
                 strongThis->OnJobCleanupFinished(job_);
             })
                 .Via(Bootstrap_->GetJobInvoker()));
+
+        if (AreJobsDisabled()) {
+            YT_LOG_INFO(
+                "Aborting job instead of starting since jobs disabled on node (JobId: %v, OperationId: %v)",
+                jobId,
+                job->GetOperationId());
+            job->Abort(MakeJobsDisabledError());
+            return;
+        }
 
         ScheduleStartJobs();
 

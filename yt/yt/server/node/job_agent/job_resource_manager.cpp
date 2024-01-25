@@ -224,7 +224,7 @@ public:
 
             auto scheduleJobEnabled =
                 execNodeBootstrap->GetChunkCache()->IsEnabled() &&
-                !execNodeBootstrap->GetJobController()->AreSchedulerJobsDisabled() &&
+                !execNodeBootstrap->GetJobController()->AreJobsDisabled() &&
                 !Bootstrap_->IsReadOnly() &&
                 slotManager->IsEnabled();
 

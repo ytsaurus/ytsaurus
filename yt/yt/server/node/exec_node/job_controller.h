@@ -57,13 +57,13 @@ public:
     virtual NJobProxy::TJobProxyDynamicConfigPtr GetJobProxyDynamicConfig() const = 0;
 
     //! Set value of flag disabling all jobs.
-    virtual void SetDisableJobs(bool value) = 0;
+    virtual void SetJobsDisabledByMaster(bool value) = 0;
 
     virtual TFuture<void> GetAllJobsCleanedupFuture() = 0;
 
-    virtual TFuture<void> RemoveSchedulerJobs() = 0;
+    virtual TFuture<void> AbortAllJobs(const TError& error) = 0;
 
-    virtual bool AreSchedulerJobsDisabled() const noexcept = 0;
+    virtual bool AreJobsDisabled() const noexcept = 0;
 
     virtual void PrepareAgentHeartbeatRequest(
         const TControllerAgentConnectorPool::TControllerAgentConnector::TReqHeartbeatPtr& request,
@@ -100,7 +100,7 @@ public:
     DECLARE_INTERFACE_SIGNAL(void(const TJobPtr&), JobRegistered);
     DECLARE_INTERFACE_SIGNAL(
         void(TAllocationId, TOperationId, const TControllerAgentDescriptor&, const TError&),
-        JobRegistrationFailed);
+        AllocationFailed);
     DECLARE_INTERFACE_SIGNAL(void(const TJobPtr&), JobFinished);
     DECLARE_INTERFACE_SIGNAL(void(const TError& error), JobProxyBuildInfoUpdated);
 };
