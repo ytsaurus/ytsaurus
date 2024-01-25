@@ -371,11 +371,13 @@ TError TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat
 
     auto responseOrError = WaitFor(std::move(requestFuture));
     if (!responseOrError.IsOK()) {
+        auto [minBackoff, maxBackoff] = HeartbeatExecutor_->GetBackoffInterval();
         YT_LOG_ERROR(
             responseOrError,
-            "Error reporting heartbeat to agent (AgentAddress: %v, BackoffTime: %v)",
+            "Error reporting heartbeat to agent (AgentAddress: %v, BackoffTime: [%v, %v])",
             ControllerAgentDescriptor_.Address,
-            HeartbeatExecutor_->GetBackoffTimeEstimate());
+            minBackoff,
+            maxBackoff);
 
         if (responseOrError.GetCode() == NControllerAgent::EErrorCode::IncarnationMismatch) {
             ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker()->Invoke(BIND(

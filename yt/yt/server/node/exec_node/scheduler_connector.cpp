@@ -231,8 +231,12 @@ TError TSchedulerConnector::DoSendHeartbeat()
 
     auto rspOrError = WaitFor(req->Invoke());
     if (!rspOrError.IsOK()) {
-        YT_LOG_ERROR(rspOrError, "Error reporting heartbeat to scheduler (BackoffTime: %v)",
-            HeartbeatExecutor_->GetBackoffTimeEstimate());
+        auto [minBackoff, maxBackoff] = HeartbeatExecutor_->GetBackoffInterval();
+        YT_LOG_ERROR(
+            rspOrError,
+            "Error reporting heartbeat to scheduler (BackoffTime: [%v, %v])",
+            minBackoff,
+            maxBackoff);
         return TError("Failed reporting heartbeat to scheduler");
     }
 
