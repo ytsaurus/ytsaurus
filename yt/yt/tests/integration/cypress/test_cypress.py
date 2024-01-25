@@ -77,60 +77,64 @@ class TestCypress(YTEnvSetup):
     @authors("panin", "ignat")
     def test_invalid_cases(self):
         # path not starting with /
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="Path \"a\" does not start with a valid root-designator"):
             set("a", 20)
 
         # path starting with single /
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="Expected \"slash\" in YPath but found \"literal\""):
             set("/a", 20)
 
         # empty path
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="YPath cannot be empty"):
             set("", 20)
 
         # empty token in path
-        with pytest.raises(YtError):
-            set("//tmp/a//b", 20)
+        # TODO(h0pless): Maybe make sure the error doesn't change.
+        if self.USE_SEQUOIA:
+            error_text = "Expected \"literal\" in YPath but found \"slash\" token \"/\""
+        else:
+            error_text = "Unexpected \"slash\" token \"/\" in YPath"
+        with pytest.raises(YtError, match=error_text):
+            set("//tmp//a/b", 20)
 
         # change the type of root
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="\"set\" command without \"force\" flag is forbidden"):
             set("/", [])
 
         # remove the root
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="Node / cannot be removed"):
             remove("/")
 
         # get non existent child
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="Node //tmp has no child with key \"b\""):
             get("//tmp/b")
 
         # remove non existent child
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="Node //tmp has no child with key \"b\""):
             remove("//tmp/b")
 
         # can"t create entity node inside cypress
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="Entity nodes cannot be created"):
             set("//tmp/entity", None)
 
     @authors("ignat")
-    @not_implemented_in_sequoia
     def test_remove(self):
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="Node //tmp has no child with key \"x\""):
             remove("//tmp/x", recursive=False)
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="Node //tmp has no child with key \"x\""):
             remove("//tmp/x")
         remove("//tmp/x", force=True)
 
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="Node //tmp has no child with key \"1\""):
             remove("//tmp/1", recursive=False)
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="Node //tmp has no child with key \"1\""):
             remove("//tmp/1")
         remove("//tmp/1", force=True)
 
         create("map_node", "//tmp/x/1/y", recursive=True)
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="Cannot remove non-empty composite node"):
             remove("//tmp/x", recursive=False)
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="Cannot remove non-empty composite node"):
             remove("//tmp/x", recursive=False, force=True)
         remove("//tmp/x/1/y", recursive=False)
         remove("//tmp/x")
@@ -151,7 +155,7 @@ class TestCypress(YTEnvSetup):
             remove(path, force=True)
 
         for builtin_path in ["//tmp/@key", "//tmp/@key/inner"]:
-            with pytest.raises(YtError):
+            with pytest.raises(YtError, match="Attribute .* cannot be removed"):
                 remove(builtin_path, force=True)
 
     @authors("ignat")
@@ -513,7 +517,6 @@ class TestCypress(YTEnvSetup):
             get("//tmp/@b")
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_copy_simple1(self):
         set("//tmp/a", 1)
         copy("//tmp/a", "//tmp/b")
@@ -543,7 +546,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/b/@count") == 2
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_copy_simple5(self):
         set("//tmp/a", {"b": 1})
         assert get("//tmp/a/b/@path") == "//tmp/a/b"
@@ -557,7 +559,7 @@ class TestCypress(YTEnvSetup):
     @authors("babenko", "ignat")
     @not_implemented_in_sequoia
     def test_copy_simple6a(self):
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="Cannot copy or move a node to itself"):
             copy("//tmp", "//tmp/a")
 
     @authors("babenko")
@@ -585,7 +587,6 @@ class TestCypress(YTEnvSetup):
         copy("//tmp/b/t", "//tmp/t")
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_copy_recursive_success(self):
         create("map_node", "//tmp/a")
         copy("//tmp/a", "//tmp/b/c", recursive=True)
@@ -594,7 +595,7 @@ class TestCypress(YTEnvSetup):
     @not_implemented_in_sequoia
     def test_copy_recursive_fail(self):
         create("map_node", "//tmp/a")
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="Node //tmp has no child with key \"b\""):
             copy("//tmp/a", "//tmp/b/c", recursive=False)
 
         with pytest.raises(YtError):
@@ -717,9 +718,8 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/a2/x/y/@account") == "a1"
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_copy_unexisting_path(self):
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="Node //tmp has no child with key \"x\""):
             copy("//tmp/x", "//tmp/y")
 
     @authors("babenko", "ignat")
@@ -751,7 +751,7 @@ class TestCypress(YTEnvSetup):
         copy("//tmp/b", "//tmp/a", force=True)
         assert exists("//tmp/a/c")
 
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="Node //tmp/a already exists"):
             copy("//tmp/b", "//tmp/a")
         # Two options simultaneously are forbidden.
         with pytest.raises(YtError):
@@ -814,7 +814,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t/@compression_codec") == "lz4"
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_copy_id1(self):
         set("//tmp/a", 123)
         a_id = get("//tmp/a/@id")
@@ -822,7 +821,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/b") == 123
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_copy_id2(self):
         set("//tmp/a", 123)
         tmp_id = get("//tmp/@id")
@@ -933,12 +931,11 @@ class TestCypress(YTEnvSetup):
         assert_items_equal(get("//tmp/t2/@acl"), acl)
 
     @authors("ignat")
-    @not_implemented_in_sequoia
     def test_move_simple1(self):
         set("//tmp/a", 1)
         move("//tmp/a", "//tmp/b")
         assert get("//tmp/b") == 1
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="Node //tmp has no child with key \"a\""):
             get("//tmp/a")
 
     @authors("babenko", "ignat")
@@ -956,7 +953,7 @@ class TestCypress(YTEnvSetup):
     @authors("babenko", "ignat")
     @not_implemented_in_sequoia
     def test_move_simple3(self):
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="Cannot copy or move a node to itself"):
             move("//tmp", "//tmp/a")
 
     @authors("babenko", "ignat")
@@ -978,7 +975,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t2/@account") == "tmp"
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_move_recursive_success(self):
         create("map_node", "//tmp/a")
         move("//tmp/a", "//tmp/b/c", recursive=True)
@@ -987,7 +983,7 @@ class TestCypress(YTEnvSetup):
     @not_implemented_in_sequoia
     def test_move_recursive_fail(self):
         create("map_node", "//tmp/a")
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="Node //tmp has no child with key \"b\""):
             move("//tmp/a", "//tmp/b/c", recursive=False)
 
         with pytest.raises(YtError):
@@ -1026,9 +1022,9 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t1")
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_move_force4(self):
-        with pytest.raises(YtError):
+        error_text = "//tmp is not a local object" if self.USE_SEQUOIA else "Node / cannot be replaced"
+        with pytest.raises(YtError, match=error_text):
             copy("//tmp", "/", force=True)
 
     @authors("babenko")
@@ -1096,7 +1092,6 @@ class TestCypress(YTEnvSetup):
             move("//tmp/t2", "//tmp/t4", tx=tx3)
 
     @authors("ignat")
-    @not_implemented_in_sequoia
     def test_embedded_attributes(self):
         set("//tmp/a", {})
         set("//tmp/a/@attr", {"key": "value"})
@@ -1264,19 +1259,16 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/some_node")
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_create_recursive_fail(self):
         create("map_node", "//tmp/some_node")
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="Node //tmp has no child with key \"a\""):
             create("map_node", "//tmp/a/b")
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_create_recursive_success(self):
         create("map_node", "//tmp/a/b", recursive=True)
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_create_ignore_existing_success(self):
         create("map_node", "//tmp/a/b", recursive=True)
         create("map_node", "//tmp/a/b", ignore_existing=True)
@@ -1828,7 +1820,6 @@ class TestCypress(YTEnvSetup):
         assert "compression_statistics" in get("//tmp/t/@opaque_attribute_keys")
 
     @authors("ignat")
-    @not_implemented_in_sequoia
     def test_boolean(self):
         yson_format = yson.loads(b"yson")
         set("//tmp/boolean", b"%true", is_raw=True)
@@ -1836,7 +1827,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/boolean", output_format=yson_format)
 
     @authors("lukyan")
-    @not_implemented_in_sequoia
     def test_uint64(self):
         yson_format = yson.loads(b"yson")
         set("//tmp/my_uint", b"123456u", is_raw=True)

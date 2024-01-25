@@ -64,6 +64,7 @@ static const auto& Logger = CypressProxyLogger;
 
 class TNodeProxyBase
     : public TYPathServiceBase
+    , public virtual TSupportsExists
     , public virtual TSupportsGet
     , public virtual TSupportsSet
     , public virtual TSupportsRemove
@@ -100,6 +101,7 @@ protected:
 
     bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
+        DISPATCH_YPATH_SERVICE_METHOD(Exists);
         DISPATCH_YPATH_SERVICE_METHOD(Get);
         DISPATCH_YPATH_SERVICE_METHOD(Set);
         DISPATCH_YPATH_SERVICE_METHOD(Remove);
@@ -184,128 +186,10 @@ protected:
 
     void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
     {
-        auto attributeFilter = request->has_attributes()
-            ? FromProto<TAttributeFilter>(request->attributes())
-            : TAttributeFilter();
-
-        auto limit = YT_PROTO_OPTIONAL(*request, limit);
-        // NB: This is an arbitrary value, it can be freely changed.
-        // TODO(h0pless): Think about moving global limit to dynamic config.
-        ui64 responseSizeLimit = limit ? static_cast<ui64>(*limit) : 100'000;
-
-        context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
-            limit,
-            attributeFilter);
-
-        // Fetch nodes from child nodes table.
-        std::queue<TNodeId> childrenLookupQueue;
-        childrenLookupQueue.push(Id_);
-
-        THashMap<TNodeId, std::vector<NRecords::TChildNode>> nodeIdToChildren;
-        nodeIdToChildren[Id_] = {};
-
-        i64 maxRetrievedDepth = 0;
-
-        // NB: 1 node is root node and it should not count towards the limit.
-        // If the number of nodes in a subtree of certain depth it equal to the limit, then we should
-        // fetch the next layer, so opaques can be set correctly.
-        while (nodeIdToChildren.size() <= responseSizeLimit + 1) {
-            std::vector<TFuture<std::vector<NRecords::TChildNode>>> asyncNextLayer;
-            while (!childrenLookupQueue.empty()) {
-                auto childrenFuture = Transaction_->SelectRows<NRecords::TChildNodeKey>(
-                    {
-                        Format("parent_id = %Qv", childrenLookupQueue.front()),
-                    },
-                    /* orderBy */ {"parent_id", "child_key"});
-
-                childrenLookupQueue.pop();
-                asyncNextLayer.push_back(std::move(childrenFuture));
-            }
-
-            // This means that we finished tree traversal.
-            if (asyncNextLayer.empty()) {
-                break;
-            }
-
-            // This should lead to a retry, but retries are not implemented in Sequoia yet.
-            // TODO(h0pless): Update error once Sequoia retries are implemented.
-            auto currentSubtreeLayerChildren = WaitFor(AllSucceeded(asyncNextLayer))
-                .ValueOrThrow();
-
-            for (const auto& children : currentSubtreeLayerChildren) {
-                for (const auto& child : children) {
-                    nodeIdToChildren[child.Key.ParentId].push_back(child);
-                    nodeIdToChildren[child.ChildId] = {};
-                    childrenLookupQueue.push(child.ChildId);
-                }
-            }
-
-            ++maxRetrievedDepth;
-        }
-
-        // Find all nodes that need to be requested from master cells.
-        THashMap<TCellTag, std::vector<TNodeId>> cellTagToNodeIds;
-        for (const auto& [nodeId, _] : nodeIdToChildren) {
-            auto nodeType = TypeFromId(nodeId);
-            if (IsScalarType(nodeType) || attributeFilter) {
-                cellTagToNodeIds[CellTagFromId(nodeId)].push_back(nodeId);
-            }
-        }
-
-        // Send master requests.
-        std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
-        asyncResults.reserve(cellTagToNodeIds.size());
-        for (const auto& [cellTag, nodeIds] : cellTagToNodeIds) {
-            auto proxy = CreateReadProxyToCell(cellTag);
-            // TODO(h0pless): Create a new type of request to make Get request amplification less drastic (see YT-20911).
-            auto batchReq = proxy.ExecuteBatch();
-
-            for (auto nodeId : nodeIds) {
-                auto masterRequest = TYPathProxy::Get(FromObjectId(nodeId));
-                // NB: When copying only the body of a given request gets copied, header stays intact.
-                // And path or id are stored in the header.
-                masterRequest->CopyFrom(*request);
-                masterRequest->Tag() = nodeId;
-                batchReq->AddRequest(masterRequest);
-            }
-            asyncResults.push_back(batchReq->Invoke());
-        }
-
-        auto results = WaitFor(AllSucceeded(asyncResults))
-            .ValueOrThrow();
-
-        THashMap<TNodeId, TYPathProxy::TRspGetPtr> nodeIdToMasterResponse;
-        nodeIdToMasterResponse.reserve(cellTagToNodeIds.size());
-        for (const auto& batchRsp : results) {
-            // TODO(kvk1920): In case of race between Get(path) and Create(path, force=true)
-            // for the same path we can get an error "no such node".
-            // Retry is needed if a given path still exists.
-            // Since retry mechanism is not implemented yet, this will do for now.
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRsp), "Error getting requsted information from master");
-
-            for (const auto& rspOrError : batchRsp->GetResponses<TYPathProxy::TRspGet>()) {
-                const auto& rsp = rspOrError.Value();
-                auto nodeId = std::any_cast<TNodeId>(rsp->Tag());
-                nodeIdToMasterResponse[nodeId] = rsp;
-            }
-        }
-
-        // Build a DFS over this mess.
-        TStringStream stream;
-        TYsonWriter writer(&stream);
-
-        VisitSequoiaTree(
-            Id_,
-            maxRetrievedDepth,
-            &writer,
-            attributeFilter,
-            std::move(nodeIdToChildren),
-            std::move(nodeIdToMasterResponse));
-
-        writer.Flush();
-
-        response->set_value(stream.Str());
-        context->Reply();
+        context->SetRequestInfo();
+        auto newRequest = TYPathProxy::Get();
+        newRequest->CopyFrom(*request);
+        ForwardRequest(std::move(newRequest), response, context);
     }
 
     void SetSelf(TReqSet* request, TRspSet* /*response*/, const TCtxSetPtr& context) override
@@ -341,11 +225,6 @@ protected:
         context->SetRequestInfo("Recursive: %v, Force: %v",
             recursive,
             force);
-
-        if (force) {
-            // TODO(kvk1920): Current Cypress behaviour is just to ignore some errors.
-            THROW_ERROR_EXCEPTION("Remove with \"force\" flag is not supported in Sequoia yet");
-        }
 
         TNodeId parentId;
         TCellTag subtreeRootCell;
@@ -393,6 +272,18 @@ protected:
             .ThrowOnError();
 
         context->Reply();
+    }
+
+    void ExistsAttribute(
+        const TYPath& /*path*/,
+        TReqExists* request,
+        TRspExists* response,
+        const TCtxExistsPtr& context) override
+    {
+        context->SetRequestInfo();
+        auto newRequest = TYPathProxy::Exists();
+        newRequest->CopyFrom(*request);
+        ForwardRequest(std::move(newRequest), response, context);
     }
 
     void GetAttribute(
@@ -690,6 +581,132 @@ private:
         context->Reply();
     }
 
+    void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
+    {
+        auto attributeFilter = request->has_attributes()
+            ? FromProto<TAttributeFilter>(request->attributes())
+            : TAttributeFilter();
+
+        auto limit = YT_PROTO_OPTIONAL(*request, limit);
+        // NB: This is an arbitrary value, it can be freely changed.
+        // TODO(h0pless): Think about moving global limit to dynamic config.
+        ui64 responseSizeLimit = limit ? static_cast<ui64>(*limit) : 100'000;
+
+        context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
+            limit,
+            attributeFilter);
+
+        // Fetch nodes from child nodes table.
+        std::queue<TNodeId> childrenLookupQueue;
+        childrenLookupQueue.push(Id_);
+
+        THashMap<TNodeId, std::vector<NRecords::TChildNode>> nodeIdToChildren;
+        nodeIdToChildren[Id_] = {};
+
+        i64 maxRetrievedDepth = 0;
+
+        // NB: 1 node is root node and it should not count towards the limit.
+        // If the number of nodes in a subtree of certain depth it equal to the limit, then we should
+        // fetch the next layer, so opaques can be set correctly.
+        while (nodeIdToChildren.size() <= responseSizeLimit + 1) {
+            std::vector<TFuture<std::vector<NRecords::TChildNode>>> asyncNextLayer;
+            while (!childrenLookupQueue.empty()) {
+                auto childrenFuture = Transaction_->SelectRows<NRecords::TChildNodeKey>(
+                    {
+                        Format("parent_id = %Qv", childrenLookupQueue.front()),
+                    },
+                    /* orderBy */ {"parent_id", "child_key"});
+
+                childrenLookupQueue.pop();
+                asyncNextLayer.push_back(std::move(childrenFuture));
+            }
+
+            // This means that we finished tree traversal.
+            if (asyncNextLayer.empty()) {
+                break;
+            }
+
+            // This should lead to a retry, but retries are not implemented in Sequoia yet.
+            // TODO(h0pless): Update error once Sequoia retries are implemented.
+            auto currentSubtreeLayerChildren = WaitFor(AllSucceeded(asyncNextLayer))
+                .ValueOrThrow();
+
+            for (const auto& children : currentSubtreeLayerChildren) {
+                for (const auto& child : children) {
+                    nodeIdToChildren[child.Key.ParentId].push_back(child);
+                    nodeIdToChildren[child.ChildId] = {};
+                    childrenLookupQueue.push(child.ChildId);
+                }
+            }
+
+            ++maxRetrievedDepth;
+        }
+
+        // Find all nodes that need to be requested from master cells.
+        THashMap<TCellTag, std::vector<TNodeId>> cellTagToNodeIds;
+        for (const auto& [nodeId, _] : nodeIdToChildren) {
+            auto nodeType = TypeFromId(nodeId);
+            if (IsScalarType(nodeType) || attributeFilter) {
+                cellTagToNodeIds[CellTagFromId(nodeId)].push_back(nodeId);
+            }
+        }
+
+        // Send master requests.
+        std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
+        asyncResults.reserve(cellTagToNodeIds.size());
+        for (const auto& [cellTag, nodeIds] : cellTagToNodeIds) {
+            auto proxy = CreateReadProxyToCell(cellTag);
+            // TODO(h0pless): Create a new type of request to make Get request amplification less drastic (see YT-20911).
+            auto batchReq = proxy.ExecuteBatch();
+
+            for (auto nodeId : nodeIds) {
+                auto masterRequest = TYPathProxy::Get(FromObjectId(nodeId));
+                // NB: When copying only the body of a given request gets copied, header stays intact.
+                // And path or id are stored in the header.
+                masterRequest->CopyFrom(*request);
+                masterRequest->Tag() = nodeId;
+                batchReq->AddRequest(masterRequest);
+            }
+            asyncResults.push_back(batchReq->Invoke());
+        }
+
+        auto results = WaitFor(AllSucceeded(asyncResults))
+            .ValueOrThrow();
+
+        THashMap<TNodeId, TYPathProxy::TRspGetPtr> nodeIdToMasterResponse;
+        nodeIdToMasterResponse.reserve(cellTagToNodeIds.size());
+        for (const auto& batchRsp : results) {
+            // TODO(kvk1920): In case of race between Get(path) and Create(path, force=true)
+            // for the same path we can get an error "no such node".
+            // Retry is needed if a given path still exists.
+            // Since retry mechanism is not implemented yet, this will do for now.
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRsp), "Error getting requsted information from master");
+
+            for (const auto& rspOrError : batchRsp->GetResponses<TYPathProxy::TRspGet>()) {
+                const auto& rsp = rspOrError.Value();
+                auto nodeId = std::any_cast<TNodeId>(rsp->Tag());
+                nodeIdToMasterResponse[nodeId] = rsp;
+            }
+        }
+
+        // Build a DFS over this mess.
+        TStringStream stream;
+        TYsonWriter writer(&stream);
+
+        VisitSequoiaTree(
+            Id_,
+            maxRetrievedDepth,
+            &writer,
+            attributeFilter,
+            std::move(nodeIdToChildren),
+            std::move(nodeIdToMasterResponse));
+
+        writer.Flush();
+
+        response->set_value(stream.Str());
+        context->Reply();
+    }
+
     void GetRecursive(
         const TYPath& path,
         TReqGet* request,
@@ -784,7 +801,11 @@ private:
 
         // There is no composite node type other than Sequoia map node. If we
         // have unresolved suffix it can be either attribute or non-existent child.
-        ThrowNoSuchChild(Path_, tokenizer.GetToken());
+        // Flag force was specifically designed to ignore this error.
+        if (!force) {
+            ThrowNoSuchChild(Path_, tokenizer.GetToken());
+        }
+        context->Reply();
     }
 };
 

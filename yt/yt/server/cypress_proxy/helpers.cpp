@@ -222,7 +222,7 @@ void RemoveSelectedSubtree(
         pathToNodeId[DemangleSequoiaPath(node.Key.Path)] = node.NodeId;
     }
 
-    for (auto nodeIt = subtreeNodes.begin() + (removeRoot ? 0 : 1); nodeIt != subtreeNodes.end(); ++nodeIt) {
+    for (auto nodeIt = subtreeNodes.begin() + (removeRoot ? 0 : 1); nodeIt < subtreeNodes.end(); ++nodeIt) {
         RemoveNode(nodeIt->NodeId, nodeIt->Key.Path, transaction);
     }
 

@@ -124,7 +124,7 @@ TCypressNode* GetMapNodeChildOrThrow(
     if (!child) {
         THROW_ERROR_EXCEPTION(
             NYTree::EErrorCode::ResolveError,
-            "%v has no child with key %Qv",
+            "Node %v has no child with key %Qv",
             cypressManager->GetNodePath(trunkNode, transaction),
             ToYPathLiteral(key));
     }
