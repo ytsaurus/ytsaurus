@@ -42,6 +42,7 @@ void TClient::DoSetUserPassword(
     auto attributes = nodeFactory->CreateMap();
     attributes->AddChild("hashed_password", ConvertToNode(hashedNewPassword));
     attributes->AddChild("password_salt", ConvertToNode(newPasswordSalt));
+    attributes->AddChild("password_is_temporary", ConvertToNode(options.PasswordIsTemporary));
     WaitFor(rootClient->MultisetAttributesNode(
         path,
         attributes,

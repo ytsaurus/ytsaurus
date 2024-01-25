@@ -17,6 +17,8 @@ from yt_helpers import profiler_factory
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 
+from yt.yson import YsonBoolean
+
 import pytest
 import builtins
 import datetime
@@ -727,6 +729,41 @@ class TestUsers(YTEnvSetup):
         last_seen = self._get_last_seen_time("u")
         set("//sys/users/u/@name", "v", authenticated_user="u")
         wait(lambda: self._get_last_seen_time("v") > last_seen, timeout=2)
+
+    @authors("krock21")
+    def test_password_temporary(self):
+        if self.DRIVER_BACKEND == "rpc":
+            pytest.skip()
+
+        create_user("u")
+        assert not exists("//sys/users/u/@password_is_temporary")
+
+        set_user_password("u", "p1")
+        assert get("//sys/users/u/@password_is_temporary") == YsonBoolean(False)
+
+        set_user_password("u", "p2", password_is_temporary=True)
+        assert get("//sys/users/u/@password_is_temporary") == YsonBoolean(True)
+
+        set("//sys/users/u/@password_is_temporary", "abc")
+        assert get("//sys/users/u/@password_is_temporary") == "abc"
+
+        set_user_password("u", "p3", current_password="p2", password_is_temporary=True)
+        assert get("//sys/users/u/@password_is_temporary") == YsonBoolean(True)
+
+        set_user_password("u", "p4")
+        assert get("//sys/users/u/@password_is_temporary") == YsonBoolean(False)
+
+        set("//sys/users/u/@password_is_temporary", False)
+        assert get("//sys/users/u/@password_is_temporary") == YsonBoolean(False)
+
+        set("//sys/users/u/@password_is_temporary", True)
+        assert get("//sys/users/u/@password_is_temporary") == YsonBoolean(True)
+
+        set("//sys/users/u/@password_is_temporary", "cde")
+        assert get("//sys/users/u/@password_is_temporary") == "cde"
+
+        remove("//sys/users/u/@password_is_temporary")
+        assert not exists("//sys/users/u/@password_is_temporary")
 
 
 ##################################################################
