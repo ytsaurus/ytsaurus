@@ -9334,6 +9334,17 @@ TJobStartInfo TOperationControllerBase::SettleJob(TAllocationId allocationId)
         THROW_ERROR_EXCEPTION("Operation is not running");
     }
 
+    //! NB(arkady-e1ppa): Concurrent OnJobAborted(Failed/Completed)
+    //! can unregister joblet without changing the operation state yet.
+    //! In such cases we might start job which was already finished.
+    if (!FindJoblet(joblet->JobId)) {
+        YT_LOG_DEBUG(
+            "Stale settle job request, job is already finished; send error instead of spec "
+            "(AllocationId: %v)",
+            allocationId);
+        THROW_ERROR_EXCEPTION("Job is already finished");
+    }
+
     OnJobStarted(joblet);
 
     return TJobStartInfo{
