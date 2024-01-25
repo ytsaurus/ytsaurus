@@ -45,6 +45,11 @@ except ImportError:  # Python 3
     from io import BytesIO
     OutputType = BytesIO
 
+try:
+    import yt_tests_settings
+except ImportError:
+    import yt_tests_opensource_settings as yt_tests_settings
+
 ###########################################################################
 
 root_logger = logging.getLogger()
@@ -3393,3 +3398,9 @@ def wait_for_node_alive_object_counts(address, type_to_expected_count):
 
 def get_connection_config(**kwargs):
     return execute_command("get_connection_config", kwargs, parse_yson=True)
+
+
+def get_supported_erasure_codecs(filter=None):
+    if filter is None:
+        return yt_tests_settings.supported_erasure_codes
+    return [codec for codec in filter if codec in yt_tests_settings.supported_erasure_codes]
