@@ -54,7 +54,7 @@ TFuture<void> TLocationManager::FailDiskByName(
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TDiskInfo>& diskInfos) {
             for (const auto& diskInfo : diskInfos) {
                 if (diskInfo.DeviceName == diskName &&
-                    diskInfo.State == NContainers::EDiskState::Ok)
+                    diskInfo.State == NContainers::EDiskState::OK)
                 {
                     // Try to fail not accessible disk.
                     return DiskInfoProvider_->FailDisk(
@@ -471,7 +471,7 @@ void TLocationHealthChecker::HandleHotSwap(std::vector<TDiskInfo> diskInfos)
 
     for (const auto& livenessInfo : livenessInfos) {
         if (livenessInfo.IsDiskAlive &&
-            livenessInfo.DiskState == NContainers::EDiskState::Ok &&
+            livenessInfo.DiskState == NContainers::EDiskState::OK &&
             livenessInfo.LocationState == ELocationState::Destroyed)
         {
             livenessInfo.Location->OnDiskRepaired();

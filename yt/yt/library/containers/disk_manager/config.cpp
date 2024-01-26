@@ -17,7 +17,7 @@ void TMockedDiskConfig::Register(TRegistrar registrar)
     registrar.Parameter("partition_fs_labels", &TThis::PartitionFsLabels)
         .Default();
     registrar.Parameter("state", &TThis::State)
-        .Default(EDiskState::Ok);
+        .Default(EDiskState::OK);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

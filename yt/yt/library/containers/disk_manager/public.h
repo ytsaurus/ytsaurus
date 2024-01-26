@@ -8,7 +8,7 @@ namespace NYT::NContainers {
 
 DEFINE_ENUM(EDiskState,
     ((Unknown)     (0))
-    ((Ok)          (1))
+    ((OK)          (1))
     ((Failed)      (2))
     ((RecoverWait) (3))
 );
