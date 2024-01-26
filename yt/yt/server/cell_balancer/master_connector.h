@@ -10,10 +10,9 @@ namespace NYT::NCellBalancer {
 /*!
  *  \note Thread affinity: control unless noted otherwise
  */
-class IMasterConnector
+struct IMasterConnector
     : public TRefCounted
 {
-public:
     virtual void Start() = 0;
 };
 

@@ -8,10 +8,9 @@ namespace NYT::NChunkClient {
 
 // This interface is not exposed through IClientChunkMetaCache.
 // It is used only for unittests.
-class ICachedChunkMeta
+struct  ICachedChunkMeta
     : public virtual TRefCounted
 {
-public:
     using TMetaFetchCallback = TCallback<TFuture<TRefCountedChunkMetaPtr>(const std::optional<std::vector<int>>& extensionTags)>;
 
     virtual TFuture<TRefCountedChunkMetaPtr> Fetch(
@@ -31,10 +30,9 @@ ICachedChunkMetaPtr CreateCachedChunkMeta(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IClientChunkMetaCache
+struct IClientChunkMetaCache
     : public virtual TRefCounted
 {
-public:
     using TMetaFetchCallback = ICachedChunkMeta::TMetaFetchCallback;
 
     virtual TFuture<TRefCountedChunkMetaPtr> Fetch(

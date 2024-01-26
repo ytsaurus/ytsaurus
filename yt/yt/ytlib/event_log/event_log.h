@@ -68,10 +68,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IEventLogWriter
+struct IEventLogWriter
     : public TRefCounted
 {
-public:
     virtual std::unique_ptr<NYson::IYsonConsumer> CreateConsumer() = 0;
 
     virtual TEventLogManagerConfigPtr GetConfig() const = 0;

@@ -71,10 +71,9 @@ DEFINE_REFCOUNTED_TYPE(TReincarnationJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IChunkReincarnator
+struct IChunkReincarnator
     : public virtual ITypedJobController<TReincarnationJob>
 {
-public:
     virtual void Initialize() = 0;
 
     virtual void OnChunkDestroyed(TChunk* chunk) = 0;

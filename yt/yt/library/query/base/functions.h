@@ -10,10 +10,9 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class ITypeInferrer
+struct ITypeInferrer
     : public virtual TRefCounted
 {
-public:
     template <class TDerived>
     const TDerived* As() const
     {

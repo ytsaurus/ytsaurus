@@ -36,7 +36,7 @@ struct IAlertManagerHost
 
     virtual std::unique_ptr<IHistogram> ComputeFinalPartitionSizeHistogram() const = 0;
 
-    virtual IDiagnosableInvokerPool::TInvokerStatistics GetInvokerStatistics(
+    virtual TDiagnosableInvokerPool::TInvokerStatistics GetInvokerStatistics(
         EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
 
     virtual void Persist(const TPersistenceContext& context) = 0;

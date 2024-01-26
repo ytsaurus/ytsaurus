@@ -13,12 +13,10 @@ namespace NYT::NCoreDump {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class ISparseCoreDumpConsumer
+struct ISparseCoreDumpConsumer
     : public TRefCounted
 {
-public:
     virtual void OnRegularBlock(TSharedRef block) = 0;
-
     virtual void OnZeroBlock(i64 length) = 0;
 };
 
@@ -28,17 +26,16 @@ class TFileSparseCoreDumpWriter
     : public ISparseCoreDumpConsumer
 {
 public:
-    TFileSparseCoreDumpWriter(TFile* outputFile);
-
+    explicit TFileSparseCoreDumpWriter(TFile* outputFile);
     ~TFileSparseCoreDumpWriter();
 
     void OnRegularBlock(TSharedRef block) override;
-
     void OnZeroBlock(i64 length) override;
 
 private:
+    TFile* const OutputFile_;
+
     i64 FileOffset_ = 0;
-    TFile* OutputFile_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

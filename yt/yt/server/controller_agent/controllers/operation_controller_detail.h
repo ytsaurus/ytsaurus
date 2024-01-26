@@ -326,7 +326,7 @@ public:
 
     IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
     IInvokerPtr GetJobSpecBuildInvoker() const override;
-    IDiagnosableInvokerPool::TInvokerStatistics GetInvokerStatistics(
+    TDiagnosableInvokerPool::TInvokerStatistics GetInvokerStatistics(
         EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
 
     std::optional<NYPath::TRichYPath> GetStderrTablePath() const override;
@@ -514,7 +514,7 @@ protected:
     NApi::NNative::IClientPtr SchedulerOutputClient;
 
     TCancelableContextPtr CancelableContext;
-    IDiagnosableInvokerPoolPtr DiagnosableInvokerPool_;
+    TDiagnosableInvokerPoolPtr DiagnosableInvokerPool_;
     IInvokerPoolPtr InvokerPool;
     ISuspendableInvokerPoolPtr SuspendableInvokerPool;
     IInvokerPoolPtr CancelableInvokerPool;

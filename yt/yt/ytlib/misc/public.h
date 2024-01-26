@@ -6,7 +6,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(INodeMemoryTracker)
+DECLARE_REFCOUNTED_STRUCT(INodeMemoryTracker)
 DECLARE_REFCOUNTED_STRUCT(ITypedNodeMemoryTracker)
 DECLARE_REFCOUNTED_STRUCT(INodeMemoryReferenceTracker)
 DECLARE_REFCOUNTED_CLASS(TNodeMemoryReferenceTrackerConfig)

@@ -26,10 +26,9 @@ namespace NYT::NExecNode {
  *
  *   \note Thread affinity: any (unless noted otherwise)
  */
-class IJobController
+struct IJobController
     : public TRefCounted
 {
-public:
     virtual void Initialize() = 0;
 
     virtual void Start() = 0;

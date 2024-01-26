@@ -57,10 +57,9 @@ IGentleLoaderPtr CreateGentleLoader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class ILoadAdjuster
+struct ILoadAdjuster
     : public TRefCounted
 {
-public:
     virtual bool ShouldSkipRead(i64 size) = 0;
     virtual bool ShouldSkipWrite(i64 size) = 0;
     virtual void ResetStatistics() = 0;
@@ -70,8 +69,9 @@ public:
     virtual double GetWriteProbability() const = 0;
 };
 
-DECLARE_REFCOUNTED_CLASS(ILoadAdjuster)
 DEFINE_REFCOUNTED_TYPE(ILoadAdjuster)
+
+////////////////////////////////////////////////////////////////////////////////
 
 ILoadAdjusterPtr CreateLoadAdjuster(
     TGentleLoaderConfigPtr config,

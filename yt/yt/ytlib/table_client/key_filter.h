@@ -32,10 +32,9 @@ DEFINE_REFCOUNTED_TYPE(TKeyFilterStatistics)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IKeyFilterBuilder
+struct IKeyFilterBuilder
     : public TRefCounted
 {
-public:
     virtual void AddKey(TVersionedRow row) = 0;
 
     virtual std::vector<TSharedRef> SerializeBlocks(NProto::TSystemBlockMetaExt* systemBlockMetaExt) = 0;

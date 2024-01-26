@@ -445,7 +445,7 @@ struct IOperationController
 {
     IInvokerPtr GetInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override = 0;
     IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override = 0;
-    virtual IDiagnosableInvokerPool::TInvokerStatistics GetInvokerStatistics(
+    virtual TDiagnosableInvokerPool::TInvokerStatistics GetInvokerStatistics(
         EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
 
     //! Called during heartbeat processing to request actions the node must perform.

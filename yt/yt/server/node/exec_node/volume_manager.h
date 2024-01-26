@@ -22,10 +22,9 @@ DEFINE_REFCOUNTED_TYPE(IVolumeArtifact)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IVolumeChunkCache
+struct IVolumeChunkCache
     : public TRefCounted
 {
-public:
     virtual TFuture<IVolumeArtifactPtr> DownloadArtifact(
         const NDataNode::TArtifactKey& key,
         const TArtifactDownloadOptions& artifactDownloadOptions) = 0;

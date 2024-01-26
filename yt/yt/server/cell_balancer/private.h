@@ -15,11 +15,10 @@ DECLARE_REFCOUNTED_CLASS(TBundleControllerConfig)
 
 struct IBootstrap;
 
-DECLARE_REFCOUNTED_CLASS(IMasterConnector)
-DECLARE_REFCOUNTED_CLASS(ICellTracker)
+DECLARE_REFCOUNTED_STRUCT(IMasterConnector)
+DECLARE_REFCOUNTED_STRUCT(ICellTracker)
 DECLARE_REFCOUNTED_CLASS(TCellTrackerImpl)
 DECLARE_REFCOUNTED_STRUCT(IBundleController)
-
 DECLARE_REFCOUNTED_CLASS(TClusterStateProvider)
 
 ////////////////////////////////////////////////////////////////////////////////

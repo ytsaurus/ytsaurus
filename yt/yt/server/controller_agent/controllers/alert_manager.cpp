@@ -63,7 +63,7 @@ private:
 
     NConcurrency::TPeriodicExecutorPtr AnalyzeExecutor_;
 
-    using TControllerQueueStatistics = TEnumIndexedArray<EOperationControllerQueue, IDiagnosableInvokerPool::TInvokerStatistics>;
+    using TControllerQueueStatistics = TEnumIndexedArray<EOperationControllerQueue, TDiagnosableInvokerPool::TInvokerStatistics>;
     TControllerQueueStatistics LastControllerQueueStatistics_;
 
     struct TGpuPowerUsageRecord

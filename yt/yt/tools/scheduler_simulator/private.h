@@ -11,7 +11,7 @@ namespace NYT::NSchedulerSimulator {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(ISimulatorOperationController)
+DECLARE_REFCOUNTED_STRUCT(ISimulatorOperationController)
 DECLARE_REFCOUNTED_CLASS(TOperation)
 DECLARE_REFCOUNTED_CLASS(TSimulatorOperationController)
 DECLARE_REFCOUNTED_CLASS(TSimulatorNodeWorker)

@@ -104,7 +104,7 @@ using TConstTypeInferrerMapPtr = TIntrusivePtr<const TTypeInferrerMap>;
 const TConstTypeInferrerMapPtr GetBuiltinTypeInferrers();
 
 DECLARE_REFCOUNTED_STRUCT(IFunctionRegistry)
-DECLARE_REFCOUNTED_CLASS(ITypeInferrer)
+DECLARE_REFCOUNTED_STRUCT(ITypeInferrer)
 
 DECLARE_REFCOUNTED_CLASS(TFunctionImplCache)
 

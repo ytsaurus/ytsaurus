@@ -169,15 +169,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IOperationStatisticsOutput
+struct IOperationStatisticsOutput
 {
-public:
-    virtual void PrintEntry(NScheduler::TOperationId id, TOperationStatistics stats) = 0;
-
     virtual ~IOperationStatisticsOutput() = default;
 
-protected:
-    IOperationStatisticsOutput() = default;
+    virtual void PrintEntry(NScheduler::TOperationId id, TOperationStatistics stats) = 0;
 };
 
 class TSharedOperationStatisticsOutput

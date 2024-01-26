@@ -37,8 +37,9 @@ DECLARE_REFCOUNTED_STRUCT(IGentleLoader)
 
 DECLARE_REFCOUNTED_STRUCT(IReadRequestCombiner)
 
-class TIOEngineHandle;
+DECLARE_REFCOUNTED_STRUCT(ILoadAdjuster)
 
+class TIOEngineHandle;
 using TIOEngineHandlePtr = TIntrusivePtr<TIOEngineHandle>;
 
 struct TChunkFragmentDescriptor;

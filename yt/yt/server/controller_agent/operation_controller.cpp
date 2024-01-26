@@ -328,7 +328,7 @@ public:
         return DoExecuteGuarded(&IOperationController::GetCancelableInvoker, queue);
     }
 
-    IDiagnosableInvokerPool::TInvokerStatistics GetInvokerStatistics(EOperationControllerQueue queue) const override
+    TDiagnosableInvokerPool::TInvokerStatistics GetInvokerStatistics(EOperationControllerQueue queue) const override
     {
         return DoExecuteGuarded(&IOperationController::GetInvokerStatistics, queue);
     }

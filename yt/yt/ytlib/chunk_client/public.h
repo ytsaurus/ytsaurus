@@ -257,8 +257,8 @@ DECLARE_REFCOUNTED_CLASS(TChunkReaderMemoryManagerHolder)
 DECLARE_REFCOUNTED_STRUCT(IMultiReaderMemoryManager)
 DECLARE_REFCOUNTED_STRUCT(IReaderMemoryManagerHost)
 
-DECLARE_REFCOUNTED_CLASS(ICachedChunkMeta)
-DECLARE_REFCOUNTED_CLASS(IClientChunkMetaCache)
+DECLARE_REFCOUNTED_STRUCT(ICachedChunkMeta)
+DECLARE_REFCOUNTED_STRUCT(IClientChunkMetaCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 

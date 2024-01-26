@@ -20,10 +20,9 @@ DEFINE_ENUM(ECompetitionStatus,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class ICompetitiveJobManagerHost
+struct ICompetitiveJobManagerHost
     : public IPersistent
 {
-public:
     virtual void OnSecondaryJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType) = 0;
     virtual void AsyncAbortJob(TJobId jobId, NScheduler::EAbortReason abortReason) = 0;
     virtual void AbortJob(TJobId jobId, NScheduler::EAbortReason abortReason) = 0;

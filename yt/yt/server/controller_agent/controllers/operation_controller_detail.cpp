@@ -4910,7 +4910,7 @@ IInvokerPtr TOperationControllerBase::GetJobSpecBuildInvoker() const
     return JobSpecBuildInvoker_;
 }
 
-IDiagnosableInvokerPool::TInvokerStatistics TOperationControllerBase::GetInvokerStatistics(EOperationControllerQueue queue) const
+TDiagnosableInvokerPool::TInvokerStatistics TOperationControllerBase::GetInvokerStatistics(EOperationControllerQueue queue) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

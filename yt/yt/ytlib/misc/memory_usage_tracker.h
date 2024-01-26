@@ -30,10 +30,9 @@ DEFINE_REFCOUNTED_TYPE(ITypedNodeMemoryTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class INodeMemoryTracker
+struct INodeMemoryTracker
     : public TRefCounted
 {
-public:
     using ECategory = EMemoryCategory;
     using TPoolTag = TString;
 

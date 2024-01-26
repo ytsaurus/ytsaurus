@@ -6,10 +6,9 @@ namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class ICellTracker
+struct ICellTracker
     : public TRefCounted
 {
-public:
     virtual void Start() = 0;
 
     virtual NYTree::IYPathServicePtr CreateOrchidService() = 0;
