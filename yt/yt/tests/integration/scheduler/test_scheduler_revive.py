@@ -557,6 +557,8 @@ class TestControllerAgentReconnection(YTEnvSetup):
         )
         self._wait_for_state(op, "running")
 
+        operation_info = get_operation(op.id)
+
         snapshot_path = op.get_path() + "/snapshot"
         wait(lambda: exists(snapshot_path))
 
@@ -579,10 +581,11 @@ class TestControllerAgentReconnection(YTEnvSetup):
             return hash_md5.hexdigest()
 
         print_debug("stderr: {}".format(read_table("//tmp/stderr_table")))
-        print_debug("operation_id: {}".format(os.environ.get("YT_OPERATION_ID")))
+        print_debug("env: {}".format(os.environ))
         print_debug("hostname: {}".format(socket.gethostname()))
         print_debug("cat: {}".format(md5("/bin/cat")))
         print_debug("bash: {}".format(md5("/bin/bash")))
+        print_debug(f"operation_info: {operation_info}")
 
         self._wait_for_state(op, "completed")
 

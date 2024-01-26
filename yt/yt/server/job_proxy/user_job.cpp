@@ -1455,6 +1455,9 @@ private:
             NYson::TYsonWriter writer(&output, EYsonFormat::Pretty);
             Serialize(executorConfig, &writer);
             writer.Flush();
+            YT_LOG_DEBUG("Executor config written (Path: %v, Command: %v)",
+                executorConfigPath,
+                executorConfig->Command);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to write executor config into %v", executorConfigPath)
                 << ex;
