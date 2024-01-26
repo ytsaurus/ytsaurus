@@ -1511,7 +1511,7 @@ public:
             LayerMeta_.Path);
 
         Location_->RemoveLayer(LayerMeta_.Id)
-            .Apply(BIND([] (const TError& result) {
+            .Subscribe(BIND([] (const TError& result) {
                 YT_LOG_ERROR_IF(!result.IsOK(), result, "Layer remove failed");
             }));
     }
@@ -2211,7 +2211,7 @@ private:
 
                     auto finally = Finally(BIND([=] () {
                         location->RemoveLayer(layerMeta.Id)
-                            .Apply(BIND([] (const TError& result) {
+                            .Subscribe(BIND([] (const TError& result) {
                                 YT_LOG_ERROR_IF(!result.IsOK(), result, "Layer remove failed");
                             }));
                     }));

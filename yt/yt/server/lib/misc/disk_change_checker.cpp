@@ -36,16 +36,24 @@ TDiskChangeChecker::TDiskChangeChecker(
         TDuration::Minutes(1)))
 { }
 
-void TDiskChangeChecker::SetDiskIdsMismatched()
+void TDiskChangeChecker::PopulateAlerts(std::vector<TError>* alerts)
 {
-    return DiskIdsMismatched_.store(true);
+    auto alert = DiskIdsMismatchedAlert_.Load();
+    if (!alert.IsOK()) {
+        alerts->push_back(alert);
+    }
+}
+
+void TDiskChangeChecker::SetDiskIdsMismatchedAlert(TError alert)
+{
+    return DiskIdsMismatchedAlert_.Store(alert);
 }
 
 void TDiskChangeChecker::BuildOrchid(IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("disk_ids_mismatched").Value(DiskIdsMismatched_.load())
+            .Item("disk_ids_mismatched").Value(!DiskIdsMismatchedAlert_.Load().IsOK())
         .EndMap();
 }
 
@@ -139,7 +147,11 @@ void TDiskChangeChecker::CheckDiskChange(const std::vector<TDiskInfo>& diskInfos
             !checkDisks(diskIds, configDiskIds))
         {
             YT_LOG_WARNING("Set disk ids mismatched flag");
-            SetDiskIdsMismatched();
+            SetDiskIdsMismatchedAlert(TError(NChunkClient::EErrorCode::DiskIdsMismatched, "Disk ids mismatched")
+                << TErrorAttribute("config_disk_ids", std::vector<TString>(configDiskIds.begin(), configDiskIds.end()))
+                << TErrorAttribute("disk_ids", std::vector<TString>(diskIds.begin(), diskIds.end()))
+                << TErrorAttribute("previous_alive_disk_ids", std::vector<TString>(oldDiskIds.begin(), oldDiskIds.end()))
+                << TErrorAttribute("alive_disk_ids", std::vector<TString>(aliveDiskIds.begin(), aliveDiskIds.end())));
         }
     }
 

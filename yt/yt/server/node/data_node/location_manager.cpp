@@ -389,14 +389,18 @@ void TLocationHealthChecker::HandleHotSwap(std::vector<TDiskInfo> diskInfos)
 
     for (const auto& diskInfo : diskInfos) {
         if (diskInfo.State == NContainers::EDiskState::Failed) {
-            diskFailedAlertsMap[diskInfo.DiskId] = TError("Disk failed, need hot swap")
+            diskFailedAlertsMap[diskInfo.DiskId] = TError(
+                NChunkClient::EErrorCode::DiskFailed,
+                "Disk failed, need hot swap")
                 << TErrorAttribute("disk_id", diskInfo.DiskId)
                 << TErrorAttribute("disk_model", diskInfo.DiskModel)
                 << TErrorAttribute("disk_state", diskInfo.State)
                 << TErrorAttribute("disk_path", diskInfo.DevicePath)
                 << TErrorAttribute("disk_name", diskInfo.DeviceName);
         } else if (diskInfo.State == NContainers::EDiskState::RecoverWait) {
-            diskWaitingReplacementAlertsMap[diskInfo.DiskId] = TError("Disk is waiting replacement")
+            diskWaitingReplacementAlertsMap[diskInfo.DiskId] = TError(
+                NChunkClient::EErrorCode::DiskWaitingReplacement,
+                "Disk is waiting replacement")
                 << TErrorAttribute("disk_id", diskInfo.DiskId)
                 << TErrorAttribute("disk_model", diskInfo.DiskModel)
                 << TErrorAttribute("disk_state", diskInfo.State)
