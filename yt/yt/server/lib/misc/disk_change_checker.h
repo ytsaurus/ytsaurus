@@ -17,7 +17,7 @@
 
 #include <yt/yt/library/containers/disk_manager/public.h>
 
-#include <atomic>
+#include <yt/yt/core/misc/atomic_object.h>
 
 namespace NYT {
 
@@ -34,6 +34,8 @@ public:
 
     void Start();
 
+    void PopulateAlerts(std::vector<TError>* alerts);
+
     NYTree::IYPathServicePtr GetOrchidService();
 
 private:
@@ -43,7 +45,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    std::atomic<bool> DiskIdsMismatched_;
+    TAtomicObject<TError> DiskIdsMismatchedAlert_;
     THashSet<TString> OldDiskIds_;
 
     NConcurrency::TPeriodicExecutorPtr CheckerExecutor_;
@@ -52,7 +54,7 @@ private:
 
     void CheckDiskChange(const std::vector<NContainers::TDiskInfo>& diskInfos);
 
-    void SetDiskIdsMismatched();
+    void SetDiskIdsMismatchedAlert(TError alert);
 
     void UpdateOldDiskIds(THashSet<TString> oldDiskIds);
 

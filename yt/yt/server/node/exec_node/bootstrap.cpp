@@ -176,6 +176,8 @@ public:
         SlotManager_->Initialize();
         JobController_->Initialize();
         MasterConnector_->Initialize();
+
+        SubscribePopulateAlerts(BIND(&TDiskChangeChecker::PopulateAlerts, DiskChangeChecker_));
     }
 
     void Run() override

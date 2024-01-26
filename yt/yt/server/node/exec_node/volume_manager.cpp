@@ -1513,10 +1513,10 @@ public:
             LayerMeta_.Id,
             LayerMeta_.Path);
 
-        YT_UNUSED_FUTURE(Location_->RemoveLayer(LayerMeta_.Id)
-            .Apply(BIND([] (const TError& result) {
+        Location_->RemoveLayer(LayerMeta_.Id)
+            .Subscribe(BIND([] (const TError& result) {
                 YT_LOG_ERROR_IF(!result.IsOK(), result, "Layer remove failed");
-            })));
+            }));
     }
 
     const TString& GetCypressPath() const
@@ -2213,10 +2213,10 @@ private:
                     // and then copy into in-memory.
 
                     auto finally = Finally(BIND([=] () {
-                        YT_UNUSED_FUTURE(location->RemoveLayer(layerMeta.Id)
-                            .Apply(BIND([] (const TError& result) {
+                        location->RemoveLayer(layerMeta.Id)
+                            .Subscribe(BIND([] (const TError& result) {
                                 YT_LOG_ERROR_IF(!result.IsOK(), result, "Layer remove failed");
-                            })));
+                            }));
                     }));
 
                     auto tmpfsLayerMeta = WaitFor(targetLocation->InternalizeLayer(layerMeta, tag))

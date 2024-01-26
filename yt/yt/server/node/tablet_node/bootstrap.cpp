@@ -318,6 +318,8 @@ public:
 
         SlotManager_->Initialize();
         MasterConnector_->Initialize();
+
+        SubscribePopulateAlerts(BIND(&TDiskChangeChecker::PopulateAlerts, DiskChangeChecker_));
     }
 
     void InitializeOverloadController()

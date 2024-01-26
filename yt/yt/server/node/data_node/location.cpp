@@ -1188,7 +1188,8 @@ void TChunkLocation::MarkUninitializedLocationDisabled(const TError& error)
         return;
     }
 
-    LocationDisabledAlert_.Store(TError("Chunk location at %v is disabled", GetPath())
+    LocationDisabledAlert_.Store(TError(NChunkClient::EErrorCode::LocationDisabled,
+        "Chunk location at %v is disabled", GetPath())
         << TErrorAttribute("location_uuid", GetUuid())
         << TErrorAttribute("location_path", GetPath())
         << TErrorAttribute("location_disk", StaticConfig_->DeviceName)
@@ -1880,7 +1881,8 @@ bool TStoreLocation::ScheduleDisable(const TError& reason)
     YT_LOG_WARNING(reason, "Disabling location (LocationUuid: %v)", GetUuid());
 
     // No new actions can appear here. Please see TDiskLocation::RegisterAction.
-    auto error = TError("Chunk location at %v is disabled", GetPath())
+    auto error = TError(NChunkClient::EErrorCode::LocationDisabled,
+        "Chunk location at %v is disabled", GetPath())
         << TErrorAttribute("location_uuid", GetUuid())
         << TErrorAttribute("location_path", GetPath())
         << TErrorAttribute("location_disk", StaticConfig_->DeviceName)

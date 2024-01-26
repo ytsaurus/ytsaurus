@@ -267,6 +267,8 @@ public:
             RestartManager_);
         LocationHealthChecker_->Initialize();
         MasterConnector_->Initialize();
+
+        SubscribePopulateAlerts(BIND(&TDiskChangeChecker::PopulateAlerts, DiskChangeChecker_));
     }
 
     void Run() override
