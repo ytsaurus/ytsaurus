@@ -218,6 +218,18 @@ bool operator != (const TJoin& lhs, const TJoin& rhs)
     return !(lhs == rhs);
 }
 
+bool operator == (const TArrayJoin& lhs, const TArrayJoin& rhs)
+{
+    return
+        std::tie(lhs.IsLeft, lhs.Columns) ==
+        std::tie(rhs.IsLeft, rhs.Columns);
+}
+
+bool operator != (const TArrayJoin& lhs, const TArrayJoin& rhs)
+{
+    return !(lhs == rhs);
+}
+
 bool operator == (const TQuery& lhs, const TQuery& rhs)
 {
     return
@@ -619,6 +631,15 @@ void FormatJoin(TStringBuilderBase* builder, const TJoin& join)
     }
 }
 
+void FormatArrayJoin(TStringBuilderBase* builder, const TArrayJoin& join)
+{
+    if (join.IsLeft) {
+        builder->AppendString(" LEFT");
+    }
+    builder->AppendString(" ARRAY JOIN ");
+    FormatExpressions(builder, join.Columns, /*expandAliases*/ true);
+}
+
 void FormatQuery(TStringBuilderBase* builder, const TQuery& query)
 {
     if (query.SelectExprs) {
@@ -642,7 +663,13 @@ void FormatQuery(TStringBuilderBase* builder, const TQuery& query)
     }
 
     for (const auto& join : query.Joins) {
-        FormatJoin(builder, join);
+        Visit(join,
+            [&] (const TJoin& tableJoin) {
+                FormatJoin(builder, tableJoin);
+            },
+            [&] (const TArrayJoin& arrayJoin) {
+                FormatArrayJoin(builder, arrayJoin);
+            });
     }
 
     if (query.WherePredicate) {

@@ -52,7 +52,10 @@ Y_FORCE_INLINE TCompartmentFunction<TResult(TArgs...)>::TCompartmentFunction(
     TTypedInvokeFunction function)
     : Compartment_(compartment)
     , Function_(function)
-    , RuntimeType_(TFunctionTypeBuilder</*intrinsic*/ false, TResult(TArgs...)>::Get())
+    , RuntimeType_(
+        Compartment_
+        ? TFunctionTypeBuilder</*intrinsic*/ false, TResult(TArgs...)>::Get()
+        : TWebAssemblyRuntimeType{nullptr})
     , RuntimeFunction_(
         Compartment_
         ? Compartment_->GetFunction(std::bit_cast<size_t>(Function_))
@@ -65,7 +68,10 @@ Y_FORCE_INLINE TCompartmentFunction<TResult(TArgs...)>::TCompartmentFunction(
     const TString& name)
     : Compartment_(compartment)
     , Function_(nullptr)
-    , RuntimeType_(TFunctionTypeBuilder</*intrinsic*/ false, TResult(TArgs...)>::Get())
+    , RuntimeType_(
+        Compartment_
+        ? TFunctionTypeBuilder</*intrinsic*/ false, TResult(TArgs...)>::Get()
+        : TWebAssemblyRuntimeType{nullptr})
     , RuntimeFunction_(
         Compartment_
         ? Compartment_->GetFunction(name)

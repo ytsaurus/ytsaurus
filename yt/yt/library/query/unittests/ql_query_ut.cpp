@@ -616,6 +616,50 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     }
 }
 
+TEST_F(TQueryPrepareTest, ArrayJoin)
+{
+    auto split = MakeSplit({
+        {"key", EValueType::Int64},
+        {"value", EValueType::Int64},
+        {"nested", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+    });
+
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillRepeatedly(Return(MakeFuture(split)));
+
+    TQueryPtr query;
+    TTableSchemaPtr schema;
+
+    {
+        query = PreparePlanFragment(&PrepareMock_, "key, nested, N FROM [//t] ARRAY JOIN nested AS N")->Query;
+        const auto* originalColumn = query->Schema.Original->FindColumn("nested");
+        const auto* flattenedColumn = query->JoinClauses[0]->Schema.Original->FindColumn("N");
+        EXPECT_EQ(originalColumn->GetWireType(), EValueType::Composite);
+        EXPECT_EQ(flattenedColumn->GetWireType(), EValueType::Int64);
+
+        schema = query->GetTableSchema();
+        const auto* nested = schema->FindColumn("nested");
+        const auto* aliased = schema->FindColumn("N");
+        EXPECT_EQ(nested->GetWireType(), EValueType::Composite);
+        EXPECT_EQ(aliased->GetWireType(), EValueType::Int64);
+    }
+
+    {
+        query = PreparePlanFragment(&PrepareMock_, "T.key, T.nested, N FROM [//t] AS T ARRAY JOIN T.nested AS N")->Query;
+        const auto* originalColumn = query->Schema.Original->FindColumn("nested");
+        const auto* flattenedColumn = query->JoinClauses[0]->Schema.Original->FindColumn("N");
+        EXPECT_EQ(originalColumn->GetWireType(), EValueType::Composite);
+        EXPECT_EQ(flattenedColumn->GetWireType(), EValueType::Int64);
+
+        schema = query->GetTableSchema();
+        const auto* nested = schema->FindColumn("T.nested");
+        const auto* aliased = schema->FindColumn("N");
+        EXPECT_EQ(nested->GetWireType(), EValueType::Composite);
+        EXPECT_EQ(aliased->GetWireType(), EValueType::Int64);
+    }
+}
+
 TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
 {
     {
@@ -3951,6 +3995,117 @@ TEST_F(TQueryEvaluateTest, TypeInference)
 
     Evaluate("if(int64(q) = 4, \"a\", \"b\") as x, double(sum(uint64(b) * 1)) + 1 as t FROM [//t] group by if"
                  "(a % 2 = 0, double(4), 5) as q", split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, ArrayJoinSimple)
+{
+    std::vector<TString> source{
+        "a=1;nestedA=[1;2;3;4];nestedB=[-1;-2;-3]",
+        "a=3;nestedA=[5;6;7];nestedB=[-5;-6;-7;-8]",
+        "a=5;nestedA=[];nestedB=[]",
+    };
+
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"nestedA", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        {"nestedB", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+    });
+
+    auto resultSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"flattenedA", EValueType::Int64},
+        {"flattenedB", EValueType::Int64},
+    });
+
+    auto result = YsonToRows({
+        "a=1; flattenedA=1; flattenedB=-1",
+        "a=1; flattenedA=2; flattenedB=-2",
+        "a=1; flattenedA=3; flattenedB=-3",
+        "a=1; flattenedA=4;              ",
+        "a=3; flattenedA=5; flattenedB=-5",
+        "a=3; flattenedA=6; flattenedB=-6",
+        "a=3; flattenedA=7; flattenedB=-7",
+        "a=3;               flattenedB=-8",
+    }, resultSplit);
+
+    Evaluate(
+        "a, flattenedA, flattenedB FROM [//t] array join nestedA as flattenedA, nestedB as flattenedB",
+        split,
+        source,
+        ResultMatcher(result));
+
+    auto resultWithLeft = YsonToRows({
+        "a=1; flattenedA=1; flattenedB=-1",
+        "a=1; flattenedA=2; flattenedB=-2",
+        "a=1; flattenedA=3; flattenedB=-3",
+        "a=1; flattenedA=4;              ",
+        "a=3; flattenedA=5; flattenedB=-5",
+        "a=3; flattenedA=6; flattenedB=-6",
+        "a=3; flattenedA=7; flattenedB=-7",
+        "a=3;               flattenedB=-8",
+        "a=5;                            ",
+    }, resultSplit);
+
+    Evaluate(
+        "a, flattenedA, flattenedB FROM [//t] left array join nestedA as flattenedA, nestedB as flattenedB",
+        split,
+        source,
+        ResultMatcher(resultWithLeft));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, ArrayJoinWithTableJoin)
+{
+    std::vector<std::vector<TString>> sources{
+        {
+            "key=1;nestedA=[2;3];",
+            "key=6;nestedA=[4;5];",
+            "key=9;nestedA=[];   ",
+        },
+        {
+            "key=1;nestedB=[-2;-3]",
+            "key=6;nestedB=[-4;-5]",
+            "key=9;nestedB=[]     ",
+        },
+    };
+
+    std::map<TString, TDataSplit> splits;
+    splits["//a"] = MakeSplit({
+        {"key", EValueType::Int64},
+        {"nestedA", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+    });
+    splits["//b"] = MakeSplit({
+        {"key", EValueType::Int64},
+        {"nestedB", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+    });
+
+    auto resultSplit = MakeSplit({
+        {"key", EValueType::Int64},
+        {"flattenedA", EValueType::Int64},
+        {"flattenedB", EValueType::Int64},
+    });
+
+    auto result = YsonToRows({
+        "key=1; flattenedA=2; flattenedB=-2",
+        "key=1; flattenedA=2; flattenedB=-3",
+        "key=1; flattenedA=3; flattenedB=-2",
+        "key=1; flattenedA=3; flattenedB=-3",
+        "key=6; flattenedA=4; flattenedB=-4",
+        "key=6; flattenedA=4; flattenedB=-5",
+        "key=6; flattenedA=5; flattenedB=-4",
+        "key=6; flattenedA=5; flattenedB=-5",
+    }, resultSplit);
+
+    Evaluate(R"(
+        key, flattenedA, flattenedB
+        FROM [//a]
+        array join nestedA as flattenedA
+        join [//b] using key
+        array join nestedB as flattenedB
+    )", splits, sources, ResultMatcher(result));
 
     SUCCEED();
 }

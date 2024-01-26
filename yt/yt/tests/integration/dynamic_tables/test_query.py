@@ -1845,6 +1845,161 @@ class TestQuery(DynamicTablesBase):
             select_rows("key1, value2, aggr from [//tmp/t]", merge_versioned_rows=False),
             [{"key1": 1, "value2": "value", "aggr": 0}, {"key1": 1, "value2": "new_value", "aggr": 3}])
 
+    @authors("sabdenovch")
+    def test_array_join(self):
+        sync_create_cells(1)
+        self._create_table(
+            "//tmp/t",
+            [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "nestedA", "type_v3": {"type_name": "optional", "item": {"type_name": "list", "item": "int64"}}},
+                {"name": "nestedB", "type_v3": {"type_name": "list", "item": "string"}},
+            ],
+            [
+                {"key": 1, "nestedA": [1, 2, 3], "nestedB": ["1", "2", "3"]},
+                {"key": 2, "nestedA": [5, 6], "nestedB": ["5"]},
+                {"key": 3, "nestedA": [7], "nestedB": ["7", "8"]},
+                {"key": 4, "nestedA": None, "nestedB": []},
+            ],
+        )
+
+        actual = select_rows("key, flattenedA, flattenedB from [//tmp/t] array join nestedA as flattenedA, nestedB as flattenedB limit 100")
+        expected = [
+            {"key": 1, "flattenedA": 1, "flattenedB": "1"},
+            {"key": 1, "flattenedA": 2, "flattenedB": "2"},
+            {"key": 1, "flattenedA": 3, "flattenedB": "3"},
+
+            {"key": 2, "flattenedA": 5, "flattenedB": "5"},
+            {"key": 2, "flattenedA": 6, "flattenedB": None},
+
+            {"key": 3, "flattenedA": 7, "flattenedB": "7"},
+            {"key": 3, "flattenedA": None, "flattenedB": "8"},
+        ]
+        assert expected == actual
+
+        expected.append({"key": 4, "flattenedA": None, "flattenedB": None})
+        actual = select_rows("key, flattenedA, flattenedB from [//tmp/t] left array join nestedA as flattenedA, nestedB as flattenedB limit 100")
+        assert expected == actual
+
+    @authors("sabdenovch")
+    def test_array_join_with_table_join(self):
+        sync_create_cells(1)
+        self._create_table(
+            "//tmp/a",
+            [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "nestedA", "type_v3": {"type_name": "list", "item": {"type_name": "optional", "item": "int64"}}},
+            ],
+            [
+                {"key": 1, "nestedA": [1, None, 3]},
+                {"key": 2, "nestedA": [5, 6]},
+                {"key": 3, "nestedA": [7]},
+                {"key": 4, "nestedA": []},
+            ],
+        )
+
+        self._create_table(
+            "//tmp/b",
+            [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "nestedB", "type_v3": {"type_name": "list", "item": "string"}},
+            ],
+            [
+                {"key": 1, "nestedB": ["1", "2", "3"]},
+                {"key": 2, "nestedB": ["5"]},
+                {"key": 3, "nestedB": ["7", "8"]},
+                {"key": 4, "nestedB": []},
+            ],
+        )
+
+        actual = select_rows(
+            "key, flattenedA, flattenedB from [//tmp/a] "
+            "array join nestedA as flattenedA "
+            "join [//tmp/b] using key "
+            "array join nestedB as flattenedB "
+            "limit 100")
+        expected = [
+            {"key": 1, "flattenedA": 1, "flattenedB": "1"},
+            {"key": 1, "flattenedA": 1, "flattenedB": "2"},
+            {"key": 1, "flattenedA": 1, "flattenedB": "3"},
+            {"key": 1, "flattenedA": None, "flattenedB": "1"},
+            {"key": 1, "flattenedA": None, "flattenedB": "2"},
+            {"key": 1, "flattenedA": None, "flattenedB": "3"},
+            {"key": 1, "flattenedA": 3, "flattenedB": "1"},
+            {"key": 1, "flattenedA": 3, "flattenedB": "2"},
+            {"key": 1, "flattenedA": 3, "flattenedB": "3"},
+
+            {"key": 2, "flattenedA": 5, "flattenedB": "5"},
+            {"key": 2, "flattenedA": 6, "flattenedB": "5"},
+
+            {"key": 3, "flattenedA": 7, "flattenedB": "7"},
+            {"key": 3, "flattenedA": 7, "flattenedB": "8"},
+        ]
+        assert expected == actual
+
+        actual = select_rows(
+            "A.key, flattenedA, flattenedB from [//tmp/b] AS B "
+            "array join B.nestedB as flattenedB "
+            "join [//tmp/a] AS A on B.key = A.key "
+            "array join A.nestedA as flattenedA "
+            "limit 100")
+        expected = [
+            {"A.key": 1, "flattenedB": "1", "flattenedA": 1},
+            {"A.key": 1, "flattenedB": "1", "flattenedA": None},
+            {"A.key": 1, "flattenedB": "1", "flattenedA": 3},
+            {"A.key": 1, "flattenedB": "2", "flattenedA": 1},
+            {"A.key": 1, "flattenedB": "2", "flattenedA": None},
+            {"A.key": 1, "flattenedB": "2", "flattenedA": 3},
+            {"A.key": 1, "flattenedB": "3", "flattenedA": 1},
+            {"A.key": 1, "flattenedB": "3", "flattenedA": None},
+            {"A.key": 1, "flattenedB": "3", "flattenedA": 3},
+
+            {"A.key": 2, "flattenedB": "5", "flattenedA": 5},
+            {"A.key": 2, "flattenedB": "5", "flattenedA": 6},
+
+            {"A.key": 3, "flattenedB": "7", "flattenedA": 7},
+            {"A.key": 3, "flattenedB": "8", "flattenedA": 7},
+        ]
+        assert expected == actual
+
+    @authors("sabdenovch")
+    def test_array_join_descartes(self):
+        sync_create_cells(1)
+        self._create_table(
+            "//tmp/t",
+            [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "nestedA", "type_v3": {"type_name": "optional", "item": {"type_name": "list", "item": "int64"}}},
+                {"name": "nestedB", "type_v3": {"type_name": "list", "item": "string"}},
+            ],
+            [
+                {"key": 1, "nestedA": [1, 2, 3], "nestedB": ["1", "2", "3"]},
+                {"key": 2, "nestedA": [5, 6], "nestedB": ["5"]},
+                {"key": 3, "nestedA": [7], "nestedB": ["7", "8"]},
+                {"key": 4, "nestedA": None, "nestedB": []},
+            ],
+        )
+
+        actual = select_rows("key, flattenedA, flattenedB from [//tmp/t] array join nestedA as flattenedA array join nestedB as flattenedB limit 100")
+        expected = [
+            {"key": 1, "flattenedA": 1, "flattenedB": "1"},
+            {"key": 1, "flattenedA": 1, "flattenedB": "2"},
+            {"key": 1, "flattenedA": 1, "flattenedB": "3"},
+            {"key": 1, "flattenedA": 2, "flattenedB": "1"},
+            {"key": 1, "flattenedA": 2, "flattenedB": "2"},
+            {"key": 1, "flattenedA": 2, "flattenedB": "3"},
+            {"key": 1, "flattenedA": 3, "flattenedB": "1"},
+            {"key": 1, "flattenedA": 3, "flattenedB": "2"},
+            {"key": 1, "flattenedA": 3, "flattenedB": "3"},
+
+            {"key": 2, "flattenedA": 5, "flattenedB": "5"},
+            {"key": 2, "flattenedA": 6, "flattenedB": "5"},
+
+            {"key": 3, "flattenedA": 7, "flattenedB": "7"},
+            {"key": 3, "flattenedA": 7, "flattenedB": "8"},
+        ]
+        assert expected == actual
+
 
 class TestQueryRpcProxy(TestQuery):
     DRIVER_BACKEND = "rpc"

@@ -354,16 +354,18 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
     }
 
     std::swap(query.Table, index);
-    query.Joins.emplace(
+    query.Joins.insert(
         query.Joins.begin(),
-        /*isLeft*/ false,
-        std::move(index),
-        std::move(joinColumns),
-        /*predicate*/ std::nullopt);
-
-    query.Joins.front().Equivalences = std::move(equivalences);
+        NAst::TJoin(
+            /*isLeft*/ false,
+            std::move(index),
+            std::move(joinColumns),
+            /*predicate*/ std::nullopt)
+        );
 
     query.WithIndex.reset();
+
+    std::get<NAst::TJoin>(query.Joins.front()).Equivalences = std::move(equivalences);
 }
 
 std::vector<TTableMountInfoPtr> GetQueryTableInfos(
@@ -375,7 +377,9 @@ std::vector<TTableMountInfoPtr> GetQueryTableInfos(
         paths.push_back(withIndex->Path);
     }
     for (const auto& join : query->Joins) {
-        paths.push_back(join.Table.Path);
+        if (const auto* tableJoin = std::get_if<NAst::TJoin>(&join)) {
+            paths.push_back(tableJoin->Table.Path);
+        }
     }
 
     std::vector<TFuture<TTableMountInfoPtr>> asyncTableInfos;
@@ -1522,11 +1526,14 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         "Currently queries with canonical null relations aren't allowed on tables with computed columns");
 
     for (size_t index = 0; index < query->JoinClauses.size(); ++index) {
+        if (!query->JoinClauses[index]->ArrayExpressions.empty()) {
+            continue;
+        }
         if (query->JoinClauses[index]->ForeignKeyPrefix == 0 && !options.AllowJoinWithoutIndex) {
             const auto& ast = std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
             THROW_ERROR_EXCEPTION("Foreign table key is not used in the join clause; "
                 "the query is inefficient, consider rewriting it")
-                << TErrorAttribute("source", NAst::FormatJoin(ast.Joins[index]));
+                << TErrorAttribute("source", NAst::FormatJoin(std::get<NAst::TJoin>(ast.Joins[index])));
         }
     }
 
@@ -1547,7 +1554,9 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     };
     addTableForPermissionCheck(dataSource.ObjectId, query->Schema);
     for (const auto& joinClause : query->JoinClauses) {
-        addTableForPermissionCheck(joinClause->ForeignObjectId, joinClause->Schema);
+        if (joinClause->ArrayExpressions.empty()) {
+            addTableForPermissionCheck(joinClause->ForeignObjectId, joinClause->Schema);
+        }
     }
 
     if (options.ExecutionPool) {

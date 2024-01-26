@@ -488,25 +488,36 @@ TString InferName(TConstBaseQueryPtr query, TInferNameOptions options)
 
     if (auto derivedQuery = dynamic_cast<const TQuery*>(query.Get())) {
         for (const auto& joinClause : derivedQuery->JoinClauses) {
-            std::vector<TString> selfJoinEquation;
-            for (const auto& equation : joinClause->SelfEquations) {
-                selfJoinEquation.push_back(InferName(equation.Expression, options.OmitValues));
-            }
-            std::vector<TString> foreignJoinEquation;
-            for (const auto& equation : joinClause->ForeignEquations) {
-                foreignJoinEquation.push_back(InferName(equation, options.OmitValues));
-            }
+            if (!joinClause->ArrayExpressions.empty()) {
+                std::vector<TString> arrayExpressions;
+                for (const auto& expression : joinClause->ArrayExpressions) {
+                    arrayExpressions.push_back(InferName(expression, options.OmitValues));
+                }
+                clauses.push_back(Format(
+                    "%v ARRAY JOIN %v",
+                    joinClause->IsLeft ? "LEFT" : "",
+                    JoinToString(arrayExpressions)));
+            } else {
+                std::vector<TString> selfJoinEquation;
+                for (const auto& equation : joinClause->SelfEquations) {
+                    selfJoinEquation.push_back(InferName(equation.Expression, options.OmitValues));
+                }
+                std::vector<TString> foreignJoinEquation;
+                for (const auto& equation : joinClause->ForeignEquations) {
+                    foreignJoinEquation.push_back(InferName(equation, options.OmitValues));
+                }
 
-            clauses.push_back(Format(
-                "%v JOIN[common prefix: %v, foreign prefix: %v] ON (%v) = (%v)",
-                joinClause->IsLeft ? "LEFT" : "INNER",
-                joinClause->CommonKeyPrefix,
-                joinClause->ForeignKeyPrefix,
-                JoinToString(selfJoinEquation),
-                JoinToString(foreignJoinEquation)));
+                clauses.push_back(Format(
+                    "%v JOIN[common prefix: %v, foreign prefix: %v] ON (%v) = (%v)",
+                    joinClause->IsLeft ? "LEFT" : "INNER",
+                    joinClause->CommonKeyPrefix,
+                    joinClause->ForeignKeyPrefix,
+                    JoinToString(selfJoinEquation),
+                    JoinToString(foreignJoinEquation)));
 
-            if (joinClause->Predicate && !options.OmitJoinPredicate) {
-                clauses.push_back("AND " + InferName(joinClause->Predicate, options.OmitValues));
+                if (joinClause->Predicate && !options.OmitJoinPredicate) {
+                    clauses.push_back("AND " + InferName(joinClause->Predicate, options.OmitValues));
+                }
             }
         }
 
@@ -706,33 +717,44 @@ std::vector<size_t> GetJoinGroups(
     TTableSchemaPtr schema)
 {
     THashSet<TString> names;
-    for (const auto& column : schema->Columns()) {
-        names.insert(column.Name());
-    }
+    auto collectColumnNames = [&] (const TTableSchema& schema) {
+        names.clear();
+        for (const auto& column : schema.Columns()) {
+            names.insert(column.Name());
+        }
+    };
 
+    collectColumnNames(*schema);
     std::vector<size_t> joinGroups;
-
     size_t counter = 0;
+
     for (const auto& joinClause : joinClauses) {
-        TExtraColumnsChecker extraColumnsChecker(names);
-
-        for (const auto& equation : joinClause->SelfEquations) {
-            if (!equation.Evaluated) {
-                extraColumnsChecker.Visit(equation.Expression);
+        if (!joinClause->ArrayExpressions.empty()) {
+            if (counter > 0) {
+                joinGroups.push_back(counter);
             }
-        }
-
-        if (extraColumnsChecker.HasExtraColumns) {
-            YT_VERIFY(counter > 0);
-            joinGroups.push_back(counter);
+            joinGroups.push_back(1);
             counter = 0;
-            names.clear();
-            for (const auto& column : schema->Columns()) {
-                names.insert(column.Name());
+            collectColumnNames(*schema);
+        } else {
+            TExtraColumnsChecker extraColumnsChecker(names);
+
+            for (const auto& equation : joinClause->SelfEquations) {
+                if (!equation.Evaluated) {
+                    extraColumnsChecker.Visit(equation.Expression);
+                }
             }
+
+            if (extraColumnsChecker.HasExtraColumns) {
+                YT_VERIFY(counter > 0);
+                joinGroups.push_back(counter);
+                counter = 0;
+                collectColumnNames(*schema);
+            }
+
+            ++counter;
         }
 
-        ++counter;
         schema = joinClause->GetTableSchema(*schema);
     }
 
@@ -1146,6 +1168,8 @@ void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
     if (original->Predicate) {
         ToProto(proto->mutable_predicate(), original->Predicate);
     }
+
+    ToProto(proto->mutable_array_expressions(), original->ArrayExpressions);
 }
 
 void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& serialized)
@@ -1176,6 +1200,8 @@ void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& seriali
     if (serialized.has_predicate()) {
         FromProto(&result->Predicate, serialized.predicate());
     }
+
+    FromProto(&result->ArrayExpressions, serialized.array_expressions());
 
     *original = result;
 }

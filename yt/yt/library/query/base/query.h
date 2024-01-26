@@ -330,6 +330,10 @@ struct TJoinClause
     size_t CommonKeyPrefix = 0;
     size_t ForeignKeyPrefix = 0;
 
+    // TODO(sabdenovch): introduce TArrayJoinClause and TTableJoinClause.
+    // Currently non-empty ArrayExpressions renders fields *Prefix, *Id, *Equations and Predicate meaningless.
+    std::vector<TConstExpressionPtr> ArrayExpressions;
+
     bool IsLeft = false;
 
     //! See #TDataSource::ObjectId.

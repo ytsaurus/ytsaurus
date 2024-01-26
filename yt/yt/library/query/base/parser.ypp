@@ -71,6 +71,7 @@
 %token KwOffset "keyword `OFFSET`"
 %token KwLimit "keyword `LIMIT`"
 %token KwJoin "keyword `JOIN`"
+%token KwArray "keyword `ARRAY`"
 %token KwUsing "keyword `USING`"
 %token KwGroupBy "keyword `GROUP BY`"
 %token KwWithTotals "keyword `WITH TOTALS`"
@@ -168,6 +169,8 @@
 %type <TExpressionList> unary-expr
 %type <TExpressionList> atomic-expr
 %type <TExpressionList> comma-expr
+%type <TExpressionList> pseudo-alias-expr
+%type <TExpressionList> pseudo-alias-comma-expr
 %type <TNullableExpressionList> transform-default-expr
 %type <TNullableExpressionList> join-predicate
 %type <TNullableExpressionList> case-default-expr
@@ -272,11 +275,15 @@ join-predicate
 join-clause
     : join-clause is-left[isLeft] KwJoin table-descriptor[table] KwUsing identifier-list[fields] join-predicate[predicate]
         {
-            std::get<TQuery>(head->Ast).Joins.emplace_back($isLeft, $table, $fields, $predicate);
+            std::get<TQuery>(head->Ast).Joins.push_back(TJoin($isLeft, $table, $fields, $predicate));
         }
     | join-clause is-left[isLeft] KwJoin table-descriptor[table] KwOn bitor-op-expr[lhs] OpEqual bitor-op-expr[rhs] join-predicate[predicate]
         {
-            std::get<TQuery>(head->Ast).Joins.emplace_back($isLeft, $table, $lhs, $rhs, $predicate);
+            std::get<TQuery>(head->Ast).Joins.push_back(TJoin($isLeft, $table, $lhs, $rhs, $predicate));
+        }
+    | join-clause is-left[isLeft] KwArray KwJoin pseudo-alias-comma-expr[arrays]
+        {
+            std::get<TQuery>(head->Ast).Joins.push_back(TArrayJoin($isLeft, $arrays));
         }
     |
 ;
@@ -399,6 +406,26 @@ identifier-list
         {
             $$.push_back($value);
         }
+;
+
+pseudo-alias-expr
+    : or-op-expr[expr] KwAs Identifier[name]
+        {
+            if ($expr.size() != 1) {
+                THROW_ERROR_EXCEPTION("Aliased expression %Qv must be scalar", GetSource(@$, source));
+            }
+            $$ = MakeExpression<TAliasExpression>(head, @$, $expr.front(), $name);
+        }
+;
+
+pseudo-alias-comma-expr
+    : pseudo-alias-comma-expr[lhs] Comma pseudo-alias-expr[rhs]
+        {
+            $$ = $lhs;
+            $$.insert($$.end(), $rhs.begin(), $rhs.end());
+        }
+    | pseudo-alias-expr
+        { $$ = $1; }
 ;
 
 expression

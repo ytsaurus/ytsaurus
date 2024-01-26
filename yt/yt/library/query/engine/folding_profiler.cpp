@@ -21,6 +21,7 @@ DEFINE_ENUM(EFoldingObjectType,
     (ScanOp)
     (SplitterOp)
     (JoinOp)
+    (ArrayJoinOp)
     (FilterOp)
     (GroupOp)
     (HavingOp)
@@ -1574,11 +1575,73 @@ void TQueryProfiler::Profile(
             MakeCodegenFragmentBodies(codegenSource, fragmentInfos);
         }
 
+        if (auto arrayJoinClause = query->JoinClauses[joinIndex]; !arrayJoinClause->ArrayExpressions.empty()) {
+            YT_ASSERT(joinGroupSize == 1);
+
+            joinIndex++;
+            Fold(static_cast<int>(EFoldingObjectType::ArrayJoinOp));
+
+            const auto& arrayExpressions = arrayJoinClause->ArrayExpressions;
+            int arrayCount = arrayExpressions.size();
+            auto renamedJoinSchema = arrayJoinClause->GetRenamedSchema();
+
+            TExpressionFragments arrayFragments;
+            std::vector<size_t> arrayIds(arrayCount);
+            for (int index = 0; index < arrayCount; ++index) {
+                arrayIds[index] = TExpressionProfiler::Profile(
+                    arrayExpressions[index],
+                    schema,
+                    &arrayFragments);
+            }
+
+            auto fragmentInfos = arrayFragments.ToFragmentInfos("joinedArrays");
+
+            std::vector<int> selfJoinedColumns;
+            selfJoinedColumns.reserve(arrayJoinClause->SelfJoinedColumns.size());
+            for (int index = 0; index < schema->GetColumnCount(); ++index) {
+                const auto& column = schema->Columns()[index];
+                if (arrayJoinClause->SelfJoinedColumns.contains(column.Name())) {
+                    selfJoinedColumns.push_back(index);
+                }
+            }
+
+            YT_ASSERT(arrayCount == renamedJoinSchema->GetColumnCount());
+
+            std::vector<int> arrayJoinedColumns;
+            std::vector<EValueType> rowTypes(arrayCount);
+            arrayJoinedColumns.reserve(arrayJoinClause->ForeignJoinedColumns.size());
+            for (int index = 0; index < renamedJoinSchema->GetColumnCount(); ++index) {
+                rowTypes[index] = renamedJoinSchema->Columns()[index].GetWireType();
+                const auto& column = renamedJoinSchema->Columns()[index];
+                if (arrayJoinClause->ForeignJoinedColumns.contains(column.Name())) {
+                    arrayJoinedColumns.push_back(index);
+                }
+            }
+
+            TArrayJoinParameters arrayJoinParameters{
+                .IsLeft=arrayJoinClause->IsLeft,
+                .FlattenedTypes=std::move(rowTypes),
+                .SelfJoinedColumns=std::move(selfJoinedColumns),
+                .ArrayJoinedColumns=std::move(arrayJoinedColumns),
+            };
+
+            int parametersIndex = Variables_->AddOpaque<TArrayJoinParameters>(std::move(arrayJoinParameters));
+            Fold(parametersIndex);
+            currentSlot = MakeCodegenArrayJoinOp(
+                codegenSource,
+                slotCount,
+                currentSlot,
+                fragmentInfos,
+                std::move(arrayIds),
+                parametersIndex);
+            MakeCodegenFragmentBodies(codegenSource, fragmentInfos);
+
+            schema = arrayJoinClause->GetTableSchema(*schema);
+            continue;
+        }
+
         Fold(static_cast<int>(EFoldingObjectType::JoinOp));
         TExpressionFragments equationFragments;
-
-        std::vector<TSingleJoinCGParameters> parameters;
-        parameters.reserve(joinGroupSize);
 
         size_t joinBatchSize = MaxJoinBatchSize;
 
@@ -1586,7 +1649,10 @@ void TQueryProfiler::Profile(
             joinBatchSize = query->Offset + query->Limit;
         }
 
+        std::vector<TSingleJoinCGParameters> parameters;
         TMultiJoinParameters joinParameters;
+        parameters.reserve(joinGroupSize);
+        joinParameters.Items.reserve(joinGroupSize);
 
         auto lastSchema = schema;
         for (; joinGroupSize > 0; ++joinIndex, --joinGroupSize) {
@@ -1646,15 +1712,16 @@ void TQueryProfiler::Profile(
                 auto joinRenamedTableColumns = joinClause->GetRenamedSchema()->Columns();
 
                 std::vector<size_t> foreignColumns;
-                for (size_t index = 0; index < joinRenamedTableColumns.size(); ++index) {
+                for (int index = 0; index < std::ssize(joinRenamedTableColumns); ++index) {
+                    const auto& renamedColumn = joinRenamedTableColumns[index];
                     if (joinClause->ForeignJoinedColumns.contains(joinRenamedTableColumns[index].Name())) {
                         foreignColumns.push_back(projectClause->Projections.size());
 
                         projectClause->AddProjection(
                             New<TReferenceExpression>(
-                                joinRenamedTableColumns[index].LogicalType(),
-                                joinRenamedTableColumns[index].Name()),
-                            joinRenamedTableColumns[index].Name());
+                                renamedColumn.LogicalType(),
+                                renamedColumn.Name()),
+                            renamedColumn.Name());
                     }
                 };
 

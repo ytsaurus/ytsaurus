@@ -32,6 +32,7 @@ typedef TParser::token_type TToken;
     kw_offset = 'offset'i;
     kw_limit = 'limit'i;
     kw_join = 'join'i;
+    kw_array = 'array'i;
     kw_using = 'using'i;
     kw_group_by = 'group'i wss 'by'i;
     kw_with_totals = 'with'i wss 'totals'i;
@@ -64,7 +65,7 @@ typedef TParser::token_type TToken;
     kw_case_else = 'else'i;
     kw_case_end = 'end'i;
 
-    keyword = kw_select | kw_from | kw_where | kw_having | kw_offset | kw_limit | kw_join | kw_using | kw_group_by
+    keyword = kw_select | kw_from | kw_where | kw_having | kw_offset | kw_limit | kw_join | kw_array | kw_using | kw_group_by
         | kw_with_totals | kw_order_by | kw_asc | kw_desc | kw_left | kw_as | kw_on | kw_and | kw_or | kw_is | kw_not
         | kw_null | kw_between | kw_in | kw_transform | kw_false | kw_true | kw_yson_false | kw_yson_true
         | kw_case_begin | kw_case_when | kw_case_then | kw_case_end
@@ -114,6 +115,7 @@ typedef TParser::token_type TToken;
         kw_offset => { type = TToken::KwOffset; fbreak; };
         kw_limit => { type = TToken::KwLimit; fbreak; };
         kw_join => { type = TToken::KwJoin; fbreak; };
+        kw_array => { type = TToken::KwArray; fbreak; };
         kw_using => { type = TToken::KwUsing; fbreak; };
         kw_group_by => { type = TToken::KwGroupBy; fbreak; };
         kw_with_totals => { type = TToken::KwWithTotals; fbreak; };

@@ -38,6 +38,7 @@ namespace NYT::NWebAssembly {
     XX(NQueryClient::TGroupByClosure*, EWebAssemblyValueType::UintPtr)
     XX(NQueryClient::TTopCollector*, EWebAssemblyValueType::UintPtr)
     XX(NQueryClient::TMultiJoinClosure*, EWebAssemblyValueType::UintPtr)
+    XX(NQueryClient::TArrayJoinParameters*, EWebAssemblyValueType::UintPtr)
     XX(NQueryClient::TMultiJoinParameters*, EWebAssemblyValueType::UintPtr)
     XX(NQueryClient::TJoinComparers*, EWebAssemblyValueType::UintPtr)
 

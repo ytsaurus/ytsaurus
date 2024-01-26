@@ -45,6 +45,9 @@ using TConstFunctionExpressionPtr = TIntrusivePtr<const TFunctionExpression>;
 DECLARE_REFCOUNTED_STRUCT(TAggregateFunctionExpression)
 using TConstAggregateFunctionExpressionPtr = TIntrusivePtr<const TAggregateFunctionExpression>;
 
+DECLARE_REFCOUNTED_STRUCT(TArrayJoinClause)
+using TConstArrayJoinClausePtr = TIntrusivePtr<const TArrayJoinClause>;
+
 DECLARE_REFCOUNTED_STRUCT(TJoinClause)
 using TConstJoinClausePtr = TIntrusivePtr<const TJoinClause>;
 

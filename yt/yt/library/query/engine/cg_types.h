@@ -35,6 +35,7 @@ using NYT::NQueryClient::TJoinComparers;
 using NYT::NQueryClient::TComparerFunction;
 using NYT::NQueryClient::THasherFunction;
 using NYT::NQueryClient::TTernaryComparerFunction;
+using NYT::NQueryClient::TArrayJoinParameters;
 using NYT::NQueryClient::TMultiJoinParameters;
 using NYT::NQueryClient::TMultiJoinClosure;
 using NYT::NQueryClient::TLikeExpressionContext;
@@ -71,6 +72,7 @@ struct TTypeBuilder<bool>
     OPAQUE_TYPE(TSharedRange<TRow>*)
     OPAQUE_TYPE(TSharedRange<TRowRange>*)
     OPAQUE_TYPE(TSharedRange<TPIRowRange>*)
+    OPAQUE_TYPE(TArrayJoinParameters*)
     OPAQUE_TYPE(TMultiJoinParameters*)
     OPAQUE_TYPE(TMultiJoinClosure*)
     OPAQUE_TYPE(std::unique_ptr<TLookupRows>*)

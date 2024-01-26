@@ -562,18 +562,20 @@ std::pair<TString, TSelectRowsOptions::TExpectedTableSchemas> TClient::PickInSyn
     if (query->WithIndex) {
         patchTableDescriptor(
             &*query->WithIndex,
-            candidates[1],
-            chaosTableSchemas[1],
-            bannedSyncReplicaIds[1]);
+            candidates[joinOffset],
+            chaosTableSchemas[joinOffset],
+            bannedSyncReplicaIds[joinOffset]);
         joinOffset++;
     }
 
     for (size_t index = 0; index < query->Joins.size(); ++index) {
-        patchTableDescriptor(
-            &query->Joins[index].Table,
-            candidates[index + joinOffset],
-            chaosTableSchemas[index + joinOffset],
-            bannedSyncReplicaIds[index + joinOffset]);
+        if (auto* tableJoin = std::get_if<NAst::TJoin>(&query->Joins[index])) {
+            patchTableDescriptor(
+                &tableJoin->Table,
+                candidates[index + joinOffset],
+                chaosTableSchemas[index + joinOffset],
+                bannedSyncReplicaIds[index + joinOffset]);
+        }
     }
 
     YT_LOG_DEBUG("In-sync cluster selected (Paths: %v, ClusterName: %v, ReplicaIds: %v)",

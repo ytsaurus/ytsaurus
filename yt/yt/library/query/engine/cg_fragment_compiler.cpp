@@ -2465,7 +2465,8 @@ size_t MakeCodegenMultiJoinOp(
                         *fragmentInfos,
                         rowBuilder.Buffer,
                         keyValues,
-                        rowBuilder.ExpressionClosurePtr});
+                        rowBuilder.ExpressionClosurePtr,
+                    });
 
                     for (size_t column = 0; column < equations.size(); ++column) {
                         if (equations[column].second) {
@@ -2765,6 +2766,68 @@ size_t MakeCodegenAddStreamOp(
         };
 
         codegenSource(builder);
+    };
+
+    return consumerSlot;
+}
+
+size_t MakeCodegenArrayJoinOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
+    TCodegenFragmentInfosPtr fragmentInfos,
+    std::vector<size_t> arrayIds,
+    int parametersIndex)
+{
+    size_t consumerSlot = (*slotCount)++;
+
+    *codegenSource = [
+        =,
+        codegenSource = std::move(*codegenSource),
+        fragmentInfos = std::move(fragmentInfos),
+        arrayIds = std::move(arrayIds)
+    ] (TCGOperatorContext& builder) {
+
+        Type* closureType = TClosureTypeBuilder::Get(
+            builder->getContext(),
+            fragmentInfos->Functions.size());
+        Value* expressionClosurePtr = builder->CreateAlloca(
+            closureType,
+            nullptr,
+            "expressionClosurePtr");
+
+        builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
+            int arrayCount = arrayIds.size();
+
+            auto consumeArrayJoinedRows = MakeConsumer(builder, "ConsumeArrayJoinedRows", consumerSlot);
+
+            Value* arrayValues = CodegenAllocateValues(builder, arrayCount);
+            auto innerBuilder = TCGExprContext::Make(
+                builder,
+                *fragmentInfos,
+                values,
+                builder.Buffer,
+                builder->ViaClosure(expressionClosurePtr));
+
+            for (int index = 0; index < arrayCount; ++index) {
+                CodegenFragment(innerBuilder, arrayIds[index])
+                    .StoreToValues(innerBuilder, arrayValues, index);
+            }
+
+            return builder->CreateIsNotNull(
+                builder->CreateCall(
+                    builder.Module->GetRoutine("ArrayJoinOpHelper"),
+                    {
+                        builder.Buffer,
+                        builder.GetOpaqueValue(parametersIndex),
+                        values,
+                        arrayValues,
+                        consumeArrayJoinedRows.ClosurePtr,
+                        consumeArrayJoinedRows.Function,
+                    }));
+        };
+
+        return codegenSource(builder);
     };
 
     return consumerSlot;
