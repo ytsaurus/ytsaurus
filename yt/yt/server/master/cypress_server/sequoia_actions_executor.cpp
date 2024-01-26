@@ -401,7 +401,7 @@ private:
         auto* node = cypressManager->GetNode(TVersionedNodeId(nodeId));
 
         if (!IsObjectAlive(node)) {
-            YT_LOG_ALERT("An attempt to clone a zombie sequoia node was made (NodeId: %v)",
+            YT_LOG_ALERT("An attempt to clone a zombie Sequoia node was made (NodeId: %v)",
                 nodeId);
         }
 

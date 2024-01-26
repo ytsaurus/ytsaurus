@@ -1023,7 +1023,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Copy)
     const auto* payload = std::get_if<TSequoiaResolveResult>(&sourcePathResolveResult);
     if (!payload) {
         // TODO(h0pless): Throw CrossCellAdditionalPath error once {Begin,End}Copy are working.
-        THROW_ERROR_EXCEPTION("%v is not a sequoia object, Cypress-to-Sequoia copy is not supported yet", originalSourcePath);
+        THROW_ERROR_EXCEPTION("%v is not a Sequoia object, Cypress-to-Sequoia copy is not supported yet", originalSourcePath);
     }
 
     // NB: Rewriting in case there were symlinks in the original source path.

@@ -664,7 +664,7 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         }
 
         if (config->StoreSequoiaReplicasOnMaster && !config->ProcessRemovedSequoiaReplicasOnMaster) {
-            THROW_ERROR_EXCEPTION("Cannot disable removed sequoia replicas processing on master while master still stores "
+            THROW_ERROR_EXCEPTION("Cannot disable removed Sequoia replicas processing on master while master still stores "
                 "new sequoia replicas");
         }
     });
