@@ -103,7 +103,7 @@ public:
             protoFile->set_type(static_cast<TYqlQueryFile_EContentType>(file->Type));
         }
         req->set_build_rowsets(true);
-        AsyncQueryResult_  = req->Invoke();
+        AsyncQueryResult_ = req->Invoke();
         AsyncQueryResult_.Subscribe(BIND(&TYqlQueryHandler::OnYqlResponse, MakeWeak(this)).Via(GetCurrentInvoker()));
 
         ProgressGetterExecutor_->Start();
