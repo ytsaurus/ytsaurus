@@ -37,7 +37,7 @@ class TOverloadController
 public:
     struct TTrackerSensors
     {
-        NProfiling::TSummary Overloaded;
+        NProfiling::TCounter Overloaded;
         NProfiling::TEventTimer MeanWaitTime;
         NProfiling::TTimeGauge MeanWaitTimeThreshold;
     };
