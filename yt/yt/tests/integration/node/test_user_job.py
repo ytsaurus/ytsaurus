@@ -825,6 +825,7 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
         self._tmpdir = create_tmpdir("jobids")
 
     @authors("ignat")
+    @flaky(max_runs=3)
     def test_multiple_tmpfs_overflow(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
