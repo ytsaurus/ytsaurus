@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+#include <library/cpp/yt/misc/enum_indexed_array.h>
+
 #include <util/generic/bitops.h>
 
 #include <Interpreters/ProcessList.h>
@@ -102,8 +104,8 @@ public:
     std::atomic<int> HistoricalFinishedInitialQueryCount = 0;
     std::atomic<int> HistoricalFinishedSecondaryQueryCount = 0;
 
-    TEnumIndexedVector<EQueryPhase, std::atomic<int>> PerPhaseRunningInitialQueryCount;
-    TEnumIndexedVector<EQueryPhase, std::atomic<int>> PerPhaseRunningSecondaryQueryCount;
+    TEnumIndexedArray<EQueryPhase, std::atomic<int>> PerPhaseRunningInitialQueryCount;
+    TEnumIndexedArray<EQueryPhase, std::atomic<int>> PerPhaseRunningSecondaryQueryCount;
 
     explicit TUserProfilingEntry(const TProfiler& profiler)
     {
@@ -430,7 +432,7 @@ private:
 
     TPeriodicExecutorPtr ProcessListSnapshotExecutor_;
 
-    TEnumIndexedVector<EQueryPhase, NProfiling::TEventTimer> PhaseDurationTimer_;
+    TEnumIndexedArray<EQueryPhase, NProfiling::TEventTimer> PhaseDurationTimer_;
     NProfiling::TEventTimer TotalDurationTimer_;
 
     void BuildYson(IYsonConsumer* consumer) const
