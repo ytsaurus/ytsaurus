@@ -542,8 +542,8 @@ class TestControllerAgentReconnection(YTEnvSetup):
         write_table("//tmp/t_in", {"foo": "bar"})
 
         op = map_reduce(
-            map_command="echo mapper >&2; sleep 1000",
-            reduce_command="echo reducer >&2; which cat >&2; md5sum /bin/cat >&2; md5sum /bin/bash >&2; cat",
+            mapper_command="echo mapper >&2; sleep 1000",
+            reducer_command="echo reducer >&2; which cat >&2; md5sum /bin/cat >&2; md5sum /bin/bash >&2; cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
             sort_by=["foo"],
