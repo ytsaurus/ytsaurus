@@ -660,7 +660,8 @@ private:
         LeaseTransaction_->SubscribeAborted(BIND(
             &TQueryTracker::OnLeaseTransactionAborted,
             MakeWeak(this),
-            LeaseTransaction_->GetId()));
+            LeaseTransaction_->GetId())
+            .Via(ControlInvoker_));
     }
 
     void OnLeaseTransactionAborted(TTransactionId transactionId, const TError& error)
