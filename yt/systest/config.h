@@ -14,6 +14,7 @@ struct TNetworkConfig {
 struct TTestConfig {
     int NumPhases;
     int Seed;
+    int Multiplier;
     int64_t NumBootstrapRecords;
 
     bool EnableReduce;

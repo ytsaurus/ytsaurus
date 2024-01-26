@@ -52,13 +52,16 @@ StartMapInterval(
     const TString& outputPath,
     int64_t start,
     int64_t limit,
+    int intervalIndex,
+    int numIntervals,
+    TDuration timeout,
     const TTable& table,
     const IMultiMapper& mapper,
     TWorkerSet::TWorkerGuard token)
 {
     NYT::NLogging::TLogger Logger("test");
-    YT_LOG_INFO("StartMapInterval (Worker: %v, SourcePath: %v, Start: %v, Limit: %v, TargetPath: %v)",
-        hostport, tablePath, start, limit, outputPath);
+    YT_LOG_INFO("Start MapInterval (Worker: %v, SourcePath: %v, RowRange: [%v, %v), Interval: %v/%v, TargetPath: %v)",
+        hostport, tablePath, start, limit, intervalIndex, numIntervals, outputPath);
 
     auto client = CreateBusClient(NBus::TBusClientConfig::CreateTcp(hostport));
     auto channel = NRpc::NBus::CreateBusChannel(client);
@@ -72,8 +75,16 @@ StartMapInterval(
     ToProto(request->mutable_map_spec()->mutable_table(), table);
     mapper.ToProto(request->mutable_map_spec()->mutable_operation());
 
-    return request->Invoke().ApplyUnique(BIND(
-        [token = std::move(token)] (TErrorOr<typename NRpc::TTypedClientResponse<NProto::TRspMapInterval>::TResult> &&result) {
+    return request->Invoke()
+        .WithTimeout(timeout)
+        .ApplyUnique(BIND(
+        [=, token = std::move(token)] (TErrorOr<typename NRpc::TTypedClientResponse<NProto::TRspMapInterval>::TResult> &&result) {
+            YT_LOG_INFO("Done MapInterval (Worker: %v, SourcePath: %v, Interval: %v/%v, Status: %v)",
+                hostport,
+                tablePath,
+                intervalIndex,
+                numIntervals,
+                result);
             return result.ValueOrThrow();
         }));
 }
@@ -85,13 +96,16 @@ StartReduceInterval(
     const TString& outputPath,
     int64_t start,
     int64_t limit,
+    int intervalIndex,
+    int numIntervals,
+    TDuration timeout,
     const TTable& table,
     const TReduceOperation& operation,
     TWorkerSet::TWorkerGuard token)
 {
     NYT::NLogging::TLogger Logger("test");
-    YT_LOG_INFO("StartReduceInterval (Worker: %v, SourcePath: %v, Start: %v, Limit: %v, TargetPath: %v)",
-        hostport, tablePath, start, limit, outputPath);
+    YT_LOG_INFO("StartReduceInterval (Worker: %v, SourcePath: %v, RowRange: [%v %v), Interval: %v/%v, TargetPath: %v)",
+        hostport, tablePath, start, limit, intervalIndex, numIntervals, outputPath);
 
     auto client = CreateBusClient(NBus::TBusClientConfig::CreateTcp(hostport));
     auto channel = NRpc::NBus::CreateBusChannel(client);
@@ -108,8 +122,16 @@ StartReduceInterval(
     }
     operation.Reducer->ToProto(request->mutable_reduce_spec()->mutable_operation());
 
-    return request->Invoke().ApplyUnique(BIND(
-        [token = std::move(token)] (TErrorOr<typename NRpc::TTypedClientResponse<NProto::TRspReduceInterval>::TResult> &&result) {
+    return request->Invoke()
+        .WithTimeout(timeout)
+        .ApplyUnique(BIND(
+        [=, token = std::move(token)] (TErrorOr<typename NRpc::TTypedClientResponse<NProto::TRspReduceInterval>::TResult> &&result) {
+            YT_LOG_INFO("Done ReduceInterval (Worker: %v, SourcePath: %v, Interval: %v/%v, Status: %v)",
+                hostport,
+                tablePath,
+                intervalIndex,
+                numIntervals,
+                result);
             return result.ValueOrThrow();
         }));
 }
@@ -121,13 +143,16 @@ StartSortInterval(
     const TString& outputPath,
     int64_t start,
     int64_t limit,
+    int intervalIndex,
+    int numIntervals,
+    TDuration timeout,
     const TTable& table,
     const TSortOperation& operation,
     TWorkerSet::TWorkerGuard token)
 {
     NYT::NLogging::TLogger Logger("test");
-    YT_LOG_INFO("StartSortInterval (Worker: %v, SourcePath: %v, Start: %v, Limit: %v, TargetPath: %v)",
-        hostport, tablePath, start, limit, outputPath);
+    YT_LOG_INFO("StartSortInterval (Worker: %v, SourcePath: %v, RowRange: [%v, %v), Interval: %v/%v, TargetPath: %v)",
+        hostport, tablePath, start, limit, intervalIndex, numIntervals, outputPath);
 
     auto client = CreateBusClient(NBus::TBusClientConfig::CreateTcp(hostport));
     auto channel = NRpc::NBus::CreateBusChannel(client);
@@ -144,8 +169,16 @@ StartSortInterval(
         request->mutable_sort_spec()->add_sort_by(column);
     }
 
-    return request->Invoke().ApplyUnique(BIND(
-        [token = std::move(token)] (TErrorOr<typename NRpc::TTypedClientResponse<NProto::TRspSortInterval>::TResult> &&result) {
+    return request->Invoke()
+        .WithTimeout(timeout)
+        .ApplyUnique(BIND(
+        [=, token = std::move(token)] (TErrorOr<typename NRpc::TTypedClientResponse<NProto::TRspSortInterval>::TResult> &&result) {
+            YT_LOG_INFO("Done SortInterval (Worker: %v, SourcePath: %v,Interval: %v/%v, Status: %v)",
+                hostport,
+                tablePath,
+                intervalIndex,
+                numIntervals,
+                result);
             return result.ValueOrThrow();
         }));
 }
@@ -157,11 +190,14 @@ StartCompareInterval(
     const TString& intervalPath,
     int64_t start,
     int64_t limit,
+    int intervalIndex,
+    int numIntervals,
+    TDuration timeout,
     TWorkerSet::TWorkerGuard token)
 {
     NYT::NLogging::TLogger Logger("test");
-    YT_LOG_INFO("StartCompareInterval (Worker: %v, IntervalPath: %v, Start: %v, Limit: %v, TargetPath: %v)",
-        hostport, intervalPath, start, limit, targetPath);
+    YT_LOG_INFO("Start CompareInterval (Worker: %v, IntervalPath: %v, RowRange: [%v, %v), Interval: %v/%v, TargetPath: %v)",
+        hostport, intervalPath, start, limit, intervalIndex, numIntervals, targetPath);
 
     auto client = CreateBusClient(NBus::TBusClientConfig::CreateTcp(hostport));
     auto channel = NRpc::NBus::CreateBusChannel(client);
@@ -174,8 +210,15 @@ StartCompareInterval(
     request->set_start_row_index(start);
     request->set_limit_row_index(limit);
 
-    return request->Invoke().ApplyUnique(BIND(
-        [token = std::move(token)] (TErrorOr<typename NRpc::TTypedClientResponse<NProto::TRspCompareInterval>::TResult> &&result) {
+    return request->Invoke()
+        .WithTimeout(timeout)
+        .ApplyUnique(BIND(
+        [=, token = std::move(token)] (TErrorOr<typename NRpc::TTypedClientResponse<NProto::TRspCompareInterval>::TResult> &&result) {
+            YT_LOG_INFO("Done CompareInterval (Worker: %v, Interval: %v/%v, Status: %v)",
+                hostport,
+                intervalIndex,
+                numIntervals,
+                result);
             return result.ValueOrThrow();
         }));
 }
@@ -184,15 +227,19 @@ static TFuture<typename NRpc::TTypedClientResponse<NProto::TRspMergeSortedAndCom
 StartMergeSortedAndCompare(
     const TString& hostport,
     const std::vector<TString>& intervalPath,
+    TDuration timeout,
     const TString& targetPath,
     const TTable& table,
     TWorkerSet::TWorkerGuard token)
 {
     NYT::NLogging::TLogger Logger("test");
-    YT_LOG_INFO("StartMergeSortedAndCompare (Worker: %v, NumIntervals: %v, TargetPath: %v)",
+    YT_LOG_INFO("Start MergeSortedAndCompare (Worker: %v, NumIntervals: %v, TargetPath: %v)",
         hostport, std::ssize(intervalPath), targetPath);
 
-    auto client = CreateBusClient(NBus::TBusClientConfig::CreateTcp(hostport));
+    auto busConfig = NBus::TBusClientConfig::CreateTcp(hostport);
+    busConfig->ReadStallTimeout = TDuration::Seconds(10);
+
+    auto client = CreateBusClient(busConfig);
     auto channel = NRpc::NBus::CreateBusChannel(client);
 
     TValidatorProxy proxy(channel);
@@ -205,8 +252,12 @@ StartMergeSortedAndCompare(
     }
     ToProto(request->mutable_table(), table);
 
-    return request->Invoke().ApplyUnique(BIND(
-        [token = std::move(token)] (TErrorOr<typename NRpc::TTypedClientResponse<NProto::TRspMergeSortedAndCompare>::TResult> &&result) {
+    return request->Invoke()
+        .WithTimeout(timeout)
+        .ApplyUnique(BIND(
+        [=, token = std::move(token)] (TErrorOr<typename NRpc::TTypedClientResponse<NProto::TRspMergeSortedAndCompare>::TResult> &&result) {
+            YT_LOG_INFO("Done MergeSortedAndCompare (Worker: %v, NumIntervals: %v, Status: %v)",
+                hostport, std::ssize(intervalPath), result);
             return result.ValueOrThrow();
         }));
 }
@@ -226,6 +277,14 @@ void TValidatorConfig::RegisterOptions(NLastGetopt::TOpts* opts)
     opts->AddLongOption("validator-poll-delay")
         .StoreResult(&PollDelay)
         .DefaultValue(TDuration::Seconds(5));
+
+    opts->AddLongOption("validator-interval-timeout")
+        .StoreResult(&IntervalTimeout)
+        .DefaultValue(TDuration::Seconds(10));
+
+    opts->AddLongOption("validator-base-timeout")
+        .StoreResult(&IntervalTimeout)
+        .DefaultValue(TDuration::Seconds(30));
 
     opts->AddLongOption("validator-worker-failure-backoff-delay")
         .StoreResult(&WorkerFailureBackoffDelay)
@@ -321,6 +380,9 @@ TStoredDataset TValidator::CompareIntervals(
             intervalPath[index],
             startInterval,
             startInterval + intervalRowCount,
+            index,
+            numIntervals,
+            Config_.BaseTimeout + Config_.IntervalTimeout,
             std::move(token));
 
         compareIntervalResult.push_back(result);
@@ -328,9 +390,6 @@ TStoredDataset TValidator::CompareIntervals(
     }
 
     for (int index = 0; index < std::ssize(compareIntervalResult); ++index) {
-        YT_LOG_INFO("Interval compared (Index: %v, NumIntervals: %v, Path: %v)",
-            index, numIntervals, intervalPath[index]);
-
         auto result = compareIntervalResult[index].Get().ValueOrThrow();
     }
 
@@ -374,6 +433,9 @@ TStoredDataset TValidator::VerifyMap(
             tempOutputPath,
             intervalInfo.Boundaries[index],
             intervalInfo.Boundaries[index + 1],
+            index,
+            numIntervals,
+            Config_.BaseTimeout + Config_.IntervalTimeout,
             sourceTable,
             mapper,
             std::move(token));
@@ -427,6 +489,9 @@ TStoredDataset TValidator::VerifyReduce(
             tempOutputPath,
             intervalInfo.Boundaries[index],
             intervalInfo.Boundaries[index + 1],
+            index,
+            numIntervals,
+            Config_.BaseTimeout + Config_.IntervalTimeout,
             sourceTable,
             reduceOperation,
             std::move(token)
@@ -470,8 +535,6 @@ TStoredDataset TValidator::VerifySort(
         auto tempOutputPath = TestHome_.CreateIntervalPath(targetName, index);
         intervalPath.push_back(tempOutputPath);
 
-        YT_LOG_INFO("Will produce sorted table %v for interval %v", tempOutputPath, index);
-
         auto token = WorkerSet_.AcquireWorker();
         const TString& hostPort = token.HostPort();
         auto result = StartSortInterval(
@@ -480,6 +543,9 @@ TStoredDataset TValidator::VerifySort(
             tempOutputPath,
             intervalInfo.Boundaries[index],
             intervalInfo.Boundaries[index + 1],
+            index,
+            numIntervals,
+            Config_.BaseTimeout + Config_.IntervalTimeout,
             sourceTable,
             operation,
             std::move(token));
@@ -496,6 +562,8 @@ TStoredDataset TValidator::VerifySort(
     StartMergeSortedAndCompare(
             hostPort,
             intervalPath,
+            Config_.BaseTimeout +
+                numIntervals * trunc(log(numIntervals) + 1 + 1e-9) * Config_.IntervalTimeout,
             targetPath,
             sortedTable,
             std::move(mergeToken))
@@ -528,7 +596,7 @@ void TValidator::StartValidatorOperation()
 
     auto userSpec = TUserJobSpec()
         .AddEnvironment("YT_PROXY", getenv("YT_PROXY"))
-        .AddEnvironment("YT_LOG_LEVEL", "error");
+        .AddEnvironment("YT_LOG_LEVEL", "info");
 
     auto secureEnv = TNode::CreateMap({
         {"YT_TOKEN", TConfig::Get()->Token}

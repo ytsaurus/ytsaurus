@@ -22,6 +22,10 @@ void TTestConfig::RegisterOptions(NLastGetopt::TOpts* opts)
         .StoreResult(&NumBootstrapRecords)
         .DefaultValue(10000);
 
+    opts->AddLongOption("multiplier")
+        .StoreResult(&Multiplier)
+        .DefaultValue(4);
+
     opts->AddLongOption("seed")
         .StoreResult(&Seed)
         .DefaultValue(42);

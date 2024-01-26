@@ -254,7 +254,6 @@ std::unique_ptr<IMultiMapper> CreateAlterRenameAndDelete(const TTable& source)
 
 NProto::TSystestSpec GenerateShortSystestSpec(const TTestConfig& config)
 {
-    const int Multiplier = 4;
     NProto::TSystestSpec result;
     PopulateBootstrapTable(result.add_table(), config.NumBootstrapRecords);
     auto bootstrapDataset = std::make_unique<TBootstrapDataset>(config.NumBootstrapRecords);
@@ -265,7 +264,7 @@ NProto::TSystestSpec GenerateShortSystestSpec(const TTestConfig& config)
     for (int i = 0; i < config.NumPhases; i++) {
         auto* table = result.add_table();
         auto op = GenerateMultipleColumns(
-            i > 0 ? base[i - 1] : bootstrap, Multiplier, config.Seed);
+            i > 0 ? base[i - 1] : bootstrap, config.Multiplier, config.Seed + i);
 
         op->ToProto(table->mutable_map()->mutable_operation());
         table->set_name("base_" + std::to_string(i));

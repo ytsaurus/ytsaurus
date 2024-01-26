@@ -211,8 +211,8 @@ void RunMap(IClientPtr client, const TString& pool,
     spec.Pool(pool);
     spec.AddInput<TNode>(inputPath);
     spec.AddOutput<TNode>(attributePath);
-    spec.JobCount(10);
     spec.Ordered(true);
+    spec.JobCount(10);
 
     NProto::TMapRunSpec runSpec;
     ToProto(runSpec.mutable_table(), table);

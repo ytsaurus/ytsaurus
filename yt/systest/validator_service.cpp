@@ -98,14 +98,19 @@ TValidatorService::TValidatorService(IClientPtr client, IInvokerPtr invoker, NLo
 {
     const int queueSizeLimit = 100000;
     RegisterMethod(RPC_SERVICE_METHOD_DESC(MapInterval)
+        .SetCancelable(true)
         .SetQueueSizeLimit(queueSizeLimit));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(ReduceInterval)
+        .SetCancelable(true)
         .SetQueueSizeLimit(queueSizeLimit));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(SortInterval)
+        .SetCancelable(true)
         .SetQueueSizeLimit(queueSizeLimit));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(MergeSortedAndCompare)
+        .SetCancelable(true)
         .SetQueueSizeLimit(queueSizeLimit));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(CompareInterval)
+        .SetCancelable(true)
         .SetQueueSizeLimit(queueSizeLimit));
 }
 
@@ -169,10 +174,14 @@ DEFINE_RPC_SERVICE_METHOD(TValidatorService, SortInterval)
 }
 
 static void CompareSortedDatasets(
+    const TString& targetPath,
     const TTable& table,
     std::unique_ptr<IDatasetIterator> iteratorA,
     std::unique_ptr<IDatasetIterator> iteratorB)
 {
+    NLogging::TLogger Logger("validator_service");
+
+    const int LogInterval = 1000000;
     const int keyLength = table.SortColumns;
     int index = 0;
     while (!iteratorA->Done() && !iteratorB->Done()) {
@@ -192,6 +201,10 @@ static void CompareSortedDatasets(
                 index, countA);
         }
 
+        if (index % LogInterval + countA >= LogInterval) {
+            YT_LOG_INFO("CompareSortedDatasets progress (TargetTable: %v, NumProcessed: %v)",
+                targetPath, index + countA);
+        }
         index += countA;
     }
 
@@ -204,10 +217,13 @@ static void CompareSortedDatasets(
         THROW_ERROR_EXCEPTION("Side B contains more records after reading all %v records "
             "from side Z", index);
     }
+    YT_LOG_INFO("CompareSortedDatasets done (TargetTable: %v, NumRows: %v)", targetPath, index);
 }
 
 DEFINE_RPC_SERVICE_METHOD(TValidatorService, MergeSortedAndCompare)
 {
+    NLogging::TLogger Logger("validator_service");
+
     std::vector<std::unique_ptr<TTableDataset>> inputDataset;
     std::vector<const IDataset*> inner;
 
@@ -222,7 +238,14 @@ DEFINE_RPC_SERVICE_METHOD(TValidatorService, MergeSortedAndCompare)
 
     TTableDataset target(table, Client_, request->target_path());
 
-    CompareSortedDatasets(table, mergeDataset->NewIterator(), target.NewIterator());
+    YT_LOG_INFO("CompareSortedDatasets (NumIntervals: %v, TargetPath: %v)",
+        request->interval_path_size(), request->target_path());
+
+    CompareSortedDatasets(
+        request->target_path(),
+        table,
+        mergeDataset->NewIterator(),
+        target.NewIterator());
 
     context->Reply();
 }

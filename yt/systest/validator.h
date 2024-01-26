@@ -20,6 +20,8 @@ struct TValidatorConfig
     int64_t IntervalBytes;
     TDuration PollDelay;
     TDuration WorkerFailureBackoffDelay;
+    TDuration BaseTimeout;
+    TDuration IntervalTimeout;
 
     void RegisterOptions(NLastGetopt::TOpts* opts);
 };
