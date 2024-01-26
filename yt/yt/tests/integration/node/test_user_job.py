@@ -833,8 +833,8 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
         op = map(
             track=False,
             command=with_breakpoint(
-                "dd if=/dev/zero of=tmpfs_1/file  bs=1M  count=2048; ls tmpfs_1/ >&2; "
-                "dd if=/dev/zero of=tmpfs_2/file  bs=1M  count=2048; ls tmpfs_2/ >&2; "
+                "dd if=/dev/zero of=tmpfs_1/file  bs=1M  count=512; ls tmpfs_1/ >&2; "
+                "dd if=/dev/zero of=tmpfs_2/file  bs=1M  count=512; ls tmpfs_2/ >&2; "
                 "BREAKPOINT; "
                 "python -c 'import time; x = \"A\" * (200 * 1024 * 1024); time.sleep(100);'"
             ),
@@ -844,15 +844,15 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
                 "mapper": {
                     "tmpfs_volumes": [
                         {
-                            "size": 2 * 1024 ** 3,
+                            "size": 512 * 1024 ** 2,
                             "path": "tmpfs_1",
                         },
                         {
-                            "size": 2 * 1024 ** 3,
+                            "size": 512 * 1024 ** 2,
                             "path": "tmpfs_2",
                         },
                     ],
-                    "memory_limit": 4 * 1024 ** 3 + 200 * 1024 * 1024,
+                    "memory_limit": 1024 ** 3 + 200 * 1024 * 1024,
                 },
                 "max_failed_job_count": 1,
             },
@@ -875,7 +875,7 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
                 print_debug(f"Job info: {job_info}")
                 return 0
 
-        wait(lambda: get_tmpfs_size() >= 4 * 1024 ** 3)
+        wait(lambda: get_tmpfs_size() >= 1024 ** 3)
 
         assert op.get_state() == "running"
 
