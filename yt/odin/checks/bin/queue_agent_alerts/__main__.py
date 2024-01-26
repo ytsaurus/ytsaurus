@@ -13,7 +13,8 @@ def run_check(secrets, yt_client, logger, options, states):
 
     generic_alerts_by_stage_cluster = defaultdict(lambda: defaultdict(dict))
 
-    for queue_agent_stage_cluster in queue_agent_stage_clusters:
+    # Assuming options["queue_agent_stage_clusters"] is a dictionary from cluster name to proxy address.
+    for queue_agent_stage_cluster, queue_agent_stage_proxy in queue_agent_stage_clusters.items():
         # Each queue agent stage has a corresponding host cluster.
         # General unavailability of the host cluster or the queue agent itself
         # should only cause this check to fail when running on the host cluster.
@@ -31,7 +32,7 @@ def run_check(secrets, yt_client, logger, options, states):
         logger.info("Checking for relevant queue agent alerts from queue agent stage on cluster %s", queue_agent_stage_cluster)
 
         queue_agent_stage_client = YtClient(
-            proxy=queue_agent_stage_cluster,
+            proxy=queue_agent_stage_proxy,
             token=secrets["yt_token"],
             config={"proxy": {"retries": {"count": 1, "enable": False}}})
 

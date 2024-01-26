@@ -7,17 +7,17 @@ def run_check(secrets, yt_client, logger, options, states):
     cluster_name = options["cluster_name"]
     logger.info("Checking for relevant query tracker alerts from query tracker stage on cluster %s", cluster_name)
 
-    query_tracker_stage_client = YtClient(
-        proxy=cluster_name,
+    yt_client_no_retries = YtClient(
+        proxy=yt_client.config["proxy"]["url"],
         token=secrets["yt_token"],
         config={"proxy": {"retries": {"count": 1, "enable": False}}})
 
-    query_tracker_instances = query_tracker_stage_client.list("//sys/query_tracker/instances")
+    query_tracker_instances = yt_client_no_retries.list("//sys/query_tracker/instances")
 
     all_errors = []
     for instance in query_tracker_instances:
         logger.info(f"Collecting alerts from {instance}")
-        alerts = query_tracker_stage_client.get(f"//sys/query_tracker/instances/{instance}/orchid/alerts")
+        alerts = yt_client_no_retries.get(f"//sys/query_tracker/instances/{instance}/orchid/alerts")
 
         for alert, raw_error in alerts.items():
             error = YtError.from_dict(raw_error)
