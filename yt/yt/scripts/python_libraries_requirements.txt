@@ -4,6 +4,7 @@ tqdm==4.64.1
 argcomplete==2.0.0
 six==1.16.0
 charset-normalizer==2.0.10
+distro==1.6.0
 typing-extensions==4.5.0
 attrs==22.2.0
 pyarrow==13.0.0
