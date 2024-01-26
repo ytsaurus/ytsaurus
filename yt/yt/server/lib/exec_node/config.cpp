@@ -468,13 +468,13 @@ void TUserJobMonitoringDynamicConfig::Register(TRegistrar registrar)
 
 void THeartbeatReporterDynamicConfigBase::Register(TRegistrar registrar)
 {
-    //! NB(arkady-e1ppa): we duplicate default here so that
-    //! default construction of THeartbeatReporterDynamicConfigBase
-    //! produces HeartbeatExecutor field consistent with
-    //! TRetryingPeriodicExecutorOptionsSerializer default.
-    //! other than TRetryingPeriodicExecutorOptions default constructor.
-    //! TODO(arkady-e1ppa): We should probably try automating this
-    //! at least in context of YsonStruct fields.
+    // NB(arkady-e1ppa): we duplicate default here so that
+    // default construction of THeartbeatReporterDynamicConfigBase
+    // produces HeartbeatExecutor field consistent with
+    // TRetryingPeriodicExecutorOptionsSerializer default.
+    // other than TRetryingPeriodicExecutorOptions default constructor.
+    // TODO(arkady-e1ppa): We should probably try automating this
+    // at least in context of YsonStruct fields.
     registrar.Parameter("heartbeat_executor", &TThis::HeartbeatExecutor)
         .Default(TRetryingPeriodicExecutorOptions{
             {
@@ -488,6 +488,17 @@ void THeartbeatReporterDynamicConfigBase::Register(TRegistrar registrar)
                 .BackoffMultiplier = 2.0,
             },
         });
+
+    // NB(arkady-e1ppa): TPeriodicExecutorOptions which our pod struct inherits from
+    // has default period = std::nullopt. Current architecture of YsonStructs
+    // causes field's default to apply after defaults of their superstruct during deserialization.
+    // In our case, HeartbeatExecutor.Period would be set to nullopt no matter what we write
+    // here in Default/Preprocessor. Measure below is taken so that noone can
+    // accidentally disable heartbeats by forgetting to set period explicitly.
+    // TODO(arkady-e1ppa): Fix this.
+    registrar.Postprocessor([] (TThis* config) {
+        config->HeartbeatExecutor.Period = config->HeartbeatExecutor.Period.value_or(TDuration::Seconds(5));
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -520,12 +531,14 @@ void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("heartbeat_timeout", &TThis::HeartbeatTimeout)
         .Default(TDuration::Seconds(60));
 
-    //! NB(arkady-e1ppa): This preprocessor actually applies only
-    //! during default construction of TMasterConnectorDynamicConfig.
-    //! Loads of dynamic config overrides this option of TPeriodicExecutorOptions'
-    //! DefaultJitter = 0.0.
     registrar.Preprocessor([] (TThis* config) {
         config->HeartbeatExecutor.Jitter = 0.3;
+    });
+
+    // TODO(arkady-e1ppa): Currently field's own defaults cannot be overriden
+    // thus we have to enforce Jitter >= 0.3 to avoid master overload
+    registrar.Postprocessor([] (TThis* config) {
+        config->HeartbeatExecutor.Jitter = std::max(0.3, config->HeartbeatExecutor.Jitter);
     });
 }
 
