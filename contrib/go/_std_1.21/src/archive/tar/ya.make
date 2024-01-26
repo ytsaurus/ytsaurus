@@ -1,33 +1,10 @@
 GO_LIBRARY()
-IF (FALSE)
-    MESSAGE(FATAL this shall never happen)
-
-ELSEIF (OS_LINUX AND ARCH_X86_64)
+IF (OS_DARWIN AND ARCH_ARM64)
     SRCS(
 		common.go
 		format.go
 		reader.go
-		stat_actime1.go
-		stat_unix.go
-		strconv.go
-		writer.go
-    )
-ELSEIF (OS_LINUX AND ARCH_ARM64)
-    SRCS(
-		common.go
-		format.go
-		reader.go
-		stat_actime1.go
-		stat_unix.go
-		strconv.go
-		writer.go
-    )
-ELSEIF (OS_LINUX AND ARCH_AARCH64)
-    SRCS(
-		common.go
-		format.go
-		reader.go
-		stat_actime1.go
+		stat_actime2.go
 		stat_unix.go
 		strconv.go
 		writer.go
@@ -42,43 +19,27 @@ ELSEIF (OS_DARWIN AND ARCH_X86_64)
 		strconv.go
 		writer.go
     )
-ELSEIF (OS_DARWIN AND ARCH_ARM64)
+ELSEIF (OS_LINUX AND ARCH_AARCH64)
     SRCS(
 		common.go
 		format.go
 		reader.go
-		stat_actime2.go
+		stat_actime1.go
 		stat_unix.go
 		strconv.go
 		writer.go
     )
-ELSEIF (OS_DARWIN AND ARCH_AARCH64)
+ELSEIF (OS_LINUX AND ARCH_X86_64)
     SRCS(
 		common.go
 		format.go
 		reader.go
-		stat_actime2.go
+		stat_actime1.go
 		stat_unix.go
 		strconv.go
 		writer.go
     )
 ELSEIF (OS_WINDOWS AND ARCH_X86_64)
-    SRCS(
-		common.go
-		format.go
-		reader.go
-		strconv.go
-		writer.go
-    )
-ELSEIF (OS_WINDOWS AND ARCH_ARM64)
-    SRCS(
-		common.go
-		format.go
-		reader.go
-		strconv.go
-		writer.go
-    )
-ELSEIF (OS_WINDOWS AND ARCH_AARCH64)
     SRCS(
 		common.go
 		format.go
