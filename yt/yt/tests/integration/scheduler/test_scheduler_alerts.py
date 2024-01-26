@@ -123,17 +123,13 @@ class LowCpuUsageSchedulerAlertBase(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "scheduler_connector": {
-                    "heartbeats": {
-                        "periodic": {
-                            "period": 200,  # 200 msec
-                        },
+                    "heartbeat_executor": {
+                        "period": 200,  # 200 msec
                     },
                 },
                 "controller_agent_connector": {
-                    "heartbeats": {
-                        "periodic": {
-                            "period": 200,  # 200 msec
-                        }
+                    "heartbeat_executor": {
+                        "period": 200,  # 200 msec
                     }
                 }
             }
@@ -201,14 +197,14 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "scheduler_connector": {
-                    "heartbeats": {
-                        "periodic": {
-                            "period": 200,  # 200 msec
-                        },
+                    "heartbeat_executor": {
+                        "period": 200,  # 200 msec
                     },
                 },
                 "controller_agent_connector": {
-                    "heartbeat_period": 200,  # 200 msec
+                    "heartbeat_executor": {
+                        "period": 200,  # 200 msec
+                    },
                     "settle_jobs_timeout": 30000,  # 30 sec
                 },
             },

@@ -376,7 +376,7 @@ class THeartbeatReporterDynamicConfigBase
     : public NYTree::TYsonStruct
 {
 public:
-    NConcurrency::TRetryingPeriodicExecutorOptions Heartbeats;
+    NConcurrency::TRetryingPeriodicExecutorOptions HeartbeatExecutor;
 
     REGISTER_YSON_STRUCT(THeartbeatReporterDynamicConfigBase);
 

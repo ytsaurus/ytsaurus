@@ -49,7 +49,7 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
         BIND_NO_PROPAGATE([this_ = MakeWeak(this)] {
             return this_.Lock()->SendHeartbeat();
         }),
-        GetConfig()->Heartbeats))
+        GetConfig()->HeartbeatExecutor))
     , StatisticsThrottler_(CreateReconfigurableThroughputThrottler(
         GetConfig()->StatisticsThrottler))
     , TotalConfirmationRequestBackoffStrategy_(GetConfig()->TotalConfirmationBackoffStrategy)
@@ -312,13 +312,13 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnConfigUpdated(
 
     YT_LOG_DEBUG(
         "Set new controller agent heartbeat options (NewPeriod: %v, NewSplay: %v, NewMinBackoff: %v, NewMaxBackoff: %v, NewBackoffMultiplier: %v)",
-        newConfig->Heartbeats.Periodic.Period,
-        newConfig->Heartbeats.Periodic.Splay,
-        newConfig->Heartbeats.BackoffStrategy.MinBackoff,
-        newConfig->Heartbeats.BackoffStrategy.MaxBackoff,
-        newConfig->Heartbeats.BackoffStrategy.BackoffMultiplier);
+        newConfig->HeartbeatExecutor.Period,
+        newConfig->HeartbeatExecutor.Splay,
+        newConfig->HeartbeatExecutor.MinBackoff,
+        newConfig->HeartbeatExecutor.MaxBackoff,
+        newConfig->HeartbeatExecutor.BackoffMultiplier);
 
-    HeartbeatExecutor_->SetOptions(newConfig->Heartbeats);
+    HeartbeatExecutor_->SetOptions(newConfig->HeartbeatExecutor);
     StatisticsThrottler_->Reconfigure(newConfig->StatisticsThrottler);
     TotalConfirmationRequestBackoffStrategy_.UpdateOptions(newConfig->TotalConfirmationBackoffStrategy);
 }

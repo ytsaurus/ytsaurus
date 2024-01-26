@@ -703,6 +703,9 @@ def get_dynamic_node_config():
                         period = 100;
                     };
                 };
+                heartbeat_executor = {
+                    period = 100;
+                };
             };
 
             scheduler_connector = {
@@ -720,6 +723,12 @@ def get_dynamic_node_config():
                         backoff_multiplier = 1.0;
                     };
                 };
+                heartbeat_executor = {
+                    period = 100;
+                    min_backoff = 200;
+                    max_backoff = 200;
+                    backoff_multiplier = 1.0;
+                };
             };
 
             master_connector = {
@@ -730,6 +739,11 @@ def get_dynamic_node_config():
                         period = 100;
                         splay = 30;
                     };
+                };
+                heartbeat_executor = {
+                    period = 100;
+                    splay = 30;
+                    jitter = 0.3;
                 };
             };
 

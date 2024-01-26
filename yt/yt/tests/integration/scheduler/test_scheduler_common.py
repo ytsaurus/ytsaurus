@@ -1708,17 +1708,13 @@ class TestSchedulerObjectsDestruction(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "scheduler_connector": {
-                    "heartbeats": {
-                        "periodic": {
-                            "period": 1,  # 1 msec
-                        },
+                    "heartbeat_executor": {
+                        "period": 1,  # 1 msec
                     },
                 },
                 "controller_agent_connector": {
-                    "heartbeats": {
-                        "periodic": {
-                            "period": 1,  # 1 msec
-                        }
+                    "heartbeat_executor": {
+                        "period": 1,  # 1 msec
                     }
                 },
             },
@@ -1775,17 +1771,13 @@ class TestScheduleJobDelayAndRevive(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "scheduler_connector": {
-                    "heartbeats": {
-                        "periodic": {
-                            "period": 1,  # 1 msec
-                        },
+                    "heartbeat_executor": {
+                        "period": 1,  # 1 msec
                     },
                 },
                 "controller_agent_connector": {
-                    "heartbeats": {
-                        "periodic": {
-                            "period": 1,  # 1 msec
-                        },
+                    "heartbeat_executor": {
+                        "period": 1,  # 1 msec
                     },
                 }
             }
@@ -1828,10 +1820,8 @@ class TestDelayInNodeHeartbeat(YTEnvSetup):
     DELTA_DYNAMIC_NODE_CONFIG = {
         "exec_node": {
             "controller_agent_connector": {
-                "heartbeats": {
-                    "periodic": {
-                        "period": 10,  # 10 msec
-                    },
+                "heartbeat_executor": {
+                    "period": 10,  # 10 msec
                 },
             },
         },

@@ -468,14 +468,21 @@ void TUserJobMonitoringDynamicConfig::Register(TRegistrar registrar)
 
 void THeartbeatReporterDynamicConfigBase::Register(TRegistrar registrar)
 {
-    registrar.Parameter("heartbeats", &TThis::Heartbeats)
+    //! NB(arkady-e1ppa): we duplicate default here so that
+    //! default construction of THeartbeatReporterDynamicConfigBase
+    //! produces HeartbeatExecutor field consistent with
+    //! TRetryingPeriodicExecutorOptionsSerializer default.
+    //! other than TRetryingPeriodicExecutorOptions default constructor.
+    //! TODO(arkady-e1ppa): We should probably try automating this
+    //! at least in context of YsonStruct fields.
+    registrar.Parameter("heartbeat_executor", &TThis::HeartbeatExecutor)
         .Default(TRetryingPeriodicExecutorOptions{
-            .Periodic = {
+            {
                 .Period = TDuration::Seconds(5),
                 .Splay = TDuration::Seconds(1),
                 .Jitter = 0.0,
             },
-            .BackoffStrategy = {
+            {
                 .MinBackoff = TDuration::Seconds(5),
                 .MaxBackoff = TDuration::Seconds(60),
                 .BackoffMultiplier = 2.0,
@@ -513,8 +520,12 @@ void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("heartbeat_timeout", &TThis::HeartbeatTimeout)
         .Default(TDuration::Seconds(60));
 
+    //! NB(arkady-e1ppa): This preprocessor actually applies only
+    //! during default construction of TMasterConnectorDynamicConfig.
+    //! Loads of dynamic config overrides this option of TPeriodicExecutorOptions'
+    //! DefaultJitter = 0.0.
     registrar.Preprocessor([] (TThis* config) {
-        config->Heartbeats.Periodic.Jitter = 0.3;
+        config->HeartbeatExecutor.Jitter = 0.3;
     });
 }
 

@@ -234,10 +234,8 @@ class TestJobTracker(YTEnvSetup):
         update_nodes_dynamic_config({
             "exec_node": {
                 "controller_agent_connector": {
-                    "heartbeats": {
-                        "periodic": {
-                            "period": 3000,
-                        }
+                    "heartbeat_executor": {
+                        "period": 3000,
                     }
                 },
             },
@@ -266,10 +264,8 @@ class TestJobTracker(YTEnvSetup):
         update_nodes_dynamic_config({
             "exec_node": {
                 "controller_agent_connector": {
-                    "heartbeats": {
-                        "periodic": {
-                            "period": 100,
-                        }
+                    "heartbeat_executor": {
+                        "period": 100,
                     }
                 },
             },

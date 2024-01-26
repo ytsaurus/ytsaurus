@@ -64,7 +64,7 @@ public:
         //! This happens after the first time DynamicConfigManager applies dynamic config.
         //! Therefore we must be ready to encounter null HeartbeatExecutor_.
         if (HeartbeatExecutor_) {
-            HeartbeatExecutor_->SetOptions(DynamicConfig_->Heartbeats);
+            HeartbeatExecutor_->SetOptions(DynamicConfig_->HeartbeatExecutor);
         }
     }
 
@@ -137,7 +137,7 @@ private:
             BIND([this_ = MakeWeak(this)] {
                 return this_.Lock()->ReportHeartbeat();
             }),
-            DynamicConfig_->Heartbeats);
+            DynamicConfig_->HeartbeatExecutor);
 
         YT_LOG_INFO("Starting exec node heartbeats");
         HeartbeatExecutor_->Start();

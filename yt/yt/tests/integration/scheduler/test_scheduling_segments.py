@@ -73,10 +73,8 @@ class TestSchedulingSegments(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "controller_agent_connector": {
-                    "heartbeats": {
-                        "periodic": {
-                            "period": 500,  # 500 msec
-                        },
+                    "heartbeat_executor": {
+                        "period": 500,  # 500 msec
                     },
                 },
             },
@@ -1004,10 +1002,8 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
         "%true": {
             "exec_node": {
                 "controller_agent_connector": {
-                    "heartbeats": {
-                        "periodic": {
-                            "period": 500,  # 500 msec
-                        },
+                    "heartbeat_executor": {
+                        "period": 500,  # 500 msec
                     },
                 },
             },

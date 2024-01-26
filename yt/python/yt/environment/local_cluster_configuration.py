@@ -190,6 +190,13 @@ DYNAMIC_NODE_CONFIG_PATCHES = [
                         "backoff_multiplier": 1.0,
                     },
                 },
+                "heartbeat_executor": {
+                    "period": 100,
+                    "splay": 50,
+                    "min_backoff": 50,
+                    "max_backoff": 50,
+                    "backoff_multiplier": 1.0,
+                },
             },
             "master_connector": {
                 "heartbeat_period": 300,
@@ -199,6 +206,11 @@ DYNAMIC_NODE_CONFIG_PATCHES = [
                         "period": 300,
                         "splay": 50,
                     },
+                },
+                "heartbeat_executor": {
+                    "period": 300,
+                    "splay": 50,
+                    "jitter": 0.3,
                 },
             },
         },
