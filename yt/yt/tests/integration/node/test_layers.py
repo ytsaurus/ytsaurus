@@ -1074,15 +1074,14 @@ class TestNbdSquashFSLayers(YTEnvSetup):
                 "nbd": {
                     "block_cache_compressed_data_capacity": 536870912,
                     "client": {
-                        "io_timeout": 30000,
+                        "timeout": 30000,
                     },
                     "enabled": True,
                     "server": {
                         "unix_domain_socket": {
-                            # The best would be to use os.path.join(self.path_to_run, tempfile.mkstemp(dir="/")[1]),
-                            # but it leads to a path with length greater than the maximum allowed 108 bytes. As of now
-                            # the socket has to locate at the root: PORTO-1242.
-                            "path": tempfile.mkstemp(dir="/")[1]
+                            # The best would be to use os.path.join(self.path_to_run, tempfile.mkstemp(dir="/tmp")[1]),
+                            # but it leads to a path with length greater than the maximum allowed 108 bytes.
+                            "path": tempfile.mkstemp(dir="/tmp")[1]
                         },
                     },
                 },
@@ -1107,6 +1106,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
         set("//tmp/squashfs.img/@filesystem", "squashfs")
 
     @authors("yuryalekseev")
+    @pytest.mark.xfail(run=False, reason="Wait for porto NBD release to hahn")
     def test_squashfs_layer(self):
         self.setup_files()
 
@@ -1164,6 +1164,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
 
     @authors("yuryalekseev")
     @pytest.mark.timeout(150)
+    @pytest.mark.xfail(run=False, reason="Wait for porto NBD release to hahn")
     def test_corrupted_squashfs_layer(self):
         self.setup_files()
 
@@ -1207,6 +1208,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
 
     @authors("yuryalekseev")
     @pytest.mark.timeout(150)
+    @pytest.mark.xfail(run=False, reason="Wait for porto NBD release to hahn")
     def test_corrupted_layer_with_squashfs_layer(self):
         self.setup_files()
 
@@ -1266,6 +1268,7 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
         set("//tmp/squashfs.img/@filesystem", "squashfs")
 
     @authors("yuryalekseev")
+    @pytest.mark.xfail(run=False, reason="Wait for porto NBD release to hahn")
     def test_read_timeout(self):
         self.setup_files()
 
@@ -1275,15 +1278,14 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
                     "block_cache_compressed_data_capacity": 536870912,
                     "client": {
                         # Set read I/O timeout to 1 second
-                        "io_timeout": 1000,
+                        "timeout": 1000,
                     },
                     "enabled": True,
                     "server": {
                         "unix_domain_socket": {
-                            # The best would be to use os.path.join(self.path_to_run, tempfile.mkstemp(dir="/")[1]),
-                            # but it leads to a path with length greater than the maximum allowed 108 bytes. As of now
-                            # the socket has to locate at the root: PORTO-1242.
-                            "path": tempfile.mkstemp(dir="/")[1]
+                            # The best would be to use os.path.join(self.path_to_run, tempfile.mkstemp(dir="/tmp")[1]),
+                            # but it leads to a path with length greater than the maximum allowed 108 bytes.
+                            "path": tempfile.mkstemp(dir="/tmp")[1]
                         },
                         # Sleep for 10 seconds prior to performing read I/O
                         "test_block_device_sleep_before_read": 10000,
@@ -1320,7 +1322,7 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
             assert len(get("//sys/cluster_nodes/{}/@alerts".format(node))) == 0
 
     @authors("yuryalekseev")
-    @pytest.mark.xfail(run=False, reason="Wait for porto NBD errors handling")
+    @pytest.mark.xfail(run=False, reason="Wait for porto NBD release to hahn")
     def test_abort_on_read(self):
         self.setup_files()
 
@@ -1330,15 +1332,14 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
                     "block_cache_compressed_data_capacity": 536870912,
                     "client": {
                         # Set read I/O timeout to 1 second
-                        "io_timeout": 1000,
+                        "timeout": 1000,
                     },
                     "enabled": True,
                     "server": {
                         "unix_domain_socket": {
-                            # The best would be to use os.path.join(self.path_to_run, tempfile.mkstemp(dir="/")[1]),
-                            # but it leads to a path with length greater than the maximum allowed 108 bytes. As of now
-                            # the socket has to locate at the root: PORTO-1242.
-                            "path": tempfile.mkstemp(dir="/")[1]
+                            # The best would be to use os.path.join(self.path_to_run, tempfile.mkstemp(dir="/tmp")[1]),
+                            # but it leads to a path with length greater than the maximum allowed 108 bytes.
+                            "path": tempfile.mkstemp(dir="/tmp")[1]
                         },
                         # Abort connection prior to read I/O
                         "test_abort_connection_on_read": True,
