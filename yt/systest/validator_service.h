@@ -17,8 +17,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, MapInterval);
     DEFINE_RPC_PROXY_METHOD(NProto, ReduceInterval);
     DEFINE_RPC_PROXY_METHOD(NProto, SortInterval);
-    DEFINE_RPC_PROXY_METHOD(NProto, MergeSortedIntervals);
-    DEFINE_RPC_PROXY_METHOD(NProto, CompareSorted);
+    DEFINE_RPC_PROXY_METHOD(NProto, MergeSortedAndCompare);
     DEFINE_RPC_PROXY_METHOD(NProto, CompareInterval);
 };
 

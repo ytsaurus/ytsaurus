@@ -6,7 +6,22 @@
 #include <yt/systest/validator_job.h>
 #include <yt/systest/validator_service.h>
 
+#include <random>
+
 namespace NYT::NTest {
+
+static void AnnounceHostPort(
+    IClientPtr client,
+    const TString& dir,
+    const TString& hostName,
+    int port)
+{
+    client->Create(
+        dir + "/" + hostName + ":" + std::to_string(port),
+        NT_STRING,
+        TCreateOptions().IgnoreExisting(true)
+    );
+}
 
 REGISTER_VANILLA_JOB(TValidatorJob);
 
@@ -18,21 +33,30 @@ TValidatorJob::TValidatorJob(TString dir)
 void TValidatorJob::Do()
 {
     NYT::SetLogger(NYT::CreateStdErrLogger(NYT::ILogger::INFO));
+    NLogging::TLogger Logger("validator-job");
 
     YT_VERIFY(!gethostname(Hostname_, sizeof(Hostname_)));
 
-    const int port = 2827;
-
     auto client = NYT::CreateClientFromEnv();
 
-    // TODO(YT-20802) implement service announcement and discovery properly.
-    client->Create(
-        Dir_ + "/" + Hostname_ + ":" + std::to_string(port),
-        NT_STRING,
-        TCreateOptions().IgnoreExisting(true)
-    );
+    std::mt19937 engine(TInstant::Now().MicroSeconds());
+    std::uniform_int_distribution<int> dist(10000, 40000);
 
-    RunValidatorService(client, port);
+    while (true) {
+        int port = dist(engine);
+        YT_LOG_INFO("Will start validator on port %v", port);
+        AnnounceHostPort(client, Dir_, Hostname_, port);
+        try {
+            RunValidatorService(client, port);
+        } catch (const TErrorException& exception) {
+            if (exception.Error().GetCode() == NBus::EErrorCode::TransportError) {
+                YT_LOG_INFO("Failed to start server, retry with different port (Exception: %v)",
+                    exception.what());
+                continue;
+            }
+            std::rethrow_exception(std::current_exception());
+        }
+    }
 }
 
 }  // namespace NYT::NTest

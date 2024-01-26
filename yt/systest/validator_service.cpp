@@ -36,8 +36,7 @@ public:
     DECLARE_RPC_SERVICE_METHOD(NProto, MapInterval);
     DECLARE_RPC_SERVICE_METHOD(NProto, ReduceInterval);
     DECLARE_RPC_SERVICE_METHOD(NProto, SortInterval);
-    DECLARE_RPC_SERVICE_METHOD(NProto, MergeSortedIntervals);
-    DECLARE_RPC_SERVICE_METHOD(NProto, CompareSorted);
+    DECLARE_RPC_SERVICE_METHOD(NProto, MergeSortedAndCompare);
     DECLARE_RPC_SERVICE_METHOD(NProto, CompareInterval);
 
 private:
@@ -104,9 +103,7 @@ TValidatorService::TValidatorService(IClientPtr client, IInvokerPtr invoker, NLo
         .SetQueueSizeLimit(queueSizeLimit));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(SortInterval)
         .SetQueueSizeLimit(queueSizeLimit));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(MergeSortedIntervals)
-        .SetQueueSizeLimit(queueSizeLimit));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(CompareSorted)
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(MergeSortedAndCompare)
         .SetQueueSizeLimit(queueSizeLimit));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(CompareInterval)
         .SetQueueSizeLimit(queueSizeLimit));
@@ -171,17 +168,11 @@ DEFINE_RPC_SERVICE_METHOD(TValidatorService, SortInterval)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TValidatorService, CompareSorted)
+static void CompareSortedDatasets(
+    const TTable& table,
+    std::unique_ptr<IDatasetIterator> iteratorA,
+    std::unique_ptr<IDatasetIterator> iteratorB)
 {
-    TTable table;
-    FromProto(&table, request->table());
-
-    TTableDataset datasetA(table, Client_, request->path_a());
-    TTableDataset datasetB(table, Client_, request->path_b());
-
-    auto iteratorA = datasetA.NewIterator();
-    auto iteratorB = datasetB.NewIterator();
-
     const int keyLength = table.SortColumns;
     int index = 0;
     while (!iteratorA->Done() && !iteratorB->Done()) {
@@ -205,31 +196,33 @@ DEFINE_RPC_SERVICE_METHOD(TValidatorService, CompareSorted)
     }
 
     if (!iteratorA->Done()) {
-        THROW_ERROR_EXCEPTION("Table %v contains more records after reading all %v records "
-            "from table %v", request->path_a(), index, request->path_b());
+        THROW_ERROR_EXCEPTION("Side A contains more records after reading all %v records "
+            "from side B", index);
     }
 
     if (!iteratorB->Done()) {
-        THROW_ERROR_EXCEPTION("Table %v contains more records after reading all %v records "
-            "from table %v", request->path_b(), index, request->path_a());
+        THROW_ERROR_EXCEPTION("Side B contains more records after reading all %v records "
+            "from side Z", index);
     }
-
-    context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TValidatorService, MergeSortedIntervals)
+DEFINE_RPC_SERVICE_METHOD(TValidatorService, MergeSortedAndCompare)
 {
     std::vector<std::unique_ptr<TTableDataset>> inputDataset;
     std::vector<const IDataset*> inner;
-    TTable inputTable;
-    FromProto(&inputTable, request->table());
+
+    TTable table;
+    FromProto(&table, request->table());
     for (const auto& intervalPath : request->interval_path()) {
         inputDataset.push_back(std::make_unique<TTableDataset>(
-            inputTable, Client_, intervalPath));
+            table, Client_, intervalPath));
         inner.push_back(inputDataset.back().get());
     }
     auto mergeDataset = std::make_unique<TMergeSortedDataset>(std::move(inner));
-    MaterializeIgnoringStableNames(Client_, request->output_path(), *mergeDataset);
+
+    TTableDataset target(table, Client_, request->target_path());
+
+    CompareSortedDatasets(table, mergeDataset->NewIterator(), target.NewIterator());
 
     context->Reply();
 }

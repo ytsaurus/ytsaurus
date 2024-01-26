@@ -28,6 +28,7 @@ TRunner::TRunner(
     NProto::TSystestSpec testSpec,
     IClientPtr client,
     NApi::IClientPtr rpcClient,
+    int runnerThreads,
     TTestHome& testHome,
     TValidator& validator)
     : Logger("test")
@@ -35,6 +36,7 @@ TRunner::TRunner(
     , TestSpec_(testSpec)
     , Client_(client)
     , RpcClient_(rpcClient)
+    , ThreadPool_(NConcurrency::CreateThreadPool(runnerThreads, "runner"))
     , TestHome_(testHome)
     , Validator_(validator)
 {
@@ -48,12 +50,9 @@ TRunner::TDatasetInfo TRunner::PopulateBootstrapDataset(const NProto::TBootstrap
     auto bootstrapInfo = MaterializeIgnoringStableNames(Client_, path, *bootstrapDataset);
 
     TDatasetInfo result{
-        bootstrapDataset.get(),
-        bootstrapDataset.get(),
+        bootstrapDataset->table_schema(),
         bootstrapInfo
     };
-
-    DatasetPtrs_.push_back(std::move(bootstrapDataset));
 
     return result;
 }
@@ -64,25 +63,24 @@ TRunner::TDatasetInfo TRunner::PopulateMapDataset(
     const NProto::TMapRunSpec& runSpec,
     const TString& path)
 {
-    const auto& input = parent.Dataset->table_schema();
+    const auto& input = parent.Table;
     auto mapOperation = CreateFromProto(input, runSpec.operation());
 
-    auto dataset = Map(*parent.ShallowDataset, *mapOperation);
+    TTable table = CreateTableFromMapOperation(*mapOperation);
 
     YT_LOG_INFO("Performing Map (InputTable: %v, OutputTable: %v)", parent.Stored.Path, path);
 
     if (mapOperation->Alterable()) {
-        CloneTableViaMap(parent.Dataset->table_schema(), parent.Stored.Path, path);
-        AlterTable(RpcClient_, path, dataset->table_schema());
+        CloneTableViaMap(parent.Table, parent.Stored.Path, path);
+        AlterTable(RpcClient_, path, table);
     } else {
         RunMap(
             Client_,
             Pool_,
-            TestHome_,
             parent.Stored.Path,
             path,
-            parent.Dataset->table_schema(),
-            dataset->table_schema(),
+            parent.Table,
+            table,
             *mapOperation);
     }
 
@@ -93,17 +91,11 @@ TRunner::TDatasetInfo TRunner::PopulateMapDataset(
         input,
         *mapOperation);
 
-    auto shallowDataset = std::make_unique<TTableDataset>(
-        dataset->table_schema(), Client_, path);
-
     TDatasetInfo result{
-        dataset.get(),
-        shallowDataset.get(),
+        table,
         stored
     };
 
-    DatasetPtrs_.push_back(std::move(shallowDataset));
-    DatasetPtrs_.push_back(std::move(dataset));
     OperationPtrs_.push_back(std::move(mapOperation));
 
     return result;
@@ -115,47 +107,40 @@ TRunner::TDatasetInfo TRunner::PopulateReduceDataset(
     const NProto::TReduceRunSpec& runSpec,
     const TString& path)
 {
-    const auto& input = parent.Dataset->table_schema();
-
     std::vector<TString> columns(runSpec.reduce_by().begin(), runSpec.reduce_by().end());
 
     TReduceOperation reduceOperation{
-        CreateFromProto(input, runSpec.operation()),
+        CreateFromProto(parent.Table, runSpec.operation()),
         columns
     };
 
-    auto reduceDataset = std::make_unique<TReduceDataset>(*parent.ShallowDataset, reduceOperation);
+    std::vector<int> reduceByIndices;
+    TTable table = CreateTableFromReduceOperation(parent.Table, reduceOperation, &reduceByIndices);
 
     YT_LOG_INFO("Performing reduce (InputTable: %v, Columns: %v, OutputTable: %v)",
         parent.Stored.Path, JoinSeq(",", columns), path);
 
     RunReduce(Client_,
               Pool_,
-              TestHome_,
               parent.Stored.Path,
               path,
-              input,
-              reduceDataset->table_schema(),
+              parent.Table,
+              table,
               reduceOperation);
 
     auto stored = Validator_.VerifyReduce(
         name,
         parent.Stored.Path,
         path,
-        input,
+        parent.Table,
         reduceOperation);
 
-    auto shallowDataset = std::make_unique<TTableDataset>(
-        reduceDataset->table_schema(), Client_, path);
 
     TDatasetInfo result{
-        reduceDataset.get(),
-        shallowDataset.get(),
+        table,
         stored
     };
 
-    DatasetPtrs_.push_back(std::move(shallowDataset));
-    DatasetPtrs_.push_back(std::move(reduceDataset));
     OperationPtrs_.push_back(std::move(reduceOperation.Reducer));
 
     return result;
@@ -167,8 +152,6 @@ TRunner::TDatasetInfo TRunner::PopulateSortDataset(
     const NProto::TSortRunSpec& sort,
     const TString& path)
 {
-    const auto& input = parent.Dataset->table_schema();
-
     std::vector<TString> columns;
     for (const auto& column : sort.sort_by()) {
         columns.push_back(column);
@@ -178,7 +161,8 @@ TRunner::TDatasetInfo TRunner::PopulateSortDataset(
     TString sortColumnsString = JoinSeq(",", columns);
     YT_LOG_INFO("Performing sort (InputTable: %v, Columns: %v, OutputTable: %v)", parent.Stored.Path, sortColumnsString, path);
 
-    auto sortDataset = std::make_unique<TSortDataset>(*parent.ShallowDataset, sortOperation);
+    TTable table;
+    ApplySortOperation(parent.Table, sortOperation, &table);
 
     RunSort(Client_, Pool_, parent.Stored.Path, path,
         TSortColumns(TVector<TString>(columns.begin(), columns.end())));
@@ -187,60 +171,100 @@ TRunner::TDatasetInfo TRunner::PopulateSortDataset(
         name,
         parent.Stored.Path,
         path,
-        input,
+        parent.Table,
         sortOperation);
 
-    auto shallowDataset = std::make_unique<TTableDataset>(
-        sortDataset->table_schema(), Client_, path);
-
     TDatasetInfo result{
-        sortDataset.get(),
-        shallowDataset.get(),
+        table,
         stored
     };
-
-    DatasetPtrs_.push_back(std::move(shallowDataset));
-    DatasetPtrs_.push_back(std::move(sortDataset));
 
     return result;
 }
 
 void TRunner::Run()
 {
-    std::unordered_map<TString, int> nameIndex;
-    for (const auto& table : TestSpec_.table()) {
-        nameIndex[table.name()] = std::ssize(Infos_);
-        const TDatasetInfo* parent = nullptr;
-        if (table.has_parent()) {
-            auto pos = nameIndex.find(table.parent());
-            if (pos == nameIndex.end()) {
-                THROW_ERROR_EXCEPTION("Unknown parent table %v (current table %v)", table.parent(), table.name());
-            }
-            parent = &Infos_[pos->second];
-        }
-        TString name{table.name()};
-        auto path = TestHome_.TablePath(name);
-        switch (table.operation_case()) {
-            case NProto::TTableSpec::kBootstrap:
-                YT_LOG_INFO("Bootstrap (Name: %v)", table.name());
-                Infos_.push_back(PopulateBootstrapDataset(table.bootstrap(), path));
-                break;
-            case NProto::TTableSpec::kMap:
-                YT_LOG_INFO("Map (Source: %v, Target: %v)", table.parent(), table.name());
-                Infos_.push_back(PopulateMapDataset(name, *parent, table.map(), path));
-                break;
-            case NProto::TTableSpec::kReduce:
-                YT_LOG_INFO("Reduce (Source: %v, Target: %v)", table.parent(), table.name());
-                Infos_.push_back(PopulateReduceDataset(name, *parent, table.reduce(), path));
-                break;
-            case NProto::TTableSpec::kSort:
-                YT_LOG_INFO("Sort (Source: %v, Target: %v)", table.parent(), table.name());
-                Infos_.push_back(PopulateSortDataset(name, *parent, table.sort(), path));
-                break;
-            case NProto::TTableSpec::OPERATION_NOT_SET:
-                break;
-        }
+    const int numTables = TestSpec_.table_size();
+    Children_.resize(numTables);
+    for (int i = 0; i < numTables; ++i) {
+        const auto& table = TestSpec_.table(i);
+        NameIndex_[table.name()] = i;
     }
+    for (int i = 0; i < numTables; ++i) {
+        const auto& table = TestSpec_.table(i);
+        if (!table.has_parent()) {
+            continue;
+        }
+        auto pos = NameIndex_.find(table.parent());
+        if (pos == NameIndex_.end()) {
+            THROW_ERROR_EXCEPTION("Unknown parent table %v for table %v", table.parent(), table.name());
+        }
+        Children_[pos->second].push_back(NameIndex_[table.name()]);
+    }
+
+    TableDone_.resize(numTables);
+    for (int i = 0; i < numTables; ++i) {
+        TableDone_[i] = NewPromise<void>();
+    }
+
+    Infos_.resize(numTables);
+
+    std::vector<TFuture<void>> tableDone;
+    for (int i = 0; i < numTables; ++i) {
+        const auto& table = TestSpec_.table(i);
+        if (table.has_parent()) {
+            continue;
+        }
+        ThreadPool_->GetInvoker()->Invoke(BIND(&TRunner::PopulateTable, this, i));
+    }
+    for (int i = 0; i < numTables; ++i) {
+        tableDone.push_back(TableDone_[i].ToFuture());
+    }
+
+    AllSucceeded(std::move(tableDone)).Get().ThrowOnError();
+}
+
+void TRunner::PopulateTable(int index)
+{
+    const auto& table = TestSpec_.table(index);
+    YT_LOG_INFO("Starting to populate table (Index: %v, Name: %v, Spec: %v)",
+        index, table.name(), table.DebugString());
+
+    const TDatasetInfo* parent = nullptr;
+    if (table.has_parent()) {
+        auto pos = NameIndex_.find(table.parent());
+        if (pos == NameIndex_.end()) {
+            THROW_ERROR_EXCEPTION("Unknown parent table %v (current table %v)", table.parent(), table.name());
+        }
+        parent = &Infos_[pos->second];
+    }
+    TString name{table.name()};
+    auto path = TestHome_.TablePath(name);
+    switch (table.operation_case()) {
+        case NProto::TTableSpec::kBootstrap:
+            YT_LOG_INFO("Bootstrap (Name: %v)", table.name());
+            Infos_[index] = PopulateBootstrapDataset(table.bootstrap(), path);
+            break;
+        case NProto::TTableSpec::kMap:
+            YT_LOG_INFO("Map (Source: %v, Target: %v)", table.parent(), table.name());
+            Infos_[index] = PopulateMapDataset(name, *parent, table.map(), path);
+            break;
+        case NProto::TTableSpec::kReduce:
+            YT_LOG_INFO("Reduce (Source: %v, Target: %v)", table.parent(), table.name());
+            Infos_[index] = PopulateReduceDataset(name, *parent, table.reduce(), path);
+            break;
+        case NProto::TTableSpec::kSort:
+            YT_LOG_INFO("Sort (Source: %v, Target: %v)", table.parent(), table.name());
+            Infos_[index] = PopulateSortDataset(name, *parent, table.sort(), path);
+            break;
+        case NProto::TTableSpec::OPERATION_NOT_SET:
+            break;
+    }
+
+    for (int child : Children_[index]) {
+        ThreadPool_->GetInvoker()->Invoke(BIND(&TRunner::PopulateTable, this, child));
+    }
+    TableDone_[index].Set();
 }
 
 TString TRunner::CloneTableViaMap(const TTable& table, const TString& sourcePath, const TString& targetPath)
@@ -260,7 +284,6 @@ TString TRunner::CloneTableViaMap(const TTable& table, const TString& sourcePath
 
     RunMap(Client_,
            Pool_,
-           TestHome_,
            sourcePath,
            targetPath,
            table,

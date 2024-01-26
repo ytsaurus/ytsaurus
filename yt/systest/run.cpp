@@ -200,7 +200,7 @@ void TTestOperationMapper::Do(TTableReader<TNode>* input, TTableWriter<TNode>* o
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RunMap(IClientPtr client, const TString& pool, const TTestHome& home,
+void RunMap(IClientPtr client, const TString& pool,
             const TString& inputPath, const TString& outputPath,
             const TTable& table, const TTable& outputTable, const IMultiMapper& operation)
 {
@@ -211,7 +211,6 @@ void RunMap(IClientPtr client, const TString& pool, const TTestHome& home,
     spec.Pool(pool);
     spec.AddInput<TNode>(inputPath);
     spec.AddOutput<TNode>(attributePath);
-    spec.StderrTablePath(home.StderrTable());
     spec.JobCount(10);
     spec.Ordered(true);
 
@@ -223,7 +222,7 @@ void RunMap(IClientPtr client, const TString& pool, const TTestHome& home,
     client->Map(spec, new TTestOperationMapper(serializedOperation));
 }
 
-void RunReduce(IClientPtr client, const TString& pool, const TTestHome& home,
+void RunReduce(IClientPtr client, const TString& pool,
                const TString& inputPath, const TString& outputPath,
                const TTable& table, const TTable& outputTable, const TReduceOperation& operation)
 {
@@ -236,7 +235,6 @@ void RunReduce(IClientPtr client, const TString& pool, const TTestHome& home,
     spec.Pool(pool);
     spec.AddInput<TNode>(inputPath);
     spec.AddOutput<TNode>(attributePath);
-    spec.StderrTablePath(home.StderrTable());
 
     TVector<TString> reduceColumns(operation.ReduceBy.begin(), operation.ReduceBy.end());
     spec.SortBy(TSortColumns(reduceColumns));

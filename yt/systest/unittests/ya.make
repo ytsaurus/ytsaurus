@@ -7,6 +7,7 @@ SRCS(
 
     sort_ut.cpp
     reduce_ut.cpp
+    worker_set_ut.cpp
 
     util.cpp
 )

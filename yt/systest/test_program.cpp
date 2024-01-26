@@ -71,11 +71,25 @@ void TProgram::DoRun(const NLastGetopt::TOptsParseResult&)
     TTestHome testHome(client, Config_.HomeDirectory, Config_.Ttl);
     testHome.Init();
 
-    TValidator validator(Config_.Pool, Config_.ValidatorConfig, client, rpcClient, testHome);
+    TValidator validator(
+        Config_.Pool,
+        Config_.ValidatorConfig,
+        client,
+        rpcClient,
+        testHome);
+
     YT_LOG_INFO("Starting validator");
     validator.Start();
 
-    TRunner runner(Config_.Pool, testSpec, client, rpcClient, testHome, validator);
+    TRunner runner(
+        Config_.Pool,
+        testSpec,
+        client,
+        rpcClient,
+        Config_.RunnerThreads,
+        testHome,
+        validator);
+
     runner.Run();
 
     validator.Stop();

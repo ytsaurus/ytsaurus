@@ -23,6 +23,7 @@ public:
             NProto::TSystestSpec testSpec,
             IClientPtr client,
             NApi::IClientPtr rpcClient,
+            int runnerThreads,
             TTestHome& testHome,
             TValidator& validator);
 
@@ -31,9 +32,7 @@ public:
 private:
     struct TDatasetInfo
     {
-        const IDataset* Dataset;
-        const IDataset* ShallowDataset;
-
+        TTable Table;
         TStoredDataset Stored;
     };
 
@@ -42,16 +41,20 @@ private:
     NProto::TSystestSpec TestSpec_;
     IClientPtr Client_;
     NApi::IClientPtr RpcClient_;
+    NConcurrency::IThreadPoolPtr ThreadPool_;
 
     TTestHome& TestHome_;
     TValidator& Validator_;
 
-    TStoredDataset BootstrapInfo_;
+    std::unordered_map<TString, int> NameIndex_;
+    std::vector<std::list<int>> Children_;
 
+    std::vector<TPromise<void>> TableDone_;
     std::vector<TDatasetInfo> Infos_;
 
-    std::vector<std::unique_ptr<IDataset>> DatasetPtrs_;
     std::vector<std::unique_ptr<IOperation>> OperationPtrs_;
+
+    void PopulateTable(int index);
 
     TString CloneTableViaMap(const TTable& table, const TString& path, const TString& targetPath);
 

@@ -28,6 +28,7 @@ struct TConfig {
     TValidatorConfig ValidatorConfig;
     TNetworkConfig NetworkConfig;
 
+    int RunnerThreads;
     TString HomeDirectory;
     TString Pool;
 

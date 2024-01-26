@@ -29,6 +29,7 @@ SRCS(
     validator.cpp
     validator_job.cpp
     validator_service.cpp
+    worker_set.cpp
 )
 
 PEERDIR(

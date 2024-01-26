@@ -55,4 +55,5 @@ target_sources(yt-systest PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/systest/validator.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/validator_job.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/validator_service.cpp
+  ${CMAKE_SOURCE_DIR}/yt/systest/worker_set.cpp
 )

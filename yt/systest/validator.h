@@ -10,6 +10,7 @@
 
 #include <yt/systest/dataset.h>
 #include <yt/systest/test_home.h>
+#include <yt/systest/worker_set.h>
 
 namespace NYT::NTest {
 
@@ -17,6 +18,8 @@ struct TValidatorConfig
 {
     int NumJobs;
     int64_t IntervalBytes;
+    TDuration PollDelay;
+    TDuration WorkerFailureBackoffDelay;
 
     void RegisterOptions(NLastGetopt::TOpts* opts);
 };
@@ -57,8 +60,8 @@ public:
         const TString& targetPath,
         const TTable& sourceTable,
         const TSortOperation& operation);
-
 private:
+
     TString Pool_;
     TValidatorConfig Config_;
     IClientPtr Client_;
@@ -66,12 +69,7 @@ private:
     TTestHome& TestHome_;
     IOperationPtr Operation_;
     NConcurrency::IThreadPoolPtr ThreadPool_;
-
-    std::atomic<bool> Stopping_;
-    TPromise<void> PollerDone_;
-
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
-    std::vector<TString> Workers_;
+    TWorkerSet WorkerSet_;
 
     NLogging::TLogger Logger;
 
@@ -83,8 +81,7 @@ private:
     };
 
     void StartValidatorOperation();
-    TString GetWorker();
-    void PollVanillaWorkers();
+    std::vector<TString> PollWorkers();
 
     TableIntervalInfo GetMapIntervalBoundaries(const TString& tablePath, int64_t intervalBytes);
 

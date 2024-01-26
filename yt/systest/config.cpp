@@ -58,6 +58,10 @@ void TConfig::RegisterOptions(NLastGetopt::TOpts* opts)
         .StoreResult(&Ttl)
         .DefaultValue(TDuration::Zero());
 
+    opts->AddLongOption("runner-threads")
+        .StoreResult(&RunnerThreads)
+        .DefaultValue(8);
+
     TestConfig.RegisterOptions(opts);
     NetworkConfig.RegisterOptions(opts);
     ValidatorConfig.RegisterOptions(opts);
