@@ -3724,6 +3724,9 @@ private:
         if (request->has_merge_versioned_rows()) {
             options.MergeVersionedRows = request->merge_versioned_rows();
         }
+        if (request->has_syntax_version()) {
+            options.SyntaxVersion = request->syntax_version();
+        }
         auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
         options.DetailedProfilingInfo = detailedProfilingInfo;
 

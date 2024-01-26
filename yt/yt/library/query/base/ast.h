@@ -4,7 +4,6 @@
 #include "query_common.h"
 
 #include <yt/yt/library/query/misc/objects_holder.h>
-#include <library/cpp/yt/misc/hash.h>
 
 #include <variant>
 
@@ -40,6 +39,12 @@ using TOrderExpressionList = std::vector<std::pair<TExpressionList, bool>>;
 using TWhenThenExpression = std::pair<TExpressionList, TExpressionList>;
 using TWhenThenExpressionList = std::vector<TWhenThenExpression>;
 
+bool operator == (const TIdentifierList& lhs, const TIdentifierList& rhs);
+bool operator != (const TIdentifierList& lhs, const TIdentifierList& rhs);
+
+bool operator == (const TExpressionList& lhs, const TExpressionList& rhs);
+bool operator != (const TExpressionList& lhs, const TExpressionList& rhs);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TNullLiteralValue
@@ -64,23 +69,74 @@ using TLiteralValueRangeList = std::vector<std::pair<TLiteralValueTuple, TLitera
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDoubleOrDotIntToken
+{
+    TString Representation;
+
+    i64 AsDotInt() const;
+    double AsDouble() const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TStructMemberAccessor = TString;
+using TTupleItemIndexAccessor = i64;
+using TStructAndTupleMemberAccessorListItem = std::variant<TStructMemberAccessor, TTupleItemIndexAccessor>;
+using TStructAndTupleMemberAccessor = std::vector<TStructAndTupleMemberAccessorListItem>;
+
+struct TCompositeTypeMemberAccessor
+{
+    using TDictOrListItemAccessor = TNullableExpressionList;
+
+    TStructAndTupleMemberAccessor NestedStructOrTupleItemAccessor;
+    TDictOrListItemAccessor DictOrListItemAccessor;
+
+    bool Empty() const;
+};
+
+bool operator == (const TCompositeTypeMemberAccessor& lhs, const TCompositeTypeMemberAccessor& rhs);
+bool operator != (const TCompositeTypeMemberAccessor& lhs, const TCompositeTypeMemberAccessor& rhs);
+
 struct TReference
 {
     TString ColumnName;
     std::optional<TString> TableName;
+    TCompositeTypeMemberAccessor CompositeTypeAccessor;
 
     TReference() = default;
 
-    TReference(const TString& columnName, const std::optional<TString>& tableName = std::nullopt)
+    TReference(
+        const TString& columnName,
+        const std::optional<TString>& tableName = {},
+        const TCompositeTypeMemberAccessor& compositeTypeAccessor = {})
         : ColumnName(columnName)
         , TableName(tableName)
+        , CompositeTypeAccessor(compositeTypeAccessor)
     { }
-
-    operator size_t() const;
 };
 
 bool operator == (const TReference& lhs, const TReference& rhs);
 bool operator != (const TReference& lhs, const TReference& rhs);
+
+struct ReferenceHasher
+{
+    size_t operator() (const NAst::TReference& reference) const;
+};
+
+struct ReferenceEqComparer
+{
+    bool operator() (const NAst::TReference& lhs, const NAst::TReference& rhs) const;
+};
+
+struct CompositeAgnosticReferenceHasher
+{
+    size_t operator() (const NAst::TReference& reference) const;
+};
+
+struct CompositeAgnosticReferenceEqComparer
+{
+    bool operator() (const NAst::TReference& lhs, const NAst::TReference& rhs) const;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -142,17 +198,11 @@ struct TReferenceExpression
 
     TReferenceExpression(
         const TSourceLocation& sourceLocation,
-        const TString& columnName)
-        : TExpression(sourceLocation)
-        , Reference(columnName)
-    { }
-
-    TReferenceExpression(
-        const TSourceLocation& sourceLocation,
         const TString& columnName,
-        const TString& tableName)
+        const std::optional<TString>& tableName = {},
+        const TCompositeTypeMemberAccessor& compositeTypeAccessor = {})
         : TExpression(sourceLocation)
-        , Reference(columnName, tableName)
+        , Reference(columnName, tableName, compositeTypeAccessor)
     { }
 
     TReferenceExpression(

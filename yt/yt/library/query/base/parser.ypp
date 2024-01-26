@@ -108,7 +108,7 @@
 
 %token <i64> Int64Literal "int64 literal"
 %token <ui64> Uint64Literal "uint64 literal"
-%token <double> DoubleLiteral "double literal"
+%token <TDoubleOrDotIntToken> DoubleOrDotIntToken "double or dot int token"
 %token <TString> StringLiteral "string literal"
 %token <TString> PlaceholderLiteral "placeholder literal"
 
@@ -124,6 +124,8 @@
 
 %token LeftParenthesis 40 "`(`"
 %token RightParenthesis 41 "`)`"
+%token LeftSquareBracket "`[`"
+%token RightSquareBracket "`]`"
 
 %token Asterisk 42 "`*`"
 %token OpPlus 43 "`+`"
@@ -151,6 +153,10 @@
 
 %type <TReferenceExpressionPtr> qualified-identifier
 %type <TIdentifierList> identifier-list
+%type <TStructAndTupleMemberAccessor> struct-and-tuple-member-accessor-list
+%type <TStructAndTupleMemberAccessorListItem> struct-and-tuple-member-accessor-list-item
+%type <TCompositeTypeMemberAccessor> member-accessor-list
+%type <TExpressionList> list-or-dict-item-accessor
 
 %type <TOrderExpressionList> order-expr-list
 %type <TExpressionList> expression
@@ -454,7 +460,6 @@ or-op-expr
 ;
 
 and-op-expr
-
     : and-op-expr[lhs] KwAnd not-op-expr[rhs]
         {
             $$ = MakeExpression<TBinaryOpExpression>(head, @$, EBinaryOp::And, $lhs, $rhs);
@@ -688,6 +693,55 @@ qualified-identifier
         {
             $$ = head->New<TReferenceExpression>(@$, $name, $table);
         }
+    | Identifier[table] Dot Identifier[name] member-accessor-list[list]
+        {
+            $$ = head->New<TReferenceExpression>(@$, $name, $table, $list);
+        }
+;
+
+member-accessor-list
+    : struct-and-tuple-member-accessor-list[list] list-or-dict-item-accessor[index]
+        {
+            $$ = TCompositeTypeMemberAccessor{$list, $index};
+        }
+    | struct-and-tuple-member-accessor-list[list]
+        {
+            $$ = TCompositeTypeMemberAccessor{$list, {}};
+        }
+    | list-or-dict-item-accessor[index]
+        {
+            $$ = TCompositeTypeMemberAccessor{{}, $index};
+        }
+;
+
+list-or-dict-item-accessor
+    : LeftSquareBracket relational-op-expr[index] RightSquareBracket
+        {
+            $$ = $index;
+        }
+;
+
+struct-and-tuple-member-accessor-list
+    : struct-and-tuple-member-accessor-list[list] struct-and-tuple-member-accessor-list-item[item]
+        {
+            $$.swap($list);
+            $$.push_back($item);
+        }
+    | struct-and-tuple-member-accessor-list-item[item]
+        {
+            $$.push_back($item);
+        }
+;
+
+struct-and-tuple-member-accessor-list-item
+    : Dot Identifier[structMember]
+        {
+            $$ = $structMember;
+        }
+    | DoubleOrDotIntToken[tupleItem]
+        {
+            $$ = $tupleItem.AsDotInt();
+        }
 ;
 
 atomic-expr
@@ -765,8 +819,8 @@ literal-value
         { $$ = $1; }
     | Uint64Literal
         { $$ = $1; }
-    | DoubleLiteral
-        { $$ = $1; }
+    | DoubleOrDotIntToken
+        { $$ = $1.AsDouble(); }
     | StringLiteral
         { $$ = $1; }
     | KwFalse

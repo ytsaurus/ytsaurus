@@ -37,17 +37,18 @@ struct TColumnDescriptor
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EExpressionKind,
-    ((None)       (0))
-    ((Literal)    (1))
-    ((Reference)  (2))
-    ((Function)   (3))
-    ((UnaryOp)    (4))
-    ((BinaryOp)   (5))
-    ((In)         (6))
-    ((Transform)  (7))
-    ((Between)    (8))
-    ((Case)       (9))
-    ((Like)       (10))
+    ((None)                    (0))
+    ((Literal)                 (1))
+    ((Reference)               (2))
+    ((Function)                (3))
+    ((UnaryOp)                 (4))
+    ((BinaryOp)                (5))
+    ((In)                      (6))
+    ((Transform)               (7))
+    ((Between)                 (8))
+    ((Case)                    (9))
+    ((Like)                    (10))
+    ((CompositeMemberAccessor) (11))
 );
 
 struct TExpression
@@ -251,6 +252,45 @@ struct TLikeExpression
         , Opcode(opcode)
         , Pattern(std::move(pattern))
         , EscapeCharacter(std::move(escapeCharacter))
+    { }
+};
+
+struct TCompositeMemberAccessorPath
+{
+    std::vector<NTableClient::ELogicalMetatype> NestedTypes;
+    std::vector<TString> NamedStructMembers;
+    std::vector<int> PositionalStructMembers;
+    std::vector<int> TupleItemIndices;
+
+    void AppendStructMember(const TString& name, int position);
+    void AppendTupleItem(int index);
+    void Reserve(int length);
+
+    bool operator == (const TCompositeMemberAccessorPath& other) const;
+};
+
+struct TCompositeMemberAccessorExpression
+    : public TExpression
+{
+    using TDictOrListItemAccessorExpression = TConstExpressionPtr;
+
+    TConstExpressionPtr CompositeExpression;
+    TCompositeMemberAccessorPath NestedStructOrTupleItemAccessor;
+    TDictOrListItemAccessorExpression DictOrListItemAccessor;
+
+    explicit TCompositeMemberAccessorExpression(NTableClient::TLogicalTypePtr type)
+        : TExpression(type)
+    { }
+
+    TCompositeMemberAccessorExpression(
+        NTableClient::TLogicalTypePtr type,
+        TConstExpressionPtr compositeExpression,
+        TCompositeMemberAccessorPath nestedStructOrTupleItemAccess,
+        TDictOrListItemAccessorExpression dictOrListItemAccess)
+        : TExpression(type)
+        , CompositeExpression(std::move(compositeExpression))
+        , NestedStructOrTupleItemAccessor(std::move(nestedStructOrTupleItemAccess))
+        , DictOrListItemAccessor(std::move(dictOrListItemAccess))
     { }
 };
 
@@ -526,6 +566,8 @@ struct TAbstractVisitor
             return Derived()->OnCase(caseExpr, args...);
         } else if (auto likeExpr = expr->template As<TLikeExpression>()) {
             return Derived()->OnLike(likeExpr, args...);
+        } else if (auto memberAccessorExpr = expr->template As<TCompositeMemberAccessorExpression>()) {
+            return Derived()->OnCompositeMemberAccessor(memberAccessorExpr, args...);
         }
         YT_ABORT();
     }
@@ -608,6 +650,11 @@ struct TVisitor
         Visit(likeExpr->Text);
         Visit(likeExpr->Pattern);
         Visit(likeExpr->EscapeCharacter);
+    }
+
+    void OnCompositeMemberAccessor(const TCompositeMemberAccessorExpression* memberAccessorExpr)
+    {
+        Visit(memberAccessorExpr->CompositeExpression);
     }
 };
 
@@ -808,6 +855,28 @@ struct TRewriter
             std::move(newPattern),
             std::move(newEscapeCharacter));
     }
+
+    TConstExpressionPtr OnCompositeMemberAccessor(const TCompositeMemberAccessorExpression* memberAccessorExpr)
+    {
+        auto newCompositeExpression = Visit(memberAccessorExpr->CompositeExpression);
+        bool allEqual = newCompositeExpression == memberAccessorExpr->CompositeExpression;
+
+        auto newDictOrListItemAccessor = TCompositeMemberAccessorExpression::TDictOrListItemAccessorExpression{};
+        if (memberAccessorExpr->DictOrListItemAccessor) {
+            newDictOrListItemAccessor = Visit(memberAccessorExpr->DictOrListItemAccessor);
+            allEqual = allEqual && newDictOrListItemAccessor == memberAccessorExpr->DictOrListItemAccessor;
+        }
+
+        if (allEqual) {
+            return memberAccessorExpr;
+        }
+
+        return New<TCompositeMemberAccessorExpression>(
+            memberAccessorExpr->LogicalType,
+            std::move(newCompositeExpression),
+            memberAccessorExpr->NestedStructOrTupleItemAccessor,
+            std::move(newDictOrListItemAccessor));
+    }
 };
 
 template <class TDerived, class TNode, class... TArgs>
@@ -877,7 +946,8 @@ struct TAbstractExpressionPrinter
             expr->As<TUnaryOpExpression>() ||
             expr->As<TTransformExpression>() ||
             expr->As<TCaseExpression>() ||
-            expr->As<TLikeExpression>();
+            expr->As<TLikeExpression>() ||
+            expr->As<TCompositeMemberAccessorExpression>();
     }
 
     const TExpression* GetExpression(const TConstExpressionPtr& expr)
@@ -947,6 +1017,11 @@ struct TAbstractExpressionPrinter
     void OnLikeEscapeCharacter(const TLikeExpression* likeExpr, TArgs... args)
     {
         Visit(likeExpr->EscapeCharacter, args...);
+    }
+
+    void OnCompositeMemberAccessorColumnReference(const TCompositeMemberAccessorExpression* memberAccessorExpr, TArgs... args)
+    {
+        Visit(memberAccessorExpr->CompositeExpression, args...);
     }
 
     template <class T>
@@ -1174,6 +1249,11 @@ struct TAbstractExpressionPrinter
             Builder->AppendString(" ESCAPE ");
             Derived()->OnLikeEscapeCharacter(likeExpr, args...);
         }
+    }
+
+    void OnCompositeMemberAccessor(const TCompositeMemberAccessorExpression* memberAccessorExpr, TArgs... args)
+    {
+        Derived()->OnCompositeMemberAccessorColumnReference(memberAccessorExpr, args...);
     }
 };
 

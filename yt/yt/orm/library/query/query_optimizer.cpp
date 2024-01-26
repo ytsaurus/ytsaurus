@@ -309,7 +309,7 @@ public:
 
 private:
     TQuery* const Query_;
-    THashMap<TReference, TReference> ColumnsMapping_;
+    THashMap<TReference, TReference, ReferenceHasher, ReferenceEqComparer> ColumnsMapping_;
 
     using TBaseOptimizer::IsOptimizationAllowed;
     using TBaseOptimizer::Optimize;

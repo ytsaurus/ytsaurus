@@ -14,6 +14,7 @@
 
 #include <yt/yt/client/query_client/query_statistics.h>
 
+#include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
@@ -2949,6 +2950,120 @@ void LikeOpHelper(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void CompositeMemberAccessorHelper(
+    TExpressionContext* context,
+    TPIValue* result,
+    EValueType resultType,
+    TPIValue* composite,
+    TCompositeMemberAccessorPath* path,
+    bool hasDictOrListItemAccessor,
+    TPIValue* dictOrListItemAccessor)
+{
+    using NYTree::ParseMapOrAttributesUntilKey;
+    using NYTree::ParseListUntilIndex;
+    using NYTree::ParseAnyValue;
+
+    MakePositionIndependentNullValue(result);
+
+    if (composite->Type == EValueType::Null || composite->Length == 0) {
+        return;
+    }
+
+    TMemoryInput input(composite->AsStringBuf());
+    TYsonPullParser parser(&input, EYsonType::Node);
+    TYsonPullParserCursor cursor(&parser);
+
+    for (int index = 0; index < std::ssize(path->NestedTypes); ++index) {
+        auto type = path->NestedTypes[index];
+
+        if (type == ELogicalMetatype::Struct) {
+            if (cursor->GetType() == EYsonItemType::BeginMap) {
+                if (!ParseMapOrAttributesUntilKey(&cursor, path->NamedStructMembers[index])) {
+                    return;
+                }
+            } else if (cursor->GetType() == EYsonItemType::BeginList) {
+                if (!ParseListUntilIndex(&cursor, path->PositionalStructMembers[index])) {
+                    return;
+                }
+            } else {
+                return;
+            }
+        } else if (type == ELogicalMetatype::Tuple) {
+            if (cursor->GetType() == EYsonItemType::BeginList) {
+                if (!ParseListUntilIndex(&cursor, path->TupleItemIndices[index])) {
+                    return;
+                }
+            } else {
+                return;
+            }
+        } else {
+            YT_ABORT();
+        }
+    }
+
+    if (hasDictOrListItemAccessor) {
+        if (cursor->GetType() == EYsonItemType::BeginMap && dictOrListItemAccessor->Type == EValueType::String) {
+            if (!ParseMapOrAttributesUntilKey(&cursor, dictOrListItemAccessor->AsStringBuf())) {
+                return;
+            }
+        } else if (cursor->GetType() == EYsonItemType::BeginList && dictOrListItemAccessor->Type == EValueType::Int64) {
+            if (!ParseListUntilIndex(&cursor, dictOrListItemAccessor->Data.Int64)) {
+                return;
+            }
+        } else {
+            return;
+        }
+    }
+
+    switch (resultType) {
+        case EValueType::Null:
+            break;
+
+        case EValueType::Int64:
+            if (auto parsed = TryParseValue<i64>(&cursor)) {
+                MakePositionIndependentInt64Value(result, *parsed);
+            }
+            break;
+
+        case EValueType::Uint64:
+            if (auto parsed = TryParseValue<ui64>(&cursor)) {
+                MakePositionIndependentUint64Value(result, *parsed);
+            }
+            break;
+
+        case EValueType::Double:
+            if (auto parsed = TryParseValue<double>(&cursor)) {
+                MakePositionIndependentDoubleValue(result, *parsed);
+            }
+            break;
+
+        case EValueType::Boolean:
+            if (auto parsed = TryParseValue<bool>(&cursor)) {
+                MakePositionIndependentBooleanValue(result, *parsed);
+            }
+            break;
+
+        case EValueType::String:
+            if (auto parsed = TryParseValue<TString>(&cursor)) {
+                CopyString(context, result, *parsed);
+            }
+            break;
+
+        case EValueType::Any:
+        case EValueType::Composite: {
+            auto parsed = ParseAnyValue(&cursor);
+            CopyAny(context, result, parsed);
+            result->Type = resultType;
+            break;
+        }
+
+        default:
+            YT_ABORT();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NRoutines
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3032,6 +3147,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(HasPermissions);
     REGISTER_ROUTINE(YsonLength);
     REGISTER_ROUTINE(LikeOpHelper);
+    REGISTER_ROUTINE(CompositeMemberAccessorHelper);
 #undef REGISTER_TRY_GET_ROUTINE
 #undef REGISTER_ROUTINE
 

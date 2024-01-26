@@ -2289,6 +2289,55 @@ TCodegenExpression MakeCodegenLikeExpr(
     };
 }
 
+TCodegenExpression MakeCodegenCompositeMemberAccessorExpr(
+    size_t compositeId,
+    int nestedStructOrTupleItemAccessorOpaqueIndex,
+    std::optional<size_t> dictOrListItemAccessorId,
+    EValueType resultType)
+{
+    return [=] (TCGExprContext& builder) {
+        auto composite = builder->CreateAlignedAlloca(
+            TTypeBuilder<TPIValue>::Get(builder->getContext()),
+            8,
+            builder->getInt64(1),
+            "composite");
+        CodegenFragment(builder, compositeId)
+            .StoreToValue(builder, composite);
+
+        Value* hasDictOrListItemAccessor = builder->getInt8(dictOrListItemAccessorId.has_value());
+
+        auto dictOrListItemAccessor = builder->CreateAlignedAlloca(
+            TTypeBuilder<TPIValue>::Get(builder->getContext()),
+            8,
+            builder->getInt64(1),
+            "composite");
+        if (dictOrListItemAccessorId) {
+            CodegenFragment(builder, *dictOrListItemAccessorId)
+                .StoreToValue(builder, dictOrListItemAccessor);
+        }
+
+        auto result = builder->CreateAlignedAlloca(
+            TTypeBuilder<TPIValue>::Get(builder->getContext()),
+            8,
+            builder->getInt64(1),
+            "result");
+
+        builder->CreateCall(
+            builder.Module->GetRoutine("CompositeMemberAccessorHelper"),
+            {
+                builder.Buffer,
+                result,
+                builder->getInt8(static_cast<ui8>(resultType)),
+                composite,
+                builder.GetOpaqueValue(nestedStructOrTupleItemAccessorOpaqueIndex),
+                hasDictOrListItemAccessor,
+                dictOrListItemAccessor,
+            });
+
+        return TCGValue::LoadFromRowValue(builder, result, resultType);
+    };
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Operators
 //

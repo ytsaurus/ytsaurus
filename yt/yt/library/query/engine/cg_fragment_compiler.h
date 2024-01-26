@@ -141,6 +141,12 @@ TCodegenExpression MakeCodegenLikeExpr(
     std::optional<size_t> escapeCharacterId,
     int contextIndex);
 
+TCodegenExpression MakeCodegenCompositeMemberAccessorExpr(
+    size_t compositeId,
+    int nestedStructOrTupleItemAccessorOpaqueIndex,
+    std::optional<size_t> dictOrListItemAccessorId,
+    EValueType resultType);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void CodegenEmptyOp(TCGOperatorContext& builder);

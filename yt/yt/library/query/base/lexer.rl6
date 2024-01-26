@@ -79,7 +79,7 @@ typedef TParser::token_type TToken;
 
     int64_literal = digit+;
     uint64_literal = digit+ 'u';
-    double_literal = fltdot fltexp?;
+    double_literal = (fltdot | int64_literal) fltexp?;
     single_quoted_string = "'" ( [^'\\] | /\\./ )* "'";
     double_quoted_string = '"' ( [^"\\] | /\\./ )* '"';
     string_literal = single_quoted_string | double_quoted_string;
@@ -164,8 +164,8 @@ typedef TParser::token_type TToken;
             fbreak;
         };
         double_literal => {
-            type = TToken::DoubleLiteral;
-            value->build(FromString<double>(ts, te - ts));
+            type = TToken::DoubleOrDotIntToken;
+            value->build(TDoubleOrDotIntToken{TString(ts, te - ts)});
             fbreak;
         };
         string_literal => {
@@ -186,11 +186,21 @@ typedef TParser::token_type TToken;
         };
 
         '[' => {
-            fhold;
-            fgoto square_bracket_quoted_identifier;
+            if (SyntaxVersion_ >= 2) {
+                type = TToken::LeftSquareBracket;
+                fbreak; 
+            } else {
+                fhold;
+                fgoto square_bracket_quoted_identifier;
+            }
         };
         ']' => {
-            THROW_ERROR_EXCEPTION("Unexpected symbol \"]\" at position %v", ts - p);
+            if (SyntaxVersion_ >= 2) {
+                type = TToken::RightSquareBracket;
+                fbreak; 
+            } else {
+                THROW_ERROR_EXCEPTION("Unexpected symbol \"]\" at position %v", ts - p);
+            }
         };
 
         '<=' => { type = TToken::OpLessOrEqual; fbreak; };
@@ -221,9 +231,11 @@ namespace {
 
 TBaseLexer::TBaseLexer(
     const TString& source,
-    TParser::token_type strayToken)
+    TParser::token_type strayToken,
+    int syntaxVersion)
     : StrayToken_(strayToken)
     , InjectedStrayToken_(false)
+    , SyntaxVersion_(syntaxVersion)
     , p(nullptr)
     , pe(nullptr)
     , eof(nullptr)
@@ -274,9 +286,11 @@ TParser::token_type TBaseLexer::GetNextToken(
 TLexer::TLexer(
     const TString& source,
     TParser::token_type strayToken,
-    THashMap<TString, TString> placeholderValues)
-    : QueryLexer_(source, strayToken)
+    THashMap<TString, TString> placeholderValues,
+    int syntaxVersion)
+    : QueryLexer_(source, strayToken, syntaxVersion)
     , PlaceholderValues_(std::move(placeholderValues))
+    , SyntaxVersion_(syntaxVersion)
 { }
 
 std::optional<TParser::token_type> TLexer::GetNextTokenFromPlaceholder(
@@ -318,7 +332,7 @@ void TLexer::SetPlaceholder(
         placeholderValue = &it->second;
     }
 
-    Placeholder_ = {TBaseLexer{*placeholderValue, TToken::StrayWillParseExpression}, *location};
+    Placeholder_ = {TBaseLexer{*placeholderValue, TToken::StrayWillParseExpression, SyntaxVersion_}, *location};
 
     const auto token = Placeholder_->Lexer.GetNextToken(value, location);
     if (token != TToken::StrayWillParseExpression) {

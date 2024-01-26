@@ -39,6 +39,7 @@ DEFINE_ENUM(EFoldingObjectType,
     (TransformExpr)
     (CaseExpr)
     (LikeExpr)
+    (CompositeMemberAccessorExpr)
 
     (NamedExpression)
     (AggregateItem)
@@ -266,6 +267,12 @@ struct TExpressionFragmentPrinter
         InferNameArg(escapeCharacterId);
     }
 
+    void OnCompositeMemberAccessorColumnReference(const TCompositeMemberAccessorExpression* /*memberAccessorExpr*/, size_t id)
+    {
+        auto referenceId = DebugExpressions[id].Args[0];
+        InferNameArg(referenceId);
+    }
+
     template <class T>
     void OnArguments(const T* /*expr*/, size_t id)
     {
@@ -472,6 +479,12 @@ private:
 
     size_t Profile(
         const TLikeExpression* likeExpr,
+        const TTableSchemaPtr& schema,
+        TExpressionFragments* fragments,
+        bool isolated);
+
+    size_t Profile(
+        const TCompositeMemberAccessorExpression* memberAccessorExpr,
         const TTableSchemaPtr& schema,
         TExpressionFragments* fragments,
         bool isolated);
@@ -1043,6 +1056,65 @@ size_t TExpressionProfiler::Profile(
 }
 
 size_t TExpressionProfiler::Profile(
+    const TCompositeMemberAccessorExpression* memberAccessorExpr,
+    const TTableSchemaPtr& schema,
+    TExpressionFragments* fragments,
+    bool isolated)
+{
+    llvm::FoldingSetNodeID id;
+    id.AddInteger(static_cast<int>(EFoldingObjectType::CompositeMemberAccessorExpr));
+
+    auto compositeId = Profile(memberAccessorExpr->CompositeExpression, schema, fragments, isolated);
+    id.AddInteger(compositeId);
+
+    id.AddInteger(std::ssize(memberAccessorExpr->NestedStructOrTupleItemAccessor.NestedTypes));
+    for (int index = 0; index < std::ssize(memberAccessorExpr->NestedStructOrTupleItemAccessor.NestedTypes); ++index) {
+        id.AddInteger(static_cast<int>(memberAccessorExpr->NestedStructOrTupleItemAccessor.NestedTypes[index]));
+        id.AddString(memberAccessorExpr->NestedStructOrTupleItemAccessor.NamedStructMembers[index].c_str());
+        id.AddInteger(memberAccessorExpr->NestedStructOrTupleItemAccessor.PositionalStructMembers[index]);
+        id.AddInteger(memberAccessorExpr->NestedStructOrTupleItemAccessor.TupleItemIndices[index]);
+    }
+
+    id.AddBoolean(static_cast<bool>(memberAccessorExpr->DictOrListItemAccessor));
+    size_t dictOrListItemAccessorId = 0;
+    if (memberAccessorExpr->DictOrListItemAccessor) {
+        dictOrListItemAccessorId = Profile(memberAccessorExpr->DictOrListItemAccessor, schema, fragments, isolated);
+        id.AddInteger(dictOrListItemAccessorId);
+    }
+
+    auto savedId = id;
+
+    if (const auto* ref = TryGetSubexpressionRef(fragments, id, isolated)) {
+        return *ref;
+    }
+
+    Fold(savedId);
+
+    ++fragments->Items[compositeId].UseCount;
+
+    if (memberAccessorExpr->DictOrListItemAccessor) {
+        ++fragments->Items[dictOrListItemAccessorId].UseCount;
+    }
+
+    bool nullable = true;
+
+    fragments->DebugInfos.emplace_back(memberAccessorExpr, std::vector{compositeId});
+
+    int opaqueIndex = Variables_->AddOpaque<TCompositeMemberAccessorPath>(memberAccessorExpr->NestedStructOrTupleItemAccessor);
+
+    fragments->Items.emplace_back(
+        MakeCodegenCompositeMemberAccessorExpr(
+            compositeId,
+            opaqueIndex,
+            memberAccessorExpr->DictOrListItemAccessor ? std::optional<size_t>(dictOrListItemAccessorId) : std::nullopt,
+            memberAccessorExpr->GetWireType()),
+        memberAccessorExpr->GetWireType(),
+        nullable);
+
+    return fragments->Items.size() - 1;
+}
+
+size_t TExpressionProfiler::Profile(
     const TConstExpressionPtr& expr,
     const TTableSchemaPtr& schema,
     TExpressionFragments* fragments,
@@ -1068,6 +1140,8 @@ size_t TExpressionProfiler::Profile(
         return Profile(caseExpr, schema, fragments, isolated);
     } else if (auto likeExpr = expr->As<TLikeExpression>()) {
         return Profile(likeExpr, schema, fragments, isolated);
+    } else if (auto memberAccessorExpr = expr->As<TCompositeMemberAccessorExpression>()) {
+        return Profile(memberAccessorExpr, schema, fragments, isolated);
     }
 
     YT_ABORT();

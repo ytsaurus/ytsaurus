@@ -135,6 +135,18 @@ message TLikeExpression
     optional TExpression escape_character = 4;
 }
 
+message TCompositeMemberAccessor
+{
+    extend TExpression
+    {
+        optional TCompositeMemberAccessor composite_member_accessor_expression = 113;
+    }
+
+    required TExpression composite = 1;
+    required TCompositeMemberAccessorPath nested_struct_or_tuple_item_accessor = 2;
+    optional TExpression dict_or_list_item_accessor = 3;
+}
+
 message TNamedItem
 {
     required TExpression expression = 1;
@@ -212,6 +224,14 @@ message TWhenThenExpression
 {
     required TExpression condition = 1;
     required TExpression result = 2;
+}
+
+message TCompositeMemberAccessorPath
+{
+    repeated int32 nested_types = 1; // ELogicalMetatype
+    repeated string named_struct_members = 2;
+    repeated int32 positional_struct_members = 3;
+    repeated int32 tuple_item_indices = 4;
 }
 
 message TQuery

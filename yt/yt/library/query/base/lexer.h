@@ -12,7 +12,8 @@ class TBaseLexer
 public:
     TBaseLexer(
         const TString& source,
-        TParser::token_type strayToken);
+        TParser::token_type strayToken,
+        int syntaxVersion);
 
     TParser::token_type GetNextToken(
         TParser::semantic_type* yyval,
@@ -24,6 +25,7 @@ private:
 private:
     TParser::token_type StrayToken_;
     bool InjectedStrayToken_;
+    int SyntaxVersion_;
 
     // Ragel state variables.
     // See Ragel User Manual for host interface specification.
@@ -52,7 +54,8 @@ public:
     TLexer(
         const TString& source,
         TParser::token_type strayToken,
-        THashMap<TString, TString> placeholderValues);
+        THashMap<TString, TString> placeholderValues,
+        int syntaxVersion);
 
     TParser::token_type GetNextToken(
         TParser::semantic_type* yyval,
@@ -69,6 +72,7 @@ private:
     std::optional<TPlaceholderLexerData> Placeholder_;
 
     THashMap<TString, TString> PlaceholderValues_;
+    int SyntaxVersion_;
 
     std::optional<TParser::token_type> GetNextTokenFromPlaceholder(
         TParser::semantic_type* yyval,

@@ -1242,7 +1242,12 @@ public:
         size_t OriginTableIndex;
     };
 
-    THashMap<NAst::TReference, TColumnEntry> Lookup;
+    //! Lookup is a cache of resolved columns.
+    THashMap<
+        NAst::TReference,
+        TColumnEntry,
+        NAst::CompositeAgnosticReferenceHasher,
+        NAst::CompositeAgnosticReferenceEqComparer> Lookup;
 
     TBuilderCtxBase(
         const TTableSchema& schema,
@@ -1548,6 +1553,25 @@ public:
         const NAst::TExpression* expr);
 
 private:
+    struct ResolveNestedTypesResult
+    {
+        TCompositeMemberAccessorPath NestedStructOrTupleItemAccessor;
+        TLogicalTypePtr IntermediateType;
+        TLogicalTypePtr ResultType;
+    };
+
+    ResolveNestedTypesResult ResolveNestedTypes(
+        const TLogicalTypePtr& type,
+        const NAst::TReference& reference);
+
+    TConstExpressionPtr UnwrapListOrDictItemAccessor(
+        const NAst::TReference& reference,
+        ELogicalMetatype metaType);
+
+    TUntypedExpression UnwrapCompositeMemberAccessor(
+        const NAst::TReference& reference,
+        TBaseColumn column);
+
     TUntypedExpression OnReference(
         const NAst::TReference& reference);
 
@@ -1675,16 +1699,153 @@ TUntypedExpression TBuilderCtx::OnExpression(
     YT_ABORT();
 }
 
+TBuilderCtx::ResolveNestedTypesResult TBuilderCtx::ResolveNestedTypes(
+    const TLogicalTypePtr& type,
+    const NAst::TReference& reference)
+{
+    TCompositeMemberAccessorPath nestedStructOrTupleItemAccessor;
+    nestedStructOrTupleItemAccessor.Reserve(std::ssize(reference.CompositeTypeAccessor.NestedStructOrTupleItemAccessor));
+
+    TLogicalTypePtr current = type;
+
+    for (const auto& item : reference.CompositeTypeAccessor.NestedStructOrTupleItemAccessor) {
+        Visit(item,
+            [&] (const NAst::TStructMemberAccessor& structMember) {
+                if (current->GetMetatype() != ELogicalMetatype::Struct) {
+                    THROW_ERROR_EXCEPTION("Member not found: %v", structMember)
+                        << TErrorAttribute("source", NAst::FormatReference(reference));
+                }
+
+                const auto& fields = current->AsStructTypeRef().GetFields();
+                for (int index = 0; index < std::ssize(fields); ++index) {
+                    if (fields[index].Name == structMember) {
+                        current = fields[index].Type;
+                        nestedStructOrTupleItemAccessor.AppendStructMember(structMember, index);
+                        return;
+                    }
+                }
+
+                THROW_ERROR_EXCEPTION("Member not found: %v", structMember)
+                    << TErrorAttribute("source", NAst::FormatReference(reference));
+            },
+            [&] (const NAst::TTupleItemIndexAccessor& itemIndex) {
+                if (current->GetMetatype() != ELogicalMetatype::Tuple) {
+                    THROW_ERROR_EXCEPTION("Member not found: %v", itemIndex)
+                        << TErrorAttribute("source", NAst::FormatReference(reference));
+                }
+
+                const auto& tupleElements = current->AsTupleTypeRef().GetElements();
+
+                if (itemIndex < 0 || itemIndex >= std::ssize(tupleElements)) {
+                    THROW_ERROR_EXCEPTION("Member not found: %v", itemIndex)
+                        << TErrorAttribute("source", NAst::FormatReference(reference));
+                }
+
+                current = tupleElements[itemIndex];
+                nestedStructOrTupleItemAccessor.AppendTupleItem(itemIndex);
+            });
+    }
+
+    auto intermediateType = current;
+    auto resultType = current;
+
+    if (reference.CompositeTypeAccessor.DictOrListItemAccessor) {
+        if (current->GetMetatype() == ELogicalMetatype::List) {
+            resultType = current->GetElement();
+        } else if (current->GetMetatype() == ELogicalMetatype::Dict) {
+            auto keyType = GetWireType(current->AsDictTypeRef().GetKey());
+            if (keyType != EValueType::String) {
+                THROW_ERROR_EXCEPTION("Expected string key type, but got %v",
+                    ToString(keyType))
+                    << TErrorAttribute("source", NAst::FormatReference(reference));
+            }
+            resultType = current->AsDictTypeRef().GetValue();
+        } else {
+            THROW_ERROR_EXCEPTION("Incorrect nested item accessor")
+                << TErrorAttribute("source", NAst::FormatReference(reference));
+        }
+    }
+
+    return {std::move(nestedStructOrTupleItemAccessor), std::move(intermediateType), std::move(resultType)};
+}
+
+TConstExpressionPtr TBuilderCtx::UnwrapListOrDictItemAccessor(
+    const NAst::TReference& reference,
+    ELogicalMetatype metaType)
+{
+    if (!reference.CompositeTypeAccessor.DictOrListItemAccessor.has_value()) {
+        return {};
+    }
+
+    auto itemIndex = *reference.CompositeTypeAccessor.DictOrListItemAccessor;
+
+    if (std::ssize(itemIndex) != 1) {
+        THROW_ERROR_EXCEPTION("Expression inside of the list or dict item accessor should be scalar")
+            << TErrorAttribute("source", NAst::FormatReference(reference));
+    }
+
+    auto resultTypes = TTypeSet{};
+    if (metaType == ELogicalMetatype::List) {
+        resultTypes = TTypeSet{EValueType::Int64};
+    } else if (metaType == ELogicalMetatype::Dict) {
+        resultTypes = TTypeSet{EValueType::String};
+    } else {
+        YT_ABORT();
+    }
+
+    auto untypedExpression = OnExpression(itemIndex.front());
+    if (!Unify(&resultTypes, untypedExpression.FeasibleTypes)) {
+        THROW_ERROR_EXCEPTION("Incorrect type inside of the list or dict item accessor")
+            << TErrorAttribute("source", NAst::FormatReference(reference))
+            << TErrorAttribute("actual_type", ToString(untypedExpression.FeasibleTypes))
+            << TErrorAttribute("expected_type", ToString(resultTypes));
+    }
+
+    if (metaType == ELogicalMetatype::List) {
+        return untypedExpression.Generator(EValueType::Int64);
+    } else if (metaType == ELogicalMetatype::Dict) {
+        return untypedExpression.Generator(EValueType::String);
+    } else {
+        YT_ABORT();
+    }
+}
+
+TUntypedExpression TBuilderCtx::UnwrapCompositeMemberAccessor(
+    const NAst::TReference& reference,
+    TBaseColumn column)
+{
+    auto columnType = column.LogicalType;
+    auto columnReference = New<TReferenceExpression>(columnType, column.Name);
+
+    if (reference.CompositeTypeAccessor.Empty()) {
+        auto generator = [columnReference] (EValueType /*type*/) {
+            return columnReference;
+        };
+
+        return TUntypedExpression{TTypeSet({GetWireType(columnType)}), std::move(generator), false};
+    }
+
+    auto resolved = ResolveNestedTypes(columnType, reference);
+    auto listOrDictItemAccessor = UnwrapListOrDictItemAccessor(reference, resolved.IntermediateType->GetMetatype());
+
+    auto memberAccessor = New<TCompositeMemberAccessorExpression>(
+        resolved.ResultType,
+        columnReference,
+        std::move(resolved.NestedStructOrTupleItemAccessor),
+        listOrDictItemAccessor);
+
+    auto generator = [memberAccessor] (EValueType /*type*/) {
+        return memberAccessor;
+    };
+
+    return TUntypedExpression{TTypeSet({GetWireType(resolved.ResultType)}), std::move(generator), false};
+}
 
 TUntypedExpression TBuilderCtx::OnReference(const NAst::TReference& reference)
 {
     if (AfterGroupBy) {
         if (auto column = GetColumnPtr(reference)) {
-            TTypeSet resultTypes({GetWireType(column->LogicalType)});
-            TExpressionGenerator generator = [column = *column] (EValueType) {
-                return New<TReferenceExpression>(column.LogicalType, column.Name);
-            };
-            return TUntypedExpression{resultTypes, std::move(generator), false};
+            return UnwrapCompositeMemberAccessor(reference, *column);
         }
     }
 
@@ -1705,11 +1866,7 @@ TUntypedExpression TBuilderCtx::OnReference(const NAst::TReference& reference)
 
     if (!AfterGroupBy) {
         if (auto column = GetColumnPtr(reference)) {
-            TTypeSet resultTypes({GetWireType(column->LogicalType)});
-            TExpressionGenerator generator = [column = *column] (EValueType) {
-                return New<TReferenceExpression>(column.LogicalType, column.Name);
-            };
-            return TUntypedExpression{resultTypes, std::move(generator), false};
+            return UnwrapCompositeMemberAccessor(reference, *column);
         }
     }
 
@@ -2830,14 +2987,15 @@ void ParseQueryString(
     NAst::TAstHead* astHead,
     const TString& source,
     NAst::TParser::token::yytokentype strayToken,
-    TYsonStringBuf placeholderValues = {})
+    TYsonStringBuf placeholderValues = {},
+    int syntaxVersion = 1)
 {
     THashMap<TString, TString> queryLiterals;
     if (placeholderValues) {
         queryLiterals = ConvertYsonPlaceholdersToQueryLiterals(placeholderValues);
     }
 
-    NAst::TLexer lexer(source, strayToken, std::move(queryLiterals));
+    NAst::TLexer lexer(source, strayToken, std::move(queryLiterals), syntaxVersion);
     NAst::TParser parser(lexer, astHead, source);
 
     int result = parser.parse();
@@ -2889,7 +3047,8 @@ TParsedSource::TParsedSource(const TString& source, NAst::TAstHead astHead)
 std::unique_ptr<TParsedSource> ParseSource(
     const TString& source,
     EParseMode mode,
-    TYsonStringBuf placeholderValues)
+    TYsonStringBuf placeholderValues,
+    int syntaxVersion)
 {
     auto parsedSource = std::make_unique<TParsedSource>(
         source,
@@ -2898,7 +3057,8 @@ std::unique_ptr<TParsedSource> ParseSource(
         &parsedSource->AstHead,
         source,
         GetStrayToken(mode),
-        placeholderValues);
+        placeholderValues,
+        syntaxVersion);
     return parsedSource;
 }
 
@@ -3212,11 +3372,12 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const TString& source,
     const TFunctionsFetcher& functionsFetcher,
-    TYsonStringBuf placeholderValues)
+    TYsonStringBuf placeholderValues,
+    int syntaxVersion)
 {
     return PreparePlanFragment(
         callbacks,
-        *ParseSource(source, EParseMode::Query, placeholderValues),
+        *ParseSource(source, EParseMode::Query, placeholderValues, syntaxVersion),
         functionsFetcher);
 }
 

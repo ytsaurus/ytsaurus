@@ -196,6 +196,41 @@ TTransformExpression::TTransformExpression(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TCompositeMemberAccessorPath::AppendStructMember(const TString& name, int position)
+{
+    NestedTypes.push_back(ELogicalMetatype::Struct);
+    NamedStructMembers.push_back(name);
+    PositionalStructMembers.push_back(position);
+    TupleItemIndices.push_back(-1); // Dummy.
+}
+
+void TCompositeMemberAccessorPath::AppendTupleItem(int index)
+{
+    NestedTypes.push_back(ELogicalMetatype::Tuple);
+    NamedStructMembers.emplace_back(); // Dummy.
+    PositionalStructMembers.push_back(-1); // Dummy.
+    TupleItemIndices.push_back(index);
+}
+
+void TCompositeMemberAccessorPath::Reserve(int length)
+{
+    NestedTypes.reserve(length);
+    NamedStructMembers.reserve(length);
+    PositionalStructMembers.reserve(length);
+    TupleItemIndices.reserve(length);
+}
+
+bool TCompositeMemberAccessorPath::operator == (const TCompositeMemberAccessorPath& other) const
+{
+    return
+        NestedTypes == other.NestedTypes &&
+        NamedStructMembers == other.NamedStructMembers &&
+        PositionalStructMembers == other.PositionalStructMembers &&
+        TupleItemIndices == other.TupleItemIndices;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TNamedItem::TNamedItem(
     TConstExpressionPtr expression,
     TString name)
@@ -668,6 +703,13 @@ bool Compare(
         CHECK(likeLhs->Opcode == likeRhs->Opcode);
         CHECK(Compare(likeLhs->Pattern, lhsSchema, likeRhs->Pattern, rhsSchema, maxIndex));
         CHECK(Compare(likeLhs->EscapeCharacter, lhsSchema, likeRhs->EscapeCharacter, rhsSchema, maxIndex));
+    } else if (auto memberAccessorLhs = lhs->As<TCompositeMemberAccessorExpression>()) {
+        auto memberAccessorRhs = rhs->As<TCompositeMemberAccessorExpression>();
+        CHECK(memberAccessorRhs);
+
+        CHECK(Compare(memberAccessorLhs->CompositeExpression, lhsSchema, memberAccessorRhs->CompositeExpression, rhsSchema, maxIndex));
+        CHECK(memberAccessorLhs->NestedStructOrTupleItemAccessor == memberAccessorRhs->NestedStructOrTupleItemAccessor);
+        CHECK(Compare(memberAccessorLhs->DictOrListItemAccessor, lhsSchema, memberAccessorRhs->DictOrListItemAccessor, rhsSchema, maxIndex));
     } else {
         YT_ABORT();
     }
@@ -774,6 +816,24 @@ NLogging::TLogger MakeQueryLogger(TGuid queryId)
 NLogging::TLogger MakeQueryLogger(TConstBaseQueryPtr query)
 {
     return MakeQueryLogger(query->Id);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TCompositeMemberAccessorPath* proto, const TCompositeMemberAccessorPath& original)
+{
+    ToProto(proto->mutable_nested_types(), original.NestedTypes);
+    ToProto(proto->mutable_named_struct_members(), original.NamedStructMembers);
+    ToProto(proto->mutable_positional_struct_members(), original.PositionalStructMembers);
+    ToProto(proto->mutable_tuple_item_indices(), original.TupleItemIndices);
+}
+
+void FromProto(TCompositeMemberAccessorPath* original, const NProto::TCompositeMemberAccessorPath& serialized)
+{
+    FromProto(&original->NestedTypes, serialized.nested_types());
+    FromProto(&original->NamedStructMembers, serialized.named_struct_members());
+    FromProto(&original->PositionalStructMembers, serialized.positional_struct_members());
+    FromProto(&original->TupleItemIndices, serialized.tuple_item_indices());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -910,6 +970,15 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         ToProto(proto->mutable_pattern(), likeExpr->Pattern);
         if (likeExpr->EscapeCharacter) {
             ToProto(proto->mutable_escape_character(), likeExpr->EscapeCharacter);
+        }
+    } else if (auto memberAccessorExpr = original->As<TCompositeMemberAccessorExpression>()) {
+        serialized->set_kind(static_cast<int>(EExpressionKind::CompositeMemberAccessor));
+        auto* proto = serialized->MutableExtension(NProto::TCompositeMemberAccessor::composite_member_accessor_expression);
+
+        ToProto(proto->mutable_composite(), memberAccessorExpr->CompositeExpression);
+        ToProto(proto->mutable_nested_struct_or_tuple_item_accessor(), memberAccessorExpr->NestedStructOrTupleItemAccessor);
+        if (memberAccessorExpr->DictOrListItemAccessor) {
+            ToProto(proto->mutable_dict_or_list_item_accessor(), memberAccessorExpr->DictOrListItemAccessor);
         }
     }
 }
@@ -1063,6 +1132,22 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
             FromProto(&result->Pattern, ext.pattern());
             if (ext.has_escape_character()) {
                 FromProto(&result->EscapeCharacter, ext.escape_character());
+            }
+
+            *original = result;
+            return;
+        }
+
+        case EExpressionKind::CompositeMemberAccessor: {
+            auto result = New<TCompositeMemberAccessorExpression>(type);
+            const auto& ext = serialized.GetExtension(NProto::TCompositeMemberAccessor::composite_member_accessor_expression);
+
+            FromProto(&result->CompositeExpression, ext.composite());
+
+            FromProto(&result->NestedStructOrTupleItemAccessor, ext.nested_struct_or_tuple_item_accessor());
+
+            if (ext.has_dict_or_list_item_accessor()) {
+                FromProto(&result->DictOrListItemAccessor, ext.dict_or_list_item_accessor());
             }
 
             *original = result;

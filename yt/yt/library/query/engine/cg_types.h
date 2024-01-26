@@ -2,6 +2,8 @@
 
 #include "llvm_types.h"
 
+#include <yt/yt/library/query/base/query.h>
+
 #include <yt/yt/library/query/engine_api/evaluation_helpers.h>
 
 #include <yt/yt/library/query/misc/function_context.h>
@@ -40,6 +42,7 @@ using NYT::NQueryClient::TMultiJoinParameters;
 using NYT::NQueryClient::TMultiJoinClosure;
 using NYT::NQueryClient::TLikeExpressionContext;
 using NYT::NQueryClient::TRowSchemaInformation;
+using NYT::NQueryClient::TCompositeMemberAccessorPath;
 using NYT::NTableClient::TRowBuffer;
 using NYT::TSharedRange;
 
@@ -79,6 +82,7 @@ struct TTypeBuilder<bool>
     OPAQUE_TYPE(TSharedRange<TRange<TPIValue>>*)
     OPAQUE_TYPE(TLikeExpressionContext*)
     OPAQUE_TYPE(TRowSchemaInformation*)
+    OPAQUE_TYPE(TCompositeMemberAccessorPath*)
 
 #undef OPAQUE_TYPE
 

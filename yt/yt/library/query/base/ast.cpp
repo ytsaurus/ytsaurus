@@ -20,24 +20,98 @@ bool operator != (TNullLiteralValue, TNullLiteralValue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReference::operator size_t() const
+i64 TDoubleOrDotIntToken::AsDotInt() const
 {
-    size_t result = 0;
-    HashCombine(result, ColumnName);
-    HashCombine(result, TableName);
-    return result;
+    if (Representation.empty() || Representation[0] != '.') {
+        THROW_ERROR_EXCEPTION("Expected dot token and then integer token, but got %v",
+            Representation);
+    }
+
+    return FromString<ui64>(Representation.substr(1));
 }
+
+double TDoubleOrDotIntToken::AsDouble() const
+{
+    return FromString<double>(Representation);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool TCompositeTypeMemberAccessor::Empty() const
+{
+    return NestedStructOrTupleItemAccessor.empty() && !DictOrListItemAccessor.has_value();
+}
+
+bool operator == (const TCompositeTypeMemberAccessor& lhs, const TCompositeTypeMemberAccessor& rhs)
+{
+    return
+        std::tie(lhs.NestedStructOrTupleItemAccessor, lhs.DictOrListItemAccessor) ==
+        std::tie(rhs.NestedStructOrTupleItemAccessor, rhs.DictOrListItemAccessor);
+}
+
+bool operator != (const TCompositeTypeMemberAccessor& lhs, const TCompositeTypeMemberAccessor& rhs)
+{
+    return !(lhs == rhs);
+}
+
 
 bool operator == (const TReference& lhs, const TReference& rhs)
 {
     return
-        std::tie(lhs.ColumnName, lhs.TableName) ==
-        std::tie(rhs.ColumnName, rhs.TableName);
+        std::tie(lhs.ColumnName, lhs.TableName, lhs.CompositeTypeAccessor) ==
+        std::tie(rhs.ColumnName, rhs.TableName, rhs.CompositeTypeAccessor);
 }
 
 bool operator != (const TReference& lhs, const TReference& rhs)
 {
     return !(lhs == rhs);
+}
+
+size_t ReferenceHasher::operator() (const TReference& reference) const
+{
+    size_t result = 0;
+    HashCombine(result, reference.ColumnName);
+    HashCombine(result, reference.TableName);
+
+    for (const auto& item : reference.CompositeTypeAccessor.NestedStructOrTupleItemAccessor) {
+        Visit(item,
+            [&] (const TStructMemberAccessor& structMember) {
+                HashCombine(result, structMember);
+            },
+            [&] (const TTupleItemIndexAccessor& index) {
+                HashCombine(result, index);
+            });
+    }
+
+    if (reference.CompositeTypeAccessor.DictOrListItemAccessor) {
+        if (std::ssize(*reference.CompositeTypeAccessor.DictOrListItemAccessor) != 1) {
+            THROW_ERROR_EXCEPTION("Expression inside of the list or dict item accessor should be scalar")
+                << TErrorAttribute("source", FormatReference(reference));
+        }
+        HashCombine(result, reference.CompositeTypeAccessor.DictOrListItemAccessor->front());
+    }
+
+    return result;
+}
+
+bool ReferenceEqComparer::operator() (const TReference& lhs, const TReference& rhs) const
+{
+    return lhs == rhs;
+}
+
+size_t CompositeAgnosticReferenceHasher::operator() (const TReference& reference) const
+{
+    size_t result = 0;
+    HashCombine(result, reference.ColumnName);
+    HashCombine(result, reference.TableName);
+    return result;
+}
+
+bool CompositeAgnosticReferenceEqComparer::operator() (const TReference& lhs, const TReference& rhs) const
+{
+    return
+        std::tie(lhs.ColumnName, lhs.TableName) ==
+        std::tie(rhs.ColumnName, rhs.TableName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -392,6 +466,7 @@ bool IsValidId(TStringBuf str)
 
 bool AreBackticksNeeded(TStringBuf id)
 {
+    // TODO(dtorilov): In syntax v2 we use always backticks.
     return id.Contains('[') || id.Contains(']');
 }
 
@@ -412,13 +487,36 @@ void FormatId(TStringBuilderBase* builder, TStringBuf id, bool isFinal = false)
     }
 }
 
+void FormatExpressions(TStringBuilderBase* builder, const TExpressionList& exprs, bool expandAliases);
+void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, bool expandAliases, bool isFinal = false);
+void FormatExpression(TStringBuilderBase* builder, const TExpressionList& expr, bool expandAliases);
+
 void FormatReference(TStringBuilderBase* builder, const TReference& ref, bool isFinal = false)
 {
     if (ref.TableName) {
         builder->AppendString(*ref.TableName);
         builder->AppendChar('.');
     }
+
     FormatId(builder, ref.ColumnName, isFinal);
+
+    for (const auto& item : ref.CompositeTypeAccessor.NestedStructOrTupleItemAccessor) {
+        Visit(item,
+            [&] (const TStructMemberAccessor& structMember) {
+                builder->AppendChar('.');
+                builder->AppendString(structMember);
+            },
+            [&] (const TTupleItemIndexAccessor& index) {
+                builder->AppendChar('.');
+                builder->AppendFormat("%v", index);
+            });
+    }
+
+    if (ref.CompositeTypeAccessor.DictOrListItemAccessor) {
+        builder->AppendChar('[');
+        FormatExpressions(builder, *ref.CompositeTypeAccessor.DictOrListItemAccessor, /*expandAliases*/ false);
+        builder->AppendChar(']');
+    }
 }
 
 void FormatTableDescriptor(TStringBuilderBase* builder, const TTableDescriptor& descriptor)
@@ -429,10 +527,6 @@ void FormatTableDescriptor(TStringBuilderBase* builder, const TTableDescriptor& 
         FormatId(builder, *descriptor.Alias);
     }
 }
-
-void FormatExpressions(TStringBuilderBase* builder, const TExpressionList& exprs, bool expandAliases);
-void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, bool expandAliases, bool isFinal = false);
-void FormatExpression(TStringBuilderBase* builder, const TExpressionList& expr, bool expandAliases);
 
 void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, bool expandAliases, bool isFinal)
 {

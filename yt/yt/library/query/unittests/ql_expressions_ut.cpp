@@ -2377,6 +2377,34 @@ INSTANTIATE_TEST_SUITE_P(
             "u1=17271244077285990991",
             MakeBoolean(true)),
         std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "3.14",
+            MakeDouble(3.14)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            ".5",
+            MakeDouble(0.5)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            ".50000000",
+            MakeDouble(0.5)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "2.",
+            MakeDouble(2)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "123e+4",
+            MakeDouble(123e+4)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "123e4",
+            MakeDouble(123e4)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "125e-3",
+            MakeDouble(125e-3)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
             "any=%false",
             "boolean(any)",
             MakeBoolean(false)),

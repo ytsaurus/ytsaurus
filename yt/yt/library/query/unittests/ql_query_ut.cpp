@@ -118,11 +118,12 @@ protected:
     void ExpectPrepareThrowsWithDiagnostics(
         const TString& query,
         TMatcher matcher,
-        NYson::TYsonStringBuf placeholderValues = {})
+        NYson::TYsonStringBuf placeholderValues = {},
+        int syntaxVersion = 1)
     {
         EXPECT_THROW_THAT(
             BIND([&] () {
-                PreparePlanFragment(&PrepareMock_, query, DefaultFetchFunctions, placeholderValues);
+                PreparePlanFragment(&PrepareMock_, query, DefaultFetchFunctions, placeholderValues, syntaxVersion);
             })
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run()
@@ -1489,7 +1490,8 @@ protected:
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max(),
         NYson::TYsonStringBuf placeholderValues = {},
-        bool useCanonicalNullRelations = false)
+        bool useCanonicalNullRelations = false,
+        int syntaxVersion = 1)
     {
         return BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
@@ -1502,7 +1504,8 @@ protected:
                 outputRowLimit,
                 false,
                 placeholderValues,
-                useCanonicalNullRelations)
+                useCanonicalNullRelations,
+                syntaxVersion)
             .Get()
             .ValueOrThrow();
     }
@@ -1514,7 +1517,9 @@ protected:
         const TResultMatcher& resultMatcher,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max(),
-        NYson::TYsonStringBuf placeholderValues = {})
+        NYson::TYsonStringBuf placeholderValues = {},
+        bool useCanonicalNullRelations = false,
+        int syntaxVersion = 1)
     {
         return EvaluateWithQueryStatistics(
             query,
@@ -1523,7 +1528,9 @@ protected:
             resultMatcher,
             inputRowLimit,
             outputRowLimit,
-            placeholderValues).first;
+            placeholderValues,
+            useCanonicalNullRelations,
+            syntaxVersion).first;
     }
 
     std::pair<TQueryPtr, TQueryStatistics> EvaluateWithQueryStatistics(
@@ -1534,7 +1541,8 @@ protected:
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max(),
         NYson::TYsonStringBuf placeholderValues = {},
-        bool useCanonicalNullRelations = false)
+        bool useCanonicalNullRelations = false,
+        int syntaxVersion = 1)
     {
         std::vector<std::vector<TString>> owningSources = {
             owningSourceRows
@@ -1551,10 +1559,34 @@ protected:
             inputRowLimit,
             outputRowLimit,
             placeholderValues,
-            useCanonicalNullRelations);
+            useCanonicalNullRelations,
+            syntaxVersion);
     }
 
     TQueryPtr Evaluate(
+        const TString& query,
+        const TDataSplit& dataSplit,
+        const std::vector<TString>& owningSourceRows,
+        const TResultMatcher& resultMatcher,
+        i64 inputRowLimit = std::numeric_limits<i64>::max(),
+        i64 outputRowLimit = std::numeric_limits<i64>::max(),
+        NYson::TYsonStringBuf placeholderValues = {},
+        bool useCanonicalNullRelations = false,
+        int syntaxVersion = 1)
+    {
+        return EvaluateWithQueryStatistics(
+            query,
+            dataSplit,
+            owningSourceRows,
+            resultMatcher,
+            inputRowLimit,
+            outputRowLimit,
+            placeholderValues,
+            useCanonicalNullRelations,
+            syntaxVersion).first;
+    }
+
+    TQueryPtr EvaluateWithSyntaxV2(
         const TString& query,
         const TDataSplit& dataSplit,
         const std::vector<TString>& owningSourceRows,
@@ -1572,7 +1604,8 @@ protected:
             inputRowLimit,
             outputRowLimit,
             placeholderValues,
-            useCanonicalNullRelations).first;
+            useCanonicalNullRelations,
+            /*syntaxVersion*/ 2).first;
     }
 
     TQueryPtr EvaluateExpectingError(
@@ -1582,7 +1615,8 @@ protected:
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max(),
         NYson::TYsonStringBuf placeholderValues = {},
-        bool useCanonicalNullRelations = false)
+        bool useCanonicalNullRelations = false,
+        int syntaxVersion = 1)
     {
         std::vector<std::vector<TString>> owningSources = {
             owningSourceRows
@@ -1604,7 +1638,8 @@ protected:
                 outputRowLimit,
                 true,
                 placeholderValues,
-                useCanonicalNullRelations)
+                useCanonicalNullRelations,
+                syntaxVersion)
             .Get()
             .ValueOrThrow().first;
     }
@@ -1613,7 +1648,8 @@ protected:
     TQueryPtr Prepare(
         const TString& query,
         const std::map<TString, TDataSplit>& dataSplits,
-        NYson::TYsonStringBuf placeholderValues)
+        NYson::TYsonStringBuf placeholderValues,
+        int syntaxVersion)
     {
         for (const auto& dataSplit : dataSplits) {
             EXPECT_CALL(PrepareMock_, GetInitialSplit(dataSplit.first))
@@ -1628,7 +1664,8 @@ protected:
             &PrepareMock_,
             query,
             fetchFunctions,
-            placeholderValues);
+            placeholderValues,
+            syntaxVersion);
 
         return fragment->Query;
     }
@@ -1642,9 +1679,10 @@ protected:
         i64 outputRowLimit,
         bool failure,
         NYson::TYsonStringBuf placeholderValues,
-        bool useCanonicalNullRelations)
+        bool useCanonicalNullRelations,
+        int syntaxVersion)
     {
-        auto primaryQuery = Prepare(query, dataSplits, placeholderValues);
+        auto primaryQuery = Prepare(query, dataSplits, placeholderValues, syntaxVersion);
 
         TQueryBaseOptions options;
         options.InputRowLimit = inputRowLimit;
@@ -1735,7 +1773,7 @@ protected:
         const std::vector<std::vector<TString>>& owningSources,
         const TResultMatcher& resultMatcher)
     {
-        auto primaryQuery = Prepare(query, std::map<TString, TDataSplit>{{"//t", dataSplit}}, {});
+        auto primaryQuery = Prepare(query, std::map<TString, TDataSplit>{{"//t", dataSplit}}, {}, 1);
         YT_VERIFY(primaryQuery->GroupClause);
 
         int tablets = owningSources.size();
@@ -6419,6 +6457,382 @@ TEST_F(TQueryEvaluateTest, ToAnyAndCompare)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, CompositeMemberAccessorStruct)
+{
+    auto split = MakeSplit({
+        {"struct", StructLogicalType({
+            {"a", StructLogicalType({
+                {"b", StructLogicalType({
+                    {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}})},
+            {"d", SimpleLogicalType(ESimpleLogicalValueType::String)}})}});
+
+    auto source = std::vector<TString> {
+        "struct={a={b={c=1}};d=a}",
+        "struct={a={b={c=2}};d=b}",
+        "struct={a={b={c=3}};d=c}",
+        "struct={a={};d=d}",
+    };
+
+    {
+        auto resultSplit = MakeSplit({
+            {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+            {"d", SimpleLogicalType(ESimpleLogicalValueType::String)}});
+        auto result = YsonToRows({"c=1;d=a", "c=2;d=b", "c=3;d=c", "c=#;d=d"}, resultSplit);
+        EvaluateWithSyntaxV2("t.struct.a.b.c as c, t.struct.d as d from `//t` as t", split, source, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({
+            {"b", StructLogicalType({
+                {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}});
+        auto result = YsonToRows({"b={c=1}", "b={c=2}", "b={c=3}", "b=#"}, resultSplit);
+        EvaluateWithSyntaxV2("t.struct.a.b as b from `//t` as t", split, source, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({
+            {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}});
+        auto result = YsonToRows({"c=1", "c=2", "c=3", "c=#"}, resultSplit);
+        EvaluateWithSyntaxV2("try_get_int64(to_any(t.struct.a.b), '/c') as c from `//t` as t", split, source, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({
+            {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}});
+        auto result = YsonToRows({"c=1", "c=2", "c=3", "c=#"}, resultSplit);
+        EvaluateWithSyntaxV2("t.struct.a.b.c as c from `//t` as t group by c", split, source, ResultMatcher(result));
+        EvaluateWithSyntaxV2("c from `//t` as t group by t.struct.a.b.c as c", split, source, ResultMatcher(result));
+    }
+}
+
+TEST_F(TQueryEvaluateTest, CompositeMemberAccessorStruct2)
+{
+    auto split = MakeSplit({
+        {"struct", StructLogicalType({
+            {"a", StructLogicalType({
+                {"b", StructLogicalType({
+                    {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}})}})}});
+
+    auto source = std::vector<TString> {
+        "struct={a={b={c=1}}}",
+        "struct={a={b={}}}",
+        "struct={a={b=abc}}",
+        "struct={a={}}",
+        "struct={a=#}",
+        "struct={}",
+        "struct=#",
+        "",
+    };
+
+    {
+        auto resultSplit = MakeSplit({
+            {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}});
+        auto result = YsonToRows({"c=1", "c=#", "c=#", "c=#", "c=#", "c=#", "c=#", "c=#"}, resultSplit);
+        EvaluateWithSyntaxV2("t.struct.a.b.c as c from `//t` as t", split, source, ResultMatcher(result));
+    }
+
+    {
+        auto resultSplit = MakeSplit({
+            {"b", StructLogicalType({
+                    {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}});
+        auto result = YsonToRows({"b={c=1}", "b={}", "b=abc", "b=#", "b=#", "b=#", "b=#", "b=#"}, resultSplit);
+        EvaluateWithSyntaxV2("t.struct.a.b as b from `//t` as t", split, source, ResultMatcher(result));
+    }
+}
+
+TEST_F(TQueryEvaluateTest, CompositeMemberAccessorStructPositionalEncoding)
+{
+    auto split = MakeSplit({
+        {"struct", StructLogicalType({
+            {"a", StructLogicalType({
+                {"b", StructLogicalType({
+                    {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}})},
+            {"d", SimpleLogicalType(ESimpleLogicalValueType::String)}})}});
+
+    auto source = std::vector<TString> {
+        "struct=[[[1]];a]",
+        "struct=[[[2]];b]",
+        "struct=[[[3]];c]",
+        "struct=[[];d]",
+    };
+
+    {
+        auto resultSplit = MakeSplit({
+            {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+            {"d", SimpleLogicalType(ESimpleLogicalValueType::String)}});
+        auto result = YsonToRows({"c=1;d=a", "c=2;d=b", "c=3;d=c", "c=#;d=d"}, resultSplit);
+        EvaluateWithSyntaxV2("t.struct.a.b.c as c, t.struct.d as d from `//t` as t", split, source, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({
+            {"b", StructLogicalType({
+                {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}});
+        auto result = YsonToRows({"b=[1;]", "b=[2;]", "b=[3;]", "b=#"}, resultSplit);
+        EvaluateWithSyntaxV2("t.struct.a.b as b from `//t` as t", split, source, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({
+            {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}});
+        auto result = YsonToRows({"c=1", "c=2", "c=3", "c=#"}, resultSplit);
+        EvaluateWithSyntaxV2("try_get_int64(to_any(t.struct.a.b), '/0') as c from `//t` as t", split, source, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({
+            {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}});
+        auto result = YsonToRows({"c=1", "c=2", "c=3", "c=#"}, resultSplit);
+        EvaluateWithSyntaxV2("t.struct.a.b.c as c from `//t` as t group by c", split, source, ResultMatcher(result));
+        EvaluateWithSyntaxV2("c from `//t` as t group by t.struct.a.b.c as c", split, source, ResultMatcher(result));
+    }
+}
+
+TEST_F(TQueryEvaluateTest, CompositeMemberAccessorTuple)
+{
+    auto split = MakeSplit({
+        {"tuple", TupleLogicalType({
+            {StructLogicalType({
+                {"b", StructLogicalType({
+                    {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}})},
+            {SimpleLogicalType(ESimpleLogicalValueType::String)}})}});
+
+    auto source = std::vector<TString> {
+        "tuple=[{b={c=1}};a]",
+        "tuple=[{b={c=2}};b]",
+        "tuple=[{b={c=3}};c]",
+        "tuple=[{};d]",
+    };
+
+    {
+        auto resultSplit = MakeSplit({
+            {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+            {"d", SimpleLogicalType(ESimpleLogicalValueType::String)}});
+        auto result = YsonToRows({"c=1;d=a", "c=2;d=b", "c=3;d=c", "c=#;d=d"}, resultSplit);
+        EvaluateWithSyntaxV2("t.tuple.0.b.c as c, t.tuple.1 as d from `//t` as t", split, source, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({
+            {"b", StructLogicalType({
+                {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}});
+        auto result = YsonToRows({"b={c=1}", "b={c=2}", "b={c=3}", "b=#"}, resultSplit);
+        EvaluateWithSyntaxV2("t.tuple.0.b as b from `//t` as t", split, source, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({
+            {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}});
+        auto result = YsonToRows({"c=1", "c=2", "c=3", "c=#"}, resultSplit);
+        EvaluateWithSyntaxV2("try_get_int64(to_any(t.tuple.0.b), '/c') as c from `//t` as t", split, source, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({
+            {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}});
+        auto result = YsonToRows({"c=1", "c=2", "c=3", "c=#"}, resultSplit);
+        EvaluateWithSyntaxV2("t.tuple.0.b.c as c from `//t` as t group by c", split, source, ResultMatcher(result));
+        EvaluateWithSyntaxV2("c from `//t` as t group by t.tuple.0.b.c as c", split, source, ResultMatcher(result));
+    }
+}
+
+TEST_F(TQueryEvaluateTest, CompositeMemberAccessorListAndDict)
+{
+    auto split = MakeSplit({
+        {"struct", StructLogicalType({
+            {"a", StructLogicalType({
+                {"b", StructLogicalType({
+                    {"list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+                    {"dict", DictLogicalType(
+                        SimpleLogicalType(ESimpleLogicalValueType::String),
+                        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))}})}})}})},
+        {"dict", DictLogicalType(
+            SimpleLogicalType(ESimpleLogicalValueType::String),
+            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))}});
+
+    auto source = std::vector<TString> {
+        "struct={a={b={list=[1;2;3];dict={i=1;j=2;k=3}}}};dict={a=b;c=d}",
+        "struct={a={b={list=[2];dict={i=2}}}}",
+        "struct={a={b={list=[3];dict={i=3}}}}",
+        "struct={a={b={list=[];dict={}}}}",
+    };
+
+    {
+        auto resultSplit = MakeSplit({
+            {"a", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"c", SimpleLogicalType(ESimpleLogicalValueType::String)}});
+        auto result = YsonToRows({"a=b;c=d"}, resultSplit);
+        EvaluateWithSyntaxV2("t.dict['a'] as a, t.dict['c'] as b from `//t` as t limit 1", split, source, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({
+            {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}});
+        auto result = YsonToRows({"c=1", "c=2", "c=3", "c=#"}, resultSplit);
+        EvaluateWithSyntaxV2("t.struct.a.b.list[0] as c from `//t` as t limit 4", split, source, ResultMatcher(result));
+        EvaluateWithSyntaxV2("t.struct.a.b.dict['i'] as c from `//t` as t limit 4", split, source, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({
+            {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}});
+        auto result = YsonToRows({"c=3", "c=#", "c=#", "c=#"}, resultSplit);
+        EvaluateWithSyntaxV2("t.struct.a.b.list[1+1] as c from `//t` as t limit 4", split, source, ResultMatcher(result));
+        EvaluateWithSyntaxV2("t.struct.a.b.dict[concat('k', '')] as c from `//t` as t limit 4", split, source, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({
+            {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}});
+        auto result = YsonToRows({"c=#", "c=#", "c=#", "c=#"}, resultSplit);
+        EvaluateWithSyntaxV2("t.struct.a.b.list[-1] as c from `//t` as t limit 4", split, source, ResultMatcher(result));
+        EvaluateWithSyntaxV2("t.struct.a.b.dict[concat('not_', 'exists')] as c from `//t` as t limit 4", split, source, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({
+            {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}});
+        auto result = YsonToRows({}, resultSplit);
+        EXPECT_THROW_THAT(
+            EvaluateWithSyntaxV2("t.struct.a.b.list[(1, 2)] as c from `//t` as t limit 4", split, source, ResultMatcher(result)),
+            HasSubstr("Expression inside of the list or dict item accessor should be scalar"));
+        EXPECT_THROW_THAT(
+            EvaluateWithSyntaxV2("t.struct.a.b.list[2u] as c from `//t` as t limit 4", split, source, ResultMatcher(result)),
+            HasSubstr("Incorrect type inside of the list or dict item accessor"));
+        EXPECT_THROW_THAT(
+            EvaluateWithSyntaxV2("t.struct.a.b.list['abc'] as c from `//t` as t limit 4", split, source, ResultMatcher(result)),
+            HasSubstr("Incorrect type inside of the list or dict item accessor"));
+        EXPECT_THROW_THAT(
+            EvaluateWithSyntaxV2("t.struct.a.b.dict[-1] as c from `//t` as t limit 4", split, source, ResultMatcher(result)),
+            HasSubstr("Incorrect type inside of the list or dict item accessor"));
+        EXPECT_THROW_THAT(
+            EvaluateWithSyntaxV2("t.dict[-1] as c from `//t` as t limit 4", split, source, ResultMatcher(result)),
+            HasSubstr("Incorrect type inside of the list or dict item accessor"));
+        EXPECT_THROW_THAT(
+            EvaluateWithSyntaxV2("t.struct['b'] as c from `//t` as t limit 4", split, source, ResultMatcher(result)),
+            HasSubstr("Incorrect nested item accessor"));
+    }
+}
+
+TEST_F(TQueryEvaluateTest, CompositeMemberAccessorDifferentTypes)
+{
+    auto split = MakeSplit({
+        {"struct", StructLogicalType({
+            {"i64", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"ui64", SimpleLogicalType(ESimpleLogicalValueType::Uint64)},
+            {"double", SimpleLogicalType(ESimpleLogicalValueType::Double)},
+            {"boolean", SimpleLogicalType(ESimpleLogicalValueType::Boolean)},
+            {"string", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"any", SimpleLogicalType(ESimpleLogicalValueType::Any)},
+            {"i8", SimpleLogicalType(ESimpleLogicalValueType::Int8)},
+            {"ui8", SimpleLogicalType(ESimpleLogicalValueType::Uint8)},
+            {"i16", SimpleLogicalType(ESimpleLogicalValueType::Int16)},
+            {"ui16", SimpleLogicalType(ESimpleLogicalValueType::Uint16)},
+            {"i32", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+            {"ui32", SimpleLogicalType(ESimpleLogicalValueType::Uint32)}})}});
+
+    auto source = std::vector<TString> {
+        "struct={i64=1;ui64=5u;double=0.5;boolean=%true;string=abc;any={a={b=1}};i8=1;ui8=5u;i16=9;ui16=13u;i32=17;ui32=21u}",
+        "struct={i64=2;ui64=6u;double=0.25;boolean=%false;string=def;any={a={b=2}};i8=2;ui8=6u;i16=10;ui16=14u;i32=18;ui32=22u}",
+        "struct={i64=3;ui64=7u;double=0.125;boolean=%true;string=ghi;any={a={b=3}};i8=3;ui8=7u;i16=11;ui16=15u;i32=19;ui32=23u}",
+        "struct={i64=4;ui64=8u;double=0.0625;boolean=%false;string=jkl;any={a={b=4}};i8=4;ui8=8u;i16=12;ui16=16u;i32=20;ui32=24u}",
+    };
+
+    {
+        auto resultSplit = MakeSplit({{"i64", EValueType::Int64}});
+        auto result = YsonToRows({"i64=1", "i64=2", "i64=3", "i64=4"}, resultSplit);
+        EvaluateWithSyntaxV2("t.struct.i64 as i64 from `//t` as t limit 4", split, source, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({{"ui64", EValueType::Uint64}});
+        auto result = YsonToRows({"ui64=5u", "ui64=6u", "ui64=7u", "ui64=8u"}, resultSplit);
+        EvaluateWithSyntaxV2("t.struct.ui64 as ui64 from `//t` as t limit 4", split, source, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({{"double", EValueType::Double}});
+        auto result = YsonToRows({"double=0.5", "double=0.25", "double=0.125", "double=0.0625"}, resultSplit);
+        EvaluateWithSyntaxV2("t.struct.double as double from `//t` as t limit 4", split, source, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({{"boolean", EValueType::Boolean}});
+        auto result = YsonToRows({"boolean=%true", "boolean=%false", "boolean=%true", "boolean=%false"}, resultSplit);
+        EvaluateWithSyntaxV2("t.struct.boolean as boolean from `//t` as t limit 4", split, source, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({{"string", EValueType::String}});
+        auto result = YsonToRows({"string=abc", "string=def", "string=ghi", "string=jkl"}, resultSplit);
+        EvaluateWithSyntaxV2("t.struct.string as string from `//t` as t limit 4", split, source, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({{"any", EValueType::Any}});
+        auto result = YsonToRows({"any={a={b=1}}", "any={a={b=2}}", "any={a={b=3}}", "any={a={b=4}}"}, resultSplit);
+        EvaluateWithSyntaxV2("t.struct.any as any from `//t` as t limit 4", split, source, ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({
+            {"i8", EValueType::Int64},
+            {"ui8", EValueType::Uint64},
+            {"i16", EValueType::Int64},
+            {"ui16", EValueType::Uint64},
+            {"i32", EValueType::Int64},
+            {"ui32", EValueType::Uint64}});
+
+        auto result = YsonToRows({
+            "i8=1;ui8=5u;i16=9;ui16=13u;i32=17;ui32=21u",
+            "i8=2;ui8=6u;i16=10;ui16=14u;i32=18;ui32=22u",
+            "i8=3;ui8=7u;i16=11;ui16=15u;i32=19;ui32=23u",
+            "i8=4;ui8=8u;i16=12;ui16=16u;i32=20;ui32=24u",
+        }, resultSplit);
+
+        EvaluateWithSyntaxV2(R"(
+            select
+                t.struct.i8 as i8, t.struct.ui8 as ui8,
+                t.struct.i16 as i16, t.struct.ui16 as ui16,
+                t.struct.i32 as i32, t.struct.ui32 as ui32
+            from `//t` as t limit 4)",
+            split,
+            source,
+            ResultMatcher(result));
+    }
+}
+
+TEST_F(TQueryEvaluateTest, CompositeMemberAccessorWithIncorrectPath)
+{
+    auto split = MakeSplit({
+        {"struct", StructLogicalType({
+            {"a", StructLogicalType({
+                {"b", StructLogicalType({
+                    {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}})},
+            {"d", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"tuple", TupleLogicalType({
+                SimpleLogicalType(ESimpleLogicalValueType::Int32)})}})}});
+
+    auto source = std::vector<TString> {
+        "struct={a={b={c=1}};d=a;tuple=[1]}",
+        "struct={a={b={c=2}};tuple=[2]}",
+    };
+
+    {
+        auto resultSplit = MakeSplit({{"n", EValueType::Int64}});
+        auto result = YsonToRows({}, resultSplit);
+
+        EXPECT_THROW_THAT(
+            EvaluateWithSyntaxV2("t.struct.not_exists as n from `//t` as t", split, source, ResultMatcher(result)),
+            HasSubstr("Member not found: not_exists"));
+        EXPECT_THROW_THAT(
+            EvaluateWithSyntaxV2("t.struct.a.b.not_exists as n from `//t` as t", split, source, ResultMatcher(result)),
+            HasSubstr("Member not found: not_exists"));
+        EXPECT_THROW_THAT(
+            EvaluateWithSyntaxV2("t.struct.tuple.incorrect_index as n from `//t` as t", split, source, ResultMatcher(result)),
+            HasSubstr("Member not found: incorrect_index"));
+        EXPECT_THROW_THAT(
+            EvaluateWithSyntaxV2("t.struct.tuple.incorrect.index as n from `//t` as t", split, source, ResultMatcher(result)),
+            HasSubstr("Member not found: incorrect"));
+        EXPECT_THROW_THAT(
+            EvaluateWithSyntaxV2("t.struct.d[1] as n from `//t` as t", split, source, ResultMatcher(result)),
+            HasSubstr("Incorrect nested item accessor"));
+        EXPECT_THROW_THAT(
+            EvaluateWithSyntaxV2("t.struct.d['a'] as n from `//t` as t", split, source, ResultMatcher(result)),
+            HasSubstr("Incorrect nested item accessor"));
+        EXPECT_THROW_THAT(
+            EvaluateWithSyntaxV2("t.struct.tuple.11 as n from `//t` as t", split, source, ResultMatcher(result)),
+            HasSubstr("Member not found: 11"));
+    }
+    {
+        auto resultSplit = MakeSplit({{"n", EValueType::String}});
+        auto result = YsonToRows({"n=a", "n=#"}, resultSplit);
+
+        EvaluateWithSyntaxV2("t.struct.d as n from `//t` as t", split, source, ResultMatcher(result));
+    }
+}
+
 TEST_F(TQueryEvaluateTest, VarargUdf)
 {
     auto split = MakeSplit({
@@ -8663,6 +9077,7 @@ TEST_F(TQueryEvaluateTest, GreatestError)
 
     SUCCEED();
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
