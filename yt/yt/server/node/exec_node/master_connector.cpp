@@ -60,9 +60,9 @@ public:
 
         DynamicConfig_ = newConfig;
 
-        //! NB(arkady-e1ppa): HeartbeatExecutor is created once OnMasterRegistrationSignal is fired.
-        //! This happens after the first time DynamicConfigManager applies dynamic config.
-        //! Therefore we must be ready to encounter null HeartbeatExecutor_.
+        // NB(arkady-e1ppa): HeartbeatExecutor is created once OnMasterRegistrationSignal is fired.
+        // This happens after the first time DynamicConfigManager applies dynamic config.
+        // Therefore we must be ready to encounter null HeartbeatExecutor_.
         if (HeartbeatExecutor_) {
             HeartbeatExecutor_->SetOptions(DynamicConfig_->HeartbeatExecutor);
         }
@@ -108,7 +108,7 @@ private:
     TMasterConnectorDynamicConfigPtr DynamicConfig_;
 
     TRetryingPeriodicExecutorPtr HeartbeatExecutor_;
-    TFuture<void> OldHeartbeatExecutorStoppedEvent_;
+    TFuture<void> PreviousHeartbeatExecutorStoppedEvent_;
 
     IInvokerPtr HeartbeatInvoker_;
 
@@ -116,22 +116,22 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (OldHeartbeatExecutorStoppedEvent_ &&
-            !OldHeartbeatExecutorStoppedEvent_.IsSet())
+        if (PreviousHeartbeatExecutorStoppedEvent_ &&
+            !PreviousHeartbeatExecutorStoppedEvent_.IsSet())
         {
-            YT_LOG_DEBUG("Waiting for the old heartbeat executor to stop.");
-            auto error = WaitFor(std::move(OldHeartbeatExecutorStoppedEvent_));
+            YT_LOG_DEBUG("Waiting for the previous heartbeat executor to stop");
+            auto error = WaitFor(std::move(PreviousHeartbeatExecutorStoppedEvent_));
 
             YT_LOG_FATAL_UNLESS(
                 error.IsOK(),
                 error,
-                "Unexpected failure while waiting for old heartbeat executor to shut down.");
+                "Unexpected failure while waiting for previous heartbeat executor to shut down");
         }
 
-        //! MasterConnectionInvoker changes after every registration
-        //! and so we have to make a new HeartbeatExecutor.
-        //! Technically, we could support "UpdateInvoker" method,
-        //! but there is no reason to preserve HeartbeatExecutor's state.
+        // MasterConnectionInvoker changes after every registration
+        // and so we have to make a new HeartbeatExecutor.
+        // Technically, we could support "UpdateInvoker" method,
+        // but there is no reason to preserve HeartbeatExecutor's state.
         HeartbeatExecutor_ = New<TRetryingPeriodicExecutor>(
             Bootstrap_->GetMasterConnectionInvoker(),
             BIND([this_ = MakeWeak(this)] {
@@ -169,12 +169,12 @@ private:
         } else {
             YT_LOG_WARNING(rspOrError, "Error reporting exec node heartbeat to master");
             if (IsRetriableError(rspOrError)) {
-                //! TODO(arkady-e1ppa): Maybe backoff in this case?
+                // TODO(arkady-e1ppa): Maybe backoff in this case?
                 return TError();
             } else {
-                OldHeartbeatExecutorStoppedEvent_ = HeartbeatExecutor_->Stop();
+                PreviousHeartbeatExecutorStoppedEvent_ = HeartbeatExecutor_->Stop();
                 Bootstrap_->ResetAndRegisterAtMaster();
-                return TError("Unretryable error received from master.");
+                return TError("Unretryable error received from master");
             }
         }
     }
