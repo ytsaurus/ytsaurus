@@ -196,7 +196,7 @@ DEFINE_ENUM(EMasterReign,
     ((CreateHunkStorageWithProperAttributes_23_2)                   (2456))  // akozhikhov
     ((FixChunkMergerCopy)                                           (2457))  // aleksandra-zh
     ((ChaosReplicatedConsumersFix)                                  (2458))  // cherepashka
-    // 23.3 starts here.
+    // 24.1 starts here.
     ((SecondaryIndex)                                               (2500))  // sabdenovch
     ((SecondaryIndexReplication)                                    (2501))  // sabdenovch
     ((RemoveChunkJobDynamicConfig)                                  (2502))  // danilalexeev

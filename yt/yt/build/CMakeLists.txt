@@ -56,11 +56,11 @@ set(
 )
 set(
   YT_VERSION_MAJOR
-  23
+  24
 )
 set(
   YT_VERSION_MINOR
-  3
+  1
 )
 set(
   YT_VERSION_PATCH
