@@ -60,13 +60,13 @@ private:
 
     void OnEvict()
     {
-        TEvictKeptResponsesReq request;
+        TReqEvictKeptResponses request;
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
             ->CommitAndLog(Logger));
     }
 
-    void HydraEvictKeptResponses(TEvictKeptResponsesReq* /*request*/)
+    void HydraEvictKeptResponses(TReqEvictKeptResponses* /*request*/)
     {
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->CellMaster->ResponseKeeper;
         ResponseKeeper_->Evict(config->ExpirationTimeout, config->MaxResponseCountPerEvictionPass);

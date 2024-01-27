@@ -87,7 +87,7 @@ private:
     std::vector<TVersion> Versions_;
     std::vector<TInstant> Instants_;
 
-    void HydraStoreMutationTime(TStoreMutationTimeReq* /*request*/)
+    void HydraStoreMutationTime(TReqStoreMutationTime* /*request*/)
     {
         const auto* mutationContext = GetCurrentMutationContext();
         Versions_.push_back(mutationContext->GetVersion());
@@ -110,7 +110,7 @@ private:
 
     void Run()
     {
-        TStoreMutationTimeReq request;
+        TReqStoreMutationTime request;
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
             ->CommitAndLog(Logger));
