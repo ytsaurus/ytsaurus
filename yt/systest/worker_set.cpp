@@ -83,10 +83,8 @@ void TWorkerSet::TToken::Release()
 {
     TPromise<TToken> waiter;
     TInstant failureTime = Failure_ ? TInstant::Now() : TInstant();
-    int numWaiters;
     {
         auto guard = Guard(Owner_->Lock_);
-        numWaiters = std::ssize(Owner_->Waiters_);
         if (Failure_) {
             ++Worker_->NumFailures;
             Worker_->LastFailure = failureTime;
