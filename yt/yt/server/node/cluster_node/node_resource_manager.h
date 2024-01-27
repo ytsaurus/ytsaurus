@@ -24,7 +24,9 @@ namespace NYT::NClusterNode {
 
 struct ISlot
     : public TRefCounted
-{ };
+{
+    virtual void ResetState();
+};
 
 DEFINE_REFCOUNTED_TYPE(ISlot)
 

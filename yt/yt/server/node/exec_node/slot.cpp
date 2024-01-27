@@ -76,13 +76,27 @@ public:
 
     ~TUserSlot()
     {
+        YT_LOG_FATAL_UNLESS(IsReset_.load(), "UserSlot was not manually reset before destruction");
+
         Location_->ReleaseDiskSpace(SlotIndex_);
         Location_->DecreaseSessionCount();
+    }
+
+    void ResetState() override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        bool isReset = IsReset_.exchange(true);
+
+        YT_LOG_FATAL_IF(isReset, "Attempt to reset state which is already reset");
+        SlotGuard_.reset();
     }
 
     TFuture<void> CleanProcesses() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
+
+        VerifyEnabled();
 
         if (!CleanProcessesFuture_) {
             // First kill all processes that may hold open handles to slot directories.
@@ -100,6 +114,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
+        VerifyEnabled();
+
         WaitFor(Location_->CleanSandboxes(
             SlotIndex_))
             .ThrowOnError();
@@ -108,6 +124,8 @@ public:
     void CancelPreparation() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
+
+        VerifyEnabled();
 
         PreparationCanceled_ = true;
     }
@@ -118,6 +136,8 @@ public:
         TOperationId operationId) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
+
+        VerifyEnabled();
 
         return RunPreparationAction(
             /*actionName*/ "RunJobProxy",
@@ -167,6 +187,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
+        VerifyEnabled();
+
         return RunPreparationAction(
             /*actionName*/ "MakeLink",
             /*uncancelable*/ false,
@@ -192,6 +214,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
+        VerifyEnabled();
+
         return RunPreparationAction(
             /*actionName*/ "MakeCopy",
             /*uncancelable*/ false,
@@ -216,6 +240,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
+        VerifyEnabled();
+
         return RunPreparationAction(
             /*actionName*/ "MakeFile",
             /*uncancelable*/ false,
@@ -232,6 +258,8 @@ public:
 
     bool IsLayerCached(const TArtifactKey& artifactKey) const override
     {
+        VerifyEnabled();
+
         return VolumeManager_->IsLayerCached(artifactKey);
     }
 
@@ -241,6 +269,8 @@ public:
         const TUserSandboxOptions& options) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
+
+        VerifyEnabled();
 
         if (!VolumeManager_) {
             return MakeFuture<IVolumePtr>(TError("Porto layers and custom root FS are not supported"));
@@ -256,36 +286,50 @@ public:
 
     int GetSlotIndex() const override
     {
+        VerifyEnabled();
+
         return SlotIndex_;
     }
 
     TDiskStatistics GetDiskStatistics() const override
     {
+        VerifyEnabled();
+
         return Location_->GetDiskStatistics(SlotIndex_);
     }
 
     TString GetSlotPath() const override
     {
+        VerifyEnabled();
+
         return Location_->GetSlotPath(SlotIndex_);
     }
 
     TString GetSandboxPath(ESandboxKind sandbox) const override
     {
+        VerifyEnabled();
+
         return Location_->GetSandboxPath(SlotIndex_, sandbox);
     }
 
     TString GetMediumName() const override
     {
+        VerifyEnabled();
+
         return Location_->GetMediumName();
     }
 
     TBusServerConfigPtr GetBusServerConfig() const override
     {
+        VerifyEnabled();
+
         return TBusServerConfig::CreateUds(JobProxyUnixDomainSocketPath_);
     }
 
     TBusClientConfigPtr GetBusClientConfig() const override
     {
+        VerifyEnabled();
+
         return TBusClientConfig::CreateUds(JobProxyUnixDomainSocketPath_);
     }
 
@@ -293,6 +337,8 @@ public:
         const TUserSandboxOptions& options) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
+
+        VerifyEnabled();
 
         return RunPreparationAction(
             /*actionName*/ "PrepareSandboxDirectories",
@@ -314,6 +360,8 @@ public:
         int startIndex) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
+
+        VerifyEnabled();
 
         return RunPreparationAction(
             /*actionName*/ "RunSetupCommands",
@@ -341,6 +389,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
+        VerifyEnabled();
+
         Location_->OnArtifactPreparationFailed(
             jobId,
             SlotIndex_,
@@ -357,6 +407,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
+        VerifyEnabled();
+
         return JobEnvironment_->CreateJobWorkspaceBuilder(
             invoker,
             ioInvoker,
@@ -366,16 +418,22 @@ public:
 
     int GetUserId() const override
     {
+        VerifyEnabled();
+
         return JobEnvironment_->GetUserId(SlotIndex_);
     }
 
     void SetAllocationId(TAllocationId allocationId) override
     {
+        VerifyEnabled();
+
         Logger.AddTag("AllocationId: %v", allocationId);
     }
 
     TString GetJobProxyUnixDomainSocketPath() const override
     {
+        VerifyEnabled();
+
         return NFS::CombinePaths({
             Location_->GetSlotPath(SlotIndex_),
             "pipes",
@@ -389,6 +447,7 @@ private:
 
     NExecNode::IBootstrap* const Bootstrap_;
 
+    std::atomic<bool> IsReset_{false};
     std::unique_ptr<TSlotManager::TSlotGuard> SlotGuard_;
     const int SlotIndex_;
 
@@ -407,6 +466,13 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
     NLogging::TLogger Logger;
+
+    void VerifyEnabled() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        YT_LOG_FATAL_IF(IsReset_.load(), "Accessing UserSlot after it has been reset");
+    }
 
     template <class TName, CCallableReturningFuture TCallback>
     auto RunPreparationAction(const TName& actionName, bool uncancelable, const TCallback& action) -> decltype(action())

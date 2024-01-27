@@ -2066,15 +2066,6 @@ void TJob::OnJobProxyFinished(const TError& error)
         return;
     }
 
-    {
-        auto slotRefCount = UserSlot_->GetRefCount();
-
-        YT_LOG_FATAL_IF(
-            slotRefCount != 1,
-            "Unexpected user slot ref count (RefCount: %v)",
-            slotRefCount);
-    }
-
     const auto& currentError = Error_
         ? *Error_
         : TError();
@@ -2173,15 +2164,6 @@ void TJob::Cleanup()
     YT_LOG_FATAL_IF(
         JobPhase_ == EJobPhase::Cleanup || JobPhase_ == EJobPhase::Finished,
         "Job cleanup should be called only once");
-
-    if (UserSlot_) {
-        auto slotRefCount = UserSlot_->GetRefCount();
-
-        YT_LOG_FATAL_IF(
-            slotRefCount != 1,
-            "Unexpected user slot ref count (RefCount: %v)",
-            slotRefCount);
-    }
 
     if (auto delay = JobTestingOptions_->DelayInCleanup) {
         YT_LOG_DEBUG("Simulate delay in cleanup");

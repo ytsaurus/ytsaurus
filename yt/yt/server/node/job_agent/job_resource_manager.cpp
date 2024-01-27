@@ -1285,10 +1285,6 @@ void TResourceHolder::ReleaseResources()
         resources = CumulativeResourceUsage();
     }
 
-    YT_LOG_FATAL_IF(UserSlot_ && UserSlot_->GetRefCount() > 1,
-        "User slot leaked (RefCount: %v)",
-        UserSlot_->GetRefCount());
-
     YT_LOG_FATAL_IF(UserSlot_ && resources.UserSlots != 1,
         "User slot not matched with UserSlots (UserSlotExist: %v, UserSlots: %v)",
         UserSlot_ != nullptr,
@@ -1298,6 +1294,10 @@ void TResourceHolder::ReleaseResources()
         "GPU slots not matched with Gpu");
 
     YT_LOG_DEBUG("Reset resource holder slots");
+
+    if (UserSlot_) {
+        UserSlot_->ResetState();
+    }
 
     UserSlot_.Reset();
     GpuSlots_.clear();
