@@ -135,7 +135,8 @@ private:
         HeartbeatExecutor_ = New<TRetryingPeriodicExecutor>(
             Bootstrap_->GetMasterConnectionInvoker(),
             BIND([this_ = MakeWeak(this)] {
-                return this_.Lock()->ReportHeartbeat();
+                auto ptr = this_.Lock();
+                return ptr ? ptr->ReportHeartbeat() : TError("Dangling reference to this");
             }),
             DynamicConfig_->HeartbeatExecutor);
 

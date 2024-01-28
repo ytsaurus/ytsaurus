@@ -47,7 +47,8 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
     , HeartbeatExecutor_(New<TRetryingPeriodicExecutor>(
         ControllerAgentConnectorPool_->Bootstrap_->GetControlInvoker(),
         BIND_NO_PROPAGATE([this_ = MakeWeak(this)] {
-            return this_.Lock()->SendHeartbeat();
+            auto ptr = this_.Lock();
+            return ptr ? ptr->SendHeartbeat() : TError("Dangling reference to this");
         }),
         GetConfig()->HeartbeatExecutor))
     , StatisticsThrottler_(CreateReconfigurableThroughputThrottler(
