@@ -106,7 +106,7 @@ public:
         std::vector<TString> keys;
         keys.reserve(std::min(limit, GetSize()));
         for (const auto& [nodeId, nodeInfo] : JobTracker_->RegisteredNodes_) {
-            if (static_cast<i64>(keys.size()) >= limit) {
+            if (std::ssize(keys) >= limit) {
                 break;
             }
 
@@ -147,16 +147,16 @@ public:
                         .Item("operation_id").Value(jobInfo.OperationId)
                         .Item("stage").Value(
                             std::holds_alternative<TRunningJobInfo>(jobInfo.Info)
-                            ? EJobStage::Running
-                            : EJobStage::Finished)
+                                ? EJobStage::Running
+                                : EJobStage::Finished)
                     .EndMap();
             };
 
             auto jobToConfirmYsonBuilder = [] (TFluentMap fluent, TJobId jobId, TJobToConfirmInfo jobToConfirmInfo) {
                 fluent
-                .Item(ToString(jobId)).BeginMap()
-                    .Item("operation_id").Value(jobToConfirmInfo.OperationId)
-                .EndMap();
+                    .Item(ToString(jobId)).BeginMap()
+                        .Item("operation_id").Value(jobToConfirmInfo.OperationId)
+                    .EndMap();
             };
 
             BuildYsonFluently(consumer)
@@ -220,8 +220,8 @@ public:
 
         for (const auto& [nodeId, nodeInfo] : JobTracker_->RegisteredNodes_) {
             const auto& nodeJobs = nodeInfo.Jobs;
-            size += nodeJobs.JobCount() +
-                nodeJobs.JobToConfirmCount() +
+            size += nodeJobs.GetJobCount() +
+                nodeJobs.GetJobToConfirmCount() +
                 std::ssize(nodeJobs.JobsToRelease) +
                 std::ssize(nodeJobs.JobsToAbort);
         }
@@ -238,35 +238,35 @@ public:
             const auto& nodeJobs = nodeInfo.Jobs;
 
             nodeJobs.ForEachJob([&] <class TJobInfo> (TJobId jobId, TJobInfo) {
-                if (static_cast<i64>(keys.size()) < limit) {
+                if (std::ssize(keys) < limit) {
                     keys.push_back(ToString(jobId));
                 }
             });
 
-            if (static_cast<i64>(keys.size()) >= limit) {
+            if (std::ssize(keys) >= limit) {
                 return keys;
             }
 
             nodeJobs.ForEachJobToConfirm([&] (TJobId jobId, TJobToConfirmInfo) {
-                if (static_cast<i64>(keys.size()) < limit) {
+                if (std::ssize(keys) < limit) {
                     keys.push_back(ToString(jobId));
                 }
             });
 
-            if (static_cast<i64>(keys.size()) >= limit) {
+            if (std::ssize(keys) >= limit) {
                 return keys;
             }
 
             for (const auto& [jobId, _] : nodeJobs.JobsToAbort) {
                 keys.push_back(ToString(jobId));
-                if (static_cast<i64>(keys.size()) >= limit) {
+                if (std::ssize(keys) >= limit) {
                     return keys;
                 }
             }
 
             for (const auto& [jobId, _] : nodeJobs.JobsToRelease) {
                 keys.push_back(ToString(jobId));
-                if (static_cast<i64>(keys.size()) >= limit) {
+                if (std::ssize(keys) >= limit) {
                     return keys;
                 }
             }
@@ -312,8 +312,8 @@ public:
             jobYson = BuildYsonStringFluently().BeginMap()
                     .Item("stage").Value(
                         TNodeJobs::IsRunning(*jobIt)
-                        ? EJobStage::Running
-                        : EJobStage::Finished)
+                            ? EJobStage::Running
+                            : EJobStage::Finished)
                     .Item("operation_id").Value(operationId)
                     .Item("node_address").Value(nodeAddress)
                 .EndMap();
@@ -384,7 +384,7 @@ public:
         std::vector<TString> keys;
         keys.reserve(std::min(limit, GetSize()));
         for (const auto& [operationId, operationInfo] : JobTracker_->RegisteredOperations_) {
-            if (static_cast<i64>(keys.size()) >= limit) {
+            if (std::ssize(keys) >= limit) {
                 break;
             }
 
@@ -797,7 +797,7 @@ bool TJobTracker::TNodeJobs::IsRunning(const TJobIterator& jobIt)
 }
 
 std::optional<TJobTracker::TNodeJobs::TJobToConfirmIterator>
-TJobTracker::TNodeJobs::FindJobToConfirm(TJobId jobId) &
+TJobTracker::TNodeJobs::FindJobToConfirm(TJobId jobId)
 {
     auto allocationId = AllocationIdFromJobId(jobId);
 
@@ -813,7 +813,7 @@ TJobTracker::TNodeJobs::FindJobToConfirm(TJobId jobId) &
     return std::nullopt;
 }
 
-void TJobTracker::TNodeJobs::EraseJobToConfirm(TJobTracker::TNodeJobs::TJobToConfirmIterator iterator) &
+void TJobTracker::TNodeJobs::EraseJobToConfirm(TJobTracker::TNodeJobs::TJobToConfirmIterator iterator)
 {
     iterator.Allocation->second.erase(iterator.ConcreteJob);
 
@@ -823,7 +823,7 @@ void TJobTracker::TNodeJobs::EraseJobToConfirm(TJobTracker::TNodeJobs::TJobToCon
 }
 
 TJobTracker::TNodeJobs::TJobToConfirmIterator
-TJobTracker::TNodeJobs::AddJobToConfirmOrCrash(TJobId jobId, TJobToConfirmInfo jobToConfirmInfo) &
+TJobTracker::TNodeJobs::AddJobToConfirmOrCrash(TJobId jobId, TJobToConfirmInfo jobToConfirmInfo)
 {
     auto allocationId = AllocationIdFromJobId(jobId);
 
@@ -836,7 +836,7 @@ TJobTracker::TNodeJobs::AddJobToConfirmOrCrash(TJobId jobId, TJobToConfirmInfo j
     };
 }
 
-i64 TJobTracker::TNodeJobs::JobToConfirmCount() const &
+i64 TJobTracker::TNodeJobs::GetJobToConfirmCount() const
 {
     i64 count = 0;
 
@@ -848,7 +848,7 @@ i64 TJobTracker::TNodeJobs::JobToConfirmCount() const &
 }
 
 template <CInvocable<void(TJobId, TJobTracker::TJobToConfirmInfo)> TFunction>
-void TJobTracker::TNodeJobs::ForEachJobToConfirm(const TFunction& func) const &
+void TJobTracker::TNodeJobs::ForEachJobToConfirm(const TFunction& func) const
 {
     TForbidContextSwitchGuard guard;
 
@@ -860,7 +860,7 @@ void TJobTracker::TNodeJobs::ForEachJobToConfirm(const TFunction& func) const &
 }
 
 std::optional<TJobTracker::TNodeJobs::TJobIterator>
-TJobTracker::TNodeJobs::FindJob(TJobId jobId) &
+TJobTracker::TNodeJobs::FindJob(TJobId jobId)
 {
     auto allocationId = AllocationIdFromJobId(jobId);
 
@@ -885,7 +885,7 @@ TJobTracker::TNodeJobs::FindJob(TJobId jobId) &
     return std::nullopt;
 }
 
-void TJobTracker::TNodeJobs::EraseJobOrCrash(TJobId jobId) &
+void TJobTracker::TNodeJobs::EraseJobOrCrash(TJobId jobId)
 {
     auto it = FindJob(jobId);
 
@@ -893,7 +893,7 @@ void TJobTracker::TNodeJobs::EraseJobOrCrash(TJobId jobId) &
     EraseJob(*it);
 }
 
-void TJobTracker::TNodeJobs::EraseJob(TJobIterator jobIt) &
+void TJobTracker::TNodeJobs::EraseJob(TJobIterator jobIt)
 {
     auto& allocationInfo = jobIt.Allocation->second;
 
@@ -910,7 +910,7 @@ void TJobTracker::TNodeJobs::EraseJob(TJobIterator jobIt) &
 }
 
 TJobTracker::TNodeJobs::TJobIterator
-TJobTracker::TNodeJobs::AddRunningJobOrCrash(TJobId jobId, TOperationId operationId, TRequestedActionInfo requestedAction) &
+TJobTracker::TNodeJobs::AddRunningJobOrCrash(TJobId jobId, TOperationId operationId, TRequestedActionInfo requestedActionInfo)
 {
     auto allocationId = AllocationIdFromJobId(jobId);
 
@@ -924,7 +924,7 @@ TJobTracker::TNodeJobs::AddRunningJobOrCrash(TJobId jobId, TOperationId operatio
     YT_VERIFY(!allocationInfo.RunningJob.has_value());
 
     allocationInfo.RunningJob.emplace(TRunningJobInfo{
-        .RequestedActionInfo = std::move(requestedAction),
+        .RequestedActionInfo = std::move(requestedActionInfo),
         .JobId = jobId,
     });
 
@@ -934,7 +934,7 @@ TJobTracker::TNodeJobs::AddRunningJobOrCrash(TJobId jobId, TOperationId operatio
     };
 }
 
-i64 TJobTracker::TNodeJobs::JobCount() const &
+i64 TJobTracker::TNodeJobs::GetJobCount() const
 {
     i64 count = 0;
 
@@ -946,7 +946,7 @@ i64 TJobTracker::TNodeJobs::JobCount() const &
 }
 
 template <class TFunction>
-void TJobTracker::TNodeJobs::ForEachJob(const TFunction& func) const &
+void TJobTracker::TNodeJobs::ForEachJob(const TFunction& func) const
 {
     struct TJobInfoAdaptor
     {
@@ -1212,9 +1212,9 @@ TJobTracker::THeartbeatCounters TJobTracker::DoProcessHeartbeat(
 
             auto newJobStage = JobStageFromJobState(jobSummary->State);
 
-            if (auto iter = nodeJobs.FindJob(jobId)) {
+            if (auto it = nodeJobs.FindJob(jobId)) {
                 HandleJobInfo(
-                    *iter,
+                    *it,
                     nodeJobs,
                     operationInfo,
                     jobsToProcessInOperationController,
@@ -1234,13 +1234,13 @@ TJobTracker::THeartbeatCounters TJobTracker::DoProcessHeartbeat(
                 YT_VERIFY(jobToConfirmInfo.OperationId == operationId);
 
                 auto jobIt = [&, operationId = operationId] {
-                    auto requestedAction = std::move(jobToConfirmInfo.RequestedActionInfo);
+                    auto requestedActionInfo = std::move(jobToConfirmInfo.RequestedActionInfo);
 
                     nodeJobs.EraseJobToConfirm(*jobToConfirmIt);
                     return nodeJobs.AddRunningJobOrCrash(
-                            jobId,
-                            operationId,
-                            std::move(requestedAction));
+                        jobId,
+                        operationId,
+                        std::move(requestedActionInfo));
                 }();
 
                 ++heartbeatCounters.ConfirmedJobCount;
@@ -1486,7 +1486,7 @@ void TJobTracker::HandleRunningJobInfo(
 
     auto newJobStage = JobStageFromJobState(jobSummary->State);
     auto jobId = jobSummary->Id;
-    const auto& requestedAction = allocationInfo.RunningJob->RequestedActionInfo;
+    const auto& requestedActionInfo = allocationInfo.RunningJob->RequestedActionInfo;
 
     if (newJobStage == EJobStage::Running) {
         ++heartbeatCounters.RunningJobCount;
@@ -1520,7 +1520,7 @@ void TJobTracker::HandleRunningJobInfo(
         }
 
         Visit(
-            requestedAction,
+            requestedActionInfo,
             [] (TNoActionRequested) {},
             [&] (const TInterruptionRequestOptions& requestOptions) {
                 ProcessInterruptionRequest(response, requestOptions, jobId, Logger, heartbeatCounters);
@@ -1548,7 +1548,7 @@ void TJobTracker::HandleRunningJobInfo(
     }
 
     Visit(
-        requestedAction,
+        requestedActionInfo,
         [&] (TNoActionRequested) {
             YT_LOG_DEBUG("Received finished job info");
         },

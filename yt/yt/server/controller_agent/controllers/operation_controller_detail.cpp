@@ -3585,7 +3585,7 @@ void TOperationControllerBase::SafeOnAllocationAborted(TAbortedAllocationSummary
         "Allocation aborted event processing (JobId: %v)",
         abortedAllocationSummary.Id);
 
-    const auto& joblet = FindJoblet(abortedAllocationSummary.Id);
+    auto joblet = FindJoblet(abortedAllocationSummary.Id);
     if (!joblet) {
         YT_LOG_DEBUG(
             "Joblet is not found, ignore allocation aborted event (JobId: %v)",
@@ -10773,7 +10773,7 @@ void TOperationControllerBase::ReportJobHasCompetitors(const TJobletPtr& joblet,
 void TOperationControllerBase::RegisterTestingSpeculativeJobIfNeeded(const TTaskPtr& task, TAllocationId allocationId)
 {
     //! NB(arkady-e1ppa): we always have one joblet per allocation.
-    const auto& joblet = GetOrCrash(JobletMap, allocationId);
+    auto joblet = GetOrCrash(JobletMap, allocationId);
     bool needLaunchSpeculativeJob;
     switch (Spec_->TestingOperationOptions->TestingSpeculativeLaunchMode) {
         case ETestingSpeculativeLaunchMode::None:

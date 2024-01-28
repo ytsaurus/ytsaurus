@@ -153,7 +153,7 @@ private:
         THashMap<TJobId, TFinishedJobInfo> FinishedJobs;
     };
 
-    class TNodeJobs
+    struct TNodeJobs
     {
     public:
         //! Empty optional implies this iterator is pointing at
@@ -181,22 +181,22 @@ private:
         static bool IsRunning(const TJobIterator& jobIt);
 
         //! All methods have JobTracker->GetInvoker() thread affinity.
-        std::optional<TJobToConfirmIterator> FindJobToConfirm(TJobId jobId) &;
-        void EraseJobToConfirm(TJobToConfirmIterator iterator) &;
-        TJobToConfirmIterator AddJobToConfirmOrCrash(TJobId jobId, TJobToConfirmInfo jobToConfirmInfo) &;
-        i64 JobToConfirmCount() const &;
+        std::optional<TJobToConfirmIterator> FindJobToConfirm(TJobId jobId);
+        void EraseJobToConfirm(TJobToConfirmIterator iterator);
+        TJobToConfirmIterator AddJobToConfirmOrCrash(TJobId jobId, TJobToConfirmInfo jobToConfirmInfo);
+        i64 GetJobToConfirmCount() const;
 
         template <CInvocable<void(TJobId, TJobToConfirmInfo)> TFunction>
-        void ForEachJobToConfirm(const TFunction& func) const &;
+        void ForEachJobToConfirm(const TFunction& func) const;
 
-        std::optional<TJobIterator> FindJob(TJobId jobId) &;
-        void EraseJobOrCrash(TJobId jobId) &;
-        void EraseJob(TJobIterator jobIt) &;
-        TJobIterator AddRunningJobOrCrash(TJobId jobId, TOperationId operationId, TRequestedActionInfo requestedAction) &;
-        i64 JobCount() const &;
+        std::optional<TJobIterator> FindJob(TJobId jobId);
+        void EraseJobOrCrash(TJobId jobId);
+        void EraseJob(TJobIterator jobIt);
+        TJobIterator AddRunningJobOrCrash(TJobId jobId, TOperationId operationId, TRequestedActionInfo requestedActionInfo);
+        i64 GetJobCount() const;
 
         template <class TFunction>
-        void ForEachJob(const TFunction& func) const &;
+        void ForEachJob(const TFunction& func) const;
     };
 
     struct TNodeInfo
