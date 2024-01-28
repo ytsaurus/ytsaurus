@@ -55,18 +55,45 @@ def find_operation_by_mutation_id(mutation_id):
 ##################################################################
 
 
-class TestSandboxTmpfs(YTEnvSetup):
+class TestJobEnvironmentBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
-    USE_PORTO = True
 
     DELTA_MASTER_CONFIG = {
         "cypress_manager": {
             "default_table_replication_factor": 1,
             "default_file_replication_factor": 1,
+        },
+        "chunk_manager": {
+            "allow_multiple_erasure_parts_per_node": True
         }
     }
+
+
+class TestPortoJobEnvironmentBase(TestJobEnvironmentBase):
+    USE_PORTO = True
+    # TODO(khlebnikov): For now tmpfs available only for porto.
+
+
+class TestCriJobEnvironmentBase(TestJobEnvironmentBase):
+    JOB_ENVIRONMENT_TYPE = 'cri'
+
+
+class TestEachJobEnvironmentBase(TestJobEnvironmentBase):
+    @classmethod
+    def register_tests(cls):
+        for test in cls.__subclasses__():
+            name = test.__name__ + 'Porto'
+            globals()[name] = type(name, (test, TestPortoJobEnvironmentBase), {})
+            name = test.__name__ + 'Cri'
+            globals()[name] = type(name, (test, TestCriJobEnvironmentBase), {})
+
+
+##################################################################
+
+
+class TestSandboxTmpfs(TestPortoJobEnvironmentBase):
 
     @classmethod
     def modify_node_config(cls, config, cluster_index):
@@ -761,11 +788,7 @@ time.sleep(10)
         )
 
 
-class TestTmpfsWithDiskLimit(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 1
-    NUM_SCHEDULERS = 1
-    USE_PORTO = True
+class TestTmpfsWithDiskLimit(TestPortoJobEnvironmentBase):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
@@ -778,13 +801,6 @@ class TestTmpfsWithDiskLimit(YTEnvSetup):
                 "enable_disk_quota": False
             },
         },
-    }
-
-    DELTA_MASTER_CONFIG = {
-        "cypress_manager": {
-            "default_table_replication_factor": 1,
-            "default_file_replication_factor": 1,
-        }
     }
 
     @authors("ignat")
@@ -817,12 +833,9 @@ class TestTmpfsWithDiskLimit(YTEnvSetup):
 ##################################################################
 
 
-class TestSandboxTmpfsOverflow(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
+class TestSandboxTmpfsOverflow(TestPortoJobEnvironmentBase):
     USE_DYNAMIC_TABLES = True
-    USE_PORTO = True
+
     DELTA_NODE_CONFIG = {
         "job_resource_manager": {
             "resource_limits": {
@@ -925,10 +938,7 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
 ##################################################################
 
 
-class TestDisabledSandboxTmpfs(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
+class TestDisabledSandboxTmpfs(TestPortoJobEnvironmentBase):
 
     DELTA_NODE_CONFIG = {"exec_node": {"slot_manager": {"enable_tmpfs": False}}}
 
@@ -960,10 +970,8 @@ class TestDisabledSandboxTmpfs(YTEnvSetup):
 ##################################################################
 
 
-class TestFilesInSandbox(YTEnvSetup):
-    NUM_MASTERS = 1
+class TestFilesInSandbox(TestEachJobEnvironmentBase):
     NUM_NODES = 5
-    NUM_SCHEDULERS = 1
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -1064,12 +1072,7 @@ class TestFilesInSandbox(YTEnvSetup):
 ##################################################################
 
 
-class TestArtifactCacheBypass(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-
-    USE_PORTO = True
+class TestArtifactCacheBypass(TestPortoJobEnvironmentBase):
 
     @authors("babenko")
     def test_bypass_artifact_cache_for_file(self):
@@ -1212,10 +1215,7 @@ class TestArtifactCacheBypass(YTEnvSetup):
 ##################################################################
 
 
-class TestUserJobIsolation(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
+class TestUserJobIsolation(TestPortoJobEnvironmentBase):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "slot_manager": {
@@ -1240,8 +1240,6 @@ class TestUserJobIsolation(YTEnvSetup):
             },
         },
     }
-
-    USE_PORTO = True
 
     @authors("gritukan")
     def test_create_network_project_map(self):
@@ -1392,17 +1390,8 @@ class TestUserJobIsolation(YTEnvSetup):
 ##################################################################
 
 
-class TestJobStderr(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
+class TestJobStderr(TestEachJobEnvironmentBase):
     USE_DYNAMIC_TABLES = True
-
-    DELTA_MASTER_CONFIG = {
-        "chunk_manager": {
-            "allow_multiple_erasure_parts_per_node": True
-        }
-    }
 
     @authors("ignat")
     def test_stderr_ok(self):
@@ -1555,33 +1544,15 @@ class TestJobStderr(YTEnvSetup):
         check_all_stderrs(op, b"stderr\n", 11)
 
 
-class TestJobStderrMulticell(TestJobStderr):
+class TestJobStderrMulticell(TestJobStderr, TestEachJobEnvironmentBase):
     NUM_SECONDARY_MASTER_CELLS = 2
-
-
-class TestJobStderrPorto(TestJobStderr):
-    USE_PORTO = True
-
-
-@authors("khlebnikov")
-class TestJobStderrCri(TestJobStderr):
-    JOB_ENVIRONMENT_TYPE = "cri"
 
 
 ##################################################################
 
 
-class TestUserFiles(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
+class TestUserFiles(TestEachJobEnvironmentBase):
     USE_DYNAMIC_TABLES = True
-
-    DELTA_MASTER_CONFIG = {
-        "chunk_manager": {
-            "allow_multiple_erasure_parts_per_node": True
-        }
-    }
 
     @authors("ignat")
     @pytest.mark.parametrize("copy_files", [False, True])
@@ -1868,26 +1839,14 @@ class TestUserFiles(YTEnvSetup):
         ]
 
 
-class TestUserFilesMulticell(TestUserFiles):
+class TestUserFilesMulticell(TestUserFiles, TestEachJobEnvironmentBase):
     NUM_SECONDARY_MASTER_CELLS = 2
-
-
-class TestUserFilesPorto(TestUserFiles):
-    USE_PORTO = True
-
-
-@authors("khlebnikov")
-class TestUserFilesCri(TestUserFiles):
-    JOB_ENVIRONMENT_TYPE = "cri"
 
 
 ##################################################################
 
 
-class TestSecureVault(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
+class TestSecureVault(TestEachJobEnvironmentBase):
 
     secure_vault = {
         "int64": 42424243,
@@ -2082,12 +2041,8 @@ class TestSecureVault(YTEnvSetup):
 ##################################################################
 
 
-class TestUserJobMonitoring(YTEnvSetup):
+class TestUserJobMonitoring(TestPortoJobEnvironmentBase):
     USE_DYNAMIC_TABLES = True
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-    USE_PORTO = True
 
     PROFILING_PERIOD = 5 * 1000
 
@@ -2454,12 +2409,7 @@ class TestUserJobMonitoring(YTEnvSetup):
 ##################################################################
 
 
-class TestHealExecNode(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 1
-    NUM_SCHEDULERS = 1
-    USE_PORTO = True
-
+class TestHealExecNode(TestEachJobEnvironmentBase):
     DELTA_NODE_CONFIG = {
         "data_node": {
             "disk_health_checker": {
@@ -2666,13 +2616,7 @@ class TestHealExecNode(YTEnvSetup):
 ##################################################################
 
 
-class TestArtifactInvalidFormat(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-
-    USE_PORTO = True
-
+class TestArtifactInvalidFormat(TestEachJobEnvironmentBase):
     def _prepare_tables(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -2766,11 +2710,7 @@ class TestArtifactInvalidFormat(YTEnvSetup):
 ##################################################################
 
 
-class TestJobProxyFailBeforeStart(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-
+class TestJobProxyFailBeforeStart(TestEachJobEnvironmentBase):
     @authors("alexkolodezny")
     def test_job_proxy_fail_before_start(self):
         create("table", "//tmp/t_in")
@@ -2796,11 +2736,7 @@ class TestJobProxyFailBeforeStart(YTEnvSetup):
 
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
-class TestUnusedMemoryAlertWithMemoryReserveFactorSet(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-
+class TestUnusedMemoryAlertWithMemoryReserveFactorSet(TestEachJobEnvironmentBase):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "unused_memory_alert_threshold": 0.3,
@@ -2843,11 +2779,7 @@ class TestUnusedMemoryAlertWithMemoryReserveFactorSet(YTEnvSetup):
 ##################################################################
 
 
-class TestConsecutiveJobAborts(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-
+class TestConsecutiveJobAborts(TestEachJobEnvironmentBase):
     DELTA_DYNAMIC_NODE_CONFIG = {
         "%true": {
             "exec_node": {
@@ -2892,13 +2824,7 @@ class TestConsecutiveJobAborts(YTEnvSetup):
 ##################################################################
 
 
-class TestConsecutiveJobAbortsPorto(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 1
-    NUM_SCHEDULERS = 1
-
-    USE_PORTO = True
-
+class TestConsecutiveJobAbortsGpu(TestPortoJobEnvironmentBase):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "gpu_manager": {
@@ -2964,13 +2890,7 @@ class TestConsecutiveJobAbortsPorto(YTEnvSetup):
 ##################################################################
 
 
-class TestIdleSlots(YTEnvSetup):
-    USE_PORTO = True
-
-    NUM_SCHEDULERS = 1
-    NUM_MASTERS = 1
-    NUM_NODES = 1
-
+class TestIdleSlots(TestPortoJobEnvironmentBase):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "slot_manager": {
@@ -3128,13 +3048,7 @@ class TestIdleSlots(YTEnvSetup):
 ##################################################################
 
 
-class TestCpuSet(YTEnvSetup):
-    USE_PORTO = True
-
-    NUM_SCHEDULERS = 1
-    NUM_MASTERS = 1
-    NUM_NODES = 1
-
+class TestCpuSet(TestPortoJobEnvironmentBase):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "slot_manager": {
@@ -3309,13 +3223,7 @@ class TestCpuSet(YTEnvSetup):
         assert self._get_actual_cpu_set(op, job_id)[:2] == "0-"
 
 
-class TestCpuSetCri(YTEnvSetup):
-    JOB_ENVIRONMENT_TYPE = "cri"
-
-    NUM_SCHEDULERS = 1
-    NUM_MASTERS = 1
-    NUM_NODES = 1
-
+class TestCpuSetCri(TestCriJobEnvironmentBase):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "slot_manager": {
@@ -3377,19 +3285,7 @@ class TestCpuSetCri(YTEnvSetup):
             assert actual_cpu_set == expected_cpu_set
 
 
-class TestSlotManagerResurrect(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 1
-    NUM_SCHEDULERS = 1
-    USE_PORTO = True
-
-    DELTA_MASTER_CONFIG = {
-        "cypress_manager": {
-            "default_table_replication_factor": 1,
-            "default_file_replication_factor": 1,
-        }
-    }
-
+class TestSlotManagerResurrect(TestPortoJobEnvironmentBase):
     DELTA_DYNAMIC_NODE_CONFIG = {
         "%true": {
             "exec_node": {
@@ -3775,11 +3671,7 @@ class TestSlotManagerResurrect(YTEnvSetup):
 ##################################################################
 
 
-class TestGpuStatistics(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 1
-    NUM_SCHEDULERS = 1
-
+class TestGpuStatistics(TestEachJobEnvironmentBase):
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "gpu_manager": {
@@ -3817,12 +3709,7 @@ class TestGpuStatistics(YTEnvSetup):
 ##################################################################
 
 
-class TestCriJobStatistics(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-
-    JOB_ENVIRONMENT_TYPE = "cri"
+class TestCriJobStatistics(TestCriJobEnvironmentBase):
 
     @authors("gritukan")
     def test_job_statistics(self):
@@ -3845,12 +3732,7 @@ class TestCriJobStatistics(YTEnvSetup):
 ##################################################################
 
 
-class TestPortoFuseDevice(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 1
-    NUM_SCHEDULERS = 1
-
-    USE_PORTO = True
+class TestPortoFuseDevice(TestPortoJobEnvironmentBase):
 
     @authors("ignat")
     def test_fuse_device(self):
@@ -3869,7 +3751,7 @@ class TestPortoFuseDevice(YTEnvSetup):
 ##################################################################
 
 
-class TestJobInputCache(YTEnvSetup):
+class TestJobInputCache(TestEachJobEnvironmentBase):
     NUM_TEST_PARTITIONS = 5
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
@@ -4099,3 +3981,9 @@ class TestJobInputCache(YTEnvSetup):
 
         wait(lambda: block_compressed_cache_size.get() == 0)
         wait(lambda: meta_cache_size.get() == 0)
+
+
+##################################################################
+
+
+TestEachJobEnvironmentBase.register_tests()
