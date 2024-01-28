@@ -100,7 +100,6 @@ public:
         , Config_(std::move(config))
         , MaxWindow_(MethodConfig_->MaxWindow)
         , Window_(MaxWindow_)
-        , ThrottledRequestCount_(profiler.Counter("/throttled_request_count"))
         , WindowGauge_(profiler.Gauge("/window"))
         , SlowStartThresholdGauge_(profiler.Gauge("/slow_start_threshold_gauge"))
         , MaxWindowGauge_(profiler.Gauge("/max_window"))
@@ -190,7 +189,6 @@ private:
     int SlowStartThreshold_ = 0;
     THashMap<std::string, std::atomic<TCpuInstant>> OverloadedTrackers_;
 
-    TCounter ThrottledRequestCount_;
     TCounter SkippedRequestCount_;
     TGauge WindowGauge_;
     TGauge SlowStartThresholdGauge_;
@@ -243,7 +241,7 @@ TOverloadController::TWaitTimeObserver TOverloadController::CreateGenericTracker
     auto guard = Guard(SpinLock_);
     State_.Trackers[trackerId] = tracker;
     auto& sensors = State_.TrackerSensors[trackerId];
-    sensors.Overloaded = profiler.Summary("/overloaded");
+    sensors.Overloaded = profiler.Counter("/overloaded");
     sensors.MeanWaitTime = profiler.Timer("/mean_wait_time");
     sensors.MeanWaitTimeThreshold = profiler.TimeGauge("/mean_wait_time_threshold");
 
@@ -356,7 +354,7 @@ void TOverloadController::DoAdjust(const THazardPtr<TState>& state)
         bool trackerOverloaded = movingMeanValue > trackerIt->second->MeanWaitTimeThreshold;
 
         if (auto it = state->TrackerSensors.find(trackerId); it != state->TrackerSensors.end()) {
-            it->second.Overloaded.Record(static_cast<int>(trackerOverloaded));
+            it->second.Overloaded.Increment(static_cast<int>(trackerOverloaded));
             it->second.MeanWaitTime.Record(movingMeanValue);
             it->second.MeanWaitTimeThreshold.Update(trackerIt->second->MeanWaitTimeThreshold);
         }
