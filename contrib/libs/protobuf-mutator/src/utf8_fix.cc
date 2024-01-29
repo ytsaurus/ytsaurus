@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "src/utf8_fix.h"
+#include <contrib/libs/protobuf-mutator/src/utf8_fix.h>
 
 #include <google/protobuf/stubs/port.h>
 

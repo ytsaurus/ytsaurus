@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "src/libfuzzer/libfuzzer_macro.h"
+#include <contrib/libs/protobuf-mutator/src/libfuzzer/libfuzzer_macro.h>
 
 #include <algorithm>
 #include <memory>
 #include <vector>
 
-#include "src/binary_format.h"
-#include "src/libfuzzer/libfuzzer_mutator.h"
-#include "src/text_format.h"
+#include <contrib/libs/protobuf-mutator/src/binary_format.h>
+#include <contrib/libs/protobuf-mutator/src/libfuzzer/libfuzzer_mutator.h>
+#include <contrib/libs/protobuf-mutator/src/text_format.h>
 
 namespace protobuf_mutator {
 namespace libfuzzer {

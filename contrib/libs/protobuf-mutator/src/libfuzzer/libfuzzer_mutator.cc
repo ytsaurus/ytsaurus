@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "src/libfuzzer/libfuzzer_mutator.h"
+#include <contrib/libs/protobuf-mutator/src/libfuzzer/libfuzzer_mutator.h>
 
 #include <string.h>
 
@@ -21,8 +21,8 @@
 #include <memory>
 #include <string>
 
-#include "port/protobuf.h"
-#include "src/mutator.h"
+#include <contrib/libs/protobuf-mutator/port/protobuf.h>
+#include <contrib/libs/protobuf-mutator/src/mutator.h>
 
 // see compiler-rt/lib/sanitizer-common/sanitizer_internal_defs.h; usage same as
 // SANITIZER_INTERFACE_WEAK_DEF with some functionality removed

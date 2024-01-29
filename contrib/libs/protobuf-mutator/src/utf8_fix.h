@@ -19,7 +19,7 @@
 
 #include <google/protobuf/stubs/common.h>
 
-#include "src/random.h"
+#include <contrib/libs/protobuf-mutator/src/random.h>
 
 namespace protobuf_mutator {
 

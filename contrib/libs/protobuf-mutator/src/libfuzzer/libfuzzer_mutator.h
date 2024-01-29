@@ -17,7 +17,7 @@
 
 #include <string>
 
-#include "src/mutator.h"
+#include <contrib/libs/protobuf-mutator/src/mutator.h>
 
 namespace protobuf_mutator {
 namespace libfuzzer {

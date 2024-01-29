@@ -18,7 +18,7 @@
 #include <memory>
 #include <string>
 
-#include "port/protobuf.h"
+#include <contrib/libs/protobuf-mutator/port/protobuf.h>
 
 namespace protobuf_mutator {
 

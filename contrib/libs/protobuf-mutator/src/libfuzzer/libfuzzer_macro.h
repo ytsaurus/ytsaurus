@@ -21,7 +21,7 @@
 #include <functional>
 #include <type_traits>
 
-#include "port/protobuf.h"
+#include <contrib/libs/protobuf-mutator/port/protobuf.h>
 
 // Defines custom mutator, crossover and test functions using default
 // serialization format. Default is text.

@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "src/text_format.h"
+#include <contrib/libs/protobuf-mutator/src/text_format.h>
 
-#include "port/protobuf.h"
+#include <contrib/libs/protobuf-mutator/port/protobuf.h>
 
 namespace protobuf_mutator {
 

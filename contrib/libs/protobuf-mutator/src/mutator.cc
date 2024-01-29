@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "src/mutator.h"
+#include <contrib/libs/protobuf-mutator/src/mutator.h>
 
 #include <algorithm>
 #include <bitset>
@@ -24,9 +24,9 @@
 #include <utility>
 #include <vector>
 
-#include "src/field_instance.h"
-#include "src/utf8_fix.h"
-#include "src/weighted_reservoir_sampler.h"
+#include <contrib/libs/protobuf-mutator/src/field_instance.h>
+#include <contrib/libs/protobuf-mutator/src/utf8_fix.h>
+#include <contrib/libs/protobuf-mutator/src/weighted_reservoir_sampler.h>
 
 namespace protobuf_mutator {
 
