@@ -28,16 +28,6 @@ TSecurityTags::operator size_t() const
     return result;
 }
 
-bool TSecurityTags::operator==(const TSecurityTags& rhs) const
-{
-    return Items == rhs.Items;
-}
-
-bool TSecurityTags::operator!=(const TSecurityTags& rhs) const
-{
-    return !(*this == rhs);
-}
-
 void TSecurityTags::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;

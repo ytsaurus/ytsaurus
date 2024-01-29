@@ -18,11 +18,6 @@ bool TLockKey::operator ==(const TLockKey& other) const
     return Kind == other.Kind && Name == other.Name;
 }
 
-bool TLockKey::operator !=(const TLockKey& other) const
-{
-    return !(*this == other);
-}
-
 bool TLockKey::operator <(const TLockKey& other) const
 {
     return std::tie(Kind, Name) < std::tie(other.Kind, other.Name);
@@ -30,7 +25,7 @@ bool TLockKey::operator <(const TLockKey& other) const
 
 TLockKey::operator size_t() const
 {
-    return THash<ELockKeyKind>()(Kind) ^ THash<TString>()(Name);
+    return MultiHash(Kind, Name);
 }
 
 void TLockKey::Persist(const TPersistenceContext& context)
@@ -82,11 +77,6 @@ void TLockRequest::Persist(const TPersistenceContext& context)
 bool TLockRequest::operator==(const TLockRequest& other) const
 {
     return Mode == other.Mode && Key == other.Key;
-}
-
-bool TLockRequest::operator!=(const TLockRequest& other) const
-{
-    return !(*this == other);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

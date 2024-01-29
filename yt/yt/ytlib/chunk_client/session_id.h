@@ -15,12 +15,11 @@ struct TSessionId
     TSessionId();
     TSessionId(TChunkId chunkId, int mediumIndex);
 
+    bool operator==(const TSessionId& other) const = default;
+
     TChunkId ChunkId;
     int MediumIndex;
 };
-
-bool operator==(TSessionId lhs, TSessionId rhs);
-bool operator!=(TSessionId lhs, TSessionId rhs);
 
 void FormatValue(TStringBuilderBase* builder, TSessionId id, TStringBuf format);
 TString ToString(TSessionId id);

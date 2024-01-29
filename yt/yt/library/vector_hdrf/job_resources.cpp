@@ -204,11 +204,6 @@ bool operator == (const TJobResources& lhs, const TJobResources& rhs)
     true;
 }
 
-bool operator != (const TJobResources& lhs, const TJobResources& rhs)
-{
-    return !(lhs == rhs);
-}
-
 bool Dominates(const TJobResources& lhs, const TJobResources& rhs)
 {
     return

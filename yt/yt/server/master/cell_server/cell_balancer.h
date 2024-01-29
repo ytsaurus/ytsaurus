@@ -29,7 +29,6 @@ struct TCellMoveDescriptor
 
     bool operator<(const TCellMoveDescriptor& other) const;
     bool operator==(const TCellMoveDescriptor& other) const;
-    bool operator!=(const TCellMoveDescriptor& other) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

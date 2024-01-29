@@ -58,7 +58,7 @@ private:
         int MediumIndex;
 
         operator size_t() const;
-        bool operator==(const TChunkPlacementGroupKey&) const = default;
+        bool operator==(const TChunkPlacementGroupKey& other) const = default;
     };
 
     class TChunkPlacementGroup

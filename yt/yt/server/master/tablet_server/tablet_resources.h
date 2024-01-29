@@ -16,6 +16,8 @@ public:
     i64 TabletCount = 0;
     i64 TabletStaticMemory = 0;
 
+    bool operator==(const TTabletResources& other) const = default;
+
     TTabletResources&& SetTabletCount(i64 tabletCount) &&;
     TTabletResources&& SetTabletStaticMemory(i64 tabletStaticMemory) &&;
 
@@ -31,9 +33,6 @@ void Deserialize(TTabletResources& tabletResources, const NYTree::INodePtr& node
 
 void ToProto(NProto::TTabletResources* protoResources, const TTabletResources& resources);
 void FromProto(TTabletResources* resources, const NProto::TTabletResources& protoResources);
-
-bool operator==(const TTabletResources& lhs, const TTabletResources& rhs);
-bool operator!=(const TTabletResources& lhs, const TTabletResources& rhs);
 
 TTabletResources operator+(TTabletResources lhs, const TTabletResources& rhs);
 TTabletResources& operator+=(TTabletResources& lhs, const TTabletResources& rhs);

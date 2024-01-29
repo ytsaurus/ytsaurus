@@ -52,11 +52,6 @@ bool TCellMoveDescriptor::operator==(const TCellMoveDescriptor& other) const
     return Cell == other.Cell && PeerId == other.PeerId;
 }
 
-bool TCellMoveDescriptor::operator!=(const TCellMoveDescriptor& other) const
-{
-    return !(*this == other);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TNodeHolder::TNodeHolder(const TNode* node, int totalSlots, const TCellSet& slots)

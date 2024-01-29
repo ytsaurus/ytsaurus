@@ -20,24 +20,16 @@ inline void ToProto(NProto::TSessionId* protoSessionId, TSessionId sessionId)
     protoSessionId->set_medium_index(sessionId.MediumIndex);
 }
 
-Y_FORCE_INLINE TSessionId::TSessionId()
+////////////////////////////////////////////////////////////////////////////////
+
+inline TSessionId::TSessionId()
     : TSessionId(TChunkId(), DefaultStoreMediumIndex)
 { }
 
-Y_FORCE_INLINE TSessionId::TSessionId(TChunkId chunkId, int mediumIndex)
+inline TSessionId::TSessionId(TChunkId chunkId, int mediumIndex)
     : ChunkId(chunkId)
     , MediumIndex(mediumIndex)
 { }
-
-Y_FORCE_INLINE bool operator==(TSessionId lhs, TSessionId rhs)
-{
-    return lhs.ChunkId == rhs.ChunkId && lhs.MediumIndex == rhs.MediumIndex;
-}
-
-Y_FORCE_INLINE bool operator!=(TSessionId lhs, TSessionId rhs)
-{
-    return !(lhs == rhs);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

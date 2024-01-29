@@ -14,21 +14,6 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TMediumDescriptor::operator==(const TMediumDescriptor& other) const
-{
-    return
-        Name == other.Name &&
-        Index == other.Index &&
-        Priority == other.Priority;
-}
-
-bool TMediumDescriptor::operator!=(const TMediumDescriptor& other) const
-{
-    return !(*this == other);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 const TMediumDescriptor* TMediumDirectory::FindByIndex(int index) const
 {
     auto guard = ReaderGuard(SpinLock_);

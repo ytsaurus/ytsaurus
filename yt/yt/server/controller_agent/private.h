@@ -119,7 +119,6 @@ void Serialize(const TCompositePendingJobCount& jobCount, NYson::IYsonConsumer* 
 void FormatValue(TStringBuilderBase* builder, const TCompositePendingJobCount& jobCount, TStringBuf /*format*/);
 
 bool operator == (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs);
-bool operator != (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs);
 
 TCompositePendingJobCount operator + (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs);
 TCompositePendingJobCount operator - (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs);

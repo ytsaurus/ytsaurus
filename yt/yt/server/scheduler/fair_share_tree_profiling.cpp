@@ -14,19 +14,7 @@ using NVectorHdrf::ToJobResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr TDuration PoolKeepAlivePeriod = TDuration::Minutes(1);
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool TFairShareTreeProfileManager::TOperationUserProfilingTag::operator == (const TOperationUserProfilingTag& other) const
-{
-    return PoolId == other.PoolId && UserName == other.UserName && CustomTag == other.CustomTag;
-}
-
-bool TFairShareTreeProfileManager::TOperationUserProfilingTag::operator != (const TOperationUserProfilingTag& other) const
-{
-    return !(*this == other);
-}
+static constexpr auto PoolKeepAlivePeriod = TDuration::Minutes(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 

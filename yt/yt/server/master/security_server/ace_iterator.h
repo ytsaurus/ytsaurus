@@ -84,7 +84,7 @@ struct TAcdOverride
 
     explicit operator bool() const;
 
-    bool operator==(const TAcdOverride&) const = default;
+    bool operator==(const TAcdOverride& other) const = default;
 
     DEFINE_BYREF_RO_PROPERTY(std::optional<TAccessControlList>, Acl);
     DEFINE_BYREF_RO_PROPERTY(std::optional<bool>, InheritAcl);

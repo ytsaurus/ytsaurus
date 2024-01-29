@@ -163,12 +163,6 @@ Y_FORCE_INLINE bool TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentation
 }
 
 template <class T, bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
-Y_FORCE_INLINE bool TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::operator!=(TAugmentedPtr other) const
-{
-    return Value_ != other.Value_;
-}
-
-template <class T, bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
 Y_FORCE_INLINE bool TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::operator<(TAugmentedPtr other) const
 {
     int thisFirstIndex = GetIndex<1>();
@@ -359,12 +353,6 @@ template <class T>
 Y_FORCE_INLINE bool TCompatPtrWithIndexes<T>::operator == (TCompatPtrWithIndexes other) const
 {
     return Value_ == other.Value_;
-}
-
-template <class T>
-Y_FORCE_INLINE bool TCompatPtrWithIndexes<T>::operator != (TCompatPtrWithIndexes other) const
-{
-    return Value_ != other.Value_;
 }
 
 template <class T>

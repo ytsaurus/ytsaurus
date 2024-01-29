@@ -40,10 +40,8 @@ using TWhenThenExpression = std::pair<TExpressionList, TExpressionList>;
 using TWhenThenExpressionList = std::vector<TWhenThenExpression>;
 
 bool operator == (const TIdentifierList& lhs, const TIdentifierList& rhs);
-bool operator != (const TIdentifierList& lhs, const TIdentifierList& rhs);
 
 bool operator == (const TExpressionList& lhs, const TExpressionList& rhs);
-bool operator != (const TExpressionList& lhs, const TExpressionList& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,7 +49,6 @@ struct TNullLiteralValue
 { };
 
 bool operator == (TNullLiteralValue, TNullLiteralValue);
-bool operator != (TNullLiteralValue, TNullLiteralValue);
 
 using TLiteralValue = std::variant<
     TNullLiteralValue,
@@ -95,7 +92,6 @@ struct TCompositeTypeMemberAccessor
 };
 
 bool operator == (const TCompositeTypeMemberAccessor& lhs, const TCompositeTypeMemberAccessor& rhs);
-bool operator != (const TCompositeTypeMemberAccessor& lhs, const TCompositeTypeMemberAccessor& rhs);
 
 struct TReference
 {
@@ -116,7 +112,6 @@ struct TReference
 };
 
 bool operator == (const TReference& lhs, const TReference& rhs);
-bool operator != (const TReference& lhs, const TReference& rhs);
 
 struct ReferenceHasher
 {
@@ -172,7 +167,6 @@ TExpressionList MakeExpression(TObjectsHolder* holder, TArgs&& ... args)
 }
 
 bool operator == (const TExpression& lhs, const TExpression& rhs);
-bool operator != (const TExpression& lhs, const TExpression& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -411,7 +405,6 @@ struct TTableDescriptor
 };
 
 bool operator == (const TTableDescriptor& lhs, const TTableDescriptor& rhs);
-bool operator != (const TTableDescriptor& lhs, const TTableDescriptor& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -453,7 +446,6 @@ struct TJoin
 };
 
 bool operator == (const TJoin& lhs, const TJoin& rhs);
-bool operator != (const TJoin& lhs, const TJoin& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -468,10 +460,9 @@ struct TArrayJoin
         : IsLeft(isLeft)
         , Columns(columns)
     { }
-};
 
-bool operator == (const TArrayJoin& lhs, const TArrayJoin& rhs);
-bool operator != (const TArrayJoin& lhs, const TArrayJoin& rhs);
+    bool operator==(const TArrayJoin& other) const = default;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -494,7 +485,6 @@ struct TQuery
 };
 
 bool operator == (const TQuery& lhs, const TQuery& rhs);
-bool operator != (const TQuery& lhs, const TQuery& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

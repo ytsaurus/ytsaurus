@@ -200,10 +200,6 @@ TErrorOr<TString> TryParseControllerAgentAddress(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TControllerAgentDescriptor::operator==(const TControllerAgentDescriptor& other) const noexcept = default;
-
-bool TControllerAgentDescriptor::operator!=(const TControllerAgentDescriptor& other) const noexcept = default;
-
 TControllerAgentDescriptor::operator bool() const noexcept
 {
     return *this != TControllerAgentDescriptor{};

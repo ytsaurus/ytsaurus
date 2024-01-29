@@ -22,12 +22,11 @@ struct TBlockId
 
     //! An offset where the block starts.
     int BlockIndex;
+
+    bool operator== (const TBlockId& other) const = default;
 };
 
 TString ToString(const TBlockId& id);
-
-bool operator == (const TBlockId& lhs, const TBlockId& rhs);
-bool operator != (const TBlockId& lhs, const TBlockId& rhs);
 
 void ToProto(NProto::TBlockId* protoBlockId, const TBlockId& blockId);
 void FromProto(TBlockId* blockId, const NProto::TBlockId& protoBlockId);

@@ -87,11 +87,6 @@ public:
         return lhs.Value_ == rhs.Value_;
     }
 
-    friend bool operator != (const TFixedPointNumber& lhs, const TFixedPointNumber& rhs)
-    {
-        return lhs.Value_ != rhs.Value_;
-    }
-
     friend bool operator < (const TFixedPointNumber& lhs, const TFixedPointNumber& rhs)
     {
         return lhs.Value_ < rhs.Value_;

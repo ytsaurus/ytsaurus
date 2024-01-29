@@ -16,8 +16,7 @@ struct TMediumDescriptor
     int Index = GenericMediumIndex;
     int Priority = -1;
 
-    bool operator == (const TMediumDescriptor& other) const;
-    bool operator != (const TMediumDescriptor& other) const;
+    bool operator == (const TMediumDescriptor& other) const = default;
 };
 
 class TMediumDirectory

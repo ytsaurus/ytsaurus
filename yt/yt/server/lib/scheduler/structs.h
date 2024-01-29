@@ -86,8 +86,7 @@ struct TPreemptedFor
     TAllocationId AllocationId;
     TOperationId OperationId;
 
-    bool operator == (const TPreemptedFor& other) const noexcept;
-    bool operator != (const TPreemptedFor& other) const noexcept;
+    bool operator==(const TPreemptedFor& other) const = default;
 };
 
 TString ToString(const TPreemptedFor& preemptedFor);

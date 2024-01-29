@@ -87,7 +87,6 @@ public:
         TIterator operator--(int);
 
         bool operator==(const TIterator& other) const;
-        bool operator!=(const TIterator& other) const;
 
     private:
         friend class TReadOnlyEntityMap;

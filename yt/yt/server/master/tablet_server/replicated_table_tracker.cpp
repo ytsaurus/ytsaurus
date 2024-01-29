@@ -450,11 +450,6 @@ private:
                 && Path_ == other.Path_;
         }
 
-        bool operator != (const TReplica& other) const
-        {
-            return !(*this == other);
-        }
-
         void Merge(const TIntrusivePtr<TReplica>& oldReplica)
         {
             AsyncTabletCellBundleName_.Store(oldReplica->AsyncTabletCellBundleName_.Load());

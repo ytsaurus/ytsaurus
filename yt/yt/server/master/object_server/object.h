@@ -388,12 +388,7 @@ public:
     template <class U>
     bool operator==(const TObjectPtr<U, C>& other) const noexcept;
     template <class U>
-    bool operator!=(const TObjectPtr<U, C>& other) const noexcept;
-
-    template <class U>
     bool operator==(U* other) const noexcept;
-    template <class U>
-    bool operator!=(U* other) const noexcept;
 
 private:
     T* Ptr_ = nullptr;

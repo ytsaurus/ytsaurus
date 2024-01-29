@@ -20,20 +20,7 @@ struct TClusterNodeName
         return Host + ":" + std::to_string(Port);
     }
 
-    bool operator ==(const TClusterNodeName& that) const
-    {
-        return std::tie(Host, Port) == std::tie(that.Host, that.Port);
-    }
-
-    bool operator !=(const TClusterNodeName& that) const
-    {
-        return !(*this == that);
-    }
-
-    bool operator <(const TClusterNodeName& that) const
-    {
-        return std::tie(Host, Port) < std::tie(that.Host, that.Port);
-    }
+    auto operator<=>(const TClusterNodeName& other) const = default;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

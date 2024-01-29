@@ -51,16 +51,6 @@ void TOwningBoundaryKeys::Persist(const TStreamPersistenceContext& context)
     Persist(context, MaxKey);
 }
 
-bool TOwningBoundaryKeys::operator ==(const TOwningBoundaryKeys& other) const
-{
-    return MinKey == other.MinKey && MaxKey == other.MaxKey;
-}
-
-bool TOwningBoundaryKeys::operator !=(const TOwningBoundaryKeys& other) const
-{
-    return MinKey != other.MinKey || MaxKey != other.MaxKey;
-}
-
 TString ToString(const TOwningBoundaryKeys& keys)
 {
     return Format("MinKey: %v, MaxKey: %v",

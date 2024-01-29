@@ -322,11 +322,6 @@ bool operator == (const TNodeResources& lhs, const TNodeResources& rhs)
         true;
 }
 
-bool operator != (const TNodeResources& lhs, const TNodeResources& rhs)
-{
-    return !(lhs == rhs);
-}
-
 TNodeResources MakeNonnegative(const TNodeResources& resources)
 {
     TNodeResources result;

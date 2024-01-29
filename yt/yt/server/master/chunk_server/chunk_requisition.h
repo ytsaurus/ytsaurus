@@ -73,7 +73,6 @@ protected:
 static_assert(sizeof(TReplicationPolicy) == 1, "sizeof(TReplicationPolicy) != 1");
 
 bool operator==(TReplicationPolicy lhs, TReplicationPolicy rhs);
-bool operator!=(TReplicationPolicy lhs, TReplicationPolicy rhs);
 
 void FormatValue(TStringBuilderBase* builder, TReplicationPolicy policy, TStringBuf /*spec*/);
 TString ToString(TReplicationPolicy policy);
@@ -241,7 +240,6 @@ private:
 static_assert(sizeof(TChunkReplication) == 40, "TChunkReplication's size is wrong");
 
 bool operator==(const TChunkReplication& lhs, const TChunkReplication& rhs);
-bool operator!=(const TChunkReplication& lhs, const TChunkReplication& rhs);
 
 void FormatValue(TStringBuilderBase* builder, const TChunkReplication& replication, TStringBuf /*spec*/);
 TString ToString(const TChunkReplication& replication);

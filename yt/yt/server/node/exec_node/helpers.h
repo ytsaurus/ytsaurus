@@ -42,8 +42,7 @@ struct TControllerAgentDescriptor
     TString Address;
     NScheduler::TIncarnationId IncarnationId;
 
-    bool operator==(const TControllerAgentDescriptor& other) const noexcept;
-    bool operator!=(const TControllerAgentDescriptor& other) const noexcept;
+    bool operator==(const TControllerAgentDescriptor& other) const = default;
 
     explicit operator bool() const noexcept;
 };

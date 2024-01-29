@@ -26,8 +26,8 @@ struct TLockKey
     TString Name;
 
     bool operator ==(const TLockKey& other) const;
-    bool operator !=(const TLockKey& other) const;
     bool operator < (const TLockKey& other) const;
+
     operator size_t() const;
 
     void Persist(const NCellMaster::TPersistenceContext& context);
@@ -47,8 +47,7 @@ struct TLockRequest
 
     void Persist(const NCellMaster::TPersistenceContext& context);
 
-    bool operator == (const TLockRequest& other) const;
-    bool operator != (const TLockRequest& other) const;
+    bool operator==(const TLockRequest& other) const;
 
     ELockMode Mode;
     TLockKey Key;

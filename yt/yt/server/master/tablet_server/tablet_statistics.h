@@ -85,7 +85,6 @@ TTabletCellStatisticsBase& operator -= (TTabletCellStatisticsBase& lhs, const TT
 TTabletCellStatisticsBase  operator -  (const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs);
 
 bool operator == (const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs);
-bool operator != (const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs);
 
 TTabletStatistics& operator += (TTabletStatistics& lhs, const TTabletStatistics& rhs);
 TTabletStatistics  operator +  (const TTabletStatistics& lhs, const TTabletStatistics& rhs);
@@ -94,7 +93,6 @@ TTabletStatistics& operator += (TTabletStatistics& lhs, const TTabletStatistics&
 TTabletStatistics  operator +  (const TTabletStatistics& lhs, const TTabletStatistics& rhs);
 
 bool operator == (const TTabletStatistics& lhs, const TTabletStatistics& rhs);
-bool operator != (const TTabletStatistics& lhs, const TTabletStatistics& rhs);
 
 void ToProto(NProto::TTabletCellStatistics* protoStatistics, const TTabletCellStatistics& statistics);
 void FromProto(TTabletCellStatistics* statistics, const NProto::TTabletCellStatistics& protoStatistics);

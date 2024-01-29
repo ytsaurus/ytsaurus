@@ -19,8 +19,7 @@ struct TSecurityTags
 
     operator size_t() const;
 
-    bool operator == (const TSecurityTags& rhs) const;
-    bool operator != (const TSecurityTags& rhs) const;
+    bool operator==(const TSecurityTags& other) const = default;
 
     void Persist(const TStreamPersistenceContext& context);
 };

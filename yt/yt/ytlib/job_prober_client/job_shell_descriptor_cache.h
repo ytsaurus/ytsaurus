@@ -24,8 +24,8 @@ struct TJobShellDescriptorKey
     NJobTrackerClient::TJobId JobId;
     std::optional<TString> ShellName;
 
-    bool operator == (const TJobShellDescriptorKey& other) const;
-    bool operator != (const TJobShellDescriptorKey& other) const;
+    bool operator==(const TJobShellDescriptorKey& other) const = default;
+
     operator size_t() const;
 };
 

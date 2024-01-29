@@ -27,8 +27,7 @@ struct TCumulativeStatisticsEntry
     TCumulativeStatisticsEntry operator+(const TCumulativeStatisticsEntry& other) const;
     TCumulativeStatisticsEntry operator-(const TCumulativeStatisticsEntry& other) const;
 
-    bool operator==(const TCumulativeStatisticsEntry& other) const;
-    bool operator!=(const TCumulativeStatisticsEntry& other) const;
+    bool operator==(const TCumulativeStatisticsEntry& other) const = default;
 
     void Persist(const NYT::TStreamPersistenceContext& context);
 };

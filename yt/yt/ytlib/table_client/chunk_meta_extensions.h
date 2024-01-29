@@ -49,8 +49,7 @@ struct TOwningBoundaryKeys
 
     size_t SpaceUsed() const;
 
-    bool operator ==(const TOwningBoundaryKeys& other) const;
-    bool operator !=(const TOwningBoundaryKeys& other) const;
+    bool operator==(const TOwningBoundaryKeys& other) const = default;
 };
 
 TString ToString(const TOwningBoundaryKeys& keys);

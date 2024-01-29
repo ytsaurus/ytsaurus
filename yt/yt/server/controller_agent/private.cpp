@@ -109,11 +109,6 @@ bool operator == (const TCompositePendingJobCount& lhs, const TCompositePendingJ
     return true;
 }
 
-bool operator != (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs)
-{
-    return !(lhs == rhs);
-}
-
 TCompositePendingJobCount operator + (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs)
 {
     TCompositePendingJobCount result;

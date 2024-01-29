@@ -129,7 +129,6 @@ TNodeResources& operator *= (TNodeResources& lhs, double rhs);
 TNodeResources  operator -  (const TNodeResources& resources);
 
 bool operator == (const TNodeResources& a, const TNodeResources& b);
-bool operator != (const TNodeResources& a, const TNodeResources& b);
 
 NProto::TNodeResources MakeNonnegative(const NProto::TNodeResources& resources);
 bool Dominates(const NProto::TNodeResources& lhs, const TNodeResources& rhs);

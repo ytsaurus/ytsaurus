@@ -38,19 +38,6 @@ static const auto& Logger = JobProberClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TJobShellDescriptorKey::operator == (const TJobShellDescriptorKey& other) const
-{
-    return
-        User == other.User &&
-        JobId == other.JobId &&
-        ShellName == other.ShellName;
-}
-
-bool TJobShellDescriptorKey::operator != (const TJobShellDescriptorKey& other) const
-{
-    return !(*this == other);
-}
-
 TJobShellDescriptorKey::operator size_t() const
 {
     size_t result = 0;

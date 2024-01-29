@@ -180,11 +180,6 @@ public:
         return Header_ == other.Header_;
     }
 
-    bool operator != (TEditList<T> other) const
-    {
-        return !(*this == other);
-    }
-
 
     TEditList GetSuccessor() const
     {
@@ -497,11 +492,6 @@ public:
         return Header_ == other.Header_;
     }
 
-    bool operator != (TSortedDynamicRow other) const
-    {
-        return Header_ != other.Header_;
-    }
-
 private:
     TSortedDynamicRowHeader* Header_;
 
@@ -556,11 +546,6 @@ struct TDynamicRowRef
         return
             Store == other.Store &&
             Row == other.Row;
-    }
-
-    bool operator != (const TDynamicRowRef& other) const
-    {
-        return !(*this == other);
     }
 
 

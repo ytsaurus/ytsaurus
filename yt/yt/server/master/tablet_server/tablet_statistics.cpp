@@ -211,11 +211,6 @@ bool operator == (const TTabletCellStatisticsBase& lhs, const TTabletCellStatist
             });
 }
 
-bool operator != (const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
-{
-    return !(lhs == rhs);
-}
-
 TTabletStatistics& operator += (TTabletStatistics& lhs, const TTabletStatistics& rhs)
 {
     static_cast<TTabletCellStatisticsBase&>(lhs) += rhs;
@@ -251,11 +246,6 @@ bool operator == (const TTabletStatistics& lhs, const TTabletStatistics& rhs)
 {
     return static_cast<const TTabletCellStatisticsBase&>(lhs) == static_cast<const TTabletCellStatisticsBase&>(rhs) &&
         lhs.OverlappingStoreCount == rhs.OverlappingStoreCount;
-}
-
-bool operator != (const TTabletStatistics& lhs, const TTabletStatistics& rhs)
-{
-    return !(lhs == rhs);
 }
 
 void ToProto(NProto::TTabletCellStatistics* protoStatistics, const TTabletCellStatistics& statistics)

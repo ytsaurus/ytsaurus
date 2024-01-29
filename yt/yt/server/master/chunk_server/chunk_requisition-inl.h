@@ -44,11 +44,6 @@ inline bool operator==(TReplicationPolicy lhs, TReplicationPolicy rhs)
         lhs.GetDataPartsOnly() == rhs.GetDataPartsOnly();
 }
 
-inline bool operator!=(TReplicationPolicy lhs, TReplicationPolicy rhs)
-{
-    return !(lhs == rhs);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 inline bool TChunkReplication::TEntry::operator==(const TEntry& rhs) const
@@ -153,16 +148,12 @@ inline void TChunkReplication::SetVital(bool vital)
 
 inline bool operator==(const TChunkReplication& lhs, const TChunkReplication& rhs)
 {
-    if (&lhs == &rhs)
+    if (&lhs == &rhs) {
         return true;
+    }
 
     return (lhs.GetVital() == rhs.GetVital()) &&
         std::equal(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
-}
-
-inline bool operator!=(const TChunkReplication& lhs, const TChunkReplication& rhs)
-{
-    return !(lhs == rhs);
 }
 
 template <class T>

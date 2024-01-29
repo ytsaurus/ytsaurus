@@ -62,7 +62,6 @@ struct TChunkTreeStatistics
     void Persist(const NCellMaster::TPersistenceContext& context);
 
     bool operator == (const TChunkTreeStatistics& other) const;
-    bool operator != (const TChunkTreeStatistics& other) const;
 };
 
 TString ToString(const TChunkTreeStatistics& statistics);

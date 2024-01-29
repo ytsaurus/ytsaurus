@@ -527,26 +527,12 @@ bool TObjectPtr<T, C>::operator==(const TObjectPtr<U, C>& other) const noexcept
 
 template <class T, class C>
 template <class U>
-bool TObjectPtr<T, C>::operator!=(const TObjectPtr<U, C>& other) const noexcept
-{
-    return !(*this == other);
-}
-
-template <class T, class C>
-template <class U>
 bool TObjectPtr<T, C>::operator==(U* other) const noexcept
 {
     NDetail::AssertPersistentStateRead();
     NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
     NDetail::AssertObjectValidOrNull(ToObject(other));
     return Ptr_ == other;
-}
-
-template <class T, class C>
-template <class U>
-bool TObjectPtr<T, C>::operator!=(U* other) const noexcept
-{
-    return !(*this == other);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

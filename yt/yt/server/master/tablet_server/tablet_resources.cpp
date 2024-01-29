@@ -80,17 +80,6 @@ void FromProto(TTabletResources* resources, const NProto::TTabletResources& prot
     resources->TabletStaticMemory = protoResources.tablet_static_memory();
 }
 
-bool operator==(const TTabletResources& lhs, const TTabletResources& rhs)
-{
-    return lhs.TabletCount == rhs.TabletCount &&
-        lhs.TabletStaticMemory == rhs.TabletStaticMemory;
-}
-
-bool operator!=(const TTabletResources& lhs, const TTabletResources& rhs)
-{
-    return !(lhs == rhs);
-}
-
 TTabletResources operator+(TTabletResources lhs, const TTabletResources& rhs)
 {
     return lhs += rhs;

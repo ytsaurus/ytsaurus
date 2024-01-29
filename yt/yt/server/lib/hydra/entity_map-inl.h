@@ -105,12 +105,6 @@ bool TReadOnlyEntityMap<TValue>::TIterator::operator==(const TIterator& other) c
 }
 
 template <class TValue>
-bool TReadOnlyEntityMap<TValue>::TIterator::operator!=(const TIterator& other) const
-{
-    return Iterator_ != other.Iterator_;
-}
-
-template <class TValue>
 TReadOnlyEntityMap<TValue>::TIterator::TIterator(typename TMapType::const_iterator iterator)
     : Iterator_(std::move(iterator))
 { }

@@ -52,8 +52,6 @@ public:
     size_t GetHash() const;
 
     bool operator==(TAugmentedPtr other) const;
-    bool operator!=(TAugmentedPtr other) const;
-
     bool operator< (TAugmentedPtr other) const;
     bool operator<=(TAugmentedPtr other) const;
     bool operator> (TAugmentedPtr other) const;
@@ -143,8 +141,6 @@ public:
     size_t GetHash() const;
 
     bool operator == (TCompatPtrWithIndexes other) const;
-    bool operator != (TCompatPtrWithIndexes other) const;
-
     bool operator <  (TCompatPtrWithIndexes other) const;
     bool operator <= (TCompatPtrWithIndexes other) const;
     bool operator >  (TCompatPtrWithIndexes other) const;

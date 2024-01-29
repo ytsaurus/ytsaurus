@@ -13,11 +13,6 @@ bool operator == (TNullLiteralValue, TNullLiteralValue)
     return true;
 }
 
-bool operator != (TNullLiteralValue, TNullLiteralValue)
-{
-    return false;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 i64 TDoubleOrDotIntToken::AsDotInt() const
@@ -49,22 +44,11 @@ bool operator == (const TCompositeTypeMemberAccessor& lhs, const TCompositeTypeM
         std::tie(rhs.NestedStructOrTupleItemAccessor, rhs.DictOrListItemAccessor);
 }
 
-bool operator != (const TCompositeTypeMemberAccessor& lhs, const TCompositeTypeMemberAccessor& rhs)
-{
-    return !(lhs == rhs);
-}
-
-
 bool operator == (const TReference& lhs, const TReference& rhs)
 {
     return
         std::tie(lhs.ColumnName, lhs.TableName, lhs.CompositeTypeAccessor) ==
         std::tie(rhs.ColumnName, rhs.TableName, rhs.CompositeTypeAccessor);
-}
-
-bool operator != (const TReference& lhs, const TReference& rhs)
-{
-    return !(lhs == rhs);
 }
 
 size_t ReferenceHasher::operator() (const TReference& reference) const
@@ -135,19 +119,9 @@ bool operator == (const TExpressionList& lhs, const TExpressionList& rhs)
     return ExpressionListEqual(lhs, rhs);
 }
 
-bool operator != (const TExpressionList& lhs, const TExpressionList& rhs)
-{
-    return !(lhs == rhs);
-}
-
 bool operator == (const TIdentifierList& lhs, const TIdentifierList& rhs)
 {
     return ExpressionListEqual(lhs, rhs);
-}
-
-bool operator != (const TIdentifierList& lhs, const TIdentifierList& rhs)
-{
-    return !(lhs == rhs);
 }
 
 bool operator == (const TExpression& lhs, const TExpression& rhs)
@@ -247,11 +221,6 @@ bool operator == (const TExpression& lhs, const TExpression& rhs)
     }
 }
 
-bool operator != (const TExpression& lhs, const TExpression& rhs)
-{
-    return !(lhs == rhs);
-}
-
 TStringBuf TExpression::GetSource(TStringBuf source) const
 {
     auto begin = SourceLocation.first;
@@ -275,33 +244,11 @@ bool operator == (const TTableDescriptor& lhs, const TTableDescriptor& rhs)
         std::tie(rhs.Path, rhs.Alias);
 }
 
-bool operator != (const TTableDescriptor& lhs, const TTableDescriptor& rhs)
-{
-    return !(lhs == rhs);
-}
-
 bool operator == (const TJoin& lhs, const TJoin& rhs)
 {
     return
         std::tie(lhs.IsLeft, lhs.Table, lhs.Fields, lhs.Lhs, lhs.Rhs, lhs.Predicate) ==
         std::tie(rhs.IsLeft, rhs.Table, rhs.Fields, rhs.Lhs, rhs.Rhs, rhs.Predicate);
-}
-
-bool operator != (const TJoin& lhs, const TJoin& rhs)
-{
-    return !(lhs == rhs);
-}
-
-bool operator == (const TArrayJoin& lhs, const TArrayJoin& rhs)
-{
-    return
-        std::tie(lhs.IsLeft, lhs.Columns) ==
-        std::tie(rhs.IsLeft, rhs.Columns);
-}
-
-bool operator != (const TArrayJoin& lhs, const TArrayJoin& rhs)
-{
-    return !(lhs == rhs);
 }
 
 bool operator == (const TQuery& lhs, const TQuery& rhs)
@@ -329,11 +276,6 @@ bool operator == (const TQuery& lhs, const TQuery& rhs)
             rhs.OrderExpressions,
             rhs.Offset,
             rhs.Limit);
-}
-
-bool operator != (const TQuery& lhs, const TQuery& rhs)
-{
-    return !(lhs == rhs);
 }
 
 void FormatLiteralValue(TStringBuilderBase* builder, const TLiteralValue& value)

@@ -55,18 +55,6 @@ TCumulativeStatisticsEntry TCumulativeStatisticsEntry::operator-(const TCumulati
     };
 }
 
-bool TCumulativeStatisticsEntry::operator==(const TCumulativeStatisticsEntry& other) const
-{
-    return RowCount == other.RowCount &&
-        ChunkCount == other.ChunkCount &&
-        DataSize == other.DataSize;
-}
-
-bool TCumulativeStatisticsEntry::operator!=(const TCumulativeStatisticsEntry& other) const
-{
-    return !(*this == other);
-}
-
 TString ToString(const TCumulativeStatisticsEntry& entry)
 {
     return ConvertToYsonString(entry, EYsonFormat::Text).ToString();

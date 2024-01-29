@@ -99,7 +99,6 @@ TJobResources& operator *= (TJobResources& lhs, double rhs);
 TJobResources  operator -  (const TJobResources& resources);
 
 bool operator == (const TJobResources& lhs, const TJobResources& rhs);
-bool operator != (const TJobResources& lhs, const TJobResources& rhs);
 
 bool Dominates(const TJobResources& lhs, const TJobResources& rhs);
 bool StrictlyDominates(const TJobResources& lhs, const TJobResources& rhs);

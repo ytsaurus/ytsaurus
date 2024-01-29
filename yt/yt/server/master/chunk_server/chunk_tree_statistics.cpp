@@ -114,11 +114,6 @@ bool TChunkTreeStatistics::operator == (const TChunkTreeStatistics& other) const
         (LogicalDataWeight == -1 || other.LogicalDataWeight == -1 || LogicalDataWeight == other.LogicalDataWeight);
 }
 
-bool TChunkTreeStatistics::operator != (const TChunkTreeStatistics& other) const
-{
-    return !(*this == other);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TString ToString(const TChunkTreeStatistics& statistics)

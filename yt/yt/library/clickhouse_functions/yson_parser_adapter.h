@@ -82,7 +82,6 @@ struct TYsonParserAdapter
             Iterator & operator ++() { ++Index_; return *this; }
             Iterator operator ++(int) { auto res = *this; ++Index_; return res; }
             friend bool operator ==(const Iterator & left, const Iterator & right) { return (left.Index_ == right.Index_) && (left.ListNode_ == right.ListNode_); }
-            friend bool operator !=(const Iterator & left, const Iterator & right) { return !(left == right); }
         private:
             NYTree::IListNodePtr ListNode_;
             size_t Index_ = 0;
@@ -112,7 +111,6 @@ struct TYsonParserAdapter
             Iterator & operator ++() { ++Index_; return *this; }
             Iterator operator ++(int) { auto res = *this; ++Index_; return res; }
             friend bool operator ==(const Iterator & left, const Iterator & right) { return (left.Index_ == right.Index_) && (left.KeyValuePairs_ == right.KeyValuePairs_); }
-            friend bool operator !=(const Iterator & left, const Iterator & right) { return !(left == right); }
         private:
             // Children of the parent's map node.
             // We store it here to lock the order and to return std::string_view on keys in some methods.

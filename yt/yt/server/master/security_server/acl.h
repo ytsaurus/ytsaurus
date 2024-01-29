@@ -65,7 +65,7 @@ struct TAccessControlList
     void Persist(const NCellMaster::TPersistenceContext& context);
     void Persist(const NCypressServer::TCopyPersistenceContext& context);
 
-    bool operator==(const TAccessControlList&) const = default;
+    bool operator==(const TAccessControlList& other) const = default;
 };
 
 void Serialize(const TAccessControlList& acl, NYson::IYsonConsumer* consumer);

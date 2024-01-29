@@ -159,7 +159,7 @@ private:
         int ReaderIndex;
         int BlockIndex;
 
-        bool operator==(const TBlockDescriptor&) const = default;
+        bool operator==(const TBlockDescriptor& other) const = default;
     };
 
     void FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryUsageGuardOrError);

@@ -68,8 +68,7 @@ private:
         TString UserName;
         std::optional<TString> CustomTag;
 
-        bool operator == (const TOperationUserProfilingTag& other) const;
-        bool operator != (const TOperationUserProfilingTag& other) const;
+        bool operator==(const TOperationUserProfilingTag& other) const = default;
     };
 
     struct TOperationProfilingEntry

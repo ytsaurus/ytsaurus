@@ -41,6 +41,8 @@ struct TCellStatus
     ECellHealth Health;
     bool Decommissioned;
 
+    bool operator== (const TCellStatus& other) const = default;
+
     void Persist(const NCellMaster::TPersistenceContext& context);
 };
 
@@ -48,9 +50,6 @@ void ToProto(NProto::TCellStatus* protoStatus, const TCellStatus& statistics);
 void FromProto(TCellStatus* status, const NProto::TCellStatus& protoStatistics);
 
 void Serialize(const TCellStatus& status, NYson::IYsonConsumer* consumer);
-
-bool operator == (const TCellStatus& lhs, const TCellStatus& rhs);
-bool operator != (const TCellStatus& lhs, const TCellStatus& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

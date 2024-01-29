@@ -81,16 +81,6 @@ void Serialize(const TCellStatus& status, NYson::IYsonConsumer* consumer)
         .EndMap();
 }
 
-bool operator == (const TCellStatus& lhs, const TCellStatus& rhs)
-{
-    return lhs.Health == rhs.Health && lhs.Decommissioned == rhs.Decommissioned;
-}
-
-bool operator != (const TCellStatus& lhs, const TCellStatus& rhs)
-{
-    return !(lhs == rhs);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void TCellBase::TPeer::Persist(const NCellMaster::TPersistenceContext& context)

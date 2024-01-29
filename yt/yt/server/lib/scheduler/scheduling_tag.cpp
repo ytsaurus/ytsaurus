@@ -53,11 +53,6 @@ bool operator==(const TSchedulingTagFilter& lhs, const TSchedulingTagFilter& rhs
     return lhs.GetBooleanFormula() == rhs.GetBooleanFormula();
 }
 
-bool operator!=(const TSchedulingTagFilter& lhs, const TSchedulingTagFilter& rhs)
-{
-    return !(lhs.GetBooleanFormula() == rhs.GetBooleanFormula());
-}
-
 TSchedulingTagFilter operator&(const TSchedulingTagFilter& lhs, const TSchedulingTagFilter& rhs)
 {
     return TSchedulingTagFilter(lhs.GetBooleanFormula() & rhs.GetBooleanFormula());

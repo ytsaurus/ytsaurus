@@ -85,16 +85,6 @@ void FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TPreemptedFor::operator == (const TPreemptedFor& other) const noexcept
-{
-    return AllocationId == other.AllocationId && OperationId == other.OperationId;
-}
-
-bool TPreemptedFor::operator != (const TPreemptedFor& other) const noexcept
-{
-    return !(*this == other);
-}
-
 TString ToString(const TPreemptedFor& preemptedFor)
 {
     return Format(

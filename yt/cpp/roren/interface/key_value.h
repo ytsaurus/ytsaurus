@@ -146,12 +146,6 @@ bool operator == (const TKV<K, V>& lhs, const TKV<K, V>& rhs)
 }
 
 template <typename K, typename V>
-bool operator != (const TKV<K, V>& lhs, const TKV<K, V>& rhs)
-{
-    return !(lhs == rhs);
-}
-
-template <typename K, typename V>
 static inline IOutputStream& operator<<(IOutputStream& o, const TKV<K, V>& v)
 {
     return o << "TKV{ " << v.Key() << ", " << v.Value() << '}';

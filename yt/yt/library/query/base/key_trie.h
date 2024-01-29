@@ -21,17 +21,7 @@ struct TBound
         , Included(included)
     { }
 
-    bool operator == (const TBound& other) const
-    {
-        return Value == other.Value
-            && Included == other.Included;
-    }
-
-    bool operator != (const TBound& other) const
-    {
-        return !(*this == other);
-    }
-
+    bool operator==(const TBound& other) const = default;
 };
 
 void UniteBounds(std::vector<std::vector<TBound>>* bounds);

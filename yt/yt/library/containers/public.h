@@ -145,7 +145,7 @@ struct TInstanceLimits
     std::optional<i64> NetTx;
     std::optional<i64> NetRx;
 
-    bool operator==(const TInstanceLimits&) const = default;
+    bool operator==(const TInstanceLimits& other) const = default;
 };
 
 DECLARE_REFCOUNTED_STRUCT(IContainerManager)
