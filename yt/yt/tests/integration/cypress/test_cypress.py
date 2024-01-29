@@ -222,8 +222,8 @@ class TestCypress(YTEnvSetup):
 
         assert get("//tmp/old_list") == [1, 2, "string"]
 
-        with raises_yt_error("List nodes are deprecated"):
-            copy("//tmp/old_list", "//tmp/list")
+        copy("//tmp/old_list", "//tmp/list")
+        assert get("//tmp/list") == get("//tmp/old_list")
 
         set("//tmp/old_list/end", 123)
         assert get("//tmp/old_list", [1, 2, "string", 123])

@@ -1050,10 +1050,6 @@ public:
         TNodeId hintId,
         const TCreateNodeContext& context) override;
 
-    std::unique_ptr<TCypressNode> Instantiate(
-        TVersionedNodeId id,
-        NObjectClient::TCellTag externalCellTag) override;
-
 private:
     ICypressNodeProxyPtr DoGetProxy(
         TListNode* trunkNode,

@@ -196,6 +196,7 @@ DEFINE_ENUM(EMasterReign,
     ((CreateHunkStorageWithProperAttributes_23_2)                   (2456))  // akozhikhov
     ((FixChunkMergerCopy)                                           (2457))  // aleksandra-zh
     ((ChaosReplicatedConsumersFix)                                  (2458))  // cherepashka
+    ((FixListNodeDeprecation_23_2)                                  (2459))  // kvk1920
     // 24.1 starts here.
     ((SecondaryIndex)                                               (2500))  // sabdenovch
     ((SecondaryIndexReplication)                                    (2501))  // sabdenovch
@@ -220,6 +221,7 @@ DEFINE_ENUM(EMasterReign,
     ((SecondaryIndexOverReplicatedTables)                           (2520))  // sabdenovch
     ((MakeRequisitionComputationSharded)                            (2521))  // danilalexeev
     ((FixMutationTypeNaming)                                        (2522))  // babenko
+    ((FixListNodeDeprecation)                                       (2523))  // kvk1920
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
