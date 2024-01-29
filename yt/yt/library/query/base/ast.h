@@ -88,10 +88,10 @@ struct TCompositeTypeMemberAccessor
     TStructAndTupleMemberAccessor NestedStructOrTupleItemAccessor;
     TDictOrListItemAccessor DictOrListItemAccessor;
 
-    bool Empty() const;
-};
+    bool IsEmpty() const;
 
-bool operator == (const TCompositeTypeMemberAccessor& lhs, const TCompositeTypeMemberAccessor& rhs);
+    bool operator == (const TCompositeTypeMemberAccessor& other) const = default;
+};
 
 struct TReference
 {
@@ -101,7 +101,7 @@ struct TReference
 
     TReference() = default;
 
-    TReference(
+    explicit TReference(
         const TString& columnName,
         const std::optional<TString>& tableName = {},
         const TCompositeTypeMemberAccessor& compositeTypeAccessor = {})
@@ -109,26 +109,26 @@ struct TReference
         , TableName(tableName)
         , CompositeTypeAccessor(compositeTypeAccessor)
     { }
+
+    bool operator == (const TReference& other) const = default;
 };
 
-bool operator == (const TReference& lhs, const TReference& rhs);
-
-struct ReferenceHasher
+struct TReferenceHasher
 {
     size_t operator() (const NAst::TReference& reference) const;
 };
 
-struct ReferenceEqComparer
+struct TReferenceEqComparer
 {
     bool operator() (const NAst::TReference& lhs, const NAst::TReference& rhs) const;
 };
 
-struct CompositeAgnosticReferenceHasher
+struct TCompositeAgnosticReferenceHasher
 {
     size_t operator() (const NAst::TReference& reference) const;
 };
 
-struct CompositeAgnosticReferenceEqComparer
+struct TCompositeAgnosticReferenceEqComparer
 {
     bool operator() (const NAst::TReference& lhs, const NAst::TReference& rhs) const;
 };

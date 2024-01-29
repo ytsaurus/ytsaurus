@@ -18,7 +18,7 @@ bool operator == (TNullLiteralValue, TNullLiteralValue)
 i64 TDoubleOrDotIntToken::AsDotInt() const
 {
     if (Representation.empty() || Representation[0] != '.') {
-        THROW_ERROR_EXCEPTION("Expected dot token and then integer token, but got %v",
+        THROW_ERROR_EXCEPTION("Expected dot token and then integer token, but got %Qv",
             Representation);
     }
 
@@ -32,26 +32,12 @@ double TDoubleOrDotIntToken::AsDouble() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TCompositeTypeMemberAccessor::Empty() const
+bool TCompositeTypeMemberAccessor::IsEmpty() const
 {
     return NestedStructOrTupleItemAccessor.empty() && !DictOrListItemAccessor.has_value();
 }
 
-bool operator == (const TCompositeTypeMemberAccessor& lhs, const TCompositeTypeMemberAccessor& rhs)
-{
-    return
-        std::tie(lhs.NestedStructOrTupleItemAccessor, lhs.DictOrListItemAccessor) ==
-        std::tie(rhs.NestedStructOrTupleItemAccessor, rhs.DictOrListItemAccessor);
-}
-
-bool operator == (const TReference& lhs, const TReference& rhs)
-{
-    return
-        std::tie(lhs.ColumnName, lhs.TableName, lhs.CompositeTypeAccessor) ==
-        std::tie(rhs.ColumnName, rhs.TableName, rhs.CompositeTypeAccessor);
-}
-
-size_t ReferenceHasher::operator() (const TReference& reference) const
+size_t TReferenceHasher::operator() (const TReference& reference) const
 {
     size_t result = 0;
     HashCombine(result, reference.ColumnName);
@@ -78,12 +64,12 @@ size_t ReferenceHasher::operator() (const TReference& reference) const
     return result;
 }
 
-bool ReferenceEqComparer::operator() (const TReference& lhs, const TReference& rhs) const
+bool TReferenceEqComparer::operator() (const TReference& lhs, const TReference& rhs) const
 {
     return lhs == rhs;
 }
 
-size_t CompositeAgnosticReferenceHasher::operator() (const TReference& reference) const
+size_t TCompositeAgnosticReferenceHasher::operator() (const TReference& reference) const
 {
     size_t result = 0;
     HashCombine(result, reference.ColumnName);
@@ -91,7 +77,7 @@ size_t CompositeAgnosticReferenceHasher::operator() (const TReference& reference
     return result;
 }
 
-bool CompositeAgnosticReferenceEqComparer::operator() (const TReference& lhs, const TReference& rhs) const
+bool TCompositeAgnosticReferenceEqComparer::operator() (const TReference& lhs, const TReference& rhs) const
 {
     return
         std::tie(lhs.ColumnName, lhs.TableName) ==

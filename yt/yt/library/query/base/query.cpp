@@ -220,15 +220,6 @@ void TCompositeMemberAccessorPath::Reserve(int length)
     TupleItemIndices.reserve(length);
 }
 
-bool TCompositeMemberAccessorPath::operator == (const TCompositeMemberAccessorPath& other) const
-{
-    return
-        NestedTypes == other.NestedTypes &&
-        NamedStructMembers == other.NamedStructMembers &&
-        PositionalStructMembers == other.PositionalStructMembers &&
-        TupleItemIndices == other.TupleItemIndices;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TNamedItem::TNamedItem(

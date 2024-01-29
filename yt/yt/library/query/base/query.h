@@ -266,7 +266,7 @@ struct TCompositeMemberAccessorPath
     void AppendTupleItem(int index);
     void Reserve(int length);
 
-    bool operator == (const TCompositeMemberAccessorPath& other) const;
+    bool operator == (const TCompositeMemberAccessorPath& other) const = default;
 };
 
 struct TCompositeMemberAccessorExpression
@@ -279,7 +279,7 @@ struct TCompositeMemberAccessorExpression
     TDictOrListItemAccessorExpression DictOrListItemAccessor;
 
     explicit TCompositeMemberAccessorExpression(NTableClient::TLogicalTypePtr type)
-        : TExpression(type)
+        : TExpression(std::move(type))
     { }
 
     TCompositeMemberAccessorExpression(
@@ -287,7 +287,7 @@ struct TCompositeMemberAccessorExpression
         TConstExpressionPtr compositeExpression,
         TCompositeMemberAccessorPath nestedStructOrTupleItemAccess,
         TDictOrListItemAccessorExpression dictOrListItemAccess)
-        : TExpression(type)
+        : TExpression(std::move(type))
         , CompositeExpression(std::move(compositeExpression))
         , NestedStructOrTupleItemAccessor(std::move(nestedStructOrTupleItemAccess))
         , DictOrListItemAccessor(std::move(dictOrListItemAccess))

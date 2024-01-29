@@ -6805,16 +6805,16 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorWithIncorrectPath)
 
         EXPECT_THROW_THAT(
             EvaluateWithSyntaxV2("t.struct.not_exists as n from `//t` as t", split, source, ResultMatcher(result)),
-            HasSubstr("Member not found: not_exists"));
+            HasSubstr("Member \"not_exists\" is not found"));
         EXPECT_THROW_THAT(
             EvaluateWithSyntaxV2("t.struct.a.b.not_exists as n from `//t` as t", split, source, ResultMatcher(result)),
-            HasSubstr("Member not found: not_exists"));
+            HasSubstr("Member \"not_exists\" is not found"));
         EXPECT_THROW_THAT(
             EvaluateWithSyntaxV2("t.struct.tuple.incorrect_index as n from `//t` as t", split, source, ResultMatcher(result)),
-            HasSubstr("Member not found: incorrect_index"));
+            HasSubstr("Member \"incorrect_index\" is not found"));
         EXPECT_THROW_THAT(
             EvaluateWithSyntaxV2("t.struct.tuple.incorrect.index as n from `//t` as t", split, source, ResultMatcher(result)),
-            HasSubstr("Member not found: incorrect"));
+            HasSubstr("Member \"incorrect\" is not found"));
         EXPECT_THROW_THAT(
             EvaluateWithSyntaxV2("t.struct.d[1] as n from `//t` as t", split, source, ResultMatcher(result)),
             HasSubstr("Incorrect nested item accessor"));
@@ -6823,7 +6823,7 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorWithIncorrectPath)
             HasSubstr("Incorrect nested item accessor"));
         EXPECT_THROW_THAT(
             EvaluateWithSyntaxV2("t.struct.tuple.11 as n from `//t` as t", split, source, ResultMatcher(result)),
-            HasSubstr("Member not found: 11"));
+            HasSubstr("Member \"11\" is not found"));
     }
     {
         auto resultSplit = MakeSplit({{"n", EValueType::String}});

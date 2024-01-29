@@ -72,7 +72,7 @@ private:
     std::optional<TPlaceholderLexerData> Placeholder_;
 
     THashMap<TString, TString> PlaceholderValues_;
-    int SyntaxVersion_;
+    const int SyntaxVersion_;
 
     std::optional<TParser::token_type> GetNextTokenFromPlaceholder(
         TParser::semantic_type* yyval,

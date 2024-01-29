@@ -1246,8 +1246,8 @@ public:
     THashMap<
         NAst::TReference,
         TColumnEntry,
-        NAst::CompositeAgnosticReferenceHasher,
-        NAst::CompositeAgnosticReferenceEqComparer> Lookup;
+        NAst::TCompositeAgnosticReferenceHasher,
+        NAst::TCompositeAgnosticReferenceEqComparer> Lookup;
 
     TBuilderCtxBase(
         const TTableSchema& schema,
@@ -1712,7 +1712,7 @@ TBuilderCtx::ResolveNestedTypesResult TBuilderCtx::ResolveNestedTypes(
         Visit(item,
             [&] (const NAst::TStructMemberAccessor& structMember) {
                 if (current->GetMetatype() != ELogicalMetatype::Struct) {
-                    THROW_ERROR_EXCEPTION("Member not found: %v", structMember)
+                    THROW_ERROR_EXCEPTION("Member %Qv is not found", structMember)
                         << TErrorAttribute("source", NAst::FormatReference(reference));
                 }
 
@@ -1725,19 +1725,19 @@ TBuilderCtx::ResolveNestedTypesResult TBuilderCtx::ResolveNestedTypes(
                     }
                 }
 
-                THROW_ERROR_EXCEPTION("Member not found: %v", structMember)
+                THROW_ERROR_EXCEPTION("Member %Qv is not found", structMember)
                     << TErrorAttribute("source", NAst::FormatReference(reference));
             },
             [&] (const NAst::TTupleItemIndexAccessor& itemIndex) {
                 if (current->GetMetatype() != ELogicalMetatype::Tuple) {
-                    THROW_ERROR_EXCEPTION("Member not found: %v", itemIndex)
+                    THROW_ERROR_EXCEPTION("Member %Qv is not found", itemIndex)
                         << TErrorAttribute("source", NAst::FormatReference(reference));
                 }
 
                 const auto& tupleElements = current->AsTupleTypeRef().GetElements();
 
                 if (itemIndex < 0 || itemIndex >= std::ssize(tupleElements)) {
-                    THROW_ERROR_EXCEPTION("Member not found: %v", itemIndex)
+                    THROW_ERROR_EXCEPTION("Member %Qv is not found", itemIndex)
                         << TErrorAttribute("source", NAst::FormatReference(reference));
                 }
 
@@ -1755,8 +1755,8 @@ TBuilderCtx::ResolveNestedTypesResult TBuilderCtx::ResolveNestedTypes(
         } else if (current->GetMetatype() == ELogicalMetatype::Dict) {
             auto keyType = GetWireType(current->AsDictTypeRef().GetKey());
             if (keyType != EValueType::String) {
-                THROW_ERROR_EXCEPTION("Expected string key type, but got %v",
-                    ToString(keyType))
+                THROW_ERROR_EXCEPTION("Expected string key type, but got %Qlv",
+                    keyType)
                     << TErrorAttribute("source", NAst::FormatReference(reference));
             }
             resultType = current->AsDictTypeRef().GetValue();
@@ -1817,12 +1817,12 @@ TUntypedExpression TBuilderCtx::UnwrapCompositeMemberAccessor(
     auto columnType = column.LogicalType;
     auto columnReference = New<TReferenceExpression>(columnType, column.Name);
 
-    if (reference.CompositeTypeAccessor.Empty()) {
+    if (reference.CompositeTypeAccessor.IsEmpty()) {
         auto generator = [columnReference] (EValueType /*type*/) {
             return columnReference;
         };
 
-        return TUntypedExpression{TTypeSet({GetWireType(columnType)}), std::move(generator), false};
+        return {TTypeSet({GetWireType(columnType)}), std::move(generator), false};
     }
 
     auto resolved = ResolveNestedTypes(columnType, reference);
@@ -1838,7 +1838,7 @@ TUntypedExpression TBuilderCtx::UnwrapCompositeMemberAccessor(
         return memberAccessor;
     };
 
-    return TUntypedExpression{TTypeSet({GetWireType(resolved.ResultType)}), std::move(generator), false};
+    return {TTypeSet({GetWireType(resolved.ResultType)}), std::move(generator), /*IsConstant*/ false};
 }
 
 TUntypedExpression TBuilderCtx::OnReference(const NAst::TReference& reference)

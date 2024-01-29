@@ -2005,20 +2005,20 @@ class TestQuery(DynamicTablesBase):
     def test_composite_types(self):
         sync_create_cells(1)
 
-        tt = "//tmp/t"
+        path = "//tmp/t"
 
-        create_dynamic_table(tt, schema=[
+        create_dynamic_table(path, schema=[
             make_sorted_column("key", "int64"),
             make_column("value", struct_type([("a", "int16"), ("b", "int16"), ])),
         ])
 
-        sync_mount_table(tt)
+        sync_mount_table(path)
 
-        insert_rows(tt, [{"key": i, "value": {"a": i, "b": i*2}} for i in range(100)])
+        insert_rows(path, [{"key": i, "value": {"a": i, "b": i*2}} for i in range(100)])
 
         expected = [{"k": i, "v": i} for i in range(100)]
 
-        actual = select_rows(f"t.key as k, t.value.a as v from `{tt}` as t limit 100", syntax_version=2)
+        actual = select_rows(f"t.key as k, t.value.a as v from `{path}` as t limit 100", syntax_version=2)
         assert expected == actual
 
 
