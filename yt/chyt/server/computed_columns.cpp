@@ -218,7 +218,7 @@ struct TComputedColumnPopulationMatcher
                     variables.GetOpaqueData(),
                     &resultValue,
                     TRange<TUnversionedValue>(referenceValues.data(), referenceValues.size()),
-                    rowBuffer.Get());
+                    rowBuffer);
 
                 resultValue.Id = 0;
             } catch (const TErrorException& ex) {

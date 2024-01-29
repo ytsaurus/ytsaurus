@@ -163,7 +163,7 @@ struct TMultiJoinClosure
 
     struct TItem
     {
-        TExpressionContext Buffer;
+        TExpressionContext Context;
         size_t KeySize;
         NWebAssembly::TCompartmentFunction<TComparerFunction> PrefixEqComparer;
 
@@ -179,7 +179,7 @@ struct TMultiJoinClosure
             NWebAssembly::TCompartmentFunction<TComparerFunction> lookupEqComparer);
     };
 
-    TExpressionContext Buffer;
+    TExpressionContext Context;
 
     std::vector<TPIValue*> PrimaryRows;
 
@@ -195,9 +195,9 @@ class TGroupByClosure;
 
 struct TWriteOpClosure
 {
-    TExpressionContext OutputBuffer;
+    TExpressionContext OutputContext;
 
-    // Rows stored in OutputBuffer
+    // Rows stored in OutputContext
     std::vector<TRow> OutputRowsBatch;
     size_t RowSize;
 
@@ -281,8 +281,8 @@ private:
     size_t RowSize_;
     IMemoryChunkProviderPtr MemoryChunkProvider_;
 
-    std::vector<TExpressionContext> Buffers_;
-    std::vector<int> EmptyBufferIds_;
+    std::vector<TExpressionContext> Contexts_;
+    std::vector<int> EmptyContextIds_;
     std::vector<std::pair<const TPIValue*, int>> Rows_;
 
     std::pair<const TPIValue*, int> Capture(const TPIValue* row);

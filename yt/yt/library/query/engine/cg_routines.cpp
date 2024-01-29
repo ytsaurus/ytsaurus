@@ -137,11 +137,11 @@ bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TPIValue* va
 
     auto& batch = closure->OutputRowsBatch;
 
-    auto& rowBuffer = closure->OutputBuffer;
+    auto& outputContext = closure->OutputContext;
 
     YT_ASSERT(batch.size() < WriteRowsetSize);
 
-    batch.push_back(CopyAndConvertFromPI(&rowBuffer, MakeRange(values, closure->RowSize)));
+    batch.push_back(CopyAndConvertFromPI(&outputContext, MakeRange(values, closure->RowSize)));
 
     // NB: Flags are neither set from TCG value nor cleared during row allocation.
     // XXX(babenko): fix this
@@ -169,7 +169,7 @@ bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TPIValue* va
                 .ThrowOnError();
         }
         batch.clear();
-        rowBuffer.Clear();
+        outputContext.Clear();
     }
 
     return false;
@@ -206,7 +206,7 @@ void ScanOpHelper(
 
     TYielder yielder;
 
-    auto rowBuffer = MakeExpressionContext(TIntermediateBufferTag());
+    auto scanContext = MakeExpressionContext(TIntermediateBufferTag());
     std::vector<TUnversionedRow> rows;
 
     bool interrupt = false;
@@ -257,12 +257,12 @@ void ScanOpHelper(
             }
         }
 
-        interrupt |= consumeRows(consumeRowsClosure, &rowBuffer, values.data(), values.size());
+        interrupt |= consumeRows(consumeRowsClosure, &scanContext, values.data(), values.size());
 
         yielder.Checkpoint(statistics->RowsRead);
 
         values.clear();
-        rowBuffer.Clear();
+        scanContext.Clear();
 
         if (!context->IsMerge) {
             readOptions.MaxRowsPerRead = std::min(2 * readOptions.MaxRowsPerRead, RowsetProcessingBatchSize);
@@ -289,7 +289,7 @@ TPIValue* AllocateJoinKeys(
     for (size_t joinId = 0; joinId < closure->Items.size(); ++joinId) {
         auto& item = closure->Items[joinId];
         char* data = AllocateAlignedBytes(
-            &item.Buffer,
+            &item.Context,
             GetUnversionedRowByteSize(item.KeySize) + sizeof(TSlot));
         auto row = TMutableRow::Create(data, item.KeySize);
         keyPtrs[joinId] = reinterpret_cast<TPIValue*>(row.Begin());
@@ -297,7 +297,7 @@ TPIValue* AllocateJoinKeys(
 
     size_t primaryRowSize = closure->PrimaryRowSize * sizeof(TPIValue) + sizeof(TSlot*) * closure->Items.size();
 
-    return reinterpret_cast<TPIValue*>(AllocateAlignedBytes(&closure->Buffer, primaryRowSize));
+    return reinterpret_cast<TPIValue*>(AllocateAlignedBytes(&closure->Context, primaryRowSize));
 }
 
 bool StorePrimaryRow(
@@ -313,7 +313,7 @@ bool StorePrimaryRow(
     closure->PrimaryRows.emplace_back(*primaryValues);
 
     for (size_t columnIndex = 0; columnIndex < closure->PrimaryRowSize; ++columnIndex) {
-        CapturePIValue(&closure->Buffer, *primaryValues + columnIndex);
+        CapturePIValue(&closure->Context, *primaryValues + columnIndex);
     }
 
     for (size_t joinId = 0; joinId < closure->Items.size(); ++joinId) {
@@ -333,11 +333,11 @@ bool StorePrimaryRow(
         auto inserted = item.Lookup.insert(key);
         if (inserted.second) {
             for (size_t columnIndex = 0; columnIndex < item.KeySize; ++columnIndex) {
-                CapturePIValue(&closure->Items[joinId].Buffer, &key[columnIndex]);
+                CapturePIValue(&closure->Items[joinId].Context, &key[columnIndex]);
             }
 
             char* data = AllocateAlignedBytes(
-                &item.Buffer,
+                &item.Context,
                 GetUnversionedRowByteSize(item.KeySize) + sizeof(TSlot));
             auto row = TMutableRow::Create(data, item.KeySize);
             *keyPtr = reinterpret_cast<TPIValue*>(row.Begin());
@@ -358,7 +358,7 @@ bool StorePrimaryRow(
         for (size_t joinId = 0; joinId < closure->Items.size(); ++joinId) {
             auto& item = closure->Items[joinId];
             char* data = AllocateAlignedBytes(
-                &item.Buffer,
+                &item.Context,
                 GetUnversionedRowByteSize(item.KeySize) + sizeof(TSlot));
             auto row = TMutableRow::Create(data, item.KeySize);
             keysPtr[joinId] = reinterpret_cast<TPIValue*>(row.Begin());
@@ -367,7 +367,7 @@ bool StorePrimaryRow(
 
     size_t primaryRowSize = closure->PrimaryRowSize * sizeof(TValue) + sizeof(TSlot*) * closure->Items.size();
 
-    *primaryValues = reinterpret_cast<TPIValue*>(AllocateAlignedBytes(&closure->Buffer, primaryRowSize));
+    *primaryValues = reinterpret_cast<TPIValue*>(AllocateAlignedBytes(&closure->Context, primaryRowSize));
 
     return false;
 }
@@ -427,7 +427,7 @@ void MultiJoinOpHelper(
     });
 
     TMultiJoinClosure closure;
-    closure.Buffer = MakeExpressionContext(TPermanentBufferTag(), context->MemoryChunkProvider);
+    closure.Context = MakeExpressionContext(TPermanentBufferTag(), context->MemoryChunkProvider);
     closure.PrimaryRowSize = parameters->PrimaryRowSize;
     closure.BatchSize = parameters->BatchSize;
 
@@ -462,7 +462,7 @@ void MultiJoinOpHelper(
             YT_LOG_DEBUG("Joining finished");
         });
 
-        auto foreignExecutionContext = MakeExpressionContext(TForeignExecutorBufferTag());
+        auto foreignContext = MakeExpressionContext(TForeignExecutorBufferTag());
 
         std::vector<ISchemafulUnversionedReaderPtr> readers;
         for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
@@ -481,10 +481,10 @@ void MultiJoinOpHelper(
                 orderedKeys.emplace_back(key, row.GetCount());
             }
 
-            auto foreignExecutorCopy = CopyAndConvertFromPI(&foreignExecutionContext, orderedKeys);
+            auto foreignExecutorCopy = CopyAndConvertFromPI(&foreignContext, orderedKeys);
             auto reader = parameters->Items[joinId].ExecuteForeign(
                 foreignExecutorCopy,
-                foreignExecutionContext.GetRowBuffer());
+                foreignContext.GetRowBuffer());
             readers.push_back(reader);
 
             closure.Items[joinId].Lookup.clear();
@@ -586,7 +586,7 @@ void MultiJoinOpHelper(
                 }
 
                 for (auto row : foreignRows) {
-                    auto captured = closure.Buffer.CaptureRow(row);
+                    auto captured = closure.Context.CaptureRow(row);
                     auto asPositionIndependent = InplaceConvertToPI(captured);
                     foreignValues.push_back(asPositionIndependent.Begin());
                 }
@@ -626,7 +626,7 @@ void MultiJoinOpHelper(
             YT_LOG_DEBUG("Finished precessing foreign rowset (SortingTime: %v)", sortingForeignTime);
         }
 
-        auto intermediateBuffer = MakeExpressionContext(TIntermediateBufferTag());
+        auto intermediateContext = MakeExpressionContext(TIntermediateBufferTag());
         std::vector<const TPIValue*> joinedRows;
 
         i64 processedRows = 0;
@@ -636,11 +636,11 @@ void MultiJoinOpHelper(
             processedRows += joinedRows.size();
             bool finished = consumeRows(
                 consumeRowsClosure,
-                &intermediateBuffer,
+                &intermediateContext,
                 joinedRows.data(),
                 joinedRows.size());
             joinedRows.clear();
-            intermediateBuffer.Clear();
+            intermediateContext.Clear();
             yielder.Checkpoint(processedRows);
             return finished;
         };
@@ -660,7 +660,7 @@ void MultiJoinOpHelper(
         auto joinRow = [&] (TPIValue* rowValues) -> bool {
             size_t incrementIndex = 0;
             while (incrementIndex < closure.Items.size()) {
-                auto joinedRow = AllocatePIValueRange(&intermediateBuffer, resultRowSize);
+                auto joinedRow = AllocatePIValueRange(&intermediateContext, resultRowSize);
                 for (size_t index = 0; index < closure.PrimaryRowSize; ++index) {
                     CopyPositionIndependent(&joinedRow[index], rowValues[index]);
                 }
@@ -727,9 +727,9 @@ void MultiJoinOpHelper(
         }
 
         closure.PrimaryRows.clear();
-        closure.Buffer.Clear();
+        closure.Context.Clear();
         for (auto& joinItem : closure.Items) {
-            joinItem.Buffer.Clear();
+            joinItem.Context.Clear();
         }
 
         return finished;
@@ -737,7 +737,7 @@ void MultiJoinOpHelper(
 
     try {
         // Collect join ids.
-        collectRows(collectRowsClosure, &closure, &closure.Buffer);
+        collectRows(collectRowsClosure, &closure, &closure.Context);
     } catch (const TInterruptedIncompleteException&) {
         // Set incomplete and continue
         context->Statistics->IncompleteOutput = true;
@@ -932,8 +932,8 @@ public:
     // Flushes grouped rows.
     Y_FORCE_INLINE void Flush(const TExecutionContext* context, EStreamTag incomingTag);
 
-    // Returns buffer that holds grouped rows.
-    Y_FORCE_INLINE TExpressionContext* GetBuffer();
+    // Returns context that holds grouped rows.
+    Y_FORCE_INLINE TExpressionContext* GetContext();
 
     // Number of processed rows for logging.
     Y_FORCE_INLINE i64 GetProcessedRowCount() const;
@@ -945,9 +945,9 @@ public:
     Y_FORCE_INLINE bool IsFlushed() const;
 
 private:
-    TExpressionContext Buffer_;
-    TExpressionContext FinalBuffer_;
-    TExpressionContext TotalsBuffer_;
+    TExpressionContext Context_;
+    TExpressionContext FinalContext_;
+    TExpressionContext TotalsContext_;
 
     // The grouping key and the primary key may have a common prefix of length P.
     // This function compares prefixes of length P.
@@ -992,7 +992,7 @@ private:
     // We perform flushes (and yields) during grouping.
     NRoutines::TYielder Yielder_{};
     i64 ProcessedRows_ = 0;
-    TExpressionContext FlushBuffer_ = MakeExpressionContext(TIntermediateBufferTag());
+    TExpressionContext FlushContext_ = MakeExpressionContext(TIntermediateBufferTag());
 
     template <typename TFlushFunction>
     Y_FORCE_INLINE void FlushWithBatching(
@@ -1023,9 +1023,9 @@ TGroupByClosure::TGroupByClosure(
     TWebAssemblyRowsConsumer consumeDeltaFinal,
     void** consumeTotalsClosure,
     TWebAssemblyRowsConsumer consumeTotals)
-    : Buffer_(MakeExpressionContext(TPermanentBufferTag(), chunkProvider))
-    , FinalBuffer_(MakeExpressionContext(TPermanentBufferTag(), chunkProvider))
-    , TotalsBuffer_(MakeExpressionContext(TPermanentBufferTag(), chunkProvider))
+    : Context_(MakeExpressionContext(TPermanentBufferTag(), chunkProvider))
+    , FinalContext_(MakeExpressionContext(TPermanentBufferTag(), chunkProvider))
+    , TotalsContext_(MakeExpressionContext(TPermanentBufferTag(), chunkProvider))
     , PrefixEqComparer_(prefixEqComparer)
     , GroupedIntermediateRows_(
         InitialGroupOpHashtableCapacity,
@@ -1128,7 +1128,7 @@ const TPIValue* TGroupByClosure::InsertIntermediate(const TExecutionContext* con
         YT_VERIFY(std::ssize(Intermediate_) <= context->GroupRowLimit);
 
         for (int index = 0; index < KeySize_; ++index) {
-            CapturePIValue(&Buffer_, &row[index]);
+            CapturePIValue(&Context_, &row[index]);
         }
     }
 
@@ -1143,7 +1143,7 @@ const TPIValue* TGroupByClosure::InsertFinal(const TExecutionContext* /*context*
     ++GroupedRowCount_;
 
     for (int index = 0; index < KeySize_; ++index) {
-        CapturePIValue(&FinalBuffer_, &row[index]);
+        CapturePIValue(&FinalContext_, &row[index]);
     }
 
     return row;
@@ -1156,7 +1156,7 @@ const TPIValue* TGroupByClosure::InsertTotals(const TExecutionContext* /*context
     Totals_.push_back(row);
 
     for (int index = 0; index < KeySize_; ++index) {
-        CapturePIValue(&TotalsBuffer_, &row[index]);
+        CapturePIValue(&TotalsContext_, &row[index]);
     }
 
     return row;
@@ -1234,9 +1234,9 @@ void TGroupByClosure::Flush(const TExecutionContext* context, EStreamTag incomin
     CurrentSegment_ = EGroupOpProcessingStage::Inner;
 }
 
-TExpressionContext* TGroupByClosure::GetBuffer()
+TExpressionContext* TGroupByClosure::GetContext()
 {
-    return &Buffer_;
+    return &Context_;
 }
 
 i64 TGroupByClosure::GetProcessedRowCount() const
@@ -1277,8 +1277,8 @@ void TGroupByClosure::FlushWithBatching(
     while (!finished && begin < end) {
         i64 size = std::min(begin + RowsetProcessingBatchSize, end) - begin;
         ProcessedRows_ += size;
-        finished = flush(&FlushBuffer_, begin, size);
-        FlushBuffer_.Clear();
+        finished = flush(&FlushContext_, begin, size);
+        FlushContext_.Clear();
         Yielder_.Checkpoint(ProcessedRows_);
         begin += size;
     }
@@ -1286,8 +1286,8 @@ void TGroupByClosure::FlushWithBatching(
 
 void TGroupByClosure::FlushIntermediate(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end)
 {
-    auto flush = [this] (TExpressionContext* buffer, const TPIValue** begin, i64 size) {
-        return ConsumeIntermediate_(ConsumeIntermediateClosure_, buffer, begin, size);
+    auto flush = [this] (TExpressionContext* context, const TPIValue** begin, i64 size) {
+        return ConsumeIntermediate_(ConsumeIntermediateClosure_, context, begin, size);
     };
 
     FlushWithBatching(context, begin, end, flush);
@@ -1295,8 +1295,8 @@ void TGroupByClosure::FlushIntermediate(const TExecutionContext* context, const 
 
 void TGroupByClosure::FlushFinal(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end)
 {
-    auto flush = [this] (TExpressionContext* buffer, const TPIValue** begin, i64 size) {
-        return ConsumeFinal_(ConsumeFinalClosure_, buffer, begin, size);
+    auto flush = [this] (TExpressionContext* context, const TPIValue** begin, i64 size) {
+        return ConsumeFinal_(ConsumeFinalClosure_, context, begin, size);
     };
 
     FlushWithBatching(context, begin, end, flush);
@@ -1304,8 +1304,8 @@ void TGroupByClosure::FlushFinal(const TExecutionContext* context, const TPIValu
 
 void TGroupByClosure::FlushDeltaFinal(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end)
 {
-    auto flush = [this] (TExpressionContext* buffer, const TPIValue** begin, i64 size) {
-        return ConsumeDeltaFinal_(ConsumeDeltaFinalClosure_, buffer, begin, size);
+    auto flush = [this] (TExpressionContext* context, const TPIValue** begin, i64 size) {
+        return ConsumeDeltaFinal_(ConsumeDeltaFinalClosure_, context, begin, size);
     };
 
     FlushWithBatching(context, begin, end, flush);
@@ -1313,8 +1313,8 @@ void TGroupByClosure::FlushDeltaFinal(const TExecutionContext* context, const TP
 
 void TGroupByClosure::FlushTotals(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end)
 {
-    auto flush = [this] (TExpressionContext* buffer, const TPIValue** begin, i64 size) {
-        return ConsumeTotals_(ConsumeTotalsClosure_, buffer, begin, size);
+    auto flush = [this] (TExpressionContext* context, const TPIValue** begin, i64 size) {
+        return ConsumeTotals_(ConsumeTotalsClosure_, context, begin, size);
     };
 
     FlushWithBatching(context, begin, end, flush);
@@ -1430,7 +1430,7 @@ void GroupOpHelper(
     });
 
     try {
-        collectRows(collectRowsClosure, &closure, closure.GetBuffer());
+        collectRows(collectRowsClosure, &closure, closure.GetContext());
     } catch (const TInterruptedIncompleteException&) {
         // Set incomplete and continue
         context->Statistics->IncompleteOutput = true;
@@ -1454,9 +1454,9 @@ void GroupTotalsOpHelper(
     void** collectRowsClosure,
     TGroupTotalsCollector collectRowsFunction)
 {
-    auto buffer = MakeExpressionContext(TIntermediateBufferTag());
+    auto context = MakeExpressionContext(TIntermediateBufferTag());
     auto collectRows = PrepareFunction(collectRowsFunction);
-    collectRows(collectRowsClosure, &buffer);
+    collectRows(collectRowsClosure, &context);
 }
 
 void AllocatePermanentRow(
@@ -1498,7 +1498,7 @@ void OrderOpHelper(
     collectRows(collectRowsClosure, &topCollector);
     auto rows = topCollector.GetRows();
 
-    auto rowBuffer = MakeExpressionContext(TIntermediateBufferTag());
+    auto consumerContext = MakeExpressionContext(TIntermediateBufferTag());
 
     TYielder yielder;
     size_t processedRows = 0;
@@ -1508,10 +1508,10 @@ void OrderOpHelper(
         auto size = std::min(RowsetProcessingBatchSize, rowCount - index);
         processedRows += size;
 
-        bool finished = consumeRows(consumeRowsClosure, &rowBuffer, rows.data() + index, size);
+        bool finished = consumeRows(consumeRowsClosure, &consumerContext, rows.data() + index, size);
         YT_VERIFY(!finished);
 
-        rowBuffer.Clear();
+        consumerContext.Clear();
 
         yielder.Checkpoint(processedRows);
     }
@@ -2402,7 +2402,7 @@ void AnyToYsonString(
     auto textYsonLengthEstimate = static_cast<size_t>(anyLength) * 3;
 
     // NB: TRowBuffer should be used with caution while executing via WebAssembly engine.
-    TChunkedMemoryPoolOutput output(context->GetRowBuffer()->GetPool(), textYsonLengthEstimate);
+    auto output = TChunkedMemoryPoolOutput(context->GetRowBuffer()->GetPool(), textYsonLengthEstimate);
     {
         TYsonWriter writer(&output, EYsonFormat::Text);
         TMemoryInput input(any, anyLength);

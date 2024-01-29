@@ -125,64 +125,64 @@ TTopCollector::TTopCollector(
 
 std::pair<const TPIValue*, int> TTopCollector::Capture(const TPIValue* row)
 {
-    if (EmptyBufferIds_.empty()) {
+    if (EmptyContextIds_.empty()) {
         if (GarbageMemorySize_ > TotalMemorySize_ / 2) {
             // Collect garbage.
 
-            std::vector<std::vector<size_t>> buffersToRows(Buffers_.size());
+            std::vector<std::vector<size_t>> contextsToRows(Contexts_.size());
             for (size_t rowId = 0; rowId < Rows_.size(); ++rowId) {
-                buffersToRows[Rows_[rowId].second].push_back(rowId);
+                contextsToRows[Rows_[rowId].second].push_back(rowId);
             }
 
-            auto buffer = MakeExpressionContext(TTopCollectorBufferTag(), MemoryChunkProvider_);
+            auto context = MakeExpressionContext(TTopCollectorBufferTag(), MemoryChunkProvider_);
 
             TotalMemorySize_ = 0;
             AllocatedMemorySize_ = 0;
             GarbageMemorySize_ = 0;
 
-            for (size_t bufferId = 0; bufferId < buffersToRows.size(); ++bufferId) {
-                for (auto rowId : buffersToRows[bufferId]) {
+            for (size_t contextId = 0; contextId < contextsToRows.size(); ++contextId) {
+                for (auto rowId : contextsToRows[contextId]) {
                     auto& row = Rows_[rowId].first;
 
-                    auto savedSize = buffer.GetSize();
-                    row = CapturePIValueRange(&buffer, MakeRange(row, RowSize_)).Begin();
-                    AllocatedMemorySize_ += buffer.GetSize() - savedSize;
+                    auto savedSize = context.GetSize();
+                    row = CapturePIValueRange(&context, MakeRange(row, RowSize_)).Begin();
+                    AllocatedMemorySize_ += context.GetSize() - savedSize;
                 }
 
-                TotalMemorySize_ += buffer.GetCapacity();
+                TotalMemorySize_ += context.GetCapacity();
 
-                if (buffer.GetSize() < BufferLimit) {
-                    EmptyBufferIds_.push_back(bufferId);
+                if (context.GetSize() < BufferLimit) {
+                    EmptyContextIds_.push_back(contextId);
                 }
 
-                std::swap(buffer, Buffers_[bufferId]);
-                buffer.Clear();
+                std::swap(context, Contexts_[contextId]);
+                context.Clear();
             }
         } else {
-            // Allocate buffer and add to emptyBufferIds.
-            EmptyBufferIds_.push_back(Buffers_.size());
-            Buffers_.push_back(MakeExpressionContext(TTopCollectorBufferTag(), MemoryChunkProvider_));
+            // Allocate context and add to emptyContextIds.
+            EmptyContextIds_.push_back(Contexts_.size());
+            Contexts_.push_back(MakeExpressionContext(TTopCollectorBufferTag(), MemoryChunkProvider_));
         }
     }
 
-    YT_VERIFY(!EmptyBufferIds_.empty());
+    YT_VERIFY(!EmptyContextIds_.empty());
 
-    auto bufferId = EmptyBufferIds_.back();
-    auto& buffer = Buffers_[bufferId];
+    auto contextId = EmptyContextIds_.back();
+    auto& context = Contexts_[contextId];
 
-    auto savedSize = buffer.GetSize();
-    auto savedCapacity = buffer.GetCapacity();
+    auto savedSize = context.GetSize();
+    auto savedCapacity = context.GetCapacity();
 
-    TPIValue* capturedRow = CapturePIValueRange(&buffer, MakeRange(row, RowSize_)).Begin();
+    TPIValue* capturedRow = CapturePIValueRange(&context, MakeRange(row, RowSize_)).Begin();
 
-    AllocatedMemorySize_ += buffer.GetSize() - savedSize;
-    TotalMemorySize_ += buffer.GetCapacity() - savedCapacity;
+    AllocatedMemorySize_ += context.GetSize() - savedSize;
+    TotalMemorySize_ += context.GetCapacity() - savedCapacity;
 
-    if (buffer.GetSize() >= BufferLimit) {
-        EmptyBufferIds_.pop_back();
+    if (context.GetSize() >= BufferLimit) {
+        EmptyContextIds_.pop_back();
     }
 
-    return std::pair(capturedRow, bufferId);
+    return std::pair(capturedRow, contextId);
 }
 
 void TTopCollector::AccountGarbage(const TPIValue* row)
@@ -231,7 +231,7 @@ TMultiJoinClosure::TItem::TItem(
     TCompartmentFunction<TComparerFunction> prefixEqComparer,
     TCompartmentFunction<THasherFunction> lookupHasher,
     TCompartmentFunction<TComparerFunction> lookupEqComparer)
-    : Buffer(MakeExpressionContext(TPermanentBufferTag(), std::move(chunkProvider)))
+    : Context(MakeExpressionContext(TPermanentBufferTag(), std::move(chunkProvider)))
     , KeySize(keySize)
     , PrefixEqComparer(prefixEqComparer)
     , Lookup(
@@ -245,7 +245,7 @@ TMultiJoinClosure::TItem::TItem(
 ////////////////////////////////////////////////////////////////////////////////
 
 TWriteOpClosure::TWriteOpClosure(IMemoryChunkProviderPtr chunkProvider)
-    : OutputBuffer(MakeExpressionContext(TOutputBufferTag(), std::move(chunkProvider)))
+    : OutputContext(MakeExpressionContext(TOutputBufferTag(), std::move(chunkProvider)))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
