@@ -151,21 +151,21 @@ public:
         : TValueBuilderBase(builder, keyPtr)
         , NullKeyMask_(nullKeyMask)
     {
-        YT_VERIFY(nullKeyMask->getType() == Type::getInt32Ty(Builder_.Context_));
+        YT_VERIFY(nullKeyMask->getType() == Type::getInt64Ty(Builder_.Context_));
         YT_VERIFY((keyPtr->getType() == TTypeBuilder<TDynamicValueData*>::Get(Builder_.Context_)));
     }
 
     Value* GetType(int index) override
     {
-        YT_VERIFY(index < 32);
+        YT_VERIFY(index < MaxKeyColumnCountInDynamicTable);
         auto* nullKeyBit = Builder_.CreateAnd(
-            Builder_.getInt32(1U << index),
+            Builder_.getInt64(1UL << index),
             NullKeyMask_);
         const auto& type = TTypeBuilder<TUnversionedValue>::TType::Get(Builder_.getContext());
         auto* nullType = ConstantInt::get(type, static_cast<int>(EValueType::Null));
         auto* schemaType = ConstantInt::get(type, static_cast<int>(Builder_.KeyColumnTypes_[index]));
         return Builder_.CreateSelect(
-            Builder_.CreateICmpNE(nullKeyBit, Builder_.getInt32(0)),
+            Builder_.CreateICmpNE(nullKeyBit, Builder_.getInt64(0)),
             nullType,
             schemaType);
     }

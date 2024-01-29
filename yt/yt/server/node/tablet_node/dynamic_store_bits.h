@@ -27,6 +27,7 @@ const int TypicalSharedWriteTransactionCount = 2;
 /////////////////////////////////////////////////////////////////////////////
 
 using NTableClient::TLockMask;
+using NTableClient::TDynamicTableKeyMask;
 
 using NTabletClient::TDynamicString;
 using NTabletClient::TDynamicValueData;
@@ -91,7 +92,7 @@ struct TLockDescriptor
 
 struct TSortedDynamicRowHeader
 {
-    ui32 NullKeyMask;
+    TDynamicTableKeyMask NullKeyMask;
     ui32 DeleteLockFlag : 1;
     ui32 Padding : 31;
     size_t DataWeight;
@@ -376,12 +377,12 @@ public:
     }
 
 
-    ui32 GetNullKeyMask() const
+    TDynamicTableKeyMask GetNullKeyMask() const
     {
         return Header_->NullKeyMask;
     }
 
-    void SetNullKeyMask(ui32 value)
+    void SetNullKeyMask(TDynamicTableKeyMask value)
     {
         Header_->NullKeyMask = value;
     }

@@ -2479,20 +2479,48 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         with pytest.raises(YtError):
             read_table("//tmp/t", table_reader=table_reader_options)
 
-    @authors("akozhikhov")
-    def test_max_key_column_count(self):
-        sync_create_cells(1)
+    @pytest.mark.parametrize("optimize_for, chunk_format", [
+        ("lookup", "table_versioned_slim"),
+        ("lookup", "table_versioned_simple"),
+        ("scan", "table_versioned_columnar"),
+    ])
+    @authors("akozhikhov", "sabdenovch")
+    def test_max_key_column_count(self, optimize_for, chunk_format):
+        cell_id = sync_create_cells(1)[0]
 
         def _create_key_schema(key_count):
-            return [{"name": "key{}".format(i), "type": "int64", "sort_order": "ascending"} for i in range(key_count)]
+            return [{"name": f"key{i}", "type": "int64", "sort_order": "ascending"} for i in range(key_count)]
 
-        key_schema = _create_key_schema(32)
+        key_schema = _create_key_schema(64)
         value_schema = [{"name": "value", "type": "int64"}]
-        self._create_sorted_table("//tmp/t1", schema=key_schema + value_schema)
+        self._create_sorted_table(
+            "//tmp/t1",
+            schema=key_schema + value_schema,
+            optimize_for=optimize_for,
+            chunk_format=chunk_format)
         sync_mount_table("//tmp/t1")
+
+        rows = [{f"key{i}": None if i % 5 == 3 else i + j for i in range(64)} | {"value": 123} for j in range(100)]
+
+        insert_rows("//tmp/t1", rows)
+        assert_items_equal(select_rows("* FROM [//tmp/t1] limit 100"), rows)
+
+        with self.CellsDisabled(clusters=["primary"], tablet_bundles=[get(f'#{cell_id}/@tablet_cell_bundle')]):
+            pass
+        assert_items_equal(select_rows("* FROM [//tmp/t1] limit 100"), rows)
+
+        build_snapshot(cell_id=cell_id)
+
+        with self.CellsDisabled(clusters=["primary"], tablet_bundles=[get(f'#{cell_id}/@tablet_cell_bundle')]):
+            pass
+        assert_items_equal(select_rows("* FROM [//tmp/t1] limit 100"), rows)
+
+        sync_flush_table("//tmp/t1")
+        assert_items_equal(select_rows("* FROM [//tmp/t1] limit 100"), rows)
+
         sync_unmount_table("//tmp/t1")
 
-        key_schema = _create_key_schema(33)
+        key_schema = _create_key_schema(65)
         with pytest.raises(YtError):
             alter_table("//tmp/t1", schema=key_schema + value_schema)
         with pytest.raises(YtError):

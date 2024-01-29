@@ -412,9 +412,9 @@ private:
     private:
         int Compare(TSortedDynamicRow lhs, TSortedDynamicRow rhs) const
         {
-            ui32 nullKeyBit = 1;
-            ui32 lhsNullKeyMask = lhs.GetNullKeyMask();
-            ui32 rhsNullKeyMask = rhs.GetNullKeyMask();
+            TDynamicTableKeyMask nullKeyBit = 1;
+            TDynamicTableKeyMask lhsNullKeyMask = lhs.GetNullKeyMask();
+            TDynamicTableKeyMask rhsNullKeyMask = rhs.GetNullKeyMask();
             const auto* lhsValue = lhs.BeginKeys();
             const auto* rhsValue = rhs.BeginKeys();
             auto columnIt = Schema_.Columns().begin();
@@ -501,8 +501,8 @@ private:
 
         int Compare(TSortedDynamicRow lhs, const TUnversionedValue* rhsBegin, int rhsLength) const
         {
-            ui32 nullKeyBit = 1;
-            ui32 lhsNullKeyMask = lhs.GetNullKeyMask();
+            TDynamicTableKeyMask nullKeyBit = 1;
+            TDynamicTableKeyMask lhsNullKeyMask = lhs.GetNullKeyMask();
             const auto* lhsValue = lhs.BeginKeys();
             const auto* rhsValue = rhsBegin;
 

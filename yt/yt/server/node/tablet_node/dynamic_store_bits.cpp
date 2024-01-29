@@ -12,7 +12,7 @@ TUnversionedValue GetUnversionedKeyValue(TSortedDynamicRow row, int index, EValu
     auto source = row.BeginKeys()[index];
 
     auto result = MakeUnversionedSentinelValue(EValueType::Null, index);
-    if (!(nullKeyMask & (1 << index))) {
+    if (!(nullKeyMask & (static_cast<TDynamicTableKeyMask>(1) << index))) {
         result.Type = type;
         if (IsStringLikeType(type)) {
             result.Length = source.String->Length;
