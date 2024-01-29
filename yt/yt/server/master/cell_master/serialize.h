@@ -194,6 +194,7 @@ DEFINE_ENUM(EMasterReign,
     ((CreateHunkStorageWithProperAttributes_23_2)                   (2456))  // akozhikhov
     ((FixChunkMergerCopy)                                           (2457))  // aleksandra-zh
     ((ChaosReplicatedConsumersFix)                                  (2458))  // cherepashka
+    ((FixListNodeDeprecation_23_2)                                  (2459))  // kvk1920
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
