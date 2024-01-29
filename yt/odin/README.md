@@ -93,19 +93,19 @@ To run Odin inside a container do the following:
 * run odin containers:
 
 ```bash
-# run checker odin checker component
+# run odin checker component
 docker run --name odin \
-  -v /path/to/odin_config.json:/path/to/odin_config.json:ro \
-  -v /path/to/checks_config.json:/path/to/checks_config.json:ro
-  --entrypoint yt_odin \
-  ytsaurus-odin:latest \
-  --config /path/to/odin_config.json
+    -v /path/to/odin_config.json:/path/to/odin_config.json:ro \
+    -v /path/to/checks_config.json:/path/to/checks_config.json:ro
+    --entrypoint yt_odin \
+    ytsaurus-odin:latest \
+    --config /path/to/odin_config.json
 
-# run checker odin webservice component
+# run odin webservice component
 docker run --name odin-webservice \
-  -v /path/to/odin_webservice.json:/path/to/odin_webservice.json:ro \
-  -p 8080:8080 \
-  --entrypoint yt_odin_webservice \
-  ytsaurus-odin:latest \
-  --config /path/to/odin_webservice.json
+    -v /path/to/odin_webservice.json:/path/to/odin_webservice.json:ro \
+    -p 8080:8080 \
+    --entrypoint yt_odin_webservice \
+    ytsaurus-odin:latest \
+    --config /path/to/odin_webservice.json
 ```
