@@ -121,8 +121,8 @@ public:
         , CacheHitArtifactsSizeCounter_(Profiler_.Counter("/chunk_cache/cache_hit_artifacts_size"))
         , CacheMissArtifactsSizeCounter_(Profiler_.Counter("/chunk_cache/cache_miss_artifacts_size"))
         , CacheBypassedArtifactsSizeCounter_(Profiler_.Counter("/chunk_cache/cache_bypassed_artifacts_size"))
-        , TmpfsSizeGauge_(Profiler_.Gauge("/tmpfs/size"))
         , TmpfsUsageGauge_(Profiler_.Gauge("/tmpfs/usage"))
+        , TmpfsLimitGauge_(Profiler_.Gauge("/tmpfs/limit"))
         , JobProxyMaxMemoryGauge_(Profiler_.Gauge("/job_proxy_max_memory"))
         , UserJobMaxMemoryGauge_(Profiler_.Gauge("/user_job_max_memory"))
     {
@@ -512,8 +512,8 @@ private:
     TCounter CacheMissArtifactsSizeCounter_;
     TCounter CacheBypassedArtifactsSizeCounter_;
 
-    TGauge TmpfsSizeGauge_;
     TGauge TmpfsUsageGauge_;
+    TGauge TmpfsLimitGauge_;
     TGauge JobProxyMaxMemoryGauge_;
     TGauge UserJobMaxMemoryGauge_;
 
@@ -777,7 +777,7 @@ private:
 
         i64 totalJobProxyMaxMemory = 0;
         i64 totalUserJobMaxMemory = 0;
-        i64 tmpfsSize = 0;
+        i64 tmpfsLimit = 0;
         i64 tmpfsUsage = 0;
 
         for (TForbidContextSwitchGuard guard; const auto& [id, job] : JobMap_) {
@@ -797,7 +797,7 @@ private:
             }
 
             for (const auto& tmpfsVolumeProto : jobSpecExt.user_job_spec().tmpfs_volumes()) {
-                tmpfsSize += tmpfsVolumeProto.size();
+                tmpfsLimit += tmpfsVolumeProto.size();
             }
 
             auto statisticsYson = job->GetStatistics();
@@ -818,8 +818,8 @@ private:
             }
         }
 
-        TmpfsSizeGauge_.Update(tmpfsSize);
         TmpfsUsageGauge_.Update(tmpfsUsage);
+        TmpfsLimitGauge_.Update(tmpfsLimit);
 
         JobProxyMaxMemoryGauge_.Update(totalJobProxyMaxMemory);
         UserJobMaxMemoryGauge_.Update(totalUserJobMaxMemory);

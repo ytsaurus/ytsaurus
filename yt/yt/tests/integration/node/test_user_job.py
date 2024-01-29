@@ -13,7 +13,7 @@ from yt_commands import (
     list_jobs, get_job, get_job_stderr, get_operation,
     sync_create_cells, get_singular_chunk_id,
     update_nodes_dynamic_config, set_node_banned, check_all_stderrs,
-    assert_statistics, assert_statistics_v2,
+    assert_statistics, assert_statistics_v2, extract_statistic_v2,
     heal_exec_node, ban_node,
     make_random_string, raises_yt_error, update_controller_agent_config, update_scheduler_config,
     get_supported_erasure_codecs)
@@ -148,11 +148,46 @@ class TestSandboxTmpfs(YTEnvSetup):
         assert len(nodes) == 1
         node = nodes[0]
 
-        tmpfs_size = profiler_factory().at_node(node).gauge("job_controller/tmpfs/size")
+        tmpfs_limit = profiler_factory().at_node(node).gauge("job_controller/tmpfs/limit")
         tmpfs_usage = profiler_factory().at_node(node).gauge("job_controller/tmpfs/usage")
-        wait(lambda: tmpfs_size.get() == 1024 * 1024)
+        wait(lambda: tmpfs_limit.get() == 1024 * 1024)
         wait(lambda: tmpfs_usage.get() > 0)
         assert tmpfs_usage.get() <= 4 * 1024
+
+    @authors("ignat")
+    def test_tmpfs_statistics(self):
+        op = run_test_vanilla(
+            with_breakpoint("echo 'content' > tmpfs/file; BREAKPOINT;"),
+            task_patch={
+                "tmpfs_size": 1024 * 1024,
+                "tmpfs_path": "tmpfs",
+            },
+            track=False,
+        )
+
+        wait_breakpoint()
+
+        @wait_no_assert
+        def check():
+            statistics = get(op.get_path() + "/controller_orchid/progress/job_statistics_v2")
+
+            max_usage = extract_statistic_v2(
+                statistics,
+                key="user_job.tmpfs_volumes.0.max_usage",
+                job_state="running",
+                job_type="task",
+                summary_type="sum")
+            assert max_usage is not None
+            assert 0 < max_usage and max_usage <= 4 * 1024
+
+            limit = extract_statistic_v2(
+                statistics,
+                key="user_job.tmpfs_volumes.0.limit",
+                job_state="running",
+                job_type="task",
+                summary_type="sum")
+            assert limit is not None
+            assert limit == 1024 * 1024
 
     @authors("ignat")
     def test_dot_tmpfs_path(self):
