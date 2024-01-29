@@ -151,9 +151,20 @@
 
 Выкладывается в виде пакетов в [maven](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client).
 
-**Актуальный релиз:** 1.2.0
+**Актуальный релиз:** 1.2.1
 
 **Все релизы:**
+
+{% cut "**1.2.1**" %}
+
+29.01.2024
+
+- поддержаны сериализуемые mapper/reducer (реализующие интерфейс `Serializable`);
+- добавлен метод `completeOperation`;
+- поддержано несколько методов YT Queues API: `registerQueueConsumer`, `advanceConsumer`, `pullConsumer`;
+- в возвращаемых методом `partitionTables` объектах `MultiTablePartition` теперь есть `AggregateStatistics`.
+
+{% endcut %}
 
 {% cut "**1.2.0**" %}
 
