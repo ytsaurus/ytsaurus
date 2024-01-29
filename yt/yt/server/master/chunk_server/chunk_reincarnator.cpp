@@ -49,6 +49,7 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ChunkServerLogger.WithTag("ChunkReincarnator");
+inline constexpr int SampleChunkIdCount = 10;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1735,10 +1736,10 @@ private:
             CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
                 ->CommitAndLog(Logger);
 
-            YT_LOG_DEBUG("Chunk reincarnation scheduled "
-                "(ChunkCount: %v, ChunkIds: %v)",
+            YT_LOG_DEBUG(
+                "Chunk reincarnation scheduled (ChunkCount: %v, ChunkIds: %v)",
                 chunksToReincarnate.size(),
-                chunksToReincarnate);
+                MakeShrunkFormattableView(chunksToReincarnate, TDefaultFormatter(), SampleChunkIdCount));
         }
 
         // Exported chunks have to be handled a bit differently. Chunk
@@ -1753,10 +1754,10 @@ private:
                 mutationRequest)
                 ->CommitAndLog(Logger);
 
-            YT_LOG_DEBUG("Exported chunk reincarnation check scheduled "
-                "(ChunkIdsCount: %v, ChunkIds: %v)",
+            YT_LOG_DEBUG(
+                "Exported chunk reincarnation check scheduled (ChunkIdsCount: %v, ChunkIds: %v)",
                 exportedChunks.size(),
-                exportedChunks);
+                MakeShrunkFormattableView(exportedChunks, TDefaultFormatter(), SampleChunkIdCount));
         }
 
         YT_LOG_DEBUG(
@@ -1776,7 +1777,7 @@ private:
         YT_LOG_DEBUG_IF(!skippedBecauseOfAccountSettings.empty(),
             "Chunks were not reincarnated because of account settings (ChunkCount: %v, ChunkIds: %v)",
             skippedBecauseOfAccountSettings.size(),
-            skippedBecauseOfAccountSettings);
+            MakeShrunkFormattableView(skippedBecauseOfAccountSettings, TDefaultFormatter(), SampleChunkIdCount));
     }
 
     bool IsReincarnationAllowedByAccountSettings(TChunk* chunk)
