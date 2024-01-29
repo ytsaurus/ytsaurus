@@ -119,6 +119,10 @@ public:
 
 #define DROP_BRACES(...) __VA_ARGS__
 #define IMPLEMENT_OVERLOADED_METHOD(returnType, method, doMethod, signature, args) \
+private: \
+    returnType doMethod signature; \
+\
+public: \
     virtual TFuture<returnType> method signature override \
     { \
         return Execute( \
@@ -264,7 +268,7 @@ public:
         int partitionIndex,
         const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
         const TPullQueueOptions& options = {}),
-        (queuePath, offset, partitionIndex, rowBatchReadOptions, options, /*checkPermissions*/ true))
+        (queuePath, offset, partitionIndex, rowBatchReadOptions, options))
 
     IMPLEMENT_METHOD(NQueueClient::IQueueRowsetPtr, PullQueueUnauthenticated, (
         const NYPath::TRichYPath& queuePath,
@@ -577,6 +581,10 @@ public:
         NScheduler::TJobId jobId,
         const TGetJobFailContextOptions& options),
         (operationIdOrAlias, jobId, options))
+    // XXX(levysotsky): The counters may be incorrect if |options.IncludeArchive| is |true|
+    // and an operation is in both Cypress and archive.
+    // XXX(levysotsky): The "failed_jobs_count" counter is incorrect if corresponding failed operations
+    // are in archive and outside of queried range.
     IMPLEMENT_METHOD(TListOperationsResult, ListOperations, (
         const TListOperationsOptions& options),
         (options))
@@ -957,20 +965,6 @@ private:
         const NYTree::IAttributeDictionary& attributes,
         const TCreateNodeOptions& options);
 
-    TUnversionedLookupRowsResult DoLookupRows(
-        const NYPath::TYPath& path,
-        const NTableClient::TNameTablePtr& nameTable,
-        const TSharedRange<NTableClient::TLegacyKey>& keys,
-        const TLookupRowsOptions& options);
-    TVersionedLookupRowsResult DoVersionedLookupRows(
-        const NYPath::TYPath& path,
-        const NTableClient::TNameTablePtr& nameTable,
-        const TSharedRange<NTableClient::TLegacyKey>& keys,
-        const TVersionedLookupRowsOptions& options);
-    std::vector<TUnversionedLookupRowsResult> DoMultiLookupRows(
-        const std::vector<TMultiLookupSubrequest>& subrequests,
-        const TMultiLookupOptions& options);
-
     using TEncoderWithMapping = std::function<std::vector<TSharedRef>(
         const NTableClient::TColumnFilter&,
         const std::vector<NTableClient::TUnversionedRow>&)>;
@@ -1031,33 +1025,15 @@ private:
     NApi::NNative::IConnectionPtr GetReplicaConnectionOrThrow(const TString& clusterName);
     NApi::IClientPtr GetOrCreateReplicaClient(const TString& clusterName);
 
-    TSelectRowsResult DoSelectRows(
-        const TString& queryString,
-        const TSelectRowsOptions& options);
     TSelectRowsResult DoSelectRowsOnce(
         const TString& queryString,
         const TSelectRowsOptions& options);
-    NYson::TYsonString DoExplainQuery(
-        const TString& queryString,
-        const TExplainQueryOptions& options);
-
-    TPullRowsResult DoPullRows(
-        const NYPath::TYPath& path,
-        const TPullRowsOptions& options);
 
     static bool IsReplicaInSync(
         const NQueryClient::NProto::TReplicaInfo& replicaInfo,
         const NQueryClient::NProto::TTabletInfo& tabletInfo,
         NTransactionClient::TTimestamp timestamp);
 
-    std::vector<NTabletClient::TTableReplicaId> DoGetInSyncReplicasWithKeys(
-        const NYPath::TYPath& path,
-        const NTableClient::TNameTablePtr& nameTable,
-        const TSharedRange<NTableClient::TLegacyKey>& keys,
-        const TGetInSyncReplicasOptions& options);
-    std::vector<NTabletClient::TTableReplicaId> DoGetInSyncReplicasWithoutKeys(
-        const NYPath::TYPath& path,
-        const TGetInSyncReplicasOptions& options);
     std::vector<NTabletClient::TTableReplicaId> DoGetInSyncReplicas(
         const NYPath::TYPath& path,
         bool allKeys,
@@ -1065,51 +1041,9 @@ private:
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TGetInSyncReplicasOptions& options);
 
-    std::vector<NTableClient::TColumnarStatistics> DoGetColumnarStatistics(
-        const std::vector<NYPath::TRichYPath>& paths,
-        const TGetColumnarStatisticsOptions& options);
-
-    TDisableChunkLocationsResult DoDisableChunkLocations(
-        const TString& nodeAddress,
-        const std::vector<TGuid>& locationUuids,
-        const TDisableChunkLocationsOptions& options);
-
-    TDestroyChunkLocationsResult DoDestroyChunkLocations(
-        const TString& nodeAddress,
-        bool recoverUnlinkedDisks,
-        const std::vector<TGuid>& locationUuids,
-        const TDestroyChunkLocationsOptions& options);
-
-    TResurrectChunkLocationsResult DoResurrectChunkLocations(
-        const TString& nodeAddress,
-        const std::vector<TGuid>& locationUuids,
-        const TResurrectChunkLocationsOptions& options);
-
-    TRequestRestartResult DoRequestRestart(
-        const TString& nodeAddress,
-        const TRequestRestartOptions& options);
-
-    TMultiTablePartitions DoPartitionTables(
-        const std::vector<NYPath::TRichYPath>& paths,
-        const TPartitionTablesOptions& options);
-
-    //
-    // Journals
-    //
-
-    void DoTruncateJournal(
-        const NYPath::TYPath& path,
-        i64 rowCount,
-        const TTruncateJournalOptions& options);
-
     //
     // Dynamic tables
     //
-
-    std::vector<TTabletInfo> DoGetTabletInfos(
-        const NYPath::TYPath& path,
-        const std::vector<int>& tabletIndexes,
-        const TGetTabletInfosOptions& options);
 
     std::vector<TTabletInfo> GetTabletInfosByTabletIds(
         const NYPath::TYPath& path,
@@ -1121,31 +1055,11 @@ private:
         const std::vector<int>& tabletIndexes,
         const TGetTabletInfosOptions& options);
 
-    TGetTabletErrorsResult DoGetTabletErrors(
-        const NYPath::TYPath& path,
-        const TGetTabletErrorsOptions& options);
-
     template <class TReq>
     void ExecuteTabletServiceRequest(
         const NYPath::TYPath& path,
         TStringBuf action,
         TReq* req);
-
-    void DoMountTable(
-        const NYPath::TYPath& path,
-        const TMountTableOptions& options);
-    void DoUnmountTable(
-        const NYPath::TYPath& path,
-        const TUnmountTableOptions& options);
-    void DoRemountTable(
-        const NYPath::TYPath& path,
-        const TRemountTableOptions& options);
-    void DoFreezeTable(
-        const NYPath::TYPath& path,
-        const TFreezeTableOptions& options);
-    void DoUnfreezeTable(
-        const NYPath::TYPath& path,
-        const TUnfreezeTableOptions& options);
 
     NTabletClient::NProto::TReqReshard MakeReshardRequest(
         const TReshardTableOptions& options);
@@ -1157,51 +1071,8 @@ private:
         const NYPath::TYPath& path,
         int tabletCount);
 
-    void DoReshardTableWithPivotKeys(
-        const NYPath::TYPath& path,
-        const std::vector<NTableClient::TLegacyOwningKey>& pivotTKeys,
-        const TReshardTableOptions& options);
-    void DoReshardTableWithTabletCount(
-        const NYPath::TYPath& path,
-        int tabletCount,
-        const TReshardTableOptions& options);
-    std::vector<NTabletClient::TTabletActionId> DoReshardTableAutomatic(
-        const NYPath::TYPath& path,
-        const TReshardTableAutomaticOptions& options);
-
-    void DoAlterTable(
-        const NYPath::TYPath& path,
-        const TAlterTableOptions& options);
-
-    void DoTrimTable(
-        const NYPath::TYPath& path,
-        int tabletIndex,
-        i64 trimmedRowCount,
-        const TTrimTableOptions& options);
-
-    void DoAlterTableReplica(
-        NTabletClient::TTableReplicaId replicaId,
-        const TAlterTableReplicaOptions& options);
-
-    NYson::TYsonString DoGetTablePivotKeys(
-        const NYPath::TYPath& path,
-        const TGetTablePivotKeysOptions& options);
-
     friend class TClusterBackupSession;
     friend class TBackupSession;
-
-    void DoCreateTableBackup(
-        const TBackupManifestPtr& manifest,
-        const TCreateTableBackupOptions& options);
-
-    void DoRestoreTableBackup(
-        const TBackupManifestPtr& manifest,
-        const TRestoreTableBackupOptions& options);
-
-    std::vector<NTabletClient::TTabletActionId> DoBalanceTabletCells(
-        const TString& tabletCellBundle,
-        const std::vector<NYPath::TYPath>& movableTables,
-        const TBalanceTabletCellsOptions& options);
 
     TSharedRange<NTableClient::TUnversionedRow> PermuteAndEvaluateKeys(
         const NTabletClient::TTableMountInfoPtr& tableInfo,
@@ -1227,20 +1098,13 @@ private:
     // Queues
     //
 
-    NQueueClient::IQueueRowsetPtr DoPullQueue(
+    NQueueClient::IQueueRowsetPtr DoPullQueueImpl(
         const NYPath::TRichYPath& queuePath,
         i64 offset,
         int partitionIndex,
-        NQueueClient::TQueueRowBatchReadOptions rowBatchReadOptions,
+        const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
         const TPullQueueOptions& options,
         bool checkPermissions);
-
-    NQueueClient::IQueueRowsetPtr DoPullQueueUnauthenticated(
-        const NYPath::TRichYPath& queuePath,
-        i64 offset,
-        int partitionIndex,
-        NQueueClient::TQueueRowBatchReadOptions rowBatchReadOptions,
-        const TPullQueueOptions& options);
 
     IUnversionedRowsetPtr DoPullQueueViaSelectRows(
         const NYPath::TRichYPath& queuePath,
@@ -1255,45 +1119,12 @@ private:
         int partitionIndex,
         const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
         const TPullQueueOptions& options,
-        bool checkPermissions = true);
-
-    NQueueClient::IQueueRowsetPtr DoPullConsumer(
-        const NYPath::TRichYPath& consumerPath,
-        const NYPath::TRichYPath& queuePath,
-        std::optional<i64> offset,
-        int partitionIndex,
-        const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
-        const TPullConsumerOptions& options);
-
-    void DoRegisterQueueConsumer(
-        const NYPath::TRichYPath& queuePath,
-        const NYPath::TRichYPath& consumerPath,
-        bool vital,
-        const TRegisterQueueConsumerOptions& options);
-
-    void DoUnregisterQueueConsumer(
-        const NYPath::TRichYPath& queuePath,
-        const NYPath::TRichYPath& consumerPath,
-        const TUnregisterQueueConsumerOptions& options);
-
-    std::vector<TListQueueConsumerRegistrationsResult> DoListQueueConsumerRegistrations(
-        const std::optional<NYPath::TRichYPath>& queuePath,
-        const std::optional<NYPath::TRichYPath>& consumerPath,
-        const TListQueueConsumerRegistrationsOptions& options);
+        bool checkPermissions);
 
     //
     // Chaos
     //
 
-    NChaosClient::TReplicationCardPtr DoGetReplicationCard(
-        NChaosClient::TReplicationCardId replicationCardId,
-        const TGetReplicationCardOptions& options);
-    void DoUpdateChaosTableReplicaProgress(
-        NChaosClient::TReplicaId replicaId,
-        const TUpdateChaosTableReplicaProgressOptions& options);
-    void DoAlterReplicationCard(
-        NChaosClient::TReplicationCardId replicationCardId,
-        const TAlterReplicationCardOptions& options);
     NRpc::IChannelPtr GetChaosChannelByCellId(
         NObjectClient::TCellId cellId,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
@@ -1309,72 +1140,11 @@ private:
     // Cypress
     //
 
-    NYson::TYsonString DoGetNode(
-        const NYPath::TYPath& path,
-        const TGetNodeOptions& options);
-    void DoSetNode(
-        const NYPath::TYPath& path,
-        const NYson::TYsonString& value,
-        const TSetNodeOptions& options);
-    void DoMultisetAttributesNode(
-        const NYPath::TYPath& path,
-        const NYTree::IMapNodePtr& attributes,
-        const TMultisetAttributesNodeOptions& options);
-    void DoRemoveNode(
-        const NYPath::TYPath& path,
-        const TRemoveNodeOptions& options);
-    NYson::TYsonString DoListNode(
-        const NYPath::TYPath& path,
-        const TListNodeOptions& options);
-    NCypressClient::TNodeId DoCreateNode(
-        const NYPath::TYPath& path,
-        NObjectClient::EObjectType type,
-        const TCreateNodeOptions& options);
-
-    TLockNodeResult DoLockNode(
-        const NYPath::TYPath& path,
-        NCypressClient::ELockMode mode,
-        const TLockNodeOptions& options);
-    void DoUnlockNode(
-        const NYPath::TYPath& path,
-        const TUnlockNodeOptions& options);
-
-    NCypressClient::TNodeId DoCopyNode(
-        const NYPath::TYPath& srcPath,
-        const NYPath::TYPath& dstPath,
-        const TCopyNodeOptions& options);
-    NCypressClient::TNodeId DoMoveNode(
-        const NYPath::TYPath& srcPath,
-        const NYPath::TYPath& dstPath,
-        const TMoveNodeOptions& options);
-
     template <class TOptions>
     NCypressClient::TNodeId DoCloneNode(
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
         const TOptions& options);
-
-    NCypressClient::TNodeId DoLinkNode(
-        const NYPath::TYPath& srcPath,
-        const NYPath::TYPath& dstPath,
-        const TLinkNodeOptions& options);
-    void DoConcatenateNodes(
-        const std::vector<NYPath::TRichYPath>& srcPaths,
-        const NYPath::TRichYPath& dstPath,
-        TConcatenateNodesOptions options);
-    void DoExternalizeNode(
-        const NYPath::TYPath& path,
-        NObjectClient::TCellTag cellTag,
-        TExternalizeNodeOptions options);
-    void DoInternalizeNode(
-        const NYPath::TYPath& path,
-        TInternalizeNodeOptions options);
-    bool DoNodeExists(
-        const NYPath::TYPath& path,
-        const TNodeExistsOptions& options);
-    NObjectClient::TObjectId DoCreateObject(
-        NObjectClient::EObjectType type,
-        const TCreateObjectOptions& options);
 
     //
     // File cache
@@ -1384,41 +1154,16 @@ private:
         const TString& destination,
         const TPrerequisiteOptions& options = TPrerequisiteOptions(),
         NTransactionClient::TTransactionId transactionId = {});
-    TGetFileFromCacheResult DoGetFileFromCache(
-        const TString& md5,
-        const TGetFileFromCacheOptions& options);
     TPutFileToCacheResult DoAttemptPutFileToCache(
         const NYPath::TYPath& path,
         const TString& expectedMD5,
         const TPutFileToCacheOptions& options,
         NLogging::TLogger logger);
-    TPutFileToCacheResult DoPutFileToCache(
-        const NYPath::TYPath& path,
-        const TString& expectedMD5,
-        const TPutFileToCacheOptions& options);
 
     //
     // Security
     //
 
-    void DoAddMember(
-        const TString& group,
-        const TString& member,
-        const TAddMemberOptions& options);
-    void DoRemoveMember(
-        const TString& group,
-        const TString& member,
-        const TRemoveMemberOptions& options);
-    TCheckPermissionResponse DoCheckPermission(
-        const TString& user,
-        const NYPath::TYPath& path,
-        NYTree::EPermission permission,
-        const TCheckPermissionOptions& options);
-    TCheckPermissionByAclResult DoCheckPermissionByAcl(
-        const std::optional<TString>& user,
-        NYTree::EPermission permission,
-        const NYTree::INodePtr& acl,
-        const TCheckPermissionByAclOptions& options);
     TCheckPermissionResult CheckPermissionImpl(
         const NYPath::TYPath& path,
         NYTree::EPermission permission,
@@ -1427,7 +1172,6 @@ private:
         const NYPath::TYPath& path,
         NYTree::EPermission permission,
         const TCheckPermissionOptions& options = {});
-    // XXX
     void MaybeValidateExternalObjectPermission(
         const NYPath::TYPath& path,
         NYTree::EPermission permission,
@@ -1438,47 +1182,6 @@ private:
         NTabletClient::TTableReplicaId replicaId,
         NYTree::EPermission permission,
         const TCheckPermissionOptions& options = {});
-    void DoTransferAccountResources(
-        const TString& srcAccount,
-        const TString& dstAccount,
-        NYTree::INodePtr resourceDelta,
-        const TTransferAccountResourcesOptions& options);
-
-    //
-    // Pools
-    //
-
-    void DoTransferPoolResources(
-        const TString& srcPool,
-        const TString& dstPool,
-        const TString& poolTree,
-        NYTree::INodePtr resourceDelta,
-        const TTransferPoolResourcesOptions& options);
-
-    //
-    // Operations
-    //
-
-    NScheduler::TOperationId DoStartOperation(
-        NScheduler::EOperationType type,
-        const NYson::TYsonString& spec,
-        const TStartOperationOptions& options);
-    void DoAbortOperation(
-        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-        const TAbortOperationOptions& options);
-    void DoSuspendOperation(
-        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-        const TSuspendOperationOptions& options);
-    void DoResumeOperation(
-        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-        const TResumeOperationOptions& options);
-    void DoCompleteOperation(
-        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-        const TCompleteOperationOptions& options);
-    void DoUpdateOperationParameters(
-        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-        const NYson::TYsonString& parameters,
-        const TUpdateOperationParametersOptions& options);
 
     //
     // Operation info
@@ -1502,9 +1205,6 @@ private:
     TOperation DoGetOperationImpl(
         NScheduler::TOperationId operationId,
         TInstant deadline,
-        const TGetOperationOptions& options);
-    TOperation DoGetOperation(
-        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const TGetOperationOptions& options);
 
     NScheduler::TOperationId ResolveOperationAlias(
@@ -1535,36 +1235,9 @@ private:
         const TListOperationsOptions& options,
         const NLogging::TLogger& Logger);
 
-    // XXX(levysotsky): The counters may be incorrect if |options.IncludeArchive| is |true|
-    // and an operation is in both Cypress and archive.
-    // XXX(levysotsky): The "failed_jobs_count" counter is incorrect if corresponding failed operations
-    // are in archive and outside of queried range.
-    TListOperationsResult DoListOperations(const TListOperationsOptions& options);
-
-    //
-    // Jobs
-    //
-
-    void DoAbandonJob(
-        NScheduler::TJobId jobId,
-        const TAbandonJobOptions& options);
-    TPollJobShellResponse DoPollJobShell(
-        NScheduler::TJobId jobId,
-        const std::optional<TString>& shellName,
-        const NYson::TYsonString& parameters,
-        const TPollJobShellOptions& options);
-    void DoAbortJob(
-        NScheduler::TJobId jobId,
-        const TAbortJobOptions& options);
-
     //
     // Job artifacts and info
     //
-
-    void DoDumpJobContext(
-        NScheduler::TJobId jobId,
-        const NYPath::TYPath& path,
-        const TDumpJobContextOptions& options);
 
     // Get job node descriptor from scheduler and check that user has |requiredPermissions|
     // for accessing the corresponding operation.
@@ -1587,7 +1260,7 @@ private:
         NYTree::EPermissionSet requiredPermissions);
 
     // Returns zero id if operation is missing in corresponding table.
-    NScheduler::TOperationId TryGetOperationId(NScheduler::TJobId);
+    NScheduler::TOperationId TryGetOperationId(NScheduler::TJobId jobId);
 
     void ValidateOperationAccess(
         NScheduler::TJobId jobId,
@@ -1613,25 +1286,12 @@ private:
         NApi::EJobSpecSource specSource,
         NYTree::EPermissionSet requiredPermissions);
 
-    NConcurrency::IAsyncZeroCopyInputStreamPtr DoGetJobInput(
-        NScheduler::TJobId jobId,
-        const TGetJobInputOptions& options);
-    NYson::TYsonString DoGetJobInputPaths(
-        NScheduler::TJobId jobId,
-        const TGetJobInputPathsOptions& options);
-    NYson::TYsonString DoGetJobSpec(
-        NScheduler::TJobId jobId,
-        const TGetJobSpecOptions& options);
     TSharedRef DoGetJobStderrFromNode(
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId);
     TSharedRef DoGetJobStderrFromArchive(
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId);
-    TSharedRef DoGetJobStderr(
-        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-        NScheduler::TJobId jobId,
-        const TGetJobStderrOptions& options);
 
     TSharedRef DoGetJobFailContextFromNode(
         NScheduler::TOperationId operationId,
@@ -1639,20 +1299,6 @@ private:
     TSharedRef DoGetJobFailContextFromArchive(
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId);
-    TSharedRef DoGetJobFailContext(
-        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-        NScheduler::TJobId jobId,
-        const TGetJobFailContextOptions& options);
-
-    // Asynchronously perform "select_rows" from job archive and parse result.
-    // |Offset| and |Limit| fields in |options| are ignored, |limit| is used instead.
-    // Jobs are additionally filtered by |states|.
-    TFuture<std::vector<TJob>> DoListJobsFromArchiveAsyncImpl(
-        NScheduler::TOperationId operationId,
-        const std::vector<NJobTrackerClient::EJobState>& states,
-        i64 limit,
-        const TSelectRowsOptions& selectRowsOptions,
-        const TListJobsOptions& options);
 
     // Get statistics for jobs.
     TFuture<TListJobsStatistics> ListJobsStatisticsFromArchiveAsync(
@@ -1674,10 +1320,6 @@ private:
         TInstant deadline,
         const TListJobsOptions& options);
 
-    TListJobsResult DoListJobs(
-        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-        const TListJobsOptions& options);
-
     std::optional<TJob> DoGetJobFromArchive(
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId,
@@ -1690,95 +1332,9 @@ private:
         TInstant deadline,
         const THashSet<TString>& attributes);
 
-    NYson::TYsonString DoGetJob(
-        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-        NScheduler::TJobId jobId,
-        const TGetJobOptions& options);
-
-    //
-    // Misc
-    //
-
-    TClusterMeta DoGetClusterMeta(
-        const TGetClusterMetaOptions& options);
-    void DoCheckClusterLiveness(
-        const TCheckClusterLivenessOptions& options);
-    TSyncAlienCellsResult DoSyncAlienCells(
-        const std::vector<NChaosClient::TAlienCellDescriptorLite>& alienCellDescriptors,
-        const TSyncAlienCellOptions& options);
-
     //
     // Administration
     //
-
-    int DoBuildSnapshot(
-        const TBuildSnapshotOptions& options);
-    TCellIdToSnapshotIdMap DoBuildMasterSnapshots(
-        const TBuildMasterSnapshotsOptions& options);
-    void DoExitReadOnly(
-        NObjectClient::TCellId cellId,
-        const TExitReadOnlyOptions& options);
-    void DoMasterExitReadOnly(
-        const TMasterExitReadOnlyOptions& options);
-    void DoDiscombobulateNonvotingPeers(
-        NObjectClient::TCellId cellId,
-        const TDiscombobulateNonvotingPeersOptions& options);
-    void DoSwitchLeader(
-        NObjectClient::TCellId cellId,
-        const TString& newLeaderAddress,
-        const TSwitchLeaderOptions& options);
-    void DoResetStateHash(
-        NObjectClient::TCellId cellId,
-        const TResetStateHashOptions& options);
-    void DoGCCollect(
-        const TGCCollectOptions& options);
-    void DoKillProcess(
-        const TString& address,
-        const TKillProcessOptions& options);
-    TString DoWriteCoreDump(
-        const TString& address,
-        const TWriteCoreDumpOptions& options);
-    TString DoWriteOperationControllerCoreDump(
-        NScheduler::TOperationId operationId,
-        const TWriteOperationControllerCoreDumpOptions& options);
-    TGuid DoWriteLogBarrier(
-        const TString& address,
-        const TWriteLogBarrierOptions& options);
-    void DoHealExecNode(
-        const TString& address,
-        const THealExecNodeOptions& options);
-    void DoSuspendCoordinator(
-        NObjectClient::TCellId coordinatorCellId,
-        const TSuspendCoordinatorOptions& options);
-    void DoResumeCoordinator(
-        NObjectClient::TCellId coordinatorCellId,
-        const TResumeCoordinatorOptions& options);
-    void DoMigrateReplicationCards(
-        NObjectClient::TCellId chaosCellId,
-        const TMigrateReplicationCardsOptions& options);
-    void DoSuspendChaosCells(
-        const std::vector<NObjectClient::TCellId>& cellIds,
-        const TSuspendChaosCellsOptions& options);
-    void DoResumeChaosCells(
-        const std::vector<NObjectClient::TCellId>& cellIds,
-        const TResumeChaosCellsOptions& options);
-    void DoSuspendTabletCells(
-        const std::vector<NObjectClient::TCellId>& cellIds,
-        const TSuspendTabletCellsOptions& options);
-    void DoResumeTabletCells(
-        const std::vector<NObjectClient::TCellId>& cellIds,
-        const TResumeTabletCellsOptions& options);
-    TMaintenanceId DoAddMaintenance(
-        EMaintenanceComponent component,
-        const TString& address,
-        EMaintenanceType type,
-        const TString& comment,
-        const TAddMaintenanceOptions& options);
-    TMaintenanceCounts DoRemoveMaintenance(
-        EMaintenanceComponent component,
-        const TString& address,
-        const TMaintenanceFilter& filter,
-        const TRemoveMaintenanceOptions& options);
 
     void SyncCellsIfNeeded(const std::vector<NObjectClient::TCellId>& cellIds);
 
@@ -1786,26 +1342,6 @@ private:
     // Internal
     //
 
-    std::vector<TSharedRef> DoReadHunks(
-        const std::vector<THunkDescriptor>& descriptors,
-        const TReadHunksOptions& options);
-    std::vector<THunkDescriptor> DoWriteHunks(
-        const NYTree::TYPath& path,
-        int tabletIndex,
-        const std::vector<TSharedRef>& payloads,
-        const TWriteHunksOptions& options);
-    void DoLockHunkStore(
-        const NYTree::TYPath& path,
-        int tabletIndex,
-        NTabletClient::TStoreId storeId,
-        NTabletClient::TTabletId lockerTabletId,
-        const TLockHunkStoreOptions& options);
-    void DoUnlockHunkStore(
-        const NYTree::TYPath& path,
-        int tabletIndex,
-        NTabletClient::TStoreId storeId,
-        NTabletClient::TTabletId lockerTabletId,
-        const TUnlockHunkStoreOptions& options);
     void DoToggleHunkStoreLock(
         const NYTree::TYPath& path,
         int tabletIndex,
@@ -1813,98 +1349,15 @@ private:
         NTabletClient::TTabletId lockerTabletId,
         bool lock,
         const TTimeoutOptions& options);
-    void DoIssueLease(
-        NHydra::TCellId cellId,
-        NObjectClient::TObjectId leaseId,
-        const TIssueLeaseOptions& options);
-    void DoRevokeLease(
-        NHydra::TCellId cellId,
-        NObjectClient::TObjectId leaseId,
-        bool force,
-        const TRevokeLeaseOptions& options);
-    void DoReferenceLease(
-        NHydra::TCellId cellId,
-        NObjectClient::TObjectId leaseId,
-        bool persistent,
-        bool force,
-        const TReferenceLeaseOptions& options);
-    void DoUnreferenceLease(
-        NHydra::TCellId cellId,
-        NObjectClient::TObjectId leaseId,
-        bool persistent,
-        const TUnreferenceLeaseOptions& options);
-    std::vector<TErrorOr<i64>> DoGetOrderedTabletSafeTrimRowCount(
-        const std::vector<TGetOrderedTabletSafeTrimRowCountRequest>& requests,
-        const TGetOrderedTabletSafeTrimRowCountOptions& options);
-
-    //
-    // Query tracker
-    //
-
-    NQueryTrackerClient::TQueryId DoStartQuery(
-        NQueryTrackerClient::EQueryEngine engine,
-        const TString& query,
-        const TStartQueryOptions& options);
-    void DoAbortQuery(
-        NQueryTrackerClient::TQueryId queryId,
-        const TAbortQueryOptions& options);
-    TQueryResult DoGetQueryResult(
-        NQueryTrackerClient::TQueryId queryId,
-        i64 resultIndex ,
-        const TGetQueryResultOptions& options);
-    IUnversionedRowsetPtr DoReadQueryResult(
-        NQueryTrackerClient::TQueryId queryId,
-        i64 resultIndex ,
-        const TReadQueryResultOptions& options);
-    TQuery DoGetQuery(
-        NQueryTrackerClient::TQueryId queryId,
-        const TGetQueryOptions& options);
-    TListQueriesResult DoListQueries(
-        const TListQueriesOptions& options);
-    void DoAlterQuery(
-        NQueryTrackerClient::TQueryId queryId,
-        const TAlterQueryOptions& options);
 
     //
     // Authentication
     //
 
-    void DoSetUserPassword(
-        const TString& user,
-        const TString& currentPasswordSha256,
-        const TString& newPasswordSha256,
-        const TSetUserPasswordOptions& options);
-
-    TIssueTokenResult DoIssueToken(
-        const TString& user,
-        const TString& passwordSha256,
-        const TIssueTokenOptions& options);
-
-    TIssueTokenResult DoIssueTemporaryToken(
-        const TString& user,
-        const NYTree::IAttributeDictionaryPtr& attributes,
-        const TIssueTemporaryTokenOptions& options);
-
     TIssueTokenResult DoIssueTokenImpl(
         const TString& user,
         const NYTree::IAttributeDictionaryPtr& attributes,
         const TIssueTokenOptions& options);
-
-    void DoRefreshTemporaryToken(
-        const TString& user,
-        const TString& token,
-        const TRefreshTemporaryTokenOptions& options);
-
-    void DoRevokeToken(
-        const TString& user,
-        const TString& passwordSha256,
-        const TString& tokenSha256,
-        const TRevokeTokenOptions& options);
-
-    TListUserTokensResult DoListUserTokens(
-        const TString& user,
-        const TString& passwordSha256,
-        const TListUserTokensOptions& options);
 
     //! Checks whether authenticated user can execute
     //! authentication-related commands affecting |user|.
@@ -1912,24 +1365,11 @@ private:
     //! Allows execution if |user| coincides with authenticated user
     //! and valid password is provided.
     //! Always denies execution for other users.
-    void DoValidateAuthenticationCommandPermissions(
+    void ValidateAuthenticationCommandPermissions(
         TStringBuf action,
         const TString& user,
         const TString& passwordSha256,
         const TTimeoutOptions& options);
-
-    //
-    // Bundle Controller
-    //
-
-    NBundleControllerClient::TBundleConfigDescriptorPtr DoGetBundleConfig(
-        const TString& bundleName,
-        const NBundleControllerClient::TGetBundleConfigOptions& options);
-
-    void DoSetBundleConfig(
-        const TString& bundleName,
-        const NBundleControllerClient::TBundleTargetConfigPtr& bundleConfig,
-        const NBundleControllerClient::TSetBundleConfigOptions& options);
 
     //
     // Flow
@@ -1938,33 +1378,6 @@ private:
     TString DiscoverPipelineControllerLeader(const NYPath::TYPath& pipelinePath);
 
     NFlow::NController::TControllerServiceProxy CreatePipelineControllerLeaderProxy(const NYPath::TYPath& pipelinePath);
-
-    TGetPipelineSpecResult DoGetPipelineSpec(
-        const NYPath::TYPath& pipelinePath,
-        const TGetPipelineSpecOptions& options);
-    TSetPipelineSpecResult DoSetPipelineSpec(
-        const NYPath::TYPath& pipelinePath,
-        const NYson::TYsonString& spec,
-        const TSetPipelineSpecOptions& options);
-    TGetPipelineDynamicSpecResult DoGetPipelineDynamicSpec(
-        const NYPath::TYPath& pipelinePath,
-        const TGetPipelineDynamicSpecOptions& options);
-    TSetPipelineDynamicSpecResult DoSetPipelineDynamicSpec(
-        const NYPath::TYPath& pipelinePath,
-        const NYson::TYsonString& spec,
-        const TSetPipelineDynamicSpecOptions& options);
-    void DoStartPipeline(
-        const NYPath::TYPath& pipelinePath,
-        const TStartPipelineOptions& options);
-    void DoStopPipeline(
-        const NYPath::TYPath& pipelinePath,
-        const TStopPipelineOptions& options);
-    void DoPausePipeline(
-        const NYPath::TYPath& pipelinePath,
-        const TPausePipelineOptions& options);
-    TPipelineStatus DoGetPipelineStatus(
-        const NYPath::TYPath& pipelinePath,
-        const TGetPipelineStatusOptions& options);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)

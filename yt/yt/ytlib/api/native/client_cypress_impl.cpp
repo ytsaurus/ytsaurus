@@ -1946,7 +1946,7 @@ private:
 void TClient::DoConcatenateNodes(
     const std::vector<TRichYPath>& srcPaths,
     const TRichYPath& dstPath,
-    TConcatenateNodesOptions options)
+    const TConcatenateNodesOptions& options)
 {
     if (options.Retry) {
         THROW_ERROR_EXCEPTION("\"concatenate\" command is not retriable");
@@ -1971,7 +1971,7 @@ bool TClient::DoNodeExists(
 void TClient::DoExternalizeNode(
     const TYPath& path,
     TCellTag cellTag,
-    TExternalizeNodeOptions options)
+    const TExternalizeNodeOptions& options)
 {
     TNodeExternalizer externalizer(
         this,
@@ -1984,7 +1984,7 @@ void TClient::DoExternalizeNode(
 
 void TClient::DoInternalizeNode(
     const TYPath& path,
-    TInternalizeNodeOptions options)
+    const TInternalizeNodeOptions& options)
 {
     TNodeInternalizer internalizer(
         this,

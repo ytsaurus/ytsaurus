@@ -21,7 +21,7 @@ void TClient::DoSetUserPassword(
     const TString& newPasswordSha256,
     const TSetUserPasswordOptions& options)
 {
-    DoValidateAuthenticationCommandPermissions(
+    ValidateAuthenticationCommandPermissions(
         "Password change",
         user,
         currentPasswordSha256,
@@ -61,7 +61,7 @@ TIssueTokenResult TClient::DoIssueToken(
     const TString& passwordSha256,
     const TIssueTokenOptions& options)
 {
-    DoValidateAuthenticationCommandPermissions(
+    ValidateAuthenticationCommandPermissions(
         "Token issuance",
         user,
         passwordSha256,
@@ -196,7 +196,7 @@ void TClient::DoRevokeToken(
         THROW_ERROR_EXCEPTION("Provided token is not recognized as a valid token for user %Qv", user);
     }
 
-    DoValidateAuthenticationCommandPermissions(
+    ValidateAuthenticationCommandPermissions(
         "Token revokation",
         tokenUser,
         passwordSha256,
@@ -223,7 +223,7 @@ TListUserTokensResult TClient::DoListUserTokens(
     const TString& passwordSha256,
     const TListUserTokensOptions& options)
 {
-    DoValidateAuthenticationCommandPermissions(
+    ValidateAuthenticationCommandPermissions(
         "Tokens listing",
         user,
         passwordSha256,
@@ -258,7 +258,7 @@ TListUserTokensResult TClient::DoListUserTokens(
     };
 }
 
-void TClient::DoValidateAuthenticationCommandPermissions(
+void TClient::ValidateAuthenticationCommandPermissions(
     TStringBuf action,
     const TString& user,
     const TString& passwordSha256,

@@ -40,7 +40,7 @@ using namespace NTransactionClient;
 TCheckPermissionByAclResult TClient::DoCheckPermissionByAcl(
     const std::optional<TString>& user,
     EPermission permission,
-    const INodePtr& acl,
+    INodePtr acl,
     const TCheckPermissionByAclOptions& options)
 {
     auto proxy = CreateObjectServiceReadProxy(options);

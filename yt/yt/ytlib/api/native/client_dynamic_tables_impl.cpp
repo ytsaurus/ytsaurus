@@ -739,7 +739,7 @@ TClient::TDecoderWithMapping TClient::GetLookupRowsDecoder() const
 
 TUnversionedLookupRowsResult TClient::DoLookupRows(
     const TYPath& path,
-    const TNameTablePtr& nameTable,
+    TNameTablePtr nameTable,
     const TSharedRange<NTableClient::TLegacyKey>& keys,
     const TLookupRowsOptions& options)
 {
@@ -775,7 +775,7 @@ TUnversionedLookupRowsResult TClient::DoLookupRows(
 
 TVersionedLookupRowsResult TClient::DoVersionedLookupRows(
     const TYPath& path,
-    const TNameTablePtr& nameTable,
+    TNameTablePtr nameTable,
     const TSharedRange<NTableClient::TLegacyKey>& keys,
     const TVersionedLookupRowsOptions& options)
 {
@@ -2283,11 +2283,11 @@ std::vector<TTabletActionId> TClient::DoBalanceTabletCells(
     return tabletActions;
 }
 
-IQueueRowsetPtr TClient::DoPullQueue(
+IQueueRowsetPtr TClient::DoPullQueueImpl(
     const NYPath::TRichYPath& queuePath,
     i64 offset,
     int partitionIndex,
-    TQueueRowBatchReadOptions rowBatchReadOptions,
+    const TQueueRowBatchReadOptions& rowBatchReadOptions,
     const TPullQueueOptions& options,
     bool checkPermissions)
 {
@@ -2421,17 +2421,16 @@ IQueueRowsetPtr TClient::DoPullQueue(
     }
 
     // The code below performs the actual request.
-
-    rowBatchReadOptions.MaxRowCount = ComputeRowsToRead(rowBatchReadOptions);
+    auto adjustedRowBatchReadOptions = rowBatchReadOptions;
+    adjustedRowBatchReadOptions.MaxRowCount = ComputeRowsToRead(rowBatchReadOptions);
 
     IUnversionedRowsetPtr rowset;
-
     if (options.UseNativeTabletNodeApi) {
         rowset = DoPullQueueViaTabletNodeApi(
             queuePath,
             offset,
             partitionIndex,
-            rowBatchReadOptions,
+            adjustedRowBatchReadOptions,
             options,
             checkPermissions);
     } else {
@@ -2439,12 +2438,11 @@ IQueueRowsetPtr TClient::DoPullQueue(
             queuePath,
             offset,
             partitionIndex,
-            rowBatchReadOptions,
+            adjustedRowBatchReadOptions,
             options);
     }
 
     auto startOffset = offset;
-
     if (!rowset->GetRows().Empty()) {
         startOffset = GetStartOffset(rowset);
     }
@@ -2452,14 +2450,30 @@ IQueueRowsetPtr TClient::DoPullQueue(
     return CreateQueueRowset(rowset, startOffset);
 }
 
+IQueueRowsetPtr TClient::DoPullQueue(
+    const NYPath::TRichYPath& queuePath,
+    i64 offset,
+    int partitionIndex,
+    const TQueueRowBatchReadOptions& rowBatchReadOptions,
+    const TPullQueueOptions& options)
+{
+    return DoPullQueueImpl(
+        queuePath,
+        offset,
+        partitionIndex,
+        rowBatchReadOptions,
+        options,
+        /*checkPermissions*/ true);
+}
+
 IQueueRowsetPtr TClient::DoPullQueueUnauthenticated(
     const NYPath::TRichYPath& queuePath,
     i64 offset,
     int partitionIndex,
-    TQueueRowBatchReadOptions rowBatchReadOptions,
+    const TQueueRowBatchReadOptions& rowBatchReadOptions,
     const TPullQueueOptions& options)
 {
-    return DoPullQueue(
+    return DoPullQueueImpl(
         queuePath,
         offset,
         partitionIndex,
