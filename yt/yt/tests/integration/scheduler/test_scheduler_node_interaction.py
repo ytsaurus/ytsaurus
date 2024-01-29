@@ -611,14 +611,6 @@ class TestNodeMultipleUnregistrations(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {"scheduler": {"node_heartbeat_timeout": 10000}}
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "job_tracker": {
-                "node_disconnection_timeout": 3000,
-            },
-        },
-    }
-
     DELTA_NODE_CONFIG = {
         "data_node": {
             "lease_transaction_timeout": 10000,

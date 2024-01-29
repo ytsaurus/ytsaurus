@@ -381,6 +381,7 @@ def get_controller_agent_config():
             enable_graceful_abort = %false;
             logging_job_sample_size = 1000;
             duration_before_job_considered_disappeared_from_node = 1000;
+            node_disconnection_timeout = 2000;
         };
 
         set_committed_attribute_via_transaction_action = %false;

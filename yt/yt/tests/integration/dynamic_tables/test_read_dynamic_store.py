@@ -894,14 +894,6 @@ class TestReadGenericDynamicTables(DynamicTablesBase):
     NUM_SCHEDULERS = 1
     ENABLE_BULK_INSERT = True
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "job_tracker": {
-                "node_disconnection_timeout": 2000,
-            },
-        }
-    }
-
     @pytest.mark.parametrize("sorted", [True, False])
     def test_dynamic_store_id_pool(self, sorted):
         sync_create_cells(1)

@@ -60,9 +60,6 @@ class TestSchedulerMapReduceCommands(YTEnvSetup):
                     "enable_table_index_if_has_trivial_mapper": True,
                 }
             },
-            "job_tracker": {
-                "node_disconnection_timeout": 2000,
-            },
         }
     }
 
@@ -3386,9 +3383,6 @@ class TestSchedulerMapReduceCommandsNewSortedPool(TestSchedulerMapReduceCommands
                 "spec_template": {
                     "enable_table_index_if_has_trivial_mapper": True,
                 },
-            },
-            "job_tracker": {
-                "node_disconnection_timeout": 2000,
             },
         }
     }
