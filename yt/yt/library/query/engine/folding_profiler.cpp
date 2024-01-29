@@ -1679,7 +1679,7 @@ void TQueryProfiler::Profile(
                 }
             }
 
-            YT_ASSERT(arrayCount == renamedJoinSchema->GetColumnCount());
+            YT_VERIFY(arrayCount == renamedJoinSchema->GetColumnCount());
 
             std::vector<int> arrayJoinedColumns;
             std::vector<EValueType> rowTypes(arrayCount);

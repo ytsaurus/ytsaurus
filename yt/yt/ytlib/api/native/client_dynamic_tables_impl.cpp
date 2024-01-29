@@ -360,8 +360,7 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
             /*isLeft*/ false,
             std::move(index),
             std::move(joinColumns),
-            /*predicate*/ std::nullopt)
-        );
+            /*predicate*/ std::nullopt));
 
     query.WithIndex.reset();
 
