@@ -49,6 +49,7 @@ target_proto_messages(unittester-core-misc PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/proto/ref_counted_tracker_ut.proto
 )
 target_sources(unittester-core-misc PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt/core/misc/unittests/proto/ref_counted_tracker_ut.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/algorithm_helpers_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/arithmetic_formula_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/atomic_ptr_ut.cpp

@@ -37,6 +37,7 @@ target_proto_messages(server-lib-discovery_server PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/discovery_server/proto/discovery_server_service.proto
 )
 target_sources(server-lib-discovery_server PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/discovery_server/proto/discovery_server_service.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/discovery_server/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/discovery_server/cypress_integration.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/discovery_server/discovery_server.cpp

@@ -33,6 +33,9 @@ target_link_libraries(yt-client-cache-proto PUBLIC
 target_proto_messages(yt-client-cache-proto PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/client/cache/proto/config.proto
 )
+target_sources(yt-client-cache-proto PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/cache/proto/config.pb.h
+)
 target_proto_addincls(yt-client-cache-proto
   ./yt
   ${CMAKE_SOURCE_DIR}/yt

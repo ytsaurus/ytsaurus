@@ -29,6 +29,9 @@ target_link_libraries(cpp-porto-proto PUBLIC
 target_proto_messages(cpp-porto-proto PRIVATE
   ${CMAKE_SOURCE_DIR}/library/cpp/porto/proto/rpc.proto
 )
+target_sources(cpp-porto-proto PRIVATE
+  ${CMAKE_BINARY_DIR}/library/cpp/porto/proto/rpc.pb.h
+)
 target_proto_addincls(cpp-porto-proto
   ./
   ${CMAKE_SOURCE_DIR}/

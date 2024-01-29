@@ -56,6 +56,7 @@ target_proto_messages(unittester-core-ytree PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/proto/test.proto
 )
 target_sources(unittester-core-ytree PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt/core/ytree/unittests/proto/test.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/attributes_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/attribute_filter_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/resolver_ut.cpp

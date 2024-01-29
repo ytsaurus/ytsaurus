@@ -37,6 +37,7 @@ target_proto_messages(server-lib-user_job PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/user_job/proto/user_job_synchronizer_service.proto
 )
 target_sources(server-lib-user_job PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/user_job/proto/user_job_synchronizer_service.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/user_job/config.cpp
 )
 target_proto_addincls(server-lib-user_job

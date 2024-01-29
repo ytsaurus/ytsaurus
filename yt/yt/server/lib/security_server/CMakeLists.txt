@@ -36,6 +36,9 @@ target_link_libraries(server-lib-security_server PUBLIC
 target_proto_messages(server-lib-security_server PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/security_server/proto/security_manager.proto
 )
+target_sources(server-lib-security_server PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/security_server/proto/security_manager.pb.h
+)
 target_proto_addincls(server-lib-security_server
   ./yt
   ${CMAKE_SOURCE_DIR}/yt

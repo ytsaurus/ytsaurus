@@ -34,6 +34,7 @@ target_proto_messages(library-dns_over_rpc-client PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/dns_over_rpc/client/proto/dns_over_rpc_service.proto
 )
 target_sources(library-dns_over_rpc-client PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt/library/dns_over_rpc/client/proto/dns_over_rpc_service.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/library/dns_over_rpc/client/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/dns_over_rpc/client/dns_over_rpc_resolver.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/dns_over_rpc/client/helpers.cpp

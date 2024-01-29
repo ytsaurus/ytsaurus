@@ -38,6 +38,7 @@ target_proto_messages(server-lib-hive PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/proto/hive_manager.proto
 )
 target_sources(server-lib-hive PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/hive/proto/hive_manager.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/avenue_directory.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/helpers.cpp

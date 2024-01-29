@@ -39,6 +39,7 @@ target_proto_messages(server-lib-lease_server PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/lease_server/proto/lease_manager.proto
 )
 target_sources(server-lib-lease_server PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/lease_server/proto/lease_manager.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/lease_server/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/lease_server/lease_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/lease_server/serialize.cpp

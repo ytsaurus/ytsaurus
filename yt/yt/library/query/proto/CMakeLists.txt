@@ -62,6 +62,11 @@ target_proto_messages(library-query-proto PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/proto/query_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/proto/functions_cache.proto
 )
+target_sources(library-query-proto PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/proto/query.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/proto/query_service.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/proto/functions_cache.pb.h
+)
 target_proto_addincls(library-query-proto
   ./yt
   ${CMAKE_SOURCE_DIR}/yt

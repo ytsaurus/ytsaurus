@@ -49,6 +49,8 @@ target_proto_messages(rpc-unittests-lib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/no_baggage_service.proto
 )
 target_sources(rpc-unittests-lib PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt/core/rpc/unittests/lib/test_service.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/core/rpc/unittests/lib/no_baggage_service.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/common.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/test_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/no_baggage_service.cpp

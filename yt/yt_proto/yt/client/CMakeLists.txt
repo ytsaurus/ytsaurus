@@ -295,6 +295,29 @@ target_proto_messages(yt_proto-yt-client PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/client/query_client/proto/query_statistics.proto
   ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/client/misc/proto/workload.proto
 )
+target_sources(yt_proto-yt-client PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/api/rpc_proxy/proto/api_service.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/api/rpc_proxy/proto/discovery_service.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/bundle_controller/proto/bundle_controller_service.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/cell_master/proto/cell_directory.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/chaos_client/proto/replication_card.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/chunk_client/proto/read_limit.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/chunk_client/proto/confirm_chunk_replica_info.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/discovery_client/proto/discovery_client_service.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/hive/proto/timestamp_map.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/hive/proto/cluster_directory.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/node_tracker_client/proto/node_directory.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/table_chunk_format/proto/column_meta.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/transaction_client/proto/timestamp_service.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/query_client/proto/query_statistics.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/misc/proto/workload.pb.h
+)
 target_proto_addincls(yt_proto-yt-client
   ./yt
   ${CMAKE_SOURCE_DIR}/yt

@@ -37,6 +37,9 @@ target_link_libraries(server-lib-table_server PUBLIC
 target_proto_messages(server-lib-table_server PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/table_server/proto/table_manager.proto
 )
+target_sources(server-lib-table_server PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/table_server/proto/table_manager.pb.h
+)
 target_proto_addincls(server-lib-table_server
   ./yt
   ${CMAKE_SOURCE_DIR}/yt

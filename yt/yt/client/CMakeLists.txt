@@ -59,6 +59,7 @@ target_link_libraries(yt-yt-client PUBLIC
   contrib-libs-pfr
 )
 target_sources(yt-yt-client PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt/client/_/api/rpc_proxy/protocol_version_variables.h
   ${CMAKE_SOURCE_DIR}/yt/yt/client/api/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/api/client.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/api/client_common.cpp

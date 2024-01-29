@@ -29,6 +29,9 @@ target_link_libraries(timers-timer-proto PUBLIC
 target_proto_messages(timers-timer-proto PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/library/timers/timer/proto/timers.proto
 )
+target_sources(timers-timer-proto PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/cpp/roren/library/timers/timer/proto/timers.pb.h
+)
 target_proto_addincls(timers-timer-proto
   ./
   ${CMAKE_SOURCE_DIR}/

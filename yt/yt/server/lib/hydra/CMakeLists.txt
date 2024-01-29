@@ -47,6 +47,7 @@ target_proto_messages(server-lib-hydra PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/proto/hydra_service.proto
 )
 target_sources(server-lib-hydra PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/hydra/proto/hydra_service.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog_acquisition.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog_discovery.cpp

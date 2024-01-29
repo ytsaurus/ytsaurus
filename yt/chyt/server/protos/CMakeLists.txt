@@ -50,6 +50,10 @@ target_proto_messages(chyt-server-protos PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/protos/clickhouse_service.proto
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/protos/subquery_spec.proto
 )
+target_sources(chyt-server-protos PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/chyt/server/protos/clickhouse_service.pb.h
+  ${CMAKE_BINARY_DIR}/yt/chyt/server/protos/subquery_spec.pb.h
+)
 target_proto_addincls(chyt-server-protos
   ./yt
   ${CMAKE_SOURCE_DIR}/yt

@@ -53,6 +53,8 @@ target_proto_messages(server-lib-scheduler PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.proto
 )
 target_sources(server-lib-scheduler PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/scheduler/proto/allocation_tracker_service.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/scheduler/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/scheduler/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/scheduler/exec_node_descriptor.cpp

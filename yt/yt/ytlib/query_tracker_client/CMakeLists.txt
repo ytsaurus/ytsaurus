@@ -19,6 +19,7 @@ target_link_libraries(yt-ytlib-query_tracker_client PUBLIC
   yt-yt-client
 )
 target_sources(yt-ytlib-query_tracker_client PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/records/query.record.h
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_tracker_client/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_tracker_client/helpers.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/records/query.record.cpp

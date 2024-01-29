@@ -36,6 +36,7 @@ target_proto_messages(server-node-chaos_node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/chaos_node/chaos_manager.proto
 )
 target_sources(server-node-chaos_node PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt/server/node/chaos_node/chaos_manager.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/chaos_node/automaton.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/chaos_node/bootstrap.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/chaos_node/chaos_cell_synchronizer.cpp

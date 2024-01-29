@@ -32,6 +32,9 @@ target_link_libraries(yt-contrib-gogoproto PUBLIC
 target_proto_messages(yt-contrib-gogoproto PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/contrib/gogoproto/github.com/gogo/protobuf/gogoproto/gogo.proto
 )
+target_sources(yt-contrib-gogoproto PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt/contrib/gogoproto/github.com/gogo/protobuf/gogoproto/gogo.pb.h
+)
 target_proto_addincls(yt-contrib-gogoproto
   ./yt/yt/contrib/gogoproto
   ${CMAKE_SOURCE_DIR}/yt/yt/contrib/gogoproto

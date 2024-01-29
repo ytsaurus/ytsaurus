@@ -36,6 +36,9 @@ target_link_libraries(server-lib-incumbent_client PUBLIC
 target_proto_messages(server-lib-incumbent_client PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/incumbent_client/proto/incumbent_service.proto
 )
+target_sources(server-lib-incumbent_client PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/incumbent_client/proto/incumbent_service.pb.h
+)
 target_proto_addincls(server-lib-incumbent_client
   ./yt
   ${CMAKE_SOURCE_DIR}/yt

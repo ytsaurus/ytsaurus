@@ -46,6 +46,10 @@ target_proto_messages(flow-controller-proto PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/flow/controller/proto/controller_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/flow/controller/proto/worker_tracker_service.proto
 )
+target_sources(flow-controller-proto PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/flow/controller/proto/controller_service.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/flow/controller/proto/worker_tracker_service.pb.h
+)
 target_proto_addincls(flow-controller-proto
   ./yt
   ${CMAKE_SOURCE_DIR}/yt

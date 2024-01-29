@@ -101,6 +101,11 @@ target_proto_messages(unittester-core-yson PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/unittests/proto/protobuf_yson_schema_ut.proto
 )
 target_sources(unittester-core-yson PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt/core/yson/unittests/proto/protobuf_scalar_type_ut.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/core/yson/unittests/proto/protobuf_yson_ut.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/core/yson/unittests/proto/protobuf_yson_casing_ut.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/core/yson/unittests/proto/protobuf_yson_casing_ext_ut.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/core/yson/unittests/proto/protobuf_yson_schema_ut.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/unittests/depth_limiting_yson_consumer_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/unittests/filter_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/unittests/lexer_ut.cpp

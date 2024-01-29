@@ -38,6 +38,7 @@ target_proto_messages(yt-ytlib-distributed_throttler PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/distributed_throttler/proto/distributed_throttler.proto
 )
 target_sources(yt-ytlib-distributed_throttler PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/distributed_throttler/proto/distributed_throttler.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/distributed_throttler/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/distributed_throttler/distributed_throttler.cpp
 )

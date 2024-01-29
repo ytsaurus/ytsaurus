@@ -47,6 +47,7 @@ target_proto_messages(rpc_benchmark PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/rpc/main.proto
 )
 target_sources(rpc_benchmark PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt/benchmarks/rpc/main.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/rpc/main.cpp
 )
 target_allocator(rpc_benchmark

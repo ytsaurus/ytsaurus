@@ -52,6 +52,8 @@ target_proto_messages(server-lib-tablet_server PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_server/proto/tablet_manager.proto
 )
 target_sources(server-lib-tablet_server PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/tablet_server/proto/backup_manager.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_server/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_server/replicated_table_tracker.cpp
 )

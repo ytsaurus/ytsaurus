@@ -36,6 +36,9 @@ target_link_libraries(server-lib-cell_server PUBLIC
 target_proto_messages(server-lib-cell_server PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/cell_server/proto/cell_manager.proto
 )
+target_sources(server-lib-cell_server PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/cell_server/proto/cell_manager.pb.h
+)
 target_proto_addincls(server-lib-cell_server
   ./yt
   ${CMAKE_SOURCE_DIR}/yt

@@ -39,6 +39,7 @@ target_proto_messages(server-lib-transaction_supervisor PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/proto/transaction_supervisor.proto
 )
 target_sources(server-lib-transaction_supervisor PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/transaction_supervisor/proto/transaction_supervisor.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/abort.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/commit.cpp

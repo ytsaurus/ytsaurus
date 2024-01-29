@@ -29,6 +29,9 @@ target_link_libraries(cpp-xdelta3-proto PUBLIC
 target_proto_messages(cpp-xdelta3-proto PRIVATE
   ${CMAKE_SOURCE_DIR}/library/cpp/xdelta3/proto/state_header.proto
 )
+target_sources(cpp-xdelta3-proto PRIVATE
+  ${CMAKE_BINARY_DIR}/library/cpp/xdelta3/proto/state_header.pb.h
+)
 target_proto_addincls(cpp-xdelta3-proto
   ./
   ${CMAKE_SOURCE_DIR}/

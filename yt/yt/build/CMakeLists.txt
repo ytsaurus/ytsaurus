@@ -84,6 +84,8 @@ target_link_libraries(yt-yt-build PUBLIC
   yutil
 )
 target_sources(yt-yt-build PRIVATE
+  ${CMAKE_BINARY_DIR}/yt/yt/build/config.h
+  ${CMAKE_SOURCE_DIR}/yt/yt/build/build.h
   ${CMAKE_SOURCE_DIR}/yt/yt/build/ya_version.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/build/build.cpp
 )
