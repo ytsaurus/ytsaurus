@@ -239,7 +239,7 @@ public:
 
     TTimestamp GenerateTimestamp()
     {
-        return CurrentTimestamp_++;
+        return ++LastGeneratedTimestamp_;
     }
 
     std::unique_ptr<TTestTransaction> StartTransaction(
@@ -373,7 +373,7 @@ public:
     TNameTablePtr NameTable_;
     TNameTablePtr QueryNameTable_;
     std::unique_ptr<TTablet> Tablet_;
-    TTimestamp CurrentTimestamp_ = 10000; // some reasonable starting point
+    TTimestamp LastGeneratedTimestamp_ = 10000; // some reasonable starting point
     NChunkClient::TClientChunkReadOptions ChunkReadOptions_;
     TTabletContextMock TabletContext_;
     TTableSettings TableSettings_ = TTableSettings::CreateNew();

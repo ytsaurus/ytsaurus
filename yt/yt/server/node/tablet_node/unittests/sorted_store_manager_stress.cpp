@@ -933,6 +933,15 @@ public:
 
         return false;
     }
+
+    TGuid GenerateId() {
+        auto part0 = Rng();
+        auto part1 = Rng();
+        auto part2 = Rng();
+        auto part3 = Rng();
+
+        return TGuid(part0, part1, part2, part3);
+    }
 };
 
 TEST_P(TSortedStoreManagerStressTest, Test)
@@ -967,6 +976,15 @@ void TSortedStoreManagerStressTest::RunTest()
     int MaxValue = Rng() % 100'000 + 1;
     MaxActionsPerTransaction = std::min(KeyCount, MaxActionsPerTransaction);
     int MaxConcurrentLookups = Rng() % 50 + 1;
+
+    Cerr << Format("Test parameters (Iterations: %v, MaxRunningTransactions: %v, MaxActionsPerTransaction: %v, KeyCount: %v, "
+        "MaxValue: %v, MaxConcurrentLookups: %v)",
+        Iterations,
+        MaxRunningTransactions,
+        MaxActionsPerTransaction,
+        KeyCount,
+        MaxValue,
+        MaxConcurrentLookups) << Endl;
 
     THashSet<TLookuperPtr> lookupers;
 
@@ -1143,8 +1161,8 @@ void TSortedStoreManagerStressTest::RunTest()
             TLookupRequest request {
                 .Key = static_cast<TKey>(Rng() % KeyCount),
                 .ValueFilter = {},
-                .Timestamp = CurrentTimestamp_ - TsGap + Rng() % (TsGap + 1),
-                .RequestId = TGuid::Create(),
+                .Timestamp = LastGeneratedTimestamp_ - TsGap + Rng() % (TsGap + 1),
+                .RequestId = GenerateId(),
             };
             for (int index = 0; index < ValueCount; ++index) {
                 request.ValueFilter[index] = (Rng() % 2 == 0);
