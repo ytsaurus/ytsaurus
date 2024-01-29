@@ -344,6 +344,11 @@ public:
     double CpuLimitOvercommitMultiplier;
     double InitialCpuLimitOvercommit;
 
+    //! Enforce slot container memory limit.
+    bool SetSlotContainerMemoryLimit;
+
+    i64 SlotContainerMemoryOverhead;
+
     //! Number of simultaneously building job specs after which controller starts throttling.
     std::optional<int> ControllerBuildingJobSpecCountLimit;
     //! Total slice count of currently building job specs after which controller starts throttling.

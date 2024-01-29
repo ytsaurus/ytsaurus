@@ -249,6 +249,8 @@ public:
 
     std::optional<double> ContainerCpuLimit;
 
+    std::optional<i64> SlotContainerMemoryLimit;
+
     NYT::NRpcProxy::TApiServiceConfigPtr ApiService;
 
     std::optional<int> StatisticsOutputTableCountLimit;

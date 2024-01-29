@@ -225,6 +225,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("container_cpu_limit", &TThis::ContainerCpuLimit)
         .Default();
 
+    registrar.Parameter("slot_container_memory_limit", &TThis::SlotContainerMemoryLimit)
+        .Default();
+
     registrar.Preprocessor([] (TThis* config) {
         config->SolomonExporter->EnableSelfProfiling = false;
         config->SolomonExporter->WindowSize = 1;
