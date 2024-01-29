@@ -16,7 +16,7 @@
 
 #include <yt/yt/library/containers/public.h>
 
-#include <library/cpp/yt/misc/enum_indexed_array.h>
+#include <library/cpp/yt/containers/enum_indexed_array.h>
 
 namespace NYT::NClusterNode {
 

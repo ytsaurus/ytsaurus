@@ -2,7 +2,7 @@
 
 #include "io_engine.h"
 
-#include <library/cpp/yt/misc/enum_indexed_array.h>
+#include <library/cpp/yt/containers/enum_indexed_array.h>
 
 namespace NYT::NIO {
 

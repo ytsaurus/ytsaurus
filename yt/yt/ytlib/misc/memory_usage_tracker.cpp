@@ -9,7 +9,7 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <library/cpp/yt/misc/enum_indexed_array.h>
+#include <library/cpp/yt/containers/enum_indexed_array.h>
 
 #include <algorithm>
 

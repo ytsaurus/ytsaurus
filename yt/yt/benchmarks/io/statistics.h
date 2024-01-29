@@ -4,7 +4,7 @@
 #include "rusage.h"
 #include "meters.h"
 
-#include <library/cpp/yt/misc/enum_indexed_array.h>
+#include <library/cpp/yt/containers/enum_indexed_array.h>
 
 #include <util/datetime/base.h>
 
