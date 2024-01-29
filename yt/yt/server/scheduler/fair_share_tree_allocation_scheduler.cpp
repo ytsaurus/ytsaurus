@@ -2531,7 +2531,18 @@ void TFairShareTreeAllocationScheduler::ProcessSchedulingHeartbeat(
         nodeState->ForceRunningAllocationStatisticsUpdate = false;
     }
 
+    bool hasUserSlotsBefore = !nodeState->Descriptor || nodeState->Descriptor->ResourceLimits.GetUserSlots() > 0;
+    bool hasUserSlotsAfter = schedulingContext->GetNodeDescriptor()->ResourceLimits.GetUserSlots() > 0;
     nodeState->Descriptor = schedulingContext->GetNodeDescriptor();
+
+    YT_LOG_INFO_IF(hasUserSlotsBefore != hasUserSlotsAfter,
+        "Node user slots were %v (NodeId: %v, NodeAddress: %v)",
+        hasUserSlotsAfter
+            ? "enabled"
+            : "disabled",
+        nodeState->Descriptor->Id,
+        nodeState->Descriptor->Address);
+
     nodeState->SpecifiedSchedulingSegment = [&] () -> std::optional<ESchedulingSegment> {
         const auto& schedulingOptions = nodeState->Descriptor->SchedulingOptions;
         if (!schedulingOptions) {

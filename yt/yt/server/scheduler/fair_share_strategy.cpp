@@ -1127,7 +1127,8 @@ public:
                     return;
                 }
 
-                if (auto treeId = it->second.TreeId) {
+                auto treeId = it->second.TreeId;
+                if (treeId) {
                     const auto& tree = GetOrCrash(IdToTree_, *treeId);
                     UnregisterNodeInTree(tree, nodeId);
                 } else {
@@ -1137,7 +1138,7 @@ public:
                 EraseOrCrash(NodeAddresses_, nodeAddress);
                 NodeIdToDescriptor_.erase(it);
 
-                YT_LOG_INFO("Node unregistered from strategy (Address: %v)", nodeAddress);
+                YT_LOG_INFO("Node was unregistered from strategy (Address: %v, TreeId: %v)", nodeAddress, treeId);
             }));
     }
 
@@ -2037,7 +2038,7 @@ private:
                 RegisterNodeInTree(tree, nodeId);
             }
 
-            YT_LOG_INFO("Node is registered at strategy (NodeId: %v, Address: %v, Tags: %v, TreeId: %v)",
+            YT_LOG_INFO("Node was registered at strategy (NodeId: %v, Address: %v, Tags: %v, TreeId: %v)",
                 nodeId,
                 nodeAddress,
                 tags,
