@@ -224,6 +224,13 @@ public:
     {
         VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
         VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
+
+        Profiler_.AddFuncGauge("/leading", MakeStrong(this), [this] {
+            return IsLeader();
+        });
+        Profiler_.AddFuncGauge("/active", MakeStrong(this), [this] {
+            return IsActive();
+        });
     }
 
     void Initialize() override
