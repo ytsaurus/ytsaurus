@@ -155,7 +155,6 @@ private:
 
     struct TNodeJobs
     {
-    public:
         //! Empty optional implies this iterator is pointing at
         //! Running job.
         struct TJobIterator

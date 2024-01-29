@@ -76,7 +76,7 @@ public:
 
     ~TUserSlot()
     {
-        YT_LOG_FATAL_UNLESS(IsReset_.load(), "UserSlot was not manually reset before destruction");
+        YT_LOG_FATAL_IF(IsEnabled_.load(), "UserSlot was not manually disabled before destruction");
 
         Location_->ReleaseDiskSpace(SlotIndex_);
         Location_->DecreaseSessionCount();
@@ -86,9 +86,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        bool isReset = IsReset_.exchange(true);
+        bool wasEnabled = IsEnabled_.exchange(false);
 
-        YT_LOG_FATAL_IF(isReset, "Attempt to reset state which is already reset");
+        YT_LOG_FATAL_UNLESS(wasEnabled, "Attempt to disable already disabled UserSlot");
         SlotGuard_.reset();
     }
 
@@ -447,7 +447,7 @@ private:
 
     NExecNode::IBootstrap* const Bootstrap_;
 
-    std::atomic<bool> IsReset_{false};
+    std::atomic<bool> IsEnabled_ = true;
     std::unique_ptr<TSlotManager::TSlotGuard> SlotGuard_;
     const int SlotIndex_;
 
@@ -471,7 +471,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        YT_LOG_FATAL_IF(IsReset_.load(), "Accessing UserSlot after it has been reset");
+        YT_LOG_FATAL_UNLESS(IsEnabled_.load(), "Accessing disabled UserSlot");
     }
 
     template <class TName, CCallableReturningFuture TCallback>

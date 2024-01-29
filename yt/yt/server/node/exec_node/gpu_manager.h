@@ -34,6 +34,8 @@ public:
     TString GetDeviceName() const;
     int GetDeviceIndex() const;
 
+    void ResetState() override;
+
     ~TGpuSlot();
 
 private:

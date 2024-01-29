@@ -50,9 +50,9 @@ TSchedulerConnector::TSchedulerConnector(IBootstrap* bootstrap)
     , DynamicConfig_(New<TSchedulerConnectorDynamicConfig>())
     , HeartbeatExecutor_(New<TRetryingPeriodicExecutor>(
         Bootstrap_->GetControlInvoker(),
-        BIND([this_ = MakeWeak(this)] {
-            auto ptr = this_.Lock();
-            return ptr ? ptr->SendHeartbeat() : TError("Dangling reference to this");
+        BIND([weakThis = MakeWeak(this)] {
+            auto strongThis = weakThis.Lock();
+            return strongThis ? strongThis->SendHeartbeat() : TError("Dangling reference to this");
         }),
         DynamicConfig_.Acquire()->HeartbeatExecutor))
     , TimeBetweenSentHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_sent_heartbeats"))

@@ -72,6 +72,9 @@ int TGpuSlot::GetDeviceIndex() const
     return DeviceIndex_;
 }
 
+void TGpuSlot::ResetState()
+{ }
+
 TGpuSlot::~TGpuSlot()
 {
     Manager_->ReleaseGpuSlot(DeviceIndex_);

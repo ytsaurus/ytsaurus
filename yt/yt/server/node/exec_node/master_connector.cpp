@@ -134,9 +134,9 @@ private:
         // but there is no reason to preserve HeartbeatExecutor's state.
         HeartbeatExecutor_ = New<TRetryingPeriodicExecutor>(
             Bootstrap_->GetMasterConnectionInvoker(),
-            BIND([this_ = MakeWeak(this)] {
-                auto ptr = this_.Lock();
-                return ptr ? ptr->ReportHeartbeat() : TError("Dangling reference to this");
+            BIND([weakThis = MakeWeak(this)] {
+                auto strongThis = weakThis.Lock();
+                return strongThis ? strongThis->ReportHeartbeat() : TError("Dangling reference to this");
             }),
             DynamicConfig_->HeartbeatExecutor);
 
