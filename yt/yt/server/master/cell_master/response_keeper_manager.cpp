@@ -41,8 +41,12 @@ public:
     {
         RegisterSaver(
             ESyncSerializationPriority::Values,
-            "TResponseKeeperManager",
+            "ResponseKeeperManager",
             BIND(&TResponseKeeperManager::Save, Unretained(this)));
+        RegisterLoader(
+            "ResponseKeeperManager",
+            BIND(&TResponseKeeperManager::Load, Unretained(this)));
+        // COMPAT(babenko)
         RegisterLoader(
             "TResponseKeeperManager",
             BIND(&TResponseKeeperManager::Load, Unretained(this)));
