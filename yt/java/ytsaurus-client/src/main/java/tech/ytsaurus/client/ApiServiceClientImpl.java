@@ -506,9 +506,16 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         return RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.PARTITION_TABLES.createRequestBuilder(rpcOptions)),
                 response -> response.body().getPartitionsList().stream()
-                        .map(p -> new MultiTablePartition(p.getTableRangesList().stream()
-                                .map(RichYPathParser::parse)
-                                .collect(Collectors.toList())))
+                        .map(p -> {
+                            List<YPath> tableRanges = p.getTableRangesList().stream()
+                                    .map(RichYPathParser::parse)
+                                    .collect(Collectors.toList());
+                            var statistics = new MultiTablePartition.AggregateStatistics(
+                                    p.getAggregateStatistics().getChunkCount(),
+                                    p.getAggregateStatistics().getDataWeight(),
+                                    p.getAggregateStatistics().getRowCount());
+                            return new MultiTablePartition(tableRanges, statistics);
+                        })
                         .collect(Collectors.toList()));
     }
 
