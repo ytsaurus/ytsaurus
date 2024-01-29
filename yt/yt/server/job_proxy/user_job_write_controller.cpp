@@ -1,6 +1,8 @@
 #include "user_job_write_controller.h"
 #include "job.h"
 
+#include <yt/yt/server/lib/job_proxy/config.h>
+
 #include <yt/yt/server/lib/misc/job_table_schema.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
@@ -379,7 +381,8 @@ void TUserJobWriteController::PopulateResult(TJobResultExt* jobResultExt)
 void TUserJobWriteController::PopulateStderrResult(NControllerAgent::NProto::TJobResultExt* jobResultExt)
 {
     if (StderrTableWriter_) {
-        *jobResultExt->mutable_stderr_result() = StderrTableWriter_->GetOutputResult();
+        *jobResultExt->mutable_stderr_result() = StderrTableWriter_->GetOutputResult(
+            Host_->GetConfig()->EnableStderrAndCoreLivePreview);
     }
 }
 

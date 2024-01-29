@@ -394,7 +394,7 @@ i64 TCoreWatcher::DoReadCore(const IAsyncInputStreamPtr& coreStream, const TStri
         coreSize);
 
     {
-        auto outputResult = blobTableWriter.GetOutputResult();
+        auto outputResult = blobTableWriter.GetOutputResult(JobHost_->GetConfig()->EnableStderrAndCoreLivePreview);
         YT_VERIFY(!outputResult.empty() || coreSize == 0);
 
         auto& boundaryKeys = CoreResult_.BoundaryKeys;

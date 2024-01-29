@@ -80,14 +80,14 @@ TBlobTableWriter::TBlobTableWriter(
         throttler);
 }
 
-NControllerAgent::NProto::TOutputResult TBlobTableWriter::GetOutputResult() const
+NControllerAgent::NProto::TOutputResult TBlobTableWriter::GetOutputResult(bool withChunkSpecs) const
 {
     if (Failed_) {
         NControllerAgent::NProto::TOutputResult boundaryKeys;
         boundaryKeys.set_empty(true);
         return boundaryKeys;
     } else {
-        return GetWrittenChunksBoundaryKeys(MultiChunkWriter_);
+        return GetWrittenChunksBoundaryKeys(MultiChunkWriter_, withChunkSpecs);
     }
 }
 

@@ -195,6 +195,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("send_heartbeat_before_abort", &TThis::SendHeartbeatBeforeAbort)
         .Default(false);
 
+    registrar.Parameter("enable_stderr_and_core_live_preview", &TThis::EnableStderrAndCoreLivePreview)
+        .Default(true);
+
     registrar.Parameter("tvm_bridge_connection", &TThis::TvmBridgeConnection)
         .Default();
 
@@ -244,6 +247,9 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("abort_on_uncaught_exception", &TThis::AbortOnUncaughtException)
         .Default(false);
+
+    registrar.Parameter("enable_stderr_and_core_live_preview", &TThis::EnableStderrAndCoreLivePreview)
+        .Default(true);
 
     registrar.Parameter("job_environment", &TThis::JobEnvironment)
         .Default(nullptr);

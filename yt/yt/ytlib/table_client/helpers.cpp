@@ -38,6 +38,8 @@
 #include <yt/yt/client/table_client/unversioned_writer.h>
 #include <yt/yt/client/table_client/helpers.h>
 
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
+
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 #include <yt/yt/core/concurrency/scheduler.h>
@@ -212,7 +214,7 @@ TColumnFilter CreateColumnFilter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOutputResult GetWrittenChunksBoundaryKeys(const ISchemalessMultiChunkWriterPtr& writer)
+TOutputResult GetWrittenChunksBoundaryKeys(const ISchemalessMultiChunkWriterPtr& writer, bool withChunkSpecs)
 {
     TOutputResult result;
 
@@ -236,6 +238,22 @@ TOutputResult GetWrittenChunksBoundaryKeys(const ISchemalessMultiChunkWriterPtr&
 
     auto backBoundaryKeys = GetProtoExtension<NProto::TBoundaryKeysExt>(chunks.back().chunk_meta().extensions());
     result.set_max(backBoundaryKeys.max());
+
+    if (withChunkSpecs) {
+        std::vector<TChunkSpec> lightweightChunks;
+
+        for (const auto& chunkSpec : chunks) {
+            auto& lightweightChunkSpec = lightweightChunks.emplace_back();
+
+            lightweightChunkSpec.CopyFrom(chunkSpec);
+
+            FilterProtoExtensions(
+                lightweightChunkSpec.mutable_chunk_meta()->mutable_extensions(),
+                THashSet<int> { TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value });
+        }
+
+        ToProto(result.mutable_chunk_specs(), lightweightChunks);
+    }
 
     return result;
 }

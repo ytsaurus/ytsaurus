@@ -8,10 +8,10 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
+    authors, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs, exists,
     create, ls, get, create_account, read_table, write_table, map, reduce, map_reduce, vanilla,
     select_rows, list_jobs, clean_operations, sync_create_cells,
-    set_account_disk_space_limit, raises_yt_error)
+    set_account_disk_space_limit, raises_yt_error, update_nodes_dynamic_config)
 
 import yt_error_codes
 
@@ -518,7 +518,6 @@ class TestStderrTable(YTEnvSetup):
         assert get("//tmp/t_stderr/@sorted_by") == ["job_id", "part_index"]
 
     @authors("gritukan")
-    @pytest.mark.xfail(reason="Sending of chunk specs in heartbeats from nodes to controller agents are disabled")
     def test_new_live_preview(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -552,6 +551,46 @@ class TestStderrTable(YTEnvSetup):
                 return False
 
         wait(check)
+
+        op.abort()
+
+    @authors("galtsev")
+    @pytest.mark.parametrize("enable_stderr_and_core_live_preview", [False, True])
+    def test_disable_stderr_and_core_for_new_live_preview(self, enable_stderr_and_core_live_preview):
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_proxy": {
+                        "enable_stderr_and_core_live_preview": enable_stderr_and_core_live_preview,
+                    }
+                }
+            },
+        })
+
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        create("table", "//tmp/t_stderr")
+        write_table("//tmp/t_input", [{"key": i} for i in range(3)])
+
+        spec = get_stderr_spec("//tmp/t_stderr")
+        spec["data_size_per_job"] = 1
+        op = map(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            track=False,
+            command=with_breakpoint("BREAKPOINT ; echo GG >&2"),
+            spec=spec,
+        )
+
+        jobs = wait_breakpoint(job_count=1)
+        release_breakpoint(job_id=jobs[0])
+
+        wait(lambda: op.get_job_count("completed") == 1)
+
+        operation_path = op.get_path()
+        stderr_exists = exists(f"{operation_path}/controller_orchid/data_flow_graph/vertices/stderr/live_previews/0")
+
+        assert stderr_exists == enable_stderr_and_core_live_preview
 
         op.abort()
 
@@ -1235,7 +1274,6 @@ class TestCoreTable(YTEnvSetup):
         assert self._get_core_table_content() == {job_ids[0]: [ret_dict["core_data"]]}
 
     @authors("gritukan")
-    @pytest.mark.xfail(reason="Sending of chunk specs in heartbeats from nodes to controller agents are disabled")
     @skip_if_porto
     def test_new_live_preview(self):
         op, job_ids = self._start_operation(2)

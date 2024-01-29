@@ -243,6 +243,10 @@ public:
 
     bool SendHeartbeatBeforeAbort;
 
+    //! If set, lightweight chunk specs for stderr and core tables
+    //! will be sent in heartbeats to the controller agent.
+    bool EnableStderrAndCoreLivePreview;
+
     std::optional<double> ContainerCpuLimit;
 
     NYT::NRpcProxy::TApiServiceConfigPtr ApiService;
@@ -280,6 +284,8 @@ public:
     bool ForceIdleCpuPolicy;
 
     bool AbortOnUncaughtException;
+
+    bool EnableStderrAndCoreLivePreview;
 
     NYTree::INodePtr JobEnvironment;
 

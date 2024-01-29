@@ -56,7 +56,7 @@ public:
         NChunkClient::TTrafficMeterPtr trafficMeter,
         NConcurrency::IThroughputThrottlerPtr throttler);
 
-    NControllerAgent::NProto::TOutputResult GetOutputResult() const;
+    NControllerAgent::NProto::TOutputResult GetOutputResult(bool withChunkSpecs = false) const;
 
 private:
     void DoWrite(const void* buf, size_t size) override;
