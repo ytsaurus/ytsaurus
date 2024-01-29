@@ -2538,9 +2538,7 @@ class TestMinNeededResources(YTEnvSetup):
         op1_path = "//sys/scheduler/orchid/scheduler/operations/" + op1.id
         wait(lambda: exists(op1_path) and get(op1_path + "/state") == "running")
 
-        time.sleep(3.0)
-
-        assert get(op1.get_path() + "/controller_orchid/progress/schedule_job_statistics/count") > 0
+        wait(lambda: get(op1.get_path() + "/controller_orchid/progress/schedule_job_statistics/count") > 0)
 
         create("table", "//tmp/t2_in")
         write_table("//tmp/t2_in", [{"x": 1}])
