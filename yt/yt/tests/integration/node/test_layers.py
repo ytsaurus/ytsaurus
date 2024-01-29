@@ -1082,7 +1082,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
                             # The best would be to use os.path.join(self.path_to_run, tempfile.mkstemp(dir="/tmp")[1]),
                             # but it leads to a path with length greater than the maximum allowed 108 bytes.
                             # So put it at home directory until PORTO-1242 is done, then put it in /tmp.
-                            "path": tempfile.mkstemp(dir="/root" if os.environ["USER"] == "root" else "/home/" + os.environ["USER"])[1]
+                            "path": tempfile.mkstemp(dir="/tmp" if "USER" not in os.environ else "/root" if os.environ["USER"] == "root" else "/home/" + os.environ["USER"])[1]
                         },
                     },
                 },
