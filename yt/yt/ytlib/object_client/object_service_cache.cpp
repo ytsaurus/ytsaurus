@@ -266,10 +266,19 @@ TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
     NHydra::TRevision refreshRevision)
 {
     auto entry = Cache_->Find(key);
-    auto tryRemove = [&] () {
+
+    auto makeSanitizedKey = [&] {
+        // Avoid storing the whole TSharedRefs as keys and values as these may actually hold
+        // a much larger piece of memory.
+        auto sanitizedKey = key;
+        sanitizedKey.RequestBody = TSharedRef::MakeCopy(key.RequestBody, GetRefCountedTypeCookie<TObjectServiceCacheRequestTag>());
+        return sanitizedKey;
+    };
+
+    auto tryRemove = [&] {
         {
             auto guard = WriterGuard(ExpiredEntriesLock_);
-            ExpiredEntries_.emplace(key, entry);
+            ExpiredEntries_.emplace(makeSanitizedKey(), entry);
         }
 
         Cache_->TryRemoveValue(entry);
@@ -320,7 +329,7 @@ TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
         counters->MissRequestCount.Increment();
     }
 
-    auto underlyingCookie = Cache_->BeginInsert(key);
+    auto underlyingCookie = Cache_->BeginInsert(makeSanitizedKey());
 
     if (underlyingCookie.GetValue().IsSet()) {
         // Do not return stale response, when actual one is available.
@@ -366,15 +375,10 @@ void TObjectServiceCache::EndLookup(
     }
     MaybeEraseTopEntry(key);
 
-    // Avoid storing the whole TSharedRefs as keys and values as these may actually hold
-    // a much larger piece of memory.
-    auto sanitizedKey = key;
-    sanitizedKey.RequestBody = TSharedRef::MakeCopy(key.RequestBody, GetRefCountedTypeCookie<TObjectServiceCacheRequestTag>());
-
     auto sanitizedResponseMessage = TSharedRefArray::MakeCopy(responseMessage, GetRefCountedTypeCookie<TObjectServiceCacheResponseTag>());
 
     auto entry = New<TObjectServiceCacheEntry>(
-        sanitizedKey,
+        key,
         success,
         revision,
         TInstant::Now(),
