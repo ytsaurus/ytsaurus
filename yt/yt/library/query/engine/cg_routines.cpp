@@ -2063,7 +2063,7 @@ auto GetApproximateOutputLength(const TCompactVector<TChunkReplica, 3>& replicas
     return (sizeof(TChunkReplica) + 20) * replicas.size() + 10;
 }
 
-void ReplicaSetMerge(
+void StoredReplicaSetMerge(
     TExpressionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* state1,
@@ -2106,7 +2106,7 @@ void ReplicaSetMerge(
     result->Data.String = permanentData;
 }
 
-void ReplicaSetFinalize(
+void StoredReplicaSetFinalize(
     TExpressionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* state)
@@ -2383,8 +2383,8 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(HyperLogLogAdd);
     REGISTER_ROUTINE(HyperLogLogMerge);
     REGISTER_ROUTINE(HyperLogLogEstimateCardinality);
-    REGISTER_ROUTINE(ReplicaSetMerge);
-    REGISTER_ROUTINE(ReplicaSetFinalize);
+    REGISTER_ROUTINE(StoredReplicaSetMerge);
+    REGISTER_ROUTINE(StoredReplicaSetFinalize);
     REGISTER_ROUTINE(HasPermissions);
     REGISTER_ROUTINE(YsonLength);
 #undef REGISTER_TRY_GET_ROUTINE

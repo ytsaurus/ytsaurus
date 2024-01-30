@@ -264,7 +264,7 @@ target_sources(library-query-engine.global PRIVATE
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/60ad550d891a29805e726874c57ef36a.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/223c93075db70d4bf4537276bcbff515.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/f876b2a9884e4bebbbf4b079ee82a487.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/651f303235eb02d1e91dfed1a480aaf7.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/e971c0ece58623181dac5d452089c077.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/737152a993bed557c44fc80c57b4770a.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/70f91f505af875ed195810036e510f1e.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/ddb6d2ed0678e1cd1cf0421f38baada1.cpp
@@ -556,30 +556,30 @@ add_custom_command(
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/replica_set_optimized.bc
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/stored_replica_set_optimized.bc
   DEPENDS
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/replica_set_merged.bc
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/stored_replica_set_merged.bc
   COMMAND
   ${LLVMOPT}
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/replica_set_merged.bc
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/stored_replica_set_merged.bc
   -o
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/replica_set_optimized.bc
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/stored_replica_set_optimized.bc
   -O2
   -globalopt
   -globaldce
   -internalize
-  -internalize-public-api-list=_yt_replica_set_init#_yt_replica_set_update#_yt_replica_set_merge#_yt_replica_set_finalize
+  -internalize-public-api-list=_yt_stored_replica_set_init#_yt_stored_replica_set_update#_yt_stored_replica_set_merge#_yt_stored_replica_set_finalize
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/replica_set_merged.bc
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/stored_replica_set_merged.bc
   DEPENDS
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/udf/replica_set.cpp.bc
   COMMAND
   ${LLVMLINK}
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/udf/replica_set.cpp.bc
   -o
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/replica_set_merged.bc
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/stored_replica_set_merged.bc
 )
 add_custom_command(
   OUTPUT
@@ -1341,11 +1341,11 @@ resources(library-query-engine.global
   /llvm_bc/concat
 )
 resources(library-query-engine.global
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/651f303235eb02d1e91dfed1a480aaf7.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/e971c0ece58623181dac5d452089c077.cpp
   INPUTS
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/replica_set_optimized.bc
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/stored_replica_set_optimized.bc
   KEYS
-  /llvm_bc/replica_set
+  /llvm_bc/stored_replica_set
 )
 resources(library-query-engine.global
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/737152a993bed557c44fc80c57b4770a.cpp

@@ -786,7 +786,7 @@ class YTEnvSetup(object):
                 "schema": [
                     {"name": "id_hash", "type": "uint32", "sort_order": "ascending"},
                     {"name": "chunk_id", "type": "string", "sort_order": "ascending"},
-                    {"name": "replicas", "type": "any", "aggregate": "_yt_replica_set"},
+                    {"name": "replicas", "type": "any", "aggregate": "_yt_stored_replica_set"},
                 ],
                 "tablet_cell_bundle": "sequoia",
                 "account": "sequoia",
