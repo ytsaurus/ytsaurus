@@ -27,6 +27,8 @@ struct IUserDefinedSqlObjectsYTStorage
     virtual bool TrySetObject(const String& objectName, const TSqlObjectInfo& info) = 0;
 
     virtual bool TryRemoveObject(const String& objectName, NHydra::TRevision revision) = 0;
+
+    virtual ~IUserDefinedSqlObjectsYTStorage() = default;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

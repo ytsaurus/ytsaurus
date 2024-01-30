@@ -120,7 +120,7 @@ public:
 
     bool TrySetObject(const String& objectName, const TSqlObjectInfo& info) override
     {
-        YT_LOG_DEBUG("Setting object (ObjectName: %v, Revision: %v)",
+        YT_LOG_DEBUG("Setting SQL object (ObjectName: %v, Revision: %v)",
             objectName,
             info.Revision);
 
@@ -138,7 +138,7 @@ public:
 
     bool TryRemoveObject(const String& objectName, TRevision revision) override
     {
-        YT_LOG_DEBUG("Removing object (ObjectName: %v, Revision: %v)",
+        YT_LOG_DEBUG("Removing SQL object (ObjectName: %v, Revision: %v)",
             objectName,
             revision);
 

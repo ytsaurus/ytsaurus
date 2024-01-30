@@ -71,7 +71,7 @@ private:
         TSqlObjectInfo objectInfo;
         FromProto(&objectInfo, request->object_info());
 
-        context->SetRequestInfo("Setting object (ObjectName: %v, Revision: %v)",
+        context->SetRequestInfo("ObjectName: %v, Revision: %v",
             objectName,
             objectInfo.Revision);
 
@@ -88,7 +88,7 @@ private:
         auto objectName = request->object_name();
         auto revision = request->revision();
 
-        context->SetRequestInfo("Removing object (ObjectName: %v, Revision: %v)",
+        context->SetRequestInfo("ObjectName: %v, Revision: %v",
             objectName,
             revision);
 

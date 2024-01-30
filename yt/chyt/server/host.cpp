@@ -397,7 +397,7 @@ public:
             }
 
             auto channel = ChannelFactory_->CreateChannel(
-                attributes->Get<TString>("host") + ":" + ToString(attributes->Get<ui64>("rpc_port")));
+                Format("%v:%v", attributes->Get<TString>("host"), attributes->Get<int>("rpc_port")));
             TClickHouseServiceProxy proxy(channel);
 
             auto req = proxy.InvalidateCachedObjectAttributes();
@@ -621,7 +621,7 @@ public:
             }
 
             auto channel = ChannelFactory_->CreateChannel(
-                attributes->Get<TString>("host") + ":" + ToString(attributes->Get<ui64>("rpc_port")));
+                Format("%v:%v", attributes->Get<TString>("host"), attributes->Get<int>("rpc_port")));
             TClickHouseServiceProxy proxy(channel);
 
             auto req = proxy.SetSqlObject();
@@ -637,8 +637,7 @@ public:
 
     void RemoveSqlObjectOnOtherInstances(const TString& objectName, NHydra::TRevision revision) const
     {
-        YT_LOG_DEBUG("Removing SQL object on other instances (ObjectName: %v)",
-            objectName);
+        YT_LOG_DEBUG("Removing SQL object on other instances (ObjectName: %v)", objectName);
 
         auto instances = Discovery_->List();
 
@@ -653,7 +652,7 @@ public:
             }
 
             auto channel = ChannelFactory_->CreateChannel(
-                attributes->Get<TString>("host") + ":" + ToString(attributes->Get<ui64>("rpc_port")));
+                Format("%v:%v", attributes->Get<TString>("host"), attributes->Get<int>("rpc_port")));
             TClickHouseServiceProxy proxy(channel);
 
             auto req = proxy.RemoveSqlObject();
@@ -668,7 +667,7 @@ public:
     }
 
 private:
-    THost* Owner_;
+    THost* const Owner_;
     const IInvokerPtr ControlInvoker_;
     const TYtConfigPtr Config_;
     TPorts Ports_;
