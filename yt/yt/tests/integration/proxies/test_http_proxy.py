@@ -1093,7 +1093,7 @@ class TestHttpProxyHeapUsageStatistics(TestHttpProxyHeapUsageStatisticsBase):
 
     @authors("ni-stoiko")
     @pytest.mark.timeout(120)
-    def test_heap_usage_guages(self):
+    def test_heap_usage_gauges(self):
         self.enable_allocation_tags("http_proxies")
         time.sleep(1)
 
@@ -1106,8 +1106,8 @@ class TestHttpProxyHeapUsageStatistics(TestHttpProxyHeapUsageStatisticsBase):
         self._execute_command("GET", "read_table")
 
         profiler = profiler_factory().at_http_proxy(http_proxies[0])
-        command_memory_usage_guage = profiler.gauge("heap_usage/command")
-        user_memory_usage_guage = profiler.gauge("heap_usage/user")
+        command_memory_usage_gauge = profiler.gauge("heap_usage/command")
+        user_memory_usage_gauge = profiler.gauge("heap_usage/user")
 
         def check(statistics, tag, memory=5 * 1024 ** 2):
             for stat in statistics:
@@ -1115,8 +1115,8 @@ class TestHttpProxyHeapUsageStatistics(TestHttpProxyHeapUsageStatisticsBase):
                     return stat["value"] > memory
             return False
 
-        wait(lambda: check(command_memory_usage_guage.get_all(), {"command": "read_table"}))
-        wait(lambda: check(user_memory_usage_guage.get_all(), {"user": self.USER}))
+        wait(lambda: check(command_memory_usage_gauge.get_all(), {"command": "read_table"}))
+        wait(lambda: check(user_memory_usage_gauge.get_all(), {"user": self.USER}))
 
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
