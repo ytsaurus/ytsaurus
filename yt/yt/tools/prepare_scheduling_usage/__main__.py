@@ -91,8 +91,10 @@ def extract_cumulative_used_cpu(job_statistics):
     return sum([extract_statistic(job_statistics, path, default=0) for path in statistic_paths]) / 1000.0
 
 
-def extract_cumulative_gpu_utilization(job_statistics):
-    return extract_statistic(job_statistics, "user_job/gpu/cumulative_utilization_gpu", default=0) / 1000.0
+def extract_data_output_stat(job_statistics, stat):
+    output_count = len((job_statistics or {}).get("data", {}).get("output", {}))
+    statistic_paths = ["data/output/{}/{}".format(index, stat) for index in range(output_count)]
+    return sum([extract_statistic(job_statistics, path, default=0) for path in statistic_paths])
 
 
 class YsonEncoder(json.JSONEncoder):
@@ -143,6 +145,15 @@ class OperationInfo:
     cumulative_max_memory: typing.Optional[float]
     cumulative_used_cpu: typing.Optional[float]
     cumulative_gpu_utilization: typing.Optional[float]
+    tmpfs_max_usage: typing.Optional[float]
+    tmpfs_limit: typing.Optional[float]
+    cumulative_sm_utilization: typing.Optional[float]
+    time_total: typing.Optional[float]
+    time_prepare: typing.Optional[float]
+    data_input_chunk_count: typing.Optional[float]
+    data_input_data_weight: typing.Optional[float]
+    data_output_chunk_count: typing.Optional[float]
+    data_output_data_weight: typing.Optional[float]
     start_time: typing.Optional[int]
     finish_time: typing.Optional[int]
     job_statistics: typing.Optional[YsonBytes]
@@ -373,8 +384,17 @@ class FilterAndNormalizeEvents(TypedJob):
                 accumulated_resource_usage_gpu=info["accumulated_resource_usage"]["gpu"],
                 cumulative_used_cpu=0.0,
                 cumulative_gpu_utilization=0.0,
+                cumulative_sm_utilization=0,
                 cumulative_max_memory=0.0,
                 cumulative_memory=0.0,
+                tmpfs_max_usage=0.0,
+                tmpfs_limit=0.0,
+                time_total=0.0,
+                time_prepare=0.0,
+                data_input_chunk_count=0.0,
+                data_input_data_weight=0.0,
+                data_output_chunk_count=0.0,
+                data_output_data_weight=0.0,
                 job_statistics=None,
                 start_time=None,
                 finish_time=None,
@@ -411,6 +431,7 @@ class FilterAndNormalizeEvents(TypedJob):
                 else extract_job_statistics_for_tree(all_job_statistics, pool_tree)
             annotations_yson = yson.dumps(get_item(input_row, "trimmed_annotations"))
             usage = input_row["accumulated_resource_usage_per_tree"][pool_tree]
+            ms_multiplier = 1.0 / 1000
             yield OperationInfo(
                 timestamp=date_string_to_timestamp(input_row["timestamp"]),
                 cluster=input_row["cluster"],
@@ -425,10 +446,28 @@ class FilterAndNormalizeEvents(TypedJob):
                 accumulated_resource_usage_cpu=usage["cpu"],
                 accumulated_resource_usage_memory=usage["user_memory"],
                 accumulated_resource_usage_gpu=usage["gpu"],
-                cumulative_gpu_utilization=extract_cumulative_gpu_utilization(job_statistics),
+                cumulative_gpu_utilization=extract_statistic(
+                    job_statistics,
+                    "user_job/gpu/cumulative_utilization_gpu",
+                    default=0
+                ) * ms_multiplier,
+                cumulative_sm_utilization=extract_statistic(
+                    job_statistics,
+                    "user_job/gpu/cumulative_sm_utilization",
+                    default=0
+                ) * ms_multiplier,
                 cumulative_used_cpu=extract_cumulative_used_cpu(job_statistics),
                 cumulative_max_memory=extract_cumulative_max_memory(job_statistics),
                 cumulative_memory=extract_cumulative_memory(job_statistics),
+                tmpfs_max_usage=extract_statistic(job_statistics, "user_job/tmpfs_max_usage", default=extract_statistic(
+                    job_statistics, "user_job/max_tmpfs_size", default=0)),
+                tmpfs_limit=extract_statistic(job_statistics, "user_job/tmpfs_limit", default=0),
+                time_total=extract_statistic(job_statistics, "time/total", default=0) * ms_multiplier,
+                time_prepare=extract_statistic(job_statistics, "time/prepare", default=0) * ms_multiplier,
+                data_input_chunk_count=extract_statistic(job_statistics, "data/input/chunk_count", default=0),
+                data_input_data_weight=extract_statistic(job_statistics, "data/input/data_weight", default=0),
+                data_output_chunk_count=extract_data_output_stat(job_statistics, "chunk_count"),
+                data_output_data_weight=extract_data_output_stat(job_statistics, "data_weight"),
                 job_statistics=yson.dumps(job_statistics),
                 start_time=date_string_to_timestamp(input_row["start_time"]),
                 finish_time=date_string_to_timestamp(input_row["finish_time"]),

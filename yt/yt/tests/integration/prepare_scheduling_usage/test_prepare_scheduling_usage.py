@@ -11,6 +11,7 @@ from yt.wrapper.schema import YsonBytes, TableSchema
 
 import pytest
 
+from collections import defaultdict
 import json
 import os
 import sys
@@ -46,6 +47,15 @@ class OperationInfo:
     cumulative_max_memory: typing.Optional[float]
     cumulative_used_cpu: typing.Optional[float]
     cumulative_gpu_utilization: typing.Optional[float]
+    tmpfs_max_usage: typing.Optional[float]
+    tmpfs_limit: typing.Optional[float]
+    cumulative_sm_utilization: typing.Optional[float]
+    time_total: typing.Optional[float]
+    time_prepare: typing.Optional[float]
+    data_input_chunk_count: typing.Optional[float]
+    data_input_data_weight: typing.Optional[float]
+    data_output_chunk_count: typing.Optional[float]
+    data_output_data_weight: typing.Optional[float]
     start_time: typing.Optional[int]
     finish_time: typing.Optional[int]
     job_statistics: typing.Optional[YsonBytes]
@@ -79,18 +89,17 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
         assert "/parent_pool/test_pool" in (row["pool_path"] for row in rows)
 
     def _check_operation_info(self, rows, op_id):
-        accumulated_resource_usage_memory = 0.0
-        accumulated_resource_usage_cpu = 0.0
-        cumulative_memory = 0.0
-        cumulative_max_memory = 0.0
-        cumulative_used_cpu = 0.0
+        stat = defaultdict(float)
+        columns = ["accumulated_resource_usage_cpu", "accumulated_resource_usage_memory", "cumulative_memory",
+                   "cumulative_max_memory", "cumulative_used_cpu", "tmpfs_max_usage", "tmpfs_limit", "time_total",
+                   "time_prepare", "data_input_chunk_count", "data_input_data_weight",  "data_output_chunk_count",
+                   "data_output_data_weight", "accumulated_resource_usage_gpu", "cumulative_gpu_utilization",
+                   "cumulative_sm_utilization"]
 
         for index, row in enumerate(rows):
-            accumulated_resource_usage_cpu += row["accumulated_resource_usage_cpu"]
-            accumulated_resource_usage_memory += row["accumulated_resource_usage_memory"]
-            cumulative_memory += row["cumulative_memory"]
-            cumulative_max_memory += row["cumulative_max_memory"]
-            cumulative_used_cpu += row["cumulative_used_cpu"]
+            for key in columns:
+                assert key in row
+                stat[key] += row[key]
             assert row["operation_id"] == op_id
             assert row["cluster"] == "local_cluster"
             assert row["pool_path"] == "/parent_pool/test_pool"
@@ -102,16 +111,16 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
             else:
                 assert row["operation_state"] == "completed"
 
-        assert 5.0 <= accumulated_resource_usage_cpu
+        assert 5.0 <= stat["accumulated_resource_usage_cpu"]
 
-        assert cumulative_memory > 0
-        assert cumulative_memory <= accumulated_resource_usage_memory
+        assert stat["cumulative_memory"] > 0
+        assert stat["cumulative_memory"] <= stat["accumulated_resource_usage_memory"]
 
-        assert cumulative_max_memory > 0
-        assert cumulative_max_memory <= accumulated_resource_usage_memory
+        assert stat["cumulative_max_memory"] > 0
+        assert stat["cumulative_max_memory"] <= stat["accumulated_resource_usage_memory"]
 
-        assert cumulative_used_cpu > 0
-        assert cumulative_used_cpu <= accumulated_resource_usage_cpu
+        assert stat["cumulative_used_cpu"] > 0
+        assert stat["cumulative_used_cpu"] <= stat["accumulated_resource_usage_cpu"]
 
     def _create_pools(self):
         parent_attributes = {"strong_guarantee_resources": {"cpu": 1.0}, "abc": {"id": 1, "slug": "abc_slug"}}
