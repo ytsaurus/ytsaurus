@@ -223,6 +223,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixMutationTypeNaming)                                        (2522))  // babenko
     ((FixListNodeDeprecation)                                       (2523))  // kvk1920
     ((IncreasedMaxKeyColumnInDynamicTable)                          (2524))  // sabdenovch
+    ((EnableRealChunkLocationsByDefault)                            (2525))  // kvk1920
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
