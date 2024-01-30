@@ -1198,6 +1198,7 @@ TJobTracker::THeartbeatCounters TJobTracker::DoProcessHeartbeat(
         jobsToProcessInOperationController.JobsToAbort.reserve(std::size(nodeJobs.AbortedAllocations));
 
         const auto& operationLogger = Logger;
+        bool shouldSkipRunningJobEvents = operationController->ShouldSkipRunningJobEvents();
 
         for (auto& jobSummary : jobSummaries) {
             auto jobId = jobSummary->Id;
@@ -1209,6 +1210,14 @@ TJobTracker::THeartbeatCounters TJobTracker::DoProcessHeartbeat(
             auto Logger = operationLogger.WithTag(
                 "JobId: %v",
                 jobId);
+
+            if (jobSummary->State == EJobState::Running &&
+                shouldSkipRunningJobEvents)
+            {
+                YT_LOG_DEBUG("Skipping running job summary because operationController invoker is overloaded");
+
+                continue;
+            }
 
             auto newJobStage = JobStageFromJobState(jobSummary->State);
 

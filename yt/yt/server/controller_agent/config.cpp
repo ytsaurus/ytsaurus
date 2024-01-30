@@ -995,6 +995,8 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("schedule_allocation_total_time_threshold", &TThis::ScheduleAllocationTotalTimeThreshold)
         .Alias("schedule_job_wait_time_threshold")
         .Default(TDuration::Seconds(5));
+    registrar.Parameter("job_events_total_time_threshold", &TThis::JobEventsTotalTimeThreshold)
+        .Default(TDuration::Seconds(5));
 
     registrar.Parameter("allow_users_group_read_intermediate_data", &TThis::AllowUsersGroupReadIntermediateData)
         .Default(false);

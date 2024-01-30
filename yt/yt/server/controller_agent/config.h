@@ -1087,6 +1087,7 @@ public:
     EOperationControllerQueue JobEventsControllerQueue;
 
     TDuration ScheduleAllocationTotalTimeThreshold;
+    TDuration JobEventsTotalTimeThreshold;
 
     // TODO(levysotsky): Get rid of this option when everybody migrates to new operation ACLs.
     bool AllowUsersGroupReadIntermediateData;

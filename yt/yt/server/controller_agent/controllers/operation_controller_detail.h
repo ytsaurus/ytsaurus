@@ -264,6 +264,8 @@ public:
 
     bool IsThrottling() const noexcept override;
 
+    bool ShouldSkipRunningJobEvents() const noexcept override;
+
     void RecordScheduleAllocationFailure(EScheduleAllocationFailReason reason) noexcept override;
 
     void OnTransactionsAborted(const std::vector<NTransactionClient::TTransactionId>& transactionIds) override;
@@ -1269,7 +1271,8 @@ private:
     bool AvailableExecNodesObserved_ = false;
     TInstant LastAvailableExecNodesCheckTime_;
 
-    mutable std::atomic<TInstant> LastControllerThrottlingLogTime_ = TInstant::Zero();
+    mutable std::atomic<TInstant> LastControllerJobSchedulingThrottlingLogTime_ = TInstant::Zero();
+    mutable std::atomic<TInstant> LastControllerJobEventThrottlingLogTime_ = TInstant::Zero();
 
     THashSet<NNodeTrackerClient::TNodeId> BannedNodeIds_;
 

@@ -4557,55 +4557,86 @@ bool TOperationControllerBase::IsThrottling() const noexcept
 
     auto now = TInstant::Now();
 
-    bool forceLogging = LastControllerThrottlingLogTime_ + Config->ControllerThrottlingLogBackoff < now;
+    bool forceLogging = LastControllerJobSchedulingThrottlingLogTime_ + Config->ControllerThrottlingLogBackoff < now;
     if (forceLogging) {
-        LastControllerThrottlingLogTime_ = now;
+        LastControllerJobSchedulingThrottlingLogTime_ = now;
     }
 
     // Check job spec limits.
-    bool jobSpecThrottling = false;
+    bool jobSpecThrottlingActive = false;
     {
         auto buildingJobSpecCount = BuildingJobSpecCount_.load();
         auto totalBuildingJobSpecSliceCount = TotalBuildingJobSpecSliceCount_.load();
         auto avgSliceCount = totalBuildingJobSpecSliceCount / std::max<double>(1.0, buildingJobSpecCount);
         if (Options->ControllerBuildingJobSpecCountLimit) {
-            jobSpecThrottling |= buildingJobSpecCount > *Options->ControllerBuildingJobSpecCountLimit;
+            jobSpecThrottlingActive |= buildingJobSpecCount > *Options->ControllerBuildingJobSpecCountLimit;
         }
         if (Options->ControllerTotalBuildingJobSpecSliceCountLimit) {
-            jobSpecThrottling |= totalBuildingJobSpecSliceCount > *Options->ControllerTotalBuildingJobSpecSliceCountLimit;
+            jobSpecThrottlingActive |= totalBuildingJobSpecSliceCount > *Options->ControllerTotalBuildingJobSpecSliceCountLimit;
         }
 
-        if (jobSpecThrottling || forceLogging) {
+        if (jobSpecThrottlingActive || forceLogging) {
             YT_LOG_DEBUG(
-                "Throttling statistics for building job specs (JobSpecCount: %v, JobSpecCountLimit: %v, TotalJobSpecSliceCount: %v, "
-                "TotalJobSpecSliceCountLimit: %v, AvgJobSpecSliceCount: %v, JobSpecThrottling: %v)",
+                "Throttling status for building job specs (JobSpecCount: %v, JobSpecCountLimit: %v, TotalJobSpecSliceCount: %v, "
+                "TotalJobSpecSliceCountLimit: %v, AvgJobSpecSliceCount: %v, JobSpecThrottlingActive: %v)",
                 buildingJobSpecCount,
                 Options->ControllerBuildingJobSpecCountLimit,
                 totalBuildingJobSpecSliceCount,
                 Options->ControllerTotalBuildingJobSpecSliceCountLimit,
                 avgSliceCount,
-                jobSpecThrottling);
+                jobSpecThrottlingActive);
         }
     }
 
     // Check invoker wait time.
-    bool waitTimeThrottling = false;
+    bool waitTimeThrottlingActive = false;
     {
         auto scheduleAllocationInvokerStatistics = GetInvokerStatistics(Config->ScheduleAllocationControllerQueue);
         auto scheduleJobWaitTime = scheduleAllocationInvokerStatistics.TotalTimeEstimate;
-        waitTimeThrottling = scheduleJobWaitTime > Config->ScheduleAllocationTotalTimeThreshold;
+        waitTimeThrottlingActive = scheduleJobWaitTime > Config->ScheduleAllocationTotalTimeThreshold;
 
-        if (waitTimeThrottling || forceLogging) {
+        if (waitTimeThrottlingActive || forceLogging) {
             YT_LOG_DEBUG(
-                "Throttling statistics for wait time "
-                "(ScheduleAllocationWaitTime: %v, Threshold: %v, WaitTimeThrottling: %v)",
+                "Throttling status for wait time "
+                "(ScheduleAllocationWaitTime: %v, Threshold: %v, WaitTimeThrottlingActive: %v)",
                 scheduleJobWaitTime,
                 Config->ScheduleAllocationTotalTimeThreshold,
-                waitTimeThrottling);
+                waitTimeThrottlingActive);
         }
     }
 
-    return jobSpecThrottling || waitTimeThrottling;
+    return jobSpecThrottlingActive || waitTimeThrottlingActive;
+}
+
+bool TOperationControllerBase::ShouldSkipRunningJobEvents() const noexcept
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto now = TInstant::Now();
+
+    bool forceLogging = LastControllerJobEventThrottlingLogTime_ + Config->ControllerThrottlingLogBackoff < now;
+    if (forceLogging) {
+        LastControllerJobEventThrottlingLogTime_ = now;
+    }
+
+    // Check invoker wait time.
+    bool waitTimeThrottlingActive = false;
+    {
+        auto jobEventsInvokerStatistics = GetInvokerStatistics(Config->JobEventsControllerQueue);
+        auto jobEventsWaitTime = jobEventsInvokerStatistics.TotalTimeEstimate;
+        waitTimeThrottlingActive = jobEventsWaitTime > Config->JobEventsTotalTimeThreshold;
+
+        if (waitTimeThrottlingActive || forceLogging) {
+            YT_LOG_DEBUG(
+                "Throttling status for job events wait time "
+                "(JobEventsWaitTime: %v, Threshold: %v, WaitTimeThrottlingActive: %v)",
+                jobEventsWaitTime,
+                Config->JobEventsTotalTimeThreshold,
+                waitTimeThrottlingActive);
+        }
+    }
+
+    return waitTimeThrottlingActive;
 }
 
 void TOperationControllerBase::RecordScheduleAllocationFailure(EScheduleAllocationFailReason reason) noexcept
