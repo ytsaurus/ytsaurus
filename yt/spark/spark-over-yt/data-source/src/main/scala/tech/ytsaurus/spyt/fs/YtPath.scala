@@ -1,14 +1,16 @@
 package tech.ytsaurus.spyt.fs
 
 import org.apache.hadoop.fs.Path
-import tech.ytsaurus.core.cypress.YPath
-import tech.ytsaurus.spyt.fs.YtStaticPath.toFileName
+import tech.ytsaurus.core.cypress.{RangeLimit, YPath}
 import tech.ytsaurus.spyt.fs.path.YPathEnriched
 import tech.ytsaurus.spyt.fs.path.YPathEnriched.ypath
 import tech.ytsaurus.spyt.serializers.PivotKeysConverter
+import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.spyt.wrapper.YtWrapper.PivotKey
 import tech.ytsaurus.spyt.wrapper.table.OptimizeMode
+import tech.ytsaurus.ysontree.{YTreeBinarySerializer, YTreeBuilder, YTreeNode}
 
+import java.io.ByteArrayInputStream
 import java.util.Base64
 import scala.util.Try
 
@@ -64,33 +66,34 @@ case class YtDynamicPath(override val ypath: YPathEnriched,
   def isDynamic: Boolean = true
 
   def toYPath: YPath = {
-    val res = ypath.toYPath.withRange(
-      PivotKeysConverter.toRangeLimit(attrs.beginKey),
-      PivotKeysConverter.toRangeLimit(attrs.endKey)
-    )
-    res
+    ypath.toYPath.withRange(attrs.lowerRangeLimit, attrs.upperRangeLimit)
   }
 }
 
-case class YtDynamicPathAttributes(beginKey: PivotKey,
-                                   endKey: PivotKey,
-                                   keyColumns: Seq[String])
+case class YtDynamicPathAttributes(lowerRangeLimit: RangeLimit = YtDynamicPath.emptyRangeLimit,
+                                   upperRangeLimit: RangeLimit = YtDynamicPath.emptyRangeLimit)
 
 object YtDynamicPath {
-  private def encodeKey: Array[Byte] => String = Base64.getEncoder.encodeToString
+  val emptyRangeLimit: RangeLimit = RangeLimit.builder().build()
 
-  private def decodeKey: String => Array[Byte] = Base64.getDecoder.decode
+  private def encodeBytes: Array[Byte] => String = Base64.getEncoder.encodeToString
+
+  private def encodeLimit(limit: RangeLimit): String = encodeBytes(limit.toTree(new YTreeBuilder()).build().toBinary)
+
+  private def decodeBytes: String => Array[Byte] = Base64.getDecoder.decode
+
+  private def decodeLimit(limit: String): RangeLimit = {
+    RangeLimit.fromTree(YTreeBinarySerializer.deserialize(new ByteArrayInputStream(decodeBytes(limit))))
+  }
 
   def toFileName(attrs: YtDynamicPathAttributes): String = {
-    import attrs._
-    f"${encodeKey(beginKey)}_${encodeKey(endKey)}_${keyColumns.mkString(",")}"
+    f"${encodeLimit(attrs.lowerRangeLimit)}_${encodeLimit(attrs.upperRangeLimit)}"
   }
 
   def fromPath(path: Path): Option[YtDynamicPath] = {
     Try {
-      val beginKey :: endKey :: keyColumns :: Nil = path.getName.trim.split("_", 3).toList
-      YtDynamicPath(ypath(path.getParent),
-        YtDynamicPathAttributes(decodeKey(beginKey), decodeKey(endKey), keyColumns.split(",")))
+      val lowerLimit :: upperLimit :: Nil = path.getName.trim.split("_", 2).toList
+      YtDynamicPath(ypath(path.getParent), YtDynamicPathAttributes(decodeLimit(lowerLimit), decodeLimit(upperLimit)))
     }.toOption
   }
 }

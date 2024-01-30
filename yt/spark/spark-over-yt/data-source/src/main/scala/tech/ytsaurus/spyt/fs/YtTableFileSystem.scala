@@ -11,7 +11,9 @@ import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.spyt.wrapper.cypress.PathType
 import tech.ytsaurus.spyt.wrapper.table.TableType
 import tech.ytsaurus.client.CompoundClient
-import tech.ytsaurus.ysontree.YTreeNode
+import tech.ytsaurus.core.cypress.RangeLimit
+import tech.ytsaurus.spyt.serializers.PivotKeysConverter
+import tech.ytsaurus.ysontree.{YTree, YTreeNode}
 
 import java.io.FileNotFoundException
 import scala.annotation.tailrec
@@ -144,23 +146,29 @@ class YtTableFileSystem extends YtFileSystemBase {
     val keyColumns = YtWrapper.keyColumns(attributes)
     val tableSize = YtWrapper.dataWeight(attributes)
     val modificationTime = YtWrapper.modificationTimeTs(attributes)
-    if (useYtPartitioning) {
+    // TODO(alex-shishkin): Partitioning ordered tables has been broken now.
+    if (useYtPartitioning && keyColumns.nonEmpty) {
       // No real partitioning. YT partitioning must be used further.
       val result = new Array[FileStatus](1)
       val approximateChunkSize = tableSize
 
-      val chunkPath = YtDynamicPath(f,
-        YtDynamicPathAttributes(YtWrapper.emptyPivotKey, YtWrapper.emptyPivotKey, keyColumns))
+      val chunkPath = YtDynamicPath(f, YtDynamicPathAttributes())
       result(0) = new YtFileStatus(chunkPath, approximateChunkSize, modificationTime)
       result
     } else {
-      val pivotKeys = YtWrapper.pivotKeys(f.toYPath) :+ YtWrapper.emptyPivotKey
-      val result = new Array[FileStatus](pivotKeys.length - 1)
+      val limits = if (keyColumns.isEmpty) {
+        val tabletCount = YtWrapper.tabletCount(attributes)
+        (0L until tabletCount).map(tabletIndex => RangeLimit.builder().setTabletIndex(tabletIndex).build())
+      } else {
+        val pivotKeys = YtWrapper.pivotKeysYson(f.toYPath)
+        pivotKeys.map(key => RangeLimit.key(key.asList()))
+      }
+      val allLimits = limits :+ YtDynamicPath.emptyRangeLimit
+      val result = new Array[FileStatus](allLimits.length - 1)
       val approximateChunkSize = if (result.length > 0) tableSize / result.length else 0
-
-      pivotKeys.sliding(2).zipWithIndex.foreach {
-        case (Seq(startKey, endKey), i) =>
-          val chunkPath = YtDynamicPath(f, YtDynamicPathAttributes(startKey, endKey, keyColumns))
+      allLimits.sliding(2).zipWithIndex.foreach {
+        case (Seq(lowerLimit, upperLimit), i) =>
+          val chunkPath = YtDynamicPath(f, YtDynamicPathAttributes(lowerLimit, upperLimit))
           result(i) = new YtFileStatus(chunkPath, approximateChunkSize, modificationTime)
       }
       result

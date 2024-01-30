@@ -50,4 +50,8 @@ trait YtTableAttributes {
   def dataWeight(attrs: Map[String, YTreeNode]): Long = {
    attrs(YtAttributes.dataWeight).longValue()
   }
+
+  def tabletCount(attrs: Map[String, YTreeNode]): Long = {
+    attrs(YtAttributes.tabletCount).longValue()
+  }
 }

@@ -8,6 +8,7 @@ import YtPartitionedFile._
 import tech.ytsaurus.spyt.serializers.PivotKeysConverter
 import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.core.cypress.{Range, RangeCriteria, RangeLimit, YPath}
+import tech.ytsaurus.spyt.fs.YtDynamicPathAttributes
 import tech.ytsaurus.ysontree.{YTreeBinarySerializer, YTreeNode}
 
 import java.io.ByteArrayInputStream
@@ -112,18 +113,12 @@ object YtPartitionedFile {
     YtPartitionedFile(rawPath, ypath, byteLength, isDynamic = false, modificationTs, emptyInternalRow)
   }
 
-  def dynamic(path: String, beginKey: Array[Byte], endKey: Array[Byte], byteLength: Long, modificationTs: Long, emptyInternalRow: InternalRow): YtPartitionedFile = {
-    dynamic(path, toSimpleYPath(path), beginKey, endKey, byteLength, modificationTs, emptyInternalRow)
+  def dynamic(path: String, attrs: YtDynamicPathAttributes, byteLength: Long, modificationTs: Long, emptyInternalRow: InternalRow): YtPartitionedFile = {
+    dynamic(path, toSimpleYPath(path), attrs, byteLength, modificationTs, emptyInternalRow)
   }
 
-  def dynamic(rawPath: String, path: YPath, beginKey: Array[Byte], endKey: Array[Byte], byteLength: Long, modificationTs: Long, emptyInternalRow: InternalRow): YtPartitionedFile = {
-    val ypath = if (beginKey.isEmpty && endKey.isEmpty) {
-      path
-    } else {
-      val lowerKey = PivotKeysConverter.toList(beginKey)
-      val upperKey = PivotKeysConverter.toList(endKey)
-      path.ranges(new Range(RangeLimit.key(lowerKey: _*), RangeLimit.key(upperKey: _*)))
-    }
+  def dynamic(rawPath: String, path: YPath, attrs: YtDynamicPathAttributes, byteLength: Long, modificationTs: Long, emptyInternalRow: InternalRow): YtPartitionedFile = {
+    val ypath = path.ranges(new Range(attrs.lowerRangeLimit, attrs.upperRangeLimit))
     YtPartitionedFile(rawPath, ypath, byteLength = byteLength, isDynamic = true, modificationTs = modificationTs, partitionValues = emptyInternalRow)
   }
 

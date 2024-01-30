@@ -5,6 +5,7 @@ import org.apache.spark.SparkException
 import org.apache.spark.sql.internal.SQLConf.PARALLEL_PARTITION_DISCOVERY_THRESHOLD
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{FlatSpec, Matchers}
+import tech.ytsaurus.core.cypress.RichYPathParser
 import tech.ytsaurus.spyt._
 import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration
 import tech.ytsaurus.spyt.test._
@@ -67,5 +68,15 @@ class DynamicTableReadTest extends FlatSpec with Matchers with LocalSpark with T
     prepareTestTable(tmpPath, Seq.empty, Nil)
     val df = spark.read.yt(tmpPath)
     df.selectAs[TestRow].collect().isEmpty shouldBe true
+  }
+
+  it should "read ordered table" in {
+    prepareOrderedTestTable(tmpPath, enableDynamicStoreRead = true)
+    val data = (1 to 15).map(i => getTestData(i / 2))
+    appendChunksToTestTable(tmpPath, data, sorted = false)
+    withConf(s"spark.yt.${SparkYtConfiguration.Read.YtPartitioningEnabled.name}", "false") {
+      val df = spark.read.option("enable_inconsistent_read", "true").yt(tmpPath)
+      df.selectAs[TestRow].collect() should contain theSameElementsAs data.flatten
+    }
   }
 }

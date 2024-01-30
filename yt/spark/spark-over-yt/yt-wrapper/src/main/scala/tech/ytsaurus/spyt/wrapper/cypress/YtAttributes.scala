@@ -11,4 +11,5 @@ object YtAttributes {
   val dynamic = "dynamic"
   val modificationTime = "modification_time"
   val tabletState = "tablet_state"
+  val tabletCount = "tablet_count"
 }

@@ -77,7 +77,7 @@ trait YtDynTableUtils {
   }
 
   def keyColumns(attrs: Map[String, YTreeNode]): Seq[String] = {
-    keyColumns(attrs(YtAttributes.sortedBy))
+    attrs.get(YtAttributes.sortedBy).map(keyColumns).getOrElse(Nil)
   }
 
   def mountTable(path: String)(implicit yt: CompoundClient): Unit = {
