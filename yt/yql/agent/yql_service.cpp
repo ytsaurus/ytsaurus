@@ -27,7 +27,8 @@ public:
             YqlAgentLogger)
         , YqlAgent_(std::move(yqlAgent))
     {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartQuery));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartQuery)
+            .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortQuery));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQueryProgress));
     }
