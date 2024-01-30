@@ -22,6 +22,7 @@
 
 #include <library/cpp/yt/mlock/mlock.h>
 
+#include <util/system/compiler.h>
 #include <util/system/thread.h>
 
 namespace NYT::NCellMaster {
@@ -177,6 +178,7 @@ protected:
         // We should avoid destroying bootstrap since some of the subsystems
         // may be holding a reference to it and continue running some actions in background threads.
         auto* bootstrap = new NCellMaster::TBootstrap(std::move(config));
+        DoNotOptimizeAway(bootstrap);
         bootstrap->Initialize();
 
         if (SleepAfterInitialize_) {

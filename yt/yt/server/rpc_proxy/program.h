@@ -16,6 +16,7 @@
 
 #include <library/cpp/yt/mlock/mlock.h>
 
+#include <util/system/compiler.h>
 #include <util/system/thread.h>
 
 namespace NYT::NRpcProxy {
@@ -125,6 +126,7 @@ protected:
         // We should avoid destroying bootstrap since some of the subsystems
         // may be holding a reference to it and continue running some actions in background threads.
         auto* bootstrap = new NRpcProxy::TBootstrap(std::move(config), std::move(configNode));
+        DoNotOptimizeAway(bootstrap);
         bootstrap->Run();
     }
 

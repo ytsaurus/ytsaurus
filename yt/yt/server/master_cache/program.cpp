@@ -13,6 +13,7 @@
 
 #include <library/cpp/yt/mlock/mlock.h>
 
+#include <util/system/compiler.h>
 #include <util/system/thread.h>
 
 namespace NYT::NMasterCache {
@@ -55,6 +56,7 @@ void TMasterCacheProgram::DoRun(const NLastGetopt::TOptsParseResult& /*parseResu
     // We should avoid destroying bootstrap since some of the subsystems
     // may be holding a reference to it and continue running some actions in background threads.
     auto* bootstrap = CreateBootstrap(std::move(config)).release();
+    DoNotOptimizeAway(bootstrap);
     bootstrap->Initialize();
     bootstrap->Run();
 }

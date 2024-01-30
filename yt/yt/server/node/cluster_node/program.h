@@ -31,6 +31,7 @@
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/ref_counted_tracker_profiler.h>
 
+#include <util/system/compiler.h>
 #include <util/system/thread.h>
 
 namespace NYT::NClusterNode {
@@ -249,6 +250,7 @@ protected:
         // We should avoid destroying bootstrap since some of the subsystems
         // may be holding a reference to it and continue running some actions in background threads.
         auto* bootstrap = CreateBootstrap(std::move(config), std::move(configNode)).release();
+        DoNotOptimizeAway(bootstrap);
         bootstrap->Initialize();
 
         if (SleepAfterInitialize_) {
