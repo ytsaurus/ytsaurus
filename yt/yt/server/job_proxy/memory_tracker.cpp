@@ -62,7 +62,7 @@ i64 TMemoryTracker::GetMemoryUsage()
     if (Config_->IncludeMemoryMappedFiles) {
         memoryUsage += memoryStatistics->Total.MappedFile;
     }
-    memoryUsage += TmpfsManager_->GetTmpfsSize();
+    memoryUsage += TmpfsManager_->GetAggregatedTmpfsUsage();
     return memoryUsage;
 }
 
@@ -193,7 +193,7 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
     auto memoryUsage = jobMemoryStatistics->Total.Rss + jobMemoryStatistics->Total.MappedFile;
     MaxMemoryUsage_ = std::max<i64>(MaxMemoryUsage_, memoryUsage);
 
-    jobMemoryStatistics->TmpfsSize = TmpfsManager_->GetTmpfsSize();
+    jobMemoryStatistics->TmpfsUsage = TmpfsManager_->GetAggregatedTmpfsUsage();
 
     if (now > LastMemoryMeasureTime_) {
         CumulativeMemoryUsageMBSec_ += memoryUsage * (now - LastMemoryMeasureTime_).SecondsFloat() / 1_MB;

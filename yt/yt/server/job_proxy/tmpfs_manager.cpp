@@ -14,7 +14,7 @@ const static NLogging::TLogger Logger("TmpfsManager");
 
 TTmpfsManager::TTmpfsManager(TTmpfsManagerConfigPtr config)
     : Config_(std::move(config))
-    , MaximumTmpfsSizes_(Config_->TmpfsPaths.size(), 0)
+    , MaxTmpfsUsage_(Config_->TmpfsPaths.size(), 0)
 {
     for (const auto& path : Config_->TmpfsPaths) {
         TmpfsDeviceIds.insert(GetDeviceId(path));
@@ -29,23 +29,47 @@ void TTmpfsManager::DumpTmpfsStatistics(
     TStatistics* statistics,
     const TString& path) const
 {
-    auto tmpfsSizes = GetTmpfsSizes();
+    auto tmpfsVolumesStatistics = GetTmpfsVolumeStatistics();
 
-    auto guard = ReaderGuard(MaximumTmpfsSizesLock_);
+    auto guard = ReaderGuard(MaxTmpfsUsageLock_);
 
-    for (int index = 0; index < std::ssize(tmpfsSizes); ++index) {
-        statistics->AddSample(Format("%v/tmpfs_volumes/%v/size", path, index), tmpfsSizes[index]);
-        statistics->AddSample(Format("%v/tmpfs_volumes/%v/max_size", path, index), MaximumTmpfsSizes_[index]);
+    i64 aggregatedTmpfsUsage = 0;
+    i64 aggregatedTmpfsLimit = 0;
+
+    for (int index = 0; index < std::ssize(tmpfsVolumesStatistics); ++index) {
+        const auto& volumeStatistics = tmpfsVolumesStatistics[index];
+
+        aggregatedTmpfsUsage += volumeStatistics.Usage;
+        aggregatedTmpfsLimit += volumeStatistics.Limit;
+
+        // COMPAT(ignat): size and max_size are misleading names.
+        statistics->AddSample(Format("%v/tmpfs_volumes/%v/size", path, index), volumeStatistics.Usage);
+        statistics->AddSample(Format("%v/tmpfs_volumes/%v/max_size", path, index), volumeStatistics.MaxUsage);
+
+        statistics->AddSample(Format("%v/tmpfs_volumes/%v/usage", path, index), volumeStatistics.Usage);
+        statistics->AddSample(Format("%v/tmpfs_volumes/%v/max_usage", path, index), volumeStatistics.MaxUsage);
+        statistics->AddSample(Format("%v/tmpfs_volumes/%v/limit", path, index), volumeStatistics.Limit);
     }
 
-    statistics->AddSample(Format("%v/tmpfs_size", path), std::accumulate(tmpfsSizes.begin(), tmpfsSizes.end(), 0ll));
-    statistics->AddSample(Format("%v/max_tmpfs_size", path), MaximumTmpfsSize_);
+    // COMPAT(ignat): tmpfs_size and max_tmpfs_size are misleading names.
+    statistics->AddSample(Format("%v/tmpfs_size", path), aggregatedTmpfsUsage);
+    statistics->AddSample(Format("%v/max_tmpfs_size", path), MaxAggregatedTmpfsUsage_);
+
+    statistics->AddSample(Format("%v/tmpfs_usage", path), aggregatedTmpfsUsage);
+    statistics->AddSample(Format("%v/tmpfs_max_usage", path), MaxAggregatedTmpfsUsage_);
+    statistics->AddSample(Format("%v/tmpfs_limit", path), aggregatedTmpfsLimit);
 }
 
-i64 TTmpfsManager::GetTmpfsSize() const
+i64 TTmpfsManager::GetAggregatedTmpfsUsage() const
 {
-    auto tmpfsSizes = GetTmpfsSizes();
-    return std::accumulate(tmpfsSizes.begin(), tmpfsSizes.end(), 0ll);
+    auto tmpfsVolumeStatistics = GetTmpfsVolumeStatistics();
+
+    i64 aggregatedTmpfsUsage = 0;
+    for (const auto& statistics : tmpfsVolumeStatistics) {
+        aggregatedTmpfsUsage += statistics.Usage;
+    }
+
+    return aggregatedTmpfsUsage;
 }
 
 bool TTmpfsManager::IsTmpfsDevice(int deviceId) const
@@ -58,37 +82,43 @@ bool TTmpfsManager::HasTmpfsVolumes() const
     return !Config_->TmpfsPaths.empty();
 }
 
-std::vector<i64> TTmpfsManager::GetTmpfsSizes() const
+std::vector<TTmpfsManager::TTmpfsVolumeStatitsitcs> TTmpfsManager::GetTmpfsVolumeStatistics() const
 {
-    std::vector<i64> tmpfsSizes(Config_->TmpfsPaths.size(), 0);
+    std::vector<TTmpfsVolumeStatitsitcs> tmpfsVolumeStatisitcs(Config_->TmpfsPaths.size());
 
-    auto guard = WriterGuard(MaximumTmpfsSizesLock_);
+    auto guard = WriterGuard(MaxTmpfsUsageLock_);
+
+    i64 aggregatedTmpfsUsage = 0;
 
     for (int index = 0; index < std::ssize(Config_->TmpfsPaths); ++index) {
         const auto& tmpfsPath = Config_->TmpfsPaths[index];
-        auto& tmpfsSize = tmpfsSizes[index];
+        auto& volumeStatistics = tmpfsVolumeStatisitcs[index];
 
         try {
             auto diskSpaceStatistics = GetDiskSpaceStatistics(tmpfsPath);
+
             if (diskSpaceStatistics.TotalSpace < diskSpaceStatistics.AvailableSpace) {
                 YT_LOG_WARNING("Disk total space is less that disk available space (TmpfsPath: %v, TotalSpace: %v, AvailableSpace: %v)",
                     tmpfsPath,
                     diskSpaceStatistics.TotalSpace,
                     diskSpaceStatistics.AvailableSpace);
-            } else {
-                tmpfsSize = diskSpaceStatistics.TotalSpace - diskSpaceStatistics.AvailableSpace;
             }
+
+            volumeStatistics.Limit = diskSpaceStatistics.TotalSpace;
+            volumeStatistics.Usage = std::max<i64>(0, diskSpaceStatistics.TotalSpace - diskSpaceStatistics.AvailableSpace);
+            aggregatedTmpfsUsage += volumeStatistics.Usage;
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to get tmpfs size (TmpfsPath: %v)",
+            YT_LOG_WARNING(ex, "Failed to get tmpfs disk space info (TmpfsPath: %v)",
                 tmpfsPath);
         }
 
-        MaximumTmpfsSizes_[index] = std::max(MaximumTmpfsSizes_[index], tmpfsSize);
+        volumeStatistics.MaxUsage = std::max(MaxTmpfsUsage_[index], volumeStatistics.Usage);
+        MaxTmpfsUsage_[index] = volumeStatistics.MaxUsage;
     }
 
-    MaximumTmpfsSize_ = std::max<i64>(MaximumTmpfsSize_, std::accumulate(tmpfsSizes.begin(), tmpfsSizes.end(), 0ll));
+    MaxAggregatedTmpfsUsage_ = std::max<i64>(MaxAggregatedTmpfsUsage_, aggregatedTmpfsUsage);
 
-    return tmpfsSizes;
+    return tmpfsVolumeStatisitcs;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
