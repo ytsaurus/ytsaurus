@@ -42,7 +42,7 @@ public class SparkPatchAgent {
     public static void premain(String args, Instrumentation inst) {
         log.info("Starting SparkPatchAgent for hooking on jvm classloader");
         String patchJarPath = ManagementFactory.getRuntimeMXBean().getInputArguments().stream()
-                .filter(arg -> arg.contains("spark-yt-spark-patch"))
+                .filter(arg -> arg.startsWith("-javaagent") && arg.contains("spark-yt-spark-patch"))
                 .map(arg -> arg.substring(arg.indexOf(':') + 1))
                 .findFirst()
                 .orElseThrow();

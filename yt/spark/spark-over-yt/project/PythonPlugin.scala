@@ -22,6 +22,7 @@ object PythonPlugin extends AutoPlugin {
     val pythonBuildAndUpload = taskKey[Unit]("")
 
     val pythonDeps = taskKey[Seq[(String, File)]]("")
+    val pythonAppends = taskKey[Seq[(String, String)]]("")
   }
 
   import autoImport._
@@ -48,6 +49,12 @@ object PythonPlugin extends AutoPlugin {
     }
   }
 
+  private def preProcessDeps(deps: File, appends: Seq[(String, String)]): Unit = {
+    appends.foreach { case (relativePath, append) =>
+      IO.append(new File(deps, relativePath), append)
+    }
+  }
+
   private def pypiPassword: Option[String] = Option(System.getProperty("pypi.password"))
 
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
@@ -66,6 +73,7 @@ object PythonPlugin extends AutoPlugin {
       }
       val deps = pythonBuildDir.value / "deps"
       createDeps(deps, pythonDeps.value)
+      preProcessDeps(deps, pythonAppends.value)
       val command = s"${pythonCommand.value} ${pythonSetupName.value} sdist bdist_wheel"
       runCommand(command, pythonBuildDir.value)
       pythonBuildDir.value / "dist"
@@ -88,6 +96,7 @@ object PythonPlugin extends AutoPlugin {
       pythonBuild,
       pythonUpload
     ).value,
-    pythonDeps := Nil
+    pythonDeps := Nil,
+    pythonAppends := Nil
   )
 }

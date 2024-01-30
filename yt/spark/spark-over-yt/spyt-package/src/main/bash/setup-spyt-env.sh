@@ -32,7 +32,7 @@ tar --warning=no-unknown-keyword -xf spark.tgz -C $spark_home
 
 if [ -f spyt-package.zip ]; then
   unzip -o spyt-package.zip -d "$spark_home"
-  javaagent_opt="-javaagent:$(ls $spyt_home/lib/*spark-yt-spark-patch*)"
+  javaagent_opt="-javaagent:$(ls $spyt_home/jars/*spark-yt-spark-patch*)"
   echo "$javaagent_opt" > $spyt_home/conf/java-opts
 fi
 

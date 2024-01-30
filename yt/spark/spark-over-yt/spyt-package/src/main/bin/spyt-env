@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+SPARK_CONF_DIR=$(python -c 'import spyt;print(spyt.__path__[0])')/conf
+export SPARK_CONF_DIR
+
+echo "SPYT environment has been successfully activated"

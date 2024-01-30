@@ -82,6 +82,7 @@ def get_file_paths(conf_local_dir: str, root_path: str, versions: Versions) -> L
         f"{root_path}/{spyt_remote_dir(versions)}/spark.tgz",
         f"{root_path}/{spyt_remote_dir(versions)}/spyt-package.zip",
         f"{root_path}/{spyt_remote_dir(versions)}/setup-spyt-env.sh",
+        f"{root_path}/{spyt_remote_dir(versions)}/spyt.zip",
     ]
     file_paths.extend([
         f"{root_path}/{conf_remote_dir(versions)}/{config_name}"
@@ -103,11 +104,19 @@ def prepare_sidecar_configs(conf_local_dir: str, os_release: bool):
 def prepare_launch_config(conf_local_dir: str, client: Client, versions: Versions,
                           os_release: bool) -> Dict[str, Any]:
     launch_config = copy.deepcopy(LAUNCH_CONFIG)
+    launch_config['spark_conf']['spark.yt.version'] = versions.spyt_version.scala
+    launch_config['spark_conf']['spark.hadoop.yt.byop.enabled'] = "false"
+    launch_config['spark_conf']['spark.hadoop.yt.read.arrow.enabled'] = "true"
+    launch_config['spark_conf']['spark.hadoop.yt.profiling.enabled'] = "false"
+    launch_config['spark_conf']['spark.hadoop.yt.mtn.enabled'] = "false"
+    launch_config['spark_conf']['spark.hadoop.yt.solomonAgent.enabled'] = "false" if os_release else "true"
+    launch_config['spark_conf']['spark.hadoop.yt.preferenceIpv6.enabled'] = "false" if os_release else "true"
+    launch_config['spark_conf']['spark.hadoop.yt.tcpProxy.enabled'] = "false"
     launch_config['spark_yt_base_path'] = client.resolve_from_root(spyt_remote_dir(versions))
     launch_config['file_paths'] = get_file_paths(conf_local_dir, client.root_path, versions)
     launch_config['enablers'] = {
         "spark.hadoop.yt.byop.enabled": not os_release,
-        "spark.hadoop.yt.preferenceIpv6.enabled": not os_release,
+        "spark.hadoop.yt.preferenceIpv6.enabled": True,
         "spark.hadoop.yt.read.arrow.enabled": True,
         "spark.hadoop.yt.solomonAgent.enabled": not os_release,
         "spark.hadoop.yt.mtn.enabled": not os_release,
@@ -176,7 +185,7 @@ def make_configs(sources_path: str, client_builder: ClientBuilder, versions: Ver
 
 def main(sources_path: str, client_builder: ClientBuilder, os_release: bool):
     release_level = get_release_level(sources_path)
-    if release_level < ReleaseLevel.CLUSTER:
+    if release_level < ReleaseLevel.SPYT:
         raise RuntimeError("Found no cluster files")
     versions = load_versions(sources_path)
     make_configs(sources_path, client_builder, versions, os_release)

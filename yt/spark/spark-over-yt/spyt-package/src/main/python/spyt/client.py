@@ -11,8 +11,7 @@ from yt.wrapper.http_helpers import get_token, get_user_name  # noqa: E402
 
 from .arcadia import checked_extract_spark  # noqa: E402
 from .utils import default_token, default_discovery_dir, get_spark_master, set_conf, \
-    SparkDiscovery, parse_memory, format_memory, base_spark_conf, parse_bool, \
-    get_spark_patch_option, get_spyt_home  # noqa: E402
+    SparkDiscovery, parse_memory, format_memory, base_spark_conf, parse_bool, get_spyt_home  # noqa: E402
 from .conf import read_remote_conf, read_global_conf, spyt_python_path, validate_versions_compatibility, \
     read_cluster_conf, SELF_VERSION  # noqa: E402
 from .enabler import set_enablers, set_except_enablers, get_enablers_list  # noqa: E402
@@ -140,14 +139,9 @@ def _configure_client_mode(spark_conf,
     master = get_spark_master(discovery, rest=False, yt_client=client)
     set_conf(spark_conf, base_spark_conf(client=client, discovery=discovery))
     spark_conf.set("spark.master", master)
-    spyt_home = get_spyt_home()
-    spark_patch_option = get_spark_patch_option(spyt_home)
     os.environ["SPARK_YT_TOKEN"] = get_token(client=client)
     os.environ["SPARK_BASE_DISCOVERY_PATH"] = str(discovery.base_discovery_path)
-    os.environ["SPARK_CONF_DIR"] = os.path.join(spyt_home, "conf")
-    os.environ["SPYT_CLASSPATH"] = os.path.join(spyt_home, "jars/*")
-    os.environ["SPARK_SUBMIT_OPTS"] = spark_patch_option
-    os.environ["SPARK_LAUNCHER_OPTS"] = spark_patch_option
+    os.environ["SPARK_CONF_DIR"] = os.path.join(get_spyt_home(), "conf")
     spark_conf.set("spark.yt.master.discoveryPath", str(discovery.base_discovery_path))
 
     jar_caching_enabled = parse_bool(spark_conf.get("spark.yt.jarCaching"))

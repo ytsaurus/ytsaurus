@@ -17,7 +17,7 @@ from yt.wrapper.operation_commands import TimeWatcher, \
     abort_operation, get_operation_state  # noqa: E402
 from yt.wrapper.run_operation_commands import run_operation  # noqa: E402
 from yt.wrapper.spec_builders import VanillaSpecBuilder  # noqa: E402
-from .utils import get_spyt_home, get_spark_patch_option  # noqa: E402
+from .utils import get_spyt_home  # noqa: E402
 
 try:
     from yt.wrapper.operation_commands import process_operation_unsuccessful_finish_state
@@ -117,15 +117,10 @@ def _create_spark_env(client, spark_home):
     yt_token = get_token(client=client)
     yt_user = get_user_name(client=client)
     yt_proxy = call_get_proxy_address_url(client=client)
-    spyt_home = get_spyt_home()
-    spark_patch_option = get_spark_patch_option(spyt_home)
     spark_env["SPARK_USER"] = yt_user
     spark_env["SPARK_YT_TOKEN"] = yt_token
     spark_env["SPARK_YT_PROXY"] = yt_proxy
-    spark_env["SPARK_CONF_DIR"] = os.path.join(spyt_home, "conf")
-    spark_env["SPYT_CLASSPATH"] = os.path.join(spyt_home, "jars/*")
-    spark_env["SPARK_SUBMIT_OPTS"] = spark_patch_option
-    spark_env["SPARK_LAUNCHER_OPTS"] = spark_patch_option
+    spark_env["SPARK_CONF_DIR"] = os.path.join(get_spyt_home(), "conf")
     if spark_home:
         spark_env["SPARK_HOME"] = spark_home
     return spark_env
@@ -400,7 +395,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         setup_spyt_env_cmd = setup_spyt_env(spark_home, additional_parameters, setup_spyt_env_sh_exists)
 
         java_bin = os.path.join(default_java_home, 'bin', 'java')
-        classpath = f'{spark_home}/spyt-package/conf/:{spark_home}/spyt-package/lib/*:{spark_home}/spark/jars/*'
+        classpath = f'{spark_home}/spyt-package/conf/:{spark_home}/spyt-package/jars/*:{spark_home}/spark/jars/*'
         extra_java_opts_str = " ".join(extra_java_opts) if extra_java_opts else ""
         run_launcher = "{} -Xmx{} -cp {} {}".format(java_bin, xmx, classpath, extra_java_opts_str)
         spark_conf = get_spark_conf(config=config, enablers=enablers)
@@ -806,6 +801,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_cores_ov
     if ytserver_proxy_path:
         dynamic_config["ytserver_proxy_path"] = ytserver_proxy_path
     dynamic_config['spark_conf']['spark.dedicated_operation_mode'] = dedicated_operation_mode
+    dynamic_config['spark_conf']['spark.shuffle.service.enabled'] = 'true'
 
     if autoscaler_period:
         dynamic_config['spark_conf']['spark.autoscaler.enabled'] = True

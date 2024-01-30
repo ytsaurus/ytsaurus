@@ -278,16 +278,12 @@ trait SparkLauncher {
     val workerLog4j = s"-Dlog4j.configuration=file://$spytHome/conf/log4j.worker.properties"
     val sparkLocalDirs = env("SPARK_LOCAL_DIRS", "./tmpfs")
     val javaOpts = (workerLog4j +: (systemProperties ++ sparkSystemProperties.map { case (k, v) => s"-D$k=$v" })).mkString(" ")
-    val sparkLauncherOpts = Files.readString(Path.of(spytHome, "conf", "java-opts"))
-    log.info(s"Spark launcher opts: $sparkLauncherOpts")
     Process(
       command,
       new File("."),
       "JAVA_HOME" -> javaHome,
       "SPARK_HOME" -> sparkHome,
       "SPARK_CONF_DIR" -> s"$spytHome/conf",
-      "SPYT_CLASSPATH" -> s"$spytHome/lib/*",
-      "SPARK_LAUNCHER_OPTS" -> sparkLauncherOpts,
       "SPARK_LOCAL_DIRS" -> sparkLocalDirs,
       // when using MTN, Spark should use ip address and not hostname, because hostname is not in DNS
       "SPARK_LOCAL_HOSTNAME" -> ytHostnameOrIpAddress,

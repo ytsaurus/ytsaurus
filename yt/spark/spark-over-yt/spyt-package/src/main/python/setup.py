@@ -9,7 +9,7 @@ with open(ver_path) as ver_file:
 SCRIPTS_PATH = convert_path('deps/bin')
 script_names = [
     'spark-discovery-yt', 'spark-launch-yt', 'spark-manage-yt', 'spark-shell-yt',
-    'spark-submit-yt', 'spyt_cli.py',
+    'spark-submit-yt', 'spyt_cli.py', 'spyt-env'
 ]
 scripts = [os.path.join(SCRIPTS_PATH, x) for x in script_names]
 

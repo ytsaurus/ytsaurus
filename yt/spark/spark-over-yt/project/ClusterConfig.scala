@@ -22,6 +22,17 @@ object ClusterConfig {
     val sidecarConfigsClusterPaths = sidecarConfigs.map(file => s"$versionConfPath/${file.getName}")
     SparkLaunchConfig(
       clusterBasePath,
+      spark_conf = Map(
+        "spark.yt.jarCaching" -> "true",
+        "spark.yt.version" -> version,
+        "spark.hadoop.yt.byop.enabled" -> "false",
+        "spark.hadoop.yt.read.arrow.enabled" -> "true",
+        "spark.hadoop.yt.profiling.enabled" -> "false",
+        "spark.hadoop.yt.mtn.enabled" -> "false",
+        "spark.hadoop.yt.solomonAgent.enabled" -> "true",
+        "spark.hadoop.yt.preferenceIpv6.enabled" -> "true",
+        "spark.hadoop.yt.tcpProxy.enabled" -> "false"
+      ),
       ytserver_proxy_path = Option(System.getProperty("proxyVersion")).map(version =>
         s"$defaultYtServerProxyPath-$version"
       ),
@@ -29,6 +40,7 @@ object ClusterConfig {
         s"$clusterBasePath/spark.tgz",
         s"$clusterBasePath/spyt-package.zip",
         s"$clusterBasePath/setup-spyt-env.sh",
+        s"$clusterBasePath/spyt.zip"
       ) ++ sidecarConfigsClusterPaths
     )
   }

@@ -74,7 +74,6 @@ class SubmissionClient(proxy: String,
     launcher.setConf("spark.hadoop.yt.token", token)
 
     launcher.setConf("spark.yt.version", spytVersion)
-//    launcher.setConf("spark.yt.jars", wrapCachedJar(s"yt:/${spytJarPath(spytVersion)}", jarCachingEnabled))
     launcher.setConf("spark.yt.pyFiles", wrapCachedJar(s"yt:/${spytPythonPath(spytVersion)}", jarCachingEnabled))
     launcher.setConf("spark.eventLog.dir", "ytEventLog:/" + eventLogPath)
 
@@ -274,10 +273,6 @@ class SubmissionClient(proxy: String,
     } else {
       path
     }
-  }
-
-  private def spytJarPath(spytVersion: String): YPath = {
-    getSpytVersionPath(spytVersion).child("spark-yt-data-source.jar")
   }
 
   private def spytPythonPath(spytVersion: String): YPath = {

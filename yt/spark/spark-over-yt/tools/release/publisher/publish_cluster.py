@@ -29,13 +29,13 @@ def upload_spark_fork(uploader: Client, versions: Versions, sources_path: str, p
 
 
 def upload_spyt(uploader: Client, versions: Versions, sources_path: str, publish_conf: PublishConfig):
-    logger.info("Uploading cluster files")
+    logger.info("Uploading SPYT files")
     ttl = publish_conf.snapshot_ttl if versions.spyt_version.is_snapshot else None
     uploader.mkdir(spyt_remote_dir(versions), ttl=ttl, ignore_existing=publish_conf.ignore_existing)
     uploader.mkdir(conf_remote_dir(versions), ttl=ttl, ignore_existing=publish_conf.ignore_existing)
 
-    spark_extra_zip = join(sources_path, 'spyt-package.zip')
-    uploader.write_file(spark_extra_zip, f"{spyt_remote_dir(versions)}/spyt-package.zip")
+    spyt_package_zip = join(sources_path, 'spyt-package.zip')
+    uploader.write_file(spyt_package_zip, f"{spyt_remote_dir(versions)}/spyt-package.zip")
 
     setup_spyt_env = join(sources_path, 'setup-spyt-env.sh')
     uploader.write_file(setup_spyt_env, f"{spyt_remote_dir(versions)}/setup-spyt-env.sh", executable=True)
@@ -57,8 +57,6 @@ def upload_spyt(uploader: Client, versions: Versions, sources_path: str, publish
     logger.info("Uploading client files")
     spyt_zip = join(sources_path, 'spyt.zip')
     uploader.write_file(spyt_zip, f"{spyt_remote_dir(versions)}/spyt.zip")
-    spark_yt_data_source_jar = join(sources_path, 'spark-yt-data-source.jar')
-    uploader.write_file(spark_yt_data_source_jar, f"{spyt_remote_dir(versions)}/spark-yt-data-source.jar")
 
 
 def create_base_dirs(uploader: Client, versions: Versions):

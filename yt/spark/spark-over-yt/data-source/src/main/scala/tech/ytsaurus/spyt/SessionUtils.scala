@@ -80,6 +80,7 @@ object SessionUtils {
     }
   }
 
+  //TODO: rethink and refactor due to submission to YT scheduler
   def buildSparkSession(sparkConf: SparkConf): SparkSession = {
     val spark = SparkSession.builder.config(sparkConf).getOrCreate()
     log.info(s"SPYT Cluster version: ${sparkConf.get("spark.yt.cluster.version")}")

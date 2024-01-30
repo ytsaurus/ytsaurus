@@ -6,7 +6,7 @@ object Dependencies {
   lazy val circeYamlVersion = "0.12.0"
   lazy val scalatestVersion = "3.1.0"
   lazy val sparkVersion = "3.2.2"
-  lazy val ytsaurusClientVersion = "1.2.0"
+  lazy val ytsaurusClientVersion = "1.2.1"
   lazy val scalatraVersion = "2.7.0"
   lazy val mockitoVersion = "1.14.4"
   lazy val arrowVersion = "0.17.1"
@@ -55,6 +55,10 @@ object Dependencies {
   ).map(_ % sparkForkVersion).map(_ excludeAll
     ExclusionRule(organization = "org.apache.httpcomponents")
   ).map(_ % Provided)
+
+  lazy val sparkTest = Seq(
+    "org.apache.spark" %% "spark-core" % sparkVersion % Test classifier "tests"
+  )
 
   lazy val ytsaurusClient = Seq(
     "tech.ytsaurus" % "ytsaurus-client" % ytsaurusClientVersion excludeAll(

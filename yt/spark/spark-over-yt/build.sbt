@@ -79,6 +79,11 @@ lazy val `spark-patch` = (project in file("spark-patch"))
       Package.ManifestAttributes(new java.util.jar.Attributes.Name("PreMain-Class") -> "tech.ytsaurus.spyt.patch.SparkPatchAgent")
   )
 
+lazy val `resource-manager` = (project in file("resource-manager"))
+  .settings(
+    libraryDependencies ++= spark ++ ytsaurusClient ++ sparkTest
+  )
+
 lazy val `cluster` = (project in file("spark-cluster"))
   .configs(IntegrationTest)
   .dependsOn(`data-source` % "compile->compile;test->test;provided->provided")
@@ -90,7 +95,7 @@ lazy val `cluster` = (project in file("spark-cluster"))
 
 lazy val `spyt-package` = (project in file("spyt-package"))
   .enablePlugins(JavaAppPackaging, PythonPlugin)
-  .dependsOn(`cluster` % "compile->compile;test->test;provided->provided", `spark-patch`, `spark-submit`)
+  .dependsOn(`cluster` % "compile->compile;test->test;provided->provided", `resource-manager`, `spark-patch`, `spark-submit`)
   .settings(
 
     // These dependencies are already provided by spark distributive
@@ -116,7 +121,9 @@ lazy val `spyt-package` = (project in file("spyt-package"))
     Universal / mappings := {
       val oldMappings = (Universal / mappings).value
       val scalaLibs = scalaInstance.value.libraryJars.toSet
-      oldMappings.filterNot(lib => scalaLibs.contains(lib._1))
+      oldMappings.filterNot(lib => scalaLibs.contains(lib._1)).map { case (file, targetPath) =>
+        file -> (if (targetPath.startsWith("lib/")) s"jars/${targetPath.substring(4)}" else targetPath)
+      }
     },
 
     setupSpytEnvScript := sourceDirectory.value / "main" / "bash" / "setup-spyt-env.sh",
@@ -131,9 +138,7 @@ lazy val `spyt-package` = (project in file("spyt-package"))
       val packagePaths = (Universal / mappings).value.flatMap {
         case (file, path) if !file.isDirectory =>
           val target = path.substring(0, path.lastIndexOf("/")) match {
-            case "lib" => "spyt/jars"
-            case "bin" => "spyt/bin"
-            case "conf" => "spyt/conf"
+            case dir@("jars"|"bin"|"conf") => s"spyt/$dir"
             case x => x
           }
           Some(target -> file)
@@ -143,6 +148,15 @@ lazy val `spyt-package` = (project in file("spyt-package"))
       val pySpytBasePath = sourceDirectory.value / "main" / "python" / "spyt"
       binBasePath.listFiles().map(f => "bin" -> f) ++ pySpytBasePath.listFiles().map(f => "spyt" -> f) ++
         packagePaths
+    },
+    pythonAppends := {
+      if (isSnapshot.value) { Seq("spyt/conf/spark-defaults.conf" -> (
+        s"spark.ytsaurus.config.releases.path                   //home/spark/conf/snapshots\n" +
+          s"spark.ytsaurus.spyt.releases.path                     //home/spark/spyt/snapshots\n" +
+          s"spark.ytsaurus.spyt.version                           ${version.value}\n"
+        ), "spyt/conf/log4j.properties" -> "log4j.rootLogger=INFO, console\n") } else {
+        Seq.empty
+      }
     }
   )
   .settings(
@@ -203,7 +217,9 @@ lazy val root = (project in file("."))
     `file-system`,
     `data-source`,
     `cluster`,
+    `resource-manager`,
     `spark-submit`,
+    `spark-patch`,
     `spyt-package`
   )
   .settings(
