@@ -238,7 +238,7 @@ TError TSchedulerConnector::DoSendHeartbeat()
             "Error reporting heartbeat to scheduler (BackoffTime: [%v, %v])",
             minBackoff,
             maxBackoff);
-        return TError("Failed reporting heartbeat to scheduler");
+        return TError("Failed to report heartbeat to scheduler");
     }
 
     YT_LOG_INFO("Successfully reported heartbeat to scheduler");
@@ -255,6 +255,11 @@ TError TSchedulerConnector::DoSendHeartbeat()
             TimeBetweenFullyProcessedHeartbeatsCounter_);
         HeartbeatInfo_.LastFullyProcessedHeartbeatTime = TInstant::Now();
     } else {
+        auto [minBackoff, maxBackoff] = HeartbeatExecutor_->GetBackoffInterval();
+        YT_LOG_DEBUG(
+            "Failed to report heartbeat to scheduler because scheduling was skipped (BackoffTime: [%v, %v])",
+            minBackoff,
+            maxBackoff);
         HeartbeatInfo_.LastThrottledHeartbeatTime = TInstant::Now();
     }
 
