@@ -1790,7 +1790,6 @@ class TestSchedulingSegmentsMultiInfinibandCluster(BaseTestSchedulingSegmentsMul
         set("//sys/pool_trees/default/@config/scheduling_segments/enable_infiniband_cluster_tag_validation", True)
 
 
-@pytest.skip("YT-20968")
 class TestInfinibandClusterTagValidation(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
