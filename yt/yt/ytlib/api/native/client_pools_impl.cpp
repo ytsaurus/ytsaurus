@@ -28,7 +28,7 @@ void TClient::DoTransferPoolResources(
     const TTransferPoolResourcesOptions& options)
 {
     auto proxy = CreateObjectServiceWriteProxy();
-    auto batchReq = proxy->ExecuteBatch();
+    auto batchReq = proxy.ExecuteBatch();
 
     auto req = TSchedulerPoolYPathProxy::TransferPoolResources(GetPoolTreePath(poolTree));
     req->set_src_pool(srcPool);

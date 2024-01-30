@@ -932,15 +932,14 @@ private:
         const NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr& request,
         const TMasterReadOptions& options);
 
-    std::unique_ptr<NObjectClient::TObjectServiceProxy> CreateObjectServiceReadProxy(
+    NObjectClient::TObjectServiceProxy CreateObjectServiceReadProxy(
         const TMasterReadOptions& options,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel);
-    std::unique_ptr<NObjectClient::TObjectServiceProxy> CreateObjectServiceWriteProxy(
+    NObjectClient::TObjectServiceProxy CreateObjectServiceWriteProxy(
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel);
 
     template <class TProxy>
-    std::unique_ptr<TProxy> CreateWriteProxy(
-        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel);
+    TProxy CreateWriteProxy(NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel);
     NRpc::IChannelPtr GetReadCellChannelOrThrow(NObjectClient::TCellId cellId);
     NRpc::IChannelPtr GetReadCellChannelOrThrow(const NHiveClient::TCellDescriptorPtr& cellDescriptor);
     NRpc::IChannelPtr GetHydraAdminChannelOrThrow(NObjectClient::TCellId cellId);

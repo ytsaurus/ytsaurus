@@ -191,7 +191,7 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
     }
 
     auto proxy = CreateObjectServiceReadProxy(options);
-    auto batchReq = proxy->ExecuteBatch();
+    auto batchReq = proxy.ExecuteBatch();
     SetBalancingHeader(batchReq, options);
 
     {
@@ -275,7 +275,7 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
     };
 
     if (options.IncludeRuntime) {
-        auto batchReq = proxy->ExecuteBatch();
+        auto batchReq = proxy.ExecuteBatch();
 
         auto addProgressAttributeRequest = [&] (const TString& attribute, bool shouldRequestFromScheduler) {
             if (shouldRequestFromScheduler) {
@@ -403,7 +403,7 @@ TOperationId TClient::ResolveOperationAlias(
 {
     auto proxy = CreateObjectServiceReadProxy(options);
     auto req = TYPathProxy::Get(GetSchedulerOrchidAliasPath(alias) + "/operation_id");
-    auto rspOrError = WaitFor(proxy->Execute(req));
+    auto rspOrError = WaitFor(proxy.Execute(req));
     if (rspOrError.IsOK()) {
         return ConvertTo<TOperationId>(TYsonString(rspOrError.Value()->value()));
     } else if (!rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {

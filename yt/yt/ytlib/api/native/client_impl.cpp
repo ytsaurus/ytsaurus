@@ -438,36 +438,36 @@ void TClient::SetBalancingHeader(
     NApi::NNative::SetBalancingHeader(request, Connection_, options);
 }
 
-std::unique_ptr<TObjectServiceProxy> TClient::CreateObjectServiceReadProxy(
+TObjectServiceProxy TClient::CreateObjectServiceReadProxy(
     const TMasterReadOptions& options,
     TCellTag cellTag)
 {
-    return std::make_unique<TObjectServiceProxy>(NObjectClient::CreateObjectServiceReadProxy(
+    return NObjectClient::CreateObjectServiceReadProxy(
         MakeStrong(this),
         options.ReadFrom,
         cellTag,
-        Connection_->GetStickyGroupSizeCache()));
+        Connection_->GetStickyGroupSizeCache());
 }
 
-std::unique_ptr<TObjectServiceProxy> TClient::CreateObjectServiceWriteProxy(
+TObjectServiceProxy TClient::CreateObjectServiceWriteProxy(
     TCellTag cellTag)
 {
-    return std::make_unique<TObjectServiceProxy>(NObjectClient::CreateObjectServiceWriteProxy(
+    return NObjectClient::CreateObjectServiceWriteProxy(
         MakeStrong(this),
-        cellTag));
+        cellTag);
 }
 
 template <class TProxy>
-std::unique_ptr<TProxy> TClient::CreateWriteProxy(
+TProxy TClient::CreateWriteProxy(
     TCellTag cellTag)
 {
     auto channel = GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
-    return std::make_unique<TProxy>(channel);
+    return TProxy(std::move(channel));
 }
 
-template std::unique_ptr<TChunkServiceProxy> TClient::CreateWriteProxy<TChunkServiceProxy>(TCellTag cellTag);
+template TChunkServiceProxy TClient::CreateWriteProxy<TChunkServiceProxy>(TCellTag cellTag);
 
-template std::unique_ptr<TObjectServiceProxy> TClient::CreateWriteProxy<TObjectServiceProxy>(TCellTag cellTag);
+template TObjectServiceProxy TClient::CreateWriteProxy<TObjectServiceProxy>(TCellTag cellTag);
 
 NRpc::IChannelPtr TClient::GetReadCellChannelOrThrow(const NHiveClient::TCellDescriptorPtr& cellDescriptor)
 {
@@ -632,7 +632,7 @@ TObjectId TClient::CreateObjectImpl(
     const TCreateObjectOptions& options)
 {
     auto proxy = CreateObjectServiceWriteProxy(cellTag);
-    auto batchReq = proxy->ExecuteBatch();
+    auto batchReq = proxy.ExecuteBatch();
     batchReq->SetSuppressTransactionCoordinatorSync(true);
     SetPrerequisites(batchReq, options);
 
@@ -702,7 +702,7 @@ TClusterMeta TClient::DoGetClusterMeta(
     const TGetClusterMetaOptions& options)
 {
     auto proxy = CreateObjectServiceReadProxy(options);
-    auto batchReq = proxy->ExecuteBatch();
+    auto batchReq = proxy.ExecuteBatch();
     batchReq->SetSuppressTransactionCoordinatorSync(true);
     SetBalancingHeader(batchReq, options);
 
@@ -777,7 +777,7 @@ void TClient::DoCheckClusterLiveness(
     // Requests to primary master.
     if (options.CheckCypressRoot || options.CheckTabletCellBundle) {
         auto proxy = CreateObjectServiceReadProxy(masterReadOptions);
-        auto batchReq = proxy->ExecuteBatch();
+        auto batchReq = proxy.ExecuteBatch();
 
         if (options.CheckCypressRoot) {
             auto req = TYPathProxy::List("/");
@@ -798,7 +798,7 @@ void TClient::DoCheckClusterLiveness(
     if (options.CheckSecondaryMasterCells) {
         for (auto secondaryCellTag : Connection_->GetSecondaryMasterCellTags()) {
             auto proxy = CreateObjectServiceReadProxy(masterReadOptions, secondaryCellTag);
-            auto batchReq = proxy->ExecuteBatch();
+            auto batchReq = proxy.ExecuteBatch();
 
             auto req = TYPathProxy::List("/");
             req->set_limit(1);

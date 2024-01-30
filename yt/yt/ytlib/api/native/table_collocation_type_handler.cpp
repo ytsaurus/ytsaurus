@@ -44,7 +44,7 @@ public:
             auto tablePaths = attributes->GetAndRemove<std::vector<TYPath>>("table_paths");
 
             auto proxy = Client_->CreateObjectServiceReadProxy(TMasterReadOptions());
-            auto batchReq = proxy->ExecuteBatch();
+            auto batchReq = proxy.ExecuteBatch();
             for (const auto& tablePath : tablePaths) {
                 auto req = TCypressYPathProxy::Get(tablePath + "/@id");
                 batchReq->AddRequest(req);

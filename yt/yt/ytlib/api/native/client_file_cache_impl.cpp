@@ -87,7 +87,7 @@ TGetFileFromCacheResult TClient::DoGetFileFromCache(
         "md5"
     });
 
-    auto rspOrError = WaitFor(proxy->Execute(req));
+    auto rspOrError = WaitFor(proxy.Execute(req));
     if (!rspOrError.IsOK()) {
         YT_LOG_DEBUG(
             rspOrError,
@@ -202,7 +202,7 @@ TPutFileToCacheResult TClient::DoAttemptPutFileToCache(
 
         NCypressClient::SetTransactionId(req, transaction->GetId());
 
-        auto rspOrError = WaitFor(proxy->Execute(req));
+        auto rspOrError = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(
             rspOrError,
             "Error requesting MD5 hash of file %v",

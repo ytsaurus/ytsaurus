@@ -448,7 +448,7 @@ void TClusterBackupSession::CloneTables(ENodeCloneMode nodeCloneMode)
 
     // TODO(ifsmirnov): this doesn't work for tables beyond the portals.
     auto proxy = Client_->CreateObjectServiceWriteProxy();
-    auto batchReq = proxy->ExecuteBatch();
+    auto batchReq = proxy.ExecuteBatch();
 
     for (const auto& table : Tables_) {
         auto req = TCypressYPathProxy::Copy(table.DestinationPath);
@@ -616,7 +616,7 @@ void TClusterBackupSession::UpdateUpstreamReplicaIds()
     // Alter requests should go to native cell. Backups do not support portals yet,
     // so we use primary instead.
     auto proxy = Client_->CreateObjectServiceWriteProxy();
-    auto batchReq = proxy->ExecuteBatch();
+    auto batchReq = proxy.ExecuteBatch();
 
     for (const auto& table : Tables_) {
         if (!table.UpstreamReplica) {
@@ -638,7 +638,7 @@ void TClusterBackupSession::RememberTabletStates()
     // Set-attribute requests should go to native cell. Backups do not support portals yet,
     // so we use primary instead.
     auto proxy = Client_->CreateObjectServiceWriteProxy();
-    auto batchReq = proxy->ExecuteBatch();
+    auto batchReq = proxy.ExecuteBatch();
 
     for (const auto& table : Tables_) {
         auto req = TObjectYPathProxy::Set(FromObjectId(
@@ -780,7 +780,7 @@ void TClusterBackupSession::ExecuteForAllTables(
             : Client_->CreateObjectServiceReadProxy(
                 masterReadOptions,
                 cellTag);
-        auto batchReq = proxy->ExecuteBatch();
+        auto batchReq = proxy.ExecuteBatch();
         for (int tableIndex : tableIndexes) {
             buildRequest(batchReq, Tables_[tableIndex]);
         }

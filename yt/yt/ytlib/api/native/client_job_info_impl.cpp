@@ -1663,8 +1663,8 @@ TFuture<TListJobsFromControllerAgentResult> TClient::DoListJobsFromControllerAge
         .ReadFrom = EMasterChannelKind::Follower,
     };
     auto proxy = CreateObjectServiceReadProxy(readOptions);
-    proxy->SetDefaultTimeout(deadline - Now());
-    auto batchReq = proxy->ExecuteBatch();
+    proxy.SetDefaultTimeout(deadline - Now());
+    auto batchReq = proxy.ExecuteBatch();
 
     batchReq->AddRequest(
         TYPathProxy::Get(GetControllerAgentOrchidOperationPath(*controllerAgentAddress, operationId) + "/state"),
@@ -2149,8 +2149,8 @@ std::optional<TJob> TClient::DoGetJobFromControllerAgent(
         .ReadFrom = EMasterChannelKind::Follower,
     };
     auto proxy = CreateObjectServiceReadProxy(readOptions);
-    proxy->SetDefaultTimeout(deadline - Now());
-    auto batchReq = proxy->ExecuteBatch();
+    proxy.SetDefaultTimeout(deadline - Now());
+    auto batchReq = proxy.ExecuteBatch();
 
     auto operationStatePath =
         GetControllerAgentOrchidOperationPath(*controllerAgentAddress, operationId) + "/state";

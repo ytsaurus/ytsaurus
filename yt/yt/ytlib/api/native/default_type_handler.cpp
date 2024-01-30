@@ -65,7 +65,7 @@ public:
         const TGetNodeOptions& options) override
     {
         auto proxy = Client_->CreateObjectServiceReadProxy(options);
-        auto batchReq = proxy->ExecuteBatch();
+        auto batchReq = proxy.ExecuteBatch();
         SetSuppressUpstreamSyncs(batchReq, options);
         SetPrerequisites(batchReq, options);
         Client_->SetBalancingHeader(batchReq, options);
@@ -99,7 +99,7 @@ public:
         const TListNodeOptions& options) override
     {
         auto proxy = Client_->CreateObjectServiceReadProxy(options);
-        auto batchReq = proxy->ExecuteBatch();
+        auto batchReq = proxy.ExecuteBatch();
         SetSuppressUpstreamSyncs(batchReq, options);
         SetPrerequisites(batchReq, options);
         Client_->SetBalancingHeader(batchReq, options);
@@ -130,7 +130,7 @@ public:
         const TNodeExistsOptions& options) override
     {
         auto proxy = Client_->CreateObjectServiceReadProxy(options);
-        auto batchReq = proxy->ExecuteBatch();
+        auto batchReq = proxy.ExecuteBatch();
         SetSuppressUpstreamSyncs(batchReq, options);
         SetPrerequisites(batchReq, options);
         Client_->SetBalancingHeader(batchReq, options);
@@ -154,7 +154,7 @@ public:
         const TRemoveNodeOptions& options) override
     {
         auto proxy = Client_->CreateObjectServiceWriteProxy();
-        auto batchReq = proxy->ExecuteBatch();
+        auto batchReq = proxy.ExecuteBatch();
         SetSuppressUpstreamSyncs(batchReq, options);
         SetPrerequisites(batchReq, options);
 

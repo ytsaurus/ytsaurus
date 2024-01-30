@@ -637,7 +637,7 @@ TGetTabletErrorsResult TClient::DoGetTabletErrors(
     auto req = TTableYPathProxy::Get(path + "/@tablets");
     SetCachingHeader(req, masterReadOptions);
 
-    auto tablets = WaitFor(proxy->Execute(req))
+    auto tablets = WaitFor(proxy.Execute(req))
         .ValueOrThrow();
     auto tabletsNode = ConvertToNode(TYsonString(tablets->value()))->AsList();
 
@@ -1922,7 +1922,7 @@ std::vector<TLegacyOwningKey> TClient::PickUniformPivotKeys(
 
     auto proxy = CreateObjectServiceReadProxy(TMasterReadOptions());
     auto req = TTableYPathProxy::Get(path + "/@schema");
-    auto rspOrError = WaitFor(proxy->Execute(req));
+    auto rspOrError = WaitFor(proxy.Execute(req));
     THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching table schema");
 
     auto schema = ConvertTo<TTableSchemaPtr>(TYsonString(rspOrError.Value()->value()));
@@ -2066,7 +2066,7 @@ std::vector<TTabletActionId> TClient::DoReshardTableAutomatic(
     SetMutationId(req, options);
     req->set_keep_actions(options.KeepActions);
     auto proxy = CreateObjectServiceWriteProxy(externalCellTag);
-    auto protoRsp = WaitFor(proxy->Execute(req))
+    auto protoRsp = WaitFor(proxy.Execute(req))
         .ValueOrThrow();
     return FromProto<std::vector<TTabletActionId>>(protoRsp->tablet_actions());
 }
@@ -2099,7 +2099,7 @@ void TClient::DoAlterTable(
     }
 
     auto proxy = CreateObjectServiceWriteProxy();
-    WaitFor(proxy->Execute(req))
+    WaitFor(proxy.Execute(req))
         .ThrowOnError();
 }
 
@@ -2222,7 +2222,7 @@ std::vector<TTabletActionId> TClient::DoBalanceTabletCells(
         req->set_keep_actions(options.KeepActions);
         for (const auto& cellTag : cellTags) {
             auto proxy = CreateObjectServiceWriteProxy(cellTag);
-            cellResponses.emplace_back(proxy->Execute(req));
+            cellResponses.push_back(proxy.Execute(req));
         }
     } else {
         THashMap<TCellTag, std::vector<TTableId>> tablesByCells;
@@ -2263,7 +2263,7 @@ std::vector<TTabletActionId> TClient::DoBalanceTabletCells(
             SetMutationId(req, options);
             ToProto(req->mutable_movable_tables(), tableIds);
             auto proxy = CreateObjectServiceWriteProxy(cellTag);
-            cellResponses.emplace_back(proxy->Execute(req));
+            cellResponses.push_back(proxy.Execute(req));
         }
     }
 
@@ -3075,7 +3075,7 @@ TPullRowsResult TClient::DoPullRows(
     std::vector<TIntrusivePtr<TTabletPullRowsSession>> sessions;
     std::vector<TFuture<void>> futureResults;
     for (const auto& request : requests) {
-        sessions.emplace_back(New<TTabletPullRowsSession>(
+        sessions.push_back(New<TTabletPullRowsSession>(
             this,
             schema,
             timestampColumnIndex,

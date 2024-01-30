@@ -44,7 +44,7 @@ TCheckPermissionByAclResult TClient::DoCheckPermissionByAcl(
     const TCheckPermissionByAclOptions& options)
 {
     auto proxy = CreateObjectServiceReadProxy(options);
-    auto batchReq = proxy->ExecuteBatch();
+    auto batchReq = proxy.ExecuteBatch();
     SetBalancingHeader(batchReq, options);
     batchReq->SetSuppressTransactionCoordinatorSync(true);
 
@@ -78,7 +78,7 @@ void TClient::DoAddMember(
     const TAddMemberOptions& options)
 {
     auto proxy = CreateObjectServiceWriteProxy();
-    auto batchReq = proxy->ExecuteBatch();
+    auto batchReq = proxy.ExecuteBatch();
     SetPrerequisites(batchReq, options);
 
     auto req = TGroupYPathProxy::AddMember(GetGroupPath(group));
@@ -99,7 +99,7 @@ void TClient::DoRemoveMember(
     const TRemoveMemberOptions& options)
 {
     auto proxy = CreateObjectServiceWriteProxy();
-    auto batchReq = proxy->ExecuteBatch();
+    auto batchReq = proxy.ExecuteBatch();
     SetPrerequisites(batchReq, options);
 
     auto req = TGroupYPathProxy::RemoveMember(GetGroupPath(group));
@@ -121,7 +121,7 @@ TCheckPermissionResponse TClient::DoCheckPermission(
     const TCheckPermissionOptions& options)
 {
     auto proxy = CreateObjectServiceReadProxy(options);
-    auto batchReq = proxy->ExecuteBatch();
+    auto batchReq = proxy.ExecuteBatch();
     batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
     SetBalancingHeader(batchReq, options);
 
@@ -212,7 +212,7 @@ TYPath TClient::GetReplicaTablePath(TTableReplicaId replicaId)
 {
     auto cellTag = CellTagFromId(replicaId);
     auto proxy = CreateObjectServiceReadProxy({}, cellTag);
-    auto batchReq = proxy->ExecuteBatch();
+    auto batchReq = proxy.ExecuteBatch();
 
     auto req = TYPathProxy::Get(FromObjectId(replicaId) + "/@table_path");
     NCypressClient::SetSuppressAccessTracking(req, true);
@@ -244,7 +244,7 @@ void TClient::DoTransferAccountResources(
     const TTransferAccountResourcesOptions& options)
 {
     auto proxy = CreateObjectServiceWriteProxy();
-    auto batchReq = proxy->ExecuteBatch();
+    auto batchReq = proxy.ExecuteBatch();
 
     auto req = TAccountYPathProxy::TransferAccountResources(GetAccountPath(dstAccount));
     req->set_src_account(srcAccount);

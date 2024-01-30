@@ -727,7 +727,7 @@ TNodeId TClient::CreateNodeImpl(
     const TCreateNodeOptions& options)
 {
     auto proxy = CreateObjectServiceWriteProxy();
-    auto batchReq = proxy->ExecuteBatch();
+    auto batchReq = proxy.ExecuteBatch();
     SetSuppressUpstreamSyncs(batchReq, options);
     SetPrerequisites(batchReq, options);
 
@@ -770,7 +770,7 @@ void TClient::DoSetNode(
     MaybeValidateExternalObjectPermission(path, EPermission::Write);
 
     auto proxy = CreateObjectServiceWriteProxy();
-    auto batchReq = proxy->ExecuteBatch();
+    auto batchReq = proxy.ExecuteBatch();
     SetSuppressUpstreamSyncs(batchReq, options);
     SetPrerequisites(batchReq, options);
 
@@ -804,7 +804,7 @@ void TClient::DoMultisetAttributesNode(
     MaybeValidateExternalObjectPermission(path, EPermission::Write);
 
     auto proxy = CreateObjectServiceWriteProxy();
-    auto batchReq = proxy->ExecuteBatch();
+    auto batchReq = proxy.ExecuteBatch();
     SetSuppressUpstreamSyncs(batchReq, options);
     SetPrerequisites(batchReq, options);
 
@@ -889,7 +889,7 @@ TLockNodeResult TClient::DoLockNode(
 
     auto batchReqConfig = New<TReqExecuteBatchWithRetriesConfig>();
 
-    auto batchReq = proxy->ExecuteBatchWithRetries(std::move(batchReqConfig));
+    auto batchReq = proxy.ExecuteBatchWithRetries(std::move(batchReqConfig));
     SetSuppressUpstreamSyncs(batchReq, options);
     SetPrerequisites(batchReq, options);
 
@@ -927,7 +927,7 @@ void TClient::DoUnlockNode(
 {
     auto proxy = CreateObjectServiceWriteProxy();
 
-    auto batchReq = proxy->ExecuteBatch();
+    auto batchReq = proxy.ExecuteBatch();
     SetSuppressUpstreamSyncs(batchReq, options);
     SetPrerequisites(batchReq, options);
 
@@ -966,7 +966,7 @@ TNodeId TClient::DoCloneNode(
 {
     auto proxy = CreateObjectServiceWriteProxy();
 
-    auto batchReq = proxy->ExecuteBatch();
+    auto batchReq = proxy.ExecuteBatch();
     SetSuppressUpstreamSyncs(batchReq, options);
     SetPrerequisites(batchReq, options);
 
@@ -1018,7 +1018,7 @@ TNodeId TClient::DoLinkNode(
     auto proxy = CreateObjectServiceWriteProxy();
 
     if (!options.Force) {
-        auto batchReq = proxy->ExecuteBatch();
+        auto batchReq = proxy.ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
         auto req = TYPathProxy::Exists(srcPath);
@@ -1035,7 +1035,7 @@ TNodeId TClient::DoLinkNode(
         }
     }
 
-    auto batchReq = proxy->ExecuteBatch();
+    auto batchReq = proxy.ExecuteBatch();
     SetSuppressUpstreamSyncs(batchReq, options);
     SetPrerequisites(batchReq, options);
 
@@ -1204,7 +1204,7 @@ private:
     void GetObjectAttributes()
     {
         auto proxy = Client_->CreateObjectServiceReadProxy(TMasterReadOptions());
-        auto batchReq = proxy->ExecuteBatch();
+        auto batchReq = proxy.ExecuteBatch();
 
         for (auto& srcObject : SrcObjects_) {
             auto req = TObjectYPathProxy::GetBasicAttributes(srcObject.GetPath());
@@ -1317,7 +1317,7 @@ private:
     void FetchSourceObjectTypes()
     {
         auto proxy = Client_->CreateObjectServiceReadProxy(TMasterReadOptions());
-        auto batchReq = proxy->ExecuteBatch();
+        auto batchReq = proxy.ExecuteBatch();
 
         for (auto& srcObject : SrcObjects_) {
             auto req = TObjectYPathProxy::Get(srcObject.GetPath() + "/@");
@@ -1346,7 +1346,7 @@ private:
     void GetSrcObjectChunkCounts()
     {
         auto proxy = Client_->CreateObjectServiceReadProxy(TMasterReadOptions());
-        auto batchReq = proxy->ExecuteBatch();
+        auto batchReq = proxy.ExecuteBatch();
 
         for (auto& srcObject : SrcObjects_) {
             auto req = TYPathProxy::Get(srcObject.GetObjectIdPathIfAvailable() + "/@");
@@ -1385,7 +1385,7 @@ private:
         };
 
         auto proxy = Client_->CreateObjectServiceReadProxy(TMasterReadOptions());
-        auto batchReq = proxy->ExecuteBatch();
+        auto batchReq = proxy.ExecuteBatch();
 
         for (const auto& srcObject : SrcObjects_) {
             auto req = createGetSchemaRequest(srcObject);
@@ -1702,7 +1702,7 @@ private:
         AddCellTagToSyncWith(request, DstObject_.ObjectId);
         NCypressClient::SetTransactionId(request, *DstObject_.TransactionId);
 
-        auto rspOrError = WaitFor(proxy->Execute(request));
+        auto rspOrError = WaitFor(proxy.Execute(request));
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to fetch boundary keys of destination table %v",
             DstObject_.GetPath());
 
@@ -1790,7 +1790,7 @@ private:
         NRpc::GenerateMutationId(req);
         Client_->SetTransactionId(req, Options_, true);
 
-        auto rspOrError = WaitFor(proxy->Execute(req));
+        auto rspOrError = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error starting upload to %v",
             srcObjectPaths);
         const auto& rsp = rspOrError.Value();
@@ -1841,7 +1841,7 @@ private:
         auto req = TChunkOwnerYPathProxy::GetUploadParams(DstObject_.GetObjectIdPath());
         NCypressClient::SetTransactionId(req, UploadTransaction_->GetId());
 
-        auto rspOrError = WaitFor(proxy->Execute(req));
+        auto rspOrError = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting upload parameters for %v",
             DstObject_.GetPath());
         const auto& rsp = rspOrError.Value();
@@ -1852,7 +1852,7 @@ private:
     {
         auto proxy = Client_->CreateWriteProxy<TChunkServiceProxy>(DstObject_.ExternalCellTag);
 
-        auto batchReq = proxy->ExecuteBatch();
+        auto batchReq = proxy.ExecuteBatch();
         NRpc::GenerateMutationId(batchReq);
         SetSuppressUpstreamSync(&batchReq->Header(), true);
         // COMPAT(shakurov): prefer proto ext (above).
@@ -1915,7 +1915,7 @@ private:
         NCypressClient::SetTransactionId(req, UploadTransaction_->GetId());
         NRpc::GenerateMutationId(req);
 
-        auto rspOrError = WaitFor(proxy->Execute(req));
+        auto rspOrError = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error finishing upload to %v",
             DstObject_.GetPath());
 

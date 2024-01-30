@@ -46,7 +46,7 @@ void TClient::DoTruncateJournal(
     SetPrerequisites(req, options);
     SetMutationId(req, options);
 
-    WaitFor(proxy->Execute(req))
+    WaitFor(proxy.Execute(req))
         .ThrowOnError();
 }
 

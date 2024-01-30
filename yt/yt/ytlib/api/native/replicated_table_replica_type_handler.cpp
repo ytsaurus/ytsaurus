@@ -139,7 +139,7 @@ public:
 
         auto cellTag = CellTagFromId(replicaId);
         auto proxy = Client_->CreateObjectServiceWriteProxy(cellTag);
-        WaitFor(proxy->Execute(req))
+        WaitFor(proxy.Execute(req))
             .ThrowOnError();
 
         return std::monostate();
