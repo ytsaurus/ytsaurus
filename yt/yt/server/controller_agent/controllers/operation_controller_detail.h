@@ -891,6 +891,10 @@ protected:
 
     virtual void OnOperationTimeLimitExceeded();
 
+    virtual void OnJobUniquenessViolated(TError error);
+
+    void GracefullyFailOperation(TError error);
+
     bool IsCompleted() const override;
 
     //! Returns |true| when the controller is prepared.

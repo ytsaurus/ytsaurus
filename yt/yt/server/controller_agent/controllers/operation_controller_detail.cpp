@@ -1408,7 +1408,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
 
     if (!Config->EnableJobRevival) {
         if (Spec_->FailOnJobRestart && !JobletMap.empty()) {
-            OnOperationFailed(TError(
+            OnJobUniquenessViolated(TError(
                 NScheduler::EErrorCode::OperationFailedOnJobRestart,
                 "Reviving operation without job revival; failing operation since \"fail_on_job_restart\" spec option is set")
                 << TErrorAttribute("reason", EFailOnJobRestartReason::JobRevivalDisabled));
@@ -3400,7 +3400,7 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
 
     // This failure case has highest priority for users. Therefore check must be performed as early as possible.
     if (Spec_->FailOnJobRestart) {
-        OnOperationFailed(TError(NScheduler::EErrorCode::OperationFailedOnJobRestart,
+        OnJobUniquenessViolated(TError(NScheduler::EErrorCode::OperationFailedOnJobRestart,
             "Job failed; failing operation since \"fail_on_job_restart\" spec option is set")
             << TErrorAttribute("job_id", joblet->JobId)
             << TErrorAttribute("reason", EFailOnJobRestartReason::JobFailed)
@@ -3538,7 +3538,7 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
     // This failure case has highest priority for users. Therefore check must be performed as early as possible.
     if (Spec_->FailOnJobRestart && !IsJobAbsenceGuaranteed(abortReason))
     {
-        OnOperationFailed(TError(
+        OnJobUniquenessViolated(TError(
             NScheduler::EErrorCode::OperationFailedOnJobRestart,
             "Job aborted; failing operation since \"fail_on_job_restart\" spec option is set")
             << TErrorAttribute("job_id", joblet->JobId)
@@ -5225,19 +5225,55 @@ void TOperationControllerBase::OnOperationTimeLimitExceeded()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
 
-    if (State == EControllerState::Running) {
-        State = EControllerState::Failing;
-        OperationTimedOut_ = true;
+    if (State != EControllerState::Running) {
+        YT_LOG_DEBUG(
+            "Attempt to report time limit expiration of an operation which is not running (State: %v)",
+            State.load());
+        return;
     }
+
+    OperationTimedOut_ = true;
 
     YT_LOG_DEBUG("Operation timed out");
 
-    auto error = GetTimeLimitError();
+    GracefullyFailOperation(GetTimeLimitError());
+}
+
+void TOperationControllerBase::OnJobUniquenessViolated(TError error)
+{
+    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
+
+    if (Config->JobTracker->EnableGracefulAbort) {
+        GracefullyFailOperation(std::move(error));
+    } else {
+        OnOperationFailed(std::move(error));
+    }
+}
+
+void TOperationControllerBase::GracefullyFailOperation(TError error)
+{
+    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
+
+    // NB(arkady-e1ppa): If we enter here when operations is finished
+    // this entire call does nothing since JobletMap is empty and OnOperationFailed
+    // short-circs if IsFinished == true.
+    // Entering here with Failing state would just duplicate graceful abort request
+    // as this call is the only one which assigns such a state.
+    if (State != EControllerState::Running) {
+        YT_LOG_DEBUG(
+            "Attempt to gracefully fail operation which is not running (State: %v)",
+            State.load());
+
+        return;
+    }
+
+    State = EControllerState::Failing;
+
+    YT_LOG_INFO("Operation gracefully failing");
 
     bool hasJobsToFail = false;
 
-    auto jobletMapCopy = JobletMap;
-    for (const auto& [_, joblet] : jobletMapCopy) {
+    for (const auto& [_, joblet] : JobletMap) {
         switch (joblet->JobType) {
             // TODO(ignat): YT-11247, add helper with list of job types with user code.
             case EJobType::Map:
@@ -5249,7 +5285,7 @@ void TOperationControllerBase::OnOperationTimeLimitExceeded()
             case EJobType::PartitionReduce:
             case EJobType::Vanilla:
                 hasJobsToFail = true;
-                Host->RequestJobGracefulAbort(joblet->JobId, NScheduler::EAbortReason::OperationFailed);
+                Host->RequestJobGracefulAbort(joblet->JobId, EAbortReason::OperationFailed);
                 break;
             default:
                 AbortJob(joblet->JobId, EAbortReason::OperationFailed);
