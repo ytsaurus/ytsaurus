@@ -22,11 +22,8 @@ from yt.common import YtError
 import pytest
 from flaky import flaky
 
-import hashlib
-import os
 import pprint
 import random
-import socket
 import time
 from datetime import timedelta
 from io import BytesIO
@@ -542,8 +539,8 @@ class TestControllerAgentReconnection(YTEnvSetup):
         write_table("//tmp/t_in", {"foo": "bar"})
 
         op = map_reduce(
-            mapper_command="echo mapper >&2; sleep 1000",
-            reducer_command="echo reducer >&2; which cat >&2; md5sum /bin/cat >&2; md5sum /bin/bash >&2; cat",
+            mapper_command="sleep 1000",
+            reducer_command="cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
             sort_by=["foo"],
@@ -551,13 +548,10 @@ class TestControllerAgentReconnection(YTEnvSetup):
                 "testing": {
                     "delay_inside_revive": 10000,
                 },
-                "stderr_table_path": "<create=true>//tmp/stderr_table",
             },
             track=False,
         )
         self._wait_for_state(op, "running")
-
-        operation_info = get_operation(op.id)
 
         snapshot_path = op.get_path() + "/snapshot"
         wait(lambda: exists(snapshot_path))
@@ -570,22 +564,6 @@ class TestControllerAgentReconnection(YTEnvSetup):
 
         self._wait_for_state(op, "running")
         op.complete()
-
-        wait(lambda: op.get_state() in ["completed", "failed"])
-
-        def md5(path):
-            hash_md5 = hashlib.md5()
-            with open(path, "rb") as f:
-                for chunk in iter(lambda: f.read(16 << 20), b""):
-                    hash_md5.update(chunk)
-            return hash_md5.hexdigest()
-
-        print_debug("stderr: {}".format(read_table("//tmp/stderr_table")))
-        print_debug("env: {}".format(os.environ))
-        print_debug("hostname: {}".format(socket.gethostname()))
-        print_debug("cat: {}".format(md5("/bin/cat")))
-        print_debug("bash: {}".format(md5("/bin/bash")))
-        print_debug(f"operation_info: {operation_info}")
 
         self._wait_for_state(op, "completed")
 
