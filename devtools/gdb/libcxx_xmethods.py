@@ -402,8 +402,8 @@ class DequeIndexWorker(gdb.xmethod.XMethodMatcher):
     def __call__(self, obj, idx):
         idx2 = idx + obj['__start_']
         buf_size = 64 * self.index_type.sizeof
-        block_size = max(2, buf_size / self.element_type.sizeof)
-        block_idx = idx2 / block_size
+        block_size = int(max(2, buf_size / self.element_type.sizeof))
+        block_idx = int(idx2 / block_size)
         block_ptr = (obj['__map_']['__begin_'] + block_idx).dereference()
         return (block_ptr + idx2 % block_size).dereference().reference_value()
 
