@@ -78,7 +78,8 @@ TColumnFilter CreateColumnFilter(
 ////////////////////////////////////////////////////////////////////////////////
 
 NControllerAgent::NProto::TOutputResult GetWrittenChunksBoundaryKeys(
-    const ISchemalessMultiChunkWriterPtr& writer);
+    const ISchemalessMultiChunkWriterPtr& writer,
+    bool withChunkSpecs = false);
 
 std::pair<TLegacyOwningKey, TLegacyOwningKey> GetChunkBoundaryKeys(
     const NTableClient::NProto::TBoundaryKeysExt& boundaryKeysExt,
