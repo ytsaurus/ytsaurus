@@ -75,7 +75,7 @@ class TChunkReaderMemoryManager
     : public IReaderMemoryManager
 {
 public:
-    static TChunkReaderMemoryManagerHolderPtr Create(
+    static TChunkReaderMemoryManagerHolderPtr CreateHolder(
         TChunkReaderMemoryManagerOptions options,
         TWeakPtr<IReaderMemoryManagerHost> hostMemoryManager = nullptr);
 
@@ -210,14 +210,14 @@ class TChunkReaderMemoryManagerHolder
     : public TRefCounted
 {
 public:
-    TChunkReaderMemoryManagerHolder(TChunkReaderMemoryManagerPtr memoryManager);
+    explicit TChunkReaderMemoryManagerHolder(TChunkReaderMemoryManagerPtr memoryManager);
 
     const TChunkReaderMemoryManagerPtr& Get() const;
 
     ~TChunkReaderMemoryManagerHolder();
 
 private:
-    TChunkReaderMemoryManagerPtr MemoryManager_;
+    const TChunkReaderMemoryManagerPtr MemoryManager_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderMemoryManagerHolder)

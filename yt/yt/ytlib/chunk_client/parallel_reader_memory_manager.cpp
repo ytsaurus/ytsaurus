@@ -75,7 +75,7 @@ public:
         initialReaderMemory = std::min<i64>(initialReaderMemory, Options_.MaxInitialReaderReservedMemory);
         initialReaderMemory = std::max<i64>(initialReaderMemory, 0);
 
-        auto memoryManagerHolder = TChunkReaderMemoryManager::Create(
+        auto memoryManagerHolder = TChunkReaderMemoryManager::CreateHolder(
             TChunkReaderMemoryManagerOptions(
                 initialReaderMemory,
                 profilingTagList,

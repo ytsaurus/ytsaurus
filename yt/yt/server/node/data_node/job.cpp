@@ -877,7 +877,7 @@ private:
 
         if (stripedErasure) {
             auto windowSize = DynamicConfig_->WindowSize;
-            auto memoryManagerHolder = TChunkReaderMemoryManager::Create(TChunkReaderMemoryManagerOptions(
+            auto memoryManagerHolder = TChunkReaderMemoryManager::CreateHolder(TChunkReaderMemoryManagerOptions(
                 windowSize,
                 {},
                 false));

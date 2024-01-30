@@ -1033,7 +1033,7 @@ private:
                 });
             }
 
-            auto memoryManagerHolder = TChunkReaderMemoryManager::Create(
+            auto memoryManagerHolder = TChunkReaderMemoryManager::CreateHolder(
                 TChunkReaderMemoryManagerOptions(artifactCacheReaderConfig->WindowSize));
 
             i64 requiredMemory = 0;

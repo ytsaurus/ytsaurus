@@ -49,7 +49,7 @@ TChunkReaderMemoryManager::TChunkReaderMemoryManager(
         parentId);
 }
 
-TChunkReaderMemoryManagerHolderPtr TChunkReaderMemoryManager::Create(
+TChunkReaderMemoryManagerHolderPtr TChunkReaderMemoryManager::CreateHolder(
     TChunkReaderMemoryManagerOptions options,
     TWeakPtr<IReaderMemoryManagerHost> hostMemoryManager)
 {

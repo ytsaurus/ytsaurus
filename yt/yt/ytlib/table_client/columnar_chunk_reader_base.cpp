@@ -55,7 +55,7 @@ TColumnarChunkReaderBase::TColumnarChunkReaderBase(
     if (memoryManagerHolder) {
         MemoryManagerHolder_ = memoryManagerHolder;
     } else {
-        MemoryManagerHolder_ = TChunkReaderMemoryManager::Create(TChunkReaderMemoryManagerOptions(Config_->WindowSize));
+        MemoryManagerHolder_ = TChunkReaderMemoryManager::CreateHolder(TChunkReaderMemoryManagerOptions(Config_->WindowSize));
     }
 
     if (Config_->SamplingSeed) {

@@ -465,7 +465,7 @@ private:
             }
         }
 
-        auto memoryManagerHolder = TChunkReaderMemoryManager::Create(
+        auto memoryManagerHolder = TChunkReaderMemoryManager::CreateHolder(
             TChunkReaderMemoryManagerOptions(ReaderConfig_->WindowSize));
 
         auto statisticsInvoker = CreateSerializedInvoker(GetCurrentInvoker(), "shallow_merge_job");

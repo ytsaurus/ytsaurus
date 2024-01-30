@@ -114,7 +114,7 @@ public:
         if (chunkReaderMemoryManagerHolder) {
             MemoryManagerHolder_ = chunkReaderMemoryManagerHolder;
         } else {
-            MemoryManagerHolder_ = TChunkReaderMemoryManager::Create(TChunkReaderMemoryManagerOptions(Config_->WindowSize));
+            MemoryManagerHolder_ = TChunkReaderMemoryManager::CreateHolder(TChunkReaderMemoryManagerOptions(Config_->WindowSize));
         }
 
         Logger.AddTag("ChunkId: %v", ChunkReader_->GetChunkId());

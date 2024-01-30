@@ -359,7 +359,7 @@ TBlockManagerFactory CreateAsyncBlockWindowManagerFactory(
         TBlockFetcherPtr blockFetcher;
         if (!blockInfos.empty()) {
             auto createBlockFetcherStartInstant = GetCpuInstant();
-            auto memoryManagerHolder = TChunkReaderMemoryManager::Create(TChunkReaderMemoryManagerOptions(config->WindowSize));
+            auto memoryManagerHolder = TChunkReaderMemoryManager::CreateHolder(TChunkReaderMemoryManagerOptions(config->WindowSize));
 
             auto compressedSize = chunkMeta->Misc().compressed_data_size();
             auto uncompressedSize = chunkMeta->Misc().uncompressed_data_size();
