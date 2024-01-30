@@ -136,7 +136,7 @@ object SparkPackagePlugin extends AutoPlugin {
     import scala.language.postfixOps
     import scala.sys.process._
 
-    val dPassphrase = gpgPassphrase.map(x => s"-Dgpg.passphrase=$x").getOrElse("")
+    val dPassphrase = gpgPassphrase.map(x => s"-Dgpg.passphrase=$x").getOrElse("-Dgpg.skip=true")
     val sparkBuildCommand = s"./build/mvn -P scala-2.12 clean install $dPassphrase -Dscala-2.12 -Djava11 -DskipTests=true -pl core -pl sql/catalyst -pl sql/core"
     println("Maven install. Building spark...")
     val code = Process(sparkBuildCommand, cwd = sparkHome) !

@@ -143,7 +143,7 @@ object ReleaseUtils {
   }
 
   def deploySparkFork: TaskKey[Unit] = {
-    if (!Option(System.getProperty("publishRepo")).exists(_.toBoolean)) {
+    if (publishMavenCentralEnabled) {
       spytMvnInstallSparkFork
     } else {
       spytMvnDeploySparkFork

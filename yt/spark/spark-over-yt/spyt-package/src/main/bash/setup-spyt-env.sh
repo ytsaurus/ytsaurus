@@ -25,7 +25,7 @@ if [[ -z $spark_home ]]; then
   exit 1
 fi
 
-spyt_home="$HOME/$spark_home/spyt-package"
+spyt_home=$(realpath "$spark_home/spyt-package")
 
 mkdir -p $spark_home
 tar --warning=no-unknown-keyword -xf spark.tgz -C $spark_home
