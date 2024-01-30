@@ -462,11 +462,11 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         assert_items_equal(row, [])
 
     @authors("aleksandra-zh")
-    def test_aggregate_replica_set(self):
+    def test_aggregate_stored_replica_set(self):
         sync_create_cells(1)
         schema = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": "value", "type": "any", "aggregate": "_yt_replica_set"},
+            {"name": "value", "type": "any", "aggregate": "_yt_stored_replica_set"},
         ]
         create_dynamic_table("//tmp/t", schema=schema)
         sync_mount_table("//tmp/t")

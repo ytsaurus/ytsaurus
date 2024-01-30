@@ -2659,7 +2659,7 @@ size_t EstimateReplicasYsonLength(const TChunkReplicaList& replicas)
     return (MaxGuidStringSize + 2 * MaxVarInt64Size + 10) * replicas.size() + 10;
 }
 
-void ReplicaSetMerge(
+void StoredReplicaSetMerge(
     TExpressionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* state1,
@@ -2702,7 +2702,7 @@ void ReplicaSetMerge(
     *result = MakeUnversionedAnyValue(TStringBuf(outputBuffer, output.Buf() - outputBuffer));
 }
 
-void ReplicaSetFinalize(
+void StoredReplicaSetFinalize(
     TExpressionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* state)
@@ -3142,8 +3142,8 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(HyperLogLogAdd);
     REGISTER_ROUTINE(HyperLogLogMerge);
     REGISTER_ROUTINE(HyperLogLogEstimateCardinality);
-    REGISTER_ROUTINE(ReplicaSetMerge);
-    REGISTER_ROUTINE(ReplicaSetFinalize);
+    REGISTER_ROUTINE(StoredReplicaSetMerge);
+    REGISTER_ROUTINE(StoredReplicaSetFinalize);
     REGISTER_ROUTINE(HasPermissions);
     REGISTER_ROUTINE(YsonLength);
     REGISTER_ROUTINE(LikeOpHelper);
