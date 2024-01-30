@@ -136,7 +136,7 @@ private:
             Bootstrap_->GetMasterConnectionInvoker(),
             BIND([weakThis = MakeWeak(this)] {
                 auto strongThis = weakThis.Lock();
-                return strongThis ? strongThis->ReportHeartbeat() : TError("Dangling reference to this");
+                return strongThis ? strongThis->ReportHeartbeat() : TError("Master connector is destroyed");
             }),
             DynamicConfig_->HeartbeatExecutor);
 

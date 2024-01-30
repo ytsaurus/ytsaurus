@@ -48,7 +48,7 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
         ControllerAgentConnectorPool_->Bootstrap_->GetControlInvoker(),
         BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] {
             auto strongThis = weakThis.Lock();
-            return strongThis ? strongThis->SendHeartbeat() : TError("Dangling reference to this");
+            return strongThis ? strongThis->SendHeartbeat() : TError("Controller agent connector is destroyed");
         }),
         GetConfig()->HeartbeatExecutor))
     , StatisticsThrottler_(CreateReconfigurableThroughputThrottler(

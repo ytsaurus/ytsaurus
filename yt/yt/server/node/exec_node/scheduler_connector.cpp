@@ -52,7 +52,7 @@ TSchedulerConnector::TSchedulerConnector(IBootstrap* bootstrap)
         Bootstrap_->GetControlInvoker(),
         BIND([weakThis = MakeWeak(this)] {
             auto strongThis = weakThis.Lock();
-            return strongThis ? strongThis->SendHeartbeat() : TError("Dangling reference to this");
+            return strongThis ? strongThis->SendHeartbeat() : TError("Scheduler connector is destroyed");
         }),
         DynamicConfig_.Acquire()->HeartbeatExecutor))
     , TimeBetweenSentHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_sent_heartbeats"))
