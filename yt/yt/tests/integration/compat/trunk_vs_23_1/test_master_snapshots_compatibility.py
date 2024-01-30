@@ -1,7 +1,7 @@
 from yt_chaos_test_base import ChaosTestBase
 from yt_queue_agent_test_base import TestQueueAgentBase, ReplicatedObjectBase
 import builtins
-from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE, RPC_PROXIES_SERVICE
 from yt_commands import (
     authors, create_tablet_cell_bundle, print_debug, build_master_snapshots, sync_create_cells, wait_for_cells,
     ls, get, set, retry, start_transaction, create, wait, write_table, get_driver, lock, remove, exists)
@@ -167,7 +167,7 @@ def check_replication_queue_list():
     assert builtins.set(get(revisions_path)["queues"].keys()) == {"//tmp/q1", "//tmp/rep_q1", "//tmp/chaos_rep_q1"}
 
 
-def do_check_proxy_maintenance_requests():
+def do_check_proxy_maintenance_requests(test_suite):
     http = ls("//sys/http_proxies")[0]
     set(f"//sys/http_proxies/{http}/@banned", True)
     set(f"//sys/http_proxies/{http}/@role", "ld")
@@ -186,9 +186,9 @@ def do_check_proxy_maintenance_requests():
     assert get(f"//sys/http_proxies/{http}/@role") == "ld"
     assert get(f"//sys/http_proxies/{http}/@myattr") == 123123
 
-    # NB: RPC proxies don't register themselves.
-    for rpc in ls("//sys/rpc_proxies"):
-        remove(f"//sys/rpc_proxies/{rpc}")
+    with Restarter(test_suite.Env, RPC_PROXIES_SERVICE):
+        for rpc in ls("//sys/rpc_proxies"):
+            remove(f"//sys/rpc_proxies/{rpc}")
 
     wait(lambda: exists(f"//sys/rpc_proxies/{rpc}"))
     assert get(f"//sys/rpc_proxies/{rpc}/@type") == "cluster_proxy_node"
@@ -219,10 +219,11 @@ class TestMasterSnapshotsCompatibility(ChaosTestBase, MasterSnapshotsCompatibili
             check_maintenance_flags,
             check_chunk_creation_time_histogram,
             check_replication_queue_list,
-            do_check_proxy_maintenance_requests,
         ] + MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
 
-        checker_state_list = [iter(c()) for c in CHECKER_LIST]
+        checker_state_list = [iter(c()) for c in CHECKER_LIST] + [
+            iter(do_check_proxy_maintenance_requests(self))
+        ]
         for s in checker_state_list:
             next(s)
 
