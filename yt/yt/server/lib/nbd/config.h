@@ -40,6 +40,25 @@ DEFINE_REFCOUNTED_TYPE(TMemoryBlockDeviceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicTableBlockDeviceConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    i64 Size;
+    i64 BlockSize;
+    i64 ReadBatchSize;
+    i64 WriteBatchSize;
+    TString TablePath;
+
+    REGISTER_YSON_STRUCT(TDynamicTableBlockDeviceConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicTableBlockDeviceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Internet Domain Socket config
 class TIdsConfig
     : public NYTree::TYsonStruct

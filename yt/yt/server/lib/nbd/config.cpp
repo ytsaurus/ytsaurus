@@ -20,6 +20,21 @@ void TMemoryBlockDeviceConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDynamicTableBlockDeviceConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("size", &TThis::Size)
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("block_size", &TThis::BlockSize)
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("read_batch_size", &TThis::ReadBatchSize)
+        .Default(16).GreaterThan(0);
+    registrar.Parameter("write_batch_size", &TThis::WriteBatchSize)
+        .Default(16).GreaterThan(0);
+    registrar.Parameter("table_path", &TThis::TablePath);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TIdsConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("port", &TThis::Port)

@@ -14,6 +14,7 @@ DECLARE_REFCOUNTED_CLASS(TUdsConfig)
 DECLARE_REFCOUNTED_CLASS(TNbdServerConfig)
 
 DECLARE_REFCOUNTED_CLASS(TCypressFileBlockDeviceConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicTableBlockDeviceConfig)
 DECLARE_REFCOUNTED_CLASS(TMemoryBlockDeviceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -869,6 +869,7 @@
   "yt/yt/experiments/public/crash_handler_test/CMakeLists.txt":"",
   "yt/yt/experiments/public/distributed_throttler/CMakeLists.txt":"",
   "yt/yt/experiments/public/dns_test/CMakeLists.txt":"",
+  "yt/yt/experiments/public/dynamic_table_nbd_server/CMakeLists.txt":"",
   "yt/yt/experiments/public/footprint/CMakeLists.txt":"",
   "yt/yt/experiments/public/formats_test/CMakeLists.txt":"",
   "yt/yt/experiments/public/grpc_test/CMakeLists.txt":"",

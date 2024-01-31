@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 SRCS(
     config.cpp
     cypress_file_block_device.cpp
+    dynamic_table_block_device.cpp
     memory_block_device.cpp
     profiler.cpp
     server.cpp
