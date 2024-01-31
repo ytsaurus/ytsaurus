@@ -824,10 +824,24 @@ void TStatisticsReporterConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
         .Default(false);
+
     registrar.Parameter("period", &TThis::Period)
-        .Default(TDuration::Seconds(1));
+        .Default(TDuration::Seconds(10));
+    registrar.Parameter("splay", &TThis::Splay)
+        .Default(TDuration::MilliSeconds(5));
+    registrar.Parameter("jitter", &TThis::Jitter)
+        .Default(0.2)
+        .GreaterThanOrEqual(0)
+        .LessThanOrEqual(1);
+
     registrar.Parameter("table_path", &TThis::TablePath)
-        .Default();
+        .Default("//sys/tablet_balancer/performance_counters");
+
+    registrar.Parameter("max_tablets_per_transaction", &TThis::MaxTabletsPerTransaction)
+        .Default(10000)
+        .GreaterThan(0);
+    registrar.Parameter("report_backoff_time", &TThis::ReportBackoffTime)
+        .Default(TDuration::Seconds(30));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

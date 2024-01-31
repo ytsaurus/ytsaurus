@@ -843,7 +843,11 @@ class TStatisticsReporterConfig
 public:
     bool Enable;
     TDuration Period;
+    TDuration Splay;
+    double Jitter;
     NYPath::TYPath TablePath;
+    i64 MaxTabletsPerTransaction;
+    TDuration ReportBackoffTime;
 
     REGISTER_YSON_STRUCT(TStatisticsReporterConfig);
 

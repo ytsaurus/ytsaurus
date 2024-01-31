@@ -3177,6 +3177,86 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         for i in range(22):
             assert tablet_infos["tablets"][i]["total_row_count"] == tablet_indexes[i]
 
+    @staticmethod
+    def _create_table_for_statistics_reporter(table_path):
+        def get_struct(name):
+            return {
+                "name": name,
+                "type_v3": {
+                    "type_name": "struct",
+                    "members": [
+                        {"name": "count", "type": "int64"},
+                        {"name": "rate", "type": "double"},
+                        {"name": "rate_10m", "type": "double"},
+                        {"name": "rate_1h", "type": "double"},
+                    ],
+                }
+            }
+
+        create(
+            "table",
+            table_path,
+            attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "table_id", "type_v3": "string", "sort_order": "ascending"},
+                    {"name": "tablet_id", "type_v3": "string", "sort_order": "ascending"},
+                    get_struct("dynamic_row_read"),
+                    get_struct("dynamic_row_read_data_weight"),
+                    get_struct("dynamic_row_lookup"),
+                    get_struct("dynamic_row_lookup_data_weight"),
+                    get_struct("dynamic_row_write"),
+                    get_struct("dynamic_row_write_data_weight"),
+                    get_struct("dynamic_row_delete"),
+                    get_struct("static_chunk_row_read"),
+                    get_struct("static_chunk_row_read_data_weight"),
+                    get_struct("static_chunk_row_lookup"),
+                    get_struct("static_chunk_row_lookup_data_weight"),
+                    get_struct("compaction_data_weight"),
+                    get_struct("partitioning_data_weight"),
+                    get_struct("lookup_error"),
+                    get_struct("write_error"),
+                    get_struct("lookup_cpu_time"),
+                    {"name": "uncompressed_data_size", "type_v3": "int64"},
+                    {"name": "compressed_data_size", "type_v3": "int64"},
+                ],
+                "mount_config": {
+                    "min_data_ttl": 0,
+                    "max_data_ttl": 86400000,
+                    "min_data_versions": 0,
+                    "max_data_versions": 1,
+                    "merge_rows_on_flush": True,
+                },
+            },
+        )
+
+    @authors("dave11ar")
+    def test_statistics_reporter(self):
+        statistics_path = "//sys/statistics_reporter_table"
+
+        update_nodes_dynamic_config({
+            "tablet_node" : {
+                "statistics_reporter" : {
+                    "enable" : True,
+                    "period": 1,
+                    "table_path": statistics_path,
+                }
+            }
+        })
+
+        sync_create_cells(1)
+
+        self._create_table_for_statistics_reporter(statistics_path)
+        sync_mount_table(statistics_path)
+
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        table_id = get("//tmp/t/@id")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        wait(lambda: len(lookup_rows(statistics_path, [{"table_id": table_id, "tablet_id": tablet_id}])) == 1)
+
 
 ##################################################################
 

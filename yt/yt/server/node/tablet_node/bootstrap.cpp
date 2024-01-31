@@ -583,7 +583,7 @@ private:
     TDiskChangeCheckerPtr DiskChangeChecker_;
 
     void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& oldConfig,
+        const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
         if (!GetConfig()->EnableFairThrottler) {
@@ -606,7 +606,7 @@ private:
 
         OverloadController_->Reconfigure(newConfig->TabletNode->OverloadController);
 
-        StatisticsReporter_->Reconfigure(oldConfig, newConfig);
+        StatisticsReporter_->Reconfigure(newConfig);
 
         DiskManagerProxy_->OnDynamicConfigChanged(newConfig->DiskManagerProxy);
     }
