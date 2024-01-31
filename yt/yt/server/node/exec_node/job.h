@@ -525,6 +525,8 @@ private:
     void DeduceAndSetFinishedJobState();
 
     bool NeedsGpuCheck() const;
+
+    i64 GetOOMScoreAdjustment() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJob)

@@ -43,6 +43,7 @@ struct TCriContainerResources
     std::optional<i64> MemoryRequest;
 
     std::optional<TString> CpusetCpus;
+    std::optional<i64> OOMScoreAdjustment;
 };
 
 struct TCriPodSpec

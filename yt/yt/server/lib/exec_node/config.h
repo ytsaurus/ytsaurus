@@ -574,6 +574,9 @@ public:
     //! Job throttler config, eg. its RPC timeout and backoff.
     NJobProxy::TJobThrottlerConfigPtr JobThrottler;
 
+    //! Adjust job OOM score according to reserved memory.
+    bool AdjustOOMScore;
+
     REGISTER_YSON_STRUCT(TJobCommonConfig);
 
     static void Register(TRegistrar registrar);

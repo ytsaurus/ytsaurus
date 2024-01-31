@@ -987,6 +987,24 @@ bool TJob::ResourceUsageOverdrafted() const
     return TResourceHolder::GetResourceUsage().UserMemory > RequestedMemory_;
 }
 
+i64 TJob::GetOOMScoreAdjustment() const
+{
+    auto totalMemory = Bootstrap_->GetMemoryUsageTracker()->GetTotalLimit();
+    auto reservedMemory = RequestedMemory_;
+    const i64 MaxOOMScore = 1000;
+
+    if (reservedMemory > totalMemory) {
+	reservedMemory = totalMemory;
+    }
+
+    // OOM score is memory usage normalized to total memory size or cgroup memory limit.
+    // This adjustment allows to subtract score for reserved memory. The same formula is
+    // used in Kubernetes.
+    //
+    // TODO(khlebnikov): Use memory limit dedicated for user jobs cgroup.
+    return MaxOOMScore - (MaxOOMScore * reservedMemory + totalMemory - 1) / totalMemory;
+}
+
 void TJob::SetProgress(double progress)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -2391,6 +2409,10 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     proxyConfig->MemoryTracker->MemoryStatisticsCachePeriod = proxyConfig->MemoryTracker->UseSMapsMemoryTracker
         ? CommonConfig_->SMapsMemoryTrackerCachePeriod
         : CommonConfig_->MemoryTrackerCachePeriod;
+
+    if (CommonConfig_->AdjustOOMScore) {
+        proxyConfig->OOMScoreAdjustment = GetOOMScoreAdjustment();
+    }
 
     proxyConfig->JobTestingOptions = JobTestingOptions_;
     proxyConfig->SlotIndex = GetUserSlot()->GetSlotIndex();
