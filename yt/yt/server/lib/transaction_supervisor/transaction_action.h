@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/transaction_client/action.h>
+
 namespace NYT::NTransactionSupervisor {
 
 ////////////////////////////////////////////////////////////////////////////////

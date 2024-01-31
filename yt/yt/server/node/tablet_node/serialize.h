@@ -53,7 +53,10 @@ DEFINE_ENUM(ETabletReign,
     ((SharedWriteLocks)                            (100901)) // ponasenko-rs
     ((TabletPrerequisites)                         (100902)) // gritukan
     ((ValueDictionaryCompression)                  (100903)) // akozhikhov
+    ((SaneTxActionAbort)                           (100904)) // kvk1920
 );
+
+static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");
 
 ////////////////////////////////////////////////////////////////////////////////
 

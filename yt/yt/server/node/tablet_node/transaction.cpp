@@ -117,6 +117,7 @@ void TTransaction::Save(TSaveContext& context) const
     Save(context, CommitTimestampClusterTag_);
     Save(context, TabletsToUpdateReplicationProgress_);
     Save(context, PersistentLeaseGuards_);
+    Save(context, PreparedActionCount_);
 }
 
 void TTransaction::Load(TLoadContext& context)
@@ -165,6 +166,11 @@ void TTransaction::Load(TLoadContext& context)
     // COMPAT(gritukan)
     if (context.GetVersion() >= ETabletReign::TabletPrerequisites) {
         Load(context, PersistentLeaseGuards_);
+    }
+
+    // COMPAT(kvk1920)
+    if (context.GetVersion() >= ETabletReign::SaneTxActionAbort) {
+        Load(context, PreparedActionCount_);
     }
 }
 

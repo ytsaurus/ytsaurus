@@ -24,6 +24,10 @@ void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
     const TTransactionPrepareOptions& options)
 {
     TTransactionActionGuard transactionActionGuard;
+    // |PreparedActionCount| should never be |nullopt| after update to current
+    // version.
+    transaction->SetPreparedActionCount(0);
+
     for (const auto& action : transaction->Actions()) {
         try {
             auto it = ActionHandlerMap_.find(action.Type);
@@ -38,6 +42,8 @@ void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
                 action.Type);
             throw;
         }
+
+        transaction->SetPreparedActionCount(*transaction->GetPreparedActionCount() + 1);
     }
 }
 
@@ -69,7 +75,8 @@ void TTransactionManagerBase<TTransaction>::RunAbortTransactionActions(
     const TTransactionAbortOptions& options)
 {
     TTransactionActionGuard transactionActionGuard;
-    for (const auto& action : transaction->Actions()) {
+
+    auto runAbort = [&] (const TTransactionActionData& action) {
         try {
             auto it = ActionHandlerMap_.find(action.Type);
             if (it == ActionHandlerMap_.end()) {
@@ -81,6 +88,20 @@ void TTransactionManagerBase<TTransaction>::RunAbortTransactionActions(
             YT_LOG_ALERT(ex, "Abort action failed (TransactionId: %v, ActionType: %v)",
                 transaction->GetId(),
                 action.Type);
+        }
+    };
+
+    // COMPAT(kvk1920)
+    if (!transaction->GetPreparedActionCount().has_value()) {
+        // Prepare phase was finished before update to current version so we
+        // don't know how many tx actions were prepared. Fallback to legacy
+        // behavior.
+        for (const auto& action : transaction->Actions()) {
+            runAbort(action);
+        }
+    } else {
+        for (int i = *transaction->GetPreparedActionCount() - 1; i >= 0; --i) {
+            runAbort(transaction->Actions()[i]);
         }
     }
 }

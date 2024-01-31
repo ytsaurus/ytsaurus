@@ -15,6 +15,11 @@ class TTransactionBase
 public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TTransactionActionData>, Actions);
 
+    // If prepare phase was finished before update to current version this field
+    // is |nullopt|.
+    // COMPAT(kvk1920): Make it non-optional in 24.2.
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<int>, PreparedActionCount);
+
 public:
     using TBase::TBase;
 
