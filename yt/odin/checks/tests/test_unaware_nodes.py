@@ -32,7 +32,7 @@ def test_unaware_nodes(yt_env):
         for node in yt_client.list("//sys/cluster_nodes"):
             yt_client.set("//sys/cluster_nodes/{}/@rack".format(node), "RACK-1")
 
-        wait(lambda: "rack" in yt_client.list("//sys/cluster_nodes", attributes=["rack"], read_from="cache")[0].attributes)
+        wait(lambda: "rack" in yt_client.list("//sys/cluster_nodes", attributes=["rack", "flavors"], read_from="cache")[0].attributes)
 
         run_checks(odin)
         assert check_watcher.wait_new_result() == FULLY_AVAILABLE_STATE
