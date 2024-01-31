@@ -1331,6 +1331,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_client/explain.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_client/functions_cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_client/session_coordinator.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_client/shuffle.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/dynamic_state.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/helpers.cpp

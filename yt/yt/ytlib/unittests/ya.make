@@ -9,6 +9,7 @@ SRCS(
     chunk_fragment_read_controller_ut.cpp
     chunk_meta_cache_ut.cpp
     chunk_slice_ut.cpp
+    distributed_query_ut.cpp
     encoding_writer_ut.cpp
     erasure_parts_reader_ut.cpp
     job_resources_ut.cpp

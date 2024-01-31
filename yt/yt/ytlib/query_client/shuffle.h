@@ -1,17 +1,23 @@
 #pragma once
 
-#include <yt/yt/core/misc/guid.h>
+#include <yt/yt/library/query/base/query_common.h>
 
 namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TDistributedSessionId = TGuid;
-using TRowsetId = TGuid;
+struct TShufflePart
+{
+    TDataSource DataSource;
+    std::vector<TRange<TRow>> Subranges;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(IDistributedSessionCoordinator)
+THashMap<TString, TShufflePart> Shuffle(
+    const TShuffleNavigator& shuffleNavigator,
+    TRange<TRow> rows,
+    int prefixHint);
 
 ////////////////////////////////////////////////////////////////////////////////
 
