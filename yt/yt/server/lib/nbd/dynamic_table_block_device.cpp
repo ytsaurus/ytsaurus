@@ -171,6 +171,13 @@ public:
     {
         YT_LOG_DEBUG("Start initialization");
 
+        auto tableExists = WaitFor(Client_->NodeExists(DeviceConfig_->TablePath))
+            .ValueOrThrow();
+
+        if (!tableExists) {
+            THROW_ERROR_EXCEPTION("Table with NBD devices %Qlv doesn't exist", DeviceConfig_->TablePath);
+        }
+
         // Setup name table.
         NameTable_->RegisterName("device_id");
         NameTable_->RegisterName("block_id");
@@ -181,15 +188,86 @@ public:
         BlockIdColumn_ = NameTable_->GetId("block_id");
         BlockDatumColumn_ = NameTable_->GetId("block_datum");
 
-        // TODO: Save/Load block size, num blocks to table
-        // block id == -1 - device size
-        // block id == -2 - block size
+        // Initialize device and block sizes.
+        static constexpr i64 DeviceSizeBlockId = -1;
+        static constexpr i64 BlockSizeBlockId = -2;
+
+        RowBuffer_->Clear();
+        std::vector<TLegacyKey> keys;
+        keys.reserve(2);
+        for (auto blockId : {DeviceSizeBlockId, BlockSizeBlockId})
+        {
+            TUnversionedRowBuilder builder;
+            builder.AddValue(ToUnversionedValue(DeviceId_, RowBuffer_, DeviceIdColumn_));
+            builder.AddValue(ToUnversionedValue(blockId, RowBuffer_, BlockIdColumn_));
+            keys.push_back(RowBuffer_->CaptureRow(builder.GetRow()));
+        }
+        RowBuffer_->Clear();
+
+        auto rowset = WaitFor(Client_->LookupRows(DeviceConfig_->TablePath, NameTable_, MakeSharedRange(std::move(keys), MakeStrong(this))))
+            .ValueOrThrow()
+            .Rowset;
+
+        i64 deviceSize = -1, blockSize = -1;
+        for (auto row : rowset->GetRows()) {
+            i64 blockId;
+            TString blockDatum;
+            FromUnversionedValue(&blockId, row[BlockIdColumn_]);
+            FromUnversionedValue(&blockDatum, row[BlockDatumColumn_]);
+
+            YT_VERIFY(blockId == DeviceSizeBlockId || blockId == BlockSizeBlockId);
+
+            if (!blockDatum.empty()) {
+                if (blockId == DeviceSizeBlockId) {
+                    deviceSize = std::stoll(blockDatum);
+                }
+
+                if (blockId == BlockSizeBlockId) {
+                    blockSize = std::stoll(blockDatum);
+                }
+            }
+        }
+
+        YT_VERIFY((deviceSize == -1 && blockSize == -1) || (deviceSize != -1 && blockSize != -1));
+
+        if (blockSize == -1) {
+            YT_LOG_DEBUG("Saving device and block sizes into table (DeviceSize: %v, BlockSize: %v, TablePath: %v)",
+                DeviceConfig_->Size,
+                DeviceConfig_->BlockSize,
+                DeviceConfig_->TablePath);
+
+            std::map<i64, TString> blocks;
+            blocks[DeviceSizeBlockId] = ToString(DeviceConfig_->Size);
+            blocks[BlockSizeBlockId] = ToString(DeviceConfig_->BlockSize);
+
+            auto tx = WaitFor(Client_->StartTransaction(ETransactionType::Tablet))
+                .ValueOrThrow();
+
+            WriteBlocks(std::move(blocks), tx, TGuid::Create());
+
+            WaitFor(tx->Commit())
+                .ValueOrThrow();
+
+            return VoidFuture;
+        }
+
+        if (deviceSize != DeviceConfig_->Size) {
+            THROW_ERROR_EXCEPTION("Device size from config %Qlv doesn't match the actual device size %Qlv",
+                DeviceConfig_->Size,
+                deviceSize);
+        }
+
+        if (blockSize != DeviceConfig_->BlockSize) {
+            THROW_ERROR_EXCEPTION("Block size from config %Qlv doesn't match the actual block size %Qlv",
+                DeviceConfig_->BlockSize,
+                blockSize);
+        }
 
         return VoidFuture;
     }
 
 private:
-    // TODO: read by batch.
+    // TODO(yuryalekseev): read by batch.
     std::map<i64, TString> ReadBlocks(
         std::map<i64, TString>&& blocks,
         const TGuid& readId)
@@ -237,6 +315,7 @@ private:
         return std::move(blocks);
     }
 
+    // TODO(yuryalekseev): write by batch.
     void WriteBlocks(
         std::map<i64, TString>&& blocks,
         const NApi::ITransactionPtr& tx,
@@ -386,8 +465,6 @@ private:
     const TDynamicTableBlockDeviceConfigPtr DeviceConfig_;
     const NApi::NNative::IClientPtr Client_;
     const NLogging::TLogger Logger;
-
-    //NApi::NNative::IConnectionPtr Connection_;
 
     TNameTablePtr NameTable_ = New<TNameTable>();
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
