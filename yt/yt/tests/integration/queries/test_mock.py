@@ -15,6 +15,19 @@ from collections import Counter
 import pytest
 
 
+def expect_queries(queries, list_result, incomplete=False):
+    try:
+        assert set(q.id for q in queries) == set(q["id"] for q in list_result["queries"])
+        assert list_result["incomplete"] == incomplete
+    except AssertionError:
+        timestamp = list_result["timestamp"]
+        print_debug(f"Assertion failed, dumping content of dynamic tables by timestamp {timestamp}")
+        for table in ("active_queries", "finished_queries", "finished_queries_by_start_time"):
+            print_debug(f"{table}:")
+            select_rows(f"* from [//sys/query_tracker/{table}]", timestamp=timestamp)
+        raise
+
+
 class TestQueriesMock(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
@@ -109,18 +122,6 @@ class TestQueriesMock(YTEnvSetup):
 
         wait(lambda: q6.get_state() == "running")
         q6.abort()
-
-        def expect_queries(queries, list_result, incomplete=False):
-            try:
-                assert set(q.id for q in queries) == set(q["id"] for q in list_result["queries"])
-                assert list_result["incomplete"] == incomplete
-            except AssertionError:
-                timestamp = list_result["timestamp"]
-                print_debug(f"Assertion failed, dumping content of dynamic tables by timestamp {timestamp}")
-                for table in ("active_queries", "finished_queries", "finished_queries_by_start_time"):
-                    print_debug(f"{table}:")
-                    select_rows(f"* from [//sys/query_tracker/{table}]", timestamp=timestamp)
-                raise
 
         def run_checks():
             expect_queries([q6, q5, q4, q3, q2, q1, q0], list_queries())
@@ -242,7 +243,7 @@ class TestAccessControl(YTEnvSetup):
         remove("//sys/access_control_object_namespaces/queries/aco1")
         q_u1.get(authenticated_user="u1")
         q_u1.get(authenticated_user="superuser_u3")
-        with raises_yt_error("Error while fetching access control object \"aco1\""):
+        with raises_yt_error("Error while fetching access control object queries/aco1"):
             q_u1.get(authenticated_user="u2")
 
     @authors("krock21")
@@ -552,18 +553,6 @@ class TestAccessControlList(YTEnvSetup):
                 ]
             })
 
-        def expect_queries(queries, list_result, incomplete=False):
-            try:
-                assert set(q.id for q in queries) == set(q["id"] for q in list_result["queries"])
-                assert list_result["incomplete"] == incomplete
-            except AssertionError:
-                timestamp = list_result["timestamp"]
-                print_debug(f"Assertion failed, dumping content of dynamic tables by timestamp {timestamp}")
-                for table in ("active_queries", "finished_queries", "finished_queries_by_start_time"):
-                    print_debug(f"{table}:")
-                    select_rows(f"* from [//sys/query_tracker/{table}]", timestamp=timestamp)
-                raise
-
         q_u1 = start_query(query_type[0], query_type[1], **query_type[2], authenticated_user="u1", access_control_object="aco_list_u1")
         q_u2 = start_query(query_type[0], query_type[1], **query_type[2], authenticated_user="u2", access_control_object="aco_list_u2")
         q_u3 = start_query(query_type[0], query_type[1], **query_type[2], authenticated_user="u3", access_control_object="aco_list_u3")
@@ -587,3 +576,44 @@ class TestAccessControlList(YTEnvSetup):
         expect_queries([q_u3, q_u4], list_queries(cursor_direction="future", authenticated_user="u4"))
         expect_queries([q_u3, q_u5], list_queries(cursor_direction="future", authenticated_user="u5"))
         expect_queries([q_u6], list_queries(cursor_direction="future", authenticated_user="u6"))
+
+    @authors("krock21")
+    def test_list_by_aco(self, query_tracker):
+        create_user("u1")
+        create_user("u2")
+        create_user("u3")
+        create_access_control_object(
+            "aco_list_by_aco1",
+            "queries",
+            attributes={
+                "principal_acl": [
+                    make_ace("allow", "users", "use"),
+                ]
+            })
+        create_access_control_object(
+            "aco_list_by_aco2",
+            "queries",
+            attributes={
+                "principal_acl": [
+                    make_ace("allow", "users", "use"),
+                ]
+            })
+        create_access_control_object(
+            "aco_list_by_aco3",
+            "queries",
+            attributes={
+                "principal_acl": [
+                    make_ace("allow", "users", "use"),
+                ]
+            })
+        q_u1 = start_query("mock", "run_forever", authenticated_user="u1", access_control_object="aco_list_by_aco1")
+        q_u2 = start_query("mock", "run_forever", authenticated_user="u2", access_control_object="aco_list_by_aco2")
+        q_u3 = start_query("mock", "run_forever", authenticated_user="u3", access_control_object="aco_list_by_aco3")
+
+        expect_queries([q_u1, q_u2, q_u3], list_queries(filter="aco:"))
+        expect_queries([q_u1], list_queries(filter="aco_list_by_aco1"))
+        expect_queries([q_u1], list_queries(filter="aco:aco_list_by_aco1"))
+        expect_queries([q_u2], list_queries(filter="aco_list_by_aco2"))
+        expect_queries([q_u2], list_queries(filter="aco:aco_list_by_aco2"))
+        expect_queries([q_u3], list_queries(filter="aco_list_by_aco3"))
+        expect_queries([q_u3], list_queries(filter="aco:aco_list_by_aco3"))

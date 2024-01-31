@@ -173,7 +173,10 @@ NSecurityClient::ESecurityAction CheckAccessControl(
         if (userSubjects.contains(NSecurityClient::SuperusersGroupName)) {
             return NSecurityClient::ESecurityAction::Allow;
         }
-        THROW_ERROR_EXCEPTION("Error while fetching access control object %Qv", actualAccessControlObject)
+        THROW_ERROR_EXCEPTION(
+            "Error while fetching access control object queries/%v. "
+            "Please make sure it exists",
+            actualAccessControlObject)
             << aclOrError;
     }
     return WaitFor(client->CheckPermissionByAcl(user, permission, ConvertToNode(aclOrError.Value())))
@@ -274,7 +277,9 @@ std::vector<TString> GetAcosForSubjects(const THashSet<TString>& subjects, const
     auto allAcosOrError = WaitFor(client->GetNode("//sys/access_control_object_namespaces/queries", options));
 
     if (!allAcosOrError.IsOK()) {
-        THROW_ERROR_EXCEPTION("Error while fetching all access control objects in the namespace \"queries\"")
+        THROW_ERROR_EXCEPTION(
+            "Error while fetching all access control objects in the namespace \"queries\". "
+            "Please make sure that the namespace exists")
             << allAcosOrError;
     }
 
