@@ -1,25 +1,19 @@
 from yt_odin_checks.lib.check_runner import main
 
-DEFAULT_ENABLED_NODE_FLAVORS = [
-    "data",
-    "exec",
-    "tablet",
-    "chaos"
-]
 
-
-def find_unaware_nodes(yt_client, check_node_flavors):
+def find_unaware_nodes(yt_client, node_flavors_to_check):
     result = []
     for row in yt_client.list("//sys/cluster_nodes", attributes=["rack", "flavors"], read_from="cache"):
-        flavors = row.attributes.get("flavors", [])
+        node_flavors = row.attributes.get("flavors", [])
 
-        check_node_rack = False
-        for node_flavor in flavors:
-            if node_flavor in check_node_flavors:
-                check_node_rack = True
-                break
-        if not check_node_rack and len(flavors) > 0:
-            continue
+        if node_flavors_to_check:
+            check_node_rack = False
+            for flavor in node_flavors:
+                if flavor in node_flavors_to_check:
+                    check_node_rack = True
+                    break
+            if not check_node_rack and node_flavors:
+                continue
 
         rack = row.attributes.get("rack", None)
         if rack is None:
@@ -32,9 +26,9 @@ def run_check(yt_client, logger, options, states):
     if allow_unaware_nodes:
         return states.FULLY_AVAILABLE_STATE
 
-    check_node_flavors = options.get("check_node_flavors", DEFAULT_ENABLED_NODE_FLAVORS)
+    node_flavors_to_check = options.get("node_flavors_to_check", [])
 
-    unaware_nodes = find_unaware_nodes(yt_client, check_node_flavors)
+    unaware_nodes = find_unaware_nodes(yt_client, node_flavors_to_check)
     if unaware_nodes:
         logger.info("First ten unaware nodes: {}".format(" ".join(unaware_nodes[:10])))
         return states.UNAVAILABLE_STATE, len(unaware_nodes)
