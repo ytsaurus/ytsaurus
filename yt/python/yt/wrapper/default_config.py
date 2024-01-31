@@ -866,11 +866,7 @@ def _update_from_file(config):
     config_path = config["config_path"]
 
     if config_path is None:
-        home = None
-        try:
-            home = os.path.expanduser("~")
-        except KeyError:
-            pass
+        home = common.get_home_dir()
 
         config_path = "/etc/ytclient.conf"
         if home:

@@ -2,6 +2,7 @@ from yt.common import (require, flatten, update, update_inplace, which, YtError,
                        get_value, filter_dict, date_string_to_timestamp, datetime_to_string, date_string_to_datetime,
                        uuid_to_parts, declare_deprecated, deprecated_with_message, deprecated, underscore_case_to_camel_case)
 import yt.yson as yson
+import yt.json_wrapper as json
 
 try:
     from yt.packages.six import iteritems, itervalues, PY3, Iterator, text_type, binary_type, string_types
@@ -287,6 +288,15 @@ def generate_traceparent(generator=None):
     return "00-%016x%016x-%016x-01" % (get_int(), get_int(), get_int())
 
 
+def get_home_dir():
+    home_dir = None
+    try:
+        home_dir = os.path.expanduser("~")
+    except KeyError:
+        pass
+    return home_dir
+
+
 def get_version():
     """ Returns python wrapper version """
     try:
@@ -373,6 +383,24 @@ def _maybe_truncate(list_of_strings, length_limit):
     return truncated
 
 
+def try_get_nirvana_block_url_from_context():
+    home_dir = get_home_dir()
+    if home_dir == "/slot/sandbox/j" and os.getenv("NV_YT_OPERATION_ID"):
+        nirvana_job_context_path = os.path.join(home_dir, "job_context.json")
+        if os.path.exists(nirvana_job_context_path):
+            nirvana_context = {}
+            try:
+                with open(nirvana_job_context_path) as ctx_file:
+                    nirvana_context = json.loads(ctx_file)
+            except Exception:
+                pass
+            if "meta" in nirvana_context:
+                meta = nirvana_context["meta"]
+                if "blockURL" in meta:
+                    return yson.convert.to_yson_type(meta["blockURL"], attributes={"_type_tag": "url"})
+    return None
+
+
 def get_started_by(command_length_limit=None):
     python_version = "{0}.{1}.{2}".format(*get_python_version())
 
@@ -396,6 +424,10 @@ def get_started_by(command_length_limit=None):
     platform = get_platform()
     if platform is not None:
         started_by["platform"] = platform
+
+    nirvana_block_url = try_get_nirvana_block_url_from_context()
+    if nirvana_block_url:
+        started_by["nirvana_block_url"] = nirvana_block_url
 
     return started_by
 
