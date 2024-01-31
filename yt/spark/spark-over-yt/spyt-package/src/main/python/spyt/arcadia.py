@@ -2,6 +2,7 @@ import logging
 import os
 from tempfile import TemporaryDirectory
 from typing import Optional
+import zipfile
 
 from spyt.dependency_utils import require_yt_client
 require_yt_client()
@@ -42,10 +43,8 @@ def _extract_spark():
     logger.info(f"Created Spark temp dir {temp_dir}")
     pyspark_dir = "contrib/python/ytsaurus-pyspark/pyspark/"
     pyspark_subdirs = [f"{pyspark_dir}{subdir}" for subdir in ["bin", "conf", "jars"]]
-    spyt_spark_extra_dir = "yt/spark/spark-over-yt/spyt-package/src/main/spark-extra/"
     for pyspark_subdir in pyspark_subdirs:
         _extract_resources(pyspark_subdir, pyspark_dir, temp_dir.name)
-    _extract_resources(spyt_spark_extra_dir, spyt_spark_extra_dir, temp_dir.name)
     _make_executables(os.path.join(temp_dir.name, "bin"))
     logger.info("Spark files extracted successfully")
     return temp_dir
@@ -54,8 +53,14 @@ def _extract_spark():
 def _extract_spyt():
     temp_dir = TemporaryDirectory()
     logger.info(f"Created Spyt temp dir {temp_dir}")
-    spyt_original_dir = "yt/spark/spark-over-yt/spyt-package/src/main/spyt/"
-    _extract_resources(spyt_original_dir, spyt_original_dir, temp_dir.name)
+    spyt_original_dir = "yt/spark/spark-over-yt/spyt-package/src/main/spyt_cluster/"
+    build_dir = temp_dir.name
+    _extract_resources(spyt_original_dir, spyt_original_dir, build_dir)
+    with zipfile.ZipFile(build_dir + "/spyt-package.zip", 'r') as zip_ref:
+        zip_ref.extractall(build_dir)
+    package_dir = build_dir + "/spyt-package"
+    for file_name in os.listdir(package_dir):
+        os.rename(package_dir + "/" + file_name, build_dir + "/" + file_name)
     logger.info("Spyt files extracted successfully")
     return temp_dir
 

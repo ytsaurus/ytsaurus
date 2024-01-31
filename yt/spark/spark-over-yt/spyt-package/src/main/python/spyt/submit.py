@@ -46,6 +46,7 @@ def launch_gateway(memory="512m",
         env.update(additional_environ or {})
         env["_SPYT_SUBMIT_CONN_INFO_PATH"] = conn_info_file
         env["SPARK_HOME"] = spark_home
+        env["SPARK_CONF_DIR"] = os.path.join(get_spyt_home(), "conf")
 
         # Launch the Java gateway.
         popen_kwargs = {'stdin': PIPE, 'env': env}
