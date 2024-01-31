@@ -23,7 +23,7 @@ class Mapper():
             if "sort_order" in column:
                 assert column["sort_order"] == "ascending"
                 continue
-            if column["type"] != "string":
+            if column["type"] != "string" and column["type"] != "any":
                 continue
             self.columns.append(column["name"])
         sorted(self.columns)
