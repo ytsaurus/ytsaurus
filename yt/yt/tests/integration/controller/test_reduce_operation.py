@@ -1462,10 +1462,12 @@ echo {v = 2} >&7
 """
         )
 
-    @authors("klyachin")
+    @authors("klyachin", "galtsev")
     def test_reduce_row_count_limit(self):
         create("table", "//tmp/input")
-        for i in range(5):
+        in_row_count = 10
+        row_count_limit = 3
+        for i in range(in_row_count):
             write_table(
                 "<append=true>//tmp/input",
                 [{"key": "%05d" % i, "value": "foo"}],
@@ -1475,7 +1477,7 @@ echo {v = 2} >&7
         create("table", "//tmp/output")
         reduce(
             in_="//tmp/input",
-            out="<row_count_limit=3>//tmp/output",
+            out=f"<row_count_limit={row_count_limit}>//tmp/output",
             command="cat",
             reduce_by=["key"],
             spec={
@@ -1485,7 +1487,9 @@ echo {v = 2} >&7
             },
         )
 
-        assert len(read_table("//tmp/output")) == 3
+        out_row_count = len(read_table("//tmp/output"))
+        assert out_row_count < in_row_count
+        assert out_row_count >= row_count_limit
 
     @authors("dakovalkov")
     def test_reduce_row_count_limit_teleport(self):

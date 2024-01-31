@@ -1151,13 +1151,16 @@ echo {v = 2} >&7
 
         assert get("//tmp/out/@sorted")
 
-    @authors("max42", "klyachin")
+    @authors("max42", "klyachin", "galtsev")
     def test_join_reduce_row_count_limit(self):
         create("table", "//tmp/in1")
 
+        chunk_count = 10
+        row_count_limit = 5
+
         write_table(
             "<append=true>//tmp/in1",
-            [{"key": "%05d" % i, "value": "foo"} for i in range(5)],
+            [{"key": "%05d" % i, "value": "foo"} for i in range(chunk_count)],
             sorted_by=["key"],
             max_row_buffer_size=1,
             table_writer={"desired_chunk_size": 1},
@@ -1166,19 +1169,19 @@ echo {v = 2} >&7
         create("table", "//tmp/in2")
         write_table(
             "<append=true>//tmp/in2",
-            [{"key": "%05d" % i, "value": "bar"} for i in range(5)],
+            [{"key": "%05d" % i, "value": "bar"} for i in range(chunk_count)],
             sorted_by=["key"],
             max_row_buffer_size=1,
             table_writer={"desired_chunk_size": 1},
         )
 
-        assert get("//tmp/in1/@chunk_count") == 5
-        assert get("//tmp/in2/@chunk_count") == 5
+        assert get("//tmp/in1/@chunk_count") == chunk_count
+        assert get("//tmp/in2/@chunk_count") == chunk_count
 
         create("table", "//tmp/out")
         join_reduce(
             in_=["<foreign=true>//tmp/in2", "//tmp/in1"],
-            out="<row_count_limit=5>//tmp/out",
+            out=f"<row_count_limit={row_count_limit}>//tmp/out",
             command="cat",
             join_by=["key"],
             spec={
@@ -1188,7 +1191,12 @@ echo {v = 2} >&7
             },
         )
 
-        assert len(read_table("//tmp/out")) == 6
+        in_row_count = len(read_table("//tmp/in1")) + len(read_table("//tmp/in2"))
+        joined_row_count = len(read_table("//tmp/out"))
+
+        assert joined_row_count < in_row_count
+        assert joined_row_count >= row_count_limit
+        assert joined_row_count % 2 == 0
 
     @authors("klyachin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])

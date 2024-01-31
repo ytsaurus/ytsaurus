@@ -1253,7 +1253,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
             // - Merge decided to teleport all input chunks
             // - Anything else?
             YT_LOG_INFO("No jobs needed");
-            OnOperationCompleted(/*interrupted*/ false);
+            DoCompleteOperation(/*interrupted*/ false);
             return result;
         } else {
             RegisterUnavailableInputChunks();
@@ -1310,7 +1310,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         auto wrappedError = TError(EErrorCode::MaterializationFailed, "Materialization failed")
             << ex;
         YT_LOG_INFO(wrappedError);
-        OnOperationFailed(wrappedError);
+        DoFailOperation(wrappedError);
         return result;
     }
 
@@ -1382,7 +1382,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     CreateLivePreviewTables();
 
     if (IsCompleted()) {
-        OnOperationCompleted(/*interrupted*/ false);
+        DoCompleteOperation(/*interrupted*/ false);
         return result;
     }
 
@@ -4202,7 +4202,7 @@ void TOperationControllerBase::OnTransactionsAborted(const std::vector<TTransact
         return;
     }
 
-    OnOperationFailed(
+    DoFailOperation(
         GetSchedulerTransactionsAbortedError(transactionIds),
         /*flush*/ false);
 }
@@ -4447,7 +4447,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     }
 
     if (!AvailableExecNodesObserved_) {
-        OnOperationFailed(TError(
+        DoFailOperation(TError(
             EErrorCode::NoOnlineNodeToScheduleAllocation,
             "No online nodes that match operation scheduling tag filter %Qv "
             "and have sufficient resources to schedule an allocation found in trees %v",
@@ -4470,7 +4470,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
                 " (\"ban_nodes_with_failed_jobs\" spec option is set, try investigating your job failures)");
         }
         auto errorMessage = errorMessageBuilder.Flush();
-        OnOperationFailed(TError(errorMessage));
+        DoFailOperation(TError(errorMessage));
         return;
     }
 
@@ -4493,7 +4493,7 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
 
         const auto& neededResources = task->GetMinNeededResources();
         if (!Dominates(*CachedMaxAvailableExecNodeResources_, neededResources.ToJobResources())) {
-            OnOperationFailed(
+            DoFailOperation(
                 TError(
                     EErrorCode::NoOnlineNodeToScheduleAllocation,
                     "No online node can satisfy the resource demand")
@@ -5057,7 +5057,7 @@ void TOperationControllerBase::UpdateAccountResourceUsageLeases()
                 error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
                 error.FindMatching(NYTree::EErrorCode::ResolveError))
             {
-                OnOperationFailed(
+                DoFailOperation(
                     TError("Failed to update account usage lease")
                         << TErrorAttribute("account", account)
                         << TErrorAttribute("lease_id", info.LeaseId)
@@ -5115,7 +5115,7 @@ void TOperationControllerBase::SafeUpdateMinNeededAllocationResources()
         } catch (const std::exception& ex) {
             auto error = TError("Failed to update minimum needed resources")
                 << ex;
-            OnOperationFailed(error);
+            DoFailOperation(error);
             return;
         }
 
@@ -5156,13 +5156,20 @@ void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)
     auto flushResult = WaitFor(Host->FlushOperationNode());
     if (checkFlushResult && !flushResult.IsOK()) {
         // We do not want to complete operation if progress flush has failed.
-        OnOperationFailed(flushResult, /*flush*/ false);
+        DoFailOperation(flushResult, /*flush*/ false);
     }
 
     YT_LOG_DEBUG("Operation node flushed");
 }
 
-void TOperationControllerBase::OnOperationCompleted(bool /*interrupted*/)
+void TOperationControllerBase::OnOperationCompleted(bool interrupted)
+{
+    YT_UNUSED_FUTURE(BIND(&TOperationControllerBase::DoCompleteOperation, MakeStrong(this))
+        .AsyncVia(GetCancelableInvoker())
+        .Run(interrupted));
+}
+
+void TOperationControllerBase::DoCompleteOperation(bool /*interrupted*/)
 {
     VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
@@ -5182,6 +5189,13 @@ void TOperationControllerBase::OnOperationCompleted(bool /*interrupted*/)
 }
 
 void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush, bool abortAllJoblets)
+{
+    YT_UNUSED_FUTURE(BIND(&TOperationControllerBase::DoFailOperation, MakeStrong(this))
+        .AsyncVia(GetCancelableInvoker())
+        .Run(error, flush, abortAllJoblets));
+}
+
+void TOperationControllerBase::DoFailOperation(const TError& error, bool flush, bool abortAllJoblets)
 {
     VERIFY_INVOKER_POOL_AFFINITY(InvokerPool);
 
@@ -5277,7 +5291,7 @@ void TOperationControllerBase::OnJobUniquenessViolated(TError error)
     if (Config->JobTracker->EnableGracefulAbort) {
         GracefullyFailOperation(std::move(error));
     } else {
-        OnOperationFailed(std::move(error));
+        DoFailOperation(std::move(error));
     }
 }
 
@@ -5328,14 +5342,14 @@ void TOperationControllerBase::GracefullyFailOperation(TError error)
 
         YT_UNUSED_FUTURE(TDelayedExecutor::MakeDelayed(Spec_->TimeLimitJobFailTimeout)
             .Apply(BIND(
-                &TOperationControllerBase::OnOperationFailed,
+                &TOperationControllerBase::DoFailOperation,
                 MakeWeak(this),
                 error,
                 /*flush*/ true,
                 /*abortAllJoblets*/ true)
             .Via(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default))));
     } else {
-        OnOperationFailed(error, /*flush*/ true);
+        DoFailOperation(error, /*flush*/ true);
     }
 }
 
@@ -10924,7 +10938,7 @@ void TOperationControllerBase::MaybeCancel(ECancelationStage cancelationStage)
     {
         YT_LOG_INFO("Making test operation failure (CancelationStage: %v)", cancelationStage);
         GetInvoker()->Invoke(BIND(
-            &TOperationControllerBase::OnOperationFailed,
+            &TOperationControllerBase::DoFailOperation,
             MakeWeak(this),
             TError("Test operation failure"),
             /*flush*/ false,
@@ -11028,7 +11042,7 @@ void TOperationControllerBase::OnMemoryLimitExceeded(const TError& error)
     MemoryLimitExceeded_ = true;
 
     GetInvoker()->Invoke(BIND(
-        &TOperationControllerBase::OnOperationFailed,
+        &TOperationControllerBase::DoFailOperation,
         MakeWeak(this),
         error,
         /*flush*/ true,

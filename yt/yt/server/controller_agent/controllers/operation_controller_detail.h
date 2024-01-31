@@ -357,7 +357,15 @@ public:
     const TOperationSpecBasePtr& GetSpec() const override;
     const TOperationOptionsPtr& GetOptions() const override;
 
+    //! Unsuccessfully terminates and finalizes the operation.
+    /*!
+     *  Does it asynchronously to avoid context switches inside #OnJobCompleted, #OnJobFailed, ...
+     *  In some contexts, eg. in periodics, doing it asynchronously makes no sense.
+     *  Use #DoFailOperation there instead.
+     *  See also YT-19936.
+     */
     void OnOperationFailed(const TError& error, bool flush = true, bool abortAllJoblets = true) override;
+
     void OnOperationAborted(const TError& error);
 
     bool IsRowCountPreserved() const override;
@@ -887,6 +895,10 @@ protected:
 
     //! Successfully terminates and finalizes the operation.
     /*!
+     *  Does it asynchronously to avoid context switches inside #OnJobCompleted, #OnJobFailed, ...
+     *  In some contexts, eg. in periodics, doing it asynchronously makes no sense.
+     *  Use #DoCompleteOperation there instead.
+     *  See also YT-19936.
      *  #interrupted flag indicates premature completion and disables standard validations.
      */
     virtual void OnOperationCompleted(bool interrupted);
@@ -1068,6 +1080,9 @@ protected:
     NYson::TYsonString ConvertToYsonStringNestingLimited(const T& value) const;
 
     i64 GetFastIntermediateMediumLimit() const;
+
+    virtual void DoCompleteOperation(bool /*interrupted*/);
+    virtual void DoFailOperation(const TError& error, bool flush = true, bool abortAllJoblets = true);
 
     //! One output table can have row_count_limit attribute in operation.
     std::optional<int> RowCountLimitTableIndex;
