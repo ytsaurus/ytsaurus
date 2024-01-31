@@ -9,7 +9,7 @@
 #include <yt/yt/core/yson/pull_parser_deserialize.h>
 #include <yt/yt/core/yson/token_writer.h>
 
-#include <experimental/functional>
+#include <functional>
 
 namespace NYT::NApi::NNative {
 
@@ -705,7 +705,7 @@ private:
         auto it = std::search(
             haystack.begin(),
             haystack.end(),
-            std::experimental::boyer_moore_horspool_searcher(
+            std::boyer_moore_horspool_searcher(
                 Options_.SubstrFilter->begin(),
                 Options_.SubstrFilter->end(),
                 [] (char ch) {
