@@ -415,6 +415,62 @@ class TestChaos(ChaosTestBase):
 
         assert exists(table_name2)
 
+    @authors("osidorkin")
+    def test_replication_via_async_queue(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/qs"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/qa"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/ts"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": False, "replica_path": "//tmp/ta"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/tae"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+
+        create("chaos_replicated_table", "//tmp/crt", attributes={
+            "replication_card_id": card_id,
+            "chaos_cell_bundle": "c"
+        })
+
+        insert_rows("//tmp/ts", [{"key": 0, "value": "0"}])
+        insert_rows("//tmp/ts", [{"key": 1, "value": "1"}])
+        delete_rows("//tmp/ts", [{"key": 0}])
+        delete_rows("//tmp/ts", [{"key": 1}])
+
+        timestamp = generate_timestamp()
+        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[1]}/replication_lag_timestamp") > timestamp)
+
+        assert lookup_rows("//tmp/ts", [{"key": 0}]) == []
+        assert lookup_rows("//tmp/ts", [{"key": 1}]) == []
+
+        def _pull_rows(path, replica_id, upper_timestamp=0, response_parameters=None):
+            return pull_rows(
+                path,
+                upstream_replica_id=replica_id,
+                replication_progress={
+                    "segments": [{"lower_key": [], "timestamp": 0}],
+                    "upper_key": [yson.to_yson_type(None, attributes={"type": "max"})]
+                },
+                upper_timestamp=upper_timestamp,
+                response_parameters=response_parameters)
+
+        sync_queue_rows = _pull_rows("//tmp/qs", replica_ids[0], timestamp, {})
+        async_queue_rows = _pull_rows("//tmp/qa", replica_ids[1], timestamp, {})
+
+        assert sync_queue_rows == async_queue_rows
+
+        self._sync_alter_replica(card_id, replicas, replica_ids, 1, mode="sync")
+        self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=False)
+        self._sync_alter_replica(card_id, replicas, replica_ids, 3, enabled=True)
+
+        # Now we can only fetch from async replica
+        timestamp = generate_timestamp()
+        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[3]}/replication_lag_timestamp") > timestamp)
+
+        assert lookup_rows("//tmp/ta", [{"key": 0}]) == []
+        assert lookup_rows("//tmp/ta", [{"key": 1}]) == []
+
     @authors("savrus")
     def test_end_replication_row_index(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
