@@ -1,5 +1,12 @@
 from yt_odin_checks.lib.check_runner import main
 
+DEFAULT_ENABLED_NODE_FLAVORS = [
+    "data",
+    "exec",
+    "tablet",
+    "chaos"
+]
+
 
 def find_unaware_nodes(yt_client, check_node_flavors):
     result = []
@@ -25,7 +32,9 @@ def run_check(yt_client, logger, options, states):
     if allow_unaware_nodes:
         return states.FULLY_AVAILABLE_STATE
 
-    unaware_nodes = find_unaware_nodes(yt_client, ["data"])
+    check_node_flavors = options.get("check_node_flavors", DEFAULT_ENABLED_NODE_FLAVORS)
+
+    unaware_nodes = find_unaware_nodes(yt_client, check_node_flavors)
     if unaware_nodes:
         logger.info("First ten unaware nodes: {}".format(" ".join(unaware_nodes[:10])))
         return states.UNAVAILABLE_STATE, len(unaware_nodes)
