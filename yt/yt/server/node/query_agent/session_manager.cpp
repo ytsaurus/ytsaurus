@@ -12,13 +12,15 @@
 
 namespace NYT::NQueryAgent {
 
+using namespace NCompression;
 using namespace NConcurrency;
 using namespace NLogging;
 using namespace NQueryClient;
+using namespace NThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const auto& Logger = QueryAgentLogger;
+static const auto& Logger = QueryAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,7 +32,10 @@ public:
         : Invoker_(std::move(invoker))
     { }
 
-    IDistributedSessionPtr GetDistributedSessionOrCreate(TDistributedSessionId sessionId, TDuration retentionTime) override
+    IDistributedSessionPtr GetDistributedSessionOrCreate(
+        TDistributedSessionId sessionId,
+        TDuration retentionTime,
+        ECodec codecId) override
     {
         THashMap<TDistributedSessionId, IDistributedSessionPtr>::iterator it;
         {
@@ -46,7 +51,7 @@ public:
             retentionTime,
             BIND(&TDistributedSessionManager::OnDistributedSessionLeaseExpired, MakeWeak(this), sessionId)
                 .Via(Invoker_));
-        auto session = CreateDistributedSession(sessionId, std::move(lease));
+        auto session = CreateDistributedSession(sessionId, std::move(lease), codecId, retentionTime);
 
         {
             auto guard = Guard(DistributedSessionMapLock_);
@@ -99,7 +104,7 @@ public:
 private:
     const IInvokerPtr Invoker_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, DistributedSessionMapLock_);
+    YT_DECLARE_SPIN_LOCK(TSpinLock, DistributedSessionMapLock_);
     THashMap<TDistributedSessionId, IDistributedSessionPtr> DistributedSessionMap_;
 };
 

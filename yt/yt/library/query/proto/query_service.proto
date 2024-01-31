@@ -4,6 +4,7 @@ import "yt/library/query/proto/functions_cache.proto";
 import "yt_proto/yt/client/misc/proto/workload.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node_directory.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/wire_protocol.proto";
+import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 import "yt_proto/yt/client/query_client/proto/query_statistics.proto";
 import "yt_proto/yt/client/chaos_client/proto/replication_card.proto";
 import "yt_proto/yt/client/chunk_client/proto/read_limit.proto";
@@ -277,6 +278,7 @@ message TReqCreateDistributedSession
 {
     required NYT.NProto.TGuid session_id = 1;
     required int64 retention_time = 2;
+    required int32 codec = 3; // ECodec
 }
 
 message TRspCreateDistributedSession
@@ -303,6 +305,19 @@ message TReqCloseDistributedSession
 }
 
 message TRspCloseDistributedSession
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPushRowset
+{
+    required NYT.NProto.TGuid session_id = 1;
+    required NYT.NProto.TGuid rowset_id = 2;
+    required NYT.NTableClient.NProto.TTableSchemaExt schema = 3;
+    // Attachments contain wire-encoded data.
+}
+
+message TRspPushRowset
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

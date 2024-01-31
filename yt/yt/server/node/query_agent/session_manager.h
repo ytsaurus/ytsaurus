@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/actions/public.h>
 
+#include <yt/yt/core/compression/public.h>
+
 namespace NYT::NQueryAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,7 +17,8 @@ struct IDistributedSessionManager
 {
     virtual IDistributedSessionPtr GetDistributedSessionOrCreate(
         NQueryClient::TDistributedSessionId sessionId,
-        TDuration retentionTime) = 0;
+        TDuration retentionTime,
+        NCompression::ECodec codecId) = 0;
 
     virtual IDistributedSessionPtr GetDistributedSessionOrThrow(
         NQueryClient::TDistributedSessionId sessionId) = 0;

@@ -392,6 +392,9 @@ public:
             .SetInvoker(bootstrap->GetQueryPoolInvoker(DefaultQLExecutionPoolName, DefaultQLExecutionTag)));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CloseDistributedSession)
             .SetInvoker(bootstrap->GetQueryPoolInvoker(DefaultQLExecutionPoolName, DefaultQLExecutionTag)));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PushRowset)
+            .SetCancelable(true)
+            .SetInvokerProvider(BIND(&TQueryService::GetExecuteInvoker, Unretained(this))));
 
         Bootstrap_->GetDynamicConfigManager()->SubscribeConfigChanged(BIND(
             &TQueryService::OnDynamicConfigChanged,
@@ -2079,10 +2082,11 @@ private:
     {
         auto sessionId = FromProto<TDistributedSessionId>(request->session_id());
         auto retentionTime = FromProto<TDuration>(request->retention_time());
+        auto codecId = CheckedEnumCast<ECodec>(request->codec());
 
         context->SetRequestInfo("DistributedSessionId: %v", sessionId);
 
-        DistributedSessionManager_->GetDistributedSessionOrCreate(sessionId, retentionTime);
+        DistributedSessionManager_->GetDistributedSessionOrCreate(sessionId, retentionTime, codecId);
 
         context->Reply();
     }
@@ -2112,6 +2116,27 @@ private:
         if (DistributedSessionManager_->CloseDistributedSession(sessionId)) {
             YT_LOG_DEBUG("Distributed query session closed remotely (SessionId: %v)", sessionId);
         }
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, PushRowset)
+    {
+        auto sessionId = FromProto<TDistributedSessionId>(request->session_id());
+        auto rowsetId = FromProto<TRowsetId>(request->rowset_id());
+        auto schema = FromProto<TTableSchemaPtr>(request->schema());
+
+        context->SetRequestInfo("SessionId: %v, RowsetId: %v", sessionId, rowsetId);
+
+        auto session = DistributedSessionManager_->GetDistributedSessionOrThrow(sessionId);
+        session->InsertReaderOrThrow(
+            CreateWireProtocolRowsetReader(
+                request->Attachments(),
+                session->GetCodecId(),
+                schema,
+                false,
+                Logger),
+            rowsetId);
 
         context->Reply();
     }

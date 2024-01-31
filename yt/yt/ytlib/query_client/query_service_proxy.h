@@ -30,6 +30,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, CreateDistributedSession);
     DEFINE_RPC_PROXY_METHOD(NProto, PingDistributedSession);
     DEFINE_RPC_PROXY_METHOD(NProto, CloseDistributedSession);
+    DEFINE_RPC_PROXY_METHOD(NProto, PushRowset);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

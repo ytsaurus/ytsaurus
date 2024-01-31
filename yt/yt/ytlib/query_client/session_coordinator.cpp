@@ -15,6 +15,7 @@
 
 namespace NYT::NQueryClient {
 
+using namespace NCompression;
 using namespace NConcurrency;
 using namespace NLogging;
 using namespace NNodeTrackerClient;
@@ -33,6 +34,7 @@ static const auto& Logger = QueryClientLogger;
 struct TPingableDistributedSessionContext final
 {
     TDistributedSessionId SessionId;
+    ECodec CodecId;
     TDistributedSessionOptions Options;
 };
 
@@ -159,11 +161,13 @@ public:
     TDistributedSessionCoordinator(
         IInvokerPtr invoker,
         INodeChannelFactoryPtr channelFactory,
+        ECodec codedId,
         TDistributedSessionOptions options)
         : Invoker_(std::move(invoker))
         , NodeChannelFactory_(std::move(channelFactory))
         , Context_(New<TPingableDistributedSessionContext>(
             TDistributedSessionId::Create(),
+            codedId,
             options))
     { }
 
@@ -232,6 +236,7 @@ private:
         auto req = proxy.CreateDistributedSession();
         ToProto(req->mutable_session_id(), Context_->SessionId);
         req->set_retention_time(ToProto<i64>(Context_->Options.RetentionTime));
+        req->set_codec(ToProto<i32>(Context_->CodecId));
         req->SetTimeout(Context_->Options.ControlRpcTimeout);
 
         return req->Invoke()
@@ -264,11 +269,13 @@ DEFINE_REFCOUNTED_TYPE(TDistributedSessionCoordinator)
 IDistributedSessionCoordinatorPtr CreateDistributeSessionCoordinator(
     IInvokerPtr invoker,
     INodeChannelFactoryPtr channelFactory,
+    ECodec codecId,
     TDistributedSessionOptions options)
 {
     return New<TDistributedSessionCoordinator>(
         std::move(invoker),
         std::move(channelFactory),
+        codecId,
         std::move(options));
 }
 
