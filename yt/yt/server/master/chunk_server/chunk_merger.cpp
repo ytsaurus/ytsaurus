@@ -842,11 +842,6 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer)
     }
     AccountIdToNodeMergeDurations_.clear();
 
-    for (const auto& [nodeId, reschedulingCounter] : NodeToRescheduleCount_) {
-        TWithTagGuard tagGuard(buffer, "nodeId", ToString(nodeId));
-        buffer->AddGauge("/chunk_merger_node_reschedule_count", reschedulingCounter);
-    }
-
     for (const auto& [accountId, stuckNodes] : AccountIdToStuckNodes_) {
         TWithTagGuard tagGuard(buffer, "account", getAccountTag(accountId));
         buffer->AddGauge("/chunk_merger_stuck_nodes_count", stuckNodes.size());
