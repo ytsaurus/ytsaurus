@@ -8,6 +8,8 @@
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/public.h>
 
+#include <yt/systest/proto/validator.pb.h>
+
 #include <yt/systest/dataset.h>
 #include <yt/systest/test_home.h>
 #include <yt/systest/worker_set.h>
@@ -22,6 +24,7 @@ struct TValidatorConfig
     TDuration WorkerFailureBackoffDelay;
     TDuration BaseTimeout;
     TDuration IntervalTimeout;
+    bool EnableSortValidation;
 
     void RegisterOptions(NLastGetopt::TOpts* opts);
 };
@@ -92,11 +95,64 @@ private:
         const TString& tablePath,
         int64_t intervalBytes);
 
-    template <typename T>
+    TFuture<TString> StartMapInterval(
+        const TString& targetName,
+        int retryAttempt,
+        int intervalIndex,
+        int numIntervals,
+        const TString& tablePath,
+        int64_t start,
+        int64_t limit,
+        TDuration timeout,
+        const TTable& table,
+        const IMultiMapper& mapper);
+
+    TFuture<TString> StartReduceInterval(
+        const TString& targetName,
+        int retryAttempt,
+        int intervalIndex,
+        int numIntervals,
+        const TString& tablePath,
+        int64_t start,
+        int64_t limit,
+        TDuration timeout,
+        const TTable& table,
+        const TReduceOperation& operation);
+
+    TFuture<TString> StartSortInterval(
+        const TString& targetName,
+        int retryAttempt,
+        int intervalIndex,
+        int numIntervals,
+        const TString& tablePath,
+        int64_t start,
+        int64_t limit,
+        TDuration timeout,
+        const TTable& table,
+        const TSortOperation& operation);
+
+    TFuture<typename NRpc::TTypedClientResponse<NProto::TRspCompareInterval>::TResult>
+    StartCompareInterval(
+        int attempt,
+        const TString& targetPath,
+        const TString& intervalPath,
+        int64_t start,
+        int64_t limit,
+        int intervalIndex,
+        int numIntervals,
+        TDuration timeout);
+
+    TFuture<typename NRpc::TTypedClientResponse<NProto::TRspMergeSortedAndCompare>::TResult>
+    StartMergeSortedAndCompare(
+        int attempt,
+        const std::vector<TString>& intervalPath,
+        TDuration timeout,
+        const TString& targetPath,
+        const TTable& table);
+
     TStoredDataset CompareIntervals(
         const TString& targetPath,
-        std::vector<TFuture<T>>& intervalResult,
-        const std::vector<TString>& intervalPath);
+        std::vector<TFuture<TString>>& intervalResult);
 
 };
 

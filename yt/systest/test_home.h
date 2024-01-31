@@ -1,11 +1,13 @@
 #pragma once
 
+#include <library/cpp/yt/threading/spin_lock.h>
 #include <yt/cpp/mapreduce/interface/client.h>
 
 #include <random>
 
 namespace NYT::NTest {
 
+// Ater the Init() call, Objects of TTestHome are safe to use from different threads concurrently.
 class TTestHome
 {
 public:
@@ -18,9 +20,9 @@ public:
     const TString& StderrTable() const { return StderrTable_; }
     TString ValidatorsDir() const { return Dir_ + "/validators"; }
 
-    TString TablePath(const TString& tableName);
+    TString TablePath(const TString& tableName) const;
     TString CreateRandomTablePath();
-    TString CreateIntervalPath(const TString& name, int index);
+    TString CreateIntervalPath(const TString& name, int index, int retrytAttempt);
 
 private:
     const TString HomeDirectory_;
@@ -29,6 +31,7 @@ private:
     TString Dir_;
     TString StderrTable_, CoreTable_;
 
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     std::random_device RandDevice_;
     std::mt19937 Engine_;
     std::uniform_int_distribution<int32_t> UniformIntDistribution_;

@@ -16,8 +16,6 @@
 #include <yt/yt/core/bus/tcp/config.h>
 #include <yt/yt/core/rpc/bus/channel.h>
 
-#include <yt/systest/proto/validator.pb.h>
-
 #include <yt/systest/sort_dataset.h>
 #include <yt/systest/util.h>
 #include <yt/systest/validator.h>
@@ -34,6 +32,95 @@
 
 namespace NYT::NTest {
 
+template <typename TResult>
+class TRetrier;
+
+template <typename TProtoResponse>
+using TRpcResult = typename NRpc::TTypedClientResponse<TProtoResponse>::TResult;
+
+template <typename TProtoResponse>
+using TRpcRetrier = TRetrier<TRpcResult<TProtoResponse>>;
+
+template <typename TResult>
+class TRetrier
+{
+public:
+    TRetrier(std::function<TFuture<TResult>(int)> call)
+        : Logger("retry")
+        , Call_(call)
+        , Attempt_(0)
+        , Result_(NewPromise<TResult>())
+    {
+    }
+
+    TFuture<TResult> Run()
+    {
+        Start();
+        return Result_.ToFuture();
+    }
+
+    TRetrier(const TRetrier&) = delete;
+    TRetrier(TRetrier&&) noexcept = delete;
+    TRetrier& operator=(const TRetrier&) = delete;
+    TRetrier& operator=(TRetrier&&) noexcept = delete;
+
+private:
+    NLogging::TLogger Logger;
+    std::function<TFuture<TResult>(int)> Call_;
+    int Attempt_;
+    TPromise<TResult> Result_;
+
+    bool IsRetriable(const TError& error)
+    {
+        TErrorCode code = error.GetCode();
+        return
+            code == TErrorCode(NRpc::EErrorCode::TransportError) ||
+            code == EErrorCode::Timeout;
+    }
+
+    void MaybeRetry(TErrorOr<TResult>&& result)
+    {
+        if (result.IsOK()) {
+            Result_.Set(result.ValueOrThrow());
+            return;
+        }
+        if (!IsRetriable(result)) {
+            Result_.Set(result);
+            return;
+        }
+        YT_LOG_INFO("Retry %v", result);
+        Start();
+    }
+
+    void Start()
+    {
+        YT_UNUSED_FUTURE(
+            Call_(Attempt_++).ApplyUnique(BIND(&TRetrier::MaybeRetry, this)));
+    }
+};
+
+static void AnnotateError(
+    TError& error,
+    const TString& name,
+    const TString& hostport,
+    const TString& path,
+    int attempt,
+    std::optional<int> intervalIndex = std::nullopt,
+    std::optional<int> numIntervals = std::nullopt)
+{
+    auto* attrs = error.MutableAttributes();
+    attrs->Set("name", name);
+    attrs->Set("hostport", hostport);
+    attrs->Set("path", path);
+    attrs->Set("attempt", attempt);
+    if (intervalIndex) {
+        attrs->Set("interval_index", *intervalIndex);
+    }
+    if (numIntervals) {
+        attrs->Set("num_intervals", *numIntervals);
+    }
+}
+
 static void PopulateTableInterval(
     const TString& path,
     int64_t start,
@@ -45,21 +132,25 @@ static void PopulateTableInterval(
     output->set_limit_row_index(limit);
 }
 
-static TFuture<typename NRpc::TTypedClientResponse<NProto::TRspMapInterval>::TResult>
-StartMapInterval(
-    const TString& hostport,
-    const TString& tablePath,
-    const TString& outputPath,
-    int64_t start,
-    int64_t limit,
+TFuture<TString> TValidator::StartMapInterval(
+    const TString& targetName,
+    int retryAttempt,
     int intervalIndex,
     int numIntervals,
+    const TString& tablePath,
+    int64_t start,
+    int64_t limit,
     TDuration timeout,
     const TTable& table,
-    const IMultiMapper& mapper,
-    TWorkerSet::TWorkerGuard token)
+    const IMultiMapper& mapper)
 {
     NYT::NLogging::TLogger Logger("test");
+
+    TString outputPath = TestHome_.CreateIntervalPath(targetName, intervalIndex, retryAttempt);
+
+    auto token = WorkerSet_.AcquireWorker();
+    const TString& hostport = token.HostPort();
+
     YT_LOG_INFO("Start MapInterval (Worker: %v, SourcePath: %v, RowRange: [%v, %v), Interval: %v/%v, TargetPath: %v)",
         hostport, tablePath, start, limit, intervalIndex, numIntervals, outputPath);
 
@@ -78,32 +169,47 @@ StartMapInterval(
     return request->Invoke()
         .WithTimeout(timeout)
         .ApplyUnique(BIND(
-        [=, token = std::move(token)] (TErrorOr<typename NRpc::TTypedClientResponse<NProto::TRspMapInterval>::TResult> &&result) {
+        [=, token = std::move(token)] (TErrorOr<TRpcResult<NProto::TRspMapInterval>> &&result) mutable {
             YT_LOG_INFO("Done MapInterval (Worker: %v, SourcePath: %v, Interval: %v/%v, Status: %v)",
                 hostport,
                 tablePath,
                 intervalIndex,
                 numIntervals,
                 result);
-            return result.ValueOrThrow();
+            if (!result.IsOK()) {
+                token.MarkFailure();
+                AnnotateError(
+                    result,
+                    "MapInterval",
+                    hostport,
+                    tablePath,
+                    retryAttempt,
+                    intervalIndex,
+                    numIntervals);
+                result.ThrowOnError();
+            }
+            return outputPath;
         }));
 }
 
-static TFuture<typename NRpc::TTypedClientResponse<NProto::TRspReduceInterval>::TResult>
-StartReduceInterval(
-    const TString& hostport,
-    const TString& tablePath,
-    const TString& outputPath,
-    int64_t start,
-    int64_t limit,
+TFuture<TString> TValidator::StartReduceInterval(
+    const TString& targetName,
+    int retryAttempt,
     int intervalIndex,
     int numIntervals,
+    const TString& tablePath,
+    int64_t start,
+    int64_t limit,
     TDuration timeout,
     const TTable& table,
-    const TReduceOperation& operation,
-    TWorkerSet::TWorkerGuard token)
+    const TReduceOperation& operation)
 {
     NYT::NLogging::TLogger Logger("test");
+    auto token = WorkerSet_.AcquireWorker();
+    const TString& hostport = token.HostPort();
+
+    TString outputPath = TestHome_.CreateIntervalPath(targetName, intervalIndex, retryAttempt);
+
     YT_LOG_INFO("StartReduceInterval (Worker: %v, SourcePath: %v, RowRange: [%v %v), Interval: %v/%v, TargetPath: %v)",
         hostport, tablePath, start, limit, intervalIndex, numIntervals, outputPath);
 
@@ -125,32 +231,47 @@ StartReduceInterval(
     return request->Invoke()
         .WithTimeout(timeout)
         .ApplyUnique(BIND(
-        [=, token = std::move(token)] (TErrorOr<typename NRpc::TTypedClientResponse<NProto::TRspReduceInterval>::TResult> &&result) {
+        [=, token = std::move(token)] (TErrorOr<TRpcResult<NProto::TRspReduceInterval>> &&result) mutable {
             YT_LOG_INFO("Done ReduceInterval (Worker: %v, SourcePath: %v, Interval: %v/%v, Status: %v)",
                 hostport,
                 tablePath,
                 intervalIndex,
                 numIntervals,
                 result);
-            return result.ValueOrThrow();
+            if (!result.IsOK()) {
+                token.MarkFailure();
+                AnnotateError(
+                    result,
+                    "ReduceInterval",
+                    hostport,
+                    tablePath,
+                    retryAttempt,
+                    intervalIndex,
+                    numIntervals);
+                result.ThrowOnError();
+            }
+            return outputPath;
         }));
 }
 
-static TFuture<typename NRpc::TTypedClientResponse<NProto::TRspSortInterval>::TResult>
-StartSortInterval(
-    const TString& hostport,
-    const TString& tablePath,
-    const TString& outputPath,
-    int64_t start,
-    int64_t limit,
+TFuture<TString> TValidator::StartSortInterval(
+    const TString& targetName,
+    int retryAttempt,
     int intervalIndex,
     int numIntervals,
+    const TString& tablePath,
+    int64_t start,
+    int64_t limit,
     TDuration timeout,
     const TTable& table,
-    const TSortOperation& operation,
-    TWorkerSet::TWorkerGuard token)
+    const TSortOperation& operation)
 {
     NYT::NLogging::TLogger Logger("test");
+    auto token = WorkerSet_.AcquireWorker();
+    const TString& hostport = token.HostPort();
+
+    TString outputPath = TestHome_.CreateIntervalPath(targetName, intervalIndex, retryAttempt);
+
     YT_LOG_INFO("StartSortInterval (Worker: %v, SourcePath: %v, RowRange: [%v, %v), Interval: %v/%v, TargetPath: %v)",
         hostport, tablePath, start, limit, intervalIndex, numIntervals, outputPath);
 
@@ -172,30 +293,44 @@ StartSortInterval(
     return request->Invoke()
         .WithTimeout(timeout)
         .ApplyUnique(BIND(
-        [=, token = std::move(token)] (TErrorOr<typename NRpc::TTypedClientResponse<NProto::TRspSortInterval>::TResult> &&result) {
+        [=, token = std::move(token)] (TErrorOr<TRpcResult<NProto::TRspSortInterval>> &&result) mutable {
             YT_LOG_INFO("Done SortInterval (Worker: %v, SourcePath: %v,Interval: %v/%v, Status: %v)",
                 hostport,
                 tablePath,
                 intervalIndex,
                 numIntervals,
                 result);
-            return result.ValueOrThrow();
+            if (!result.IsOK()) {
+                token.MarkFailure();
+                AnnotateError(
+                    result,
+                    "SortInterval",
+                    hostport,
+                    tablePath,
+                    retryAttempt,
+                    intervalIndex,
+                    numIntervals);
+                result.ThrowOnError();
+            }
+            return outputPath;
         }));
 }
 
-static TFuture<typename NRpc::TTypedClientResponse<NProto::TRspCompareInterval>::TResult>
-StartCompareInterval(
-    const TString& hostport,
+TFuture<typename NRpc::TTypedClientResponse<NProto::TRspCompareInterval>::TResult>
+TValidator::StartCompareInterval(
+    int retryAttempt,
     const TString& targetPath,
     const TString& intervalPath,
     int64_t start,
     int64_t limit,
     int intervalIndex,
     int numIntervals,
-    TDuration timeout,
-    TWorkerSet::TWorkerGuard token)
+    TDuration timeout)
 {
     NYT::NLogging::TLogger Logger("test");
+    auto token = WorkerSet_.AcquireWorker();
+    const TString& hostport = token.HostPort();
+
     YT_LOG_INFO("Start CompareInterval (Worker: %v, IntervalPath: %v, RowRange: [%v, %v), Interval: %v/%v, TargetPath: %v)",
         hostport, intervalPath, start, limit, intervalIndex, numIntervals, targetPath);
 
@@ -213,26 +348,40 @@ StartCompareInterval(
     return request->Invoke()
         .WithTimeout(timeout)
         .ApplyUnique(BIND(
-        [=, token = std::move(token)] (TErrorOr<typename NRpc::TTypedClientResponse<NProto::TRspCompareInterval>::TResult> &&result) {
+        [=, token = std::move(token)] (TErrorOr<TRpcResult<NProto::TRspCompareInterval>> &&result) mutable {
             YT_LOG_INFO("Done CompareInterval (Worker: %v, Interval: %v/%v, Status: %v)",
                 hostport,
                 intervalIndex,
                 numIntervals,
                 result);
+            if (!result.IsOK()) {
+                token.MarkFailure();
+                AnnotateError(
+                    result,
+                    "CompareInterval",
+                    hostport,
+                    intervalPath,
+                    retryAttempt,
+                    intervalIndex,
+                    numIntervals);
+                result.ThrowOnError();
+            }
             return result.ValueOrThrow();
         }));
 }
 
-static TFuture<typename NRpc::TTypedClientResponse<NProto::TRspMergeSortedAndCompare>::TResult>
-StartMergeSortedAndCompare(
-    const TString& hostport,
+TFuture<typename NRpc::TTypedClientResponse<NProto::TRspMergeSortedAndCompare>::TResult>
+TValidator::StartMergeSortedAndCompare(
+    int retryAttempt,
     const std::vector<TString>& intervalPath,
     TDuration timeout,
     const TString& targetPath,
-    const TTable& table,
-    TWorkerSet::TWorkerGuard token)
+    const TTable& table)
 {
     NYT::NLogging::TLogger Logger("test");
+    auto token = WorkerSet_.AcquireWorker();
+    const TString& hostport = token.HostPort();
+
     YT_LOG_INFO("Start MergeSortedAndCompare (Worker: %v, NumIntervals: %v, TargetPath: %v)",
         hostport, std::ssize(intervalPath), targetPath);
 
@@ -255,9 +404,19 @@ StartMergeSortedAndCompare(
     return request->Invoke()
         .WithTimeout(timeout)
         .ApplyUnique(BIND(
-        [=, token = std::move(token)] (TErrorOr<typename NRpc::TTypedClientResponse<NProto::TRspMergeSortedAndCompare>::TResult> &&result) {
+        [=, token = std::move(token)] (TErrorOr<TRpcResult<NProto::TRspMergeSortedAndCompare>> &&result) mutable {
             YT_LOG_INFO("Done MergeSortedAndCompare (Worker: %v, NumIntervals: %v, Status: %v)",
                 hostport, std::ssize(intervalPath), result);
+            if (!result.IsOK()) {
+                token.MarkFailure();
+                AnnotateError(
+                    result,
+                    "MergeSortedAndCompare",
+                    hostport,
+                    targetPath,
+                    retryAttempt);
+                result.ThrowOnError();
+            }
             return result.ValueOrThrow();
         }));
 }
@@ -280,11 +439,11 @@ void TValidatorConfig::RegisterOptions(NLastGetopt::TOpts* opts)
 
     opts->AddLongOption("validator-interval-timeout")
         .StoreResult(&IntervalTimeout)
-        .DefaultValue(TDuration::Seconds(10));
+        .DefaultValue(TDuration::Minutes(1));
 
     opts->AddLongOption("validator-base-timeout")
-        .StoreResult(&IntervalTimeout)
-        .DefaultValue(TDuration::Seconds(30));
+        .StoreResult(&BaseTimeout)
+        .DefaultValue(TDuration::Minutes(2));
 
     opts->AddLongOption("validator-worker-failure-backoff-delay")
         .StoreResult(&WorkerFailureBackoffDelay)
@@ -352,40 +511,38 @@ void TValidator::Start()
     }
 }
 
-template <typename T>
 TStoredDataset TValidator::CompareIntervals(
     const TString& targetPath,
-    std::vector<TFuture<T>>& intervalResult,
-    const std::vector<TString>& intervalPath)
+    std::vector<TFuture<TString>>& intervalResult)
 {
-    const int numIntervals = std::ssize(intervalPath);
+    const int numIntervals = std::ssize(intervalResult);
 
-    std::vector<TFuture<typename NRpc::TTypedClientResponse<NProto::TRspCompareInterval>::TResult>>
-        compareIntervalResult;
+    std::vector<TFuture<TRpcResult<NProto::TRspCompareInterval>>> compareIntervalResult;
+    std::vector<std::unique_ptr<TRpcRetrier<NProto::TRspCompareInterval>>> compareRetrier;
 
     int64_t startInterval = 0;
     for (int index = 0; index < numIntervals; ++index) {
-        intervalResult[index].Get().ThrowOnError();
+        TString path = intervalResult[index].Get().ValueOrThrow();
 
-        int64_t intervalRowCount = Client_->Get(intervalPath[index] + "/@row_count").AsInt64();
+        int64_t intervalRowCount = Client_->Get(path + "/@row_count").AsInt64();
 
         YT_LOG_INFO("Interval generated (Index: %v, IntervalRowCount: %v, NumIntervals: %v, Path: %v)",
-            index, intervalRowCount, numIntervals, intervalPath[index]);
+            index, intervalRowCount, numIntervals, path);
 
-        auto token = WorkerSet_.AcquireWorker();
-        const TString& hostPort = token.HostPort();
-        auto result = StartCompareInterval(
-            hostPort,
-            targetPath,
-            intervalPath[index],
-            startInterval,
-            startInterval + intervalRowCount,
-            index,
-            numIntervals,
-            Config_.BaseTimeout + Config_.IntervalTimeout,
-            std::move(token));
+        compareRetrier.push_back(std::make_unique<TRpcRetrier<NProto::TRspCompareInterval>>(
+             [&, index, this] (int attempt) {
+                return StartCompareInterval(
+                    attempt,
+                    targetPath,
+                    path,
+                    startInterval,
+                    startInterval + intervalRowCount,
+                    index,
+                    numIntervals,
+                    Config_.BaseTimeout + Config_.IntervalTimeout);
+            }));
 
-        compareIntervalResult.push_back(result);
+        compareIntervalResult.push_back(compareRetrier.back()->Run());
         startInterval += intervalRowCount;
     }
 
@@ -412,9 +569,8 @@ TStoredDataset TValidator::VerifyMap(
     const auto intervalInfo = GetMapIntervalBoundaries(sourcePath, Config_.IntervalBytes);
     const int numIntervals = std::ssize(intervalInfo.Boundaries) - 1;
 
-    std::vector<TString> intervalPath;
-    std::vector<TFuture<typename NRpc::TTypedClientResponse<NProto::TRspMapInterval>::TResult>>
-        mapIntervalResult;
+    std::vector<TFuture<TString>> mapIntervalResult;
+    std::vector<std::unique_ptr<TRetrier<TString>>> mapRetrier;
 
     YT_LOG_INFO("Will validate map operation (SourcePath: %v, TargetPath: %v, NumIntervals: %v)",
         sourcePath,
@@ -422,28 +578,25 @@ TStoredDataset TValidator::VerifyMap(
         numIntervals);
 
     for (int index = 0; index < numIntervals; ++index) {
-        auto tempOutputPath = TestHome_.CreateIntervalPath(targetName, index);
-        intervalPath.push_back(tempOutputPath);
+        mapRetrier.push_back(std::make_unique<TRetrier<TString>>(
+            [&, index, this](int attempt) {
+                return StartMapInterval(
+                    targetName,
+                    attempt,
+                    index,
+                    numIntervals,
+                    sourcePath,
+                    intervalInfo.Boundaries[index],
+                    intervalInfo.Boundaries[index + 1],
+                    Config_.BaseTimeout + Config_.IntervalTimeout,
+                    sourceTable,
+                    mapper);
+                }));
 
-        auto token = WorkerSet_.AcquireWorker();
-        const TString& hostPort = token.HostPort();
-        auto result = StartMapInterval(
-            hostPort,
-            sourcePath,
-            tempOutputPath,
-            intervalInfo.Boundaries[index],
-            intervalInfo.Boundaries[index + 1],
-            index,
-            numIntervals,
-            Config_.BaseTimeout + Config_.IntervalTimeout,
-            sourceTable,
-            mapper,
-            std::move(token));
-
-        mapIntervalResult.push_back(result);
+        mapIntervalResult.push_back(mapRetrier.back()->Run());
     }
 
-    auto storedDataset = CompareIntervals(targetPath, mapIntervalResult, intervalPath);
+    auto storedDataset = CompareIntervals(targetPath, mapIntervalResult);
 
     YT_LOG_INFO("Validated map operation (SourcePath: %v, TargetPath: %v, NumIntervals: %v, "
         "NumRecords: %v, Bytes: %v)",
@@ -473,33 +626,29 @@ TStoredDataset TValidator::VerifyReduce(
         numIntervals,
         std::ssize(reduceOperation.ReduceBy));
 
-    std::vector<TFuture<typename NRpc::TTypedClientResponse<NProto::TRspReduceInterval>::TResult>>
-        reduceIntervalResult;
-    std::vector<TString> intervalPath;
+    std::vector<TFuture<TString>> reduceIntervalResult;
+    std::vector<std::unique_ptr<TRetrier<TString>>> reduceRetrier;
 
     for (int index = 0; index < numIntervals; ++index) {
-        auto tempOutputPath = TestHome_.CreateIntervalPath(targetName, index);
-        intervalPath.push_back(tempOutputPath);
-
-        auto token = WorkerSet_.AcquireWorker();
-        const TString& hostPort = token.HostPort();
-        auto result = StartReduceInterval(
-            hostPort,
-            sourcePath,
-            tempOutputPath,
-            intervalInfo.Boundaries[index],
-            intervalInfo.Boundaries[index + 1],
-            index,
-            numIntervals,
-            Config_.BaseTimeout + Config_.IntervalTimeout,
-            sourceTable,
-            reduceOperation,
-            std::move(token)
-        );
-        reduceIntervalResult.push_back(result);
+        reduceRetrier.push_back(std::make_unique<TRetrier<TString>>(
+            [&, index, this](int attempt) {
+                return StartReduceInterval(
+                    targetName,
+                    attempt,
+                    index,
+                    numIntervals,
+                    sourcePath,
+                    intervalInfo.Boundaries[index],
+                    intervalInfo.Boundaries[index + 1],
+                    Config_.BaseTimeout + Config_.IntervalTimeout,
+                    sourceTable,
+                    reduceOperation
+                );
+            }));
+        reduceIntervalResult.push_back(reduceRetrier.back()->Run());
     }
 
-    auto storedDataset = CompareIntervals(targetPath, reduceIntervalResult, intervalPath);
+    auto storedDataset = CompareIntervals(targetPath, reduceIntervalResult);
 
     YT_LOG_INFO("Validated reduce operation (SourcePath: %v, TargetPath: %v, NumIntervals: %v, "
         "NumRecords: %v, Bytes: %v)",
@@ -527,47 +676,44 @@ TStoredDataset TValidator::VerifySort(
         targetPath,
         numIntervals);
 
-    std::vector<TFuture<typename NRpc::TTypedClientResponse<NProto::TRspSortInterval>::TResult>>
-        sortIntervalResult;
-    std::vector<TString> intervalPath;
+    std::vector<TFuture<TString>> sortIntervalResult;
+    std::vector<std::unique_ptr<TRetrier<TString>>> sortRetrier;
 
     for (int index = 0; index < numIntervals; index++) {
-        auto tempOutputPath = TestHome_.CreateIntervalPath(targetName, index);
-        intervalPath.push_back(tempOutputPath);
-
-        auto token = WorkerSet_.AcquireWorker();
-        const TString& hostPort = token.HostPort();
-        auto result = StartSortInterval(
-            hostPort,
-            sourcePath,
-            tempOutputPath,
-            intervalInfo.Boundaries[index],
-            intervalInfo.Boundaries[index + 1],
-            index,
-            numIntervals,
-            Config_.BaseTimeout + Config_.IntervalTimeout,
-            sourceTable,
-            operation,
-            std::move(token));
-        sortIntervalResult.push_back(result);
+        sortRetrier.push_back(std::make_unique<TRetrier<TString>>(
+             [&, index, this](int attempt) {
+                return StartSortInterval(
+                    targetName,
+                    attempt,
+                    index,
+                    numIntervals,
+                    sourcePath,
+                    intervalInfo.Boundaries[index],
+                    intervalInfo.Boundaries[index + 1],
+                    Config_.BaseTimeout + Config_.IntervalTimeout,
+                    sourceTable,
+                    operation);
+            }));
+        sortIntervalResult.push_back(sortRetrier.back()->Run());
     }
 
-    AllSucceeded(sortIntervalResult).Get().ThrowOnError();
+    std::vector<TString> intervalPath = AllSucceeded(sortIntervalResult).Get().ValueOrThrow();
 
     TTable sortedTable;
     ApplySortOperation(sourceTable, operation, &sortedTable);
 
-    auto mergeToken = WorkerSet_.AcquireWorker();
-    const TString& hostPort = mergeToken.HostPort();
-    StartMergeSortedAndCompare(
-            hostPort,
-            intervalPath,
-            Config_.BaseTimeout +
-                numIntervals * trunc(log(numIntervals) + 1 + 1e-9) * Config_.IntervalTimeout,
-            targetPath,
-            sortedTable,
-            std::move(mergeToken))
-        .Get().ThrowOnError();
+    TRpcRetrier<NProto::TRspMergeSortedAndCompare> mergeRetrier(
+        [&, this](int attempt) {
+            return StartMergeSortedAndCompare(
+                attempt,
+                intervalPath,
+                Config_.BaseTimeout +
+                    numIntervals * trunc(log(numIntervals) + 1 + 1e-9) * Config_.IntervalTimeout,
+                targetPath,
+                sortedTable);
+        });
+
+    mergeRetrier.Run().Get().ThrowOnError();
 
     return TStoredDataset{
         targetPath,
@@ -610,6 +756,9 @@ void TValidator::StartValidatorOperation()
             .Pool(Pool_)
             .CoreTablePath(TestHome_.CoreTable())
             .TimeLimit(TDuration::Hours(48))
+            .ResourceLimits(
+                TSchedulerResources().Memory(32LL << 30LL)
+             )
             .AddTask(
                 TVanillaTask()
                     .Name("Validator")

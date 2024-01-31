@@ -29,6 +29,11 @@ static void FillTimeBuf(const char* fmt, int len, char* timebuf)
 
 TString TTestHome::GenerateFullRandomId()
 {
+    int32_t id;
+    {
+        auto guard = Guard(Lock_);
+        id = UniformIntDistribution_(Engine_);
+    }
     const int Length = 256;
     char timebuf[Length];
     std::fill(timebuf, timebuf + Length, 0);
@@ -36,13 +41,19 @@ TString TTestHome::GenerateFullRandomId()
     FillTimeBuf("%Y%m%d-%H%M", Length, timebuf);
 
     char buf[Length];
-    std::snprintf(buf, Length, "%s-%04x", timebuf, UniformIntDistribution_(Engine_));
+    std::snprintf(buf, Length, "%s-%04x", timebuf, id);
 
     return buf;
 }
 
 TString TTestHome::GenerateShortRandomId()
 {
+    int16_t id;
+    {
+        auto guard = Guard(Lock_);
+        id = UniformShortDistribution_(Engine_);
+    }
+
     const int Length = 256;
     char timebuf[Length];
     std::fill(timebuf, timebuf + Length, 0);
@@ -50,7 +61,7 @@ TString TTestHome::GenerateShortRandomId()
     FillTimeBuf("%H%M", Length, timebuf);
 
     char buf[Length];
-    std::snprintf(buf, Length, "%s-%02hx", timebuf, UniformShortDistribution_(Engine_));
+    std::snprintf(buf, Length, "%s-%02hx", timebuf, id);
 
     return buf;
 }
@@ -88,14 +99,15 @@ void TTestHome::Init()
     YT_LOG_INFO("Initialized test home (Directory: %v)", Dir_);
 }
 
-TString TTestHome::TablePath(const TString& tableName)
+TString TTestHome::TablePath(const TString& tableName) const
 {
     return Dir_ + "/" + tableName;
 }
 
-TString TTestHome::CreateIntervalPath(const TString& name, int index)
+TString TTestHome::CreateIntervalPath(const TString& name, int index, int retryAttempt)
 {
-    return Dir_ + "/" + name + "_" + GenerateShortRandomId() + "_" + std::to_string(index);
+    return Dir_ + "/" + name + "_" + std::to_string(index) + "_" + std::to_string(retryAttempt)
+        + "_" + GenerateShortRandomId();
 }
 
 TString TTestHome::CreateRandomTablePath()
