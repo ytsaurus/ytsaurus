@@ -659,7 +659,17 @@ void FormatArrayJoin(TStringBuilderBase* builder, const TArrayJoin& join)
         builder->AppendString(" LEFT");
     }
     builder->AppendString(" ARRAY JOIN ");
-    FormatExpressions(builder, join.Columns, /*expandAliases*/ true);
+    JoinToString(
+        builder,
+        join.Columns.begin(),
+        join.Columns.end(),
+        [] (TStringBuilderBase* builder, const TExpressionPtr& expr) {
+            auto* alias = expr->As<TAliasExpression>();
+            YT_VERIFY(alias);
+            FormatExpression(builder, *alias->Expression, /*expandAliases*/ true);
+            builder->AppendString(" AS ");
+            builder->AppendString(alias->Name);
+        });
 }
 
 void FormatQuery(TStringBuilderBase* builder, const TQuery& query)
