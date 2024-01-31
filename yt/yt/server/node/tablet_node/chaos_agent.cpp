@@ -146,7 +146,7 @@ private:
             Tablet_->RuntimeData()->ReplicationCard.Store(ReplicationCard_);
 
             YT_LOG_DEBUG("Tablet replication card updated (ReplicationCard: %v)",
-                *ReplicationCard_);
+                ToString(*ReplicationCard_, {{Tablet_->GetPivotKey(), Tablet_->GetNextPivotKey()}}));
         } catch (std::exception& ex) {
             YT_LOG_DEBUG(ex, "Failed to update tablet replication card");
         }
