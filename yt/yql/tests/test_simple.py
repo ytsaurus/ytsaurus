@@ -193,9 +193,89 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
         result = query.read_result(0)
         assert_items_equal([{"column0": 85}], result)
 
+    @authors("aleksandr.gaev")
+    def test_zeros_in_settings(self, query_tracker, yql_agent):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 45}]
+        write_table("//tmp/t1", rows)
+
+        query = start_query("yql", "select * from `//tmp/t1`", settings={"random_attribute": 0})
+        query.track()
+        result = query.read_result(0)
+        assert_items_equal([{"a": 45}], result)
+
+
+class TestExecutionModesYql(TestQueriesYqlBase):
+    NUM_TEST_PARTITIONS = 16
+
+    @authors("aleksandr.gaev")
+    def test_validate(self, query_tracker, yql_agent):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 42}, {"a": 43}]
+        write_table("//tmp/t1", rows)
+
+        for mode in ["validate", 0]:
+            query = start_query("yql", "select * from `//tmp/t1`", settings={"execution_mode": mode})
+            query.track()
+            result = query.get()
+            assert result["result_count"] == 0
+            assert result["progress"]["yql_plan"]["Basic"] == {'nodes': [{'id': 1, 'level': 1, 'name': 'Commit! on primary #1', 'type': 'op'}], 'links': []}
+
+    @authors("aleksandr.gaev")
+    def test_optimize(self, query_tracker, yql_agent):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 42}, {"a": 43}]
+        write_table("//tmp/t1", rows)
+
+        for mode in ["optimize", 1]:
+            query = start_query("yql", "select * from `//tmp/t1`", settings={"execution_mode": mode})
+            query.track()
+            result = query.get()
+            assert result["result_count"] == 0
+            assert len(result["progress"]["yql_plan"]["Basic"]["nodes"]) > 2
+
+    @authors("aleksandr.gaev")
+    def test_run(self, query_tracker, yql_agent):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 42}, {"a": 43}]
+        write_table("//tmp/t1", rows)
+
+        for mode in ["run", 2]:
+            query = start_query("yql", "select * from `//tmp/t1`", settings={"execution_mode": mode})
+            query.track()
+            query_info = query.get()
+            assert query_info["result_count"] == 1
+            query_result = query.read_result(0)
+            assert_items_equal(rows, query_result)
+
+    @authors("aleksandr.gaev")
+    def test_unknown_execution_modes(self, query_tracker, yql_agent):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 42}, {"a": 43}]
+        write_table("//tmp/t1", rows)
+
+        for mode in ["Validate", "Optimize", "Run"]:
+            query = start_query("yql", "select * from `//tmp/t1`", settings={"execution_mode": mode})
+            with raises_yt_error('Enum value "' + str(mode) + '" is neither in a proper underscore case nor in a format'):
+                query.track()
+
+        query = start_query("yql", "select * from `//tmp/t1`", settings={"execution_mode": 42})
+        with raises_yt_error('Invalid value 42 of enum type EExecuteMode'):
+            query.track()
+
 
 class TestYqlAgent(TestQueriesYqlBase):
-    NUM_TEST_PARTITIONS = 8
+    NUM_TEST_PARTITIONS = 16
 
     @authors("max42")
     def test_udf(self, query_tracker, yql_agent):

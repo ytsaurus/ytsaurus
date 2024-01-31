@@ -35,10 +35,11 @@ DEFINE_ENUM(EYqlPluginAbiVersion,
     ((Invalid)            (-1))
     ((TheBigBang)          (0))
     ((AbortQuery)          (1)) // gritukan: Added BridgeAbort; no breaking changes.
+    ((ValidateExplain)     (2)) // aleksandr.gaev: Adjusted BridgeRun to accept settings length and execution mode.
 );
 
-constexpr auto MinSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::TheBigBang;
-constexpr auto MaxSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::AbortQuery;
+constexpr auto MinSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::ValidateExplain;
+constexpr auto MaxSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::ValidateExplain;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,24 +51,7 @@ public:
         static const TString DefaultYqlPluginLibraryName = "./libyqlplugin.so";
         auto sharedLibraryPath = yqlPluginSharedLibrary.value_or(DefaultYqlPluginLibraryName);
         Library_.Open(sharedLibraryPath.data());
-        #define XX(function) \
-        { \
-            if constexpr(#function == TStringBuf("BridgeAbort")) { \
-                if (AbiVersion_ < EYqlPluginAbiVersion::AbortQuery) { \
-                    function = reinterpret_cast<TFunc ## function*>(AbortQueryStub); \
-                } else { \
-                    function = reinterpret_cast<TFunc ## function*>(Library_.Sym(#function)); \
-                } \
-            } else if constexpr(#function == TStringBuf("BridgeFreeAbortResult")) { \
-                if (AbiVersion_ < EYqlPluginAbiVersion::AbortQuery) { \
-                    function = reinterpret_cast<TFunc ## function*>(FreeAbortResultStub); \
-                } else { \
-                    function = reinterpret_cast<TFunc ## function*>(Library_.Sym(#function)); \
-                } \
-            } else { \
-                function = reinterpret_cast<TFunc ## function*>(Library_.Sym(#function)); \
-            } \
-        } \
+        #define XX(function) function = reinterpret_cast<TFunc ## function*>(Library_.Sym(#function));
 
         // Firstly we need to get ABI version of the plugin to make it possible to
         // add compats for other functions.
@@ -86,18 +70,6 @@ protected:
     #define XX(function) TFunc ## function* function;
     FOR_EACH_BRIDGE_INTERFACE_FUNCTION(XX)
     #undef XX
-
-    // COMPAT(gritukan): AbortQuery
-    static TBridgeAbortResult* AbortQueryStub(TBridgeYqlPlugin* /*plugin*/, const char* /*queryId*/)
-    {
-        // Just do nothing. It is not worse than in used to be before.
-        return nullptr;
-    }
-
-    static void FreeAbortResultStub(TBridgeAbortResult* /*result*/)
-    {
-        YT_ABORT();
-    }
 
     void GetYqlPluginAbiVersion()
     {
@@ -150,7 +122,8 @@ public:
         TString impersonationUser,
         TString queryText,
         NYson::TYsonString settings,
-        std::vector<TQueryFile> files) noexcept override
+        std::vector<TQueryFile> files,
+        int executeMode) noexcept override
     {
         auto settingsString = settings ? settings.ToString() : "{}";
         auto queryIdStr = ToString(queryId);
@@ -173,8 +146,10 @@ public:
             impersonationUser.data(),
             queryText.data(),
             settingsString.data(),
+            settingsString.length(),
             filesData.data(),
-            filesData.size());
+            filesData.size(),
+            executeMode);
         TQueryResult queryResult{
             .YsonResult = ToString(bridgeQueryResult->YsonResult, bridgeQueryResult->YsonResultLength),
             .Plan = ToString(bridgeQueryResult->Plan, bridgeQueryResult->PlanLength),

@@ -193,7 +193,7 @@ private:
             }
 
             // This is a long blocking call.
-            auto result = YqlPlugin_->Run(queryId, impersonationUser, query, settings, files);
+            auto result = YqlPlugin_->Run(queryId, impersonationUser, query, settings, files, yqlRequest.mode());
             if (result.YsonError) {
                 auto error = ConvertTo<TError>(TYsonString(*result.YsonError));
                 THROW_ERROR error;

@@ -9,6 +9,7 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/yql_client/yql_service_proxy.h>
+#include <yt/yt/ytlib/yql_client/public.h>
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/attributes.h>
@@ -40,6 +41,7 @@ class TYqlSettings
 {
 public:
     std::optional<TString> Stage;
+    EExecuteMode ExecuteMode;
 
     REGISTER_YSON_STRUCT(TYqlSettings);
 
@@ -47,6 +49,8 @@ public:
     {
         registrar.Parameter("stage", &TThis::Stage)
             .Optional();
+        registrar.Parameter("execution_mode", &TThis::ExecuteMode)
+            .Default(EExecuteMode::Run);
     }
 };
 
@@ -73,6 +77,7 @@ public:
         , Connection_(connection)
         , Settings_(ConvertTo<TYqlSettingsPtr>(SettingsNode_))
         , Stage_(Settings_->Stage.value_or(Config_->Stage))
+        , ExecuteMode_(Settings_->ExecuteMode)
         , ProgressGetterExecutor_(New<TPeriodicExecutor>(controlInvoker, BIND(&TYqlQueryHandler::GetProgress, MakeWeak(this)), Config_->QueryProgressGetPeriod))
     { }
 
@@ -95,6 +100,7 @@ public:
         ToProto(req->mutable_query_id(), QueryId_);
         yqlRequest->set_query(Query_);
         yqlRequest->set_settings(ConvertToYsonString(SettingsNode_).ToString());
+        yqlRequest->set_mode(ToProto<int>(ExecuteMode_));
 
         for (const auto& file : Files_) {
             auto* protoFile = yqlRequest->add_files();
@@ -133,6 +139,7 @@ private:
     const NApi::NNative::IConnectionPtr Connection_;
     const TYqlSettingsPtr Settings_;
     const TString Stage_;
+    const EExecuteMode ExecuteMode_;
     const IInvokerPtr ProgressInvoker_;
     IChannelPtr YqlServiceChannel_;
     TPeriodicExecutorPtr ProgressGetterExecutor_;
