@@ -149,7 +149,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppenReplicationLogRows(TTimestamp timestamp, int rowWeight, int rowsCount, std::vector<TFakeRow>* replicationLogRows)
+void AppendReplicationLogRows(
+    TTimestamp timestamp,
+    int rowWeight,
+    int rowsCount,
+    std::vector<TFakeRow>* replicationLogRows)
 {
     for (; rowsCount > 0; --rowsCount) {
         replicationLogRows->emplace_back(timestamp, rowWeight);
@@ -215,9 +219,9 @@ TEST(TReplicationLogBatchReaderTest, TestReadAll)
 
     TLogger logger;
     std::vector<TFakeRow> replicationLogRows;
-    AppenReplicationLogRows(1, 10, 10, &replicationLogRows);
-    AppenReplicationLogRows(2, 10, 10, &replicationLogRows);
-    AppenReplicationLogRows(3, 10, 10, &replicationLogRows);
+    AppendReplicationLogRows(1, 10, 10, &replicationLogRows);
+    AppendReplicationLogRows(2, 10, 10, &replicationLogRows);
+    AppendReplicationLogRows(3, 10, 10, &replicationLogRows);
     TFakeReplicationLogBatchReader reader(mountConfig, TTabletId::Create(), logger, replicationLogRows);
 
     i64 currentRowIndex = 0;
@@ -254,9 +258,9 @@ TEST(TReplicationLogBatchReaderTest, TestReadUntilLimits)
 
     TLogger logger;
     std::vector<TFakeRow> transactions;
-    AppenReplicationLogRows(1, 10, 10, &transactions);
-    AppenReplicationLogRows(2, 10, 10, &transactions);
-    AppenReplicationLogRows(3, 10, 10, &transactions);
+    AppendReplicationLogRows(1, 10, 10, &transactions);
+    AppendReplicationLogRows(2, 10, 10, &transactions);
+    AppendReplicationLogRows(3, 10, 10, &transactions);
     TFakeReplicationLogBatchReader reader(mountConfig, TTabletId::Create(), logger, transactions);
 
     i64 currentRowIndex = 0;
@@ -316,9 +320,9 @@ TEST(TReplicationLogBatchReaderTest, TestReadLargeTransactionBreakingLimits)
 
     TLogger logger;
     std::vector<TFakeRow> transactions;
-    AppenReplicationLogRows(1, 10, 100, &transactions);
-    AppenReplicationLogRows(2, 10, 10, &transactions);
-    AppenReplicationLogRows(3, 10, 10, &transactions);
+    AppendReplicationLogRows(1, 10, 100, &transactions);
+    AppendReplicationLogRows(2, 10, 10, &transactions);
+    AppendReplicationLogRows(3, 10, 10, &transactions);
     TFakeReplicationLogBatchReader reader(mountConfig, TTabletId::Create(), logger, transactions);
 
     i64 currentRowIndex = 0;
