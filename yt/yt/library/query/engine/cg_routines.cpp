@@ -2535,7 +2535,7 @@ using TChunkReplicaList = TCompactVector<TChunkReplica, TypicalReplicaCount>;
 
 TChunkReplicaList UniteReplicas(const TChunkReplicaList& first, const TChunkReplicaList& second)
 {
-    TCompactVector<TChunkReplica, TypicalReplicaCount> result;
+    TChunkReplicaList result;
     result.insert(result.end(), first.begin(), first.end());
     result.insert(result.end(), second.begin(), second.end());
 
@@ -2720,6 +2720,67 @@ void StoredReplicaSetFinalize(
 
     DumpReplicas(&writer, replicasToAdd);
 
+    writer.Flush();
+
+    *result = MakeUnversionedAnyValue(TStringBuf(outputBuffer, output.Buf() - outputBuffer));
+}
+
+void LastSeenReplicaSetMerge(
+    TExpressionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* state1,
+    TUnversionedValue* state2)
+{
+    constexpr int MaxLastSeenReplicas = 16;
+
+    if (state1->Type == EValueType::Null) {
+        *result = *state2;
+        return;
+    }
+
+    TChunkReplicaList lastSeenReplicas;
+    ParseReplicas(state1, &lastSeenReplicas);
+
+    TChunkReplicaList newReplicas;
+    ParseReplicas(state2, &newReplicas);
+    lastSeenReplicas.insert(lastSeenReplicas.end(), newReplicas.begin(), newReplicas.end());
+
+    std::optional<bool> isErasure;
+    for (const auto& replica : lastSeenReplicas) {
+        auto isReplicaErasure = replica.Index < GenericChunkReplicaIndex;
+        if (!isErasure.has_value()) {
+            isErasure = isReplicaErasure;
+        }
+        if (isErasure != isReplicaErasure) {
+            THROW_ERROR_EXCEPTION("Erasure replicas are mixed with non-erasure");
+        }
+    }
+
+    if (isErasure && *isErasure) {
+        TCompactVector<std::optional<TChunkReplica>, GenericChunkReplicaIndex> erasureLastSeenReplicas;
+        erasureLastSeenReplicas.resize(GenericChunkReplicaIndex);
+        for (const auto& replica : lastSeenReplicas) {
+            YT_VERIFY(replica.Index < std::ssize(erasureLastSeenReplicas));
+            erasureLastSeenReplicas[replica.Index] = replica;
+        }
+
+        lastSeenReplicas.clear();
+        for (const auto& replica : erasureLastSeenReplicas) {
+            if (replica.has_value()) {
+                lastSeenReplicas.push_back(*replica);
+            }
+        }
+    } else if (std::ssize(lastSeenReplicas) > MaxLastSeenReplicas) {
+        auto excessReplicaCount = std::ssize(lastSeenReplicas) - MaxLastSeenReplicas;
+        lastSeenReplicas.erase(lastSeenReplicas.begin(), lastSeenReplicas.begin() + excessReplicaCount);
+    }
+
+    auto bufferSize = EstimateReplicasYsonLength(lastSeenReplicas);
+    char* outputBuffer = AllocateBytes(context, bufferSize);
+
+    TMemoryOutput output(outputBuffer, bufferSize);
+    TYsonWriter writer(&output, EYsonFormat::Binary);
+    DumpReplicas(&writer, lastSeenReplicas);
     writer.Flush();
 
     *result = MakeUnversionedAnyValue(TStringBuf(outputBuffer, output.Buf() - outputBuffer));
@@ -3144,6 +3205,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(HyperLogLogEstimateCardinality);
     REGISTER_ROUTINE(StoredReplicaSetMerge);
     REGISTER_ROUTINE(StoredReplicaSetFinalize);
+    REGISTER_ROUTINE(LastSeenReplicaSetMerge);
     REGISTER_ROUTINE(HasPermissions);
     REGISTER_ROUTINE(YsonLength);
     REGISTER_ROUTINE(LikeOpHelper);
