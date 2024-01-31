@@ -76,6 +76,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-all
+  PROPERTY
+  ENVIRONMENT
+)
 resources(unittester-all
   ${CMAKE_BINARY_DIR}/yt/yt/server/all/unittests/8a8382a18083988df754644fce9e5fe3.cpp
   INPUTS

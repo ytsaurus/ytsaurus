@@ -59,6 +59,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-scheduler-simulator
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-scheduler-simulator
   cpp-ytalloc-impl
 )

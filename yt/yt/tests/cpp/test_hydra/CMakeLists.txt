@@ -58,6 +58,12 @@ set_property(
   PROCESSORS
   4
 )
+set_property(
+  TEST
+  cpp-integration-test-hydra
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(cpp-integration-test-hydra
   cpp-ytalloc-impl
 )

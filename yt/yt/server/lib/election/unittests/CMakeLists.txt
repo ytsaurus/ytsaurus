@@ -54,6 +54,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-election
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-election
   cpp-malloc-tcmalloc
   libs-tcmalloc-default

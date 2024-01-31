@@ -56,6 +56,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-library-erasure
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-library-erasure
   cpp-ytalloc-impl
 )

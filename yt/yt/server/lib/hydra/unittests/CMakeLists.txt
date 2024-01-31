@@ -59,6 +59,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-hydra
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-hydra
   cpp-malloc-tcmalloc
   libs-tcmalloc-default

@@ -54,6 +54,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  yt-yt-library-tracing-unittests
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(yt-yt-library-tracing-unittests
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache

@@ -54,6 +54,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-query-agent
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-query-agent
   cpp-malloc-tcmalloc
   libs-tcmalloc-default

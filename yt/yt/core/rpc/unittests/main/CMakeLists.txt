@@ -61,6 +61,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-core-rpc
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-core-rpc
   cpp-ytalloc-impl
 )

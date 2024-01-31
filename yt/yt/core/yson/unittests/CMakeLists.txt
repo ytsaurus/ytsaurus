@@ -140,6 +140,13 @@ set_property(
   PROCESSORS
   4
 )
+set_property(
+  TEST
+  unittester-core-yson
+  PROPERTY
+  ENVIRONMENT
+  ASAN_OPTIONS=detect_leaks=0
+)
 target_allocator(unittester-core-yson
   cpp-ytalloc-impl
 )

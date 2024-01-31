@@ -60,6 +60,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  core-rpc-allocation-tags
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(core-rpc-allocation-tags
   cpp-malloc-tcmalloc
   contrib-libs-tcmalloc

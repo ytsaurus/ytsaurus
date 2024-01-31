@@ -59,6 +59,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-federated-client
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-federated-client
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache

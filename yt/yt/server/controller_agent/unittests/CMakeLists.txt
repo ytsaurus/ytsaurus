@@ -59,6 +59,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-controller-agent
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-controller-agent
   cpp-malloc-tcmalloc
   libs-tcmalloc-default

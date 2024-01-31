@@ -81,6 +81,12 @@ set_property(
   PROCESSORS
   4
 )
+set_property(
+  TEST
+  unittester-core-concurrency
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-core-concurrency
   cpp-ytalloc-impl
 )

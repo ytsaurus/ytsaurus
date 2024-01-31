@@ -55,6 +55,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-library-lsm
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-library-lsm
   cpp-malloc-tcmalloc
   libs-tcmalloc-default

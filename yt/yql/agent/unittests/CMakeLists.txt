@@ -55,6 +55,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-yql-agent
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-yql-agent
   cpp-malloc-tcmalloc
   libs-tcmalloc-default

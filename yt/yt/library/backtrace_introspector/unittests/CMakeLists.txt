@@ -52,6 +52,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  yt-yt-library-backtrace_introspector-unittests
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(yt-yt-library-backtrace_introspector-unittests
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache

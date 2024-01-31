@@ -63,6 +63,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  yt-yt-client-hedging-unittests
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(yt-yt-client-hedging-unittests
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache

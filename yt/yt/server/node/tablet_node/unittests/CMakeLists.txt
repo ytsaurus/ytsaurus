@@ -86,6 +86,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-tablet-node
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-tablet-node
   cpp-malloc-tcmalloc
   libs-tcmalloc-default

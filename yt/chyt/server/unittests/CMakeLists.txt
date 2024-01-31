@@ -60,6 +60,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-clickhouse-server
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-clickhouse-server
   cpp-ytalloc-impl
 )

@@ -62,6 +62,12 @@ set_property(
   PROCESSORS
   4
 )
+set_property(
+  TEST
+  cpp-integration-test-native-api
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(cpp-integration-test-native-api
   cpp-ytalloc-impl
 )

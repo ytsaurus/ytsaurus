@@ -67,6 +67,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  yt-yt-library-profiling-unittests
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(yt-yt-library-profiling-unittests
   cpp-malloc-tcmalloc
   contrib-libs-tcmalloc

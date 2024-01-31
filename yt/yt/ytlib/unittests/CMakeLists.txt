@@ -82,6 +82,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-ytlib
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-ytlib
   cpp-ytalloc-impl
 )

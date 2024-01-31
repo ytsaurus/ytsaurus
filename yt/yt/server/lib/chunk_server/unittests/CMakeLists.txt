@@ -56,6 +56,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-server-lib-chunk-server
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-server-lib-chunk-server
   cpp-malloc-tcmalloc
   libs-tcmalloc-default

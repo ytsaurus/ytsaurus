@@ -53,6 +53,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  yt-yt-library-undumpable-unittests
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(yt-yt-library-undumpable-unittests
   cpp-malloc-tcmalloc
   contrib-libs-tcmalloc

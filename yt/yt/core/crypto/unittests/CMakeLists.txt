@@ -57,6 +57,12 @@ set_property(
   PROCESSORS
   4
 )
+set_property(
+  TEST
+  unittester-core-crypto
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-core-crypto
   cpp-ytalloc-impl
 )

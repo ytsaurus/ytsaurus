@@ -56,6 +56,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-tablet-balancer-lib
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-tablet-balancer-lib
   cpp-ytalloc-impl
 )

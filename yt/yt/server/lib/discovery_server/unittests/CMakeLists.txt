@@ -59,6 +59,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-discovery-server
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-discovery-server
   cpp-malloc-tcmalloc
   libs-tcmalloc-default

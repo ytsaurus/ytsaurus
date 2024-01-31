@@ -63,6 +63,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-web-assembly
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-web-assembly
   cpp-malloc-tcmalloc
   libs-tcmalloc-default

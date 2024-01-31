@@ -137,6 +137,12 @@ set_property(
   PROCESSORS
   4
 )
+set_property(
+  TEST
+  unittester-core-misc
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-core-misc
   cpp-ytalloc-impl
 )

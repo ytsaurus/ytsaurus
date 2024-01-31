@@ -55,6 +55,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-core-tracing
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-core-tracing
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache

@@ -85,6 +85,12 @@ set_yunittest_property(
   PROCESSORS
   1
 )
+set_yunittest_property(
+  TEST
+  library-cpp-type_info-ut
+  PROPERTY
+  ENVIRONMENT
+)
 resources(library-cpp-type_info-ut
   ${CMAKE_BINARY_DIR}/library/cpp/type_info/ut/5e5361e0329be49ce689f46dafdeeab6.cpp
   INPUTS

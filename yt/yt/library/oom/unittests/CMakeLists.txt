@@ -54,6 +54,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  yt-yt-library-oom-unittests
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(yt-yt-library-oom-unittests
   cpp-malloc-tcmalloc
   libs-tcmalloc-default

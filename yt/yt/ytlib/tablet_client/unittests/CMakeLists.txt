@@ -57,6 +57,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-ytlib-tablet-client
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-ytlib-tablet-client
   cpp-malloc-tcmalloc
   libs-tcmalloc-default

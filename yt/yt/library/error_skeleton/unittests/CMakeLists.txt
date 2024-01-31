@@ -55,6 +55,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-library-error-skeleton
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-library-error-skeleton
   cpp-ytalloc-impl
 )

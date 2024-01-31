@@ -55,6 +55,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-ytlib-memory-trackers
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-ytlib-memory-trackers
   cpp-ytalloc-impl
 )

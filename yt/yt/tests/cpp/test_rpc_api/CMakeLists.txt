@@ -62,6 +62,13 @@ set_property(
   PROCESSORS
   4
 )
+set_property(
+  TEST
+  cpp-integration-test-rpc-api
+  PROPERTY
+  ENVIRONMENT
+  USE_YT_RECIPE_BUILT_FROM_SOURCE=yes
+)
 target_allocator(cpp-integration-test-rpc-api
   cpp-ytalloc-impl
 )

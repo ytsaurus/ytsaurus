@@ -55,6 +55,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-fair-share-update
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-fair-share-update
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache

@@ -58,6 +58,12 @@ set_property(
   PROCESSORS
   4
 )
+set_property(
+  TEST
+  cpp-integration-test-cypress-election
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(cpp-integration-test-cypress-election
   cpp-ytalloc-impl
 )

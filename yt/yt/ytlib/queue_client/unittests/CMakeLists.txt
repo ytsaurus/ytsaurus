@@ -55,6 +55,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-queue-client
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-queue-client
   cpp-malloc-tcmalloc
   libs-tcmalloc-default

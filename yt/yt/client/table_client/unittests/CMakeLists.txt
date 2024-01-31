@@ -61,6 +61,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-client-table-client
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-client-table-client
   cpp-ytalloc-impl
 )

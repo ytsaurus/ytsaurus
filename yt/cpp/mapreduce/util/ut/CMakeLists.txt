@@ -67,6 +67,12 @@ set_yunittest_property(
   PROCESSORS
   1
 )
+set_yunittest_property(
+  TEST
+  yt-cpp-mapreduce-util-ut
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(yt-cpp-mapreduce-util-ut
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache

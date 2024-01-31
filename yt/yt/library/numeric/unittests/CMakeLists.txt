@@ -59,6 +59,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-library-numeric
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-library-numeric
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache

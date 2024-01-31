@@ -90,6 +90,12 @@ set_property(
   PROCESSORS
   4
 )
+set_property(
+  TEST
+  unittester-core-ytree
+  PROPERTY
+  ENVIRONMENT
+)
 generate_enum_serilization(unittester-core-ytree
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/serialize_ut.h
   INCLUDE_HEADERS

@@ -58,6 +58,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-yt-systest
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-yt-systest
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache

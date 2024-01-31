@@ -57,6 +57,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-library-auth
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-library-auth
   cpp-ytalloc-impl
 )

@@ -59,6 +59,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-library-clickhouse-discovery
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-library-clickhouse-discovery
   cpp-ytalloc-impl
 )

@@ -55,6 +55,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-library-decimal
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-library-decimal
   cpp-ytalloc-impl
 )

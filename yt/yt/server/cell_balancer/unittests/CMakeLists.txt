@@ -54,6 +54,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  cell-balancer-unittests
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(cell-balancer-unittests
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache

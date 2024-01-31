@@ -59,6 +59,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-core-http
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-core-http
   cpp-ytalloc-impl
 )

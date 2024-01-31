@@ -56,6 +56,12 @@ set_property(
   PROCESSORS
   4
 )
+set_property(
+  TEST
+  unittester-core-logging
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-core-logging
   cpp-ytalloc-impl
 )

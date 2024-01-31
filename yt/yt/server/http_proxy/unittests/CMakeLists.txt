@@ -58,6 +58,12 @@ set_property(
   PROCESSORS
   1
 )
+set_property(
+  TEST
+  unittester-http-proxy
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-http-proxy
   cpp-malloc-tcmalloc
   libs-tcmalloc-default

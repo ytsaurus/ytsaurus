@@ -56,6 +56,12 @@ set_property(
   PROCESSORS
   4
 )
+set_property(
+  TEST
+  unittester-core-json
+  PROPERTY
+  ENVIRONMENT
+)
 target_allocator(unittester-core-json
   cpp-ytalloc-impl
 )
