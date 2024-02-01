@@ -51,10 +51,13 @@ DEPENDS(
     yt/yt/tools/yt_sudo_fixup
 )
 
-DATA(
-    sbr://5443303555 # Layers.
-    sbr://1703335903 # Rootfs.
-)
+IF (NOT OPENSOURCE)
+    # Containers images for porto tests.
+    DATA(
+        sbr://5443303555 # Layers.
+        sbr://1703335903 # Rootfs.
+    )
+ENDIF()
 
 PY_NAMESPACE(.)
 
