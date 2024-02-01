@@ -913,6 +913,8 @@ TEST_F(TClearTmpTestBase, FordiddenFormat_YT_20098)
 
     WaitFor(Client_->SetNode("//sys/rpc_proxies/@config", ConvertToYsonString(formatsConf))).ThrowOnError();
 
+    Sleep(TDuration::Seconds(0.5));
+
     TRichYPath tablePath("//tmp/forbidden_format");
     TCreateNodeOptions options;
     options.Attributes = NYTree::CreateEphemeralAttributes();
