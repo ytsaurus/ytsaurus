@@ -1203,13 +1203,6 @@ private:
         }
     }
 
-    void SaveJobFiles(TOperationId operationId, const std::vector<TJobFile>& files)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        NControllerAgent::SaveJobFiles(Bootstrap_->GetClient(), operationId, files);
-    }
-
     void BuildSnapshot()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);

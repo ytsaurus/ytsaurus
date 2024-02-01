@@ -807,13 +807,7 @@ private:
     {
         std::vector<TChunkId> result;
 
-        TTransactionId transactionId;
-        if (UserJobSpec_.has_input_transaction_id()) {
-            transactionId = FromProto<TTransactionId>(UserJobSpec_.input_transaction_id());
-        } else {
-            // COMPAT(ignat): remove after CA update.
-            transactionId = FromProto<TTransactionId>(UserJobSpec_.debug_transaction_id());
-        }
+        auto transactionId = FromProto<TTransactionId>(UserJobSpec_.input_transaction_id());
         for (int index = 0; index < std::ssize(contexts); ++index) {
             // NB. We use empty data sink here, so the details like object path and account are not present in IO tags.
             // That's because this code is legacy anyway and not worth covering with IO tags.
