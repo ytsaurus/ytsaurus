@@ -101,7 +101,6 @@ protected:
         auto client = connection->CreateNativeClient(clientOptions);
 
         for (const auto& [deviceId, deviceConfig] : config->DynamicTableBlockDevices) {
-            // CreateCypressFileBlockDevice(exportId, exportConfig, client, threadPool->GetInvoker(), nbdServer->GetLogger());
             auto device = CreateDynamicTableBlockDevice(deviceId, deviceConfig, client, nbdServer->GetLogger());
             NConcurrency::WaitFor(device->Initialize()).ThrowOnError();
             nbdServer->RegisterDevice(deviceId, std::move(device));
