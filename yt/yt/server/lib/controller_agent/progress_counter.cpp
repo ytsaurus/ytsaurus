@@ -300,14 +300,14 @@ void Serialize(const TProgressCounterPtr& counter, IYsonConsumer* consumer)
                 .Item("total").Value(counter->GetAbortedTotal())
                 .Item("non_scheduled").BeginMap()
                     .DoFor(TEnumTraits<EAbortReason>::GetDomainValues(), [&] (TFluentMap fluent, EAbortReason reason) {
-                        if (IsJobAbsenceGuaranteed(reason)) {
+                        if (WasAbortedAfterStart(reason)) {
                             fluent.Item(FormatEnum(reason)).Value(counter->GetAborted(reason));
                         }
                     })
                 .EndMap()
                 .Item("scheduled").BeginMap()
                     .DoFor(TEnumTraits<EAbortReason>::GetDomainValues(), [&] (TFluentMap fluent, EAbortReason reason) {
-                        if (!IsJobAbsenceGuaranteed(reason)) {
+                        if (!WasAbortedAfterStart(reason)) {
                             fluent.Item(FormatEnum(reason)).Value(counter->GetAborted(reason));
                         }
                     })

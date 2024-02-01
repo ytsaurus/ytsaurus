@@ -306,7 +306,7 @@ void ValidateEnvironmentVariableName(TStringBuf name)
     }
 }
 
-bool IsJobAbsenceGuaranteed(EAbortReason reason)
+bool WasAbortedAfterStart(EAbortReason reason)
 {
     return NScheduler::IsSchedulingReason(reason) || reason == EAbortReason::GetSpecFailed;
 }

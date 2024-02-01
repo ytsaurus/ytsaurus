@@ -43,7 +43,7 @@ bool IsOperationWithUserJobs(EOperationType operationType);
 
 void ValidateEnvironmentVariableName(TStringBuf name);
 
-bool IsJobAbsenceGuaranteed(EAbortReason reason);
+bool WasAbortedAfterStart(EAbortReason reason);
 
 bool IsFinishedState(EControllerState state);
 

@@ -3483,6 +3483,7 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
 
     TJobFinishedResult taskJobResult;
     std::vector<TChunkId> failedChunkIds;
+    bool wasScheduled = jobSummary->Scheduled;
 
     {
         // NB: We want to process finished job changes atomically.
@@ -3496,7 +3497,7 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
             joblet->Task->UpdateMemoryDigests(joblet, /*resourceOverdraft*/ true);
         }
 
-        if (jobSummary->Scheduled) {
+        if (wasScheduled) {
             if (joblet->ShouldLogFinishedEvent()) {
                 auto fluent = LogFinishedJobFluently(ELogEventType::JobAborted, joblet)
                     .Item("reason").Value(abortReason);
@@ -3536,7 +3537,10 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
     }
 
     // This failure case has highest priority for users. Therefore check must be performed as early as possible.
-    if (Spec_->FailOnJobRestart && !IsJobAbsenceGuaranteed(abortReason))
+    if (Spec_->FailOnJobRestart &&
+        wasScheduled &&
+        joblet->IsStarted() &&
+        abortReason != EAbortReason::GetSpecFailed)
     {
         OnJobUniquenessViolated(TError(
             NScheduler::EErrorCode::OperationFailedOnJobRestart,
