@@ -48,12 +48,14 @@ DEFINE_ENUM(ETabletReign,
     ((RegisterTxActionsShouldPersistTx)            (100804)) // ifsmirnov
     ((PersistLastExclusiveLockTimestamp)           (100805)) // ponasenko-rs
     ((ValueDictionaryCompression_23_2)             (100806)) // akozhikhov
+    ((HunkValueDictionaryCompression_23_2)         (100807)) // akozhikhov
     // 23.3 starts here.
     ((NoMountRevisionCheckInBulkInsert)            (100900)) // ifsmirnov
     ((SharedWriteLocks)                            (100901)) // ponasenko-rs
     ((TabletPrerequisites)                         (100902)) // gritukan
     ((ValueDictionaryCompression)                  (100903)) // akozhikhov
     ((SaneTxActionAbort)                           (100904)) // kvk1920
+    ((HunkValueDictionaryCompression)              (100905)) // akozhikhov
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");

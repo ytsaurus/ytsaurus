@@ -197,6 +197,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixChunkMergerCopy)                                           (2457))  // aleksandra-zh
     ((ChaosReplicatedConsumersFix)                                  (2458))  // cherepashka
     ((FixListNodeDeprecation_23_2)                                  (2459))  // kvk1920
+    ((ValueDictionaryCompression_23_2)                              (2460))  // akozhikhov
     // 24.1 starts here.
     ((SecondaryIndex)                                               (2500))  // sabdenovch
     ((SecondaryIndexReplication)                                    (2501))  // sabdenovch
@@ -225,6 +226,7 @@ DEFINE_ENUM(EMasterReign,
     ((IncreasedMaxKeyColumnInDynamicTable)                          (2524))  // sabdenovch
     ((EnableRealChunkLocationsByDefault)                            (2525))  // kvk1920
     ((SaneTxActionAbort)                                            (2526))  // kvk1920
+    ((ValueDictionaryCompression)                                   (2527))  // akozhikhov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
