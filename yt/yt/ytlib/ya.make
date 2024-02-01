@@ -48,6 +48,7 @@ SRCS(
     api/native/journal_writer.cpp
     api/native/list_operations.cpp
     api/native/partition_tables.cpp
+    api/native/pipeline_type_handler.cpp
     api/native/replicated_table_replica_type_handler.cpp
     api/native/replication_card_collocation_type_handler.cpp
     api/native/replication_card_type_handler.cpp
@@ -583,6 +584,7 @@ PEERDIR(
     yt/yt/ytlib/query_tracker_client
     yt/yt_proto/yt/client
     yt/yt/flow/lib/client
+    yt/yt/flow/lib/native_client
 )
 
 END()

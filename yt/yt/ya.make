@@ -12,6 +12,7 @@ RECURSE(
 
 IF (NOT OPENSOURCE)
     RECURSE(
+        flow
         fuzz
         orm
         packages/tests_package

@@ -6,5 +6,15 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(client)
-add_subdirectory(native_client)
+
+add_library(flow-lib-native_client)
+target_link_libraries(flow-lib-native_client PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  flow-lib-client
+  yt-yt-client
+)
+target_sources(flow-lib-native_client PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/flow/lib/native_client/pipeline_init.cpp
+)

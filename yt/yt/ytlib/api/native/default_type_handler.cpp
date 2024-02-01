@@ -25,12 +25,10 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDefaultTypeHandler
-    : public TNullTypeHandler
+    : public TTypeHandlerBase
 {
 public:
-    explicit TDefaultTypeHandler(TClient* client)
-        : Client_(client)
-    { }
+    using TTypeHandlerBase::TTypeHandlerBase;
 
     std::optional<TObjectId> CreateObject(
         EObjectType type,
@@ -172,9 +170,6 @@ public:
 
         return std::monostate();
     }
-
-private:
-    TClient* const Client_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

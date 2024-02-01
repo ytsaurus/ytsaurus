@@ -27,12 +27,10 @@ using namespace NTabletClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChaosReplicatedTableTypeHandler
-    : public TNullTypeHandler
+    : public TTypeHandlerBase
 {
 public:
-    explicit TChaosReplicatedTableTypeHandler(TClient* client)
-        : Client_(client)
-    { }
+    using TTypeHandlerBase::TTypeHandlerBase;
 
     std::optional<TObjectId> CreateNode(
         EObjectType type,
@@ -85,9 +83,6 @@ public:
     }
 
 private:
-    TClient* const Client_;
-
-
     ITransactionPtr StartTransaction(const TYPath& path)
     {
         TTransactionStartOptions options;

@@ -19,14 +19,20 @@ using namespace NCypressClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<TObjectId> TNullTypeHandler::CreateObject(
+TTypeHandlerBase::TTypeHandlerBase(TClient* client)
+    : Client_(client)
+{
+    Y_UNUSED(Client_);
+}
+
+std::optional<TObjectId> TTypeHandlerBase::CreateObject(
     EObjectType /*type*/,
     const TCreateObjectOptions& /*options*/)
 {
     return {};
 }
 
-std::optional<TNodeId> TNullTypeHandler::CreateNode(
+std::optional<TNodeId> TTypeHandlerBase::CreateNode(
     EObjectType /*type*/,
     const TYPath& /*path*/,
     const TCreateNodeOptions& /*options*/)
@@ -34,35 +40,35 @@ std::optional<TNodeId> TNullTypeHandler::CreateNode(
     return {};
 }
 
-std::optional<TYsonString> TNullTypeHandler::GetNode(
+std::optional<TYsonString> TTypeHandlerBase::GetNode(
     const TYPath& /*path*/,
     const TGetNodeOptions& /*options*/)
 {
     return {};
 }
 
-std::optional<TYsonString> TNullTypeHandler::ListNode(
+std::optional<TYsonString> TTypeHandlerBase::ListNode(
     const TYPath& /*path*/,
     const TListNodeOptions& /*options*/)
 {
     return {};
 }
 
-std::optional<bool> TNullTypeHandler::NodeExists(
+std::optional<bool> TTypeHandlerBase::NodeExists(
     const TYPath& /*path*/,
     const TNodeExistsOptions& /*options*/)
 {
     return {};
 }
 
-std::optional<std::monostate> TNullTypeHandler::RemoveNode(
+std::optional<std::monostate> TTypeHandlerBase::RemoveNode(
     const TYPath& /*path*/,
     const TRemoveNodeOptions& /*options*/)
 {
     return {};
 }
 
-std::optional<std::monostate> TNullTypeHandler::AlterTableReplica(
+std::optional<std::monostate> TTypeHandlerBase::AlterTableReplica(
     TTableReplicaId /*replicaId*/,
     const TAlterTableReplicaOptions& /*options*/)
 {

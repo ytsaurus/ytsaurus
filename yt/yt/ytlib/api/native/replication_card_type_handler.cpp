@@ -26,14 +26,9 @@ class TReplicationCardTypeHandler
     : public TVirtualTypeHandler
 {
 public:
-    explicit TReplicationCardTypeHandler(TClient* client)
-        : Client_(client)
-    { }
+    using TVirtualTypeHandler::TVirtualTypeHandler;
 
 private:
-    TClient* const Client_;
-
-
     EObjectType GetSupportedObjectType() override
     {
         return EObjectType::ReplicationCard;

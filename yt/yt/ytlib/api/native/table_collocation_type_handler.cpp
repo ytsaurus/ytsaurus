@@ -19,12 +19,10 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableCollocationTypeHandler
-    : public TNullTypeHandler
+    : public TTypeHandlerBase
 {
 public:
-    explicit TTableCollocationTypeHandler(TClient* client)
-        : Client_(client)
-    { }
+    using TTypeHandlerBase::TTypeHandlerBase;
 
     std::optional<TObjectId> CreateObject(
         EObjectType type,
@@ -68,9 +66,6 @@ public:
             *attributes,
             options);
     }
-
-private:
-    TClient* const Client_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

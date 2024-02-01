@@ -947,6 +947,7 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   yt-ytlib-query_tracker_client
   yt_proto-yt-client
   flow-lib-client
+  flow-lib-native_client
 )
 target_proto_messages(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/admin/proto/admin_service.proto
@@ -1147,6 +1148,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/journal_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/list_operations.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/partition_tables.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/pipeline_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/replicated_table_replica_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/replication_card_collocation_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/replication_card_type_handler.cpp
@@ -1716,6 +1718,7 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   yt-ytlib-query_tracker_client
   yt_proto-yt-client
   flow-lib-client
+  flow-lib-native_client
 )
 target_sources(yt-yt-ytlib.global PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_meta_extensions.cpp

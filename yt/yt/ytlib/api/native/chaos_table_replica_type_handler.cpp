@@ -27,9 +27,7 @@ class TChaosTableReplicaTypeHandler
     : public TVirtualTypeHandler
 {
 public:
-    explicit TChaosTableReplicaTypeHandler(TClient* client)
-        : Client_(client)
-    { }
+    using TVirtualTypeHandler::TVirtualTypeHandler;
 
     std::optional<std::monostate> AlterTableReplica(
         TTableReplicaId replicaId,
@@ -72,9 +70,6 @@ public:
     }
 
 private:
-    TClient* const Client_;
-
-
     EObjectType GetSupportedObjectType() override
     {
         return EObjectType::ChaosTableReplica;

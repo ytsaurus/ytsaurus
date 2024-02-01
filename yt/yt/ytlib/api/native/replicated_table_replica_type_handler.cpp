@@ -25,12 +25,10 @@ using namespace NTabletClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReplicatedTableReplicaTypeHandler
-    : public TNullTypeHandler
+    : public TTypeHandlerBase
 {
 public:
-    explicit TReplicatedTableReplicaTypeHandler(TClient* client)
-        : Client_(client)
-    { }
+    using TTypeHandlerBase::TTypeHandlerBase;
 
     virtual std::optional<TObjectId> CreateObject(
         EObjectType type,
@@ -146,9 +144,6 @@ public:
     }
 
 private:
-    TClient* const Client_;
-
-
     void MaybeValidatePermission(const TYPath& path, EPermission permission)
     {
         TObjectId objectId;

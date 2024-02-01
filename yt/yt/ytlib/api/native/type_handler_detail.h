@@ -6,10 +6,12 @@ namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNullTypeHandler
+class TTypeHandlerBase
     : public ITypeHandler
 {
 public:
+    explicit TTypeHandlerBase(TClient* client);
+
     std::optional<NObjectClient::TObjectId> CreateObject(
         NObjectClient::EObjectType type,
         const TCreateObjectOptions& options) override;
@@ -32,14 +34,19 @@ public:
     std::optional<std::monostate> AlterTableReplica(
         NTabletClient::TTableReplicaId replicaId,
         const TAlterTableReplicaOptions& options) override;
+
+protected:
+    TClient* const Client_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVirtualTypeHandler
-    : public TNullTypeHandler
+    : public TTypeHandlerBase
 {
 public:
+    using TTypeHandlerBase::TTypeHandlerBase;
+
     std::optional<NObjectClient::TObjectId> CreateObject(
         NObjectClient::EObjectType type,
         const TCreateObjectOptions& options) override;

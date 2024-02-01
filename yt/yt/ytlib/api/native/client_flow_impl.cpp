@@ -38,18 +38,17 @@ TString TClient::DiscoverPipelineControllerLeader(const TYPath& pipelinePath)
     auto node = ConvertToNode(str);
     const auto& attributes = node->Attributes();
 
-    // TODO(babenko): uncomment after refactoring pipeline creation
-    // if (!attributes.Contains(PipelineFormatVersionAttribute)) {
-    //     THROW_ERROR_EXCEPTION("%v is not a Flow pipeline store; missing attribute %Qv",
-    //         pipelinePath,
-    //         PipelineFormatVersionAttribute);
-    // }
+    if (!attributes.Contains(PipelineFormatVersionAttribute)) {
+        THROW_ERROR_EXCEPTION("%v is not a valid pipeline; missing attribute %Qv",
+            pipelinePath,
+            PipelineFormatVersionAttribute);
+    }
 
-    // if (auto version = attributes.Get<int>(PipelineFormatVersionAttribute); version != CurrentPipelineFormatVersion) {
-    //     THROW_ERROR_EXCEPTION("Invalid pipeline store version: expected %v, got %v",
-    //         CurrentPipelineFormatVersion,
-    //         version);
-    // }
+    if (auto version = attributes.Get<int>(PipelineFormatVersionAttribute); version != CurrentPipelineFormatVersion) {
+        THROW_ERROR_EXCEPTION("Invalid pipeline format version: expected %v, got %v",
+            CurrentPipelineFormatVersion,
+            version);
+    }
 
     auto address = attributes.Get<TString>(LeaderControllerAddressAttribute);
 
