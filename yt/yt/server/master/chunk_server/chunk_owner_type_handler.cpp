@@ -656,9 +656,11 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoEndCopy(
     trunkNode->SetEnableSkynetSharing(Load<bool>(*context));
     trunkNode->SetChunkMergerMode(Load<EChunkMergerMode>(*context));
 
-    if (trunkNode->GetChunkMergerMode() != EChunkMergerMode::None) {
-        const auto& chunkManager = TBase::GetBootstrap()->GetChunkManager();
-        chunkManager->ScheduleChunkMerge(trunkNode);
+    if (!trunkNode->IsExternal()) {
+        if (trunkNode->GetChunkMergerMode() != EChunkMergerMode::None) {
+            const auto& chunkManager = TBase::GetBootstrap()->GetChunkManager();
+            chunkManager->ScheduleChunkMerge(trunkNode);
+        }
     }
 }
 
