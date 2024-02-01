@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE
 from yt_commands import (
     alter_table, authors, wait, create, ls, get, set, remove, exists,
     insert_rows, delete_rows,
-    write_table, map, merge, vanilla, remote_copy, get_table_columnar_statistics,
+    write_table, map, merge, sort, vanilla, remote_copy, get_table_columnar_statistics,
     sync_create_cells, sync_mount_table, sync_flush_table, sync_compact_table,
     raises_yt_error)
 
@@ -772,6 +772,38 @@ class TestColumnarStatisticsOperations(_TestColumnarStatisticsBase):
             assert get_requests_stats() != requests_by_node
         else:
             assert get_requests_stats() == requests_by_node
+
+    @authors("dakovalkov")
+    def test_heavy_column_statistics_op_output(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/t", [{"a": 1}])
+        self._expect_data_weight_statistics(None, None, "a", [8], fetcher_mode="from_master")
+
+        op = map(
+            in_="//tmp/t",
+            out="//tmp/t",
+            command="echo '{a=2}'",
+        )
+        op.track()
+        self._expect_data_weight_statistics(None, None, "a", [8], fetcher_mode="from_master")
+
+        op = merge(
+            in_="//tmp/t",
+            out="//tmp/t",
+            spec={
+                "force_transform": True,
+            },
+        )
+        op.track()
+        self._expect_data_weight_statistics(None, None, "a", [8], fetcher_mode="from_master")
+
+        op = sort(
+            in_="//tmp/t",
+            out="//tmp/t",
+            sort_by=["a"],
+        )
+        op.track()
+        self._expect_data_weight_statistics(None, None, "a", [8], fetcher_mode="from_master")
 
 
 ##################################################################

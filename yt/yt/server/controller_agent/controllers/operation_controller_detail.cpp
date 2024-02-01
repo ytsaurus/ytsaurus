@@ -6788,6 +6788,18 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
 
         YT_LOG_DEBUG("Finished fetching output tables schema from native cell");
 
+        YT_LOG_DEBUG("Fetching max heavy columns from master");
+
+        TGetNodeOptions options;
+        options.ReadFrom = EMasterChannelKind::Cache;
+
+        auto maxHeavyColumnsRspOrError = WaitFor(OutputClient->GetNode("//sys/@config/chunk_manager/max_heavy_columns", options));
+        THROW_ERROR_EXCEPTION_IF_FAILED(maxHeavyColumnsRspOrError, "Failed to get max heavy columns from master");
+
+        auto maxHeavyColumns = ConvertTo<int>(maxHeavyColumnsRspOrError.Value());
+
+        YT_LOG_DEBUG("Finished fetching max heavy columns (MaxHeavyColumns: %v)", maxHeavyColumns);
+
         for (const auto& [table, attributes] : tableAttributes) {
             const auto& path = table->GetPath();
 
@@ -6870,6 +6882,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             table->TableWriterOptions->OptimizeFor = table->TableUploadOptions.OptimizeFor;
             table->TableWriterOptions->ChunkFormat = table->TableUploadOptions.ChunkFormat;
             table->TableWriterOptions->EnableSkynetSharing = attributes->Get<bool>("enable_skynet_sharing", false);
+            table->TableWriterOptions->MaxHeavyColumns = maxHeavyColumns;
 
             // Workaround for YT-5827.
             if (table->TableUploadOptions.TableSchema->Columns().empty() &&
