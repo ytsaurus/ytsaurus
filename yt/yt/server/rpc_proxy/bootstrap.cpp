@@ -41,6 +41,9 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
+#include <yt/yt/ytlib/misc/memory_reference_tracker.h>
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/yt/ytlib/program/helpers.h>
 
 #include <yt/yt/library/auth_server/authentication_manager.h>
@@ -137,10 +140,24 @@ void TBootstrap::DoRun()
     YT_LOG_INFO("Starting proxy (LocalAddresses: %v)",
         GetValues(LocalAddresses_));
 
+    MemoryUsageTracker_ = CreateNodeMemoryTracker(
+        *Config_->MemoryLimits->Total,
+        /*limits*/ {},
+        Logger,
+        RpcProxyProfiler.WithPrefix("/memory_usage"));
+
+    ReconfigureMemoryLimits(Config_->MemoryLimits);
+
+    MemoryReferenceTracker_ = CreateNodeMemoryReferenceTracker(MemoryUsageTracker_);
+
     NApi::NNative::TConnectionOptions connectionOptions;
     connectionOptions.ConnectionInvoker = GetWorkerInvoker();
     connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
-    Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, std::move(connectionOptions));
+    Connection_ = NApi::NNative::CreateConnection(
+        Config_->ClusterConnection,
+        std::move(connectionOptions),
+        {},
+        MemoryUsageTracker_);
 
     Connection_->GetClusterDirectorySynchronizer()->Start();
     Connection_->GetNodeDirectorySynchronizer()->Start();
@@ -261,7 +278,9 @@ void TBootstrap::DoRun()
             securityManager,
             TraceSampler_,
             RpcProxyLogger,
-            RpcProxyProfiler);
+            RpcProxyProfiler,
+            MemoryUsageTracker_,
+            MemoryReferenceTracker_);
     };
 
     ApiService_ = createApiService(AuthenticationManager_);
@@ -361,6 +380,26 @@ void TBootstrap::DoRun()
         Config_->HeapProfiler);
 }
 
+void TBootstrap::ReconfigureMemoryLimits(const TProxyMemoryLimitsPtr& memoryLimits)
+{
+    if (memoryLimits->Total) {
+        MemoryUsageTracker_->SetTotalLimit(*memoryLimits->Total);
+    }
+
+    const auto& staticLimits = Config_->MemoryLimits;
+    auto totalLimit = MemoryUsageTracker_->GetTotalLimit();
+
+    MemoryUsageTracker_->SetCategoryLimit(
+        EMemoryCategory::Lookup,
+        memoryLimits->Lookup.value_or(staticLimits->Lookup.value_or(totalLimit)));
+    MemoryUsageTracker_->SetCategoryLimit(
+        EMemoryCategory::Query,
+        memoryLimits->Query.value_or(staticLimits->Query.value_or(totalLimit)));
+    MemoryUsageTracker_->SetCategoryLimit(
+        EMemoryCategory::Rpc,
+        memoryLimits->Rpc.value_or(staticLimits->Rpc.value_or(totalLimit)));
+}
+
 void TBootstrap::OnDynamicConfigChanged(
     const TProxyDynamicConfigPtr& /*oldConfig*/,
     const TProxyDynamicConfigPtr& newConfig)
@@ -376,6 +415,8 @@ void TBootstrap::OnDynamicConfigChanged(
     RpcServer_->OnDynamicConfigChanged(newConfig->RpcServer);
 
     DiskManagerProxy_->OnDynamicConfigChanged(newConfig->DiskManagerProxy);
+
+    ReconfigureMemoryLimits(newConfig->MemoryLimits);
 }
 
 const IInvokerPtr& TBootstrap::GetWorkerInvoker() const

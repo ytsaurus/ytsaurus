@@ -15,15 +15,16 @@ namespace NYT {
 struct INodeMemoryReferenceTracker
     : public TRefCounted
 {
-    //! Retrurs specialized tracker for specified category.
-    virtual const IMemoryReferenceTrackerPtr& WithCategory(EMemoryCategory category = EMemoryCategory::Unknown) = 0;
+    //! Returns specialized tracker for specified category.
+    virtual const IMemoryReferenceTrackerPtr& WithCategory(
+        EMemoryCategory category = EMemoryCategory::Unknown) = 0;
 
     virtual void Reconfigure(TNodeMemoryReferenceTrackerConfigPtr config) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INodeMemoryReferenceTracker)
 
-////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
 
 class TDelayedReferenceHolder
     : public TSharedRangeHolder
@@ -63,6 +64,12 @@ TSharedRefArray TrackMemory(
     TSharedRefArray array,
     bool keepExistingTracking = false);
 
-////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
+
+IMemoryReferenceTrackerPtr WithCategory(
+    const INodeMemoryReferenceTrackerPtr& tracker,
+    EMemoryCategory category);
+
+/////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

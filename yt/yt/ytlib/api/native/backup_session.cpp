@@ -962,7 +962,8 @@ TClusterBackupSession* TBackupSession::CreateClusterSession(
         /*syncOnFailure*/ true);
     auto remoteClient = New<TClient>(
         std::move(remoteConnection),
-        Client_->GetOptions());
+        Client_->GetOptions(),
+        /*memoryTracker*/ nullptr);
 
     auto holder = std::make_unique<TClusterBackupSession>(
         clusterName,

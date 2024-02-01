@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/ytlib/misc/public.h>
+
 #include <yt/yt/library/profiling/public.h>
 
 #include <yt/yt/library/tracing/jaeger/public.h>
@@ -43,6 +45,8 @@ IApiServicePtr CreateApiService(
     NTracing::TSamplerPtr traceSampler,
     NLogging::TLogger logger,
     NProfiling::TProfiler profiler,
+    INodeMemoryTrackerPtr memoryUsageTracker = {},
+    INodeMemoryReferenceTrackerPtr nodeMemoryReferenceTracker = {},
     NApi::IStickyTransactionPoolPtr stickyTransactionPool = {});
 
 ////////////////////////////////////////////////////////////////////////////////

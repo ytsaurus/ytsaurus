@@ -75,7 +75,8 @@ class TClient
 public:
     TClient(
         IConnectionPtr connection,
-        const TClientOptions& options);
+        const TClientOptions& options,
+        INodeMemoryTrackerPtr memoryTracker);
 
     NApi::IConnectionPtr GetConnection() override;
     const NTabletClient::ITableMountCachePtr& GetTableMountCache() override;
@@ -886,6 +887,7 @@ private:
     TLazyIntrusivePtr<NQueryClient::IFunctionRegistry> FunctionRegistry_;
     std::unique_ptr<NScheduler::TOperationServiceProxy> SchedulerOperationProxy_;
     std::unique_ptr<NBundleController::TBundleControllerServiceProxy> BundleControllerProxy_;
+    const ITypedNodeMemoryTrackerPtr LookupMemoryTracker_;
 
     struct TReplicaClient final
     {

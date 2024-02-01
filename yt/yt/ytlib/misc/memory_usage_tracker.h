@@ -67,6 +67,12 @@ struct INodeMemoryTracker
 
 DEFINE_REFCOUNTED_TYPE(INodeMemoryTracker)
 
+
+ITypedNodeMemoryTrackerPtr WithCategory(
+    const INodeMemoryTrackerPtr& memoryTracker,
+    EMemoryCategory category,
+    std::optional<INodeMemoryTracker::TPoolTag> poolTag = {});
+
 INodeMemoryTrackerPtr CreateNodeMemoryTracker(
     i64 totalLimit,
     const std::vector<std::pair<EMemoryCategory, i64>>& limits = {},

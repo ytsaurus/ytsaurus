@@ -214,7 +214,8 @@ IConnectionPtr CreateConnection(
     TConnectionStaticConfigPtr staticConfig,
     TConnectionDynamicConfigPtr dynamicConfig,
     TConnectionOptions options = {},
-    NHiveClient::TClusterDirectoryPtr clusterDirectoryOverride = nullptr);
+    NHiveClient::TClusterDirectoryPtr clusterDirectoryOverride = nullptr,
+    INodeMemoryTrackerPtr memoryTracker = nullptr);
 
 //! A method for creating a connection from a compound config which
 //! contains both static and dynamic connection configurations.
@@ -224,7 +225,8 @@ IConnectionPtr CreateConnection(
 IConnectionPtr CreateConnection(
     TConnectionCompoundConfigPtr compoundConfig,
     TConnectionOptions options = {},
-    NHiveClient::TClusterDirectoryPtr clusterDirectoryOverride = nullptr);
+    NHiveClient::TClusterDirectoryPtr clusterDirectoryOverride = nullptr,
+    INodeMemoryTrackerPtr memoryTracker = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

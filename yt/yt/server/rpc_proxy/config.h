@@ -98,6 +98,24 @@ DEFINE_REFCOUNTED_TYPE(TAccessCheckerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TProxyMemoryLimits
+    : public NYTree::TYsonStruct
+{
+public:
+    std::optional<i64> Total;
+    std::optional<i64> Rpc;
+    std::optional<i64> Lookup;
+    std::optional<i64> Query;
+
+    REGISTER_YSON_STRUCT(TProxyMemoryLimits);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TProxyMemoryLimits)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TProxyConfig
     : public TNativeServerConfig
     , public NAuth::TAuthenticationManagerConfig
@@ -132,6 +150,8 @@ public:
 
     TString Role;
 
+    TProxyMemoryLimitsPtr MemoryLimits;
+
     REGISTER_YSON_STRUCT(TProxyConfig);
 
     static void Register(TRegistrar registrar);
@@ -155,6 +175,8 @@ public:
     NApi::NNative::TConnectionDynamicConfigPtr ClusterConnection;
 
     NRpc::TServerDynamicConfigPtr RpcServer;
+
+    TProxyMemoryLimitsPtr MemoryLimits;
 
     REGISTER_YSON_STRUCT(TProxyDynamicConfig);
 

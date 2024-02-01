@@ -682,6 +682,20 @@ Y_FORCE_INLINE void Unref(const TNodeMemoryTracker* obj)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+ITypedNodeMemoryTrackerPtr WithCategory(
+    const INodeMemoryTrackerPtr& memoryTracker,
+    EMemoryCategory category,
+    std::optional<INodeMemoryTracker::TPoolTag> poolTag)
+{
+    if (!memoryTracker) {
+        return {};
+    }
+
+    return memoryTracker->WithCategory(category, std::move(poolTag));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 INodeMemoryTrackerPtr CreateNodeMemoryTracker(
     i64 totalLimit,
     const std::vector<std::pair<ECategory, i64>>& limits,

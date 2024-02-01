@@ -362,4 +362,15 @@ TSharedRefArray TrackMemory(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IMemoryReferenceTrackerPtr WithCategory(const INodeMemoryReferenceTrackerPtr& tracker, EMemoryCategory category)
+{
+    if (!tracker) {
+        return {};
+    }
+
+    return tracker->WithCategory(category);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

@@ -43,6 +43,8 @@
 
 #include <yt/yt/ytlib/hydra/config.h>
 
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/node_tracker_client/node_addresses_provider.h>
 
@@ -89,7 +91,6 @@
 #include <yt/yt/client/transaction_client/helpers.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
-#include "yt/yt/core/misc/numeric_helpers.h"
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <library/cpp/int128/int128.h>
@@ -980,12 +981,20 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
     }
 
     // NB: The server-side requires the keys to be sorted.
-    std::vector<std::pair<NTableClient::TLegacyKey, int>> sortedKeys;
+    using TSortedKey = std::pair<NTableClient::TLegacyKey, int>;
+    std::vector<TSortedKey> sortedKeys;
     sortedKeys.reserve(keys.Size());
+    auto sortedKeysGuard = TMemoryUsageTrackerGuard::TryAcquire(
+        LookupMemoryTracker_,
+        keys.Size() * sizeof(TSortedKey))
+        .ValueOrThrow();
 
     struct TLookupRowsInputBufferTag
     { };
-    auto inputRowBuffer = New<TRowBuffer>(TLookupRowsInputBufferTag());
+    auto inputRowBuffer = New<TRowBuffer>(
+        TLookupRowsInputBufferTag(),
+        TChunkedMemoryPool::DefaultStartChunkSize,
+        LookupMemoryTracker_);
 
     auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
     auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(schema) : nullptr;
@@ -1119,7 +1128,10 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
 
     struct TLookupRowsOutputBufferTag
     { };
-    auto outputRowBuffer = New<TRowBuffer>(TLookupRowsOutputBufferTag());
+    auto outputRowBuffer = New<TRowBuffer>(
+        TLookupRowsOutputBufferTag(),
+        TChunkedMemoryPool::DefaultStartChunkSize,
+        LookupMemoryTracker_);
 
     std::vector<TTypeErasedRow> uniqueResultRows;
 
@@ -1206,6 +1218,10 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
 
             std::vector<TLegacyKey> rows;
             rows.reserve(endItemsIt - itemsIt);
+            auto rowsGuard = TMemoryUsageTrackerGuard::TryAcquire(
+                LookupMemoryTracker_,
+                rows.capacity() * sizeof(TLegacyKey))
+                .ValueOrThrow();
 
             while (itemsIt != endItemsIt) {
                 auto key = itemsIt->first;
@@ -1341,6 +1357,11 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
                 }
 
                 auto responseData = responseCodec->Decompress(attachment);
+                auto responseDataGuard = TMemoryUsageTrackerGuard::TryAcquire(
+                    LookupMemoryTracker_,
+                    responseData.Size())
+                    .ValueOrThrow();
+
                 auto reader = CreateWireProtocolReader(responseData, outputRowBuffer);
 
                 const auto& batch = batches[localBatchIndex];

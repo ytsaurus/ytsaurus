@@ -108,6 +108,9 @@ void TProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("role", &TThis::Role)
         .Default(NApi::DefaultRpcProxyRole);
 
+    registrar.Parameter("memory_limits", &TThis::MemoryLimits)
+        .DefaultNew();
+
     registrar.Preprocessor([] (TThis* config) {
         config->DynamicConfigManager->IgnoreConfigAbsence = true;
     });
@@ -132,6 +135,11 @@ void TProxyConfig::Register(TRegistrar registrar)
     registrar.Preprocessor([] (TThis* config) {
         config->ClusterConnectionDynamicConfigPolicy = NApi::NNative::EClusterConnectionDynamicConfigPolicy::FromClusterDirectoryWithStaticPatch;
     });
+
+    registrar.Preprocessor([] (TThis* config) {
+        // Setting sane total memory limit for rpc proxy.
+        config->MemoryLimits->Total = 20_GB;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -155,12 +163,29 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("cluster_connection", &TThis::ClusterConnection)
         .DefaultNew();
 
+    registrar.Parameter("memory_limits", &TThis::MemoryLimits)
+        .DefaultNew();
+
     // COMPAT(gritukan, levysotsky)
     registrar.Postprocessor([] (TThis* config) {
         if (config->Api->Formats.empty()) {
             config->Api->Formats = config->Formats;
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TProxyMemoryLimits::Register(TRegistrar registrar)
+{
+    registrar.Parameter("total", &TThis::Total)
+        .Optional();
+    registrar.Parameter("rpc", &TThis::Rpc)
+        .Optional();
+    registrar.Parameter("lookup", &TThis::Lookup)
+        .Optional();
+    registrar.Parameter("query", &TThis::Query)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

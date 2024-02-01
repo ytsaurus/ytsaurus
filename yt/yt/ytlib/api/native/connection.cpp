@@ -154,6 +154,7 @@ public:
         TConnectionStaticConfigPtr staticConfig,
         TConnectionDynamicConfigPtr dynamicConfig,
         const TConnectionOptions& options,
+        INodeMemoryTrackerPtr memoryTracker,
         TClusterDirectoryPtr clusterDirectoryOverride)
         : StaticConfig_(std::move(staticConfig))
         , Config_(std::move(dynamicConfig))
@@ -175,6 +176,7 @@ public:
             auto config = Config_.Acquire();
             return CreateColumnEvaluatorCache(config->ColumnEvaluatorCache);
         }))
+        , MemoryTracker_(std::move(memoryTracker))
         , ClusterDirectoryOverride_(std::move(clusterDirectoryOverride))
     { }
 
@@ -434,7 +436,7 @@ public:
 
     NApi::IClientPtr CreateClient(const TClientOptions& options) override
     {
-        return NNative::CreateClient(this, options);
+        return NNative::CreateClient(this, options, MemoryTracker_);
     }
 
     void ClearMetadataCaches() override
@@ -673,7 +675,7 @@ public:
 
     IClientPtr CreateNativeClient(const TClientOptions& options) override
     {
-        return NNative::CreateClient(this, options);
+        return NNative::CreateClient(this, options, MemoryTracker_);
     }
 
     NHiveClient::ITransactionParticipantPtr CreateTransactionParticipant(
@@ -860,6 +862,8 @@ private:
     ICellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     IChaosCellDirectorySynchronizerPtr ChaosCellDirectorySynchronizer_;
     const TCellTrackerPtr DownedCellTracker_ = New<TCellTracker>();
+
+    INodeMemoryTrackerPtr MemoryTracker_;
 
     TClusterDirectoryPtr ClusterDirectory_;
     // NB: This memory leak is intentional.
@@ -1109,14 +1113,21 @@ IConnectionPtr CreateConnection(
     TConnectionStaticConfigPtr staticConfig,
     TConnectionDynamicConfigPtr dynamicConfig,
     TConnectionOptions options,
-    TClusterDirectoryPtr clusterDirectoryOverride)
+    TClusterDirectoryPtr clusterDirectoryOverride,
+    INodeMemoryTrackerPtr memoryTracker)
 {
     NTracing::TNullTraceContextGuard nullTraceContext;
 
     if (!staticConfig->PrimaryMaster) {
         THROW_ERROR_EXCEPTION("Missing \"primary_master\" parameter in connection configuration");
     }
-    auto connection = New<TConnection>(std::move(staticConfig), std::move(dynamicConfig), std::move(options), std::move(clusterDirectoryOverride));
+    auto connection = New<TConnection>(
+        std::move(staticConfig),
+        std::move(dynamicConfig),
+        std::move(options),
+        std::move(memoryTracker),
+        std::move(clusterDirectoryOverride));
+
     connection->Initialize();
     return connection;
 }
@@ -1124,9 +1135,15 @@ IConnectionPtr CreateConnection(
 IConnectionPtr CreateConnection(
     TConnectionCompoundConfigPtr compoundConfig,
     TConnectionOptions options,
-    TClusterDirectoryPtr clusterDirectoryOverride)
+    TClusterDirectoryPtr clusterDirectoryOverride,
+    INodeMemoryTrackerPtr memoryTracker)
 {
-    return CreateConnection(compoundConfig->Static, compoundConfig->Dynamic, std::move(options), std::move(clusterDirectoryOverride));
+    return CreateConnection(
+        compoundConfig->Static,
+        compoundConfig->Dynamic,
+        std::move(options),
+        std::move(clusterDirectoryOverride),
+        std::move(memoryTracker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

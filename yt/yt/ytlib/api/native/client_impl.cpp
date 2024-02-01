@@ -31,6 +31,8 @@
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
@@ -119,18 +121,20 @@ TClientCounters::TClientCounters(const TProfiler& profiler)
 
 IClientPtr CreateClient(
     IConnectionPtr connection,
-    const TClientOptions& options)
+    const TClientOptions& options,
+    INodeMemoryTrackerPtr memoryTracker)
 {
     YT_VERIFY(connection);
 
-    return New<TClient>(std::move(connection), options);
+    return New<TClient>(std::move(connection), options, std::move(memoryTracker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TClient::TClient(
     IConnectionPtr connection,
-    const TClientOptions& options)
+    const TClientOptions& options,
+    INodeMemoryTrackerPtr memoryTracker)
     : Connection_(std::move(connection))
     , Options_(options)
     , Logger(ApiLogger.WithTag("ClientId: %v, AuthenticatedUser: %v",
@@ -156,6 +160,7 @@ TClient::TClient(
         Connection_->GetConfig()->FunctionRegistryCache,
         MakeWeak(this),
         Connection_->GetInvoker()))
+    , LookupMemoryTracker_(WithCategory(memoryTracker, EMemoryCategory::Lookup))
 {
     if (!Options_.User) {
         THROW_ERROR_EXCEPTION("Native connection requires non-null \"user\" parameter");

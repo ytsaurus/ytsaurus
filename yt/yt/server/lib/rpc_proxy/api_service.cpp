@@ -13,9 +13,13 @@
 
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 
+#include <yt/yt/server/lib/rpc/memory_tracking_service_base.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/client_cache.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/client/api/config.h>
 #include <yt/yt/client/api/client.h>
@@ -583,7 +587,7 @@ private:
 DECLARE_REFCOUNTED_CLASS(TApiService)
 
 class TApiService
-    : public TServiceBase
+    : public TMemoryTrackingServiceBase<TServiceBase>
     , public IApiService
 {
 public:
@@ -602,8 +606,12 @@ public:
         NTracing::TSamplerPtr traceSampler,
         NLogging::TLogger logger,
         TProfiler profiler,
+        INodeMemoryTrackerPtr memoryTracker,
+        INodeMemoryReferenceTrackerPtr nodeMemoryReferenceTracker,
         IStickyTransactionPoolPtr stickyTransactionPool)
-        : TServiceBase(
+        : TMemoryTrackingServiceBase(
+            WithCategory(memoryTracker, EMemoryCategory::Rpc),
+            WithCategory(nodeMemoryReferenceTracker, EMemoryCategory::Rpc),
             std::move(workerInvoker),
             GetServiceDescriptor(),
             std::move(logger),
@@ -630,6 +638,7 @@ public:
         , SelectConsumeRowCount_(Profiler_.Counter("/select_consume/row_count"))
         , SelectOutputDataWeight_(Profiler_.Counter("/select_output/data_weight"))
         , SelectOutputRowCount_(Profiler_.Counter("/select_output/row_count"))
+        , LookupMemoryTracker_(WithCategory(memoryTracker, EMemoryCategory::Lookup))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps));
 
@@ -828,6 +837,9 @@ private:
 
     TCounter SelectOutputDataWeight_;
     TCounter SelectOutputRowCount_;
+
+    const ITypedNodeMemoryTrackerPtr LookupMemoryTracker_;
+    const ITypedNodeMemoryTrackerPtr QueryMemoryTracker_;
 
     struct TDetailedProfilingCountersKey
     {
@@ -3309,18 +3321,26 @@ private:
         TNameTablePtr* nameTable,
         TSharedRange<TUnversionedRow>* keys,
         TLookupRequestOptions* options,
-        const std::vector<TSharedRef>& attachments)
+        const std::vector<TSharedRef>& attachments,
+        const IMemoryUsageTrackerPtr& memoryTracker)
     {
         if (attachments.empty()) {
             THROW_ERROR_EXCEPTION("Request is missing rowset in attachments");
         }
 
+        struct TDeserializedRowsetTag { };
+        auto rowBuffer = New<TRowBuffer>(TDeserializedRowsetTag());
+
         auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
             request->rowset_descriptor(),
-            MergeRefsToRef<TApiServiceBufferTag>(attachments));
+            MergeRefsToRef<TApiServiceBufferTag>(attachments),
+            rowBuffer);
+
+        auto guard = TMemoryUsageTrackerGuard::TryAcquire(memoryTracker, rowBuffer->GetCapacity())
+            .ValueOrThrow();
 
         *nameTable = rowset->GetNameTable();
-        *keys = MakeSharedRange(rowset->GetRows(), rowset);
+        *keys = MakeSharedRange(rowset->GetRows(), MakeSharedRangeHolder(rowset, std::move(guard)));
 
         TColumnFilter::TIndexes columnFilterIndexes;
         for (int i = 0; i < request->columns_size(); ++i) {
@@ -3424,7 +3444,8 @@ private:
             &nameTable,
             &keys,
             &options,
-            request->Attachments());
+            request->Attachments(),
+            LookupMemoryTracker_);
 
         context->SetRequestInfo("Path: %v, RowCount: %v, Timestamp: %v, ReplicaConsistency: %v",
             request->path(),
@@ -3487,7 +3508,8 @@ private:
             &nameTable,
             &keys,
             &options,
-            request->Attachments());
+            request->Attachments(),
+            LookupMemoryTracker_);
 
         context->SetRequestInfo("Path: %v, RowCount: %v, Timestamp: %v, ReplicaConsistency: %v",
             request->path(),
@@ -3578,7 +3600,8 @@ private:
                 &subrequest.NameTable,
                 &subrequest.Keys,
                 &subrequest.Options,
-                attachments);
+                attachments,
+                LookupMemoryTracker_);
 
             beginAttachmentIndex = endAttachmentIndex;
         }
@@ -5850,6 +5873,8 @@ IApiServicePtr CreateApiService(
     NTracing::TSamplerPtr traceSampler,
     NLogging::TLogger logger,
     TProfiler profiler,
+    INodeMemoryTrackerPtr memoryUsageTracker,
+    INodeMemoryReferenceTrackerPtr memoryReferenceTracker,
     IStickyTransactionPoolPtr stickyTransactionPool)
 {
     return New<TApiService>(
@@ -5864,6 +5889,8 @@ IApiServicePtr CreateApiService(
         std::move(traceSampler),
         std::move(logger),
         std::move(profiler),
+        std::move(memoryUsageTracker),
+        std::move(memoryReferenceTracker),
         std::move(stickyTransactionPool));
 }
 

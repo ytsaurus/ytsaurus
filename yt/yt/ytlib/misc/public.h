@@ -33,6 +33,7 @@ DEFINE_ENUM(EMemoryCategory,
     ((Query)                       (9))
     ((TmpfsLayers)                (11))
     ((MasterCache)                (12))
+    ((Lookup)                     (24))
     ((LookupRowsCache)            (13))
     ((AllocFragmentation)         (14))
     ((P2P)                        (15))
