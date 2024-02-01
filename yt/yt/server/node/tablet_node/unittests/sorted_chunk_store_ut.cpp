@@ -128,8 +128,8 @@ TEST_P(TSortedChunkStoreTestRangesFiltering, DISABLED_Test)
     std::vector<TRowRange> expectedFiltered;
 
     for (const auto& range : rangeRange) {
-        const auto& lower = lowerKey ? std::max(lowerKey.Get(), range.first) : range.first;
-        const auto& upper = upperKey ? std::min(upperKey.Get(), range.second) : range.second;
+        const auto lower = lowerKey ? std::max(lowerKey.Get(), range.first) : range.first;
+        const auto upper = upperKey ? std::min(upperKey.Get(), range.second) : range.second;
         if (lower < upper) {
             expectedFiltered.push_back(range);
         }
