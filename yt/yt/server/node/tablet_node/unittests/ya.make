@@ -11,6 +11,7 @@ SRCS(
     ordered_dynamic_store_ut.cpp
     ordered_store_manager_ut.cpp
     overload_controller_ut.cpp
+    replication_log_ut.cpp
     simple_tablet_manager.cpp
     simple_transaction_supervisor.cpp
     sorted_chunk_store_ut.cpp
