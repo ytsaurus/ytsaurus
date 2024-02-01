@@ -106,19 +106,19 @@ TUnversionedRow BuildSortedLogRow(
     const TTableSchemaPtr& tableSchema,
     TUnversionedRowBuilder* rowBuilder)
 {
-    YT_VERIFY(row.GetDeleteTimestampCount() == 1 || row.GetWriteTimestampCount() == 1);
+    bool isDelete = row.GetDeleteTimestampCount() == 1;
 
-    if (row.GetDeleteTimestampCount() == 1) {
+    YT_VERIFY(isDelete || row.GetWriteTimestampCount() == 1);
+
+    if (isDelete) {
         rowBuilder->AddValue(MakeUnversionedUint64Value(row.BeginDeleteTimestamps()[0], 0));
         rowBuilder->AddValue(MakeUnversionedInt64Value(static_cast<int>(ERowModificationType::Delete), 1));
-        return rowBuilder->GetRow();
+    } else {
+        rowBuilder->AddValue(MakeUnversionedUint64Value(row.WriteTimestamps()[0], 0));
+        rowBuilder->AddValue(MakeUnversionedInt64Value(static_cast<int>(ERowModificationType::Write), 1));
     }
 
-    rowBuilder->AddValue(MakeUnversionedUint64Value(row.WriteTimestamps()[0], 0));
-    rowBuilder->AddValue(MakeUnversionedInt64Value(static_cast<int>(ERowModificationType::Write), 1));
-
     int keyColumnCount = tableSchema->GetKeyColumnCount();
-    int valueColumnCount = tableSchema->GetValueColumnCount();
 
     YT_VERIFY(static_cast<int>(row.GetKeyCount()) >= keyColumnCount);
     for (int index = 0; index < keyColumnCount; ++index) {
@@ -126,6 +126,12 @@ TUnversionedRow BuildSortedLogRow(
         value.Id += 2;
         rowBuilder->AddValue(value);
     }
+
+    if (isDelete) {
+        return rowBuilder->GetRow();
+    }
+
+    int valueColumnCount = tableSchema->GetValueColumnCount();
 
     for (int index = 0; index < valueColumnCount; ++index) {
         rowBuilder->AddValue(MakeUnversionedSentinelValue(
