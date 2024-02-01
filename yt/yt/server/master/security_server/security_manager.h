@@ -276,6 +276,9 @@ public:
     //! Returns "superusers" built-in group.
     virtual TGroup* GetSuperusersGroup() = 0;
 
+    //! Returns "admins" built-in group.
+    virtual TGroup* GetAdminsGroup() = 0;
+
 
     //! Returns subject with a given id (|nullptr| if none).
     virtual TSubject* FindSubject(TSubjectId id) = 0;
