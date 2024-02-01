@@ -517,6 +517,18 @@ void TTabletHunkLockManagerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TStoreBackgroundActivityOrchidConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_failed_task_count", &TThis::MaxFailedTaskCount)
+        .GreaterThanOrEqual(0)
+        .Default(100);
+    registrar.Parameter("max_completed_task_count", &TThis::MaxCompletedTaskCount)
+        .GreaterThanOrEqual(0)
+        .Default(100);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TStoreFlusherConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
@@ -548,6 +560,8 @@ void TStoreFlusherDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("min_forced_flush_data_size", &TThis::MinForcedFlushDataSize)
         .GreaterThan(0)
         .Optional();
+    registrar.Parameter("orchid", &TThis::Orchid)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -598,6 +612,9 @@ void TStoreCompactorDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_partitioning_structured_log_events", &TThis::MaxPartitioningStructuredLogEvents)
         .GreaterThanOrEqual(0)
         .Default(500);
+
+    registrar.Parameter("orchid", &TThis::Orchid)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

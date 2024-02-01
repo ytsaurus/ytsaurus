@@ -1,12 +1,10 @@
 #include "store_flusher.h"
 
+#include "background_activity_orchid.h"
 #include "bootstrap.h"
-#include "in_memory_manager.h"
-#include "private.h"
 #include "public.h"
 #include "slot_manager.h"
-#include "sorted_chunk_store.h"
-#include "sorted_dynamic_store.h"
+#include "store_detail.h"
 #include "store_manager.h"
 #include "structured_logger.h"
 #include "tablet.h"
@@ -19,6 +17,8 @@
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
+
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
@@ -48,6 +48,8 @@
 
 #include <yt/yt/core/tracing/trace_context.h>
 
+#include <yt/yt/core/ytree/virtual.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NApi;
@@ -60,6 +62,7 @@ using namespace NTabletClient;
 using namespace NTabletNode::NProto;
 using namespace NTabletServer::NProto;
 using namespace NTransactionClient;
+using namespace NYson;
 using namespace NYTree;
 using namespace NTracing;
 
@@ -69,6 +72,44 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletNodeLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TFlushTaskInfo
+    : public TTaskInfoBase
+{
+    TStoreId StoreId;
+
+    bool ComparePendingTasks(const TFlushTaskInfo& /*other*/) const
+    {
+        return false;
+    }
+};
+
+void Serialize(const TFlushTaskInfo& task, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer).BeginMap()
+        .Do([&] (auto fluent) {
+            Serialize(static_cast<const TTaskInfoBase&>(task), fluent.GetConsumer());
+        })
+        .Item("store_id").Value(task.StoreId)
+    .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TFlushOrchid = TBackgroundActivityOrchid<TFlushTaskInfo>;
+using TFlushOrchidPtr = TIntrusivePtr<TFlushOrchid>;
+
+DEFINE_REFCOUNTED_TYPE(TFlushOrchid);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,7 +123,11 @@ public:
         , ThreadPool_(CreateThreadPool(Config_->StoreFlusher->ThreadPoolSize, "StoreFlush"))
         , Semaphore_(New<TProfiledAsyncSemaphore>(
             Config_->StoreFlusher->MaxConcurrentFlushes,
-            Profiler.Gauge("/running_store_flushes")))
+            Profiler_.Gauge("/running_store_flushes")))
+        , Orchid_(New<TFlushOrchid>(
+            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreFlusher->Orchid->MaxFailedTaskCount,
+            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreFlusher->Orchid->MaxCompletedTaskCount))
+        , OrchidService_(CreateOrchidService())
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(BIND(&TStoreFlusher::OnDynamicConfigChanged, MakeWeak(this)));
@@ -96,24 +141,44 @@ public:
         slotManager->SubscribeEndSlotScan(BIND(&TStoreFlusher::OnEndSlotScan, MakeStrong(this)));
     }
 
+    IYPathServicePtr GetOrchidService() const override
+    {
+        return OrchidService_;
+    }
+
 private:
     IBootstrap* const Bootstrap_;
     const TTabletNodeConfigPtr Config_;
 
-    const NProfiling::TProfiler Profiler = TabletNodeProfiler.WithPrefix("/store_flusher");
+    const NProfiling::TProfiler Profiler_ = TabletNodeProfiler.WithPrefix("/store_flusher");
 
     const IThreadPoolPtr ThreadPool_;
     const TProfiledAsyncSemaphorePtr Semaphore_;
 
-    NProfiling::TGauge DynamicMemoryUsageActiveCounter_ = Profiler.WithTag("memory_type", "active").Gauge("/dynamic_memory_usage");
-    NProfiling::TGauge DynamicMemoryUsagePassiveCounter_ = Profiler.WithTag("memory_type", "passive").Gauge("/dynamic_memory_usage");
-    NProfiling::TGauge DynamicMemoryUsageBackingCounter_ = Profiler.WithTag("memory_type", "backing").Gauge("/dynamic_memory_usage");
-    NProfiling::TGauge DynamicMemoryUsageOtherCounter_ = Profiler.WithTag("memory_type", "other").Gauge("/dynamic_memory_usage");
+    const TFlushOrchidPtr Orchid_;
+    IYPathServicePtr OrchidService_;
+
+    NProfiling::TGauge DynamicMemoryUsageActiveCounter_ = Profiler_.WithTag("memory_type", "active").Gauge("/dynamic_memory_usage");
+    NProfiling::TGauge DynamicMemoryUsagePassiveCounter_ = Profiler_.WithTag("memory_type", "passive").Gauge("/dynamic_memory_usage");
+    NProfiling::TGauge DynamicMemoryUsageBackingCounter_ = Profiler_.WithTag("memory_type", "backing").Gauge("/dynamic_memory_usage");
+    NProfiling::TGauge DynamicMemoryUsageOtherCounter_ = Profiler_.WithTag("memory_type", "other").Gauge("/dynamic_memory_usage");
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     i64 PassiveMemoryUsage_;
     i64 ActiveMemoryUsage_;
     i64 BackingMemoryUsage_;
+
+    IYPathServicePtr CreateOrchidService()
+    {
+        return New<TCompositeMapService>()
+            ->AddAttribute(EInternedAttributeKey::Opaque, BIND([] (IYsonConsumer* consumer) {
+                NYTree::BuildYsonFluently(consumer)
+                    .Value(true);
+            }))
+            ->AddChild("flush_tasks", IYPathService::FromProducer(
+                BIND(&TFlushOrchid::Serialize, MakeWeak(Orchid_))))
+            ->Via(Bootstrap_->GetControlInvoker());
+    }
 
     void OnDynamicConfigChanged(
         const NClusterNode::TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
@@ -122,6 +187,7 @@ private:
         const auto& config = newNodeConfig->TabletNode->StoreFlusher;
         ThreadPool_->Configure(config->ThreadPoolSize.value_or(Config_->StoreFlusher->ThreadPoolSize));
         Semaphore_->SetTotal(config->MaxConcurrentFlushes.value_or(Config_->StoreFlusher->MaxConcurrentFlushes));
+        Orchid_->Reconfigure(config->Orchid);
     }
 
     void OnBeginSlotScan()
@@ -131,6 +197,8 @@ private:
         ActiveMemoryUsage_ = 0;
         PassiveMemoryUsage_ = 0;
         BackingMemoryUsage_ = 0;
+
+        Orchid_->ClearPendingTasks();
     }
 
     void OnScanSlot(const ITabletSlotPtr& slot)
@@ -197,8 +265,38 @@ private:
             return;
         }
 
+        std::vector<TGuid> taskIds(tablet->StoreIdMap().size());
+        int index = 0;
+
+        TFlushOrchid::TTaskMap pendingTasks;
         for (const auto& [storeId, store] : tablet->StoreIdMap()) {
-            ScanStoreForFlush(slot, tablet, store);
+            if (store->IsDynamic() &&
+                tablet->GetStoreManager()->IsStoreFlushable(store->AsDynamic()))
+            {
+                auto taskId = TGuid::Create();
+                taskIds[index] = taskId;
+                pendingTasks.emplace(
+                    taskId,
+                    TFlushTaskInfo{
+                        TTaskInfoBase{
+                            .TaskId = taskId,
+                            .TabletId = tablet->GetId(),
+                            .MountRevision = tablet->GetMountRevision(),
+                            .TablePath = tablet->GetTablePath(),
+                            .TabletCellBundle = slot->GetTabletCellBundleName(),
+                        },
+                        storeId,
+                    }
+                );
+            }
+            ++index;
+        }
+
+        Orchid_->ResetPendingTasks(std::move(pendingTasks));
+
+        auto taskIdIt = taskIds.begin();
+        for (const auto& [storeId, store] : tablet->StoreIdMap()) {
+            ScanStoreForFlush(slot, tablet, store, *(taskIdIt++));
         }
     }
 
@@ -280,7 +378,7 @@ private:
         BackingMemoryUsage_ += backingMemoryUsage;
     }
 
-    void ScanStoreForFlush(const ITabletSlotPtr& slot, TTablet* tablet, const IStorePtr& store)
+    void ScanStoreForFlush(const ITabletSlotPtr& slot, TTablet* tablet, const IStorePtr& store, TGuid taskId)
     {
         if (!store->IsDynamic()) {
             return;
@@ -316,7 +414,8 @@ private:
             slot,
             tablet,
             dynamicStore,
-            flushCallback));
+            flushCallback,
+            taskId));
     }
 
     void FlushStore(
@@ -324,7 +423,8 @@ private:
         const ITabletSlotPtr& slot,
         TTablet* tablet,
         IDynamicStorePtr store,
-        TStoreFlushCallback flushCallback)
+        TStoreFlushCallback flushCallback,
+        TGuid taskId)
     {
         const auto& storeManager = tablet->GetStoreManager();
         auto tabletId = tablet->GetId();
@@ -335,9 +435,9 @@ private:
                 tablet->GetLoggingTag(),
                 store->GetId());
 
-        auto traceContext = TTraceContext::NewRoot("StoreFlusher");
-        auto traceId = traceContext->GetTraceId();
-        TTraceContextGuard traceContextGuard(std::move(traceContext));
+        auto traceId = taskId;
+        TTraceContextGuard traceContextGuard(
+            TTraceContext::NewRoot("StoreFlusher", traceId));
 
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
         auto tabletSnapshot = snapshotStore->FindTabletSnapshot(tablet->GetId(), tablet->GetMountRevision());
@@ -348,6 +448,8 @@ private:
         }
 
         bool failed = false;
+
+        Orchid_->OnTaskStarted(taskId);
 
         try {
             NProfiling::TWallTimer timer;
@@ -473,6 +575,8 @@ private:
 
             YT_LOG_INFO("Store flush completed (WallTime: %v)",
                 timer.GetElapsedTime());
+
+            Orchid_->OnTaskCompleted(taskId);
         } catch (const std::exception& ex) {
             auto error = TError(ex)
                 << TErrorAttribute("tablet_id", tabletId)
@@ -484,6 +588,8 @@ private:
 
             storeManager->BackoffStoreFlush(store);
             failed = true;
+
+            Orchid_->OnTaskFailed(taskId);
         }
 
         writerProfiler->Profile(tabletSnapshot, EChunkWriteProfilingMethod::StoreFlush, failed);

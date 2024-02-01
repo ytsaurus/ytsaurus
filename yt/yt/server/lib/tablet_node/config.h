@@ -448,6 +448,22 @@ DEFINE_REFCOUNTED_TYPE(TTabletHunkLockManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TStoreBackgroundActivityOrchidConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    i64 MaxFailedTaskCount;
+    i64 MaxCompletedTaskCount;
+
+    REGISTER_YSON_STRUCT(TStoreBackgroundActivityOrchidConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TStoreBackgroundActivityOrchidConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TStoreFlusherConfig
     : public NYTree::TYsonStruct
 {
@@ -477,6 +493,8 @@ public:
     std::optional<int> ThreadPoolSize;
     std::optional<int> MaxConcurrentFlushes;
     std::optional<i64> MinForcedFlushDataSize;
+
+    TStoreBackgroundActivityOrchidConfigPtr Orchid;
 
     REGISTER_YSON_STRUCT(TStoreFlusherDynamicConfig);
 
@@ -521,6 +539,8 @@ public:
 
     int MaxCompactionStructuredLogEvents;
     int MaxPartitioningStructuredLogEvents;
+
+    TStoreBackgroundActivityOrchidConfigPtr Orchid;
 
     REGISTER_YSON_STRUCT(TStoreCompactorDynamicConfig);
 

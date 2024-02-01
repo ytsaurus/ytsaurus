@@ -1,13 +1,11 @@
 #include "store_compactor.h"
 
+#include "background_activity_orchid.h"
 #include "bootstrap.h"
 #include "hunk_chunk.h"
 #include "in_memory_manager.h"
-#include "lsm_interop.h"
 #include "partition.h"
-#include "private.h"
 #include "public.h"
-#include "slot_manager.h"
 #include "sorted_chunk_store.h"
 #include "store_manager.h"
 #include "structured_logger.h"
@@ -107,7 +105,76 @@ using NYT::ToProto;
 static const size_t MaxRowsPerRead = 65536;
 static const size_t MaxRowsPerWrite = 65536;
 
-static const size_t FinishedTaskQueueSize = 100;
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+auto GetOrderingTuple(const T& task)
+{
+    return std::make_tuple(
+        !task.DiscardStores,
+        task.Slack + task.FutureEffect,
+        -task.Effect,
+        -task.GetStoreCount(),
+        task.Random);
+}
+
+class TTask;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCompactionTaskInfo
+    : public TTaskInfoBase
+{
+    TPartitionId PartitionId;
+    ui64 Random;
+    int StoreCount;
+    bool DiscardStores;
+    int Slack;
+    int FutureEffect;
+    int Effect;
+    NLsm::EStoreCompactionReason Reason;
+
+    i64 GetStoreCount() const
+    {
+        return StoreCount;
+    }
+
+    bool ComparePendingTasks(const TCompactionTaskInfo& other) const
+    {
+        return GetOrderingTuple(*this) < GetOrderingTuple(other);
+    }
+};
+
+void Serialize(const TCompactionTaskInfo& task, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer).BeginMap()
+        .Do([&] (auto fluent) {
+            Serialize(static_cast<const TTaskInfoBase&>(task), fluent.GetConsumer());
+        })
+        .Item("partition_id").Value(task.PartitionId)
+        .Item("store_count").Value(task.StoreCount)
+        .Item("task_priority")
+            .BeginMap()
+                .Item("discard_stores").Value(task.DiscardStores)
+                .Item("slack").Value(task.Slack)
+                .Item("future_effect").Value(task.FutureEffect)
+                .Item("effect").Value(task.Effect)
+                .Item("random").Value(task.Random)
+            .EndMap()
+        .Item("reason").Value(task.Reason)
+    .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TCompactionOrchid = TBackgroundActivityOrchid<TCompactionTaskInfo>;
+using TCompactionOrchidPtr = TIntrusivePtr<TCompactionOrchid>;
+
+DEFINE_REFCOUNTED_TYPE(TCompactionOrchid);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -115,6 +182,8 @@ struct TCompactionSessionFinalizeResult
 {
     std::vector<NChunkClient::NProto::TDataStatistics> WriterStatistics;
 };
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -606,6 +675,12 @@ public:
         , CompactionSemaphore_(New<TProfiledAsyncSemaphore>(
             Config_->MaxConcurrentCompactions,
             Profiler_.Gauge("/running_compactions")))
+        , CompactionOrchid_(New<TCompactionOrchid>(
+            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->Orchid->MaxFailedTaskCount,
+            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->Orchid->MaxCompletedTaskCount))
+        , PartitioningOrchid_(New<TCompactionOrchid>(
+            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->Orchid->MaxFailedTaskCount,
+            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->Orchid->MaxCompletedTaskCount))
         , OrchidService_(CreateOrchidService())
     { }
 
@@ -749,23 +824,10 @@ private:
                     .Value(true);
             }))
             ->AddChild("compaction_tasks", IYPathService::FromProducer(
-                BIND(&TOrchidServiceManager::GetTasks, MakeWeak(CompactionOrchidServiceManager_))))
+                BIND(&TCompactionOrchid::Serialize, MakeWeak(CompactionOrchid_))))
             ->AddChild("partitioning_tasks", IYPathService::FromProducer(
-                BIND(&TOrchidServiceManager::GetTasks, MakeWeak(PartitioningOrchidServiceManager_))))
+                BIND(&TCompactionOrchid::Serialize, MakeWeak(PartitioningOrchid_))))
             ->Via(Bootstrap_->GetControlInvoker());
-    }
-
-    class TOrchidServiceManager;
-
-    template <typename T>
-    static auto GetOrderingTuple(const T& task)
-    {
-        return std::tuple(
-            !task->DiscardStores,
-            task->Slack + task->FutureEffect,
-            -task->Effect,
-            -task->GetStoreCount(),
-            task->Random);
     }
 
     struct TTask
@@ -806,7 +868,9 @@ private:
         // These fields are filled upon task invocation.
         TWeakPtr<TStoreCompactor> Owner;
         TAsyncSemaphoreGuard SemaphoreGuard;
-        TWeakPtr<TOrchidServiceManager> OrchidServiceManager;
+        TWeakPtr<TCompactionOrchid> Orchid;
+
+        bool Failed = false;
 
         TTask() = delete;
         TTask(const TTask&) = delete;
@@ -836,22 +900,22 @@ private:
 
         ~TTask();
 
-        auto GetStoreCount()
+        i64 GetStoreCount() const
         {
-            return StoreIds.size();
+            return ssize(StoreIds);
         }
 
         void Prepare(
             TStoreCompactor* owner,
-            TOrchidServiceManager* orchidServiceManager,
+            TCompactionOrchid* orchid,
             TAsyncSemaphoreGuard&& semaphoreGuard)
         {
             Owner = MakeWeak(owner);
-            OrchidServiceManager = MakeWeak(orchidServiceManager);
+            Orchid = MakeWeak(orchid);
             SemaphoreGuard = std::move(semaphoreGuard);
 
             owner->ChangeFutureEffect(TabletId, Effect);
-            orchidServiceManager->OnTaskStarted(this);
+            orchid->OnTaskStarted(TaskId);
         }
 
         void StoreToStructuredLog(TFluentMap fluent)
@@ -870,214 +934,32 @@ private:
                 .Item("reason").Value(Reason);
         }
 
-        static inline bool Comparer(
-            const std::unique_ptr<TTask>& lhs,
-            const std::unique_ptr<TTask>& rhs)
+        TCompactionTaskInfo BuildTaskInfo() const
         {
-            return TStoreCompactor::GetOrderingTuple(lhs) < TStoreCompactor::GetOrderingTuple(rhs);
+            return TCompactionTaskInfo{
+                TTaskInfoBase{
+                    .TaskId = TaskId,
+                    .TabletId = TabletId,
+                    .MountRevision = MountRevision,
+                    .TablePath = TablePath,
+                    .TabletCellBundle = TabletCellBundle,
+                },
+                PartitionId,
+                Random,
+                static_cast<int>(ssize(StoreIds)),
+                DiscardStores,
+                Slack,
+                FutureEffect,
+                Effect,
+                Reason,
+            };
+        }
+
+        static inline bool Comparer(const std::unique_ptr<TTask>& lhs, const std::unique_ptr<TTask>& rhs)
+        {
+            return GetOrderingTuple(*lhs) < GetOrderingTuple(*rhs);
         }
     };
-
-    class TOrchidServiceManager
-        : public TRefCounted
-    {
-    public:
-        void OnTaskStarted(TTask* task)
-        {
-            auto guard = Guard(SpinLock_);
-
-            auto it = PendingTasks_.find(task->TaskId);
-            YT_ASSERT(it != PendingTasks_.end());
-            if (it == PendingTasks_.end()) {
-                return;
-            }
-
-            it->second->StartTime.store(TInstant::Now());
-
-            YT_ASSERT(it->second->PartitionId == task->PartitionId);
-            RunningTasks_.emplace(task->TaskId, std::move(it->second));
-            PendingTasks_.erase(it);
-        }
-
-        void OnTaskFinished(TTask* task)
-        {
-            auto guard = Guard(SpinLock_);
-
-            auto it = RunningTasks_.find(task->TaskId);
-            YT_ASSERT(it != RunningTasks_.end());
-            if (it == RunningTasks_.end()) {
-                return;
-            }
-
-            if (FinishedTasks_.size() == FinishedTaskQueueSize) {
-                FinishedTasks_.pop_front();
-            }
-
-            it->second->FinishTime.store(TInstant::Now());
-            FinishedTasks_.push_back(it->second);
-            RunningTasks_.erase(it);
-        }
-
-        void ResetTaskQueue(
-            std::vector<std::unique_ptr<TTask>>::iterator begin,
-            std::vector<std::unique_ptr<TTask>>::iterator end)
-        {
-            auto guard = Guard(SpinLock_);
-
-            PendingTasks_.clear();
-            for (auto it = begin; it != end; ++it) {
-                auto* task = it->get();
-                PendingTasks_.emplace(task->TaskId, New<TTaskInfo>(*task));
-            }
-        }
-
-        void GetTasks(IYsonConsumer* consumer) const
-        {
-            auto guard = Guard(SpinLock_);
-
-            std::vector<TTaskInfoPtr> pendingTasks;
-            pendingTasks.reserve(PendingTasks_.size());
-            for (auto [id, task] : PendingTasks_) {
-                pendingTasks.push_back(std::move(task));
-            }
-
-            std::vector<TTaskInfoPtr> runningTasks;
-            runningTasks.reserve(RunningTasks_.size());
-            for (auto [id, task] : RunningTasks_) {
-                runningTasks.push_back(std::move(task));
-            }
-
-            auto finishedTasks = FinishedTasks_;
-
-            guard.Release();
-
-            std::sort(pendingTasks.begin(), pendingTasks.end(), Comparer);
-
-            std::sort(
-                runningTasks.begin(),
-                runningTasks.end(),
-                [&] (const auto& lhs, const auto& rhs) {
-                    return lhs->StartTime.load() < rhs->StartTime.load();
-                });
-
-            BuildYsonFluently(consumer)
-                .BeginMap()
-                    .Item("pending_task_count").Value(ssize(pendingTasks))
-                    .Item("running_task_count").Value(ssize(runningTasks))
-                    .Item("finished_task_count").Value(ssize(finishedTasks))
-                    .Item("pending_tasks")
-                        .DoListFor(
-                            pendingTasks,
-                            [&] (TFluentList fluent, const auto& task) {
-                                task->Serialize(fluent);
-                            })
-                    .Item("running_tasks")
-                        .DoListFor(
-                            runningTasks,
-                            [&] (TFluentList fluent, const auto& task) {
-                                task->Serialize(fluent);
-                            })
-                    .Item("finished_tasks")
-                        .DoListFor(
-                            finishedTasks,
-                            [&] (TFluentList fluent, const auto& task) {
-                                task->Serialize(fluent);
-                            })
-                .EndMap();
-        }
-
-    private:
-        struct TTaskInfo
-            : public TRefCounted
-        {
-            explicit TTaskInfo(const TTask& task)
-                : TaskId(task.TaskId)
-                , TabletId(task.TabletId)
-                , MountRevision(task.MountRevision)
-                , TablePath(task.TablePath)
-                , TabletCellBundle(task.TabletCellBundle)
-                , PartitionId(task.PartitionId)
-                , StoreCount(task.StoreIds.size())
-                , DiscardStores(task.DiscardStores)
-                , Slack(task.Slack)
-                , Effect(task.Effect)
-                , FutureEffect(task.FutureEffect)
-                , Random(task.Random)
-                , Reason(task.Reason)
-            { }
-
-            const TGuid TaskId;
-            const TTabletId TabletId;
-            const TRevision MountRevision;
-            const TString TablePath;
-            const TString TabletCellBundle;
-            const TPartitionId PartitionId;
-            const int StoreCount;
-
-            const bool DiscardStores;
-            const int Slack;
-            const int Effect;
-            const int FutureEffect;
-            const ui64 Random;
-            const NLsm::EStoreCompactionReason Reason;
-
-            std::atomic<std::optional<TInstant>> StartTime{};
-            std::atomic<std::optional<TInstant>> FinishTime{};
-
-            auto GetStoreCount() const
-            {
-                return StoreCount;
-            }
-
-            void Serialize(TFluentList fluent) const
-            {
-                auto startTime = StartTime.load();
-                auto finishTime = FinishTime.load();
-                fluent.Item()
-                .BeginMap()
-                    .Item("trace_id").Value(TaskId)
-                    .Item("tablet_id").Value(TabletId)
-                    .Item("mount_revision").Value(MountRevision)
-                    .Item("table_path").Value(TablePath)
-                    .Item("tablet_cell_bundle").Value(TabletCellBundle)
-                    .Item("partition_id").Value(PartitionId)
-                    .Item("store_count").Value(StoreCount)
-                    .Item("task_priority")
-                        .BeginMap()
-                            .Item("discard_stores").Value(DiscardStores)
-                            .Item("slack").Value(Slack)
-                            .Item("future_effect").Value(FutureEffect)
-                            .Item("effect").Value(Effect)
-                            .Item("random").Value(Random)
-                        .EndMap()
-                    .Item("reason").Value(Reason)
-                    .DoIf(startTime.has_value(), [&] (auto fluent) {
-                        fluent
-                            .Item("start_time").Value(startTime)
-                            .Item("duration").Value(finishTime.value_or(TInstant::Now()) - *startTime);
-                    })
-                    .DoIf(finishTime.has_value(), [&] (auto fluent) {
-                        fluent
-                            .Item("finish_time").Value(finishTime);
-                    })
-                .EndMap();
-            }
-        };
-
-        using TTaskInfoPtr = TIntrusivePtr<TTaskInfo>;
-
-        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-        THashMap<TGuid, TTaskInfoPtr> PendingTasks_;
-        THashMap<TGuid, TTaskInfoPtr> RunningTasks_;
-        std::deque<TTaskInfoPtr> FinishedTasks_;
-
-        static inline bool Comparer(const TTaskInfoPtr& lhs, const TTaskInfoPtr& rhs)
-        {
-            return TStoreCompactor::GetOrderingTuple(lhs) < TStoreCompactor::GetOrderingTuple(rhs);
-        }
-    };
-
-    using TOrchidServiceManagerPtr = TIntrusivePtr<TOrchidServiceManager>;
 
     // Variables below contain per-iteration state for slot scan.
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ScanSpinLock_);
@@ -1097,8 +979,8 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, FutureEffectLock_);
     THashMap<TTabletId, int> FutureEffect_;
 
-    const TOrchidServiceManagerPtr CompactionOrchidServiceManager_ = New<TOrchidServiceManager>();
-    const TOrchidServiceManagerPtr PartitioningOrchidServiceManager_ = New<TOrchidServiceManager>();
+    const TCompactionOrchidPtr CompactionOrchid_;
+    const TCompactionOrchidPtr PartitioningOrchid_;
     IYPathServicePtr OrchidService_;
 
 
@@ -1110,6 +992,8 @@ private:
         ThreadPool_->Configure(config->ThreadPoolSize.value_or(Config_->ThreadPoolSize));
         PartitioningSemaphore_->SetTotal(config->MaxConcurrentPartitionings.value_or(Config_->MaxConcurrentPartitionings));
         CompactionSemaphore_->SetTotal(config->MaxConcurrentCompactions.value_or(Config_->MaxConcurrentCompactions));
+        PartitioningOrchid_->Reconfigure(config->Orchid);
+        CompactionOrchid_->Reconfigure(config->Orchid);
     }
 
     std::unique_ptr<TTask> MakeTask(
@@ -1181,11 +1065,24 @@ private:
         return result;
     }
 
+    template <class TIterator>
+    static void ResetOrchidPendingTasks(
+        const TCompactionOrchidPtr& orchid,
+        TIterator begin,
+        TIterator end)
+    {
+        TCompactionOrchid::TTaskMap pendingTasks;
+        for (auto it = begin; it != end; ++it) {
+            pendingTasks.emplace((*it)->TaskId, (*it)->BuildTaskInfo());
+        }
+        orchid->ResetPendingTasks(std::move(pendingTasks));
+    }
+
     void PickMoreTasks(
         std::vector<std::unique_ptr<TTask>>* candidates,
         std::vector<std::unique_ptr<TTask>>* tasks,
         size_t* index,
-        const TOrchidServiceManagerPtr& orchidServiceManager,
+        const TCompactionOrchidPtr& orchid,
         const NProfiling::TGauge& counter)
     {
         counter.Update(candidates->size());
@@ -1194,7 +1091,7 @@ private:
 
         {
             auto guard = Guard(TaskSpinLock_);
-            orchidServiceManager->ResetTaskQueue(candidates->begin(), candidates->end());
+            ResetOrchidPendingTasks(orchid, candidates->begin(), candidates->end());
             tasks->swap(*candidates);
             *index = tasks->size();
         }
@@ -1208,7 +1105,7 @@ private:
             &PartitioningCandidates_,
             &PartitioningTasks_,
             &PartitioningTaskIndex_,
-            PartitioningOrchidServiceManager_,
+            PartitioningOrchid_,
             FeasiblePartitioningsCounter_);
     }
 
@@ -1218,14 +1115,14 @@ private:
             &CompactionCandidates_,
             &CompactionTasks_,
             &CompactionTaskIndex_,
-            CompactionOrchidServiceManager_,
+            CompactionOrchid_,
             FeasibleCompactionsCounter_);
     }
 
     void ScheduleMoreTasks(
         std::vector<std::unique_ptr<TTask>>* tasks,
         size_t* index,
-        const TOrchidServiceManagerPtr& orchidServiceManager,
+        const TCompactionOrchidPtr& orchid,
         const TAsyncSemaphorePtr& semaphore,
         const TCounter& counter,
         void (TStoreCompactor::*action)(TTask*))
@@ -1265,7 +1162,7 @@ private:
                     }
                     guard.Release();
                     MakeHeap(tasks->begin(), tasks->begin() + *index, TTask::Comparer);
-                    orchidServiceManager->ResetTaskQueue(tasks->begin(), tasks->begin() + *index);
+                    ResetOrchidPendingTasks(orchid, tasks->begin(), tasks->begin() + *index);
                 }
             }
 
@@ -1273,7 +1170,7 @@ private:
             ExtractHeap(tasks->begin(), tasks->begin() + *index, TTask::Comparer);
             --(*index);
             auto&& task = tasks->at(*index);
-            task->Prepare(this, orchidServiceManager.Get(), std::move(semaphoreGuard));
+            task->Prepare(this, orchid.Get(), std::move(semaphoreGuard));
             ++scheduled;
 
             // TODO(sandello): Better ownership management.
@@ -1297,7 +1194,7 @@ private:
         ScheduleMoreTasks(
             &PartitioningTasks_,
             &PartitioningTaskIndex_,
-            PartitioningOrchidServiceManager_,
+            PartitioningOrchid_,
             PartitioningSemaphore_,
             ScheduledPartitioningsCounter_,
             &TStoreCompactor::PartitionEden);
@@ -1308,7 +1205,7 @@ private:
         ScheduleMoreTasks(
             &CompactionTasks_,
             &CompactionTaskIndex_,
-            CompactionOrchidServiceManager_,
+            CompactionOrchid_,
             CompactionSemaphore_,
             ScheduledCompactionsCounter_,
             &TStoreCompactor::CompactPartition);
@@ -1541,8 +1438,6 @@ private:
             tabletSnapshot->Settings.MountConfig->EnableHunkColumnarProfiling,
             tabletSnapshot->PhysicalSchema);
 
-        bool failed = false;
-
         try {
             i64 dataSize = 0;
             for (const auto& store : stores) {
@@ -1693,7 +1588,7 @@ private:
             for (const auto& store : stores) {
                 storeManager->BackoffStoreCompaction(store);
             }
-            failed = true;
+            task->Failed = true;
         }
 
         NChunkClient::NProto::TDataStatistics writerDataStatistics;
@@ -1711,10 +1606,10 @@ private:
             chunkReadOptions.ChunkReaderStatistics,
             chunkReadOptions.HunkChunkReaderStatistics);
 
-        writerProfiler->Profile(tabletSnapshot, EChunkWriteProfilingMethod::Partitioning, failed);
-        readerProfiler->Profile(tabletSnapshot, EChunkReadProfilingMethod::Partitioning, failed);
+        writerProfiler->Profile(tabletSnapshot, EChunkWriteProfilingMethod::Partitioning, task->Failed);
+        readerProfiler->Profile(tabletSnapshot, EChunkReadProfilingMethod::Partitioning, task->Failed);
 
-        if (!failed) {
+        if (!task->Failed) {
             tabletSnapshot->TableProfiler->GetLsmCounters()->ProfilePartitioning(
                 task->Reason,
                 task->HunkChunkCountByReason,
@@ -1910,8 +1805,6 @@ private:
             tabletSnapshot->Settings.MountConfig->EnableHunkColumnarProfiling,
             tabletSnapshot->PhysicalSchema);
 
-        bool failed = false;
-
         try {
             i64 inputDataSize = 0;
             i64 inputRowCount = 0;
@@ -2074,7 +1967,7 @@ private:
             for (const auto& store : stores) {
                 storeManager->BackoffStoreCompaction(store);
             }
-            failed = true;
+            task->Failed = true;
         }
 
         writerProfiler->Update(compactionResult.StoreWriter);
@@ -2087,10 +1980,10 @@ private:
             chunkReadOptions.ChunkReaderStatistics,
             chunkReadOptions.HunkChunkReaderStatistics);
 
-        writerProfiler->Profile(tabletSnapshot, EChunkWriteProfilingMethod::Compaction, failed);
-        readerProfiler->Profile(tabletSnapshot, EChunkReadProfilingMethod::Compaction, failed);
+        writerProfiler->Profile(tabletSnapshot, EChunkWriteProfilingMethod::Compaction, task->Failed);
+        readerProfiler->Profile(tabletSnapshot, EChunkReadProfilingMethod::Compaction, task->Failed);
 
-        if (!failed) {
+        if (!task->Failed) {
             tabletSnapshot->TableProfiler->GetLsmCounters()->ProfileCompaction(
                 task->Reason,
                 task->HunkChunkCountByReason,
@@ -2339,8 +2232,12 @@ TStoreCompactor::TTask::~TTask()
         owner->ChangeFutureEffect(TabletId, -Effect);
     }
 
-    if (auto orchidServiceManager = OrchidServiceManager.Lock()) {
-        orchidServiceManager->OnTaskFinished(this);
+    if (auto orchid = Orchid.Lock()) {
+        if (Failed) {
+            orchid->OnTaskFailed(TaskId);
+        } else {
+            orchid->OnTaskCompleted(TaskId);
+        }
     }
 }
 

@@ -8,6 +8,7 @@ PY_SRCS(
 TEST_SRCS(
     test_aggregate_columns.py
     test_ally_replicas.py
+    test_background_activity_orchid.py
     test_backups.py
     test_bulk_insert.py
     test_cell_balancer.py
@@ -38,7 +39,6 @@ TEST_SRCS(
     test_secondary_index.py
     test_sorted_dynamic_tables.py
     test_sorted_dynamic_tables_master.py
-    test_store_compactor_orchid.py
     test_table_collocation.py
     test_tablet_actions.py
     test_tablet_balancer.py

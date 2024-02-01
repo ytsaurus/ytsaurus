@@ -343,6 +343,10 @@ public:
             CreateVirtualNode(StoreCompactor_->GetOrchidService()));
         SetNodeByYPath(
             GetOrchidRoot(),
+            "/store_flusher",
+            CreateVirtualNode(StoreFlusher_->GetOrchidService()));
+        SetNodeByYPath(
+            GetOrchidRoot(),
             "/tablet_slot_manager",
             CreateVirtualNode(SlotManager_->GetOrchidService()));
         SetNodeByYPath(

@@ -10,6 +10,8 @@ struct IStoreFlusher
     : public virtual TRefCounted
 {
     virtual void Start() = 0;
+
+    virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IStoreFlusher)

@@ -4,23 +4,27 @@ from yt_commands import (
     authors, wait, ls, get, set, insert_rows, remount_table,
     sync_create_cells, sync_mount_table, sync_reshard_table,
     sync_flush_table, sync_unmount_table, create_dynamic_table,
-    disable_tablet_cells_on_node)
+    disable_tablet_cells_on_node, freeze_table, update_nodes_dynamic_config)
 
+import dateutil
 import builtins
 
 #################################################################
 
 
-class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
+class TestBackgroundActivityOrchid(TestSortedDynamicTablesBase):
     NUM_NODES = 3
     USE_DYNAMIC_TABLES = True
 
-    def _fetch_orchid(self, node, kind, table_paths):
-        result = get(f"//sys/cluster_nodes/{node}/orchid/store_compactor/{kind}_tasks")
-        for state in "pending_tasks", "running_tasks", "finished_tasks":
-            assert len(result[state]) == result[state[:-1] + "_count"]
-            result[state] = [task for task in result[state] if task["table_path"] in table_paths]
-            result[state[:-1] + "_count"] = len(result[state])
+    def _fetch_orchid(self, node, source, kind, table_paths):
+        result = get(f"//sys/cluster_nodes/{node}/orchid/{source}/{kind}_tasks")
+        for state in "pending", "running", "failed", "completed":
+            tasks_key = f"{state}_tasks"
+            count_key = f"{state}_task_count"
+            assert len(result[tasks_key]) == result[count_key]
+            result[tasks_key] = list(filter(lambda task: task["table_path"] in table_paths, result[tasks_key]))
+            result[count_key] = len(result[tasks_key])
+
         return result
 
     @staticmethod
@@ -51,13 +55,15 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
         empty_task_dict = {
             "pending_task_count": 0,
             "running_task_count": 0,
-            "finished_task_count": 0,
+            "failed_task_count": 0,
+            "completed_task_count": 0,
             "pending_tasks": [],
             "running_tasks": [],
-            "finished_tasks": [],
+            "failed_tasks": [],
+            "completed_tasks": [],
         }
-        assert self._fetch_orchid(node, "compaction", table_names) == empty_task_dict
-        assert self._fetch_orchid(node, "partitioning", table_names) == empty_task_dict
+        assert self._fetch_orchid(node, "store_compactor", "compaction", table_names) == empty_task_dict
+        assert self._fetch_orchid(node, "store_compactor", "partitioning", table_names) == empty_task_dict
 
         for table_idx in range(NUM_TABLES):
             set(
@@ -78,21 +84,23 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
 
         tablet_ids = [get(f"//tmp/t{i}/@tablets/0/tablet_id") for i in range(NUM_TABLES)]
 
-        def _compaction_task_finished():
-            compaction_tasks = self._fetch_orchid(node, "compaction", table_names)
-            for task in compaction_tasks["finished_tasks"]:
+        def _compaction_task_completed():
+            compaction_tasks = self._fetch_orchid(node, "store_compactor", "compaction", table_names)
+            for task in compaction_tasks["completed_tasks"]:
                 self._drop_unrecognized(
                     task,
                     {"tablet_id", "store_count", "table_path", "reason", "tablet_cell_bundle"})
-            compaction_tasks["finished_tasks"].sort(key=lambda x: x["table_path"])
+            compaction_tasks["completed_tasks"].sort(key=lambda x: x["table_path"])
 
             expected_compaction_tasks = {
                 "pending_task_count": 0,
                 "running_task_count": 0,
-                "finished_task_count": NUM_TABLES,
+                "failed_task_count": 0,
+                "completed_task_count": NUM_TABLES,
                 "pending_tasks": [],
                 "running_tasks": [],
-                "finished_tasks": [
+                "failed_tasks": [],
+                "completed_tasks": [
                     {
                         "tablet_id": tablet_ids[i],
                         "store_count": 5,
@@ -105,8 +113,8 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
 
             return compaction_tasks == expected_compaction_tasks
 
-        wait(lambda: _compaction_task_finished())
-        assert self._fetch_orchid(node, "partitioning", table_names) == empty_task_dict
+        wait(_compaction_task_completed)
+        assert self._fetch_orchid(node, "store_compactor", "partitioning", table_names) == empty_task_dict
 
     @authors("akozhikhov")
     def test_partitioning_orchid(self):
@@ -133,24 +141,26 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
 
-        def _partitioning_task_finished():
+        def _partitioning_task_completed():
             expected_partitioning_tasks = {
                 "pending_task_count": 0,
                 "running_task_count": 0,
-                "finished_task_count": 1,
+                "failed_task_count": 0,
+                "completed_task_count": 1,
                 "pending_tasks": [],
                 "running_tasks": [],
-                "finished_tasks": [{"tablet_id": tablet_id, "store_count": 1}],
+                "failed_tasks": [],
+                "completed_tasks": [{"tablet_id": tablet_id, "store_count": 1}],
             }
-            partitioning_tasks = self._fetch_orchid(node, "partitioning", ["//tmp/t"])
-            if partitioning_tasks["finished_task_count"] != 1:
+            partitioning_tasks = self._fetch_orchid(node, "store_compactor", "partitioning", ["//tmp/t"])
+            if partitioning_tasks["completed_task_count"] != 1:
                 return False
             self._drop_unrecognized(
-                partitioning_tasks["finished_tasks"][0],
+                partitioning_tasks["completed_tasks"][0],
                 {"tablet_id", "store_count"})
             return partitioning_tasks == expected_partitioning_tasks
 
-        wait(lambda: _partitioning_task_finished())
+        wait(_partitioning_task_completed)
 
     @authors("ifsmirnov")
     def test_running_tasks(self):
@@ -166,10 +176,11 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t_running")
 
         def _check():
-            orchid = self._fetch_orchid(node, "compaction", ["//tmp/t_running"])
+            orchid = self._fetch_orchid(node, "store_compactor", "compaction", ["//tmp/t_running"])
             pending = orchid["pending_tasks"]
             running = orchid["running_tasks"]
-            finished = orchid["finished_tasks"]
+            failed = orchid["failed_tasks"]
+            completed = orchid["completed_tasks"]
 
             if len(pending) != 0:
                 return False
@@ -181,10 +192,11 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
             assert "finish_time" not in running[0]
 
             # There may be failed tasks due to conflits with partition sampling.
-            if len(finished) < 1:
+            if len(completed) < 1:
+                assert len(failed) > 0
                 return False
 
-            for task in finished:
+            for task in completed:
                 assert "start_time" in task
                 assert "duration" in task
                 assert "finish_time" in task
@@ -192,3 +204,59 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
             return True
 
         wait(_check)
+
+    @authors("dave11ar")
+    def test_flush_orchid(self):
+        def update_failed_task_count(count):
+            update_nodes_dynamic_config({
+                "tablet_node": {
+                    "store_flusher": {
+                        "orchid": {
+                            "max_failed_task_count": count,
+                        },
+                    },
+                },
+            })
+
+        cell_id_failed, cell_id_completed = sync_create_cells(2)
+
+        def _test(non_empty_state, replication_factor, expected_size, cell_id):
+            node = get(f"#{cell_id}/@peers/0/address")
+            table_path = f"//tmp/{non_empty_state}"
+
+            self._create_simple_table(
+                table_path,
+                replication_factor=replication_factor,
+                chunk_writer={"upload_replication_factor": replication_factor})
+            sync_mount_table(table_path, cell_id=cell_id)
+            tablet = get(f"{table_path}/@tablets/0")
+
+            insert_rows(table_path, [{"key": 0, "value": "v"}])
+            freeze_table(table_path)
+            update_failed_task_count(50)
+
+            def _check():
+                orchid = self._fetch_orchid(node, "store_flusher", "flush", [table_path])
+
+                for state in "pending", "running", "failed", "completed":
+                    if orchid[f"{state}_task_count"] != (expected_size if state == non_empty_state else 0):
+                        return False
+
+                for task in orchid[f"{non_empty_state}_tasks"]:
+                    if not ("task_id" in task and
+                            "store_id" in task and
+                            task["task_id"] == task["trace_id"] and
+                            task["tablet_id"] == tablet.get("tablet_id") and
+                            task["mount_revision"] == tablet.get("mount_revision") and
+                            task["table_path"] == table_path and
+                            task["tablet_cell_bundle"] == "default" and
+                            dateutil.parser.parse(task["start_time"]) <= dateutil.parser.parse(task["finish_time"])):
+                        return False
+
+                return True
+
+            update_failed_task_count(10)
+            wait(_check)
+
+        _test("failed", 10, 10, cell_id_failed)
+        _test("completed", 3, 1, cell_id_completed)

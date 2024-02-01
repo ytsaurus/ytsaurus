@@ -94,6 +94,7 @@ SRCS(
     query_agent/session_manager.cpp
 
     tablet_node/automaton.cpp
+    tablet_node/background_activity_orchid.cpp
     tablet_node/backing_store_cleaner.cpp
     tablet_node/backup_manager.cpp
     tablet_node/bootstrap.cpp
