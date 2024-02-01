@@ -533,22 +533,21 @@ class TestControllerAgentReconnection(YTEnvSetup):
         self._wait_for_state(op, "completed")
 
     @authors("alexkolodezny")
-    @flaky(max_runs=3)
     def test_complete_map_reduce_operation_on_controller_agent_connection(self):
         self._create_table("//tmp/t_in")
         self._create_table("//tmp/t_out")
         write_table("//tmp/t_in", {"foo": "bar"})
 
         op = map_reduce(
-            map_command="sleep 1000",
-            reduce_command="cat",
+            mapper_command="sleep 1000",
+            reducer_command="cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
             sort_by=["foo"],
             spec={
                 "testing": {
                     "delay_inside_revive": 10000,
-                }
+                },
             },
             track=False,
         )
