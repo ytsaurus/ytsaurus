@@ -176,6 +176,7 @@ trait SparkLauncher {
       livyRunner,
       new File("."),
       "SPARK_HOME" -> sparkHome,
+      "SPARK_CONF_DIR" -> s"$spytHome/conf",
       "LIVY_PID_DIR" -> livyHome,
       "JAVA_HOME" -> javaHome,
       "PYSPARK_PYTHON" -> "python3"

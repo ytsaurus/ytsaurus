@@ -41,8 +41,6 @@ public:
 
     std::optional<TYPath> DiscoveryPath;
 
-    std::optional<TString> ClientVersion;
-
     std::optional<TString> SparkConf;
 
     REGISTER_YSON_STRUCT(TSpytSettings);
@@ -53,8 +51,6 @@ public:
             .Default();
         registrar.Parameter("discovery_path", &TThis::DiscoveryPath)
             .Default();
-        registrar.Parameter("client_version", &TThis::ClientVersion)
-            .Default();
         registrar.Parameter("spark_conf", &TThis::SparkConf)
             .Default();
     }
@@ -62,6 +58,36 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TSpytSettings)
 DECLARE_REFCOUNTED_CLASS(TSpytSettings)
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TSpytVersion
+{
+public:
+    TSpytVersion(TString rawVersion)
+    {
+        auto dashPos = rawVersion.find_first_of('-');
+        // Strip SNAPSHOT version suffix.
+        if (dashPos != TString::npos) {
+            rawVersion = rawVersion.substr(0, dashPos);
+        }
+        if (!StringSplitter(rawVersion).Split('.').TryCollectInto(&Major_, &Minor_, &Patch_)) {
+            THROW_ERROR_EXCEPTION(
+                "Version %Qv cannot be parsed",
+                rawVersion);
+        }
+    }
+
+    bool operator<(const TSpytVersion& rhs) const
+    {
+        return Major_ < rhs.Major_ || Major_ == rhs.Major_ && (Minor_ < rhs.Minor_ || Minor_ == rhs.Minor_ && Patch_ < rhs.Patch_);
+    }
+
+private:
+    int Major_;
+    int Minor_;
+    int Patch_;
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -259,23 +285,18 @@ private:
         return state;
     }
 
-    TString GetClientVersion() const
-    {
-        return Settings_->ClientVersion.value_or(ClusterVersion_);
-    }
-
     TString GetReleaseMode() const
     {
-        if (GetClientVersion().Contains("SNAPSHOT")) {
+        if (ClusterVersion_.Contains("SNAPSHOT")) {
             return "snapshots";
         } else {
             return "releases";
         }
     }
 
-    TString GetSpytFile(const TString& Filename) const
+    TString GetSpytFile(const TString& filename) const
     {
-        return Format("yt:/%v/spyt/%v/%v/%v", Config_->SpytHome, GetReleaseMode(), GetClientVersion(), Filename);
+        return Format("yt:/%v/spyt/%v/%v/%v", Config_->SpytHome, GetReleaseMode(), ClusterVersion_, filename);
     }
 
     TString SerializeYsonToJson(const INodePtr& ysonNode) const
@@ -297,14 +318,20 @@ private:
                 THROW_ERROR_EXCEPTION("Providing credentials is forbidden");
             }
         }
-        auto versionInsert = sparkConf.emplace("spark.yt.version", GetClientVersion()).second;
+        auto versionInsert = sparkConf.emplace("spark.yt.version", ClusterVersion_).second;
         if (!versionInsert) {
             THROW_ERROR_EXCEPTION("Don't use 'spark.yt.version'. Use 'client_version' setting instead");
         }
-        auto jarsInsert = sparkConf.emplace("spark.yt.jars", GetSpytFile("spark-yt-data-source.jar")).second;
+        // COMPAT(alex-shishkin): Cluster >= 1.76.0 doesn't require client jars.
+        if (TSpytVersion(ClusterVersion_) < TSpytVersion("1.76.0")) {
+            auto jarsInsert = sparkConf.emplace("spark.yt.jars", GetSpytFile("spark-yt-data-source.jar")).second;
+            if (!jarsInsert) {
+                THROW_ERROR_EXCEPTION("Configuration of 'spark.yt.jars' is forbidden");
+            }
+        }
         auto pyFilesInsert = sparkConf.emplace("spark.yt.pyFiles", GetSpytFile("spyt.zip")).second;
-        if (!jarsInsert || !pyFilesInsert) {
-            THROW_ERROR_EXCEPTION("Configuration of 'spark.yt.jars' and 'spark.yt.pyFiles' is forbidden");
+        if (!pyFilesInsert) {
+            THROW_ERROR_EXCEPTION("Configuration of 'spark.yt.pyFiles' is forbidden");
         }
         YT_LOG_DEBUG("Session spark conf prepared (Data: %v)", sparkConf);
         // Token insertion after data logging.
