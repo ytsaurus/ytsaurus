@@ -8,13 +8,19 @@ user@host:~$ yt create table //path/nbd_devices --attributes '{dynamic=%true;sch
 
 where `//path/nbd_devices` is the path to the dynamic table on cluster. It's important to use schema exactly like in the example above.
 
+## Set SSD primary medium for dynamic table
+
+```bash
+user@host:~$ yt set //path/nbd_devices/@primary_medium "ssd_blobs"
+```
+
 ## Mount dynamic table on cluster
 
 ```bash
-user@host:~$ yt mount-table //path/table
+user@host:~$ yt mount-table //path/nbd_devices --sync
 ```
 
-where `//path/table` is the path to the table on cluster.
+where `//path/nbd_devices` is the path to the table on cluster.
 
 ## Add cluster connection to config
 

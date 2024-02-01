@@ -171,12 +171,28 @@ public:
     {
         YT_LOG_DEBUG("Start initialization");
 
+        // Check that the table does exist.
         auto tableExists = WaitFor(Client_->NodeExists(DeviceConfig_->TablePath))
             .ValueOrThrow();
 
         if (!tableExists) {
             THROW_ERROR_EXCEPTION("Table with NBD devices %Qlv doesn't exist", DeviceConfig_->TablePath);
         }
+
+        // Check that the table is indeed dynamic.
+        NApi::TGetNodeOptions options{
+            .Attributes = std::vector<TString>{"dynamic"}
+        };
+        auto rsp = WaitFor(Client_->GetNode(DeviceConfig_->TablePath, options))
+            .ValueOrThrow();
+        auto rspNode = NYTree::ConvertTo<NYTree::INodePtr>(rsp);
+        const auto& attributes = rspNode->Attributes();
+        auto tableIsDynamic = attributes.Find<bool>("dynamic");
+        if (!tableIsDynamic || !*tableIsDynamic) {
+            THROW_ERROR_EXCEPTION("Table with NBD devices %Qlv is not dynamic", DeviceConfig_->TablePath);
+        }
+
+        // TODO(yuryalekseev): Check that the table is mounted.
 
         // Setup name table.
         NameTable_->RegisterName("device_id");
