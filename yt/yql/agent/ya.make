@@ -40,17 +40,11 @@ PEERDIR(
     yt/yt/server/lib/misc
 
     yt/yql/plugin
+
+    yt/yt/library/query/engine
+    yt/yt/library/query/row_comparer
+
+    yt/yql/plugin/bridge
 )
-
-IF (YQL_NATIVE)
-    PEERDIR(yt/yql/plugin/native)
-ELSE()
-    PEERDIR(
-        yt/yt/library/query/engine
-        yt/yt/library/query/row_comparer
-
-        yt/yql/plugin/bridge
-    )
-ENDIF()
 
 END()
