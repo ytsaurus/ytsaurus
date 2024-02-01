@@ -5,6 +5,22 @@ import "yt_proto/yt/core/misc/proto/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// A counterpart to NYT::NApi::TQueryFile, NYT::NYqlPlugin::TQueryFile and TBridgeQueryFile.
+message TYqlQueryFile
+{
+    enum EContentType
+    {
+        RAW_INLINE_DATA = 0;
+        URL = 1;
+    }
+
+    optional string name = 1;
+    optional string content = 2;
+    optional EContentType type = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // A counterpart to NYql::NEmbedded::TOperationRequest.
 message TYqlRequest
 {
@@ -14,6 +30,8 @@ message TYqlRequest
     optional bytes attributes = 4; // YSON
     optional bytes parameters = 5; // YSON
     optional int64 mode = 6 [default = 2]; // EExecuteMode
+    optional bytes settings = 7; // YSON
+    repeated TYqlQueryFile files = 8;
 }
 
 // A counterpart to NYql::NEmbedded::IOperation and to NYqlClient::TYqlResponse.

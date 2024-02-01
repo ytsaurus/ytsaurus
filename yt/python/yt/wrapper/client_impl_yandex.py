@@ -2364,7 +2364,7 @@ class YtClient(ClientState):
     def start_query(
             self,
             engine, query,
-            settings=None, stage=None):
+            settings=None, files=None, stage=None):
         """
         Start query.
 
@@ -2374,6 +2374,8 @@ class YtClient(ClientState):
         :type query: str
         :param settings: a ditionary of settings
         :type settings: dict or None
+        :param files: a YSON list of files, each of which is represented by a map with keys "name", "content", "type". Field "type" is one of "raw_inline_data", "url"
+        :type files: list or None
         :param stage: query tracker stage, defaults to "production"
         :type stage: str
 
@@ -2381,7 +2383,7 @@ class YtClient(ClientState):
         return client_api.start_query(
             engine, query,
             client=self,
-            settings=settings, stage=stage)
+            settings=settings, files=files, stage=stage)
 
     def start_spark_cluster(
             self,
