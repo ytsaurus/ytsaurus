@@ -529,21 +529,24 @@ TStoredDataset TValidator::CompareIntervals(
         YT_LOG_INFO("Interval generated (Index: %v, IntervalRowCount: %v, NumIntervals: %v, Path: %v)",
             index, intervalRowCount, numIntervals, path);
 
+        const auto rowStart = startInterval;
+        const auto rowLimit = startInterval + intervalRowCount;
+        const auto timeout = Config_.BaseTimeout + Config_.IntervalTimeout;
         compareRetrier.push_back(std::make_unique<TRpcRetrier<NProto::TRspCompareInterval>>(
-             [&, index, this] (int attempt) {
+             [=, this] (int attempt) {
                 return StartCompareInterval(
                     attempt,
                     targetPath,
                     path,
-                    startInterval,
-                    startInterval + intervalRowCount,
+                    rowStart,
+                    rowLimit,
                     index,
                     numIntervals,
-                    Config_.BaseTimeout + Config_.IntervalTimeout);
+                    timeout);
             }));
 
         compareIntervalResult.push_back(compareRetrier.back()->Run());
-        startInterval += intervalRowCount;
+        startInterval = rowLimit;
     }
 
     for (int index = 0; index < std::ssize(compareIntervalResult); ++index) {
@@ -578,17 +581,20 @@ TStoredDataset TValidator::VerifyMap(
         numIntervals);
 
     for (int index = 0; index < numIntervals; ++index) {
+        const auto rowStart = intervalInfo.Boundaries[index];
+        const auto rowLimit = intervalInfo.Boundaries[index + 1];
+        const auto timeout = Config_.BaseTimeout + Config_.IntervalTimeout;
         mapRetrier.push_back(std::make_unique<TRetrier<TString>>(
-            [&, index, this](int attempt) {
+            [=, &sourceTable, &mapper, this](int attempt) {
                 return StartMapInterval(
                     targetName,
                     attempt,
                     index,
                     numIntervals,
                     sourcePath,
-                    intervalInfo.Boundaries[index],
-                    intervalInfo.Boundaries[index + 1],
-                    Config_.BaseTimeout + Config_.IntervalTimeout,
+                    rowStart,
+                    rowLimit,
+                    timeout,
                     sourceTable,
                     mapper);
                 }));
@@ -630,17 +636,20 @@ TStoredDataset TValidator::VerifyReduce(
     std::vector<std::unique_ptr<TRetrier<TString>>> reduceRetrier;
 
     for (int index = 0; index < numIntervals; ++index) {
+        const auto rowStart = intervalInfo.Boundaries[index];
+        const auto rowLimit = intervalInfo.Boundaries[index + 1];
+        const auto timeout = Config_.BaseTimeout + Config_.IntervalTimeout;
         reduceRetrier.push_back(std::make_unique<TRetrier<TString>>(
-            [&, index, this](int attempt) {
+            [=, &sourceTable, &reduceOperation, this](int attempt) {
                 return StartReduceInterval(
                     targetName,
                     attempt,
                     index,
                     numIntervals,
                     sourcePath,
-                    intervalInfo.Boundaries[index],
-                    intervalInfo.Boundaries[index + 1],
-                    Config_.BaseTimeout + Config_.IntervalTimeout,
+                    rowStart,
+                    rowLimit,
+                    timeout,
                     sourceTable,
                     reduceOperation
                 );
@@ -680,17 +689,20 @@ TStoredDataset TValidator::VerifySort(
     std::vector<std::unique_ptr<TRetrier<TString>>> sortRetrier;
 
     for (int index = 0; index < numIntervals; index++) {
+        const auto rowStart = intervalInfo.Boundaries[index];
+        const auto rowLimit = intervalInfo.Boundaries[index + 1];
+        const auto timeout = Config_.BaseTimeout + Config_.IntervalTimeout;
         sortRetrier.push_back(std::make_unique<TRetrier<TString>>(
-             [&, index, this](int attempt) {
+            [=, &sourceTable, &operation, this](int attempt) {
                 return StartSortInterval(
                     targetName,
                     attempt,
                     index,
                     numIntervals,
                     sourcePath,
-                    intervalInfo.Boundaries[index],
-                    intervalInfo.Boundaries[index + 1],
-                    Config_.BaseTimeout + Config_.IntervalTimeout,
+                    rowStart,
+                    rowLimit,
+                    timeout,
                     sourceTable,
                     operation);
             }));
@@ -702,13 +714,14 @@ TStoredDataset TValidator::VerifySort(
     TTable sortedTable;
     ApplySortOperation(sourceTable, operation, &sortedTable);
 
+    const auto mergeTimeout = Config_.BaseTimeout +
+        numIntervals * trunc(log(numIntervals) + 1 + 1e-9) * Config_.IntervalTimeout;
     TRpcRetrier<NProto::TRspMergeSortedAndCompare> mergeRetrier(
-        [&, this](int attempt) {
+        [=, &sortedTable, this](int attempt) {
             return StartMergeSortedAndCompare(
                 attempt,
                 intervalPath,
-                Config_.BaseTimeout +
-                    numIntervals * trunc(log(numIntervals) + 1 + 1e-9) * Config_.IntervalTimeout,
+                mergeTimeout,
                 targetPath,
                 sortedTable);
         });
@@ -756,9 +769,6 @@ void TValidator::StartValidatorOperation()
             .Pool(Pool_)
             .CoreTablePath(TestHome_.CoreTable())
             .TimeLimit(TDuration::Hours(48))
-            .ResourceLimits(
-                TSchedulerResources().Memory(32LL << 30LL)
-             )
             .AddTask(
                 TVanillaTask()
                     .Name("Validator")

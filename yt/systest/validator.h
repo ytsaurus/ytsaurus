@@ -24,7 +24,6 @@ struct TValidatorConfig
     TDuration WorkerFailureBackoffDelay;
     TDuration BaseTimeout;
     TDuration IntervalTimeout;
-    bool EnableSortValidation;
 
     void RegisterOptions(NLastGetopt::TOpts* opts);
 };
@@ -68,7 +67,7 @@ public:
 private:
 
     TString Pool_;
-    TValidatorConfig Config_;
+    const TValidatorConfig Config_;
     IClientPtr Client_;
     NApi::IClientPtr RpcClient_;
     TTestHome& TestHome_;
