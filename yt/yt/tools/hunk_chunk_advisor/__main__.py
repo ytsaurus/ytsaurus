@@ -38,8 +38,8 @@ class Mapper():
                     index = 0
                     size = 0
                 else:
-                    index = self.compute_bucket_index(len(row[column]))
-                    size = len(row[column])
+                    size = len(str(row[column]))
+                    index = self.compute_bucket_index(size)
                 column_bucket_sizes[column][index] += 1
                 column_bucket_data_sizes[column][index] += size
 
