@@ -9,6 +9,9 @@ spec:
   adminCredentials:
     name: ytadminsec
 
+  configOverrides:
+    name: ytsaurus-config-overrides
+
   discovery:
     instanceCount: 1
 
@@ -119,3 +122,17 @@ spec:
     name:
       ytdemo
   image: {{ .Values.SpytImagePath }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ytsaurus-config-overrides
+data:
+  ytserver-exec-node.yson: |
+    {
+      job_resource_manager = {
+        resource_limits = {
+          user_slots = 32;
+        };
+      };
+    }
