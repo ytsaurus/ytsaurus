@@ -284,7 +284,7 @@ Y_FORCE_INLINE TTraceContext* GetCurrentTraceContext()
 
 We use `int` when we do not care about the exact size of the integer and for the most loop variables.
 
-When arity of the integer is important, we use `i8`, `i16`, `i32`, `i64` and `u8`, `u16`, `u32`, `u64` for signed and unsigned integers respectively. 
+When arity of the integer is important, we use `i8`, `i16`, `i32`, `i64` and `ui8`, `ui16`, `ui32`, `ui64` for signed and unsigned integers respectively. 
 
 We sometimes use `size_t` and `ssize_t` when interoperability with standard library requires them, but in general we try not to use them for local variables or loop variables. 
 
@@ -527,7 +527,7 @@ In context of a caught exception or received error, it is usually logged as a fi
 
 ```cpp
 try {
-    EndpointHostName_ = FQDNHostName();
+    EndpointHostName_ = FqdnHostName();
 } catch (const std::exception& ex) {
     YT_LOG_ERROR(ex, "Failed to resolve local host name");
     EndpointHostName_ = "localhost";
