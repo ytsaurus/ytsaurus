@@ -264,6 +264,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("merge_deletions_on_flush", &TThis::MergeDeletionsOnFlush)
         .Default(false);
 
+    registrar.Parameter("row_merger_type", &TThis::RowMergerType)
+        .Default(ETabletRowMergerType::Legacy);
+
     registrar.Parameter("enable_lsm_verbose_logging", &TThis::EnableLsmVerboseLogging)
         .Default(false);
 

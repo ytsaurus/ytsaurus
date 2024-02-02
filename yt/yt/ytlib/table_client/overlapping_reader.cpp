@@ -1,5 +1,7 @@
 #include "overlapping_reader.h"
+
 #include "row_merger.h"
+#include "versioned_row_merger.h"
 
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
@@ -774,16 +776,16 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOverlappingRangeReader(
 
 class TVersionedOverlappingRangeReader
     : public IVersionedReader
-    , public TSchemafulOverlappingRangeReaderBase<TVersionedRowMerger>
+    , public TSchemafulOverlappingRangeReaderBase<IVersionedRowMerger>
 {
 public:
     TVersionedOverlappingRangeReader(
         const std::vector<TLegacyOwningKey>& boundaries,
-        std::unique_ptr<TVersionedRowMerger> rowMerger,
+        std::unique_ptr<IVersionedRowMerger> rowMerger,
         std::function<IVersionedReaderPtr(int index)> readerFactory,
         TOverlappingReaderKeyComparer keyComparer,
         int minConcurrency)
-        : TSchemafulOverlappingRangeReaderBase<TVersionedRowMerger>(
+        : TSchemafulOverlappingRangeReaderBase<IVersionedRowMerger>(
             boundaries,
             std::move(rowMerger),
             std::move(readerFactory),
@@ -836,7 +838,7 @@ public:
 
 IVersionedReaderPtr CreateVersionedOverlappingRangeReader(
     const std::vector<TLegacyOwningKey>& boundaries,
-    std::unique_ptr<TVersionedRowMerger> rowMerger,
+    std::unique_ptr<IVersionedRowMerger> rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,
     TOverlappingReaderKeyComparer keyComparer,
     int minConcurrency)

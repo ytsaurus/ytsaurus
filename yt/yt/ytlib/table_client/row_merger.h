@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <yt/yt/client/table_client/versioned_row.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/versioned_row.h>
 
 #include <yt/yt/library/query/base/public.h>
 
@@ -82,58 +82,6 @@ private:
 
     TMutableUnversionedRow MergedRow_;
     TCompactVector<bool, TypicalColumnCount> ValidValues_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TVersionedRowMerger
-{
-public:
-    using TResultingRow = TVersionedRow;
-
-    TVersionedRowMerger(
-        TRowBufferPtr rowBuffer,
-        int columnCount,
-        int keyColumnCount,
-        const TColumnFilter& columnFilter,
-        TRetentionConfigPtr config,
-        TTimestamp currentTimestamp,
-        TTimestamp majorTimestamp,
-        NQueryClient::TColumnEvaluatorPtr columnEvaluator,
-        bool lookup,
-        bool mergeRowsOnFlush,
-        bool mergeDeletionsOnFlush = false);
-
-    void AddPartialRow(TVersionedRow row, TTimestamp upperTimestampLimit = MaxTimestamp);
-    TMutableVersionedRow BuildMergedRow();
-    void Reset();
-
-private:
-    const TRowBufferPtr RowBuffer_;
-    const int KeyColumnCount_;
-    const TRetentionConfigPtr Config_;
-    const bool IgnoreMajorTimestamp_;
-    const TTimestamp CurrentTimestamp_;
-    const TTimestamp MajorTimestamp_;
-    const NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
-    const bool Lookup_ = true;
-    const bool MergeRowsOnFlush_;
-    const bool MergeDeletionsOnFlush_;
-
-    bool Started_ = false;
-
-    TCompactVector<int, TypicalColumnCount> ColumnIds_;
-    TCompactVector<int, TypicalColumnCount> ColumnIdToIndex_;
-    TCompactVector<TUnversionedValue, TypicalColumnCount> Keys_;
-
-    std::vector<TVersionedValue> PartialValues_;
-    std::vector<TVersionedValue> ColumnValues_;
-    std::vector<TVersionedValue> MergedValues_;
-
-    std::vector<TTimestamp> WriteTimestamps_;
-    std::vector<TTimestamp> DeleteTimestamps_;
-
-    void Cleanup();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

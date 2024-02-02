@@ -1,10 +1,11 @@
 #include "tablet_reader.h"
-#include "private.h"
+
+#include "bootstrap.h"
 #include "partition.h"
+#include "private.h"
 #include "store.h"
 #include "tablet.h"
 #include "tablet_slot.h"
-#include "bootstrap.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -15,13 +16,14 @@
 #include <yt/yt/ytlib/table_client/overlapping_reader.h>
 #include <yt/yt/ytlib/table_client/row_merger.h>
 #include <yt/yt/ytlib/table_client/schemaful_concatencaing_reader.h>
+#include <yt/yt/ytlib/table_client/versioned_row_merger.h>
 
+#include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/unordered_schemaful_reader.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
 #include <yt/yt/client/table_client/versioned_row.h>
-#include <yt/yt/client/table_client/row_buffer.h>
-#include <yt/yt/client/table_client/unordered_schemaful_reader.h>
-#include <yt/yt/client/table_client/row_batch.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -849,12 +851,15 @@ IVersionedReaderPtr CreateCompactionTabletReader(
         MakeFormattableView(stores, TStoreIdFormatter()),
         MakeFormattableView(stores, TStoreRangeFormatter()));
 
-    auto rowMerger = std::make_unique<TVersionedRowMerger>(
+    const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
+
+    auto rowMerger = CreateVersionedRowMerger(
+        mountConfig->RowMergerType,
         New<TRowBuffer>(TTabletReaderPoolTag()),
         tabletSnapshot->QuerySchema->GetColumnCount(),
         tabletSnapshot->QuerySchema->GetKeyColumnCount(),
         TColumnFilter(),
-        tabletSnapshot->Settings.MountConfig,
+        mountConfig,
         currentTimestamp,
         majorTimestamp,
         tabletSnapshot->ColumnEvaluator,

@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/misc/memory_usage_tracker.h>
 
-#include <yt/yt/ytlib/table_client/row_merger.h>
+#include <yt/yt/ytlib/table_client/versioned_row_merger.h>
 
 namespace NYT::NTabletNode {
 
@@ -103,7 +103,7 @@ void TRowCache::SetFlushIndex(ui32 storeFlushIndex)
 void TRowCache::UpdateItems(
     TRange<NTableClient::TVersionedRow> rows,
     NTableClient::TTimestamp retainedTimestamp,
-    NTableClient::TVersionedRowMerger* compactionRowMerger,
+    NTableClient::IVersionedRowMerger* compactionRowMerger,
     ui32 storeFlushIndex,
     const NLogging::TLogger& Logger)
 {

@@ -110,8 +110,9 @@ DECLARE_REFCOUNTED_CLASS(TTableColumnarStatisticsCache)
 
 class TSchemafulRowMerger;
 class TUnversionedRowMerger;
-class TVersionedRowMerger;
 class TSamplingRowMerger;
+
+struct IVersionedRowMerger;
 
 DECLARE_REFCOUNTED_CLASS(TTableWriterOptions)
 DECLARE_REFCOUNTED_CLASS(TTableReaderOptions)

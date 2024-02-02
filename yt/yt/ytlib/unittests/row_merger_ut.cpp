@@ -13,6 +13,7 @@
 #include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/overlapping_reader.h>
 #include <yt/yt/ytlib/table_client/row_merger.h>
+#include <yt/yt/ytlib/table_client/versioned_row_merger.h>
 
 #include <yt/yt/client/table_client/comparator.h>
 #include <yt/yt/client/table_client/helpers.h>
@@ -523,7 +524,7 @@ class TVersionedRowMergerTest
     : public TRowMergerTestBase
 {
 public:
-    std::unique_ptr<TVersionedRowMerger> GetTypicalMerger(
+    std::unique_ptr<IVersionedRowMerger> GetTypicalMerger(
         TRetentionConfigPtr config,
         TTimestamp currentTimestamp,
         TTimestamp majorTimestamp,
@@ -533,7 +534,7 @@ public:
         bool mergeDeletionsOnFlush  = false)
     {
         auto evaluator = ColumnEvaluatorCache_->Find(GetKeyedSchema(schema, 1));
-        return std::make_unique<TVersionedRowMerger>(
+        return CreateLegacyVersionedRowMerger(
             MergedRowBuffer_,
             schema.GetColumnCount(),
             1,

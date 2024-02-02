@@ -27,7 +27,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOverlappingRangeReader(
 
 IVersionedReaderPtr CreateVersionedOverlappingRangeReader(
     const std::vector<TLegacyOwningKey>& boundaries,
-    std::unique_ptr<TVersionedRowMerger> rowMerger,
+    std::unique_ptr<IVersionedRowMerger> rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,
     TOverlappingReaderKeyComparer keyComparer,
     int minConcurrency = DefaultMinConcurrency);

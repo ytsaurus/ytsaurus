@@ -1434,6 +1434,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_offloading_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_reader_adapter.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_row_digest.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_row_merger.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/virtual_value_directory.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/backup.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/config.cpp

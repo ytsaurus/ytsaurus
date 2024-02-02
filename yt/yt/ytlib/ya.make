@@ -454,6 +454,7 @@ SRCS(
     table_client/versioned_offloading_reader.cpp
     table_client/versioned_reader_adapter.cpp
     table_client/versioned_row_digest.cpp
+    table_client/versioned_row_merger.cpp
     table_client/virtual_value_directory.cpp
 
     table_client/proto/table_ypath.proto

@@ -32,7 +32,7 @@ public:
     void UpdateItems(
         TRange<NTableClient::TVersionedRow> rows,
         NTableClient::TTimestamp retainedTimestamp,
-        NTableClient::TVersionedRowMerger* compactionRowMerger,
+        NTableClient::IVersionedRowMerger* compactionRowMerger,
         ui32 storeFlushIndex,
         const NLogging::TLogger& Logger);
 

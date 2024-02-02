@@ -214,6 +214,7 @@ public:
     bool EnableStoreFlush;
     bool EnableLsmVerboseLogging;
 
+    ETabletRowMergerType RowMergerType;
     bool MergeRowsOnFlush;
     bool MergeDeletionsOnFlush;
 

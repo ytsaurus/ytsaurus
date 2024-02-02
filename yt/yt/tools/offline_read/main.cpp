@@ -15,8 +15,8 @@
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/chunk_slice.h>
+#include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/key_filter.h>
 #include <yt/yt/ytlib/table_client/overlapping_reader.h>
@@ -25,6 +25,7 @@
 #include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_row_digest.h>
+#include <yt/yt/ytlib/table_client/versioned_row_merger.h>
 
 #include <yt/yt/client/chunk_client/read_limit.h>
 
@@ -667,7 +668,7 @@ std::unique_ptr<IUniversalReader> CreateMergedVersionedUniversalReader(
     auto columnEvaluatorCache = CreateColumnEvaluatorCache(
         New<TColumnEvaluatorCacheConfig>());
     auto columnEvaluator = columnEvaluatorCache->Find(schema);
-    auto rowMerger = std::make_unique<TVersionedRowMerger>(
+    auto rowMerger = CreateLegacyVersionedRowMerger(
         New<TRowBuffer>(),
         schema->GetColumnCount(),
         schema->GetKeyColumnCount(),

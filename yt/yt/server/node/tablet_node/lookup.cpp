@@ -1,6 +1,7 @@
 #include "lookup.h"
-#include "private.h"
+
 #include "hedging_manager_registry.h"
+#include "private.h"
 #include "store.h"
 #include "tablet.h"
 #include "tablet_profiling.h"
@@ -16,15 +17,16 @@
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
-#include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/hunks.h>
 #include <yt/yt/ytlib/table_client/key_filter.h>
 #include <yt/yt/ytlib/table_client/row_merger.h>
+#include <yt/yt/ytlib/table_client/versioned_row_merger.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
@@ -98,7 +100,7 @@ protected:
 
     const std::unique_ptr<IWireProtocolWriter> Writer_ = CreateWireProtocolWriter();
 
-    TSchemafulRowMerger Merger_;
+    std::unique_ptr<TSchemafulRowMerger> Merger_;
 
     DEFINE_BYVAL_RO_PROPERTY(int, FoundRowCount, 0);
     DEFINE_BYVAL_RO_PROPERTY(i64, FoundDataWeight, 0);
@@ -109,13 +111,13 @@ protected:
         const TColumnFilter& columnFilter,
         const TRetentionConfigPtr& /*retentionConfig*/,
         const TReadTimestampRange& timestampRange)
-        : Merger_(
+        : Merger_(std::make_unique<TSchemafulRowMerger>(
             New<TRowBuffer>(TLookupSessionBufferTag()),
             tabletSnapshot->PhysicalSchema->GetColumnCount(),
             tabletSnapshot->PhysicalSchema->GetKeyColumnCount(),
             columnFilter,
             tabletSnapshot->ColumnEvaluator,
-            timestampRange.RetentionTimestamp)
+            timestampRange.RetentionTimestamp))
     { }
 
     void WriteRow(TUnversionedRow row)
@@ -133,7 +135,7 @@ protected:
 
     const std::unique_ptr<IWireProtocolWriter> Writer_ = CreateWireProtocolWriter();
 
-    TVersionedRowMerger Merger_;
+    std::unique_ptr<IVersionedRowMerger> Merger_;
 
     DEFINE_BYVAL_RO_PROPERTY(int, FoundRowCount, 0);
     DEFINE_BYVAL_RO_PROPERTY(i64, FoundDataWeight, 0);
@@ -144,7 +146,8 @@ protected:
         const TColumnFilter& columnFilter,
         const TRetentionConfigPtr& retentionConfig,
         const TReadTimestampRange& timestampRange)
-        : Merger_(
+        : Merger_(CreateVersionedRowMerger(
+            tabletSnapshot->Settings.MountConfig->RowMergerType,
             New<TRowBuffer>(TLookupSessionBufferTag()),
             tabletSnapshot->PhysicalSchema->GetColumnCount(),
             tabletSnapshot->PhysicalSchema->GetKeyColumnCount(),
@@ -154,7 +157,7 @@ protected:
             MinTimestamp,
             tabletSnapshot->ColumnEvaluator,
             /*lookup*/ true,
-            /*mergeRowsOnFlush*/ false)
+            /*mergeRowsOnFlush*/ false))
     { }
 
     void WriteRow(TVersionedRow row)
@@ -207,12 +210,12 @@ protected:
 
     void AddPartialRow(TVersionedRow partialRow, TTimestamp timestamp, bool /*activeStore*/)
     {
-        Merger_.AddPartialRow(partialRow, timestamp);
+        Merger_->AddPartialRow(partialRow, timestamp);
     }
 
     TMutableRow GetMergedRow()
     {
-        return Merger_.BuildMergedRow();
+        return Merger_->BuildMergedRow();
     }
 
     void FinishRow()
@@ -261,7 +264,8 @@ protected:
         , RetainedTimestamp_(tabletSnapshot->RetainedTimestamp)
         , StoreFlushIndex_(tabletSnapshot->StoreFlushIndex)
         , Logger(std::move(logger))
-        , CacheRowMerger_(
+        , CacheRowMerger_(CreateVersionedRowMerger(
+            tabletSnapshot->Settings.MountConfig->RowMergerType,
             RowBuffer_,
             tabletSnapshot->PhysicalSchema->GetColumnCount(),
             tabletSnapshot->PhysicalSchema->GetKeyColumnCount(),
@@ -271,7 +275,7 @@ protected:
             MaxTimestamp, // Do not consider major timestamp.
             tabletSnapshot->ColumnEvaluator,
             /*lookup*/ true, // Do not produce sentinel rows.
-            /*mergeRowsOnFlush*/ true) // Always merge rows on flush.
+            /*mergeRowsOnFlush*/ true)) // Always merge rows on flush.
     { }
 
     ~TRowCachePipeline()
@@ -353,7 +357,7 @@ protected:
             // So we preserve row from active store and add only key to row cache.
             if (activeStore) {
                 // Add key without values.
-                CacheRowMerger_.AddPartialRow(partialRow, MinTimestamp);
+                CacheRowMerger_->AddPartialRow(partialRow, MinTimestamp);
 
                 if (partialRow) {
                     for (const auto& value : partialRow.Values()) {
@@ -363,7 +367,7 @@ protected:
 
                 RowsFromActiveStore_[CurrentRowIndex_] = RowBuffer_->CaptureRow(partialRow);
             } else {
-                CacheRowMerger_.AddPartialRow(partialRow, MaxTimestamp);
+                CacheRowMerger_->AddPartialRow(partialRow, MaxTimestamp);
             }
         } else {
             // CacheRowMerger_ performs compaction with MergeRowsOnFlush option and uses max MajorTimestamp.
@@ -381,7 +385,7 @@ protected:
         // For cached rows use simple CacheMerger_ which merges rows into one without compaction.
 
         auto mergedRow = IsLookupInChunkNeeded(CurrentRowIndex_)
-            ? CacheRowMerger_.BuildMergedRow()
+            ? CacheRowMerger_->BuildMergedRow()
             : SimpleRowMerger_.BuildMergedRow(RowBuffer_);
 
         ++CurrentRowIndex_;
@@ -402,7 +406,7 @@ protected:
             }
         }
 
-        Merger_.AddPartialRow(lookupedRow, Timestamp_ + 1);
+        Merger_->AddPartialRow(lookupedRow, Timestamp_ + 1);
 
         auto cachedItemRef = std::move(RowsFromCache_[WriteRowIndex_]);
 
@@ -421,7 +425,7 @@ protected:
                 cachedItem->Revision.load(),
                 Timestamp_);
 
-            Merger_.AddPartialRow(cachedItem->GetVersionedRow(), Timestamp_ + 1);
+            Merger_->AddPartialRow(cachedItem->GetVersionedRow(), Timestamp_ + 1);
 
             // Reinsert row here.
             // TODO(lukyan): Move into function UpdateRow(cachedItemRef, inserter, cachedItem)
@@ -434,7 +438,7 @@ protected:
                 lookupTable->Insert(std::move(cachedItem));
             }
         } else {
-            Merger_.AddPartialRow(RowsFromActiveStore_[WriteRowIndex_], Timestamp_ + 1);
+            Merger_->AddPartialRow(RowsFromActiveStore_[WriteRowIndex_], Timestamp_ + 1);
 
             auto cachedItem = CachedRowFromVersionedRow(
                 RowCache_->GetAllocator(),
@@ -465,7 +469,7 @@ protected:
 
         ++WriteRowIndex_;
 
-        auto mergedRow = Merger_.BuildMergedRow();
+        auto mergedRow = Merger_->BuildMergedRow();
         TRowAdapter::WriteRow(mergedRow);
     }
 
@@ -596,7 +600,7 @@ private:
     const NLogging::TLogger Logger;
     const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TLookupSessionBufferTag());
 
-    TVersionedRowMerger CacheRowMerger_;
+    std::unique_ptr<IVersionedRowMerger> CacheRowMerger_;
     TSimpleRowMerger SimpleRowMerger_;
 
     // Holds references to lookup tables.

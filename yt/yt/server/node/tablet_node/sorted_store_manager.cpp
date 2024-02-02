@@ -20,8 +20,8 @@
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/hunks.h>
-#include <yt/yt/ytlib/table_client/row_merger.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
+#include <yt/yt/ytlib/table_client/versioned_row_merger.h>
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
@@ -735,7 +735,8 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             writerProfiler->Update(hunkChunkPayloadWriter, hunkChunkWriterStatistics);
         });
 
-        TVersionedRowMerger onFlushRowMerger(
+        auto onFlushRowMerger = CreateVersionedRowMerger(
+            mountConfig->RowMergerType,
             New<TRowBuffer>(TMergeRowsOnFlushBufferTag()),
             tabletSnapshot->QuerySchema->GetColumnCount(),
             tabletSnapshot->QuerySchema->GetKeyColumnCount(),
@@ -758,7 +759,8 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         auto majorTimestamp = std::min(unflushedTimestamp, tabletSnapshot->RetainedTimestamp);
 
-        TVersionedRowMerger compactionRowMerger(
+        auto compactionRowMerger = CreateVersionedRowMerger(
+            mountConfig->RowMergerType,
             New<TRowBuffer>(TMergeRowsOnFlushBufferTag()),
             tabletSnapshot->QuerySchema->GetColumnCount(),
             tabletSnapshot->QuerySchema->GetKeyColumnCount(),
@@ -818,8 +820,8 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             if (mergeRowsOnFlush) {
                 auto outputIt = rows.begin();
                 for (auto row : rows) {
-                    onFlushRowMerger.AddPartialRow(row);
-                    auto mergedRow = onFlushRowMerger.BuildMergedRow();
+                    onFlushRowMerger->AddPartialRow(row);
+                    auto mergedRow = onFlushRowMerger->BuildMergedRow();
                     if (mergedRow) {
                         *outputIt++ = mergedRow;
                     }
@@ -828,7 +830,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             }
 
             if (rowCache && storeFlushIndex > 0) {
-                rowCache->UpdateItems(rows, newRetainedTimestamp, &compactionRowMerger, storeFlushIndex, Logger);
+                rowCache->UpdateItems(rows, newRetainedTimestamp, compactionRowMerger.get(), storeFlushIndex, Logger);
             }
 
             if (!storeWriter->Write(rows)) {
@@ -836,8 +838,8 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                     .ThrowOnError();
             }
 
-            onFlushRowMerger.Reset();
-            compactionRowMerger.Reset();
+            onFlushRowMerger->Reset();
+            compactionRowMerger->Reset();
         }
 
         if (rowCache) {
