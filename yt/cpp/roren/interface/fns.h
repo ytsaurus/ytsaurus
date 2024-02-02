@@ -141,32 +141,6 @@ public:
     }
 };
 
-template <CRow TInput_, typename TOutput_>
-class IBatchDoFn
-    : public IFnBase
-{
-public:
-    using TInputRow = TInput_;
-    using TOutputRow = TOutput_;
-
-public:
-    std::vector<TDynamicTypeTag> GetOutputTags() const
-    {
-        return {TTypeTag<TOutputRow>("do-fn-output")};
-    }
-
-    virtual void Start(TOutput<TOutputRow>&)
-    { }
-    virtual void Do(std::span<const TInputRow> input, TOutput<TOutputRow>& output) = 0;
-    virtual void Finish(TOutput<TOutputRow>&)
-    { }
-
-    virtual TFnAttributes GetDefaultAttributes() const
-    {
-        return {};
-    }
-};
-
 template <typename F>
 concept CParDoMultiOutputFunction = requires (F f, TMultiOutput& multiOutput)
 {

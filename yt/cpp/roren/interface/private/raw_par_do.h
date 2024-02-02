@@ -28,9 +28,8 @@ public:
     using TOutputRow = typename TFunction::TOutputRow;
 
     static_assert(
-        std::is_convertible_v<TFunction*, IDoFn<TInputRow, TOutputRow>*> ||
-            std::is_convertible_v<TFunction*, IBatchDoFn<TInputRow, TOutputRow>*>,
-        "Argument must be subclass of IDoFn or IBatchDoFn");
+        std::is_convertible_v<TFunction*, IDoFn<TInputRow, TOutputRow>*>,
+        "Argument must be subclass of IDoFn");
     static_assert(std::is_default_constructible_v<TFunction>, "ParDo class must have default constructor");
 
 public:
@@ -75,8 +74,6 @@ public:
             for (; current < end; ++current) {
                 Func_->Do(*current, GetOutput());
             }
-        } else if constexpr (std::is_base_of_v<IBatchDoFn<TInputRow, TOutputRow>, TFunction>) {
-            Func_->Do(std::span(current, end), GetOutput());
         } else {
             static_assert(TDependentFalse<TFunction>);
         }
