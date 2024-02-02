@@ -13,6 +13,9 @@ type UnsupportedTypeError struct {
 }
 
 func (e *UnsupportedTypeError) Error() string {
+	if e.UserType == nil {
+		return "yson: nil is not supported"
+	}
 	return "yson: value of type " + e.UserType.String() + " is not supported"
 }
 
