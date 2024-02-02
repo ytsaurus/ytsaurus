@@ -26,8 +26,8 @@
 
 #if defined(MSGPACK_USE_CPP03)
 
-#include "adaptor/tr1/unordered_map.hpp"
-#include "adaptor/tr1/unordered_set.hpp"
+#error #include "adaptor/tr1/unordered_map.hpp"
+#error #include "adaptor/tr1/unordered_set.hpp"
 
 #else  // defined(MSGPACK_USE_CPP03)
 
