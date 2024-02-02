@@ -33,12 +33,12 @@ class QueueAgentHelpers:
 class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
-    @authors("achulkov2")
+    @authors("nadya73")
     def test_attribute_opaqueness(self):
         full_attributes = get("//sys/@")
         assert full_attributes["queue_agent_object_revisions"] == YsonEntity()
 
-    @authors("achulkov2")
+    @authors("nadya73")
     def test_create(self):
         create("table", "//tmp/q1", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
         create("table", "//tmp/q2", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
@@ -145,7 +145,7 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
         remove("//tmp/chaos_rep_c1")
         QueueAgentHelpers.assert_registered_consumers_are()
 
-    @authors("achulkov2")
+    @authors("nadya73")
     def test_transactional_create(self):
         # TODO: add tests for chaos under transactions, when create chaos table will be supported under transactions.
         tx1 = start_transaction()
@@ -196,7 +196,7 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
         QueueAgentHelpers.assert_registered_queues_are()
         QueueAgentHelpers.assert_registered_consumers_are()
 
-    @authors("achulkov2")
+    @authors("nadya73")
     def test_alter(self):
         create("table", "//tmp/q1", attributes={"dynamic": False, "schema": [{"name": "data", "type": "string"}]})
         cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
@@ -257,7 +257,7 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
         QueueAgentHelpers.assert_registered_queues_are()
         QueueAgentHelpers.assert_registered_consumers_are()
 
-    @authors("achulkov2")
+    @authors("nadya73")
     def test_copy(self):
         create("table", "//tmp/q1", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
         create("replicated_table", "//tmp/rep_q1", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
@@ -304,7 +304,7 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
         QueueAgentHelpers.assert_registered_queues_are()
         QueueAgentHelpers.assert_registered_consumers_are()
 
-    @authors("achulkov2")
+    @authors("nadya73")
     def test_transactional_copy(self):
         # TODO: add tests for chaos under transactions, when copy chaos table will be supported under transactions.
         create("table", "//tmp/q1", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
@@ -324,7 +324,7 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
                 remove(f"//tmp/{queue_name_prefix}{index}")
         QueueAgentHelpers.assert_registered_queues_are()
 
-    @authors("achulkov2")
+    @authors("nadya73")
     def test_transactional_fun(self):
         # TODO: add tests for chaos under transactions, when copy && create chaos table will be supported under transactions.
         tx = start_transaction()
@@ -349,7 +349,7 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
                 remove(f"//tmp/{queue_name_prefix}{index}")
         QueueAgentHelpers.assert_registered_queues_are()
 
-    @authors("achulkov2")
+    @authors("nadya73")
     def test_treat_as_queue_consumer_modifications(self):
         consumer_schema = [{"name": "data", "type": "string", "sort_order": "ascending"},
                            {"name": "test", "type": "string"}]
@@ -387,7 +387,7 @@ class TestQueueAgentObjectsRevisionsPortal(TestQueueAgentObjectRevisions):
     NUM_SECONDARY_MASTER_CELLS = 2
     ENABLE_TMP_PORTAL = True
 
-    @authors("achulkov2")
+    @authors("nadya73")
     def test_objects_from_different_cells(self):
         create("portal_entrance", "//portals/p1", attributes={"exit_cell_tag": 11})
         create("portal_entrance", "//portals/p2", attributes={"exit_cell_tag": 12})

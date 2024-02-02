@@ -282,7 +282,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
     #     read_availability_clusters: set of clusters required to be up for reads to be available
     #     write_availability_clusters: set of clusters required to be up for writes to be available
 
-    @authors("achulkov2")
+    @authors("nadya73")
     @pytest.mark.parametrize("create_registration_table", [
         TestQueueConsumerApiBase._create_simple_registration_table,
         TestQueueConsumerApiBase._create_replicated_registration_table,
@@ -418,7 +418,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
                                                                    authenticated_user="bulat", driver=get_driver(cluster=consumer_cluster)))
         wait(lambda: self._registrations_are(local_replica_path, replica_clusters, builtins.set()))
 
-    @authors("achulkov2")
+    @authors("nadya73")
     @pytest.mark.parametrize("create_registration_table", [
         TestQueueConsumerApiBase._create_simple_registration_table,
     ])
@@ -576,7 +576,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
 
         wait(do)
 
-    @authors("achulkov2")
+    @authors("nadya73")
     @pytest.mark.parametrize("create_registration_table", [
         TestQueueConsumerApiBase._create_simple_registration_table,
         TestQueueConsumerApiBase._create_replicated_registration_table,
@@ -621,7 +621,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
                                                      expected_registrations),
                      ignore_exceptions=True)
 
-    @authors("achulkov2")
+    @authors("nadya73")
     @pytest.mark.parametrize("create_registration_table", [
         TestQueueConsumerApiBase._create_simple_registration_table,
         TestQueueConsumerApiBase._create_replicated_registration_table,
@@ -897,7 +897,7 @@ class TestDataApi(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgent
 
         TestDataApi._assert_rows_contain(actual_rows, expected_rows)
 
-    @authors("achulkov2")
+    @authors("nadya73")
     @pytest.mark.parametrize("create_queue", [
         _create_queue,
         _create_symlink_queue,
@@ -925,7 +925,7 @@ class TestDataApi(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgent
             {"$tablet_index": 0, "$row_index": 0, "data": "foo"},
         ])
 
-    @authors("achulkov2")
+    @authors("nadya73")
     def test_pull_replicated_queue(self):
         queue_replicated_table, queue_replicas, queue_replica_ids = self._create_replicated_queue(
             "//tmp/q", replica_modes=["sync", "async", "async"])
@@ -943,7 +943,7 @@ class TestDataApi(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgent
             {"$tablet_index": 0, "$row_index": 1, "data": "bar"},
         ])
 
-    @authors("achulkov2")
+    @authors("nadya73")
     def test_pull_chaos_replicated_queue(self):
         queue_replicated_table, queue_replicas, queue_replica_ids = self._create_chaos_replicated_queue(
             "//tmp/q", replica_modes=["sync", "async", "async"], disabled_replicas={1})
@@ -966,7 +966,7 @@ class TestDataApi(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgent
                 {"$tablet_index": 0, "$row_index": 1, "data": "bar"},
             ])
 
-    @authors("achulkov2")
+    @authors("nadya73")
     def test_pull_replicated_consumer(self):
         queue_replicated_table, queue_replicas, queue_replica_ids = self._create_replicated_queue(
             "//tmp/q", replica_modes=["sync", "async", "async"])
@@ -996,7 +996,7 @@ class TestDataApi(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgent
             pull_consumer(consumer_replicated_table, queue_replicated_table, offset=1, partition_index=0,
                           authenticated_user="test")
 
-    @authors("achulkov2")
+    @authors("nadya73")
     def test_pull_chaos_replicated_consumer(self):
         queue_replicated_table, queue_replicas, queue_replica_ids = self._create_chaos_replicated_queue(
             "//tmp/q", replica_modes=["sync", "async", "async"], disabled_replicas={1})
@@ -1025,7 +1025,7 @@ class TestDataApi(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgent
                 {"$tablet_index": 0, "$row_index": 1, "data": "bar"},
             ])
 
-    @authors("achulkov2")
+    @authors("nadya73")
     @pytest.mark.parametrize("create_consumer", [
         _create_consumer,
         _create_symlink_consumer,
@@ -1080,7 +1080,7 @@ class TestDataApi(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgent
         with raises_yt_error("Queue cluster"):
             pull_consumer("//tmp/c", "abc://tmp/q", partition_index=0, offset=0)
 
-    @authors("achulkov2")
+    @authors("nadya73")
     @pytest.mark.parametrize("create_consumer", [
         _create_consumer,
         _create_symlink_consumer,
