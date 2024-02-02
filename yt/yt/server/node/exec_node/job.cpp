@@ -2167,7 +2167,12 @@ void TJob::Cleanup()
 
     if (auto delay = JobTestingOptions_->DelayInCleanup) {
         YT_LOG_DEBUG("Simulate delay in cleanup");
+
         TDelayedExecutor::WaitForDuration(*delay);
+
+        if (JobPhase_ >= EJobPhase::Cleanup) {
+            return;
+        }
     }
 
     YT_LOG_INFO("Clean up after scheduler job");
@@ -2180,6 +2185,7 @@ void TJob::Cleanup()
         try {
             WaitFor(StopJobProxy())
                 .ThrowOnError();
+            // TODO(pogorelov): Maybe we should wait until the process is actually stopped?
         } catch (const std::exception& ex) {
             // Errors during cleanup phase do not affect job outcome.
             YT_LOG_ERROR(ex, "Failed to clean processes (SlotIndex: %v)", slot->GetSlotIndex());
