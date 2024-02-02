@@ -14,8 +14,6 @@ DECLARE_REFCOUNTED_STRUCT(TSysConfig)
 DECLARE_REFCOUNTED_STRUCT(TBundleInfo)
 DECLARE_REFCOUNTED_STRUCT(TResourceQuota)
 DECLARE_REFCOUNTED_STRUCT(TResourceLimits)
-DECLARE_REFCOUNTED_STRUCT(TDefaultInstanceConfig)
-DECLARE_REFCOUNTED_STRUCT(TInstanceSize)
 DECLARE_REFCOUNTED_STRUCT(THulkInstanceResources)
 DECLARE_REFCOUNTED_STRUCT(TBundleConfig)
 DECLARE_REFCOUNTED_STRUCT(TBundleSystemOptions)
@@ -136,36 +134,6 @@ struct TResourceLimits
 };
 
 DEFINE_REFCOUNTED_TYPE(TResourceLimits)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TDefaultInstanceConfig
-    : public NYTree::TYsonStruct
-{
-    NBundleControllerClient::TCpuLimitsPtr CpuLimits;
-    NBundleControllerClient::TMemoryLimitsPtr MemoryLimits;
-
-    REGISTER_YSON_STRUCT(TDefaultInstanceConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TDefaultInstanceConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TInstanceSize
-    : public NYTree::TYsonStruct
-{
-    NBundleControllerClient::TInstanceResourcesPtr ResourceGuarantee;
-    TDefaultInstanceConfigPtr DefaultConfig;
-
-    REGISTER_YSON_STRUCT(TInstanceSize);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TInstanceSize)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -321,8 +289,8 @@ struct TZoneInfo
     int MaxTabletNodeCount;
     int MaxRpcProxyCount;
 
-    THashMap<TString, TInstanceSizePtr> TabletNodeSizes;
-    THashMap<TString, TInstanceSizePtr> RpcProxySizes;
+    THashMap<TString, NBundleControllerClient::TInstanceSizePtr> TabletNodeSizes;
+    THashMap<TString, NBundleControllerClient::TInstanceSizePtr> RpcProxySizes;
 
     TBundleConfigPtr SpareTargetConfig;
     TString SpareBundleName;

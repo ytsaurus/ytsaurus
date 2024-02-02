@@ -27,6 +27,7 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const NYPath::TYPath TabletCellBundlesPath("//sys/tablet_cell_bundles");
+static const NYPath::TYPath ZoneBundlesPath("//sys/bundle_controller/controller/zones");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,7 +53,8 @@ public:
 private:
     NCellBalancer::IBootstrap* const Bootstrap_;
 
-    inline static const TString  BundleAttributeTargetConfig = "bundle_controller_target_config";
+    inline static const TString BundleAttributeTargetConfig = "bundle_controller_target_config";
+    inline static const TString BundleAttributeZone = "zone";
 
     NBundleControllerClient::TBundleTargetConfigPtr GetBundleConfig(const TString& bundleName)
     {
@@ -63,6 +65,37 @@ private:
             .ValueOrThrow();
 
         return NYTree::ConvertTo<NBundleControllerClient::TBundleTargetConfigPtr>(yson);
+    }
+
+    NBundleControllerClient::TBundleConfigConstraintsPtr GetBundleConstraints(const TString& bundleName)
+    {
+        auto zoneNamePath = Format("%v/%v/@%v", TabletCellBundlesPath, bundleName, BundleAttributeZone);
+        auto zoneNameYson = NConcurrency::WaitFor(Bootstrap_
+            ->GetClient()
+            ->GetNode(zoneNamePath))
+            .ValueOrThrow();
+        TString zoneName = NYTree::ConvertTo<TString>(zoneNameYson);
+
+        auto zoneInfoPath = Format("%v/%v/@", ZoneBundlesPath, zoneName);
+        auto zoneInfoYson = NConcurrency::WaitFor(Bootstrap_
+            ->GetClient()
+            ->GetNode(zoneInfoPath))
+            .ValueOrThrow();
+
+        auto zoneInfo = NYTree::ConvertTo<NCellBalancer::TZoneInfoPtr>(zoneInfoYson);
+        auto result = New<NBundleControllerClient::TBundleConfigConstraints>();
+
+        for (auto& [type, instance] : zoneInfo->RpcProxySizes) {
+            instance->ResourceGuarantee->Type = type;
+            result->RpcProxySizes.push_back(instance);
+        }
+
+        for (auto& [type, instance] : zoneInfo->TabletNodeSizes) {
+            instance->ResourceGuarantee->Type = type;
+            result->TabletNodeSizes.push_back(instance);
+        }
+
+        return result;
     }
 
     void SetBundleConfig(const TString& bundleName, NBundleControllerClient::TBundleTargetConfigPtr& config)
@@ -83,9 +116,11 @@ private:
         TString bundleName = request->bundle_name();
 
         auto bundleConfig = GetBundleConfig(bundleName);
+        auto bundleConfigConstraints = GetBundleConstraints(bundleName);
 
         response->set_bundle_name(bundleName);
 
+        NBundleControllerClient::NProto::ToProto(response->mutable_bundle_constraints(), bundleConfigConstraints);
         NBundleControllerClient::NProto::ToProto(response->mutable_bundle_config(), bundleConfig);
 
         context->Reply();

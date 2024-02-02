@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 import yt.yson as yson
 import yt.packages.requests as requests
-from yt_commands import authors, ls, exists, set, get
+from yt_commands import authors, ls, exists, set, get, create
 
 
 ##################################################################
@@ -54,6 +54,118 @@ class TestBundleController(YTEnvSetup):
         rsp.raise_for_status()
 
     def _fill_default_bundle(self):
+        set("//sys/tablet_cell_bundles/default/@zone", "zone_default")
+        create("map_node", "//sys/bundle_controller/controller/zones/zone_default", recursive=True, force=True)
+        set("//sys/bundle_controller/controller/zones/zone_default/@rpc_proxy_sizes", {
+            "medium": {
+                "resource_guarantee": {
+                    "memory": 21474836480,
+                    "net": 1090519040,
+                    "vcpu": 10000
+                }
+            },
+            "small": {
+                "resource_guarantee": {
+                    "memory": 21474836480,
+                    "net": 545259520,
+                    "vcpu": 4000
+                }
+            }
+        })
+        set("//sys/bundle_controller/controller/zones/zone_default/@tablet_node_sizes", {
+            "cpu_intensive": {
+                "default_config": {
+                    "cpu_limits": {
+                        "lookup_thread_pool_size": 12,
+                        "query_thread_pool_size": 12,
+                        "write_thread_pool_size": 10
+                    },
+                    "memory_limits": {
+                        "compressed_block_cache": 8589934592,
+                        "lookup_row_cache": 1024,
+                        "tablet_dynamic": 21474836480,
+                        "tablet_static": 10737418240,
+                        "uncompressed_block_cache": 8589934592,
+                        "versioned_chunk_meta": 21474836480
+                    }
+                },
+                "resource_guarantee": {
+                    "memory": 107374182400,
+                    "net": 5368709120,
+                    "vcpu": 28000
+                }
+            },
+            "medium": {
+                "default_config": {
+                    "cpu_limits": {
+                        "lookup_thread_pool_size": 4,
+                        "query_thread_pool_size": 4,
+                        "write_thread_pool_size": 10
+                    },
+                    "memory_limits": {
+                        "compressed_block_cache": 8589934592,
+                        "lookup_row_cache": 0,
+                        "reserved": 21474836480,
+                        "tablet_dynamic": 15032385536,
+                        "tablet_static": 42949672960,
+                        "uncompressed_block_cache": 8589934592,
+                        "versioned_chunk_meta": 10737418240
+                    }
+                },
+                "resource_guarantee": {
+                    "memory": 107374182400,
+                    "net": 2684354560,
+                    "vcpu": 14000
+                }
+            },
+            "small": {
+                "default_config": {
+                    "cpu_limits": {
+                        "lookup_thread_pool_size": 2,
+                        "query_thread_pool_size": 2,
+                        "write_thread_pool_size": 5
+                    },
+                    "memory_limits": {
+                        "compressed_block_cache": 4294967296,
+                        "lookup_row_cache": 1024,
+                        "reserved": 10737418240,
+                        "tablet_dynamic": 7516192768,
+                        "tablet_static": 21474836480,
+                        "uncompressed_block_cache": 4294967296,
+                        "versioned_chunk_meta": 5368709120
+                    }
+                },
+                "resource_guarantee": {
+                    "memory": 53687091200,
+                    "net": 1342177280,
+                    "vcpu": 7000
+                }
+            },
+            "tiny": {
+                "default_config": {
+                    "cpu_limits": {
+                        "lookup_thread_pool_size": 1,
+                        "query_thread_pool_size": 1,
+                        "write_thread_pool_size": 1
+                    },
+                    "memory_limits": {
+                        "compressed_block_cache": 1073741824,
+                        "lookup_row_cache": 1073741824,
+                        "reserved": 8589934592,
+                        "tablet_dynamic": 2147483648,
+                        "tablet_static": 4294967296,
+                        "uncompressed_block_cache": 1073741824,
+                        "versioned_chunk_meta": 2147483648
+                    }
+                },
+                "resource_guarantee": {
+                    "memory": 21474836480,
+                    "net": 104857600,
+                    "vcpu": 4000
+                }
+            }
+        }, recursive=True)
+
         set("//sys/tablet_cell_bundles/default/@bundle_controller_target_config", {})
         set("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/cpu_limits", {
             "lookup_thread_pool_size": 16,
@@ -242,7 +354,130 @@ class TestBundleController(YTEnvSetup):
         assert exists("//sys/bundle_controller")
         self._fill_default_bundle()
         expected_config = self._get_cypress_config("default")
+        expected_config["bundle_constraints"] = {
+            "rpc_proxy_sizes": [
+                {
+                    "default_config": {
+                        "cpu_limits": {},
+                        "memory_limits": {}
+                    },
+                    "resource_guarantee": {
+                        "memory": 21474836480,
+                        "net": 545259520,
+                        "type": "small",
+                        "vcpu": 4000
+                    }
+                }, {
+                    "default_config": {
+                        "cpu_limits": {},
+                        "memory_limits": {}
+                    },
+                    "resource_guarantee": {
+                        "memory": 21474836480,
+                        "net": 1090519040,
+                        "type": "medium",
+                        "vcpu": 10000
+                    }
+                }
+            ],
+            "tablet_node_sizes": [
+                {
+                    "default_config": {
+                        "cpu_limits": {
+                            "lookup_thread_pool_size": 2,
+                            "query_thread_pool_size": 2,
+                            "write_thread_pool_size": 5
+                        },
+                        "memory_limits": {
+                            "compressed_block_cache": 4294967296,
+                            "lookup_row_cache": 1024,
+                            "reserved": 10737418240,
+                            "tablet_dynamic": 7516192768,
+                            "tablet_static": 21474836480,
+                            "uncompressed_block_cache": 4294967296,
+                            "versioned_chunk_meta": 5368709120
+                        }
+                    },
+                    "resource_guarantee": {
+                        "memory": 53687091200,
+                        "net": 1342177280,
+                        "type": "small",
+                        "vcpu": 7000
+                    }
+                }, {
+                    "default_config": {
+                        "cpu_limits": {
+                            "lookup_thread_pool_size": 1,
+                            "query_thread_pool_size": 1,
+                            "write_thread_pool_size": 1
+                        },
+                        "memory_limits": {
+                            "compressed_block_cache": 1073741824,
+                            "lookup_row_cache": 1073741824,
+                            "tablet_dynamic": 2147483648,
+                            "reserved": 8589934592,
+                            "tablet_static": 4294967296,
+                            "uncompressed_block_cache": 1073741824,
+                            "versioned_chunk_meta": 2147483648
+                        }
+                    },
+                    "resource_guarantee": {
+                        "memory": 21474836480,
+                        "net": 104857600,
+                        "type": "tiny",
+                        "vcpu": 4000
+                    }
+                }, {
+                    "default_config": {
+                        "cpu_limits": {
+                            "lookup_thread_pool_size": 4,
+                            "query_thread_pool_size": 4,
+                            "write_thread_pool_size": 10
+                        },
+                        "memory_limits": {
+                            "compressed_block_cache": 8589934592,
+                            "lookup_row_cache": 0,
+                            "reserved": 21474836480,
+                            "tablet_dynamic": 15032385536,
+                            "tablet_static": 42949672960,
+                            "uncompressed_block_cache": 8589934592,
+                            "versioned_chunk_meta": 10737418240
+                        }
+                    },
+                    "resource_guarantee": {
+                        "memory": 107374182400,
+                        "net": 2684354560,
+                        "type": "medium",
+                        "vcpu": 14000
+                    }
+                }, {
+                    "default_config": {
+                        "cpu_limits": {
+                            "lookup_thread_pool_size": 12,
+                            "query_thread_pool_size": 12,
+                            "write_thread_pool_size": 10
+                        },
+                        "memory_limits": {
+                            "compressed_block_cache": 8589934592,
+                            "lookup_row_cache": 1024,
+                            "tablet_dynamic": 21474836480,
+                            "tablet_static": 10737418240,
+                            "uncompressed_block_cache": 8589934592,
+                            "versioned_chunk_meta": 21474836480
+                        }
+                    },
+                    "resource_guarantee": {
+                        "memory": 107374182400,
+                        "net": 5368709120,
+                        "type": "cpu_intensive",
+                        "vcpu": 28000
+                    }
+                }
+            ]
+        }
 
         # check get query
         config = self._get_bundle_config("default")
         self._check_configs(expected_config, config)
+        assert expected_config["bundle_constraints"]["rpc_proxy_sizes"] == config["bundle_constraints"]["rpc_proxy_sizes"]
+        assert expected_config["bundle_constraints"]["tablet_node_sizes"] == config["bundle_constraints"]["tablet_node_sizes"]

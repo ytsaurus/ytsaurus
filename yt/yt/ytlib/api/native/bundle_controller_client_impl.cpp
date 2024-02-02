@@ -31,14 +31,18 @@ NBundleControllerClient::TBundleConfigDescriptorPtr TClient::DoGetBundleConfig(
     auto result = New<NBundleControllerClient::TBundleConfigDescriptor>();
     result->BundleName = rsp->bundle_name();
 
-    auto conf = New<NBundleControllerClient::TBundleTargetConfig>();
-    conf->CpuLimits = New<NBundleControllerClient::TCpuLimits>();
-    conf->MemoryLimits = New<NBundleControllerClient::TMemoryLimits>();
-    conf->RpcProxyResourceGuarantee = New<NBundleControllerClient::TInstanceResources>();
-    conf->TabletNodeResourceGuarantee = New<NBundleControllerClient::TInstanceResources>();
-    NBundleControllerClient::NProto::FromProto(conf, rsp->mutable_bundle_config());
+    auto bundleConfig = New<NBundleControllerClient::TBundleTargetConfig>();
+    bundleConfig->CpuLimits = New<NBundleControllerClient::TCpuLimits>();
+    bundleConfig->MemoryLimits = New<NBundleControllerClient::TMemoryLimits>();
+    bundleConfig->RpcProxyResourceGuarantee = New<NBundleControllerClient::TInstanceResources>();
+    bundleConfig->TabletNodeResourceGuarantee = New<NBundleControllerClient::TInstanceResources>();
+    NBundleControllerClient::NProto::FromProto(bundleConfig, rsp->mutable_bundle_config());
 
-    result->BundleConfig = conf;
+    auto bundleConfigConstraints = New<NBundleControllerClient::TBundleConfigConstraints>();
+    NBundleControllerClient::NProto::FromProto(bundleConfigConstraints, rsp->mutable_bundle_constraints());
+
+    result->Config = bundleConfig;
+    result->ConfigConstraints = bundleConfigConstraints;
 
     return result;
 }

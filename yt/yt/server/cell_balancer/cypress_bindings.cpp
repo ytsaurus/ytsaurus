@@ -34,22 +34,6 @@ void TResourceLimits::Register(TRegistrar registrar)
         .Default(0);
 }
 
-void TDefaultInstanceConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("cpu_limits", &TThis::CpuLimits)
-        .DefaultNew();
-    registrar.Parameter("memory_limits", &TThis::MemoryLimits)
-        .DefaultNew();
-}
-
-void TInstanceSize::Register(TRegistrar registrar)
-{
-    registrar.Parameter("resource_guarantee", &TThis::ResourceGuarantee)
-        .DefaultNew();
-    registrar.Parameter("default_config", &TThis::DefaultConfig)
-        .DefaultNew();
-}
-
 int TResourceQuota::Vcpu() const
 {
     const int VFactor = 1000;
