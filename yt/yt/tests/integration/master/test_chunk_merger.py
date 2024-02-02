@@ -1432,6 +1432,29 @@ class TestChunkMergerPortal(TestChunkMergerMulticell):
     ENABLE_TMP_PORTAL = True
     NUM_SECONDARY_MASTER_CELLS = 3
 
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host", "transaction_coordinator"]},
+        "11": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["chunk_host"]},
+    }
+
+    @authors("cherepashka")
+    @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
+    def test_cross_portal_merge(self, merge_mode):
+        create("table", "//tmp/t1")
+        self._remove_merge_quotas("//tmp/t1")
+
+        write_table("<append=true>//tmp/t1", {"a": "b"})
+        write_table("<append=true>//tmp/t1", {"a": "c"})
+        write_table("<append=true>//tmp/t1", {"a": "d"})
+        write_table("<append=true>//tmp/t1", {"a": "e"})
+        set("//tmp/t1/@chunk_merger_mode", merge_mode)
+
+        copy("//tmp/t1", "//home/t2", recursive=True)
+
+        self._wait_for_merge("//home/t2", None)
+
 
 class TestTableDataStatisticsConsistency(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 1
