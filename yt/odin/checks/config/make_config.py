@@ -245,12 +245,40 @@ def get_checks_config():
             "enable": True
         }
     }
+
+    cluster_name_to_query_tracker_stage = { "pythia": "experimental", "ada": "production", "markov": "production" }
+
     enable_query_tracker_alerts = {
         "query_tracker_alerts": {
             "enable": True,
             "alerts": instant_force_ok,
+        },
+        "query_tracker_yql_liveness": {
+            "enable": True,
+            "alerts": instant_force_ok,
+            "options": {
+                "cluster_name_to_query_tracker_stage": cluster_name_to_query_tracker_stage,
+            }
+        },
+        "query_tracker_ql_liveness": {
+            "enable": True,
+            "alerts": instant_force_ok,
+            "options": {
+                "cluster_name_to_query_tracker_stage": cluster_name_to_query_tracker_stage,
+            }
         }
     }
+
+    enable_query_tracker_with_chyt_alerts = deep_merge({
+            "query_tracker_chyt_liveness": {
+                "enable": True,
+                "alerts": instant_force_ok,
+                "options": {
+                    "cluster_name_to_query_tracker_stage": cluster_name_to_query_tracker_stage,
+                    "chyt_cluster_name": "hume"
+                }
+            }
+        }, enable_query_tracker_alerts)
 
     scheduler_alerts_update_fair_share_gpu = {
         "scheduler_alerts_update_fair_share_gpu": {
@@ -1159,6 +1187,15 @@ def get_checks_config():
             "query_tracker_alerts": {
                 "enable": False,
             },
+            "query_tracker_yql_liveness": {
+                "enable": False,
+            },
+            "query_tracker_chyt_liveness": {
+                "enable": False,
+            },
+            "query_tracker_ql_liveness": {
+                "enable": False,
+            },
             "master": {},
             "proxy": {}
         },
@@ -1267,16 +1304,16 @@ def get_checks_config():
                 dynamic_table_replication_prestable,
                 snapshot_validation,
                 clock_quorum_health,
-                enable_query_tracker_alerts,
+                enable_query_tracker_with_chyt_alerts,
                 wide_window_quorum_health,
                 bundle_controller,
             ),
             "markov": deep_merge(
                 snapshot_validation,
-                enable_query_tracker_alerts,
                 clock_quorum_health,
                 bundle_controller,
                 dynamic_table_replication_stable,
+                enable_query_tracker_with_chyt_alerts,
             ),
             "nash": deep_merge(
                 snapshot_validation,

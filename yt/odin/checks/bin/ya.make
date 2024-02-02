@@ -24,6 +24,9 @@ RECURSE(
     proxy
     queue_agent_alerts
     query_tracker_alerts
+    query_tracker_yql_liveness
+    query_tracker_chyt_liveness
+    query_tracker_ql_liveness
     quorum_health
     register_watcher
     scheduler

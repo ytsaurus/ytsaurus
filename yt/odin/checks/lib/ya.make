@@ -5,6 +5,7 @@ RECURSE(
     quorum_health
     register_watcher
     controller_agent_alerts
+    query_tracker_engine_liveness
     scheduler_alerts
     sort_result
     suspicious_jobs
