@@ -179,9 +179,9 @@ public:
             THROW_ERROR_EXCEPTION("Table with NBD devices %Qlv doesn't exist", DeviceConfig_->TablePath);
         }
 
-        // Check that the table is indeed dynamic.
+        // Check that the table is indeed dynamic and is mounted.
         NApi::TGetNodeOptions options{
-            .Attributes = std::vector<TString>{"dynamic"}
+            .Attributes = std::vector<TString>{"dynamic", "tablet_state"}
         };
         auto rsp = WaitFor(Client_->GetNode(DeviceConfig_->TablePath, options))
             .ValueOrThrow();
@@ -191,8 +191,10 @@ public:
         if (!tableIsDynamic || !*tableIsDynamic) {
             THROW_ERROR_EXCEPTION("Table with NBD devices %Qlv is not dynamic", DeviceConfig_->TablePath);
         }
-
-        // TODO(yuryalekseev): Check that the table is mounted.
+        auto tabletState = attributes.Find<TString>("tablet_state");
+        if (!tabletState || *tabletState != "mounted") {
+            THROW_ERROR_EXCEPTION("Table with NBD devices %Qlv is not mounted", DeviceConfig_->TablePath);
+        }
 
         // Setup name table.
         NameTable_->RegisterName("device_id");
@@ -247,7 +249,7 @@ public:
         YT_VERIFY((deviceSize == -1 && blockSize == -1) || (deviceSize != -1 && blockSize != -1));
 
         if (blockSize == -1) {
-            YT_LOG_DEBUG("Saving device and block sizes into table (DeviceSize: %v, BlockSize: %v, TablePath: %v)",
+            YT_LOG_DEBUG("Save device and block sizes (DeviceSize: %v, BlockSize: %v, TablePath: %v)",
                 DeviceConfig_->Size,
                 DeviceConfig_->BlockSize,
                 DeviceConfig_->TablePath);
@@ -267,6 +269,7 @@ public:
             return VoidFuture;
         }
 
+        // Validate device and block sizes.
         if (deviceSize != DeviceConfig_->Size) {
             THROW_ERROR_EXCEPTION("Device size from config %Qlv doesn't match the actual device size %Qlv",
                 DeviceConfig_->Size,
