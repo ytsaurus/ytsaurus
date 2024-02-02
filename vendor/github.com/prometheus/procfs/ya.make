@@ -138,7 +138,7 @@ ENDIF()
 
 IF (OS_DARWIN)
     SRCS(
-        fs_statfs_type.go
+        fs_statfs_notype.go
         kernel_random.go
         proc_maps.go
         proc_smaps.go
