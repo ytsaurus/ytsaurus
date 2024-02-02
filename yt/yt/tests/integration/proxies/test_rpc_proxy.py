@@ -1189,11 +1189,15 @@ class TestRpcProxyFormatConfig(TestRpcProxyBase, _TestProxyFormatConfigBase):
 class TestRpcProxyHeapUsageStatisticsBase(TestRpcProxyBase):
     NUM_RPC_PROXIES = 1
 
-    DELTA_PROXY_CONFIG = {
-        "heap_profiler": {
-            "snapshot_update_period": 20,
-        },
-    }
+    @classmethod
+    def setup_class(cls):
+        cls.DELTA_RPC_PROXY_CONFIG.update({
+            "heap_profiler": {
+                "sampling_rate": 32 << 10,
+                "snapshot_update_period": 20,
+            },
+        })
+        super().setup_class()
 
     def enable_allocation_tags(self, proxy):
         set(f"//sys/{proxy}/@config", {
@@ -1210,7 +1214,7 @@ class TestRpcProxyHeapUsageStatisticsBase(TestRpcProxyBase):
 
         self._create_simple_table("//tmp/t_in", data=[self._sample_line], sorted=True, dynamic=True, authenticated_user=user)
         self._create_simple_table("//tmp/t_out", dynamic=False, sorted=True, authenticated_user=user)
-        map(in_="//tmp/t_in", out="//tmp/t_out", track=True, mapper_command="cat", authenticated_user=user)
+        map(in_="//tmp/t_in", out="//tmp/t_out", track=False, mapper_command="cat", authenticated_user=user)
 
     def check_memory_usage(self, memory_usage, user):
         tags = ["user", "rpc"]

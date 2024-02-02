@@ -11,7 +11,7 @@ using namespace NProfiling;
 
 TRpcProxyHeapUsageProfiler::TRpcProxyHeapUsageProfiler(
     IInvokerPtr invoker,
-    std::optional<TDuration> updatePeriod)
+    const THeapProfilerConfigPtr& config)
     : HeapProfiler_(
         CreateHeapProfilerWithTags(
             {
@@ -19,7 +19,8 @@ TRpcProxyHeapUsageProfiler::TRpcProxyHeapUsageProfiler(
                 RpcProxyUserAllocationTag
             },
             std::move(invoker),
-            std::move(updatePeriod)))
+            config->SnapshotUpdatePeriod,
+            config->SamplingRate))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

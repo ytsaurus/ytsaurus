@@ -171,6 +171,7 @@ THeapUsageProfiler::THeapUsageProfiler(
     std::vector<TString> tags,
     IInvokerPtr invoker,
     std::optional<TDuration> updatePeriod,
+    std::optional<i64> samplingRate,
     NProfiling::TProfiler profiler)
     : Profiler_(std::move(profiler))
     , TagTypes_(std::move(tags))
@@ -179,6 +180,10 @@ THeapUsageProfiler::THeapUsageProfiler(
         BIND(&THeapUsageProfiler::UpdateGauges, MakeWeak(this)),
         std::move(updatePeriod)))
 {
+    if (samplingRate) {
+        tcmalloc::MallocExtension::SetProfileSamplingRate(*samplingRate);
+    }
+
     UpdateExecutor_->Start();
 }
 
@@ -218,12 +223,14 @@ void THeapUsageProfiler::UpdateGauges()
 THeapUsageProfilerPtr CreateHeapProfilerWithTags(
     std::vector<TString>&& tags,
     IInvokerPtr invoker,
-    std::optional<TDuration> updatePeriod)
+    std::optional<TDuration> updatePeriod,
+    std::optional<i64> samplingRate)
 {
     return New<THeapUsageProfiler>(
         std::move(tags),
         std::move(invoker),
-        std::move(updatePeriod));
+        std::move(updatePeriod),
+        std::move(samplingRate));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

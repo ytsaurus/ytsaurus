@@ -358,7 +358,7 @@ void TBootstrap::DoRun()
 
     RpcProxyHeapUsageProfiler_ = New<TRpcProxyHeapUsageProfiler>(
         GetControlInvoker(),
-        Config_->HeapProfiler->SnapshotUpdatePeriod);
+        Config_->HeapProfiler);
 }
 
 void TBootstrap::OnDynamicConfigChanged(

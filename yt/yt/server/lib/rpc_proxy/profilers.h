@@ -6,6 +6,8 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
+#include <yt/yt/library/program/config.h>
+
 namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,7 +18,7 @@ class TRpcProxyHeapUsageProfiler
 public:
     TRpcProxyHeapUsageProfiler(
         IInvokerPtr invoker,
-        std::optional<TDuration> updatePeriod);
+        const THeapProfilerConfigPtr& config);
 
 private:
     const THeapUsageProfilerPtr HeapProfiler_;
