@@ -416,7 +416,7 @@ public:
 
 private:
     const TTabletSnapshotPtr TabletSnapshot_;
-    const TWeakPtr<ICompressionDictionaryManager> DictionaryManager_;
+    const TWeakPtr<ICompressionDictionaryManager> DictionaryManager_ = {};
 };
 
 ////////////////////////////////////////////////////////////////////////////////
