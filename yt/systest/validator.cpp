@@ -99,6 +99,8 @@ private:
     }
 };
 
+///////////////////////////////////////////////////////////////////////////////
+
 static void AnnotateError(
     TError& error,
     const TString& name,
@@ -131,6 +133,14 @@ static void PopulateTableInterval(
     output->set_start_row_index(start);
     output->set_limit_row_index(limit);
 }
+
+static int64_t GetInt64Node(NApi::IClientPtr rpcClient, const TString& path)
+{
+    auto value = NConcurrency::WaitFor(rpcClient->GetNode(path)).ValueOrThrow();
+    return NYTree::ConvertTo<int64_t>(value);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 
 TFuture<TString> TValidator::StartMapInterval(
     const TString& targetName,
@@ -210,7 +220,7 @@ TFuture<TString> TValidator::StartReduceInterval(
 
     TString outputPath = TestHome_.CreateIntervalPath(targetName, intervalIndex, retryAttempt);
 
-    YT_LOG_INFO("StartReduceInterval (Worker: %v, SourcePath: %v, RowRange: [%v %v), Interval: %v/%v, TargetPath: %v)",
+    YT_LOG_INFO("Start ReduceInterval (Worker: %v, SourcePath: %v, RowRange: [%v %v), Interval: %v/%v, TargetPath: %v)",
         hostport, tablePath, start, limit, intervalIndex, numIntervals, outputPath);
 
     auto client = CreateBusClient(NBus::TBusClientConfig::CreateTcp(hostport));
@@ -272,7 +282,7 @@ TFuture<TString> TValidator::StartSortInterval(
 
     TString outputPath = TestHome_.CreateIntervalPath(targetName, intervalIndex, retryAttempt);
 
-    YT_LOG_INFO("StartSortInterval (Worker: %v, SourcePath: %v, RowRange: [%v, %v), Interval: %v/%v, TargetPath: %v)",
+    YT_LOG_INFO("Start SortInterval (Worker: %v, SourcePath: %v, RowRange: [%v, %v), Interval: %v/%v, TargetPath: %v)",
         hostport, tablePath, start, limit, intervalIndex, numIntervals, outputPath);
 
     auto client = CreateBusClient(NBus::TBusClientConfig::CreateTcp(hostport));
@@ -429,6 +439,10 @@ void TValidatorConfig::RegisterOptions(NLastGetopt::TOpts* opts)
         .StoreResult(&NumJobs)
         .DefaultValue(4);
 
+    opts->AddLongOption("validator-job-memory-limit")
+        .StoreResult(&MemoryLimit)
+        .DefaultValue(2LL << 30);
+
     opts->AddLongOption("validator-interval-bytes")
         .StoreResult(&IntervalBytes)
         .DefaultValue(64 << 20);
@@ -522,9 +536,9 @@ TStoredDataset TValidator::CompareIntervals(
 
     int64_t startInterval = 0;
     for (int index = 0; index < numIntervals; ++index) {
-        TString path = intervalResult[index].Get().ValueOrThrow();
+        TString path = NConcurrency::WaitFor(intervalResult[index]).ValueOrThrow();
 
-        int64_t intervalRowCount = Client_->Get(path + "/@row_count").AsInt64();
+        int64_t intervalRowCount = GetInt64Node(RpcClient_, path + "/@row_count");
 
         YT_LOG_INFO("Interval generated (Index: %v, IntervalRowCount: %v, NumIntervals: %v, Path: %v)",
             index, intervalRowCount, numIntervals, path);
@@ -550,10 +564,10 @@ TStoredDataset TValidator::CompareIntervals(
     }
 
     for (int index = 0; index < std::ssize(compareIntervalResult); ++index) {
-        auto result = compareIntervalResult[index].Get().ValueOrThrow();
+        auto result = NConcurrency::WaitFor(compareIntervalResult[index]).ValueOrThrow();
     }
 
-    int64_t totalSize = Client_->Get(targetPath + "/@uncompressed_data_size").AsInt64();
+    int64_t totalSize = GetInt64Node(RpcClient_, targetPath + "/@uncompressed_data_size");
 
     return TStoredDataset{
         targetPath,
@@ -572,14 +586,13 @@ TStoredDataset TValidator::VerifyMap(
     const auto intervalInfo = GetMapIntervalBoundaries(sourcePath, Config_.IntervalBytes);
     const int numIntervals = std::ssize(intervalInfo.Boundaries) - 1;
 
-    std::vector<TFuture<TString>> mapIntervalResult;
-    std::vector<std::unique_ptr<TRetrier<TString>>> mapRetrier;
-
     YT_LOG_INFO("Will validate map operation (SourcePath: %v, TargetPath: %v, NumIntervals: %v)",
         sourcePath,
         targetPath,
         numIntervals);
 
+    std::vector<TFuture<TString>> mapIntervalResult;
+    std::vector<std::unique_ptr<TRetrier<TString>>> mapRetrier;
     for (int index = 0; index < numIntervals; ++index) {
         const auto rowStart = intervalInfo.Boundaries[index];
         const auto rowLimit = intervalInfo.Boundaries[index + 1];
@@ -709,7 +722,8 @@ TStoredDataset TValidator::VerifySort(
         sortIntervalResult.push_back(sortRetrier.back()->Run());
     }
 
-    std::vector<TString> intervalPath = AllSucceeded(sortIntervalResult).Get().ValueOrThrow();
+    std::vector<TString> intervalPath =
+        NConcurrency::WaitFor(AllSucceeded(sortIntervalResult)).ValueOrThrow();
 
     TTable sortedTable;
     ApplySortOperation(sourceTable, operation, &sortedTable);
@@ -726,7 +740,7 @@ TStoredDataset TValidator::VerifySort(
                 sortedTable);
         });
 
-    mergeRetrier.Run().Get().ThrowOnError();
+    NConcurrency::WaitFor(mergeRetrier.Run()).ThrowOnError();
 
     return TStoredDataset{
         targetPath,
@@ -755,7 +769,8 @@ void TValidator::StartValidatorOperation()
 
     auto userSpec = TUserJobSpec()
         .AddEnvironment("YT_PROXY", getenv("YT_PROXY"))
-        .AddEnvironment("YT_LOG_LEVEL", "info");
+        .AddEnvironment("YT_LOG_LEVEL", "info")
+        .MemoryLimit(Config_.MemoryLimit);
 
     auto secureEnv = TNode::CreateMap({
         {"YT_TOKEN", TConfig::Get()->Token}
@@ -768,7 +783,6 @@ void TValidator::StartValidatorOperation()
     auto spec = TVanillaOperationSpec()
             .Pool(Pool_)
             .CoreTablePath(TestHome_.CoreTable())
-            .TimeLimit(TDuration::Hours(48))
             .AddTask(
                 TVanillaTask()
                     .Name("Validator")
@@ -786,12 +800,13 @@ TValidator::TableIntervalInfo TValidator::GetMapIntervalBoundaries(
     int64_t intervalBytes)
 {
     TableIntervalInfo result;
-    result.RowCount = Client_->Get(tablePath + "/@row_count").AsInt64();
+    result.RowCount = GetInt64Node(RpcClient_, tablePath + "/@row_count");
+
     if (result.RowCount == 0) {
         return {};
     }
 
-    result.TotalBytes = Client_->Get(tablePath + "/@uncompressed_data_size").AsInt64();
+    result.TotalBytes = GetInt64Node(RpcClient_, tablePath + "/@uncompressed_data_size");
     const int64_t numIntervals = (result.TotalBytes + intervalBytes - 1) / intervalBytes;
     const int64_t intervalRows = (result.RowCount + numIntervals - 1) / numIntervals;
 
@@ -809,12 +824,12 @@ TValidator::TableIntervalInfo TValidator::GetReduceIntervalBoundaries(
     TableIntervalInfo result;
     auto columnIndex = BuildColumnIndex(table.DataColumns);
 
-    result.RowCount = Client_->Get(tablePath + "/@row_count").AsInt64();
+    result.RowCount = GetInt64Node(RpcClient_, tablePath + "/@row_count");
     if (result.RowCount == 0) {
         return {};
     }
 
-    result.TotalBytes = Client_->Get(tablePath + "/@uncompressed_data_size").AsInt64();
+    result.TotalBytes = GetInt64Node(RpcClient_, tablePath + "/@uncompressed_data_size");
 
     const int64_t numIntervals = (result.TotalBytes + intervalBytes - 1) / intervalBytes;
     const int64_t intervalRows = (result.RowCount + numIntervals - 1) / numIntervals;

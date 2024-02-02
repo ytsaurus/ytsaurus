@@ -118,6 +118,9 @@ TValidatorService::TValidatorService(IClientPtr client, IInvokerPtr invoker, NLo
 
 DEFINE_RPC_SERVICE_METHOD(TValidatorService, MapInterval)
 {
+    NLogging::TLogger Logger("validator_service");
+    YT_LOG_INFO("MapInterval <- %v", request->ShortDebugString());
+
     TTable table;
     FromProto(&table, request->map_spec().table());
 
@@ -129,11 +132,15 @@ DEFINE_RPC_SERVICE_METHOD(TValidatorService, MapInterval)
 
     MaterializeIgnoringStableNames(Client_, request->output_path(), *mapDataset);
 
+    YT_LOG_INFO("MapInterval -> %v", request->output_path());
     context->Reply();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TValidatorService, ReduceInterval)
 {
+    NLogging::TLogger Logger("validator_service");
+    YT_LOG_INFO("ReduceInterval <- %v", request->ShortDebugString());
+
     TTable table;
     FromProto(&table, request->reduce_spec().table());
 
@@ -152,11 +159,15 @@ DEFINE_RPC_SERVICE_METHOD(TValidatorService, ReduceInterval)
     auto reduceDataset = std::make_unique<TReduceDataset>(*dataset, reduceOperation);
     MaterializeIgnoringStableNames(Client_, request->output_path(), *reduceDataset);
 
+    YT_LOG_INFO("ReduceInterval -> %v", request->output_path());
     context->Reply();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TValidatorService, SortInterval)
 {
+    NLogging::TLogger Logger("validator_service");
+    YT_LOG_INFO("SortInterval <- %v", request->ShortDebugString());
+
     TTable table;
     TSortOperation sortOperation;
 
@@ -170,6 +181,7 @@ DEFINE_RPC_SERVICE_METHOD(TValidatorService, SortInterval)
 
     MaterializeIgnoringStableNames(Client_, request->output_path(), *sortDataset);
 
+    YT_LOG_INFO("SortInterval -> %v", request->output_path());
     context->Reply();
 }
 
@@ -223,6 +235,7 @@ static void CompareSortedDatasets(
 DEFINE_RPC_SERVICE_METHOD(TValidatorService, MergeSortedAndCompare)
 {
     NLogging::TLogger Logger("validator_service");
+    YT_LOG_INFO("MergeSortedAndCompare <- %v", request->ShortDebugString());
 
     std::vector<std::unique_ptr<TTableDataset>> inputDataset;
     std::vector<const IDataset*> inner;
@@ -238,20 +251,20 @@ DEFINE_RPC_SERVICE_METHOD(TValidatorService, MergeSortedAndCompare)
 
     TTableDataset target(table, Client_, request->target_path());
 
-    YT_LOG_INFO("CompareSortedDatasets (NumIntervals: %v, TargetPath: %v)",
-        request->interval_path_size(), request->target_path());
-
     CompareSortedDatasets(
         request->target_path(),
         table,
         mergeDataset->NewIterator(),
         target.NewIterator());
 
+    YT_LOG_INFO("MergeSortedAndCompare -> %v", request->target_path());
     context->Reply();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TValidatorService, CompareInterval)
 {
+    NLogging::TLogger Logger("validator_service");
+    YT_LOG_INFO("CompareInterval <- %v", request->ShortDebugString());
     TRichYPath tablePath;
     tablePath.Path(request->target_path());
     tablePath.AddRange(TReadRange::FromRowIndices(
@@ -285,6 +298,7 @@ DEFINE_RPC_SERVICE_METHOD(TValidatorService, CompareInterval)
             "%v rows from the target table %v", request->interval_path(), index, request->interval_path());
     }
 
+    YT_LOG_INFO("CompareInterval -> %v", request->interval_path());
     context->Reply();
 }
 

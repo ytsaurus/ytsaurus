@@ -144,7 +144,7 @@ void TWorkerSet::Stop()
 
 TWorkerSet::TWorkerGuard TWorkerSet::AcquireWorker()
 {
-    return TWorkerGuard(PickWorker().Get().ValueOrThrow());
+    return TWorkerGuard(NConcurrency::WaitFor(PickWorker()).ValueOrThrow());
 }
 
 void TWorkerSet::PollingLoop()
@@ -238,7 +238,7 @@ void TWorkerSet::UpdateWorkers(const std::vector<TString>& current)
         }
     }
 
-    YT_LOG_DEBUG("Finished worker set update (NumPresent: %v, NumAvailable: %v, NumWaiting: %v)",
+    YT_LOG_INFO("Finished worker set update (NumPresent: %v, NumAvailable: %v, NumWaiting: %v)",
         std::ssize(indexPresent), std::ssize(available), std::ssize(Waiters_));
 
     if (waiter) {

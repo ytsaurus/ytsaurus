@@ -168,7 +168,7 @@ void AlterTable(NApi::IClientPtr client, const TString& path, const TTable& tabl
     NYT::NLogging::TLogger Logger("test");
 
     YT_LOG_INFO("Alter table (Path: %v, Schema: %v", path, options.Schema);
-    client->AlterTable(path, options).Get().ThrowOnError();
+    NConcurrency::WaitFor(client->AlterTable(path, options)).ThrowOnError();
 }
 
 }  // namespace NYT::NTest
