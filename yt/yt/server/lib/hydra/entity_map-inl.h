@@ -7,6 +7,9 @@
 #include "serialize.h"
 
 #include <yt/yt/core/misc/pool_allocator.h>
+#include <yt/yt/core/misc/finally.h>
+
+#include <yt/yt/core/actions/future.h>
 
 #include <library/cpp/yt/memory/chunked_input_stream.h>
 #include <library/cpp/yt/memory/chunked_output_stream.h>
@@ -474,7 +477,7 @@ void TEntityMap<TValue, TTraits>::LoadKeys(TContext& context)
 
             YT_VERIFY(this->Map_.emplace(key, value.release()).second);
 
-            SERIALIZATION_DUMP_WRITE(context, "%v aka %v", key, serializationKey.Index);
+            SERIALIZATION_DUMP_WRITE(context, "%v aka %v", key, serializationKey);
         }
     }
 }

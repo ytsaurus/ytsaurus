@@ -17,10 +17,10 @@ struct TRawObjectPtrSerializer
     {
         if (object) {
             auto key = object->GetDynamicData()->SerializationKey;
-            YT_ASSERT(key);
+            YT_ASSERT(key != NullEntitySerializationKey);
             NYT::Save(context, key);
         } else {
-            NYT::Save(context, TEntitySerializationKey());
+            NYT::Save(context, NullEntitySerializationKey);
         }
     }
 
@@ -34,7 +34,7 @@ struct TRawObjectPtrSerializer
             SERIALIZATION_DUMP_WRITE(context, "objref <null>");
         } else {
             object = context.template GetRawEntity<TObject>(key);
-            SERIALIZATION_DUMP_WRITE(context, "objref %v aka %v", object->GetId(), key.Index);
+            SERIALIZATION_DUMP_WRITE(context, "objref %v aka %v", object->GetId(), key);
         }
     }
 };

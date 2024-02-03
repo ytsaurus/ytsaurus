@@ -1,9 +1,10 @@
 #pragma once
 
 #include "public.h"
-#include "composite_automaton.h"
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
+
+#include <yt/yt/core/misc/serialize.h>
 
 #include <library/cpp/yt/memory/chunked_memory_pool.h>
 
@@ -26,7 +27,7 @@ struct TDefaultEntityMapTraits
 //! associated with entities within Hydra.
 struct TEntityDynamicDataBase
 {
-    TEntitySerializationKey SerializationKey;
+    TEntitySerializationKey SerializationKey = NullEntitySerializationKey;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,7 +54,6 @@ protected:
 
 private:
     TEntityDynamicDataBase* DynamicData_ = nullptr;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

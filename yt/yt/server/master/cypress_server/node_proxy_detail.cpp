@@ -1769,7 +1769,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, BeginCopy)
 
     for (auto [schema, key] : schemas) {
         auto* entry = response->add_schemas();
-        entry->set_key(key.Index);
+        entry->set_key(key.Underlying());
         ToProto(entry->mutable_schema(), *schema->AsTableSchema());
     }
 

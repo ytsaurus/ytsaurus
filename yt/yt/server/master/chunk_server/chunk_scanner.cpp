@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/master/object_server/object_manager.h>
 
+#include <yt/yt/core/rpc/dispatcher.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NLogging;

@@ -36,7 +36,7 @@ public:
 
 private:
     THashMap<T*, TEntitySerializationKey> RegisteredObjects_;
-    int NextSerializationKeyIndex_ = 0;
+    TEntitySerializationKey NextSerializationKey_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,7 +49,7 @@ public:
     T* GetObjectOrThrow(TEntitySerializationKey key);
 
 private:
-    THashMap<int, T*> RegisteredObjects_;
+    THashMap<TEntitySerializationKey, T*> RegisteredObjects_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

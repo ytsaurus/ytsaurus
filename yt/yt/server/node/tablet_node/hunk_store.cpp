@@ -3,6 +3,8 @@
 #include "hunk_tablet.h"
 #include "serialize.h"
 
+#include <yt/yt/server/lib/hydra/hydra_context.h>
+
 #include <yt/yt/core/misc/serialize.h>
 
 #include <yt/yt/core/ytree/fluent.h>

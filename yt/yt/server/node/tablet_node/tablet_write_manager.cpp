@@ -12,6 +12,9 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
+#include <yt/yt/server/lib/hydra/hydra_manager.h>
+#include <yt/yt/server/lib/hydra/mutation_context.h>
+
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
 namespace NYT::NTabletNode {

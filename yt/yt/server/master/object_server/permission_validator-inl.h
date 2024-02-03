@@ -4,6 +4,8 @@
 #include "permission_validator.h"
 #endif
 
+#include <yt/yt/core/ytree/attributes.h>
+
 namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////

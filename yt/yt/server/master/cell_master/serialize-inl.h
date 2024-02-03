@@ -23,7 +23,7 @@ namespace NYT::NCellMaster {
 
 struct TRawNonversionedObjectPtrSerializer
 {
-    static inline const TEntitySerializationKey DestroyedKey = TEntitySerializationKey(-2);
+    static constexpr TEntitySerializationKey DestroyedKey = TEntitySerializationKey(-2);
 
     template <class T>
     static void Save(NCellMaster::TSaveContext& context, T* object)
@@ -38,11 +38,11 @@ struct TRawNonversionedObjectPtrSerializer
                 NYT::Save(context, object->GetId());
             } else {
                 auto key = object->GetDynamicData()->SerializationKey;
-                YT_ASSERT(key);
+                YT_ASSERT(key != NullEntitySerializationKey);
                 NYT::Save(context, key);
             }
         } else {
-            NYT::Save(context, TEntitySerializationKey());
+            NYT::Save(context, NullEntitySerializationKey);
         }
     }
 
@@ -62,7 +62,7 @@ struct TRawNonversionedObjectPtrSerializer
     {
         using TObject = typename std::remove_pointer<T>::type;
         auto key = LoadSuspended<TEntitySerializationKey>(context);
-        if (!key) {
+        if (key == NullEntitySerializationKey) {
             object = nullptr;
             SERIALIZATION_DUMP_WRITE(context, "objref <null>");
         } else if (key == DestroyedKey) {
@@ -71,7 +71,7 @@ struct TRawNonversionedObjectPtrSerializer
             SERIALIZATION_DUMP_WRITE(context, "objref %v <destroyed>", objectId);
         } else {
             object = context.template GetRawEntity<TObject>(key);
-            SERIALIZATION_DUMP_WRITE(context, "objref %v aka %v", object->GetId(), key.Index);
+            SERIALIZATION_DUMP_WRITE(context, "objref %v aka %v", object->GetId(), key);
         }
     }
 
@@ -115,7 +115,7 @@ struct TRawVersionedObjectPtrSerializer
     {
         auto key = object
             ? object->GetDynamicData()->SerializationKey
-            : TEntitySerializationKey();
+            : NullEntitySerializationKey;
         NYT::Save(context, key);
     }
 
@@ -124,12 +124,12 @@ struct TRawVersionedObjectPtrSerializer
     {
         using TObject = typename std::remove_pointer<T>::type;
         auto key = NYT::Load<TEntitySerializationKey>(context);
-        if (key) {
-            object = context.template GetRawEntity<TObject>(key);
-            SERIALIZATION_DUMP_WRITE(context, "objref %v aka %v", object->GetVersionedId(), key.Index);
-        } else {
+        if (key == NullEntitySerializationKey) {
             object = nullptr;
             SERIALIZATION_DUMP_WRITE(context, "objref <null>");
+        } else {
+            object = context.template GetRawEntity<TObject>(key);
+            SERIALIZATION_DUMP_WRITE(context, "objref %v aka %v", object->GetVersionedId(), key);
         }
     }
 };
@@ -157,7 +157,7 @@ struct TStrongVersionedObjectPtrSerializer
 
 struct TInternedYsonStringSerializer
 {
-    static inline TEntitySerializationKey UninternedKey = TEntitySerializationKey(-4);
+    static constexpr TEntitySerializationKey UninternedKey = TEntitySerializationKey(-4);
 
     template <class C>
     static void Save(C& context, const NYson::TYsonString& str)
@@ -191,11 +191,11 @@ struct TInternedYsonStringSerializer
                 const auto& ysonInternRegistry = context.GetBootstrap()->GetYsonInternRegistry();
                 str = ysonInternRegistry->Intern(std::move(loadedStr));
                 auto loadedKey = context.RegisterInternedYsonString(str);
-                SERIALIZATION_DUMP_WRITE(context, "ysonref %v", loadedKey.Index);
+                SERIALIZATION_DUMP_WRITE(context, "ysonref %v", loadedKey);
             }
         } else {
             str = context.GetInternedYsonString(key);
-            SERIALIZATION_DUMP_WRITE(context, "ysonref %v", key.Index);
+            SERIALIZATION_DUMP_WRITE(context, "ysonref %v", key);
         }
     }
 };

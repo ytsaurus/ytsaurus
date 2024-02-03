@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/master/object_server/public.h>
 
+#include <yt/yt/core/rpc/dispatcher.h>
+
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,12 +46,12 @@ bool TChunkScannerWithPayload<TPayload>::EnqueueChunk(TQueuedChunk chunk)
         Queue_.push({
             .Chunk = NObjectServer::TEphemeralObjectPtr<TChunk>(chunk.Chunk),
             .Payload = std::move(chunk.Payload),
-            .Instant = NProfiling::GetCpuInstant(),
+            .Instant = GetCpuInstant(),
         });
     } else {
         Queue_.push({
             .Chunk = NObjectServer::TEphemeralObjectPtr<TChunk>(chunk),
-            .Instant = NProfiling::GetCpuInstant(),
+            .Instant = GetCpuInstant(),
         });
     }
 

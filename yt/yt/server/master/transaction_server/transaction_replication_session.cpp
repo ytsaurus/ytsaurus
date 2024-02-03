@@ -18,7 +18,7 @@
 
 #include <yt/yt/core/misc/range_formatters.h>
 
-#include <yt/yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/service.h>
 #include <yt/yt/core/rpc/response_keeper.h>
 
 #include <util/generic/algorithm.h>

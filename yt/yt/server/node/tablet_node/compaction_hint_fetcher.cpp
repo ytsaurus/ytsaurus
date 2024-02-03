@@ -2,6 +2,8 @@
 
 #include "tablet.h"
 
+#include <yt/yt/core/concurrency/config.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NProfiling;

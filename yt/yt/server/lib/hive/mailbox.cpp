@@ -5,6 +5,7 @@
 #include <yt/yt/ytlib/hive/proto/hive_service.pb.h>
 
 #include <yt/yt/core/misc/serialize.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 

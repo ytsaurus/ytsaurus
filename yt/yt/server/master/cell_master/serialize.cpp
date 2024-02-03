@@ -126,9 +126,10 @@ TEntitySerializationKey TLoadContext::RegisterInternedYsonString(NYson::TYsonStr
 
 NYson::TYsonString TLoadContext::GetInternedYsonString(TEntitySerializationKey key)
 {
-    YT_ASSERT(key.Index >= 0);
-    YT_ASSERT(key.Index < static_cast<int>(InternedYsonStrings_.size()));
-    return InternedYsonStrings_[key.Index];
+    auto index = key.Underlying();
+    YT_ASSERT(index >= 0);
+    YT_ASSERT(index < std::ssize(InternedYsonStrings_));
+    return InternedYsonStrings_[index];
 }
 
 EMasterReign TLoadContext::GetVersion()

@@ -4,6 +4,8 @@
 #include "serialize.h"
 #endif
 
+#include <yt/yt/core/misc/collection_helpers.h>
+
 namespace NYT::NCypressServer {
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11,14 +13,10 @@ namespace NYT::NCypressServer {
 template <class T>
 TEntitySerializationKey TCellLocalObjectSaveRegistry<T>::RegisterObject(T* object)
 {
-    auto [it, inserted] = RegisteredObjects_.emplace(
-        object,
-        TEntitySerializationKey(NextSerializationKeyIndex_));
-
+    auto [it, inserted] = RegisteredObjects_.emplace(object, NextSerializationKey_);
     if (inserted) {
-        ++NextSerializationKeyIndex_;
+        ++NextSerializationKey_.Underlying();
     }
-
     return it->second;
 }
 
@@ -34,16 +32,16 @@ template <class T>
 void TCellLocalObjectLoadRegistry<T>::RegisterObject(TEntitySerializationKey key, T* object)
 {
     YT_VERIFY(object);
-    YT_VERIFY(RegisteredObjects_.emplace(key.Index, object).second);
+    EmplaceOrCrash(RegisteredObjects_, key, object);
 }
 
 template <class T>
 T* TCellLocalObjectLoadRegistry<T>::GetObjectOrThrow(TEntitySerializationKey key)
 {
-    auto it = RegisteredObjects_.find(key.Index);
+    auto it = RegisteredObjects_.find(key);
 
     if (it == RegisteredObjects_.end()) {
-        THROW_ERROR_EXCEPTION("Unregistered serialization key %v", key.Index);
+        THROW_ERROR_EXCEPTION("Unregistered serialization key %v", key);
     }
 
     return it->second;

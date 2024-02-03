@@ -18,6 +18,7 @@
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 

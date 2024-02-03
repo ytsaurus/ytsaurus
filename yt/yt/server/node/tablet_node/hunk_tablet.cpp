@@ -5,6 +5,8 @@
 #include "hunk_tablet_manager.h"
 #include "serialize.h"
 
+#include <yt/yt/server/lib/hydra/hydra_context.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NTabletNode {

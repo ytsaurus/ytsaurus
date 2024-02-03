@@ -10,6 +10,8 @@
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
+#include <yt/yt/server/lib/hydra/mutation.h>
+
 #include <yt/yt/ytlib/transaction_client/transaction_service_proxy.h>
 
 #include <yt/yt/client/object_client/helpers.h>
