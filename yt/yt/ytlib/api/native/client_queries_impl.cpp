@@ -81,8 +81,8 @@ TQuery PartialRecordToQuery(const auto& partialRecord)
 
     if constexpr (std::is_same_v<std::decay_t<decltype(partialRecord)>, TActiveQueryPartial>) {
         fillIfPresent("abort_request", partialRecord.AbortRequest.value_or(std::nullopt));
-        fillIfPresent("ping_time", partialRecord.PingTime);
         fillIfPresent("incarnation", partialRecord.Incarnation);
+        fillIfPresent("lease_transaction_id", partialRecord.LeaseTransactionId);
         fillIfPresent("assigned_tracker", partialRecord.AssignedTracker);
     }
 
@@ -452,7 +452,6 @@ TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const 
             .StartTime = TInstant::Now(),
             .State = EQueryState::Pending,
             .Incarnation = -1,
-            .PingTime = TInstant::Zero(),
             .Progress = EmptyMap,
             .Annotations = options.Annotations ? ConvertToYsonString(options.Annotations) : EmptyMap,
         };

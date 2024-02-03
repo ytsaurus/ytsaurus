@@ -76,10 +76,6 @@ void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("active_query_acquisition_period", &TThis::ActiveQueryAcquisitionPeriod)
         .Default(TDuration::Seconds(1));
-    registrar.Parameter("active_query_lease_timeout", &TThis::ActiveQueryLeaseTimeout)
-        .Default(TDuration::Seconds(5));
-    registrar.Parameter("query_acquisition_grace_period", &TThis::QueryAcquisitionGracePeriod)
-        .Default(TDuration::Seconds(3));
     registrar.Parameter("active_query_ping_period", &TThis::ActiveQueryPingPeriod)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("query_finish_backoff", &TThis::QueryFinishBackoff)
@@ -103,7 +99,7 @@ void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
 void TQueryTrackerServerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("min_required_state_version", &TThis::MinRequiredStateVersion)
-        .Default(5);
+        .Default(6);
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
     registrar.Parameter("user", &TThis::User);
