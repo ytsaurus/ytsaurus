@@ -6,7 +6,7 @@ import org.apache.spark.deploy.rest._
 import org.apache.spark.launcher.InProcessLauncher
 import org.slf4j.LoggerFactory
 import tech.ytsaurus.spyt.wrapper.client.{YtClientConfiguration, YtClientProvider}
-import tech.ytsaurus.spyt.wrapper.config.Utils.{parseRemoteConfig, remoteGlobalConfigPath, remoteVersionConfigPath}
+import tech.ytsaurus.spyt.wrapper.config.Utils.{parseRemoteConfig, remoteClusterConfigPath, remoteGlobalConfigPath, remoteVersionConfigPath}
 import tech.ytsaurus.spyt.wrapper.discovery.CypressDiscoveryService
 import tech.ytsaurus.core.cypress.YPath
 
@@ -55,15 +55,20 @@ class SubmissionClient(proxy: String,
     val yt = YtClientProvider.ytClient(YtClientConfiguration.default(proxy, user, token))
     val remoteGlobalConfig = parseRemoteConfig(remoteGlobalConfigPath, yt)
     val remoteVersionConfig = parseRemoteConfig(remoteVersionConfigPath(cluster.get().version), yt)
-
-    val jarCachingEnabled = remoteVersionConfig.get("spark.yt.jarCaching")
-      .orElse(remoteGlobalConfig.get("spark.yt.jarCaching"))
-      .exists(_.toBoolean)
+    val remoteClusterConfig = parseRemoteConfig(remoteClusterConfigPath(discoveryPath), yt)
+    val remoteConfig = remoteGlobalConfig ++ remoteVersionConfig ++ remoteClusterConfig
 
     launcher.setDeployMode("cluster")
 
-    addConf(launcher, remoteGlobalConfig)
-    addConf(launcher, remoteVersionConfig)
+    val jarCachingEnabled = remoteConfig.get("spark.yt.jarCaching").exists(_.toBoolean)
+    val ipv6Enabled = remoteConfig.get("spark.hadoop.yt.preferenceIpv6.enabled").exists(_.toBoolean)
+
+    addConf(launcher, remoteConfig)
+
+    if (ipv6Enabled) {
+      launcher.setConf("spark.driver.extraJavaOptions", "-Djava.net.preferIPv6Addresses=true")
+      launcher.setConf("spark.executor.extraJavaOptions", "-Djava.net.preferIPv6Addresses=true")
+    }
 
     launcher.setConf("spark.master.rest.enabled", "true")
     launcher.setConf("spark.master.rest.failover", "false")

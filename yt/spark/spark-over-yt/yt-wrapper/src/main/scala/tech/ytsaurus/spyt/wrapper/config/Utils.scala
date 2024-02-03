@@ -21,4 +21,6 @@ object Utils {
     val subDir = if (snapshot.exists(sparkClusterVersion.contains)) "snapshots" else "releases"
     s"//home/spark/conf/$subDir/$sparkClusterVersion/spark-launch-conf"
   }
+
+  def remoteClusterConfigPath(discoveryPath: String): String = s"$discoveryPath/discovery/conf"
 }
