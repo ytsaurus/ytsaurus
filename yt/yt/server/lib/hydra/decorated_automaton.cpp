@@ -928,7 +928,7 @@ TFuture<void> TDecoratedAutomaton::SaveSnapshot(const TSnapshotSaveContext& cont
     TForbidContextSwitchGuard contextSwitchGuard;
 
     const auto& Logger = context.Logger;
-    YT_LOG_INFO("Stared saving snapshot");
+    YT_LOG_INFO("Started saving snapshot");
 
     return
         Automaton_->SaveSnapshot(context).Apply(
