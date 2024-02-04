@@ -2611,6 +2611,16 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
                 options.InodeLimit = UserJobSpec_->disk_request().inode_count();
             }
         }
+
+        if (options.DiskSpaceLimit.has_value() && options.DiskSpaceLimit.value() <= 0) {
+            THROW_ERROR_EXCEPTION(EErrorCode::QuotaSettingFailed, "Set disk space limit must be greater than 0")
+                << TErrorAttribute("disk_space_limit", options.DiskSpaceLimit.value());
+        }
+
+        if (options.InodeLimit.has_value() && options.InodeLimit.value() <= 0) {
+            THROW_ERROR_EXCEPTION(EErrorCode::QuotaSettingFailed, "Set inode limit must be greater than 0")
+                << TErrorAttribute("inode_limit", options.InodeLimit.value());
+        }
     }
 
     return options;
