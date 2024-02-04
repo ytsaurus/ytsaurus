@@ -36,7 +36,7 @@ public:
 
 private:
     THashMap<T*, TEntitySerializationKey> RegisteredObjects_;
-    TEntitySerializationKey NextSerializationKey_;
+    TEntitySerializationKey NextSerializationKey_{0};
 };
 
 ////////////////////////////////////////////////////////////////////////////////

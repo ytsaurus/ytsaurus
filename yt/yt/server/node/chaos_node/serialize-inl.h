@@ -29,7 +29,7 @@ struct TRawObjectPtrSerializer
     {
         using TObject = typename std::remove_pointer<T>::type;
         auto key = LoadSuspended<TEntitySerializationKey>(context);
-        if (!key) {
+        if (key == NullEntitySerializationKey) {
             object = nullptr;
             SERIALIZATION_DUMP_WRITE(context, "objref <null>");
         } else {
