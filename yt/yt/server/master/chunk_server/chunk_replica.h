@@ -1,6 +1,5 @@
 #pragma once
 
-#include "public.h"
 #include "private.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
@@ -275,10 +274,9 @@ struct TSequoiaChunkReplica
     NNodeTrackerClient::TNodeId NodeId;
     NChunkClient::TChunkLocationUuid LocationUuid;
 
-    bool operator==(TSequoiaChunkReplica other) const;
+    bool operator==(const TSequoiaChunkReplica& other) const;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
+    void Persist(const NCellMaster::TPersistenceContext& context);
 };
 
 void FromProto(TSequoiaChunkReplica* replica, const NProto::TSequoiaReplicaInfo& protoReplica);

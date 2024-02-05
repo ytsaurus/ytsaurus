@@ -98,7 +98,7 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         rows = select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)
         assert len(rows) == 1
-        assert len(rows[0]['replicas']) == 3
+        assert len(rows[0]["replicas"]) == 3
 
         with Restarter(self.Env, NODES_SERVICE, indexes=self.table_node_indexes):
             pass

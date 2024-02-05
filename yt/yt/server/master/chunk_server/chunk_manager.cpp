@@ -1281,9 +1281,8 @@ public:
         UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ false);
 
         auto canHaveSequoiaReplicas = chunk->IsNative() && CanHaveSequoiaReplicas(chunk->GetId());
-        if (canHaveSequoiaReplicas) {
-            EmplaceOrCrash(SequoiaChunkPurgatory_, chunk->GetId(), TCompactVector<TSequoiaChunkReplica, 3>());
-        }
+
+        TCompactVector<TSequoiaChunkReplica, 3> sequoiaReplicas;
 
         // Unregister chunk replicas from all known locations.
         // Schedule removal jobs.
@@ -1306,12 +1305,17 @@ public:
                 replica.NodeId = GetChunkLocationNodeId(storedReplica);
                 auto* realLocation = location->AsReal();
                 replica.LocationUuid = realLocation->GetUuid();
+                sequoiaReplicas.push_back(replica);
             } else {
                 TChunkIdWithIndex chunkIdWithIndexes(chunk->GetId(), replicaIndex);
                 if (location->AddDestroyedReplica(chunkIdWithIndexes)) {
                     ++DestroyedReplicaCount_;
                 }
             }
+        }
+
+        if (canHaveSequoiaReplicas) {
+            EmplaceOrCrash(SequoiaChunkPurgatory_, chunk->GetId(), sequoiaReplicas);
         }
 
         chunk->UnrefUsedRequisitions(
@@ -3063,7 +3067,7 @@ private:
             if (!isImaginary) {
                 auto* realLocation = location->AsReal();
                 if (IsSequoiaChunkReplica(chunkId, realLocation)) {
-                    YT_LOG_ALERT("Removing sequoia replica in a nonsequoia way (ChunkId: %v, locationUuid: %v)",
+                    YT_LOG_ALERT("Removing sequoia replica in a nonsequoia way (ChunkId: %v, LocationUuid: %v)",
                         chunkId,
                         realLocation->GetUuid());
                 }
@@ -3080,7 +3084,7 @@ private:
                 if (!isImaginary) {
                     auto* realLocation = location->AsReal();
                     if (IsSequoiaChunkReplica(chunkId, realLocation)) {
-                        YT_LOG_INFO("Removing destroyed sequoia replica in a nonsequoia way (ChunkId: %v, locationUuid: %v)",
+                        YT_LOG_INFO("Removing destroyed sequoia replica in a nonsequoia way (ChunkId: %v, LocationUuid: %v)",
                             chunkId,
                             realLocation->GetUuid());
                     }
@@ -3454,7 +3458,7 @@ private:
         }
     }
 
-    TYsonString GetReplicasYson(
+    static TYsonString GetReplicasYson(
         const std::vector<TChunkReplicaWithLocation>& replicasToAdd,
         const std::vector<TChunkReplicaWithLocation>& replicasToRemove)
     {
@@ -3490,12 +3494,7 @@ private:
             ->StartTransaction()
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto chunkId = FromProto<TChunkId>(request.chunk_id());
-                std::vector<TChunkReplicaWithLocation> replicas;
-                replicas.reserve(request.replicas_size());
-                for (const auto& protoReplica : request.replicas()) {
-                    replicas.push_back(FromProto<TChunkReplicaWithLocation>(protoReplica));
-                }
-
+                auto replicas = FromProto<std::vector<TChunkReplicaWithLocation>>(request.replicas());
                 auto ysonReplicas = GetReplicasYson(replicas, {});
                 NRecords::TChunkReplicas chunkReplica{
                     .Key = {
@@ -5582,8 +5581,8 @@ private:
 
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
         for (auto& [chunkId, replicas] : replicasToPurge) {
-            SortUnique(replicas, [] (const auto& lhs, const auto& rhs) {
-                return lhs.LocationUuid < rhs.LocationUuid;
+            SortUniqueBy(replicas, [] (const auto& replica) {
+                return std::tie(replica.ChunkId, replica.ReplicaIndex, replica.NodeId, replica.LocationUuid);
             });
 
             for (const auto& replica : replicas) {
@@ -5598,8 +5597,7 @@ private:
                 }
 
                 auto replicaIndex = replica.ReplicaIndex;
-                auto* chunk = FindChunk(chunkId);
-                if (chunk) {
+                if (auto* chunk = FindChunk(chunkId)) {
                     TChunkPtrWithReplicaIndex replica(chunk, replicaIndex);
                     // Weird but OK.
                     if (location->RemoveReplica(replica)) {

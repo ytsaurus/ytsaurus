@@ -8,6 +8,7 @@
 namespace NYT::NChunkServer {
 
 using namespace NChunkClient;
+using namespace NCellMaster;
 
 using NYT::FromProto;
 
@@ -141,27 +142,23 @@ TChunkIdWithIndexes ToChunkIdWithIndexes(TChunkPtrWithReplicaAndMediumIndex chun
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TSequoiaChunkReplica::operator==(TSequoiaChunkReplica other) const
+bool TSequoiaChunkReplica::operator==(const TSequoiaChunkReplica& other) const
 {
-    return LocationUuid == other.LocationUuid;
+    return ChunkId == other.ChunkId
+        && ReplicaIndex == other.ReplicaIndex
+        && NodeId == other.NodeId
+        && LocationUuid == other.LocationUuid;
+
 }
 
-void TSequoiaChunkReplica::Save(NCellMaster::TSaveContext& context) const
+void TSequoiaChunkReplica::Persist(const TPersistenceContext& context)
 {
-    using NYT::Save;
-    Save(context, ChunkId);
-    Save(context, ReplicaIndex);
-    Save(context, NodeId);
-    Save(context, LocationUuid);
-}
+    using NYT::Persist;
 
-void TSequoiaChunkReplica::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-    Load(context, ChunkId);
-    Load(context, ReplicaIndex);
-    Load(context, NodeId);
-    Load(context, LocationUuid);
+    Persist(context, ChunkId);
+    Persist(context, ReplicaIndex);
+    Persist(context, NodeId);
+    Persist(context, LocationUuid);
 }
 
 void FromProto(TSequoiaChunkReplica* replica, const NProto::TSequoiaReplicaInfo& protoReplica)
