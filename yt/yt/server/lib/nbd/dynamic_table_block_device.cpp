@@ -14,6 +14,8 @@
 
 #include <library/cpp/yt/logging/logger.h>
 
+#include <util/digest/city.h>
+
 namespace NYT::NNbd {
 
 using namespace NConcurrency;
@@ -26,6 +28,216 @@ struct TDynamicTableBlockDeviceTag { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBlockCache
+    : public virtual TRefCounted
+{
+public:
+    TBlockCache(
+        i64 deviceId,
+        TDynamicTableBlockDeviceConfigPtr deviceConfig,
+        NApi::NNative::IClientPtr client,
+        const NLogging::TLogger& logger)
+        : DeviceId_(deviceId)
+        , DeviceConfig_(std::move(deviceConfig))
+        , Client_(std::move(client))
+        , Logger(logger)
+    {
+        // Setup name table.
+        NameTable_->RegisterName("device_id");
+        NameTable_->RegisterName("block_id");
+        NameTable_->RegisterName("block_datum");
+
+        // Save column ids.
+        DeviceIdColumn_ = NameTable_->GetId("device_id");
+        BlockIdColumn_ = NameTable_->GetId("block_id");
+        BlockDatumColumn_ = NameTable_->GetId("block_datum");
+    }
+
+    std::map<i64, TString> ReadBlocks(
+        std::map<i64, TString>&& blocks,
+        bool fillEmptyBlocksWithZeros,
+        const TGuid& readId)
+    {
+        YT_LOG_DEBUG("Start reading blocks (Blocks: %v, FillEmptyBlocksWithZeros: %v, ReadId: %v)",
+            blocks.size(),
+            fillEmptyBlocksWithZeros,
+            readId);
+
+        // First try to get blocks from the cache.
+        std::map<i64, TString> blocksToRead;
+        for (auto& [blockId, blockDatum] : blocks) {
+            auto it = BlockCache_.find(blockId);
+            if (it != BlockCache_.end()) {
+                blockDatum = it->second;
+            } else {
+                blocksToRead.emplace(blockId, TString());
+            }
+        }
+
+        if (!blocksToRead.empty()) {
+            // Read blocks from the table.
+            RowBuffer_->Clear();
+            std::vector<TLegacyKey> keys;
+            keys.reserve(blocks.size());
+            for (const auto& [blockId, _] : blocksToRead) {
+                TUnversionedRowBuilder builder;
+                builder.AddValue(ToUnversionedValue(DeviceId_, RowBuffer_, DeviceIdColumn_));
+                builder.AddValue(ToUnversionedValue(blockId, RowBuffer_, BlockIdColumn_));
+                keys.push_back(RowBuffer_->CaptureRow(builder.GetRow()));
+            }
+
+            YT_LOG_DEBUG("Lookup (Blocks: %v, ReadId: %v)",
+                keys.size(),
+                readId);
+
+            // TODO(yuryalekseev): Use select for contiguous blocks.
+            auto rows = WaitFor(Client_->LookupRows(DeviceConfig_->TablePath, NameTable_, MakeSharedRange(std::move(keys), MakeStrong(this))))
+                .ValueOrThrow()
+                .Rowset->GetRows();
+
+            YT_LOG_DEBUG("Lookuped (Blocks: %v, ReadId: %v)",
+                rows.size(),
+                readId);
+
+            for (auto row : rows) {
+                i64 deviceId, blockId;
+                TString blockDatum;
+
+                FromUnversionedValue(&deviceId, row[DeviceIdColumn_]);
+                FromUnversionedValue(&blockId, row[BlockIdColumn_]);
+                FromUnversionedValue(&blockDatum, row[BlockDatumColumn_]);
+
+                YT_VERIFY(blocksToRead.contains(blockId));
+                blocks[blockId] = blockDatum;
+                BlockCache_[blockId] = std::move(blockDatum);
+            }
+
+            for (auto& [blockId, blockDatum] : blocks) {
+                if (blockDatum.empty() && fillEmptyBlocksWithZeros) {
+                    blockDatum = TString(DeviceConfig_->BlockSize, '\0');
+                    BlockCache_[blockId] = blockDatum;
+                }
+            }
+            RowBuffer_->Clear();
+        }
+
+        YT_LOG_DEBUG("Finished reading blocks (Blocks: %v, FillEmptyBlocksWithZeros: %v, ReadId: %v)",
+            blocks.size(),
+            fillEmptyBlocksWithZeros,
+            readId);
+
+        return std::move(blocks);
+    }
+
+    void WriteBlocks(
+        std::map<i64, TString>&& blocks,
+        bool flush,
+        const TGuid& writeId)
+    {
+        YT_LOG_DEBUG("Start writing blocks (Blocks: %v, Flush: %v, WriteId: %v)",
+            blocks.size(),
+            flush,
+            writeId);
+
+        for (auto& [blockId, blockDatum] : blocks) {
+            BlockCache_[blockId] = flush ? blockDatum : std::move(blockDatum);
+            DirtyBlocks_.insert(blockId);
+        }
+
+        if (!flush) {
+            YT_LOG_DEBUG("Finish writing blocks (Blocks: %v, Flush: %v, WriteId: %v)",
+                blocks.size(),
+                flush,
+                writeId);
+            return;
+        }
+
+        YT_LOG_DEBUG("Starting tablet transaction (WriteId: %v)",
+            writeId);
+
+        auto tx = WaitFor(Client_->StartTransaction(ETransactionType::Tablet))
+            .ValueOrThrow();
+
+        YT_LOG_DEBUG("Started tablet transaction (TxId: %v, WriteId: %v)",
+            tx->GetId(),
+            writeId);
+
+        RowBuffer_->Clear();
+        std::vector<TUnversionedRow> rows;
+        rows.reserve(blocks.size());
+        for (auto& [blockId, blockDatum] : blocks) {
+            TUnversionedRowBuilder builder;
+            builder.AddValue(ToUnversionedValue(DeviceId_, RowBuffer_, DeviceIdColumn_));
+            builder.AddValue(ToUnversionedValue(blockId, RowBuffer_, BlockIdColumn_));
+            builder.AddValue(ToUnversionedValue(std::move(blockDatum), RowBuffer_, BlockDatumColumn_));
+            rows.push_back(RowBuffer_->CaptureRow(builder.GetRow()));
+        }
+
+        tx->WriteRows(DeviceConfig_->TablePath, NameTable_, MakeSharedRange(std::move(rows), MakeStrong(this)));
+
+        RowBuffer_->Clear();
+
+        YT_LOG_DEBUG("Committing tablet transaction (TxId: %v, WriteId: %v)",
+            tx->GetId(),
+            writeId);
+
+        WaitFor(tx->Commit())
+            .ValueOrThrow();
+
+        YT_LOG_DEBUG("Committed tablet transaction (WriteId: %v)",
+            writeId);
+
+        for (auto& [blockId, _] : blocks) {
+            DirtyBlocks_.erase(blockId);
+        }
+
+        YT_LOG_DEBUG("Finish writing blocks (Blocks: %v, Flush: %v, WriteId: %v)",
+            blocks.size(),
+            flush,
+            writeId);
+    }
+
+    TFuture<void> FlushDirtyBlocks()
+    {
+        while (!DirtyBlocks_.empty()) {
+            std::map<i64, TString> dirtyBlocks;
+            for (auto blockId : DirtyBlocks_) {
+                if (DeviceConfig_->WriteBatchSize <= std::ssize(dirtyBlocks)) {
+                    break;
+                }
+                auto it = BlockCache_.find(blockId);
+                YT_VERIFY(it != BlockCache_.end());
+                dirtyBlocks.emplace(blockId, it->second);
+            }
+
+            WriteBlocks(std::move(dirtyBlocks), true /* flash */, TGuid::Create());
+        }
+
+        return VoidFuture;
+    }
+
+private:
+    // TODO(yuryalekseev): Add support for max cache size.
+    const i64 DeviceId_;
+    const TDynamicTableBlockDeviceConfigPtr DeviceConfig_;
+    const NApi::NNative::IClientPtr Client_;
+    const NLogging::TLogger Logger;
+
+    TNameTablePtr NameTable_ = New<TNameTable>();
+    TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
+    int DeviceIdColumn_;
+    int BlockIdColumn_;
+    int BlockDatumColumn_;
+
+    std::map<i64, TString> BlockCache_;
+    std::unordered_set<i64> DirtyBlocks_;
+};
+
+DECLARE_REFCOUNTED_TYPE(TBlockCache)
+DEFINE_REFCOUNTED_TYPE(TBlockCache)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDynamicTableBlockDevice
     : public IBlockDevice
 {
@@ -35,11 +247,12 @@ public:
         TDynamicTableBlockDeviceConfigPtr deviceConfig,
         NApi::NNative::IClientPtr client,
         const NLogging::TLogger& logger)
-        : DeviceId_(deviceId)
+        : DeviceId_(CityHash64(deviceId.data(), deviceId.size()))
         , DeviceConfig_(std::move(deviceConfig))
         , Client_(std::move(client))
         , Logger(logger.WithTag("DeviceId: %v", deviceId))
-    {}
+        , BlockCache_(New<TBlockCache>(DeviceId_, DeviceConfig_, Client_, Logger))
+    { }
 
     virtual i64 GetTotalSize() const override
     {
@@ -80,8 +293,8 @@ public:
             return MakeFuture<TSharedRef>({});
         }
 
-        auto blockIds = CalcRangeBlockIds(offset, length, readId);
-        auto blocks = ReadBlocks(std::move(blockIds), readId);
+        auto blockIds = CalcRangeBlockIds(offset, length);
+        auto blocks = BlockCache_->ReadBlocks(std::move(blockIds), true /* fillEmptyBlocksWithZeros */, readId);
 
         std::vector<TSharedRef> refs;
         refs.reserve(blocks.size());
@@ -98,12 +311,6 @@ public:
             YT_VERIFY(sizeWithinBlock <= DeviceConfig_->BlockSize);
             YT_VERIFY(sizeWithinBlock <= length);
 
-            YT_LOG_DEBUG("Reading (Offset: %v, Length: %v, BlockSize: %v, ReadId: %v)",
-                beginWithinBlock,
-                sizeWithinBlock,
-                blockDatum.size(),
-                readId);
-
             refs.insert(refs.end(), TSharedRef::FromString(blockDatum.substr(beginWithinBlock, sizeWithinBlock)));
 
             offset += sizeWithinBlock;
@@ -112,7 +319,7 @@ public:
         YT_VERIFY(length == 0);
 
         // Merge refs into single ref.
-        // TODO: std::move(refs);
+        // TODO: Add support for std::move(refs) to MergeRefsToRef;
         auto result = MergeRefsToRef<TDynamicTableBlockDeviceTag>(refs);
 
         YT_LOG_DEBUG("Finish read (Size: %v, ReadId: %v)",
@@ -125,38 +332,35 @@ public:
     virtual TFuture<void> Write(
         i64 offset,
         const TSharedRef& data,
-        const TWriteOptions& /*options*/) override
+        const TWriteOptions& options) override
     {
         i64 length = data.size();
         auto writeId = TGuid::Create();
 
-        YT_LOG_DEBUG("Start write (Offset: %v, Length: %v, WriteId: %v)",
+        YT_LOG_DEBUG("Start write (Offset: %v, Length: %v, Flush: %v, WriteId: %v)",
             offset,
             length,
+            options.Flush,
             writeId);
 
         if (length == 0) {
-            YT_LOG_DEBUG("Finish write (Offset: %v, Length: %v, WriteId: %v)",
+            YT_LOG_DEBUG("Finish write (Offset: %v, Length: %v, Flush: %v, WriteId: %v)",
                 offset,
                 length,
+                options.Flush,
                 writeId);
 
             return VoidFuture;
         }
 
-        auto tx = WaitFor(Client_->StartTransaction(ETransactionType::Tablet))
-            .ValueOrThrow();
-
-        auto blockIds = CalcRangeBlockIds(offset, length, writeId);
+        auto blockIds = CalcRangeBlockIds(offset, length);
         auto blocks = PrepareBlocksForWriting(std::move(blockIds), data, offset, writeId);
-        WriteBlocks(std::move(blocks), tx, writeId);
+        BlockCache_->WriteBlocks(std::move(blocks), options.Flush, writeId);
 
-        WaitFor(tx->Commit())
-            .ThrowOnError();
-
-        YT_LOG_DEBUG("Finish write (Offset: %v, Length: %v, WriteId: %v)",
+        YT_LOG_DEBUG("Finish write (Offset: %v, Length: %v, Flush: %v, WriteId: %v)",
             offset,
             length,
+            options.Flush,
             writeId);
 
         return VoidFuture;
@@ -164,19 +368,30 @@ public:
 
     TFuture<void> Flush() override
     {
+        YT_LOG_INFO("Start flush (TablePath: %v)",
+            DeviceConfig_->TablePath);
+
+        auto future = BlockCache_->FlushDirtyBlocks();
+        WaitFor(future).ThrowOnError();
+
+        YT_LOG_INFO("Finish flush (TablePath: %v)",
+            DeviceConfig_->TablePath);
+
         return VoidFuture;
     }
 
     TFuture<void> Initialize() override
     {
-        YT_LOG_DEBUG("Start initialization");
+        YT_LOG_INFO("Start initialization of dynamic table block device (TablePath: %v)",
+            DeviceConfig_->TablePath);
 
         // Check that the table does exist.
         auto tableExists = WaitFor(Client_->NodeExists(DeviceConfig_->TablePath))
             .ValueOrThrow();
 
         if (!tableExists) {
-            THROW_ERROR_EXCEPTION("Table with NBD devices %Qlv doesn't exist", DeviceConfig_->TablePath);
+            THROW_ERROR_EXCEPTION("Table with NBD devices %Qlv doesn't exist",
+                DeviceConfig_->TablePath);
         }
 
         // Check that the table is indeed dynamic and is mounted.
@@ -189,82 +404,48 @@ public:
         const auto& attributes = rspNode->Attributes();
         auto tableIsDynamic = attributes.Find<bool>("dynamic");
         if (!tableIsDynamic || !*tableIsDynamic) {
-            THROW_ERROR_EXCEPTION("Table with NBD devices %Qlv is not dynamic", DeviceConfig_->TablePath);
+            THROW_ERROR_EXCEPTION("Table with NBD devices %Qlv is not dynamic",
+                DeviceConfig_->TablePath);
         }
         auto tabletState = attributes.Find<TString>("tablet_state");
         if (!tabletState || *tabletState != "mounted") {
-            THROW_ERROR_EXCEPTION("Table with NBD devices %Qlv is not mounted", DeviceConfig_->TablePath);
+            THROW_ERROR_EXCEPTION("Table with NBD devices %Qlv is not mounted",
+                DeviceConfig_->TablePath);
         }
-
-        // Setup name table.
-        NameTable_->RegisterName("device_id");
-        NameTable_->RegisterName("block_id");
-        NameTable_->RegisterName("block_datum");
-
-        // Save column ids.
-        DeviceIdColumn_ = NameTable_->GetId("device_id");
-        BlockIdColumn_ = NameTable_->GetId("block_id");
-        BlockDatumColumn_ = NameTable_->GetId("block_datum");
 
         // Initialize device and block sizes.
-        static constexpr i64 DeviceSizeBlockId = -1;
-        static constexpr i64 BlockSizeBlockId = -2;
-
-        RowBuffer_->Clear();
-        std::vector<TLegacyKey> keys;
-        keys.reserve(2);
-        for (auto blockId : {DeviceSizeBlockId, BlockSizeBlockId})
-        {
-            TUnversionedRowBuilder builder;
-            builder.AddValue(ToUnversionedValue(DeviceId_, RowBuffer_, DeviceIdColumn_));
-            builder.AddValue(ToUnversionedValue(blockId, RowBuffer_, BlockIdColumn_));
-            keys.push_back(RowBuffer_->CaptureRow(builder.GetRow()));
-        }
-        RowBuffer_->Clear();
-
-        auto rowset = WaitFor(Client_->LookupRows(DeviceConfig_->TablePath, NameTable_, MakeSharedRange(std::move(keys), MakeStrong(this))))
-            .ValueOrThrow()
-            .Rowset;
-
         i64 deviceSize = -1, blockSize = -1;
-        for (auto row : rowset->GetRows()) {
-            i64 blockId;
-            TString blockDatum;
-            FromUnversionedValue(&blockId, row[BlockIdColumn_]);
-            FromUnversionedValue(&blockDatum, row[BlockDatumColumn_]);
-
+        auto blocks = BlockCache_->ReadBlocks({{DeviceSizeBlockId, ""}, {BlockSizeBlockId, ""}}, false /* fillEmptyBlocksWithZeros */, TGuid::Create());
+        for (auto& [blockId, blockDatum]: blocks) {
             YT_VERIFY(blockId == DeviceSizeBlockId || blockId == BlockSizeBlockId);
 
-            if (!blockDatum.empty()) {
-                if (blockId == DeviceSizeBlockId) {
-                    deviceSize = std::stoll(blockDatum);
-                }
+            if (blockDatum.empty()) {
+                continue;
+            }
 
-                if (blockId == BlockSizeBlockId) {
-                    blockSize = std::stoll(blockDatum);
-                }
+            if (blockId == DeviceSizeBlockId) {
+                deviceSize = std::stoll(blockDatum);
+            }
+
+            if (blockId == BlockSizeBlockId) {
+                blockSize = std::stoll(blockDatum);
             }
         }
 
         YT_VERIFY((deviceSize == -1 && blockSize == -1) || (deviceSize != -1 && blockSize != -1));
 
         if (blockSize == -1) {
-            YT_LOG_DEBUG("Save device and block sizes (DeviceSize: %v, BlockSize: %v, TablePath: %v)",
+            YT_LOG_INFO("Save device and block sizes (DeviceSize: %v, BlockSize: %v, TablePath: %v)",
                 DeviceConfig_->Size,
                 DeviceConfig_->BlockSize,
                 DeviceConfig_->TablePath);
 
-            std::map<i64, TString> blocks;
             blocks[DeviceSizeBlockId] = ToString(DeviceConfig_->Size);
             blocks[BlockSizeBlockId] = ToString(DeviceConfig_->BlockSize);
+            BlockCache_->WriteBlocks(std::move(blocks), true /* flush */, TGuid::Create());
 
-            auto tx = WaitFor(Client_->StartTransaction(ETransactionType::Tablet))
-                .ValueOrThrow();
-
-            WriteBlocks(std::move(blocks), tx, TGuid::Create());
-
-            WaitFor(tx->Commit())
-                .ValueOrThrow();
+            YT_LOG_INFO("Finish initialization of dynamic table block device (TablePath: %v)",
+                DeviceConfig_->TablePath);
 
             return VoidFuture;
         }
@@ -282,88 +463,13 @@ public:
                 blockSize);
         }
 
+        YT_LOG_INFO("Finish initialization of dynamic table block device (TablePath: %v)",
+            DeviceConfig_->TablePath);
+
         return VoidFuture;
     }
 
 private:
-    // TODO(yuryalekseev): read by batch.
-    std::map<i64, TString> ReadBlocks(
-        std::map<i64, TString>&& blocks,
-        const TGuid& readId)
-    {
-        YT_LOG_DEBUG("Start reading blocks (Blocks: %v, ReadId: %v)",
-            blocks.size(),
-            readId);
-
-        RowBuffer_->Clear();
-        std::vector<TLegacyKey> keys;
-        keys.reserve(blocks.size());
-        for (const auto& [blockId, _] : blocks) {
-            TUnversionedRowBuilder builder;
-            builder.AddValue(ToUnversionedValue(DeviceId_, RowBuffer_, DeviceIdColumn_));
-            builder.AddValue(ToUnversionedValue(blockId, RowBuffer_, BlockIdColumn_));
-            keys.push_back(RowBuffer_->CaptureRow(builder.GetRow()));
-        }
-
-        auto rowset = WaitFor(Client_->LookupRows(DeviceConfig_->TablePath, NameTable_, MakeSharedRange(std::move(keys), MakeStrong(this))))
-            .ValueOrThrow()
-            .Rowset;
-
-        for (auto row : rowset->GetRows()) {
-            i64 blockId;
-            TString blockDatum;
-            FromUnversionedValue(&blockId, row[BlockIdColumn_]);
-            FromUnversionedValue(&blockDatum, row[BlockDatumColumn_]);
-
-            YT_VERIFY(blocks.contains(blockId));
-            blocks[blockId] = std::move(blockDatum);
-        }
-
-        for (auto& [_, blockDatum] : blocks) {
-            if (blockDatum.empty()) {
-                blockDatum = TString(DeviceConfig_->BlockSize, '\0');
-            }
-        }
-
-        RowBuffer_->Clear();
-
-        YT_LOG_DEBUG("Finished reading blocks (Blocks: %v, ReadId: %v)",
-            blocks.size(),
-            readId);
-
-        return std::move(blocks);
-    }
-
-    // TODO(yuryalekseev): write by batch.
-    void WriteBlocks(
-        std::map<i64, TString>&& blocks,
-        const NApi::ITransactionPtr& tx,
-        const TGuid& writeId)
-    {
-        YT_LOG_DEBUG("Start writing blocks (Blocks: %v, WriteId: %v)",
-            blocks.size(),
-            writeId);
-
-        RowBuffer_->Clear();
-        std::vector<TUnversionedRow> rows;
-        rows.reserve(blocks.size());
-        for (auto& [blockId, blockDatum] : blocks) {
-            TUnversionedRowBuilder builder;
-            builder.AddValue(ToUnversionedValue(DeviceId_, RowBuffer_, DeviceIdColumn_));
-            builder.AddValue(ToUnversionedValue(blockId, RowBuffer_, BlockIdColumn_));
-            builder.AddValue(ToUnversionedValue(std::move(blockDatum), RowBuffer_, BlockDatumColumn_));
-            rows.push_back(RowBuffer_->CaptureRow(builder.GetRow()));
-        }
-
-        tx->WriteRows(DeviceConfig_->TablePath, NameTable_, MakeSharedRange(std::move(rows), MakeStrong(this)));
-
-        RowBuffer_->Clear();
-
-        YT_LOG_DEBUG("Finished writing blocks (Blocks: %v, WriteId: %v)",
-            blocks.size(),
-            writeId);
-    }
-
     std::pair<i64, i64> CalcScopeBlockIds(i64 offset, i64 length) const
     {
         i64 beginBlockId = offset / DeviceConfig_->BlockSize;
@@ -371,19 +477,13 @@ private:
         return {beginBlockId, endBlockId};
     }
 
-    std::map<i64, TString> CalcRangeBlockIds(i64 offset, i64 length, const TGuid& writeId) const
+    std::map<i64, TString> CalcRangeBlockIds(i64 offset, i64 length) const
     {
         std::map<i64, TString> blockIds;
         auto [beginBlockId, endBlockId] = CalcScopeBlockIds(offset, length);
         for (i64 blockId = beginBlockId; blockId != endBlockId; ++blockId) {
             blockIds.emplace(blockId, TString());
         }
-
-        YT_LOG_DEBUG("Calculated range of block ids (Offset: %v, Length: %v, BlockIds: %v, WriteId: %v)",
-            offset,
-            length,
-            blockIds.size(),
-            writeId);
 
         return blockIds;
     }
@@ -416,10 +516,12 @@ private:
         }
 
         // Read blocks that we are going to overwrite.
-        auto readBlocks = ReadBlocks(std::move(readBlockIds), writeId);
-        for (auto& [blockId, blockDatum] : readBlocks) {
-            YT_VERIFY(blocks.contains(blockId));
-            blocks[blockId] = std::move(blockDatum);
+        if (!readBlockIds.empty()) {
+            auto readBlocks = BlockCache_->ReadBlocks(std::move(readBlockIds), true /* fillEmptyBlocksWithZeros */, writeId);
+            for (auto& [blockId, blockDatum] : readBlocks) {
+                YT_VERIFY(blocks.contains(blockId));
+                blocks[blockId] = std::move(blockDatum);
+            }
         }
 
         i64 dataPos = 0;
@@ -442,13 +544,6 @@ private:
             }
 
             YT_VERIFY(std::ssize(blockDatum) == DeviceConfig_->BlockSize);
-
-            YT_LOG_DEBUG("Prepare block for writing (DataPos: %v, SizeWithinBlock: %v, BeginWithinBlock: %v, EndWithinBlock: %v, WriteId: %v)",
-                dataPos,
-                sizeWithinBlock,
-                beginWithinBlock,
-                endWithinBlock,
-                writeId);
 
             /*
                 Overwrite the middle of the block by new data.
@@ -480,16 +575,15 @@ private:
     }
 
 private:
-    const TString DeviceId_;
+    static constexpr i64 DeviceSizeBlockId = -1;
+    static constexpr i64 BlockSizeBlockId = -2;
+
+    const i64 DeviceId_;
     const TDynamicTableBlockDeviceConfigPtr DeviceConfig_;
     const NApi::NNative::IClientPtr Client_;
     const NLogging::TLogger Logger;
 
-    TNameTablePtr NameTable_ = New<TNameTable>();
-    TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
-    int DeviceIdColumn_;
-    int BlockIdColumn_;
-    int BlockDatumColumn_;
+    TBlockCachePtr BlockCache_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
