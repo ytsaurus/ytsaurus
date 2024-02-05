@@ -171,13 +171,13 @@ ptrdiff_t TYPathBase<TUnderlying>::FindLastSegment() const
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TUnderlying>
-TYPathBase<TUnderlying>::TSegmentView::const_iterator TYPathBase<TUnderlying>::TSegmentView::begin() const
+typename TYPathBase<TUnderlying>::TSegmentView::const_iterator TYPathBase<TUnderlying>::TSegmentView::begin() const
 {
     return TIterator(Owner_, 0);
 }
 
 template <class TUnderlying>
-TYPathBase<TUnderlying>::TSegmentView::const_iterator TYPathBase<TUnderlying>::TSegmentView::end() const
+typename TYPathBase<TUnderlying>::TSegmentView::const_iterator TYPathBase<TUnderlying>::TSegmentView::end() const
 {
     return TIterator(Owner_, Owner_->Path_.size());
 }
@@ -206,7 +206,7 @@ const TYPathBuf* TYPathBase<TUnderlying>::TSegmentView::TIterator::operator->() 
 }
 
 template <class TUnderlying>
-TYPathBase<TUnderlying>::TSegmentView::TIterator& TYPathBase<TUnderlying>::TSegmentView::TIterator::operator++()
+typename TYPathBase<TUnderlying>::TSegmentView::TIterator& TYPathBase<TUnderlying>::TSegmentView::TIterator::operator++()
 {
     Increment();
     UpdateCurrent();
@@ -214,7 +214,7 @@ TYPathBase<TUnderlying>::TSegmentView::TIterator& TYPathBase<TUnderlying>::TSegm
 }
 
 template <class TUnderlying>
-TYPathBase<TUnderlying>::TSegmentView::TIterator TYPathBase<TUnderlying>::TSegmentView::TIterator::operator++(int)
+typename TYPathBase<TUnderlying>::TSegmentView::TIterator TYPathBase<TUnderlying>::TSegmentView::TIterator::operator++(int)
 {
     auto result = *this;
     (*this)++;
@@ -256,7 +256,7 @@ void TYPathBase<TUnderlying>::TSegmentView::TIterator::UpdateCurrent()
 }
 
 template <class TUnderlying>
-TYPathBase<TUnderlying>::TSegmentView TYPathBase<TUnderlying>::AsSegments() const
+typename TYPathBase<TUnderlying>::TSegmentView TYPathBase<TUnderlying>::AsSegments() const
 {
     return TSegmentView(this);
 }
