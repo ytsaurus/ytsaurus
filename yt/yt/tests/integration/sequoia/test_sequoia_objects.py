@@ -167,11 +167,12 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         chunk_id = get_singular_chunk_id("//tmp/t")
 
-        assert len(select_rows_from_ground(f"* from [{CHUNK_REPLICAS_TABLE.get_path()}]")) > 0
-        wait(lambda: len(select_rows_from_ground(f"* from [{CHUNK_REPLICAS_TABLE.get_path()}]")) == 1)
-        wait(lambda: len(select_rows_from_ground(f"* from [{LOCATION_REPLICAS_TABLE.get_path()}]")) == 3)
+        ground_driver = self.get_ground_driver()
+        assert len(select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)) > 0
+        wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)) == 1)
+        wait(lambda: len(select_rows("* from [//sys/sequoia/location_replicas]", driver=ground_driver)) == 3)
 
-        rows = select_rows_from_ground(f"* from [{CHUNK_REPLICAS_TABLE.get_path()}]")
+        rows = select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)
         assert len(rows) == 1
         assert len(rows[0]["last_seen_replicas"]) == 3
 
