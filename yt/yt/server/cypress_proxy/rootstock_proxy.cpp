@@ -33,6 +33,8 @@ using namespace NSequoiaClient;
 using namespace NTransactionClient;
 using namespace NYTree;
 
+using TYPath = NYPath::TYPath;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRootstockProxy

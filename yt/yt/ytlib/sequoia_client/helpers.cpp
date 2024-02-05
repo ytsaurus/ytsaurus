@@ -4,18 +4,21 @@
 
 namespace NYT::NSequoiaClient {
 
-using namespace NYPath;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-TMangledSequoiaPath MangleSequoiaPath(const TYPath& path)
+TMangledSequoiaPath MangleSequoiaPath(NYPath::TYPathBuf path)
 {
     YT_VERIFY(!path.empty());
     YT_VERIFY(path == "/" || path.back() != '/');
-    return TMangledSequoiaPath(path + '/');
+    return TMangledSequoiaPath(NYPath::TYPath(path) + "/");
 }
 
-TYPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath)
+TMangledSequoiaPath MangleSequoiaPath(const NYPath::TYPath& path)
+{
+    return MangleSequoiaPath(NYPath::TYPathBuf(path));
+}
+
+NYPath::TYPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath)
 {
     YT_VERIFY(!mangledPath.Underlying().empty());
     YT_VERIFY(mangledPath.Underlying().back() == '/');

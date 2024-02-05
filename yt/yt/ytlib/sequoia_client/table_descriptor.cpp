@@ -17,7 +17,6 @@
 namespace NYT::NSequoiaClient {
 
 using namespace NQueryClient;
-using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,10 +73,10 @@ const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath GetSequoiaTablePath(const NApi::NNative::IClientPtr& client, const ITableDescriptor* tableDescriptor)
+NYPath::TYPath GetSequoiaTablePath(const NApi::NNative::IClientPtr& client, const ITableDescriptor* tableDescriptor)
 {
     const auto& rootPath = client->GetNativeConnection()->GetConfig()->SequoiaConnection->SequoiaRootPath;
-    return rootPath + "/" + ToYPathLiteral(tableDescriptor->GetTableName());
+    return rootPath + "/" + NYPath::ToYPathLiteral(tableDescriptor->GetTableName());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

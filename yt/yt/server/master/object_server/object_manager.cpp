@@ -106,6 +106,8 @@ using namespace NProfiling;
 using namespace NTransactionSupervisor;
 using namespace NSequoiaClient;
 
+using TYPath = NYPath::TYPath;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ObjectServerLogger;

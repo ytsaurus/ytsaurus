@@ -32,6 +32,8 @@ using namespace NCypressServer::NProto;
 using NYT::FromProto;
 using NYT::ToProto;
 
+using TYPath = NYPath::TYPath;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void WriteSequoiaNodeRows(

@@ -1354,6 +1354,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/table_descriptor.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/transaction.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/write_set.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/ypath_detail.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/boolean_column_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/boolean_column_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/column_reader_detail.cpp

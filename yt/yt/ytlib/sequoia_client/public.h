@@ -42,6 +42,9 @@ DECLARE_REFCOUNTED_STRUCT(ILazySequoiaClient)
 
 YT_DEFINE_STRONG_TYPEDEF(TMangledSequoiaPath, NYPath::TYPath);
 
+class TYPath;
+class TYPathBuf;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_ERROR_ENUM(

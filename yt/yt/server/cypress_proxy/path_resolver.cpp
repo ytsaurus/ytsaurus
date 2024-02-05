@@ -26,6 +26,8 @@ using namespace NSequoiaClient;
 using namespace NYTree;
 using namespace NYPath;
 
+using TYPath = NYPath::TYPath;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPathResolver

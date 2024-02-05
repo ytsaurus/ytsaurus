@@ -56,6 +56,8 @@ using namespace NYTree;
 using NYT::FromProto;
 using NYT::ToProto;
 
+using TYPath = NYPath::TYPath;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = CypressProxyLogger;

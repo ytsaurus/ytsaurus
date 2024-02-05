@@ -158,6 +158,8 @@ using namespace NZookeeperServer;
 // COMPAT(h0pless): RecomputeMasterTableSchemaRefCounters
 using namespace NLogging;
 
+using TYPath = NYPath::TYPath;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = CypressServerLogger;
@@ -4341,7 +4343,7 @@ private:
             account,
             TNodeFactoryOptions(),
             sourceTrunkNode,
-            std::move(TYPath()));
+            NYPath::TYPath());
 
         auto* clonedTrunkNode = DoCloneNode(
             sourceNode,

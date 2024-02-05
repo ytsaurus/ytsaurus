@@ -8,6 +8,8 @@ namespace NYT::NSequoiaClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TMangledSequoiaPath MangleSequoiaPath(NYPath::TYPathBuf rawPath);
+
 TMangledSequoiaPath MangleSequoiaPath(const NYPath::TYPath& rawPath);
 
 NYPath::TYPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath);

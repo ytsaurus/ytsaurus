@@ -371,7 +371,7 @@ private:
 
     struct TTableCommitSession final
     {
-        TYPath Path;
+        NYPath::TYPath Path;
 
         ESequoiaTable Table;
 
@@ -664,7 +664,7 @@ private:
         return Transaction_->Commit(options).AsVoid();
     }
 
-    TYPath GetTablePath(const ITableDescriptor* tableDescriptor) const
+    NYPath::TYPath GetTablePath(const ITableDescriptor* tableDescriptor) const
     {
         return GetSequoiaTablePath(NativeRootClient_, tableDescriptor);
     }

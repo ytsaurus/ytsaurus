@@ -23,6 +23,9 @@ using namespace NObjectClient;
 using namespace NSequoiaClient;
 using namespace NYPath;
 
+using TYPath = NYPath::TYPath;
+using TYPathBuf = NYPath::TYPathBuf;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = CypressProxyLogger;

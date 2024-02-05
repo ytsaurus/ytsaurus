@@ -32,6 +32,8 @@ using namespace NRpc;
 using namespace NSequoiaClient;
 using namespace NYTree;
 
+using TYPath = NYPath::TYPath;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSequoiaService
