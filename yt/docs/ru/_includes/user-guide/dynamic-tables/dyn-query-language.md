@@ -282,6 +282,48 @@ FN(<expr>, ...)
 `lower(s) :: string -> string`
 Приводит строку `s` к нижнему регистру.
 
+#### Обращение к контейнерам
+
+Если столбец таблицы имеет составной тип данных `Composite`, для обращения к полям этого столбца можно использовать следующий синтаксис:
+- Для доступа к полям структур (`struct`) используется точка;
+- Для доступа к полям кортежей (`tuple`) используется точка, адресация начинается **с нуля**;
+- Для доступа к полям словарей (`dict`) используются квадратные скобки;
+- Для доступа к полям списков (`list`) используются квадратные скобки, адресация начинается **с нуля**.
+
+Корректность обращения к полям структур и кортежей выполняется **до начала** выполнения запроса.
+Корректность обращения к полям словарей и списков выполняется **во время** выполнения запроса.
+
+Чтобы воспользоваться этим синтаксисом, необходимо в параметрах запроса указать `syntax_version=2`.
+Начиная с этой версии синтаксиса, для экранирования строк используется символ `backtick`.
+При обращении к контейнерам необходимо указывать полное имя столбца, включая алиас таблицы.
+
+Примеры работы:
+```sql
+t.struct.member,
+t.tuple.0,
+t.dict["key"],
+t.list[1+1]
+from `//tmp/test` as t;
+```
+
+```sh
+$ yt create table '//tmp/test' --attributes '{dynamic=true; schema=<"unique_keys"=%true;"strict"=%true;>[{name=a;sort_order=ascending;type=int64;};{name=b;type_v3={type_name=struct;members=[{name=c;type={type_name=list;item=int64}}]}}]}'
+$ yt mount-table --path '//tmp/test'
+$ echo '{a=0;b={c=[]}}' | yt insert-rows --table '//tmp/test' --format yson
+$ echo '{a=1;b={c=[1;2;3]}}' | yt insert-rows --table '//tmp/test' --format yson
+$ echo '{a=2;b={c=[4]}}' | yt insert-rows --table '//tmp/test' --format yson
+
+$ yt select-rows 't.b.c from `//tmp/test` as t' --syntax-version 2 --format json 
+{"t.b.c":[]}
+{"t.b.c":[1,2,3]}
+{"t.b.c":[4]}
+
+$ yt select-rows 't.b.c[0] from `//tmp/test` as t' --syntax-version 2 --format json 
+{"t.b.c[0]":null}
+{"t.b.c[0]":1}
+{"t.b.c[0]":4}
+```
+
 #### Работа с YSON
 
 Для извлечения данных из значений, содержащих [YSON](../../../user-guide/storage/formats.md#yson), существует набор функций:
