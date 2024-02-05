@@ -227,6 +227,7 @@ DEFINE_ENUM(EMasterReign,
     ((EnableRealChunkLocationsByDefault)                            (2525))  // kvk1920
     ((SaneTxActionAbort)                                            (2526))  // kvk1920
     ((ValueDictionaryCompression)                                   (2527))  // akozhikhov
+    // 24.2 starts here.
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
