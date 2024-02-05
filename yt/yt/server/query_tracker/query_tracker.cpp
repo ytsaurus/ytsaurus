@@ -357,17 +357,10 @@ private:
                 StateRoot_ + "/active_queries",
                 TActiveQueryDescriptor::Get()->GetNameTable(),
                 MakeSharedRange(std::move(newRows), std::move(rowBuffer)));
-            auto commitResultOrError = WaitFor(transaction->Commit());
+            auto commitResult = WaitFor(transaction->Commit())
+                .ValueOrThrow();
 
-            if (commitResultOrError.FindMatching(NTabletClient::EErrorCode::TransactionLockConflict)) {
-                YT_LOG_INFO(
-                    commitResultOrError,
-                    "Ping transaction resulted in lock conflict, detaching query");
-                DetachQuery(queryId);
-                return false;
-            }
-            commitResultOrError.ThrowOnError();
-            YT_LOG_DEBUG("Query pinged (CommitTimestamp: %v)", commitResultOrError.Value().PrimaryCommitTimestamp);
+            YT_LOG_DEBUG("Query pinged (CommitTimestamp: %v)", commitResult.PrimaryCommitTimestamp);
             return true;
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Error pinging query");
