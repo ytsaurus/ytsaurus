@@ -500,8 +500,57 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]
         assert value == []
 
+    @authors("aleksandra-zh")
+    def test_aggregate_last_seen_replica_set(self):
+        sync_create_cells(1)
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "any", "aggregate": "_yt_last_seen_replica_set"},
+        ]
+        create_dynamic_table("//tmp/t", schema=schema)
+        sync_mount_table("//tmp/t")
+
+        original_rows = [
+            ['a-b-c-{}'.format(str(i) if i < 10 else chr(ord('a') + i - 10)), 16, yson.YsonUint64(2)] for i in range(16)
+        ]
+        insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList(original_rows)}], aggregate=True)
+        value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]
+        assert value == original_rows
+
+        new_row = [['b-b-c-d', 16, yson.YsonUint64(2)]]
+        insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList(new_row)}], aggregate=True)
+        value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]
+        assert value == original_rows[1:] + new_row
+
+    @authors("aleksandra-zh")
+    def test_aggregate_erasure_last_seen_replica_set(self):
+        sync_create_cells(1)
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "any", "aggregate": "_yt_last_seen_replica_set"},
+        ]
+        create_dynamic_table("//tmp/t", schema=schema)
+        sync_mount_table("//tmp/t")
+
+        rows = [
+            ['a-b-c-{}'.format(str(i) if i < 10 else chr(ord('a') + i - 10)), i, yson.YsonUint64(2)] for i in range(16)
+        ]
+        insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList(rows)}], aggregate=True)
+        value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]
+        assert value == rows
+
+        new_row_3 = [['b-b-c-d', 3, yson.YsonUint64(2)]]
+        new_row_5 = [['b-b-c-1', 5, yson.YsonUint64(2)]]
+        insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList(new_row_3)}], aggregate=True)
+        insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList(new_row_5)}], aggregate=True)
+
+        value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]
+        rows[3] = new_row_3[0]
+        rows[5] = new_row_5[0]
+        assert value == rows
 
 ##################################################################
+
 
 class TestAggregateColumnsMulticell(TestAggregateColumns):
     NUM_SECONDARY_MASTER_CELLS = 2

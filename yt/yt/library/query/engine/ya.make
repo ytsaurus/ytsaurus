@@ -137,6 +137,16 @@ LLVM_BC(
 )
 
 LLVM_BC(
+    udf/last_seen_replica_set.cpp
+    NAME last_seen_replica_set
+    SYMBOLS
+        _yt_last_seen_replica_set_init
+        _yt_last_seen_replica_set_update
+        _yt_last_seen_replica_set_merge
+        _yt_last_seen_replica_set_finalize
+)
+
+LLVM_BC(
     udf/first.c
     NAME first
     SYMBOLS

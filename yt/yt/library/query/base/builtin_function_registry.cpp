@@ -376,6 +376,15 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         EValueType::Any,
         "stored_replica_set",
         ECallingConvention::UnversionedValue);
+
+    builder->RegisterAggregate(
+        "_yt_last_seen_replica_set",
+        std::unordered_map<TTypeParameter, TUnionType>(),
+        std::vector{EValueType::Any},
+        EValueType::Any,
+        EValueType::Any,
+        "last_seen_replica_set",
+        ECallingConvention::UnversionedValue);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
