@@ -3,6 +3,7 @@ LIBRARY()
 SRCS(
     base_state.cpp
     dependency_runner.cpp
+    dot.cpp
     jobs.cpp
     kv_state.cpp
     level_runner.cpp

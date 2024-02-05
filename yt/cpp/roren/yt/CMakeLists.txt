@@ -23,6 +23,7 @@ target_link_libraries(cpp-roren-yt PUBLIC
 target_sources(cpp-roren-yt PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/base_state.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/dependency_runner.cpp
+  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/dot.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/jobs.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/kv_state.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/level_runner.cpp

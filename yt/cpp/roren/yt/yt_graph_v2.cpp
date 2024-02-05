@@ -1,6 +1,7 @@
 #include "yt_graph_v2.h"
 #include "jobs.h"
 
+#include "dot.h"
 #include "yt_graph.h"
 #include "yt_io_private.h"
 #include "yt_proto_io.h"
@@ -1394,6 +1395,106 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDotVisitor
+    : public IPlainGraphVisitor
+{
+public:
+    void OnTableNode(TYtGraphV2::TTableNode* tableNode) override
+    {
+        if (tableNode->GetTableType() == ETableType::Output) {
+            auto pathSchemaList = tableNode->VerifiedAsPtr<TOutputTableNode>()->GetPathSchemaList();
+            for (const auto& [path, _] : pathSchemaList) {
+                OnTable(path.Path_);
+            }
+        } else {
+            auto name = OnTable(tableNode->GetPath().Path_);
+
+            for (const auto& [consumer, _] : tableNode->InputFor) {
+                DOTEdge(Stream_, name, DOTOperationName(GetOperationIndex(consumer)));
+            }
+        }
+    }
+
+    void OnOperationNode(TYtGraphV2::TOperationNode* operationNode) override
+    {
+        auto name = DOTOperationName(GetOperationIndex(operationNode));
+        auto label = GetOperationLabel(operationNode);
+        DOTOperation(Stream_, name, label);
+
+        for (const auto& [_, output] : operationNode->OutputTables) {
+            if (output->GetTableType() == ETableType::Output) {
+                auto pathSchemaList = output->VerifiedAsPtr<TOutputTableNode>()->GetPathSchemaList();
+                for (const auto& [path, _] : pathSchemaList) {
+                    DOTEdge(Stream_, name, DOTTableName(GetTableIndex(path.Path_)));
+                }
+            } else {
+                DOTEdge(Stream_, name, DOTTableName(GetTableIndex(output->GetPath().Path_)));
+            }
+        }
+    }
+
+    void Prologue()
+    {
+        Stream_.Clear();
+
+        DOTPrologue(Stream_);
+    }
+
+    void Epilogue()
+    {
+        DOTEpilogue(Stream_);
+    }
+
+    TString GetResult() const
+    {
+        return Stream_.Str();
+    }
+
+private:
+    TString OnTable(TString path)
+    {
+        auto name = DOTTableName(GetTableIndex(path));
+        DOTTable(Stream_, name, path);
+
+        return name;
+    }
+
+    TString GetPath(TYtGraphV2::TTableNode* table)
+    {
+        return table->GetPath().Path_;
+    }
+
+    TString GetOperationLabel(TYtGraphV2::TOperationNode* operationNode)
+    {
+        return operationNode->GetFirstName();
+    }
+
+    int GetTableIndex(const TString& tablePath)
+    {
+        if (!TableIndex_.contains(tablePath)) {
+            TableIndex_[tablePath] = TableIndex_.size();
+        }
+
+        return TableIndex_[tablePath];
+    }
+
+    int GetOperationIndex(const TYtGraphV2::TOperationNode* operation)
+    {
+        if (!OperationIndex_.contains(operation)) {
+            OperationIndex_[operation] = OperationIndex_.size();
+        }
+
+        return OperationIndex_[operation];
+    }
+
+private:
+    TStringStream Stream_;
+    THashMap<TString, int> TableIndex_;
+    THashMap<const TYtGraphV2::TOperationNode*, int> OperationIndex_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TraverseInTopologicalOrder(const TYtGraphV2::TPlainGraph& plainGraph, IPlainGraphVisitor* visitor)
 {
     THashSet<TYtGraphV2::TTableNode*> visited;
@@ -2555,56 +2656,12 @@ TString TYtGraphV2::DumpDOTSubGraph(const TString&) const
 
 TString TYtGraphV2::DumpDOT(const TString&) const
 {
-    Y_ABORT("Not implemented yet");
-    return TString{};
-}
+    TDotVisitor visitor;
+    visitor.Prologue();
+    TraverseInTopologicalOrder(*PlainGraph_, &visitor);
+    visitor.Epilogue();
 
-std::set<TString> TYtGraphV2::GetEdgeDebugStringSet() const
-{
-    std::set<TString> result;
-    for (const auto& table : PlainGraph_->Tables) {
-        if (table->GetTableType() == ETableType::Input) {
-            for (const auto& inputFor : table->InputFor) {
-                auto edge = NYT::Format("%v -> %v", table->GetPath().Path_, inputFor.Operation->GetFirstName());
-                result.insert(std::move(edge));
-            }
-        }
-    }
-
-    for (const auto& operation : PlainGraph_->Operations) {
-        for (const auto& [connector, outputTable] : operation->OutputTables) {
-            switch (outputTable->GetTableType()) {
-                case ETableType::Output: {
-                    TStringStream tableRepresentation;
-                    {
-                        bool first = true;
-                        auto pathSchemaList = outputTable->VerifiedAsPtr<TOutputTableNode>()->GetPathSchemaList();
-                        for (const auto& pair : pathSchemaList) {
-                            if (first) {
-                                first = false;
-                            } else {
-                                tableRepresentation << ", ";
-                            }
-                            tableRepresentation << pair.first.Path_;
-                        }
-                    }
-                    auto edge = NYT::Format("%v -> %v", operation->GetFirstName(), tableRepresentation.Str());
-                    result.insert(std::move(edge));
-                    break;
-                }
-                case ETableType::Intermediate: {
-                    for (const auto& inputFor : outputTable->InputFor) {
-                        auto edge = NYT::Format("%v -> %v", operation->GetFirstName(), inputFor.Operation->GetFirstName());
-                        result.insert(std::move(edge));
-                    }
-                    break;
-                }
-                case ETableType::Input:
-                    Y_ABORT("Unexpected");
-            }
-        }
-    }
-    return result;
+    return visitor.GetResult();
 }
 
 void TYtGraphV2::CreateWorkingDir(NYT::IClientBasePtr client) const

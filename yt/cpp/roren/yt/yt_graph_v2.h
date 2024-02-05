@@ -49,8 +49,6 @@ public:
 
     TString DumpDOT(const TString &prefix) const override;
 
-    std::set<TString> GetEdgeDebugStringSet() const;
-
     void CreateWorkingDir(NYT::IClientBasePtr client) const;
     void ClearIntermediateTables() const;
     void LeaveIntermediateTables(NYT::IClientBasePtr client, NYT::ITransactionPtr tx, TOperationNodeId operationNodeId) const;
