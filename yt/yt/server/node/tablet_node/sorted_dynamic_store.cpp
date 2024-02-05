@@ -417,6 +417,20 @@ protected:
                     }
                 }
 
+                for (auto list = dynamicRow.GetExclusiveLockRevisionList(lock);
+                    list && !shouldProduce;
+                    list = list.GetSuccessor())
+                {
+                    if (int itemIndex = UpperBoundByTimestamp(list, Timestamp_) - 1; itemIndex >= 0) {
+                        auto revision = list[itemIndex];
+                        auto timestamp = Store_->TimestampFromRevision(revision);
+                        if (revision <= Revision_ && timestamp != NullTimestamp && timestamp != MinTimestamp) {
+                            shouldProduce = true;
+                            break;
+                        }
+                    }
+                }
+
                 if (shouldProduce) {
                     break;
                 }
@@ -1062,10 +1076,12 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(
     }
 
     if (commitTimestamp != NullTimestamp) {
+        auto& primaryLock = result.BeginLocks(KeyColumnCount_)[PrimaryLockIndex];
+        AddExclusiveLockRevision(primaryLock, revision);
+
         if (isDelete) {
             AddDeleteRevision(result, revision);
         } else {
-            auto& primaryLock = result.BeginLocks(KeyColumnCount_)[PrimaryLockIndex];
             AddWriteRevision(primaryLock, revision);
         }
         UpdateTimestampRange(commitTimestamp);
@@ -1139,12 +1155,14 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(TVersionedRow row, TWriteContex
         WriteRevisions_.end());
     auto& primaryLock = result.BeginLocks(KeyColumnCount_)[PrimaryLockIndex];
     for (auto revision : WriteRevisions_) {
+        AddExclusiveLockRevision(primaryLock, revision);
         AddWriteRevision(primaryLock, revision);
         UpdateTimestampRange(TimestampFromRevision(revision));
     }
 
     for (const auto* timestamp = row.EndDeleteTimestamps() - 1; timestamp >= row.BeginDeleteTimestamps(); --timestamp) {
         auto revision = CaptureTimestamp(*timestamp, timestampToRevision);
+        AddExclusiveLockRevision(primaryLock, revision);
         AddDeleteRevision(result, revision);
         UpdateTimestampRange(TimestampFromRevision(revision));
     }
@@ -1277,6 +1295,7 @@ void TSortedDynamicStore::CommitRow(TTransaction* transaction, TSortedDynamicRow
         if (lock->WriteTransaction == transaction) {
             // Write Lock
             YT_ASSERT(lockType == ELockType::Exclusive);
+            AddExclusiveLockRevision(*lock, commitRevision);
             if (!row.GetDeleteLockFlag()) {
                 AddWriteRevision(*lock, commitRevision);
             }
@@ -1444,6 +1463,12 @@ TTimestamp TSortedDynamicStore::GetLastWriteTimestamp(TSortedDynamicRow row, int
     return timestamp;
 }
 
+TTimestamp TSortedDynamicStore::GetLastExclusiveTimestamp(TSortedDynamicRow row, int lockIndex)
+{
+    auto& lock = row.BeginLocks(KeyColumnCount_)[lockIndex];
+    return GetLastTimestamp(TSortedDynamicRow::GetExclusiveLockRevisionList(lock));
+}
+
 TTimestamp TSortedDynamicStore::GetLastReadTimestamp(TSortedDynamicRow row, int lockIndex)
 {
     auto& lock = row.BeginLocks(KeyColumnCount_)[lockIndex];
@@ -1490,7 +1515,16 @@ TError TSortedDynamicStore::CheckRowLocks(
         }
 
         if (lockType != ELockType::None) {
-            auto lastCommitTimestamp = GetLastWriteTimestamp(row, index);
+            // COMPAT(ponasenko-rs)
+            TTimestamp lastCommitTimestamp;
+            if (HasMutationContext() &&
+                static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) < ETabletReign::PersistLastExclusiveLockTimestamp)
+            {
+                lastCommitTimestamp = GetLastWriteTimestamp(row, index);
+            } else {
+                lastCommitTimestamp = GetLastExclusiveTimestamp(row, index);
+            }
+
             if (lastCommitTimestamp > transaction->GetStartTimestamp()) {
                 error = TError(
                     NTabletClient::EErrorCode::TransactionLockConflict,
@@ -1572,6 +1606,16 @@ void TSortedDynamicStore::AddWriteRevision(TLockDescriptor& lock, ui32 revision)
     YT_ASSERT(!list || TimestampFromRevision(list.Back()) < TimestampFromRevision(revision));
     if (AllocateListForPushIfNeeded(&list, RowBuffer_->GetPool())) {
         TSortedDynamicRow::SetWriteRevisionList(lock, list);
+    }
+    list.Push(revision);
+}
+
+void TSortedDynamicStore::AddExclusiveLockRevision(TLockDescriptor& lock, ui32 revision)
+{
+    auto list = TSortedDynamicRow::GetExclusiveLockRevisionList(lock);
+    YT_ASSERT(!list || TimestampFromRevision(list.Back()) < TimestampFromRevision(revision));
+    if (AllocateListForPushIfNeeded(&list, RowBuffer_->GetPool())) {
+        TSortedDynamicRow::SetExclusiveLockRevisionList(lock, list);
     }
     list.Push(revision);
 }
@@ -1673,7 +1717,8 @@ void TSortedDynamicStore::WriteRow(TSortedDynamicRow dynamicRow, TUnversionedRow
 void TSortedDynamicStore::LoadRow(
     TVersionedRow row,
     TLoadScratchData* scratchData,
-    TTimestamp* lastReadLockTimestamps)
+    TTimestamp* lastReadLockTimestamps,
+    TTimestamp* lastExclusiveLockTimestamps)
 {
     YT_ASSERT(row.GetKeyCount() == KeyColumnCount_);
 
@@ -1710,6 +1755,7 @@ void TSortedDynamicStore::LoadRow(
     }
 
     auto* locks = dynamicRow.BeginLocks(KeyColumnCount_);
+    ui32 primaryRevision = 0;
     for (int lockIndex = 0; lockIndex < ColumnLockCount_; ++lockIndex) {
         auto& lock = locks[lockIndex];
         auto& revisions = scratchData->WriteRevisions[lockIndex];
@@ -1726,6 +1772,23 @@ void TSortedDynamicStore::LoadRow(
             for (ui32 revision : revisions) {
                 AddWriteRevision(lock, revision);
             }
+
+            // COMPAT(ponasenko-rs)
+            if (!lastExclusiveLockTimestamps) {
+                // Add old write revision into exclusive locks list so new code can use them.
+                if (lockIndex == PrimaryLockIndex) {
+                    primaryRevision = revisions.back();
+                } else {
+                    AddExclusiveLockRevision(lock, revisions.back());
+                }
+            }
+        }
+
+        // COMPAT(ponasenko-rs)
+        if (lastExclusiveLockTimestamps) {
+            auto lastExclusiveLockTimestamp = lastExclusiveLockTimestamps[lockIndex];
+            auto revision = CaptureTimestamp(lastExclusiveLockTimestamp, timestampToRevision);
+            AddExclusiveLockRevision(lock, revision);
         }
 
         auto lastReadLockTimestamp = lastReadLockTimestamps[lockIndex];
@@ -1742,6 +1805,18 @@ void TSortedDynamicStore::LoadRow(
             ui32 revision = CaptureTimestamp(*currentTimestamp, timestampToRevision);
             AddDeleteRevision(dynamicRow, revision);
         }
+
+        if (auto lastDeleteTimestamp = *row.BeginDeleteTimestamps();
+            lastDeleteTimestamp > TimestampFromRevision(primaryRevision))
+        {
+            primaryRevision = CaptureTimestamp(lastDeleteTimestamp, timestampToRevision);
+        }
+    }
+
+    // COMPAT(ponasenko-rs)
+    if (!lastExclusiveLockTimestamps) {
+        // Add old write revision into exclusive locks list so new code can use them.
+        AddExclusiveLockRevision(locks[PrimaryLockIndex], primaryRevision);
     }
 
     Rows_->Insert(dynamicRow);
@@ -1984,6 +2059,7 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
         YT_LOG_DEBUG("Serializing store snapshot");
 
         std::vector<TTimestamp> lastReadLockTimestamps;
+        std::vector<TTimestamp> lastExclusiveLockTimestamps;
 
         auto rowIt = Rows_->FindGreaterThanOrEqualTo(ToKeyRef(MinKey()));
         i64 rowCount = 0;
@@ -2008,9 +2084,14 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
                 YT_VERIFY(RowKeyComparer_(dynamicRow, key) == 0);
                 for (int index = 0; index < ColumnLockCount_; ++index) {
                     auto& lock = dynamicRow.BeginLocks(KeyColumnCount_)[index];
+
                     auto readLockRevisionList = TSortedDynamicRow::GetReadLockRevisionList(lock);
                     auto lastReadLockTimestamp = GetLastTimestamp(readLockRevisionList, revision);
                     lastReadLockTimestamps.push_back(lastReadLockTimestamp);
+
+                    auto exclusiveLockRevisionList = TSortedDynamicRow::GetExclusiveLockRevisionList(lock);
+                    auto lastExclusiveLockTimestamp = GetLastTimestamp(exclusiveLockRevisionList, revision);
+                    lastExclusiveLockTimestamps.push_back(lastExclusiveLockTimestamp);
                 }
             }
 
@@ -2028,6 +2109,9 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
         }
 
         Save(context, true);
+
+        YT_VERIFY(std::ssize(lastExclusiveLockTimestamps) == rowCount * ColumnLockCount_);
+        Save(context, lastExclusiveLockTimestamps);
 
         YT_VERIFY(std::ssize(lastReadLockTimestamps) == rowCount * ColumnLockCount_);
         Save(context, lastReadLockTimestamps);
@@ -2055,6 +2139,13 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
     using NYT::Load;
 
     if (Load<bool>(context)) {
+        std::vector<TTimestamp> lastExclusiveLockTimestamps;
+        // COMPAT(ponasenko-rs)
+        if (context.GetVersion() >= ETabletReign::PersistLastExclusiveLockTimestamp) {
+            Load(context, lastExclusiveLockTimestamps);
+        }
+        auto lastExclusiveLockTimestampPtr = lastExclusiveLockTimestamps.begin();
+
         auto lastReadLockTimestamps = Load<std::vector<TTimestamp>>(context);
         YT_VERIFY(!lastReadLockTimestamps.empty());
         auto lastReadLockTimestampPtr = lastReadLockTimestamps.begin();
@@ -2117,7 +2208,17 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
             }
 
             for (auto row : batch->MaterializeRows()) {
-                LoadRow(row, &scratchData, lastReadLockTimestampPtr);
+                // COMPAT(ponasenko-rs)
+                if (context.GetVersion() < ETabletReign::PersistLastExclusiveLockTimestamp) {
+                    LoadRow(row, &scratchData, lastReadLockTimestampPtr, nullptr);
+                } else {
+                    LoadRow(
+                        row,
+                        &scratchData,
+                        lastReadLockTimestampPtr,
+                        lastExclusiveLockTimestampPtr);
+                    lastExclusiveLockTimestampPtr += ColumnLockCount_;
+                }
                 lastReadLockTimestampPtr += ColumnLockCount_;
             }
         }

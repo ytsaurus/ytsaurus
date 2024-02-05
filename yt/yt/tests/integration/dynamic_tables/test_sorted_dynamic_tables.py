@@ -1,6 +1,6 @@
 from yt_dynamic_tables_base import DynamicTablesBase
 
-from yt_env_setup import parametrize_external, Restarter, NODES_SERVICE
+from yt_env_setup import parametrize_external
 
 from yt_commands import (
     authors, print_debug, wait, create, ls, get, set,
@@ -315,6 +315,40 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         with pytest.raises(YtError):
             commit_transaction(tx2)
+
+    @authors("ponasenko-rs")
+    def test_tablet_exclusive_locks_persist_in_snapshots(self):
+        if self.DRIVER_BACKEND == "rpc":
+            # TODO(ponasenko-rs): Remove after YT-20282
+            pytest.skip("Rpc proxy client drops exclusive locks without data")
+
+        sync_create_cells(1)
+        cell_id = ls("//sys/tablet_cells")[0]
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "int64", "lock": "value_lock"}
+        ]
+
+        create_dynamic_table("//tmp/t", schema=schema)
+        sync_mount_table("//tmp/t")
+
+        tx = start_transaction(type="tablet")
+
+        lock_tx = start_transaction(type="tablet")
+        lock_rows("//tmp/t", [{"key": 0}], locks=["value_lock"], lock_type="exclusive", tx=lock_tx)
+        commit_transaction(lock_tx)
+
+        build_snapshot(cell_id=cell_id)
+        snapshots = ls("//sys/tablet_cells/" + cell_id + "/snapshots")
+        assert len(snapshots) == 1
+
+        with self.CellsDisabled(clusters=["primary"], tablet_bundles=[get(f'#{cell_id}/@tablet_cell_bundle')]):
+            pass
+
+        insert_rows("//tmp/t", [{"key": 0, "value": 0}], tx=tx)
+        with pytest.raises(YtError):
+            commit_transaction(tx)
 
     @authors("babenko", "savrus")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -647,14 +681,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         snapshots = ls("//sys/tablet_cells/" + cell_id + "/snapshots")
         assert len(snapshots) == 1
 
-        with Restarter(self.Env, NODES_SERVICE):
-            # Wait to make sure all leases have expired
-            time.sleep(3.0)
-
-        wait_for_cells()
-
-        # Wait to make sure all tablets are up
-        time.sleep(3.0)
+        with self.CellsDisabled(clusters=["primary"], tablet_bundles=[get(f'#{cell_id}/@tablet_cell_bundle')]):
+            pass
 
         keys = [{"key": i} for i in range(100)]
         actual = lookup_rows("//tmp/t", keys)
