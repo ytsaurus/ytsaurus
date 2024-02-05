@@ -18,9 +18,10 @@ namespace NYT::NTabletBalancer {
 //!
 //! A metric is calculated for each tablet based on its statistics and performance counters.
 //! Then the cell metric is defined as the square of the sum of metrics of tablets belonging to this cell.
-//! Tablets are moved in order to minimize total cell metric.
+//! The node metric is defined as the square of the sum of metrics of tablets belonging to this node.
+//! Tablets are moved in order to minimize total sum of cell metric and node metric.
 //!
-//! There are two kinds of actions: move a tablet to another cell and swap two tablets from different cells.
+//! There is only one kind of action: move a tablet to another cell.
 //! On every step we greedily pick the action which minimizes total metric the most and repeat
 //! until maxMoveActionCount is reached.
 struct IParameterizedReassignSolver
@@ -58,7 +59,6 @@ bool IsTableMovable(TTableId tableId);
 
 struct TParameterizedReassignSolverConfig
 {
-    bool EnableSwaps = true;
     int MaxMoveActionCount = 0;
     double NodeDeviationThreshold = 0;
     double CellDeviationThreshold = 0;

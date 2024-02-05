@@ -59,7 +59,6 @@ TParameterizedReassignSolverConfig TParameterizedReassignSolverConfig::MergeWith
     const TParameterizedBalancingConfigPtr& groupConfig) const
 {
     return TParameterizedReassignSolverConfig{
-        .EnableSwaps = groupConfig->EnableSwaps.value_or(EnableSwaps),
         .MaxMoveActionCount = groupConfig->MaxActionCount.value_or(MaxMoveActionCount),
         .NodeDeviationThreshold = groupConfig->NodeDeviationThreshold.value_or(NodeDeviationThreshold),
         .CellDeviationThreshold = groupConfig->CellDeviationThreshold.value_or(CellDeviationThreshold),
@@ -153,7 +152,7 @@ private:
 
     struct TBestAction
     {
-        double Metric;
+        double MetricDiff;
         TApplyActionCallback Callback;
     };
 
@@ -166,17 +165,22 @@ private:
 
     struct TTabletCellInfo
     {
-        const TTabletCellPtr Cell;
-        TNodeInfo* const Node;
+        TTabletCellPtr Cell;
+        TTabletCellId Id;
+        TNodeInfo* Node;
         double Metric = 0;
         i64 FreeCellMemory = 0;
+        int SortingIndex;
     };
 
     struct TTabletInfo
     {
         const TTabletPtr Tablet;
+        const TTabletId Id;
+        const i64 MemorySize;
+        const EInMemoryMode InMemoryMode;
         double Metric = 0;
-        TTabletCellInfo* Cell;
+        int CellIndex;
     };
 
     const TTabletCellBundlePtr Bundle_;
@@ -186,7 +190,7 @@ private:
     TTableParameterizedMetricTrackerPtr MetricTracker_;
 
     std::vector<TTabletInfo> Tablets_;
-    THashMap<TTabletCellId, TTabletCellInfo> Cells_;
+    std::vector<TTabletCellInfo> Cells_;
     THashMap<TNodeAddress, TNodeInfo> Nodes_;
 
     double CurrentMetric_;
@@ -197,26 +201,20 @@ private:
 
     double CalculateTotalBundleMetric() const;
 
-    void TryMoveTablet(
+    bool TryMoveTablet(
         TTabletInfo* tablet,
         TTabletCellInfo* cell);
 
-    void TrySwapTablets(
-        TTabletInfo* lhsTablet,
-        TTabletInfo* rhsTablet);
-
-    bool TryFindBestAction(bool canMakeSwap);
+    bool TryFindBestAction();
+    void SortCells();
     bool ShouldTrigger() const;
 
     bool CheckMoveFollowsMemoryLimits(
         const TTabletInfo* tablet,
-        const TTabletCellInfo* cell) const;
+        const TTabletCellInfo* sourceCell,
+        const TTabletCellInfo* destinationCell) const;
 
-    bool CheckSwapFollowsMemoryLimits(
-        const TTabletInfo* lhsTablet,
-        const TTabletInfo* rhsTablet) const;
-
-    void CalculateMemory();
+    void CalculateMemory(const THashMap<TTabletCellId, int>& cellInfoIndex);
 };
 
 TParameterizedReassignSolver::TParameterizedReassignSolver(
@@ -244,15 +242,21 @@ void TParameterizedReassignSolver::Initialize()
 {
     auto cells = Bundle_->GetAliveCells();
 
+    THashMap<TTabletCellId, int> cellInfoIndex;
+    Cells_.reserve(std::ssize(cells));
     for (const auto& cell : cells) {
         auto* nodeInfo = &Nodes_.emplace(*cell->NodeAddress, TNodeInfo{
             .Address = *cell->NodeAddress
         }).first->second;
 
-        auto* cellInfo = &EmplaceOrCrash(Cells_, cell->Id, TTabletCellInfo{
+        int cellIndex = std::ssize(Cells_);
+        EmplaceOrCrash(cellInfoIndex, cell->Id, cellIndex);
+        auto* cellInfo = &Cells_.emplace_back(TTabletCellInfo{
             .Cell = cell,
-            .Node = nodeInfo
-        })->second;
+            .Id = cell->Id,
+            .Node = nodeInfo,
+            .SortingIndex = cellIndex
+        });
 
         for (const auto& [tabletId, tablet] : cell->Tablets) {
             if (!IsTableMovable(tablet->Table->Id)) {
@@ -292,8 +296,11 @@ void TParameterizedReassignSolver::Initialize()
 
             Tablets_.push_back(TTabletInfo{
                 .Tablet = tablet,
+                .Id = tablet->Id,
+                .MemorySize = tablet->Statistics.MemorySize,
+                .InMemoryMode = tablet->Table->InMemoryMode,
                 .Metric = tabletMetric,
-                .Cell = cellInfo
+                .CellIndex = cellIndex
             });
             cellInfo->Metric += tabletMetric;
         }
@@ -322,10 +329,10 @@ void TParameterizedReassignSolver::Initialize()
 
     YT_VERIFY(CurrentMetric_ >= 0.);
 
-    CalculateMemory();
+    CalculateMemory(cellInfoIndex);
 }
 
-void TParameterizedReassignSolver::CalculateMemory()
+void TParameterizedReassignSolver::CalculateMemory(const THashMap<TTabletCellId, int>& cellInfoIndex)
 {
     if (Bundle_->NodeStatistics.empty()) {
         YT_LOG_DEBUG("Don't calculate memory because there are no in-memory tables with parameterized balancing");
@@ -335,7 +342,7 @@ void TParameterizedReassignSolver::CalculateMemory()
     THashMap<TNodeAddress, int> cellCount;
     THashMap<TNodeAddress, i64> actualMemoryUsage;
     THashMap<const TTabletCell*, i64> cellMemoryUsage;
-    for (const auto& [cellId, cellInfo] : Cells_) {
+    for (const auto& cellInfo : Cells_) {
         ++cellCount[*cellInfo.Cell->NodeAddress];
         actualMemoryUsage[*cellInfo.Cell->NodeAddress] += cellInfo.Cell->Statistics.MemorySize;
 
@@ -392,7 +399,7 @@ void TParameterizedReassignSolver::CalculateMemory()
 
     for (const auto& [cell, usage] : cellMemoryUsage) {
         auto limit = GetOrCrash(cellMemoryLimit, *cell->NodeAddress);
-        GetOrCrash(Cells_, cell->Id).FreeCellMemory = limit - usage;
+        Cells_[GetOrCrash(cellInfoIndex, cell->Id)].FreeCellMemory = limit - usage;
     }
 }
 
@@ -415,12 +422,12 @@ bool TParameterizedReassignSolver::ShouldTrigger() const
     auto [minCell, maxCell] = std::minmax_element(
         Cells_.begin(),
         Cells_.end(),
-        [] (auto lhs, auto rhs) {
-            return lhs.second.Metric < rhs.second.Metric;
+        [] (const auto& lhs, const auto& rhs) {
+            return lhs.Metric < rhs.Metric;
         });
 
-    bool byCellTrigger = maxCell->second.Metric >=
-        minCell->second.Metric * (1 + Config_.CellDeviationThreshold);
+    bool byCellTrigger = maxCell->Metric >=
+        minCell->Metric * (1 + Config_.CellDeviationThreshold);
 
     YT_LOG_DEBUG_IF(
         Bundle_->Config->EnableVerboseLogging,
@@ -429,8 +436,8 @@ bool TParameterizedReassignSolver::ShouldTrigger() const
         "NodeDeviationThreshold: %v, CellDeviationThreshold: %v)",
         minNode->second.Metric,
         maxNode->second.Metric,
-        minCell->second.Metric,
-        maxCell->second.Metric,
+        minCell->Metric,
+        maxCell->Metric,
         Config_.NodeDeviationThreshold,
         Config_.CellDeviationThreshold);
 
@@ -443,8 +450,8 @@ double TParameterizedReassignSolver::CalculateTotalBundleMetric() const
         Cells_.begin(),
         Cells_.end(),
         0.0,
-        [] (double x, auto item) {
-            return x + Sqr(item.second.Metric);
+        [] (double x, const auto& item) {
+            return x + Sqr(item.Metric);
         });
 
     double nodeMetric = std::accumulate(
@@ -460,103 +467,109 @@ double TParameterizedReassignSolver::CalculateTotalBundleMetric() const
 
 bool TParameterizedReassignSolver::CheckMoveFollowsMemoryLimits(
     const TTabletInfo* tablet,
-    const TTabletCellInfo* cell) const
+    const TTabletCellInfo* sourceCell,
+    const TTabletCellInfo* destinationCell) const
 {
-    if (tablet->Tablet->Table->InMemoryMode == EInMemoryMode::None) {
+    if (tablet->InMemoryMode == EInMemoryMode::None) {
         return true;
     }
 
-    auto size = tablet->Tablet->Statistics.MemorySize;
-    if (cell->FreeCellMemory < size) {
+    auto size = tablet->MemorySize;
+    if (destinationCell->FreeCellMemory < size) {
         return false;
     }
 
-    return cell->Node->Address == tablet->Cell->Node->Address || cell->Node->FreeNodeMemory >= size;
+    return destinationCell->Node == sourceCell->Node || destinationCell->Node->FreeNodeMemory >= size;
 }
 
-void TParameterizedReassignSolver::TryMoveTablet(
+bool TParameterizedReassignSolver::TryMoveTablet(
     TTabletInfo* tablet,
     TTabletCellInfo* cell)
 {
-    auto newMetric = CurrentMetric_;
-    auto* sourceCell = tablet->Cell;
+    auto* sourceCell = &Cells_[tablet->CellIndex];
 
-    if (cell->Cell->Id == sourceCell->Cell->Id) {
+    if (cell == sourceCell) {
         // Trying to move the tablet from the cell to itself.
-        return;
+        return false;
     }
 
     auto* sourceNode = sourceCell->Node;
-    auto* destonationNode = cell->Node;
+    auto* destinationNode = cell->Node;
 
-    if (!CheckMoveFollowsMemoryLimits(tablet, cell)) {
+    auto sourceNodeMetric = sourceNode->Metric;
+    auto destinationNodeMetric = destinationNode->Metric;
+
+    if (!CheckMoveFollowsMemoryLimits(tablet, sourceCell, cell)) {
         // Cannot move due to memory limits.
         YT_LOG_DEBUG_IF(
             Bundle_->Config->EnableVerboseLogging && LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
             "Cannot move tablet (TabletId: %v, CellId: %v, SourceNode: %v, DestinationNode: %v)",
-            tablet->Tablet->Id,
-            cell->Cell->Id,
+            tablet->Id,
+            cell->Id,
             sourceNode->Address,
-            destonationNode->Address);
-        return;
+            destinationNode->Address);
+        return false;
     }
 
-    if (sourceNode->Address != destonationNode->Address) {
-        auto sourceNodeMetric = sourceNode->Metric;
-        auto destinationNodeMetric = destonationNode->Metric;
-
-        newMetric -= Sqr(sourceNodeMetric) - Sqr(sourceNodeMetric - tablet->Metric);
-        newMetric += Sqr(destinationNodeMetric + tablet->Metric) - Sqr(destinationNodeMetric);
+    double newMetricDiff = 0;
+    if (sourceNode != destinationNode) {
+        newMetricDiff += sourceNodeMetric - destinationNodeMetric - tablet->Metric;
+    } else {
+        if (sourceCell->Metric < cell->Metric) {
+            // Moving to larger cell on the same node will not make metric smaller.
+            // Let's pretend that we can move to the cell so that we don’t try to move it to the same node again.
+            return true;
+        }
     }
 
-    newMetric -= Sqr(sourceCell->Metric) - Sqr(sourceCell->Metric - tablet->Metric);
-    newMetric += Sqr(cell->Metric + tablet->Metric) - Sqr(cell->Metric);
+    newMetricDiff += sourceCell->Metric - cell->Metric - tablet->Metric;
+    newMetricDiff *= 2 * tablet->Metric;
 
     YT_LOG_DEBUG_IF(
         Bundle_->Config->EnableVerboseLogging && LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
-        "Trying to move tablet to another cell (TabletId: %v, CellId: %v, CurrentMetric: %v, CurrentBestMetric: %v, "
-        "NewMetric: %v, TabletMetric: %v, SourceCellMetric: %v, DestinationCellMetric: %v, "
+        "Trying to move tablet to another cell (TabletId: %v, CellId: %v, CurrentMetric: %v, CurrentBestMetricDiff: %v, "
+        "NewMetricDiff: %v, TabletMetric: %v, SourceCellMetric: %v, DestinationCellMetric: %v, "
         "SourceNodeMetric: %v, DestinationNodeMetric: %v)",
-        tablet->Tablet->Id,
-        cell->Cell->Id,
+        tablet->Id,
+        cell->Id,
         CurrentMetric_,
-        BestAction_.Metric,
-        newMetric,
+        BestAction_.MetricDiff,
+        newMetricDiff,
         tablet->Metric,
         sourceCell->Metric,
         cell->Metric,
         sourceNode->Metric,
-        destonationNode->Metric);
+        destinationNode->Metric);
 
-    if (newMetric < BestAction_.Metric) {
-        BestAction_.Metric = newMetric;
+    if (newMetricDiff > BestAction_.MetricDiff) {
+        BestAction_.MetricDiff = newMetricDiff;
 
         BestAction_.Callback = [=, this] (int* availableActionCount) {
-            tablet->Cell = cell;
+            tablet->CellIndex = cell->SortingIndex;
             sourceCell->Metric -= tablet->Metric;
             cell->Metric += tablet->Metric;
             *availableActionCount -= 1;
 
-            if (sourceNode->Address != destonationNode->Address) {
+            if (sourceNode != destinationNode) {
                 sourceNode->Metric -= tablet->Metric;
-                destonationNode->Metric += tablet->Metric;
+                destinationNode->Metric += tablet->Metric;
             } else {
                 YT_LOG_WARNING("The best action is between cells on the same node "
                     "(Node: %v, TabletId: %v)",
                     sourceNode->Address,
-                    tablet->Tablet->Id);
+                    tablet->Id);
             }
 
             YT_LOG_DEBUG("Applying best action: moving tablet to another cell "
                 "(TabletId: %v, SourceCellId: %v, DestinationCellId: %v, "
                 "SourceNode: %v, DestinationNode: %v)",
-                tablet->Tablet->Id,
-                sourceCell->Cell->Id,
-                cell->Cell->Id,
+                tablet->Id,
+                sourceCell->Id,
+                cell->Id,
                 sourceNode->Address,
-                destonationNode->Address);
+                destinationNode->Address);
 
-            auto tabletSize = tablet->Tablet->Statistics.MemorySize;
+            auto tabletSize = tablet->MemorySize;
             if (tabletSize == 0) {
                 return;
             }
@@ -564,210 +577,57 @@ void TParameterizedReassignSolver::TryMoveTablet(
             sourceCell->FreeCellMemory += tabletSize;
             cell->FreeCellMemory -= tabletSize;
 
-            if (sourceNode->Address != destonationNode->Address) {
+            if (sourceNode != destinationNode) {
                 sourceNode->FreeNodeMemory += tabletSize;
-                destonationNode->FreeNodeMemory -= tabletSize;
+                destinationNode->FreeNodeMemory -= tabletSize;
             }
         };
     }
+    return true;
 }
 
-bool TParameterizedReassignSolver::CheckSwapFollowsMemoryLimits(
-    const TTabletInfo* lhsTablet,
-    const TTabletInfo* rhsTablet) const
+void TParameterizedReassignSolver::SortCells()
 {
-    i64 lhsTabletSize = lhsTablet->Tablet->Statistics.MemorySize;
-    i64 rhsTabletSize = rhsTablet->Tablet->Statistics.MemorySize;
+    std::sort(Cells_.begin(), Cells_.end(), [&](const auto& lhs, const auto& rhs) {
+        if (lhs.Node == rhs.Node) {
+            return lhs.Metric < rhs.Metric;
+        }
+        return lhs.Node < rhs.Node;
+    });
 
-    i64 diff = lhsTabletSize - rhsTabletSize;
-    if (diff == 0) {
-        // Same size or both with in_memory_mode=none.
-        return true;
-    }
-
-    i64 freeLhsCellMemory = lhsTablet->Cell->FreeCellMemory;
-    i64 freeRhsCellMemory = rhsTablet->Cell->FreeCellMemory;
-
-    i64 freeLhsNodeMemory = lhsTablet->Cell->Node->FreeNodeMemory;
-    i64 freeRhsNodeMemory = rhsTablet->Cell->Node->FreeNodeMemory;
-
-    const auto& lhsNode = lhsTablet->Cell->Node->Address;
-    const auto& rhsNode = rhsTablet->Cell->Node->Address;
-
-    if (freeLhsCellMemory < 0 && freeRhsCellMemory < 0) {
-        // Both are overloaded from the beginning.
-        return false;
-    }
-
-    if (lhsNode != rhsNode && (freeLhsNodeMemory + diff < 0 || freeRhsNodeMemory - diff < 0)) {
-        return false;
-    }
-
-    if (freeLhsCellMemory + diff >= 0 && freeRhsCellMemory - diff >= 0)
-    {
-        // Perfect case.
-        return true;
-    }
-
-    // Check if one of them are overloaded from the beginning but it's better than before.
-    if (freeLhsCellMemory < 0) {
-        return diff > 0 && (freeRhsCellMemory - diff > freeLhsCellMemory);
-    } else if (freeRhsCellMemory < 0) {
-        return diff < 0 && (freeLhsCellMemory + diff > freeRhsCellMemory);
-    }
-
-    return false;
-}
-
-void TParameterizedReassignSolver::TrySwapTablets(
-    TTabletInfo* lhsTablet,
-    TTabletInfo* rhsTablet)
-{
-    if (lhsTablet->Tablet->Id == rhsTablet->Tablet->Id) {
-        // It makes no sense to swap tablet with itself.
-        return;
-    }
-
-    auto* lhsCell = lhsTablet->Cell;
-    auto* rhsCell = rhsTablet->Cell;
-
-    if (lhsCell->Cell->Id == rhsCell->Cell->Id) {
-        // It makes no sense to swap tablets that are already on the same cell.
-        return;
-    }
-
-    auto newMetric = CurrentMetric_;
-    newMetric -= Sqr(lhsCell->Metric) + Sqr(rhsCell->Metric);
-    newMetric += Sqr(lhsCell->Metric - lhsTablet->Metric + rhsTablet->Metric);
-    newMetric += Sqr(rhsCell->Metric + lhsTablet->Metric - rhsTablet->Metric);
-
-    auto lhsNode = lhsCell->Node;
-    auto rhsNode = rhsCell->Node;
-
-    if (!CheckSwapFollowsMemoryLimits(lhsTablet, rhsTablet)) {
-        // Cannot swap due to memory limits.
-        YT_LOG_DEBUG_IF(
-            Bundle_->Config->EnableVerboseLogging && LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
-            "Cannot swap tablets (LhsTabletId: %v, RhsTabletId: %v, "
-            "LhsCellId: %v, RhsCellId: %v, LhsNode: %v, RhsNode: %v)",
-            lhsTablet->Tablet->Id,
-            rhsTablet->Tablet->Id,
-            lhsCell->Cell->Id,
-            rhsCell->Cell->Id,
-            lhsNode->Address,
-            rhsNode->Address);
-        return;
-    }
-
-    if (lhsNode->Address != rhsNode->Address) {
-        newMetric -= Sqr(lhsNode->Metric) + Sqr(rhsNode->Metric);
-        newMetric += Sqr(lhsNode->Metric - lhsTablet->Metric + rhsTablet->Metric);
-        newMetric += Sqr(rhsNode->Metric + lhsTablet->Metric - rhsTablet->Metric);
-    }
-
-    YT_LOG_DEBUG_IF(
-        Bundle_->Config->EnableVerboseLogging && LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
-        "Trying to swap tablets (LhsTabletId: %v, RhsTabletId: %v, LhsCellId: %v, RhsCellId: %v, "
-        "CurrentMetric: %v, CurrentBestMetric: %v, NewMetric: %v, LhsTabletMetric: %v, "
-        "RhsTabletMetric: %v, LhsCellMetric: %v, RhsCellMetric: %v, LhsNodeMetric: %v, RhsNodeMetric: %v)",
-        lhsTablet->Tablet->Id,
-        rhsTablet->Tablet->Id,
-        lhsCell->Cell->Id,
-        rhsCell->Cell->Id,
-        CurrentMetric_,
-        BestAction_.Metric,
-        newMetric,
-        lhsTablet->Metric,
-        rhsTablet->Metric,
-        lhsCell->Metric,
-        rhsCell->Metric,
-        lhsNode->Metric,
-        rhsTablet->Metric);
-
-    if (newMetric < BestAction_.Metric) {
-        BestAction_.Metric = newMetric;
-
-        BestAction_.Callback = [=, this] (int* availableActionCount) {
-            lhsTablet->Cell = rhsCell;
-            rhsTablet->Cell = lhsCell;
-
-            lhsCell->Metric -= lhsTablet->Metric;
-            lhsCell->Metric += rhsTablet->Metric;
-            rhsCell->Metric += lhsTablet->Metric;
-            rhsCell->Metric -= rhsTablet->Metric;
-            *availableActionCount -= 2;
-
-            if (lhsNode->Address != rhsNode->Address) {
-                lhsNode->Metric -= lhsTablet->Metric;
-                lhsNode->Metric += rhsTablet->Metric;
-                rhsNode->Metric += lhsTablet->Metric;
-                rhsNode->Metric -= rhsTablet->Metric;
-            } else {
-                YT_LOG_WARNING("The best action is between cells on the same node "
-                    "(Node: %v, LhsTabletId: %v, RhsTabletId: %v)",
-                    lhsNode->Address,
-                    lhsTablet->Tablet->Id,
-                    rhsTablet->Tablet->Id);
-            }
-
-            YT_LOG_DEBUG("Applying best action: swapping tablets "
-                "(LhsTabletId: %v, RhsTabletId: %v, LhsCellId: %v, RhsCellId: %v, "
-                "LhsNode: %v, RhsNode: %v)",
-                lhsTablet->Tablet->Id,
-                rhsTablet->Tablet->Id,
-                lhsCell->Cell->Id,
-                rhsCell->Cell->Id,
-                lhsNode->Address,
-                rhsNode->Address);
-
-            i64 tabletSizeDiff = lhsTablet->Tablet->Statistics.MemorySize -
-                rhsTablet->Tablet->Statistics.MemorySize;
-            if (tabletSizeDiff == 0) {
-                return;
-            }
-
-            lhsCell->FreeCellMemory += tabletSizeDiff;
-            rhsCell->FreeCellMemory -= tabletSizeDiff;
-
-            if (lhsNode->Address != rhsNode->Address) {
-                lhsNode->FreeNodeMemory += tabletSizeDiff;
-                rhsNode->FreeNodeMemory -= tabletSizeDiff;
-            }
-        };
-    }
-}
-
-bool TParameterizedReassignSolver::TryFindBestAction(bool canMakeSwap)
-{
-    BestAction_ = TBestAction{.Metric = CurrentMetric_};
-
-    if (!Config_.EnableSwaps) {
-        YT_LOG_DEBUG("Swap actions are forbidden");
+    std::vector<int> indexToNew(std::ssize(Cells_));
+    for (int i = 0; i < std::ssize(indexToNew); ++i) {
+        indexToNew[Cells_[i].SortingIndex] = i;
     }
 
     for (auto& tablet : Tablets_) {
-        for (auto& [_, cell] : Cells_) {
-            TryMoveTablet(&tablet, &cell);
-        }
+        tablet.CellIndex = indexToNew[tablet.CellIndex];
+    }
 
-        if (!canMakeSwap) {
-            // Swap two tablets takes two actions.
-            YT_LOG_DEBUG_IF(
-                Bundle_->Config->EnableVerboseLogging,
-                "Swap cannot be done because there are not enough actions available");
-            continue;
-        }
+    for (int index = 0; index < std::ssize(Cells_); ++index) {
+        Cells_[index].SortingIndex = index;
+    }
+}
 
-        if (!Config_.EnableSwaps) {
-            continue;
-        }
+bool TParameterizedReassignSolver::TryFindBestAction()
+{
+    BestAction_ = TBestAction{.MetricDiff = 0};
 
-        for (auto& anotherTablet : Tablets_) {
-            TrySwapTablets(&tablet, &anotherTablet);
+    SortCells();
+
+    for (auto& tablet : Tablets_) {
+        TNodeInfo* lastNodeWithAction = nullptr;
+        for (auto& cell : Cells_) {
+            if (lastNodeWithAction == cell.Node) {
+                continue;
+            }
+            if (TryMoveTablet(&tablet, &cell)) {
+                lastNodeWithAction = cell.Node;
+            }
         }
     }
 
-    return BestAction_.Metric < CurrentMetric_;
+    return BestAction_.MetricDiff > 0;
 }
 
 std::vector<TMoveDescriptor> TParameterizedReassignSolver::BuildActionDescriptors()
@@ -785,24 +645,24 @@ std::vector<TMoveDescriptor> TParameterizedReassignSolver::BuildActionDescriptor
     int availableActionCount = Config_.MaxMoveActionCount;
     while (availableActionCount > 0) {
         LogMessageCount_ = 0;
-        if (TryFindBestAction(/*canMakeSwap*/ availableActionCount >= 2)) {
+        if (TryFindBestAction()) {
             YT_VERIFY(BestAction_.Callback);
-            if (BestAction_.Metric >= CurrentMetric_ * (1 - Config_.MinRelativeMetricImprovement / std::ssize(Nodes_)))
+            if (CurrentMetric_ * Config_.MinRelativeMetricImprovement / std::ssize(Nodes_) >= BestAction_.MetricDiff)
             {
                 YT_LOG_DEBUG(
                     "Metric-improving action is not better enough (CurrentMetric: %v, MetricAfterAction: %v)",
                     CurrentMetric_,
-                    BestAction_.Metric);
+                    BestAction_.MetricDiff);
                 break;
             }
 
             BestAction_.Callback(&availableActionCount);
 
             YT_LOG_DEBUG(
-                "Total parameterized metric changed (Old: %v, New: %v)",
+                "Total parameterized metric changed (Old: %v, Diff: %v)",
                 CurrentMetric_,
-                BestAction_.Metric);
-            CurrentMetric_ = BestAction_.Metric;
+                BestAction_.MetricDiff);
+            CurrentMetric_ -= BestAction_.MetricDiff;
 
             YT_VERIFY(CurrentMetric_ >= 0);
         } else {
@@ -814,7 +674,7 @@ std::vector<TMoveDescriptor> TParameterizedReassignSolver::BuildActionDescriptor
     std::vector<TMoveDescriptor> descriptors;
     for (auto& tablet : Tablets_) {
         auto sourceCellId = tablet.Tablet->Cell.Lock()->Id;
-        auto destinationCellId = tablet.Cell->Cell->Id;
+        auto destinationCellId = Cells_[tablet.CellIndex].Id;
         if (sourceCellId != destinationCellId) {
             descriptors.emplace_back(TMoveDescriptor{
                 .TabletId = tablet.Tablet->Id,
