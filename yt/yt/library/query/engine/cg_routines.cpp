@@ -2743,7 +2743,12 @@ void LastSeenReplicaSetMerge(
 
     TChunkReplicaList newReplicas;
     ParseReplicas(state2, &newReplicas);
-    lastSeenReplicas.insert(lastSeenReplicas.end(), newReplicas.begin(), newReplicas.end());
+    for (const auto& replica : newReplicas) {
+        // Linear complexity should be fine.
+        if (std::find(lastSeenReplicas.begin(), lastSeenReplicas.end(), replica) == lastSeenReplicas.end()) {
+            lastSeenReplicas.push_back(replica);
+        }
+    }
 
     std::optional<bool> isErasure;
     for (const auto& replica : lastSeenReplicas) {

@@ -324,12 +324,15 @@ private:
                         replicas.emplace_back(node, replicaIndex);
                     }
                 };
+
+                auto chunkHolder = TEphemeralObjectPtr<TChunk>(chunk);
+                auto lastSeenReplicas = chunkManager->GetLastSeenReplicas(chunkHolder);
                 if (chunk->IsErasure()) {
                     for (int index = 0; index < ::NErasure::MaxTotalPartCount; ++index) {
-                        addReplica(chunk->LastSeenReplicas()[index], index);
+                        addReplica(lastSeenReplicas[index], index);
                     }
                 } else {
-                    for (auto nodeId : chunk->LastSeenReplicas()) {
+                    for (auto nodeId : lastSeenReplicas) {
                         addReplica(nodeId, GenericChunkReplicaIndex);
                     }
                 }
