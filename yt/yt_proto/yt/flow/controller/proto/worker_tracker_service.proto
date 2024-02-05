@@ -24,8 +24,7 @@ message TReqHeartbeat
     required string worker_address = 1;
     required NYT.NProto.TGuid incarnation_id = 2;
 
-    // TODO(mikari): distributor spec
-    optional int64 flow_layout_version = 3;
+    optional int64 dynamic_worker_spec_version = 3;
 
     message TRunningJob
     {
@@ -38,8 +37,7 @@ message TReqHeartbeat
 
 message TRspHeartbeat
 {
-    // TODO(mikari): distributor spec
-    optional bytes flow_layout = 1 [(NYT.NYson.NProto.yson_string) = true];
+    optional bytes dynamic_worker_spec = 1 [(NYT.NYson.NProto.yson_string) = true];
 
     message TStartJobCommand
     {
