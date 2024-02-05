@@ -38,21 +38,22 @@ protected:
 TEST_F(TAstFormatTest, Id)
 {
     EXPECT_EQ("id", FormatId("id"));
-    EXPECT_EQ("[0]", FormatId("0"));
+    EXPECT_EQ("`0`", FormatId("0"));
     EXPECT_EQ("x0123456789_", FormatId("x0123456789_"));
-    EXPECT_EQ("[]", FormatId(""));
+    EXPECT_EQ("``", FormatId(""));
     EXPECT_EQ("___", FormatId("___"));
-    EXPECT_EQ("[offset]", FormatId("offset"));
-    EXPECT_EQ("[JOIN]", FormatId("JOIN"));
-    EXPECT_EQ("[as]", FormatId("as"));
+    EXPECT_EQ("`offset`", FormatId("offset"));
+    EXPECT_EQ("`JOIN`", FormatId("JOIN"));
+    EXPECT_EQ("`as`", FormatId("as"));
+    EXPECT_EQ("`\\``", FormatId("`"));
 }
 
 TEST_F(TAstFormatTest, Reference)
 {
     EXPECT_EQ("column", FormatReference(TReference(TString("column"))));
     EXPECT_EQ("table.column", FormatReference(TReference(TString("column"), TString("table"))));
-    EXPECT_EQ("[my.column]", FormatReference(TReference(TString("my.column"))));
-    EXPECT_EQ("table.[my.column]", FormatReference(TReference(TString("my.column"), TString("table"))));
+    EXPECT_EQ("`my.column`", FormatReference(TReference(TString("my.column"))));
+    EXPECT_EQ("table.`my.column`", FormatReference(TReference(TString("my.column"), TString("table"))));
     EXPECT_EQ("my.column", InferColumnName(TReference(TString("my.column"))));
     EXPECT_EQ("table.my.column", InferColumnName(TReference(TString("my.column"), TString("table"))));
 }
@@ -128,6 +129,8 @@ TEST_F(TAstFormatTest, Expression)
     TestExpression("(a + 1 as x) * x");
     TestExpression("([x-y] as [x-y])");
     TestExpression("(`x-y` as `x-y`)");
+    TestExpression("`\\``");
+    TestExpression("[`]");
     TestExpression("`[`");
     TestExpression("`]`");
     TestExpression("`[]`");

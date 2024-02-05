@@ -57,17 +57,17 @@ TEST(TQueryOptimizer, OptimizeJoin)
             "p"),
         false);
 
-    TString expectedSql = "p.[meta.id], i.book_id FROM [//index] AS i"
-                          " JOIN [//books] AS p ON (i.book_id) = (p.[meta.id])"
-                          " WHERE F(p.[meta.id])"
-                          " GROUP BY p.[meta.id]"
-                          " HAVING (p.[meta.id])=(1)"
-                          " ORDER BY p.[meta.id]";
+    TString expectedSql = "p.`meta.id`, i.book_id FROM `//index` AS i"
+                          " JOIN `//books` AS p ON (i.book_id) = (p.`meta.id`)"
+                          " WHERE F(p.`meta.id`)"
+                          " GROUP BY p.`meta.id`"
+                          " HAVING (p.`meta.id`)=(1)"
+                          " ORDER BY p.`meta.id`";
     EXPECT_EQ(expectedSql, FormatQuery(query));
 
     EXPECT_TRUE(TryOptimizeJoin(&query));
 
-    TString optimizedSql = "i.book_id, i.book_id FROM [//index] AS i"
+    TString optimizedSql = "i.book_id, i.book_id FROM `//index` AS i"
                            " WHERE F(i.book_id)"
                            " GROUP BY i.book_id"
                            " HAVING (i.book_id)=(1)"
@@ -96,9 +96,9 @@ TEST(TQueryOptimizer, DoesNotOptimizeJoin)
         "F",
         MakeExpression<TReferenceExpression>(&objectsHolder, NQueryClient::TSourceLocation(), "meta.parent_id", "p"));
 
-    TString expectedSql = "p.[meta.id], i.book_id FROM [//index] AS i"
-                          " JOIN [//books] AS p ON (i.book_id) = (p.[meta.id])"
-                          " WHERE F(p.[meta.parent_id])";
+    TString expectedSql = "p.`meta.id`, i.book_id FROM `//index` AS i"
+                          " JOIN `//books` AS p ON (i.book_id) = (p.`meta.id`)"
+                          " WHERE F(p.`meta.parent_id`)";
     EXPECT_EQ(expectedSql, FormatQuery(query));
 
     EXPECT_FALSE(TryOptimizeJoin(&query));
@@ -131,14 +131,14 @@ TEST(TQueryOptimizer, OptimizeWhenUsingSelectExpressionInOrderBy)
             "meta_id"),
         false);
 
-    TString expectedSql = "(p.[meta.id] as meta_id) FROM [//index] AS i "
-                          "JOIN [//books] AS p ON (i.book_id) = (p.[meta.id]) "
+    TString expectedSql = "(p.`meta.id` as meta_id) FROM `//index` AS i "
+                          "JOIN `//books` AS p ON (i.book_id) = (p.`meta.id`) "
                           "ORDER BY meta_id";
     EXPECT_EQ(expectedSql, FormatQuery(query));
 
     EXPECT_TRUE(TryOptimizeJoin(&query));
 
-    TString optimizedSql = "(i.book_id as meta_id) FROM [//index] AS i ORDER BY meta_id";
+    TString optimizedSql = "(i.book_id as meta_id) FROM `//index` AS i ORDER BY meta_id";
     EXPECT_EQ(optimizedSql, FormatQuery(query));
 }
 
@@ -210,13 +210,13 @@ TEST(TQueryOptimizer, OptimizeStringTryGetString)
             getMetaIdExpr,
             "meta_id"));
 
-    query.Table = TTableDescriptor("//db/enitities");
+    query.Table = TTableDescriptor("//db/entities");
 
-    TString expectedSql = "(string(try_get_string(meta, \"/id\")) as meta_id) FROM [//db/enitities]";
+    TString expectedSql = "(string(try_get_string(meta, \"/id\")) as meta_id) FROM `//db/entities`";
     EXPECT_EQ(expectedSql, FormatQuery(query));
 
     EXPECT_TRUE(TryOptimizeTryGetString(&query));
-    TString optimizedSql = "(try_get_string(meta, \"/id\") as meta_id) FROM [//db/enitities]";
+    TString optimizedSql = "(try_get_string(meta, \"/id\") as meta_id) FROM `//db/entities`";
     EXPECT_EQ(optimizedSql, FormatQuery(query));
 }
 
