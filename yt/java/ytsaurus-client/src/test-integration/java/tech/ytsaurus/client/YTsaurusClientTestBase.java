@@ -66,6 +66,8 @@ public class YTsaurusClientTestBase {
                             "--proxy-config", "/tmp/proxy_config.yson",
                             "--rpc-proxy-count", "1",
                             "--rpc-proxy-port", "10111",
+                            "--queue-agent-count", "1",
+                            "--queue-agent-config", "/etc/yt/server.yson",
                             "--enable-debug-logging"
                     )
                     .withCopyFileToContainer(
