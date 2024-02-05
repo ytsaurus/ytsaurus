@@ -34,6 +34,16 @@ void TTableRegistry::RemoveTable(const TTableId& tableId)
     Tables_.erase(it);
 }
 
+void TTableRegistry::RemoveBundle(const TTabletCellBundlePtr& bundle)
+{
+    bundle->TabletCells.clear();
+    for (const auto& [tableId, table] : bundle->Tables) {
+        table->Tablets.clear();
+        RemoveTable(tableId);
+    }
+    bundle->Tables.clear();
+}
+
 void TTableRegistry::UnlinkTableFromOldBundle(const TTablePtr& table)
 {
     for (const auto& tablet : table->Tablets) {

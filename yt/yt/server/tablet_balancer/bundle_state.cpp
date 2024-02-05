@@ -161,9 +161,13 @@ void TBundleState::UpdateBundleAttributes(
     }
 }
 
-TFuture<void> TBundleState::UpdateState(bool fetchTabletCellsFromSecondaryMasters)
+TFuture<void> TBundleState::UpdateState(bool fetchTabletCellsFromSecondaryMasters, int iterationIndex)
 {
-    return BIND(&TBundleState::DoUpdateState, MakeStrong(this), fetchTabletCellsFromSecondaryMasters)
+    return BIND(
+            &TBundleState::DoUpdateState,
+            MakeStrong(this),
+            fetchTabletCellsFromSecondaryMasters,
+            iterationIndex)
         .AsyncVia(Invoker_)
         .Run();
 }
@@ -183,7 +187,7 @@ TFuture<void> TBundleState::FetchStatistics(
         .Run();
 }
 
-void TBundleState::DoUpdateState(bool fetchTabletCellsFromSecondaryMasters)
+void TBundleState::DoUpdateState(bool fetchTabletCellsFromSecondaryMasters, int iterationIndex)
 {
     THashMap<TTabletCellId, TTabletCellInfo> tabletCells;
 
@@ -236,6 +240,12 @@ void TBundleState::DoUpdateState(bool fetchTabletCellsFromSecondaryMasters)
     YT_LOG_DEBUG("Finished fetching basic table attributes (NewTableCount: %v)", tableInfos.size());
 
     for (auto& [tableId, tableInfo] : tableInfos) {
+        if (iterationIndex > 0) {
+            YT_LOG_DEBUG("New table has been found (TableId: %v, TablePath: %v)",
+                tableId,
+                tableInfo->Path);
+        }
+
         TableRegistry_->AddTable(tableInfo);
         auto it = EmplaceOrCrash(Bundle_->Tables, tableId, std::move(tableInfo));
 

@@ -19,6 +19,7 @@ public:
 public:
     void AddTable(const TTablePtr& table);
     void RemoveTable(const TTableId& tableId);
+    void RemoveBundle(const TTabletCellBundlePtr& bundle);
 
 private:
     void UnlinkTableFromOldBundle(const TTablePtr& table);
