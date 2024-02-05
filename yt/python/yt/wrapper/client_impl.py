@@ -685,7 +685,7 @@ class YtClient(ClientState):
             query,
             timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
             max_subqueries=None, workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None,
-            format=None, raw=None, execution_pool=None, retention_timestamp=None):
+            format=None, raw=None, execution_pool=None, retention_timestamp=None, syntax_version=None):
         """
         Explains a SQL-like query on dynamic table.
 
@@ -704,7 +704,7 @@ class YtClient(ClientState):
             timestamp=timestamp, input_row_limit=input_row_limit, output_row_limit=output_row_limit,
             range_expansion_limit=range_expansion_limit, max_subqueries=max_subqueries, workload_descriptor=workload_descriptor,
             allow_full_scan=allow_full_scan, allow_join_without_index=allow_join_without_index, format=format,
-            raw=raw, execution_pool=execution_pool, retention_timestamp=retention_timestamp)
+            raw=raw, execution_pool=execution_pool, retention_timestamp=retention_timestamp, syntax_version=syntax_version)
 
     def externalize(
             self,

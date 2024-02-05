@@ -296,7 +296,7 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
 def explain_query(
         query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
         max_subqueries=None, workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None,
-        format=None, raw=None, execution_pool=None, retention_timestamp=None, client=None):
+        format=None, raw=None, execution_pool=None, retention_timestamp=None, syntax_version=None, client=None):
     """Explains a SQL-like query on dynamic table.
 
     .. seealso:: `supported features <https://ytsaurus.tech/docs/en/user-guide/dynamic-tables/dyn-query-language>`_
@@ -325,6 +325,7 @@ def explain_query(
     set_param(params, "allow_join_without_index", allow_join_without_index)
     set_param(params, "execution_pool", execution_pool)
     set_param(params, "timeout", get_config(client)["proxy"]["heavy_request_timeout"])
+    set_param(params, "syntax_version", syntax_version)
 
     _check_transaction_type(client)
 
