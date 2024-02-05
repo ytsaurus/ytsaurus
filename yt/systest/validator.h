@@ -21,6 +21,7 @@ struct TValidatorConfig
     int NumJobs;
     int64_t IntervalBytes;
     int64_t MemoryLimit;
+    int64_t SortVerificationLimit;
     TDuration PollDelay;
     TDuration WorkerFailureBackoffDelay;
     TDuration BaseTimeout;

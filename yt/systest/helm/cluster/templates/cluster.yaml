@@ -38,7 +38,7 @@ spec:
 
   httpProxies:
     - serviceType: NodePort
-      instanceCount: 1
+      instanceCount: 3
 
   rpcProxies:
     - serviceType: LoadBalancer

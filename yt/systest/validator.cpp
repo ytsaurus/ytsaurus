@@ -75,6 +75,8 @@ private:
         TErrorCode code = error.GetCode();
         return
             code == TErrorCode(NRpc::EErrorCode::TransportError) ||
+            code == NRpc::EErrorCode::TransientFailure ||
+            code == NRpc::EErrorCode::RequestQueueSizeLimitExceeded ||
             code == EErrorCode::Timeout;
     }
 
@@ -462,6 +464,11 @@ void TValidatorConfig::RegisterOptions(NLastGetopt::TOpts* opts)
     opts->AddLongOption("validator-worker-failure-backoff-delay")
         .StoreResult(&WorkerFailureBackoffDelay)
         .DefaultValue(TDuration::Seconds(30));
+
+    opts->AddLongOption("validator-limit-sort")
+        .StoreResult(&SortVerificationLimit)
+        .DefaultValue(8LL << 30  /* 8GB */);
+
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -692,6 +699,19 @@ TStoredDataset TValidator::VerifySort(
 {
     const auto intervalInfo = GetMapIntervalBoundaries(sourcePath, Config_.IntervalBytes);
     const int numIntervals = std::ssize(intervalInfo.Boundaries) - 1;
+
+    if (intervalInfo.TotalBytes > Config_.SortVerificationLimit) {
+        YT_LOG_INFO("Skip validating sort operation (SourcePath: %v, TargetPath: %v, TotalBytes: %v)",
+            sourcePath,
+            targetPath,
+            intervalInfo.TotalBytes);
+
+        return TStoredDataset{
+            targetPath,
+            intervalInfo.Boundaries[numIntervals],
+            intervalInfo.TotalBytes
+        };
+    }
 
     YT_LOG_INFO("Will validate sort operation (SourcePath: %v, TargetPath: %v, NumIntervals: %v)",
         sourcePath,
