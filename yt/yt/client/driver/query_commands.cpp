@@ -192,6 +192,8 @@ TAlterQueryCommand::TAlterQueryCommand()
         .Optional();
     RegisterParameter("access_control_object", Options.AccessControlObject)
         .Optional();
+    RegisterParameter("stage", Options.QueryTrackerStage)
+        .Default("production");
 }
 
 void TAlterQueryCommand::DoExecute(ICommandContextPtr context)
@@ -199,6 +201,29 @@ void TAlterQueryCommand::DoExecute(ICommandContextPtr context)
     WaitFor(context->GetClient()->AlterQuery(QueryId, Options))
         .ThrowOnError();
     ProduceEmptyOutput(context);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+
+TGetQueryTrackerInfoCommand::TGetQueryTrackerInfoCommand()
+{
+    RegisterParameter("stage", Options.QueryTrackerStage)
+        .Default("production");
+    RegisterParameter("attributes", Options.Attributes)
+        .Optional();
+}
+
+void TGetQueryTrackerInfoCommand::DoExecute(ICommandContextPtr context)
+{
+    auto result = WaitFor(context->GetClient()->GetQueryTrackerInfo(Options))
+        .ValueOrThrow();
+
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .BeginMap()
+            .Item("cluster_name").Value(result.ClusterName)
+            .Item("supported_features").Value(result.SupportedFeatures)
+            .Item("access_control_objects").Value(result.AccessControlObjects)
+        .EndMap());
 }
 
 //////////////////////////////////////////////////////////////////////////////

@@ -1,12 +1,12 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    add_member, authors, create_access_control_object, remove,
+    add_member, authors, create_access_control_object, create_access_control_object_namespace, remove,
     make_ace, raises_yt_error, wait, create_user, print_debug, select_rows)
 
 from yt_error_codes import AuthorizationErrorCode, ResolveErrorCode
 
-from yt_queries import start_query, list_queries
+from yt_queries import start_query, list_queries, get_query_tracker_info
 
 from yt.test_helpers import assert_items_equal
 
@@ -452,6 +452,23 @@ class TestAccessControl(YTEnvSetup):
 
         with raises_yt_error(ResolveErrorCode):
             q_u1.alter(authenticated_user="u1", access_control_object="nonexistent_aco")
+
+    @authors("aleksandr.gaev")
+    def test_get_query_tracker_info(self, query_tracker):
+        assert get_query_tracker_info() == {'cluster_name': 'primary', 'supported_features': {'access_control': True}, 'access_control_objects': ['nobody']}
+
+        remove("//sys/access_control_object_namespaces/queries/nobody")
+        remove("//sys/access_control_object_namespaces/queries")
+
+        assert get_query_tracker_info() == {'cluster_name': 'primary', 'supported_features': {'access_control': False}, 'access_control_objects': []}
+
+        create_access_control_object_namespace("queries")
+        create_access_control_object("nobody", "queries")
+
+        assert get_query_tracker_info(attributes=[]) == {'cluster_name': '', 'supported_features': {}, 'access_control_objects': []}
+        assert get_query_tracker_info(attributes=["cluster_name"]) == {'cluster_name': 'primary', 'supported_features': {}, 'access_control_objects': []}
+        assert get_query_tracker_info(attributes=["supported_features"]) == {'cluster_name': '', 'supported_features': {'access_control': True}, 'access_control_objects': []}
+        assert get_query_tracker_info(attributes=["access_control_objects"]) == {'cluster_name': '', 'supported_features': {}, 'access_control_objects': ['nobody']}
 
 
 # Separate list to fit 480 seconds limit for a test class.

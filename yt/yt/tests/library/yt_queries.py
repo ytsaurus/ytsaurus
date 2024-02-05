@@ -108,3 +108,7 @@ def abort_query(id, **kwargs):
 def alter_query(id, **kwargs):
     kwargs["query_id"] = id
     execute_command("alter_query", kwargs)
+
+
+def get_query_tracker_info(**kwargs):
+    return execute_command("get_query_tracker_info", kwargs, parse_yson=True)

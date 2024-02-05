@@ -327,6 +327,9 @@ public:
         NQueryTrackerClient::TQueryId queryId,
         const TAlterQueryOptions& options = {}),
         (queryId, options))
+    IMPLEMENT_METHOD(TGetQueryTrackerInfoResult, GetQueryTrackerInfo, (
+        const TGetQueryTrackerInfoOptions& options = {}),
+        (options))
 
     IMPLEMENT_METHOD(NYson::TYsonString, GetNode, (
         const NYPath::TYPath& path,
@@ -1764,6 +1767,8 @@ private:
     void DoAlterQuery(
         NQueryTrackerClient::TQueryId queryId,
         const TAlterQueryOptions& options);
+    TGetQueryTrackerInfoResult DoGetQueryTrackerInfo(
+        const TGetQueryTrackerInfoOptions& options);
 
     //
     // Authentication

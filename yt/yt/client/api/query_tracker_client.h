@@ -146,6 +146,20 @@ struct TAlterQueryOptions
     std::optional<TString> AccessControlObject;
 };
 
+struct TGetQueryTrackerInfoOptions
+    : public TTimeoutOptions
+    , public TQueryTrackerOptions
+{
+    NYTree::TAttributeFilter Attributes;
+};
+
+struct TGetQueryTrackerInfoResult
+{
+    TString ClusterName;
+    NYson::TYsonString SupportedFeatures;
+    std::vector<TString> AccessControlObjects;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IQueryTrackerClient
@@ -178,6 +192,8 @@ struct IQueryTrackerClient
     virtual TFuture<void> AlterQuery(
         NQueryTrackerClient::TQueryId queryId,
         const TAlterQueryOptions& options = {}) = 0;
+
+    virtual TFuture<TGetQueryTrackerInfoResult> GetQueryTrackerInfo(const TGetQueryTrackerInfoOptions& options = {}) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
