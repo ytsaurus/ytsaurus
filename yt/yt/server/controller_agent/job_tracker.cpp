@@ -469,6 +469,8 @@ TJobTracker::TJobTracker(TBootstrap* bootstrap, TJobReporterPtr jobReporter)
     , JobFailureRequestCount_(JobTrackerProfiler.WithHot().Counter("/job_failure_request_count"))
     , NodeRegistrationCount_(JobTrackerProfiler.WithHot().Counter("/node_registration_count"))
     , NodeUnregistrationCount_(JobTrackerProfiler.WithHot().Counter("/node_unregistration_count"))
+    , ThrottledRunningJobEventCount_(JobTrackerProfiler.WithHot().Counter("/throttled_running_job_event_count"))
+    , ThrottledHeartbeatCount_(JobTrackerProfiler.WithHot().Counter("/throttled_heartbeat_count"))
     , WrongIncarnationRequestCount_(JobTrackerProfiler.WithHot().Counter("/wrong_incarnation_request_count"))
     , JobTrackerQueue_(New<NConcurrency::TActionQueue>("JobTracker"))
     , ExecNodes_(New<TRefCountedExecNodeDescriptorMap>())
@@ -789,6 +791,8 @@ void TJobTracker::ProfileHeartbeatProperties(const THeartbeatCounters& heartbeat
     JobReleaseRequestCount_.Increment(heartbeatCounters.JobReleaseRequestCount);
     JobInterruptionRequestCount_.Increment(heartbeatCounters.JobInterruptionRequestCount);
     JobFailureRequestCount_.Increment(heartbeatCounters.JobFailureRequestCount);
+    ThrottledRunningJobEventCount_.Increment(heartbeatCounters.ThrottledRunningJobEventCount);
+    ThrottledHeartbeatCount_.Increment(heartbeatCounters.ThrottledRunningJobEventCount > 0);
 }
 
 bool TJobTracker::TNodeJobs::IsRunning(const TJobIterator& jobIt)
@@ -1211,14 +1215,6 @@ TJobTracker::THeartbeatCounters TJobTracker::DoProcessHeartbeat(
                 "JobId: %v",
                 jobId);
 
-            if (jobSummary->State == EJobState::Running &&
-                shouldSkipRunningJobEvents)
-            {
-                YT_LOG_DEBUG("Skipping running job summary because operationController invoker is overloaded");
-
-                continue;
-            }
-
             auto newJobStage = JobStageFromJobState(jobSummary->State);
 
             if (auto it = nodeJobs.FindJob(jobId)) {
@@ -1230,7 +1226,8 @@ TJobTracker::THeartbeatCounters TJobTracker::DoProcessHeartbeat(
                     response,
                     std::move(jobSummary),
                     Logger,
-                    heartbeatCounters);
+                    heartbeatCounters,
+                    shouldSkipRunningJobEvents);
 
                 continue;
             }
@@ -1262,7 +1259,8 @@ TJobTracker::THeartbeatCounters TJobTracker::DoProcessHeartbeat(
                     response,
                     std::move(jobSummary),
                     Logger,
-                    heartbeatCounters);
+                    heartbeatCounters,
+                    shouldSkipRunningJobEvents);
 
                 continue;
             }
@@ -1455,7 +1453,8 @@ void TJobTracker::HandleJobInfo(
     TCtxHeartbeat::TTypedResponse* response,
     std::unique_ptr<TJobSummary> jobSummary,
     const NLogging::TLogger& Logger,
-    THeartbeatCounters& heartbeatCounters)
+    THeartbeatCounters& heartbeatCounters,
+    bool shouldSkipRunningJobEvents)
 {
     if (TNodeJobs::IsRunning(jobIt)) {
         HandleRunningJobInfo(
@@ -1466,7 +1465,8 @@ void TJobTracker::HandleJobInfo(
             response,
             std::move(jobSummary),
             Logger,
-            heartbeatCounters);
+            heartbeatCounters,
+            shouldSkipRunningJobEvents);
     } else {
         HandleFinishedJobInfo(
             jobIt,
@@ -1488,7 +1488,8 @@ void TJobTracker::HandleRunningJobInfo(
     TCtxHeartbeat::TTypedResponse* response,
     std::unique_ptr<TJobSummary> jobSummary,
     const NLogging::TLogger& Logger,
-    THeartbeatCounters& heartbeatCounters)
+    THeartbeatCounters& heartbeatCounters,
+    bool shouldSkipRunningJobEvents)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
     auto& allocationInfo = jobIt.Allocation->second;
@@ -1538,7 +1539,15 @@ void TJobTracker::HandleRunningJobInfo(
                 ProcessGracefulAbortRequest(response, requestOptions, jobId, Logger, heartbeatCounters);
             });
 
-            jobsToProcessInOperationController.JobSummaries.push_back(std::move(jobSummary));
+        if (shouldSkipRunningJobEvents) {
+            YT_LOG_DEBUG("Skipping running job summary because operationController invoker is overloaded");
+            ++heartbeatCounters.ThrottledRunningJobEventCount;
+
+            return;
+        }
+
+        jobsToProcessInOperationController.JobSummaries.push_back(std::move(jobSummary));
+
         return;
     }
 
