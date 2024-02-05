@@ -362,15 +362,11 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
     {
         auto lockedChunkGuard = chunk->GetLocation()->TryLockChunk(chunk->GetId());
 
-        if (!lockedChunkGuard) {
-            // If the chunk could not be locked, it means that the writting session wrote
-            // the chunk before the full initialization of the location. See "optimistic Enabled state set" in TChunkLocation::Scan.
-            YT_LOG_WARNING(
-                "Location lock chunk failed (LocationId: %v, ChunkId: %v)",
-                chunk->GetLocation()->GetId(),
-                chunk->GetId());
-            return;
-        }
+        YT_LOG_FATAL_IF(
+            !lockedChunkGuard,
+            "Location lock chunk failed (LocationId: %v, ChunkId: %v)",
+            chunk->GetLocation()->GetId(),
+            chunk->GetId());
 
         lockedChunkGuard.Release();
     }
