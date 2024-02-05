@@ -249,6 +249,7 @@ private:
     TTimestamp GetLastTimestamp(TRevisionList list, ui32 revision) const;
 
     ui32 GetLatestRevision() const;
+    ui32 GetSnapshotRevision() const;
     ui32 RegisterRevision(TTimestamp timestamp);
 
     void OnDynamicMemoryUsageUpdated();

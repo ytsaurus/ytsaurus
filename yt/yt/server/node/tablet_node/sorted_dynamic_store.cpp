@@ -933,7 +933,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateSnapshotReader()
         AllCommittedTimestamp,
         /*produceAllVersions*/ true,
         /*snapshotMode*/ true,
-        GetLatestRevision(),
+        GetSnapshotRevision(),
         TColumnFilter());
 }
 
@@ -2022,7 +2022,7 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
     using NYT::Save;
 
     auto tableReader = CreateSnapshotReader();
-    auto revision = GetLatestRevision();
+    auto revision = GetSnapshotRevision();
 
     return BIND([=, this, this_ = MakeStrong(this)] (TSaveContext& context) {
         YT_LOG_DEBUG("Store snapshot serialization started");
@@ -2284,6 +2284,11 @@ ui32 TSortedDynamicStore::GetLatestRevision() const
 {
     YT_ASSERT(!RevisionToTimestamp_.Empty());
     return RevisionToTimestamp_.Size() - 1;
+}
+
+ui32 TSortedDynamicStore::GetSnapshotRevision() const
+{
+    return FlushRevision_ == InvalidRevision ? GetLatestRevision() : FlushRevision_;
 }
 
 ui32 TSortedDynamicStore::RegisterRevision(TTimestamp timestamp)
