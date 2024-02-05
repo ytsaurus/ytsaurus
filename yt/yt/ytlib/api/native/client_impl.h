@@ -337,6 +337,9 @@ public: \
         NQueryTrackerClient::TQueryId queryId,
         const TAlterQueryOptions& options = {}),
         (queryId, options))
+    IMPLEMENT_METHOD(TGetQueryTrackerInfoResult, GetQueryTrackerInfo, (
+        const TGetQueryTrackerInfoOptions& options = {}),
+        (options))
 
     IMPLEMENT_METHOD(NYson::TYsonString, GetNode, (
         const NYPath::TYPath& path,

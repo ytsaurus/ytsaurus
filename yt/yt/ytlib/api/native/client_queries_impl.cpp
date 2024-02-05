@@ -43,6 +43,9 @@ namespace NDetail {
 // Applies when a query doesn't have an access control object.
 constexpr TStringBuf DefaultAccessControlObject = "nobody";
 
+// Path to access control object namespace for QT.
+constexpr TStringBuf QueriesAcoNamespacePath = "//sys/access_control_object_namespaces/queries";
+
 TQuery PartialRecordToQuery(const auto& partialRecord)
 {
     static_assert(pfr::tuple_size<TQuery>::value == 15);
@@ -163,8 +166,9 @@ NSecurityClient::ESecurityAction CheckAccessControl(
     }
     auto actualAccessControlObject = accessControlObject.value_or(TString(DefaultAccessControlObject));
     auto aclOrError = WaitFor(client->GetNode(Format(
-        "//sys/access_control_object_namespaces/queries/%v/@principal_acl",
-        actualAccessControlObject)));
+        "%v/%v/@principal_acl",
+        QueriesAcoNamespacePath,
+        NYPath::ToYPathLiteral(actualAccessControlObject))));
     if (!aclOrError.IsOK()) {
         YT_LOG_WARNING(aclOrError,
             "Error while fetching access control object queries/%v",
@@ -274,7 +278,7 @@ std::vector<TString> GetAcosForSubjects(const THashSet<TString>& subjects, const
     };
     options.ReadFrom = EMasterChannelKind::Cache;
 
-    auto allAcosOrError = WaitFor(client->GetNode("//sys/access_control_object_namespaces/queries", options));
+    auto allAcosOrError = WaitFor(client->GetNode(TString(QueriesAcoNamespacePath), options));
 
     if (!allAcosOrError.IsOK()) {
         THROW_ERROR_EXCEPTION(
@@ -332,7 +336,10 @@ std::vector<TString> GetAcosForSubjects(const THashSet<TString>& subjects, const
 
 void VerifyAccessControlObjectExists(const TString& accessControlObject, const IClientPtr& client)
 {
-    auto error = WaitFor(client->NodeExists("//sys/access_control_object_namespaces/queries/" + accessControlObject));
+    auto error = WaitFor(client->NodeExists(Format(
+        "%v/%v",
+        QueriesAcoNamespacePath,
+        NYPath::ToYPathLiteral(accessControlObject))));
 
     if (!error.IsOK()) {
         THROW_ERROR_EXCEPTION("Failed to check whether access control object %Qv exists", accessControlObject)
@@ -1074,6 +1081,60 @@ void TClient::DoAlterQuery(TQueryId queryId, const TAlterQueryOptions& options)
 
     WaitFor(transaction->Commit())
         .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TGetQueryTrackerInfoResult TClient::DoGetQueryTrackerInfo(const TGetQueryTrackerInfoOptions& options)
+{
+    IClientPtr client;
+    TString root;
+    std::tie(client, root) = GetNativeConnection()->GetQueryTrackerStage(options.QueryTrackerStage);
+
+    YT_LOG_DEBUG(
+        "Getting query tracker information (Attributes: %v)",
+        options.Attributes);
+
+    auto attributes = options.Attributes;
+
+    attributes.ValidateKeysOnly();
+
+    TString clusterName = "";
+
+    if (attributes.AdmitsKeySlow("cluster_name")) {
+        YT_LOG_DEBUG("Getting cluster name");
+        clusterName = client->GetClusterName().value_or("");
+    }
+
+    TNodeExistsOptions nodeExistsOptions;
+    nodeExistsOptions.ReadFrom = EMasterChannelKind::Cache;
+    bool accessControlSupported = WaitFor(client->NodeExists(TString(QueriesAcoNamespacePath), nodeExistsOptions))
+        .ValueOrThrow();
+
+    static const TYsonString EmptyMap = TYsonString(TString("{}"));
+    TYsonString supportedFeatures = EmptyMap;
+    if (attributes.AdmitsKeySlow("supported_features")) {
+        supportedFeatures = BuildYsonStringFluently()
+            .BeginMap()
+                .Item("access_control").Value(accessControlSupported)
+            .EndMap();
+    }
+
+    std::vector<TString> accessControlObjects;
+    if (accessControlSupported && attributes.AdmitsKeySlow("access_control_objects")) {
+        YT_LOG_DEBUG("Getting access control objects");
+        TListNodeOptions listOptions;
+        listOptions.ReadFrom = EMasterChannelKind::Cache;
+        auto allAcos = WaitFor(client->ListNode(TString(QueriesAcoNamespacePath), listOptions))
+            .ValueOrThrow();
+        accessControlObjects = ConvertTo<std::vector<TString>>(allAcos);
+    }
+
+    return TGetQueryTrackerInfoResult{
+        .ClusterName = std::move(clusterName),
+        .SupportedFeatures = std::move(supportedFeatures),
+        .AccessControlObjects = std::move(accessControlObjects),
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
