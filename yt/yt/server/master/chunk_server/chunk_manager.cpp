@@ -2050,9 +2050,9 @@ public:
         ChunkMerger_->ScheduleMerge(node);
     }
 
-    bool IsNodeBeingMerged(NCypressServer::TNodeId nodeId) const override
+    EChunkMergerStatus GetNodeChunkMergerStatus(NCypressServer::TNodeId nodeId) const override
     {
-        return ChunkMerger_->IsNodeBeingMerged(nodeId);
+        return ChunkMerger_->GetNodeChunkMergerStatus(nodeId);
     }
 
     TChunk* GetChunkOrThrow(TChunkId id) override

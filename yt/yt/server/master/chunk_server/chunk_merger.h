@@ -143,7 +143,7 @@ public:
     void ScheduleMerge(NCypressClient::TObjectId chunkOwnerId);
     void ScheduleMerge(TChunkOwnerBase* trunkChunkOwner);
 
-    bool IsNodeBeingMerged(NCypressClient::TObjectId nodeId) const;
+    EChunkMergerStatus GetNodeChunkMergerStatus(NCypressServer::TNodeId nodeId) const;
 
     void OnProfiling(NProfiling::TSensorBuffer* buffer);
 
@@ -171,7 +171,7 @@ private:
 
     bool Enabled_ = false;
 
-    THashMap<NCypressClient::TObjectId, EChunkMergeStatus> NodeToMergeStatus_;
+    THashMap<NCypressClient::TObjectId, EChunkMergerStatus> NodeToChunkMergerStatus;
 
     // Persistent fields.
     NTransactionServer::TTransactionRotator TransactionRotator_;

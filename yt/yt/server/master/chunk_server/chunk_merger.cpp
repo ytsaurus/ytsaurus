@@ -712,12 +712,12 @@ void TChunkMerger::ScheduleMerge(TChunkOwnerBase* trunkChunkOwner)
     RegisterSession(trunkChunkOwner);
 }
 
-bool TChunkMerger::IsNodeBeingMerged(TObjectId nodeId) const
+EChunkMergerStatus TChunkMerger::GetNodeChunkMergerStatus(NCypressServer::TNodeId nodeId) const
 {
     YT_VERIFY(!HasMutationContext());
 
-    auto it = NodeToMergeStatus_.find(nodeId);
-    return it != NodeToMergeStatus_.end() && it->second == EChunkMergeStatus::InMergePipeline;
+    auto it = NodeToChunkMergerStatus.find(nodeId);
+    return it == NodeToChunkMergerStatus.end() ? EChunkMergerStatus::NotInMergePipeline : it->second;
 }
 
 void TChunkMerger::ScheduleJobs(EJobType jobType, IJobSchedulingContext* context)
@@ -985,7 +985,7 @@ void TChunkMerger::Clear()
     NodesBeingMerged_.clear();
     NodesBeingMergedPerAccount_.clear();
     AccountIdToNodeMergeDurations_.clear();
-    NodeToMergeStatus_.clear();
+    NodeToChunkMergerStatus.clear();
     ConfigVersion_ = 0;
 
     OldNodesBeingMerged_.reset();
@@ -1004,7 +1004,7 @@ void TChunkMerger::ResetTransientState()
     SessionsAwaitingFinalization_ = {};
     QueuesUsage_ = {};
     AccountIdToNodeMergeDurations_ = {};
-    NodeToMergeStatus_ = {};
+    NodeToChunkMergerStatus = {};
 }
 
 bool TChunkMerger::IsMergeTransactionAlive() const
@@ -1068,7 +1068,7 @@ void TChunkMerger::RegisterSession(TChunkOwnerBase* chunkOwner)
 
     auto accountId = chunkOwner->Account()->GetId();
     EmplaceOrCrash(NodesBeingMerged_, chunkOwner->GetId(), accountId);
-    EmplaceOrCrash(NodeToMergeStatus_, chunkOwner->GetId(), EChunkMergeStatus::AwaitingMerge);
+    EmplaceOrCrash(NodeToChunkMergerStatus, chunkOwner->GetId(), EChunkMergerStatus::AwaitingMerge);
     IncrementPersistentTracker(accountId);
 
     if (IsLeader()) {
@@ -1351,7 +1351,7 @@ void TChunkMerger::ProcessTouchedNodes()
 
             if (CanScheduleMerge(node)) {
                 YT_VERIFY(NodesBeingMerged_.contains(nodeId));
-                NodeToMergeStatus_[nodeId] = EChunkMergeStatus::InMergePipeline;
+                NodeToChunkMergerStatus[nodeId] = EChunkMergerStatus::InMergePipeline;
 
                 New<TMergeChunkVisitor>(
                     Bootstrap_,
@@ -1990,7 +1990,7 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
         auto toErase = GetIteratorOrCrash(NodesBeingMerged_, nodeId);
         auto accountId = toErase->second;
         NodesBeingMerged_.erase(toErase);
-        NodeToMergeStatus_.erase(nodeId);
+        NodeToChunkMergerStatus.erase(nodeId);
         DecrementPersistentTracker(accountId);
 
         auto* chunkOwner = FindChunkOwner(nodeId);

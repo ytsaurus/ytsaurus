@@ -83,6 +83,7 @@
     XX(ChunkLocations, chunk_locations) \
     XX(ChunkMediaStatistics, chunk_media_statistics) \
     XX(ChunkMergerMode, chunk_merger_mode) \
+    XX(ChunkMergerStatus, chunk_merger_status) \
     XX(ChunkMergerNodeTraversalConcurrency, chunk_merger_node_traversal_concurrency) \
     XX(ChunkMergerCriteria, chunk_merger_criteria) \
     XX(ChunkMergerTraversalInfo, chunk_merger_traversal_info) \
@@ -252,7 +253,6 @@
     XX(IOStatistics, io_statistics) \
     XX(IOStatisticsPerMedium, io_statistics_per_medium) \
     XX(IOWeights, io_weights) \
-    XX(IsBeingMerged, is_being_merged) \
     XX(Jobs, jobs) \
     XX(JobProxyVersion, job_proxy_build_version) \
     XX(PendingRestart, pending_restart) \

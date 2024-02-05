@@ -118,7 +118,7 @@ class TestChunkMerger(YTEnvSetup):
             set("{}/@chunk_merger_mode".format(table_path), merge_mode)
 
         wait(lambda: get("{}/@chunk_ids".format(table_path)) != chunk_ids)
-        wait(lambda: not get("{}/@is_being_merged".format(table_path)))
+        wait(lambda: get("{}/@chunk_merger_status".format(table_path)) == "not_in_merge_pipeline")
         wait(lambda: get("{}/@chunk_count".format(table_path)) <= max_merged_chunks)
 
         merged_rows = read_table(table_path)
@@ -333,7 +333,7 @@ class TestChunkMerger(YTEnvSetup):
         for i in range(10):
             write_table("<append=true>//tmp/t", {"a": "b"})
 
-        wait(lambda: not get("//tmp/t/@is_being_merged"))
+        wait(lambda: get("//tmp/t/@chunk_merger_status") == "not_in_merge_pipeline")
         remove("//tmp/t")
 
         wait(lambda: get("//sys/chunk_lists/@count") == len(get("//sys/chunk_lists")))
@@ -378,7 +378,7 @@ class TestChunkMerger(YTEnvSetup):
         assert read_table("//tmp/t") == rows
 
     @authors("aleksandra-zh")
-    def test_is_being_merged(self):
+    def test_chunk_merger_status(self):
         create("table", "//tmp/t")
         self._remove_merge_quotas("//tmp/t")
 
@@ -577,7 +577,7 @@ class TestChunkMerger(YTEnvSetup):
 
         # [{"a": "b"}, {"b": "c"}], [{"c": "d"}, {"q": "d"}], rows, rows
         wait(lambda: get("//tmp/t/@chunk_count") == 4)
-        wait(lambda: not get("//tmp/t/@is_being_merged"))
+        wait(lambda: get("//tmp/t/@chunk_merger_status") == "not_in_merge_pipeline")
 
         traversal_info1 = get("//tmp/t/@chunk_merger_traversal_info")
         assert traversal_info1["chunk_count"] > 0
@@ -599,7 +599,7 @@ class TestChunkMerger(YTEnvSetup):
         write_table("<append=true>//tmp/t", {"q": "d"})
 
         wait(lambda: get("//tmp/t/@chunk_count") == 1)
-        wait(lambda: not get("//tmp/t/@is_being_merged"))
+        wait(lambda: get("//tmp/t/@chunk_merger_status") == "not_in_merge_pipeline")
 
         traversal_info3 = get("//tmp/t/@chunk_merger_traversal_info")
         assert traversal_info3["config_version"] > traversal_info2["config_version"]
@@ -808,7 +808,7 @@ class TestChunkMerger(YTEnvSetup):
         set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
         set("//tmp/t/@chunk_merger_mode", "deep")
 
-        wait(lambda: not get("//tmp/t/@is_being_merged"))
+        wait(lambda: get("//tmp/t/@chunk_merger_status") == "awaiting_merge")
         assert (get("//tmp/t/@chunk_count") == 3)
 
         set("//sys/@config/chunk_manager/chunk_merger/max_nodes_being_merged", 10)
@@ -868,7 +868,7 @@ class TestChunkMerger(YTEnvSetup):
         set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
         set("//tmp/t/@chunk_merger_mode", "deep")
 
-        wait(lambda: not get("//tmp/t/@is_being_merged"))
+        wait(lambda: get("//tmp/t/@chunk_merger_status") == "not_in_merge_pipeline")
         assert (get("//tmp/t/@chunk_count") == 3)
 
         set("//sys/accounts/tmp/@allow_using_chunk_merger", True)
@@ -1220,7 +1220,7 @@ class TestChunkMerger(YTEnvSetup):
         # Must not crash.
         sleep(5)
 
-        wait(lambda: not get("//tmp/t/@is_being_merged"))
+        wait(lambda: get("//tmp/t/@chunk_merger_status") == "not_in_merge_pipeline")
         merged_rows = read_table("//tmp/t")
         assert _schematize_rows(rows, schema2) == _schematize_rows(merged_rows, schema2)
 
@@ -1364,7 +1364,7 @@ class TestChunkMerger(YTEnvSetup):
         set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
         set("//tmp/t/@chunk_merger_mode", "deep")
 
-        assert not get("//tmp/t/@is_being_merged")
+        assert get("//tmp/t/@chunk_merger_status") == "not_in_merge_pipeline"
         assert get("//tmp/t/@chunk_ids") == chunk_ids
 
     @authors("cherepashka")
@@ -1387,7 +1387,7 @@ class TestChunkMerger(YTEnvSetup):
 
         alter_table("//tmp/t", schema=schema_with_hunk_columns)
 
-        wait(lambda: not get("//tmp/t/@is_being_merged"))
+        wait(lambda: get("//tmp/t/@chunk_merger_status") == "not_in_merge_pipeline")
         assert get("//tmp/t/@chunk_ids") == chunk_ids
 
 

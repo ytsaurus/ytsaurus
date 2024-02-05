@@ -519,7 +519,7 @@ private:
         {"media",                   std::make_shared<DB::DataTypeString>()}, // YSON.
         {"security_tags",           std::make_shared<DB::DataTypeString>()}, // YSON.
         {"chunk_merger_mode",       std::make_shared<DB::DataTypeString>()},
-        {"is_being_merged",         std::make_shared<DB::DataTypeUInt8>()},
+        {"chunk_merger_status",     std::make_shared<DB::DataTypeString>()}, // YSON.
         {"enable_skynet_sharing",   std::make_shared<DB::DataTypeUInt8>()},
 
         {"chunk_row_count",         std::make_shared<DB::DataTypeInt64>()},

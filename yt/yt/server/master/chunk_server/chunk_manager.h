@@ -259,7 +259,7 @@ struct IChunkManager
     virtual void ScheduleChunkRequisitionUpdate(TChunkTree* chunkTree) = 0;
     virtual void ScheduleChunkSeal(TChunk* chunk) = 0;
     virtual void ScheduleChunkMerge(TChunkOwnerBase* node) = 0;
-    virtual bool IsNodeBeingMerged(NCypressClient::TObjectId nodeId) const = 0;
+    virtual EChunkMergerStatus GetNodeChunkMergerStatus(NCypressServer::TNodeId nodeId) const = 0;
     virtual TChunkRequisitionRegistry* GetChunkRequisitionRegistry() = 0;
 
     virtual const THashSet<TChunk*>& ForeignChunks() const = 0;
