@@ -675,11 +675,14 @@ public:
             this);
     }
 
-    std::unique_ptr<TMutation> CreateConfirmChunkMutation(TCtxConfirmChunkPtr context) override
+    std::unique_ptr<TMutation> CreateConfirmChunkMutation(
+        TReqConfirmChunk* request,
+        TRspConfirmChunk* response) override
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
-            std::move(context),
+            request,
+            response,
             &TChunkManager::HydraConfirmChunk,
             this);
     }
@@ -2765,6 +2768,28 @@ private:
         return GetOrCrash(result, chunk->GetId());
     }
 
+    virtual std::vector<TNodeId> GetLastSeenReplicas(const TEphemeralObjectPtr<TChunk>& chunk) const override
+    {
+        YT_VERIFY(!HasMutationContext());
+
+        auto chunkId = chunk->GetId();
+
+        auto masterReplicas = chunk->LastSeenReplicas();
+        std::vector<TNodeId> replicas(masterReplicas.begin(), masterReplicas.end());
+
+        if (GetDynamicConfig()->FetchReplicasFromSequoia && CanHaveSequoiaReplicas(chunkId)) {
+            auto sequoiaReplicas = WaitFor(DoGetSequoiaLastSeenReplicas(chunkId))
+                .ValueOrThrow();
+
+            for (const auto& replica : sequoiaReplicas) {
+                replicas.push_back(replica.NodeId);
+            }
+        }
+
+        SortUnique(replicas);
+        return replicas;
+    }
+
     virtual THashMap<TChunkId, TErrorOr<TChunkLocationPtrWithReplicaInfoList>> GetChunkReplicas(const std::vector<TEphemeralObjectPtr<TChunk>>& chunks) const override
     {
         YT_VERIFY(!HasMutationContext());
@@ -3425,7 +3450,10 @@ private:
 
         auto replicas = FromProto<TChunkReplicaWithLocationList>(request->replicas());
 
-        AddConfirmReplicas(chunk, replicas);
+        const auto& config = GetDynamicConfig();
+        if (config->StoreSequoiaReplicasOnMaster) {
+            AddConfirmReplicas(chunk, replicas);
+        }
     }
 
     void HydraPrepareModifyReplicas(
@@ -3457,6 +3485,30 @@ private:
             ProcessRemovedReplicas(locationDirectory, node, request->removed_chunks());
         }
     }
+    static void BuildReplicasListYson(
+        IYsonConsumer* consumer,
+        const std::vector<TChunkReplicaWithLocation>& replicas)
+    {
+        BuildYsonFluently(consumer)
+            .DoListFor(replicas, [] (auto fluent, const auto& replica) {
+                fluent
+                    .Item()
+                    .BeginList()
+                        .Item().Value(ToString(replica.GetChunkLocationUuid()))
+                        .Item().Value(replica.GetReplicaIndex())
+                        .Item().Value(replica.GetNodeId())
+                    .EndList();
+            });
+    }
+
+    static TYsonString GetReplicasListYson(
+        const std::vector<TChunkReplicaWithLocation>& replicas)
+    {
+        return BuildYsonStringFluently()
+            .Do([&] (auto fluent) {
+                BuildReplicasListYson(fluent.GetConsumer(), replicas);
+            });
+    }
 
     static TYsonString GetReplicasYson(
         const std::vector<TChunkReplicaWithLocation>& replicasToAdd,
@@ -3464,23 +3516,11 @@ private:
     {
         return BuildYsonStringFluently()
             .BeginList()
-                .Item().DoListFor(replicasToAdd, [] (auto fluent, const auto& replica) {
-                    fluent
-                        .Item()
-                        .BeginList()
-                            .Item().Value(ToString(replica.GetChunkLocationUuid()))
-                            .Item().Value(replica.GetReplicaIndex())
-                            .Item().Value(replica.GetNodeId())
-                        .EndList();
+                .Item().Do([&] (auto fluent) {
+                    BuildReplicasListYson(fluent.GetConsumer(), replicasToAdd);
                 })
-                .Item().DoListFor(replicasToRemove, [] (auto fluent, const auto& replica) {
-                    fluent
-                        .Item()
-                        .BeginList()
-                            .Item().Value(ToString(replica.GetChunkLocationUuid()))
-                            .Item().Value(replica.GetReplicaIndex())
-                            .Item().Value(replica.GetNodeId())
-                        .EndList();
+                .Item().Do([&] (auto fluent) {
+                    BuildReplicasListYson(fluent.GetConsumer(), replicasToRemove);
                 })
             .EndList();
     }
@@ -3495,13 +3535,13 @@ private:
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto chunkId = FromProto<TChunkId>(request.chunk_id());
                 auto replicas = FromProto<std::vector<TChunkReplicaWithLocation>>(request.replicas());
-                auto ysonReplicas = GetReplicasYson(replicas, {});
                 NRecords::TChunkReplicas chunkReplica{
                     .Key = {
                         .IdHash = HashFromId(chunkId),
                         .ChunkId = chunkId,
                     },
-                    .Replicas = ysonReplicas,
+                    .Replicas = GetReplicasYson(replicas, {}),
+                    .LastSeenReplicas = GetReplicasListYson(replicas),
                 };
                 transaction->WriteRow(
                     chunkReplica,
@@ -3580,6 +3620,7 @@ private:
                             .ChunkId = chunkId,
                         },
                         .Replicas = GetReplicasYson({replica}, {}),
+                        .LastSeenReplicas = GetReplicasListYson({replica}),
                     };
                     transaction->WriteRow(
                         chunkReplica,
@@ -3607,7 +3648,7 @@ private:
                     NRecords::TLocationReplicasKey locationReplicaKey{
                         .CellTag = Bootstrap_->GetCellTag(),
                         .NodeId = nodeId,
-                        .IdHash = locationUuid.Parts32[0],
+                        .IdHash = HashFromId(locationUuid),
                         .LocationUuid = locationUuid,
                         .ChunkId = chunkId,
                     };
@@ -3649,6 +3690,7 @@ private:
                             .ChunkId = chunkId,
                         },
                         .Replicas = GetReplicasYson({}, {replica}),
+                        .LastSeenReplicas = GetReplicasListYson({}),
                     };
                     transaction->WriteRow(
                         chunkReplica,
@@ -4659,7 +4701,6 @@ private:
         }
 
         auto replicas = FromProto<TChunkReplicaWithLocationList>(subrequest->replicas());
-
         // COMPAT(kvk1920)
         if (!subrequest->location_uuids_supported()) {
             auto legacyReplicas = FromProto<TChunkReplicaWithMediumList>(subrequest->legacy_replicas());
@@ -5440,6 +5481,48 @@ private:
     {
         auto shardIndex = chunk->GetShardIndex();
         return chunk->IsJournal() ? JournalChunks_[shardIndex] : BlobChunks_[shardIndex];
+    }
+
+    static TSequoiaChunkReplica ParseSequoiaReplica(TChunkId chunkId, const INodePtr& replica)
+    {
+        const auto& replicaAsList = replica->AsList();
+        const auto& children = replicaAsList->GetChildren();
+        YT_VERIFY(children.size() == 3);
+
+        TSequoiaChunkReplica chunkReplica;
+        chunkReplica.ChunkId = chunkId;
+        chunkReplica.LocationUuid = TGuid::FromString(children[0]->AsString()->GetValue());
+        chunkReplica.ReplicaIndex = children[1]->AsInt64()->GetValue();
+        chunkReplica.NodeId = TNodeId(children[2]->AsUint64()->GetValue());
+        return chunkReplica;
+    }
+
+    TFuture<std::vector<TSequoiaChunkReplica>> DoGetSequoiaLastSeenReplicas(TChunkId chunkId) const
+    {
+        NRecords::TChunkReplicasKey chunkReplicasKey{
+            .IdHash = HashFromId(chunkId),
+            .ChunkId = chunkId,
+        };
+        std::vector<NRecords::TChunkReplicasKey> keys({chunkReplicasKey});
+
+        return Bootstrap_
+            ->GetSequoiaClient()
+            ->LookupRows<NRecords::TChunkReplicasKey>(keys)
+            .Apply(BIND([] (const std::vector<std::optional<NRecords::TChunkReplicas>>& replicaRecords) {
+                std::vector<TSequoiaChunkReplica> replicas;
+                for (const auto& replicaRecord : replicaRecords) {
+                    if (!replicaRecord) {
+                        continue;
+                    }
+
+                    auto chunkId = replicaRecord->Key.ChunkId;
+                    for (const auto& replica : ConvertToNode(replicaRecord->LastSeenReplicas)->AsList()->GetChildren()) {
+                        replicas.push_back(ParseSequoiaReplica(chunkId, replica));
+                    }
+                }
+
+                return replicas;
+            }));
     }
 
     TFuture<std::vector<TSequoiaChunkReplica>> DoGetSequoiaChunkReplicas(const std::vector<TChunkId>& chunkIds) const

@@ -888,8 +888,8 @@ private:
 
         if (configManager->GetConfig()->SequoiaManager->Enable && request->location_uuids_supported()) {
             auto allReplicas = request->replicas();
-            request->mutable_replicas()->Clear();
-            request->mutable_legacy_replicas()->Clear();
+            context->Request().mutable_replicas()->Clear();
+            context->Request().mutable_legacy_replicas()->Clear();
 
             NProto::TReqAddConfirmReplicas addSequoiaReplicas;
             ToProto(addSequoiaReplicas.mutable_chunk_id(), chunkId);
@@ -897,7 +897,7 @@ private:
             for (const auto& replica : allReplicas) {
                 auto locationUuid = FromProto<TChunkLocationUuid>(replica.location_uuid());
                 if (!chunkManager->IsSequoiaChunkReplica(chunkId, locationUuid)) {
-                    *request->add_replicas() = replica;
+                    *context->Request().add_replicas() = replica;
                 } else {
                     *addSequoiaReplicas.add_replicas() = replica;
                 }
@@ -907,10 +907,9 @@ private:
                 WaitFor(chunkManager->AddSequoiaConfirmReplicas(addSequoiaReplicas))
                     .ThrowOnError();
             }
-
         }
 
-        auto mutation = chunkManager->CreateConfirmChunkMutation(context);
+        auto mutation = chunkManager->CreateConfirmChunkMutation(&context->Request(), &context->Response());
         mutation->SetCurrentTraceContext();
         mutation->CommitAndReply(context);
     }

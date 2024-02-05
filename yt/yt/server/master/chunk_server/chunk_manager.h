@@ -112,7 +112,8 @@ struct IChunkManager
     virtual std::unique_ptr<NHydra::TMutation> CreateCreateChunkMutation(
         TCtxCreateChunkPtr context) = 0;
     virtual std::unique_ptr<NHydra::TMutation> CreateConfirmChunkMutation(
-        TCtxConfirmChunkPtr context) = 0;
+        NChunkClient::NProto::TReqConfirmChunk* request,
+        NChunkClient::NProto::TRspConfirmChunk* response) = 0;
     virtual std::unique_ptr<NHydra::TMutation> CreateSealChunkMutation(
         TCtxSealChunkPtr context) = 0;
     virtual std::unique_ptr<NHydra::TMutation> CreateCreateChunkListsMutation(
@@ -371,6 +372,8 @@ struct IChunkManager
     virtual THashMap<TChunkId, TErrorOr<TChunkLocationPtrWithReplicaInfoList>> GetChunkReplicas(
         const std::vector<NObjectServer::TEphemeralObjectPtr<TChunk>>& chunks) const = 0;
 
+    virtual std::vector<TNodeId> GetLastSeenReplicas(
+        const NObjectServer::TEphemeralObjectPtr<TChunk>& chunk) const = 0;
 
 private:
     friend class TChunkTypeHandler;

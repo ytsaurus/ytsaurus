@@ -26,5 +26,11 @@ types:
         column_type: Any
         aggregate: True
 
+      - cpp_name: LastSeenReplicas
+        cpp_type: NYson::TYsonString
+        column_name: last_seen_replicas
+        column_type: Any
+        aggregate: True
+
     verbatim: |
       static constexpr auto Table = ESequoiaTable::ChunkReplicas;

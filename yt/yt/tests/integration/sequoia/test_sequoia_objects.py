@@ -156,6 +156,44 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         remove("//tmp/t")
 
+    @authors("aleksandra-zh")
+    def test_last_seen_replicas(self):
+        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM), 10000)
+
+        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM})
+
+        write_table("//tmp/t", [{"x": 1}])
+        assert read_table("//tmp/t") == [{"x": 1}]
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        assert len(select_rows_from_ground(f"* from [{CHUNK_REPLICAS_TABLE.get_path()}]")) > 0
+        wait(lambda: len(select_rows_from_ground(f"* from [{CHUNK_REPLICAS_TABLE.get_path()}]")) == 1)
+        wait(lambda: len(select_rows_from_ground(f"* from [{LOCATION_REPLICAS_TABLE.get_path()}]")) == 3)
+
+        rows = select_rows_from_ground(f"* from [{CHUNK_REPLICAS_TABLE.get_path()}]")
+        assert len(rows) == 1
+        assert len(rows[0]["last_seen_replicas"]) == 3
+
+        assert read_table("//tmp/t") == [{"x": 1}]
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        wait(lambda: len(get("#{}/@stored_replicas".format(chunk_id))) == 3)
+        wait(lambda: len(get("#{}/@last_seen_replicas".format(chunk_id))) == 3)
+
+        remove("//tmp/t")
+
+
+class TestOnlySequoiaReplicas(TestSequoiaReplicas):
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "sequoia_chunk_replicas_percentage": 100,
+            "fetch_replicas_from_sequoia": True,
+            "store_sequoia_replicas_on_master": False,
+            "processed_removed_sequoia_replicas_on_master": False
+        }
+    }
+
 
 class TestSequoiaReplicasMulticell(TestSequoiaReplicas):
     NUM_SECONDARY_MASTER_CELLS = 3
