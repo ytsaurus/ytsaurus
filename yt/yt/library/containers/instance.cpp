@@ -789,6 +789,13 @@ IInstancePtr GetRootPortoInstance(IPortoExecutorPtr executor)
 
 double GetSelfPortoInstanceVCpuFactor()
 {
+    // DEPLOY_VCPU_LIMIT stores value in millicores.
+    TString vcpuLimitStr = GetEnv("DEPLOY_VCPU_LIMIT");
+    if (vcpuLimitStr.Empty()) {
+        THROW_ERROR_EXCEPTION("Failed to get vcpu limit from env variable");
+    }
+    double vcpuLimit = FromString<double>(vcpuLimitStr) / 1000.0;
+
     auto config = New<TPortoExecutorDynamicConfig>();
     auto executorPtr = CreatePortoExecutor(config, "");
     auto currentContainer = GetSelfPortoInstance(executorPtr);
@@ -797,12 +804,7 @@ double GetSelfPortoInstanceVCpuFactor()
         THROW_ERROR_EXCEPTION("Cpu limit must be greater than 0");
     }
 
-    // DEPLOY_VCPU_LIMIT stores value in millicores
-    if (TString vcpuLimitStr = GetEnv("DEPLOY_VCPU_LIMIT"); !vcpuLimitStr.Empty()) {
-        double vcpuLimit = FromString<double>(vcpuLimitStr) / 1000.0;
-        return vcpuLimit / cpuLimit;
-    }
-    THROW_ERROR_EXCEPTION("Failed to get vcpu limit from env variable");
+    return vcpuLimit / cpuLimit;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
