@@ -155,6 +155,8 @@
 #include <util/generic/cast.h>
 #include <util/generic/vector.h>
 
+#include <util/system/compiler.h>
+
 #include <library/cpp/iterator/functools.h>
 
 #include <functional>
@@ -10718,8 +10720,8 @@ bool TOperationControllerBase::IsCompleted() const
 TString TOperationControllerBase::WriteCoreDump() const
 {
     // Save `this` explicitly to simplify debugging a core dump in GDB.
-    volatile auto this_ = this;
-    Y_UNUSED(this_);
+    auto this_ = this;
+    DoNotOptimizeAway(this_);
 
     const auto& coreDumper = Host->GetCoreDumper();
     if (!coreDumper) {
