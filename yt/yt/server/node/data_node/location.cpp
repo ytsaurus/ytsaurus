@@ -485,8 +485,6 @@ std::vector<TChunkDescriptor> TChunkLocation::Scan()
         return {};
     }
 
-    YT_VERIFY(LockedChunkIds_.empty());
-
     // Be optimistic and assume everything will be OK.
     // Also Disable requires State_ to be Enabled.
     ChangeState(ELocationState::Enabled);
