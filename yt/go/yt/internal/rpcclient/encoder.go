@@ -1161,7 +1161,7 @@ func (e *Encoder) SetUserPassword(
 	user string,
 	newPassword string,
 	currentPassword string,
-	options *yt.SetUserPasswordOptions,
+	opts *yt.SetUserPasswordOptions,
 ) (err error) {
 	return xerrors.Errorf("Unimplemented method: SetUserPassword")
 }
@@ -1170,7 +1170,7 @@ func (e *Encoder) IssueToken(
 	ctx context.Context,
 	user string,
 	password string,
-	options *yt.IssueTokenOptions,
+	opts *yt.IssueTokenOptions,
 ) (token string, err error) {
 	return "", xerrors.Errorf("Unimplemented method: IssueToken")
 }
@@ -1180,7 +1180,7 @@ func (e *Encoder) RevokeToken(
 	user string,
 	password string,
 	token string,
-	options *yt.RevokeTokenOptions,
+	opts *yt.RevokeTokenOptions,
 ) (err error) {
 	return xerrors.Errorf("Unimplemented method: RevokeToken")
 }
