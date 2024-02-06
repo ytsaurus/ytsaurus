@@ -35,7 +35,6 @@ void TTransaction::Save(TSaveContext& context) const
     Save(context, GetPersistentPrepareTimestamp());
     Save(context, CommitTimestamp_);
     Save(context, User_);
-    Save(context, PreparedActionCount_);
 }
 
 void TTransaction::Load(TLoadContext& context)
@@ -50,11 +49,6 @@ void TTransaction::Load(TLoadContext& context)
     Load(context, PrepareTimestamp_);
     Load(context, CommitTimestamp_);
     Load(context, User_);
-
-    // COMPAT(kvk1920)
-    if (context.GetVersion() >= EChaosReign::SaneTxActionAbort) {
-        Load(context, PreparedActionCount_);
-    }
 }
 
 TFuture<void> TTransaction::GetFinished() const
