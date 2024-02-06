@@ -57,6 +57,7 @@ DEFINE_ENUM(ETabletReign,
     ((SaneTxActionAbort)                           (100904)) // kvk1920
     ((HunkValueDictionaryCompression)              (100905)) // akozhikhov
     ((SaneTxActionAbortFix)                        (100906)) // kvk1920
+    ((DistributedTabletPrerequisites)              (100907)) // gritukan
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");
