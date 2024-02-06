@@ -651,11 +651,15 @@ public:
                 auto committedUsage = cellStatistics.ResourceUsage;
 
                 buffer.AddGauge("/master_memory", usage.GetTotalMasterMemory());
-                buffer.AddGauge("/master_memory", usage.GetTotalMasterMemory());
-                profileDetailed(
-                    usage.GetTotalMasterMemory(),
-                    committedUsage.GetTotalMasterMemory(),
-                    "/detailed_master_memory");
+
+                for (auto memoryType : TEnumTraits<EMasterMemoryType>::GetDomainValues())
+                {
+                    TWithTagGuard guard(&buffer, "type", Format("%lv", memoryType));
+                    profileDetailed(
+                        usage.DetailedMasterMemory()[memoryType],
+                        committedUsage.DetailedMasterMemory()[memoryType],
+                        "/detailed_master_memory");
+                }
             }
         }
 
