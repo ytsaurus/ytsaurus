@@ -318,7 +318,7 @@ private:
 
     TSharedRef SanitizedLocalHostName_;
 
-    TSharedRef SanitizeLocalHostName(TStringBuf host) const;
+    TSharedRef SanitizeLocalHostName() const;
 
     TMutationApplicationResult ApplyMutationDuringRecovery(const TSharedRef& recordData);
     TMutationApplicationResult ApplyMutation(const TPendingMutationPtr& mutation);

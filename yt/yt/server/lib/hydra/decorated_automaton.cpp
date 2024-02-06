@@ -1199,19 +1199,31 @@ void TDecoratedAutomaton::PublishMutationApplicationResults(std::vector<TMutatio
     }
 }
 
-TSharedRef TDecoratedAutomaton::SanitizeLocalHostName(TStringBuf host) const
+TSharedRef TDecoratedAutomaton::SanitizeLocalHostName() const
 {
+    auto localHost = ReadLocalHostName();
     if (Config_->Get()->EnableHostSanitizing) {
-        const auto& peers = GetEpochContext()->CellManager->GetClusterPeersAddressesOrCrash();
-        auto sanitizedHost = NHydra::SanitizeLocalHostName(peers, host);
-        if (sanitizedHost) {
-            return *sanitizedHost;
+        THashSet<TString> hosts;
+        for (const auto& peer : GetEpochContext()->CellManager->GetClusterPeersAddressesOrCrash()) {
+            TStringBuf host;
+            int port;
+            ParseServiceAddress(peer, &host, &port);
+            hosts.insert(TString(host));
         }
 
-        YT_LOG_ALERT("Failed to sanitize local host name, perhaps the hosts have different lengths (Hosts: %v)",
-            peers);
+        if (auto sanitizedLocalHost = NHydra::SanitizeLocalHostName(hosts, localHost)) {
+            YT_LOG_INFO("Local host name sanitized (Hosts: %v, LocalHost: %v, SanitizedLocalHost)",
+                hosts,
+                localHost,
+                *sanitizedLocalHost);
+            return *sanitizedLocalHost;
+        }
+
+        YT_LOG_ALERT("Failed to sanitize local host name, perhaps the hosts have different lengths (Hosts: %v, LocalHost: %v)",
+            hosts,
+            localHost);
     }
-    return TSharedRef::FromString(ToString(host));
+    return TSharedRef::FromString(ToString(localHost));
 }
 
 TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutation(
@@ -1465,7 +1477,7 @@ void TDecoratedAutomaton::StartEpoch(TEpochContextPtr epochContext)
 {
     YT_VERIFY(!EpochContext_.Exchange(std::move(epochContext)));
 
-    SanitizedLocalHostName_ = SanitizeLocalHostName(ReadLocalHostName());
+    SanitizedLocalHostName_ = SanitizeLocalHostName();
     YT_VERIFY(!SanitizedLocalHostName_.Empty());
 }
 
