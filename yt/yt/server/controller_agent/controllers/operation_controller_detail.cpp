@@ -9194,6 +9194,8 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
             .Item("output_supported").Value(IsOutputLivePreviewSupported())
             .Item("intermediate_supported").Value(IsIntermediateLivePreviewSupported())
             .Item("stderr_supported").Value(static_cast<bool>(StderrTable_))
+            .Item("core_supported").Value(static_cast<bool>(CoreTable_))
+            .Item("virtual_table_format_supported").Value(static_cast<bool>(LivePreviews_))
         .EndMap()
         .Item("schedule_job_statistics").BeginMap()
             .Item("count").Value(ScheduleAllocationStatistics_->GetCount())
