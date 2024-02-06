@@ -686,6 +686,12 @@ func writeRevokeTokenOptions(w *yson.Writer, o *yt.RevokeTokenOptions) {
 	}
 }
 
+func writeListUserTokensOptions(w *yson.Writer, o *yt.ListUserTokensOptions) {
+	if o == nil {
+		return
+	}
+}
+
 func writeAddMaintenanceOptions(w *yson.Writer, o *yt.AddMaintenanceOptions) {
 	if o == nil {
 		return
@@ -4604,6 +4610,51 @@ func (p *RevokeTokenParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("token_sha256")
 	w.Any(p.token)
 	writeRevokeTokenOptions(w, p.options)
+}
+
+type ListUserTokensParams struct {
+	verb     Verb
+	user     string
+	password string
+	options  *yt.ListUserTokensOptions
+}
+
+func NewListUserTokensParams(
+	user string,
+	password string,
+	options *yt.ListUserTokensOptions,
+) *ListUserTokensParams {
+	if options == nil {
+		options = &yt.ListUserTokensOptions{}
+	}
+	optionsCopy := *options
+	return &ListUserTokensParams{
+		Verb("list_user_tokens"),
+		user,
+		password,
+		&optionsCopy,
+	}
+}
+
+func (p *ListUserTokensParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *ListUserTokensParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *ListUserTokensParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("user", p.user),
+		log.Any("password", p.password),
+	}
+}
+
+func (p *ListUserTokensParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("user")
+	w.Any(p.user)
+	w.MapKeyString("password_sha256")
+	w.Any(p.password)
+	writeListUserTokensOptions(w, p.options)
 }
 
 type GenerateTimestampParams struct {

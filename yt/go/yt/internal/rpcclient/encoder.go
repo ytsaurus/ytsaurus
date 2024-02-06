@@ -1185,6 +1185,15 @@ func (e *Encoder) RevokeToken(
 	return xerrors.Errorf("Unimplemented method: RevokeToken")
 }
 
+func (e *Encoder) ListUserTokens(
+	ctx context.Context,
+	user string,
+	password string,
+	opts *yt.ListUserTokensOptions,
+) (tokens []string, err error) {
+	return nil, xerrors.Errorf("Unimplemented method: ListUserTokens")
+}
+
 func (e *Encoder) RemoveMember(
 	ctx context.Context,
 	group string,

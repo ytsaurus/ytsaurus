@@ -8,6 +8,7 @@ import (
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yt/internal"
 )
 
 func TestAuthClient(t *testing.T) {
@@ -15,7 +16,7 @@ func TestAuthClient(t *testing.T) {
 
 	RunClientTests(t, []ClientTest{
 		{Name: "SetUserPassword", Test: suite.TestSetUserPassword, SkipRPC: true},
-		{Name: "IssueRevokeToken", Test: suite.TestIssueRevokeToken, SkipRPC: true},
+		{Name: "IssueListRevokeToken", Test: suite.TestIssueListRevokeToken, SkipRPC: true},
 	})
 }
 
@@ -41,7 +42,7 @@ func (s *Suite) TestSetUserPassword(t *testing.T, yc yt.Client) {
 	require.NotEmpty(t, hashedPassword)
 }
 
-func (s *Suite) TestIssueRevokeToken(t *testing.T, yc yt.Client) {
+func (s *Suite) TestIssueListRevokeToken(t *testing.T, yc yt.Client) {
 	user := "user-" + guid.New().String()
 	_ = s.CreateUser(t, user)
 
@@ -49,6 +50,15 @@ func (s *Suite) TestIssueRevokeToken(t *testing.T, yc yt.Client) {
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
 
+	tokens, err := yc.ListUserTokens(s.Ctx, user, "", nil)
+	require.NoError(t, err)
+	tokenSHA := internal.EncodeSHA256(token)
+	require.Contains(t, tokens, tokenSHA)
+
 	err = yc.RevokeToken(s.Ctx, user, "", token, nil)
 	require.NoError(t, err)
+
+	tokens, err = yc.ListUserTokens(s.Ctx, user, "", nil)
+	require.NoError(t, err)
+	require.Empty(t, tokens)
 }

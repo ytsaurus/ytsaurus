@@ -797,6 +797,8 @@ type IssueTokenOptions struct{}
 
 type RevokeTokenOptions struct{}
 
+type ListUserTokensOptions struct{}
+
 type AddMaintenanceOptions struct {
 }
 
@@ -1538,6 +1540,15 @@ type AuthClient interface {
 		token string,
 		options *RevokeTokenOptions,
 	) error
+
+	// http:verb:"list_user_tokens"
+	// http:params:"user","password_sha256"
+	ListUserTokens(
+		ctx context.Context,
+		user string,
+		password string,
+		options *ListUserTokensOptions,
+	) (tokens []string, err error)
 }
 
 type Client interface {
