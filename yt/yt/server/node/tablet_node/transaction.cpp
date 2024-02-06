@@ -167,6 +167,13 @@ void TTransaction::Load(TLoadContext& context)
     if (context.GetVersion() >= ETabletReign::TabletPrerequisites) {
         Load(context, PersistentLeaseGuards_);
     }
+
+    // COMPAT(kvk1920)
+    if (context.GetVersion() >= ETabletReign::SaneTxActionAbort &&
+        context.GetVersion() < ETabletReign::SaneTxActionAbortFix)
+    {
+        Load(context, PreparedActionCount_);
+    }
 }
 
 void TTransaction::AsyncLoad(TLoadContext& context)

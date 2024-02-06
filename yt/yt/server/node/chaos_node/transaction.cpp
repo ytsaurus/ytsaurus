@@ -49,6 +49,13 @@ void TTransaction::Load(TLoadContext& context)
     Load(context, PrepareTimestamp_);
     Load(context, CommitTimestamp_);
     Load(context, User_);
+
+    // COMPAT(kvk1920)
+    if (context.GetVersion() >= EChaosReign::SaneTxActionAbort &&
+        context.GetVersion() < EChaosReign::SaneTxActionAbortFix)
+    {
+        Load(context, PreparedActionCount_);
+    }
 }
 
 TFuture<void> TTransaction::GetFinished() const

@@ -164,6 +164,13 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, AccountResourceUsageLeases_);
     Load(context, IsSequoiaTransaction_);
     Load(context, SequoiaWriteSet_);
+
+    // COMPAT(kvk1920)
+    if (context.GetVersion() >= EMasterReign::SaneTxActionAbort &&
+        context.GetVersion() < EMasterReign::SaneTxActionAbortFix)
+    {
+        Load(context, PreparedActionCount_);
+    }
 }
 
 const TTransaction* TTransaction::GetTopmostTransaction() const

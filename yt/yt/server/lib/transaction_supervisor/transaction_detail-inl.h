@@ -92,20 +92,20 @@ void TTransactionBase<TBase>::Load(TStreamLoadContext& context)
 
     // COMPAT(kvk1920)
     constexpr int ChaosReignBase = 300'000;
-    constexpr int ChaosReignSaneTxActionAbort = 300'013;
+    constexpr int ChaosReignSaneTxActionAbortFix = 300'014;
     constexpr int TabletReignBase = 100'000;
-    constexpr int TabletReignSaneTxActionAbort = 100'904;
-    constexpr int MasterReignSaneTxActionAbort = 2526;
+    constexpr int TabletReignSaneTxActionAbortFix = 100'904;
+    constexpr int MasterReignSaneTxActionAbortFix = 2528;
 
     bool hasPreparedActionCount;
     int version = context.GetVersion();
 
     if (version > ChaosReignBase) {
-        hasPreparedActionCount = version >= ChaosReignSaneTxActionAbort;
+        hasPreparedActionCount = version >= ChaosReignSaneTxActionAbortFix;
     } else if (version > TabletReignBase) {
-        hasPreparedActionCount = version >= TabletReignSaneTxActionAbort;
+        hasPreparedActionCount = version >= TabletReignSaneTxActionAbortFix;
     } else {
-        hasPreparedActionCount = version >= MasterReignSaneTxActionAbort;
+        hasPreparedActionCount = version >= MasterReignSaneTxActionAbortFix;
     }
 
     if (hasPreparedActionCount) {
