@@ -479,21 +479,10 @@ std::vector<TChunkDescriptor> TChunkLocation::Scan()
         ValidateLockFile();
         ValidateMinimumSpace();
         ValidateWritable();
+        return DoScan();
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Location disabled");
         MarkUninitializedLocationDisabled(ex);
-        return {};
-    }
-
-    // Be optimistic and assume everything will be OK.
-    // Also Disable requires State_ to be Enabled.
-    ChangeState(ELocationState::Enabled);
-    LocationDisabledAlert_.Store(TError());
-
-    try {
-        return DoScan();
-    } catch (const std::exception& ex) {
-        ScheduleDisable(TError("Location scan failed") << ex);
         return {};
     }
 }
@@ -506,15 +495,12 @@ void TChunkLocation::InitializeIds()
     } catch (const std::exception& ex) {
         Crash(TError("Location initialize failed") << ex);
     }
-
-    HealthChecker_->Start();
 }
 
 void TChunkLocation::Start()
 {
-    if (!IsEnabled()) {
-        return;
-    }
+    ChangeState(ELocationState::Enabled);
+    LocationDisabledAlert_.Store(TError());
 
     try {
         DoStart();
@@ -633,10 +619,6 @@ void TChunkLocation::Crash(const TError& reason)
 void TChunkLocation::UpdateUsedSpace(i64 size)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-
-    if (!IsEnabled()) {
-        return;
-    }
 
     UsedSpace_ += size;
     AvailableSpace_ -= size;
@@ -827,10 +809,6 @@ int TChunkLocation::GetSessionCount() const
 void TChunkLocation::UpdateChunkCount(int delta)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-
-    if (!IsEnabled()) {
-        return;
-    }
 
     ChunkCount_ += delta;
 }
@@ -1270,6 +1248,7 @@ std::vector<TChunkDescriptor> TChunkLocation::DoScan()
 void TChunkLocation::DoStart()
 {
     HealthChecker_->SubscribeFailed(BIND(&TChunkLocation::OnHealthCheckFailed, Unretained(this)));
+    HealthChecker_->Start();
 }
 
 void TChunkLocation::SubscribeDiskCheckFailed(const TCallback<void(const TError&)> callback)

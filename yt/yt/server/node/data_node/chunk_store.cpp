@@ -544,9 +544,12 @@ void TChunkStore::UnregisterChunk(const IChunkPtr& chunk)
     const auto& location = chunk->GetLocation();
     auto state = location->GetState();
 
-    if (!(state == ELocationState::Enabled || state == ELocationState::Disabling)) {
-        return;
-    }
+    // 1. Enabled - default location state for unregister chunk.
+    // 2. Disabling - remove registered chunks during location disabling.
+    // 3. Enabling - remove old journal chunks during location initialization. See DoRegisterExistingChunk method.
+    YT_VERIFY(state == ELocationState::Enabled ||
+        state == ELocationState::Disabling ||
+        state == ELocationState::Enabling);
 
     TChunkEntry chunkEntry;
     {
