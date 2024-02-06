@@ -50,6 +50,7 @@ target_proto_messages(unittester-core-misc PRIVATE
 )
 target_sources(unittester-core-misc PRIVATE
   ${CMAKE_BINARY_DIR}/yt/yt/core/misc/unittests/proto/ref_counted_tracker_ut.pb.h
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/adjusted_exponential_moving_average_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/algorithm_helpers_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/arithmetic_formula_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/atomic_ptr_ut.cpp
@@ -79,7 +80,6 @@ target_sources(unittester-core-misc PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/hazard_ptr_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/heap_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/histogram_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/historic_usage_aggregator_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/hyperloglog_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/intern_registry_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/job_signaler_ut.cpp

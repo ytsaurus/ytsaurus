@@ -7,7 +7,7 @@
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/yt/core/misc/historic_usage_aggregator.h>
+#include <yt/yt/core/misc/adjusted_exponential_moving_average.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -56,20 +56,13 @@ public:
         , ThrottleRpcTimeout_(throttleRpcTimeout)
         , Profiler_(profiler
             .WithTag("throttler_id", ThrottlerId_))
-    {
-        HistoricUsageAggregator_.UpdateParameters(THistoricUsageAggregationParameters(
-            EHistoricUsageAggregationMode::ExponentialMovingAverage,
-            Config_.Acquire()->EmaAlpha
-        ));
-    }
+        , HistoricUsageAggregator_(Config_.Acquire()->AdjustedEmaHalflife)
+    { }
 
     void SetDistributedThrottlerConfig(TDistributedThrottlerConfigPtr config)
     {
         auto guard = Guard(HistoricUsageAggregatorLock_);
-        HistoricUsageAggregator_.UpdateParameters(THistoricUsageAggregationParameters(
-            EHistoricUsageAggregationMode::ExponentialMovingAverage,
-            config->EmaAlpha
-        ));
+        HistoricUsageAggregator_.SetHalflife(config->AdjustedEmaHalflife);
         Config_.Store(std::move(config));
     }
 
@@ -77,7 +70,7 @@ public:
     {
         auto guard = Guard(HistoricUsageAggregatorLock_);
 
-        auto usage = HistoricUsageAggregator_.GetHistoricUsage();
+        auto usage = HistoricUsageAggregator_.GetAverage();
         if (Initialized_) {
             Usage_.Update(usage);
         }
@@ -222,7 +215,7 @@ private:
     std::atomic<bool> Initialized_ = false;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, HistoricUsageAggregatorLock_);
-    TAverageHistoricUsageAggregator HistoricUsageAggregator_;
+    TAverageAdjustedExponentialMovingAverage HistoricUsageAggregator_;
 
     void Initialize()
     {
@@ -248,7 +241,7 @@ private:
             Initialize();
         }
         if (Initialized_) {
-            Usage_.Update(HistoricUsageAggregator_.GetHistoricUsage());
+            Usage_.Update(HistoricUsageAggregator_.GetAverage());
         }
     }
 };

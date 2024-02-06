@@ -32,9 +32,10 @@ public:
 
     TDuration ThrottlerExpirationTime;
 
+    TDuration AdjustedEmaHalflife;
+
     EDistributedThrottlerMode Mode;
     double ExtraLimitRatio;
-    double EmaAlpha;
 
     int HeartbeatThrottlerCountLimit;
     int SkipUnusedThrottlersCountLimit;

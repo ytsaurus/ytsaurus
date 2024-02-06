@@ -131,11 +131,8 @@ TObjectServiceCacheEntry::TObjectServiceCacheEntry(
             TotalByteRateAggregator_ = expiredEntry->TotalByteRateAggregator_;
         }
     } else {
-        THistoricUsageAggregationParameters params(
-            EHistoricUsageAggregationMode::ExponentialMovingAverage,
-            1.0 / aggregationPeriod.SecondsFloat());
-        ByteRateAggregator_.UpdateParameters(params);
-        TotalByteRateAggregator_.UpdateParameters(params);
+        ByteRateAggregator_.SetHalflife(aggregationPeriod);
+        TotalByteRateAggregator_.SetHalflife(aggregationPeriod);
     }
     TotalSpace_ = sizeof(*this) + ComputeExtraSpace();
 }
@@ -143,13 +140,13 @@ TObjectServiceCacheEntry::TObjectServiceCacheEntry(
 i64 TObjectServiceCacheEntry::GetByteRate() const
 {
     auto guard = Guard(ByteRateAggregatorLock_);
-    return static_cast<i64>(ByteRateAggregator_.GetHistoricUsage());
+    return static_cast<i64>(ByteRateAggregator_.GetAverage());
 }
 
 i64 TObjectServiceCacheEntry::GetTotalByteRate() const
 {
     auto guard = Guard(TotalByteRateAggregatorLock_);
-    return static_cast<i64>(TotalByteRateAggregator_.GetHistoricUsage());
+    return static_cast<i64>(TotalByteRateAggregator_.GetAverage());
 }
 
 void TObjectServiceCacheEntry::UpdateByteRate()

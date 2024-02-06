@@ -174,7 +174,7 @@ double TSchedulerElement::GetWeight() const
         parent && parent->IsInferringChildrenWeightsFromHistoricUsageEnabled())
     {
         // TODO(eshcherbin): Make the method of calculating weights from historic usage configurable.
-        auto multiplier = Exp2(-1.0 * PersistentAttributes_.HistoricUsageAggregator.GetHistoricUsage());
+        auto multiplier = Exp2(-1.0 * PersistentAttributes_.HistoricUsageAggregator.GetAverage());
         auto weight = specifiedWeight ? *specifiedWeight : 1.0;
         return weight * multiplier;
     }
@@ -747,8 +747,8 @@ void TSchedulerCompositeElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
 
         if (IsInferringChildrenWeightsFromHistoricUsageEnabled()) {
             // NB(eshcherbin): This is a lazy parameters update so it has to be done every time.
-            child->PersistentAttributes_.HistoricUsageAggregator.UpdateParameters(
-                GetHistoricUsageAggregationParameters());
+            child->PersistentAttributes_.HistoricUsageAggregator.SetHalflife(
+                GetHistoricUsageAggregatorPeriod());
 
             // TODO(eshcherbin): Should we use vectors instead of ratios?
             // Yes, but nobody uses this feature yet, so it's not really important.
@@ -1443,9 +1443,9 @@ bool TSchedulerPoolElement::IsInferringChildrenWeightsFromHistoricUsageEnabled()
     return Config_->InferChildrenWeightsFromHistoricUsage;
 }
 
-THistoricUsageAggregationParameters TSchedulerPoolElement::GetHistoricUsageAggregationParameters() const
+TDuration TSchedulerPoolElement::GetHistoricUsageAggregatorPeriod() const
 {
-    return THistoricUsageAggregationParameters(Config_->HistoricUsageConfig);
+    return Config_->HistoricUsageAggregationPeriod.value_or(TDuration::Zero());
 }
 
 void TSchedulerPoolElement::BuildResourceMetering(
@@ -2507,9 +2507,9 @@ TJobResourcesConfigPtr TSchedulerRootElement::GetSpecifiedResourceLimitsConfig()
     return {};
 }
 
-THistoricUsageAggregationParameters TSchedulerRootElement::GetHistoricUsageAggregationParameters() const
+TDuration TSchedulerRootElement::GetHistoricUsageAggregatorPeriod() const
 {
-    return THistoricUsageAggregationParameters(EHistoricUsageAggregationMode::None);
+    return TDuration::Zero();
 }
 
 void TSchedulerRootElement::BuildResourceMetering(

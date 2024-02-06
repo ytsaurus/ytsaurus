@@ -18,7 +18,7 @@
 #include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
 
 #include <yt/yt/core/misc/public.h>
-#include <yt/yt/core/misc/historic_usage_aggregator.h>
+#include <yt/yt/core/misc/adjusted_exponential_moving_average.h>
 
 #include <yt/yt/library/vector_hdrf/resource_vector.h>
 
@@ -83,7 +83,7 @@ struct TPersistentAttributes
     EStarvationStatus StarvationStatus;
     TInstant LastNonStarvingTime = TInstant::Now();
     std::optional<TInstant> BelowFairShareSince;
-    THistoricUsageAggregator HistoricUsageAggregator;
+    TAdjustedExponentialMovingAverage HistoricUsageAggregator = TAdjustedExponentialMovingAverage();
 
     TResourceVector BestAllocationShare = TResourceVector::Ones();
     TInstant LastBestAllocationShareUpdateTime;
@@ -535,7 +535,7 @@ protected:
 
     // Used to implement GetWeight.
     virtual bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const = 0;
-    virtual THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const = 0;
+    virtual TDuration GetHistoricUsageAggregatorPeriod() const = 0;
 
 private:
     friend class TSchedulerElement;
@@ -685,7 +685,7 @@ private:
     TPoolConfigPtr Config_;
 
     bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const override;
-    THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const override;
+    TDuration GetHistoricUsageAggregatorPeriod() const override;
 
     std::optional<double> GetSpecifiedWeight() const override;
 
@@ -1021,7 +1021,7 @@ private:
     TJobResourcesConfigPtr GetSpecifiedResourceLimitsConfig() const override;
 
     bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const override;
-    THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const override;
+    TDuration GetHistoricUsageAggregatorPeriod() const override;
 
     bool CanAcceptFreeVolume() const override;
     bool ShouldDistributeFreeVolumeAmongChildren() const override;
