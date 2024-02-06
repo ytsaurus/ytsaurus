@@ -365,9 +365,6 @@ private:
                 ++unversionedTableCount;
             }
         }
-        if (versionedTableCount > 0 && unversionedTableCount > 0) {
-            THROW_ERROR_EXCEPTION("Reading static or ordered dynamic tables together with sorted dynamic tables is not supported yet");
-        }
 
         YT_LOG_INFO(
             "Fetching input tables (UnversionedTableCount: %v, VersionedTableCount: %v)",

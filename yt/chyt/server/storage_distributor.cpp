@@ -823,15 +823,6 @@ public:
             DistributionSeed_ = CombineHashes(DistributionSeed_, THash<TString>()(table->Path.GetPath()));
         }
         YT_LOG_DEBUG("Distribution seed generated (DistributionSeed: %v)", DistributionSeed_);
-
-        // TODO(dakovalkov): CHYT-526
-        if (Tables_.size() > 1) {
-            for (const auto& table : Tables_) {
-                if (table->IsSortedDynamic()) {
-                    THROW_ERROR_EXCEPTION("Reading multiple sorted dynamic tables or a sorted dynamic table together with a static table is not supported (CHYT-526)");
-                }
-            }
-        }
     }
 
     void startup() override

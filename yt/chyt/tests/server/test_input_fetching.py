@@ -1,5 +1,5 @@
 from yt_commands import (create, authors, write_table, insert_rows, get, sync_reshard_table, sync_mount_table,
-                         read_table, get_singular_chunk_id, copy, raises_yt_error, alter_table)
+                         read_table, get_singular_chunk_id, copy, raises_yt_error, alter_table, sync_unmount_table)
 
 from yt_type_helpers import optional_type
 
@@ -12,6 +12,8 @@ from .helpers import get_disabled_cache_config
 import yt.yson as yson
 
 from yt.common import wait
+
+from yt.test_helpers import assert_items_equal
 
 import random
 
@@ -472,47 +474,86 @@ class TestInputFetching(ClickHouseTestBase):
             assert clique.make_query("select * from concatYtTables(`//tmp/d/t1`, `//tmp/d/t1`, `//tmp/d/t2`, "
                                      "`//tmp/d/t2`, `//tmp/d/t2`)") == [{"a": 1}] * 5
 
-    @authors("dakovalkov")
-    def test_chyt_526(self):
+    @authors("gudqeit")
+    def test_reading_multiple_dynamic_tables(self):
+        foo_data = [{"key": i, "value": "foo" + str(i)} for i in range(10)]
+
+        for table_name in ("//tmp/dt_1", "//tmp/dt_2"):
+            create(
+                "table",
+                table_name,
+                attributes={
+                    "dynamic": True,
+                    "schema": [
+                        {"name": "key", "type": "int64", "sort_order": "ascending"},
+                        {"name": "value", "type": "string"},
+                    ],
+                    "enable_dynamic_store_read": True,
+                    "dynamic_store_auto_flush_period": yson.YsonEntity(),
+                },
+            )
+            sync_mount_table(table_name)
+            insert_rows(table_name, foo_data)
+
+        bar_data = [{"key": i, "value": "bar" + str(i)} for i in range(10)]
+        sync_unmount_table("//tmp/dt_2")
+        sync_mount_table("//tmp/dt_2")
+        insert_rows("//tmp/dt_2", bar_data)
+
+        with Clique(1) as clique:
+            query = "select * from concatYtTables(`//tmp/dt_1`)"
+            assert_items_equal(clique.make_query(query), foo_data)
+
+            query = "select * from concatYtTables(`//tmp/dt_1`, `//tmp/dt_2`)"
+            assert_items_equal(clique.make_query(query), foo_data + bar_data)
+
+            query = "select * from concatYtTables(`//tmp/dt_1`, `//tmp/dt_1`)"
+            assert_items_equal(clique.make_query(query), foo_data * 2)
+
+            query = "select * from `//tmp/dt_1` as a join `//tmp/dt_2` as b using key where key = 0"
+            assert_items_equal(clique.make_query(query), [{'key': 0, 'value': 'foo0', 'b.value': 'bar0'}])
+
+    @authors("gudqeit")
+    def test_reading_dynamic_and_static_tables(self):
+        data = [{"key": 0, "value": "foo"}]
 
         create(
             "table",
             "//tmp/t_static",
             attributes={
                 "schema": [
-                    {"name": "a", "type": "int64", "sort_order": "ascending"},
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
                 ],
             },
         )
+        write_table("//tmp/t_static", data)
+
         create(
             "table",
             "//tmp/t_dynamic",
             attributes={
                 "schema": [
-                    {"name": "a", "type": "int64", "sort_order": "ascending"},
-                    {"name": "b", "type": "int64"},
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
                 ],
                 "dynamic": True,
                 "enable_dynamic_store_read": True,
                 "dynamic_store_auto_flush_period": yson.YsonEntity(),
             },
         )
+        sync_mount_table("//tmp/t_dynamic")
+        insert_rows("//tmp/t_dynamic", data)
 
         with Clique(1) as clique:
-            with raises_yt_error(QueryFailedError):
-                clique.make_query("select * from concatYtTables(`//tmp/t_dynamic`, `//tmp/t_dynamic`)")
-            with raises_yt_error(QueryFailedError):
-                clique.make_query("select * from concatYtTables(`//tmp/t_dynamic`, `//tmp/t_static`)")
+            query = "select * from concatYtTables(`//tmp/t_dynamic`, `//tmp/t_static`)"
+            assert_items_equal(clique.make_query(query), data * 2)
 
-            assert clique.make_query("select * from concatYtTables(`//tmp/t_dynamic`)") == []
-            assert clique.make_query("select * from concatYtTables(`//tmp/t_static`)") == []
-            assert clique.make_query("select * from concatYtTables(`//tmp/t_static`, `//tmp/t_static`)") == []
-            assert clique.make_query("select * from `//tmp/t_dynamic` as a join `//tmp/t_dynamic` as b using a") == []
+            query = "select * from `//tmp/t_dynamic` as a join `//tmp/t_static` as b using key"
+            assert_items_equal(clique.make_query(query), [{'key': 0, 'value': 'foo', 'b.value': 'foo'}])
 
-            with raises_yt_error(QueryFailedError):
-                clique.make_query("select * from `//tmp/t_dynamic` as a join `//tmp/t_static` as b using a") == []
-            with raises_yt_error(QueryFailedError):
-                clique.make_query("select * from `//tmp/t_static` as a join `//tmp/t_dynamic` as b using a") == []
+            query = "select * from `//tmp/t_static` as a join `//tmp/t_dynamic` as b using key"
+            assert_items_equal(clique.make_query(query), [{'key': 0, 'value': 'foo', 'b.value': 'foo'}])
 
     # CHYT-647
     @authors("dakovalkov")

@@ -407,44 +407,50 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
 
     auto chunkReaderHost = TChunkReaderHost::FromClient(queryContext->Client());
 
-    if (!subquerySpec.DataSourceDirectory->DataSources().empty() &&
-        subquerySpec.DataSourceDirectory->DataSources()[0].GetType() == EDataSourceType::VersionedTable)
-    {
-        std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
-        for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
-            for (auto& chunkSpec : dataSliceDescriptor.ChunkSpecs) {
-                chunkSpecs.emplace_back(std::move(chunkSpec));
-            }
-        }
-        // TODO(dakovalkov): I think we lost VirtualRowIndex here.
-        TDataSliceDescriptor dataSliceDescriptor(std::move(chunkSpecs));
+    THashMap<int, std::vector<TDataSliceDescriptor>> dataSourceIdToSliceDescriptors;
 
-        reader = CreateSchemalessMergingMultiChunkReader(
-            std::move(tableReaderConfig),
-            New<NTableClient::TTableReaderOptions>(),
-            std::move(chunkReaderHost),
-            subquerySpec.DataSourceDirectory,
-            dataSliceDescriptor,
-            TNameTable::FromSchema(*readSchemaWithVirtualColumns),
-            chunkReadOptions,
-            TColumnFilter(readSchemaWithVirtualColumns->GetColumnCount()),
-            /*multiReaderMemoryManager*/ readerMemoryManager);
-    } else {
-        chunkReadOptions.GranuleFilter = granuleFilter;
-        reader = CreateSchemalessParallelMultiReader(
-            std::move(tableReaderConfig),
-            New<NTableClient::TTableReaderOptions>(),
-            std::move(chunkReaderHost),
-            subquerySpec.DataSourceDirectory,
-            dataSliceDescriptors,
-            std::nullopt,
-            TNameTable::FromSchema(*readSchemaWithVirtualColumns),
-            chunkReadOptions,
-            TReaderInterruptionOptions::InterruptibleWithEmptyKey(),
-            TColumnFilter(readSchemaWithVirtualColumns->GetColumnCount()),
-            /*partitionTag*/ std::nullopt,
-            /*multiReaderMemoryManager*/ readerMemoryManager);
+    for (const auto& descriptor : dataSliceDescriptors) {
+        auto& allDataSourceDescriptors = dataSourceIdToSliceDescriptors[descriptor.GetDataSourceIndex()];
+
+        // For SchemalessMergingMultiChunkReader all data source's chunk specs
+        // should be stored in single descriptor.
+        const auto& dataSource = subquerySpec.DataSourceDirectory->DataSources()[descriptor.GetDataSourceIndex()];
+        if (dataSource.GetType() == EDataSourceType::VersionedTable) {
+            if (allDataSourceDescriptors.empty()) {
+                allDataSourceDescriptors.emplace_back(descriptor);
+            } else {
+                for (const auto& chunkSpec : descriptor.ChunkSpecs) {
+                    allDataSourceDescriptors.front().ChunkSpecs.emplace_back(chunkSpec);
+                }
+            }
+
+        } else {
+            allDataSourceDescriptors.emplace_back(descriptor);
+        }
     }
+
+    std::vector<TDataSliceDescriptor> newDataSliceDescriptors;
+    for (auto& [_, descriptors] : dataSourceIdToSliceDescriptors) {
+        for (auto& descriptor : descriptors) {
+            newDataSliceDescriptors.emplace_back(std::move(descriptor));
+        }
+    }
+
+    chunkReadOptions.GranuleFilter = granuleFilter;
+
+    reader = CreateSchemalessParallelMultiReader(
+        std::move(tableReaderConfig),
+        New<NTableClient::TTableReaderOptions>(),
+        std::move(chunkReaderHost),
+        subquerySpec.DataSourceDirectory,
+        newDataSliceDescriptors,
+        std::nullopt,
+        TNameTable::FromSchema(*readSchemaWithVirtualColumns),
+        chunkReadOptions,
+        TReaderInterruptionOptions::InterruptibleWithEmptyKey(),
+        TColumnFilter(readSchemaWithVirtualColumns->GetColumnCount()),
+        /*partitionTag*/ std::nullopt,
+        /*multiReaderMemoryManager*/ readerMemoryManager);
 
     return CreateBlockInputStream(
         std::move(reader),
