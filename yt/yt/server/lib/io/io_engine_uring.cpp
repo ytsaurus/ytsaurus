@@ -1421,12 +1421,7 @@ public:
         , ReconfigureInvoker_(std::move(reconfigureInvoker))
         , RequestQueue_(New<TQueue>(locationId, Config_))
     {
-        auto initFuture = BIND(&TUringThreadPoolBase::ResizeThreads, MakeWeak(this))
-            .AsyncVia(ReconfigureInvoker_)
-            .Run();
-
-        WaitFor(initFuture)
-            .ThrowOnError();
+        ResizeThreads();
     }
 
     ~TUringThreadPoolBase()
@@ -1462,7 +1457,7 @@ public:
     void Reconfigure(const TUringIOEngineConfigPtr& config)
     {
         Config_->Update(config);
-        ReconfigureInvoker_->Invoke(BIND(&TUringThreadPoolBase::ResizeThreads, MakeWeak(this)));
+        ReconfigureInvoker_->Invoke(BIND(&TUringThreadPoolBase::DoReconfigure, MakeWeak(this)));
     }
 
     void SubmitRequest(
@@ -1529,10 +1524,15 @@ private:
         RequestQueue_->Reconfigure(std::ssize(Threads_));
     }
 
-    void ResizeThreads()
+    void DoReconfigure()
     {
         VERIFY_INVOKER_AFFINITY(ReconfigureInvoker_);
 
+        ResizeThreads();
+    }
+
+    void ResizeThreads()
+    {
         int oldThreadCount = std::ssize(Threads_);
         int newThreadCount = Config_->GetUringThreadCount();
 
@@ -1557,7 +1557,7 @@ private:
             oldThreadCount,
             newThreadCount);
 
-        ReconfigureQueue();
+        RequestQueue_->Reconfigure(std::ssize(Threads_));
     }
 };
 
