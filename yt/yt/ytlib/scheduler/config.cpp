@@ -23,6 +23,7 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <yt/yt/core/misc/adjusted_exponential_moving_average.h>
 #include <yt/yt/core/misc/config.h>
 #include <yt/yt/core/misc/fs.h>
 
@@ -2084,10 +2085,10 @@ void TPoolConfig::Register(TRegistrar registrar)
     registrar.Parameter("ephemeral_subpool_config", &TThis::EphemeralSubpoolConfig)
         .Default();
 
+    registrar.Parameter("historic_usage_aggregation_period", &TThis::HistoricUsageAggregationPeriod)
+        .Optional();
     registrar.Parameter("infer_children_weights_from_historic_usage", &TThis::InferChildrenWeightsFromHistoricUsage)
         .Default(false);
-    registrar.Parameter("historic_usage_config", &TThis::HistoricUsageConfig)
-        .DefaultNew();
 
     registrar.Parameter("allowed_profiling_tags", &TThis::AllowedProfilingTags)
         .Default();
@@ -2131,6 +2132,16 @@ void TPoolConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_priority_scheduling_segment_module_assignment", &TThis::EnablePrioritySchedulingSegmentModuleAssignment)
         .Default();
+
+    // COMPAT(arkady-e1ppa)
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->InferChildrenWeightsFromHistoricUsage) {
+            config->HistoricUsageAggregationPeriod =
+                config->HistoricUsageAggregationPeriod.value_or(TAdjustedExponentialMovingAverage::DefaultHalflife);
+        } else {
+            config->HistoricUsageAggregationPeriod.reset();
+        }
+    });
 }
 
 void TPoolConfig::Validate(const TString& poolName)

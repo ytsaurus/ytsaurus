@@ -31,6 +31,7 @@
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/misc/arithmetic_formula.h>
+#include <yt/yt/core/misc/config.h>
 #include <yt/yt/core/misc/phoenix.h>
 
 #include <yt/yt/library/formats/format.h>
@@ -270,8 +271,9 @@ public:
 
     std::optional<TEphemeralSubpoolConfigPtr> EphemeralSubpoolConfig;
 
+    std::optional<TDuration> HistoricUsageAggregationPeriod;
+    // COMPAT(arkady-e1ppa)
     bool InferChildrenWeightsFromHistoricUsage;
-    THistoricUsageConfigPtr HistoricUsageConfig;
 
     THashSet<TString> AllowedProfilingTags;
 

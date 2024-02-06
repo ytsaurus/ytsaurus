@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/concurrency/config.h>
 
+#include <yt/yt/core/misc/adjusted_exponential_moving_average.h>
+
 namespace NYT::NDistributedThrottler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,8 +32,8 @@ void TDistributedThrottlerConfig::Register(TRegistrar registrar)
         .Default(EDistributedThrottlerMode::Adaptive);
     registrar.Parameter("extra_limit_ratio", &TThis::ExtraLimitRatio)
         .Default(0.1);
-    registrar.Parameter("ema_alpha", &TThis::EmaAlpha)
-        .Default(0.1);
+    registrar.Parameter("adjusted_ema_halflife", &TThis::AdjustedEmaHalflife)
+        .Default(TAdjustedExponentialMovingAverage::DefaultHalflife);
 
     registrar.Parameter("heartbeat_throttler_count_limit", &TThis::HeartbeatThrottlerCountLimit)
         .Default(100);
