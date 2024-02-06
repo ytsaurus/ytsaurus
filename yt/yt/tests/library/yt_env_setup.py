@@ -763,8 +763,8 @@ class YTEnvSetup(object):
         update_inplace(config, delta_node_config)
 
         # COMPAT(pogorelov)
-        if "controller-agent" in cls.ARTIFACT_COMPONENTS.get("23_1", []):
-            config["%true"]["exec_node"]["controller_agent_connector"]["use_job_tracker_service_to_settle_jobs"] = False
+        if "node" in cls.ARTIFACT_COMPONENTS.get("23_2", []):
+            config["%true"]["exec_node"]["controller_agent_connector"]["use_job_tracker_service_to_settle_jobs"] = True
 
         return config
 

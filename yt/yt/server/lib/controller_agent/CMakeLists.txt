@@ -18,18 +18,6 @@ get_built_tool_path(
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
 
 add_library(server-lib-controller_agent)
 target_compile_options(server-lib-controller_agent PRIVATE
@@ -49,11 +37,9 @@ target_link_libraries(server-lib-controller_agent PUBLIC
 )
 target_proto_messages(server-lib-controller_agent PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/controller_agent/proto/job_tracker_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/controller_agent/proto/job_spec_service.proto
 )
 target_sources(server-lib-controller_agent PRIVATE
   ${CMAKE_BINARY_DIR}/yt/yt/server/lib/controller_agent/proto/job_tracker_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/controller_agent/proto/job_spec_service.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/controller_agent/serialize.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/controller_agent/statistics.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/controller_agent/structs.cpp

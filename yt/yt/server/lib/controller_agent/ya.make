@@ -17,7 +17,6 @@ SRCS(
     job_report.cpp
 
     proto/job_tracker_service.proto
-    proto/job_spec_service.proto
 )
 
 PEERDIR(

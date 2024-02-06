@@ -109,10 +109,7 @@ public:
             const TAgentHeartbeatContextPtr& context);
 
         std::vector<TFuture<TJobStartInfo>>
-        SettleJobsViaJobSpecService(const std::vector<TAllocationInfo>& allocationInfos);
-
-        std::vector<TFuture<TJobStartInfo>>
-        SettleJobsViaJobTrackerService(const std::vector<TAllocationInfo>& allocationInfos);
+        SettleJobs(const std::vector<TAllocationInfo>& allocationInfos);
 
         void OnJobRegistered(const TJobPtr& job);
 

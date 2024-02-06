@@ -19,7 +19,6 @@
 #include <yt/yt/server/lib/exec_node/helpers.h>
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
-#include <yt/yt/server/lib/controller_agent/job_spec_service_proxy.h>
 
 #include <yt/yt/server/lib/job_agent/config.h>
 #include <yt/yt/server/lib/job_agent/structs.h>

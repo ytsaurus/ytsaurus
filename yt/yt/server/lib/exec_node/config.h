@@ -398,8 +398,6 @@ public:
     NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
     TDuration RunningJobStatisticsSendingBackoff;
 
-    bool UseJobTrackerServiceToSettleJobs;
-
     REGISTER_YSON_STRUCT(TControllerAgentConnectorDynamicConfig);
 
     static void Register(TRegistrar registrar);

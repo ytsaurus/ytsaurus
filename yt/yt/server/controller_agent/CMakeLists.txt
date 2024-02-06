@@ -38,7 +38,6 @@ target_sources(yt-server-controller_agent PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/master_connector.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/intermediate_chunk_scraper.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/job_spec_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/job_size_constraints.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/job_monitoring_index_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/job_prober_service.cpp
