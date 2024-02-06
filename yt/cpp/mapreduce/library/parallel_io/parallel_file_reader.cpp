@@ -23,9 +23,9 @@ using ::TBlob;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t GetFileSize(const NYT::TYPath& path, const NYT::ITransactionPtr& transaction)
+size_t GetFileSize(const NYT::TYPath& path, const NYT::IClientBasePtr& client)
 {
-    return transaction->Get(path + "/@uncompressed_data_size").ConvertTo<size_t>();
+    return client->Get(path + "/@uncompressed_data_size").ConvertTo<size_t>();
 }
 
 struct TRange
@@ -110,13 +110,13 @@ private:
 
     std::atomic<bool> Initialized_ = false;
 
-    ITransactionPtr Transaction_;
+    IClientBasePtr Client_;
     IResourceLimiterPtr RamLimiter_;
 
-    /// Optional because FileSize/LockedPath_ is known after @ref LazyInit()
+    /// Optional because FileSize/ToReadPath_ is known after @ref LazyInit()
     /// @note If length is set in options then FileSize == Length
     std::optional<size_t> FileSize_;
-    std::optional<TYPath> LockedPath_;
+    std::optional<TYPath> ToReadPath_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -129,7 +129,7 @@ TParallelFileReader::TParallelFileReader(
     : Options_(options)
     , Path_(path)
     , ThreadPool_(threadPool)
-    , Transaction_(client->StartTransaction())
+    , Client_(client)
     , RamLimiter_(options.RamLimiter_)
 {
     constexpr size_t DefaultRamLimit = 2_GB;
@@ -189,8 +189,8 @@ TBlob TParallelFileReader::ReadJob(const TRange& range)
         auto options = Options_.ReaderOptions_.GetOrElse({});
         options.Offset(range.Begin);
         options.Length(range.Length());
-        Y_ABORT_UNLESS(LockedPath_);
-        auto reader = Transaction_->CreateFileReader(LockedPath_.value(), options);
+        Y_ABORT_UNLESS(ToReadPath_);
+        auto reader = Client_->CreateFileReader(ToReadPath_.value(), options);
         auto data = reader->ReadAll();
 
         return TBlob::FromString(data);
@@ -207,14 +207,20 @@ void TParallelFileReader::LazyInit()
         return;
     }
 
-    auto lockPtr = Transaction_->Lock(Path_.Path_, ELockMode::LM_SNAPSHOT);
-    auto lockedNodeId = lockPtr->GetLockedNodeId();
-    LockedPath_ = "#" + lockedNodeId.AsGuidString();
+    if (Options_.CreateTransaction_) {
+        auto tx = Client_->StartTransaction();
+        auto lockPtr = tx->Lock(Path_.Path_, ELockMode::LM_SNAPSHOT);
+        auto lockedNodeId = lockPtr->GetLockedNodeId();
+        ToReadPath_ = "#" + lockedNodeId.AsGuidString();
+        Client_ = tx;
+    } else {
+        ToReadPath_ = Path_.Path_;
+    }
 
     if (Options_.ReaderOptions_.GetOrElse({}).Length_) {
         FileSize_ = *Options_.ReaderOptions_->Length_;
     } else {
-        FileSize_ = GetFileSize(LockedPath_.value(), Transaction_);
+        FileSize_ = GetFileSize(ToReadPath_.value(), Client_);
     }
 
     Supervisor_.Start();

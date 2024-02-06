@@ -28,6 +28,9 @@ struct TParallelFileReaderOptions
 
     /// @brief Options for each single-threaded reader.
     FLUENT_FIELD_OPTION(TFileReaderOptions, ReaderOptions);
+
+    /// @brief Create transaction and take snapshot lock on readed file.
+    FLUENT_FIELD_DEFAULT(bool, CreateTransaction, true);
 };
 
 /// @brief Allow to read a file in parallel.
