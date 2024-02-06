@@ -1282,13 +1282,13 @@ TEST_P(TTestReshardDescriptorSorting, Sort)
 TReshardDescriptor CreateMergeDescriptor(int tabletToMerge, double minDeviation = 0.0)
 {
     return TReshardDescriptor{
-        .Priority = std::make_tuple(/*isSplit*/ false, -tabletToMerge, minDeviation)};
+        .Priority = std::tuple(/*isSplit*/ false, -tabletToMerge, minDeviation)};
 }
 
 TReshardDescriptor CreateSplitDescriptor(int newTabletCount, double maxDeviation = 0.0)
 {
     return TReshardDescriptor{
-        .Priority = std::make_tuple(/*isSplit*/ true, -newTabletCount, -maxDeviation)};
+        .Priority = std::tuple(/*isSplit*/ true, -newTabletCount, -maxDeviation)};
 }
 
 INSTANTIATE_TEST_SUITE_P(

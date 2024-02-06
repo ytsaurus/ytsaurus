@@ -976,7 +976,7 @@ TReshardDescriptor TParameterizedResharder::SplitTablet(
         .TabletCount = tabletCount,
         .DataSize = tabletSize,
         .CorrelationId = correlationId,
-        .Priority = std::make_tuple(/*IsSplit*/ true, -tabletCount, -deviation)
+        .Priority = std::tuple(/*IsSplit*/ true, -tabletCount, -deviation)
     };
 }
 
@@ -1058,7 +1058,7 @@ std::optional<TReshardDescriptor> TParameterizedResharder::MergeTablets(
         .TabletCount = 1,
         .DataSize = enlargedTabletSize,
         .CorrelationId = correlationId,
-        .Priority = std::make_tuple(false, -(rightTabletIndex - leftTabletIndex), deviation)
+        .Priority = std::tuple(false, -(rightTabletIndex - leftTabletIndex), deviation)
     };
 }
 

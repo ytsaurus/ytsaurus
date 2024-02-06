@@ -2171,7 +2171,7 @@ private:
             jobsWaitingForCleanupInfo.emplace_back(job->GetId(), job->GetPhase());
         }
 
-        return make_tuple(
+        return std::tuple(
             std::move(jobInfo),
             std::move(jobsWaitingForCleanupInfo),
             CachedJobProxyBuildInfo_.Load());
