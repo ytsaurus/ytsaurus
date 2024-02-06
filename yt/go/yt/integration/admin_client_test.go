@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"go.ytsaurus.tech/library/go/ptr"
+
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
@@ -58,7 +59,7 @@ func (s *Suite) TestSetUserPassword(t *testing.T, yc yt.Client) {
 	user := "user-" + guid.New().String()
 	_ = s.CreateUser(t, user)
 
-	passwordAttr := ypath.Path("//sys/users/" + user + "/@hashed_password")
+	passwordAttr := ypath.Path.JoinChild("/", "sys", "users", user).Attr("hashed_password")
 	exists, err := yc.NodeExists(s.Ctx, passwordAttr, nil)
 	require.NoError(t, err)
 	require.False(t, exists)
