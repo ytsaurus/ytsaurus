@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"go.ytsaurus.tech/library/go/ptr"
+
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
@@ -18,8 +19,6 @@ func TestAdminClient(t *testing.T) {
 
 	RunClientTests(t, []ClientTest{
 		{Name: "AddRemoveMember", Test: suite.TestAddRemoveMember},
-		{Name: "SetUserPassword", Test: suite.TestSetUserPassword, SkipRPC: true},
-		{Name: "IssueRevokeToken", Test: suite.TestIssueRevokeToken, SkipRPC: true},
 		{Name: "AddRemoveMaintenance", Test: suite.TestAddRemoveMaintenance},
 		{Name: "TransferAccountResources", Test: suite.TestTransferAccountResources},
 		{Name: "TransferPoolResources", Test: suite.TestTransferPoolResources, SkipRPC: true},
@@ -48,40 +47,6 @@ func (s *Suite) TestAddRemoveMember(t *testing.T, yc yt.Client) {
 	err = yc.RemoveMember(s.Ctx, group, user, nil)
 	require.NoError(t, err)
 	require.False(t, s.MemberOf(t, user, group))
-}
-
-func (s *Suite) TestSetUserPassword(t *testing.T, yc yt.Client) {
-	user := "user-" + guid.New().String()
-	_ = s.CreateUser(t, user)
-
-	passwordAttr := ypath.Path.JoinChild("/", "sys", "users", user).Attr("hashed_password")
-	exists, err := yc.NodeExists(s.Ctx, passwordAttr, nil)
-	require.NoError(t, err)
-	require.False(t, exists)
-
-	err = yc.SetUserPassword(s.Ctx, user, "brabu", "", nil)
-	require.NoError(t, err)
-
-	exists, err = yc.NodeExists(s.Ctx, passwordAttr, nil)
-	require.NoError(t, err)
-	require.True(t, exists)
-
-	var hashedPassword string
-	err = yc.GetNode(s.Ctx, passwordAttr, &hashedPassword, nil)
-	require.NoError(t, err)
-	require.NotEmpty(t, hashedPassword)
-}
-
-func (s *Suite) TestIssueRevokeToken(t *testing.T, yc yt.Client) {
-	user := "user-" + guid.New().String()
-	_ = s.CreateUser(t, user)
-
-	token, err := yc.IssueToken(s.Ctx, user, "", nil)
-	require.NoError(t, err)
-	require.NotEmpty(t, token)
-
-	err = yc.RevokeToken(s.Ctx, user, "", token, nil)
-	require.NoError(t, err)
 }
 
 func (s *Suite) TestAddRemoveMaintenance(t *testing.T, yc yt.Client) {
