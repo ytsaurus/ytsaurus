@@ -1400,7 +1400,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestSchedulableOperationsOrder)
         for (int minChildHeapSize : {3, 100}) {
             TreeConfig_->MinChildHeapSize = minChildHeapSize;
 
-            for (const auto& consideredOperations : {{}, std::make_optional(nonOwningOperationElements)}) {
+            for (const auto& consideredOperations : {{}, std::optional(nonOwningOperationElements)}) {
                 YT_LOG_INFO(
                     "Testing schedulable operations order "
                     "(PoolMode: %v, FifoPoolSchedulingOrder: %v, MinChildHeapSize: %v, UseConsideredOperations: %v)",

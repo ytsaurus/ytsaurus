@@ -3081,7 +3081,7 @@ private:
             .Item("probing").Value(element->GetRuntimeParameters()->Probing)
             .Item("offloading").Value(element->GetRuntimeParameters()->Offloading)
             .Item("starving_since").Value(element->GetStarvationStatus() != EStarvationStatus::NonStarving
-                ? std::make_optional(element->GetLastNonStarvingTime())
+                ? std::optional(element->GetLastNonStarvingTime())
                 : std::nullopt)
             .Item("disk_request_media").DoListFor(element->DiskRequestMedia(), [&] (TFluentList fluent, int mediumIndex) {
                 fluent.Item().Value(strategyHost->GetMediumNameByIndex(mediumIndex));

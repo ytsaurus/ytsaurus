@@ -31,7 +31,7 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 //! This macro may be used to extract std::optional<TYsonString> from protobuf message field of type string.
-#define YT_PROTO_YSON_OPTIONAL(message, field) (((message).has_##field()) ? std::make_optional(TYsonString((message).field())) : std::nullopt)
+#define YT_PROTO_YSON_OPTIONAL(message, field) (((message).has_##field()) ? std::optional(TYsonString((message).field())) : std::nullopt)
 
 ///////////////////////////////////////////////////////////////////////////////
 

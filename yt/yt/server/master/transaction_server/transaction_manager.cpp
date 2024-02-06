@@ -1710,7 +1710,7 @@ private:
             ? FromProto(request->attributes())
             : CreateEphemeralAttributes();
 
-        auto title = request->has_title() ? std::make_optional(request->title()) : std::nullopt;
+        auto title = request->has_title() ? std::optional(request->title()) : std::nullopt;
 
         auto timeout = FromProto<TDuration>(request->timeout());
 
@@ -1769,7 +1769,7 @@ private:
             ? FromProto(request->attributes())
             : CreateEphemeralAttributes();
 
-        auto title = request->has_title() ? std::make_optional(request->title()) : std::nullopt;
+        auto title = request->has_title() ? std::optional(request->title()) : std::nullopt;
 
         auto timeout = FromProto<TDuration>(request->timeout());
 
@@ -1812,7 +1812,7 @@ private:
                 << TErrorAttribute("parent_transaction_id", parentId);
         }
 
-        auto title = request->has_title() ? std::make_optional(request->title()) : std::nullopt;
+        auto title = request->has_title() ? std::optional(request->title()) : std::nullopt;
 
         YT_VERIFY(
             isUpload == (

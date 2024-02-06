@@ -508,7 +508,7 @@ std::optional<bool> TTableNode::GetEnableTabletBalancer() const
 {
     return TabletBalancerConfig()->EnableAutoReshard
         ? std::nullopt
-        : std::make_optional(false);
+        : std::optional(false);
 }
 
 void TTableNode::SetEnableTabletBalancer(std::optional<bool> value)

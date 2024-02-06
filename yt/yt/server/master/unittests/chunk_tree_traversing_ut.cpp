@@ -449,7 +449,7 @@ private:
 
         Result_.emplace(
             chunk,
-            CalculateRowIndex_ ? std::make_optional(RowCount_) : std::nullopt,
+            CalculateRowIndex_ ? std::optional(RowCount_) : std::nullopt,
             CalculateTabletIndex_ ? TabletIndex_ : std::nullopt,
             correctLowerLimit,
             correctUpperLimit);

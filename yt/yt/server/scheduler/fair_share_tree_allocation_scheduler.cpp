@@ -134,7 +134,7 @@ std::optional<EAllocationPreemptionStatus> GetCachedAllocationPreemptionStatus(
 
     const auto& allocationIdToStatus = operationIt->second;
     auto allocationIt = allocationIdToStatus.find(allocation->GetId());
-    return allocationIt != allocationIdToStatus.end() ? std::make_optional(allocationIt->second) : std::nullopt;
+    return allocationIt != allocationIdToStatus.end() ? std::optional(allocationIt->second) : std::nullopt;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

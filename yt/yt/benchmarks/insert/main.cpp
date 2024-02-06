@@ -187,7 +187,7 @@ public:
             Timings_.insert(Timings_.end(), Measurements_.begin(), Measurements_.end());
 
             if (!Measurements_.empty()) {
-                lastShot = std::make_optional(std::get<1>(Measurements_.front()));
+                lastShot = std::optional(std::get<1>(Measurements_.front()));
             }
         }
 

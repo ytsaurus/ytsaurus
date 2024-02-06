@@ -61,11 +61,11 @@ private:
 
         // NB: no upstream sync should be necessary here.
 
-        auto title = request->has_title() ? std::make_optional(request->title()) : std::nullopt;
+        auto title = request->has_title() ? std::optional(request->title()) : std::nullopt;
         auto parentId = FromProto<TTransactionId>(request->parent_id());
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
         auto timeout = FromProto<TDuration>(request->timeout());
-        auto deadline = request->has_deadline() ? std::make_optional(FromProto<TInstant>(request->deadline())) : std::nullopt;
+        auto deadline = request->has_deadline() ? std::optional(FromProto<TInstant>(request->deadline())) : std::nullopt;
 
         context->SetRequestInfo("Title: %v, ParentId: %v, PrerequisiteTransactionIds: %v, Timeout: %v, Deadline: %v",
             title,

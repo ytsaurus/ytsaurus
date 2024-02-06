@@ -59,8 +59,8 @@ private:
 
         auto parentId = FromProto<TTransactionId>(request->parent_id());
         auto timeout = FromProto<TDuration>(request->timeout());
-        auto deadline = request->has_deadline() ? std::make_optional(FromProto<TInstant>(request->deadline())) : std::nullopt;
-        auto title = request->has_title() ? std::make_optional(request->title()) : std::nullopt;
+        auto deadline = request->has_deadline() ? std::optional(FromProto<TInstant>(request->deadline())) : std::nullopt;
+        auto title = request->has_title() ? std::optional(request->title()) : std::nullopt;
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
         auto isCypressTransaction = request->is_cypress_transaction();
 

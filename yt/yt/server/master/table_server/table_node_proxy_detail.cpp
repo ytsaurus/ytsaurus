@@ -2273,7 +2273,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, StartBackup)
         ? FromProto<TTableReplicaId>(request->upstream_replica_id())
         : TTableReplicaId{};
     auto clockClusterTag = request->has_clock_cluster_tag()
-        ? std::make_optional(FromProto<TClusterTag>(request->clock_cluster_tag()))
+        ? std::optional(FromProto<TClusterTag>(request->clock_cluster_tag()))
         : std::nullopt;
 
     auto replicaDescriptors = FromProto<std::vector<TTableReplicaBackupDescriptor>>(

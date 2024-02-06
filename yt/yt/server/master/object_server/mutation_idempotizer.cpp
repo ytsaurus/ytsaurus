@@ -167,7 +167,7 @@ void TMutationIdempotizer::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*old
     Enabled_ = GetDynamicConfig()->Enabled;
     if (CheckExecutor_) {
         CheckExecutor_->SetPeriod(Enabled_
-            ? std::make_optional(GetDynamicConfig()->ExpirationCheckPeriod)
+            ? std::optional(GetDynamicConfig()->ExpirationCheckPeriod)
             : std::nullopt);
     }
 }

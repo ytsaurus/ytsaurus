@@ -4882,10 +4882,10 @@ private:
         auto tableId = FromProto<TTableId>(request->table_id());
         auto transactionId = FromProto<TTransactionId>(request->last_mount_transaction_id());
         auto actualState = request->has_actual_tablet_state()
-            ? std::make_optional(FromProto<ETabletState>(request->actual_tablet_state()))
+            ? std::optional(FromProto<ETabletState>(request->actual_tablet_state()))
             : std::nullopt;
         auto expectedState = request->has_expected_tablet_state()
-            ? std::make_optional(FromProto<ETabletState>(request->expected_tablet_state()))
+            ? std::optional(FromProto<ETabletState>(request->expected_tablet_state()))
             : std::nullopt;
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -6098,10 +6098,10 @@ private:
             expirationTime = FromProto<TInstant>(request->expiration_time());
         }
         auto expirationTimeout = request->has_expiration_timeout()
-            ? std::make_optional(FromProto<TDuration>(request->expiration_timeout()))
+            ? std::optional(FromProto<TDuration>(request->expiration_timeout()))
             : std::nullopt;
         std::optional<int> tabletCount = request->has_tablet_count()
-            ? std::make_optional(request->tablet_count())
+            ? std::optional(request->tablet_count())
             : std::nullopt;
 
         TGuid correlationId;

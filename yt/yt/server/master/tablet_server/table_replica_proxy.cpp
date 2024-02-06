@@ -231,23 +231,23 @@ private:
         DeclareMutating();
 
         auto enabled = request->has_enabled()
-            ? std::make_optional(request->enabled())
+            ? std::optional(request->enabled())
             : std::nullopt;
 
         auto mode = request->has_mode()
-            ? std::make_optional(FromProto<ETableReplicaMode>(request->mode()))
+            ? std::optional(FromProto<ETableReplicaMode>(request->mode()))
             : std::nullopt;
 
         auto atomicity = request->has_atomicity()
-            ? std::make_optional(FromProto<EAtomicity>(request->atomicity()))
+            ? std::optional(FromProto<EAtomicity>(request->atomicity()))
             : std::nullopt;
 
         auto preserveTimestamps = request->has_preserve_timestamps()
-            ? std::make_optional(request->preserve_timestamps())
+            ? std::optional(request->preserve_timestamps())
             : std::nullopt;
 
         auto enableReplicatedTableTracker = request->has_enable_replicated_table_tracker()
-            ? std::make_optional(request->enable_replicated_table_tracker())
+            ? std::optional(request->enable_replicated_table_tracker())
             : std::nullopt;
 
         context->SetRequestInfo("Enabled: %v, Mode: %v, Atomicity: %v, PreserveTimestamps: %v, EnableReplicatedTableTracker: %v",

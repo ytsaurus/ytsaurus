@@ -280,7 +280,7 @@ void TNode::ComputeFillFactorsAndTotalSpace()
         i64 totalSpace = freeSpace + usedSpace;
         FillFactors_[mediumIndex] = (totalSpace == 0)
             ? std::nullopt
-            : std::make_optional(usedSpace / std::max<double>(1.0, totalSpace));
+            : std::optional(usedSpace / std::max<double>(1.0, totalSpace));
         TotalSpace_[mediumIndex] = totalSpace;
     }
 }
@@ -347,11 +347,11 @@ TNodeDescriptor TNode::GetDescriptor(EAddressType addressType) const
 
     return TNodeDescriptor(
         GetAddressesOrThrow(addressType),
-        host ? std::make_optional(host->GetName()) : std::nullopt,
-        rack ? std::make_optional(rack->GetName()) : std::nullopt,
-        dataCenter ? std::make_optional(dataCenter->GetName()) : std::nullopt,
+        host ? std::optional(host->GetName()) : std::nullopt,
+        rack ? std::optional(rack->GetName()) : std::nullopt,
+        dataCenter ? std::optional(dataCenter->GetName()) : std::nullopt,
         std::vector<TString>(Tags_.begin(), Tags_.end()),
-        (GetAggregatedState() == ENodeState::Online) ? std::make_optional(TInstant::Now()) : std::nullopt);
+        (GetAggregatedState() == ENodeState::Online) ? std::optional(TInstant::Now()) : std::nullopt);
 }
 
 
@@ -1067,7 +1067,7 @@ std::optional<double> TNode::GetLoadFactor(int mediumIndex, int chunkHostMasterC
 {
     // NB: Avoid division by zero.
     return GetOrDefault(SessionCount_, mediumIndex)
-        ? std::make_optional(
+        ? std::optional(
             static_cast<double>(GetHintedSessionCount(mediumIndex, chunkHostMasterCellCount)) /
             std::max(GetOrDefault(IOWeights_, mediumIndex), 1e-9))
         : std::nullopt;

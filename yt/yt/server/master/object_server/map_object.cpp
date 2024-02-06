@@ -96,7 +96,7 @@ std::optional<TString> TNonversionedMapObjectBase<TSelf>::FindChildKey(const TSe
     auto it = ChildToKey().find(child);
     return it == ChildToKey().end()
         ? std::nullopt
-        : std::make_optional(it->second);
+        : std::optional(it->second);
 }
 
 template <class TSelf>

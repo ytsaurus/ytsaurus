@@ -1590,10 +1590,10 @@ void TSchedulerPoolElement::ChangeParent(TSchedulerCompositeElement* newParent)
         oldParent->GetId(),
         PersistentAttributes_.AppliedSpecifiedResourceLimits,
         sourceAncestorWithResourceLimits
-            ? std::make_optional(sourceAncestorWithResourceLimits->GetId())
+            ? std::optional(sourceAncestorWithResourceLimits->GetId())
             : std::nullopt,
         destinationAncestorWithResourceLimits
-            ? std::make_optional(destinationAncestorWithResourceLimits->GetId())
+            ? std::optional(destinationAncestorWithResourceLimits->GetId())
             : std::nullopt,
         ancestorWithResourceLimitsChanged);
 }

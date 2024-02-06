@@ -427,8 +427,8 @@ public:
             YT_LOG_INFO(
                 "Host rack changed (Host: %v, Rack: %v -> %v)",
                 host->GetName(),
-                oldRack ? std::make_optional(oldRack->GetName()) : std::nullopt,
-                rack ? std::make_optional(rack->GetName()) : std::nullopt);
+                oldRack ? std::optional(oldRack->GetName()) : std::nullopt,
+                rack ? std::optional(rack->GetName()) : std::nullopt);
         }
     }
 
@@ -525,8 +525,8 @@ public:
             YT_LOG_INFO("Node host changed (NodeId: %v, Address: %v, Host: %v -> %v)",
                 node->GetId(),
                 node->GetDefaultAddress(),
-                oldHost ? std::make_optional(oldHost->GetName()) : std::nullopt,
-                host ? std::make_optional(host->GetName()) : std::nullopt);
+                oldHost ? std::optional(oldHost->GetName()) : std::nullopt,
+                host ? std::optional(host->GetName()) : std::nullopt);
             NodeTagsChanged_.Fire(node);
             UpdateNodeCounters(node, +1);
         }
@@ -701,8 +701,8 @@ public:
             }
 
             YT_LOG_INFO("Rack data center changed (Rack: %v, DataCenter: %v)",
-                std::make_optional(rack->GetName()),
-                dataCenter ? std::make_optional(dataCenter->GetName()) : std::nullopt);
+                std::optional(rack->GetName()),
+                dataCenter ? std::optional(dataCenter->GetName()) : std::nullopt);
 
             RackDataCenterChanged_.Fire(rack, oldDataCenter);
 

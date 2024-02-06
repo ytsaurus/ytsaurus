@@ -1517,7 +1517,7 @@ public:
             ->GetNativeConnection()
             ->GetMediumDirectory();
         const auto* descriptor = mediumDirectory->FindByName(mediumName);
-        return descriptor ? std::make_optional(descriptor->Index) : std::nullopt;
+        return descriptor ? std::optional(descriptor->Index) : std::nullopt;
     }
 
     const TString& GetMediumNameByIndex(int mediumIndex) const override

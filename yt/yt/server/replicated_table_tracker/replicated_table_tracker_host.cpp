@@ -445,7 +445,7 @@ TReplicaLagTimes TReplicatedTableTrackerHost::DoComputeReplicaLagTimes(
             EmplaceOrCrash(
                 replicaIdToLagTime,
                 FromProto<TTableReplicaId>(response->replica_ids(index)),
-                std::make_optional(TDuration::FromValue(response->lag_times(index))));
+                std::optional(TDuration::FromValue(response->lag_times(index))));
         }
     }
 

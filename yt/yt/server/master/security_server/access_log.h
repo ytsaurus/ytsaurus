@@ -30,7 +30,7 @@
     ((Bootstrap_->GetConfigManager()->GetConfig()->SecurityManager->EnableAccessLog && \
         !Bootstrap_->GetHydraFacade()->GetHydraManager()->IsLeader() && \
         !Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery()) \
-        ? std::make_optional(__VA_ARGS__) \
+        ? std::optional(__VA_ARGS__) \
         : std::nullopt)
 
 #define YT_EVALUATE_FOR_ACCESS_LOG_IF(predicate, ...) \

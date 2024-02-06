@@ -117,7 +117,7 @@ public:
                 moduleName,
                 listResult.size());
         }
-        return listResult.size() == 1 ? std::make_optional(listResult[0]) : std::nullopt;
+        return listResult.size() == 1 ? std::optional(listResult[0]) : std::nullopt;
     }
 
     TString GetModuleValueOrThrow(const TString& moduleName) const

@@ -265,7 +265,7 @@ private:
                 YT_LOG_DEBUG(
                     "Assigning object to queue agent (Object: %v, QueueAgentHost: %v -> %v)",
                     object,
-                    (currentMappingIt == currentMapping.end() ? std::nullopt : std::make_optional(currentMappingIt->second)),
+                    (currentMappingIt == currentMapping.end() ? std::nullopt : std::optional(currentMappingIt->second)),
                     responsibleQueueAgentHost);
             }
         }

@@ -351,7 +351,7 @@ private:
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         auto tabletActionIds = tabletManager->SyncBalanceCells(
             trunkNode,
-            movableTables.empty() ? std::nullopt : std::make_optional(movableTables),
+            movableTables.empty() ? std::nullopt : std::optional(movableTables),
             keepActions);
         ToProto(response->mutable_tablet_actions(), tabletActionIds);
 

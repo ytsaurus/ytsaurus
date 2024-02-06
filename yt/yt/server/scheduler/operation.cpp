@@ -359,7 +359,7 @@ void TOperation::ReleaseSlotIndex(const TString& treeId)
 std::optional<int> TOperation::FindSlotIndex(const TString& treeId) const
 {
     auto it = TreeIdToSlotIndex_.find(treeId);
-    return it != TreeIdToSlotIndex_.end() ? std::make_optional(it->second) : std::nullopt;
+    return it != TreeIdToSlotIndex_.end() ? std::optional(it->second) : std::nullopt;
 }
 
 const THashMap<TString, int>& TOperation::GetSlotIndices() const
