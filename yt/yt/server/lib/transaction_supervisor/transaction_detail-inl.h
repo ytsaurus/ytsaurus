@@ -80,6 +80,7 @@ void TTransactionBase<TBase>::Save(TStreamSaveContext& context) const
     using NYT::Save;
 
     Save(context, Actions_);
+    Save(context, PreparedActionCount_);
 }
 
 template <class TBase>
@@ -88,6 +89,28 @@ void TTransactionBase<TBase>::Load(TStreamLoadContext& context)
     using NYT::Load;
 
     Load(context, Actions_);
+
+    // COMPAT(kvk1920)
+    constexpr int ChaosReignBase = 300'000;
+    constexpr int ChaosReignSaneTxActionAbort = 300'013;
+    constexpr int TabletReignBase = 100'000;
+    constexpr int TabletReignSaneTxActionAbort = 100'904;
+    constexpr int MasterReignSaneTxActionAbort = 2526;
+
+    bool hasPreparedActionCount;
+    int version = context.GetVersion();
+
+    if (version > ChaosReignBase) {
+        hasPreparedActionCount = version >= ChaosReignSaneTxActionAbort;
+    } else if (version > TabletReignBase) {
+        hasPreparedActionCount = version >= TabletReignSaneTxActionAbort;
+    } else {
+        hasPreparedActionCount = version >= MasterReignSaneTxActionAbort;
+    }
+
+    if (hasPreparedActionCount) {
+        Load(context, PreparedActionCount_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
