@@ -1424,7 +1424,11 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
             << TErrorAttribute("timestamp", options.Timestamp);
     }
 
-    auto parsedQuery = ParseSource(queryString, EParseMode::Query, options.PlaceholderValues);
+    auto parsedQuery = ParseSource(
+        queryString,
+        EParseMode::Query,
+        options.PlaceholderValues,
+        options.SyntaxVersion);
     auto* astQuery = &std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
 
     auto cache = New<TStickyTableMountInfoCache>(Connection_->GetTableMountCache());
@@ -1672,7 +1676,11 @@ NYson::TYsonString TClient::DoExplainQuery(
     const TString& queryString,
     const TExplainQueryOptions& options)
 {
-    auto parsedQuery = ParseSource(queryString, EParseMode::Query);
+    auto parsedQuery = ParseSource(
+        queryString,
+        EParseMode::Query,
+        /*placeholderValues*/ {},
+        options.SyntaxVersion);
 
     auto cache = New<TStickyTableMountInfoCache>(Connection_->GetTableMountCache());
     TransformWithIndexStatement(&parsedQuery->AstHead, cache);

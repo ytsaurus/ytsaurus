@@ -1027,6 +1027,7 @@ def add_select_rows_parser(add_parser):
     parser.add_argument("--execution-pool", type=str)
     parser.add_argument("--format", action=ParseFormat)
     parser.add_argument("--print-statistics", default=None, action="store_true")
+    parser.add_argument("--syntax-version", type=int)
 
     error_message = "Use 'select-rows' instead of 'select'"
 
@@ -1056,6 +1057,7 @@ def add_explain_query_parser(add_parser):
                        default=None, action="store_false")
     parser.add_argument("--execution-pool", type=str)
     parser.add_argument("--format", action=ParseFormat)
+    parser.add_argument("--syntax-version", type=int)
 
 
 @copy_docstring_from(yt.lookup_rows)
