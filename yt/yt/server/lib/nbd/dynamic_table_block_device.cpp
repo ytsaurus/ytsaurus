@@ -76,28 +76,13 @@ public:
 
         if (!blocksToRead.empty()) {
             // Read blocks from the table.
-            RowBuffer_->Clear();
-            std::vector<TLegacyKey> keys;
-            keys.reserve(blocks.size());
-            for (const auto& [blockId, _] : blocksToRead) {
-                TUnversionedRowBuilder builder;
-                builder.AddValue(ToUnversionedValue(DeviceId_, RowBuffer_, DeviceIdColumn_));
-                builder.AddValue(ToUnversionedValue(blockId, RowBuffer_, BlockIdColumn_));
-                keys.push_back(RowBuffer_->CaptureRow(builder.GetRow()));
+            TSharedRange<TUnversionedRow> rows;
+            if (blocksToRead.begin()->first == blocksToRead.rbegin()->first + std::ssize(blocksToRead) - 1) {
+                // The range is contiguous.
+                rows = SelectRows(blocksToRead, readId);
+            } else {
+                rows = LookupRows(blocksToRead, readId);
             }
-
-            YT_LOG_DEBUG("Lookup (Blocks: %v, ReadId: %v)",
-                keys.size(),
-                readId);
-
-            // TODO(yuryalekseev): Use select for contiguous blocks.
-            auto rows = WaitFor(Client_->LookupRows(DeviceConfig_->TablePath, NameTable_, MakeSharedRange(std::move(keys), MakeStrong(this))))
-                .ValueOrThrow()
-                .Rowset->GetRows();
-
-            YT_LOG_DEBUG("Lookuped (Blocks: %v, ReadId: %v)",
-                rows.size(),
-                readId);
 
             for (auto row : rows) {
                 i64 deviceId, blockId;
@@ -118,7 +103,6 @@ public:
                     BlockCache_[blockId] = blockDatum;
                 }
             }
-            RowBuffer_->Clear();
         }
 
         YT_LOG_DEBUG("Finished reading blocks (Blocks: %v, FillEmptyBlocksWithZeros: %v, ReadId: %v)",
@@ -214,6 +198,65 @@ public:
         }
 
         return VoidFuture;
+    }
+
+private:
+    TSharedRange<TUnversionedRow> SelectRows(const std::map<i64, TString>& blocksToRead, const TGuid& readId)
+    {
+        YT_VERIFY(!blocksToRead.empty());
+        YT_VERIFY(blocksToRead.begin()->first == blocksToRead.rbegin()->first + std::ssize(blocksToRead) - 1);
+
+        YT_LOG_DEBUG("Select (Blocks: %v, ReadId: %v)",
+            blocksToRead.size(),
+            readId);
+
+        const auto query = Sprintf("* FROM [%s] WHERE device_id = %ld AND block_id >= %ld AND block_id <= %ld",
+            DeviceConfig_->TablePath.c_str(),
+            DeviceId_,
+            blocksToRead.begin()->first,
+            blocksToRead.rbegin()->first);
+
+        auto rows = WaitFor(Client_->SelectRows(query))
+            .ValueOrThrow()
+            .Rowset->GetRows();
+
+        YT_LOG_DEBUG("Selected (Blocks: %v, ReadId: %v)",
+            rows.size(),
+            readId);
+
+        return rows;
+    }
+
+    TSharedRange<TUnversionedRow> LookupRows(const std::map<i64, TString>& blocksToRead, const TGuid& readId)
+    {
+        YT_VERIFY(!blocksToRead.empty());
+
+        RowBuffer_->Clear();
+
+        std::vector<TLegacyKey> keys;
+        keys.reserve(blocksToRead.size());
+        for (const auto& [blockId, _] : blocksToRead) {
+            TUnversionedRowBuilder builder;
+            builder.AddValue(ToUnversionedValue(DeviceId_, RowBuffer_, DeviceIdColumn_));
+            builder.AddValue(ToUnversionedValue(blockId, RowBuffer_, BlockIdColumn_));
+            keys.push_back(RowBuffer_->CaptureRow(builder.GetRow()));
+        }
+
+        YT_LOG_DEBUG("Lookup (Blocks: %v, ReadId: %v)",
+            keys.size(),
+            readId);
+
+        auto rows = WaitFor(Client_->LookupRows(DeviceConfig_->TablePath, NameTable_, MakeSharedRange(std::move(keys), MakeStrong(this))))
+            .ValueOrThrow()
+            .Rowset->GetRows();
+
+        RowBuffer_->Clear();
+
+        YT_LOG_DEBUG("Lookuped (Blocks: %v, ReadId: %v)",
+            rows.size(),
+            readId);
+
+        return rows;
     }
 
 private:
@@ -319,7 +362,6 @@ public:
         YT_VERIFY(length == 0);
 
         // Merge refs into single ref.
-        // TODO: Add support for std::move(refs) to MergeRefsToRef;
         auto result = MergeRefsToRef<TDynamicTableBlockDeviceTag>(refs);
 
         YT_LOG_DEBUG("Finish read (Size: %v, ReadId: %v)",
