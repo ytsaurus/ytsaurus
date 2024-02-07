@@ -71,6 +71,7 @@ void TTabletProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
 
     descriptors->push_back(EInternedAttributeKey::State);
     descriptors->push_back(EInternedAttributeKey::ExpectedState);
+    descriptors->push_back(EInternedAttributeKey::AuxiliaryState);
     descriptors->push_back(EInternedAttributeKey::Statistics);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::OwnerPath)
         .SetOpaque(true));
@@ -94,6 +95,8 @@ void TTabletProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
     descriptors->push_back(EInternedAttributeKey::InMemoryMode);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CellId)
         .SetPresent(tablet->GetCell()));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AuxiliaryCellId)
+        .SetPresent(tablet->AuxiliaryServant().GetCell()));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ActionId)
         .SetPresent(tablet->GetAction()));
     descriptors->push_back(EInternedAttributeKey::ErrorCount);
@@ -121,6 +124,11 @@ bool TTabletProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
         case EInternedAttributeKey::ExpectedState:
             BuildYsonFluently(consumer)
                 .Value(tablet->GetExpectedState());
+            return true;
+
+        case EInternedAttributeKey::AuxiliaryState:
+            BuildYsonFluently(consumer)
+                .Value(tablet->AuxiliaryServant().GetState());
             return true;
 
         case EInternedAttributeKey::Statistics:
@@ -207,6 +215,16 @@ bool TTabletProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
                 .Value(tablet->GetCell()->GetId());
             return true;
 
+        case EInternedAttributeKey::AuxiliaryCellId: {
+            auto* cell = tablet->AuxiliaryServant().GetCell();
+            if (!cell) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(cell->GetId());
+            return true;
+        }
+
         case EInternedAttributeKey::ActionId:
             if (!tablet->GetAction()) {
                 break;
@@ -226,11 +244,19 @@ bool TTabletProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
                     .Item("cell_id").Value(GetObjectId(servant.GetCell()))
                     .Item("state").Value(servant.GetState())
                     .Item("mount_revision").Value(servant.GetMountRevision())
-                    .Item("mount_time").Value(servant.GetMountTime());
+                    .Item("mount_time").Value(servant.GetMountTime())
+                    .DoIf(servant.GetMovementRole() != NTabletNode::ESmoothMovementRole::None, [&] (TFluentMap fluent) {
+                        fluent
+                            .Item("role").Value(servant.GetMovementRole())
+                            .Item("stage").Value(servant.GetMovementStage());
+                    });
             };
             BuildYsonFluently(consumer)
                 .BeginMap()
                     .Item("main").DoMap(BIND(onServant, tablet->Servant()))
+                    .DoIf(tablet->AuxiliaryServant(), [&] (TFluentMap fluent) {
+                        fluent.Item("auxiliary").DoMap(BIND(onServant, tablet->AuxiliaryServant()));
+                    })
                 .EndMap();
             return true;
         }

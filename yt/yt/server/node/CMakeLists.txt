@@ -240,6 +240,7 @@ target_sources(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/serialize.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/slot_provider.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/slot_manager.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/smooth_movement_tracker.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/sorted_chunk_store.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/sorted_dynamic_comparer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/sorted_dynamic_store.cpp

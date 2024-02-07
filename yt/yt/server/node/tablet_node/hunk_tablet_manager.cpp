@@ -10,6 +10,7 @@
 
 #include <yt/yt/server/lib/hive/avenue_directory.h>
 #include <yt/yt/server/lib/hive/helpers.h>
+#include <yt/yt/server/lib/hive/mailbox.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager.h>
 
@@ -335,7 +336,7 @@ private:
 
         if (masterAvenueEndpointId) {
             tablet->SetMasterAvenueEndpointId(masterAvenueEndpointId);
-            Slot_->RegisterTabletAvenue(tablet->GetId(), masterAvenueEndpointId);
+            Slot_->RegisterMasterAvenue(tablet->GetId(), masterAvenueEndpointId, /*cookie*/ {});
         }
 
         ScheduleScanTablet(tablet->GetId());
@@ -749,7 +750,7 @@ private:
         }
 
         if (auto masterEndpointId = tablet->GetMasterAvenueEndpointId()) {
-            Slot_->UnregisterTabletAvenue(masterEndpointId);
+            Slot_->UnregisterMasterAvenue(masterEndpointId);
         }
 
         {

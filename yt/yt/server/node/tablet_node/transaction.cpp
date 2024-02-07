@@ -118,6 +118,7 @@ void TTransaction::Save(TSaveContext& context) const
     Save(context, CommitTimestampClusterTag_);
     Save(context, TabletsToUpdateReplicationProgress_);
     Save(context, PersistentLeaseGuards_);
+    Save(context, ExternalizerTabletId_);
 }
 
 void TTransaction::Load(TLoadContext& context)
@@ -173,6 +174,11 @@ void TTransaction::Load(TLoadContext& context)
         context.GetVersion() < ETabletReign::SaneTxActionAbortFix)
     {
         Load(context, PreparedActionCount_);
+    }
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ETabletReign::SmoothTabletMovement) {
+        Load(context, ExternalizerTabletId_);
     }
 }
 

@@ -6,6 +6,15 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TIdGenerator;
+class TReqReplicateTabletContent;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool IsInUnmountWorkflow(ETabletState state);
 bool IsInFreezeWorkflow(ETabletState state);
 
@@ -111,6 +120,8 @@ DECLARE_REFCOUNTED_STRUCT(ITabletCellWriteManagerHost)
 DECLARE_REFCOUNTED_STRUCT(ITabletWriteManager)
 DECLARE_REFCOUNTED_STRUCT(ITabletWriteManagerHost)
 DECLARE_REFCOUNTED_STRUCT(IBackupManager)
+DECLARE_REFCOUNTED_STRUCT(ISmoothMovementTracker)
+DECLARE_REFCOUNTED_STRUCT(ISmoothMovementTrackerHost)
 
 class TPartition;
 class TTableReplicaInfo;

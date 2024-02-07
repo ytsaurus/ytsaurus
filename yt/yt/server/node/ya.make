@@ -142,6 +142,7 @@ SRCS(
     tablet_node/serialize.cpp
     tablet_node/slot_provider.cpp
     tablet_node/slot_manager.cpp
+    tablet_node/smooth_movement_tracker.cpp
     tablet_node/sorted_chunk_store.cpp
     tablet_node/sorted_dynamic_comparer.cpp
     tablet_node/sorted_dynamic_store.cpp

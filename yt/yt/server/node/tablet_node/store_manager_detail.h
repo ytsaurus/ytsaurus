@@ -40,7 +40,7 @@ public:
     void ScheduleRotation(NLsm::EStoreRotationReason reason) override;
     void UnscheduleRotation() override;
 
-    void AddStore(IStorePtr store, bool onMount, bool onFlush) override;
+    void AddStore(IStorePtr store, bool onMount, bool onFlush, TPartitionId partitionIdHint = {}) override;
     void BulkAddStores(TRange<IStorePtr> stores, bool onMount) override;
 
     void DiscardAllStores() override;
@@ -114,8 +114,6 @@ protected:
         IDynamicStorePtr store,
         TTabletSnapshotPtr tabletSnapshot,
         bool isUnmountWorkflow) = 0;
-
-    virtual void CreateActiveStore() = 0;
 
     TDynamicStoreId GenerateDynamicStoreId();
 

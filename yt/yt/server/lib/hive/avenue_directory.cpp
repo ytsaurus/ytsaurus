@@ -1,6 +1,12 @@
 #include "avenue_directory.h"
 
+#include "helpers.h"
+
+#include <yt/yt/client/object_client/helpers.h>
+
 namespace NYT::NHiveServer {
+
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,6 +18,8 @@ TCellId TSimpleAvenueDirectory::FindCellIdByEndpointId(TAvenueEndpointId endpoin
 
 void TSimpleAvenueDirectory::UpdateEndpoint(TAvenueEndpointId endpointId, TCellId cellId)
 {
+    YT_VERIFY(IsAvenueEndpointType(TypeFromId(endpointId)));
+
     if (cellId) {
         Directory_[endpointId] = cellId;
     } else {

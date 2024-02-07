@@ -80,6 +80,9 @@ struct ITabletWriteManager
 
     virtual void BuildOrchidYson(TTransaction* transaction, NYson::IYsonConsumer* consumer) = 0;
 
+    virtual bool HasUnfinishedTransientTransactions() const = 0;
+    virtual bool HasUnfinishedPersistentTransactions() const = 0;
+
     virtual void StartEpoch() = 0;
     virtual void StopEpoch() = 0;
 

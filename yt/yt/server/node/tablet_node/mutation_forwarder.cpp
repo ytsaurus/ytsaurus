@@ -40,19 +40,12 @@ public:
             return;
         }
 
-        // TODO(ifsmirnov, YT-17317): this is the dummy testing-only code. It will be replaced
-        // by actual implementation when smooth tablet movement comes. Should work in
-        // local yt and integration tests.
-        if (CellTagFromId(tabletId) != TCellTag(1) && CellTagFromId(tabletId) != TCellTag(0xa)) {
-            return;
-        }
-
-        if (message.GetTypeName() == "NYT.NTabletNode.NProto.TReqRemountTablet") {
-            if (tablet->GetRemountCount() % 2 == 0) {
-                auto cellId = HiveManager_->GetSelfCellId();
-                auto* mailbox = HiveManager_->GetOrCreateCellMailbox(cellId);
-                HiveManager_->PostMessage(mailbox, message);
-            }
+        const auto& movementData = tablet->SmoothMovementData();
+        if (movementData.ShouldForwardMutation()) {
+            auto endpointId = movementData.GetSiblingAvenueEndpointId();
+            auto* mailbox = HiveManager_->FindMailbox(endpointId);
+            YT_VERIFY(mailbox);
+            HiveManager_->PostMessage(mailbox, message);
         }
     }
 

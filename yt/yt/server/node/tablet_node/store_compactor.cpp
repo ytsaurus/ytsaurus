@@ -985,7 +985,7 @@ private:
 
 
     void OnDynamicConfigChanged(
-        const NClusterNode::TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
+        const NClusterNode::TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
         const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig)
     {
         const auto& config = newNodeConfig->TabletNode->StoreCompactor;
@@ -1004,18 +1004,26 @@ private:
         const NLogging::TLogger& Logger)
     {
         const auto& tabletManager = slot->GetTabletManager();
+
         const auto* tablet = tabletManager->FindTablet(request.Tablet->GetId());
         if (!tablet) {
-            YT_LOG_DEBUG("Task declined: tablet is missing (TabletId: %v)",
+            YT_LOG_DEBUG("Compaction task declined: tablet is missing (TabletId: %v)",
                 request.Tablet->GetId());
             return nullptr;
         }
+
         if (tablet->GetMountRevision() != request.Tablet->GetMountRevision()) {
-            YT_LOG_DEBUG("Task declined: mount revision mismatch (TabletId: %v, "
+            YT_LOG_DEBUG("Compaction task declined: mount revision mismatch (%v, "
                 "ActualMountRevision: %v, RequestMountRevision: %v)",
-                request.Tablet->GetId(),
+                tablet->GetLoggingTag(),
                 tablet->GetMountRevision(),
                 request.Tablet->GetMountRevision());
+            return nullptr;
+        }
+
+        if (!tablet->SmoothMovementData().IsTabletStoresUpdateAllowed(/*isCommonFlush*/ false)) {
+            YT_LOG_DEBUG("Compaction task declined: tablet participates in smooth movement (%v)",
+                tablet->GetLoggingTag());
             return nullptr;
         }
 

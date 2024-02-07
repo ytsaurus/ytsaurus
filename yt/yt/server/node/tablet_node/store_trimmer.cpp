@@ -104,6 +104,11 @@ private:
             return;
         }
 
+        const auto& movementData = tablet->SmoothMovementData();
+        if (!movementData.IsTabletStoresUpdateAllowed(/*isCommonFlush*/ false)) {
+            return;
+        }
+
         RequestStoreTrim(slot, tablet);
 
         auto stores = PickStoresForTrim(tablet);

@@ -552,6 +552,112 @@ void TIdGenerator::Persist(const TPersistenceContext& context)
     Persist(context, Seed_);
 }
 
+void ToProto(NProto::TIdGenerator* protoIdGenerator, const TIdGenerator& idGenerator)
+{
+    protoIdGenerator->set_cell_tag(idGenerator.CellTag_);
+    protoIdGenerator->set_counter(idGenerator.Counter_);
+    protoIdGenerator->set_seed(idGenerator.Seed_);
+}
+
+void FromProto(TIdGenerator* idGenerator, const NProto::TIdGenerator& protoIdGenerator)
+{
+    idGenerator->CellTag_ = protoIdGenerator.cell_tag();
+    idGenerator->Counter_ = protoIdGenerator.counter();
+    idGenerator->Seed_ = protoIdGenerator.seed();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSmoothMovementData::ValidateWriteToTablet() const
+{
+    if (Role_ == ESmoothMovementRole::Source) {
+        switch (Stage_) {
+            case ESmoothMovementStage::None:
+            case ESmoothMovementStage::TargetAllocated:
+                return;
+
+            default:
+                break;
+        }
+    } else if (Role_ == ESmoothMovementRole::Target) {
+        switch (Stage_) {
+            case ESmoothMovementStage::ServantSwitched:
+                return;
+
+            default:
+                break;
+        }
+    } else {
+        return;
+    }
+
+    THROW_ERROR_EXCEPTION("Cannot write into tablet since it is a "
+        "smooth movement %lv in stage %Qlv",
+        Role_,
+        Stage_);
+}
+
+bool TSmoothMovementData::IsTabletStoresUpdateAllowed(bool isCommonFlush) const
+{
+    if (Role_ == ESmoothMovementRole::Source) {
+        switch (Stage_) {
+            case ESmoothMovementStage::None:
+            case ESmoothMovementStage::TargetActivated:
+                return true;
+
+            case ESmoothMovementStage::WaitingForLocks:
+                return isCommonFlush;
+
+            default:
+                return false;
+        }
+    } else if (Role_ == ESmoothMovementRole::Target) {
+        return Stage_ == ESmoothMovementStage::ServantSwitched;
+    } else {
+        return true;
+    }
+}
+
+bool TSmoothMovementData::ShouldForwardMutation() const
+{
+    if (Role_ == ESmoothMovementRole::Source) {
+        switch (Stage_) {
+            case ESmoothMovementStage::TargetActivated:
+            case ESmoothMovementStage::ServantSwitchRequested:
+                return true;
+
+            default:
+                return false;
+        }
+    } else {
+        return false;
+    }
+}
+
+void TSmoothMovementData::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, Role_);
+    Persist(context, Stage_);
+    Persist(context, SiblingCellId_);
+    Persist(context, SiblingMountRevision_);
+    Persist(context, SiblingAvenueEndpointId_);
+    Persist(context, CommonDynamicStoreIds_);
+}
+
+void TSmoothMovementData::BuildOrchidYson(TFluentMap fluent) const
+{
+    fluent
+        .Item("role").Value(GetRole())
+        .Item("stage").Value(GetStage())
+        .Item("sibling_cell_id").Value(GetSiblingCellId())
+        .Item("sibling_mount_revision").Value(GetSiblingMountRevision())
+        .Item("sibling_avenue_endpoint_id").Value(GetSiblingAvenueEndpointId())
+        .Item("common_dynamic_store_ids").Value(CommonDynamicStoreIds())
+        .Item("stage_change_scheduled").Value(GetStageChangeScheduled());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTablet::TTablet(
@@ -756,9 +862,11 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, BackupMetadata_);
     Save(context, *TabletWriteManager_);
     Save(context, LastDiscardStoresRevision_);
+    Save(context, StoresUpdatePreparedTransactionId_);
     Save(context, PreparedReplicatorTransactionIds_);
     Save(context, IdGenerator_);
     Save(context, CompressionDictionaryInfos_);
+    Save(context, SmoothMovementData_);
 
     HunkLockManager_->Save(context);
 }
@@ -895,6 +1003,10 @@ void TTablet::Load(TLoadContext& context)
     }
 
     Load(context, LastDiscardStoresRevision_);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ETabletReign::SmoothTabletMovement) {
+        Load(context, StoresUpdatePreparedTransactionId_);
+    }
     Load(context, PreparedReplicatorTransactionIds_);
 
     // COMPAT(ifsmirnov)
@@ -928,6 +1040,11 @@ void TTablet::Load(TLoadContext& context)
             dictionaryHunkChunk->SetAttachedCompressionDictionary(true);
             UpdateDanglingHunkChunks(dictionaryHunkChunk);
         }
+    }
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ETabletReign::SmoothTabletMovement) {
+        Load(context, SmoothMovementData_);
     }
 
     // COMPAT(aleksandra-zh)
@@ -1386,14 +1503,20 @@ const std::map<i64, IOrderedStorePtr>& TTablet::StoreRowIndexMap() const
     return StoreRowIndexMap_;
 }
 
-void TTablet::AddStore(IStorePtr store, bool onFlush)
+void TTablet::AddStore(IStorePtr store, bool onFlush, TPartitionId partitionIdHint)
 {
     EmplaceOrCrash(StoreIdMap_, store->GetId(), store);
     if (IsPhysicallySorted()) {
         auto sortedStore = store->AsSorted();
-        auto* partition = onFlush && Settings_.MountConfig->AlwaysFlushToEden
-            ? GetEden()
-            : GetContainingPartition(sortedStore);
+
+        auto* partition = partitionIdHint
+            ? Eden_->GetId() == partitionIdHint
+                ? Eden_.get()
+                : FindPartition(partitionIdHint)
+            : onFlush && Settings_.MountConfig->AlwaysFlushToEden
+                ? GetEden()
+                : GetContainingPartition(sortedStore);
+        YT_VERIFY(partition);
         InsertOrCrash(partition->Stores(), sortedStore);
         sortedStore->SetPartition(partition);
         UpdateOverlappingStoreCount();
@@ -2263,6 +2386,93 @@ void TTablet::UpdateUnflushedTimestamp() const
     }
 
     RuntimeData_->UnflushedTimestamp = unflushedTimestamp;
+}
+
+bool TTablet::IsActiveServant() const
+{
+    if (SmoothMovementData().GetRole() == ESmoothMovementRole::None) {
+        return true;
+    }
+
+    return static_cast<bool>(GetMasterAvenueEndpointId());
+}
+
+void TTablet::PopulateReplicateTabletContentRequest(NProto::TReqReplicateTabletContent* request)
+{
+    using NYT::ToProto;
+
+    ToProto(request->mutable_id_generator(), IdGenerator_);
+
+    if (IsPhysicallySorted()) {
+        ToProto(request->mutable_eden_id(), Eden_->GetId());
+
+        std::vector<TLegacyKey> pivotKeys;
+        for (const auto& partition : PartitionList_) {
+            ToProto(request->add_partition_ids(), partition->GetId());
+            pivotKeys.push_back(partition->GetPivotKey());
+        }
+
+        auto writer = CreateWireProtocolWriter();
+        writer->WriteUnversionedRowset(pivotKeys);
+        request->set_partition_pivot_keys(MergeRefsToString(writer->Finish()));
+    }
+
+    auto* replicatableContent = request->mutable_replicatable_content();
+    replicatableContent->set_trimmed_row_count(GetTrimmedRowCount());
+    replicatableContent->set_retained_timestamp(RetainedTimestamp_);
+    replicatableContent->set_cumulative_data_weight(CumulativeDataWeight_);
+
+    request->set_last_commit_timestamp(GetLastCommitTimestamp());
+    request->set_last_write_timestamp(GetLastWriteTimestamp());
+}
+
+void TTablet::LoadReplicatedContent(const NProto::TReqReplicateTabletContent* request)
+{
+    using NYT::FromProto;
+
+    FromProto(&IdGenerator_, request->id_generator());
+
+    if (IsPhysicallySorted()) {
+        Eden_ = std::make_unique<TPartition>(
+            this,
+            FromProto<TPartitionId>(request->eden_id()),
+            EdenIndex,
+            PivotKey_,
+            NextPivotKey_);
+
+        auto partitionIds = FromProto<std::vector<TPartitionId>>(
+            request->partition_ids());
+
+        auto reader = CreateWireProtocolReader(
+            TSharedRef::FromString(request->partition_pivot_keys()));
+        auto partitionPivotKeys = reader->ReadUnversionedRowset(true);
+
+        YT_VERIFY(std::ssize(partitionIds) == std::ssize(partitionPivotKeys));
+
+        PartitionList_.clear();
+        PartitionMap_.clear();
+
+        for (int index = 0; index < ssize(partitionIds); ++index) {
+            auto partition = std::make_unique<TPartition>(
+                this,
+                partitionIds[index],
+                index,
+                TLegacyOwningKey(partitionPivotKeys[index]),
+                TLegacyOwningKey(index + 1 < ssize(partitionIds)
+                    ? partitionPivotKeys[index + 1]
+                    : NextPivotKey_));
+            EmplaceOrCrash(PartitionMap_, partition->GetId(), partition.get());
+            PartitionList_.push_back(std::move(partition));
+        }
+    }
+
+    const auto& replicatableContent = request->replicatable_content();
+    SetTrimmedRowCount(replicatableContent.trimmed_row_count());
+    RetainedTimestamp_ = replicatableContent.retained_timestamp();
+    CumulativeDataWeight_ = replicatableContent.cumulative_data_weight();
+
+    RuntimeData_->LastCommitTimestamp = request->last_commit_timestamp();
+    RuntimeData_->LastWriteTimestamp = request->last_write_timestamp();
 }
 
 i64 TTablet::Lock(ETabletLockType lockType)

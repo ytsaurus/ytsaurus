@@ -78,7 +78,10 @@ private:
     {
         TLsmActionBatch batch;
 
-        if (!tablet->IsPhysicallySorted() || !tablet->GetMounted()) {
+        if (!tablet->IsPhysicallySorted() ||
+            !tablet->GetMounted() ||
+            !tablet->GetIsCompactionAllowed())
+        {
             return batch;
         }
 

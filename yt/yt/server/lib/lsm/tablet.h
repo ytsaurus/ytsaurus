@@ -31,6 +31,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, IsOverflowRotationNeeded);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, LastPeriodicRotationTime);
     DEFINE_BYVAL_RW_PROPERTY(bool, IsOutOfBandRotationRequested);
+    DEFINE_BYVAL_RW_PROPERTY(bool, IsCompactionAllowed);
 
     DEFINE_BYREF_RW_PROPERTY(TTabletLsmStatistics, LsmStatistics);
 

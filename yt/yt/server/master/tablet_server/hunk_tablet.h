@@ -16,7 +16,7 @@ public:
     TString GetLowercaseObjectName() const override;
     TString GetCapitalizedObjectName() const override;
 
-    TTabletStatistics GetTabletStatistics() const override;
+    TTabletStatistics GetTabletStatistics(bool fromAuxiliaryCell = false) const override;
 
     void ValidateReshard() const override;
 };

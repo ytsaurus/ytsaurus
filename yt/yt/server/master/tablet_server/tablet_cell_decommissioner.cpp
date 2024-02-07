@@ -159,10 +159,12 @@ private:
                 action->GetState() != ETabletActionState::Failed)
             {
                 for (const auto* tablet : action->Tablets()) {
-                    if (tablet->GetState() != ETabletState::Unmounted &&
-                        tablet->GetCell()->IsDecommissionStarted())
-                    {
-                        retiringCells.insert(tablet->GetCell());
+                    if (tablet->GetState() != ETabletState::Unmounted) {
+                        for (auto* cell : tablet->GetCells()) {
+                            if (cell->IsDecommissionStarted()) {
+                                retiringCells.insert(cell);
+                            }
+                        }
                     }
                 }
 

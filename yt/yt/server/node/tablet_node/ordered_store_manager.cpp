@@ -160,9 +160,9 @@ void TOrderedStoreManager::DiscardAllStores()
     YT_ABORT();
 }
 
-void TOrderedStoreManager::CreateActiveStore()
+void TOrderedStoreManager::CreateActiveStore(TDynamicStoreId hintId)
 {
-    auto storeId = GenerateDynamicStoreId();
+    auto storeId = hintId ? hintId : GenerateDynamicStoreId();
 
     ActiveStore_ = TabletContext_
         ->CreateStore(Tablet_, EStoreType::OrderedDynamic, storeId, nullptr)

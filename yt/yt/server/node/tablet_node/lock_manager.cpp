@@ -112,6 +112,11 @@ public:
         return {};
     }
 
+    bool IsEmpty() const
+    {
+        return Transactions_.empty() && UnconfirmedTransactionIds_.empty();
+    }
+
     void BuildOrchidYson(NYTree::TFluentMap fluent) const
     {
         THashSet<TTransactionId> unconfirmedTransactionsSet(
@@ -233,6 +238,11 @@ void TLockManager::Wait(TTimestamp timestamp, TLockManagerEpoch epoch)
 TError TLockManager::ValidateTransactionConflict(TTimestamp startTimestamp) const
 {
     return Impl_->ValidateTransactionConflict(startTimestamp);
+}
+
+bool TLockManager::IsEmpty() const
+{
+    return Impl_->IsEmpty();
 }
 
 void TLockManager::BuildOrchidYson(NYTree::TFluentMap fluent) const

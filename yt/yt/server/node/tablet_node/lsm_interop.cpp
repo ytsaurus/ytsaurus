@@ -104,6 +104,9 @@ private:
             TForbidContextSwitchGuard guard;
 
             for (auto [tabletId, tablet] : tabletManager->Tablets()) {
+                if (!tablet->IsActiveServant()) {
+                    continue;
+                }
                 lsmTablets.push_back(ScanTablet(slot, tablet));
             }
         }
@@ -204,6 +207,10 @@ private:
         lsmTablet->SetIsForcedRotationPossible(storeManager->IsForcedRotationPossible());
         lsmTablet->SetIsOverflowRotationNeeded(storeManager->IsOverflowRotationNeeded());
         lsmTablet->SetLastPeriodicRotationTime(storeManager->GetLastPeriodicRotationTime());
+
+        const auto& movementData = tablet->SmoothMovementData();
+        lsmTablet->SetIsCompactionAllowed(
+            movementData.IsTabletStoresUpdateAllowed(/*isCommonFlush*/ false));
 
         if (tablet->IsPhysicallySorted()) {
             lsmTablet->Eden() = ScanPartition(tablet->GetEden(), lsmTablet.Get());

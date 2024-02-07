@@ -63,6 +63,7 @@ struct ITabletManager
     virtual TTablet* GetTabletOrThrow(TTabletId id) = 0;
 
     virtual ITabletCellWriteManagerHostPtr GetTabletCellWriteManagerHost() = 0;
+    virtual ISmoothMovementTrackerHostPtr GetSmoothMovementTrackerHost() = 0;
 
     virtual std::vector<TTabletMemoryStatistics> GetMemoryStatistics() const = 0;
 

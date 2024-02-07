@@ -28,6 +28,8 @@ public:
     void Wait(TTimestamp timestamp, TLockManagerEpoch epoch);
     TError ValidateTransactionConflict(TTimestamp startTimestamp) const;
 
+    bool IsEmpty() const;
+
     void BuildOrchidYson(NYTree::TFluentMap fluent) const;
 
     void Persist(const TStreamPersistenceContext& context);

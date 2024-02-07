@@ -245,18 +245,23 @@ TDuration TTablet::ComputeReplicationLagTime(TTimestamp latestTimestamp, const T
     return TimestampToInstant(latestTimestamp).second - TimestampToInstant(replicationTimestamp).first;
 }
 
-TTabletStatistics TTablet::GetTabletStatistics() const
+TTabletStatistics TTablet::GetTabletStatistics(bool fromAuxiliaryCell) const
 {
     const auto* table = GetTable();
 
     TTabletStatistics tabletStatistics;
-    tabletStatistics.PartitionCount = NodeStatistics_.partition_count();
-    tabletStatistics.StoreCount = NodeStatistics_.store_count();
-    tabletStatistics.PreloadPendingStoreCount = NodeStatistics_.preload_pending_store_count();
-    tabletStatistics.PreloadCompletedStoreCount = NodeStatistics_.preload_completed_store_count();
-    tabletStatistics.PreloadFailedStoreCount = NodeStatistics_.preload_failed_store_count();
-    tabletStatistics.OverlappingStoreCount = NodeStatistics_.overlapping_store_count();
-    tabletStatistics.DynamicMemoryPoolSize = NodeStatistics_.dynamic_memory_pool_size();
+
+    const auto& nodeStatistics = fromAuxiliaryCell
+        ? AuxiliaryNodeStatistics_
+        : NodeStatistics_;
+
+    tabletStatistics.PartitionCount = nodeStatistics.partition_count();
+    tabletStatistics.StoreCount = nodeStatistics.store_count();
+    tabletStatistics.PreloadPendingStoreCount = nodeStatistics.preload_pending_store_count();
+    tabletStatistics.PreloadCompletedStoreCount = nodeStatistics.preload_completed_store_count();
+    tabletStatistics.PreloadFailedStoreCount = nodeStatistics.preload_failed_store_count();
+    tabletStatistics.OverlappingStoreCount = nodeStatistics.overlapping_store_count();
+    tabletStatistics.DynamicMemoryPoolSize = nodeStatistics.dynamic_memory_pool_size();
     tabletStatistics.HunkUncompressedDataSize = GetHunkUncompressedDataSize();
     tabletStatistics.HunkCompressedDataSize = GetHunkCompressedDataSize();
     tabletStatistics.MemorySize = GetTabletStaticMemorySize();

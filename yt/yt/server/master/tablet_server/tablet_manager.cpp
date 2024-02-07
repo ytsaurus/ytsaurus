@@ -232,6 +232,10 @@ public:
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletCellBundleResourceUsage, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnHunkTabletMounted, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnHunkTabletUnmounted, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraSwitchServant, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraDeallocateServant, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraReportSmoothMovementProgress, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraReportSmoothMovementAborted, Unretained(this)));
 
         const auto& tabletNodeTracker = Bootstrap_->GetTabletNodeTracker();
         tabletNodeTracker->SubscribeHeartbeat(BIND(&TImpl::OnTabletNodeHeartbeat, MakeWeak(this)));
@@ -761,6 +765,10 @@ public:
                     tablet->GetId(),
                     tablet->GetState());
             }
+            if (tablet->GetTabletwiseAvenueEndpointId()) {
+                THROW_ERROR_EXCEPTION("Tablet %v is recovering from smooth movement",
+                    tablet->GetId());
+            }
         }
 
         bool freeze;
@@ -794,6 +802,7 @@ public:
 
         switch (kind) {
             case ETabletActionKind::Move:
+            case ETabletActionKind::SmoothMove:
                 if (!cells.empty() && cells.size() != tablets.size()) {
                     THROW_ERROR_EXCEPTION("Number of destination cells and tablets mismatch: %v tablets, %v cells",
                         cells.size());
@@ -852,6 +861,59 @@ public:
             Bootstrap_->GetChunkManager(),
             GetDynamicConfig());
         ValidateTableMountConfig(table, tableSettings.EffectiveMountConfig, GetDynamicConfig());
+
+        if (kind == ETabletActionKind::SmoothMove) {
+            if (tablets.size() != 1) {
+                THROW_ERROR_EXCEPTION("Only one tablet can be moved at a time");
+            }
+
+            if (cells.size() != 1) {
+                THROW_ERROR_EXCEPTION("Destination cell must be specified");
+            }
+
+            const auto* tablet = tablets[0];
+
+            if (tablet->GetCell() == cells[0]) {
+                THROW_ERROR_EXCEPTION("Tablet already belongs to cell %v",
+                    tablet->GetCell()->GetId());
+            }
+
+            if (tablet->GetState() != ETabletState::Mounted) {
+                THROW_ERROR_EXCEPTION("Only mounted tablet can be moved");
+            }
+
+            if (!tablet->IsMountedWithAvenue()) {
+                THROW_ERROR_EXCEPTION("Tablet must be mounted with avenues");
+            }
+
+            const auto* table = tablet->GetOwner()->As<TTableNode>();
+
+            if (table->IsReplicated()) {
+                THROW_ERROR_EXCEPTION("Replicated table tablet cannot be moved");
+            }
+
+            if (table->GetReplicationCardId()) {
+                THROW_ERROR_EXCEPTION("Chaos table tablet cannot be moved");
+            }
+
+            if (!table->IsPhysicallySorted()) {
+                THROW_ERROR_EXCEPTION("Ordered table tablet cannot be moved");
+            }
+
+            if (IsDynamicStoreReadEnabled(table, GetDynamicConfig())) {
+                THROW_ERROR_EXCEPTION("Cannot move table with enabled dynamic store read");
+            }
+
+            if (table->GetAtomicity() != EAtomicity::Full) {
+                THROW_ERROR_EXCEPTION("Tablet with atomicity %Qlv cannot be moved",
+                    table->GetAtomicity());
+            }
+
+            const auto& schema = table->GetSchema()->AsTableSchema();
+            if (schema->HasHunkColumns()) {
+                THROW_ERROR_EXCEPTION("Cannot move table with hunk columns");
+            }
+        }
 
         auto* action = DoCreateTabletAction(
             hintId,
@@ -2502,7 +2564,17 @@ public:
             auto* cell = cellBase->As<TTabletCell>();
             cell->GossipStatistics().Local() = NTabletServer::TTabletCellStatistics();
             for (const auto* tablet : cell->Tablets()) {
-                cell->GossipStatistics().Local() += tablet->GetTabletStatistics();
+                if (tablet->Servant().GetCell() == cell) {
+                    cell->GossipStatistics().Local() += tablet->GetTabletStatistics();
+                } else if (tablet->AuxiliaryServant().GetCell() == cell) {
+                    cell->GossipStatistics().Local() += tablet->GetTabletStatistics(/*fromAuxiliaryCell*/ true);
+                } else {
+                    YT_LOG_ALERT("Tablet belongs to a cell by neither of its servants "
+                        "(CellId: %v, TabletId: %v, TableId: %v)",
+                        cell->GetId(),
+                        tablet->GetId(),
+                        tablet->GetOwner()->GetId());
+                }
             }
         }
     }
@@ -2581,6 +2653,9 @@ public:
             table,
             /*updateDataStatistics*/ true,
             /*updateTabletStatistics*/ false);
+
+        // TODO(ifsmirnov): YT-17383
+        YT_VERIFY(!tablet->AuxiliaryServant());
 
         TTabletStatistics statisticsDelta;
         statisticsDelta.ChunkCount = 1;
@@ -3039,15 +3114,18 @@ private:
 
         action->SaveTabletIds();
 
-        auto& tablets = action->Tablets();
-        tablets.erase(
-            std::remove_if(
-                tablets.begin(),
-                tablets.end(),
-                [&] (auto* tablet) {
-                    return touchedTablets.find(tablet) != touchedTablets.end();
-                }),
-            tablets.end());
+        // Smooth move actions will deal with their tables later.
+        if (action->GetKind() != ETabletActionKind::SmoothMove) {
+            auto& tablets = action->Tablets();
+            tablets.erase(
+                std::remove_if(
+                    tablets.begin(),
+                    tablets.end(),
+                    [&] (auto* tablet) {
+                        return touchedTablets.find(tablet) != touchedTablets.end();
+                    }),
+                tablets.end());
+        }
 
         UnbindTabletActionFromCells(action);
         OnTabletActionDisturbed(action, error);
@@ -3121,6 +3199,12 @@ private:
                 ChangeTabletActionState(action, ETabletActionState::Failed);
                 break;
 
+            case ETabletActionState::MountingAuxiliary:
+            case ETabletActionState::WaitingForSmoothMove:
+                action->Error() = error;
+                ChangeTabletActionState(action, ETabletActionState::AbortingSmoothMove);
+                break;
+
             case ETabletActionState::Completed:
             case ETabletActionState::Failed:
                 // All tablets have been already taken care of. Do nothing.
@@ -3167,6 +3251,45 @@ private:
     {
         switch (action->GetState()) {
             case ETabletActionState::Preparing: {
+                if (action->GetKind() == ETabletActionKind::SmoothMove) {
+                    YT_VERIFY(action->Tablets().size() == 1);
+                    YT_VERIFY(action->TabletCells().size() == 1);
+
+                    auto* cell = action->TabletCells()[0];
+                    YT_VERIFY(action->Tablets()[0]->GetType() == EObjectType::Tablet);
+
+                    auto* tablet = action->Tablets()[0]->As<TTablet>();
+
+                    TTableSettings tableSettings;
+                    try {
+                        tableSettings = GetTableSettings(
+                            tablet->GetTable(),
+                            Bootstrap_->GetObjectManager(),
+                            Bootstrap_->GetChunkManager(),
+                            GetDynamicConfig());
+                    } catch (const std::exception& ex) {
+                        YT_LOG_DEBUG(ex, "Failed to mount auxiliary servant "
+                            "(TableId: %v, TabletId: %v, AuxiliaryCellId: %v)",
+                            tablet->GetTable()->GetId(),
+                            tablet->GetId(),
+                            cell->GetId());
+                        throw;
+                    }
+
+                    GeneratedAvenueIdHashes_.clear();
+
+                    // TODO(ifsmirnov): YT-20959 - send updated settings to sibling
+                    // and unban remount.
+                    auto serializedTableSettings = SerializeTableSettings(tableSettings);
+                    AllocateAuxiliaryServant(tablet, cell, serializedTableSettings);
+                    ChangeTabletActionState(
+                        action,
+                        ETabletActionState::MountingAuxiliary,
+                        /*recursive*/ false);
+
+                    break;
+                }
+
                 if (action->GetSkipFreezing()) {
                     ChangeTabletActionState(action, ETabletActionState::Frozen);
                     break;
@@ -3408,6 +3531,78 @@ private:
                 break;
             }
 
+            case ETabletActionState::MountingAuxiliary: {
+                auto* tablet = action->Tablets()[0];
+                if (tablet->AuxiliaryServant().GetState() != ETabletState::Mounted) {
+                    break;
+                }
+
+                auto* cell = action->TabletCells()[0];
+                YT_VERIFY(tablet->AuxiliaryServant().GetCell() == cell);
+
+                TReqStartSmoothMovement req;
+                ToProto(req.mutable_tablet_id(), tablet->GetId());
+                ToProto(req.mutable_target_cell_id(), cell->GetId());
+                req.set_source_mount_revision(tablet->Servant().GetMountRevision());
+                req.set_target_mount_revision(tablet->AuxiliaryServant().GetMountRevision());
+                ToProto(
+                    req.mutable_source_avenue_endpoint_id(),
+                    tablet->GetTabletwiseAvenueEndpointId());
+
+                const auto& hiveManager = Bootstrap_->GetHiveManager();
+                auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
+                hiveManager->PostMessage(mailbox, req);
+
+                ChangeTabletActionState(action, ETabletActionState::WaitingForSmoothMove);
+                break;
+            }
+
+            case ETabletActionState::WaitingForSmoothMove: {
+                auto* cell = action->TabletCells()[0];
+                auto* tablet = action->Tablets()[0];
+                if (tablet->AuxiliaryServant()) {
+                    break;
+                }
+                if (tablet->Servant().GetCell() != cell) {
+                    break;
+                }
+                ChangeTabletActionState(action, ETabletActionState::Completed);
+                break;
+            }
+
+            case ETabletActionState::AbortingSmoothMove: {
+                auto* tablet = action->Tablets()[0];
+                YT_VERIFY(tablet->Servant());
+
+                if (tablet->AuxiliaryServant()) {
+                    if (auto state = tablet->AuxiliaryServant().GetState();
+                        state == ETabletState::Mounting || state == ETabletState::FrozenMounting)
+                    {
+                        // Auxiliary servant has not yet been mounted. Main servant does not participate
+                        // in movement yet.
+                        DeallocateAuxiliaryServant(tablet);
+                    } else {
+                        // Main smooth movement phase is in progress, two-phase abort is required.
+                        TReqAbortSmoothMovement req;
+                        ToProto(req.mutable_tablet_id(), tablet->GetId());
+
+                        const auto& hiveManager = Bootstrap_->GetHiveManager();
+                        auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
+                        hiveManager->PostMessage(mailbox, req);
+                    }
+                }
+
+                tablet->SetAction(nullptr);
+                action->Tablets().clear();
+
+                YT_LOG_DEBUG(action->Error(), "Smooth movement aborted (ActionId: %v, TabletId: %v)",
+                    action->GetId(),
+                    tablet->GetId());
+
+                ChangeTabletActionState(action, ETabletActionState::Failed);
+                break;
+            }
+
             default:
                 YT_ABORT();
         }
@@ -3602,14 +3797,8 @@ private:
         UpdateResourceUsage(table, resourceUsageDelta);
     }
 
-    template <class TReq>
-    void MaybeSetTabletAvenueEndpointId(TTabletBase* tablet, TCellId cellId, TReq* mountReq)
+    TAvenueEndpointId GenerateAvenueEndpointId(TTabletBase* tablet)
     {
-        // COMPAT(ifsmirnov): remove "Maybe" from method name when avenues are adopted.
-        if (!GetDynamicConfig()->UseAvenues) {
-            return;
-        }
-
         ui32 hash = HashFromId(tablet->GetId());
 
         // Try to keep as many lower bits as possible.
@@ -3632,14 +3821,27 @@ private:
 
         auto* mutationContext = GetCurrentMutationContext();
 
-        auto masterEndpointId = MakeRegularId(
+        auto result = MakeRegularId(
             EObjectType::AliceAvenueEndpoint,
             CellTagFromId(tablet->GetId()),
             mutationContext->GetVersion(),
             hash);
-        auto nodeEndpointId = GetSiblingAvenueEndpointId(masterEndpointId);
 
-        mutationContext->CombineStateHash(masterEndpointId);
+        mutationContext->CombineStateHash(result);
+
+        return result;
+    }
+
+    template <class TReq>
+    void MaybeSetTabletAvenueEndpointId(TTabletBase* tablet, TCellId cellId, TReq* mountReq)
+    {
+        // COMPAT(ifsmirnov): remove "Maybe" from method name when avenues are adopted.
+        if (!GetDynamicConfig()->UseAvenues) {
+            return;
+        }
+
+        auto masterEndpointId = GenerateAvenueEndpointId(tablet);
+        auto nodeEndpointId = GetSiblingAvenueEndpointId(masterEndpointId);
 
         tablet->SetNodeAvenueEndpointId(nodeEndpointId);
         ToProto(mountReq->mutable_master_avenue_endpoint_id(), masterEndpointId);
@@ -3858,6 +4060,64 @@ private:
         }
     }
 
+    void AllocateAuxiliaryServant(
+        TTablet* tablet,
+        TTabletCell* cell,
+        const TSerializedTableSettings& serializedTableSettings)
+    {
+        YT_VERIFY(tablet->GetState() == ETabletState::Mounted);
+
+        auto revision = GetCurrentMutationContext()->GetVersion().ToRevision();
+        auto avenueEndpointId = GenerateAvenueEndpointId(tablet);
+
+        YT_LOG_DEBUG("Mounting tablet to auxiliary cell "
+            "(TableId: %v, TabletId: %v, CellId: %v, "
+            "MountRevision: %x, AuxiliaryCellId: %v, AuxiliaryMountRevision: %x, "
+            "TabletwiseAvenueEndpointId: %v)",
+            tablet->GetTable()->GetId(),
+            tablet->GetId(),
+            tablet->GetCell()->GetId(),
+            tablet->Servant().GetMountRevision(),
+            cell->GetId(),
+            revision,
+            avenueEndpointId);
+
+        YT_VERIFY(!tablet->GetTabletwiseAvenueEndpointId());
+        tablet->SetTabletwiseAvenueEndpointId(avenueEndpointId);
+
+        auto& auxiliaryServant = tablet->AuxiliaryServant();
+        YT_VERIFY(!auxiliaryServant);
+
+        auxiliaryServant.SetCell(cell);
+        auxiliaryServant.SetState(ETabletState::Mounting);
+        auxiliaryServant.SetMountRevision(revision);
+        auxiliaryServant.SetMountTime(GetCurrentMutationContext()->GetTimestamp());
+
+        auxiliaryServant.SetMovementRole(NTabletNode::ESmoothMovementRole::Target);
+        auxiliaryServant.SetMovementStage(NTabletNode::ESmoothMovementStage::None);
+
+        auto& mainServant = tablet->Servant();
+        mainServant.SetMovementRole(NTabletNode::ESmoothMovementRole::Source);
+        mainServant.SetMovementStage(NTabletNode::ESmoothMovementStage::None);
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        objectManager->RefObject(cell);
+        InsertOrCrash(cell->Tablets(), tablet);
+
+        tablet->AuxiliaryNodeStatistics() = tablet->NodeStatistics();
+        cell->GossipStatistics().Local() += tablet->GetTabletStatistics(/*fromAuxiliaryCell*/ true);
+
+        auto req = PrepareMountRequestStem(tablet, serializedTableSettings);
+        ToProto(req.mutable_movement_source_cell_id(), tablet->GetCell()->GetId());
+        req.set_mount_revision(auxiliaryServant.GetMountRevision());
+        req.set_movement_source_mount_revision(tablet->Servant().GetMountRevision());
+        ToProto(req.mutable_movement_source_avenue_endpoint_id(), avenueEndpointId);
+
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+        hiveManager->PostMessage(mailbox, req);
+    }
+
     void DoFreezeTablet(TTabletBase* tablet)
     {
         YT_VERIFY(tablet->GetType() == EObjectType::Tablet);
@@ -3876,8 +4136,14 @@ private:
                 tablet->GetId(),
                 cell->GetId());
 
-            tablet->Servant().SetState(ETabletState::Freezing);
             tablet->SetState(ETabletState::Freezing);
+
+            tablet->Servant().SetState(ETabletState::Freezing);
+            if (auto& auxiliaryServant = tablet->AuxiliaryServant()) {
+                YT_LOG_DEBUG("Freezing auxiliary tablet servant (TabletId: %v)",
+                    tablet->GetId());
+                auxiliaryServant.SetState(ETabletState::Freezing);
+            }
 
             TReqFreezeTablet request;
             ToProto(request.mutable_tablet_id(), tablet->GetId());
@@ -3906,6 +4172,7 @@ private:
                 cell->GetId());
 
             tablet->Servant().SetState(ETabletState::Unfreezing);
+            YT_VERIFY(!tablet->AuxiliaryServant());
             tablet->SetState(ETabletState::Unfreezing);
 
             TReqUnfreezeTablet request;
@@ -4810,14 +5077,22 @@ private:
                 continue;
             }
 
-            auto tabletStatistics = tablet->GetTabletStatistics();
-            tablet->GetTable()->DiscountTabletStatistics(tabletStatistics);
+            auto tabletStatistics = tablet->GetTabletStatistics(servant->IsAuxiliary());
+            if (!servant->IsAuxiliary()) {
+                tablet->GetTable()->DiscountTabletStatistics(tabletStatistics);
+            }
             cell->GossipStatistics().Local() -= tabletStatistics;
 
-            tablet->NodeStatistics() = tabletInfo.statistics();
+            if (servant->IsAuxiliary()) {
+                tablet->AuxiliaryNodeStatistics() = tabletInfo.statistics();
+            } else {
+                tablet->NodeStatistics() = tabletInfo.statistics();
+            }
 
-            tabletStatistics = tablet->GetTabletStatistics();
-            tablet->GetTable()->AccountTabletStatistics(tabletStatistics);
+            tabletStatistics = tablet->GetTabletStatistics(servant->IsAuxiliary());
+            if (!servant->IsAuxiliary()) {
+                tablet->GetTable()->AccountTabletStatistics(tabletStatistics);
+            }
             cell->GossipStatistics().Local() += tabletStatistics;
 
             auto* table = tablet->GetTable();
@@ -5067,28 +5342,33 @@ private:
             if (!tablet->GetWasForcefullyUnmounted()) {
                 YT_LOG_ALERT("%v notification received by an unmounted tablet, ignored "
                     "(TabletId: %v, SenderId: %v)",
+                    changeType,
                     tablet->GetId(),
                     senderId);
             }
             return nullptr;
         }
 
-        auto* servant = &tablet->Servant();
+        TTabletServant* servant = nullptr;
 
-        // This condition may be false if the tablet was forcefully unmounted.
-        if (servant->GetMountRevision() != mountRevision) {
-            // COMPAT(ifsmirnov): remove when 23.3 is deployed.
-            // This should not happen unless masters are updated before nodes.
-            if (!mountRevision) {
-                YT_LOG_ALERT("%v notification received without mount revision "
-                    "(TabletId: %v, SenderId: %v)",
-                    tablet->GetId(),
-                    senderId);
-            } else {
+        // COMPAT(ifsmirnov): remove when 24.1 is deployed.
+        // This should not happen unless masters are updated before nodes.
+        if (!mountRevision) {
+            servant = &tablet->Servant();
+            YT_LOG_ALERT("%v notification received without mount revision "
+                "(TabletId: %v, SenderId: %v)",
+                changeType,
+                tablet->GetId(),
+                senderId);
+
+        } else {
+            servant = tablet->FindServant(mountRevision);
+            if (!servant) {
                 YT_LOG_WARNING("%v notification received by a tablet with wrong mount revision, ignored "
-                    "(TabletId: %v, ExpectedMountRevision: %v, RequestMountRevision: %v, SenderId: %v)",
+                    "(TabletId: %v, MainServantMountRevision: %v, RequestMountRevision: %v, SenderId: %v)",
+                    changeType,
                     tablet->GetId(),
-                    servant->GetMountRevision(),
+                    tablet->Servant().GetMountRevision(),
                     mountRevision,
                     senderId);
                 return nullptr;
@@ -5096,7 +5376,7 @@ private:
         }
 
         auto expectedSenderId = senderIsCell
-            ? GetObjectId(tablet->Servant().GetCell())
+            ? GetObjectId(servant->GetCell())
             : tablet->GetNodeEndpointId();
 
         // This condition should never be violated given that mount revision check passed.
@@ -5147,6 +5427,21 @@ private:
             /*senderIsCell*/ true,
             "Mounted");
         if (!servant) {
+            return;
+        }
+
+        if (servant->IsAuxiliary()) {
+            YT_VERIFY(tablet->GetState() == ETabletState::Mounted);
+            YT_VERIFY(servant->GetState() == ETabletState::Mounting);
+            servant->SetState(ETabletState::Mounted);
+
+            OnTabletActionStateChanged(tablet->GetAction());
+
+            YT_LOG_DEBUG("Auxiliary servant mounted "
+                "(TableId: %v, TabletId: %v)",
+                tablet->GetOwner()->GetId(),
+                tablet->GetId());
+
             return;
         }
 
@@ -5205,6 +5500,10 @@ private:
             return;
         }
 
+        if (auto& auxiliaryServant = tablet->AuxiliaryServant()) {
+            DeallocateAuxiliaryServant(tablet);
+        }
+
         auto* typedTablet = tablet->As<TTablet>();
         if (response->has_replication_progress()) {
             typedTablet->ReplicationProgress() = FromProto<TReplicationProgress>(response->replication_progress());
@@ -5257,6 +5556,8 @@ private:
         if (!servant) {
             return;
         }
+
+        YT_VERIFY(!tablet->AuxiliaryServant());
 
         auto* table = tablet->GetTable();
         auto* cell = tablet->GetCell();
@@ -5330,6 +5631,172 @@ private:
         tablet->SetState(ETabletState::Mounted);
         OnTabletActionStateChanged(tablet->GetAction());
         UpdateTabletState(table);
+    }
+
+    void HydraSwitchServant(NProto::TReqSwitchServant* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto sourceMountRevision = request->source_mount_revision();
+        auto targetMountRevision = request->target_mount_revision();
+
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        auto& mainServant = tablet->Servant();
+        auto& auxiliaryServant = tablet->AuxiliaryServant();
+
+        if (mainServant.GetMountRevision() != sourceMountRevision ||
+            auxiliaryServant.GetMountRevision() != targetMountRevision)
+        {
+            YT_LOG_DEBUG("Mount revision mismatch, will not switch servants "
+                "(TabletId: %v, ExpectedSourceMountRevision: %v, ExpectedTargetMountRevision: %v, ",
+                "ActualSourceMountRevision: %v, ActualTargetMountRevision: %v)",
+                tablet->GetId(),
+                sourceMountRevision,
+                targetMountRevision,
+                mainServant.GetMountRevision(),
+                auxiliaryServant.GetMountRevision());
+            return;
+        }
+
+        mainServant.Swap(&auxiliaryServant);
+
+        if (tablet->GetType() == EObjectType::Tablet) {
+            auto* typedTablet = tablet->As<TTablet>();
+            auto* table = tablet->GetOwner()->As<TTableNode>();
+
+            table->DiscountTabletStatistics(typedTablet->GetTabletStatistics());
+            std::swap(typedTablet->NodeStatistics(), typedTablet->AuxiliaryNodeStatistics());
+            table->AccountTabletStatistics(typedTablet->GetTabletStatistics());
+        }
+
+        Bootstrap_->GetAvenueDirectory()->UpdateEndpoint(
+            tablet->GetNodeEndpointId(),
+            mainServant.GetCell()->GetId());
+
+        YT_LOG_DEBUG("Servant switched (TabletId: %v, SourceCellId: %v, TargetCellId: %v)",
+            tabletId,
+            GetObjectId(auxiliaryServant.GetCell()),
+            GetObjectId(mainServant.GetCell()));
+    }
+
+    void DeallocateAuxiliaryServant(TTabletBase* tablet)
+    {
+        auto& auxiliaryServant = tablet->AuxiliaryServant();
+
+        YT_LOG_DEBUG("Deallocating auxiliary servant (TabletId: %v, CellId: %v)",
+            tablet->GetId(),
+            auxiliaryServant.GetCell()->GetId());
+
+        NTabletNode::NProto::TReqUnmountTablet req;
+        ToProto(req.mutable_tablet_id(), tablet->GetId());
+        req.set_force(true);
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        auto* mailbox = hiveManager->GetMailbox(auxiliaryServant.GetCell()->GetId());
+        hiveManager->PostMessage(mailbox, req);
+
+        DoTabletServantUnmounted(tablet, &auxiliaryServant, /*force*/ true);
+
+        tablet->SetTabletwiseAvenueEndpointId({});
+        tablet->Servant().SetMovementRole(NTabletNode::ESmoothMovementRole::None);
+
+        OnTabletActionStateChanged(tablet->GetAction());
+    }
+
+    void HydraDeallocateServant(NProto::TReqDeallocateServant* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto auxiliaryMountRevision = request->auxiliary_mount_revision();
+
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        auto& mainServant = tablet->Servant();
+        auto& auxiliaryServant = tablet->AuxiliaryServant();
+
+        if (auxiliaryServant.GetMountRevision() != auxiliaryMountRevision) {
+            YT_LOG_DEBUG("Mount revision mismatch, will not deallocate servant "
+                "(TabletId: %v, ExpectedAuxiliaryMountRevision: %v, ",
+                "ActualSourceMountRevision: %v, ActualTargetMountRevision: %v)",
+                tablet->GetId(),
+                auxiliaryMountRevision,
+                mainServant.GetMountRevision(),
+                auxiliaryServant.GetMountRevision());
+
+            return;
+        }
+
+        DeallocateAuxiliaryServant(tablet);
+    }
+
+    void HydraReportSmoothMovementProgress(NProto::TReqReportSmoothMovementProgress* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto mountRevision = request->mount_revision();
+        auto stage = FromProto<NTabletNode::ESmoothMovementStage>(request->stage());
+
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        auto* servant = tablet->FindServant(mountRevision);
+        if (!servant) {
+            return;
+        }
+
+        servant->SetMovementStage(stage);
+    }
+
+    void HydraReportSmoothMovementAborted(NProto::TReqReportSmoothMovementAborted* response)
+    {
+        // This mutation is always triggered by a Hive message from node which can be sent
+        // in two contexts.
+        // 1. Master has aborted smooth movement by itself, and node responds with
+        // TReqReportSmoothMovementAborted. Tablet is already unbound from the action
+        // but its auxiliary servant (if present) must be deallocated now.
+        // 2. Smooth movement is aborted by node. In this case master must deallocate
+        // auxiliary servant and fail tablet action immediately.
+
+        auto tabletId = FromProto<TTabletId>(response->tablet_id());
+        auto error = FromProto<TError>(response->error());
+
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        if (!tablet->AuxiliaryServant()) {
+            return;
+        }
+
+        if (!error.IsOK()) {
+            YT_LOG_DEBUG(error, "Smooth movement aborted by node "
+                "(TabletId: %v, MainCellId: %v, AuxiliaryCellId: %v)",
+                tablet->GetId(),
+                GetObjectId(tablet->Servant().GetCell()),
+                GetObjectId(tablet->AuxiliaryServant().GetCell()));
+        }
+
+        // NB: At this moment master definitely knows which of the servants is active
+        // since both TReqReportSmoothMovementAborted and TReqSwitchServant go via the same
+        // avenue channel.
+
+        YT_LOG_DEBUG("Deallocating auxiliary servant on smooth movement abort "
+            "(TabletId: %v, MainCellId: %v, AuxiliaryCellId: %v)",
+            tablet->GetId(),
+            GetObjectId(tablet->Servant().GetCell()),
+            GetObjectId(tablet->AuxiliaryServant().GetCell()));
+
+        DeallocateAuxiliaryServant(tablet);
+
+        if (auto* action = tablet->GetAction()) {
+            OnTabletActionDisturbed(action, error);
+        }
     }
 
     void HydraUpdateTableReplicaStatistics(NProto::TReqUpdateTableReplicaStatistics* request)
@@ -5582,8 +6049,10 @@ private:
             tablet->GetId(),
             cell->GetId());
 
-        auto tabletStatistics = tablet->GetTabletStatistics();
-        cell->GossipStatistics().Local() -= tabletStatistics;
+        if (tablet->GetType() == EObjectType::Tablet) {
+            auto tabletStatistics = tablet->GetTabletStatistics(servant->IsAuxiliary());
+            cell->GossipStatistics().Local() -= tabletStatistics;
+        }
 
         CheckIfFullyUnmounted(cell);
 
@@ -5594,17 +6063,28 @@ private:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(cell);
 
-        switch (tablet->GetType()) {
-            case EObjectType::Tablet:
-                DoTabletUnmounted(tablet->As<TTablet>(), force);
-                break;
+        if (servant->IsAuxiliary()) {
+            // Auxiliary servant should never be unmounted before the main one.
+            YT_VERIFY(tablet->Servant());
 
-            case EObjectType::HunkTablet:
-                DoTabletUnmounted(tablet->As<THunkTablet>(), force);
-                break;
+            if (tablet->GetType() == EObjectType::Tablet) {
+                tablet->As<TTablet>()->AuxiliaryNodeStatistics().Clear();
+            }
+        } else {
+            YT_VERIFY(!tablet->AuxiliaryServant());
 
-            default:
-                YT_ABORT();
+            switch (tablet->GetType()) {
+                case EObjectType::Tablet:
+                    DoTabletUnmounted(tablet->As<TTablet>(), force);
+                    break;
+
+                case EObjectType::HunkTablet:
+                    DoTabletUnmounted(tablet->As<THunkTablet>(), force);
+                    break;
+
+                default:
+                    YT_ABORT();
+            }
         }
     }
 
@@ -5648,7 +6128,8 @@ private:
         auto tabletStatistics = tablet->GetTabletStatistics();
         tablet->GetOwner()->DiscountTabletStatistics(tabletStatistics);
         tablet->NodeStatistics().Clear();
-        tablet->PerformanceCounters() = NTabletNode::TTabletPerformanceCounters();
+        tablet->AuxiliaryNodeStatistics().Clear();
+        tablet->PerformanceCounters() = {};
         tablet->SetTabletErrorCount(0);
         tablet->SetReplicationErrorCount(0);
 
@@ -5915,6 +6396,9 @@ private:
         // Save old tablet resource usage.
         auto oldMemorySize = tablet->GetTabletStaticMemorySize();
         auto oldStatistics = tablet->GetTabletStatistics();
+        auto oldAuxiliaryStatistics = tablet->AuxiliaryServant()
+            ? std::make_optional(tablet->GetTabletStatistics(/*fromAuxiliaryCell*/ true))
+            : std::nullopt;
 
         auto tabletChunkManagerLoggingString = TabletChunkManager_->CommitUpdateTabletStores(
             tablet,
@@ -5931,6 +6415,10 @@ private:
 
         // Update cell and table statistics.
         tablet->Servant().GetCell()->GossipStatistics().Local() += deltaStatistics;
+        if (auto& auxiliaryServant = tablet->AuxiliaryServant()) {
+            auto newAuxiliaryStatistics = tablet->GetTabletStatistics(/*fromAuxiliaryCell*/ true);
+            auxiliaryServant.GetCell()->GossipStatistics().Local() += newAuxiliaryStatistics - *oldAuxiliaryStatistics;
+        }
         table->DiscountTabletStatistics(oldStatistics);
         table->AccountTabletStatistics(newStatistics);
 
@@ -6603,24 +7091,33 @@ private:
 
         YT_VERIFY(tablet->Servant());
 
-        auto unmountServant = [&] (TTabletServant& servant) {
-            auto* cell = servant.GetCell();
-            if (!cell) {
-                return;
+        auto& servant = tablet->Servant();
+        auto& auxiliaryServant = tablet->AuxiliaryServant();
+
+        if (auxiliaryServant) {
+            if (force) {
+                DeallocateAuxiliaryServant(tablet);
+            } else {
+                auxiliaryServant.SetState(ETabletState::Unmounting);
             }
+        }
 
-            servant.SetState(ETabletState::Unmounting);
+        auto* cell = servant.GetCell();
+        if (!cell) {
+            return;
+        }
 
-            const auto& hiveManager = Bootstrap_->GetHiveManager();
+        servant.SetState(ETabletState::Unmounting);
 
-            TReqUnmountTablet request;
-            ToProto(request.mutable_tablet_id(), tablet->GetId());
-            request.set_force(force);
-            auto* mailbox = hiveManager->GetMailbox(servant.GetCell()->GetId());
-            hiveManager->PostMessage(mailbox, request);
-        };
+        TReqUnmountTablet request;
+        ToProto(request.mutable_tablet_id(), tablet->GetId());
+        request.set_force(force);
 
-        unmountServant(tablet->Servant());
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        auto* mailbox = hiveManager->GetMailbox(force
+            ? tablet->GetCell()->GetId()
+            : tablet->GetNodeEndpointId());
+        hiveManager->PostMessage(mailbox, request);
 
         for (auto it : GetIteratorsSortedByKey(tablet->Replicas())) {
             auto* replica = it->first;

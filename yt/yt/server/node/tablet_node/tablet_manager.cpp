@@ -28,6 +28,7 @@
 #include "hunk_lock_manager.h"
 #include "row_digest_fetcher.h"
 #include "chunk_view_size_fetcher.h"
+#include "smooth_movement_tracker.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -35,7 +36,7 @@
 
 #include <yt/yt/server/node/cellar_node/dynamic_bundle_config_manager.h>
 
-#include <yt/yt/server/node/tablet_node/transaction_manager.h>
+#include <yt/yt/server/node/tablet_node/transaction_manager.pb.h>
 
 #include <yt/yt/server/lib/hive/avenue_directory.h>
 #include <yt/yt/server/lib/hive/helpers.h>
@@ -87,7 +88,6 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/helpers.h>
-#include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/client/table_client/wire_protocol.h>
 
@@ -97,21 +97,21 @@
 #include <yt/yt/client/tablet_client/helpers.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
-#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/core/concurrency/async_semaphore.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/compression/codec.h>
 
-#include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/ring_queue.h>
-#include <yt/yt/core/misc/tls_cache.h>
+
+#include <yt/yt/core/rpc/helpers.h>
+#include <yt/yt/core/rpc/authentication_identity.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
 
-#include <library/cpp/yt/small_containers/compact_vector.h>
+#include <library/cpp/iterator/zip.h>
 
 #include <util/generic/cast.h>
 #include <util/generic/algorithm.h>
@@ -157,6 +157,7 @@ class TTabletManager
     : public TTabletAutomatonPart
     , public virtual ITabletCellWriteManagerHost
     , public virtual ITabletWriteManagerHost
+    , public virtual ISmoothMovementTrackerHost
     , public ITabletManager
 {
 public:
@@ -233,18 +234,18 @@ public:
         RegisterMethod(BIND(&TTabletManager::HydraMountTablet, Unretained(this)));
         RegisterMethod(BIND(&TTabletManager::HydraUnmountTablet, Unretained(this)));
         RegisterForwardedMethod(BIND(&TTabletManager::HydraRemountTablet, Unretained(this)));
-        RegisterMethod(BIND(&TTabletManager::HydraUpdateTabletSettings, Unretained(this)));
+        RegisterForwardedMethod(BIND(&TTabletManager::HydraUpdateTabletSettings, Unretained(this)));
         RegisterMethod(BIND(&TTabletManager::HydraFreezeTablet, Unretained(this)));
         RegisterMethod(BIND(&TTabletManager::HydraUnfreezeTablet, Unretained(this)));
-        RegisterMethod(BIND(&TTabletManager::HydraSetTabletState, Unretained(this)));
-        RegisterMethod(BIND(&TTabletManager::HydraTrimRows, Unretained(this)));
-        RegisterMethod(BIND(&TTabletManager::HydraLockTablet, Unretained(this)));
-        RegisterMethod(BIND(&TTabletManager::HydraReportTabletLocked, Unretained(this)));
-        RegisterMethod(BIND(&TTabletManager::HydraUnlockTablet, Unretained(this)));
-        RegisterMethod(BIND(&TTabletManager::HydraRotateStore, Unretained(this)));
-        RegisterMethod(BIND(&TTabletManager::HydraSplitPartition, Unretained(this)));
-        RegisterMethod(BIND(&TTabletManager::HydraMergePartitions, Unretained(this)));
-        RegisterMethod(BIND(&TTabletManager::HydraUpdatePartitionSampleKeys, Unretained(this)));
+        RegisterForwardedMethod(BIND(&TTabletManager::HydraSetTabletState, Unretained(this)));
+        RegisterForwardedMethod(BIND(&TTabletManager::HydraTrimRows, Unretained(this)));
+        RegisterForwardedMethod(BIND(&TTabletManager::HydraLockTablet, Unretained(this)));
+        RegisterForwardedMethod(BIND(&TTabletManager::HydraReportTabletLocked, Unretained(this)));
+        RegisterForwardedMethod(BIND(&TTabletManager::HydraUnlockTablet, Unretained(this)));
+        RegisterForwardedMethod(BIND(&TTabletManager::HydraRotateStore, Unretained(this)));
+        RegisterForwardedMethod(BIND(&TTabletManager::HydraSplitPartition, Unretained(this)));
+        RegisterForwardedMethod(BIND(&TTabletManager::HydraMergePartitions, Unretained(this)));
+        RegisterForwardedMethod(BIND(&TTabletManager::HydraUpdatePartitionSampleKeys, Unretained(this)));
         RegisterMethod(BIND(&TTabletManager::HydraAddTableReplica, Unretained(this)));
         RegisterMethod(BIND(&TTabletManager::HydraRemoveTableReplica, Unretained(this)));
         RegisterMethod(BIND(&TTabletManager::HydraAlterTableReplica, Unretained(this)));
@@ -253,7 +254,8 @@ public:
         RegisterMethod(BIND(&TTabletManager::HydraResumeTabletCell, Unretained(this)));
         RegisterMethod(BIND(&TTabletManager::HydraOnTabletCellDecommissioned, Unretained(this)));
         RegisterMethod(BIND(&TTabletManager::HydraOnTabletCellSuspended, Unretained(this)));
-        RegisterMethod(BIND(&TTabletManager::HydraOnDynamicStoreAllocated, Unretained(this)));
+        RegisterMethod(BIND(&TTabletManager::HydraReplicateTabletContent, Unretained(this)));
+        RegisterForwardedMethod(BIND(&TTabletManager::HydraOnDynamicStoreAllocated, Unretained(this)));
     }
 
     void Initialize() override
@@ -347,6 +349,11 @@ public:
     }
 
     ITabletCellWriteManagerHostPtr GetTabletCellWriteManagerHost() override
+    {
+        return this;
+    }
+
+    ISmoothMovementTrackerHostPtr GetSmoothMovementTrackerHost() override
     {
         return this;
     }
@@ -477,6 +484,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        if (!tablet->IsActiveServant()) {
+            return;
+        }
+
         const auto& storeManager = tablet->GetStoreManager();
         if (!storeManager->IsRotationPossible()) {
             return;
@@ -560,6 +571,42 @@ public:
     TTimestamp GetLatestTimestamp() const override
     {
         return Slot_->GetLatestTimestamp();
+    }
+
+    void RegisterSiblingTabletAvenue(
+        NHiveServer::TAvenueEndpointId siblingEndpointId,
+        TCellId siblingCellId) override
+    {
+        Slot_->RegisterSiblingTabletAvenue(siblingEndpointId, siblingCellId);
+    }
+
+    void UnregisterSiblingTabletAvenue(
+        NHiveServer::TAvenueEndpointId siblingEndpointId) override
+    {
+        Slot_->UnregisterSiblingTabletAvenue(siblingEndpointId);
+    }
+
+    void RegisterMasterAvenue(
+        TTabletId tabletId,
+        NHiveServer::TAvenueEndpointId masterEndpointId,
+        NHiveServer::TPersistentMailboxState&& cookie) override
+    {
+        Slot_->RegisterMasterAvenue(tabletId, masterEndpointId, std::move(cookie));
+    }
+
+    NHiveServer::TPersistentMailboxState UnregisterMasterAvenue(
+        NHiveServer::TAvenueEndpointId masterEndpointId) override
+    {
+        return Slot_->UnregisterMasterAvenue(masterEndpointId);
+    }
+
+    void PostAvenueMessage(
+        TAvenueEndpointId endpointId,
+        const ::google::protobuf::MessageLite& message) override
+    {
+        const auto& hiveManager = Slot_->GetHiveManager();
+        auto* mailbox = hiveManager->GetMailbox(endpointId);
+        hiveManager->PostMessage(mailbox, message);
     }
 
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Tablet, TTablet);
@@ -893,6 +940,11 @@ private:
                 auto masterCellId = Bootstrap_->GetCellId(CellTagFromId(tablet->GetId()));
                 avenueDirectory->UpdateEndpoint(masterEndpointId, masterCellId);
             }
+
+            const auto& movementData = tablet->SmoothMovementData();
+            if (auto siblingEndpointId = movementData.GetSiblingAvenueEndpointId()) {
+                avenueDirectory->UpdateEndpoint(siblingEndpointId, movementData.GetSiblingCellId());
+            }
         }
 
         // COMPAT(gritukan): Remove it after ETabletReign::TabletPrerequisites.
@@ -1026,6 +1078,7 @@ private:
             : MinTimestamp;
         const auto& mountHint = request->mount_hint();
         auto cumulativeDataWeight = GET_FROM_REPLICATABLE(cumulative_data_weight);
+        bool isSmoothMoveTarget = request->has_movement_source_cell_id();
 
         rawSettings.DropIrrelevantExperiments(
             {
@@ -1058,7 +1111,7 @@ private:
             }
         }();
 
-        TIdGenerator idGenerator(
+        NTabletNode::TIdGenerator idGenerator(
             CellTagFromId(tabletId),
             // Make first ids look like 1-1-... rather than 0-1-...
             /*counter*/ 1ull << 32,
@@ -1091,7 +1144,7 @@ private:
 
         SetTableConfigErrors(tablet, configErrors);
 
-        if (tablet->IsPhysicallyOrdered()) {
+        if (tablet->IsPhysicallyOrdered() && !isSmoothMoveTarget) {
             tablet->SetTrimmedRowCount(GET_FROM_REPLICATABLE(trimmed_row_count));
         }
 
@@ -1101,7 +1154,7 @@ private:
         storeManager->Mount(
             MakeRange(GET_FROM_REPLICATABLE(stores)),
             MakeRange(GET_FROM_REPLICATABLE(hunk_chunks)),
-            /*createDynamicStore*/ !freeze,
+            /*createDynamicStore*/ !freeze && !isSmoothMoveTarget,
             mountHint);
 
         if (IsLeader()) {
@@ -1116,9 +1169,34 @@ private:
             tablet->SetCompressionDictionaryRebuildBackoffTime(policy, TInstant::Now());
         }
 
+        if (isSmoothMoveTarget) {
+            // Smooth movement target is being allocated.
+
+            auto siblingCellId = FromProto<TTabletCellId>(
+                request->movement_source_cell_id());
+
+            auto siblingEndpointId = FromProto<TAvenueEndpointId>(
+                request->movement_source_avenue_endpoint_id());
+
+            auto& movementData = tablet->SmoothMovementData();
+            movementData.SetSiblingCellId(siblingCellId);
+            movementData.SetRole(ESmoothMovementRole::Target);
+            movementData.SetStage(ESmoothMovementStage::TargetAllocated);
+            movementData.SetSiblingMountRevision(
+                FromProto<TRevision>(request->movement_source_mount_revision()));
+
+            movementData.SetSiblingAvenueEndpointId(siblingEndpointId);
+            Slot_->RegisterSiblingTabletAvenue(siblingEndpointId, siblingCellId);
+
+            YT_VERIFY(!masterAvenueEndpointId);
+        }
+
         if (masterAvenueEndpointId) {
             tablet->SetMasterAvenueEndpointId(masterAvenueEndpointId);
-            Slot_->RegisterTabletAvenue(tablet->GetId(), masterAvenueEndpointId);
+            Slot_->RegisterMasterAvenue(
+                tablet->GetId(),
+                masterAvenueEndpointId,
+                /*cookie*/ {});
         }
 
         YT_LOG_INFO("Tablet mounted (%v, MountRevision: %x, Keys: %v .. %v, "
@@ -1177,11 +1255,181 @@ private:
         tablet->GetStructuredLogger()->OnFullHeartbeat();
 
         if (!IsRecovery()) {
-            StartTabletEpoch(tablet);
+            if (!isSmoothMoveTarget) {
+                StartTabletEpoch(tablet);
+            }
         }
 
         #undef GET_FROM_ESSENTIAL
         #undef GET_FROM_REPLICATABLE
+    }
+
+    void PopulateAddStoreDescriptor(
+        TAddStoreDescriptor* descriptor,
+        const IStorePtr& store)
+    {
+        YT_VERIFY(store->GetType() != EStoreType::HunkChunk);
+
+        descriptor->set_store_type(ToProto<int>(store->GetType()));
+        ToProto(descriptor->mutable_store_id(), store->GetId());
+
+        if (store->IsChunk()) {
+            const auto& chunkStore = store->AsChunk();
+
+            ToProto(descriptor->mutable_chunk_meta(), chunkStore->GetChunkMeta());
+
+            switch (store->GetType()) {
+                case EStoreType::SortedChunk: {
+                    auto sortedChunkStore = store->AsSortedChunk();
+                    if (sortedChunkStore->GetId() != sortedChunkStore->GetChunkId()) {
+                        THROW_ERROR_EXCEPTION("Chunk views are not supported");
+                    }
+                    break;
+                }
+
+                case EStoreType::OrderedChunk:
+                    YT_ABORT();
+
+                default:
+                    YT_ABORT();
+            }
+        } else {
+            // Initialize meta in the least possible way.
+            auto* meta = descriptor->mutable_chunk_meta();
+            meta->set_type(0);
+            meta->set_format(0);
+            meta->mutable_extensions();
+        }
+    }
+
+    TReqReplicateTabletContent PrepareReplicateTabletContentRequest(TTablet* tablet) override
+    {
+        auto& movementData = tablet->SmoothMovementData();
+
+        TReqReplicateTabletContent request;
+        auto* replicatableContent = request.mutable_replicatable_content();
+
+        // Validation against not implemented features.
+        if (tablet->GetPhysicalSchema()->HasHunkColumns()) {
+            THROW_ERROR_EXCEPTION("Hunks are not supported");
+        }
+
+        if (tablet->IsPhysicallyLog() ||
+            tablet->IsPhysicallyOrdered() ||
+            tablet->IsReplicated())
+        {
+            THROW_ERROR_EXCEPTION("Ordered and replicated tables are not supported");
+        }
+
+        if (!tablet->GetLockManager()->IsEmpty()) {
+            THROW_ERROR_EXCEPTION("Bulk insert lock replication is not supported");
+        }
+
+        if (tablet->GetSettings().MountConfig->EnableDynamicStoreRead) {
+            THROW_ERROR_EXCEPTION("Tables with enabled dynamic store read are not supported");
+        }
+
+        // Essential stuff.
+        ToProto(request.mutable_tablet_id(), tablet->GetId());
+        request.set_mount_revision(
+            ToProto<ui64>(tablet->SmoothMovementData().GetSiblingMountRevision()));
+
+        // Local tablet stuff: id generator, partition pivot keys, retained timestamp.
+        tablet->PopulateReplicateTabletContentRequest(&request);
+
+        // Stores.
+        auto onStore = [&] (const IStorePtr& store) {
+            if (store->IsDynamic() && store->GetStoreState() != EStoreState::ActiveDynamic) {
+                movementData.CommonDynamicStoreIds().insert(store->GetId());
+            }
+
+            PopulateAddStoreDescriptor(replicatableContent->add_stores(), store);
+
+            if (store->IsSorted()) {
+                ToProto(
+                    request.add_store_partition_ids(),
+                    store->AsSorted()->GetPartition()->GetId());
+            }
+        };
+
+        if (tablet->IsPhysicallyOrdered()) {
+            for (const auto& [rowIndex, store] : tablet->StoreRowIndexMap()) {
+                onStore(store);
+            }
+        } else {
+            for (const auto& store : tablet->GetEden()->Stores()) {
+                onStore(store);
+            }
+            for (const auto& partition : tablet->PartitionList()) {
+                for (const auto& store : partition->Stores()) {
+                    onStore(store);
+                }
+            }
+        }
+
+        if (const auto& activeStore = tablet->GetActiveStore()) {
+            ToProto(request.mutable_active_store_id(), activeStore->GetId());
+        }
+
+        return request;
+    }
+
+    void HydraReplicateTabletContent(TReqReplicateTabletContent* request)
+    {
+        using NYT::FromProto;
+
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        auto mountRevision = FromProto<TRevision>(request->mount_revision());
+        if (tablet->GetMountRevision() != mountRevision) {
+            return;
+        }
+
+        auto& movementData = tablet->SmoothMovementData();
+        YT_VERIFY(movementData.GetRole() == ESmoothMovementRole::Target);
+        YT_VERIFY(movementData.GetStage() == ESmoothMovementStage::TargetAllocated);
+        YT_VERIFY(movementData.GetSiblingCellId());
+
+        const auto& replicatableContent = request->replicatable_content();
+
+        YT_LOG_DEBUG("Tablet got replicated content (%v, StoreCount: %v)",
+            tablet->GetLoggingTag(),
+            replicatableContent.stores().size());
+
+        // Local tablet stuff.
+        tablet->LoadReplicatedContent(request);
+
+        // Stores.
+        auto activeStoreId = FromProto<TStoreId>(request->active_store_id());
+
+        const auto& storeManager = tablet->GetStoreManager();
+        auto partitionIds = FromProto<std::vector<TPartitionId>>(request->store_partition_ids());
+        YT_VERIFY(replicatableContent.stores().size() == ssize(partitionIds));
+        for (const auto& [descriptor, partitionId] : Zip(replicatableContent.stores(), partitionIds)) {
+            auto type = FromProto<EStoreType>(descriptor.store_type());
+            auto storeId = FromProto<TChunkId>(descriptor.store_id());
+
+            if (storeId == activeStoreId) {
+                storeManager->CreateActiveStore(activeStoreId);
+            } else {
+                auto store = CreateStore(tablet, type, storeId, &descriptor);
+                if (store->IsDynamic()) {
+                    store->SetStoreState(EStoreState::PassiveDynamic);
+                    InsertOrCrash(movementData.CommonDynamicStoreIds(), store->GetId());
+                }
+
+                store->Initialize();
+                storeManager->AddStore(store, /*onMount*/ false, /*onFlush*/ false, partitionId);
+            }
+        }
+
+        StartTabletEpoch(tablet);
+
+        Slot_->GetSmoothMovementTracker()->OnGotReplicatedContent(tablet);
     }
 
     void HydraUnmountTablet(TReqUnmountTablet* request)
@@ -1212,6 +1460,10 @@ private:
             const auto& storeManager = tablet->GetStoreManager();
             for (const auto& store : storeManager->GetLockedStores()) {
                 SetStoreOrphaned(tablet, store);
+            }
+
+            if (auto endpointId = tablet->SmoothMovementData().GetSiblingAvenueEndpointId()) {
+                UnregisterSiblingTabletAvenue(endpointId);
             }
 
             if (!IsRecovery()) {
@@ -1271,12 +1523,6 @@ private:
         if (!tablet) {
             return;
         }
-
-        //TODO (ifsmirnov, YT-17317): temporary logic used to test IMutationForwarder.
-        YT_LOG_DEBUG("Remounting tablet and incrementing RemountCount (SenderId: %v, RemountCount: %v)",
-            GetHiveMutationSenderId(),
-            tablet->GetRemountCount());
-        tablet->SetRemountCount(tablet->GetRemountCount() + 1);
 
         auto rawSettings = DeserializeTableSettings(request, tabletId);
 
@@ -1452,10 +1698,12 @@ private:
             tabletId,
             transactionIds);
 
-        TRspLockTablet response;
-        ToProto(response.mutable_tablet_id(), tabletId);
-        ToProto(response.mutable_transaction_ids(), transactionIds);
-        PostMasterMessage(tablet, response);
+        if (tablet->IsActiveServant()) {
+            TRspLockTablet response;
+            ToProto(response.mutable_tablet_id(), tabletId);
+            ToProto(response.mutable_transaction_ids(), transactionIds);
+            PostMasterMessage(tablet, response);
+        }
     }
 
     void HydraUnlockTablet(TReqUnlockTablet* request)
@@ -1465,8 +1713,6 @@ private:
         if (!tablet) {
             return;
         }
-
-        // COMPAT(ifsmirnov)
         const auto* context = GetCurrentMutationContext();
         if (static_cast<ETabletReign>(context->Request().Reign) < ETabletReign::NoMountRevisionCheckInBulkInsert) {
             if (request->has_mount_revision() && request->mount_revision() != 0) {
@@ -1615,7 +1861,7 @@ private:
                 response.set_mount_revision(tablet->GetMountRevision());
 
                 if (auto masterEndpointId = tablet->GetMasterAvenueEndpointId()) {
-                    Slot_->UnregisterTabletAvenue(masterEndpointId);
+                    Slot_->UnregisterMasterAvenue(masterEndpointId);
                 }
 
                 PostMasterMessage(tablet, response, /*forceCellMailbox*/ true);
@@ -1758,14 +2004,50 @@ private:
         YT_VERIFY(options.Persistent);
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto reason = FromProto<ETabletStoresUpdateReason>(request->update_reason());
+
+        if (transaction->IsExternalizedToThisCell()) {
+            YT_LOG_DEBUG("Preparing tablet stores update under externalized transaction "
+                "(TransactionId: %v, TabletId: %v, Reason: %v)",
+                transaction->GetId(),
+                tabletId,
+                reason);
+        }
+
         auto* tablet = GetTabletOrThrow(tabletId);
         const auto& structuredLogger = tablet->GetStructuredLogger();
+
+        if (!tablet->IsActiveServant() && !transaction->IsExternalizedToThisCell()) {
+            THROW_ERROR_EXCEPTION("Cannot prepare tablet stores update of a non-active servant "
+                "with non-externalized transaction %v, transaction may be stale")
+                << TErrorAttribute("tablet_id", tabletId);
+        }
+
+        if (tablet->IsActiveServant() &&
+            tablet->SmoothMovementData().ShouldForwardMutation() &&
+            !transaction->IsExternalizedFromThisCell())
+        {
+            THROW_ERROR_EXCEPTION("Transaction %v is not externalized but must be forwarded, "
+                "transaction may be stale",
+                transaction->GetId())
+                << TErrorAttribute("tablet_id", tabletId);
+        }
+
+        YT_VERIFY(tablet->IsActiveServant() == !transaction->IsExternalizedToThisCell());
 
         auto updateReason = FromProto<ETabletStoresUpdateReason>(request->update_reason());
 
         // Validate.
         auto mountRevision = request->mount_revision();
-        tablet->ValidateMountRevision(mountRevision);
+        if (tablet->IsActiveServant()) {
+            tablet->ValidateMountRevision(mountRevision);
+        } else {
+            if (tablet->SmoothMovementData().GetSiblingMountRevision() != mountRevision) {
+                THROW_ERROR_EXCEPTION("Invalid sibling mount revision, expected %x, got %x",
+                    tablet->SmoothMovementData().GetSiblingMountRevision(),
+                    mountRevision);
+            }
+        }
 
         // COMPAT(dave11ar)
         if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
@@ -1847,6 +2129,28 @@ private:
             }
         }
 
+        const auto& movementData = tablet->SmoothMovementData();
+        bool isCommonFlush = reason == ETabletStoresUpdateReason::Flush &&
+            movementData.CommonDynamicStoreIds().contains(storeIdsToRemove[0]);
+
+        // Do not perform the validation for the sibling servant since own tablet stores update
+        // is not allowed for the non-active servant.
+        if (tablet->IsActiveServant()) {
+            if (!movementData.IsTabletStoresUpdateAllowed(isCommonFlush)) {
+                THROW_ERROR_EXCEPTION("Tablet stores update is not allowed "
+                    "(%v, SmoothMovementRole: %v, SmoothMovementStage: %v, UpdateReason: %v)",
+                    tablet->GetLoggingTag(),
+                    movementData.GetRole(),
+                    movementData.GetStage(),
+                    reason);
+            }
+        }
+
+        if (tablet->GetStoresUpdatePreparedTransactionId()) {
+            THROW_ERROR_EXCEPTION("Cannot prepare stores update since it is already prepared by transaction %v",
+                tablet->GetStoresUpdatePreparedTransactionId());
+        }
+
         // Prepare.
         for (const auto& descriptor : request->stores_to_remove()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
@@ -1909,6 +2213,8 @@ private:
                 }
             }
         }
+
+        tablet->SetStoresUpdatePreparedTransactionId(transaction->GetId());
 
         // TODO(ifsmirnov): log preparation errors as well.
         structuredLogger->OnTabletStoresUpdatePrepared(
@@ -2048,15 +2354,41 @@ private:
         const NTransactionSupervisor::TTransactionAbortOptions& /*options*/)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto reason = FromProto<ETabletStoresUpdateReason>(request->update_reason());
+
+        if (transaction->IsExternalizedToThisCell()) {
+            YT_LOG_DEBUG("Aborting tablet stores update under externalized transaction "
+                "(TransactionId: %v, TabletId: %v, Reason: %v)",
+                transaction->GetId(),
+                tabletId,
+                reason);
+            return;
+        }
+
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
             return;
         }
 
-        auto mountRevision = request->mount_revision();
-        if (tablet->GetMountRevision() != mountRevision) {
+        auto actualMountRevision = request->mount_revision();
+        auto expectedMountRevision = tablet->IsActiveServant()
+            ? tablet->GetMountRevision()
+            : tablet->SmoothMovementData().GetSiblingMountRevision();
+        if (actualMountRevision != expectedMountRevision) {
             return;
         }
+
+        auto expectedTransactionId = tablet->GetStoresUpdatePreparedTransactionId();
+        if (expectedTransactionId != transaction->GetId()) {
+            YT_LOG_DEBUG("Unexpected stores update transaction aborted, ignored "
+                "(%v, TransactionId: %v, PreparedTransactionId: %v)",
+                tablet->GetLoggingTag(),
+                transaction->GetId(),
+                expectedTransactionId);
+            return;
+        }
+
+        tablet->SetStoresUpdatePreparedTransactionId({});
 
         THashSet<TChunkId> hunkChunkIdsToAdd;
         for (const auto& descriptor : request->hunk_chunks_to_add()) {
@@ -2129,6 +2461,7 @@ private:
         }
 
         CheckIfTabletFullyFlushed(tablet);
+        Slot_->GetSmoothMovementTracker()->CheckTablet(tablet);
 
         YT_LOG_INFO("Tablet stores update aborted "
             "(%v, TransactionId: %v)",
@@ -2149,15 +2482,40 @@ private:
         const NTransactionSupervisor::TTransactionCommitOptions& /*options*/)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto reason = FromProto<ETabletStoresUpdateReason>(request->update_reason());
+
+        if (transaction->IsExternalizedToThisCell()) {
+            YT_LOG_DEBUG("Committing tablet stores update under externalized transaction "
+                "(TransactionId: %v, TabletId: %v, Reason: %v)",
+                transaction->GetId(),
+                tabletId,
+                reason);
+        }
+
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
             return;
         }
 
-        auto mountRevision = request->mount_revision();
-        if (mountRevision != tablet->GetMountRevision()) {
+        auto actualMountRevision = request->mount_revision();
+        auto expectedMountRevision = tablet->IsActiveServant()
+            ? tablet->GetMountRevision()
+            : tablet->SmoothMovementData().GetSiblingMountRevision();
+        if (actualMountRevision != expectedMountRevision) {
             return;
         }
+
+        auto expectedTransactionId = tablet->GetStoresUpdatePreparedTransactionId();
+        if (expectedTransactionId != transaction->GetId()) {
+            YT_LOG_ALERT("Unexpected stores update transaction committed "
+                "(%v, TransactionId: %v, PreparedTransactionId: %v)",
+                tablet->GetLoggingTag(),
+                transaction->GetId(),
+                expectedTransactionId);
+            // Continue nevertheless to mimic old behaviour.
+        }
+
+        tablet->SetStoresUpdatePreparedTransactionId({});
 
         if (auto discardStoresRevision = tablet->GetLastDiscardStoresRevision()) {
             auto prepareRevision = transaction->GetPrepareRevision();
@@ -2314,7 +2672,11 @@ private:
             addedStores.push_back(store);
 
             TStoreId backingStoreId;
-            if (!IsRecovery() && descriptor.has_backing_store_id() && IsBackingStoreRequired(tablet)) {
+            if (!IsRecovery() &&
+                descriptor.has_backing_store_id() &&
+                IsBackingStoreRequired(tablet) &&
+                tablet->IsActiveServant())
+            {
                 backingStoreId = FromProto<TStoreId>(descriptor.backing_store_id());
                 const auto& backingStore = GetOrCrash(idToBackingStore, backingStoreId);
                 SetBackingStore(tablet, store, backingStore);
@@ -2377,6 +2739,14 @@ private:
             allocatedDynamicStoreId = storeId;
         }
 
+        auto& movementData = tablet->SmoothMovementData();
+        bool isCommonFlush = updateReason == ETabletStoresUpdateReason::Flush &&
+            movementData.CommonDynamicStoreIds().contains(removedStoreIds[0]);
+
+        if (isCommonFlush) {
+            movementData.CommonDynamicStoreIds().erase(removedStoreIds[0]);
+        }
+
         YT_LOG_INFO("Tablet stores update committed "
             "(%v, TransactionId: %v, AddedStoreIds: %v, RemovedStoreIds: %v, AddedHunkChunkIds: %v, RemovedHunkChunkIds: %v, "
             "AddedCompressionDictionaryIds: %v, RetainedTimestamp: %v, UpdateReason: %v)",
@@ -2402,6 +2772,7 @@ private:
         UpdateTabletSnapshot(tablet);
 
         CheckIfTabletFullyFlushed(tablet);
+        Slot_->GetSmoothMovementTracker()->CheckTablet(tablet);
     }
 
     void HydraSplitPartition(TReqSplitPartition* request)
@@ -3339,6 +3710,10 @@ private:
 
     void AllocateDynamicStore(TTablet* tablet)
     {
+        if (!tablet->IsActiveServant()) {
+            return;
+        }
+
         TReqAllocateDynamicStore req;
         ToProto(req.mutable_tablet_id(), tablet->GetId());
         req.set_mount_revision(tablet->GetMountRevision());
@@ -3520,6 +3895,8 @@ private:
             Slot_->CommitTabletMutation(request);
         }
 
+        Slot_->GetSmoothMovementTracker()->CheckTablet(tablet);
+
         auto state = tablet->GetState();
         if (state != ETabletState::UnmountWaitingForLocks && state != ETabletState::FreezeWaitingForLocks) {
             return;
@@ -3603,12 +3980,16 @@ private:
     void PostMasterMessage(
         TTablet* tablet,
         const ::google::protobuf::MessageLite& message,
-        bool forceCellMailbox = false)
+        bool forceCellMailbox = false) override
     {
         // Used in tests only. NB: synchronous sleep is required since we don't expect
         // context switches here.
         if (auto sleepDuration = Config_->SleepBeforePostToMaster) {
             Sleep(*sleepDuration);
+        }
+
+        if (!forceCellMailbox) {
+            YT_VERIFY(tablet->IsActiveServant());
         }
 
         auto avenueEndpointId = tablet->GetMasterAvenueEndpointId();
@@ -3651,6 +4032,8 @@ private:
         if (tablet->GetSettings().MountConfig->PrecacheChunkReplicasOnMount) {
             PrecacheChunkReplicas(tablet);
         }
+
+        tablet->SmoothMovementData().SetStageChangeScheduled(false);
 
         YT_VERIFY(tablet->GetTransientTabletLockCount() == 0);
     }
@@ -3727,6 +4110,8 @@ private:
         for (auto policy : TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()) {
             tablet->SetDictionaryBuildingInProgress(policy, false);
         }
+
+        tablet->SmoothMovementData().SetStageChangeScheduled(false);
     }
 
 
@@ -3963,7 +4348,11 @@ private:
                 })
                 .Item("backup_stage").Value(tablet->GetBackupStage())
                 .Item("backup_checkpoint_timestamp").Value(tablet->GetBackupCheckpointTimestamp())
-                .Item("remount_count").Value(tablet->GetRemountCount())
+                .DoIf(tablet->SmoothMovementData().GetRole() != ESmoothMovementRole::None, [&] (auto fluent) {
+                    fluent
+                        .Item("smooth_movement").DoMap(
+                            BIND(&TSmoothMovementData::BuildOrchidYson, &tablet->SmoothMovementData()));
+                })
             .EndMap();
     }
 
@@ -4482,7 +4871,7 @@ private:
         }
         tablet->SetTrimmedRowCount(trimmedRowCount);
 
-        {
+        if (tablet->IsActiveServant()) {
             TReqUpdateTabletTrimmedRowCount masterRequest;
             ToProto(masterRequest.mutable_tablet_id(), tablet->GetId());
             masterRequest.set_mount_revision(tablet->GetMountRevision());
@@ -4566,6 +4955,31 @@ private:
                 tablet->GetLoggingTag(),
                 transaction->GetId());
 
+            const auto& movementData = tablet->SmoothMovementData();
+            if (movementData.ShouldForwardMutation()) {
+                YT_LOG_DEBUG("Externalizing tablet stores update transaction (%v, TransactionId: %v)",
+                    tablet->GetLoggingTag(),
+                    transaction->GetId());
+
+                NProto::TReqExternalizeTransaction req;
+                ToProto(req.mutable_transaction_id(), transaction->GetId());
+                req.set_transaction_start_timestamp(transaction->GetStartTimestamp());
+                req.set_transaction_timeout(ToProto<i64>(transaction->GetTimeout()));
+                ToProto(req.mutable_externalizer_tablet_id(), tablet->GetId());
+
+                NRpc::WriteAuthenticationIdentityToProto(
+                    &req,
+                    NRpc::GetCurrentAuthenticationIdentity());
+
+                WaitFor(CreateMutation(Slot_->GetHydraManager(), req)
+                    ->CommitAndLog(Logger))
+                    .ThrowOnError();
+
+                YT_LOG_DEBUG("Tablet stores update transaction externalized (%v, TransactionId: %v)",
+                    tablet->GetLoggingTag(),
+                    transaction->GetId());
+            }
+
             NApi::TTransactionCommitOptions commitOptions{
                 .GeneratePrepareTimestamp = false
             };
@@ -4617,6 +5031,11 @@ private:
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         return dynamicConfigManager->GetConfig()->TabletNode;
+    }
+
+   const TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const override
+    {
+        return Bootstrap_->GetDynamicConfigManager();
     }
 
     void OnTableDynamicConfigChanged(

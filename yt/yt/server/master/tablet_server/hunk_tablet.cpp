@@ -16,7 +16,7 @@ TString THunkTablet::GetCapitalizedObjectName() const
     return Format("Hunk tablet %v", GetId());
 }
 
-TTabletStatistics THunkTablet::GetTabletStatistics() const
+TTabletStatistics THunkTablet::GetTabletStatistics(bool /*fromAuxiliaryCell*/) const
 {
     return {};
 }

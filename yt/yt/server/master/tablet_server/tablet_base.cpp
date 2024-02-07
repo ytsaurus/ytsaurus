@@ -18,10 +18,20 @@ using namespace NChunkServer;
 using namespace NCypressClient;
 using namespace NHiveServer;
 using namespace NTabletClient;
+using namespace NTabletNode;
 using namespace NTransactionClient;
 using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TTabletServant::TTabletServant(bool isAuxiliary)
+    : IsAuxiliary_(isAuxiliary)
+{ }
+
+bool TTabletServant::IsAuxiliary() const
+{
+    return IsAuxiliary_;
+}
 
 TTabletServant::operator bool() const
 {
@@ -34,6 +44,8 @@ void TTabletServant::Clear()
     State_ = ETabletState::Unmounted;
     MountRevision_ = {};
     MountTime_ = {};
+    MovementRole_ = ESmoothMovementRole::None;
+    MovementStage_ = ESmoothMovementStage::None;
 }
 
 void TTabletServant::Swap(TTabletServant* other)
@@ -42,6 +54,8 @@ void TTabletServant::Swap(TTabletServant* other)
     std::swap(State_, other->State_);
     std::swap(MountRevision_, other->MountRevision_);
     std::swap(MountTime_, other->MountTime_);
+    std::swap(MovementRole_, other->MovementRole_);
+    std::swap(MovementStage_, other->MovementStage_);
 }
 
 void TTabletServant::Persist(const TPersistenceContext& context)
@@ -52,6 +66,12 @@ void TTabletServant::Persist(const TPersistenceContext& context)
     Persist(context, State_);
     Persist(context, MountRevision_);
     Persist(context, MountTime_);
+
+    // COMPAT(ifsmirnov)
+    if (context.IsSave() || context.GetVersion() >= EMasterReign::SmoothTabletMovement) {
+        Persist(context, MovementRole_);
+        Persist(context, MovementStage_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,10 +84,12 @@ void TTabletBase::Save(TSaveContext& context) const
     Save(context, Index_);
     Save(context, InMemoryMode_);
     Save(context, Servant_);
+    Save(context, AuxiliaryServant_);
     Save(context, SettingsRevision_);
     Save(context, WasForcefullyUnmounted_);
     Save(context, Action_);
     Save(context, StoresUpdatePreparedTransaction_);
+    Save(context, TabletwiseAvenueEndpointId_);
     Save(context, Owner_);
     Save(context, State_);
     Save(context, ExpectedState_);
@@ -103,6 +125,11 @@ void TTabletBase::Load(TLoadContext& context)
         Load(context, Servant_);
 
         // COMPAT(ifsmirnov)
+        if (context.GetVersion() >= EMasterReign::SmoothTabletMovement) {
+            Load(context, AuxiliaryServant_);
+        }
+
+        // COMPAT(ifsmirnov)
         if (context.GetVersion() >= EMasterReign::RemountNeededNotification) {
             Load(context, SettingsRevision_);
         }
@@ -111,6 +138,12 @@ void TTabletBase::Load(TLoadContext& context)
     Load(context, WasForcefullyUnmounted_);
     Load(context, Action_);
     Load(context, StoresUpdatePreparedTransaction_);
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::SmoothTabletMovement) {
+        Load(context, TabletwiseAvenueEndpointId_);
+    }
+
     Load(context, Owner_);
     Load(context, State_);
     Load(context, ExpectedState_);
@@ -191,6 +224,21 @@ void TTabletBase::SetOwner(TTabletOwnerBase* owner)
     Owner_ = owner;
 }
 
+TCompactVector<TTabletCell*, 2> TTabletBase::GetCells() const
+{
+    TCompactVector<TTabletCell*, 2> result;
+
+    if (auto* cell = Servant_.GetCell()) {
+        result.push_back(cell);
+    }
+
+    if (auto* cell = AuxiliaryServant_.GetCell()) {
+        result.push_back(cell);
+    }
+
+    return result;
+}
+
 void TTabletBase::CopyFrom(const TTabletBase& other)
 {
     YT_VERIFY(State_ == ETabletState::Unmounted);
@@ -262,6 +310,8 @@ TTabletServant* TTabletBase::FindServant(TTabletCellId cellId)
 {
     if (GetObjectId(Servant_.GetCell()) == cellId) {
         return &Servant_;
+    } else if (GetObjectId(AuxiliaryServant_.GetCell()) == cellId) {
+        return &AuxiliaryServant_;
     } else {
         return nullptr;
     }
@@ -276,6 +326,8 @@ TTabletServant* TTabletBase::FindServant(NHydra::TRevision mountRevision)
 {
     if (Servant_.GetMountRevision() == mountRevision) {
         return &Servant_;
+    } else if (AuxiliaryServant_.GetMountRevision() == mountRevision) {
+        return &AuxiliaryServant_;
     } else {
         return nullptr;
     }
@@ -316,6 +368,19 @@ i64 TTabletBase::GetTabletStaticMemorySize() const
 i64 TTabletBase::GetTabletMasterMemoryUsage() const
 {
     return sizeof(TTabletBase);
+}
+
+void TTabletBase::ValidateNotSmoothlyMoved(TStringBuf message) const
+{
+    if (const auto* action = GetAction()) {
+        if (action->GetKind() == ETabletActionKind::SmoothMove) {
+            THROW_ERROR_EXCEPTION("%v since tablet %v is being moved to other cell",
+                message,
+                GetId());
+        }
+    }
+
+    YT_VERIFY(!AuxiliaryServant());
 }
 
 void TTabletBase::ValidateMount(bool freeze)
@@ -402,6 +467,11 @@ void TTabletBase::ValidateReshard() const
 void TTabletBase::ValidateReshardRemove() const
 { }
 
+void TTabletBase::ValidateRemount() const
+{
+    ValidateNotSmoothlyMoved("Cannot remount tablet");
+}
+
 int TTabletBase::GetTabletErrorCount() const
 {
     return TabletErrorCount_;
@@ -444,6 +514,11 @@ void TTabletBase::CheckInvariants(NCellMaster::TBootstrap* bootstrap) const
     TObject::CheckInvariants(bootstrap);
 
     YT_VERIFY(GetState() == Servant().GetState());
+
+    if (GetState() == ETabletState::Unmounted) {
+        YT_VERIFY(Servant().GetState() == ETabletState::Unmounted);
+        YT_VERIFY(AuxiliaryServant().GetState() == ETabletState::Unmounted);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
