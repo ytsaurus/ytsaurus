@@ -324,32 +324,7 @@ $ yt select-rows 't.b.c[0] from `//tmp/test` as t' --syntax-version 2 --format j
 {"t.b.c[0]":4}
 ```
 
-#### Работа с YSON
-
-Для извлечения данных из значений, содержащих [YSON](../../../user-guide/storage/formats.md#yson), существует набор функций:
-
-- `try_get_int64`;
-- `get_int64`;
-- `try_get_uint64`;
--  `get_uint64`;
-- `try_get_double`;
--  `get_double`;
-- `try_get_boolean`;
-- `get_boolean`;
-- `try_get_string`;
--  `get_string`;
-- `try_get_any`;
--  `get_any`.
-
-Функции принимают два аргумента: ` (yson, path)`, где `yson` — значение типа `any`, содержащее YSON, `path` — строка, содержащая путь до нужного поля в формате YPATH.
-
-Версия с префиксом `try_` в случае отсутствия поля нужно типа по заданному пути возвращает `NULL`, версия без `try_` возвращает ошибку при отсутствии поля.
-
-Пример:
-Для строки таблицы `{column=<attr=4>{key3=2;k={k2=<b=7>3;k3=10};lst=<a=[1;{a=3};{b=7u}]>[0;1;<a={b=4}>2]}}` `try_get_uint64(column, "/lst/@a/2/b")` вернет значение `7u`.
-
-`any_to_yson_string(yson) :: any -> string`
-Преобразует значение типа `any` в строку, содержащую его binary-YSON представление.
+#### Работа с [YSON](../../../user-guide/storage/formats.md#yson)
 
 {% note warning "Внимание" %}
 
@@ -357,8 +332,25 @@ $ yt select-rows 't.b.c[0] from `//tmp/test` as t' --syntax-version 2 --format j
 
 {% endnote %}
 
-`list_contains(list, value) :: any -> (string | int64 | uint64| boolean) -> boolean`
-Ищет `value` в YSON-списке `list`, имеющем тип `any`, значение `value` скалярного типа. Список не обязан быть гомогенным (т.е. может содержать значения разных типов), сравнение выполняется с учётом типа.
+##### Извлечение данных
+
+Существует набор функций для извлечения данных:
+
+1. `try_get_int64`, `get_int64`, `try_get_uint64`, `get_uint64`, `try_get_double`, `get_double`, `try_get_boolean`, `get_boolean`, `try_get_string`, `get_string`, `try_get_any`, `get_any`.
+    Функции принимают два аргумента: ` (yson, path)`, где `yson` — значение типа `any`, содержащее YSON, `path` — строка, содержащая путь до нужного поля в формате YPATH.
+    Версия с префиксом `try_` в случае отсутствия поля нужно типа по заданному пути возвращает `NULL`, версия без `try_` возвращает ошибку при отсутствии поля.
+    Пример:
+    Для строки таблицы `{column=<attr=4>{key3=2;k={k2=<b=7>3;k3=10};lst=<a=[1;{a=3};{b=7u}]>[0;1;<a={b=4}>2]}}` `try_get_uint64(column, "/lst/@a/2/b")` вернет значение `7u`;
+2. `list_contains(list, value) :: any -> (string | int64 | uint64| boolean) -> boolean`.
+    Ищет `value` в YSON-списке `list`, имеющем тип `any`, значение `value` скалярного типа. Список не обязан быть гомогенным (т.е. может содержать значения разных типов), сравнение выполняется с учётом типа;
+3. `any_to_yson_string(yson) :: any -> string`.
+    Преобразует значение типа `any` в строку, содержащую его binary-YSON представление.
+
+##### Формирование YSON
+
+1. `make_entity()`. Пример: `make_entity() -> #`;
+2. `make_map(args...)`. Пример: `make_map("a", 1, "b", 2) -> {a=1;b=2}`;
+3. `make_list(args...)`. Пример: `make_list("a", 1, 2, 3) -> [a;1;2;3]`.
 
 #### Работа с регулярными выражениями
 Для работы с регулярными выражениями используется библиотека [Google RE2](https://github.com/google/re2). Библиотека работает в режиме UTF-8. Синтаксис регулярных выражений описан на отдельной [странице](https://github.com/google/re2/wiki/Syntax).
