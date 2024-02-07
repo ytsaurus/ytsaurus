@@ -185,9 +185,9 @@ jobs:
           rm -rf *
 
           mkdir ytsaurus
-          ../ytsaurus/ytsaurus/ya make -T --ignore-recurses --build=relwithdebinfo ../ytsaurus/yt/yt/server/all --output=ytsaurus
+          ../ytsaurus/ytsaurus/ya make -T --ignore-recurses --build=relwithdebinfo ../ytsaurus/ytsaurus/yt/yt/server/all --output=ytsaurus
           alias ya-make-with-flags="../ytsaurus/ytsaurus/ya make -T --ignore-recurses --no-src-links --build=release  --output=ytsaurus"
-          ya-make-with-flags ../ytsaurus/yt/yql/agent/bin
+          ya-make-with-flags ../ytsaurus/ytsaurus/yt/yql/agent/bin
 
           ls
           ls ytsaurus
