@@ -20,6 +20,10 @@ on:
         default: false
         required: false
         type: boolean
+      build-query-tracker-ya-make:
+        default: false
+        required: false
+        type: boolean
       build-python:
         default: false
         required: false
@@ -172,6 +176,17 @@ jobs:
 
           cd ../build_relwithdebinfo
           ninja ytserver-yql-agent
+
+      - name: Build query tracker using ya make
+        if: ${{ inputs.build-query-tracker-ya-make }}
+        run: |
+          mkdir -p ../build_qt_ya_make
+          cd ../build_qt_ya_make
+          rm -rf *
+          ./ya make -T --ignore-recurses --build=relwithdebinfo ../ytsaurus/yt/yt/server/all --output=.
+          ./ya make -T --ignore-recurses --build=release ../ytsaurus/yt/yql/agent/bin --output=.
+
+          ls
 
       - name: Build Python packages
         if: ${{ inputs.build-python }}
