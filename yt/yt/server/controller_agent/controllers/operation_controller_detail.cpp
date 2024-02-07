@@ -5324,7 +5324,10 @@ void TOperationControllerBase::GracefullyFailOperation(TError error)
 
     bool hasJobsToFail = false;
 
-    for (const auto& [_, joblet] : JobletMap) {
+    // NB: joblet abort will remove it from map invalidating iterator.
+    auto jobletMapCopy = JobletMap;
+
+    for (const auto& [_, joblet] : jobletMapCopy) {
         switch (joblet->JobType) {
             // TODO(ignat): YT-11247, add helper with list of job types with user code.
             case EJobType::Map:
