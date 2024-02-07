@@ -2781,12 +2781,27 @@ private:
             auto sequoiaReplicas = WaitFor(DoGetSequoiaLastSeenReplicas(chunkId))
                 .ValueOrThrow();
 
-            for (const auto& replica : sequoiaReplicas) {
-                replicas.push_back(replica.NodeId);
+            if (chunk->IsErasure()) {
+                if (std::ssize(replicas) < ::NErasure::MaxTotalPartCount) {
+                    if (!replicas.empty()) {
+                        YT_LOG_ALERT("Last seen replicas count stored on master is weird (ChunkId: %v, ReplicaCount: %v)",
+                            chunk->GetId(),
+                            std::ssize(replicas));
+                    }
+                    replicas.resize(::NErasure::MaxTotalPartCount);
+                }
+
+                for (const auto& replica : sequoiaReplicas) {
+                    replicas[replica.ReplicaIndex] = replica.NodeId;
+                }
+            } else {
+                for (const auto& replica : sequoiaReplicas) {
+                    replicas.push_back(replica.NodeId);
+                }
+                SortUnique(replicas);
             }
         }
 
-        SortUnique(replicas);
         return replicas;
     }
 
