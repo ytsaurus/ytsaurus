@@ -48,6 +48,24 @@ void Serialize(const TJobEvents& events, NYson::IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TJobInterruptionInfo& interruptionInfo, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("interruption_reason").Value(interruptionInfo.InterruptionReason)
+            .OptionalItem("interruption_timeout", interruptionInfo.InterruptionTimeout)
+            .OptionalItem("preemption_reason", interruptionInfo.PreemptionReason)
+            .DoIf(interruptionInfo.PreemptedFor.has_value(), [&interruptionInfo] (TFluentMap fluent) {
+                fluent.Item("preempted_for").BeginMap()
+                    .Item("allocation_id").Value(interruptionInfo.PreemptedFor->AllocationId)
+                    .Item("operation_id").Value(interruptionInfo.PreemptedFor->OperationId)
+                .EndMap();
+            })
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 size_t TJobReport::EstimateSize() const
 {
     return NJobAgent::EstimateSizes(
@@ -61,7 +79,8 @@ size_t TJobReport::EstimateSize() const
         Spec_,
         SpecVersion_,
         Statistics_,
-        Events_);
+        Events_,
+        InterruptionInfo_);
 }
 
 TJobReport TJobReport::ExtractSpec() const
@@ -112,9 +131,9 @@ TJobReport TJobReport::ExtractProfile() const
 bool TJobReport::IsEmpty() const
 {
     bool somethingSpecified =
-        Type_ || State_ || StartTime_ || FinishTime_ || Error_ || Spec_ || SpecVersion_ ||
-        Statistics_ || Events_ || Stderr_ || StderrSize_ || FailContext_ || Profile_ || JobCookie_ || ControllerState_ ||
-        CoreInfos_ || HasCompetitors_ || HasProbingCompetitors_ || MonitoringDescriptor_ || ExecAttributes_;
+        Type_ || State_ || StartTime_ || FinishTime_ || Error_ || InterruptionInfo_ || Spec_ || SpecVersion_ ||
+        Statistics_ || Events_ || Stderr_ || StderrSize_ || FailContext_ || Profile_ || JobCookie_ ||
+        CoreInfos_ || HasCompetitors_ || HasProbingCompetitors_ || MonitoringDescriptor_ || ExecAttributes_ || ControllerState_;
     return !somethingSpecified;
 }
 

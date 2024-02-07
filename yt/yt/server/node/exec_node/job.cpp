@@ -1363,6 +1363,8 @@ void TJob::DoInterrupt(
                 << error;
         }
 
+        ReportJobInterruptionInfo(timeout, interruptionReason, preemptionReason, preemptedFor);
+
         Abort(error);
         return;
     }
@@ -1377,6 +1379,8 @@ void TJob::DoInterrupt(
                 << TErrorAttribute("preemption_reason", preemptionReason)
                 << TErrorAttribute("abort_reason", EAbortReason::Preemption);
         }
+
+        ReportJobInterruptionInfo(timeout, interruptionReason, preemptionReason, preemptedFor);
 
         Abort(error);
         return;
@@ -1401,6 +1405,8 @@ void TJob::DoInterrupt(
                 Bootstrap_->GetJobInvoker());
             InterruptionDeadline_ = TInstant::Now() + timeout;
         }
+
+        ReportJobInterruptionInfo(timeout, interruptionReason, preemptionReason, preemptedFor);
     } catch (const std::exception& ex) {
         auto error = TError("Error interrupting job on job proxy")
             << ex;
@@ -1646,6 +1652,27 @@ void TJob::StartUserJobMonitoring()
         .AddProducer("", UserJobSensorProducer_);
     HandleJobReport(TNodeJobReport()
         .MonitoringDescriptor(monitoringConfig.job_descriptor()));
+}
+
+void TJob::ReportJobInterruptionInfo(
+    TDuration timeout,
+    NScheduler::EInterruptReason interruptionReason,
+    const std::optional<TString>& preemptionReason,
+    const std::optional<NScheduler::TPreemptedFor>& preemptedFor)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    HandleJobReport(TNodeJobReport()
+        .OperationId(OperationId_)
+        .InterruptionInfo(TJobInterruptionInfo{
+            .InterruptionReason = interruptionReason,
+            .InterruptionTimeout = timeout ? std::optional(timeout) : std::nullopt,
+            .PreemptionReason = preemptionReason,
+            .PreemptedFor = TJobInterruptionInfo::TPreemptedFor{
+                .AllocationId = preemptedFor->AllocationId,
+                .OperationId = preemptedFor->OperationId,
+            },
+        }));
 }
 
 void TJob::DoSetResult(TError error)

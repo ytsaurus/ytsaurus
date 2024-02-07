@@ -4,7 +4,7 @@ from yt_helpers import profiler_factory
 
 from yt_commands import (
     authors, wait, retry, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, create,
-    create_pool, insert_rows,
+    create_pool, insert_rows, run_sleeping_vanilla, print_debug,
     update_controller_agent_config,
     lookup_rows, delete_rows, write_table, map, vanilla, run_test_vanilla, abort_job, get_job, sync_create_cells, raises_yt_error)
 
@@ -276,8 +276,10 @@ class TestGetJob(_TestGetJobCommon):
     }
 
     DELTA_NODE_CONFIG = update(_TestGetJobBase.DELTA_NODE_CONFIG, {
-        "job_proxy": {
-            "job_proxy_heartbeat_period":  100,
+        "exec_node": {
+            "job_proxy": {
+                "job_proxy_heartbeat_period":  100,
+            },
         },
     })
 
@@ -406,6 +408,37 @@ class TestGetJob(_TestGetJobCommon):
 
         _update_job_in_archive(op.id, job_id, {"transient_state": "running"})
         wait(lambda: _get_controller_state_from_archive(op.id, job_id) == "aborted")
+
+    @authors("arkady-e1ppa")
+    @pytest.mark.parametrize("use_get_job", [True, False])
+    def test_job_preemption_info_in_archive(self, use_get_job):
+        update_controller_agent_config("enable_operation_progress_archivation", True)
+
+        create_pool("research")
+        create_pool("prod", attributes={"strong_guarantee_resources": {"cpu": 3}})
+
+        op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "research"})
+        job_id = wait_breakpoint(job_count=1)[0]
+
+        op2 = run_sleeping_vanilla(spec={"pool": "prod"}, job_count=3)
+
+        wait(lambda: op1.get_job_count(state="aborted") == 1)
+
+        def get_interruption_info():
+            if use_get_job:
+                job = get_job(op1.id, job_id)
+                print_debug(job)
+                return job.get("interruption_info", None)
+
+            return _get_job_from_archive(op1.id, job_id).get("interruption_info", None)
+
+        wait(lambda: get_interruption_info() is not None, ignore_exceptions=True)
+        interruption_info = get_interruption_info()
+        print_debug(interruption_info)
+        assert interruption_info["interruption_reason"] == "preemption"
+        preemption_reason = interruption_info["preemption_reason"]
+        assert preemption_reason.startswith("Preempted to start allocation") and \
+            "of operation {}".format(op2.id) in preemption_reason
 
     @authors("levysotsky")
     def test_not_found(self):

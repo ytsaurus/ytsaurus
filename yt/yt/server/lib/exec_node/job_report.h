@@ -19,6 +19,7 @@ public:
     TNodeJobReport StartTime(TInstant startTime);
     TNodeJobReport FinishTime(TInstant finishTime);
     TNodeJobReport Error(const TError& error);
+    TNodeJobReport InterruptionInfo(TJobInterruptionInfo interruptionInfo);
     TNodeJobReport Spec(const NControllerAgent::NProto::TJobSpec& spec);
     TNodeJobReport SpecVersion(i64 specVersion);
     TNodeJobReport Statistics(const NYson::TYsonString& statistics);

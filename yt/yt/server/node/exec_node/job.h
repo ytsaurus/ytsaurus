@@ -386,6 +386,12 @@ private:
 
     void StartUserJobMonitoring();
 
+    void ReportJobInterruptionInfo(
+        TDuration timeout,
+        NScheduler::EInterruptReason interruptionReason,
+        const std::optional<TString>& preemptionReason,
+        const std::optional<NScheduler::TPreemptedFor>& preemptedFor);
+
     void DoSetResult(TError error);
 
     void DoSetResult(

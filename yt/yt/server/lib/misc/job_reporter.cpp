@@ -114,6 +114,10 @@ public:
         if (Report_.Error()) {
             builder.AddValue(MakeUnversionedAnyValue(*Report_.Error(), index.Error));
         }
+        // COMPAT(arkady-e1ppa)
+        if (archiveVersion >= 50 && Report_.InterruptionInfo()) {
+            builder.AddValue(MakeUnversionedAnyValue(*Report_.InterruptionInfo(), index.InterruptionInfo));
+        }
         if (Report_.Statistics()) {
             if (ReportStatisticsLz4_) {
                 auto codec = NCompression::GetCodec(NCompression::ECodec::Lz4);

@@ -54,6 +54,12 @@ TNodeJobReport TNodeJobReport::Error(const TError& error)
     return std::move(*this);
 }
 
+TNodeJobReport TNodeJobReport::InterruptionInfo(TJobInterruptionInfo interruptionInfo)
+{
+    InterruptionInfo_ = ConvertToYsonString(interruptionInfo).ToString();
+    return std::move(*this);
+}
+
 TNodeJobReport TNodeJobReport::Spec(const NControllerAgent::NProto::TJobSpec& spec)
 {
     TString specString;
