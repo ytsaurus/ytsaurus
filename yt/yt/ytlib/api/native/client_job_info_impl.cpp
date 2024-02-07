@@ -105,6 +105,7 @@ static const THashSet<TString> DefaultListJobsAttributes = {
     "stderr_size",
     "fail_context_size",
     "error",
+    "interruption_info",
     "brief_statistics",
     "job_competition_id",
     "has_competitors",
@@ -1173,6 +1174,7 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
     auto finishTimeIndex = findColumnIndex("finish_time");
     auto addressIndex = findColumnIndex("address");
     auto errorIndex = findColumnIndex("error");
+    auto interruptionInfoIndex = findColumnIndex("interruption_info");
     auto statisticsIndex = findColumnIndex("statistics");
     auto eventsIndex = findColumnIndex("events");
     auto briefStatisticsIndex = findColumnIndex("brief_statistics");
@@ -1295,6 +1297,10 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             job.Error = FromUnversionedValue<TYsonString>(row[*errorIndex]);
         }
 
+        if (interruptionInfoIndex && row[*interruptionInfoIndex].Type != EValueType::Null) {
+            job.InterruptionInfo = FromUnversionedValue<TYsonString>(row[*interruptionInfoIndex]);
+        }
+
         if (coreInfosIndex && row[*coreInfosIndex].Type != EValueType::Null) {
             job.CoreInfos = FromUnversionedValue<TYsonString>(row[*coreInfosIndex]);
         }
@@ -1377,6 +1383,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
     builder.AddSelectExpression("finish_time");
     builder.AddSelectExpression("address");
     builder.AddSelectExpression("error");
+    builder.AddSelectExpression("interruption_info");
     builder.AddSelectExpression("statistics");
     builder.AddSelectExpression("statistics_lz4");
     builder.AddSelectExpression("stderr_size");

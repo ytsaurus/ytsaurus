@@ -1174,7 +1174,7 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)
-        .Default(49);
+        .Default(50);
 
     registrar.Preprocessor([&] (TSchedulerConfig* config) {
         config->EventLog->MaxRowWeight = 128_MB;

@@ -46,6 +46,27 @@ void Serialize(const TJobEvents& events, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TJobInterruptionInfo
+{
+    struct TPreemptedFor
+    {
+        NScheduler::TAllocationId AllocationId;
+        NControllerAgent::TOperationId OperationId;
+    };
+
+    NScheduler::EInterruptReason InterruptionReason;
+
+    std::optional<TDuration> InterruptionTimeout;
+
+    std::optional<TString> PreemptionReason;
+
+    std::optional<TPreemptedFor> PreemptedFor;
+};
+
+void Serialize(const TJobInterruptionInfo& interruptionInfo, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobReport
 {
 public:
@@ -66,6 +87,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, StartTime);
     DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, FinishTime);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Error);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, InterruptionInfo);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Spec);
     DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, SpecVersion);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Statistics);
