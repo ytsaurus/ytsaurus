@@ -516,6 +516,34 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
         /*canUseLightInvoker*/ IsInsideTmpfs(sourcePath));
 }
 
+TFuture<void> TSlotLocation::MakeSandboxBind(
+    TJobId jobId,
+    int slotIndex,
+    const TString& artifactName,
+    ESandboxKind sandboxKind,
+    const TString& targetPath,
+    const TString& bindPath,
+    bool executable)
+{
+    return DoMakeSandboxFile(
+        jobId,
+        slotIndex,
+        artifactName,
+        sandboxKind,
+        BIND([=]  {
+            int permissions = executable ? 0755 : 0644;
+            SetPermissions(
+                targetPath,
+                permissions);
+
+            // Create mount-point path and file, to own it and be able to cleanup.
+            MakeDirRecursive(GetDirectoryName(bindPath));
+            TFile bindFile(bindPath, CreateAlways | WrOnly);
+        }),
+        /*destinationPath*/ bindPath,
+        /*canUseLightInvoker*/ true);
+}
+
 TFuture<void> TSlotLocation::MakeSandboxLink(
     TJobId jobId,
     int slotIndex,

@@ -61,6 +61,14 @@ struct IUserSlot
         const TString& linkPath,
         bool executable) = 0;
 
+    virtual TFuture<void> MakeSandboxBind(
+        TJobId jobId,
+        const TString& artifactName,
+        ESandboxKind sandboxKind,
+        const TString& targetPath,
+        const TString& bindPath,
+        bool executable) = 0;
+
     virtual TFuture<void> MakeCopy(
         TJobId jobId,
         const TString& artifactName,
@@ -117,7 +125,6 @@ struct IUserSlot
 
     virtual TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
         IInvokerPtr invoker,
-        IInvokerPtr ioInvoker,
         TJobWorkspaceBuildingContext context) = 0;
 
     //! Must be called before any action with slot.
