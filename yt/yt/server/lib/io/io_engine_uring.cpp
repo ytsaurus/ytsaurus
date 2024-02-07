@@ -86,6 +86,7 @@ public:
 
     double UserInteractiveRequestWeight;
     double UserRealtimeRequestWeight;
+    bool EnableIOUringLogging;
 
     REGISTER_YSON_STRUCT(TUringIOEngineConfig);
 
@@ -121,6 +122,9 @@ public:
         registrar.Parameter("user_realtime_request_weight", &TThis::UserRealtimeRequestWeight)
             .GreaterThanOrEqual(1)
             .Default(200);
+
+        registrar.Parameter("enable_io_uring_logging", &TThis::EnableIOUringLogging)
+            .Default(false);
     }
 };
 
@@ -389,6 +393,7 @@ struct TUringConfigProvider final
     const std::optional<i64> SimulatedMaxBytesPerWrite;
     const int MaxBytesPerRead;
     const int MaxBytesPerWrite;
+    const bool EnableIOUringLogging;
 
     YT_DECLARE_ATOMIC_FIELD(int, UringThreadCount)
     YT_DECLARE_ATOMIC_FIELD(int, MaxConcurrentRequestsPerThread)
@@ -404,6 +409,7 @@ struct TUringConfigProvider final
         , SimulatedMaxBytesPerWrite(config->SimulatedMaxBytesPerWrite)
         , MaxBytesPerRead(config->MaxBytesPerRead)
         , MaxBytesPerWrite(config->MaxBytesPerWrite)
+        , EnableIOUringLogging(config->EnableIOUringLogging)
     {
         Update(config);
     }
@@ -454,6 +460,7 @@ public:
         , ThreadPool_(threadPool)
         , Config_(std::move(config))
         , ThreadIndex_(index)
+        , EnableIOUringLogging_(Config_->EnableIOUringLogging)
         , Uring_(MaxUringConcurrentRequestsPerThread + UringEngineNotificationCount)
         , AllIovBuffers_(MaxUringConcurrentRequestsPerThread + UringEngineNotificationCount)
         , Sensors_(std::move(sensors))
@@ -466,6 +473,7 @@ private:
     IUringThreadPool* const ThreadPool_;
     const TUringConfigProviderPtr Config_;
     const int ThreadIndex_;
+    const bool EnableIOUringLogging_;
 
     TUring Uring_;
 
@@ -529,6 +537,8 @@ private:
 
     void ThreadMainStep()
     {
+        YT_VERIFY(!CanHandleMoreSubmissions() || RequestNotificationReadArmed_ || Stopping_);
+
         io_uring_cqe* cqe = GetCqe(true);
         while (cqe) {
             auto* userData = io_uring_cqe_get_data(cqe);
@@ -547,7 +557,7 @@ private:
         }
 
         while (UndersubmittedRequests_.GetSize() > 0 && CanHandleMoreSubmissions()) {
-            YT_LOG_TRACE("Submitting extra request from undersubmitted list.");
+            YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Submitting extra request from undersubmitted list.");
             auto* request = UndersubmittedRequests_.GetFront();
             HandleRequest(request);
         }
@@ -567,7 +577,7 @@ private:
             return nullptr;
         }
 
-        YT_LOG_TRACE("Request dequeued (Request: %v)",
+        YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Request dequeued (Request: %v)",
             request.get());
         return request;
     }
@@ -596,7 +606,7 @@ private:
 
         while (true) {
             if (!CanHandleMoreSubmissions()) {
-                YT_LOG_TRACE("Cannot handle more submissions");
+                YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Cannot handle more submissions");
                 break;
             }
 
@@ -633,7 +643,7 @@ private:
     {
         auto totalSubrequestCount = std::ssize(request->ReadSubrequests);
 
-        YT_LOG_TRACE("Handling read request (Request: %p, FinishedSubrequestCount: %v, TotalSubrequestCount: %v)",
+        YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Handling read request (Request: %p, FinishedSubrequestCount: %v, TotalSubrequestCount: %v)",
             request,
             request->FinishedSubrequestCount,
             totalSubrequestCount);
@@ -667,7 +677,7 @@ private:
                 .iov_len = Min<size_t>(buffer.Size(), Config_->MaxBytesPerRead)
             };
 
-            YT_LOG_TRACE("Submitting read operation (Request: %p/%v, FD: %v, Offset: %v, Buffer: %p@%v)",
+            YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Submitting read operation (Request: %p/%v, FD: %v, Offset: %v, Buffer: %p@%v)",
                 request,
                 subrequestIndex,
                 static_cast<FHANDLE>(*subrequest.Handle),
@@ -717,7 +727,7 @@ private:
     {
         auto totalSubrequestCount = std::ssize(request->WriteRequest.Buffers);
 
-        YT_LOG_TRACE("Handling write request (Request: %p, FinishedSubrequestCount: %v, TotalSubrequestCount: %v)",
+        YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Handling write request (Request: %p, FinishedSubrequestCount: %v, TotalSubrequestCount: %v)",
             request,
             request->FinishedSubrequestCount,
             totalSubrequestCount);
@@ -760,7 +770,7 @@ private:
             ++iovCount;
         }
 
-        YT_LOG_TRACE("Submitting write operation (Request: %p, FD: %v, Offset: %v, Buffers: %v)",
+        YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Submitting write operation (Request: %p, FD: %v, Offset: %v, Buffers: %v)",
             request,
             static_cast<FHANDLE>(*request->WriteRequest.Handle),
             request->WriteRequest.Offset,
@@ -797,10 +807,10 @@ private:
 
     void HandleFlushFileRequest(TFlushFileUringRequest* request)
     {
-        YT_LOG_TRACE("Handling flush file request (Request: %p)",
+        YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Handling flush file request (Request: %p)",
             request);
 
-        YT_LOG_TRACE("Submitting flush file request (Request: %p, FD: %v, Mode: %v)",
+        YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Submitting flush file request (Request: %p, FD: %v, Mode: %v)",
             request,
             static_cast<FHANDLE>(*request->FlushFileRequest.Handle),
             request->FlushFileRequest.Mode);
@@ -834,7 +844,7 @@ private:
     {
         auto [request, subrequestIndex] = GetRequestUserData<TReadUringRequest>(cqe);
 
-        YT_LOG_TRACE("Handling read completion (Request: %p/%v)",
+        YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Handling read completion (Request: %p/%v)",
             request,
             subrequestIndex);
 
@@ -844,13 +854,13 @@ private:
         if (cqe->res == 0 && subrequestState.Buffer.Size() > 0) {
             auto error = request->ReadRequestCombiner->CheckEof(subrequestState.Buffer);
             if (!error.IsOK()) {
-                YT_LOG_TRACE("Read subrequest failed at EOF (Request: %p/%v, Remaining: %v)",
+                YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Read subrequest failed at EOF (Request: %p/%v, Remaining: %v)",
                     request,
                     subrequestIndex,
                     subrequestState.Buffer.Size());
                 request->TrySetFailed(std::move(error));
             } else {
-                YT_LOG_TRACE("Read subrequest succeeded at EOF (Request: %p/%v, Remaining: %v)",
+                YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Read subrequest succeeded at EOF (Request: %p/%v, Remaining: %v)",
                     request,
                     subrequestIndex,
                     subrequestState.Buffer.Size());
@@ -869,14 +879,14 @@ private:
             auto bufferSize = static_cast<i64>(subrequestState.Buffer.Size());
             subrequest.Offset += readSize;
             if (bufferSize == readSize) {
-                YT_LOG_TRACE("Read subrequest fully succeeded (Request: %p/%v, Size: %v)",
+                YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Read subrequest fully succeeded (Request: %p/%v, Size: %v)",
                     request,
                     subrequestIndex,
                     readSize);
                 subrequestState.Buffer = { };
                 ++request->FinishedSubrequestCount;
             } else {
-                YT_LOG_TRACE("Read subrequest partially succeeded (Request: %p/%v, Size: %v)",
+                YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Read subrequest partially succeeded (Request: %p/%v, Size: %v)",
                     request,
                     subrequestIndex,
                     readSize);
@@ -892,7 +902,7 @@ private:
     {
         auto [request, _] = GetRequestUserData<TWriteUringRequest>(cqe);
 
-        YT_LOG_TRACE("Handling write completion (Request: %p)",
+        YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Handling write completion (Request: %p)",
             request);
 
         if (cqe->res < 0) {
@@ -918,7 +928,7 @@ private:
             auto& buffer = request->WriteRequest.Buffers[request->CurrentWriteSubrequestIndex];
             auto bufferSize = static_cast<i64>(buffer.Size());
             if (bufferSize <= writtenSize) {
-                YT_LOG_TRACE("Write subrequest fully succeeded (Request: %p/%v, Size: %v)",
+                YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Write subrequest fully succeeded (Request: %p/%v, Size: %v)",
                     request,
                     request->CurrentWriteSubrequestIndex,
                     writtenSize);
@@ -926,7 +936,7 @@ private:
                 buffer = { };
                 ++request->CurrentWriteSubrequestIndex;
             } else {
-                YT_LOG_TRACE("Write subrequest partially succeeded (Request: %p/%v, Size: %v)",
+                YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Write subrequest partially succeeded (Request: %p/%v, Size: %v)",
                     request,
                     request->CurrentWriteSubrequestIndex,
                     writtenSize);
@@ -942,7 +952,7 @@ private:
     {
         auto [request, _] = GetRequestUserData<TFlushFileUringRequest>(cqe);
 
-        YT_LOG_TRACE("Handling sync completion (Request: %p)",
+        YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Handling sync completion (Request: %p)",
             request);
 
         request->TrySetFinished(cqe);
@@ -953,7 +963,7 @@ private:
     {
         auto [request, _] = GetRequestUserData<TAllocateUringRequest>(cqe);
 
-        YT_LOG_TRACE("Handling allocate completion (Request: %p)",
+        YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Handling allocate completion (Request: %p)",
             request);
 
         request->TrySetFinished(cqe);
@@ -982,7 +992,7 @@ private:
 
     void ArmStopNotificationRead()
     {
-        YT_LOG_TRACE("Arming stop notification read");
+        YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Arming stop notification read");
         ArmNotificationRead(StopNotificationIndex, StopNotificationHandle_, StopNotificationUserData);
     }
 
@@ -993,10 +1003,13 @@ private:
             CanHandleMoreSubmissions())
         {
             RequestNotificationReadArmed_ = true;
-            YT_LOG_TRACE("Arming request notification read");
+            auto& handle = ThreadPool_->GetNotificationHandle(ThreadIndex_);
+            YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Arming request notification read (Handle: %v)",
+                handle.GetFD());
+
             ArmNotificationRead(
                 RequestNotificationIndex,
-                ThreadPool_->GetNotificationHandle(ThreadIndex_),
+                handle,
                 RequestNotificationUserData);
         }
     }
@@ -1028,7 +1041,7 @@ private:
             --PendingSubmissionsCount_;
         }
         YT_VERIFY(PendingSubmissionsCount_ >= 0);
-        YT_LOG_TRACE("CQE received (PendingRequestCount: %v)",
+        YT_LOG_DEBUG_IF(EnableIOUringLogging_, "CQE received (PendingRequestCount: %v)",
             PendingSubmissionsCount_);
 
         Uring_.CqeSeen(cqe);
@@ -1058,7 +1071,7 @@ private:
             count = Uring_.Submit();
         }
         if (count > 0) {
-            YT_LOG_TRACE("SQEs submitted (SqeCount: %v, PendingRequestCount: %v)",
+            YT_LOG_DEBUG_IF(EnableIOUringLogging_, "SQEs submitted (SqeCount: %v, PendingRequestCount: %v)",
                 count,
                 PendingSubmissionsCount_);
         }
@@ -1091,7 +1104,7 @@ private:
 
     void DisposeRequest(TUringRequest* request)
     {
-        YT_LOG_TRACE("Request disposed (Request: %v)",
+        YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Request disposed (Request: %v)",
             request);
 
         ThreadPool_->MarkFinished(ThreadIndex_, TUringRequestPtr(request));
@@ -1106,7 +1119,8 @@ class TMoodyCamelQueue
     : public TRefCounted
 {
 public:
-    TMoodyCamelQueue(TString /*locationId*/, TUringConfigProviderPtr /*config*/)
+    TMoodyCamelQueue(TString /*locationId*/, TUringConfigProviderPtr config)
+        : EnableIOUringLogging_(config->EnableIOUringLogging)
     { }
 
     EQueueSubmitResult Enqueue(
@@ -1117,7 +1131,9 @@ public:
         Queue_.enqueue(std::move(request));
 
         if (!RequestNotificationHandleRaised_.exchange(true)) {
-            YT_LOG_TRACE("Request notification raise");
+            YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Request notification raise (Handle: %v, Reason: Enqueue)",
+                RequestNotificationHandle_.GetFD());
+
             RequestNotificationHandle_.Raise();
         }
 
@@ -1134,6 +1150,9 @@ public:
         }
 
         if (!RequestNotificationHandleRaised_.exchange(true)) {
+            YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Request notification raise (Handle: %v, Reason: EnqueueMany)",
+                RequestNotificationHandle_.GetFD());
+
             RequestNotificationHandle_.Raise();
         }
 
@@ -1165,6 +1184,9 @@ public:
 
     void Reconfigure(int /*threadCount*/)
     {
+        YT_LOG_DEBUG("Request notification raise (Handle: %v, Reason: Reconfigure)",
+            RequestNotificationHandle_.GetFD());
+
         RequestNotificationHandle_.Raise();
     }
 
@@ -1174,6 +1196,7 @@ public:
     }
 
 private:
+    const bool EnableIOUringLogging_;
     moodycamel::ConcurrentQueue<TUringRequestPtr> Queue_;
     TNotificationHandle RequestNotificationHandle_{true};
     std::atomic<bool> RequestNotificationHandleRaised_ = false;
@@ -1187,6 +1210,7 @@ class TFairShareQueue
 public:
     TFairShareQueue(TString locationId, TUringConfigProviderPtr config)
         : Config_(std::move(config))
+        , EnableIOUringLogging_(Config_->EnableIOUringLogging)
         , OffloadActionQueue_(New<TActionQueue>(Format("%v:%v", "UOffload", locationId)))
         , OffloadInvoker_(OffloadActionQueue_->GetInvoker())
         , OffloadScheduled_(false)
@@ -1275,7 +1299,11 @@ public:
         }
 
         for (int shardIndex = 0; shardIndex < threadCount; ++shardIndex) {
-            Shards_[shardIndex].RequestNotificationHandle.Raise();
+            auto& shard = Shards_[shardIndex];
+            YT_LOG_DEBUG("Request notification raise (Handle: %v, Reason: Reconfigure)",
+                shard.RequestNotificationHandle.GetFD());
+
+            shard.RequestNotificationHandle.Raise();
         }
     }
 
@@ -1295,6 +1323,7 @@ private:
     };
 
     const TUringConfigProviderPtr Config_;
+    const bool EnableIOUringLogging_;
     std::array<TQueueShard, MaxUringThreadCount> Shards_;
 
     TMpscShardedQueue<TUringRequestPtr> OffloadedRequests_;
@@ -1309,6 +1338,9 @@ private:
         }
 
         if (!shard.RequestNotificationHandleRaised.exchange(true)) {
+            YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Request notification raise (Handle: %v, Reason: NotifyIfNeeded)",
+                shard.RequestNotificationHandle.GetFD());
+
             shard.RequestNotificationHandle.Raise();
         }
     }
@@ -1419,6 +1451,7 @@ public:
         , ThreadNamePrefix_(std::move(threadNamePrefix))
         , Sensors_(std::move(sensors))
         , ReconfigureInvoker_(std::move(reconfigureInvoker))
+        , EnableIOUringLogging_(Config_->EnableIOUringLogging)
         , RequestQueue_(New<TQueue>(locationId, Config_))
     {
         auto initFuture = BIND(&TUringThreadPoolBase::ResizeThreads, MakeWeak(this))
@@ -1470,7 +1503,7 @@ public:
         EWorkloadCategory category,
         IIOEngine::TSessionId sessionId)
     {
-        YT_LOG_TRACE("Request enqueued (Request: %v, Type: %v)",
+        YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Request enqueued (Request: %v, Type: %v)",
             request.get(),
             request->Type);
 
@@ -1484,7 +1517,7 @@ public:
         IIOEngine::TSessionId sessionId)
     {
         if (!requests.empty()) {
-            YT_LOG_TRACE("Requests enqueued (RequestCount: %v, Type: %v)",
+            YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Requests enqueued (RequestCount: %v, Type: %v)",
             std::ssize(requests),
             requests.front()->Type);
         }
@@ -1509,6 +1542,7 @@ private:
     const TString ThreadNamePrefix_;
     const TIOEngineSensorsPtr Sensors_;
     const IInvokerPtr ReconfigureInvoker_;
+    const bool EnableIOUringLogging_;
 
     using TUringThreadPtr = TIntrusivePtr<TUringThread>;
 
