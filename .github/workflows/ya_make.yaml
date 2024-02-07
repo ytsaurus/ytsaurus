@@ -41,25 +41,15 @@ jobs:
           path: ytsaurus
           fetch-depth: 0
 
-  # build:
-  #   name: Build
-  #   needs:
-  #     - start-vm
-  #     - checkout
-  #   with:
-  #     runs-on-value: ${{ needs.start-vm.outputs.label }}
-  #     build-query-tracker-ya-make: true
-  #   uses: ./.github/workflows/build-jobs.yaml
-
   build:
     name: Build
     needs:
       - start-vm
       - checkout
-    runs-on: ${{ needs.start-vm.outputs.label }}
-    steps:
-      - name: Run ya make
-        run: pwd
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      build-query-tracker-ya-make: true
+    uses: ./.github/workflows/build-jobs.yaml
 
   stop-vm:
     name: Stop VM

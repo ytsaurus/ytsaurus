@@ -180,17 +180,13 @@ jobs:
       - name: Build query tracker using ya make
         if: ${{ inputs.build-query-tracker-ya-make }}
         run: |
-          pwd
-          ls
-          ls ..
-          ls ../..
           mkdir -p ../build_qt_ya_make
           cd ../build_qt_ya_make
           rm -rf *
 
           mkdir ytsaurus
-          ../ytsaurus/ya make -T --ignore-recurses --build=relwithdebinfo ../ytsaurus/yt/yt/server/all --output=ytsaurus
-          alias ya-make-with-flags="../ytsaurus/ya make -T --ignore-recurses --no-src-links --build=release  --output=ytsaurus"
+          ../ytsaurus/ytsaurus/ya make -T --ignore-recurses --build=relwithdebinfo ../ytsaurus/yt/yt/server/all --output=ytsaurus
+          alias ya-make-with-flags="../ytsaurus/ytsaurus/ya make -T --ignore-recurses --no-src-links --build=release  --output=ytsaurus"
           ya-make-with-flags ../ytsaurus/yt/yql/agent/bin
 
           ls
