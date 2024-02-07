@@ -864,7 +864,7 @@ public:
             })
             .ThrowOnError();
 
-        response->set_operation_archive_version(Bootstrap_->GetScheduler()->GetOperationArchiveVersion());
+        response->set_operations_archive_version(Bootstrap_->GetScheduler()->GetOperationsArchiveVersion());
 
         context->SetResponseInfo("IncarnationId: %v", incarnationId);
 

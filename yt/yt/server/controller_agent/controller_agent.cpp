@@ -1705,7 +1705,7 @@ private:
             UnregisterOperation(operation->GetId());
         }
 
-        JobReporter_->SetOperationArchiveVersion(rsp->operation_archive_version());
+        JobReporter_->SetOperationsArchiveVersion(rsp->operations_archive_version());
 
         ConfirmHeartbeatRequest(preparedRequest);
     }

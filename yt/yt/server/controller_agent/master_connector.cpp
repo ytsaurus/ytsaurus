@@ -38,7 +38,7 @@
 
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
-#include <yt/yt/client/api/operation_archive_schema.h>
+#include <yt/yt/client/api/operations_archive_schema.h>
 #include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -315,7 +315,7 @@ private:
     TEnumIndexedArray<EControllerAgentAlertType, TError> Alerts_;
 
     NProfiling::TCounter UpdateOperationProgressFailuresCounter_ = ControllerAgentProfiler
-        .Counter("/operation_archive/update_progress_failures");
+        .Counter("/operations_archive/update_progress_failures");
 
     TForkCountersPtr ForkCounters_;
 

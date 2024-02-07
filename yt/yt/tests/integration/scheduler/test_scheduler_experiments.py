@@ -7,7 +7,7 @@ from yt_commands import (
     reduce, map_reduce, sort, erase, remote_copy, get_driver, vanilla,
     write_table, map, merge, get_operation, list_operations, sync_create_cells, raises_yt_error)
 
-import yt.environment.init_operation_archive as init_operation_archive
+import yt.environment.init_operations_archive as init_operations_archive
 
 from flaky import flaky
 import math
@@ -341,7 +341,7 @@ class TestSchedulerExperimentsArchivation(YTEnvSetup):
     @authors("max42")
     def test_archivation(self):
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
 

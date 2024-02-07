@@ -561,7 +561,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             node->SetSchedulingHeartbeatComplexity(1);
         }
 
-        response->set_operation_archive_version(ManagerHost_->GetOperationArchiveVersion());
+        response->set_operations_archive_version(ManagerHost_->GetOperationsArchiveVersion());
 
         BeginNodeHeartbeatProcessing(node);
     }

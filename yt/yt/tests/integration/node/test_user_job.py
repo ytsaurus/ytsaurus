@@ -25,7 +25,7 @@ import yt_error_codes
 
 from yt_helpers import profiler_factory
 
-import yt.environment.init_operation_archive as init_operation_archive
+import yt.environment.init_operations_archive as init_operations_archive
 import yt.yson as yson
 from yt.test_helpers import are_almost_equal
 from yt.common import update, YtError
@@ -854,7 +854,7 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
     def setup_method(self, method):
         super(TestSandboxTmpfsOverflow, self).setup_method(method)
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
         self._tmpdir = create_tmpdir("jobids")
@@ -2144,7 +2144,7 @@ class TestUserJobMonitoring(YTEnvSetup):
     def setup_method(self, method):
         super(TestUserJobMonitoring, self).setup_method(method)
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(),
             override_tablet_cell_bundle="default",
         )

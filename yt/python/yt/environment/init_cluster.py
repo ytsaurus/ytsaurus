@@ -463,8 +463,8 @@ def _initialize_world_for_local_cluster(client, environment, yt_config):
         logger.info("Tablet cells are ready")
 
     if yt_config.init_operations_archive:
-        import yt.environment.init_operation_archive as yt_env_init_operation_archive
-        yt_env_init_operation_archive.create_tables_latest_version(client)
+        import yt.environment.init_operations_archive as yt_env_init_operations_archive
+        yt_env_init_operations_archive.create_tables_latest_version(client)
 
     if yt_config.wait_tablet_cell_initialization or yt_config.queue_agent_count > 0:
         client.create("map_node", "//sys/queue_agents", ignore_existing=True)

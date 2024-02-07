@@ -10,7 +10,7 @@ from yt_scheduler_helpers import scheduler_orchid_pool_path
 
 from yt_helpers import read_structured_log, write_log_barrier
 
-import yt.environment.init_operation_archive as init_operation_archive
+import yt.environment.init_operations_archive as init_operations_archive
 
 from yt.common import YtError, update_inplace
 import pytest
@@ -499,7 +499,7 @@ class TestResourceOverdraftAbort(YTEnvSetup):
     def setup_method(self, method):
         super(TestResourceOverdraftAbort, self).setup_method(method)
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
 

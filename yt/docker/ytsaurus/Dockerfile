@@ -23,8 +23,9 @@ RUN ln -s /usr/bin/ytserver-all /usr/bin/ytserver-master && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-queue-agent && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-tcp-proxy
 
-COPY ./init_operation_archive.py /usr/bin/init_operation_archive
 COPY ./init_queue_agent_state.py /usr/bin/init_queue_agent_state
+COPY ./init_operations_archive.py /usr/bin/init_operations_archive
+RUN ln -s /usr/bin/init_operations_archive.py /usr/bin/init_operation_archive.py
 
 COPY ./chyt-controller /usr/bin/chyt-controller
 

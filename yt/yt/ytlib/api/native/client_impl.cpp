@@ -316,7 +316,7 @@ void TClient::Terminate()
     SchedulerChannel_->Terminate(error);
 }
 
-const IClientPtr& TClient::GetOperationArchiveClient()
+const IClientPtr& TClient::GetOperationsArchiveClient()
 {
     {
         auto guard = Guard(OperationsArchiveClientLock_);

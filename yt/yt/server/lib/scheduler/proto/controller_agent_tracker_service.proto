@@ -219,7 +219,7 @@ message TRspHeartbeat
 
     repeated NYT.NProto.TGuid operation_ids_to_unregister = 8;
 
-    optional int32 operation_archive_version = 9;
+    optional int32 operations_archive_version = 9;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -145,7 +145,7 @@ public:
 
     NSecurityClient::TSerializableAccessControlList GetOperationBaseAcl() const;
 
-    int GetOperationArchiveVersion() const;
+    int GetOperationsArchiveVersion() const;
 
     // TODO(eshcherbin): Do we need these methods in the header?
     TString FormatResources(const TJobResourcesWithQuota& resources) const;

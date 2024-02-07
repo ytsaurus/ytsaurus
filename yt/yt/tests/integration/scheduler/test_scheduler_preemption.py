@@ -25,7 +25,7 @@ from yt.test_helpers import are_almost_equal
 
 from yt.common import YtError, YtResponseError
 
-import yt.environment.init_operation_archive as init_operation_archive
+import yt.environment.init_operations_archive as init_operations_archive
 
 import yt.yson as yson
 
@@ -102,7 +102,7 @@ class TestSchedulerPreemption(YTEnvSetup):
     def setup_method(self, method):
         super(TestSchedulerPreemption, self).setup_method(method)
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(),
             override_tablet_cell_bundle="default",
         )

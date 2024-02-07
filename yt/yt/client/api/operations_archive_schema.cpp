@@ -1,4 +1,4 @@
-#include "operation_archive_schema.h"
+#include "operations_archive_schema.h"
 
 namespace NYT::NApi {
 

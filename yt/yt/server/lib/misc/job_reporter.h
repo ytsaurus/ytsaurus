@@ -8,7 +8,7 @@
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/client/api/public.h>
-#include <yt/yt/client/api/operation_archive_schema.h>
+#include <yt/yt/client/api/operations_archive_schema.h>
 
 #include <yt/yt/core/yson/string.h>
 
@@ -30,7 +30,7 @@ public:
     ~TJobReporter();
 
     void HandleJobReport(TJobReport&& statistics);
-    void SetOperationArchiveVersion(int version);
+    void SetOperationsArchiveVersion(int version);
     int ExtractWriteFailuresCount();
     bool GetQueueIsTooLarge();
 

@@ -13,7 +13,7 @@ from yt_scheduler_helpers import scheduler_new_orchid_pool_tree_path
 import yt_error_codes
 
 import yt.yson as yson
-import yt.environment.init_operation_archive as init_operation_archive
+import yt.environment.init_operations_archive as init_operations_archive
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.common import uuid_hash_pair, YtError
 from yt.common import date_string_to_datetime
@@ -44,7 +44,7 @@ def get_stderr_from_table(operation_id, job_id):
 
 
 def get_job_from_table(operation_id, job_id):
-    path = init_operation_archive.DEFAULT_ARCHIVE_PATH + "/jobs"
+    path = init_operations_archive.DEFAULT_ARCHIVE_PATH + "/jobs"
     operation_hash = uuid_hash_pair(operation_id)
     job_hash = uuid_hash_pair(job_id)
     rows = lookup_rows(
@@ -62,7 +62,7 @@ def get_job_from_table(operation_id, job_id):
 
 
 def set_job_in_table(operation_id, job_id, fields):
-    path = init_operation_archive.DEFAULT_ARCHIVE_PATH + "/jobs"
+    path = init_operations_archive.DEFAULT_ARCHIVE_PATH + "/jobs"
     operation_hash = uuid_hash_pair(operation_id)
     job_hash = uuid_hash_pair(job_id)
     fields.update(
@@ -146,7 +146,7 @@ class TestListJobsBase(YTEnvSetup):
     def setup_method(self, method):
         super(TestListJobsBase, self).setup_method(method)
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
         self._tmpdir = create_tmpdir("list_jobs")

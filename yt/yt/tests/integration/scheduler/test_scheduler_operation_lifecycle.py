@@ -27,7 +27,7 @@ from yt_helpers import JobCountProfiler, get_current_time, parse_yt_time, profil
 from yt.yson import YsonEntity
 from yt.common import uuid_to_parts, YtResponseError, YtError, datetime_to_string
 from yt.test_helpers import are_almost_equal
-import yt.environment.init_operation_archive as init_operation_archive
+import yt.environment.init_operations_archive as init_operations_archive
 from yt.environment import arcadia_interop
 
 import pytest
@@ -1263,7 +1263,7 @@ class TestSchedulerErrorTruncate(YTEnvSetup):
     def setup_method(self, method):
         super(TestSchedulerErrorTruncate, self).setup_method(method)
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
         self._tmpdir = create_tmpdir("jobids")
@@ -1551,7 +1551,7 @@ class TestSchedulerAttributes(YTEnvSetup):
     @pytest.mark.parametrize("enable_spec_archivation", [True, False])
     def test_specs_in_archive(self, enable_spec_archivation):
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default",
         )
 
@@ -1577,7 +1577,7 @@ class TestSchedulerAttributes(YTEnvSetup):
     @authors("omgronny")
     def test_brief_spec_in_archive(self):
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default",
         )
 

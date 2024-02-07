@@ -23,7 +23,7 @@
 
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
-#include <yt/yt/client/api/operation_archive_schema.h>
+#include <yt/yt/client/api/operations_archive_schema.h>
 
 #include <yt/yt/client/security_client/public.h>
 
