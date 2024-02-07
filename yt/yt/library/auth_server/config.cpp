@@ -86,7 +86,7 @@ void TCypressTokenAuthenticatorConfig::Register(TRegistrar registrar)
         .Default("cypress");
 
     registrar.Parameter("secure", &TThis::Secure)
-        .Default(false);
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
