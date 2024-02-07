@@ -183,8 +183,9 @@ jobs:
           mkdir -p ../build_qt_ya_make
           cd ../build_qt_ya_make
           rm -rf *
-          ./ya make -T --ignore-recurses --build=relwithdebinfo ../ytsaurus/yt/yt/server/all --output=.
-          ./ya make -T --ignore-recurses --build=release ../ytsaurus/yt/yql/agent/bin --output=.
+          ../ya make -T --ignore-recurses --build=relwithdebinfo ../ytsaurus/yt/yt/server/all --output=.
+          alias ya-make-with-flags="../ya make -T --ignore-recurses --build=release  --output=."
+          ya-make-with-flags ../ytsaurus/yt/yql/agent/bin
 
           ls
 
