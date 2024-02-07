@@ -58,7 +58,7 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       build-strawberry: true
       build-ytsaurus: true
-      build-query-tracker: true
+      build-query-tracker: false
       build-chyt: true
       build-python: true
     uses: ./.github/workflows/build-jobs.yaml
@@ -102,7 +102,7 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       publish-ytsaurus: true
-      publish-query-tracker: true
+      publish-query-tracker: false
       publish-queue-agent: true
       publish-chyt: true
       publish-local: true
