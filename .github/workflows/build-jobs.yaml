@@ -186,6 +186,7 @@ jobs:
 
           mkdir ytsaurus
           ../ytsaurus/ytsaurus/ya make -T --ignore-recurses --build=relwithdebinfo ../ytsaurus/ytsaurus/yt/yt/server/all --output=ytsaurus
+          shopt -s expand_aliases
           alias ya-make-with-flags="../ytsaurus/ytsaurus/ya make -T --ignore-recurses --no-src-links --build=release  --output=ytsaurus"
           ya-make-with-flags ../ytsaurus/ytsaurus/yt/yql/agent/bin
 
