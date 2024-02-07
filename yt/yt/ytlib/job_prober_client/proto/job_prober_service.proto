@@ -10,6 +10,7 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 message TReqDumpInputContext
 {
     required NYT.NProto.TGuid job_id = 1;
+    optional NYT.NProto.TGuid transaction_id = 2;
 }
 
 message TRspDumpInputContext

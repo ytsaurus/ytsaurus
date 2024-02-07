@@ -6,6 +6,7 @@
 #include <yt/yt/client/api/file_reader.h>
 #include <yt/yt/client/api/operation_archive_schema.h>
 #include <yt/yt/client/api/rowset.h>
+#include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/client/job_tracker_client/helpers.h>
 
@@ -76,6 +77,7 @@ using namespace NFileClient;
 using namespace NRpc;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
+using namespace NTransactionClient;
 using namespace NSecurityClient;
 using namespace NQueryClient;
 using namespace NChunkClient;
@@ -577,14 +579,27 @@ void TClient::DoDumpJobContext(
         jobId,
         EPermissionSet(EPermission::Read));
 
+    auto transaction = [&] {
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("title", Format("Dump input context of job %v of operation %v", jobId, allocationBriefInfo.OperationId));
+
+        NApi::TTransactionStartOptions options{
+            .Attributes = std::move(attributes)
+        };
+
+        return WaitFor(StartTransaction(ETransactionType::Master, options))
+            .ValueOrThrow();
+    }();
+
     auto nodeChannel = ChannelFactory_->CreateChannel(allocationBriefInfo.NodeDescriptor);
     NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(std::move(nodeChannel));
     jobProberServiceProxy.SetDefaultTimeout(Connection_->GetConfig()->JobProberRpcTimeout);
 
     auto req = jobProberServiceProxy.DumpInputContext();
     ToProto(req->mutable_job_id(), jobId);
+    ToProto(req->mutable_transaction_id(), transaction->GetId());
 
-    YT_LOG_DEBUG("Requesting node to dump job input context");
+    YT_LOG_DEBUG("Requesting node to dump job input context (TransactionId: %v)", transaction->GetId());
 
     auto rsp = WaitFor(req->Invoke()).
         ValueOrThrow();
@@ -606,7 +621,11 @@ void TClient::DoDumpJobContext(
         SaveJobFiles(
             MakeStrong(this),
             allocationBriefInfo.OperationId,
-            {file});
+            {file},
+            transaction->GetId());
+
+        WaitFor(transaction->Commit())
+            .ThrowOnError();
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error saving input context for job %v into %v", jobId, path)
             << ex;

@@ -20,6 +20,7 @@ using namespace NConcurrency;
 using namespace NJobAgent;
 using namespace NYson;
 using namespace NScheduler;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,10 +59,13 @@ private:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         auto jobId = FromProto<TJobId>(request->job_id());
+        // COMPAT(coteeq)
+        auto transactionId = request->has_transaction_id() ? FromProto<TTransactionId>(request->transaction_id()) : NullTransactionId;
         context->SetRequestInfo("JobId: %v", jobId);
+        context->SetRequestInfo("TransactionId: %v", transactionId);
 
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
-        auto chunkIds = job->DumpInputContext();
+        auto chunkIds = job->DumpInputContext(transactionId);
 
         context->SetResponseInfo("ChunkIds: %v", chunkIds);
         ToProto(response->mutable_chunk_ids(), chunkIds);

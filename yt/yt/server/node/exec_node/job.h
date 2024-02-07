@@ -178,7 +178,7 @@ public:
 
     TBriefJobInfo GetBriefInfo() const;
 
-    std::vector<NChunkClient::TChunkId> DumpInputContext();
+    std::vector<NChunkClient::TChunkId> DumpInputContext(NTransactionClient::TTransactionId transactionId);
 
     std::optional<TString> GetStderr();
 

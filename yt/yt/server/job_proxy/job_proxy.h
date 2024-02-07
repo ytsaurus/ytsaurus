@@ -49,7 +49,7 @@ public:
 
     IInvokerPtr GetControlInvoker() const override;
 
-    std::vector<NChunkClient::TChunkId> DumpInputContext() override;
+    std::vector<NChunkClient::TChunkId> DumpInputContext(NTransactionClient::TTransactionId) override;
     TString GetStderr() override;
     NApi::TPollJobShellResponse PollJobShell(
         const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,

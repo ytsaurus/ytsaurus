@@ -785,7 +785,7 @@ private:
         jobResultExt->set_has_fail_context(size > 0);
     }
 
-    std::vector<TChunkId> DumpInputContext() override
+    std::vector<TChunkId> DumpInputContext(TTransactionId transactionId) override
     {
         ValidatePrepared();
 
@@ -793,7 +793,10 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error collecting job input context");
         const auto& contexts = result.Value();
 
-        auto chunks = DoDumpInputContext(contexts);
+        auto chunks = DoDumpInputContext(
+            contexts,
+            // COMPAT(coteeq)
+            transactionId ? transactionId : FromProto<TTransactionId>(UserJobSpec_.input_transaction_id()));
         YT_VERIFY(chunks.size() == 1);
 
         if (chunks.front() == NullChunkId) {
@@ -803,11 +806,10 @@ private:
         return chunks;
     }
 
-    std::vector<TChunkId> DoDumpInputContext(const std::vector<TBlob>& contexts)
+    std::vector<TChunkId> DoDumpInputContext(const std::vector<TBlob>& contexts, TTransactionId transactionId)
     {
         std::vector<TChunkId> result;
 
-        auto transactionId = FromProto<TTransactionId>(UserJobSpec_.input_transaction_id());
         for (int index = 0; index < std::ssize(contexts); ++index) {
             // NB. We use empty data sink here, so the details like object path and account are not present in IO tags.
             // That's because this code is legacy anyway and not worth covering with IO tags.

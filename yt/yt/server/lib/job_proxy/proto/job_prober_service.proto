@@ -6,7 +6,9 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqDumpInputContext
-{ }
+{
+    optional NYT.NProto.TGuid transaction_id = 1;
+}
 
 message TRspDumpInputContext
 {

@@ -84,7 +84,7 @@ class TestSchedulerCommon(YTEnvSetup):
             }
         }
     }
-    USE_PORTO = True
+    USE_PORTO = False
 
     @authors("ignat")
     def test_failed_jobs_twice(self):

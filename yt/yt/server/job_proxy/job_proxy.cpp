@@ -139,6 +139,7 @@ using namespace NYPath;
 using namespace NContainers;
 using namespace NProfiling;
 using namespace NTracing;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -201,10 +202,10 @@ TString TJobProxy::GetJobProxyUnixDomainSocketPath() const
     return AdjustPath(*Config_->BusServer->UnixDomainSocketPath);
 }
 
-std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext()
+std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(TTransactionId transactionId)
 {
     auto job = GetJobOrThrow();
-    return job->DumpInputContext();
+    return job->DumpInputContext(transactionId);
 }
 
 TString TJobProxy::GetStderr()

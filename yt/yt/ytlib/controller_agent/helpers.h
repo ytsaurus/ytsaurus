@@ -33,7 +33,8 @@ struct TJobFile
 void SaveJobFiles(
     const NApi::NNative::IClientPtr& client,
     TOperationId operationId,
-    const std::vector<TJobFile>& files);
+    const std::vector<TJobFile>& files,
+    NTransactionClient::TTransactionId transactionId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

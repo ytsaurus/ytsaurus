@@ -33,6 +33,7 @@ using namespace NConcurrency;
 using namespace NControllerAgent;
 using namespace NControllerAgent::NProto;
 using namespace NTableClient;
+using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYson;
 using namespace NScheduler;
@@ -77,7 +78,7 @@ void TJob::PopulateInputNodeDirectory() const
         Host_->GetJobSpecHelper()->GetJobSpecExt().input_node_directory());
 }
 
-std::vector<NChunkClient::TChunkId> TJob::DumpInputContext()
+std::vector<NChunkClient::TChunkId> TJob::DumpInputContext(TTransactionId)
 {
     THROW_ERROR_EXCEPTION(
         EErrorCode::UnsupportedJobType,
@@ -355,4 +356,3 @@ ISchemalessMultiChunkWriterPtr TSimpleJobBase::DoInitializeWriter(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJobProxy
-

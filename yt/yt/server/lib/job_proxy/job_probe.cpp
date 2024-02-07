@@ -19,6 +19,7 @@ using NJobTrackerClient::TJobId;
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NJobProberClient;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,11 +31,12 @@ public:
         : TcpBusClientConfig_(config)
     { }
 
-    std::vector<TChunkId> DumpInputContext() override
+    std::vector<TChunkId> DumpInputContext(TTransactionId transactionId) override
     {
         auto* proxy = GetOrCreateJobProberProxy();
 
         auto req = proxy->DumpInputContext();
+        ToProto(req->mutable_transaction_id(), transactionId);
 
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);

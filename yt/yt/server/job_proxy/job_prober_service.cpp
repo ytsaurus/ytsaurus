@@ -22,6 +22,7 @@ using namespace NRpc;
 using namespace NTools;
 using namespace NYson;
 using namespace NYTree;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,9 +55,10 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProxy::NProto, DumpInputContext)
     {
-        context->SetRequestInfo();
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        context->SetRequestInfo("TransactionId: %v", transactionId);
 
-        auto chunkIds = GetJobProxy()->DumpInputContext();
+        auto chunkIds = GetJobProxy()->DumpInputContext(transactionId);
         ToProto(response->mutable_chunk_ids(), chunkIds);
 
         context->SetResponseInfo("ChunkIds: %v", chunkIds);

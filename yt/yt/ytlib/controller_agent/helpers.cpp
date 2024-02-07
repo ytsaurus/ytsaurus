@@ -86,7 +86,8 @@ void Serialize(const TCoreInfo& coreInfo, IYsonConsumer* consumer)
 void SaveJobFiles(
     const NNative::IClientPtr& client,
     TOperationId operationId,
-    const std::vector<TJobFile>& files)
+    const std::vector<TJobFile>& files,
+    TTransactionId transactionId)
 {
     using NYT::FromProto;
     using NYT::ToProto;
@@ -106,20 +107,6 @@ void SaveJobFiles(
     THashMap<const TJobFile*, TJobFileInfo> fileToInfo;
 
     auto connection = client->GetNativeConnection();
-
-    auto transaction = [&] {
-        auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", Format("Saving job files of operation %v", operationId));
-
-        NApi::TTransactionStartOptions options{
-            .Attributes = std::move(attributes)
-        };
-
-        return WaitFor(client->StartTransaction(ETransactionType::Master, options))
-            .ValueOrThrow();
-    }();
-
-    auto transactionId = transaction->GetId();
 
     {
         auto proxy = CreateObjectServiceWriteProxy(client);
@@ -273,9 +260,6 @@ void SaveJobFiles(
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
     }
-
-    WaitFor(transaction->Commit())
-        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

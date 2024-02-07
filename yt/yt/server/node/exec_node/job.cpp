@@ -120,6 +120,7 @@ using namespace NNet;
 using namespace NProfiling;
 using namespace NContainers;
 using namespace NTracing;
+using namespace NTransactionClient;
 
 using NNodeTrackerClient::TNodeDirectory;
 using NChunkClient::TDataSliceDescriptor;
@@ -1159,13 +1160,13 @@ TBriefJobInfo TJob::GetBriefInfo() const
         ExecAttributes_);
 }
 
-std::vector<TChunkId> TJob::DumpInputContext()
+std::vector<TChunkId> TJob::DumpInputContext(TTransactionId transactionId)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
     ValidateJobRunning();
 
     try {
-        return GetJobProbeOrThrow()->DumpInputContext();
+        return GetJobProbeOrThrow()->DumpInputContext(transactionId);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error requesting input contexts dump from job proxy")
             << ex;
