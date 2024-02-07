@@ -91,7 +91,6 @@ public:
 public:
     TJobWorkspaceBuilder(
         IInvokerPtr invoker,
-        IInvokerPtr ioInvoker,
         TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager);
 
@@ -101,7 +100,6 @@ protected:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
     const IInvokerPtr Invoker_;
-    const IInvokerPtr IOInvoker_;
     TJobWorkspaceBuildingContext Context_;
     const IJobDirectoryManagerPtr DirectoryManager_;
 
@@ -144,7 +142,6 @@ DEFINE_REFCOUNTED_TYPE(TJobWorkspaceBuilder)
 
 TJobWorkspaceBuilderPtr CreateSimpleJobWorkspaceBuilder(
     IInvokerPtr invoker,
-    IInvokerPtr ioInvoker,
     TJobWorkspaceBuildingContext context,
     IJobDirectoryManagerPtr directoryManager);
 
@@ -152,7 +149,6 @@ TJobWorkspaceBuilderPtr CreateSimpleJobWorkspaceBuilder(
 
 TJobWorkspaceBuilderPtr CreatePortoJobWorkspaceBuilder(
     IInvokerPtr invoker,
-    IInvokerPtr ioInvoker,
     TJobWorkspaceBuildingContext context,
     IJobDirectoryManagerPtr directoryManager);
 
@@ -160,7 +156,6 @@ TJobWorkspaceBuilderPtr CreatePortoJobWorkspaceBuilder(
 
 TJobWorkspaceBuilderPtr CreateCriJobWorkspaceBuilder(
     IInvokerPtr invoker,
-    IInvokerPtr ioInvoker,
     TJobWorkspaceBuildingContext context,
     IJobDirectoryManagerPtr directoryManager,
     NContainers::NCri::ICriExecutorPtr executor);

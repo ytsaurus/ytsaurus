@@ -64,6 +64,15 @@ public:
         const TString& linkPath,
         bool executable);
 
+    TFuture<void> MakeSandboxBind(
+        TJobId jobId,
+        int slotIndex,
+        const TString& artifactName,
+        ESandboxKind sandboxKind,
+        const TString& targetPath,
+        const TString& bindPath,
+        bool executable);
+
     TFuture<void> MakeSandboxFile(
         TJobId jobId,
         int slotIndex,

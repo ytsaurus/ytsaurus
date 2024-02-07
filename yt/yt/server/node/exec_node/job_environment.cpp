@@ -363,7 +363,6 @@ public:
 
     TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
         IInvokerPtr invoker,
-        IInvokerPtr ioInvoker,
         TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager) override
     {
@@ -371,7 +370,6 @@ public:
 
         return CreateSimpleJobWorkspaceBuilder(
             invoker,
-            ioInvoker,
             std::move(context),
             directoryManager);
     }
@@ -929,7 +927,6 @@ private:
 
     TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
         IInvokerPtr invoker,
-        IInvokerPtr ioInvoker,
         TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager) override
     {
@@ -937,7 +934,6 @@ private:
 
         return CreatePortoJobWorkspaceBuilder(
             invoker,
-            ioInvoker,
             std::move(context),
             directoryManager);
     }
@@ -1038,7 +1034,6 @@ public:
 
     TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
         IInvokerPtr invoker,
-        IInvokerPtr ioInvoker,
         TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager) override
     {
@@ -1051,7 +1046,6 @@ public:
 
         return CreateCriJobWorkspaceBuilder(
             invoker,
-            ioInvoker,
             std::move(context),
             directoryManager,
             Executor_);

@@ -182,6 +182,31 @@ public:
             });
     }
 
+    TFuture<void> MakeSandboxBind(
+        TJobId jobId,
+        const TString& artifactName,
+        ESandboxKind sandboxKind,
+        const TString& targetPath,
+        const TString& bindPath,
+        bool executable) override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        return RunPreparationAction(
+            /*actionName*/ "MakeBind",
+            /*uncancelable*/ false,
+            [&] {
+                return Location_->MakeSandboxBind(
+                    jobId,
+                    SlotIndex_,
+                    artifactName,
+                    sandboxKind,
+                    targetPath,
+                    bindPath,
+                    executable);
+            });
+    }
+
     TFuture<void> MakeCopy(
         TJobId jobId,
         const TString& artifactName,
@@ -352,14 +377,12 @@ public:
 
     TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
         IInvokerPtr invoker,
-        IInvokerPtr ioInvoker,
         TJobWorkspaceBuildingContext context) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         return JobEnvironment_->CreateJobWorkspaceBuilder(
             invoker,
-            ioInvoker,
             std::move(context),
             Location_->GetJobDirectoryManager());
     }
