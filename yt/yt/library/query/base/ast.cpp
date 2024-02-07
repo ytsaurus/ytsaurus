@@ -392,10 +392,21 @@ bool IsValidId(TStringBuf str)
     return true;
 }
 
-bool AreBackticksNeeded(TStringBuf id)
+TString EscapeBackticks(TStringBuf data)
 {
-    // TODO(dtorilov): In syntax v2 we use always backticks.
-    return id.Contains('[') || id.Contains(']');
+    TStringBuilder builder;
+    builder.Reserve(data.size());
+
+    for (char ch : data) {
+        if (ch == '`') {
+            builder.AppendChar('\\');
+            builder.AppendChar('`');
+        } else {
+            builder.AppendChar(ch);
+        }
+    }
+
+    return builder.Flush();
 }
 
 void FormatId(TStringBuilderBase* builder, TStringBuf id, bool isFinal = false)
@@ -403,15 +414,9 @@ void FormatId(TStringBuilderBase* builder, TStringBuf id, bool isFinal = false)
     if (isFinal || IsValidId(id)) {
         builder->AppendString(id);
     } else {
-        if (AreBackticksNeeded(id)) {
-            builder->AppendChar('`');
-            builder->AppendString(EscapeC(id));
-            builder->AppendChar('`');
-        } else {
-            builder->AppendChar('[');
-            builder->AppendString(id);
-            builder->AppendChar(']');
-        }
+        builder->AppendChar('`');
+        builder->AppendString(EscapeBackticks(EscapeC(id)));
+        builder->AppendChar('`');
     }
 }
 
