@@ -3,8 +3,8 @@ from yt_env_setup import YTEnvSetup
 from yt_helpers import profiler_factory
 
 from yt_commands import (
-    wait, ls, get, set, create_dynamic_table, set_node_decommissioned,
-    disable_tablet_cells_on_node, get_driver
+    wait, ls, get, set, exists, create_dynamic_table, set_node_decommissioned,
+    disable_tablet_cells_on_node, get_driver, get_cluster_drivers, print_debug
 )
 
 from yt.common import YtError
@@ -39,12 +39,13 @@ class DynamicTablesBase(YTEnvSetup):
             self._area_ids = area_ids
 
         def __enter__(self):
+            cell_orchids = self._capture_cell_orchids()
             self._set_tag_filters("invalid")
-            self._wait_for_cells("failed")
+            self._wait_for_cells_failed(cell_orchids)
 
         def __exit__(self, exc_type, exception, traceback):
             self._set_tag_filters("")
-            self._wait_for_cells("good")
+            self._wait_for_cells_good()
 
         def _set_tag_filters(self, tag_filter):
             for cluster in self._clusters:
@@ -56,19 +57,101 @@ class DynamicTablesBase(YTEnvSetup):
                 for area_id in self._area_ids:
                     set("#{0}/@node_tag_filter".format(area_id), tag_filter, driver=driver)
 
-        def _wait_for_cells(self, state):
+        def _peer_orchid(self, node_address, cell_id):
+            cell_type = int(cell_id.split("-")[2], 16) & 0xffff
+            return "//sys/cluster_nodes/{0}/orchid/{1}_cells/{2}".format(
+                node_address,
+                {700: "tablet", 1200: "chaos"}[cell_type],
+                cell_id
+            )
+
+        def _capture_cell_orchids(self, strict=False):
+            cells_by_cluster = {}
             for cluster in self._clusters:
                 driver = get_driver(cluster=cluster)
+                cell_ids = []
+
                 for bundle in self._tablet_bundles:
-                    wait(lambda: get("//sys/tablet_cell_bundles/{0}/@health".format(bundle), driver=driver) == state)
+                    cell_ids += get("//sys/tablet_cell_bundles/{0}/@tablet_cell_ids".format(bundle), driver=driver)
                 for bundle in self._chaos_bundles:
-                    for cell in get("//sys/chaos_cell_bundles/{0}/@tablet_cell_ids".format(bundle), driver=driver):
-                        target = ["good"] if state == "good" else ["failed", "degraded"]
-                        wait(lambda: get("#{0}/@local_health".format(cell), driver=driver) in target)
+                    cell_ids += get("//sys/chaos_cell_bundles/{0}/@tablet_cell_ids".format(bundle), driver=driver)
                 for area_id in self._area_ids:
-                    for cell in get("#{0}/@cell_ids".format(area_id), driver=driver):
-                        target = ["good"] if state == "good" else ["failed", "degraded"]
-                        wait(lambda: get("#{0}/@local_health".format(cell), driver=driver) in target)
+                    cell_ids += get("#{0}/@cell_ids".format(area_id), driver=driver)
+
+                cells = [
+                    cell for cell in
+                    ls("//sys/tablet_cells", attributes=["id", "peers"], driver=driver)
+                    + ls("//sys/chaos_cells", attributes=["id", "peers"], driver=driver)
+                    if cell.attributes["id"] in cell_ids
+                ]
+                assert len(cells) == len(cell_ids)
+
+                if strict and any(["address" not in peer for cell in cells for peer in cell.attributes["peers"]]):
+                    return None
+
+                cells_by_cluster[cluster] = {
+                    cell.attributes["id"]: [
+                        self._peer_orchid(peer["address"], cell.attributes["id"])
+                        for peer in cell.attributes["peers"]
+                        if not peer.get("alien", False)
+                    ]
+                    for cell in cells
+                }
+
+            return cells_by_cluster
+
+        def _wait_for_cells_good(self):
+            print_debug("Waiting for cells to become good after reenabling...")
+
+            def _check_orchids():
+                cell_orchids = self._capture_cell_orchids(strict=True)
+                if cell_orchids is None:
+                    return False
+
+                for cluster in self._clusters:
+                    driver = get_driver(cluster=cluster)
+                    for cell_id, peers_orchids in cell_orchids[cluster].items():
+                        expected_config_version = get("#{0}/@config_version".format(cell_id), driver=driver)
+
+                        try:
+                            config_versions = [get("{0}/config_version".format(orchid), driver=driver) for orchid in peers_orchids]
+                            if any(version != expected_config_version for version in config_versions):
+                                print_debug("cell {0} is not ready: expected config version: {1}, versions got: {2}".format(
+                                    cell_id,
+                                    expected_config_version,
+                                    config_versions
+                                ))
+                                return False
+
+                            peers_active = [get("{0}/hydra/active".format(orchid), driver=driver) for orchid in peers_orchids]
+                            if not all(peers_active):
+                                print_debug("cell {0} is not ready: some peers are not active: {1}".format(cell_id, peers_active))
+                                return False
+
+                            peers_healths = [get("#{0}/@health".format(cell_id), driver=other_driver) for other_driver in get_cluster_drivers(driver)]
+                            if not all(health == "good" for health in peers_healths):
+                                print_debug("cell {0} is not ready: some peers are not healthy: {1}".format(cell_id, peers_healths))
+                                return False
+                        except YtError:
+                            return False
+
+                return True
+
+            wait(_check_orchids)
+
+        def _wait_for_cells_failed(self, cell_orchids):
+            print_debug("Waiting for cells to fail after disabling...")
+            for cluster in self._clusters:
+                driver = get_driver(cluster=cluster)
+                for cell_id, peers_orchids in cell_orchids[cluster].items():
+                    for orchid in peers_orchids:
+                        wait(lambda: not exists(orchid, driver=driver))
+
+                    for other_driver in get_cluster_drivers(driver):
+                        wait(lambda: get("#{0}/@health".format(cell_id), driver=other_driver) in ["failed", "degraded"])
+
+                    peers = get("#{0}/@peers".format(cell_id), driver=driver)
+                    assert all(peer.get("alien", False) or peer["state"] == "none" for peer in peers)
 
     def _create_sorted_table(self, path, **attributes):
         if "schema" not in attributes:
