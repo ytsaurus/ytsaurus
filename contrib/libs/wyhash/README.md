@@ -1,3 +1,6 @@
+I am retired on wyhash. I welcome new prince/princess to fork it and maintain a new consensus version.
+====
+
 No hash function is perfect, but some are useful.
 ====
 
@@ -24,29 +27,17 @@ string  s="fcdskhfjs";
 uint64_t h=wyhash(s.c_str(),s.size(),0,_wyp);
 ```
 
-----------------------------------------
+**Limitations:**
 
-g++-9 benchmark.cpp t1ha/src/t1ha2.c -o benchmark -Ofast -s  -Wall -march=native
+It is known now that wyhash/wyrand have their limitations:
 
-/usr/share/dict/words
+Both of them are not 64 bit collision resistant, but is about 62 bits (flyingmutant/Cyan4973/vigna)
 
-|hash function  |short hash/us  |bulk_256B GB/s |bulk_64KB GB/s |
-|----           |----           |----           |----           |
-|**wyhash_final3** |419.63         |20.97          |25.10          |
-|wyhash_final2  |204.08         |21.12          |25.10          |
-|wyhash_final1  |196.33         |15.56          |17.92          |
-|wyhash_gamma (dangerous) |399.92         |19.16          |25.80          |
-|wyhash_beta    |180.51         |18.20          |17.37          |
-|wyhash_alpha   |204.50         |20.54          |25.92          |
-|wyhash_v6 (avx2) |164.08         |12.08          |41.35          |
-|wyhash_v5      |221.59         |15.40          |16.78          |
-|wyhash_v4      |153.03         |13.89          |16.81          |
-|wyhash_v3      |191.32         |13.55          |15.72          |
-|wyhash_v2      |94.28          |11.91          |11.22          |
-|wyhash_v1      |91.66          |16.03          |18.95          |
-|wyhash32 (32 bit) |149.78         |5.45           |4.89           |
-|xxh3_scalar    |152.47         |8.39           |13.05          |
-|xxh3_avx2      |144.62         |9.85           |44.82          |
+When test on longer dataset (32TB, 23 days), wyrand will fail practrand (vigna)
+
+And there may be more flaws detected in the future. 
+
+User should make their own decision based the advantage and the flaws of wyhash/wyrand as no one is perfect.
 
 ----------------------------------------
 
@@ -70,7 +61,7 @@ g++-9 benchmark.cpp t1ha/src/t1ha2.c -o benchmark -Ofast -s  -Wall -march=native
 
 **Java** https://github.com/OpenHFT/Zero-Allocation-Hashing
 
-**Java** https://github.com/dynatrace-oss/hash4j (final version 3)
+**Java** https://github.com/dynatrace-oss/hash4j (final version 3 and 4)
 
 **Kotlin Multiplatform** https://github.com/appmattus/crypto/tree/main/cryptohash
 
@@ -92,7 +83,7 @@ g++-9 benchmark.cpp t1ha/src/t1ha2.c -o benchmark -Ofast -s  -Wall -march=native
 
 **Zig** https://github.com/ManDeJan/zig-wyhash
 
-**absl hashmap** https://github.com/abseil/abseil-cpp/blob/master/absl/hash/internal/wyhash.cc
+**absl hashmap** https://github.com/abseil/abseil-cpp/blob/master/absl/hash/internal/low_level_hash.h
 
 ----------------------------------------
 
@@ -132,3 +123,8 @@ easyaspi314 (Devin)
 
 TheOneric
 
+flyingmutant
+
+vigna
+
+tansy
