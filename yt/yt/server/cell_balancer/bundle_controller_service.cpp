@@ -58,7 +58,7 @@ private:
 
     NBundleControllerClient::TBundleTargetConfigPtr GetBundleConfig(const TString& bundleName)
     {
-        auto path = Format("%v/%v/@%v", TabletCellBundlesPath, bundleName, BundleAttributeTargetConfig);
+        auto path = Format("%v/%v/@%v", TabletCellBundlesPath, NYPath::ToYPathLiteral(bundleName), BundleAttributeTargetConfig);
         auto yson = NConcurrency::WaitFor(Bootstrap_
             ->GetClient()
             ->GetNode(path))
@@ -69,14 +69,14 @@ private:
 
     NBundleControllerClient::TBundleConfigConstraintsPtr GetBundleConstraints(const TString& bundleName)
     {
-        auto zoneNamePath = Format("%v/%v/@%v", TabletCellBundlesPath, bundleName, BundleAttributeZone);
+        auto zoneNamePath = Format("%v/%v/@%v", TabletCellBundlesPath, NYPath::ToYPathLiteral(bundleName), BundleAttributeZone);
         auto zoneNameYson = NConcurrency::WaitFor(Bootstrap_
             ->GetClient()
             ->GetNode(zoneNamePath))
             .ValueOrThrow();
         TString zoneName = NYTree::ConvertTo<TString>(zoneNameYson);
 
-        auto zoneInfoPath = Format("%v/%v/@", ZoneBundlesPath, zoneName);
+        auto zoneInfoPath = Format("%v/%v/@", ZoneBundlesPath, NYPath::ToYPathLiteral(zoneName));
         auto zoneInfoYson = NConcurrency::WaitFor(Bootstrap_
             ->GetClient()
             ->GetNode(zoneInfoPath))
@@ -100,7 +100,7 @@ private:
 
     void SetBundleConfig(const TString& bundleName, NBundleControllerClient::TBundleTargetConfigPtr& config)
     {
-        auto path = Format("%v/%v/@%v", TabletCellBundlesPath, bundleName, BundleAttributeTargetConfig);
+        auto path = Format("%v/%v/@%v", TabletCellBundlesPath, NYPath::ToYPathLiteral(bundleName), BundleAttributeTargetConfig);
         NApi::TSetNodeOptions setOptions;
         NConcurrency::WaitFor(Bootstrap_
             ->GetClient()
@@ -110,10 +110,9 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NBundleController::NProto, GetBundleConfig)
     {
+        const auto& bundleName = request->bundle_name();
         context->SetRequestInfo("BundleName: %v",
-            request->bundle_name());
-
-        TString bundleName = request->bundle_name();
+            bundleName);
 
         auto bundleConfig = GetBundleConfig(bundleName);
         auto bundleConfigConstraints = GetBundleConstraints(bundleName);
@@ -128,14 +127,14 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NBundleController::NProto, SetBundleConfig)
     {
+        const auto& bundleName = request->bundle_name();
         context->SetRequestInfo("BundleName: %v",
-            request->bundle_name());
+            bundleName);
 
-        TString bundleName = request->bundle_name();
-        auto reqBundleConfig = request->mutable_bundle_config();
+        const auto& patchConfig = request->bundle_config();
 
         auto bundleConfig = GetBundleConfig(bundleName);
-        NBundleControllerClient::NProto::FromProto(bundleConfig, reqBundleConfig);
+        NBundleControllerClient::NProto::FromProto(bundleConfig, &patchConfig);
 
         SetBundleConfig(bundleName, bundleConfig);
 
