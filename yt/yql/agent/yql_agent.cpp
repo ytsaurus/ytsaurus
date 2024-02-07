@@ -239,7 +239,9 @@ private:
 
         try {
             auto abortResult = YqlPlugin_->Abort(queryId);
-            error = ConvertTo<TError>(abortResult.YsonError);
+            if (auto ysonError = abortResult.YsonError) {
+                error = ConvertTo<TError>(TYsonString(*ysonError));
+            }
         } catch (const std::exception& ex) {
             auto error = TError("YQL plugin call failed") << TError(ex);
             YT_LOG_INFO(error, "YQL plugin call failed");
