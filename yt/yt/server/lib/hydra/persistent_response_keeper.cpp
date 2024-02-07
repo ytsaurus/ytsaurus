@@ -127,7 +127,7 @@ public:
             if (inserted) {
                 ui64 responseHash = 0;
                 for (const auto& part : response) {
-                    CombineHashes(responseHash, FarmHash(part.begin(), part.size()));
+                    responseHash = CombineHashes(responseHash, FarmHash(part.begin(), part.size()));
                 }
 
                 auto* mutationContext = GetCurrentMutationContext();

@@ -228,6 +228,7 @@ DEFINE_ENUM(EMasterReign,
     ((SaneTxActionAbort)                                            (2526))  // kvk1920
     ((ValueDictionaryCompression)                                   (2527))  // akozhikhov
     ((SaneTxActionAbortFix)                                         (2528))  // kvk1920
+    ((FixResponseHash)                                              (2529))  // babenko
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
