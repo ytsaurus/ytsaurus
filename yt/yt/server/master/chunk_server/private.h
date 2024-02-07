@@ -53,9 +53,10 @@ DEFINE_ENUM(ERemoveReplicaReason,
     (NodeDisposed)
 );
 
-DEFINE_ENUM(EChunkMergeStatus,
-    ((AwaitingMerge)                (0))
-    ((InMergePipeline)              (1))
+DEFINE_ENUM(EChunkMergerStatus,
+    ((NotInMergePipeline)           (0))
+    ((AwaitingMerge)                (1))
+    ((InMergePipeline)              (2))
 );
 
 // This enum is used only for text representation of table chunk formats in deprecated

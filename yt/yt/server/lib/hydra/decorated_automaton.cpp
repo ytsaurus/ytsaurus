@@ -1204,7 +1204,7 @@ TSharedRef TDecoratedAutomaton::SanitizeLocalHostName() const
     auto localHost = ReadLocalHostName();
     if (Config_->Get()->EnableHostSanitizing) {
         THashSet<TString> hosts;
-        for (const auto& peer : GetEpochContext()->CellManager->GetClusterPeersAddressesOrCrash()) {
+        for (const auto& peer : GetEpochContext()->CellManager->GetClusterPeersAddresses()) {
             TStringBuf host;
             int port;
             ParseServiceAddress(peer, &host, &port);
