@@ -13,6 +13,10 @@ const (
 	XYaServiceTicket = "X-Ya-Service-Ticket"
 	// XYaUserTicket is http header that should be used for user ticket transfer.
 	XYaUserTicket = "X-Ya-User-Ticket"
+	// YTCypressCookie is a cookie that should be used for authentication in open source world.
+	YTCypressCookie = "YTCypressCookie"
+	// XCSRFToken is a http header that should be used for CSRF token transfer.
+	XCSRFToken = "X-Csrf-Token"
 )
 
 type Credentials interface {
@@ -69,6 +73,18 @@ func (c *ServiceTicketCredentials) SetExtension(req *rpc.TRequestHeader) {
 		&rpc.TCredentialsExt{ServiceTicket: &c.Ticket},
 	)
 }
+
+type CookieCredentials struct {
+	Cookie    *http.Cookie
+	CSRFToken string
+}
+
+func (c CookieCredentials) Set(r *http.Request) {
+	r.AddCookie(c.Cookie)
+	r.Header.Set(XCSRFToken, c.CSRFToken)
+}
+
+func (c CookieCredentials) SetExtension(req *rpc.TRequestHeader) {}
 
 type credentials struct{}
 
