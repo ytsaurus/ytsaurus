@@ -3,7 +3,7 @@ name: Ya make
 on:
   push:
     branches:
-      - main
+      - mpereskokova/qt-ya-make-build
 
 jobs:
   start-vm:
