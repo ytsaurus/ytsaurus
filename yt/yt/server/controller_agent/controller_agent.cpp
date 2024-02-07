@@ -470,6 +470,8 @@ public:
 
         ReconfigureNativeSingletons(Bootstrap_->GetConfig(), Config_);
 
+        ControllerThreadPool_->Configure(Config_->ControllerThreadCount);
+
         JobTracker_->UpdateConfig(Config_);
 
         ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
