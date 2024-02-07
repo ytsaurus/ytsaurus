@@ -204,7 +204,8 @@ size_t MakeCodegenArrayJoinOp(
     size_t producerSlot,
     TCodegenFragmentInfosPtr fragmentInfos,
     std::vector<size_t> arrayIds,
-    int parametersIndex);
+    int parametersIndex,
+    size_t predicateId);
 
 size_t MakeCodegenMultiJoinOp(
     TCodegenSource* codegenSource,

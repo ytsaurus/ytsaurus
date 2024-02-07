@@ -3357,8 +3357,16 @@ TJoinClausePtr BuildArrayJoinClause(
         &arrayJoinClause->Schema.Mapping,
     };
 
-    for (const auto& col : arrayJoinClause->Schema.Original->Columns()) {
-        YT_ASSERT(arrayBuilder.GetColumnPtr(NAst::TReference(col.Name())));
+    for (const auto& nestedTableColumn : arrayJoinClause->Schema.Original->Columns()) {
+        auto column = arrayBuilder.GetColumnPtr(NAst::TReference(nestedTableColumn.Name()));
+        YT_ASSERT(column);
+    }
+
+    if (arrayJoin.Predicate) {
+        arrayJoinClause->Predicate = BuildPredicate(
+            *arrayJoin.Predicate,
+            arrayBuilder,
+            "JOIN-PREDICATE-clause");
     }
 
     builder.Merge(arrayBuilder);

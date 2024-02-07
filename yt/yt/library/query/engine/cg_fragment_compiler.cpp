@@ -2826,7 +2826,8 @@ size_t MakeCodegenArrayJoinOp(
     size_t producerSlot,
     TCodegenFragmentInfosPtr fragmentInfos,
     std::vector<size_t> arrayIds,
-    int parametersIndex)
+    int parametersIndex,
+    size_t predicateId)
 {
     size_t consumerSlot = (*slotCount)++;
 
@@ -2836,7 +2837,6 @@ size_t MakeCodegenArrayJoinOp(
         fragmentInfos = std::move(fragmentInfos),
         arrayIds = std::move(arrayIds)
     ] (TCGOperatorContext& builder) {
-
         Type* closureType = TClosureTypeBuilder::Get(
             builder->getContext(),
             fragmentInfos->Functions.size());
@@ -2846,6 +2846,28 @@ size_t MakeCodegenArrayJoinOp(
             "expressionClosurePtr");
 
         builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
+            using TBool = NCodegen::TTypes::i<1>;
+            auto predicate = MakeClosure<TBool(TExpressionContext*, TPIValue*)>(builder, "arrayJoinPredicate", [&] (
+                TCGOperatorContext& builder,
+                Value* buffer,
+                Value* unfoldedValues
+            ) {
+                TCGContext innerBuilder(builder, buffer);
+
+                auto rowBuilder = TCGExprContext::Make(
+                    innerBuilder,
+                    *fragmentInfos,
+                    unfoldedValues,
+                    innerBuilder.Buffer,
+                    innerBuilder->ViaClosure(expressionClosurePtr));
+
+                auto predicateResult = CodegenFragment(rowBuilder, predicateId);
+
+                auto* notIsNull = builder->CreateNot(predicateResult.GetIsNull(builder));
+                auto* isTrue = predicateResult.GetTypedData(builder);
+                innerBuilder->CreateRet(builder->CreateAnd(notIsNull, isTrue));
+            });
+
             int arrayCount = arrayIds.size();
 
             auto consumeArrayJoinedRows = MakeConsumer(builder, "ConsumeArrayJoinedRows", consumerSlot);
@@ -2873,6 +2895,8 @@ size_t MakeCodegenArrayJoinOp(
                         arrayValues,
                         consumeArrayJoinedRows.ClosurePtr,
                         consumeArrayJoinedRows.Function,
+                        predicate.ClosurePtr,
+                        predicate.Function,
                     }));
         };
 

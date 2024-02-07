@@ -287,9 +287,9 @@ join-clause
         {
             std::get<TQuery>(head->Ast).Joins.push_back(TJoin($isLeft, $table, $lhs, $rhs, $predicate));
         }
-    | join-clause is-left[isLeft] KwArray KwJoin pseudo-alias-comma-expr[arrays]
+    | join-clause is-left[isLeft] KwArray KwJoin pseudo-alias-comma-expr[arrays] join-predicate[predicate]
         {
-            std::get<TQuery>(head->Ast).Joins.push_back(TArrayJoin($isLeft, $arrays));
+            std::get<TQuery>(head->Ast).Joins.push_back(TArrayJoin($isLeft, $arrays, $predicate));
         }
     |
 ;

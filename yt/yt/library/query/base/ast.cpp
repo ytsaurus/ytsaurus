@@ -676,6 +676,10 @@ void FormatArrayJoin(TStringBuilderBase* builder, const TArrayJoin& join)
             builder->AppendString(" AS ");
             builder->AppendString(alias->Name);
         });
+    if (join.Predicate) {
+        builder->AppendString(" AND ");
+        FormatExpression(builder, *join.Predicate, true);
+    }
 }
 
 void FormatQuery(TStringBuilderBase* builder, const TQuery& query)

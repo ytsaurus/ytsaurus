@@ -183,7 +183,7 @@ TEST_F(TAstFormatTest, Query)
     TestQuery("* from t1 left join t2 on a = b and c > d");
     TestQuery("* from t1 left join t2 on a = b join t3 using x");
     TestQuery("* from t1 left join t2 on (a1, a2) = (b1, b2) join t3 using x");
-    TestQuery("* from t1 array join a1 as u1, a2 as u2");
+    TestQuery("* from t1 array join a1 as u1, a2 as u2 and u1 != 2");
     TestQuery("* from t1 left array join a1 + a2 as u1, b1 as u2");
 }
 
