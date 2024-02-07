@@ -89,6 +89,7 @@ class TTablet
 public:
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::TLegacyOwningKey, PivotKey);
     DEFINE_BYREF_RW_PROPERTY(NTabletClient::NProto::TTabletStatistics, NodeStatistics);
+    DEFINE_BYREF_RW_PROPERTY(NTabletClient::NProto::TTabletStatistics, AuxiliaryNodeStatistics);
     DEFINE_BYREF_RW_PROPERTY(NTabletNode::TTabletPerformanceCounters, PerformanceCounters);
     //! Only used for ordered tablets.
     DEFINE_BYVAL_RW_PROPERTY(i64, TrimmedRowCount);
@@ -138,7 +139,7 @@ public:
         NTransactionClient::TTimestamp latestTimestamp,
         const TTableReplicaInfo& replicaInfo) const;
 
-    TTabletStatistics GetTabletStatistics() const override;
+    TTabletStatistics GetTabletStatistics(bool fromAuxiliaryCell = false) const override;
 
     i64 GetTabletMasterMemoryUsage() const override;
 

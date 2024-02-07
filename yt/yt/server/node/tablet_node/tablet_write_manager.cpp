@@ -486,6 +486,16 @@ public:
             transaction->GetId());
     }
 
+    bool HasUnfinishedTransientTransactions() const override
+    {
+        return !TransactionIdToTransientWriteState_.empty();
+    }
+
+    bool HasUnfinishedPersistentTransactions() const override
+    {
+        return !TransactionIdToPersistentWriteState_.empty();
+    }
+
     void StartEpoch() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);

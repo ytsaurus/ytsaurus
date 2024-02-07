@@ -52,8 +52,9 @@ public:
     void UnscheduleRotation() override;
     void Rotate(bool createNewStore, NLsm::EStoreRotationReason reason) override;
 
-    void AddStore(IStorePtr store, bool onMount, bool onFlush) override;
+    void AddStore(IStorePtr store, bool onMount, bool onFlush, TPartitionId partitionIdHint) override;
     void BulkAddStores(TRange<IStorePtr> stores, bool onMount) override;
+    void CreateActiveStore(TDynamicStoreId hintId = {}) override;
 
     void DiscardAllStores() override;
     void RemoveStore(IStorePtr store) override;

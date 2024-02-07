@@ -165,12 +165,17 @@ void TReplicatedStoreManager::Rotate(bool createNewStore, NLsm::EStoreRotationRe
     LogStoreManager_->Rotate(createNewStore, reason);
 }
 
-void TReplicatedStoreManager::AddStore(IStorePtr store, bool onMount, bool onFlush)
+void TReplicatedStoreManager::AddStore(IStorePtr store, bool onMount, bool onFlush, TPartitionId partitionIdHint)
 {
-    LogStoreManager_->AddStore(std::move(store), onMount, onFlush);
+    LogStoreManager_->AddStore(std::move(store), onMount, onFlush, partitionIdHint);
 }
 
 void TReplicatedStoreManager::BulkAddStores(TRange<IStorePtr> /*stores*/, bool /*onMount*/)
+{
+    YT_ABORT();
+}
+
+void TReplicatedStoreManager::CreateActiveStore(TDynamicStoreId /*hintId*/)
 {
     YT_ABORT();
 }

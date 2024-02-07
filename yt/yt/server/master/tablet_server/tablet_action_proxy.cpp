@@ -33,7 +33,15 @@ private:
     using TBase = TNonversionedObjectProxyBase<TTabletAction>;
 
     void ValidateRemoval() override
-    { }
+    {
+        const auto* action = GetThisImpl();
+        if (action->GetKind() == ETabletActionKind::SmoothMove &&
+            !action->IsFinished())
+        {
+            THROW_ERROR_EXCEPTION("Cannot remove running tablet action of kind %Qlv",
+                action->GetKind());
+        }
+    }
 
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override
     {

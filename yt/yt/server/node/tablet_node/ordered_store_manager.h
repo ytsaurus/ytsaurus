@@ -42,6 +42,7 @@ public:
         TUnversionedRow row,
         TWriteContext* context);
 
+    void CreateActiveStore(TDynamicStoreId hintId = {}) override;
     void DiscardAllStores() override;
 
     bool IsFlushNeeded() const override;
@@ -63,7 +64,6 @@ private:
         bool isUnmountWorkflow) override;
 
     i64 ComputeStartingRowIndex() const;
-    void CreateActiveStore() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOrderedStoreManager)

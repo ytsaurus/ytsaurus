@@ -64,10 +64,11 @@ public:
         const NTabletNode::NProto::TMountHint& mountHint) override;
     void Remount(const TTableSettings& settings) override;
 
-    void AddStore(IStorePtr store, bool onMount, bool onFlush) override;
+    void AddStore(IStorePtr store, bool onMount, bool onFlush, TPartitionId partitionIdHint = {}) override;
     void BulkAddStores(TRange<IStorePtr> stores, bool onMount) override;
     void DiscardAllStores() override;
     void RemoveStore(IStorePtr store) override;
+    void CreateActiveStore(TDynamicStoreId hintId = {}) override;
 
     bool IsFlushNeeded() const override;
     bool IsStoreCompactable(IStorePtr store) const override;
@@ -115,7 +116,6 @@ private:
         TTabletSnapshotPtr tabletSnapshot,
         bool isUnmountWorkflow) override;
 
-    void CreateActiveStore() override;
 
     bool CheckInactiveStoresLocks(
         TUnversionedRow row,

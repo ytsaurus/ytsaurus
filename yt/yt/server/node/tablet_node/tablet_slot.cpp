@@ -12,6 +12,7 @@
 #include "security_manager.h"
 #include "serialize.h"
 #include "slot_manager.h"
+#include "smooth_movement_tracker.h"
 #include "tablet.h"
 #include "tablet_cell_write_manager.h"
 #include "tablet_manager.h"
@@ -315,9 +316,10 @@ public:
         return Occupant_->GetMasterMailbox();
     }
 
-    void RegisterTabletAvenue(
+    void RegisterMasterAvenue(
         TTabletId tabletId,
-        TAvenueEndpointId masterEndpointId) override
+        TAvenueEndpointId masterEndpointId,
+        TPersistentMailboxState&& cookie) override
     {
         auto nodeEndpointId = GetSiblingAvenueEndpointId(masterEndpointId);
         auto masterCellId = Bootstrap_->GetCellId(CellTagFromId(tabletId));
@@ -328,15 +330,40 @@ public:
         hiveManager->GetOrCreateCellMailbox(masterCellId);
         avenueDirectory->UpdateEndpoint(masterEndpointId, masterCellId);
 
-        hiveManager->RegisterAvenueEndpoint(nodeEndpointId, /*cookie*/ {});
+        hiveManager->RegisterAvenueEndpoint(nodeEndpointId, std::move(cookie));
     }
 
-    void UnregisterTabletAvenue(TAvenueEndpointId masterEndpointId) override
+    TPersistentMailboxState UnregisterMasterAvenue(
+        TAvenueEndpointId masterEndpointId) override
     {
         auto nodeEndpointId = GetSiblingAvenueEndpointId(masterEndpointId);
 
         GetAvenueDirectory()->UpdateEndpoint(masterEndpointId, /*cellId*/ {});
-        GetHiveManager()->UnregisterAvenueEndpoint(nodeEndpointId);
+        return GetHiveManager()->UnregisterAvenueEndpoint(nodeEndpointId);
+    }
+
+    void RegisterSiblingTabletAvenue(
+        TAvenueEndpointId siblingEndpointId,
+        TCellId siblingCellId) override
+    {
+        auto selfEndpointId = GetSiblingAvenueEndpointId(siblingEndpointId);
+
+        const auto& hiveManager = GetHiveManager();
+        const auto& avenueDirectory = GetAvenueDirectory();
+
+        hiveManager->GetOrCreateCellMailbox(siblingCellId);
+        avenueDirectory->UpdateEndpoint(siblingEndpointId, siblingCellId);
+
+        hiveManager->RegisterAvenueEndpoint(selfEndpointId, {});
+    }
+
+    void UnregisterSiblingTabletAvenue(
+        TAvenueEndpointId siblingEndpointId) override
+    {
+        auto selfEndpointId = GetSiblingAvenueEndpointId(siblingEndpointId);
+
+        GetAvenueDirectory()->UpdateEndpoint(siblingEndpointId, /*cellId*/ {});
+        GetHiveManager()->UnregisterAvenueEndpoint(selfEndpointId);
     }
 
     void CommitTabletMutation(const ::google::protobuf::MessageLite& message) override
@@ -392,6 +419,11 @@ public:
     const ITabletCellWriteManagerPtr& GetTabletCellWriteManager() override
     {
         return TabletCellWriteManager_;
+    }
+
+    const ISmoothMovementTrackerPtr& GetSmoothMovementTracker() override
+    {
+        return SmoothMovementTracker_;
     }
 
     const IHunkTabletManagerPtr& GetHunkTabletManager() override
@@ -529,6 +561,12 @@ public:
             GetAutomatonInvoker(),
             GetMutationForwarder());
 
+        SmoothMovementTracker_ = CreateSmoothMovementTracker(
+            TabletManager_->GetSmoothMovementTrackerHost(),
+            hydraManager,
+            GetAutomaton(),
+            GetAutomatonInvoker());
+
         ReconfigureChangelogWriteThrottler();
     }
 
@@ -576,6 +614,7 @@ public:
         TransactionManager_.Reset();
         DistributedThrottlerManager_.Reset();
         TabletCellWriteManager_.Reset();
+        SmoothMovementTracker_.Reset();
 
         if (TabletService_) {
             const auto& rpcServer = Bootstrap_->GetRpcServer();
@@ -682,6 +721,8 @@ private:
     IHunkTabletManagerPtr HunkTabletManager_;
 
     ITabletCellWriteManagerPtr TabletCellWriteManager_;
+
+    ISmoothMovementTrackerPtr SmoothMovementTracker_;
 
     ITransactionManagerPtr TransactionManager_;
 

@@ -153,6 +153,46 @@ DEFINE_ENUM(EHunkChunkState,
     ((Removed)         (2))
 );
 
+// See comments at TSmoothMovementTracker for description of stage transitions.
+DEFINE_ENUM(ESmoothMovementStage,
+    ((None)                              (0))
+
+    // Source: accepts all writes. Waits for running tablet stores updates to finish
+    // but does not accept new tablet stores updates.
+    // Target: rejects reads and writes.
+    ((TargetAllocated)                   (1))
+
+    // Source: rejects all writes and compactions, except for common dynamic store
+    // flushes. Waits for transactions to finish.
+    // Target: n/a.
+    ((WaitingForLocks)                   (2))
+
+    // Source: rejects all writes. Reads and compactions are allowed.
+    // Target: rejects reads and writes. Wait for common dynamic stores flush.
+    ((TargetActivated)                   (3))
+
+    // Source: waits for running tablet stores updates to finish, do not accept new.
+    // Accepts reads, rejects writes.
+    // Target: rejects reads and writes, waits for source to confirm servant switch.
+    ((ServantSwitchRequested)            (4))
+
+    // Source: rejects reads and writes, responds with redirect error code to
+    // all client requests. No more source-target avenue messages can be sent.
+    // Target: fully functional now, accepts reads and writes, may perform compaction.
+    // Waits for client cache invalidation to deactivate source.
+    ((ServantSwitched)                   (5))
+
+    // Source: n/a.
+    // Target: intermediate state needed to send source deactivation message.
+    ((SourceDeactivationRequested)       (6))
+);
+
+DEFINE_ENUM(ESmoothMovementRole,
+    ((None)     (0))
+    ((Source)   (1))
+    ((Target)   (2))
+);
+
 DEFINE_ENUM(EStoreFlushState,
     (None)
     (Running)

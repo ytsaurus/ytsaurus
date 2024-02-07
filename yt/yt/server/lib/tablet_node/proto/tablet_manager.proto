@@ -1,5 +1,7 @@
 package NYT.NTabletNode.NProto;
 
+import "yt/server/lib/hive/proto/hive_manager.proto";
+
 import "yt/ytlib/chunk_client/proto/session_id.proto";
 
 import "yt/ytlib/tablet_client/proto/heartbeat.proto";
@@ -120,13 +122,16 @@ message TReqMountTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NProto.TGuid table_id = 9;
-    required NYT.NProto.TGuid master_avenue_endpoint_id = 30;
+    optional NYT.NProto.TGuid master_avenue_endpoint_id = 30;
     required uint64 mount_revision = 11;
     required bool freeze = 13;
     repeated TTableReplicaDescriptor replicas = 14;
     repeated NYT.NProto.TGuid dynamic_store_ids = 22;
     optional TMountHint mount_hint = 23;
     optional NYT.NChaosClient.NProto.TReplicationProgress replication_progress = 28;
+    optional NYT.NProto.TGuid movement_source_cell_id = 33;
+    optional uint64 movement_source_mount_revision = 34;
+    optional NYT.NProto.TGuid movement_source_avenue_endpoint_id = 35;
 
     required TEssentialTabletContent essential_content = 31;
     required TReplicatableTabletContent replicatable_content = 32;
@@ -149,6 +154,25 @@ message TReqMountTablet
     repeated TLockDescriptor locks_deprecated = 20;
     optional uint64 retained_timestamp_deprecated = 21;
     optional int64 cumulative_data_weight_deprecated = 29;
+}
+
+message TReqReplicateTabletContent
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required uint64 mount_revision = 2;
+
+    required TReplicatableTabletContent replicatable_content = 3;
+
+    required TIdGenerator id_generator = 4;
+    optional NYT.NProto.TGuid eden_id = 5;
+    // TODO(ifsmirnov): sample keys.
+    repeated NYT.NProto.TGuid partition_ids = 6;
+    optional bytes partition_pivot_keys = 7;
+    repeated NYT.NProto.TGuid store_partition_ids = 8;
+    optional NYT.NProto.TGuid active_store_id = 9;
+
+    required uint64 last_commit_timestamp = 10;
+    required uint64 last_write_timestamp = 11;
 }
 
 message TReqUnmountTablet
@@ -450,6 +474,43 @@ message TRemoveHunkStoreDescriptor
 message TMarkHunkStoreSealableDescriptor
 {
     required NYT.NProto.TGuid store_id = 1;
+}
+
+message TReqStartSmoothMovement
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NProto.TGuid target_cell_id = 2;
+    required uint64 source_mount_revision = 3;
+    required uint64 target_mount_revision = 4;
+    required NYT.NProto.TGuid source_avenue_endpoint_id = 5;
+}
+
+message TReqChangeSmoothMovementStage
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required uint64 mount_revision = 2;
+    required int32 expected_stage = 3;
+    required int32 new_stage = 4;
+}
+
+message TIdGenerator
+{
+    required uint32 cell_tag = 1;
+    required uint64 counter = 2;
+    required uint64 seed = 3;
+}
+
+message TReqSwitchServant
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required uint64 mount_revision = 2;
+    required NYT.NProto.TGuid master_avenue_endpoint_id = 3;
+    required NYT.NHiveServer.NProto.TPersistentMailboxState master_mailbox_cookie = 4;
+}
+
+message TReqAbortSmoothMovement
+{
+    required NYT.NProto.TGuid tablet_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

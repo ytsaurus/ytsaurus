@@ -493,9 +493,9 @@ void TSortedStoreManager::Remount(const NTabletNode::TTableSettings& settings)
     }
 }
 
-void TSortedStoreManager::AddStore(IStorePtr store, bool onMount, bool onFlush)
+void TSortedStoreManager::AddStore(IStorePtr store, bool onMount, bool onFlush, TPartitionId partitionIdHint)
 {
-    TStoreManagerBase::AddStore(store, onMount, onFlush);
+    TStoreManagerBase::AddStore(store, onMount, onFlush, partitionIdHint);
 
     auto sortedStore = store->AsSorted();
     MaxTimestampToStore_.emplace(sortedStore->GetMaxTimestamp(), sortedStore);
@@ -567,9 +567,9 @@ void TSortedStoreManager::RemoveStore(IStorePtr store)
     TStoreManagerBase::RemoveStore(store);
 }
 
-void TSortedStoreManager::CreateActiveStore()
+void TSortedStoreManager::CreateActiveStore(TDynamicStoreId hintId)
 {
-    auto storeId = GenerateDynamicStoreId();
+    auto storeId = hintId ? hintId : GenerateDynamicStoreId();
 
     ActiveStore_ = TabletContext_
         ->CreateStore(Tablet_, EStoreType::SortedDynamic, storeId, nullptr)

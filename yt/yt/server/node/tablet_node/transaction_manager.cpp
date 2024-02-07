@@ -300,7 +300,6 @@ public:
         return OrchidService_;
     }
 
-
     // ITransactionManager implementation.
 
     TFuture<void> GetReadyToPrepareTransactionCommit(
@@ -1056,6 +1055,7 @@ private:
                     "(TransactionId: %v, Type: %v)",
                     transaction->GetId(),
                     TypeFromId(transaction->GetId()));
+                return;
         }
 
         ToProto(
@@ -1222,8 +1222,7 @@ private:
                 transactionId,
                 TTransactionPrepareOptions{
                     .Persistent = true,
-                }
-            );
+                });
         } catch (const std::exception& ex) {
             YT_LOG_ALERT(ex, "Failed to prepare externalized transaction (TransactionId: %v)",
                 transactionId);

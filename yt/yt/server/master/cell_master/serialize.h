@@ -229,6 +229,7 @@ DEFINE_ENUM(EMasterReign,
     ((ValueDictionaryCompression)                                   (2527))  // akozhikhov
     ((SaneTxActionAbortFix)                                         (2528))  // kvk1920
     ((FixResponseHash)                                              (2529))  // babenko
+    ((SmoothTabletMovement)                                         (2530))  // ifsmirnov
     // 24.2 starts here.
 );
 

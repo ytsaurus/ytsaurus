@@ -71,12 +71,20 @@ struct ITabletSlot
     virtual const NHiveServer::TSimpleAvenueDirectoryPtr& GetAvenueDirectory() = 0;
     virtual NHiveServer::TMailbox* GetMasterMailbox() = 0;
 
-    virtual void RegisterTabletAvenue(
+    virtual void RegisterMasterAvenue(
         TTabletId tabletId,
+        NHiveServer::TAvenueEndpointId masterEndpointId,
+        NHiveServer::TPersistentMailboxState&& cookie) = 0;
+
+    virtual NHiveServer::TPersistentMailboxState UnregisterMasterAvenue(
         NHiveServer::TAvenueEndpointId masterEndpointId) = 0;
 
-    virtual void UnregisterTabletAvenue(
-        NHiveServer::TAvenueEndpointId masterEndpointId) = 0;
+    virtual void RegisterSiblingTabletAvenue(
+        NHiveServer::TAvenueEndpointId siblingEndpointId,
+        TCellId siblingCellId) = 0;
+
+    virtual void UnregisterSiblingTabletAvenue(
+        NHiveServer::TAvenueEndpointId siblingEndpointId) = 0;
 
     virtual void CommitTabletMutation(const ::google::protobuf::MessageLite& message) = 0;
     virtual void PostMasterMessage(TTabletId tabletId, const ::google::protobuf::MessageLite& message) = 0;
@@ -87,6 +95,7 @@ struct ITabletSlot
 
     virtual ITabletManagerPtr GetTabletManager() = 0;
     virtual const ITabletCellWriteManagerPtr& GetTabletCellWriteManager() = 0;
+    virtual const ISmoothMovementTrackerPtr& GetSmoothMovementTracker() = 0;
 
     virtual const IHunkTabletManagerPtr& GetHunkTabletManager() = 0;
 

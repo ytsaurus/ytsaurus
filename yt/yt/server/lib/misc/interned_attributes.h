@@ -45,6 +45,8 @@
     XX(Atomicity, atomicity) \
     XX(AttributeKey, attribute_key) \
     XX(AttributeRevision, attribute_revision) \
+    XX(AuxiliaryCellId, auxiliary_cell_id) \
+    XX(AuxiliaryState, auxiliary_state) \
     XX(Available, available) \
     XX(AvailableSpace, available_space) \
     XX(AvailableSpacePerMedium, available_space_per_medium) \

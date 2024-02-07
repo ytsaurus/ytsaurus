@@ -472,10 +472,42 @@ public:
 
     void Persist(const TPersistenceContext& context);
 
+    friend void ToProto(
+        NProto::TIdGenerator* protoIdGenerator,
+        const TIdGenerator& idGenerator);
+    friend void FromProto(
+        TIdGenerator* idGenerator,
+        const NProto::TIdGenerator& protoIdGenerator);
+
 private:
     ui16 CellTag_;
     ui64 Counter_{};
     ui64 Seed_{};
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSmoothMovementData
+{
+public:
+    DEFINE_BYVAL_RW_PROPERTY(ESmoothMovementRole, Role);
+    DEFINE_BYVAL_RW_PROPERTY(ESmoothMovementStage, Stage);
+    DEFINE_BYVAL_RW_PROPERTY(TTabletCellId, SiblingCellId);
+    DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, SiblingMountRevision);
+    DEFINE_BYVAL_RW_PROPERTY(NHiveServer::TAvenueEndpointId, SiblingAvenueEndpointId);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TStoreId>, CommonDynamicStoreIds);
+
+    // Transient.
+    DEFINE_BYVAL_RW_PROPERTY(bool, StageChangeScheduled);
+
+public:
+    void ValidateWriteToTablet() const;
+    bool IsTabletStoresUpdateAllowed(bool isCommonFlush) const;
+    bool ShouldForwardMutation() const;
+
+    void Persist(const TPersistenceContext& context);
+
+    void BuildOrchidYson(NYTree::TFluentMap fluent) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -540,6 +572,8 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, LastDiscardStoresRevision);
 
+    DEFINE_BYVAL_RW_PROPERTY(TTransactionId, StoresUpdatePreparedTransactionId);
+
     DEFINE_BYVAL_RO_PROPERTY(TTableProfilerPtr, TableProfiler, TTableProfiler::GetDisabled());
 
     DEFINE_BYREF_RO_PROPERTY(NTableClient::TTabletPerformanceCountersPtr, PerformanceCounters, New<NTableClient::TTabletPerformanceCounters>());
@@ -592,8 +626,7 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(NLsm::TTabletLsmStatistics, LsmStatistics);
 
-    // TODO(ifsmirnov, YT-17317): temporary field used to test IMutationForwarder.
-    DEFINE_BYVAL_RW_PROPERTY(int, RemountCount);
+    DEFINE_BYREF_RW_PROPERTY(TSmoothMovementData, SmoothMovementData);
 
 public:
     TTablet(
@@ -644,7 +677,7 @@ public:
 
     const THashMap<TStoreId, IStorePtr>& StoreIdMap() const;
     const std::map<i64, IOrderedStorePtr>& StoreRowIndexMap() const;
-    void AddStore(IStorePtr store, bool onFlush);
+    void AddStore(IStorePtr store, bool onFlush, TPartitionId partitionIdHint = {});
     void RemoveStore(IStorePtr store);
     IStorePtr FindStore(TStoreId id);
     IStorePtr GetStore(TStoreId id);
@@ -727,6 +760,13 @@ public:
     void ValidateMountRevision(NHydra::TRevision mountRevision);
 
     void UpdateUnflushedTimestamp() const;
+
+    // Returns |true| if tablet either participates in smooth movement and holds master avenue connection
+    // or does not participate in it at all.
+    bool IsActiveServant() const;
+
+    void PopulateReplicateTabletContentRequest(NProto::TReqReplicateTabletContent* request);
+    void LoadReplicatedContent(const NProto::TReqReplicateTabletContent* request);
 
     // Lock stuff.
 

@@ -199,6 +199,8 @@ public:
             Host_->ValidateMemoryLimit(poolTag);
             ValidateWriteBarrier(replicatorWrite, tablet);
 
+            tablet->SmoothMovementData().ValidateWriteToTablet();
+
             auto tabletId = tablet->GetId();
 
             TTransaction* transaction = nullptr;

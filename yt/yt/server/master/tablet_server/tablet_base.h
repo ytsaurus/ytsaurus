@@ -2,6 +2,8 @@
 
 #include "tablet_statistics.h"
 
+#include <yt/yt/server/lib/tablet_node/public.h>
+
 #include <yt/yt/server/master/chunk_server/public.h>
 
 #include <yt/yt/server/master/object_server/object.h>
@@ -23,8 +25,20 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ETabletState, State, ETabletState::Unmounted);
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, MountRevision);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, MountTime);
+    DEFINE_BYVAL_RW_PROPERTY(
+        NTabletNode::ESmoothMovementRole,
+        MovementRole,
+        NTabletNode::ESmoothMovementRole::None);
+    DEFINE_BYVAL_RW_PROPERTY(
+        NTabletNode::ESmoothMovementStage,
+        MovementStage,
+        NTabletNode::ESmoothMovementStage::None);
 
 public:
+    explicit TTabletServant(bool isAuxiliary);
+
+    bool IsAuxiliary() const;
+
     operator bool() const;
 
     void Clear();
@@ -32,6 +46,9 @@ public:
     void Swap(TTabletServant* other);
 
     void Persist(const NCellMaster::TPersistenceContext& context);
+
+private:
+    const bool IsAuxiliary_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,7 +62,8 @@ public:
     //! Only makes sense for mounted tablets.
     DEFINE_BYVAL_RW_PROPERTY(NTabletClient::EInMemoryMode, InMemoryMode);
 
-    DEFINE_BYREF_RW_PROPERTY(TTabletServant, Servant);
+    DEFINE_BYREF_RW_PROPERTY(TTabletServant, Servant, /*isAuxiliary*/ false);
+    DEFINE_BYREF_RW_PROPERTY(TTabletServant, AuxiliaryServant, /*isAuxiliary*/ true);
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, SettingsRevision);
 
     //! Only makes sense for unmounted tablets.
@@ -54,6 +72,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTabletAction*, Action);
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, StoresUpdatePreparedTransaction);
+
+    DEFINE_BYVAL_RW_PROPERTY(NHiveServer::TAvenueEndpointId, TabletwiseAvenueEndpointId);
 
 public:
     using TObject::TObject;
@@ -69,6 +89,8 @@ public:
 
     TTabletOwnerBase* GetOwner() const;
     virtual void SetOwner(TTabletOwnerBase* owner);
+
+    TCompactVector<TTabletCell*, 2> GetCells() const;
 
     virtual void CopyFrom(const TTabletBase& other);
 
@@ -98,7 +120,9 @@ public:
 
     virtual i64 GetTabletMasterMemoryUsage() const;
 
-    virtual TTabletStatistics GetTabletStatistics() const = 0;
+    virtual TTabletStatistics GetTabletStatistics(bool fromAuxiliaryCell = false) const = 0;
+
+    void ValidateNotSmoothlyMoved(TStringBuf message) const;
 
     virtual void ValidateMount(bool freeze);
     virtual void ValidateUnmount();
@@ -108,6 +132,8 @@ public:
 
     virtual void ValidateReshard() const;
     virtual void ValidateReshardRemove() const;
+
+    virtual void ValidateRemount() const;
 
     int GetTabletErrorCount() const;
     void SetTabletErrorCount(int tabletErrorCount);

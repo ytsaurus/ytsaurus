@@ -34,7 +34,6 @@ using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NCypressClient;
 
-using NTabletNode::NProto::TAddStoreDescriptor;
 using NLsm::EStoreRotationReason;
 
 using NYT::FromProto;
@@ -172,9 +171,9 @@ void TStoreManagerBase::UnscheduleRotation()
     RotationScheduled_ = false;
 }
 
-void TStoreManagerBase::AddStore(IStorePtr store, bool onMount, bool onFlush)
+void TStoreManagerBase::AddStore(IStorePtr store, bool onMount, bool onFlush, TPartitionId partitionIdHint)
 {
-    Tablet_->AddStore(store, onFlush);
+    Tablet_->AddStore(store, onFlush, partitionIdHint);
 
     if (onMount) {
         // After mount preload will be performed in StartEpoch

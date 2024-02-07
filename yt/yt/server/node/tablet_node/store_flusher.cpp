@@ -390,6 +390,12 @@ private:
             return;
         }
 
+        const auto& movementData = tablet->SmoothMovementData();
+        bool isCommonFlush = movementData.CommonDynamicStoreIds().contains(store->GetId());
+        if (!movementData.IsTabletStoresUpdateAllowed(isCommonFlush)) {
+            return;
+        }
+
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
         auto tabletSnapshot = snapshotStore->FindTabletSnapshot(tablet->GetId(), tablet->GetMountRevision());
         if (!tabletSnapshot) {

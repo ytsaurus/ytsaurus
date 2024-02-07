@@ -7,6 +7,7 @@ import "yt/ytlib/tablet_client/proto/heartbeat.proto";
 import "yt_proto/yt/client/chaos_client/proto/replication_card.proto";
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/misc/proto/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -272,6 +273,32 @@ message TReqUpdateHunkTabletStores
     repeated NTabletNode.NProto.TAddHunkStoreDescriptor stores_to_add = 3;
     repeated NTabletNode.NProto.TRemoveHunkStoreDescriptor stores_to_remove = 4;
     repeated NTabletNode.NProto.TMarkHunkStoreSealableDescriptor stores_to_mark_sealable = 5;
+}
+
+message TReqSwitchServant
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required uint64 source_mount_revision = 2;
+    required uint64 target_mount_revision = 3;
+}
+
+message TReqDeallocateServant
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required uint64 auxiliary_mount_revision = 2;
+}
+
+message TReqReportSmoothMovementProgress
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required uint64 mount_revision = 2;
+    required int32 stage = 3; // ESmoothMovementStage
+}
+
+message TReqReportSmoothMovementAborted
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    optional NYT.NProto.TError error = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
