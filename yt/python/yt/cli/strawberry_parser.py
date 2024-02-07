@@ -150,8 +150,8 @@ def add_strawberry_ctl_parser(add_parser, family):
     do_parse_known_args = parser.parse_known_args
 
     def parse_known_args(args=None, namespace=None):
-        parsed_address, unparsed = address_parser.parse_known_args(args=args, namespace=namespace)
-        register_commands(parsed_address.address)
+        namespace, unparsed = address_parser.parse_known_args(args=args, namespace=namespace)
+        register_commands(namespace.address)
         return do_parse_known_args(args=unparsed, namespace=namespace)
 
     parser.parse_known_args = parse_known_args
