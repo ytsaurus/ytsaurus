@@ -8,6 +8,7 @@ script_name=$0
 ytsaurus_source_path="."
 ytsaurus_build_path="."
 ytsaurus_package_name=""
+not_prepare_bindings_libraries=false
 
 print_usage() {
     cat << EOF
@@ -15,6 +16,7 @@ Usage: $script_name [-h|--help]
                     [--ytsaurus-source-path /path/to/ytsaurus.repo (default: $ytsaurus_source_path)]
                     [--ytsaurus-build-path /path/to/ytsaurus.build (default: $ytsaurus_build_path)]
                     [--ytsaurus-package-name some-ytsaurus-package-name (default: all packages will be build) (values: ytsaurus-client, ytsaurus-yson, ytsaurus-local, ytsaurus-native-driver)]
+                    [--not-prepare-bindings-libraries (default: true)]
 EOF
     exit 1
 }
@@ -38,6 +40,10 @@ while [[ $# -gt 0 ]]; do
         ytsaurus_package_name=$2
         shift 2
         ;;
+        --not-prepare-bindings-libraries)
+        not_prepare_bindings_libraries=true
+        shift 1
+        ;;
         *)
         echo "Unknown argument $1"
         print_usage
@@ -57,11 +63,18 @@ $ytsaurus_source_path/yt/python/packages/yt_setup/generate_python_proto.py \
 
 
 cd $ytsaurus_source_path/yt/python/packages
-python3 -m yt_setup.prepare_python_modules \
-    --source-root ${ytsaurus_source_path} \
-    --build-root ${ytsaurus_build_path} \
-    --output-path ${ytsaurus_python} \
-    --prepare-bindings-libraries
+if [ "$not_prepare_bindings_libraries" = true ] ; then
+    python3 -m yt_setup.prepare_python_modules \
+        --source-root ${ytsaurus_source_path} \
+        --build-root ${ytsaurus_build_path} \
+        --output-path ${ytsaurus_python} \
+else
+    python3 -m yt_setup.prepare_python_modules \
+        --source-root ${ytsaurus_source_path} \
+        --build-root ${ytsaurus_build_path} \
+        --output-path ${ytsaurus_python} \
+        --prepare-bindings-libraries
+fi
 
 cd ${ytsaurus_python}
 
