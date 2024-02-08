@@ -153,7 +153,7 @@ public:
 
     struct TRunningAllocationTimeStatistics
     {
-        TDuration PreemptibleProgressTime;
+        TInstant PreemptibleProgressStartTime = TInstant();
     };
 
     struct TRunningAllocationStatisticsUpdate

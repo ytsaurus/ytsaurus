@@ -817,14 +817,16 @@ class YTEnvSetup(object):
                 config["controller_agent"]["control_job_lifetime_at_scheduler"] = False
                 config["controller_agent"]["job_tracker"]["abort_vanished_jobs"] = True
 
+            artifact_components_23_2 = cls.ARTIFACT_COMPONENTS.get("23_2", [])
+
             # COMPAT(kvk1920)
-            if "master" in cls.ARTIFACT_COMPONENTS.get("23_2", []):
+            if "master" in artifact_components_23_2:
                 config["controller_agent"]["commit_operation_cypress_node_changes_via_system_transaction"] = False
                 config["controller_agent"]["set_committed_attribute_via_transaction_action"] = True
 
             # COMPAT(arkady-e1ppa)
-            if "nodes" in cls.ARTIFACT_COMPONENTS.get("23_2", []):
-                config["controller_agent"]["job_tracker"]["enable_graceful_abort"] = False
+            if "nodes" not in artifact_components_23_2:
+                config["controller_agent"]["job_tracker"]["enable_graceful_abort"] = True
 
             configs["controller_agent"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_controller_agent_config(configs["controller_agent"][index], cluster_index)

@@ -54,6 +54,7 @@ struct TJoblet
     TInstant FinishTime;
     TInstant LastUpdateTime = TInstant();
     TInstant LastStatisticsUpdateTime = TInstant();
+    TInstant NodeJobStartTime = TInstant();
 
     // There are no joblets for finished jobs, JobState may not contain finished states.
     std::optional<EJobState> JobState;
@@ -167,6 +168,7 @@ struct TJoblet
 
     bool ShouldLogFinishedEvent() const;
     bool IsStarted() const noexcept;
+    bool IsJobStartedOnNode() const noexcept;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJoblet)

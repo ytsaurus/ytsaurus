@@ -850,9 +850,13 @@ public:
                             for (const auto* protoStatisticsUpdate : protoUpdates.RunningAllocationStatisticsUpdates) {
                                 auto allocationId = FromProto<TAllocationId>(protoStatisticsUpdate->allocation_id());
 
-                                auto preemptibleProgressTime = NYT::FromProto<TDuration>(protoStatisticsUpdate->preemptible_progress_time());
+                                auto preemptibleProgressStartTime = NYT::FromProto<TInstant>(protoStatisticsUpdate->preemptible_progress_start_time());
 
-                                runningAllocationStatisticsUpdates.push_back({allocationId, {preemptibleProgressTime}});
+                                runningAllocationStatisticsUpdates.push_back({
+                                    .AllocationId = allocationId,
+                                    .TimeStatistics = {
+                                        .PreemptibleProgressStartTime = preemptibleProgressStartTime,
+                                    }});
                             }
 
                             if (!std::empty(runningAllocationStatisticsUpdates)) {

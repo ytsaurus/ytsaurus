@@ -243,12 +243,14 @@ void TOperationControllerHost::UpdateRunningAllocationsStatistics(
         return;
     }
 
+    size_t runningAllocationStatisticsUpdatesCount = runningAllocationStatisticsUpdates.size();
+
     RunningAllocationStatisticsUpdatesOutbox_->Enqueue(std::move(runningAllocationStatisticsUpdates));
 
     YT_LOG_DEBUG(
         "Allocations statistics update request enqueued (OperationId: %v, AllocationCount: %v)",
         OperationId_,
-        runningAllocationStatisticsUpdates.size());
+        runningAllocationStatisticsUpdatesCount);
 }
 
 void TOperationControllerHost::RegisterJob(TStartedJobInfo jobInfo)

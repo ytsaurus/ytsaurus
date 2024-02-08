@@ -128,9 +128,11 @@ public:
 
     EJobState GetState() const;
 
-    TInstant GetStartTime() const;
+    TInstant GetCreationTime() const;
 
     NJobAgent::TTimeStatistics GetTimeStatistics() const;
+
+    std::optional<TInstant> GetStartTime() const;
 
     EJobPhase GetPhase() const;
 
@@ -251,7 +253,7 @@ private:
 
     const TJobCommonConfigPtr CommonConfig_;
     const IInvokerPtr Invoker_;
-    const TInstant StartTime_;
+    const TInstant CreationTime_;
     const NChunkClient::TTrafficMeterPtr TrafficMeter_;
 
     NControllerAgent::NProto::TJobSpec JobSpec_;
@@ -295,9 +297,10 @@ private:
     std::optional<TError> Error_;
     std::optional<NControllerAgent::NProto::TJobResultExt> JobResultExtension_;
 
-    std::optional<TInstant> PrepareTime_;
-    std::optional<TInstant> CopyTime_;
-    std::optional<TInstant> ExecTime_;
+    std::optional<TInstant> PrepareStartTime_;
+    std::optional<TInstant> CopyFinishTime_;
+    std::optional<TInstant> StartTime_;
+    std::optional<TInstant> ExecStartTime_;
     std::optional<TInstant> FinishTime_;
 
     std::optional<TInstant> StartPrepareVolumeTime_;

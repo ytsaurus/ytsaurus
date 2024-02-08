@@ -76,7 +76,7 @@ message TAgentToSchedulerRunningAllocationStatistics
 {
     required NYT.NProto.TGuid allocation_id = 1;
 
-    required int64 preemptible_progress_time = 2;
+    required uint64 preemptible_progress_start_time = 2;
 }
 
 message TSchedulerToAgentAbortedAllocationEvent

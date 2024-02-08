@@ -179,7 +179,7 @@ TJob::TJob(
         Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(this))
     , CommonConfig_(commonConfig)
     , Invoker_(Bootstrap_->GetJobInvoker())
-    , StartTime_(TInstant::Now())
+    , CreationTime_(TInstant::Now())
     , TrafficMeter_(New<TTrafficMeter>(
         Bootstrap_->GetLocalDescriptor().GetDataCenter()))
     , JobSpec_(std::move(jobSpec))
@@ -245,7 +245,7 @@ void TJob::DoStart()
         "DoStart",
         [&] () {
             auto now = TInstant::Now();
-            PrepareTime_ = now;
+            PrepareStartTime_ = now;
 
             StartUserJobMonitoring();
 
@@ -818,11 +818,11 @@ EJobState TJob::GetState() const
     return JobState_;
 }
 
-TInstant TJob::GetStartTime() const
+TInstant TJob::GetCreationTime() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return StartTime_;
+    return CreationTime_;
 }
 
 NJobAgent::TTimeStatistics TJob::GetTimeStatistics() const
@@ -830,12 +830,16 @@ NJobAgent::TTimeStatistics TJob::GetTimeStatistics() const
     VERIFY_THREAD_AFFINITY(JobThread);
 
     auto getPrepareDuration = [&] () -> std::optional<TDuration> {
-        if (!PrepareTime_) {
+        // TODO(arkady-e1ppa): Fix PrepareStartTime semantics.
+        if (!StartTime_) {
             return std::nullopt;
-        } else if (!ExecTime_) {
-            return TInstant::Now() - *PrepareTime_;
+        }
+        if (!PrepareStartTime_) {
+            return std::nullopt;
+        } else if (!ExecStartTime_) {
+            return TInstant::Now() - *PrepareStartTime_;
         } else {
-            return *ExecTime_ - *PrepareTime_;
+            return *ExecStartTime_ - *PrepareStartTime_;
         }
     };
     auto getPrepareRootFSDuration = [&] () -> std::optional<TDuration> {
@@ -848,21 +852,21 @@ NJobAgent::TTimeStatistics TJob::GetTimeStatistics() const
         }
     };
     auto getArtifactsDownloadDuration = [&] () -> std::optional<TDuration> {
-        if (!PrepareTime_) {
+        if (!PrepareStartTime_) {
             return std::nullopt;
-        } else if (!CopyTime_) {
-            return TInstant::Now() - *PrepareTime_;
+        } else if (!CopyFinishTime_) {
+            return TInstant::Now() - *PrepareStartTime_;
         } else {
-            return *CopyTime_ - *PrepareTime_;
+            return *CopyFinishTime_ - *PrepareStartTime_;
         }
     };
     auto getExecDuration = [&] () -> std::optional<TDuration> {
-        if (!ExecTime_) {
+        if (!ExecStartTime_) {
             return std::nullopt;
         } else if (!FinishTime_) {
-            return TInstant::Now() - *ExecTime_;
+            return TInstant::Now() - *ExecStartTime_;
         } else {
-            return *FinishTime_ - *ExecTime_;
+            return *FinishTime_ - *ExecStartTime_;
         }
     };
     auto getPreliminaryGpuCheckDuration = [&] () -> std::optional<TDuration> {
@@ -901,6 +905,13 @@ NJobAgent::TTimeStatistics TJob::GetTimeStatistics() const
         .PrepareRootFSDuration = getPrepareRootFSDuration(),
         .ExecDuration = getExecDuration(),
         .GpuCheckDuration = sumOptionals(getPreliminaryGpuCheckDuration(), getExtraGpuCheckDuration())};
+}
+
+std::optional<TInstant> TJob::GetStartTime() const
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return StartTime_;
 }
 
 EJobPhase TJob::GetPhase() const
@@ -1148,8 +1159,8 @@ TBriefJobInfo TJob::GetBriefInfo() const
         GetStored(),
         IsInterrupted(),
         GetSlotIndex(),
-        GetStartTime(),
-        /*jobDuration=*/ TInstant::Now() - GetStartTime(),
+        GetCreationTime(),
+        /*jobDuration*/ TInstant::Now() - GetCreationTime(),
         GetStatistics(),
         GetOperationId(),
         baseResourceUsage,
@@ -1768,6 +1779,8 @@ void TJob::OnNodeDirectoryPrepared(TErrorOr<std::unique_ptr<NNodeTrackerClient::
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    StartTime_ = TInstant::Now();
+
     if (auto delay = JobTestingOptions_->DelayAfterNodeDirectoryPrepared) {
         YT_LOG_DEBUG("Simulate delay after node directory prepared");
         TDelayedExecutor::WaitForDuration(*delay);
@@ -1838,7 +1851,7 @@ void TJob::OnArtifactsDownloaded(const TErrorOr<std::vector<NDataNode::IChunkPtr
                 Artifacts_[index].Chunk = chunks[index];
             }
 
-            CopyTime_ = TInstant::Now();
+            CopyFinishTime_ = TInstant::Now();
             RunWithWorkspaceBuilder();
         });
 }
@@ -2000,7 +2013,7 @@ void TJob::RunJobProxy()
         YT_LOG_ALERT("Unexpected phase before run job proxy (ActualPhase: %v)", JobPhase_);
     }
 
-    ExecTime_ = TInstant::Now();
+    ExecStartTime_ = TInstant::Now();
 
     SetJobPhase(EJobPhase::SpawningJobProxy);
     InitializeJobProbe();
@@ -2050,7 +2063,7 @@ void TJob::OnJobPreparationTimeout(TDuration prepareTimeLimit, bool fatal)
             fatal ? NExecNode::EErrorCode::FatalJobPreparationTimeout : NExecNode::EErrorCode::JobPreparationTimeout,
             "Failed to prepare job within timeout")
             << TErrorAttribute("prepare_time_limit", prepareTimeLimit)
-            << TErrorAttribute("job_start_time", StartTime_)
+            << TErrorAttribute("job_creation_time", CreationTime_)
             << TErrorAttribute("job_phase", JobPhase_);
 
         if (fatal) {
@@ -3001,9 +3014,9 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
         }
 
         if (!slotStatisticsLastUpdateTime) {
-            YT_VERIFY(ExecTime_);
+            YT_VERIFY(ExecStartTime_);
 
-            slotStatisticsLastUpdateTime = ExecTime_;
+            slotStatisticsLastUpdateTime = ExecStartTime_;
         }
 
         auto period = gpuInfo.UpdateTime - *slotStatisticsLastUpdateTime;
@@ -3215,7 +3228,7 @@ TNodeJobReport TJob::MakeDefaultJobReport()
     auto report = TNodeJobReport()
         .Type(GetType())
         .State(GetState())
-        .StartTime(GetStartTime())
+        .StartTime(GetCreationTime())
         .SpecVersion(0) // TODO: fill correct spec version.
         .CoreInfos(CoreInfos_)
         .ExecAttributes(ConvertToYsonString(ExecAttributes_));
@@ -3502,6 +3515,9 @@ void FillStatus(NControllerAgent::NProto::TJobStatus* status, const TJobPtr& job
     }
     if (const auto& preemptedFor = job->GetPreemptedFor()) {
         ToProto(status->mutable_preempted_for(), *preemptedFor);
+    }
+    if (auto startTime = job->GetStartTime()) {
+        status->set_start_time(startTime->GetValue());
     }
 }
 

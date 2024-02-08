@@ -37,6 +37,8 @@ DEFINE_ENUM(ESnapshotVersion,
     ((AttributeBasedAccessControl)          (301305))
     ((NewLivePreview)                       (301306))
     ((LivePreviewAnnotation)                (301307))
+    // 24.1 starts here
+    ((NodeJobStartTimeInJoblet)             (301408))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

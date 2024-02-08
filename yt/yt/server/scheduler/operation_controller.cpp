@@ -124,6 +124,10 @@ void FromProto(
             allocationProto.node_address());
         allocation->SetState(EAllocationState::Running);
         result->RevivedAllocations.push_back(allocation);
+
+        if (allocationProto.has_preemptible_progress_start_time()) {
+            allocation->SetPreemptibleProgressStartTime(FromProto<TInstant>(allocationProto.preemptible_progress_start_time()));
+        }
     }
     result->RevivedBannedTreeIds = FromProto<THashSet<TString>>(resultProto.revived_banned_tree_ids());
     result->NeededResources = FromProto<TCompositeNeededResources>(resultProto.composite_needed_resources());
