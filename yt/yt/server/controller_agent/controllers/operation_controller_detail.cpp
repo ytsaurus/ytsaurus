@@ -6457,8 +6457,10 @@ void TOperationControllerBase::GetInputTablesAttributes()
 
         // TODO(ifsmirnov): YT-20044
         if (table->Schema->HasHunkColumns() && OperationType == EOperationType::RemoteCopy) {
-            THROW_ERROR_EXCEPTION("Table with hunk columns cannot be copied to another cluster")
-                << TErrorAttribute("table_path", table->Path);
+            if (!Spec_->BypassHunkRemoteCopyProhibition.value_or(false)) {
+                THROW_ERROR_EXCEPTION("Table with hunk columns cannot be copied to another cluster")
+                    << TErrorAttribute("table_path", table->Path);
+            }
         }
     }
 
