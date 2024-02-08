@@ -574,17 +574,23 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
         },
     };
 
-    auto heartbeatCounters = WaitFor(BIND(
+    BIND(
         &TJobTracker::DoProcessHeartbeat,
         Unretained(this),
         Passed(std::move(heartbeatProcessingContext)))
         .AsyncVia(GetCancelableInvokerOrThrow())
-        .Run())
-    .ValueOrThrow();
+        .Run()
+        .SubscribeUnique(BIND([this, context] (TErrorOr<THeartbeatProcessingResult>&& heartbeatProcessingResultOrError) {
+            if (!heartbeatProcessingResultOrError.IsOK()) {
+                context->Reply(std::move(heartbeatProcessingResultOrError));
+                return;
+            }
+            auto heartbeatProcessingResult = std::move(heartbeatProcessingResultOrError.Value());
+            ProfileHeartbeatProperties(heartbeatProcessingResult.Counters);
 
-    ProfileHeartbeatProperties(heartbeatCounters);
-
-    context->Reply();
+            heartbeatProcessingResult.Context.Context->Reply();
+        })
+            .Via(GetCurrentInvoker()));
 }
 
 void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
@@ -1051,7 +1057,7 @@ void TJobTracker::DoUpdateExecNodes(TRefCountedExecNodeDescriptorMapPtr newExecN
         BIND([oldExecNodesToDestroy = std::move(newExecNodes)] {}));
 }
 
-TJobTracker::THeartbeatCounters TJobTracker::DoProcessHeartbeat(
+TJobTracker::THeartbeatProcessingResult TJobTracker::DoProcessHeartbeat(
     THeartbeatProcessingContext heartbeatProcessingContext)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
@@ -1081,7 +1087,8 @@ TJobTracker::THeartbeatCounters TJobTracker::DoProcessHeartbeat(
 
     auto& nodeJobs = nodeInfo.Jobs;
 
-    THeartbeatCounters heartbeatCounters{};
+    THeartbeatProcessingResult heartbeatProcessingResult{};
+    auto& heartbeatCounters = heartbeatProcessingResult.Counters;
 
     {
         TOperationIdToJobsToAbort jobsToAbort;
@@ -1224,7 +1231,7 @@ TJobTracker::THeartbeatCounters TJobTracker::DoProcessHeartbeat(
                     operationInfo,
                     jobsToProcessInOperationController,
                     response,
-                    std::move(jobSummary),
+                    jobSummary,
                     Logger,
                     heartbeatCounters,
                     shouldSkipRunningJobEvents);
@@ -1257,7 +1264,7 @@ TJobTracker::THeartbeatCounters TJobTracker::DoProcessHeartbeat(
                     operationInfo,
                     jobsToProcessInOperationController,
                     response,
-                    std::move(jobSummary),
+                    jobSummary,
                     Logger,
                     heartbeatCounters,
                     shouldSkipRunningJobEvents);
@@ -1442,7 +1449,9 @@ TJobTracker::THeartbeatCounters TJobTracker::DoProcessHeartbeat(
     YT_VERIFY(std::empty(nodeJobs.AbortedAllocations));
     nodeJobs.AbortedAllocations = std::move(revivingJobsAbortedAllocations);
 
-    return heartbeatCounters;
+    heartbeatProcessingResult.Context = std::move(heartbeatProcessingContext);
+
+    return heartbeatProcessingResult;
 }
 
 void TJobTracker::HandleJobInfo(
@@ -1451,7 +1460,7 @@ void TJobTracker::HandleJobInfo(
     TOperationInfo& operationInfo,
     TJobsToProcessInOperationController& jobsToProcessInOperationController,
     TCtxHeartbeat::TTypedResponse* response,
-    std::unique_ptr<TJobSummary> jobSummary,
+    std::unique_ptr<TJobSummary>& jobSummary,
     const NLogging::TLogger& Logger,
     THeartbeatCounters& heartbeatCounters,
     bool shouldSkipRunningJobEvents)
@@ -1463,7 +1472,7 @@ void TJobTracker::HandleJobInfo(
             operationInfo,
             jobsToProcessInOperationController,
             response,
-            std::move(jobSummary),
+            jobSummary,
             Logger,
             heartbeatCounters,
             shouldSkipRunningJobEvents);
@@ -1474,7 +1483,7 @@ void TJobTracker::HandleJobInfo(
             operationInfo,
             jobsToProcessInOperationController,
             response,
-            std::move(jobSummary),
+            jobSummary,
             Logger,
             heartbeatCounters);
     }
@@ -1486,7 +1495,7 @@ void TJobTracker::HandleRunningJobInfo(
     TOperationInfo& operationInfo,
     TJobsToProcessInOperationController& jobsToProcessInOperationController,
     TCtxHeartbeat::TTypedResponse* response,
-    std::unique_ptr<TJobSummary> jobSummary,
+    std::unique_ptr<TJobSummary>& jobSummary,
     const NLogging::TLogger& Logger,
     THeartbeatCounters& heartbeatCounters,
     bool shouldSkipRunningJobEvents)
@@ -1598,7 +1607,7 @@ void TJobTracker::HandleFinishedJobInfo(
     TOperationInfo& /*operationInfo*/,
     TJobsToProcessInOperationController& /*jobsToProcessInOperationController*/,
     TCtxHeartbeat::TTypedResponse* response,
-    std::unique_ptr<TJobSummary> jobSummary,
+    std::unique_ptr<TJobSummary>& jobSummary,
     const NLogging::TLogger& Logger,
     THeartbeatCounters& heartbeatCounters)
 {
