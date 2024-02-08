@@ -3,7 +3,7 @@ name: C++ CI
 on:
   push:
     branches:
-      - main
+      - mpereskokova/test-qt-cmake-build
       - stable/[0-9]+\.[0-9]+
 
 jobs:
@@ -58,107 +58,16 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       build-strawberry: true
       build-ytsaurus: true
-      build-query-tracker: false
+      build-query-tracker: true
       build-chyt: true
       build-python: true
     uses: ./.github/workflows/build-jobs.yaml
-
-  tag:
-    name: Calculate docker tag
-    needs:
-      - start-vm
-      - build
-    runs-on: ${{ needs.start-vm.outputs.label }}
-    outputs:
-      image-tag: ${{ steps.tag.outputs.IMAGE_TAG }}
-      nightly-image-tag: ${{ steps.tag.outputs.NIGHTLY_IMAGE_TAG }}
-    steps:
-      - name: Calculate docker tag
-        id: tag
-        run: |
-          if [[ $GITHUB_REF =~ main$ ]];
-          then
-            IMAGE_TAG=dev
-          elif [[ $GITHUB_REF =~ test ]];
-          then
-            IMAGE_TAG=test
-          elif [[ $GITHUB_REF =~ stable ]];
-          then
-            IMAGE_TAG=dev-${GITHUB_REF#refs/*/stable/}
-          else
-            IMAGE_TAG=dev-test
-          fi
-
-          cd ytsaurus
-          NIGHTLY_IMAGE_TAG=${IMAGE_TAG}-$(git rev-list --count HEAD)-${GITHUB_SHA}
-          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
-          echo "NIGHTLY_IMAGE_TAG=$NIGHTLY_IMAGE_TAG" >> $GITHUB_OUTPUT
-
-  docker:
-    name: Docker images
-    needs:
-      - start-vm
-      - tag
-    with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-      publish-ytsaurus: true
-      publish-query-tracker: false
-      publish-queue-agent: true
-      publish-chyt: true
-      publish-local: true
-      publish-strawberry: true
-      image-tag: ${{ needs.tag.outputs.image-tag }}
-      nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
-    secrets:
-      DOCKER_HUB_LOGIN: ${{ secrets.DOCKER_HUB_LOGIN }}
-      DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
-    uses: ./.github/workflows/docker-jobs.yaml
-
-  check:
-    name: Check
-    needs:
-      - start-vm
-      - docker
-    with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-    secrets:
-      NEBIUS_TESTMO_TOKEN: ${{ secrets.NEBIUS_TESTMO_TOKEN }}
-    uses: ./.github/workflows/check-jobs.yaml
-
-  systest:
-    name: systest
-    needs:
-      - start-vm
-      - tag
-      - check
-    runs-on: ${{ needs.start-vm.outputs.label }}
-    steps:
-      - name: Mark latest nightly
-        run: |
-          if [[ ${{ needs.tag.outputs.image-tag }} == 'dev' ]]
-          then
-            docker tag ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.nightly-image-tag }} ytsaurus/ytsaurus-nightly:latest
-            docker push ytsaurus/ytsaurus-nightly:latest
-          fi
-
-      - name: Download benchmarks
-        uses: robinraju/release-downloader@v1.8
-        with:
-          latest: true
-          fileName: "benchmark-0.0.1.tgz"
-
-      - name: Docker systest
-        shell: bash
-        run: |
-          mkdir -p ../docker-systest-build
-          bash ./ytsaurus/yt/docker/systest/build.sh --ytsaurus-source-path $(pwd)/ytsaurus  --ytsaurus-build-path ../build --output-path ../docker-systest-build --image-tag latest
-          docker push ytsaurus/ytsaurus-systest:latest
 
   stop-vm:
     name: Stop VM
     needs:
       - start-vm
-      - systest
+      - build
     runs-on: trampoline
     if: ${{ always() }}
     steps:
@@ -170,26 +79,3 @@ jobs:
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           label: ${{ needs.start-vm.outputs.label }}
           instance-id: ${{ needs.start-vm.outputs.instance-id }}
-
-  send-notifications:
-    name: Send notifications
-    needs:
-      - stop-vm
-    runs-on: trampoline
-    if: ${{ failure() }}
-    steps:
-      - name: Send telegram message
-        uses: appleboy/telegram-action@master
-        with:
-          to: ${{ secrets.TELEGRAM_CHAT_ID }}
-          token: ${{ secrets.TELEGRAM_TOKEN }}
-          disable_web_page_preview: true
-          format: markdown
-          message: |
-            Workflow *${{github.workflow}}* failed: ${{github.server_url}}/${{github.repository}}/actions/runs/${{github.run_id}}.
-            Git ${{github.ref_type}}: *${{github.ref_name}}*.
-            Commit:
-            ```
-            ${{github.event.head_commit.message}}
-            ```
-
