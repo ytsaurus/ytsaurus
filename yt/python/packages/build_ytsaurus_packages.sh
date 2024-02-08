@@ -61,13 +61,12 @@ $ytsaurus_source_path/yt/python/packages/yt_setup/generate_python_proto.py \
     --source-root ${ytsaurus_source_path} \
     --output ${ytsaurus_python}
 
-
 cd $ytsaurus_source_path/yt/python/packages
-if [ "$not_prepare_bindings_libraries" = true ] ; then
+if [[ "$not_prepare_bindings_libraries" = true ]]; then
     python3 -m yt_setup.prepare_python_modules \
         --source-root ${ytsaurus_source_path} \
         --build-root ${ytsaurus_build_path} \
-        --output-path ${ytsaurus_python} \
+        --output-path ${ytsaurus_python}
 else
     python3 -m yt_setup.prepare_python_modules \
         --source-root ${ytsaurus_source_path} \
@@ -95,4 +94,3 @@ for package in ${packages[@]}; do
         python3 setup.py bdist_wheel --universal --dist-dir ${dist_dir}
     fi
 done
-

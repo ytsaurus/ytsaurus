@@ -54,7 +54,7 @@ jobs:
       - checkout
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
-      build-python: true
+      build-python-ya-make: true
       build-query-tracker-ya-make: true
     uses: ./.github/workflows/build-jobs.yaml
 

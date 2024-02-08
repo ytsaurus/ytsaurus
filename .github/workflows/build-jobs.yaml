@@ -28,6 +28,10 @@ on:
         default: false
         required: false
         type: boolean
+      build-python-ya-make:
+        default: false
+        required: false
+        type: boolean
 
 jobs:
   build:
@@ -208,4 +212,9 @@ jobs:
           source ../venv/bin/activate
           YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build
 
+      - name: Build Python packages, ya make build
+        if: ${{ inputs.build-python-ya-make }}
+        run: |
+          source ../venv/bin/activate
+          YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --not-prepare-bindings-libraries
 
