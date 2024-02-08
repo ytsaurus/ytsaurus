@@ -227,7 +227,14 @@ private:
         TIncarnationId IncarnationId;
         THeartbeatRequest Request;
     };
-    THeartbeatCounters DoProcessHeartbeat(
+
+    struct THeartbeatProcessingResult
+    {
+        THeartbeatCounters Counters;
+        THeartbeatProcessingContext Context;
+    };
+
+    THeartbeatProcessingResult DoProcessHeartbeat(
         THeartbeatProcessingContext heartbeatProcessingContext);
 
     bool IsJobRunning(const TJobInfo& jobInfo) const;
@@ -243,7 +250,7 @@ private:
         TOperationInfo& operationInfo,
         TJobsToProcessInOperationController& jobsToProcessInOperationController,
         TCtxHeartbeat::TTypedResponse* response,
-        std::unique_ptr<TJobSummary> jobSummary,
+        std::unique_ptr<TJobSummary>& jobSummary,
         const NLogging::TLogger& Logger,
         THeartbeatCounters& heartbeatCounters,
         bool shouldSkipRunningJobEvents = false);
@@ -255,7 +262,7 @@ private:
         TJobsToProcessInOperationController& jobsToProcessInOperationController,
         TCtxHeartbeat::TTypedResponse* response,
         const TRunningJobStatus& jobStatus,
-        std::unique_ptr<TJobSummary> jobSummary,
+        std::unique_ptr<TJobSummary>& jobSummary,
         const NLogging::TLogger& Logger,
         THeartbeatCounters& heartbeatCounters,
         bool shouldSkipRunningJobEvents);
@@ -266,7 +273,7 @@ private:
         TJobsToProcessInOperationController& jobsToProcessInOperationController,
         TCtxHeartbeat::TTypedResponse* response,
         const TFinishedJobStatus& jobStatus,
-        std::unique_ptr<TJobSummary> jobSummary,
+        std::unique_ptr<TJobSummary>& jobSummary,
         const NLogging::TLogger& Logger,
         THeartbeatCounters& heartbeatCounters);
 
