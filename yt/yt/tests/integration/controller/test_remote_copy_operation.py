@@ -1518,6 +1518,15 @@ class TestSchedulerRemoteCopyDynamicTables(TestSchedulerRemoteCopyCommandsBase):
                 spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
             )
 
+        remote_copy(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+                "bypass_hunk_remote_copy_prohibition": True,
+            }
+        )
+
 
 ##################################################################
 

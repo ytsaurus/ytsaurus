@@ -1081,6 +1081,9 @@ public:
 
     bool AdjustDynamicTableDataSlices;
 
+    //! If explicitly true, allow remote copy of tables with hunk columns.
+    std::optional<bool> BypassHunkRemoteCopyProhibition;
+
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
     static void Register(TRegistrar registrar);
