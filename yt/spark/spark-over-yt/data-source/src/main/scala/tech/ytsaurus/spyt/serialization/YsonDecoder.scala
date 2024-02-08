@@ -4,10 +4,10 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.yson.UInt64Type
 import org.apache.spark.unsafe.types.UTF8String
 import tech.ytsaurus.core.common.Decimal.binaryToText
+import tech.ytsaurus.spyt.serialization.YsonDecoder.decode
 import tech.ytsaurus.yson.{YsonError, YsonTags}
 
 import scala.annotation.tailrec
-import scala.math.BigInt
 
 class YsonDecoder(bytes: Array[Byte], dataType: IndexedDataType) extends YsonBaseReader
   with MapParser with ListParser with VariantParser {

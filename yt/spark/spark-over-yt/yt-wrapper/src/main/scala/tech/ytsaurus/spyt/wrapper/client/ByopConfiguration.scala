@@ -8,7 +8,7 @@ import scala.language.postfixOps
 import scala.util.{Failure, Success}
 
 case class ByopConfiguration(enabled: Boolean,
-                             remote: ByopRemoteConfiguration)
+                             remote: ByopRemoteConfiguration) extends Serializable
 
 object ByopConfiguration {
   val DISABLED: ByopConfiguration = ByopConfiguration(enabled = false,
@@ -16,7 +16,7 @@ object ByopConfiguration {
 }
 
 case class ByopRemoteConfiguration(enabled: Boolean,
-                                   emptyWorkersListStrategy: EmptyWorkersListStrategy)
+                                   emptyWorkersListStrategy: EmptyWorkersListStrategy) extends Serializable
 
 sealed abstract class EmptyWorkersListStrategy(val name: String) extends Serializable {
   def use(client: MasterWrapperClient): Option[HostAndPort]

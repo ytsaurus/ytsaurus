@@ -150,7 +150,7 @@ class YtTableFileSystem extends YtFileSystemBase {
     if (useYtPartitioning && keyColumns.nonEmpty) {
       // No real partitioning. YT partitioning must be used further.
       val result = new Array[FileStatus](1)
-      val approximateChunkSize = tableSize
+      val approximateChunkSize = 1L max tableSize
 
       val chunkPath = YtDynamicPath(f, YtDynamicPathAttributes())
       result(0) = new YtFileStatus(chunkPath, approximateChunkSize, modificationTime)
@@ -165,7 +165,8 @@ class YtTableFileSystem extends YtFileSystemBase {
       }
       val allLimits = limits :+ YtDynamicPath.emptyRangeLimit
       val result = new Array[FileStatus](allLimits.length - 1)
-      val approximateChunkSize = if (result.length > 0) tableSize / result.length else 0
+      // In memory data is not counted, so tableSize may be 0, while data really exists.
+      val approximateChunkSize = 1L max (if (result.length > 0) tableSize / result.length else 0L)
       allLimits.sliding(2).zipWithIndex.foreach {
         case (Seq(lowerLimit, upperLimit), i) =>
           val chunkPath = YtDynamicPath(f, YtDynamicPathAttributes(lowerLimit, upperLimit))

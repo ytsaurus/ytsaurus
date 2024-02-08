@@ -15,6 +15,7 @@ import tech.ytsaurus.spyt.serializers.SchemaConverter.MetadataFields
 import tech.ytsaurus.spyt.serializers.SchemaConverterConfig
 import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.client.CompoundClient
+import tech.ytsaurus.core.cypress.YPath
 import tech.ytsaurus.spyt.serializers.{SchemaConverter, SchemaConverterConfig}
 import tech.ytsaurus.spyt.wrapper.client.YtClientProvider
 
@@ -22,6 +23,8 @@ object YtUtils {
   object Options {
     val MERGE_SCHEMA = "mergeschema"
     val PARSING_TYPE_V3 = "parsing_type_v3"
+    val CONSUMER_PATH = "consumer_path"
+    val QUEUE_PATH = "path"
   }
 
   private val log = LoggerFactory.getLogger(getClass)
@@ -46,10 +49,15 @@ object YtUtils {
 
   private def getSchema(sparkSession: SparkSession, path: YPathEnriched, parameters: Map[String, String])
                        (implicit client: CompoundClient): StructType = {
+    getSchema(sparkSession, path.toYPath, path.transaction, parameters)
+  }
+
+  def getSchema(sparkSession: SparkSession, path: YPath, transaction: Option[String], parameters: Map[String, String])
+               (implicit client: CompoundClient = getClient(sparkSession)): StructType = {
     val config = SchemaConverterConfig(sparkSession)
     val parsingTypeV3 = parameters.get(Options.PARSING_TYPE_V3).map(_.toBoolean).getOrElse(config.parsingTypeV3)
     val schemaHint = SchemaConverter.schemaHint(parameters)
-    val schemaTree = YtWrapper.attribute(path.toYPath, "schema", path.transaction)
+    val schemaTree = YtWrapper.attribute(path, "schema", transaction)
     SchemaConverter.sparkSchema(schemaTree, schemaHint, parsingTypeV3)
   }
 

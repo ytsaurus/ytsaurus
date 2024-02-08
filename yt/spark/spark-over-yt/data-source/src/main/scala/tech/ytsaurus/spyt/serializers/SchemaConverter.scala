@@ -260,8 +260,8 @@ object SchemaConverter {
     ytLogicalSchemaImpl(sparkSchema, sortOption, hint, typeV3Format)
   }
 
-  def tableSchema(sparkSchema: StructType, sortOption: SortOption,
-                  hint: Map[String, YtLogicalType], typeV3Format: Boolean = false): TableSchema = {
+  def tableSchema(sparkSchema: StructType, sortOption: SortOption = Unordered,
+                  hint: Map[String, YtLogicalType] = Map.empty, typeV3Format: Boolean = false): TableSchema = {
     TableSchema.fromYTree(ytLogicalSchemaImpl(sparkSchema, sortOption,
       hint, typeV3Format, isTableSchema = true))
   }

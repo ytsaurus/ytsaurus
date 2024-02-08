@@ -40,7 +40,7 @@ object LocalYt extends DockerCompose {
     super.cleanPrevEnvironment()
   }
 
-  lazy val ytDocker = DockerContainer("registry.yandex.net/yt/yt:sashbel31012022", name = Some(ytDockerName))
+  lazy val ytDocker = DockerContainer("registry.yandex.net/yt/yt:stable", name = Some(ytDockerName))
     .withPorts(innerProxyPort -> Some(proxyPort), rpcProxyPort -> Some(rpcProxyPort))
     .withReadyChecker(
       DockerReadyChecker.And(

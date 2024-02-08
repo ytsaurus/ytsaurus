@@ -314,4 +314,8 @@ trait YtCypressUtils {
                 (implicit yt: CompoundClient): YPath = {
     objectPath(path, Some(transaction))
   }
+
+  def clusterName()(implicit yt: CompoundClient): String = {
+    attribute("//sys", "cluster_name").stringValue()
+  }
 }

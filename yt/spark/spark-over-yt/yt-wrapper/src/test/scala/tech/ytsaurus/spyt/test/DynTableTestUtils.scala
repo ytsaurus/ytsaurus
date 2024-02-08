@@ -17,7 +17,6 @@ trait DynTableTestUtils {
     .add(new ColumnSchema("b", ColumnValueType.INT64, ColumnSortOrder.ASCENDING))
     .addValue("c", ColumnValueType.STRING)
     .build()
-
   val orderedTestSchema: TableSchema = TableSchema.builder()
     .setUniqueKeys(false)
     .addValue("a", ColumnValueType.INT64)
@@ -34,11 +33,12 @@ trait DynTableTestUtils {
 
   def getTestSchema(sorted: Boolean = true): TableSchema = if (sorted) testSchema else orderedTestSchema
 
-  def prepareTestTable(path: String, data: Seq[TestRow], pivotKeys: Seq[Seq[Any]],
-                       enableDynamicStoreRead: Boolean = false): Unit = {
+  def prepareTestTable(path: String, data: Seq[TestRow], pivotKeys: Seq[Seq[Any]] = Nil,
+                       schema: TableSchema = testSchema, enableDynamicStoreRead: Boolean = false): Unit = {
+    import scala.collection.JavaConverters._
+    val sortColumns = schema.getColumns.asScala.filter(_.getSortOrder != null).map(_.getName)
     val options = Map("enable_dynamic_store_read" -> enableDynamicStoreRead.toString)
-    val schema = getTestSchema()
-    createTable(path, TestTableSettings(schema.toYTree, isDynamic = true, sortColumns = Seq("a", "b"), options))
+    createTable(path, TestTableSettings(schema.toYTree, isDynamic = true, sortColumns = sortColumns, options))
     mountTableSync(path, 10 seconds)
     insertRows(path, schema, data.map(r => r.productIterator.toList))
     unmountTableSync(path, 10 seconds)
@@ -46,20 +46,21 @@ trait DynTableTestUtils {
     mountTableSync(path, 10 seconds)
   }
 
-  def prepareOrderedTestTable(path: String, enableDynamicStoreRead: Boolean = false,
-                              tabletCount: Int = 3): Unit = {
-    val options =
-      Map("enable_dynamic_store_read" -> enableDynamicStoreRead.toString, "tablet_count" -> tabletCount)
-    val schema = getTestSchema(sorted = false)
+  def prepareOrderedTestTable(path: String, schema: TableSchema = orderedTestSchema,
+                              enableDynamicStoreRead: Boolean = false, tabletCount: Int = 3): Unit = {
+    val options = Map("enable_dynamic_store_read" -> enableDynamicStoreRead.toString, "tablet_count" -> tabletCount)
     createTable(path, TestTableSettings(schema.toYTree, isDynamic = true, sortColumns = Nil, options))
-    mountTableSync(path, 10 seconds)
+    mountTableSync(path)
   }
 
-  def appendChunksToTestTable(path: String, data: Seq[Seq[TestRow]], sorted: Boolean = true): Unit = {
+  def appendChunksToTestTable(path: String, data: Seq[Seq[TestRow]], sorted: Boolean = true,
+                              remount: Boolean = true): Unit = {
     val schema = getTestSchema(sorted)
     data.foreach(chunk => insertRows(path, schema, chunk.map(r => r.productIterator.toList)))
-    unmountTableSync(path, 10 seconds)
-    mountTableSync(path, 10 seconds)
+    if (remount) {
+      unmountTableSync(path)
+      mountTableSync(path)
+    }
   }
 }
 

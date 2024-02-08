@@ -85,12 +85,12 @@ trait YtDynTableUtils {
     yt.mountTable(formatPath(path)).join()
   }
 
-  def mountTableSync(path: String, timeout: Duration)(implicit yt: CompoundClient): Unit = {
+  def mountTableSync(path: String, timeout: Duration = 20 seconds)(implicit yt: CompoundClient): Unit = {
     mountTable(path)
     waitState(path, TabletState.Mounted, timeout)
   }
 
-  def unmountTableSync(path: String, timeout: Duration)(implicit yt: CompoundClient): Unit = {
+  def unmountTableSync(path: String, timeout: Duration = 20 seconds)(implicit yt: CompoundClient): Unit = {
     unmountTable(path)
     waitState(path, TabletState.Unmounted, timeout)
   }
@@ -146,7 +146,7 @@ trait YtDynTableUtils {
     }
 
     if (!tableExists) createDynTable(path, schema, settings)
-    if (!tabletMounted) mountAndWait(path)
+    if (!tabletMounted) mountTableSync(path)
   }
 
   private val cachedCreatedTables = mutable.Queue.empty[String]
@@ -172,11 +172,6 @@ trait YtDynTableUtils {
 
       override def optionsAny: Map[String, Any] = settings + ("dynamic" -> "true")
     })
-  }
-
-  def mountAndWait(path: String)(implicit yt: CompoundClient): Unit = {
-    mountTable(path)
-    waitState(path, TabletState.Mounted, 10 seconds)
   }
 
   private def selectRowsRequest(query: String, path: String,

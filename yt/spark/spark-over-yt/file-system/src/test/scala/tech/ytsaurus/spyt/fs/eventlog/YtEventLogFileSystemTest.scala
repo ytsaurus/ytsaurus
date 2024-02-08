@@ -380,7 +380,7 @@ class YtEventLogFileSystemTest extends FlatSpec with Matchers with LocalSpark wi
       fs.getFileStatus(new Path(tablePath))
     }
 
-    YtWrapper.mountAndWait(hadoopPathToYt(tableLocation))
+    YtWrapper.mountTableSync(hadoopPathToYt(tableLocation))
     an[IllegalArgumentException] shouldBe thrownBy {
       fs.listStatus(new Path(tableLocation))
     }

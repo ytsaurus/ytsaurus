@@ -20,7 +20,7 @@ case class YtClientConfiguration(proxy: String,
                                  proxyRole: Option[String],
                                  byop: ByopConfiguration,
                                  masterWrapperUrl: Option[String],
-                                 extendedFileTimeout: Boolean) {
+                                 extendedFileTimeout: Boolean) extends Serializable {
 
   private def proxyUrl: Try[URL] = Try(new URL(proxy)).orElse {
     val normalizedProxy = if (proxy.contains(".") || proxy.contains(":")) {

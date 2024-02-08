@@ -4,7 +4,7 @@ import java.time.{Duration => JDuration}
 import org.slf4j.LoggerFactory
 import tech.ytsaurus.spyt.wrapper.YtJavaConverters._
 import tech.ytsaurus.spyt.wrapper._
-import tech.ytsaurus.client.request.{MutatePath, ReadFile, ReadTable, StartOperation, StartTransaction, TransactionType, TransactionalOptions, TransactionalRequest, WriteFile}
+import tech.ytsaurus.client.request.{ReadFile, ReadTable, StartOperation, StartTransaction, TransactionType, TransactionalOptions, TransactionalRequest, WriteFile}
 import tech.ytsaurus.client.{ApiServiceTransaction, CompoundClient}
 import tech.ytsaurus.core.GUID
 

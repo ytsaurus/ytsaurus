@@ -35,13 +35,15 @@ class YtDynamicTableWriter(val path: String,
 
   initialize()
 
-  override def write(row: InternalRow): Unit = {
-    modifyRowsRequestBuilder.addInsert(row.toSeq(schema).map(toPrimitives).asJava)
+  def write(row: Seq[Any]): Unit = {
+    modifyRowsRequestBuilder.addInsert(row.map(toPrimitives).asJava)
     count += 1
     if (count == wConfig.dynBatchSize) {
       commitBatch()
     }
   }
+
+  override def write(row: InternalRow): Unit = write(row.toSeq(schema))
 
   override def close(): Unit = {
     log.debug("Closing writer")
