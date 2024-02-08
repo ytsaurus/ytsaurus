@@ -201,29 +201,6 @@ jobs:
           ydb-ya-make ../ytsaurus/ydb/ydb/library/yql/yt/dynamic
 
           ydb-ya-make ${udfs_prefix}/compress_base
-          # ydb-ya-make ${udfs_prefix}/datetime2
-          # ydb-ya-make ${udfs_prefix}/digest
-          # ydb-ya-make ${udfs_prefix}/file
-          # ydb-ya-make ${udfs_prefix}/histogram
-          # ydb-ya-make ${udfs_prefix}/hyperloglog
-          # ydb-ya-make ${udfs_prefix}/hyperscan
-          # ydb-ya-make ${udfs_prefix}/ip_base
-          # ydb-ya-make ${udfs_prefix}/json
-          # ydb-ya-make ${udfs_prefix}/json2
-          # ydb-ya-make ${udfs_prefix}/math
-          # ydb-ya-make ${udfs_prefix}/pire
-          # ydb-ya-make ${udfs_prefix}/protobuf
-          # ydb-ya-make ${udfs_prefix}/re2
-          # ydb-ya-make ${udfs_prefix}/set
-          # ydb-ya-make ${udfs_prefix}/stat
-          # ydb-ya-make ${udfs_prefix}/streaming
-          # ydb-ya-make ${udfs_prefix}/string
-          # ydb-ya-make ${udfs_prefix}/top
-          # ydb-ya-make ${udfs_prefix}/topfreq
-          # ydb-ya-make ${udfs_prefix}/unicode_base
-          # ydb-ya-make ${udfs_prefix}/url_base
-          # ydb-ya-make ${udfs_prefix}/yson2
-          # ydb-ya-make ../ytsaurus/ydb/ydb/library/yql/udfs/logs/dsv
 
       - name: Build Python packages
         if: ${{ inputs.build-python }}
