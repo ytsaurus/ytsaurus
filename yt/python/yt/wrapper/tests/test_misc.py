@@ -1723,3 +1723,19 @@ class TestClientConfigFromCluster(object):
         assert type(config["proxy"]["enable_proxy_discovery"]) == bool
         assert config["proxy"]["enable_proxy_discovery"]
         yt.remove(config_remote_patch_path, recursive=True, force=True)
+
+    @authors("pechatnov")
+    def test_proxy_aliases_config(self):
+        node_path = "//test_proxy_aliases_config_node"
+
+        original_client = yt.YtClient(config={"proxy": {"url": yt.config.config["proxy"]["url"]}})
+        original_client.set(node_path, "value")
+
+        manual_alias_client = yt.YtClient(config={"proxy": {"url": "cluster-name", "aliases": {"cluster-name": yt.config.config["proxy"]["url"]}}})
+        assert manual_alias_client.get(node_path) == "value"
+
+        # Env was set by YT recipe.
+        config = deepcopy(yt.default_config.get_config_from_env())
+        config["proxy"]["url"] = str(original_client.get("//sys/@cluster_name"))
+        env_alias_client = yt.YtClient(config=config)
+        assert env_alias_client.get(node_path) == "value"

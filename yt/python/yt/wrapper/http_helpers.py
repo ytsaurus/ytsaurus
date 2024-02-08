@@ -473,12 +473,17 @@ def make_request_with_retries(method, url=None, **kwargs):
 def _get_proxy_url_parts(required=True, client=None, replace_host_proxy=None):
     """Get proxy url parts from config or params (try to guess scheme from config)
     """
-    proxy = replace_host_proxy if replace_host_proxy else get_config(client=client)["proxy"]["url"]
+    proxy_config = get_config(client=client)["proxy"]
+    proxy = replace_host_proxy if replace_host_proxy else proxy_config["url"]
 
     if proxy is None:
         if required:
             require(proxy, lambda: YtError("You should specify proxy"))
         return None, None
+
+    aliases_config = proxy_config["aliases"]
+    if proxy in aliases_config:
+        proxy = aliases_config[proxy]
 
     if "//" not in proxy:
         proxy = "//" + proxy
@@ -486,20 +491,20 @@ def _get_proxy_url_parts(required=True, client=None, replace_host_proxy=None):
     scheme, hostname, port = parts.scheme, parts.hostname, parts.port
 
     # get scheme for replace_host_proxy from original proxy
-    if replace_host_proxy and not scheme and get_config(client=client)["proxy"]["url"].startswith("https://"):
+    if replace_host_proxy and not scheme and proxy_config["url"].startswith("https://"):
         scheme = "https"
 
     # expand host aliases
     if "." not in hostname and ":" not in hostname and "localhost" not in hostname and not port and not scheme:
-        hostname = hostname + get_config(client=client)["proxy"]["default_suffix"]
+        hostname = hostname + proxy_config["default_suffix"]
 
     # get scheme from config
-    prefer_https = get_config(client=client)["proxy"]["prefer_https"]
+    prefer_https = proxy_config["prefer_https"]
     if not scheme:
         scheme = "https" if prefer_https else "http"
 
     # tvm host/port
-    tvm_only = get_config(client=client)["proxy"]["tvm_only"]
+    tvm_only = proxy_config["tvm_only"]
     if tvm_only and not port:
         if not hostname.startswith("tvm.") and not replace_host_proxy:
             hostname = "tvm." + hostname

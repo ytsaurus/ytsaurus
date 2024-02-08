@@ -95,6 +95,12 @@ default_config = {
     "proxy": {
         "url": None,
 
+        # Aliases for proxy/url.
+        # You can set aliases={"primary": "localhost":12345} and use cluster name "primary" as proxy url
+        # in the same way as you can use "hahn" or "markov" as proxy url in production.
+        # It is recommended to use only cluster name as alias for proxy url.
+        "aliases": {},
+
         # use https for proxy.url (if no schema in proxy.url)
         "prefer_https": False,
 
@@ -672,8 +678,13 @@ def transform_value(value, original_value):
 
 def get_default_config():
     """Returns default configuration of python API."""
+    template_dict = deepcopy(default_config)
+    template_dict["proxy"] = VerifiedDict(
+        template_dict=template_dict["proxy"],
+        keys_to_ignore=["aliases"],
+        transform_func=transform_value)
     config = VerifiedDict(
-        template_dict=deepcopy(default_config),
+        template_dict=template_dict,
         keys_to_ignore=["spec_defaults", "spec_overrides", "table_writer", "user_job_spec_defaults"],
         transform_func=transform_value)
 
@@ -690,6 +701,7 @@ FORCED_SHORTCUTS = {
 SHORTCUTS = {
     "PROXY": "proxy/url",
     "PROXY_SUFFIX": "proxy/default_suffix",
+    "PROXY_URL_ALIASING_CONFIG": "proxy/aliases",
     "TOKEN": "token",
     "TOKEN_PATH": "token_path",
     "USE_TOKEN": "enable_token",
@@ -828,6 +840,10 @@ def _update_from_env_vars(config, shortcuts=None):
             name = shortcuts[key]
             if name == "driver_config":
                 var_type = yson.loads
+            elif name == "proxy/aliases":
+                def parse_proxy_aliases(value):
+                    return yson.yson_to_json(yson.loads(value.encode()))
+                var_type = parse_proxy_aliases
             else:
                 var_type = _get_var_type(_get(config, name))
             # NB: it is necessary to set boolean variable as 0 or 1.

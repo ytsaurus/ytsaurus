@@ -10,6 +10,7 @@ from yt.common import get_fqdn
 from yt.environment import YTInstance, arcadia_interop
 from yt.environment.api import LocalYtConfig
 from yt.environment.helpers import emergency_exit_within_tests
+from yt.wrapper import yson
 from yt.wrapper.config import set_option
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.common import update, update_inplace, MB, YtError
@@ -207,7 +208,12 @@ class YtTestEnvironment(object):
         self.config["enable_passing_request_id_to_driver"] = True
         self.config["operation_tracker"]["poll_period"] = 100
         if has_http_proxy:
-            self.config["proxy"]["url"] = "localhost:" + self.env.get_proxy_address().split(":", 1)[1]
+            proxy_url = "localhost:" + self.env.get_proxy_address().split(":", 1)[1]
+            self.config["proxy"]["url"] = proxy_url
+
+            url_aliasing_config = yson.loads(os.environ.get("YT_PROXY_URL_ALIASING_CONFIG", "{}").encode("utf-8"))
+            url_aliasing_config[cluster_name] = proxy_url
+            os.environ["YT_PROXY_URL_ALIASING_CONFIG"] = str(yson.dumps(url_aliasing_config).decode("utf-8"))
 
         # NB: to decrease probability of retries test failure.
         self.config["proxy"]["retries"]["count"] = 10
