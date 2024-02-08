@@ -176,69 +176,100 @@ private:
     std::vector<TQueueItem> DivisorQueue_;
 };
 
-TUnversionedValue LowerBoundToValue(TValueBound lower, bool signedType)
+// The following functions are used to convert arbitrary non empty ranges to
+// range with included bounds and without sentinel values (Min and Max).
+
+template <class T>
+T& GetDataValueRef(TValue& value);
+
+template <>
+i64& GetDataValueRef<i64>(TValue& value)
 {
-    auto value = lower.Value;
-    YT_VERIFY(IsIntegralType(value.Type) || value.Type == EValueType::Null || value.Type == EValueType::Min);
+    return value.Data.Int64;
+}
+
+template <>
+ui64& GetDataValueRef<ui64>(TValue& value)
+{
+    return value.Data.Uint64;
+}
+
+TValueBound RemoveMinMaxSentinelsForInteger(TValueBound bound, bool signedType)
+{
+    auto& [value, flag] = bound;
 
     if (value.Type == EValueType::Min) {
         value.Type = EValueType::Null;
-        lower.Flag = false;
+        flag = false;
+    } else if (value.Type == EValueType::Max) {
+        if (signedType) {
+            value = MakeUnversionedInt64Value(std::numeric_limits<i64>::max());
+        } else {
+            value = MakeUnversionedUint64Value(std::numeric_limits<ui64>::max());
+        }
+        flag = true;
     }
 
-    if (lower.Flag) {
+    return bound;
+}
+
+// The following functions converts bounds to boundary values.
+
+template <class T>
+TUnversionedValue DoLowerBoundToValue(TValueBound lowerBound)
+{
+    auto [value, flag] = lowerBound;
+    YT_VERIFY(value.Type != EValueType::Min && value.Type != EValueType::Max);
+
+    if (flag) {
         if (value.Type == EValueType::Null) {
-            if (signedType) {
-                value.Type = EValueType::Int64;
-                value.Data.Int64 = std::numeric_limits<i64>::min();
-            } else {
-                value.Type = EValueType::Uint64;
-                value.Data.Uint64 = std::numeric_limits<ui64>::min();
-            }
+            GetDataValueRef<T>(value) = std::numeric_limits<T>::min();
         } else {
-            if (signedType) {
-                YT_VERIFY(value.Data.Int64 < std::numeric_limits<i64>::max());
-                ++value.Data.Int64;
-            } else {
-                YT_VERIFY(value.Data.Uint64 < std::numeric_limits<ui64>::max());
-                ++value.Data.Uint64;
-            }
+            // In this case range is empty. It must be skipped.
+            YT_VERIFY(GetDataValueRef<T>(value) < std::numeric_limits<T>::max());
+            ++GetDataValueRef<T>(value);
         }
     }
-
-    YT_VERIFY(IsIntegralType(value.Type) || value.Type == EValueType::Null);
 
     return value;
 }
 
-TUnversionedValue UpperBoundToValue(TValueBound upper, bool signedType)
+TUnversionedValue LowerBoundToValue(TValueBound lowerBound, bool signedType)
 {
-    auto value = upper.Value;
-    YT_VERIFY(IsIntegralType(value.Type) || value.Type == EValueType::Null || value.Type == EValueType::Max);
-
-    if (value.Type == EValueType::Max) {
-        if (signedType) {
-            value.Type = EValueType::Int64;
-            value.Data.Int64 = std::numeric_limits<i64>::max();
-        } else {
-            value.Type = EValueType::Uint64;
-            value.Data.Uint64 = std::numeric_limits<ui64>::max();
-        }
-    } else if (IsIntegralType(value.Type)) {
-        if (!upper.Flag) {
-            if (signedType) {
-                YT_VERIFY(value.Data.Int64 > std::numeric_limits<i64>::min());
-                --value.Data.Int64;
-            } else {
-                YT_VERIFY(value.Data.Uint64 > std::numeric_limits<ui64>::min());
-                --value.Data.Uint64;
-            }
-        }
+    if (signedType) {
+        return DoLowerBoundToValue<i64>(lowerBound);
     } else {
-        YT_VERIFY(value.Type == EValueType::Null);
+        return DoLowerBoundToValue<ui64>(lowerBound);
+    }
+}
+
+template <class T>
+TUnversionedValue DoUpperBoundToValue(TValueBound upperBound)
+{
+    auto [value, flag] = upperBound;
+    YT_VERIFY(value.Type != EValueType::Min && value.Type != EValueType::Max);
+
+    if (!flag) {
+        // In this case range is empty. It must be skipped.
+        YT_VERIFY(value.Type != EValueType::Null);
+
+        if (GetDataValueRef<T>(value) != std::numeric_limits<T>::min()) {
+            --GetDataValueRef<T>(value);
+        } else {
+            value.Type = EValueType::Null;
+        }
     }
 
     return value;
+}
+
+TUnversionedValue UpperBoundToValue(TValueBound upperBound, bool signedType)
+{
+    if (signedType) {
+        return DoUpperBoundToValue<i64>(upperBound);
+    } else {
+        return DoUpperBoundToValue<ui64>(upperBound);
+    }
 }
 
 ui64 ValueToUint64(TUnversionedValue value, bool signedType)
@@ -607,14 +638,20 @@ public:
             YT_VERIFY(IsIntegralType(KeyTypes_[refColumnId]));
             auto signedType = KeyTypes_[refColumnId] == EValueType::Int64;
 
+            auto lowerBound = RemoveMinMaxSentinelsForInteger(constraint.Lower, signedType);
+            auto upperBound = RemoveMinMaxSentinelsForInteger(constraint.Upper, signedType);
 
-            auto lowerBoundValue = LowerBoundToValue(constraint.Lower, signedType);
-            auto upperBoundValue = UpperBoundToValue(constraint.Upper, signedType);
+            if (!(lowerBound < upperBound)) {
+                return 0;
+            }
+
+            auto lowerValue = LowerBoundToValue(lowerBound, signedType);
+            auto upperValue = UpperBoundToValue(upperBound, signedType);
 
             // It happens when lower bound is `> N` and upper is `< N + 1`.
             // Also we have to consider converted to integers range with inclusive bounds
             // because otherwise upper bound `<= MAX_INT` could not be expressed.
-            if (lowerBoundValue > upperBoundValue) {
+            if (lowerValue > upperValue) {
                 return 0;
             }
 
@@ -622,7 +659,7 @@ public:
             // For range N .. N cardinality is 1.
             // Cardinality always greater than zero. So we can keep it as cardinalityMinusOne.
             ui64 cardinalityMinusOne =
-                ValueToUint64(upperBoundValue, signedType) - ValueToUint64(lowerBoundValue, signedType);
+                ValueToUint64(upperValue, signedType) - ValueToUint64(lowerValue, signedType);
 
             auto uniqueDivisors = MakeRange(mergedDivisors).Slice(savedDivisorsCount, mergedDivisors.size());
             expressionEstimation = SaturationArithmeticMultiply(
@@ -761,8 +798,8 @@ public:
 
                 quotientGenerators.push_back(TQuotientValueGenerator(
                     signedType,
-                    constraintRow[columnId].Lower,
-                    constraintRow[columnId].Upper,
+                    RemoveMinMaxSentinelsForInteger(constraintRow[columnId].Lower, signedType),
+                    RemoveMinMaxSentinelsForInteger(constraintRow[columnId].Upper, signedType),
                     ReferenceIdToDivisorsMerged_[columnId]));
                 quotientColumnIds.push_back(columnId);
             }
