@@ -297,6 +297,11 @@ public:
         return Underlying_->IsThrottling();
     }
 
+    bool ShouldSkipRunningJobEvents() const noexcept override
+    {
+        return Underlying_->ShouldSkipRunningJobEvents();
+    }
+
     void RecordScheduleJobFailure(EScheduleJobFailReason reason) noexcept override
     {
         return Underlying_->RecordScheduleJobFailure(reason);

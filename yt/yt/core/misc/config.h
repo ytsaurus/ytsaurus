@@ -60,32 +60,6 @@ DEFINE_REFCOUNTED_TYPE(THistogramDigestConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EHistoricUsageAggregationMode,
-    ((None)                     (0))
-    ((ExponentialMovingAverage) (1))
-);
-
-class THistoricUsageConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    EHistoricUsageAggregationMode AggregationMode;
-
-    //! Parameter of exponential moving average (EMA) of the aggregated usage.
-    //! Roughly speaking, it means that current usage ratio is twice as relevant for the
-    //! historic usage as the usage ratio alpha seconds ago.
-    //! EMA for unevenly spaced time series was adapted from here: https://clck.ru/HaGZs
-    double EmaAlpha;
-
-    REGISTER_YSON_STRUCT(THistoricUsageConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(THistoricUsageConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TAdaptiveHedgingManagerConfig
     : public virtual NYTree::TYsonStruct
 {

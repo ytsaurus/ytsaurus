@@ -471,6 +471,11 @@ struct IOperationController
      */
     virtual bool IsThrottling() const noexcept = 0;
 
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual bool ShouldSkipRunningJobEvents() const noexcept = 0;
+
     //! Produces allocations on heap for testing and returns container.
     virtual std::vector<TTestAllocationGuard> TestHeap() const = 0;
 

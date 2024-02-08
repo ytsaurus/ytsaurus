@@ -94,7 +94,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((LowGpuPower)                                 (29))
     ((LowGpuSMUsage)                               (35))
     ((LowGpuPowerOnWindow)                         (32))
-    ((HighQueueAverageWaitTime)                    (20))
+    ((HighQueueTotalTimeEstimate)                  (20))
     ((AutoMergeDisabled)                           (21))
     ((InvalidatedJobsFound)                        (23))
     ((NoTablesWithEnabledDynamicStoreRead)         (24))

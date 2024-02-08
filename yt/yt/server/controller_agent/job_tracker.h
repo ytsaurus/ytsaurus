@@ -92,6 +92,8 @@ private:
     NProfiling::TCounter JobFailureRequestCount_;
     NProfiling::TCounter NodeRegistrationCount_;
     NProfiling::TCounter NodeUnregistrationCount_;
+    NProfiling::TCounter ThrottledRunningJobEventCount_;
+    NProfiling::TCounter ThrottledHeartbeatCount_;
     NProfiling::TCounter WrongIncarnationRequestCount_;
 
     NConcurrency::TActionQueuePtr JobTrackerQueue_;
@@ -191,6 +193,7 @@ private:
         int JobReleaseRequestCount = 0;
         int JobInterruptionRequestCount = 0;
         int JobFailureRequestCount = 0;
+        int ThrottledRunningJobEventCount = 0;
     };
 
     IInvokerPtr GetInvoker() const;
@@ -242,7 +245,8 @@ private:
         TCtxHeartbeat::TTypedResponse* response,
         std::unique_ptr<TJobSummary> jobSummary,
         const NLogging::TLogger& Logger,
-        THeartbeatCounters& heartbeatCounters);
+        THeartbeatCounters& heartbeatCounters,
+        bool shouldSkipRunningJobEvents = false);
 
     void HandleRunningJobInfo(
         TJobInfo& jobInfo,
@@ -253,7 +257,8 @@ private:
         const TRunningJobStatus& jobStatus,
         std::unique_ptr<TJobSummary> jobSummary,
         const NLogging::TLogger& Logger,
-        THeartbeatCounters& heartbeatCounters);
+        THeartbeatCounters& heartbeatCounters,
+        bool shouldSkipRunningJobEvents);
     void HandleFinishedJobInfo(
         TJobInfo& jobInfo,
         TNodeJobs& nodeJobs,

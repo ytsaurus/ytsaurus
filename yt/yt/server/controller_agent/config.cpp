@@ -205,7 +205,8 @@ void TAlertManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("low_gpu_power_usage_on_window", &TThis::LowGpuPowerUsageOnWindow)
         .DefaultNew();
 
-    registrar.Parameter("queue_average_wait_time_threshold", &TThis::QueueAverageWaitTimeThreshold)
+    registrar.Parameter("queue_total_time_estimate_threshold", &TThis::QueueTotalTimeEstimateThreshold)
+        .Alias("queue_average_wait_time_threshold")
         .Default(TDuration::Minutes(1));
 }
 
@@ -988,7 +989,12 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("job_events_controller_queue", &TThis::JobEventsControllerQueue)
         .Default(EOperationControllerQueue::Default);
 
-    registrar.Parameter("schedule_job_wait_time_threshold", &TThis::ScheduleJobWaitTimeThreshold)
+    registrar.Parameter("schedule_job_total_time_threshold", &TThis::ScheduleJobTotalTimeThreshold)
+        .Alias("schedule_job_wait_time_threshold")
+        .Default(TDuration::Seconds(5));
+    registrar.Parameter("invoker_pool_total_time_aggregation_period", &TThis::InvokerPoolTotalTimeAggregationPeriod)
+        .Default(TDuration::Seconds(5));
+    registrar.Parameter("job_events_total_time_threshold", &TThis::JobEventsTotalTimeThreshold)
         .Default(TDuration::Seconds(5));
 
     registrar.Parameter("allow_users_group_read_intermediate_data", &TThis::AllowUsersGroupReadIntermediateData)

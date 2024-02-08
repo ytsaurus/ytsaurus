@@ -3,7 +3,7 @@
 #include "private.h"
 
 #include <yt/yt/core/misc/async_slru_cache.h>
-#include <yt/yt/core/misc/historic_usage_aggregator.h>
+#include <yt/yt/core/misc/adjusted_exponential_moving_average.h>
 
 #include <yt/yt/client/hydra/public.h>
 
@@ -73,10 +73,10 @@ private:
     friend class TObjectServiceCache;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ByteRateAggregatorLock_);
-    mutable TAverageHistoricUsageAggregator ByteRateAggregator_;
+    mutable TAverageAdjustedExponentialMovingAverage ByteRateAggregator_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TotalByteRateAggregatorLock_);
-    mutable TAverageHistoricUsageAggregator TotalByteRateAggregator_;
+    mutable TAverageAdjustedExponentialMovingAverage TotalByteRateAggregator_;
 
     i64 ComputeExtraSpace() const;
 

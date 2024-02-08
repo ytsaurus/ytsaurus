@@ -2625,8 +2625,8 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
         create_pool("parent")
         set("//sys/pools/parent/@infer_children_weights_from_historic_usage", True)
         set(
-            "//sys/pools/parent/@historic_usage_config",
-            {"aggregation_mode": "exponential_moving_average", "ema_alpha": 1.0},
+            "//sys/pools/parent/@historic_usage_aggregation_period",
+            1000,  # 1 sec
         )
         time.sleep(0.5)
 
@@ -2711,10 +2711,10 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
             == new_config["infer_children_weights_from_historic_usage"]
         )
         set(
-            "//sys/pools/parent/@historic_usage_config",
-            new_config["historic_usage_config"],
+            "//sys/pools/parent/@historic_usage_aggregation_period",
+            new_config["historic_usage_aggregation_period"],
         )
-        wait(lambda: get("//sys/pools/parent/@historic_usage_config") == new_config["historic_usage_config"])
+        wait(lambda: get("//sys/pools/parent/@historic_usage_aggregation_period") == new_config["historic_usage_aggregation_period"])
         time.sleep(0.5)
 
         op2_tasks_spec = {"task": {"job_count": self.NUM_SLOTS_PER_NODE, "command": "sleep 100;"}}
@@ -2731,46 +2731,13 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
         op2.complete()
 
     @authors("eshcherbin")
-    def test_equal_fair_share_after_disabling_historic_usage(self):
-        self._test_equal_fair_share_after_disabling_config_change_base(
-            {
-                "infer_children_weights_from_historic_usage": False,
-                "historic_usage_config": {"aggregation_mode": "none", "ema_alpha": 0.0},
-            }
-        )
-
-    @authors("eshcherbin")
-    def test_equal_fair_share_after_disabling_historic_usage_but_keeping_parameters(
+    def test_equal_fair_share_after_disabling_historic_usage(
         self,
     ):
         self._test_equal_fair_share_after_disabling_config_change_base(
             {
                 "infer_children_weights_from_historic_usage": False,
-                "historic_usage_config": {
-                    "aggregation_mode": "exponential_moving_average",
-                    "ema_alpha": 1.0,
-                },
-            }
-        )
-
-    @authors("eshcherbin")
-    def test_equal_fair_share_after_setting_none_mode(self):
-        self._test_equal_fair_share_after_disabling_config_change_base(
-            {
-                "infer_children_weights_from_historic_usage": True,
-                "historic_usage_config": {"aggregation_mode": "none", "ema_alpha": 1.0},
-            }
-        )
-
-    @authors("eshcherbin")
-    def test_equal_fair_share_after_setting_zero_alpha(self):
-        self._test_equal_fair_share_after_disabling_config_change_base(
-            {
-                "infer_children_weights_from_historic_usage": True,
-                "historic_usage_config": {
-                    "aggregation_mode": "exponential_moving_average",
-                    "ema_alpha": 0.0,
-                },
+                "historic_usage_aggregation_period": 1000,  # 1 sec
             }
         )
 

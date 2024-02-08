@@ -760,7 +760,7 @@ private:
     void AnalyzeControllerQueues()
     {
         TControllerQueueStatistics currentControllerQueueStatistics;
-        THashMap<EOperationControllerQueue, TDuration> queueToAverageWaitTime;
+        THashMap<EOperationControllerQueue, TDuration> queueToTotalTimeEstimate;
         for (auto queue : TEnumTraits<EOperationControllerQueue>::GetDomainValues()) {
             auto statistics = Host_->GetInvokerStatistics(queue);
             const auto& lastStatistics = LastControllerQueueStatistics_[queue];
@@ -770,31 +770,31 @@ private:
 
             YT_LOG_DEBUG(
                 "Operation controller queue statistics (ControllerQueue: %v, DeltaEnqueuedActionCount: %v, "
-                "DeltaDequeuedActionCount: %v, WaitingActionCount: %v, AverageWaitTime: %v)",
+                "DeltaDequeuedActionCount: %v, WaitingActionCount: %v, TotalTimeEstimate: %v)",
                 queue,
                 deltaEnqueuedActionCount,
                 deltaDequeuedActionCount,
                 statistics.WaitingActionCount,
-                statistics.AverageWaitTime);
+                statistics.TotalTimeEstimate);
 
-            if (statistics.AverageWaitTime > Config_->QueueAverageWaitTimeThreshold) {
-                queueToAverageWaitTime.emplace(queue, statistics.AverageWaitTime);
+            if (statistics.TotalTimeEstimate > Config_->QueueTotalTimeEstimateThreshold) {
+                queueToTotalTimeEstimate.emplace(queue, statistics.TotalTimeEstimate);
             }
 
             currentControllerQueueStatistics[queue] = std::move(statistics);
         }
         std::swap(LastControllerQueueStatistics_, currentControllerQueueStatistics);
 
-        TError highQueueAverageWaitTimeError;
-        if (!queueToAverageWaitTime.empty()) {
-            highQueueAverageWaitTimeError = TError("Found action queues with high average wait time: %v",
-                MakeFormattableView(queueToAverageWaitTime, [] (auto* builder, const auto& pair) {
+        TError highQueueTotalTimeEstimateError;
+        if (!queueToTotalTimeEstimate.empty()) {
+            highQueueTotalTimeEstimateError = TError("Found action queues with high wait time estimate: %v",
+                MakeFormattableView(queueToTotalTimeEstimate, [] (auto* builder, const auto& pair) {
                     const auto& [queue, averageWaitTime] = pair;
                     builder->AppendFormat("%Qlv", queue);
                 }))
-                << TErrorAttribute("queues_with_high_average_wait_time", queueToAverageWaitTime);
+                << TErrorAttribute("queues_with_high_total_time_estimate", queueToTotalTimeEstimate);
         }
-        Host_->SetOperationAlert(EOperationAlertType::HighQueueAverageWaitTime, highQueueAverageWaitTimeError);
+        Host_->SetOperationAlert(EOperationAlertType::HighQueueTotalTimeEstimate, highQueueTotalTimeEstimateError);
     }
 
     void AnalyzeInvalidatedJobs()

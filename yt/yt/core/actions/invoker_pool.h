@@ -2,7 +2,6 @@
 
 #include "public.h"
 
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,8 +68,7 @@ public:
         i64 EnqueuedActionCount = 0;
         i64 DequeuedActionCount = 0;
         i64 WaitingActionCount = 0;
-        // TODO(eshcherbin): Use max wait time instead of average wait time?
-        TDuration AverageWaitTime;
+        TDuration TotalTimeEstimate;
     };
 
     //! Returns statistics of the invoker by the integer #index.
@@ -88,6 +86,8 @@ public:
     {
         return DoGetInvokerStatistics(ToUnderlying(index));
     }
+
+    virtual void UpdateActionTimeRelevancyHalflife(TDuration newHalflife) = 0;
 
 protected:
     virtual TInvokerStatistics DoGetInvokerStatistics(int index) const = 0;

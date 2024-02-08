@@ -6,6 +6,7 @@
 #include <yt/yt/core/actions/invoker_pool.h>
 #include <yt/yt/core/actions/public.h>
 
+#include <yt/yt/core/misc/adjusted_exponential_moving_average.h>
 #include <yt/yt/core/misc/public.h>
 
 #include <yt/yt/core/profiling/public.h>
@@ -51,7 +52,8 @@ using TFairShareCallbackQueueFactory = std::function<IFairShareCallbackQueuePtr(
 IDiagnosableInvokerPoolPtr CreateFairShareInvokerPool(
     IInvokerPtr underlyingInvoker,
     int invokerCount,
-    TFairShareCallbackQueueFactory callbackQueueFactory = CreateFairShareCallbackQueue);
+    TFairShareCallbackQueueFactory callbackQueueFactory = CreateFairShareCallbackQueue,
+    TDuration actionTimeRelevancyHalflife = TAdjustedExponentialMovingAverage::DefaultHalflife);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -83,19 +83,6 @@ void THistogramDigestConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void THistoricUsageConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("aggregation_mode", &TThis::AggregationMode)
-        .Default(EHistoricUsageAggregationMode::None);
-
-    registrar.Parameter("ema_alpha", &TThis::EmaAlpha)
-        // TODO(eshcherbin): Adjust.
-        .Default(1.0 / (24.0 * 60.0 * 60.0))
-        .GreaterThanOrEqual(0.0);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TAdaptiveHedgingManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_backup_request_ratio", &TThis::MaxBackupRequestRatio)
