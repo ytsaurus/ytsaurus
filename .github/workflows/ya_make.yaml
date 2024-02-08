@@ -40,6 +40,12 @@ jobs:
         with:
           path: ytsaurus
           fetch-depth: 0
+      - name: Checkout ydb
+        uses: actions/checkout@v3
+        with:
+          repository: ydb-platform/ydb
+          ref: 31adbe01b564f452d8c0e21b8c3331bc8a324855
+          path: ydb
 
   build:
     name: Build
@@ -48,8 +54,45 @@ jobs:
       - checkout
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
+      build-python: true
       build-query-tracker-ya-make: true
     uses: ./.github/workflows/build-jobs.yaml
+# TODO return back test build
+
+  tag:
+    name: Calculate docker tag
+    needs:
+      - start-vm
+      - build
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    outputs:
+      image-tag: ${{ steps.tag.outputs.IMAGE_TAG }}
+      nightly-image-tag: ${{ steps.tag.outputs.NIGHTLY_IMAGE_TAG }}
+    steps:
+      - name: Calculate docker tag
+        id: tag
+        run: |
+          IMAGE_TAG=test-tag
+
+          cd ytsaurus
+          NIGHTLY_IMAGE_TAG=${IMAGE_TAG}-$(git rev-list --count HEAD)-${GITHUB_SHA}
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "NIGHTLY_IMAGE_TAG=$NIGHTLY_IMAGE_TAG" >> $GITHUB_OUTPUT
+
+  docker:
+    name: Docker images
+    needs:
+      - start-vm
+      - tag
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      publish-query-tracker-ya-make: true
+      image-tag: ${{ needs.tag.outputs.image-tag }}
+      nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
+    secrets:
+      DOCKER_HUB_LOGIN: ${{ secrets.DOCKER_HUB_LOGIN }}
+      DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
+    uses: ./.github/workflows/docker-jobs.yaml
 
   stop-vm:
     name: Stop VM

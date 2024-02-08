@@ -180,18 +180,50 @@ jobs:
       - name: Build query tracker using ya make
         if: ${{ inputs.build-query-tracker-ya-make }}
         run: |
+          sudo apt-get -y install antlr3 libaio1 libaio-dev
+
+          udfs_prefix="../ytsaurus/ydb/ydb/library/yql/udfs/common"
+
           mkdir -p ../build_qt_ya_make
+          mkdir -p ../build # TODO configure ya make step
           cd ../build_qt_ya_make
           rm -rf *
 
-          mkdir ytsaurus
-          ../ytsaurus/ytsaurus/ya make -T --ignore-recurses --build=relwithdebinfo ../ytsaurus/ytsaurus/yt/yt/server/all --output=ytsaurus
           shopt -s expand_aliases
-          alias ya-make-with-flags="../ytsaurus/ytsaurus/ya make -T --ignore-recurses --no-src-links --build=release  --output=ytsaurus"
-          ya-make-with-flags ../ytsaurus/ytsaurus/yt/yql/agent/bin
+          alias yt-ya-make="../ytsaurus/ytsaurus/ya make -T --ignore-recurses --no-src-links --build=release  --output=../build"
 
-          ls
-          ls ytsaurus
+          yt-ya-make ../ytsaurus/ytsaurus/yt/yt/server/all
+          yt-ya-make ../ytsaurus/ytsaurus/yt/yql/agent/bin
+
+          alias ydb-ya-make="../ytsaurus/ydb/ya make -T --ignore-recurses --no-src-links --build=release  --output=."
+
+          ydb-ya-make ../ytsaurus/ydb/ydb/library/yql/tools/mrjob
+          ydb-ya-make ../ytsaurus/ydb/ydb/library/yql/yt/dynamic
+
+          ydb-ya-make ${udfs_prefix}/compress_base
+          ydb-ya-make ${udfs_prefix}/datetime2
+          ydb-ya-make ${udfs_prefix}/digest
+          ydb-ya-make ${udfs_prefix}/file
+          ydb-ya-make ${udfs_prefix}/histogram
+          ydb-ya-make ${udfs_prefix}/hyperloglog
+          ydb-ya-make ${udfs_prefix}/hyperscan
+          ydb-ya-make ${udfs_prefix}/ip_base
+          ydb-ya-make ${udfs_prefix}/json
+          ydb-ya-make ${udfs_prefix}/json2
+          ydb-ya-make ${udfs_prefix}/math
+          ydb-ya-make ${udfs_prefix}/pire
+          ydb-ya-make ${udfs_prefix}/protobuf
+          ydb-ya-make ${udfs_prefix}/re2
+          ydb-ya-make ${udfs_prefix}/set
+          ydb-ya-make ${udfs_prefix}/stat
+          ydb-ya-make ${udfs_prefix}/streaming
+          ydb-ya-make ${udfs_prefix}/string
+          ydb-ya-make ${udfs_prefix}/top
+          ydb-ya-make ${udfs_prefix}/topfreq
+          ydb-ya-make ${udfs_prefix}/unicode_base
+          ydb-ya-make ${udfs_prefix}/url_base
+          ydb-ya-make ${udfs_prefix}/yson2
+          ydb-ya-make ${udfs_prefix}/dsv
 
       - name: Build Python packages
         if: ${{ inputs.build-python }}
