@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/tablet_node/public.h>
+#include <yt/yt/client/tablet_client/public.h>
 
 #include <yt/yt/library/query/base/public.h>
 
@@ -42,7 +42,7 @@ std::unique_ptr<IVersionedRowMerger> CreateLegacyVersionedRowMerger(
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
-    NTabletNode::ETabletRowMergerType rowMergerType,
+    NTabletClient::ERowMergerType rowMergerType,
     TRowBufferPtr rowBuffer,
     int columnCount,
     int keyColumnCount,

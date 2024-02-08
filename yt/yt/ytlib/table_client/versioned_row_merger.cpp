@@ -12,8 +12,8 @@
 namespace NYT::NTableClient {
 
 using namespace NQueryClient;
-using namespace NTabletNode;
 using namespace NTransactionClient;
+using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -444,7 +444,7 @@ std::unique_ptr<IVersionedRowMerger> CreateLegacyVersionedRowMerger(
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
-    ETabletRowMergerType rowMergerType,
+    ERowMergerType rowMergerType,
     TRowBufferPtr rowBuffer,
     int columnCount,
     int keyColumnCount,
@@ -459,7 +459,7 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
 
 {
     switch (rowMergerType) {
-        case ETabletRowMergerType::Legacy:
+        case ERowMergerType::Legacy:
             return CreateLegacyVersionedRowMerger(
                 rowBuffer,
                 columnCount,

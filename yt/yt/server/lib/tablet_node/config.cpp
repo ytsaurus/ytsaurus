@@ -17,6 +17,7 @@
 namespace NYT::NTabletNode {
 
 using namespace NYTree;
+using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -265,7 +266,7 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("row_merger_type", &TThis::RowMergerType)
-        .Default(ETabletRowMergerType::Legacy);
+        .Default(ERowMergerType::Legacy);
 
     registrar.Parameter("enable_lsm_verbose_logging", &TThis::EnableLsmVerboseLogging)
         .Default(false);
