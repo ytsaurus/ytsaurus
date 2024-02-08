@@ -102,6 +102,7 @@ struct TOperationControllerReviveResult
     {
         TJobId JobId;
         TInstant StartTime;
+        TInstant PreemptibleProgressStartTime;
         TJobResources ResourceLimits;
         NScheduler::TDiskQuota DiskQuota;
         bool Interruptible;
@@ -156,7 +157,7 @@ struct TOperationSnapshot
 struct TAgentToSchedulerRunningJobStatistics
 {
     TJobId JobId;
-    TDuration PreemptibleProgressTime;
+    TInstant PreemptibleProgressStartTime = TInstant();
 };
 
 void ToProto(

@@ -62,6 +62,7 @@ struct TJobSummary
 
     std::optional<TInstant> FinishTime;
     NJobAgent::TTimeStatistics TimeStatistics;
+    TInstant StartTime;
 
     //! Statistics produced by job and node. May be absent for running job events,
     //! always present for aborted/failed/completed job summaries.

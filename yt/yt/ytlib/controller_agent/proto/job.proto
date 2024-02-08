@@ -81,6 +81,7 @@ message TJobStatus
     optional NNodeTrackerClient.NProto.TNodeResources resource_usage = 8;
 
     optional bytes statistics = 9;
+
     optional NYT.NChunkClient.NProto.TDataStatistics total_input_data_statistics = 20;
     repeated NYT.NChunkClient.NProto.TDataStatistics output_data_statistics = 21;
 
@@ -92,6 +93,8 @@ message TJobStatus
     required TTimeStatistics time_statistics = 15;
     optional int64 status_timestamp = 16;
     optional bool job_execution_completed = 17 [default = false];
+
+    optional uint64 start_time = 22;
 }
 
 message TCoreInfo

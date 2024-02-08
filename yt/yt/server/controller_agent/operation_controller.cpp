@@ -105,6 +105,7 @@ void ToProto(NProto::TReviveOperationResult* resultProto, const TOperationContro
         auto* jobProto = resultProto->add_revived_jobs();
         ToProto(jobProto->mutable_job_id(), job.JobId);
         jobProto->set_start_time(ToProto<ui64>(job.StartTime));
+        jobProto->set_preemptible_progress_start_time(ToProto<ui64>(job.PreemptibleProgressStartTime));
         ToProto(jobProto->mutable_resource_limits(), job.ResourceLimits);
         ToProto(jobProto->mutable_disk_quota(), job.DiskQuota);
         jobProto->set_interruptible(job.Interruptible);
@@ -132,7 +133,7 @@ void ToProto(
 {
     ToProto(jobStatisticsProto->mutable_job_id(), jobStatistics.JobId);
 
-    jobStatisticsProto->set_preemptible_progress_time(ToProto<i64>(jobStatistics.PreemptibleProgressTime));
+    jobStatisticsProto->set_preemptible_progress_start_time(ToProto<i64>(jobStatistics.PreemptibleProgressStartTime));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

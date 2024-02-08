@@ -71,6 +71,15 @@ NLogging::TLogger TJob::CreateLogger()
         Node_ ? Node_->GetDefaultAddress() : "<unknown>");
 }
 
+TDuration TJob::PreemptibleProgressTime() const
+{
+    if (PreemptibleProgressStartTime_) {
+        return TInstant::Now() - PreemptibleProgressStartTime_;
+    }
+
+    return TDuration::Zero();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

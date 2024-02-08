@@ -99,13 +99,12 @@ public:
     //! Deadline for running job.
     DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuInstant, RunningJobUpdateDeadline, 0);
 
-    //! Time that will be wasted if allocation is preempted.
-    DEFINE_BYVAL_RW_PROPERTY(TDuration, PreemptibleProgressTime);
-
-    //! Logger for this job.
+    //! Logger for this allocation.
     DEFINE_BYREF_RO_PROPERTY(NLogging::TLogger, Logger);
 
     DEFINE_BYREF_RO_PROPERTY(TString, CodicilString);
+
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, PreemptibleProgressStartTime);
 
 public:
     TJob(
@@ -131,6 +130,9 @@ public:
     void SetNode(const TExecNodePtr& node);
 
     bool IsInterrupted() const noexcept;
+
+    //! Time that will be wasted if allocation is preempted.
+    TDuration PreemptibleProgressTime() const;
 
 private:
     NLogging::TLogger CreateLogger();

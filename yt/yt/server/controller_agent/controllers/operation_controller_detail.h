@@ -1329,12 +1329,7 @@ private:
     //! in the public intermediate account.
     i64 FastIntermediateMediumLimit_ = 0;
 
-    struct TRunningJobTimeStatistics
-    {
-        TDuration PreparationTime;
-        TDuration ExecutionTime;
-    };
-    THashMap<TJobId, TRunningJobTimeStatistics> RunningJobTimeStatisticsUpdates_;
+    THashMap<TAllocationId, TInstant> RunningAllocationPreemptibleProgressStartTimes_;
 
     const NConcurrency::TPeriodicExecutorPtr SendRunningJobTimeStatisticsUpdatesExecutor_;
 
@@ -1473,6 +1468,7 @@ private:
     void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary);
     void OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary);
     void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary);
+    void OnJobStartTimeReceived(const TJobletPtr& joblet, const std::unique_ptr<TRunningJobSummary>& jobSummary);
 
     void ReportJobCookieToArchive(const TJobletPtr& joblet);
     void ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state);

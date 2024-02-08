@@ -196,6 +196,7 @@ message TReviveOperationResult
     {
         required NYT.NProto.TGuid job_id = 1;
         required uint64 start_time = 2; // TInstant
+        optional uint64 preemptible_progress_start_time = 9; // TInstant
         required NScheduler.NProto.TJobResources resource_limits = 3;
         required bool interruptible = 4;
         required string tree_id = 5;

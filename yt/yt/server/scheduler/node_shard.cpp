@@ -1503,8 +1503,8 @@ TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor
 
 void TNodeShard::UpdateJobTimeStatisticsIfNeeded(const TJobPtr& job, TRunningJobTimeStatistics timeStatistics)
 {
-    if (job->GetPreemptibleProgressTime() < timeStatistics.PreemptibleProgressTime) {
-        job->SetPreemptibleProgressTime(timeStatistics.PreemptibleProgressTime);
+    if (job->GetPreemptibleProgressStartTime() < timeStatistics.PreemptibleProgressStartTime) {
+        job->SetPreemptibleProgressStartTime(timeStatistics.PreemptibleProgressStartTime);
     }
 }
 

@@ -1440,6 +1440,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
         result.RevivedJobs.push_back({
             joblet->JobId,
             joblet->StartTime,
+            joblet->NodeJobStartTime,
             joblet->ResourceLimits,
             joblet->DiskQuota,
             joblet->Task->IsJobInterruptible(),
@@ -3490,6 +3491,36 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
     }
 }
 
+void TOperationControllerBase::OnJobStartTimeReceived(
+    const TJobletPtr& joblet,
+    const std::unique_ptr<TRunningJobSummary>& jobSummary)
+{
+    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
+
+    auto jobId = joblet->JobId;
+
+    auto nodeJobStartTime = TInstant();
+
+    if (auto jobStartTime = jobSummary->StartTime) {
+        nodeJobStartTime = jobStartTime;
+    } else if (
+        const auto& timeStatistics = jobSummary->TimeStatistics;
+        timeStatistics.ExecDuration ||
+        timeStatistics.PrepareDuration)
+    {
+        auto totalDuration =
+            timeStatistics.PrepareDuration.value_or(TDuration::Zero()) +
+            timeStatistics.ExecDuration.value_or(TDuration::Zero());
+
+        nodeJobStartTime = TInstant::Now() - totalDuration;
+    }
+
+    if (nodeJobStartTime && !joblet->IsJobStartedOnNode()) {
+        joblet->NodeJobStartTime = nodeJobStartTime;
+        RunningAllocationPreemptibleProgressStartTimes_[AllocationIdFromJobId(jobId)] = nodeJobStartTime;
+    }
+}
+
 void TOperationControllerBase::SafeOnAllocationAborted(TAbortedAllocationSummary&& abortedAllocationSummary)
 {
     YT_LOG_DEBUG(
@@ -3576,12 +3607,7 @@ void TOperationControllerBase::OnJobRunning(std::unique_ptr<TRunningJobSummary> 
 
     joblet->Task->OnJobRunning(joblet, *jobSummary);
 
-    if (const auto& timeStatistics = jobSummary->TimeStatistics; timeStatistics.ExecDuration || timeStatistics.PrepareDuration) {
-        RunningJobTimeStatisticsUpdates_[jobId] = {
-            .PreparationTime = timeStatistics.PrepareDuration.value_or(TDuration{}),
-            .ExecutionTime = timeStatistics.ExecDuration.value_or(TDuration{})
-        };
-    }
+    OnJobStartTimeReceived(joblet, jobSummary);
 
     if (jobSummary->Statistics) {
         // We actually got fresh running job statistics.
@@ -10982,10 +11008,12 @@ void TOperationControllerBase::SendRunningJobTimeStatisticsUpdates()
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::JobEvents));
 
     std::vector<TAgentToSchedulerRunningJobStatistics> runningJobTimeStatisticsUpdates;
-    runningJobTimeStatisticsUpdates.reserve(std::size(RunningJobTimeStatisticsUpdates_));
+    runningJobTimeStatisticsUpdates.reserve(std::size(RunningAllocationPreemptibleProgressStartTimes_));
 
-    for (auto [jobId, timeStatistics] : RunningJobTimeStatisticsUpdates_) {
-        runningJobTimeStatisticsUpdates.push_back({jobId, timeStatistics.PreparationTime + timeStatistics.ExecutionTime});
+    for (auto [allocationId, preemptibleProgressStartTime] : RunningAllocationPreemptibleProgressStartTimes_) {
+        runningJobTimeStatisticsUpdates.push_back(TAgentToSchedulerRunningJobStatistics{
+            .JobId = JobIdFromAllocationId(allocationId),
+            .PreemptibleProgressStartTime = preemptibleProgressStartTime});
     }
 
     if (std::empty(runningJobTimeStatisticsUpdates)) {
@@ -10996,7 +11024,7 @@ void TOperationControllerBase::SendRunningJobTimeStatisticsUpdates()
     YT_LOG_DEBUG("Send running job statistics updates (UpdateCount: %v)", std::size(runningJobTimeStatisticsUpdates));
 
     Host->UpdateRunningJobsStatistics(std::move(runningJobTimeStatisticsUpdates));
-    RunningJobTimeStatisticsUpdates_.clear();
+    RunningAllocationPreemptibleProgressStartTimes_.clear();
 }
 
 void TOperationControllerBase::RemoveRemainingJobsOnOperationFinished()

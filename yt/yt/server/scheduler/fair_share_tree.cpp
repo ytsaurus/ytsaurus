@@ -2513,7 +2513,7 @@ private:
             EJobPreemptionReason preemptionReason = preemptedJob.PreemptionReason;
             preemptedJobResources[preemptionReason][operationId] += preemptedResourcesDelta;
             preemptedJobResourceTimes[preemptionReason][operationId] += preemptedResourcesDelta * static_cast<i64>(
-                job->GetPreemptibleProgressTime().Seconds());
+                job->PreemptibleProgressTime().Seconds());
 
             if (job->GetPreemptedFor() && !job->GetPreemptedForProperlyStarvingOperation()) {
                 improperlyPreemptedJobResources[preemptionReason][operationId] += preemptedResourcesDelta;

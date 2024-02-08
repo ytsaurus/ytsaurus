@@ -124,6 +124,9 @@ void FromProto(
             FromProto<NNodeTrackerClient::TNodeId>(jobProto.node_id()),
             jobProto.node_address());
         job->SetAllocationState(EAllocationState::Running);
+        if (jobProto.has_preemptible_progress_start_time()) {
+            job->SetPreemptibleProgressStartTime(FromProto<TInstant>(jobProto.preemptible_progress_start_time()));
+        }
         result->RevivedJobs.push_back(job);
     }
     result->RevivedBannedTreeIds = FromProto<THashSet<TString>>(resultProto.revived_banned_tree_ids());

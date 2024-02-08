@@ -241,11 +241,13 @@ void TOperationControllerHost::UpdateRunningJobsStatistics(
         return;
     }
 
+    size_t runningJobStatisticsUpdatesCount = runningJobStatisticsUpdates.size();
+
     RunningJobStatisticsUpdatesOutbox_->Enqueue(std::move(runningJobStatisticsUpdates));
 
     YT_LOG_DEBUG("Jobs statistics update request enqueued (OperationId: %v, JobCount: %v)",
         OperationId_,
-        runningJobStatisticsUpdates.size());
+        runningJobStatisticsUpdatesCount);
 }
 
 void TOperationControllerHost::RegisterJob(TStartedJobInfo jobInfo)

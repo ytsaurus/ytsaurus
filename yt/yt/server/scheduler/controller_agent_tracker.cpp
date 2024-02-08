@@ -852,9 +852,9 @@ public:
                             for (const auto* protoStatisticsUpdate : protoUpdates.RunningJobStatisticsUpdates) {
                                 auto jobId = FromProto<TJobId>(protoStatisticsUpdate->job_id());
 
-                                auto preemptibleProgressTime = NYT::FromProto<TDuration>(protoStatisticsUpdate->preemptible_progress_time());
+                                auto preemptibleProgressStartTime = NYT::FromProto<TInstant>(protoStatisticsUpdate->preemptible_progress_start_time());
 
-                                runningJobStatisticsUpdates.push_back({jobId, {preemptibleProgressTime}});
+                                runningJobStatisticsUpdates.push_back({jobId, {preemptibleProgressStartTime}});
                             }
 
                             if (!std::empty(runningJobStatisticsUpdates)) {

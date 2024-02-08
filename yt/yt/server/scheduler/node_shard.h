@@ -178,7 +178,7 @@ public:
 
     struct TRunningJobTimeStatistics
     {
-        TDuration PreemptibleProgressTime;
+        TInstant PreemptibleProgressStartTime = TInstant();
     };
 
     struct TRunningJobStatisticsUpdate
