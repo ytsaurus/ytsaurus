@@ -2521,7 +2521,7 @@ private:
             EAllocationPreemptionReason preemptionReason = preemptedAllocation.PreemptionReason;
             preemptedAllocationResources[preemptionReason][operationId] += preemptedResourcesDelta;
             preemptedAllocationResourceTimes[preemptionReason][operationId] += preemptedResourcesDelta * static_cast<i64>(
-                allocation->GetPreemptibleProgressTime().Seconds());
+                allocation->PreemptibleProgressTime().Seconds());
 
             if (allocation->GetPreemptedFor() && !allocation->GetPreemptedForProperlyStarvingOperation()) {
                 improperlyPreemptedAllocationResources[preemptionReason][operationId] += preemptedResourcesDelta;

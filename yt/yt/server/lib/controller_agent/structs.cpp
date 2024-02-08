@@ -71,6 +71,10 @@ TJobSummary::TJobSummary(NProto::TJobStatus* status)
         Statistics = std::move(mutableStatistics);
     }
 
+    if (status->has_start_time()) {
+        StartTime = FromProto<TInstant>(status->start_time());
+    }
+
     if (status->has_total_input_data_statistics()) {
         TotalInputDataStatistics = FromProto<NChunkClient::NProto::TDataStatistics>(status->total_input_data_statistics());
         OutputDataStatistics = FromProto<std::vector<NChunkClient::NProto::TDataStatistics>>(status->output_data_statistics());

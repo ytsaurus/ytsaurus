@@ -64,6 +64,15 @@ NLogging::TLogger TAllocation::CreateLogger()
         Node_ ? Node_->GetDefaultAddress() : "<unknown>");
 }
 
+TDuration TAllocation::PreemptibleProgressTime() const
+{
+    if (PreemptibleProgressStartTime_) {
+        return TInstant::Now() - PreemptibleProgressStartTime_;
+    }
+
+    return TDuration::Zero();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

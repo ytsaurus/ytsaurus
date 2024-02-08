@@ -105,6 +105,7 @@ void ToProto(NProto::TReviveOperationResult* resultProto, const TOperationContro
         auto* allocationProto = resultProto->add_revived_allocations();
         ToProto(allocationProto->mutable_allocation_id(), allocation.AllocationId);
         allocationProto->set_start_time(ToProto<ui64>(allocation.StartTime));
+        allocationProto->set_preemptible_progress_start_time(ToProto<ui64>(allocation.PreemptibleProgressStartTime));
         ToProto(allocationProto->mutable_resource_limits(), allocation.ResourceLimits);
         ToProto(allocationProto->mutable_disk_quota(), allocation.DiskQuota);
         allocationProto->set_tree_id(allocation.TreeId);
@@ -131,7 +132,7 @@ void ToProto(
 {
     ToProto(allocationStatisticsProto->mutable_allocation_id(), allocationStatistics.AllocationId);
 
-    allocationStatisticsProto->set_preemptible_progress_time(ToProto<i64>(allocationStatistics.PreemptibleProgressTime));
+    allocationStatisticsProto->set_preemptible_progress_start_time(ToProto<ui64>(allocationStatistics.PreemptibleProgressStartTime));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

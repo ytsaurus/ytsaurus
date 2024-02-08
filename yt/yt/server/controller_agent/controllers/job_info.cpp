@@ -131,6 +131,11 @@ bool TJoblet::IsStarted() const noexcept
     return JobState.has_value();
 }
 
+bool TJoblet::IsJobStartedOnNode() const noexcept
+{
+    return NodeJobStartTime != TInstant();
+}
+
 void TJoblet::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -139,6 +144,10 @@ void TJoblet::Persist(const TPersistenceContext& context)
     Persist(context, NodeDescriptor);
     Persist(context, StartTime);
     Persist(context, FinishTime);
+    // COMPAT(arkady-e1ppa)
+    if (context.GetVersion() >= ESnapshotVersion::NodeJobStartTimeInJoblet) {
+        Persist(context, NodeJobStartTime);
+    }
     // COMPAT(pogorelov)
     if (context.GetVersion() < ESnapshotVersion::JobStateInJoblet) {
         bool isStarted;

@@ -574,6 +574,7 @@ void TJobTrackerConfig::Register(TRegistrar registrar)
         "duration_before_job_considered_disappeared_from_node",
         &TThis::DurationBeforeJobConsideredDisappearedFromNode)
         .Default(TDuration::Seconds(5));
+    // TODO(arkady-e1ppa): remove this when all nodes are 24.1.
     registrar.Parameter("enable_graceful_abort", &TThis::EnableGracefulAbort)
         .Default(false);
 }

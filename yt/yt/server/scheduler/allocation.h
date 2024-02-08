@@ -96,13 +96,12 @@ public:
     //! Deadline for running allocation.
     DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuInstant, RunningAllocationUpdateDeadline, 0);
 
-    //! Time that will be wasted if allocation is preempted.
-    DEFINE_BYVAL_RW_PROPERTY(TDuration, PreemptibleProgressTime);
-
     //! Logger for this allocation.
     DEFINE_BYREF_RO_PROPERTY(NLogging::TLogger, Logger);
 
     DEFINE_BYREF_RO_PROPERTY(TString, CodicilString);
+
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, PreemptibleProgressStartTime);
 
 public:
     TAllocation(
@@ -125,6 +124,9 @@ public:
     bool IsRevived() const;
 
     void SetNode(const TExecNodePtr& node);
+
+    //! Time that will be wasted if allocation is preempted.
+    TDuration PreemptibleProgressTime() const;
 
 private:
     NLogging::TLogger CreateLogger();

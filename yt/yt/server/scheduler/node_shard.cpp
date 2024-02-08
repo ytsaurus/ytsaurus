@@ -1048,7 +1048,7 @@ TAllocationDescription TNodeShard::GetAllocationDescription(TAllocationId alloca
             .Preempted = allocation->GetPreempted(),
             .PreemptionReason = allocation->GetPreemptionReason(),
             .PreemptionTimeout = CpuDurationToDuration(allocation->GetPreemptionTimeout()),
-            .PreemptibleProgressTime = allocation->GetPreemptibleProgressTime(),
+            .PreemptibleProgressTime = allocation->PreemptibleProgressTime(),
         };
     } else {
         result.Running = false;
@@ -1384,8 +1384,8 @@ TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor
 
 void TNodeShard::UpdateAllocationTimeStatisticsIfNeeded(const TAllocationPtr& allocation, TRunningAllocationTimeStatistics timeStatistics)
 {
-    if (allocation->GetPreemptibleProgressTime() < timeStatistics.PreemptibleProgressTime) {
-        allocation->SetPreemptibleProgressTime(timeStatistics.PreemptibleProgressTime);
+    if (allocation->GetPreemptibleProgressStartTime() < timeStatistics.PreemptibleProgressStartTime) {
+        allocation->SetPreemptibleProgressStartTime(timeStatistics.PreemptibleProgressStartTime);
     }
 }
 
