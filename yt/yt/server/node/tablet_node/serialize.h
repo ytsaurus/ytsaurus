@@ -59,6 +59,8 @@ DEFINE_ENUM(ETabletReign,
     ((SaneTxActionAbortFix)                        (100906)) // kvk1920
     ((SmoothTabletMovement)                        (100907)) // ifsmirnov
     ((DistributedTabletPrerequisites)              (100908)) // gritukan
+    // 24.2 starts here.
+    ((Start_24_2)                                  (101000)) // ponasenko-rs
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");
