@@ -1524,13 +1524,13 @@ TEST_F(TComputedColumnTest, YabsGoodEvent)
     EXPECT_EQ(YsonToKey(_MAX_), result[0].second);
 }
 
-TEST_F(TComputedColumnTest, LessThanNull)
+TEST_F(TComputedColumnTest, Null)
 {
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(TString("farm_hash(l)")),
-        TColumnSchema("l", EValueType::Int64)
+        TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("v", EValueType::Int64)
     });
@@ -1551,10 +1551,66 @@ TEST_F(TComputedColumnTest, LessThanNull)
         auto query = TString("v from [//t] where l < null");
         auto result = Coordinate(query);
 
+        EXPECT_EQ(0u, result.size());
+    }
+
+    {
+        auto query = TString("v from [//t] where l != null");
+        auto result = Coordinate(query);
+
         EXPECT_EQ(1u, result.size());
 
-        EXPECT_EQ(YsonToKey("3315701238936582721u"), result[0].first);
-        EXPECT_EQ(YsonToKey("3315701238936582721u;" _NULL_), result[0].second);
+        EXPECT_EQ(YsonToKey(_MIN_), result[0].first);
+        EXPECT_EQ(YsonToKey(_MAX_), result[0].second);
+    }
+
+    {
+        auto query = TString("v from [//t] where l > null and l < null");
+        auto result = Coordinate(query);
+
+        EXPECT_EQ(0u, result.size());
+    }
+
+    {
+        auto query = TString("v from [//t] where l > null and l < 0");
+        auto result = Coordinate(query);
+
+        EXPECT_EQ(1u, result.size());
+
+        // Empty range.
+        EXPECT_EQ(YsonToKey("3315701238936582721u;" _NULL_ ";" _MAX_), result[0].first);
+        EXPECT_EQ(YsonToKey("3315701238936582721u;0u;"), result[0].second);
+    }
+
+    {
+        auto query = TString("v from [//t] where l >= null and l < 0");
+        auto result = Coordinate(query);
+
+        EXPECT_EQ(1u, result.size());
+
+        EXPECT_EQ(YsonToKey("3315701238936582721u;" _NULL_), result[0].first);
+        EXPECT_EQ(YsonToKey("3315701238936582721u;0u;"), result[0].second);
+    }
+
+    {
+        auto query = TString("v from [//t] where l >= null and l <= 0");
+        auto result = Coordinate(query);
+
+        EXPECT_EQ(1u, result.size());
+
+        // Farm hash values for zero and null are equal. Hence one range is inferred.
+        EXPECT_EQ(YsonToKey("3315701238936582721u;" _NULL_), result[0].first);
+        EXPECT_EQ(YsonToKey("3315701238936582721u;0u;" _MAX_), result[0].second);
+    }
+
+    {
+        auto query = TString("v from [//t] where l > null and l <= 0");
+        auto result = Coordinate(query);
+
+        EXPECT_EQ(1u, result.size());
+
+        EXPECT_EQ(YsonToKey("3315701238936582721u;" _NULL_ ";" _MAX_), result[0].first);
+        EXPECT_EQ(YsonToKey("3315701238936582721u;0u;" _MAX_), result[0].second);
     }
 }
 

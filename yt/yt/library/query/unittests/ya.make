@@ -34,6 +34,10 @@ PEERDIR(
     contrib/libs/sparsehash
 )
 
+FORK_SUBTESTS(MODULO)
+
+SPLIT_FACTOR(3)
+
 SIZE(MEDIUM)
 
 END()
