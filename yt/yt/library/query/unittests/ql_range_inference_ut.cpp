@@ -1290,15 +1290,40 @@ struct TRandomExpressionGenerator
 
     std::vector<ui64> RandomValues = GenerateRandomValues();
 
+    int GetExponentialDistribution(int power)
+    {
+        YT_VERIFY(power > 0);
+        int uniformValue = Rng.Uniform(1 << (power - 1));
+        int valueBitCount = uniformValue != 0 ? GetValueBitCount(uniformValue) : 0;
+        int result = (power - 1) - valueBitCount;
+        YT_VERIFY(result >= 0 && result < power);
+        return result;
+    }
+
     std::vector<ui64> GenerateRandomValues()
     {
         std::vector<ui64> result;
-        for (int i = 0; i < 30; ++i) {
+
+        // Corner cases.
+        result.push_back(std::numeric_limits<i64>::min());
+        result.push_back(std::numeric_limits<i64>::max());
+        result.push_back(std::numeric_limits<ui64>::min());
+        result.push_back(std::numeric_limits<ui64>::max());
+
+        // Some random values.
+        for (int i = 0; i < 7; ++i) {
+            result.push_back(Rng.GenRand());
+        }
+
+        for (int i = 0; i < 5; ++i) {
             ui64 bits = Rng.Uniform(64);
             ui64 value = (1ULL << bits) | Rng.Uniform(1ULL << bits);
 
             result.push_back(value);
         }
+
+        std::sort(result.begin(), result.end());
+        result.erase(std::unique(result.begin(), result.end()), result.end());
 
         return result;
     }
@@ -1307,8 +1332,9 @@ struct TRandomExpressionGenerator
     {
         std::vector<int> result;
         for (int i = 0; i < size; ++i) {
-            result.push_back(Rng.Uniform(1, Schema->GetKeyColumnCount()));
+            result.push_back(GetExponentialDistribution(Schema->GetKeyColumnCount() - 1) + 1);
         }
+
         return result;
     }
 
@@ -1366,6 +1392,7 @@ struct TRandomExpressionGenerator
                 return Format("%v", static_cast<i64>(GenerateInt()));
             case EValueType::Uint64:
                 return Format("%vu", GenerateInt());
+            // FIXME: Pregenerate random strings.
             case EValueType::String: {
                 static constexpr int MaxStringLength = 10;
                 auto length = Rng.Uniform(MaxStringLength);
@@ -1447,7 +1474,7 @@ struct TRandomExpressionGenerator
         result += Format(" %v ", reationOp);
         if (reationOp == TString("IN")) {
             result += "(";
-            int tupleCount = Rng.Uniform(1, 10);
+            int tupleCount = GetExponentialDistribution(9) + 1;
             bool first = true;
             for (int i = 0; i < tupleCount; ++i) {
                 if (!first) {
@@ -1509,6 +1536,7 @@ struct TRandomExpressionGenerator
 
     TString GenerateContinuationToken(int keyColumnCount)
     {
+        YT_VERIFY(keyColumnCount > 1);
         std::vector<int> ids;
         for (int columnIndex = 0; columnIndex < keyColumnCount; ++columnIndex) {
             ids.push_back(columnIndex);
@@ -1538,27 +1566,18 @@ struct TRandomExpressionGenerator
         return row;
     }
 
-    TString GenerateRelation()
+    TString GenerateRelationOrContinuationToken()
     {
-        return Rng.Uniform(2)
-            ? GenerateContinuationToken(Rng.Uniform(2, Schema->GetKeyColumnCount()))
-            : GenerateRelation(Rng.Uniform(1, 4));
-    }
-
-    TString GenerateExpression()
-    {
-        TString result = GenerateRelation();
-        result += " AND ";
-        result += GenerateRelation();
-        return result;
+        return Rng.Uniform(4) == 0
+            ? GenerateContinuationToken(GetExponentialDistribution(Schema->GetKeyColumnCount() - 2) + 2)
+            : GenerateRelation(GetExponentialDistribution(3) + 1);
     }
 
     TString GenerateExpression2()
     {
-        TString result = Rng.Uniform(2)
-            ? GenerateContinuationToken(Rng.Uniform(2, Schema->GetKeyColumnCount()))
-            : GenerateRelation(Rng.Uniform(1, 4));
-        int count = Rng.Uniform(1, 5);
+        TString result = GenerateRelationOrContinuationToken();
+
+        int count = GetExponentialDistribution(5);
         for (int i = 0; i < count; ++i) {
             result += Rng.Uniform(4) == 0 ? " OR " : " AND ";
             result += GenerateRelation(1);
@@ -1570,7 +1589,7 @@ struct TRandomExpressionGenerator
 
 class TInferRangesTest
     : public ::testing::Test
-    , public ::testing::WithParamInterface<const char*>
+    , public ::testing::WithParamInterface<std::tuple<const char*, EValueType, EValueType>>
 {
 protected:
     void SetUp() override
@@ -1586,13 +1605,15 @@ TEST_P(TInferRangesTest, Stress)
     // 3. Generate random range (random or depending on inferred ranges (inside or outside)).
     // 4. Check in ranges and evaluate expression.
 
-    auto computedColumnExpression = GetParam();
+    auto computedColumnExpression = std::get<0>(GetParam());
+    auto hashColumnType = std::get<1>(GetParam());
+    auto keyColumnType = std::get<2>(GetParam());
 
     auto schema = New<TTableSchema>(std::vector{
-        TColumnSchema("h", EValueType::Uint64)
+        TColumnSchema("h", hashColumnType)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(computedColumnExpression),
-        TColumnSchema("k", EValueType::Int64)
+        TColumnSchema("k", keyColumnType)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending),
@@ -1612,8 +1633,8 @@ TEST_P(TInferRangesTest, Stress)
 
     TRandomExpressionGenerator gen{schema, rowBuffer, columnEvaluator};
 
-    for (int i = 0; i < 1000; ++i) {
-        auto expressionString = gen.GenerateExpression2();
+    auto testExpression = [&] (TString expressionString) {
+        Cout << Format("Expression: %v", expressionString) << Endl;
 
         auto expr = PrepareExpression(expressionString, *schema);
 
@@ -1632,6 +1653,8 @@ TEST_P(TInferRangesTest, Stress)
             GetBuiltinRangeExtractors(),
             options,
             {});
+
+        Y_UNUSED(inferredRanges);
 
         TCGVariables variables;
         auto callback = Profile(expr, schema, nullptr, &variables)();
@@ -1657,6 +1680,11 @@ TEST_P(TInferRangesTest, Stress)
                     inferredRanges,
                     row);
         }
+    };
+
+    for (int i = 0; i < 1000; ++i) {
+        testExpression(gen.GenerateRelation(gen.GetExponentialDistribution(3) + 1));
+        testExpression(gen.GenerateExpression2());
     }
 }
 
@@ -1664,9 +1692,12 @@ INSTANTIATE_TEST_SUITE_P(
     Stress,
     TInferRangesTest,
     ::testing::Values(
-        "farm_hash(k)",
-        "farm_hash(k) % 100",
-        "farm_hash(k / 3) % 100"));
+        std::tuple("farm_hash(k)", EValueType::Uint64, EValueType::Int64),
+        std::tuple("farm_hash(k)", EValueType::Uint64, EValueType::Uint64),
+        std::tuple("farm_hash(k) % 10", EValueType::Uint64, EValueType::Int64),
+        std::tuple("farm_hash(k) % 10", EValueType::Uint64, EValueType::Uint64),
+        std::tuple("farm_hash(k / 3) % 10", EValueType::Uint64, EValueType::Int64),
+        std::tuple("farm_hash(k / 3) % 10", EValueType::Uint64, EValueType::Uint64)));
 
 ////////////////////////////////////////////////////////////////////////////////
 
