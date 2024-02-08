@@ -249,7 +249,7 @@ TOutputResult GetWrittenChunksBoundaryKeys(const ISchemalessMultiChunkWriterPtr&
 
             FilterProtoExtensions(
                 lightweightChunkSpec.mutable_chunk_meta()->mutable_extensions(),
-                THashSet<int> { TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value });
+                {TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value});
         }
 
         ToProto(result.mutable_chunk_specs(), lightweightChunks);
