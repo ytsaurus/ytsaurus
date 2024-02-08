@@ -195,6 +195,9 @@ jobs:
           yt-ya-make ../ytsaurus/ytsaurus/yt/yt/server/all
           yt-ya-make ../ytsaurus/ytsaurus/yt/yql/agent/bin
 
+          yt-ya-make ../ytsaurus/ytsaurus/yt/yt/python/yson_shared
+          yt-ya-make ../ytsaurus/ytsaurus/yt/yt/python/driver/native_shared
+
           alias ydb-ya-make="../ytsaurus/ydb/ya make -T --ignore-recurses --no-src-links --build=release  --output=."
 
           ydb-ya-make ../ytsaurus/ydb/ydb/library/yql/tools/mrjob
@@ -223,7 +226,6 @@ jobs:
           ydb-ya-make ${udfs_prefix}/unicode_base
           ydb-ya-make ${udfs_prefix}/url_base
           ydb-ya-make ${udfs_prefix}/yson2
-          ydb-ya-make ${udfs_prefix}/dsv
 
       - name: Build Python packages
         if: ${{ inputs.build-python }}

@@ -55,44 +55,43 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       build-python: true
-      build-query-tracker-ya-make: true
+      # build-query-tracker-ya-make: true
     uses: ./.github/workflows/build-jobs.yaml
-# TODO return back test build
 
-  tag:
-    name: Calculate docker tag
-    needs:
-      - start-vm
-      - build
-    runs-on: ${{ needs.start-vm.outputs.label }}
-    outputs:
-      image-tag: ${{ steps.tag.outputs.IMAGE_TAG }}
-      nightly-image-tag: ${{ steps.tag.outputs.NIGHTLY_IMAGE_TAG }}
-    steps:
-      - name: Calculate docker tag
-        id: tag
-        run: |
-          IMAGE_TAG=test-tag
+#   tag:
+#     name: Calculate docker tag
+#     needs:
+#       - start-vm
+#       - build
+#     runs-on: ${{ needs.start-vm.outputs.label }}
+#     outputs:
+#       image-tag: ${{ steps.tag.outputs.IMAGE_TAG }}
+#       nightly-image-tag: ${{ steps.tag.outputs.NIGHTLY_IMAGE_TAG }}
+#     steps:
+#       - name: Calculate docker tag
+#         id: tag
+#         run: |
+#           IMAGE_TAG=test-tag
+# # TODO: make it like good tag
+#           cd ytsaurus
+#           NIGHTLY_IMAGE_TAG=${IMAGE_TAG}-$(git rev-list --count HEAD)-${GITHUB_SHA}
+#           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
+#           echo "NIGHTLY_IMAGE_TAG=$NIGHTLY_IMAGE_TAG" >> $GITHUB_OUTPUT
 
-          cd ytsaurus
-          NIGHTLY_IMAGE_TAG=${IMAGE_TAG}-$(git rev-list --count HEAD)-${GITHUB_SHA}
-          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
-          echo "NIGHTLY_IMAGE_TAG=$NIGHTLY_IMAGE_TAG" >> $GITHUB_OUTPUT
-
-  docker:
-    name: Docker images
-    needs:
-      - start-vm
-      - tag
-    with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-      publish-query-tracker-ya-make: true
-      image-tag: ${{ needs.tag.outputs.image-tag }}
-      nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
-    secrets:
-      DOCKER_HUB_LOGIN: ${{ secrets.DOCKER_HUB_LOGIN }}
-      DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
-    uses: ./.github/workflows/docker-jobs.yaml
+#   docker:
+#     name: Docker images
+#     needs:
+#       - start-vm
+#       - tag
+#     with:
+#       runs-on-value: ${{ needs.start-vm.outputs.label }}
+#       publish-query-tracker-ya-make: true
+#       image-tag: ${{ needs.tag.outputs.image-tag }}
+#       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
+#     secrets:
+#       DOCKER_HUB_LOGIN: ${{ secrets.DOCKER_HUB_LOGIN }}
+#       DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
+#     uses: ./.github/workflows/docker-jobs.yaml
 
   stop-vm:
     name: Stop VM
@@ -110,3 +109,5 @@ jobs:
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           label: ${{ needs.start-vm.outputs.label }}
           instance-id: ${{ needs.start-vm.outputs.instance-id }}
+
+# TODO add notifications
