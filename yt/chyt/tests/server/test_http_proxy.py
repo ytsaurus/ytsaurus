@@ -10,7 +10,7 @@ from yt.common import wait
 
 from yt_helpers import profiler_factory, write_log_barrier, read_structured_log
 
-import yt.environment.init_operation_archive as init_operation_archive
+import yt.environment.init_operations_archive as init_operations_archive
 
 from yt_env_setup import Restarter, SCHEDULERS_SERVICE
 
@@ -247,7 +247,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
     @authors("max42")
     def test_database_specification(self):
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
 
@@ -307,7 +307,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
     @authors("max42")
     def test_operation_acl_validation(self):
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
 

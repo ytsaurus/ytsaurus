@@ -19,7 +19,7 @@ from yt_scheduler_helpers import scheduler_orchid_path
 
 import yt_error_codes
 
-import yt.environment.init_operation_archive as init_operation_archive
+import yt.environment.init_operations_archive as init_operations_archive
 
 from yt.common import YtError
 
@@ -97,7 +97,7 @@ class TestSchedulerAcls(YTEnvSetup):
 
         # Init operations archive.
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(),
             override_tablet_cell_bundle="default",
         )

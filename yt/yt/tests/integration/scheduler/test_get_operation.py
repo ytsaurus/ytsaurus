@@ -13,7 +13,7 @@ import yt_error_codes
 
 from yt_helpers import profiler_factory
 
-import yt.environment.init_operation_archive as init_operation_archive
+import yt.environment.init_operations_archive as init_operations_archive
 
 from yt.common import uuid_to_parts, YtError
 
@@ -79,7 +79,7 @@ class TestGetOperation(YTEnvSetup):
     def setup_method(self, method):
         super(TestGetOperation, self).setup_method(method)
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
 
@@ -156,17 +156,17 @@ class TestGetOperation(YTEnvSetup):
 
         clean_operations()
 
-        res_get_operation_archive = get_operation(op.id)
+        res_get_operations_archive = get_operation(op.id)
 
-        for key in res_get_operation_archive.keys():
+        for key in res_get_operations_archive.keys():
             if key in res_cypress:
-                assert res_get_operation_archive[key] == res_cypress_finished[key]
+                assert res_get_operations_archive[key] == res_cypress_finished[key]
 
-        res_get_operation_archive_raw = _get_operation_from_archive(op.id)
+        res_get_operations_archive_raw = _get_operation_from_archive(op.id)
 
-        for key in res_get_operation_archive_raw.keys():
+        for key in res_get_operations_archive_raw.keys():
             if key in res_cypress and key not in ["start_time", "finish_time"]:
-                assert res_get_operation_archive_raw[key] == res_cypress_finished[key]
+                assert res_get_operations_archive_raw[key] == res_cypress_finished[key]
 
     # Check that operation that has not been saved by operation cleaner
     # is reported correctly (i.e. "No such operation").
@@ -317,15 +317,15 @@ class TestGetOperation(YTEnvSetup):
             "slot_index_per_pool_tree",
             "state",
         ]
-        res_get_operation_archive = get_operation(op.id, attributes=requesting_attributes)
-        assert sorted(list(res_get_operation_archive)) == requesting_attributes
-        assert res_get_operation_archive["state"] == "completed"
+        res_get_operations_archive = get_operation(op.id, attributes=requesting_attributes)
+        assert sorted(list(res_get_operations_archive)) == requesting_attributes
+        assert res_get_operations_archive["state"] == "completed"
         assert (
-            res_get_operation_archive["runtime_parameters"]["scheduling_options_per_pool_tree"]["default"]["pool"]
+            res_get_operations_archive["runtime_parameters"]["scheduling_options_per_pool_tree"]["default"]["pool"]
             == "root"
         )
-        assert res_get_operation_archive["runtime_parameters"]["annotations"] == annotations
-        assert res_get_operation_archive["slot_index_per_pool_tree"]["default"] == 0
+        assert res_get_operations_archive["runtime_parameters"]["annotations"] == annotations
+        assert res_get_operations_archive["slot_index_per_pool_tree"]["default"] == 0
 
         with raises_yt_error(yt_error_codes.NoSuchAttribute):
             get_operation(op.id, attributes=["nonexistent-attribute-ZZZ"])
@@ -693,7 +693,7 @@ class TestOperationAliases(YTEnvSetup):
 
     @authors("max42")
     def test_get_operation_latest_archive_version(self):
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
 

@@ -7,7 +7,7 @@ from yt_commands import (
     map, list_operations, get_operation_cypress_path, sync_create_cells, clean_operations, run_test_vanilla,
     update_scheduler_config)
 
-import yt.environment.init_operation_archive as init_operation_archive
+import yt.environment.init_operations_archive as init_operations_archive
 
 from yt.common import uuid_to_parts, YT_DATETIME_FORMAT_STRING, YtError, YtResponseError
 
@@ -122,7 +122,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
     @authors("asaitgalin")
     def test_basic_sanity(self):
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
 
@@ -161,7 +161,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
             assert any("archivation" in alert["message"] for alert in get("//sys/scheduler/@alerts"))
 
     def _test_start_stop_impl(self, command, lookup_timeout=None, max_failed_job_count=1):
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
 
@@ -186,7 +186,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
     @authors("asaitgalin")
     def test_revive(self):
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
 
@@ -201,7 +201,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
     @authors("asaitgalin")
     def test_max_operation_count_per_user(self):
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
         ops = _run_maps_parallel(5, "false", expect_fail=True)
@@ -256,7 +256,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
     @authors("omgronny")
     def test_get_original_path(self):
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
 
@@ -281,7 +281,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
     @authors("omgronny")
     def test_profiling(self):
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
 
@@ -331,7 +331,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
     @authors("omgronny")
     def test_locked_operations(self):
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
 

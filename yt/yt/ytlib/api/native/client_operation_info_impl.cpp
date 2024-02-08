@@ -13,7 +13,7 @@
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
-#include <yt/yt/client/api/operation_archive_schema.h>
+#include <yt/yt/client/api/operations_archive_schema.h>
 #include <yt/yt/client/api/rowset.h>
 
 #include <yt/yt/client/query_client/query_builder.h>
@@ -784,7 +784,7 @@ void TClient::DoListOperationsFromCypress(
         /*needHeavyRuntimeParameters*/ options.SubstrFilter.has_value());
 
     auto proxy = NObjectClient::CreateObjectServiceReadProxy(
-        GetOperationArchiveClient(),
+        GetOperationsArchiveClient(),
         options.ReadFrom,
         PrimaryMasterCellTagSentinel,
         Connection_->GetStickyGroupSizeCache());
@@ -1277,7 +1277,7 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
 
     if (options.AccessFilter) {
         auto proxy = NObjectClient::CreateObjectServiceReadProxy(
-            GetOperationArchiveClient(),
+            GetOperationsArchiveClient(),
             options.ReadFrom,
             PrimaryMasterCellTagSentinel,
             Connection_->GetStickyGroupSizeCache());

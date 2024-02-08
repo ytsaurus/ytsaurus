@@ -27,7 +27,7 @@ PY_SRCS(
     local_cluster_configuration.py
     helpers.py
     init_cluster.py
-    init_operation_archive.py
+    init_operations_archive.py
     init_queue_agent_state.py
     init_query_tracker_state.py
     porto_helpers.py

@@ -4,7 +4,7 @@ RECURSE(
     yt
 
     yt/environment/bin/yt_env_watcher_make
-    yt/environment/bin/init_operation_archive
+    yt/environment/bin/init_operations_archive
     yt/environment/bin/init_queue_agent_state
     yt/environment/bin/init_query_tracker_state
 

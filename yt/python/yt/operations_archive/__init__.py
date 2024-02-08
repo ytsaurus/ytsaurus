@@ -1,4 +1,4 @@
-from .clear_operations import (JobsCountGetter, OperationArchiver, StderrDownloader,
+from .clear_operations import (JobsCountGetter, OperationsArchiver, StderrDownloader,
                                StderrInserter, OperationCleaner, Operation,
                                OPERATIONS_ARCHIVE_PATH, clear_operations,
                                get_filter_factors, datestr_to_timestamp_legacy,

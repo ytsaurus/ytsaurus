@@ -9,7 +9,7 @@ from yt_commands import (
     map, run_test_vanilla,
     abort_job, list_jobs, get_job, sync_create_cells, update_op_parameters, create_test_tables)
 
-import yt.environment.init_operation_archive as init_operation_archive
+import yt.environment.init_operations_archive as init_operations_archive
 
 from flaky import flaky
 
@@ -421,7 +421,7 @@ class TestListSpeculativeJobs(YTEnvSetup):
     def setup_method(self, method):
         super(TestListSpeculativeJobs, self).setup_method(method)
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(),
             override_tablet_cell_bundle="default",
         )

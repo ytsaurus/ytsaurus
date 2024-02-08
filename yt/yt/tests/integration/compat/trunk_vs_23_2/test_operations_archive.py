@@ -4,7 +4,7 @@ from yt_commands import (
     with_breakpoint, release_breakpoint, sync_create_cells,
     get_operation)
 
-import yt.environment.init_operation_archive as init_operation_archive
+import yt.environment.init_operations_archive as init_operations_archive
 
 
 ##################################################################
@@ -52,12 +52,12 @@ class TestOperationsArchive(YTEnvSetup):
     def setup_method(self, method):
         super(TestOperationsArchive, self).setup_method(method)
         sync_create_cells(1)
-        init_operation_archive.create_tables(
+        init_operations_archive.create_tables(
             self.Env.create_native_client(),
             target_version=self.MIN_OPERATIONS_ARCHIVE_VERSION,
             override_tablet_cell_bundle="default",
             shard_count=1,
-            archive_path=init_operation_archive.DEFAULT_ARCHIVE_PATH)
+            archive_path=init_operations_archive.DEFAULT_ARCHIVE_PATH)
 
     @authors("ignat")
     def test(self):

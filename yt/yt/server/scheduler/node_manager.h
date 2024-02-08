@@ -22,7 +22,7 @@ struct INodeManagerHost
 
     virtual const ISchedulerStrategyPtr& GetStrategy() const = 0;
 
-    virtual int GetOperationArchiveVersion() const = 0;
+    virtual int GetOperationsArchiveVersion() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

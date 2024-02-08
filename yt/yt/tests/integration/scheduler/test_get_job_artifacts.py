@@ -11,7 +11,7 @@ from yt_commands import (
     gc_collect)
 
 
-import yt.environment.init_operation_archive as init_operation_archive
+import yt.environment.init_operations_archive as init_operations_archive
 from yt.wrapper.common import uuid_hash_pair
 from yt.common import parts_to_uuid, YtError
 import yt.yson as yson
@@ -106,7 +106,7 @@ class TestGetJobInput(YTEnvSetup):
         super(TestGetJobInput, self).setup_method(method)
         self._tmpdir = create_tmpdir("inputs")
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
 
@@ -616,7 +616,7 @@ class TestGetJobStderr(YTEnvSetup):
     def setup_method(self, method):
         super(TestGetJobStderr, self).setup_method(method)
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
 

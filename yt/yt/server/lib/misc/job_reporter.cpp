@@ -486,7 +486,7 @@ public:
         OperationIdHandler_->SetEnabled(enable);
     }
 
-    void SetOperationArchiveVersion(int version)
+    void SetOperationsArchiveVersion(int version)
     {
         Version_->Set(version);
     }
@@ -574,10 +574,10 @@ void TJobReporter::HandleJobReport(TJobReport&& jobReport)
     }
 }
 
-void TJobReporter::SetOperationArchiveVersion(int version)
+void TJobReporter::SetOperationsArchiveVersion(int version)
 {
     if (Impl_) {
-        Impl_->SetOperationArchiveVersion(version);
+        Impl_->SetOperationsArchiveVersion(version);
     }
 }
 

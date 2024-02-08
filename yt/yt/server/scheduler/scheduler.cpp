@@ -228,8 +228,8 @@ public:
             BIND_NO_PROPAGATE(&TImpl::HandleOperationsEffectiveAcl, Unretained(this)));
 
         MasterConnector_->AddCommonWatcher(
-            BIND_NO_PROPAGATE(&TImpl::RequestOperationArchiveVersion, Unretained(this)),
-            BIND_NO_PROPAGATE(&TImpl::HandleOperationArchiveVersion, Unretained(this)));
+            BIND_NO_PROPAGATE(&TImpl::RequestOperationsArchiveVersion, Unretained(this)),
+            BIND_NO_PROPAGATE(&TImpl::HandleOperationsArchiveVersion, Unretained(this)));
 
         MasterConnector_->AddCommonWatcher(
             BIND_NO_PROPAGATE(&TImpl::RequestClusterName, Unretained(this)),
@@ -1544,11 +1544,11 @@ public:
         return OperationsCleaner_;
     }
 
-    int GetOperationArchiveVersion() const final
+    int GetOperationsArchiveVersion() const final
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return OperationArchiveVersion_.load();
+        return OperationsArchiveVersion_.load();
     }
 
     TSerializableAccessControlList GetOperationBaseAcl() const
@@ -1791,7 +1791,7 @@ private:
     std::unique_ptr<IYsonConsumer> ControlEventLogWriterConsumer_;
     std::unique_ptr<IYsonConsumer> OffloadedEventLogWriterConsumer_;
 
-    std::atomic<int> OperationArchiveVersion_ = -1;
+    std::atomic<int> OperationsArchiveVersion_ = -1;
 
     TEnumIndexedArray<EOperationState, std::vector<TOperationPtr>> StateToTransientOperations_;
     TInstant OperationToAgentAssignmentFailureTime_;
@@ -2361,17 +2361,17 @@ private:
     }
 
 
-    void RequestOperationArchiveVersion(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    void RequestOperationsArchiveVersion(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
         YT_LOG_INFO("Requesting operation archive version");
 
         auto req = TYPathProxy::Get(GetOperationsArchiveVersionPath());
-        batchReq->AddRequest(req, "get_operation_archive_version");
+        batchReq->AddRequest(req, "get_operations_archive_version");
     }
 
-    void HandleOperationArchiveVersion(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    void HandleOperationsArchiveVersion(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
-        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_operation_archive_version");
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_operations_archive_version");
         if (!rspOrError.IsOK()) {
             YT_LOG_INFO(rspOrError, "Error getting operation archive version");
             return;
@@ -2379,7 +2379,7 @@ private:
 
         try {
             auto version = ConvertTo<int>(TYsonString(rspOrError.Value()->value()));
-            OperationArchiveVersion_.store(version, std::memory_order::relaxed);
+            OperationsArchiveVersion_.store(version, std::memory_order::relaxed);
             OperationsCleaner_->SetArchiveVersion(version);
             SetSchedulerAlert(ESchedulerAlertType::UpdateArchiveVersion, TError());
 
@@ -4547,9 +4547,9 @@ TSerializableAccessControlList TScheduler::GetOperationBaseAcl() const
     return Impl_->GetOperationBaseAcl();
 }
 
-int TScheduler::GetOperationArchiveVersion() const
+int TScheduler::GetOperationsArchiveVersion() const
 {
-    return Impl_->GetOperationArchiveVersion();
+    return Impl_->GetOperationsArchiveVersion();
 }
 
 TString TScheduler::FormatResources(const TJobResourcesWithQuota& resources) const

@@ -1,7 +1,7 @@
 from .helpers import (get_tests_location, get_tests_sandbox,
                       wait, sync_create_cell, create_job_events, TEST_DIR)
 
-import yt.environment.init_operation_archive as init_operation_archive
+import yt.environment.init_operations_archive as init_operations_archive
 from yt.test_helpers.authors import pytest_configure, pytest_collection_modifyitems, pytest_itemcollected  # noqa
 from yt.testlib import YtTestEnvironment, authors, test_method_teardown, ASAN_USER_JOB_MEMORY_LIMIT  # noqa
 
@@ -187,7 +187,7 @@ def test_environment_job_archive(request):
     )
 
     sync_create_cell()
-    init_operation_archive.create_tables_latest_version(yt, override_tablet_cell_bundle="default")
+    init_operations_archive.create_tables_latest_version(yt, override_tablet_cell_bundle="default")
     return environment
 
 
@@ -228,7 +228,7 @@ def test_environment_job_archive_porto(request):
     )
 
     sync_create_cell()
-    init_operation_archive.create_tables_latest_version(yt, override_tablet_cell_bundle="default")
+    init_operations_archive.create_tables_latest_version(yt, override_tablet_cell_bundle="default")
     return environment
 
 

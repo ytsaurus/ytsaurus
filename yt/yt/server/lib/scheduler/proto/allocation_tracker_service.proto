@@ -83,7 +83,7 @@ message TRspHeartbeat
     repeated TAllocationToAbort allocations_to_abort = 2;
     repeated TAllocationToPreempt allocations_to_preempt = 3;
     optional bool scheduling_skipped = 4;
-    optional int32 operation_archive_version = 5;
+    optional int32 operations_archive_version = 5;
 
     repeated TOperationInfo operation_infos = 10;
 

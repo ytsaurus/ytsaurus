@@ -118,7 +118,7 @@ class JobsCountGetter(object):
         for op, rsp in zip(operations, responses):
             self.operations_with_job_counts.append((op, 0 if not rsp.is_ok() else rsp.get_result()))
 
-class OperationArchiver(object):
+class OperationsArchiver(object):
     ATTRIBUTES = [
         "brief_statistics",
         "error",
@@ -700,7 +700,7 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
         with timers["archiving_operations"]:
             run_batching_queue_workers(
                 archive_queue,
-                OperationArchiver,
+                OperationsArchiver,
                 thread_count,
                 (client_factory, remove_queue, stderr_queue, version, archive_jobs, thread_safe_metrics),
                 batch_size=32,

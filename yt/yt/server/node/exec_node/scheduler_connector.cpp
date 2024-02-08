@@ -346,8 +346,8 @@ void TSchedulerConnector::DoProcessHeartbeatResponse(
 {
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
-    if (response->has_operation_archive_version()) {
-        Bootstrap_->GetJobReporter()->SetOperationArchiveVersion(response->operation_archive_version());
+    if (response->has_operations_archive_version()) {
+        Bootstrap_->GetJobReporter()->SetOperationsArchiveVersion(response->operations_archive_version());
     }
 
     const auto& jobController = Bootstrap_->GetJobController();

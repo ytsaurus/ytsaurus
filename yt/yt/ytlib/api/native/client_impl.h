@@ -904,7 +904,7 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ReplicaClientsLock_);
     THashMap<TString, TIntrusivePtr<TReplicaClient>> ReplicaClients_;
 
-    const IClientPtr& GetOperationArchiveClient();
+    const IClientPtr& GetOperationsArchiveClient();
 
     template <class T>
     TFuture<T> Execute(

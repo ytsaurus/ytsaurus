@@ -6,7 +6,7 @@ from yt_commands import (
     update_controller_agent_config,
     write_table, get_operation, exists, get_operation_cypress_path, sync_create_cells, raises_yt_error, disable_scheduler_jobs_on_node)
 
-import yt.environment.init_operation_archive as init_operation_archive
+import yt.environment.init_operations_archive as init_operations_archive
 
 import time
 
@@ -85,7 +85,7 @@ class TestControllerFeatures(YTEnvSetup):
     def setup_method(self, method):
         super(TestControllerFeatures, self).setup_method(method)
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
 

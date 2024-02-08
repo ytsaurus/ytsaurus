@@ -9,7 +9,7 @@ from yt_commands import (
     run_test_vanilla,
     with_breakpoint, wait_breakpoint, release_breakpoint)
 
-import yt.environment.init_operation_archive as init_operation_archive
+import yt.environment.init_operations_archive as init_operations_archive
 
 import pytest
 
@@ -1049,7 +1049,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         self.setup_tables()
 
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(
+        init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(),
             override_tablet_cell_bundle="default",
         )

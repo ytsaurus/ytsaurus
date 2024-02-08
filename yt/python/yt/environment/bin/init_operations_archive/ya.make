@@ -1,4 +1,4 @@
-PY3_PROGRAM(init_operation_archive)
+PY3_PROGRAM(init_operations_archive)
 
 PEERDIR(
     yt/python/yt/environment
@@ -6,7 +6,7 @@ PEERDIR(
     yt/yt/python/yt_yson_bindings
 )
 
-COPY_FILE(yt/python/yt/environment/init_operation_archive.py __main__.py)
+COPY_FILE(yt/python/yt/environment/init_operations_archive.py __main__.py)
 
 PY_SRCS(__main__.py)
 

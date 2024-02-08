@@ -34,7 +34,7 @@ $ yt-job-tool prepare-job-environment 84702787-e6196e33-3fe03e8-f0f415f8 3c9a3b9
 $ yt-job-tool run-job <job_path>
 """
 
-OPERATION_ARCHIVE_JOBS_PATH = "//sys/operations_archive/jobs"
+OPERATIONS_ARCHIVE_JOBS_PATH = "//sys/operations_archive/jobs"
 
 JobInfo = collections.namedtuple("JobInfo", ["job_type", "is_running", "task_name"])
 

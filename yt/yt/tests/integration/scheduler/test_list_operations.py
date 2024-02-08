@@ -7,7 +7,7 @@ from yt_commands import (
     list_operations, clean_operations, sync_create_cells, sync_mount_table,
     sync_unmount_table, make_random_string)
 
-import yt.environment.init_operation_archive as init_operation_archive
+import yt.environment.init_operations_archive as init_operations_archive
 
 from yt.common import YT_DATETIME_FORMAT_STRING, uuid_to_parts, YtError
 
@@ -138,7 +138,7 @@ class ListOperationsSetup(YTEnvSetup):
 
         if self.include_archive:
             sync_create_cells(1)
-            init_operation_archive.create_tables_latest_version(
+            init_operations_archive.create_tables_latest_version(
                 self.Env.create_native_client(),
                 override_tablet_cell_bundle="default",
             )
@@ -1194,4 +1194,4 @@ class TestArchiveVersion(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     def test_basic(self):
-        assert init_operation_archive.get_latest_version() == get("//sys/scheduler/orchid/scheduler/config/min_required_archive_version")
+        assert init_operations_archive.get_latest_version() == get("//sys/scheduler/orchid/scheduler/config/min_required_archive_version")
