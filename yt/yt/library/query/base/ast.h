@@ -454,11 +454,15 @@ struct TArrayJoin
     bool IsLeft;
     TExpressionList Columns;
 
+    TNullableExpressionList Predicate;
+
     TArrayJoin(
         bool isLeft,
-        const TExpressionList& columns)
+        const TExpressionList& columns,
+        const TNullableExpressionList& predicate)
         : IsLeft(isLeft)
         , Columns(columns)
+        , Predicate(predicate)
     { }
 
     bool operator==(const TArrayJoin& other) const = default;

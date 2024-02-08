@@ -659,6 +659,22 @@ TEST_F(TQueryPrepareTest, ArrayJoin)
         EXPECT_EQ(nested->GetWireType(), EValueType::Composite);
         EXPECT_EQ(aliased->GetWireType(), EValueType::Int64);
     }
+
+    {
+        query = PreparePlanFragment(&PrepareMock_, "T.key FROM [//t] AS T ARRAY JOIN T.nested AS N AND N = 2")->Query;
+        const auto* originalColumn = query->Schema.Original->FindColumn("nested");
+        const auto* flattenedColumn = query->JoinClauses[0]->Schema.Original->FindColumn("N");
+        EXPECT_EQ(originalColumn->GetWireType(), EValueType::Composite);
+        EXPECT_EQ(flattenedColumn->GetWireType(), EValueType::Int64);
+
+        EXPECT_TRUE(query->JoinClauses[0]->ForeignJoinedColumns.empty());
+
+        schema = query->GetTableSchema();
+        const auto* nested = schema->FindColumn("T.nested");
+        EXPECT_FALSE(nested);
+        const auto* aliased = schema->FindColumn("N");
+        EXPECT_FALSE(aliased);
+    }
 }
 
 TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
@@ -4069,7 +4085,7 @@ TEST_F(TQueryEvaluateTest, ArrayJoinSimple)
     }, resultSplit);
 
     Evaluate(
-        "a, flattenedA, flattenedB FROM [//t] array join nestedA as flattenedA, nestedB as flattenedB",
+        "a, flattenedA, flattenedB FROM [//t] ARRAY JOIN nestedA AS flattenedA, nestedB AS flattenedB",
         split,
         source,
         ResultMatcher(result));
@@ -4087,10 +4103,33 @@ TEST_F(TQueryEvaluateTest, ArrayJoinSimple)
     }, resultSplit);
 
     Evaluate(
-        "a, flattenedA, flattenedB FROM [//t] left array join nestedA as flattenedA, nestedB as flattenedB",
+        "a, flattenedA, flattenedB FROM [//t] LEFT ARRAY JOIN nestedA AS flattenedA, nestedB AS flattenedB",
         split,
         source,
         ResultMatcher(resultWithLeft));
+
+    resultSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"flattenedA", EValueType::Int64},
+    });
+
+    auto resultPartialColumnUse = YsonToRows({
+        "a=1; flattenedA=1;",
+        "a=1; flattenedA=2;",
+        "a=1; flattenedA=3;",
+        "a=1; flattenedA=4;",
+        "a=3; flattenedA=5;",
+        "a=3; flattenedA=6;",
+        "a=3; flattenedA=7;",
+        "a=3;              ",
+        "a=5;              ",
+    }, resultSplit);
+
+    Evaluate(
+        "a, flattenedA FROM [//t] LEFT ARRAY JOIN nestedA AS flattenedA, nestedB AS flattenedB",
+        split,
+        source,
+        ResultMatcher(resultPartialColumnUse));
 
     SUCCEED();
 }
@@ -4140,10 +4179,48 @@ TEST_F(TQueryEvaluateTest, ArrayJoinWithTableJoin)
     Evaluate(R"(
         key, flattenedA, flattenedB
         FROM [//a]
-        array join nestedA as flattenedA
-        join [//b] using key
-        array join nestedB as flattenedB
+        ARRAY JOIN nestedA AS flattenedA
+        JOIN [//b] USING key
+        ARRAY JOIN nestedB AS flattenedB
     )", splits, sources, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, ArrayJoinWithPredicate)
+{
+    std::vector<TString> source{
+        "key=1;nestedA=[1;2;3;4];nestedB=[-1;-2;-3]",
+        "key=3;nestedA=[5;6;7];nestedB=[-5;-6;-7;-8]",
+        "key=5;nestedA=[9];nestedB=[-9]",
+    };
+
+    auto split = MakeSplit({
+        {"key", EValueType::Int64},
+        {"nestedA", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        {"nestedB", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+    });
+
+    auto resultSplit = MakeSplit({
+        {"key", EValueType::Int64},
+        {"flattenedA", EValueType::Int64},
+        {"flattenedB", EValueType::Int64},
+    });
+
+    auto result = YsonToRows({
+        "key=1; flattenedA=1; flattenedB=-1",
+        "key=1; flattenedA=2; flattenedB=-2",
+        "key=1; flattenedA=3; flattenedB=-3",
+        "key=1; flattenedA=4;              ",
+        "key=3; flattenedA=5; flattenedB=-5",
+        "key=5;                            ",
+    }, resultSplit);
+
+    Evaluate(R"(
+        key, flattenedA, flattenedB
+        FROM [//t]
+        LEFT ARRAY JOIN nestedA AS flattenedA, nestedB AS flattenedB AND flattenedA IN (1, 2, 3, 4, 5)
+    )", split, source, ResultMatcher(result));
 
     SUCCEED();
 }

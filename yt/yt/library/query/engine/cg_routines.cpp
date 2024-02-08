@@ -746,119 +746,132 @@ void MultiJoinOpHelper(
     closure.ProcessJoinBatch();
 }
 
+using TArrayJoinPredicate = bool (*)(void** closure, TExpressionContext*, const TPIValue* row);
+
 bool ArrayJoinOpHelper(
     TExpressionContext* context,
     TArrayJoinParameters* parameters,
     TPIValue* row,
     TPIValue* arrays,
     void** consumeRowsClosure,
-    TRowsConsumer consumeRowsFunction)
+    TRowsConsumer consumeRowsFunction,
+    void** predicateClosure,
+    TArrayJoinPredicate predicateFunction)
 {
     auto consumeRows = PrepareFunction(consumeRowsFunction);
 
     int arrayCount = parameters->FlattenedTypes.size();
-    std::vector<const TPIValue*> rows;
-    std::vector<TPIValueRange> flattenedArrays(arrayCount);
-    size_t maxArraySize = 0;
-
-    std::vector<TUnversionedValue> unpackedItems;
+    std::vector<TPIValue*> nestedRows;
+    std::vector<const TPIValue*> filteredRows;
 
     for (int index = 0; index < arrayCount; ++index) {
         if (arrays[index].Type == EValueType::Null) {
             continue;
         }
-        TMemoryInput memoryInput(FromPositionIndependentValue<NYson::TYsonStringBuf>(arrays[index]).AsStringBuf());
 
+        TMemoryInput memoryInput(FromPositionIndependentValue<NYson::TYsonStringBuf>(arrays[index]).AsStringBuf());
         TYsonPullParser parser(&memoryInput, EYsonType::Node);
         TYsonPullParserCursor cursor(&parser);
 
         auto listItemType = parameters->FlattenedTypes[index];
-
-
-        unpackedItems.clear();
-
+        TPIValue parsedValue;
+        int currentArrayIndex = 0;
         cursor.ParseList([&] (TYsonPullParserCursor* cursor) {
             auto currentType = cursor->GetCurrent().GetType();
-            if (currentType == NYson::EYsonItemType::EntityValue) {
-                unpackedItems.emplace_back(MakeUnversionedNullValue());
-                cursor->Next();
-                return;
-            }
-            switch (listItemType) {
-                case EValueType::Int64: {
+            switch (currentType) {
+                case EYsonItemType::EntityValue: {
+                    MakePositionIndependentNullValue(&parsedValue);
+                    break;
+                }
+                case EYsonItemType::Int64Value: {
                     THROW_ERROR_EXCEPTION_IF(
-                        currentType != EYsonItemType::Int64Value,
+                        listItemType != EValueType::Int64,
                         "Type mismatch in array join");
 
                     auto value = cursor->GetCurrent().UncheckedAsInt64();
-                    unpackedItems.emplace_back(MakeUnversionedInt64Value(value));
+                    MakePositionIndependentInt64Value(&parsedValue, value);
                     break;
                 }
-                case EValueType::Uint64: {
+                case EYsonItemType::Uint64Value: {
                     THROW_ERROR_EXCEPTION_IF(
-                        currentType != EYsonItemType::Uint64Value,
+                        listItemType != EValueType::Uint64,
                         "Type mismatch in array join");
 
                     auto value = cursor->GetCurrent().UncheckedAsUint64();
-                    unpackedItems.emplace_back(MakeUnversionedUint64Value(value));
+                    MakePositionIndependentUint64Value(&parsedValue, value);
                     break;
                 }
-                case EValueType::Double: {
+                case EYsonItemType::DoubleValue: {
                     THROW_ERROR_EXCEPTION_IF(
-                        currentType != EYsonItemType::DoubleValue,
+                        listItemType != EValueType::Double,
                         "Type mismatch in array join");
 
                     auto value = cursor->GetCurrent().UncheckedAsDouble();
-                    unpackedItems.emplace_back(MakeUnversionedDoubleValue(value));
+                    MakePositionIndependentDoubleValue(&parsedValue, value);
                     break;
                 }
-                case EValueType::String: {
+                case EYsonItemType::StringValue: {
                     THROW_ERROR_EXCEPTION_IF(
-                        currentType != EYsonItemType::StringValue,
+                        listItemType != EValueType::String,
                         "Type mismatch in array join");
 
                     auto value = cursor->GetCurrent().UncheckedAsString();
-                    unpackedItems.emplace_back(MakeUnversionedStringValue(value));
+                    MakePositionIndependentStringValue(&parsedValue, value);
                     break;
-
                 }
                 default:
-                    YT_ABORT();
+                    THROW_ERROR_EXCEPTION("Type mismatch in array join");
             }
+
+            if (currentArrayIndex >= std::ssize(nestedRows)) {
+                auto mutableRange = AllocatePIValueRange(context, arrayCount);
+                for (int leadingRowIndex = 0; leadingRowIndex < index; ++leadingRowIndex) {
+                    MakePositionIndependentNullValue(&mutableRange[leadingRowIndex]);
+                }
+                nestedRows.push_back(mutableRange.Begin());
+            }
+            CopyPositionIndependent(&nestedRows[currentArrayIndex][index], parsedValue);
+            currentArrayIndex++;
             cursor->Next();
         });
 
-        maxArraySize = std::max(maxArraySize, unpackedItems.size());
-        flattenedArrays[index] = CapturePIValueRange(context, MakeRange(unpackedItems), true);
+        for (int trailingIndex = currentArrayIndex; trailingIndex < std::ssize(nestedRows); ++trailingIndex) {
+            MakePositionIndependentNullValue(&nestedRows[trailingIndex][index]);
+        }
     }
 
-    if (maxArraySize == 0 && parameters->IsLeft) {
-        maxArraySize = 1;
+    int valueCount = parameters->SelfJoinedColumns.size() + parameters->ArrayJoinedColumns.size();
+
+    for (const auto* nestedRow : nestedRows) {
+        if (predicateFunction(predicateClosure, context, nestedRow)) {
+            int joinedRowIndex = 0;
+            auto joinedRow = AllocatePIValueRange(context, valueCount);
+            for (int index : parameters->SelfJoinedColumns) {
+                CopyPositionIndependent(&joinedRow[joinedRowIndex++], row[index]);
+            }
+            for (int index : parameters->ArrayJoinedColumns) {
+                CopyPositionIndependent(&joinedRow[joinedRowIndex++], nestedRow[index]);
+            }
+            filteredRows.push_back(joinedRow.Begin());
+        }
     }
 
-    rows.reserve(maxArraySize);
-
-    for (int rowIndex = 0; rowIndex < static_cast<int>(maxArraySize); ++rowIndex) {
-        auto joinedRow = AllocatePIValueRange(
-            context,
-            parameters->SelfJoinedColumns.size() + parameters->ArrayJoinedColumns.size());
-
+    if (parameters->IsLeft && filteredRows.empty()) {
         int joinedRowIndex = 0;
+        auto joinedRow = AllocatePIValueRange(context, valueCount);
+
         for (int index : parameters->SelfJoinedColumns) {
             CopyPositionIndependent(&joinedRow[joinedRowIndex++], row[index]);
         }
         for (int index : parameters->ArrayJoinedColumns) {
-            if (rowIndex >= static_cast<int>(flattenedArrays[index].Size())) {
-                MakePositionIndependentNullValue(&joinedRow[joinedRowIndex++]);
-            } else {
-                CopyPositionIndependent(&joinedRow[joinedRowIndex++], flattenedArrays[index][rowIndex]);
-            }
+            Y_UNUSED(index);
+            MakePositionIndependentNullValue(&joinedRow[joinedRowIndex++]);
         }
 
-        rows.push_back(joinedRow.Begin());
+        filteredRows.push_back(joinedRow.Begin());
     }
 
-    return consumeRows(consumeRowsClosure, context, rows.data(), rows.size());
+    return consumeRows(consumeRowsClosure, context, filteredRows.data(), filteredRows.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

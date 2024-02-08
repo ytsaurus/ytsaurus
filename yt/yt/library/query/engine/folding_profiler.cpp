@@ -1656,19 +1656,29 @@ void TQueryProfiler::Profile(
             Fold(static_cast<int>(EFoldingObjectType::ArrayJoinOp));
 
             const auto& arrayExpressions = arrayJoinClause->ArrayExpressions;
-            int arrayCount = arrayExpressions.size();
             auto renamedJoinSchema = arrayJoinClause->GetRenamedSchema();
+            int arrayCount = arrayExpressions.size();
 
-            TExpressionFragments arrayFragments;
+            YT_VERIFY(arrayCount == renamedJoinSchema->GetColumnCount());
+
+            TExpressionFragments arrayAndPredicateFragments;
+            auto predicateExpression = (arrayJoinClause->Predicate && !IsTrue(arrayJoinClause->Predicate))
+                ? arrayJoinClause->Predicate
+                : New<TLiteralExpression>(EValueType::Boolean, MakeUnversionedBooleanValue(true));
+            size_t predicateId = TExpressionProfiler::Profile(
+                predicateExpression,
+                renamedJoinSchema,
+                &arrayAndPredicateFragments);
+
             std::vector<size_t> arrayIds(arrayCount);
             for (int index = 0; index < arrayCount; ++index) {
                 arrayIds[index] = TExpressionProfiler::Profile(
                     arrayExpressions[index],
                     schema,
-                    &arrayFragments);
+                    &arrayAndPredicateFragments);
             }
 
-            auto fragmentInfos = arrayFragments.ToFragmentInfos("joinedArrays");
+            auto fragmentInfos = arrayAndPredicateFragments.ToFragmentInfos("joinedArrays");
 
             std::vector<int> selfJoinedColumns;
             selfJoinedColumns.reserve(arrayJoinClause->SelfJoinedColumns.size());
@@ -1679,14 +1689,12 @@ void TQueryProfiler::Profile(
                 }
             }
 
-            YT_VERIFY(arrayCount == renamedJoinSchema->GetColumnCount());
-
             std::vector<int> arrayJoinedColumns;
             std::vector<EValueType> rowTypes(arrayCount);
             arrayJoinedColumns.reserve(arrayJoinClause->ForeignJoinedColumns.size());
             for (int index = 0; index < renamedJoinSchema->GetColumnCount(); ++index) {
-                rowTypes[index] = renamedJoinSchema->Columns()[index].GetWireType();
                 const auto& column = renamedJoinSchema->Columns()[index];
+                rowTypes[index] = column.GetWireType();
                 if (arrayJoinClause->ForeignJoinedColumns.contains(column.Name())) {
                     arrayJoinedColumns.push_back(index);
                 }
@@ -1707,7 +1715,8 @@ void TQueryProfiler::Profile(
                 currentSlot,
                 fragmentInfos,
                 std::move(arrayIds),
-                parametersIndex);
+                parametersIndex,
+                predicateId);
             MakeCodegenFragmentBodies(codegenSource, fragmentInfos);
 
             schema = arrayJoinClause->GetTableSchema(*schema);
