@@ -17,10 +17,12 @@ using namespace NYTree;
 
 NBundleControllerClient::TBundleConfigDescriptorPtr TClient::DoGetBundleConfig(
     const TString& bundleName,
-    const NBundleControllerClient::TGetBundleConfigOptions& /*options*/)
+    const NBundleControllerClient::TGetBundleConfigOptions& options)
 {
     auto req = BundleControllerProxy_->GetBundleConfig();
     req->set_bundle_name(bundleName);
+
+    req->SetTimeout(options.Timeout);
 
     WaitFor(req->Invoke())
         .ThrowOnError();
@@ -50,12 +52,14 @@ NBundleControllerClient::TBundleConfigDescriptorPtr TClient::DoGetBundleConfig(
 void TClient::DoSetBundleConfig(
     const TString& bundleName,
     const NBundleControllerClient::TBundleTargetConfigPtr& bundleConfig,
-    const NBundleControllerClient::TSetBundleConfigOptions& /*options*/)
+    const NBundleControllerClient::TSetBundleConfigOptions& options)
 {
     auto req = BundleControllerProxy_->SetBundleConfig();
 
     req->set_bundle_name(bundleName);
     NBundleControllerClient::NProto::ToProto(req->mutable_bundle_config(), bundleConfig);
+
+    req->SetTimeout(options.Timeout);
 
     WaitFor(req->Invoke())
         .ThrowOnError();

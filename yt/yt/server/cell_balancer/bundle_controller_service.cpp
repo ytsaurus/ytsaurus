@@ -56,30 +56,37 @@ private:
     inline static const TString BundleAttributeTargetConfig = "bundle_controller_target_config";
     inline static const TString BundleAttributeZone = "zone";
 
-    NBundleControllerClient::TBundleTargetConfigPtr GetBundleConfig(const TString& bundleName)
+    NBundleControllerClient::TBundleTargetConfigPtr GetBundleConfig(const TString& bundleName, std::optional<TDuration> timeout)
     {
         auto path = Format("%v/%v/@%v", TabletCellBundlesPath, NYPath::ToYPathLiteral(bundleName), BundleAttributeTargetConfig);
+
+        NApi::TGetNodeOptions getOptions;
+        getOptions.Timeout = timeout;
+
         auto yson = NConcurrency::WaitFor(Bootstrap_
             ->GetClient()
-            ->GetNode(path))
+            ->GetNode(path, getOptions))
             .ValueOrThrow();
 
         return NYTree::ConvertTo<NBundleControllerClient::TBundleTargetConfigPtr>(yson);
     }
 
-    NBundleControllerClient::TBundleConfigConstraintsPtr GetBundleConstraints(const TString& bundleName)
+    NBundleControllerClient::TBundleConfigConstraintsPtr GetBundleConstraints(const TString& bundleName, std::optional<TDuration> timeout)
     {
+        NApi::TGetNodeOptions getOptions;
+        getOptions.Timeout = timeout;
+
         auto zoneNamePath = Format("%v/%v/@%v", TabletCellBundlesPath, NYPath::ToYPathLiteral(bundleName), BundleAttributeZone);
         auto zoneNameYson = NConcurrency::WaitFor(Bootstrap_
             ->GetClient()
-            ->GetNode(zoneNamePath))
+            ->GetNode(zoneNamePath, getOptions))
             .ValueOrThrow();
         TString zoneName = NYTree::ConvertTo<TString>(zoneNameYson);
 
         auto zoneInfoPath = Format("%v/%v/@", ZoneBundlesPath, NYPath::ToYPathLiteral(zoneName));
         auto zoneInfoYson = NConcurrency::WaitFor(Bootstrap_
             ->GetClient()
-            ->GetNode(zoneInfoPath))
+            ->GetNode(zoneInfoPath, getOptions))
             .ValueOrThrow();
 
         auto zoneInfo = NYTree::ConvertTo<NCellBalancer::TZoneInfoPtr>(zoneInfoYson);
@@ -98,10 +105,13 @@ private:
         return result;
     }
 
-    void SetBundleConfig(const TString& bundleName, NBundleControllerClient::TBundleTargetConfigPtr& config)
+    void SetBundleConfig(const TString& bundleName, NBundleControllerClient::TBundleTargetConfigPtr& config, std::optional<TDuration> timeout)
     {
         auto path = Format("%v/%v/@%v", TabletCellBundlesPath, NYPath::ToYPathLiteral(bundleName), BundleAttributeTargetConfig);
+
         NApi::TSetNodeOptions setOptions;
+        setOptions.Timeout = timeout;
+
         NConcurrency::WaitFor(Bootstrap_
             ->GetClient()
             ->SetNode(path, NYson::ConvertToYsonString(config), setOptions))
@@ -114,8 +124,10 @@ private:
         context->SetRequestInfo("BundleName: %v",
             bundleName);
 
-        auto bundleConfig = GetBundleConfig(bundleName);
-        auto bundleConfigConstraints = GetBundleConstraints(bundleName);
+        auto timeout = context->GetTimeout();
+
+        auto bundleConfig = GetBundleConfig(bundleName, timeout);
+        auto bundleConfigConstraints = GetBundleConstraints(bundleName, timeout);
 
         response->set_bundle_name(bundleName);
 
@@ -131,12 +143,14 @@ private:
         context->SetRequestInfo("BundleName: %v",
             bundleName);
 
+        auto timeout = context->GetTimeout();
+
         const auto& patchConfig = request->bundle_config();
 
-        auto bundleConfig = GetBundleConfig(bundleName);
+        auto bundleConfig = GetBundleConfig(bundleName, timeout);
         NBundleControllerClient::NProto::FromProto(bundleConfig, &patchConfig);
 
-        SetBundleConfig(bundleName, bundleConfig);
+        SetBundleConfig(bundleName, bundleConfig, timeout);
 
         context->Reply();
     }
