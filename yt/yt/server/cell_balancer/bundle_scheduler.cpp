@@ -253,19 +253,23 @@ private:
 
         const auto& resourceUsage = GetOrCrash(input.BundleResourceTarget, bundleName);
         if (instanceCountToAllocate > 0 && IsResourceUsageExceeded(resourceUsage, bundleInfo->ResourceQuota)) {
-            YT_LOG_WARNING("Bundle resource usage exceeded quota (Bundle: %v, ResourceQuota: %v, ResourceUsage: %v)",
+            YT_LOG_WARNING("Bundle resource usage exceeded quota (Bundle: %v, ResourceQuota: {\"vcpu\": %v; \"memory\": %v}, ResourceUsage: {\"vcpu\": %v; \"memory\": %v})",
                 bundleName,
-                ConvertToYsonString(bundleInfo->ResourceQuota, EYsonFormat::Text),
-                ConvertToYsonString(resourceUsage, EYsonFormat::Text));
+                bundleInfo->ResourceQuota->Vcpu(),
+                bundleInfo->ResourceQuota->Memory,
+                resourceUsage->Vcpu,
+                resourceUsage->Memory);
 
             mutations->AlertsToFire.push_back(TAlert{
                 .Id = "bundle_resource_quota_exceeded",
                 .BundleName = bundleName,
-                .Description = Format("Cannot allocate new %v for bundle %v. ResourceQuota: %v, ResourceUsage: %v",
+                .Description = Format("Cannot allocate new %v instance for bundle %v. ResourceQuota: {\"vcpu\": %v; \"memory\": %v}, ResourceUsage: {\"vcpu\": %v; \"memory\": %v}",
                     adapter->GetInstanceType(),
                     bundleName,
-                    ConvertToYsonString(bundleInfo->ResourceQuota, EYsonFormat::Text),
-                    ConvertToYsonString(resourceUsage, EYsonFormat::Text))
+                    bundleInfo->ResourceQuota->Vcpu(),
+                    bundleInfo->ResourceQuota->Memory,
+                    resourceUsage->Vcpu,
+                    resourceUsage->Memory)
             });
             return;
         }
