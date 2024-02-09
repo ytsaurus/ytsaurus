@@ -59,6 +59,7 @@ DEFINE_ENUM(ETabletReign,
     ((SaneTxActionAbortFix)                        (100906)) // kvk1920
     ((SmoothTabletMovement)                        (100907)) // ifsmirnov
     ((DistributedTabletPrerequisites)              (100908)) // gritukan
+    ((HiveManagerLamportTimestamp)                 (100909)) // danilalexeev
     // 24.2 starts here.
     ((Start_24_2)                                  (101000)) // ponasenko-rs
 );
