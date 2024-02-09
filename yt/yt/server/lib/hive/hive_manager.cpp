@@ -494,15 +494,17 @@ private:
     class TLamportClock
     {
     public:
-        TLogicalTime Tick()
+        TLogicalTime Tick(TLogicalTime externalTime = {})
         {
-            return TLogicalTime(++LocalTime_.Underlying());
-        }
+            // COMPAT(danilalexeev)
+            auto reign = GetCurrentMutationContext()->Request().Reign;
+            // ETabletReign::HiveManagerLamportTimestamp = 100909.
+            if (reign >= 100000 && reign < 100909) {
+                return {};
+            }
 
-        TLogicalTime Tick(TLogicalTime externalTime)
-        {
             LocalTime_ = std::max(LocalTime_, externalTime);
-            return Tick();
+            return TLogicalTime(++LocalTime_.Underlying());
         }
 
         TLogicalTime GetTime() const
