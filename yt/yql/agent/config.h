@@ -16,6 +16,99 @@ namespace NYT::NYqlAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TVanillaJobFile
+    : public NYTree::TYsonStruct
+{
+    TString Name;
+    TString LocalPath;
+
+    REGISTER_YSON_STRUCT(TVanillaJobFile);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TVanillaJobFile)
+
+class TDqYtBackend
+    : public NYTree::TYsonStruct
+{
+    TString ClusterName;
+    ui32 JobsPerOperation;
+    ui32 MaxJobs;
+    TString VanillaJobLite;
+    TString VanillaJobCommand;
+    std::vector<TVanillaJobFilePtr> VanillaJobFiles;
+    TString Prefix;
+    ui32 UploadReplicationFactor;
+    TString TokenFile;
+    TString User;
+    TString Pool;
+    std::vector<TString> PoolTrees;
+    std::vector<TString> Owner;
+    i64 CpuLimit;
+    i32 WorkerCapacity;
+    i64 MemoryLimit;
+    i64 CacheSize;
+    bool UseTmpFs;
+    TString NetworkProject;
+    bool CanUseComputeActor;
+    bool EnforceJobUtc;
+
+    REGISTER_YSON_STRUCT(TDqYtBackend);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDqYtBackend)
+
+class TDqYtCoordinator
+    : public NYTree::TYsonStruct
+{
+    TString ClusterName;
+    TString Prefix;
+    TString TokenFile;
+    TString User;
+    TString DebugLogFile;
+
+    REGISTER_YSON_STRUCT(TDqYtCoordinator);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDqYtCoordinator)
+
+class TDqICSettings
+    : public NYTree::TYsonStruct
+{
+    i64 CloseOnIdleMs;
+
+    REGISTER_YSON_STRUCT(TDqICSettings);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDqICSettings)
+
+class TDqManagerConfig
+    : public NYTree::TYsonStruct
+{
+    ui16 InterconnectPort;
+    ui16 GrpcPort;
+    ui32 ActorThreads;
+    bool UseIPv4;
+    std::vector<TDqYtBackendPtr> YtBackends;
+    TDqYtCoordinatorPtr YtCoordinator;
+    TDqICSettingsPtr ICSettings;
+
+    REGISTER_YSON_STRUCT(TDqManagerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDqManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TYqlPluginConfig
     : public NYTree::TYsonStruct
 {
@@ -25,6 +118,14 @@ public:
 
     //! Fields from NYql::TYtGatewayConfig with snake case keys.
     NYTree::INodePtr GatewayConfig;
+
+    //! Fields from NYql::TDqGatewayConfig with snake case keys.
+    NYTree::INodePtr DqGatewayConfig;
+
+    //! Fields from NYT::NYqlPlugin::TDqManagerConfig with snake case keys.
+    TDqManagerConfigPtr DqManagerConfig;
+
+    bool EnableDq;
 
     //! Fields from NYql::TFileStorageConfig with snake case keys.
     NYTree::INodePtr FileStorageConfig;

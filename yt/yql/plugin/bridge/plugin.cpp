@@ -100,12 +100,18 @@ public:
         : TDynamicYqlPlugin(options.YqlPluginSharedLibrary)
     {
         TString singletonsConfig = options.SingletonsConfig ? options.SingletonsConfig.ToString() : "{}";
+        TString dqGatewayConfig = options.DqGatewayConfig ? options.DqGatewayConfig.ToString() : "";
+        TString dqManagerConfig = options.DqManagerConfig ? options.DqManagerConfig.ToString() : "";
 
         TBridgeYqlPluginOptions bridgeOptions {
             .SingletonsConfig = singletonsConfig.data(),
             .SingletonsConfigLength = static_cast<int>(singletonsConfig.size()),
             .GatewayConfig = options.GatewayConfig.AsStringBuf().Data(),
             .GatewayConfigLength = options.GatewayConfig.AsStringBuf().Size(),
+            .DqGatewayConfig = dqGatewayConfig.data(),
+            .DqGatewayConfigLength = dqGatewayConfig.size(),
+            .DqManagerConfig = dqManagerConfig.data(),
+            .DqManagerConfigLength = dqManagerConfig.size(),
             .FileStorageConfig = options.FileStorageConfig.AsStringBuf().Data(),
             .FileStorageConfigLength = options.FileStorageConfig.AsStringBuf().Size(),
             .OperationAttributes = options.OperationAttributes.AsStringBuf().Data(),
@@ -160,6 +166,11 @@ public:
         };
         BridgeFreeQueryResult(bridgeQueryResult);
         return queryResult;
+    }
+
+    void Start() override
+    {
+        BridgeStartYqlPlugin(BridgePlugin_);
     }
 
     TQueryResult GetProgress(TQueryId queryId) noexcept override
