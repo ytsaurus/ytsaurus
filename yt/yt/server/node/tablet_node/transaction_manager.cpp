@@ -371,7 +371,14 @@ public:
             }
 
             TransactionPrepared_.Fire(transaction, persistent);
-            RunPrepareTransactionActions(transaction, options);
+            bool requireOldBehavior = false;
+            if (const auto* mutationContext = NHydra::TryGetCurrentMutationContext()) {
+                auto currentReign = static_cast<ETabletReign>(mutationContext->Request().Reign);
+                if (currentReign < ETabletReign::SaneTxActionAbort) {
+                    requireOldBehavior = true;
+                }
+            }
+            RunPrepareTransactionActions(transaction, options, requireOldBehavior);
 
             YT_LOG_DEBUG("Transaction commit prepared (TransactionId: %v, Persistent: %v, "
                 "PrepareTimestamp: %v@%v)",
