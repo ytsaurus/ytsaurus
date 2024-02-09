@@ -388,6 +388,7 @@ public:
         , MediumMap_(TEntityMapTypeTraits<TMedium>(Bootstrap_))
     {
         RegisterMethod(BIND(&TChunkManager::HydraConfirmChunkListsRequisitionTraverseFinished, Unretained(this)));
+        RegisterMethod(BIND(&TChunkManager::HydraRescheduleChunkListRequisitionTraversals, Unretained(this)));
         RegisterMethod(BIND(&TChunkManager::HydraUpdateChunkRequisition, Unretained(this)));
         RegisterMethod(BIND(&TChunkManager::HydraRegisterChunkEndorsements, Unretained(this)));
         RegisterMethod(BIND(&TChunkManager::HydraScheduleChunkRequisitionUpdates, Unretained(this)));
@@ -586,6 +587,16 @@ public:
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             request,
             &TChunkManager::HydraConfirmChunkListsRequisitionTraverseFinished,
+            this);
+    }
+
+    std::unique_ptr<TMutation> CreateRescheduleChunkListRequisitionTraversalsMutation(
+        const NProto::TReqRescheduleChunkListRequisitionTraversals& request) override
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            request,
+            &TChunkManager::HydraRescheduleChunkListRequisitionTraversals,
             this);
     }
 
@@ -2041,6 +2052,22 @@ public:
             chunkList->GetId());
 
         ChunkReplicator_->ScheduleRequisitionUpdate(chunkList);
+    }
+
+    void RescheduleChunkListRequisitionTraversals() override
+    {
+        if (ChunkListsAwaitingRequisitionTraverse_.empty()) {
+            return;
+        }
+
+        NProto::TReqRescheduleChunkListRequisitionTraversals request;
+        for (const auto& chunkList : ChunkListsAwaitingRequisitionTraverse_) {
+            ToProto(request.add_chunk_list_ids(), chunkList->GetId());
+        }
+
+        auto mutation = CreateRescheduleChunkListRequisitionTraversalsMutation(request);
+        mutation->SetAllowLeaderForwarding(true);
+        YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
     }
 
     void ScheduleChunkRequisitionUpdate(TChunk* chunk)
@@ -4025,12 +4052,30 @@ private:
 
             auto it = ChunkListsAwaitingRequisitionTraverse_.find(chunkList);
             if (it == ChunkListsAwaitingRequisitionTraverse_.end()) {
-                YT_LOG_ALERT("Chunk list does not hold an additional strong ref during requisition traverse finish confirmation (ChunkListId: %v)",
+                YT_LOG_WARNING("Chunk list does not hold an additional strong ref during requisition traverse finish confirmation (ChunkListId: %v)",
                     chunkListId);
                 continue;
             }
 
             ChunkListsAwaitingRequisitionTraverse_.erase(it);
+        }
+    }
+
+    void HydraRescheduleChunkListRequisitionTraversals(NProto::TReqRescheduleChunkListRequisitionTraversals* request)
+    {
+        auto chunkListsIds = FromProto<std::vector<TChunkListId>>(request->chunk_list_ids());
+
+        YT_LOG_DEBUG("Rescheduling chunk lists requisition traversal (ChunkListIds: %v)",
+            MakeShrunkFormattableView(
+                chunkListsIds,
+                [] (TStringBuilderBase* builder, TChunkListId chunkListId) {
+                    builder->AppendFormat("%v", chunkListId);
+                },
+                /*limit*/ 10));
+
+        for (const auto& protoChunkListId : request->chunk_list_ids()) {
+            auto chunkListId = FromProto<TChunkListId>(protoChunkListId);
+            ChunkReplicator_->ScheduleRequisitionUpdate(FindChunkList(chunkListId));
         }
     }
 
@@ -5402,8 +5447,6 @@ private:
 
         OnEpochStarted();
 
-        ChunkReplicator_->OnLeadingStarted();
-
         ChunkSealer_->Start();
 
         {
@@ -5432,8 +5475,6 @@ private:
         TMasterAutomatonPart::OnStopLeading();
 
         OnEpochFinished();
-
-        ChunkReplicator_->OnLeadingFinished();
 
         ChunkSealer_->Stop();
 
