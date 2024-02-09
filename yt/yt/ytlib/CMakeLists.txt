@@ -1155,6 +1155,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/rpc_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/skynet.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/secondary_index_type_handler.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/secondary_index_modification.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/sync_replica_cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/table_collocation_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/table_reader.cpp

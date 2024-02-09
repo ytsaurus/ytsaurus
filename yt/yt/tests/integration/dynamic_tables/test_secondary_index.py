@@ -44,6 +44,17 @@ INDEX_ON_KEY_SCHEMA = [
     {"name": EMPTY_COLUMN_NAME, "type": "int64"},
 ]
 
+PRIMARY_SCHEMA_WITH_LIST = [
+    {"name": "key", "type": "int64", "sort_order": "ascending"},
+    {"name": "value", "type_v3": {"type_name": "list", "item": {"type_name": "optional", "item": "int64"}}},
+]
+
+UNFOLDING_INDEX_SCHEMA = [
+    {"name": "value", "type_v3": {"type_name": "optional", "item": "int64"}, "sort_order": "ascending"},
+    {"name": "key", "type": "int64", "sort_order": "ascending"},
+    {"name": EMPTY_COLUMN_NAME, "type": "int64"}
+]
+
 ##################################################################
 
 
@@ -56,6 +67,10 @@ class TestSecondaryIndexBase(DynamicTablesBase):
     def _create_table(self, table_path, table_schema, external_cell_tag=11):
         return create_dynamic_table(table_path, table_schema, external_cell_tag=external_cell_tag)
 
+    def _create_secondary_index(self, table_path="//tmp/table", index_table_path="//tmp/index_table", kind="full_sync"):
+        index_id = create_secondary_index(table_path, index_table_path, kind)
+        return index_id, None
+
     def _create_basic_tables(
         self,
         table_path="//tmp/table",
@@ -67,7 +82,7 @@ class TestSecondaryIndexBase(DynamicTablesBase):
     ):
         table_id = self._create_table(table_path, table_schema)
         index_table_id = self._create_table(index_table_path, index_schema)
-        index_id = create_secondary_index(table_path, index_table_path, kind)
+        index_id, _ = self._create_secondary_index(table_path, index_table_path, kind)
 
         if mount:
             self._mount(table_path, index_table_path)
@@ -127,6 +142,11 @@ class TestSecondaryIndexReplicatedBase(TestSecondaryIndexBase):
 
         return table_id
 
+    def _create_secondary_index(self, table_path="//tmp/table", index_table_path="//tmp/index_table", kind="full_sync"):
+        collocation_id = create_table_collocation(table_paths=[table_path, index_table_path])
+        index_id = create_secondary_index(table_path, index_table_path, kind)
+        return index_id, collocation_id
+
     def _create_basic_tables(
         self,
         table_path="//tmp/table",
@@ -134,12 +154,11 @@ class TestSecondaryIndexReplicatedBase(TestSecondaryIndexBase):
         index_table_path="//tmp/index_table",
         index_schema=INDEX_ON_VALUE_SCHEMA,
         kind="full_sync",
-        mount=False
+        mount=False,
     ):
         table_id = self._create_table(table_path, table_schema)
         index_table_id = self._create_table(index_table_path, index_schema)
-        collocation_id = create_table_collocation(table_ids=[table_id, index_table_id])
-        index_id = create_secondary_index(table_path, index_table_path, kind)
+        index_id, collocation_id = self._create_secondary_index(table_path, index_table_path, kind)
 
         if mount:
             self._mount(table_path, index_table_path)
@@ -211,7 +230,7 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
 
         self._mount("//tmp/table")
         with raises_yt_error("Cannot create index on a mounted table"):
-            create_secondary_index("//tmp/table", "//tmp/index_table", "full_sync")
+            self._create_secondary_index()
 
 
 ##################################################################
@@ -258,6 +277,35 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
         }]
         rows = select_rows("Alias.keyA, Alias.keyB, Alias.valueA, Alias.valueB "
                            "from [//tmp/table] Alias with index [//tmp/index_table]")
+        assert_items_equal(sorted_dicts(rows), sorted_dicts(aliased_table_rows))
+
+    @authors("sabdenovch")
+    def test_secondary_index_select_unfolding(self):
+        self._create_table("//tmp/table", PRIMARY_SCHEMA_WITH_LIST)
+        self._create_table("//tmp/index_table", UNFOLDING_INDEX_SCHEMA)
+        self._mount("//tmp/table", "//tmp/index_table")
+
+        insert_rows("//tmp/table", [
+            {"key": 0, "value": [4, 3, 2]},
+            {"key": 1, "value": [1, 2]},
+            {"key": 2, "value": [3, 1]},
+        ])
+        insert_rows("//tmp/index_table", [
+            {"value": 1, "key": 1},
+            {"value": 1, "key": 2},
+            {"value": 2, "key": 0},
+            {"value": 2, "key": 1},
+            {"value": 3, "key": 0},
+            {"value": 3, "key": 2},
+            {"value": 4, "key": 0},
+        ])
+
+        aliased_table_rows = [
+            {"key": 0, "value": [4, 3, 2]},
+            {"key": 1, "value": [1, 2]},
+        ]
+        rows = select_rows("key, value from [//tmp/table] with index [//tmp/index_table] "
+                           "where list_contains(value, 2)")
         assert_items_equal(sorted_dicts(rows), sorted_dicts(aliased_table_rows))
 
 
@@ -423,6 +471,70 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         self._expect_from_index([row(i) for i in range(N - 1, -1, -1)])
         self._expect_from_index([aux_row(i) for i in range(N)], index_table="//tmp/index_table_auxiliary")
 
+    @authors("sabdenovch")
+    def test_secondary_index_unfolding_modifications(self):
+        self._create_basic_tables(
+            table_schema=PRIMARY_SCHEMA_WITH_LIST,
+            index_schema=UNFOLDING_INDEX_SCHEMA,
+            kind="unfolding",
+            mount=True)
+
+        self._insert_rows([
+            {"key": 0, "value": [1, 1, 1]},
+            {"key": 1, "value": [None]},
+        ])
+
+        self._expect_from_index([
+            {"value": None, "key": 1, EMPTY_COLUMN_NAME: None},
+            {"value": 1, "key": 0, EMPTY_COLUMN_NAME: None},
+        ])
+
+        self._insert_rows([
+            {"key": 0, "value": [1, 2, 3]},
+            {"key": 1, "value": [4, 5, 6]},
+            {"key": 2, "value": [7, 8, 9]},
+        ])
+
+        self._expect_from_index([
+            {"value": 1, "key": 0, EMPTY_COLUMN_NAME: None},
+            {"value": 2, "key": 0, EMPTY_COLUMN_NAME: None},
+            {"value": 3, "key": 0, EMPTY_COLUMN_NAME: None},
+            {"value": 4, "key": 1, EMPTY_COLUMN_NAME: None},
+            {"value": 5, "key": 1, EMPTY_COLUMN_NAME: None},
+            {"value": 6, "key": 1, EMPTY_COLUMN_NAME: None},
+            {"value": 7, "key": 2, EMPTY_COLUMN_NAME: None},
+            {"value": 8, "key": 2, EMPTY_COLUMN_NAME: None},
+            {"value": 9, "key": 2, EMPTY_COLUMN_NAME: None},
+        ])
+
+        self._delete_rows([{"key": 1}])
+
+        self._expect_from_index([
+            {"value": 1, "key": 0, EMPTY_COLUMN_NAME: None},
+            {"value": 2, "key": 0, EMPTY_COLUMN_NAME: None},
+            {"value": 3, "key": 0, EMPTY_COLUMN_NAME: None},
+            {"value": 7, "key": 2, EMPTY_COLUMN_NAME: None},
+            {"value": 8, "key": 2, EMPTY_COLUMN_NAME: None},
+            {"value": 9, "key": 2, EMPTY_COLUMN_NAME: None},
+        ])
+
+        self._insert_rows([
+            {"key": 2, "value": [4, 5, 6]},
+            {"key": 4, "value": [7, 8, 9]},
+        ])
+
+        self._expect_from_index([
+            {"value": 1, "key": 0, EMPTY_COLUMN_NAME: None},
+            {"value": 2, "key": 0, EMPTY_COLUMN_NAME: None},
+            {"value": 3, "key": 0, EMPTY_COLUMN_NAME: None},
+            {"value": 4, "key": 2, EMPTY_COLUMN_NAME: None},
+            {"value": 5, "key": 2, EMPTY_COLUMN_NAME: None},
+            {"value": 6, "key": 2, EMPTY_COLUMN_NAME: None},
+            {"value": 7, "key": 4, EMPTY_COLUMN_NAME: None},
+            {"value": 8, "key": 4, EMPTY_COLUMN_NAME: None},
+            {"value": 9, "key": 4, EMPTY_COLUMN_NAME: None},
+        ])
+
 
 ##################################################################
 
@@ -435,7 +547,7 @@ class TestSecondaryIndexMulticell(TestSecondaryIndexMaster):
         self._create_table("//tmp/table", PRIMARY_SCHEMA, external_cell_tag=11)
         self._create_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA, external_cell_tag=12)
         with raises_yt_error("Table and index table external cell tags differ"):
-            create_secondary_index("//tmp/table", "//tmp/index_table")
+            self._create_secondary_index()
 
     @authors("sabdenovch")
     def test_secondary_index_forbid_portal(self):
@@ -453,11 +565,10 @@ class TestSecondaryIndexMulticell(TestSecondaryIndexMaster):
 class TestSecondaryIndexReplicatedMaster(TestSecondaryIndexReplicatedBase, TestSecondaryIndexMaster):
     @authors("sabdenovch")
     def test_secondary_index_holds_collocation(self):
-        stranger_id = self._create_table("//tmp/stranger", PRIMARY_SCHEMA)
-        table_id = self._create_table("//tmp/table", PRIMARY_SCHEMA)
-        index_table_id = self._create_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA)
-        collocation_id = create_table_collocation(table_ids=[stranger_id, table_id, index_table_id])
-        index_id = create_secondary_index("//tmp/table", "//tmp/index_table", "full_sync")
+        _ = self._create_table("//tmp/stranger", PRIMARY_SCHEMA)
+        _ = self._create_table("//tmp/table", PRIMARY_SCHEMA)
+        _ = self._create_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA)
+        index_id, collocation_id = self._create_secondary_index()
 
         with raises_yt_error("Cannot remove table //tmp/table from collocation"):
             remove("//tmp/table/@replication_collocation_id")

@@ -4,6 +4,41 @@ namespace NYT::NQueryClient::NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TListContainsTrasformer::TListContainsTrasformer(
+    TAstHead* head,
+    const TReference& repeatedIndexedColumn,
+    const TReference& unfoldedIndexerColumn)
+    : TBase(head)
+    , RepeatedIndexedColumn(repeatedIndexedColumn)
+    , UnfoldedIndexerColumn(unfoldedIndexerColumn)
+{ }
+
+TExpressionPtr TListContainsTrasformer::OnFunction(TFunctionExpressionPtr function)
+{
+    if (function->FunctionName != "list_contains" ||
+        function->Arguments.size() != 2)
+    {
+        return TBase::OnFunction(function);
+    }
+
+    auto* reference = function->Arguments[0]->As<TReferenceExpression>();
+    if (reference->Reference != RepeatedIndexedColumn) {
+        return TBase::OnFunction(function);
+    }
+
+    TReferenceExpression* newReference = Head->New<TReferenceExpression>(
+        NullSourceLocation,
+        UnfoldedIndexerColumn);
+
+    return Head->New<TBinaryOpExpression>(
+        NullSourceLocation,
+        EBinaryOp::Equal,
+        TExpressionList{newReference},
+        TExpressionList{function->Arguments[1]});
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTableReferenceReplacer::TTableReferenceReplacer(
     TAstHead* head,
     THashSet<TString> replacedColumns,

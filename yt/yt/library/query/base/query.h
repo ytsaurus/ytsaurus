@@ -581,7 +581,6 @@ struct TBaseVisitor
     {
         return &*expr;
     }
-
 };
 
 template <class TDerived>
@@ -797,7 +796,7 @@ struct TRewriter
 
         TConstExpressionPtr newOptionalOperand;
         if (const auto& optionalOperand = caseExpr->OptionalOperand) {
-            newOptionalOperand = Visit(optionalOperand );
+            newOptionalOperand = Visit(optionalOperand);
             allEqual = allEqual && newOptionalOperand == optionalOperand;
         }
 

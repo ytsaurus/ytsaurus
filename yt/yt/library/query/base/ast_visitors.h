@@ -233,6 +233,24 @@ struct TRewriter
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TListContainsTrasformer
+    : public TRewriter<TListContainsTrasformer>
+{
+    using TBase = TRewriter<TListContainsTrasformer>;
+
+    const TReference& RepeatedIndexedColumn;
+    const TReference& UnfoldedIndexerColumn;
+
+    TListContainsTrasformer(
+        TAstHead* head,
+        const TReference& repeatedIndexedColumn,
+        const TReference& unfoldedIndexerColumn);
+
+    TExpressionPtr OnFunction(TFunctionExpressionPtr function);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTableReferenceReplacer
     : public TRewriter<TTableReferenceReplacer>
 {
