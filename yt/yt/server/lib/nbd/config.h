@@ -48,7 +48,7 @@ public:
     i64 BlockSize;
     i64 ReadBatchSize;
     i64 WriteBatchSize;
-    TString TablePath;
+    NYPath::TYPath TablePath;
 
     REGISTER_YSON_STRUCT(TDynamicTableBlockDeviceConfig);
 

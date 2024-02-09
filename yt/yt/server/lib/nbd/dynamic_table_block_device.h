@@ -10,10 +10,10 @@ namespace NYT::NNbd {
 ////////////////////////////////////////////////////////////////////////////////
 
 IBlockDevicePtr CreateDynamicTableBlockDevice(
-    const TString& deviceId,
+    TString deviceId,
     TDynamicTableBlockDeviceConfigPtr deviceConfig,
     NApi::NNative::IClientPtr client,
-    const NLogging::TLogger& logger);
+    NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
