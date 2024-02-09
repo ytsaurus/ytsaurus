@@ -649,6 +649,10 @@ NApi::IClientPtr TClient::GetOrCreateReplicaClient(const TString& clusterName)
     }
 
     if (auto asyncClient = replicaClient->AsyncClient) {
+        if (asyncClient.IsSet() && !asyncClient.Get().IsOK()) {
+            replicaClient->AsyncClient = {};
+        }
+
         writerGuard.Release();
 
         return WaitFor(asyncClient)
@@ -656,18 +660,11 @@ NApi::IClientPtr TClient::GetOrCreateReplicaClient(const TString& clusterName)
     }
 
     auto asyncClient = BIND([this, replicaClient, clusterName, this_ = MakeStrong(this)] {
-        try {
-            auto connection = GetReplicaConnectionOrThrow(clusterName);
+        auto connection = GetReplicaConnectionOrThrow(clusterName);
 
-            auto guard = WriterGuard(replicaClient->Lock);
-            replicaClient->Client = connection->CreateNativeClient(Options_);
-            return replicaClient->Client;
-        } catch (const std::exception& ex) {
-            auto guard = WriterGuard(replicaClient->Lock);
-            replicaClient->AsyncClient = {};
-
-            throw;
-        }
+        auto guard = WriterGuard(replicaClient->Lock);
+        replicaClient->Client = connection->CreateNativeClient(Options_);
+        return replicaClient->Client;
     })
         .AsyncVia(Connection_->GetInvoker())
         .Run();
