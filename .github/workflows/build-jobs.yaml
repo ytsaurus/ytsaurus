@@ -130,7 +130,7 @@ jobs:
       - name: Build ytsaurus (ya make, relwithdebinfo)
         if: ${{ inputs.build-query-tracker-ya-make }}
         run: |
-          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=../build" ../ytsaurus/ytsaurus/yt/yt
+          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=../build ../ytsaurus/ytsaurus/yt/yt
 
       - name: Build chyt
         if: ${{ inputs.build-chyt }}
