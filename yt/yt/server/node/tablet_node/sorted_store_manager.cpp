@@ -505,8 +505,10 @@ void TSortedStoreManager::AddStore(IStorePtr store, bool onMount, bool onFlush, 
 
 void TSortedStoreManager::BulkAddStores(TRange<IStorePtr> stores, bool onMount)
 {
+    TBulkInsertProfiler bulkInsertProfiler(Tablet_);
     THashMap<TPartitionId, std::vector<ISortedStorePtr>> addedStoresByPartition;
     for (const auto& store : stores) {
+        bulkInsertProfiler.Update(store);
         AddStore(store, onMount, /*onFlush*/ false);
         auto sortedStore = store->AsSorted();
         addedStoresByPartition[sortedStore->GetPartition()->GetId()].push_back(sortedStore);

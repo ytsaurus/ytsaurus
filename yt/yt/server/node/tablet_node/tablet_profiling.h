@@ -143,6 +143,8 @@ struct TWriteCounters
 
     NProfiling::TCounter RowCount;
     NProfiling::TCounter DataWeight;
+    NProfiling::TCounter BulkInsertRowCount;
+    NProfiling::TCounter BulkInsertDataWeight;
     NProfiling::TEventTimer ValidateResourceWallTime;
 };
 
@@ -554,6 +556,23 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TReaderProfiler)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBulkInsertProfiler
+{
+public:
+    TBulkInsertProfiler(TTablet* tablet);
+
+    void Update(const IStorePtr& store);
+
+    ~TBulkInsertProfiler();
+
+private:
+    TWriteCounters* Counters_;
+    i64 RowCount_ = 0;
+    i64 DataWeight_ = 0;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

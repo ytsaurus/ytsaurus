@@ -4,7 +4,7 @@ from yt_helpers import profiler_factory
 
 from yt_commands import (
     authors, print_debug, wait, create, ls, get, set, remove, exists, copy, insert_rows,
-    lookup_rows, delete_rows, create_dynamic_table,
+    lookup_rows, delete_rows, create_dynamic_table, generate_uuid,
     alter_table, read_table, write_table, remount_table, generate_timestamp,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_reshard_table,
     sync_flush_table, sync_compact_table, update_nodes_dynamic_config, set_banned_flag,
@@ -751,7 +751,7 @@ class TestLookup(TestSortedDynamicTablesBase):
                 missing_key_count = len(lookup_keys) - len(expected)
 
                 def _check_counters():
-                    input, filtered_out, false_positive = self.profiling.get_counters_delta()
+                    input, filtered_out, false_positive = self.profiling.get_deltas()
                     return input == len(lookup_keys) and filtered_out + false_positive == missing_key_count
 
                 sorted(lookup_rows(table, lookup_keys, verbose=False), key=key) == sorted(expected, key=key)
@@ -775,21 +775,24 @@ class TestLookup(TestSortedDynamicTablesBase):
         }
 
         sync_create_cells(1)
+
+        table_path = f"//tmp/t{generate_uuid()}"
+
         self._create_simple_table(
-            "//tmp/t",
+            table_path,
             chunk_writer=chunk_writer_config,
             mount_config={
                 "enable_key_filter_for_lookup": True,
             },
         )
-        sync_mount_table("//tmp/t")
+        sync_mount_table(table_path)
 
         keys = [{"key": i} for i in range(10000)]
         rows = [{"key": i, "value": str(i)} for i in range(1, 9999, 2)]
-        insert_rows("//tmp/t", rows)
-        sync_flush_table("//tmp/t")
+        insert_rows(table_path, rows)
+        sync_flush_table(table_path)
 
-        key_filter_checker = self._get_key_filter_lookup_checker("//tmp/t")
+        key_filter_checker = self._get_key_filter_lookup_checker(table_path)
 
         key_filter_checker.check([{"key": 2}, {"key": 42}], [])
         key_filter_checker.check([{"key": 0}, {"key": 1}], [{"key": 1, "value": "1"}],)
@@ -813,8 +816,10 @@ class TestLookup(TestSortedDynamicTablesBase):
 
         sync_create_cells(1)
 
+        table_path = f"//tmp/t{generate_uuid()}"
+
         self._create_simple_table(
-            "//tmp/t",
+            table_path,
             schema=schema1,
             chunk_writer={
                 "key_filter" : {
@@ -827,18 +832,18 @@ class TestLookup(TestSortedDynamicTablesBase):
             },
         )
 
-        sync_mount_table("//tmp/t")
+        sync_mount_table(table_path)
 
-        insert_rows("//tmp/t", [{"key1": 0, "value": "0"}])
-        sync_flush_table("//tmp/t")
+        insert_rows(table_path, [{"key1": 0, "value": "0"}])
+        sync_flush_table(table_path)
 
-        key_filter_checker = self._get_key_filter_lookup_checker("//tmp/t")
+        key_filter_checker = self._get_key_filter_lookup_checker(table_path)
 
         key_filter_checker.check([{"key1": 0}], [{"key1": 0, "value": "0"}], lambda d: d["key1"])
 
-        sync_unmount_table("//tmp/t")
-        alter_table("//tmp/t", schema=schema2)
-        sync_mount_table("//tmp/t")
+        sync_unmount_table(table_path)
+        alter_table(table_path, schema=schema2)
+        sync_mount_table(table_path)
 
         key_filter_checker.check(
             [{"key1": 0, "key2": yson.YsonEntity()}],
