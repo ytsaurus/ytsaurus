@@ -127,11 +127,6 @@ jobs:
           cd ../build_relwithdebinfo
           ninja ytserver-all
 
-      - name: Build ytsaurus (ya make, relwithdebinfo)
-        if: ${{ inputs.build-query-tracker-ya-make }}
-        run: |
-          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=../build ../ytsaurus/ytsaurus/yt/yt
-
       - name: Build chyt
         if: ${{ inputs.build-chyt }}
         run: |
@@ -188,8 +183,6 @@ jobs:
           mkdir -p ../build_qt_ya_make
           cd ../build_qt_ya_make
           rm -rf *
-
-          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=../build ../ytsaurus/ytsaurus/yt/yql/agent/bin
 
           shopt -s expand_aliases
           alias ydb-ya-make="../ytsaurus/ydb/ya make -T --ignore-recurses --build=relwithdebinfo  --output=."
