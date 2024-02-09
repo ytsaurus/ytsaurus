@@ -54,8 +54,8 @@ jobs:
       - checkout
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
-      build-python-ya-make: true
-      build-query-tracker-ya-make: true
+      build-python: true
+      build-query-tracker-ya-make-test: true
     uses: ./.github/workflows/build-jobs.yaml
 
   tag:
@@ -96,7 +96,7 @@ jobs:
     name: Stop VM
     needs:
       - start-vm
-      - build
+      - docker
     runs-on: trampoline
     if: ${{ always() }}
     steps:

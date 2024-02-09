@@ -24,11 +24,11 @@ on:
         default: false
         required: false
         type: boolean
-      build-python:
+      build-query-tracker-ya-make-test:
         default: false
         required: false
         type: boolean
-      build-python-ya-make:
+      build-python:
         default: false
         required: false
         type: boolean
@@ -49,7 +49,7 @@ jobs:
           /opt/go/bin/go build
 
       - name: Configure ytsaurus
-        if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker }}
+        if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker || inputs.build-query-tracker-ya-make }}
         run: |
           mkdir -p ../build
           cd ../build
@@ -131,6 +131,11 @@ jobs:
           cd ../build_relwithdebinfo
           ninja ytserver-all
 
+      - name: Build ytsaurus (ya make, relwithdebinfo)
+        if: ${{ inputs.build-query-tracker-ya-make }}
+        run: |
+          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=../build" ../ytsaurus/ytsaurus/yt/yt
+
       - name: Build chyt
         if: ${{ inputs.build-chyt }}
         run: |
@@ -181,40 +186,57 @@ jobs:
           cd ../build_relwithdebinfo
           ninja ytserver-yql-agent
 
-      - name: Build query tracker using ya make
+      - name: Build query tracker (ya make, relwithdebinfo)
         if: ${{ inputs.build-query-tracker-ya-make }}
         run: |
-          sudo apt-get -y install antlr3 libaio1 libaio-dev
-
-          udfs_prefix="../ytsaurus/ydb/ydb/library/yql/udfs/common"
-
           mkdir -p ../build_qt_ya_make
-          mkdir -p ../build # TODO configure ya make step
           cd ../build_qt_ya_make
           rm -rf *
 
+          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=../build ../ytsaurus/ytsaurus/yt/yql/agent/bin
+
           shopt -s expand_aliases
-          alias yt-ya-make="../ytsaurus/ytsaurus/ya make -T --build=release  --output=../build"
-
-          yt-ya-make ../ytsaurus/ytsaurus/yt/yt
-          yt-ya-make ../ytsaurus/ytsaurus/yt/yql
-
-          alias ydb-ya-make="../ytsaurus/ydb/ya make -T --ignore-recurses --no-src-links --build=release  --output=."
+          alias ydb-ya-make="../ytsaurus/ydb/ya make -T --ignore-recurses --build=relwithdebinfo  --output=."
 
           ydb-ya-make ../ytsaurus/ydb/ydb/library/yql/tools/mrjob
           ydb-ya-make ../ytsaurus/ydb/ydb/library/yql/yt/dynamic
 
+          udfs_prefix="../ytsaurus/ydb/yd b/library/yql/udfs/common"
           ydb-ya-make ${udfs_prefix}/compress_base
+          ydb-ya-make ${udfs_prefix}/datetime2
+          ydb-ya-make ${udfs_prefix}/digest
+          ydb-ya-make ${udfs_prefix}/file
+          ydb-ya-make ${udfs_prefix}/histogram
+          ydb-ya-make ${udfs_prefix}/hyperloglog
+          ydb-ya-make ${udfs_prefix}/hyperscan
+          ydb-ya-make ${udfs_prefix}/ip_base
+          ydb-ya-make ${udfs_prefix}/json
+          ydb-ya-make ${udfs_prefix}/json2
+          ydb-ya-make ${udfs_prefix}/math
+          ydb-ya-make ${udfs_prefix}/pire
+          ydb-ya-make ${udfs_prefix}/protobuf
+          ydb-ya-make ${udfs_prefix}/re2
+          ydb-ya-make ${udfs_prefix}/set
+          ydb-ya-make ${udfs_prefix}/stat
+          ydb-ya-make ${udfs_prefix}/streaming
+          ydb-ya-make ${udfs_prefix}/string
+          ydb-ya-make ${udfs_prefix}/top
+          ydb-ya-make ${udfs_prefix}/topfreq
+          ydb-ya-make ${udfs_prefix}/unicode_base
+          ydb-ya-make ${udfs_prefix}/url_base
+          ydb-ya-make ${udfs_prefix}/yson2
+
+          ydb-ya-make ../ytsaurus/ydb/ydb/library/yql/udfs/logs/dsv
 
       - name: Build Python packages
         if: ${{ inputs.build-python }}
         run: |
           source ../venv/bin/activate
-          YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build
-
-      - name: Build Python packages, ya make build
-        if: ${{ inputs.build-python-ya-make }}
-        run: |
-          source ../venv/bin/activate
-          YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --not-prepare-bindings-libraries
+          if ${{ inputs.build-query-tracker-ya-make-test }}; then
+            echo "--not-prepare-bindings-libraries"
+            YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --not-prepare-bindings-libraries
+          else
+            echo "--prepare-bindings-libraries"
+            YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build
+          fi
 
