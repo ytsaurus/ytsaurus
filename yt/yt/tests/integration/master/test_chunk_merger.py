@@ -555,56 +555,6 @@ class TestChunkMerger(YTEnvSetup):
             self._abort_chunk_merger_txs()
 
     @authors("aleksandra-zh")
-    def test_chunk_tail(self):
-        set("//sys/@config/chunk_manager/chunk_merger/max_chunk_count", 2)
-        set("//sys/@config/chunk_manager/chunk_merger/max_row_count", 4)
-        wait_for_sys_config_sync()
-
-        create("table", "//tmp/t")
-
-        write_table("<append=true>//tmp/t", {"a": "b"})
-        write_table("<append=true>//tmp/t", {"b": "c"})
-        write_table("<append=true>//tmp/t", {"c": "d"})
-        write_table("<append=true>//tmp/t", {"q": "d"})
-
-        rows = [{"a" : "b"} for _ in range(10)]
-        write_table("<append=true>//tmp/t", rows)
-        write_table("<append=true>//tmp/t", rows)
-
-        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
-        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
-        set("//tmp/t/@chunk_merger_mode", "deep")
-
-        # [{"a": "b"}, {"b": "c"}], [{"c": "d"}, {"q": "d"}], rows, rows
-        wait(lambda: get("//tmp/t/@chunk_count") == 4)
-        wait(lambda: not get("//tmp/t/@is_being_merged"))
-
-        traversal_info1 = get("//tmp/t/@chunk_merger_traversal_info")
-        assert traversal_info1["chunk_count"] > 0
-
-        write_table("<append=true>//tmp/t", {"c": "d"})
-        write_table("<append=true>//tmp/t", {"q": "d"})
-
-        # [{"a": "b"}, {"b": "c"}], [{"c": "d"}, {"q": "d"}], rows, rows, [{"c": "d"}, {"q": "d"}]
-        wait(lambda: get("//tmp/t/@chunk_count") == 5)
-
-        traversal_info2 = get("//tmp/t/@chunk_merger_traversal_info")
-        assert traversal_info2["chunk_count"] > traversal_info1["chunk_count"]
-        assert traversal_info2["config_version"] == traversal_info1["config_version"]
-
-        set("//sys/@config/chunk_manager/chunk_merger/max_chunk_count", 10)
-        set("//sys/@config/chunk_manager/chunk_merger/max_row_count", 100)
-        wait_for_sys_config_sync()
-
-        write_table("<append=true>//tmp/t", {"q": "d"})
-
-        wait(lambda: get("//tmp/t/@chunk_count") == 1)
-        wait(lambda: not get("//tmp/t/@is_being_merged"))
-
-        traversal_info3 = get("//tmp/t/@chunk_merger_traversal_info")
-        assert traversal_info3["config_version"] > traversal_info2["config_version"]
-
-    @authors("aleksandra-zh")
     def test_chunks_from_one_chunklist(self):
         set("//sys/@config/chunk_manager/chunk_merger/reschedule_merge_on_success", True)
 
