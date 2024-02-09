@@ -152,6 +152,11 @@ def get_checks_config():
             "enable": True
         }
     }
+    enable_tablet_cell_snapshot_convergence = {
+        "tablet_cell_snapshot_convergence": {
+            "enable": True
+        }
+    }
     clock_quorum_health = {
         "clock_quorum_health": {
             "enable": True,
@@ -1209,6 +1214,7 @@ def get_checks_config():
                 bundle_controller,
                 enable_query_tracker_alerts,
                 system_quotas_only_per_account_tablet_resources,
+                enable_tablet_cell_snapshot_convergence,
             ),
             "arnold": deep_merge(
                 skynet_manager,
@@ -1249,6 +1255,7 @@ def get_checks_config():
                 bundle_controller,
                 system_quotas_with_non_critical_yp_account,
                 system_quotas_only_per_account_tablet_resources,
+                enable_tablet_cell_snapshot_convergence,
             ),
             "hume": deep_merge(
                 dynamic_table_replication_prestable,
@@ -1260,6 +1267,7 @@ def get_checks_config():
                 enable_discovery,
                 bundle_controller,
                 tablet_stress_test,
+                enable_tablet_cell_snapshot_convergence,
             ),
             "freud": deep_merge(
                 clouds,
@@ -1352,6 +1360,7 @@ def get_checks_config():
                 wide_window_quorum_health,
                 bundle_controller,
                 tablet_stress_test,
+                enable_tablet_cell_snapshot_convergence,
             ),
             "locke": deep_merge(
                 snapshot_validation,
