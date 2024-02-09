@@ -896,11 +896,12 @@ private:
             SelfCellId_);
 
         auto* traceContext = NTracing::TryGetCurrentTraceContext();
-        auto logicalTime = LamportClock_.Tick();
 
         auto* mutationContext = TryGetCurrentMutationContext();
 
+        auto logicalTime = LamportClock_.GetTime();
         if (mutationContext) {
+            logicalTime = LamportClock_.Tick();
             mutationContext->CombineStateHash(message->Type, message->Data);
         }
 
@@ -944,9 +945,11 @@ private:
             SchedulePostOutcomingMessages(mailbox);
         }
 
-        logMessageBuilder.AppendFormat("}, SequenceNumber: %v, LogicalTime: %v)",
-            mutationContext->GetSequenceNumber(),
-            logicalTime);
+        if (mutationContext) {
+            logMessageBuilder.AppendFormat("}, LogicalTime: %v, SequenceNumber: %v)",
+                logicalTime,
+                mutationContext->GetSequenceNumber());
+        }
         YT_LOG_DEBUG(logMessageBuilder.Flush());
     }
 
@@ -1949,12 +1952,12 @@ private:
 
         auto* mutationContext = GetCurrentMutationContext();
         YT_LOG_DEBUG("Applying reliable incoming message (%v, "
-            "MessageId: %v, MutationType: %v, SequenceNumber: %v, LogicalTime: %v)",
+            "MessageId: %v, MutationType: %v, LogicalTime: %v, SequenceNumber: %v)",
             FormatIncomingMailboxEndpoints(mailbox),
             messageId,
             message.type(),
-            mutationContext->GetSequenceNumber(),
-            logicalTime);
+            logicalTime,
+            mutationContext->GetSequenceNumber());
 
         ApplyMessage(message, mailbox->GetEndpointId());
 

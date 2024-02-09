@@ -103,7 +103,7 @@ def main():
     master_exit_read_only_parser.add_argument("--retry", action="store_true", default=True)
 
     discombobulate_nonvoting_peers_parser = subparsers.add_parser("discombobulate-nonvoting-peers",
-                                                            help="Discombobualate nonvoting peers at given cell")
+                                                            help="Discombobulate nonvoting peers at given cell")
     discombobulate_nonvoting_peers_parser.set_defaults(func=discombobulate_nonvoting_peers)
     discombobulate_nonvoting_peers_parser.add_argument("--cell-id", required=True)
 
