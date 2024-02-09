@@ -6,6 +6,7 @@ SRCS(
     cgroup.cpp
     cgroups_new.cpp
     config.cpp
+    helpers.cpp
     instance.cpp
     instance_limits_tracker.cpp
     process.cpp
