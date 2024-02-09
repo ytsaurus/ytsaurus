@@ -24,10 +24,6 @@ on:
         default: false
         required: false
         type: boolean
-      build-query-tracker-ya-make-test:
-        default: false
-        required: false
-        type: boolean
       build-python:
         default: false
         required: false
@@ -232,11 +228,9 @@ jobs:
         if: ${{ inputs.build-python }}
         run: |
           source ../venv/bin/activate
-          if ${{ inputs.build-query-tracker-ya-make-test }}; then
-            echo "--not-prepare-bindings-libraries"
+          if ${{ inputs.build-query-tracker-ya-make }}; then
             YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --not-prepare-bindings-libraries
           else
-            echo "--prepare-bindings-libraries"
             YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build
           fi
 
