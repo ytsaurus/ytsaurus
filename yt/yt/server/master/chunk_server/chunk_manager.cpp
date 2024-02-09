@@ -2887,10 +2887,12 @@ private:
         return Bootstrap_
             ->GetSequoiaClient()
             ->SelectRows<NRecords::TLocationReplicas>({
-                Format("cell_tag = %v", Bootstrap_->GetCellTag()),
-                Format("node_id = %v", nodeId),
-                Format("id_hash = %v", HashFromId(locationUuid)),
-                Format("location_uuid = %Qv", locationUuid),
+                .Where = {
+                    Format("cell_tag = %v", Bootstrap_->GetCellTag()),
+                    Format("node_id = %v", nodeId),
+                    Format("id_hash = %v", HashFromId(locationUuid)),
+                    Format("location_uuid = %Qv", locationUuid)
+                }
             });
     }
 
@@ -2906,8 +2908,10 @@ private:
         return Bootstrap_
             ->GetSequoiaClient()
             ->SelectRows<NRecords::TLocationReplicas>({
-                Format("cell_tag = %v", Bootstrap_->GetCellTag()),
-                Format("node_id = %v", nodeId),
+                .Where = {
+                    Format("cell_tag = %v", Bootstrap_->GetCellTag()),
+                    Format("node_id = %v", nodeId)
+                }
             });
     }
 
@@ -5583,12 +5587,14 @@ private:
         return Bootstrap_
             ->GetSequoiaClient()
             ->SelectRows<NRecords::TChunkReplicas>({
-                buildFilter("id_hash", [] (TStringBuilderBase* builder, TChunkId chunkId) {
-                    builder->AppendFormat("%v", HashFromId(chunkId));
-                }),
-                buildFilter("chunk_id", [] (TStringBuilderBase* builder, TChunkId chunkId) {
-                    builder->AppendFormat("%Qv", chunkId);
-                }),
+                .Where = {
+                    buildFilter("id_hash", [] (TStringBuilderBase* builder, TChunkId chunkId) {
+                        builder->AppendFormat("%v", HashFromId(chunkId));
+                    }),
+                    buildFilter("chunk_id", [] (TStringBuilderBase* builder, TChunkId chunkId) {
+                        builder->AppendFormat("%Qv", chunkId);
+                    })
+                },
             }).Apply(BIND([] (const std::vector<NRecords::TChunkReplicas>& replicaRecords) {
                 std::vector<TSequoiaChunkReplica> replicas;
                 for (const auto& replicaRecord : replicaRecords) {

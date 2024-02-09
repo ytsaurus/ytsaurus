@@ -14,8 +14,8 @@ namespace NYT::NCypressProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 void VisitSequoiaTree(
-    NCypressClient::TNodeId root,
-    i64 maxDepth,
+    NCypressClient::TNodeId rootId,
+    int maxDepth,
     NYson::IYsonConsumer* consumer,
     const NYTree::TAttributeFilter& attributeFilter,
     const THashMap<NCypressClient::TNodeId, std::vector<NSequoiaClient::NRecords::TChildNode>>& nodeIdToChildren,
@@ -23,8 +23,8 @@ void VisitSequoiaTree(
 
 // NB: Same as the above, but using async consumer instead of a sync one.
 void VisitSequoiaTree(
-    NCypressClient::TNodeId root,
-    i64 maxDepth,
+    NCypressClient::TNodeId rootId,
+    int maxDepth,
     NYson::IAsyncYsonConsumer* consumer,
     const NYTree::TAttributeFilter& attributeFilter,
     const THashMap<NCypressClient::TNodeId, std::vector<NSequoiaClient::NRecords::TChildNode>>& nodeIdToChildren,

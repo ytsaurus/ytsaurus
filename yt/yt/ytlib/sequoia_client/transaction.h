@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "helpers.h"
 
 #include <yt/yt/ytlib/api/native/transaction.h>
 
@@ -29,15 +30,11 @@ struct ISequoiaTransaction
 
     virtual TFuture<NApi::TSelectRowsResult> SelectRows(
         ESequoiaTable table,
-        const std::vector<TString>& whereConjuncts,
-        const std::vector<TString>& orderByExpressions,
-        std::optional<i64> limit) = 0;
+        const TSelectRowsRequest& request) = 0;
 
     template <class TRecordKey>
     TFuture<std::vector<typename TRecordKey::TRecordDescriptor::TRecord>> SelectRows(
-        const std::vector<TString>& whereConjunts,
-        const std::vector<TString>& orderByExpressions = {},
-        std::optional<i64> limit = std::nullopt);
+        const TSelectRowsRequest& request);
 
     virtual void DatalessLockRow(
         NObjectClient::TCellTag masterCellTag,

@@ -188,7 +188,15 @@ protected:
 
     void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
     {
-        context->SetRequestInfo();
+        auto attributeFilter = request->has_attributes()
+            ? FromProto<TAttributeFilter>(request->attributes())
+            : TAttributeFilter();
+        auto limit = YT_PROTO_OPTIONAL(*request, limit);
+
+        context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
+            limit,
+            attributeFilter);
+
         auto newRequest = TYPathProxy::Get();
         newRequest->CopyFrom(*request);
         ForwardRequest(std::move(newRequest), response, context);
@@ -248,11 +256,13 @@ protected:
 
         auto nodesToRemove = WaitFor(Transaction_->SelectRows<NRecords::TPathToNodeIdKey>(
             {
-                Format("path >= %Qv", mangledPath),
-                Format("path <= %Qv", MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(mangledPath)),
-            },
-            /* orderBy */ {"path"},
-            selectedRowsLimit))
+                .Where = {
+                    Format("path >= %Qv", mangledPath),
+                    Format("path <= %Qv", MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(mangledPath))
+                },
+                .OrderBy = {"path"},
+                .Limit = selectedRowsLimit
+            }))
             .ValueOrThrow();
         YT_VERIFY(nodesToRemove.size() >= 1);
 
@@ -263,7 +273,7 @@ protected:
         RemoveSelectedSubtree(
             nodesToRemove,
             Transaction_,
-            /* removeRoot */ true,
+            /*removeRoot*/ true,
             parentId);
 
         WaitFor(Transaction_->Commit({
@@ -558,9 +568,13 @@ private:
 
     void SetSelf(TReqSet* request, TRspSet* /*response*/, const TCtxSetPtr& context) override
     {
-        context->SetRequestInfo();
+        auto force = request->force();
 
-        if (!request->force()) {
+        context->SetRequestInfo("Recursive: %v, Force: %v",
+            request->recursive(),
+            force);
+
+        if (!force) {
             THROW_ERROR_EXCEPTION("\"set\" command without \"force\" flag is forbidden; use \"create\" instead");
         }
 
@@ -592,7 +606,7 @@ private:
         auto limit = YT_PROTO_OPTIONAL(*request, limit);
         // NB: This is an arbitrary value, it can be freely changed.
         // TODO(h0pless): Think about moving global limit to dynamic config.
-        ui64 responseSizeLimit = limit ? static_cast<ui64>(*limit) : 100'000;
+        i64 responseSizeLimit = limit ? *limit : 100'000;
 
         context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
             limit,
@@ -605,20 +619,19 @@ private:
         THashMap<TNodeId, std::vector<NRecords::TChildNode>> nodeIdToChildren;
         nodeIdToChildren[Id_] = {};
 
-        i64 maxRetrievedDepth = 0;
+        int maxRetrievedDepth = 0;
 
         // NB: 1 node is root node and it should not count towards the limit.
         // If the number of nodes in a subtree of certain depth it equal to the limit, then we should
         // fetch the next layer, so opaques can be set correctly.
-        while (nodeIdToChildren.size() <= responseSizeLimit + 1) {
+        while (std::ssize(nodeIdToChildren) <= responseSizeLimit + 1) {
             std::vector<TFuture<std::vector<NRecords::TChildNode>>> asyncNextLayer;
             while (!childrenLookupQueue.empty()) {
                 auto childrenFuture = Transaction_->SelectRows<NRecords::TChildNodeKey>(
                     {
-                        Format("parent_id = %Qv", childrenLookupQueue.front()),
-                    },
-                    /* orderBy */ {"parent_id", "child_key"});
-
+                        .Where = {Format("parent_id = %Qv", childrenLookupQueue.front())},
+                        .OrderBy = {"parent_id", "child_key"}
+                    });
                 childrenLookupQueue.pop();
                 asyncNextLayer.push_back(std::move(childrenFuture));
             }
@@ -682,7 +695,7 @@ private:
             // for the same path we can get an error "no such node".
             // Retry is needed if a given path still exists.
             // Since retry mechanism is not implemented yet, this will do for now.
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRsp), "Error getting requsted information from master");
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRsp), "Error getting requested information from master");
 
             for (const auto& rspOrError : batchRsp->GetResponses<TYPathProxy::TRspGet>()) {
                 const auto& rsp = rspOrError.Value();
@@ -741,7 +754,11 @@ private:
         const TCtxSetPtr& context) override
     {
         // TODO(danilalexeev): Implement method _SetChild_ and bring out the common code with Create.
-        context->SetRequestInfo();
+        auto recursive = request->recursive();
+
+        context->SetRequestInfo("Recursive: %v, Force: %v",
+            recursive,
+            request->force());
 
         auto unresolvedSuffix = "/" + path;
         auto destinationPath = Path_ + unresolvedSuffix;
@@ -749,7 +766,7 @@ private:
         auto targetName = unresolvedSuffixDirectoryTokens.back();
         unresolvedSuffixDirectoryTokens.pop_back();
 
-        if (!request->recursive() && !unresolvedSuffixDirectoryTokens.empty()) {
+        if (!recursive && !unresolvedSuffixDirectoryTokens.empty()) {
             ThrowNoSuchChild(Path_, unresolvedSuffixDirectoryTokens[0]);
         }
 
@@ -942,12 +959,11 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, List)
     }
 
     LockRowInPathToIdTable(Path_, Transaction_);
-    auto selectRows = WaitFor(Transaction_->SelectRows<NRecords::TChildNodeKey>(
-        {
-            Format("parent_id = %Qv", Id_),
-        },
-        /* orderBy */ {"parent_id", "child_key"},
-        limit))
+    auto selectRows = WaitFor(Transaction_->SelectRows<NRecords::TChildNodeKey>({
+        .Where = {Format("parent_id = %Qv", Id_)},
+        .OrderBy = {"parent_id", "child_key"},
+        .Limit = limit
+    }))
         .ValueOrThrow();
 
     // NB: Transaction with no participants has a fast-path for commit, making it equivalent to abort.
@@ -1079,7 +1095,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Copy)
         RemoveSelectedSubtree(
             nodesToRemove,
             Transaction_,
-            /* removeRoot */ true,
+            /*removeRoot*/ true,
             parentId);
     }
 

@@ -41,16 +41,9 @@ TFuture<std::vector<std::optional<typename TRecordKey::TRecordDescriptor::TRecor
 
 template <class TRecordKey>
 TFuture<std::vector<typename TRecordKey::TRecordDescriptor::TRecord>> ISequoiaTransaction::SelectRows(
-    const std::vector<TString>& whereConjuncts,
-    const std::vector<TString>& orderByExpressions,
-    std::optional<i64> limit)
+    const TSelectRowsRequest& request)
 {
-    if (!limit && !orderByExpressions.empty()) {
-        // TODO(h0pless): This is an arbitrary value. Remove it once ORDER BY will work with an unspecified limit.
-        // For details see YT-16489.
-        limit = 1'000'000;
-    }
-    auto resultFuture = SelectRows(TRecordKey::Table, whereConjuncts, orderByExpressions, limit);
+    auto resultFuture = SelectRows(TRecordKey::Table, request);
     return resultFuture.Apply(BIND([] (const NApi::TSelectRowsResult& result) {
         return NTableClient::ToRecords<typename TRecordKey::TRecordDescriptor::TRecord>(result.Rowset);
     }));
