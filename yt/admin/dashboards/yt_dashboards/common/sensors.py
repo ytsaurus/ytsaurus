@@ -63,7 +63,7 @@ CACpu =      ProjectSensor("controller_agent_cpu",      "yt-controller-agent")  
 CAInternal = ProjectSensor("controller_agent_internal", "yt-controller-agent")  # noqa: E222
 CARpc =      ProjectSensor("controller_agent_rpc",      "yt-controller-agent", base=RpcBase)  # noqa: E222
 
-# Ye olde Nodes. Used for old pre-flavored dashbords in a compat fashion. Prefer using specific flavored node sensors.
+# Ye olde Nodes. Used for old pre-flavored dashboards in a compat fashion. Prefer using specific flavored node sensors.
 Node =          ProjectSensor("tab_node|exe_node|node",                                  "yt-data-node|yt-exec-node|yt-tablet-node")  # noqa: E222
 NodeMemory =    ProjectSensor("tab_node_memory|exe_node_memory|node_memory",             "yt-data-node|yt-exec-node|yt-tablet-node")  # noqa: E222
 NodeCpu =       ProjectSensor("tab_node_cpu|exe_node_cpu|node_cpu",                      "yt-data-node|yt-exec-node|yt-tablet-node")  # noqa: E222
