@@ -1495,7 +1495,7 @@ void TSortOperationSpecBase::Register(TRegistrar registrar)
             const auto& upperBound = TKeyBound::FromRow() < spec->PivotKeys[index];
             const auto& nextUpperBound = TKeyBound::FromRow() < spec->PivotKeys[index + 1];
             if (sortComparator.CompareKeyBounds(upperBound, nextUpperBound) >= 0) {
-                THROW_ERROR_EXCEPTION("Pivot keys should should form a strictly increasing sequence")
+                THROW_ERROR_EXCEPTION("Pivot keys should form a strictly increasing sequence")
                     << TErrorAttribute("pivot_key", spec->PivotKeys[index])
                     << TErrorAttribute("next_pivot_key", spec->PivotKeys[index + 1])
                     << TErrorAttribute("comparator", sortComparator);

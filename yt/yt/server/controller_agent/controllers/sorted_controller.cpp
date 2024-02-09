@@ -1286,7 +1286,7 @@ public:
 
                 auto upperBound = TKeyBound::FromRow() < key;
                 if (previousUpperBound && comparator.CompareKeyBounds(upperBound, previousUpperBound) <= 0) {
-                    THROW_ERROR_EXCEPTION("Pivot keys should should form a strictly increasing sequence")
+                    THROW_ERROR_EXCEPTION("Pivot keys should form a strictly increasing sequence")
                         << TErrorAttribute("previous", previousUpperBound)
                         << TErrorAttribute("current", upperBound)
                         << TErrorAttribute("comparator", comparator);

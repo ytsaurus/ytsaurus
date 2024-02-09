@@ -1457,7 +1457,7 @@ print "x={0}\ty={1}".format(x, y)
         shuffle(rows)
         write_table("//tmp/t1", rows)
 
-        with raises_yt_error("Pivot keys should should form"):
+        with raises_yt_error("Pivot keys should form a strictly increasing sequence"):
             map_reduce(
                 in_="//tmp/t1",
                 out="//tmp/t2",
