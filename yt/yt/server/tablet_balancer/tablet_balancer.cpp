@@ -287,7 +287,6 @@ IListNodePtr TTabletBalancer::FetchNodeStatistics() const
         return {};
     }
 
-    YT_LOG_DEBUG("Failed to fetch node statistics");
     return ConvertTo<IListNodePtr>(nodesOrError.ValueOrThrow());
 }
 
@@ -334,7 +333,9 @@ void TTabletBalancer::BalancerIteration()
 
         YT_LOG_INFO("Started fetching (BundleName: %v)", bundleName);
 
-        if (auto result = WaitFor(bundle->UpdateState(DynamicConfig_.Acquire()->FetchTabletCellsFromSecondaryMasters));
+        if (auto result = WaitFor(bundle->UpdateState(
+                dynamicConfig->FetchTabletCellsFromSecondaryMasters,
+                IterationIndex_));
             !result.IsOK())
         {
             YT_LOG_ERROR(result, "Failed to update meta registry (BundleName: %v)", bundleName);
@@ -574,8 +575,16 @@ std::vector<TString> TTabletBalancer::UpdateBundleList()
         }
     }
 
-    // Find bundles that are not in the list of bundles (probably deleted) and erase them.
-    DropMissingKeys(Bundles_, currentBundles);
+    // Find bundles that are not in the list of bundles (probably deleted)
+    // and erase them and all their tables.
+    for (auto it = Bundles_.begin(); it != Bundles_.end(); ++it) {
+        if (currentBundles.contains(it->first)) {
+            continue;
+        }
+
+        TableRegistry_->RemoveBundle(it->second->GetBundle());
+        Bundles_.erase(it);
+    }
     return newBundles;
 }
 
