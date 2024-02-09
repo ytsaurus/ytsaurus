@@ -745,14 +745,6 @@ private:
                 }
             }
 
-            if ((force2PC || !participantCellIds.empty()) && !prerequisiteTransactionIds.empty()) {
-                THROW_ERROR_EXCEPTION("Prerequisite transactions are not supported for distributed transaction commits")
-                    << TErrorAttribute("transaction_id", transactionId)
-                    << TErrorAttribute("force_2pc", force2PC)
-                    << TErrorAttribute("participant_cell_ids", participantCellIds)
-                    << TErrorAttribute("prerequisite_transaction_ids", prerequisiteTransactionIds);
-            }
-
             if (coordinatorPrepareMode == ETransactionCoordinatorPrepareMode::Late &&
                 coordinatorCommitMode == ETransactionCoordinatorCommitMode::Lazy)
             {
@@ -1933,8 +1925,15 @@ private:
 
         try {
             // Any exception thrown here is caught below.
+
             const auto& prerequisiteTransactionIds = commit->PrerequisiteTransactionIds();
-            YT_VERIFY(prerequisiteTransactionIds.empty());
+
+            // COMPAT(gritukan): Remove after ETabletReign::DistributedTabletPrerequisites.
+            auto reign = GetCurrentMutationContext()->Request().Reign;
+            auto isOldTabletReign = (reign >= 100600 && reign < 100907);
+            if (isOldTabletReign) {
+                YT_VERIFY(prerequisiteTransactionIds.empty());
+            }
 
             TTransactionPrepareOptions options{
                 .Persistent = true,

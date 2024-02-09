@@ -4,6 +4,11 @@ from yt_commands import (
     authors, ls, issue_lease, revoke_lease, reference_lease, unreference_lease, insert_rows, select_rows,
     create, get, set, exists, wait, remove, sync_mount_table, sync_create_cells,
     sync_unmount_table, raises_yt_error, start_transaction, commit_transaction, abort_transaction,
+    sync_reshard_table, mount_table, wait_for_tablet_state,
+)
+
+from yt.test_helpers import (
+    assert_items_equal,
 )
 
 from yt.common import YtError
@@ -515,3 +520,32 @@ class TestDynamicTablesLeases(YTEnvSetup):
 
         assert len(get(f"#{tx}/@lease_cell_ids")) == 0
         assert get(f"#{tx}/@successor_transaction_lease_count") == 0
+
+    @authors("gritukan")
+    def test_distributed_commit(self):
+        cell_count = 5
+        sync_create_cells(cell_count)
+        cell_ids = ls("//sys/tablet_cells")
+        create("table", "//tmp/t", attributes={
+            "dynamic": True,
+            "schema": [
+                {"name": "k", "type": "int64", "sort_order": "ascending"},
+                {"name": "v", "type": "string"},
+            ]
+        })
+        sync_reshard_table("//tmp/t", [[]] + [[i * 100] for i in range(cell_count - 1)])
+        for i in range(len(cell_ids)):
+            mount_table(
+                "//tmp/t",
+                first_tablet_index=i,
+                last_tablet_index=i,
+                cell_id=cell_ids[i],
+            )
+        wait_for_tablet_state("//tmp/t", "mounted")
+        rows = [{"k": i * 100 - j, "v": "payload" + str(i)} for i in range(cell_count) for j in range(10)]
+        m_tx = start_transaction(type="master")
+        t_tx = start_transaction(type="tablet")
+        insert_rows("//tmp/t", rows, tx=t_tx)
+        commit_transaction(t_tx, prerequisite_transaction_ids=[m_tx])
+        actual = select_rows("* from [//tmp/t]")
+        assert_items_equal(actual, rows)
