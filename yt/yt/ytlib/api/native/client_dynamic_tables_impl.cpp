@@ -2,51 +2,16 @@
 #include "backup_session.h"
 #include "config.h"
 #include "connection.h"
-#include "transaction.h"
 #include "tablet_helpers.h"
-#include "type_handler_detail.h"
+#include "transaction.h"
+#include "type_handler.h"
 
-#include <yt/yt/client/object_client/helpers.h>
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 
 #include <yt/yt/ytlib/chaos_client/banned_replica_tracker.h>
 #include <yt/yt/ytlib/chaos_client/chaos_master_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
-
-#include <yt/yt/library/query/base/query_preparer.h>
-#include <yt/yt/library/query/base/functions.h>
-
-#include <yt/yt/library/query/engine_api/column_evaluator.h>
-
-#include <yt/yt/ytlib/query_client/query_service_proxy.h>
-#include <yt/yt/ytlib/query_client/functions_cache.h>
-#include <yt/yt/ytlib/query_client/executor.h>
-#include <yt/yt/ytlib/query_client/explain.h>
-
-#include <yt/yt/ytlib/queue_client/registration_manager.h>
-
-#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
-
-#include <yt/yt/ytlib/object_client/object_service_proxy.h>
-
-#include <yt/yt/ytlib/table_client/schema.h>
-#include <yt/yt/ytlib/tablet_client/pivot_keys_picker.h>
-#include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
-#include <yt/yt/ytlib/tablet_client/tablet_cell_bundle_ypath_proxy.h>
-
-#include <yt/yt/ytlib/transaction_client/action.h>
-#include <yt/yt/ytlib/transaction_client/helpers.h>
-
-#include <yt/yt/ytlib/hive/cell_directory.h>
-#include <yt/yt/ytlib/hive/cluster_directory.h>
-
-#include <yt/yt/ytlib/hydra/config.h>
-
-#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
-
-#include <yt/yt/ytlib/node_tracker_client/channel.h>
-#include <yt/yt/ytlib/node_tracker_client/node_addresses_provider.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_fetcher.h>
@@ -58,26 +23,50 @@
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
+#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+
+#include <yt/yt/ytlib/hydra/config.h>
+
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
+#include <yt/yt/ytlib/node_tracker_client/channel.h>
+#include <yt/yt/ytlib/node_tracker_client/node_addresses_provider.h>
+
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/yt/ytlib/query_client/executor.h>
+#include <yt/yt/ytlib/query_client/explain.h>
+#include <yt/yt/ytlib/query_client/functions_cache.h>
+#include <yt/yt/ytlib/query_client/query_service_proxy.h>
+#include <yt/yt/ytlib/queue_client/registration_manager.h>
+
+#include <yt/yt/ytlib/security_client/permission_cache.h>
+
 #include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/yt/ytlib/table_client/chunk_slice_size_fetcher.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/samples_fetcher.h>
+#include <yt/yt/ytlib/table_client/schema.h>
 
-#include <yt/yt/ytlib/security_client/permission_cache.h>
+#include <yt/yt/ytlib/tablet_client/pivot_keys_picker.h>
+#include <yt/yt/ytlib/tablet_client/tablet_cell_bundle_ypath_proxy.h>
+#include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
 
-#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
-
-#include <yt/yt/library/heavy_schema_validation/schema_validation.h>
+#include <yt/yt/ytlib/transaction_client/action.h>
+#include <yt/yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/yt/client/chaos_client/helpers.h>
 #include <yt/yt/client/chaos_client/replication_card.h>
 #include <yt/yt/client/chaos_client/replication_card_cache.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
-#include <yt/yt/client/queue_client/consumer_client.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/client/tablet_client/table_mount_cache.h>
-#include <yt/yt/client/tablet_client/helpers.h>
+#include <yt/yt/client/queue_client/consumer_client.h>
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/logical_type.h>
@@ -85,13 +74,24 @@
 #include <yt/yt/client/table_client/wire_protocol.h>
 #include <yt/yt/client/table_client/schema.h>
 
-#include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
+#include <yt/yt/client/tablet_client/helpers.h>
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 #include <yt/yt/client/transaction_client/helpers.h>
 
-#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
+
 #include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+
+#include <yt/yt/library/query/base/ast_visitors.h>
+#include <yt/yt/library/query/base/functions.h>
+#include <yt/yt/library/query/base/query_preparer.h>
+
+#include <yt/yt/library/heavy_schema_validation/schema_validation.h>
+
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
 
 #include <library/cpp/int128/int128.h>
 
@@ -118,7 +118,11 @@ using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
 
+////////////////////////////////////////////////////////////////////////////////
+
 const TString UpstreamReplicaIdAttributeName = "upstream_replica_id";
+const TString SecondaryIndexAlias = "IndexTable";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TQueryPreparer)
@@ -324,35 +328,44 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
     indexTableInfo->ValidateDynamic();
     indexTableInfo->ValidateSorted();
 
-    auto indexTableSchema = indexTableInfo->Schemas[ETableSchemaKind::Primary];
-    auto tableSchema = tableInfo->Schemas[ETableSchemaKind::Primary];
+    const auto& indexTableSchema = indexTableInfo->Schemas[ETableSchemaKind::Primary];
+    const auto& tableSchema = tableInfo->Schemas[ETableSchemaKind::Primary];
 
-    ValidateIndexSchema(*tableSchema, *indexTableSchema);
+    index.Alias = SecondaryIndexAlias;
+    const auto& alias = query.Table.Alias;
 
-    NAst::TIdentifierList equivalences;
-    NAst::TIdentifierList joinColumns;
+    NAst::TExpressionList indexJoinColumns;
+    indexJoinColumns.reserve(tableSchema->GetKeyColumnCount());
+    NAst::TExpressionList tableJoinColumns;
+    tableJoinColumns.reserve(tableSchema->GetKeyColumnCount());
+    THashSet<TString> replacedColumns;
 
-    YT_ASSERT(!index.Alias);
+    for (const auto& tableColumn : tableSchema->Columns()) {
+        const auto* indexColumn = indexTableSchema->FindColumn(tableColumn.Name());
 
-    const auto& alias = index.Alias = query.Table.Alias;
+        if (indexColumn && *indexColumn->LogicalType() == *tableColumn.LogicalType()) {
+            replacedColumns.insert(indexColumn->Name());
+        }
 
-    for (const auto& column : tableSchema->Columns()) {
-        auto* reflection = indexTableSchema->FindColumn(column.Name());
-        if (!reflection) {
-            YT_VERIFY(!column.SortOrder());
+        if (!tableColumn.SortOrder()) {
             continue;
         }
 
-        auto reference = alias
-            ? head->New<NAst::TReferenceExpression>(NQueryClient::TSourceLocation(), column.Name(), *alias)
-            : head->New<NAst::TReferenceExpression>(NQueryClient::TSourceLocation(), column.Name());
+        YT_ASSERT(indexColumn && indexColumn->SortOrder());
 
-        if (column.SortOrder()) {
-            joinColumns.push_back(std::move(reference));
-        } else {
-            equivalences.push_back(std::move(reference));
-        }
+        auto* indexReference = head->New<NAst::TReferenceExpression>(NullSourceLocation, indexColumn->Name(), index.Alias);
+        auto* tableReference = head->New<NAst::TReferenceExpression>(NullSourceLocation, tableColumn.Name(), alias);
+
+        indexJoinColumns.push_back(indexReference);
+        tableJoinColumns.push_back(tableReference);
     }
+
+    query.WherePredicate = NAst::TTableReferenceReplacer(
+        head,
+        std::move(replacedColumns),
+        alias,
+        index.Alias)
+        .Visit(query.WherePredicate);
 
     std::swap(query.Table, index);
     query.Joins.insert(
@@ -360,12 +373,11 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
         NAst::TJoin(
             /*isLeft*/ false,
             std::move(index),
-            std::move(joinColumns),
+            std::move(indexJoinColumns),
+            std::move(tableJoinColumns),
             /*predicate*/ std::nullopt));
 
     query.WithIndex.reset();
-
-    std::get<NAst::TJoin>(query.Joins.front()).Equivalences = std::move(equivalences);
 }
 
 std::vector<TTableMountInfoPtr> GetQueryTableInfos(
@@ -373,9 +385,6 @@ std::vector<TTableMountInfoPtr> GetQueryTableInfos(
     const TStickyTableMountInfoCachePtr& cache)
 {
     std::vector<TYPath> paths{query->Table.Path};
-    if (const auto& withIndex = query->WithIndex; withIndex) {
-        paths.push_back(withIndex->Path);
-    }
     for (const auto& join : query->Joins) {
         if (const auto* tableJoin = std::get_if<NAst::TJoin>(&join)) {
             paths.push_back(tableJoin->Table.Path);
@@ -1433,6 +1442,8 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
 
     auto cache = New<TStickyTableMountInfoCache>(Connection_->GetTableMountCache());
 
+    TransformWithIndexStatement(&parsedQuery->AstHead, cache);
+
     auto [tableInfos, replicaCandidates] = PrepareInSyncReplicaCandidates(
         options,
         GetQueryTableInfos(astQuery, cache));
@@ -1496,8 +1507,6 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         YT_VERIFY(!resultOrError.IsOK());
         resultOrError.ThrowOnError();
     }
-
-    TransformWithIndexStatement(&parsedQuery->AstHead, cache);
 
     auto inputRowLimit = options.InputRowLimit.value_or(Connection_->GetConfig()->DefaultInputRowLimit);
     auto outputRowLimit = options.OutputRowLimit.value_or(Connection_->GetConfig()->DefaultOutputRowLimit);

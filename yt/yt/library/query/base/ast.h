@@ -1,6 +1,5 @@
 #pragma once
 
-#include "public.h"
 #include "query_common.h"
 
 #include <yt/yt/library/query/misc/objects_holder.h>
@@ -413,7 +412,6 @@ struct TJoin
     bool IsLeft;
     TTableDescriptor Table;
     TIdentifierList Fields;
-    TIdentifierList Equivalences;
 
     TExpressionList Lhs;
     TExpressionList Rhs;

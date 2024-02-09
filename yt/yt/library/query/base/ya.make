@@ -6,6 +6,7 @@ PROTO_NAMESPACE(yt)
 
 SRCS(
     ast.cpp
+    ast_visitors.cpp
     constraints.cpp
     coordination_helpers.cpp
     functions.cpp
