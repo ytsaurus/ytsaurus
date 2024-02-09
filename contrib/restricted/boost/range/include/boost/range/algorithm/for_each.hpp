@@ -18,7 +18,7 @@
 #include <algorithm>
 
 #if BOOST_WORKAROUND(BOOST_MSVC, == 1600)
-#include <xutility>
+#error #include <xutility>
 #endif
 
 namespace boost
