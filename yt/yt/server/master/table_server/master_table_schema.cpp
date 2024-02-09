@@ -154,14 +154,24 @@ bool TMasterTableSchema::UnrefBy(TAccount* account, int delta)
 {
     YT_VERIFY(delta > 0);
 
-    auto it = GetIteratorOrCrash(ReferencingAccounts_, account);
+    auto it = ReferencingAccounts_.find(account);
+    if (it == ReferencingAccounts_.end()) {
+        YT_LOG_ALERT("Attempting to unref schema by account that holds no recorded refs (SchemaId: %v, Account: %v)",
+            Id_,
+            account->GetName());
+        return false;
+    }
+
     it->second -= delta;
     if (it->second == 0) {
         ReferencingAccounts_.erase(it);
         return true;
     }
 
-    YT_VERIFY(it->second > 0);
+    YT_LOG_ALERT_UNLESS(it->second > 0,
+        "Negative account ref count on schema detected (SchemaId: %v, Account: %v)",
+        Id_,
+        account->GetName());
     return false;
 }
 
