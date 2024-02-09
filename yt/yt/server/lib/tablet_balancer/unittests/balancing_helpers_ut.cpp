@@ -98,9 +98,9 @@ void CheckEqual(
     const TTestMoveDescriptorPtr& expected,
     const TMoveDescriptor& actual)
 {
-    auto actualDescriptor = expected->CreateMoveDescriptor();
-    EXPECT_EQ(actual.TabletId, actualDescriptor.TabletId);
-    EXPECT_EQ(actual.TabletCellId, actualDescriptor.TabletCellId);
+    auto expectedDescriptor = expected->CreateMoveDescriptor();
+    EXPECT_EQ(actual.TabletId, expectedDescriptor.TabletId);
+    EXPECT_EQ(actual.TabletCellId, expectedDescriptor.TabletCellId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -559,7 +559,7 @@ class TTestReassignTabletsParameterized
         /*cellSizes*/ std::vector<i64>>>
 { };
 
-TEST_P(TTestReassignTabletsParameterized, SimpleViaMemorySize)
+TEST_P(TTestReassignTabletsParameterized, ViaMemorySize)
 {
     const auto& params = GetParam();
     auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(std::get<0>(params)));
@@ -590,14 +590,15 @@ TEST_P(TTestReassignTabletsParameterized, SimpleViaMemorySize)
         }
     }
 
-    for (const auto& descriptor : descriptors) {
-        auto tablet = FindTabletInBundle(bundle, descriptor.TabletId);
+    for (int index = 0; index < std::ssize(descriptors); ++index) {
+        auto tablet = FindTabletInBundle(bundle, descriptors[index].TabletId);
         EXPECT_TRUE(tablet != nullptr);
         auto cell = tablet->Cell.Lock();
         EXPECT_TRUE(cell != nullptr);
-        EXPECT_TRUE(cell->Id != descriptor.TabletCellId);
+        EXPECT_TRUE(cell->Id != descriptors[index].TabletCellId);
 
-        tabletToCell[descriptor.TabletId] = descriptor.TabletCellId;
+        tabletToCell[descriptors[index].TabletId] = descriptors[index].TabletCellId;
+        CheckEqual(expected[index], descriptors[index]);
     }
 
     THashMap<TTabletCellId, int> tabletCounts;
@@ -682,34 +683,35 @@ INSTANTIATE_TEST_SUITE_P(
                      "tablets=["
             "{tablet_index=1; cell_index=1;"
                 "statistics={uncompressed_data_size=60; memory_size=60; compressed_data_size=60; partition_count=1}};"
-            "{tablet_index=2; cell_index=1;"
+            "{tablet_index=2; cell_index=2;"
+                "statistics={uncompressed_data_size=5; memory_size=5; compressed_data_size=5; partition_count=1}};"
+            "{tablet_index=3; cell_index=1;"
                 "statistics={uncompressed_data_size=40; memory_size=40; compressed_data_size=40; partition_count=1}}]}];"
             "cells=[{cell_index=1; memory_size=100; node_address=home};"
-                   "{cell_index=2; memory_size=0; node_address=home}];"
+                   "{cell_index=2; memory_size=5; node_address=home}];"
             "nodes=[{node_address=home; memory_used=0; memory_limit=200}]}",
-            /*moveDescriptors*/ "[{tablet_index=2; cell_index=2};]",
+            /*moveDescriptors*/ "[{tablet_index=3; cell_index=2};]",
             /*moveActionLimit*/ 1,
-            /*distribution*/ std::vector<int>{1, 1},
-            /*cellSizes*/ std::vector<i64>{60, 40}),
-        std::tuple( // SWAP (available action count is more than needed)
+            /*distribution*/ std::vector<int>{1, 2},
+            /*cellSizes*/ std::vector<i64>{60, 45}),
+        std::tuple( // MOVE (available action count is more than needed)
             "{config={enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
             "tables=[{in_memory_mode=uncompressed; tablets=["
             "{tablet_index=1; cell_index=1;"
                 "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=0; partition_count=1}};"
             "{tablet_index=2; cell_index=1;"
-                "statistics={uncompressed_data_size=20; memory_size=20; compressed_data_size=0; partition_count=1}};"
-            "{tablet_index=3; cell_index=2;"
                 "statistics={uncompressed_data_size=10; memory_size=10; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=3; cell_index=2;"
+                "statistics={uncompressed_data_size=5; memory_size=5; compressed_data_size=0; partition_count=1}};"
             "{tablet_index=4; cell_index=2;"
                 "statistics={uncompressed_data_size=40; memory_size=40; compressed_data_size=0; partition_count=1}}]}];"
             "cells=[{cell_index=1; memory_size=70; node_address=home};"
                    "{cell_index=2; memory_size=50; node_address=home}];"
             "nodes=[{node_address=home; memory_used=0; memory_limit=200}]}",
-            /*moveDescriptors*/ "[{tablet_index=2; cell_index=2};"
-                "{tablet_index=3; cell_index=1};]",
+            /*moveDescriptors*/ "[{tablet_index=2; cell_index=2};]",
             /*moveActionLimit*/ 3,
-            /*distribution*/ std::vector<int>{2, 2},
-            /*cellSizes*/ std::vector<i64>{60, 60}),
+            /*distribution*/ std::vector<int>{1, 3},
+            /*cellSizes*/ std::vector<i64>{50, 55}),
         std::tuple( // DISABLE BALANCING
             "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
             "tables=[{in_memory_mode=uncompressed; tablets=["
@@ -800,7 +802,7 @@ class TTestReassignTabletsParameterizedByNodes
     : public TTestReassignTabletsParameterized
 { };
 
-TEST_P(TTestReassignTabletsParameterizedByNodes, SimpleManyNodesWithInMemoryTablets)
+TEST_P(TTestReassignTabletsParameterizedByNodes, ManyNodesWithInMemoryTablets)
 {
     const auto& params = GetParam();
     auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(std::get<0>(params)));
@@ -832,14 +834,15 @@ TEST_P(TTestReassignTabletsParameterizedByNodes, SimpleManyNodesWithInMemoryTabl
         }
     }
 
-    for (const auto& descriptor : descriptors) {
-        auto tablet = FindTabletInBundle(bundle, descriptor.TabletId);
+    for (int index = 0; index < std::ssize(descriptors); ++index) {
+        auto tablet = FindTabletInBundle(bundle, descriptors[index].TabletId);
         EXPECT_TRUE(tablet != nullptr);
         auto cell = tablet->Cell.Lock();
         EXPECT_TRUE(cell != nullptr);
-        EXPECT_TRUE(cell->Id != descriptor.TabletCellId);
+        EXPECT_TRUE(cell->Id != descriptors[index].TabletCellId);
 
-        tabletToCell[descriptor.TabletId] = descriptor.TabletCellId;
+        tabletToCell[descriptors[index].TabletId] = descriptors[index].TabletCellId;
+        CheckEqual(expected[index], descriptors[index]);
     }
 
     THashMap<TTabletCellId, int> tabletCounts;
@@ -944,10 +947,10 @@ INSTANTIATE_TEST_SUITE_P(
                    "{cell_index=3; memory_size=0; node_address=home2}];"
             "nodes=[{node_address=home1; memory_used=60; memory_limit=60; tablet_slot_count=2};"
                    "{node_address=home2; memory_used=0; memory_limit=5}]}",
-            /*moveDescriptors*/ "[{tablet_index=1; cell_index=2}; {tablet_index=3; cell_index=1}]",
+            /*moveDescriptors*/ "[]",
             /*moveActionLimit*/ 2,
             /*distribution*/ std::vector<int>{2, 2, 0},
-            /*cellSizes*/ std::vector<i64>{30, 30, 0}),
+            /*cellSizes*/ std::vector<i64>{40, 20, 0}),
         std::tuple(
             "{config={enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
             "tables=[{in_memory_mode=uncompressed; tablets=["
@@ -986,10 +989,10 @@ INSTANTIATE_TEST_SUITE_P(
                    "{cell_index=4; memory_size=0; node_address=home2}];"
             "nodes=[{node_address=home1; memory_used=60; memory_limit=60; tablet_slot_count=2};"
                    "{node_address=home2; memory_used=0; memory_limit=0}]}",
-            /*moveDescriptors*/ "[{tablet_index=1; cell_index=2}; {tablet_index=3; cell_index=1}]",
+            /*moveDescriptors*/ "[]",
             /*moveActionLimit*/ 2,
             /*distribution*/ std::vector<int>{2, 2, 1, 0},
-            /*cellSizes*/ std::vector<i64>{30, 30, 10, 0}),
+            /*cellSizes*/ std::vector<i64>{40, 20, 10, 0}),
         std::tuple(
             "{config={enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
             "tables=[{in_memory_mode=uncompressed; tablets=["
@@ -1016,7 +1019,7 @@ class TTestMergeSplitTabletsParameterized
     : public TTestTabletBalancingHelpers
 { };
 
-TEST_P(TTestMergeSplitTabletsParameterized, SimpleViaMemorySize)
+TEST_P(TTestMergeSplitTabletsParameterized, ViaMemorySize)
 {
     const auto& params = GetParam();
     auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(std::get<0>(params)));
