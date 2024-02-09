@@ -35,7 +35,10 @@ public:
 protected:
     THashMap<TString, TTransactionActionDescriptor<TTransaction>> ActionHandlerMap_;
 
-    void RunPrepareTransactionActions(TTransaction* transaction, const TTransactionPrepareOptions& options);
+    void RunPrepareTransactionActions(
+        TTransaction* transaction,
+        const TTransactionPrepareOptions& options,
+        bool requireLegacyBehavior = false);
     void RunCommitTransactionActions(TTransaction* transaction, const TTransactionCommitOptions& options);
     void RunAbortTransactionActions(TTransaction* transaction, const TTransactionAbortOptions& options);
     void RunSerializeTransactionActions(TTransaction* transaction);

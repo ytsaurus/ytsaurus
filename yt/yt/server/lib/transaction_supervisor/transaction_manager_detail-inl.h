@@ -21,12 +21,15 @@ void TTransactionManagerBase<TTransaction>::RegisterTransactionActionHandlers(
 template <class TTransaction>
 void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
     TTransaction* transaction,
-    const TTransactionPrepareOptions& options)
+    const TTransactionPrepareOptions& options,
+    bool requireLegacyBehavior)
 {
     TTransactionActionGuard transactionActionGuard;
     // |PreparedActionCount| should never be |nullopt| after update to current
-    // version.
-    transaction->SetPreparedActionCount(0);
+    // version until |requireLegacyBehavior| is |true|.
+    if (!requireLegacyBehavior) {
+        transaction->SetPreparedActionCount(0);
+    }
 
     for (const auto& action : transaction->Actions()) {
         try {
@@ -43,7 +46,9 @@ void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
             throw;
         }
 
-        transaction->SetPreparedActionCount(*transaction->GetPreparedActionCount() + 1);
+        if (!requireLegacyBehavior) {
+            transaction->SetPreparedActionCount(*transaction->GetPreparedActionCount() + 1);
+        }
     }
 }
 
