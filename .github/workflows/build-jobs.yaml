@@ -197,7 +197,7 @@ jobs:
           ydb-ya-make ../ytsaurus/ydb/ydb/library/yql/tools/mrjob
           ydb-ya-make ../ytsaurus/ydb/ydb/library/yql/yt/dynamic
 
-          udfs_prefix="../ytsaurus/ydb/yd b/library/yql/udfs/common"
+          udfs_prefix="../ytsaurus/ydb/ydb/library/yql/udfs/common"
           ydb-ya-make ${udfs_prefix}/compress_base
           ydb-ya-make ${udfs_prefix}/datetime2
           ydb-ya-make ${udfs_prefix}/digest
