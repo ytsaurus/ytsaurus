@@ -3,8 +3,9 @@
 // XXX(max42): this is a workaround for some weird linkage error.
 #include <yt/yt/core/ytree/convert.h>
 
-#include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/column_sort_schema.h>
+#include <yt/yt/client/table_client/logical_type.h>
+#include <yt/yt/client/table_client/schema.h>
 
 namespace NYT::NTableClient {
 
@@ -81,31 +82,78 @@ TTableSchemaPtr InferInputSchema(const std::vector<TTableSchemaPtr>& schemas, bo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateIndexSchema(const TTableSchema& tableSchema, const TTableSchema& indexTableSchema)
+bool IsValidUnfoldedColumnPair(TLogicalTypePtr tableColumnType, const TLogicalTypePtr& indexColumnType)
 {
-    for (const auto& key : tableSchema.GetKeyColumns()) {
-        auto* column = indexTableSchema.FindColumn(key);
-        if (!column) {
-            THROW_ERROR_EXCEPTION("Key column %Qv missing in the index",
-                key);
+    if (tableColumnType->GetMetatype() == ELogicalMetatype::Optional) {
+        tableColumnType = tableColumnType->UncheckedAsOptionalTypeRef().GetElement();
+    }
+    if (tableColumnType->GetMetatype() != ELogicalMetatype::List) {
+        return false;
+    }
+
+    return *tableColumnType->UncheckedAsListTypeRef().GetElement() == *indexColumnType;
+}
+
+void ValidateIndexSchema(const TTableSchema& tableSchema, const TTableSchema& indexTableSchema, const TColumnSchema** unfoldedColumn)
+{
+    THROW_ERROR_EXCEPTION_IF(!tableSchema.IsSorted(),
+        "Table must be sorted");
+    THROW_ERROR_EXCEPTION_IF(!indexTableSchema.IsSorted(),
+        "Index table must be sorted");
+
+    THROW_ERROR_EXCEPTION_IF(!tableSchema.IsUniqueKeys(),
+        "Table must have unique keys");
+    THROW_ERROR_EXCEPTION_IF(!indexTableSchema.IsUniqueKeys(),
+        "Index table must have unique keys");
+
+    for (const auto& tableColumn : tableSchema.Columns()) {
+        if (!tableColumn.SortOrder()) {
+            break;
         }
-        if (!column->SortOrder()) {
+        if (tableColumn.Expression()) {
+            continue;
+        }
+
+        auto* indexColumn = indexTableSchema.FindColumn(tableColumn.Name());
+        if (!indexColumn) {
+            THROW_ERROR_EXCEPTION("Key column %Qv missing in the index",
+                tableColumn.Name());
+        }
+        if (!indexColumn->SortOrder()) {
             THROW_ERROR_EXCEPTION("Table key column %Qv must be a key column in the index",
-                key);
+                tableColumn.Name());
         }
     }
 
-    for (int index = 0; index < indexTableSchema.GetColumnCount(); ++index) {
-        const auto& indexColumn = indexTableSchema.Columns()[index];
+    for (const auto& indexColumn : indexTableSchema.Columns()) {
+        THROW_ERROR_EXCEPTION_IF(indexColumn.Aggregate(),
+            "Index table cannot have aggregate columns, found aggregate column %Qv with function %Qv",
+            indexColumn.Name(),
+            indexColumn.Aggregate());
+
         if (auto* tableColumn = tableSchema.FindColumn(indexColumn.Name())) {
-            auto tableType = tableColumn->GetWireType();
-            auto indexType = indexColumn.GetWireType();
-            if (tableType != indexType) {
-                THROW_ERROR_EXCEPTION("Type mismatch for the column %Qv",
-                    indexColumn.Name())
-                    << TErrorAttribute("table_type", tableType)
-                    << TErrorAttribute("index_type", indexType);
+            const auto& tableType = tableColumn->LogicalType();
+            const auto& indexType = indexColumn.LogicalType();
+
+            if (*tableType != *indexType) {
+                THROW_ERROR_EXCEPTION_IF(!unfoldedColumn || *unfoldedColumn || !IsValidUnfoldedColumnPair(tableType, indexType),
+                    "Type mismatch for the column %Qv. 1. Table: %v, index table: %v",
+                    indexColumn.Name(),
+                    *tableType,
+                    *indexType);
+
+                *unfoldedColumn = &indexColumn;
             }
+
+            THROW_ERROR_EXCEPTION_IF(indexColumn.SortOrder() && tableColumn->Aggregate(),
+                "Cannot create index on an aggregate column %Qv",
+                indexColumn.Name());
+
+            THROW_ERROR_EXCEPTION_IF(tableColumn->Expression() != indexColumn.Expression(),
+                "Expression mismatch in evaluated column %Qv: table expression %Qv, index expression %Qv",
+                indexColumn.Name(),
+                tableColumn->Expression(),
+                indexColumn.Expression());
         } else {
             if (!indexColumn.SortOrder()) {
                 THROW_ERROR_EXCEPTION_IF(indexColumn.Name() != EmptyValueColumnName,

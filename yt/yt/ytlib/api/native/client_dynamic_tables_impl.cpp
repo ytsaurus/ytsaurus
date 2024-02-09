@@ -328,20 +328,34 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
     indexTableInfo->ValidateDynamic();
     indexTableInfo->ValidateSorted();
 
-    const auto& indexTableSchema = indexTableInfo->Schemas[ETableSchemaKind::Primary];
-    const auto& tableSchema = tableInfo->Schemas[ETableSchemaKind::Primary];
+    const auto& indexTableSchema = *indexTableInfo->Schemas[ETableSchemaKind::Primary];
+    const auto& tableSchema = *tableInfo->Schemas[ETableSchemaKind::Primary];
+
+    const TColumnSchema* unfoldedColumn = nullptr;
+    ValidateIndexSchema(tableSchema, indexTableSchema, &unfoldedColumn);
 
     index.Alias = SecondaryIndexAlias;
     const auto& alias = query.Table.Alias;
 
+    if (unfoldedColumn) {
+        NAst::TReference repeatedIndexedColumn(unfoldedColumn->Name(), alias);
+        NAst::TReference unfoldedIndexerColumn(unfoldedColumn->Name(), index.Alias);
+
+        query.WherePredicate = NAst::TListContainsTrasformer(
+            head,
+            repeatedIndexedColumn,
+            unfoldedIndexerColumn)
+            .Visit(query.WherePredicate);
+    }
+
     NAst::TExpressionList indexJoinColumns;
-    indexJoinColumns.reserve(tableSchema->GetKeyColumnCount());
+    indexJoinColumns.reserve(tableSchema.GetKeyColumnCount());
     NAst::TExpressionList tableJoinColumns;
-    tableJoinColumns.reserve(tableSchema->GetKeyColumnCount());
+    tableJoinColumns.reserve(tableSchema.GetKeyColumnCount());
     THashSet<TString> replacedColumns;
 
-    for (const auto& tableColumn : tableSchema->Columns()) {
-        const auto* indexColumn = indexTableSchema->FindColumn(tableColumn.Name());
+    for (const auto& tableColumn : tableSchema.Columns()) {
+        const auto* indexColumn = indexTableSchema.FindColumn(tableColumn.Name());
 
         if (indexColumn && *indexColumn->LogicalType() == *tableColumn.LogicalType()) {
             replacedColumns.insert(indexColumn->Name());
@@ -1441,6 +1455,9 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto* astQuery = &std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
 
     auto cache = New<TStickyTableMountInfoCache>(Connection_->GetTableMountCache());
+    GetQueryTableInfos(astQuery, cache);
+
+    TransformWithIndexStatement(&parsedQuery->AstHead, cache);
 
     TransformWithIndexStatement(&parsedQuery->AstHead, cache);
 

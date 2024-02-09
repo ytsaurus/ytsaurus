@@ -1,6 +1,7 @@
 #pragma once
 
 #include "query_common.h"
+#include "query.h"
 
 #include <yt/yt/library/query/misc/objects_holder.h>
 
@@ -191,11 +192,11 @@ struct TReferenceExpression
 
     TReferenceExpression(
         const TSourceLocation& sourceLocation,
-        const TString& columnName,
-        const std::optional<TString>& tableName = {},
-        const TCompositeTypeMemberAccessor& compositeTypeAccessor = {})
+        TString columnName,
+        std::optional<TString> tableName = {},
+        TCompositeTypeMemberAccessor compositeTypeAccessor = {})
         : TExpression(sourceLocation)
-        , Reference(columnName, tableName, compositeTypeAccessor)
+        , Reference(std::move(columnName), std::move(tableName), std::move(compositeTypeAccessor))
     { }
 
     TReferenceExpression(

@@ -12,7 +12,10 @@ TTableSchemaPtr InferInputSchema(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateIndexSchema(const TTableSchema& tableSchema, const TTableSchema& indexTableSchema);
+void ValidateIndexSchema(
+    const TTableSchema& tableSchema,
+    const TTableSchema& indexTableSchema,
+    const TColumnSchema** unfoldedColumn = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

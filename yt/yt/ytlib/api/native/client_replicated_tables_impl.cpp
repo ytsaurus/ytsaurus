@@ -557,24 +557,13 @@ std::pair<TString, TSelectRowsOptions::TExpectedTableSchemas> TClient::PickInSyn
         chaosTableSchemas[0],
         bannedSyncReplicaIds[0]);
 
-    int joinOffset = 1;
-
-    if (query->WithIndex) {
-        patchTableDescriptor(
-            &*query->WithIndex,
-            candidates[joinOffset],
-            chaosTableSchemas[joinOffset],
-            bannedSyncReplicaIds[joinOffset]);
-        joinOffset++;
-    }
-
     for (size_t index = 0; index < query->Joins.size(); ++index) {
         if (auto* tableJoin = std::get_if<NAst::TJoin>(&query->Joins[index])) {
             patchTableDescriptor(
                 &tableJoin->Table,
-                candidates[index + joinOffset],
-                chaosTableSchemas[index + joinOffset],
-                bannedSyncReplicaIds[index + joinOffset]);
+                candidates[index + 1],
+                chaosTableSchemas[index + 1],
+                bannedSyncReplicaIds[index + 1]);
         }
     }
 
