@@ -914,12 +914,11 @@ public:
             return;
         }
 
-        if (GetDynamicConfig()->EnableChunkSchemas && schemaId != NullTableSchemaId) {
-            const auto& tableManager = Bootstrap_->GetTableManager();
-            // TODO(h0pless): Maybe think of a better exception here.
-            auto* temporarySchema = tableManager->GetMasterTableSchemaOrThrow(schemaId);
-            tableManager->GetOrCreateNativeMasterTableSchema(*temporarySchema->AsTableSchema(), chunk);
-        }
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        // TODO(h0pless): Maybe think of a better exception here.
+        auto* temporarySchema = GetDynamicConfig()->EnableChunkSchemas && schemaId != NullTableSchemaId
+            ? tableManager->GetMasterTableSchemaOrThrow(schemaId)
+            : nullptr;
 
         // NB: Figure out and validate all hunk chunks we are about to reference _before_ confirming
         // the chunk and storing its meta. Otherwise, in DestroyChunk one may end up having
@@ -945,6 +944,10 @@ public:
         }
 
         chunk->Confirm(chunkInfo, chunkMeta);
+
+        if (temporarySchema) {
+            tableManager->GetOrCreateNativeMasterTableSchema(*temporarySchema->AsTableSchema(), chunk);
+        }
 
         UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ true);
 
@@ -1261,7 +1264,16 @@ public:
             ConsistentChunkPlacement_->RemoveChunk(chunk);
         }
 
-        UpdateChunkSchemaMasterMemoryUsage(chunk, -1);
+        // Just a sanity check.
+        if (chunk->IsConfirmed()) {
+            UpdateChunkSchemaMasterMemoryUsage(chunk, -1);
+        } else if (chunk->Schema()) {
+            // This can be safely removed after 24.1 rolls around if this alert is not triggered.
+            YT_LOG_ALERT("Destroying an unconfirmed chunk with a valid chunk schema (ChunkId: %v, SchemaId: %v)",
+                chunk->GetId(),
+                chunk->Schema()->GetId());
+        }
+
         if (chunk->IsNative() && chunk->IsDiskSizeFinal()) {
             // The chunk has been already unstaged.
             UpdateResourceUsage(chunk, -1);
