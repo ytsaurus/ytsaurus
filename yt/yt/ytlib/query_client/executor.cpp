@@ -173,13 +173,15 @@ class TQueryExecutor
 {
 public:
     TQueryExecutor(
+        IMemoryChunkProviderPtr memoryChunkProvider,
         NNative::IConnectionPtr connection,
         IInvokerPtr invoker,
         IColumnEvaluatorCachePtr columnEvaluatorCache,
         IEvaluatorPtr evaluator,
         INodeChannelFactoryPtr nodeChannelFactory,
         TFunctionImplCachePtr functionImplCache)
-        : Connection_(std::move(connection))
+        : MemoryChunkProvider_(std::move(memoryChunkProvider))
+        , Connection_(std::move(connection))
         , Invoker_(std::move(invoker))
         , ColumnEvaluatorCache(std::move(columnEvaluatorCache))
         , Evaluator_(std::move(evaluator))
@@ -210,6 +212,7 @@ public:
     }
 
 private:
+    const IMemoryChunkProviderPtr MemoryChunkProvider_;
     const NNative::IConnectionPtr Connection_;
     const IInvokerPtr Invoker_;
     const IColumnEvaluatorCachePtr ColumnEvaluatorCache;
@@ -280,7 +283,7 @@ private:
                     nullptr,
                     functionGenerators,
                     aggregateGenerators,
-                    GetDefaultMemoryChunkProvider(),
+                    MemoryChunkProvider_,
                     options);
             });
     }
@@ -294,7 +297,9 @@ private:
     {
         auto Logger = MakeQueryLogger(query);
 
-        auto rowBuffer = New<TRowBuffer>(TQueryExecutorRowBufferTag{});
+        auto rowBuffer = New<TRowBuffer>(
+            TQueryExecutorRowBufferTag{},
+            MemoryChunkProvider_);
         auto allSplits = InferRanges(
             Connection_,
             query,
@@ -352,7 +357,9 @@ private:
     {
         auto Logger = MakeQueryLogger(query);
 
-        auto rowBuffer = New<TRowBuffer>(TQueryExecutorRowBufferTag());
+        auto rowBuffer = New<TRowBuffer>(
+            TQueryExecutorRowBufferTag(),
+            MemoryChunkProvider_);
         auto allSplits = InferRanges(
             Connection_,
             query,
@@ -620,6 +627,7 @@ std::vector<std::pair<TDataSource, TString>> InferRanges(
 
 
 IExecutorPtr CreateQueryExecutor(
+    IMemoryChunkProviderPtr memoryChunkProvider,
     NNative::IConnectionPtr connection,
     IInvokerPtr invoker,
     IColumnEvaluatorCachePtr columnEvaluatorCache,
@@ -628,6 +636,7 @@ IExecutorPtr CreateQueryExecutor(
     TFunctionImplCachePtr functionImplCache)
 {
     return New<TQueryExecutor>(
+        std::move(memoryChunkProvider),
         std::move(connection),
         std::move(invoker),
         std::move(columnEvaluatorCache),

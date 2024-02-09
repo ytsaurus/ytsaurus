@@ -334,6 +334,7 @@ SRCS(
     query_client/explain.cpp
     query_client/functions_cache.cpp
     query_client/session_coordinator.cpp
+    query_client/tracked_memory_chunk_provider.cpp
     query_client/shuffle.cpp
 
     queue_client/config.cpp

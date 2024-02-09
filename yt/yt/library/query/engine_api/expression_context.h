@@ -14,7 +14,6 @@ class TExpressionContext
     : public TNonCopyable
 {
 public:
-    TExpressionContext();
     explicit TExpressionContext(TRowBufferPtr rowBuffer);
 
     ~TExpressionContext() = default;
@@ -46,11 +45,14 @@ private:
 
 template <class TTag = NTableClient::TDefaultRowBufferPoolTag>
 TExpressionContext MakeExpressionContext(
-    TTag = NTableClient::TDefaultRowBufferPoolTag(),
+    TTag,
+    IMemoryUsageTrackerPtr memoryTracker,
     size_t startChunkSize = TChunkedMemoryPool::DefaultStartChunkSize);
 
 template <class TTag>
-TExpressionContext MakeExpressionContext(TTag, IMemoryChunkProviderPtr chunkProvider);
+TExpressionContext MakeExpressionContext(
+    TTag,
+    IMemoryChunkProviderPtr chunkProvider);
 
 ////////////////////////////////////////////////////////////////////////////////
 

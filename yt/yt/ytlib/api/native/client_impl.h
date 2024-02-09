@@ -7,7 +7,6 @@
 
 #include <yt/yt/ytlib/chunk_pools/public.h>
 
-#include <yt/yt/ytlib/query_client/executor.h>
 #include <yt/yt/ytlib/tablet_client/public.h>
 
 #include <yt/yt/ytlib/controller_agent/job_prober_service_proxy.h>
@@ -15,6 +14,8 @@
 
 #include <yt/yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
+#include <yt/yt/ytlib/query_client/executor.h>
+#include <yt/yt/ytlib/query_client/tracked_memory_chunk_provider.h>
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
@@ -891,6 +892,8 @@ private:
     std::unique_ptr<NScheduler::TOperationServiceProxy> SchedulerOperationProxy_;
     std::unique_ptr<NBundleController::TBundleControllerServiceProxy> BundleControllerProxy_;
     const ITypedNodeMemoryTrackerPtr LookupMemoryTracker_;
+    const ITypedNodeMemoryTrackerPtr QueryMemoryTracker_;
+    const NQueryClient::TMemoryProviderMapByTagPtr MemoryProvider_ = New<NQueryClient::TMemoryProviderMapByTag>();
 
     struct TReplicaClient final
     {

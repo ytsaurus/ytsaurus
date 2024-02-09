@@ -1556,7 +1556,15 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         options.DetailedProfilingInfo,
         options.ExpectedTableSchemas);
 
+    auto readSessionId = TReadSessionId::Create();
+
+    auto memoryChunkProvider = MemoryProvider_->GetProvider(
+            ToString(readSessionId),
+            options.MemoryLimitPerNode,
+            QueryMemoryTracker_);
+
     auto queryExecutor = CreateQueryExecutor(
+        memoryChunkProvider,
         Connection_,
         Connection_->GetInvoker(),
         Connection_->GetColumnEvaluatorCache(),
@@ -1567,7 +1575,8 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto fragment = PreparePlanFragment(
         queryPreparer.Get(),
         *parsedQuery,
-        fetchFunctions);
+        fetchFunctions,
+        QueryMemoryTracker_);
     const auto& query = fragment->Query;
     const auto& dataSource = fragment->DataSource;
 
@@ -1657,7 +1666,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     queryOptions.InputRowLimit = inputRowLimit;
     queryOptions.OutputRowLimit = outputRowLimit;
     queryOptions.AllowFullScan = options.AllowFullScan;
-    queryOptions.ReadSessionId = TReadSessionId::Create();
+    queryOptions.ReadSessionId = readSessionId;
     queryOptions.MemoryLimitPerNode = options.MemoryLimitPerNode;
     queryOptions.ExecutionPool = options.ExecutionPool;
     queryOptions.Deadline = options.Timeout.value_or(Connection_->GetConfig()->DefaultSelectRowsTimeout).ToDeadLine();
@@ -1738,7 +1747,8 @@ NYson::TYsonString TClient::DoExplainQuery(
     auto fragment = PreparePlanFragment(
         queryPreparer.Get(),
         *parsedQuery,
-        fetchFunctions);
+        fetchFunctions,
+        QueryMemoryTracker_);
 
     return BuildExplainQueryYson(GetNativeConnection(), fragment, udfRegistryPath, options);
 }
