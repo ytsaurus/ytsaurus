@@ -19,6 +19,7 @@
 #include <yt/yt/server/tools/tools.h>
 #include <yt/yt/server/tools/proc.h>
 
+#include <yt/yt/library/containers/helpers.h>
 #include <yt/yt/library/containers/process.h>
 
 #ifdef _linux_
@@ -556,10 +557,12 @@ public:
             for (int index = 0; index < std::ssize(commands); ++index) {
                 const auto& command = commands[index];
                 YT_LOG_DEBUG(
-                    "Running setup command (JobId: %v, Path: %v, Args: %v)",
+                    "Running setup command (JobId: %v, Path: %v, Args: %v, User: %v, Devices: %v)",
                     jobId,
                     command->Path,
-                    command->Args);
+                    command->Args,
+                    user,
+                    devices);
                 auto launcher = this_->CreateSetupInstanceLauncher(slotIndex, slotType, jobId, rootFS, user, startIndex + index);
                 if (devices) {
                     launcher->SetDevices(*devices);
