@@ -8,7 +8,7 @@ script_name=$0
 ytsaurus_source_path="."
 ytsaurus_build_path="."
 ytsaurus_package_name=""
-not_prepare_bindings_libraries=false
+prepare_bindings_libraries=true
 
 print_usage() {
     cat << EOF
@@ -41,7 +41,7 @@ while [[ $# -gt 0 ]]; do
         shift 2
         ;;
         --not-prepare-bindings-libraries)
-        not_prepare_bindings_libraries=true
+        prepare_bindings_libraries=false
         shift 1
         ;;
         *)
@@ -63,17 +63,17 @@ $ytsaurus_source_path/yt/python/packages/yt_setup/generate_python_proto.py \
 
 
 cd $ytsaurus_source_path/yt/python/packages
-if [[ "$not_prepare_bindings_libraries" = true ]]; then
-    python3 -m yt_setup.prepare_python_modules \
-        --source-root ${ytsaurus_source_path} \
-        --build-root ${ytsaurus_build_path} \
-        --output-path ${ytsaurus_python}
-else
+if [[ "$prepare_bindings_libraries" = true ]]; then
     python3 -m yt_setup.prepare_python_modules \
         --source-root ${ytsaurus_source_path} \
         --build-root ${ytsaurus_build_path} \
         --output-path ${ytsaurus_python} \
         --prepare-bindings-libraries
+else
+    python3 -m yt_setup.prepare_python_modules \
+        --source-root ${ytsaurus_source_path} \
+        --build-root ${ytsaurus_build_path} \
+        --output-path ${ytsaurus_python}
 fi
 
 cd ${ytsaurus_python}
