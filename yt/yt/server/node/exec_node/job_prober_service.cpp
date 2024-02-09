@@ -59,10 +59,8 @@ private:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         auto jobId = FromProto<TJobId>(request->job_id());
-        // COMPAT(coteeq)
-        auto transactionId = request->has_transaction_id() ? FromProto<TTransactionId>(request->transaction_id()) : NullTransactionId;
-        context->SetRequestInfo("JobId: %v", jobId);
-        context->SetRequestInfo("TransactionId: %v", transactionId);
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        context->SetRequestInfo("JobId: %v, TransactionId: %v", jobId, transactionId);
 
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
         auto chunkIds = job->DumpInputContext(transactionId);

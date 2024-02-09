@@ -20,7 +20,7 @@ namespace NYT::NJobProxy {
 struct IJobProbe
     : public virtual TRefCounted
 {
-    virtual std::vector<NChunkClient::TChunkId> DumpInputContext(NTransactionClient::TTransactionId) = 0;
+    virtual std::vector<NChunkClient::TChunkId> DumpInputContext(NTransactionClient::TTransactionId transactionId) = 0;
 
     virtual NApi::TPollJobShellResponse PollJobShell(
         const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,

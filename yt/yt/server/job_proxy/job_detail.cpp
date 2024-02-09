@@ -78,7 +78,7 @@ void TJob::PopulateInputNodeDirectory() const
         Host_->GetJobSpecHelper()->GetJobSpecExt().input_node_directory());
 }
 
-std::vector<NChunkClient::TChunkId> TJob::DumpInputContext(TTransactionId)
+std::vector<NChunkClient::TChunkId> TJob::DumpInputContext(TTransactionId /*transactionId*/)
 {
     THROW_ERROR_EXCEPTION(
         EErrorCode::UnsupportedJobType,
