@@ -45,7 +45,7 @@ jobs:
           /opt/go/bin/go build
 
       - name: Configure ytsaurus
-        if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker || inputs.build-query-tracker-ya-make }}
+        if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker }}
         run: |
           mkdir -p ../build
           cd ../build
@@ -127,6 +127,15 @@ jobs:
           cd ../build_relwithdebinfo
           ninja ytserver-all
 
+      - name: Build ytsaurus (ya make, relwithdebinfo)
+        if: ${{ inputs.build-query-tracker-ya-make }}
+        run: |
+          mkdir -p ../ya_build
+          cd ../ya_build
+          rm -rf *
+
+          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=../ya_build ../ytsaurus/ytsaurus/yt/yt
+
       - name: Build chyt
         if: ${{ inputs.build-chyt }}
         run: |
@@ -183,13 +192,11 @@ jobs:
           mkdir -p ../build_qt_ya_make
           cd ../build_qt_ya_make
           rm -rf *
-
+          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=../ya_build ../ytsaurus/ytsaurus/yt/yql/agent/bin
           shopt -s expand_aliases
           alias ydb-ya-make="../ytsaurus/ydb/ya make -T --ignore-recurses --build=relwithdebinfo  --output=."
-
           ydb-ya-make ../ytsaurus/ydb/ydb/library/yql/tools/mrjob
           ydb-ya-make ../ytsaurus/ydb/ydb/library/yql/yt/dynamic
-
           udfs_prefix="../ytsaurus/ydb/ydb/library/yql/udfs/common"
           ydb-ya-make ${udfs_prefix}/compress_base
           ydb-ya-make ${udfs_prefix}/datetime2
@@ -214,7 +221,6 @@ jobs:
           ydb-ya-make ${udfs_prefix}/unicode_base
           ydb-ya-make ${udfs_prefix}/url_base
           ydb-ya-make ${udfs_prefix}/yson2
-
           ydb-ya-make ../ytsaurus/ydb/ydb/library/yql/udfs/logs/dsv
 
       - name: Build Python packages
@@ -222,8 +228,7 @@ jobs:
         run: |
           source ../venv/bin/activate
           if ${{ inputs.build-query-tracker-ya-make }}; then
-            YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --not-prepare-bindings-libraries
+            YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../ya_build --not-prepare-bindings-libraries
           else
             YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build
           fi
-

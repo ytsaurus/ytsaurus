@@ -16,7 +16,7 @@ Usage: $script_name [-h|--help]
                     [--ytsaurus-source-path /path/to/ytsaurus.repo (default: $ytsaurus_source_path)]
                     [--ytsaurus-build-path /path/to/ytsaurus.build (default: $ytsaurus_build_path)]
                     [--ytsaurus-package-name some-ytsaurus-package-name (default: all packages will be build) (values: ytsaurus-client, ytsaurus-yson, ytsaurus-local, ytsaurus-native-driver)]
-                    [--not-prepare-bindings-libraries (default: true)]
+                    [--not-prepare-bindings-libraries]
 EOF
     exit 1
 }
@@ -60,6 +60,7 @@ pip3 install -e yt/python/packages
 $ytsaurus_source_path/yt/python/packages/yt_setup/generate_python_proto.py \
     --source-root ${ytsaurus_source_path} \
     --output ${ytsaurus_python}
+
 
 cd $ytsaurus_source_path/yt/python/packages
 if [[ "$not_prepare_bindings_libraries" = true ]]; then
