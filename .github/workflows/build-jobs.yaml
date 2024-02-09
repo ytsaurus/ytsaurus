@@ -192,11 +192,15 @@ jobs:
           mkdir -p ../build_qt_ya_make
           cd ../build_qt_ya_make
           rm -rf *
+
           ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=../ya_build ../ytsaurus/ytsaurus/yt/yql/agent/bin
+
           shopt -s expand_aliases
           alias ydb-ya-make="../ytsaurus/ydb/ya make -T --ignore-recurses --build=relwithdebinfo  --output=."
+
           ydb-ya-make ../ytsaurus/ydb/ydb/library/yql/tools/mrjob
           ydb-ya-make ../ytsaurus/ydb/ydb/library/yql/yt/dynamic
+
           udfs_prefix="../ytsaurus/ydb/ydb/library/yql/udfs/common"
           ydb-ya-make ${udfs_prefix}/compress_base
           ydb-ya-make ${udfs_prefix}/datetime2
@@ -221,6 +225,7 @@ jobs:
           ydb-ya-make ${udfs_prefix}/unicode_base
           ydb-ya-make ${udfs_prefix}/url_base
           ydb-ya-make ${udfs_prefix}/yson2
+
           ydb-ya-make ../ytsaurus/ydb/ydb/library/yql/udfs/logs/dsv
 
       - name: Build Python packages
@@ -232,3 +237,4 @@ jobs:
           else
             YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build
           fi
+

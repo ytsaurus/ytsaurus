@@ -198,3 +198,4 @@ jobs:
           bash ./ytsaurus/yt/docker/local/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --output-path ../docker-local-build --image-tag ${IMAGE_TAG}
 
           docker push ytsaurus/local:${IMAGE_TAG}
+

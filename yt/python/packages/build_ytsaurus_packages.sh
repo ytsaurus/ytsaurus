@@ -95,3 +95,4 @@ for package in ${packages[@]}; do
         python3 setup.py bdist_wheel --universal --dist-dir ${dist_dir}
     fi
 done
+
