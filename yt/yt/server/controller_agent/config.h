@@ -1086,6 +1086,8 @@ public:
     EOperationControllerQueue ScheduleAllocationControllerQueue;
     EOperationControllerQueue JobEventsControllerQueue;
 
+    TDuration InvokerPoolTotalTimeAggregationPeriod;
+
     TDuration ScheduleAllocationTotalTimeThreshold;
     TDuration JobEventsTotalTimeThreshold;
 

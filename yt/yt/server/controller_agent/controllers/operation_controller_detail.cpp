@@ -260,7 +260,9 @@ TOperationControllerBase::TOperationControllerBase(
                 "OperationId: %v\nAuthenticatedUser: %v",
                 OperationId,
                 AuthenticatedUser)),
-        TEnumTraits<EOperationControllerQueue>::GetDomainSize()))
+        TEnumTraits<EOperationControllerQueue>::GetDomainSize(),
+        CreateFairShareCallbackQueue,
+        Config->InvokerPoolTotalTimeAggregationPeriod))
     , InvokerPool(DiagnosableInvokerPool_)
     , SuspendableInvokerPool(TransformInvokerPool(InvokerPool, CreateSuspendableInvoker))
     , CancelableInvokerPool(TransformInvokerPool(
@@ -4693,6 +4695,7 @@ void TOperationControllerBase::UpdateConfig(const TControllerAgentConfigPtr& con
     SendRunningAllocationTimeStatisticsUpdatesExecutor_->SetPeriod(config->RunningAllocationTimeStatisticsUpdatesSendPeriod);
 
     ScheduleAllocationStatistics_->SetMovingAverageWindowSize(config->ScheduleAllocationStatisticsMovingAverageWindowSize);
+    DiagnosableInvokerPool_->UpdateActionTimeRelevancyHalflife(config->InvokerPoolTotalTimeAggregationPeriod);
 }
 
 void TOperationControllerBase::CustomizeJoblet(const TJobletPtr& /*joblet*/)

@@ -993,6 +993,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("job_events_controller_queue", &TThis::JobEventsControllerQueue)
         .Default(EOperationControllerQueue::Default);
 
+    registrar.Parameter("invoker_pool_total_time_aggregation_period", &TThis::InvokerPoolTotalTimeAggregationPeriod)
+        .Default(TDuration::Seconds(5));
+
     registrar.Parameter("schedule_allocation_total_time_threshold", &TThis::ScheduleAllocationTotalTimeThreshold)
         .Alias("schedule_job_wait_time_threshold")
         .Default(TDuration::Seconds(5));
