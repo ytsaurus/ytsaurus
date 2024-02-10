@@ -26,7 +26,7 @@ RUN ln -s /usr/bin/ytserver-all /usr/bin/ytserver-master && \
 
 COPY ./init_queue_agent_state.py /usr/bin/init_queue_agent_state
 COPY ./init_operations_archive.py /usr/bin/init_operations_archive
-RUN ln -s /usr/bin/init_operations_archive.py /usr/bin/init_operation_archive.py
+RUN ln -s /usr/bin/init_operations_archive /usr/bin/init_operation_archive
 
 COPY ./chyt-controller /usr/bin/chyt-controller
 
