@@ -424,6 +424,8 @@ public:
 
         SchedulerConfig_ = std::move(config);
         Config_ = SchedulerConfig_->ControllerAgentTracker;
+
+        MessageOffloadThreadPool_->Configure(Config_->MessageOffloadThreadCount);
     }
 
     const IResponseKeeperPtr& GetResponseKeeper() const
