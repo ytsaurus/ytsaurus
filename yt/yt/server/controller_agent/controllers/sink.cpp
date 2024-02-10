@@ -23,7 +23,7 @@ IChunkPoolInput::TCookie TSink::AddWithKey(TChunkStripePtr stripe, TChunkStripeK
         key = stripe->BoundaryKeys;
     }
 
-    if (Controller_->IsOutputLivePreviewSupported()) {
+    if (Controller_->IsLegacyOutputLivePreviewSupported()) {
         Controller_->AttachToLivePreview(chunkListId, table->LivePreviewTableId);
     }
 

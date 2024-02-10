@@ -1509,7 +1509,7 @@ bool TOperationControllerBase::IsTransactionNeeded(ETransactionType type) const
 {
     switch (type) {
         case ETransactionType::Async:
-            return IsIntermediateLivePreviewSupported() || IsOutputLivePreviewSupported() || GetStderrTablePath();
+            return IsLegacyIntermediateLivePreviewSupported() || IsLegacyOutputLivePreviewSupported() || GetStderrTablePath();
         case ETransactionType::Input:
             return !GetInputTablePaths().empty() || HasUserJobFiles() || HasDiskRequestsWithSpecifiedAccount();
         case ETransactionType::Output:
@@ -1754,7 +1754,7 @@ void TOperationControllerBase::PickIntermediateDataCells()
 
     int intermediateDataCellCount = std::min<int>(Config->IntermediateOutputMasterCellCount, IntermediateOutputCellTagList.size());
     // TODO(max42, gritukan): Remove it when new live preview will be ready.
-    if (IsIntermediateLivePreviewSupported()) {
+    if (IsLegacyIntermediateLivePreviewSupported()) {
         intermediateDataCellCount = 1;
     }
 
@@ -2052,7 +2052,7 @@ THashSet<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
 
 void TOperationControllerBase::ReinstallLivePreview()
 {
-    if (IsOutputLivePreviewSupported()) {
+    if (IsLegacyOutputLivePreviewSupported()) {
         for (const auto& table : OutputTables_) {
             std::vector<TChunkTreeId> childIds;
             childIds.reserve(table->OutputChunkTreeIds.size());
@@ -2066,7 +2066,7 @@ void TOperationControllerBase::ReinstallLivePreview()
         }
     }
 
-    if (IsIntermediateLivePreviewSupported()) {
+    if (IsLegacyIntermediateLivePreviewSupported()) {
         std::vector<TChunkTreeId> childIds;
         childIds.reserve(ChunkOriginMap.size());
         for (const auto& [chunkId, job] : ChunkOriginMap) {
@@ -4186,18 +4186,28 @@ bool TOperationControllerBase::AreForeignTablesSupported() const
     return false;
 }
 
-bool TOperationControllerBase::IsOutputLivePreviewSupported() const
+bool TOperationControllerBase::IsLegacyOutputLivePreviewSupported() const
 {
     return !IsLegacyLivePreviewSuppressed &&
         (GetLegacyOutputLivePreviewMode() == ELegacyLivePreviewMode::DoNotCare ||
         GetLegacyOutputLivePreviewMode() == ELegacyLivePreviewMode::ExplicitlyEnabled);
 }
 
-bool TOperationControllerBase::IsIntermediateLivePreviewSupported() const
+bool TOperationControllerBase::IsOutputLivePreviewSupported() const
+{
+    return !OutputTables_.empty();
+}
+
+bool TOperationControllerBase::IsLegacyIntermediateLivePreviewSupported() const
 {
     return !IsLegacyLivePreviewSuppressed &&
         (GetLegacyIntermediateLivePreviewMode() == ELegacyLivePreviewMode::DoNotCare ||
         GetLegacyIntermediateLivePreviewMode() == ELegacyLivePreviewMode::ExplicitlyEnabled);
+}
+
+bool TOperationControllerBase::IsIntermediateLivePreviewSupported() const
+{
+    return false;
 }
 
 ELegacyLivePreviewMode TOperationControllerBase::GetLegacyOutputLivePreviewMode() const
@@ -5793,7 +5803,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         batchReq->AddRequest(req, key);
     };
 
-    if (IsOutputLivePreviewSupported()) {
+    if (IsLegacyOutputLivePreviewSupported()) {
         YT_LOG_INFO("Creating live preview for output tables");
 
         for (int index = 0; index < std::ssize(OutputTables_); ++index) {
@@ -5834,9 +5844,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
             StderrTable_->TableUploadOptions.TableSchema.Get());
     }
 
-    if (GetLegacyIntermediateLivePreviewMode() == ELegacyLivePreviewMode::DoNotCare ||
-        GetLegacyIntermediateLivePreviewMode() == ELegacyLivePreviewMode::ExplicitlyEnabled)
-    {
+    if (IsIntermediateLivePreviewSupported()) {
         auto name = "intermediate";
         IntermediateTable->LivePreviewTableName = name;
         (*LivePreviews_)[name] = New<TLivePreview>(
@@ -5850,7 +5858,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         RegisterLivePreviewTable("core", CoreTable_);
     }
 
-    if (IsIntermediateLivePreviewSupported()) {
+    if (IsLegacyIntermediateLivePreviewSupported()) {
         YT_LOG_INFO("Creating live preview for intermediate table");
 
         auto path = GetOperationPath(OperationId) + "/intermediate";
@@ -5882,7 +5890,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         table.LivePreviewTableId = FromProto<NCypressClient::TNodeId>(rsp->node_id());
     };
 
-    if (IsOutputLivePreviewSupported()) {
+    if (IsLegacyOutputLivePreviewSupported()) {
         auto rspsOrError = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create_output");
         YT_VERIFY(rspsOrError.size() == OutputTables_.size());
 
@@ -5900,7 +5908,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         YT_LOG_INFO("Live preview for stderr table created");
     }
 
-    if (IsIntermediateLivePreviewSupported()) {
+    if (IsLegacyIntermediateLivePreviewSupported()) {
         auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCreate>("create_intermediate");
         handleResponse(*IntermediateTable, rsp.Value());
 
@@ -8465,7 +8473,7 @@ void TOperationControllerBase::RegisterLivePreviewTable(TString name, const TOut
 
 void TOperationControllerBase::AttachToIntermediateLivePreview(TInputChunkPtr chunk)
 {
-    if (IsIntermediateLivePreviewSupported()) {
+    if (IsLegacyIntermediateLivePreviewSupported()) {
         AttachToLivePreview(chunk->GetChunkId(), IntermediateTable->LivePreviewTableId);
     }
     AttachToLivePreview(IntermediateTable->LivePreviewTableName, chunk);
@@ -8648,7 +8656,7 @@ void TOperationControllerBase::RegisterTeleportChunk(
         table->OutputChunks.push_back(chunk);
     }
 
-    if (IsOutputLivePreviewSupported()) {
+    if (IsLegacyOutputLivePreviewSupported()) {
         AttachToLivePreview(chunk->GetChunkId(), table->LivePreviewTableId);
     }
     AttachToLivePreview(table->LivePreviewTableName, chunk);
@@ -9222,11 +9230,16 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
             .Item("data_slice_count").Value(GetDataSliceCount())
         .EndMap()
         .Item("live_preview").BeginMap()
-            .Item("output_supported").Value(IsOutputLivePreviewSupported())
-            .Item("intermediate_supported").Value(IsIntermediateLivePreviewSupported())
+            .Item("output_supported").Value(IsLegacyOutputLivePreviewSupported())
+            .Item("intermediate_supported").Value(IsLegacyIntermediateLivePreviewSupported())
             .Item("stderr_supported").Value(static_cast<bool>(StderrTable_))
             .Item("core_supported").Value(static_cast<bool>(CoreTable_))
-            .Item("virtual_table_format_supported").Value(static_cast<bool>(LivePreviews_))
+            .Item("virtual_table_format").BeginMap()
+                .Item("output_supported").Value(IsOutputLivePreviewSupported())
+                .Item("intermediate_supported").Value(IsIntermediateLivePreviewSupported())
+                .Item("stderr_supported").Value(static_cast<bool>(StderrTable_))
+                .Item("core_supported").Value(static_cast<bool>(CoreTable_))
+            .EndMap()
         .EndMap()
         .Item("schedule_job_statistics").BeginMap()
             .Item("count").Value(ScheduleAllocationStatistics_->GetCount())
