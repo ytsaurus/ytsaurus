@@ -3321,7 +3321,7 @@ void TChunkReplicator::OnRequisitionUpdate()
         auto rspOrError = WaitFor(mutation->CommitAndLog(Logger));
         if (!rspOrError.IsOK()) {
             YT_LOG_WARNING(rspOrError,
-                "Failed to update chunk requisition");
+                "Failed to update chunk requisition; Scheduling global scan");
             ScheduleGlobalRequisitionUpdate();
         }
     }

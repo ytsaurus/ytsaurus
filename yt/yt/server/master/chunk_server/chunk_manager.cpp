@@ -4048,15 +4048,15 @@ private:
 
         for (auto chunkListId : chunkListIds) {
             auto* chunkList = FindChunkList(chunkListId);
-            if (!chunkList) {
-                YT_LOG_ALERT("Chunk list is missing during requisition traverse finish confirmation (ChunkListId: %v)",
+            if (!IsObjectAlive(chunkList)) {
+                YT_LOG_DEBUG("Chunk list is missing during requisition traverse finish confirmation (ChunkListId: %v)",
                     chunkListId);
                 continue;
             }
 
             auto it = ChunkListsAwaitingRequisitionTraverse_.find(chunkList);
             if (it == ChunkListsAwaitingRequisitionTraverse_.end()) {
-                YT_LOG_WARNING("Chunk list does not hold an additional strong ref during requisition traverse finish confirmation (ChunkListId: %v)",
+                YT_LOG_DEBUG("Chunk list does not hold an additional strong ref during requisition traverse finish confirmation (ChunkListId: %v)",
                     chunkListId);
                 continue;
             }
