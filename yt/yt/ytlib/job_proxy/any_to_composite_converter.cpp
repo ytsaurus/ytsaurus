@@ -2,6 +2,7 @@
 
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
 
@@ -44,7 +45,7 @@ bool TAnyToCompositeConverter::Write(TRange<TUnversionedRow> rows)
 
 bool TAnyToCompositeConverter::WriteBatch(NTableClient::IUnversionedRowBatchPtr rowBatch)
 {
-    return UnderlyingWriter_->WriteBatch(rowBatch);
+    return UnderlyingWriter_->Write(ConvertAnyToComposite(rowBatch->MaterializeRows()));
 }
 
 TBlob TAnyToCompositeConverter::GetContext() const
