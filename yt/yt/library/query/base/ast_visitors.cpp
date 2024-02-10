@@ -64,4 +64,4 @@ TExpressionPtr TTableReferenceReplacer::OnReference(TReferenceExpressionPtr refe
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NYT::NQueryClient::NAst
+} // namespace NYT::NQueryClient::NAst

@@ -1,3 +1,5 @@
+#pragma once
+
 #include "ast.h"
 
 namespace NYT::NQueryClient::NAst {
@@ -271,4 +273,4 @@ struct TTableReferenceReplacer
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NYT::NQueryClient::NAst
+} // namespace NYT::NQueryClient::NAst
