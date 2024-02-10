@@ -1947,6 +1947,7 @@ private:
         }
 
         auto nodesInfoEventId = TGuid::Create();
+        auto now = TInstant::Now();
         for (const auto& [treeId, nodeYsons] : nodeYsonsPerTree) {
             std::vector<TYsonString> splitNodeYsons;
             TYsonMapFragmentBatcher nodesConsumer(&splitNodeYsons, Config_->MaxEventLogNodeBatchSize);
@@ -1958,7 +1959,7 @@ private:
 
             for (int batchIndex = 0; batchIndex < std::ssize(splitNodeYsons); ++batchIndex) {
                 const auto& batch = splitNodeYsons[batchIndex];
-                LogEventFluently(&SchedulerEventLogger, ELogEventType::NodesInfo)
+                LogEventFluently(&SchedulerEventLogger, ELogEventType::NodesInfo, now)
                     .Item("nodes_info_event_id").Value(nodesInfoEventId)
                     .Item("nodes_batch_index").Value(batchIndex)
                     .Item("tree_id").Value(treeId)
