@@ -320,7 +320,7 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
     comparableSamples.reserve(samples.size());
     for (const auto& sample : samples) {
         comparableSamples.emplace_back(TComparableSample{
-            .KeyBound = TKeyBound::FromRow(sample.Key, /* isInclusive */true, /* isUpper */false),
+            .KeyBound = TKeyBound::FromRow(sample.Key, /*isInclusive*/true, /*isUpper*/false),
             .Incomplete = sample.Incomplete,
             .Weight = sample.Weight
         });
@@ -368,7 +368,7 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
 
     int sampleIndex = 0;
     while (sampleIndex < std::ssize(selectedSamples)) {
-        auto lastLowerBound = TKeyBound::MakeUniversal(/* isUpper */ false);
+        auto lastLowerBound = TKeyBound::MakeUniversal(/*isUpper*/ false);
         if (!partitionKeys.empty()) {
             lastLowerBound = partitionKeys.back().LowerBound;
         }

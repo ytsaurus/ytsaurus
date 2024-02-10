@@ -236,7 +236,7 @@ public:
     {
         YT_LOG_TRACE("Finishing work in staging area");
 
-        PromoteUpperBound(TKeyBound::MakeUniversal(/* isUpper */ true));
+        PromoteUpperBound(TKeyBound::MakeUniversal(/*isUpper*/ true));
 
         Flush();
         for (const auto& domain : {MainDomain_, BufferDomain_}) {
@@ -287,7 +287,7 @@ private:
     //! in case when singleton data slices are added to the job; in this case
     //! actual upper bound for a job will be #UpperBound_.ToggleInclusiveness()
     //! (i.e. exclusive instead of inclusive).
-    TKeyBound UpperBound_ = TKeyBound::MakeEmpty(/* isUpper */ true);
+    TKeyBound UpperBound_ = TKeyBound::MakeEmpty(/*isUpper*/ true);
 
     i64 TotalDataSliceCount_;
     std::vector<TNewJobStub> PreparedJobs_;
@@ -296,7 +296,7 @@ private:
     bool PreviousJobContainedSolidSlices_ = false;
 
     //! Previous job upper bound, used for internal sanity check.
-    TKeyBound PreviousJobUpperBound_ = TKeyBound::MakeEmpty(/* isUpper */ true);
+    TKeyBound PreviousJobUpperBound_ = TKeyBound::MakeEmpty(/*isUpper*/ true);
 
     //! Structure holding data slices for one of primary domains with their aggregated statistics.
     class TPrimaryDomain
@@ -331,7 +331,7 @@ private:
             UpdateUpperBound(dataSlice->UpperLimit().KeyBound);
 
             YT_LOG_TRACE("Pushing to domain back (DataSlice: %v)", GetDataSliceDebugString(dataSlice));
-            Statistics += TResourceVector::FromDataSlice(dataSlice, /* isPrimary */ true);
+            Statistics += TResourceVector::FromDataSlice(dataSlice, /*isPrimary*/ true);
             DataSlices.push_back(std::move(dataSlice));
         }
 
@@ -342,7 +342,7 @@ private:
             UpdateUpperBound(dataSlice->UpperLimit().KeyBound);
 
             YT_LOG_TRACE("Pushing to domain front (DataSlice: %v)", GetDataSliceDebugString(dataSlice));
-            Statistics += TResourceVector::FromDataSlice(dataSlice, /* isPrimary */ true);
+            Statistics += TResourceVector::FromDataSlice(dataSlice, /*isPrimary*/ true);
             DataSlices.push_front(std::move(dataSlice));
         }
 
@@ -401,7 +401,7 @@ private:
             }
 
             bool wasEmpty = StreamIndexToDataSlices[streamIndex].empty();
-            Statistics += TResourceVector::FromDataSlice(dataSlice, /* isPrimary */ false);
+            Statistics += TResourceVector::FromDataSlice(dataSlice, /*isPrimary*/ false);
 
             StreamIndexToDataSlices[streamIndex].push_back(std::move(dataSlice));
 
@@ -422,7 +422,7 @@ private:
             YT_VERIFY(!StreamHeap.empty());
             auto streamIndex = StreamHeap.front();
             auto& dataSlices = StreamIndexToDataSlices[streamIndex];
-            Statistics -= TResourceVector::FromDataSlice(dataSlices.front(), /* isPrimary */ false);
+            Statistics -= TResourceVector::FromDataSlice(dataSlices.front(), /*isPrimary*/ false);
             ExtractHeap(StreamHeap.begin(), StreamHeap.end(), Comparator);
             StreamHeap.pop_back();
             dataSlices.pop_front();
@@ -596,8 +596,8 @@ private:
             SolidDomain_.Statistics);
 
         // Calculate the actual lower and upper bounds of newly formed job and move data slices to the job.
-        auto actualLowerBound = TKeyBound::MakeEmpty(/* isUpper */ false);
-        auto actualUpperBound = TKeyBound::MakeEmpty(/* isUpper */ true);
+        auto actualLowerBound = TKeyBound::MakeEmpty(/*isUpper*/ false);
+        auto actualUpperBound = TKeyBound::MakeEmpty(/*isUpper*/ true);
 
         for (auto* domain : {&MainDomain_, &SolidDomain_}) {
             for (auto& dataSlice : domain->DataSlices) {
@@ -605,7 +605,7 @@ private:
                 actualUpperBound = PrimaryComparator_.WeakerKeyBound(dataSlice->UpperLimit().KeyBound, actualUpperBound);
                 YT_VERIFY(dataSlice->Tag);
                 auto tag = *dataSlice->Tag;
-                job.AddDataSlice(std::move(dataSlice), tag, /* isPrimary */ true);
+                job.AddDataSlice(std::move(dataSlice), tag, /*isPrimary*/ true);
                 const auto& Logger = domain->Logger;
                 YT_LOG_TRACE(
                     "Adding primary data slice to job (DataSlice: %v)",
@@ -644,11 +644,11 @@ private:
                     job.AddDataSlice(
                         CreateInputDataSlice(dataSlice, ForeignComparator_, shortenedActualLowerBound, shortenedActualUpperBound),
                         *dataSlice->Tag,
-                        /* isPrimary */ false);
+                        /*isPrimary*/ false);
                     YT_LOG_TRACE(
                         "Adding foreign data slice to job (DataSlice: %v)",
                         GetDataSliceDebugString(dataSlice));
-                    foreignStatistics += TResourceVector::FromDataSlice(dataSlice, /* isPrimary */ false);
+                    foreignStatistics += TResourceVector::FromDataSlice(dataSlice, /*isPrimary*/ false);
                 }
             }
         }

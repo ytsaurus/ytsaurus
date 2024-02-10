@@ -2759,11 +2759,11 @@ private:
                 if (node->IsTrunk() && !node->GetTouchTime()) {
                     const auto* hydraContext = GetCurrentHydraContext();
                     node->SetTouchTime(hydraContext->GetTimestamp());
-                } else if (!node->IsTrunk() && node->GetTouchTime(/* branchIsOk */ true)) {
-                    node->SetTouchTime(TInstant::Zero(), /* branchIsOk */ true);
+                } else if (!node->IsTrunk() && node->GetTouchTime(/*branchIsOk*/ true)) {
+                    node->SetTouchTime(TInstant::Zero(), /*branchIsOk*/ true);
                 }
             } else {
-                node->SetTouchTime(TInstant::Zero(), /* branchIsOk */ true);
+                node->SetTouchTime(TInstant::Zero(), /*branchIsOk*/ true);
             }
 
             if (node->IsTrunk() && node->TryGetExpirationTimeout()) {

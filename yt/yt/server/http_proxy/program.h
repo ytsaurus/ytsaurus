@@ -103,7 +103,7 @@ protected:
             defaultConfig->ClusterConnection = New<NApi::NNative::TConnectionCompoundConfig>();
             defaultConfig->ClusterConnection->Static = New<NApi::NNative::TConnectionStaticConfig>();
             defaultConfig->ClusterConnection->Dynamic = New<NApi::NNative::TConnectionDynamicConfig>();
-            defaultConfig->Logging = NLogging::TLogManagerConfig::CreateYTServer("http_proxy" /* componentName */);
+            defaultConfig->Logging = NLogging::TLogManagerConfig::CreateYTServer("http_proxy" /*componentName*/);
             // One may disable authentication at all via config, but by default it is better
             // to require authentication. Even YT developers may unintentionally do something
             // harmful, in which case we do not want to see requests under root in cluster logs.
@@ -112,7 +112,7 @@ protected:
             defaultConfig->Driver = New<NDriver::TDriverConfig>();
             // Dump it into node and apply patch from config file (if present).
             configNode = NYTree::ConvertToNode(defaultConfig);
-            if (auto configNodePatch = GetConfigNode(true /* returnNullIfNotSupplied */)) {
+            if (auto configNodePatch = GetConfigNode(true /*returnNullIfNotSupplied*/)) {
                 configNode = NYTree::PatchNode(configNode, configNodePatch);
             }
             // Finally load it back.

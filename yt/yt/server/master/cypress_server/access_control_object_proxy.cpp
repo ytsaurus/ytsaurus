@@ -73,7 +73,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& parentHandler = objectManager->GetHandler(parent.Get());
         return DynamicPointerCast<ICompositeNode>(
-            parentHandler->GetProxy(parent.Get(), /* transaction */ nullptr));
+            parentHandler->GetProxy(parent.Get(), /*transaction*/ nullptr));
     }
 
     void SetParent(const ICompositeNodePtr& /*parent*/) override
@@ -293,7 +293,7 @@ private:
         return false;
     }
 
-    void ValidatePermission(EPermissionCheckScope scope, EPermission permission, const TString& /* user */) override
+    void ValidatePermission(EPermissionCheckScope scope, EPermission permission, const TString& /*user*/) override
     {
         THierarchicPermissionValidator::ValidatePermission(GetThisImpl(), scope, permission);
     }
@@ -378,7 +378,7 @@ protected:
         const auto& parentHandler = objectManager->GetHandler(owner);
         auto result = DynamicPointerCast<T>(parentHandler->GetProxy(
             owner,
-            /* transaction */ nullptr));
+            /*transaction*/ nullptr));
         YT_VERIFY(result);
         return result;
     }
@@ -656,7 +656,7 @@ public:
             children.end(),
             std::back_inserter(result),
             [&] (const auto& pair) {
-                auto childProxy = childHandler->GetProxy(pair.second, /* transaction */ nullptr);
+                auto childProxy = childHandler->GetProxy(pair.second, /*transaction*/ nullptr);
                 return std::pair(
                     pair.first,
                     DynamicPointerCast<INode>(std::move(childProxy)));
@@ -718,7 +718,7 @@ public:
         }
 
         const auto& childHandler = objectManager->GetHandler(child);
-        return DynamicPointerCast<INode>(childHandler->GetProxy(child, /* transaction */ nullptr));
+        return DynamicPointerCast<INode>(childHandler->GetProxy(child, /*transaction*/ nullptr));
     }
 
     void Clear() override
@@ -814,7 +814,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    void ValidatePermission(EPermissionCheckScope scope, EPermission permission, const TString& /* user */) override
+    void ValidatePermission(EPermissionCheckScope scope, EPermission permission, const TString& /*user*/) override
     {
         THierarchicPermissionValidator::ValidatePermission(GetThisImpl(), scope, permission);
     }

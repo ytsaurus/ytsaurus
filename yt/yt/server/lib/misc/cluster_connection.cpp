@@ -33,7 +33,7 @@ INodePtr DownloadClusterConnection(
 {
     const auto& Logger = logger;
 
-    auto poller = CreateThreadPoolPoller(1 /* threadCount */, "CCHttpPoller");
+    auto poller = CreateThreadPoolPoller(1 /*threadCount*/, "CCHttpPoller");
     auto clientConfig = New<NHttp::TClientConfig>();
     auto client = CreateClient(clientConfig, poller);
     if (remoteClusterProxyAddress.find(':') == TString::npos) {

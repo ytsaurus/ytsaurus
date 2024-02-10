@@ -434,7 +434,7 @@ private:
         // NB: block checksums are validated before writing to disk.
         auto result = session->PutBlocks(
             firstBlockIndex,
-            GetRpcAttachedBlocks(request, /* validateChecksums */ false),
+            GetRpcAttachedBlocks(request, /*validateChecksums*/ false),
             populateCache);
 
         // Flush blocks if needed.
@@ -561,7 +561,7 @@ private:
 
         const auto& blockCache = Bootstrap_->GetP2PBlockCache();
 
-        auto blocks = GetRpcAttachedBlocks(request, true /* validateChecksums */);
+        auto blocks = GetRpcAttachedBlocks(request, true /*validateChecksums*/);
         if (std::ssize(blocks) != request->block_indexes_size()) {
             THROW_ERROR_EXCEPTION("Number of attached blocks is different from blocks field length")
                 << TErrorAttribute("attached_block_count", blocks.size())

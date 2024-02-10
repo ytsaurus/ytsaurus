@@ -107,7 +107,7 @@ protected:
             defaultConfig->ControllerAgent->MemoryWatchdog->TotalControllerMemoryLimit = 100_GB;
             // Dump it into node and apply patch from config file (if present).
             configNode = NYTree::ConvertToNode(defaultConfig);
-            if (auto configNodePatch = GetConfigNode(true /* returnNullIfNotSupplied */)) {
+            if (auto configNodePatch = GetConfigNode(true /*returnNullIfNotSupplied*/)) {
                 configNode = NYTree::PatchNode(configNode, configNodePatch);
             }
             // Finally load it back.

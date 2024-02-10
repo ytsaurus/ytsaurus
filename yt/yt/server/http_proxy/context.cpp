@@ -307,7 +307,7 @@ bool TContext::TryGetInputFormat()
         ytHeader,
         "Content-Type",
         contentTypeHeader,
-        /* isOutput */ false,
+        /*isOutput*/ false,
         Descriptor_->InputType);
     return true;
 }
@@ -349,7 +349,7 @@ bool TContext::TryGetOutputFormat()
         ytHeader,
         "Accept",
         acceptHeader,
-        /* isOutput */ true,
+        /*isOutput*/ true,
         Descriptor_->OutputType);
     return true;
 }

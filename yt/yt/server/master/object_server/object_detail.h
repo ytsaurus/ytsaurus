@@ -153,7 +153,7 @@ protected:
     void ValidatePermission(
         NYTree::EPermissionCheckScope scope,
         NYTree::EPermission permission,
-        const TString& /* user */ = {}) override;
+        const TString& /*user*/ = {}) override;
 
     void ValidatePermission(
         TObject* object,

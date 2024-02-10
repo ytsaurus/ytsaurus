@@ -185,7 +185,7 @@ private:
     }
 
     void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
+        const TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
         const TClusterNodeDynamicConfigPtr& newNodeConfig)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -247,13 +247,13 @@ private:
 
             // Schedule next heartbeat if no more heartbeats are scheduled.
             if (PerCellTagData_[cellTag].ScheduledHeartbeatCount == 0) {
-                DoScheduleHeartbeat(cellTag, /* immediately */ false);
+                DoScheduleHeartbeat(cellTag, /*immediately*/ false);
             }
         } else {
             YT_LOG_WARNING(rspOrError, "Error reporting cellar node heartbeat to master (CellTag: %v)",
                 cellTag);
             if (IsRetriableError(rspOrError)) {
-                DoScheduleHeartbeat(cellTag, /* immediately */ false);
+                DoScheduleHeartbeat(cellTag, /*immediately*/ false);
             } else {
                 Bootstrap_->ResetAndRegisterAtMaster();
             }

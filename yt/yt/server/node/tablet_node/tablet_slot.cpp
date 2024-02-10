@@ -797,7 +797,7 @@ private:
                 "changelog_medium_write",
                 EDistributedThrottlerMode::Adaptive,
                 WriteThrottlerRpcTimeout,
-                /* admitUnlimitedThrottler */ true,
+                /*admitUnlimitedThrottler*/ true,
                 profiler);
         };
 

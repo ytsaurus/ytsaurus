@@ -68,17 +68,17 @@ protected:
     void InitJobConstraints()
     {
         Options_.JobSizeConstraints = CreateExplicitJobSizeConstraints(
-            false /* canAdjustDataSizePerJob */,
-            static_cast<bool>(ExplicitJobCount_) /* isExplicitJobCount */,
-            ExplicitJobCount_.value_or(0) /* jobCount */,
+            false /*canAdjustDataSizePerJob*/,
+            static_cast<bool>(ExplicitJobCount_) /*isExplicitJobCount*/,
+            ExplicitJobCount_.value_or(0) /*jobCount*/,
             DataSizePerJob_,
             Inf64,
             MaxDataSlicesPerJob_,
-            0 /* maxDataSizePerJob_ */,
-            0 /* maxPrimaryDataWeightPerJob_ */,
+            0 /*maxDataSizePerJob_*/,
+            0 /*maxPrimaryDataWeightPerJob_*/,
             InputSliceDataSize_,
             InputSliceRowCount_,
-            0 /* foreignSliceDataWeight */,
+            0 /*foreignSliceDataWeight*/,
             SamplingRate_);
     }
 
@@ -106,7 +106,7 @@ protected:
     {
         YT_VERIFY(isTeleportable.size() == isVersioned.size() && isVersioned.size() > 0);
         for (int index = 0; index < std::ssize(isVersioned); ++index) {
-            InputTables_.emplace_back(isTeleportable[index], true /* isPrimary */, isVersioned[index]);
+            InputTables_.emplace_back(isTeleportable[index], true /*isPrimary*/, isVersioned[index]);
         }
         UnversionedTableRowCounts_.resize(InputTables_.size(), 0);
     }
@@ -335,8 +335,8 @@ protected:
 TEST_F(TOrderedChunkPoolTest, OrderedMergeSimple)
 {
     InitTables(
-        {true, true, true} /* isTeleportable */,
-        {false, false, false} /* isVersioned */
+        {true, true, true} /*isTeleportable*/,
+        {false, false, false} /*isVersioned*/
     );
 
     DataSizePerJob_ = 2_KB;
@@ -371,8 +371,8 @@ TEST_F(TOrderedChunkPoolTest, OrderedMergeSimple)
 TEST_F(TOrderedChunkPoolTest, OrderedMergeOrderedOutput)
 {
     InitTables(
-        {true, true, true} /* isTeleportable */,
-        {false, false, false} /* isVersioned */
+        {true, true, true} /*isTeleportable*/,
+        {false, false, false} /*isVersioned*/
     );
 
     Options_.KeepOutputOrder = true;
@@ -455,8 +455,8 @@ TEST_F(TOrderedChunkPoolTest, OrderedMergeOrderedOutput)
 TEST_F(TOrderedChunkPoolTest, OrderedMergeSliceLargeChunks)
 {
     InitTables(
-        {false} /* isTeleportable */,
-        {false} /* isVersioned */
+        {false} /*isTeleportable*/,
+        {false} /*isVersioned*/
     );
 
     DataSizePerJob_ = 2_KB;
@@ -465,7 +465,7 @@ TEST_F(TOrderedChunkPoolTest, OrderedMergeSliceLargeChunks)
 
     InitJobConstraints();
 
-    auto chunkA = CreateChunk(0, 20_KB, 1000 /* rowCount */);
+    auto chunkA = CreateChunk(0, 20_KB, 1000 /*rowCount*/);
 
     CreateChunkPool();
 
@@ -488,8 +488,8 @@ TEST_F(TOrderedChunkPoolTest, OrderedMergeSliceLargeChunks)
 TEST_F(TOrderedChunkPoolTest, ExplicitSingleJob)
 {
     InitTables(
-        {true} /* isTeleportable */,
-        {false} /* isVersioned */
+        {true} /*isTeleportable*/,
+        {false} /*isVersioned*/
     );
 
     ExplicitJobCount_ = 1;
@@ -502,8 +502,8 @@ TEST_F(TOrderedChunkPoolTest, ExplicitSingleJob)
 
     // We have many data slices, large data weight and teleportable chunks.
     // So many reasons to create two jobs.
-    auto chunkA = CreateChunk(0, 10_KB, 1000 /* rowCount */);
-    auto chunkB = CreateChunk(0, 10_KB, 1000 /* rowCount */);
+    auto chunkA = CreateChunk(0, 10_KB, 1000 /*rowCount*/);
+    auto chunkB = CreateChunk(0, 10_KB, 1000 /*rowCount*/);
 
     CreateChunkPool();
 
@@ -542,8 +542,8 @@ static constexpr int NumberOfRepeats = 15;
 TEST_P(TOrderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
 {
     InitTables(
-        {false} /* isTeleportable */,
-        {false} /* isVersioned */
+        {false} /*isTeleportable*/,
+        {false} /*isVersioned*/
     );
     DataSizePerJob_ = 1_KB;
     InitJobConstraints();

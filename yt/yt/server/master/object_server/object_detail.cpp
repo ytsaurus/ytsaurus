@@ -780,7 +780,7 @@ bool TObjectProxyBase::RemoveBuiltinAttribute(TInternedAttributeKey /*key*/)
     return false;
 }
 
-void TObjectProxyBase::LogAcdUpdate(TInternedAttributeKey /* key */, const TYsonString& /* value */)
+void TObjectProxyBase::LogAcdUpdate(TInternedAttributeKey /*key*/, const TYsonString& /*value*/)
 { }
 
 void TObjectProxyBase::ValidateCustomAttributeUpdate(
@@ -866,7 +866,7 @@ void TObjectProxyBase::ValidateNoTransaction()
     }
 }
 
-void TObjectProxyBase::ValidatePermission(EPermissionCheckScope scope, EPermission permission, const TString& /* user */)
+void TObjectProxyBase::ValidatePermission(EPermissionCheckScope scope, EPermission permission, const TString& /*user*/)
 {
     YT_VERIFY(scope == EPermissionCheckScope::This);
     ValidatePermission(Object_, permission);

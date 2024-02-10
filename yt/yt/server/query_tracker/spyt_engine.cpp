@@ -366,7 +366,7 @@ private:
 
     void WaitSessionReady()
     {
-        auto state = WaitStatusChange(SessionUrl_, "starting", /* reportProgress */ false);
+        auto state = WaitStatusChange(SessionUrl_, "starting", /*reportProgress*/ false);
         if (state != "idle") {
             THROW_ERROR_EXCEPTION(
                 "Unexpected Livy session state: expected \"idle\", found %Qv",
@@ -457,7 +457,7 @@ private:
 
     TString WaitStatementFinished(const TString& statementUrl)
     {
-        auto state = WaitStatusChange(statementUrl, "running", /* reportProgress */ true);
+        auto state = WaitStatusChange(statementUrl, "running", /*reportProgress*/ true);
         if (state != "available") {
             THROW_ERROR_EXCEPTION(
                 "Unexpected Livy result state: expected \"available\", found %Qv",

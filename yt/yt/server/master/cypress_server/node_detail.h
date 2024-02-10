@@ -366,7 +366,7 @@ protected:
         securityManager->SetAccount(
             nodeHolder.get(),
             context.Account,
-            nullptr /* transaction */);
+            nullptr /*transaction*/);
 
         return nodeHolder;
     }

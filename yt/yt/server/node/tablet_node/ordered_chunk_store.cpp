@@ -270,7 +270,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
         std::move(backendReaders.ChunkReader),
         chunkReadOptions,
         readSchema,
-        /* sortColumns */ {},
+        /*sortColumns*/ {},
         {readRange});
 
     return wrapReaderWithPerformanceCounting(New<TReader>(
@@ -328,7 +328,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::TryCreateCacheBasedReader(
         std::move(chunkReader),
         chunkReadOptions,
         readSchema,
-        /* sortColumns */ {},
+        /*sortColumns*/ {},
         {readRange});
 
     return New<TReader>(

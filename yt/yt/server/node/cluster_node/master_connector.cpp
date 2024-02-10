@@ -119,7 +119,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        ResetAndRegisterAtMaster(/* firstTime */ true);
+        ResetAndRegisterAtMaster(/*firstTime*/ true);
     }
 
     TReqHeartbeat GetHeartbeatRequest()
@@ -408,7 +408,7 @@ private:
 
         YT_LOG_WARNING(error, "Master transaction lease aborted");
 
-        ResetAndRegisterAtMaster(/* firstTime */ false);
+        ResetAndRegisterAtMaster(/*firstTime*/ false);
     }
 
     void Reset()
@@ -442,7 +442,7 @@ private:
             }
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Error registering at primary master");
-            ResetAndRegisterAtMaster(/* firstTime */ false);
+            ResetAndRegisterAtMaster(/*firstTime*/ false);
             return;
         }
 
@@ -611,7 +611,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_INFO("Start reporting cluster node heartbeats to master");
-        ScheduleHeartbeat(/* immediately */ true);
+        ScheduleHeartbeat(/*immediately*/ true);
     }
 
     void ScheduleHeartbeat(bool immediately)
@@ -650,13 +650,13 @@ private:
             YT_LOG_INFO("Successfully reported cluster node heartbeat to master");
 
             // Schedule next heartbeat.
-            ScheduleHeartbeat(/* immediately */ false);
+            ScheduleHeartbeat(/*immediately*/ false);
         } else {
             YT_LOG_WARNING(rspOrError, "Error reporting cluster node heartbeat to master");
             if (IsRetriableError(rspOrError)) {
                 ScheduleHeartbeat(/* immediately*/ false);
             } else {
-                ResetAndRegisterAtMaster(/* firstTime */ false);
+                ResetAndRegisterAtMaster(/*firstTime*/ false);
             }
         }
     }
@@ -677,7 +677,7 @@ private:
     }
 
     void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
+        const TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
         const TClusterNodeDynamicConfigPtr& newNodeConfig)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);

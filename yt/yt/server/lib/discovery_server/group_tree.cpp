@@ -171,7 +171,7 @@ void BuildMemberAttributesFragment(
 
 void BuildMemberAttributesAsMap(
     const TMemberPtr& member,
-    const TAttributeFilter& /* attributeKeys */,
+    const TAttributeFilter& /*attributeKeys*/,
     TFluentAny fluent)
 {
     auto reader = member->CreateReader();
@@ -395,9 +395,9 @@ class TGroupTree::TImpl
 public:
     explicit TImpl(NLogging::TLogger logger)
         : Root_(New<TGroupNode>(
-            /* key */ TString(),
-            /* path */ TYPath(),
-            /* parent */ nullptr))
+            /*key*/ TString(),
+            /*path*/ TYPath(),
+            /*parent*/ nullptr))
         , Logger(std::move(logger))
     {
         auto guard = WriterGuard(Lock_);

@@ -231,7 +231,7 @@ private:
     const NTableClient::TBlockMetaCachePtr BlockMetaCache_;
 
     void OnDynamicConfigChanged(
-        const NClusterNode::TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
+        const NClusterNode::TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
         const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig)
     {
         const auto& config = newNodeConfig->DataNode;

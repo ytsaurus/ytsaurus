@@ -210,7 +210,7 @@ public:
                     .BeginAttributes()
                         .Do(BIND(&BuildMinimalOperationAttributes, operation))
                         .Item("opaque").Value(true)
-                        .Item("runtime_parameters").Value(operation->GetRuntimeParameters(), /* serializeHeavy */ !enableHeavyRuntimeParameters)
+                        .Item("runtime_parameters").Value(operation->GetRuntimeParameters(), /*serializeHeavy*/ !enableHeavyRuntimeParameters)
                         .DoIf(enableHeavyRuntimeParameters, [&] (auto fluent) {
                             fluent.Item("heavy_runtime_parameters")
                                 .DoMap([&] (auto fluent) {
@@ -731,7 +731,7 @@ private:
         for (const auto& record : CustomWatcherRecords_) {
             auto executor = New<TPeriodicExecutor>(
                 GetCancelableControlInvoker(EControlQueue::CommonPeriodicActivity),
-                BIND(&TImpl::ExecuteCustomWatcherUpdate, MakeWeak(this), record, /* strictMode */ false),
+                BIND(&TImpl::ExecuteCustomWatcherUpdate, MakeWeak(this), record, /*strictMode*/ false),
                 record.Period);
             CustomWatcherExecutors_[record.WatcherType] = executor;
         }
@@ -945,7 +945,7 @@ private:
                 ->GetClient()
                 ->GetNativeConnection()
                 ->GetClusterDirectorySynchronizer()
-                ->Sync(/* force */ true))
+                ->Sync(/*force*/ true))
                 .ThrowOnError();
             YT_LOG_INFO("Sync cluster directory finished");
         }
@@ -958,7 +958,7 @@ private:
                 ->GetClient()
                 ->GetNativeConnection()
                 ->GetMediumDirectorySynchronizer()
-                ->NextSync(/* force */ true))
+                ->NextSync(/*force*/ true))
                 .ThrowOnError();
             YT_LOG_INFO("Sync medium directory finished");
         }
@@ -973,7 +973,7 @@ private:
                 Owner_,
                 EMasterChannelKind::Follower,
                 PrimaryMasterCellTagSentinel,
-                /* subbatchSize */ 100);
+                /*subbatchSize*/ 100);
 
             auto listOperationsResult = NScheduler::ListOperations(createBatchRequest);
             OperationIds_.reserve(listOperationsResult.OperationsToRevive.size());
@@ -1383,14 +1383,14 @@ private:
             YT_LOG_INFO("Handling common watcher update results");
 
             for (const auto& watcher : Owner_->CommonWatcherRecords_) {
-                Owner_->RunWatcherHandler(watcher, watcherResponses, /* strictMode */ true);
+                Owner_->RunWatcherHandler(watcher, watcherResponses, /*strictMode*/ true);
             }
 
             YT_LOG_INFO("Common watchers update results handled");
 
             for (const auto& watcher : Owner_->CustomWatcherRecords_) {
                 YT_LOG_INFO("Updating custom watcher (WatcherType: %v)", watcher.WatcherType);
-                Owner_->ExecuteCustomWatcherUpdate(watcher, /* strictMode */ true);
+                Owner_->ExecuteCustomWatcherUpdate(watcher, /*strictMode*/ true);
                 YT_LOG_INFO("Custom watcher updated (WatcherType: %v)", watcher.WatcherType);
             }
 
@@ -1883,7 +1883,7 @@ private:
                 auto req = multisetReq->add_subrequests();
                 req->set_attribute("runtime_parameters");
                 auto valueYson = BuildYsonStringFluently()
-                    .Value(operation->GetRuntimeParameters(), /* serializeHeavy */ !enableHeavyRuntimeParameters);
+                    .Value(operation->GetRuntimeParameters(), /*serializeHeavy*/ !enableHeavyRuntimeParameters);
                 ValidateYson(valueYson, GetYsonNestingLevelLimit());
                 req->set_value(valueYson.ToString());
 
@@ -2057,7 +2057,7 @@ private:
 
         const auto& batchRsp = batchRspOrError.Value();
         for (const auto& watcher : CommonWatcherRecords_) {
-            RunWatcherHandler(watcher, batchRsp, /* strictMode */ false);
+            RunWatcherHandler(watcher, batchRsp, /*strictMode*/ false);
         }
 
         YT_LOG_DEBUG("Common watchers updated");

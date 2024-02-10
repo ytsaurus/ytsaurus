@@ -384,7 +384,7 @@ double TSchedulerElement::ComputeLocalSatisfactionRatio(const TJobResources& res
     if (TResourceVector::Any(usageShare, fairShare, [] (double usage, double fair) { return usage > fair; })) {
         double satisfactionRatio = std::min(
             MaxComponent(
-                Div(usageShare, fairShare, /* zeroDivByZero */ 0.0, /* oneDivByZero */ InfiniteSatisfactionRatio)),
+                Div(usageShare, fairShare, /*zeroDivByZero*/ 0.0, /*oneDivByZero*/ InfiniteSatisfactionRatio)),
             InfiniteSatisfactionRatio);
         YT_VERIFY(satisfactionRatio >= 1.0);
         return satisfactionRatio;
@@ -393,7 +393,7 @@ double TSchedulerElement::ComputeLocalSatisfactionRatio(const TJobResources& res
     double satisfactionRatio = 0.0;
     if (AreAllResourcesBlocked()) {
         // NB(antonkikh): Using |MaxComponent| would lead to satisfaction ratio being non-monotonous.
-        satisfactionRatio = MinComponent(Div(usageShare, fairShare, /* zeroDivByZero */ 1.0, /* oneDivByZero */ 1.0));
+        satisfactionRatio = MinComponent(Div(usageShare, fairShare, /*zeroDivByZero*/ 1.0, /*oneDivByZero*/ 1.0));
     } else {
         satisfactionRatio = 0.0;
         for (auto resourceType : TEnumTraits<EJobResourceType>::GetDomainValues()) {
@@ -2193,7 +2193,7 @@ void TSchedulerOperationElement::AttachParent(TSchedulerCompositeElement* newPar
     TreeElementHost_->GetResourceTree()->AttachParent(ResourceTreeElement_, newParent->ResourceTreeElement_);
 
     newParent->IncreaseOperationCount(1);
-    newParent->AddChild(this, /* enabled */ false);
+    newParent->AddChild(this, /*enabled*/ false);
 
     YT_LOG_DEBUG("Operation attached to pool (Pool: %v)", newParent->GetId());
 }
@@ -2539,15 +2539,15 @@ void TSchedulerRootElement::BuildResourceMetering(
     auto insertResult = meteringMap->insert({
         key,
         TMeteringStatistics(
-            /* strongGuaranteeResources */ TotalStrongGuaranteeResources,
-            /* resourceFlow */ {},
-            /* burstGuaranteResources */ {},
+            /*strongGuaranteeResources*/ TotalStrongGuaranteeResources,
+            /*resourceFlow*/ {},
+            /*burstGuaranteResources*/ {},
             GetResourceUsageAtUpdate(),
             accumulatedResourceUsageVolume)});
     YT_VERIFY(insertResult.second);
 
     for (const auto& child : EnabledChildren_) {
-        child->BuildResourceMetering(/* parentKey */ key, poolResourceUsages, meteringMap);
+        child->BuildResourceMetering(/*parentKey*/ key, poolResourceUsages, meteringMap);
     }
 }
 

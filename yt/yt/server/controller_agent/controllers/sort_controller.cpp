@@ -3013,10 +3013,10 @@ protected:
 
         if (Spec->UseNewSortedPool) {
             YT_LOG_DEBUG("Creating new sorted pool");
-            return CreateNewSortedChunkPool(chunkPoolOptions, nullptr /* chunkSliceFetcher */, IntermediateInputStreamDirectory);
+            return CreateNewSortedChunkPool(chunkPoolOptions, nullptr /*chunkSliceFetcher*/, IntermediateInputStreamDirectory);
         } else {
             YT_LOG_DEBUG("Creating legacy sorted pool");
-            return CreateLegacySortedChunkPool(chunkPoolOptions, nullptr /* chunkSliceFetcher */, IntermediateInputStreamDirectory);
+            return CreateLegacySortedChunkPool(chunkPoolOptions, nullptr /*chunkSliceFetcher*/, IntermediateInputStreamDirectory);
         }
     }
 
@@ -3088,7 +3088,7 @@ protected:
             if (key.GetCount() == 0) {
                 continue;
             }
-            auto upperBound = TKeyBound::FromRow(RowBuffer->CaptureRow(key), /* isInclusive */true, /* isUpper */false);
+            auto upperBound = TKeyBound::FromRow(RowBuffer->CaptureRow(key), /*isInclusive*/true, /*isUpper*/false);
             partitionKeys.emplace_back(upperBound);
         }
 
@@ -3099,7 +3099,7 @@ protected:
     {
         const auto& finalPartitions = GetFinalPartitions();
         YT_VERIFY(finalPartitions.size() == partitionKeys.size() + 1);
-        finalPartitions[0]->LowerBound = TKeyBound::MakeUniversal(/* isUpper */false);
+        finalPartitions[0]->LowerBound = TKeyBound::MakeUniversal(/*isUpper*/false);
         for (int finalPartitionIndex = 1; finalPartitionIndex < std::ssize(finalPartitions); ++finalPartitionIndex) {
             const auto& partition = finalPartitions[finalPartitionIndex];
             const auto& partitionKey = partitionKeys[finalPartitionIndex - 1];
@@ -3384,7 +3384,7 @@ private:
             TotalEstimatedInputDataWeight,
             TotalEstimatedInputRowCount,
             InputCompressionRatio);
-        InitPartitionPool(RootPartitionPoolJobSizeConstraints, nullptr, false /* ordered */);
+        InitPartitionPool(RootPartitionPoolJobSizeConstraints, nullptr, false /*ordered*/);
 
         PartitionTasks.resize(PartitionTreeDepth);
         for (int partitionTaskLevel = PartitionTreeDepth - 1; partitionTaskLevel >= 0; --partitionTaskLevel) {
@@ -4212,7 +4212,7 @@ private:
         if (IntermediateStreamSchemas_.size() > 1) {
             chunkSchemaColumns.emplace_back(TableIndexColumnName, ESimpleLogicalValueType::Int64);
         }
-        IntermediateChunkSchema_ = New<TTableSchema>(std::move(chunkSchemaColumns), /* strict */ false);
+        IntermediateChunkSchema_ = New<TTableSchema>(std::move(chunkSchemaColumns), /*strict*/ false);
     }
 
     void CustomMaterialize() override

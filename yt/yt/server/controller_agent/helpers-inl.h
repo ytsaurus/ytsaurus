@@ -70,8 +70,8 @@ TFuture<std::optional<T>> WithSoftTimeout(
     auto timeoutFuture = NConcurrency::TDelayedExecutor::MakeDelayed(timeout);
 
     return AnySet(
-        /* futures */ std::vector{future.template As<void>(), timeoutFuture},
-        /* options */ {/* PropagateCancelationToInput */ false, /* CancelInputOnShortcut */ false})
+        /*futures*/ std::vector{future.template As<void>(), timeoutFuture},
+        /*options*/ {/*PropagateCancelationToInput*/ false, /*CancelInputOnShortcut*/ false})
         .Apply(BIND([
                 future = std::move(future),
                 onFinishedAfterTimeout = std::move(onFinishedAfterTimeout)

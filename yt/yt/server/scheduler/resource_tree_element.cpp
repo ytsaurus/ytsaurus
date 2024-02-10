@@ -46,7 +46,7 @@ bool TResourceTreeElement::CheckAvailableDemand(
     auto availableDemand = ComputeAvailableResources(
         resourceDemand,
         ResourceUsage_ + ResourceUsagePrecommit_,
-        /* resourceDiscount */ {});
+        /*resourceDiscount*/ {});
 
     return Dominates(availableDemand, delta);
 }

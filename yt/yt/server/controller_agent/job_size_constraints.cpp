@@ -444,7 +444,7 @@ public:
             spec,
             options,
             logger,
-            std::numeric_limits<i64>::max() / 4 /* inputRowCount */,
+            std::numeric_limits<i64>::max() / 4 /*inputRowCount*/,
             inputChunkCount,
             mergeInputTableCount,
             mergePrimaryInputTableCount,
@@ -652,9 +652,9 @@ public:
             options,
             logger,
             inputRowCount,
-            std::numeric_limits<i64>::max() / 4 /* inputChunkCount */,
-            1 /* mergeInputTableCount */,
-            1 /* primaryMergeInputTableCount */,
+            std::numeric_limits<i64>::max() / 4 /*inputChunkCount*/,
+            1 /*mergeInputTableCount*/,
+            1 /*primaryMergeInputTableCount*/,
             spec->Sampling)
         , Spec_(spec)
         , Options_(options)
@@ -836,18 +836,18 @@ IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
     i64 dataWeightPerJob = std::max(minDataWeightPerJob, spec->DataWeightPerSortedJob.value_or(spec->DataWeightPerShuffleJob));
 
     return CreateExplicitJobSizeConstraints(
-        false /* canAdjustDataSizePerJob */,
-        false /* isExplicitJobCount */,
-        0 /* jobCount */,
-        dataWeightPerJob /* dataWeightPerJob */,
-        dataWeightPerJob /* primaryDataWeightPerJob */,
+        false /*canAdjustDataSizePerJob*/,
+        false /*isExplicitJobCount*/,
+        0 /*jobCount*/,
+        dataWeightPerJob /*dataWeightPerJob*/,
+        dataWeightPerJob /*primaryDataWeightPerJob*/,
         options->MaxDataSlicesPerJob,
         spec->MaxDataWeightPerJob,
         spec->MaxPrimaryDataWeightPerJob,
-        std::numeric_limits<i64>::max() / 4 /* inputSliceDataSize */,
-        std::numeric_limits<i64>::max() / 4 /* inputSliceRowCount */,
-        0 /* foreignSliceDataWeight */,
-        std::nullopt /* samplingRate */);
+        std::numeric_limits<i64>::max() / 4 /*inputSliceDataSize*/,
+        std::numeric_limits<i64>::max() / 4 /*inputSliceRowCount*/,
+        0 /*foreignSliceDataWeight*/,
+        std::nullopt /*samplingRate*/);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

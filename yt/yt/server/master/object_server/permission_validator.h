@@ -15,7 +15,7 @@ struct IPermissionValidator
     virtual void ValidatePermission(
         NYTree::EPermissionCheckScope scope,
         NYTree::EPermission permission,
-        const TString& /* user */ = {}) = 0;
+        const TString& /*user*/ = {}) = 0;
 
     virtual void ValidatePermission(
         TObject* object,

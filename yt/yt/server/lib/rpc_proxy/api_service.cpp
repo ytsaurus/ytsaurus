@@ -5098,7 +5098,7 @@ private:
                 WaitFor(fileWriter->Close())
                     .ThrowOnError();
             },
-            false /* feedbackEnabled */);
+            false /*feedbackEnabled*/);
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -5195,7 +5195,7 @@ private:
                 WaitFor(journalWriter->Close())
                     .ThrowOnError();
             },
-            true /* feedbackEnabled */);
+            true /*feedbackEnabled*/);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, TruncateJournal)
@@ -5423,7 +5423,7 @@ private:
                 WaitFor(tableWriter->Close())
                     .ThrowOnError();
             },
-            false /* feedbackEnabled */);
+            false /*feedbackEnabled*/);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetColumnarStatistics)

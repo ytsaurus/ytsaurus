@@ -430,7 +430,7 @@ private:
                 New<TRemoteReaderOptions>(),
                 ChunkReaderHost_,
                 FromProto<TChunkId>(chunkSpec.chunk_id()),
-                {} /* seedReplicas */);
+                {} /*seedReplicas*/);
 
             chunk.ReadBlocksOptions.ClientOptions.WorkloadDescriptor.Category = EWorkloadCategory::UserInteractive;
 
@@ -633,7 +633,7 @@ std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(
         invoker,
         client->GetNativeConnection()->GetConfig()->MaxChunksPerFetch,
         client->GetNativeConnection()->GetConfig()->MaxChunksPerLocateRequest,
-        [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int /* tableIndex */) {
+        [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int /*tableIndex*/) {
             req->set_fetch_all_meta_extensions(false);
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
             req->set_fetch_parity_replicas(true);
@@ -645,7 +645,7 @@ std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(
         userObject.ObjectId,
         userObject.ExternalCellTag,
         userObject.ChunkCount,
-        0 /* tableIndex */);
+        0 /*tableIndex*/);
 
     WaitFor(chunkSpecFetcher->Fetch())
         .ThrowOnError();

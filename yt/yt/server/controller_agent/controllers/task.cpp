@@ -488,7 +488,7 @@ ITaskHost* TTask::GetTaskHost()
     return TaskHost_;
 }
 
-bool TTask::ValidateChunkCount(int /* chunkCount */)
+bool TTask::ValidateChunkCount(int /*chunkCount*/)
 {
     return true;
 }
@@ -1111,7 +1111,7 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
         // NB: we should release these chunk lists only when information about this job being abandoned
         // gets to the snapshot; otherwise it may revive in different scheduler and continue writing
         // to the released chunk list.
-        TaskHost_->ReleaseChunkTrees(chunkListIds, true /* recursive */, true /* waitForSnapshot */);
+        TaskHost_->ReleaseChunkTrees(chunkListIds, true /*recursive*/, true /*waitForSnapshot*/);
         std::fill(chunkListIds.begin(), chunkListIds.end(), NullChunkListId);
     }
 
@@ -1180,7 +1180,7 @@ void TTask::ReleaseJobletResources(TJobletPtr joblet, bool waitForSnapshot)
             EstimatedInputDataWeightHistogram_->RemoveValue(joblet->InputStripeList->TotalDataWeight);
         }
     }
-    TaskHost_->ReleaseChunkTrees(joblet->ChunkListIds, /* recursive */ true, waitForSnapshot);
+    TaskHost_->ReleaseChunkTrees(joblet->ChunkListIds, /*recursive*/ true, waitForSnapshot);
 }
 
 TJobFinishedResult TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary)
@@ -1197,7 +1197,7 @@ TJobFinishedResult TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary
     YT_VERIFY(jobSummary.Statistics);
     UpdateMaximumUsedTmpfsSizes(*jobSummary.Statistics);
 
-    ReleaseJobletResources(joblet, /* waitForSnapshot */ false);
+    ReleaseJobletResources(joblet, /*waitForSnapshot*/ false);
     auto mayReturnCookie = true;
     for (auto* jobManager : JobManagers_) {
         if (!jobManager->OnJobFailed(joblet)) {
@@ -1225,13 +1225,13 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
     // So better keep it simple and wait for the snapshot.
 
     if (joblet->StderrTableChunkListId) {
-        TaskHost_->ReleaseChunkTrees({joblet->StderrTableChunkListId}, true /* unstageRecursively */, true /* waitForSnapshot */);
+        TaskHost_->ReleaseChunkTrees({joblet->StderrTableChunkListId}, true /*unstageRecursively*/, true /*waitForSnapshot*/);
     }
     if (joblet->CoreTableChunkListId) {
-        TaskHost_->ReleaseChunkTrees({joblet->CoreTableChunkListId}, true /* unstageRecursively */, true /* waitForSnapshot */);
+        TaskHost_->ReleaseChunkTrees({joblet->CoreTableChunkListId}, true /*unstageRecursively*/, true /*waitForSnapshot*/);
     }
 
-    ReleaseJobletResources(joblet, /* waitForSnapshot */ true);
+    ReleaseJobletResources(joblet, /*waitForSnapshot*/ true);
 
     auto mayReturnCookie = true;
     for (auto* jobManager : JobManagers_) {
@@ -1296,9 +1296,9 @@ void TTask::OnJobLost(TCompletedJobPtr completedJob, TChunkId chunkId)
 
 void TTask::OnStripeRegistrationFailed(
     TError error,
-    IChunkPoolInput::TCookie /* cookie */,
-    const TChunkStripePtr& /* stripe */,
-    const TOutputStreamDescriptorPtr& /* streamDescriptor */)
+    IChunkPoolInput::TCookie /*cookie*/,
+    const TChunkStripePtr& /*stripe*/,
+    const TOutputStreamDescriptorPtr& /*streamDescriptor*/)
 {
     // NB: This method can be called during processing OnJob* event,
     // aborting all joblets are unsafe in this situation.
@@ -1824,8 +1824,8 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto:
             &ITaskHost::OnOperationFailed,
             MakeWeak(TaskHost_),
             error,
-            /* flush */ true,
-            /* abortAllJoblets */ true));
+            /*flush*/ true,
+            /*abortAllJoblets*/ true));
         THROW_ERROR(error);
     }
 
@@ -2064,7 +2064,7 @@ std::vector<TChunkStripePtr> TTask::BuildChunkStripes(
 TChunkStripePtr TTask::BuildIntermediateChunkStripe(
     google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs)
 {
-    auto stripes = BuildChunkStripes(chunkSpecs, 1 /* tableCount */);
+    auto stripes = BuildChunkStripes(chunkSpecs, 1 /*tableCount*/);
     return std::move(stripes[0]);
 }
 

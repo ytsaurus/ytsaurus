@@ -1036,7 +1036,7 @@ public:
         {
             ValidateOperationRuntimeParametersUpdate(operation, update);
             auto newParams = UpdateRuntimeParameters(operation->GetRuntimeParameters(), update, operation->GetAuthenticatedUser());
-            WaitFor(Strategy_->ValidateOperationRuntimeParameters(operation.Get(), newParams, /* validatePools */ update->ContainsPool()))
+            WaitFor(Strategy_->ValidateOperationRuntimeParameters(operation.Get(), newParams, /*validatePools*/ update->ContainsPool()))
                 .ThrowOnError();
             if (auto delay = operation->Spec()->TestingOperationOptions->DelayInsideValidateRuntimeParameters) {
                 TDelayedExecutor::WaitForDuration(*delay);
@@ -2300,7 +2300,7 @@ private:
             const auto& rsp = rspOrError.Value();
             auto configFromCypress = ConvertToNode(TYsonString(rsp->value()));
             try {
-                newConfig->Load(configFromCypress, /* validate */ true, /* setDefaults */ false);
+                newConfig->Load(configFromCypress, /*validate*/ true, /*setDefaults*/ false);
             } catch (const std::exception& ex) {
                 auto error = TError(EErrorCode::WatcherHandlerFailed, "Error updating scheduler configuration")
                     << ex;
@@ -3276,7 +3276,7 @@ private:
                 error
                     << TErrorAttribute("abort_reason", EAbortReason::OperationSuspended),
                 EAbortReason::OperationSuspended,
-                /* terminated */ false);
+                /*terminated*/ false);
         }
 
         if (setAlert) {
@@ -3388,7 +3388,7 @@ private:
                 << TErrorAttribute("abort_reason", allocationAbortReason)
                 << error,
             allocationAbortReason,
-            /* terminated */ true);
+            /*terminated*/ true);
 
         // First flush: ensure that all stderrs are attached and the
         // state is changed to its intermediate value.

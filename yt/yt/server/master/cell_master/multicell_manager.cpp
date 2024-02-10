@@ -1064,12 +1064,12 @@ private:
 
             if (!portalCellTags.empty()) {
                 auto multicellRequest = GetMulticellStatistics();
-                PostToMasters(multicellRequest, portalCellTags, /* reliable */ false);
+                PostToMasters(multicellRequest, portalCellTags, /*reliable*/ false);
             }
 
             if (!nonPortalCellTags.empty()) {
                 auto clusterRequest = GetClusterCellStatistics();
-                PostToMasters(clusterRequest, nonPortalCellTags, /* reliable */ false);
+                PostToMasters(clusterRequest, nonPortalCellTags, /*reliable*/ false);
             }
         } else {
             PostToPrimaryMaster(localRequest, /*reliable*/ false);

@@ -29,7 +29,7 @@ template <class TValue>
 void DeserializeMultiModuleValue(TModuleAwareValue<TValue>& value, const NYTree::INodePtr& node);
 
 template <class TValue>
-void FormatValue(TStringBuilderBase* builder, const TModuleAwareValue<TValue>& value, TStringBuf /* format */);
+void FormatValue(TStringBuilderBase* builder, const TModuleAwareValue<TValue>& value, TStringBuf /*format*/);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,7 +46,7 @@ template <class TValue>
 void Deserialize(TSchedulingSegmentMap<TValue>& map, NYson::TYsonPullParserCursor* cursor);
 
 template <class TValue>
-void FormatValue(TStringBuilderBase* builder, const TSchedulingSegmentMap<TValue>& map, TStringBuf /* format */);
+void FormatValue(TStringBuilderBase* builder, const TSchedulingSegmentMap<TValue>& map, TStringBuf /*format*/);
 
 ////////////////////////////////////////////////////////////////////////////////
 

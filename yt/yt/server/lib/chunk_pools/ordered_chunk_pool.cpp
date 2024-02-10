@@ -420,7 +420,7 @@ private:
         auto dataSliceCopy = CreateInputDataSlice(dataSlice);
         dataSliceCopy->Tag = cookie;
         dataSlice->CopyPayloadFrom(*dataSlice);
-        CurrentJob()->AddDataSlice(dataSliceCopy, cookie, true /* isPrimary */);
+        CurrentJob()->AddDataSlice(dataSliceCopy, cookie, true /*isPrimary*/);
         return result;
     }
 

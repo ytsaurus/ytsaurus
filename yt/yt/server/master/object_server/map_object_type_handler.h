@@ -35,8 +35,8 @@ public:
     //! Returns Cypress path to a map object which must be a designated root.
     virtual TString GetRootPath(const TObject* rootObject) const = 0;
 
-    virtual void RegisterName(const TString& /* name */, TObject* /* object */) noexcept = 0;
-    virtual void UnregisterName(const TString& /* name */, TObject* /* object */) noexcept = 0;
+    virtual void RegisterName(const TString& /*name*/, TObject* /*object*/) noexcept = 0;
+    virtual void UnregisterName(const TString& /*name*/, TObject* /*object*/) noexcept = 0;
 
     virtual void ValidateObjectName(const TString& name);
 

@@ -616,7 +616,7 @@ public:
         }
     }
 
-    void SetIOThrottle(i64 /* operations */) override
+    void SetIOThrottle(i64 /*operations*/) override
     {
         // Noop.
     }
@@ -687,17 +687,17 @@ class TSimpleJobProxyEnvironment
     : public IJobProxyEnvironment
 {
 public:
-    void SetCpuGuarantee(double /* value */) override
+    void SetCpuGuarantee(double /*value*/) override
     {
         YT_LOG_WARNING("CPU guarantees are not supported in simple job environment");
     }
 
-    void SetCpuLimit(double /* value */) override
+    void SetCpuLimit(double /*value*/) override
     {
         YT_LOG_WARNING("CPU limits are not supported in simple job environment");
     }
 
-    void SetCpuPolicy(const TString& /* value */) override
+    void SetCpuPolicy(const TString& /*value*/) override
     {
         YT_LOG_WARNING("CPU policy is not supported in simple job environment");
     }
@@ -728,7 +728,7 @@ public:
     }
 
     IUserJobEnvironmentPtr CreateUserJobEnvironment(
-        TJobId /* jobId */,
+        TJobId /*jobId*/,
         const TUserJobEnvironmentOptions& options) override
     {
         if (options.RootFS) {
@@ -792,7 +792,7 @@ public:
     { }
 
     IUserJobEnvironmentPtr CreateUserJobEnvironment(
-        TJobId /* jobId */,
+        TJobId /*jobId*/,
         const TUserJobEnvironmentOptions& options) override
     {
         if (options.RootFS) {

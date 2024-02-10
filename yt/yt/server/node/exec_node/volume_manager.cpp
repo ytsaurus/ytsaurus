@@ -2731,7 +2731,7 @@ public:
         return AllSucceeded(std::move(overlayDataFutures))
             .ToImmediatelyCancelable()
             .Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TOverlayData>& overlayDataArray) {
-                auto tagSet = TVolumeProfilerCounters::MakeTagSet(/* volumeType */ "overlay", /* volumeFilePath */ "n/a");
+                auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "overlay", /*volumeFilePath*/ "n/a");
                 TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
                 TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
                 return this_->CreateOverlayVolume(tag, std::move(tagSet), std::move(volumeCreateTimeGuard), options, overlayDataArray);
@@ -2879,7 +2879,7 @@ private:
             YT_VERIFY(artifactKey.has_filesystem());
             YT_VERIFY(artifactKey.has_nbd_export_id());
 
-            auto tagSet = TVolumeProfilerCounters::MakeTagSet(/* volumeType */ "nbd", /* volumeFilePath */ artifactKey.data_source().path());
+            auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "nbd", /*volumeFilePath*/ artifactKey.data_source().path());
             TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
             TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
 
@@ -2923,7 +2923,7 @@ private:
             auto downloadFuture = ChunkCache_->DownloadArtifact(artifactKey, downloadOptions);
             auto volumeFuture = downloadFuture.Apply(
                 BIND([=, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& chunkCacheArtifact) {
-                    auto tagSet = TVolumeProfilerCounters::MakeTagSet(/* volumeType */ "squashfs", /* volumeFilePath */ artifactKey.data_source().path());
+                    auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "squashfs", /*volumeFilePath*/ artifactKey.data_source().path());
                     TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
                     TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
 

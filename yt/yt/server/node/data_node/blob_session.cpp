@@ -334,7 +334,7 @@ void TBlobSession::OnStarted(const TError& error)
                     "Not enough space to start blob session for chunk %v",
                     GetChunkId())
                 << error,
-                /* fatal */ false);
+                /*fatal*/ false);
         } else {
             SetFailed(
                 TError(
@@ -342,7 +342,7 @@ void TBlobSession::OnStarted(const TError& error)
                     "Error starting blob session for chunk %v",
                     GetChunkId())
                 << error,
-                /* fatal */ true);
+                /*fatal*/ true);
         }
     }
 }
@@ -397,7 +397,7 @@ TChunkInfo TBlobSession::OnFinished(const TError& error)
                     "Not enough space to write blocks of chunk %v",
                     GetChunkId())
                 << error,
-                /* fatal */ false);
+                /*fatal*/ false);
         } else {
             SetFailed(
                 TError(
@@ -405,7 +405,7 @@ TChunkInfo TBlobSession::OnFinished(const TError& error)
                     "Error writing blocks of chunk %v",
                     SessionId_)
                 << error,
-                /* fatal */ true);
+                /*fatal*/ true);
         }
     }
 
@@ -598,7 +598,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
 
         if (auto error = slot.Block.ValidateChecksum(); !error.IsOK()) {
             auto blockId = TBlockId(GetChunkId(), WindowIndex_);
-            SetFailed(error << TErrorAttribute("block_id", ToString(blockId)), /* fatal */ false);
+            SetFailed(error << TErrorAttribute("block_id", ToString(blockId)), /*fatal*/ false);
             return MakeFuture<NIO::TIOCounters>(Error_);
         }
 
@@ -637,7 +637,7 @@ void TBlobSession::OnBlocksWritten(int beginBlockIndex, int endBlockIndex, const
                     "Not enough space to finish blob session for chunk %v",
                     GetChunkId())
                 << error,
-                /* fatal */ false);
+                /*fatal*/ false);
         } else {
             SetFailed(
                 TError(
@@ -645,7 +645,7 @@ void TBlobSession::OnBlocksWritten(int beginBlockIndex, int endBlockIndex, const
                     "Error writing chunk %v",
                     GetChunkId())
                 << error,
-                /* fatal */ true);
+                /*fatal*/ true);
         }
         return;
     }

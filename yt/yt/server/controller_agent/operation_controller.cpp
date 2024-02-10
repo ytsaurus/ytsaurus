@@ -121,7 +121,7 @@ void ToProto(NProto::TReviveOperationResult* resultProto, const TOperationContro
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TCommitOperationResult* /* resultProto */, const TOperationControllerCommitResult& /* result */)
+void ToProto(NProto::TCommitOperationResult* /*resultProto*/, const TOperationControllerCommitResult& /*result*/)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -715,11 +715,11 @@ IOperationControllerPtr CreateControllerForOperation(
             break;
         }
         case EOperationType::Reduce: {
-            controller = NControllers::CreateReduceController(config, host, operation, /* isJoinReduce */ false);
+            controller = NControllers::CreateReduceController(config, host, operation, /*isJoinReduce*/ false);
             break;
         }
         case EOperationType::JoinReduce: {
-            controller = NControllers::CreateReduceController(config, host, operation, /* isJoinReduce */ true);
+            controller = NControllers::CreateReduceController(config, host, operation, /*isJoinReduce*/ true);
             break;
         }
         case EOperationType::MapReduce: {

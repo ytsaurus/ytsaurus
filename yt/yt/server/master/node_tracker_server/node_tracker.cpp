@@ -2644,7 +2644,7 @@ private:
                     try {
                         transactionManager->PingTransaction(
                             transaction->GetId(),
-                            /* pingAncestors */ false);
+                            /*pingAncestors*/ false);
                     } catch (const std::exception& ex) {
                         YT_LOG_WARNING(
                             ex,

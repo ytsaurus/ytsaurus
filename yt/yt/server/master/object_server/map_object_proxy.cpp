@@ -348,7 +348,7 @@ template <class TObject>
 void TNonversionedMapObjectProxyBase<TObject>::ValidatePermission(
     EPermissionCheckScope scope,
     EPermission permission,
-    const TString& /* user */)
+    const TString& /*user*/)
 {
     ValidatePermission(TBase::GetThisImpl(), scope, permission);
 }
@@ -487,7 +487,7 @@ bool TNonversionedMapObjectProxyBase<TObject>::SetBuiltinAttribute(
                 GetShortPath(),
                 "/" + name,
                 ENodeCloneMode::Move,
-                false /* ignoreExisting */);
+                false /*ignoreExisting*/);
             return true;
         }
 
@@ -691,7 +691,7 @@ void TNonversionedMapObjectProxyBase<TObject>::SetImmediateChild(
         nullptr,
         path,
         child,
-        false /* recursive */);
+        false /*recursive*/);
 
     factory->AttachChild(this, key, child);
 }
@@ -713,7 +713,7 @@ TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectPr
         ThrowAlreadyExists(this);
     }
 
-    this->ValidateCreatePermissions(false /* replace */, attributes);
+    this->ValidateCreatePermissions(false /*replace*/, attributes);
 
     auto factory = CreateObjectFactory();
     auto* object = factory->CreateObject(attributes);
@@ -803,7 +803,7 @@ TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectPr
         }
     }
 
-    this->ValidateCopyPermissions(sourceImpl, mode, replace, false /* validateAdminister */);
+    this->ValidateCopyPermissions(sourceImpl, mode, replace, false /*validateAdminister*/);
 
     auto sourceParent = sourceProxy->DoGetParent();
     if (!sourceParent && mode == ENodeCloneMode::Move) {
@@ -888,8 +888,8 @@ TObject* TNonversionedMapObjectFactoryBase<TObject>::CreateObject(IAttributeDict
 
 template <class TObject>
 TObject* TNonversionedMapObjectFactoryBase<TObject>::CloneObject(
-    TObject* /* object */,
-    NCypressServer::ENodeCloneMode /* mode */)
+    TObject* /*object*/,
+    NCypressServer::ENodeCloneMode /*mode*/)
 {
     THROW_ERROR_EXCEPTION("Nonversioned map objects do not support cloning");
 }
@@ -968,8 +968,8 @@ void TNonversionedMapObjectFactoryBase<TObject>::DetachChild(const TProxyPtr& pa
     LogEvent({
         EEventType::RefObject,
         parent,
-        TString(), /* key */
-        child /* child */
+        TString(), /*key*/
+        child /*child*/
     });
 
     auto key = parent->GetChildKeyOrThrow(child);

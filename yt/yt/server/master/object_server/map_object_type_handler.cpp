@@ -53,7 +53,7 @@ void TNonversionedMapObjectTypeHandlerBase<TObject>::ValidateObjectName(const TS
 template <class TObject>
 IObjectProxyPtr TNonversionedMapObjectTypeHandlerBase<TObject>::DoGetProxy(
     TObject* object,
-    NTransactionServer::TTransaction* /* transaction */)
+    NTransactionServer::TTransaction* /*transaction*/)
 {
     return GetMapObjectProxy(object);
 }

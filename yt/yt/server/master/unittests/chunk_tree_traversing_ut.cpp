@@ -1344,8 +1344,8 @@ TEST_F(TChunkTreeTraversingTest, SemiSealedJournal)
 {
     // NB: Sealed journal chunks in tests have 100 rows by default.
     auto* root = CreateChunkList(EChunkListKind::JournalRoot);
-    auto* chunk1 = CreateJournalChunk(/* sealed */ true, /* overlayed */ false);
-    auto* chunk2 = CreateJournalChunk(/* sealed */ false, /* overlayed */ false);
+    auto* chunk1 = CreateJournalChunk(/*sealed*/ true, /*overlayed*/ false);
+    auto* chunk2 = CreateJournalChunk(/*sealed*/ false, /*overlayed*/ false);
     AttachToChunkList(root, {chunk1});
     AttachToChunkList(root, {chunk2});
 
@@ -1371,14 +1371,14 @@ TEST_F(TChunkTreeTraversingTest, SemiSealedJournal)
         std::set<TChunkInfo> correctResult{
             TChunkInfo(
                 chunk1,
-                /* rowIndex */ 0,
-                /* tabletIndex */ std::nullopt,
+                /*rowIndex*/ 0,
+                /*tabletIndex*/ std::nullopt,
                 TLegacyReadLimit().SetRowIndex(10),
                 TLegacyReadLimit().SetRowIndex(100)),
             TChunkInfo(
                 chunk2,
-                /* rowIndex */ 100,
-                /* tabletIndex */ std::nullopt,
+                /*rowIndex*/ 100,
+                /*tabletIndex*/ std::nullopt,
                 TLegacyReadLimit().SetRowIndex(0),
                 TLegacyReadLimit().SetRowIndex(20)),
         };
@@ -1398,8 +1398,8 @@ TEST_F(TChunkTreeTraversingTest, SemiSealedJournal)
         std::set<TChunkInfo> correctResult{
             TChunkInfo(
                 chunk2,
-                /* rowIndex */ 100,
-                /* tabletIndex */ std::nullopt,
+                /*rowIndex*/ 100,
+                /*tabletIndex*/ std::nullopt,
                 TLegacyReadLimit().SetRowIndex(10),
                 TLegacyReadLimit().SetRowIndex(100)),
         };
@@ -1545,8 +1545,8 @@ TEST_P(TTraverseWithKeyColumnCount, TestDynamic)
         if (auto firstChunk = std::get<3>(params)) {
             correctResult.insert(TChunkInfo(
                 chunk1,
-                {} /* rowIndex */,
-                {} /* tabletIndex */,
+                {} /*rowIndex*/,
+                {} /*tabletIndex*/,
                 *firstChunk,
                 TLegacyReadLimit()));
         }
@@ -1554,8 +1554,8 @@ TEST_P(TTraverseWithKeyColumnCount, TestDynamic)
         if (auto secondChunk = std::get<4>(params)) {
             correctResult.insert(TChunkInfo(
                 chunk2,
-                {} /* rowIndex */,
-                {} /* tabletIndex */,
+                {} /*rowIndex*/,
+                {} /*tabletIndex*/,
                 TLegacyReadLimit(),
                 *secondChunk));
         }

@@ -2127,7 +2127,7 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
             "tablet_stores_update",
             EDistributedThrottlerMode::Precise,
             TabletStoresUpdateThrottlerRpcTimeout,
-            /* admitUnlimitedThrottler */ true);
+            /*admitUnlimitedThrottler*/ true);
 
     DistributedThrottlers_[ETabletDistributedThrottlerKind::Lookup] =
         throttlerManager->GetOrCreateThrottler(
@@ -2137,7 +2137,7 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
             "lookup",
             EDistributedThrottlerMode::Adaptive,
             LookupThrottlerRpcTimeout,
-            /* admitUnlimitedThrottler */ false);
+            /*admitUnlimitedThrottler*/ false);
     YT_VERIFY(
         Settings_.MountConfig->Throttlers.contains("lookup") ||
         !DistributedThrottlers_[ETabletDistributedThrottlerKind::Lookup]);
@@ -2150,7 +2150,7 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
             "select",
             EDistributedThrottlerMode::Adaptive,
             SelectThrottlerRpcTimeout,
-            /* admitUnlimitedThrottler */ false);
+            /*admitUnlimitedThrottler*/ false);
 
     DistributedThrottlers_[ETabletDistributedThrottlerKind::CompactionRead] =
         throttlerManager->GetOrCreateThrottler(
@@ -2160,7 +2160,7 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
             "compaction_read",
             EDistributedThrottlerMode::Adaptive,
             CompactionReadThrottlerRpcTimeout,
-            /* admitUnlimitedThrottler */ false);
+            /*admitUnlimitedThrottler*/ false);
 
     DistributedThrottlers_[ETabletDistributedThrottlerKind::Write] =
         throttlerManager->GetOrCreateThrottler(
@@ -2170,7 +2170,7 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
             "write",
             EDistributedThrottlerMode::Adaptive,
             WriteThrottlerRpcTimeout,
-            /* admitUnlimitedThrottler */ false);
+            /*admitUnlimitedThrottler*/ false);
 
     DistributedThrottlers_[ETabletDistributedThrottlerKind::ChangelogMediumWrite] =
         slot->GetChangelogMediumWriteThrottler();

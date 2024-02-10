@@ -161,7 +161,7 @@ const TChunkStripePtr& TNewJobStub::GetStripe(int streamIndex, int rangeIndex, b
 {
     auto& stripe = StripeMap_[std::pair(streamIndex, rangeIndex)];
     if (!stripe) {
-        stripe = New<TChunkStripe>(!isStripePrimary /* foreign */);
+        stripe = New<TChunkStripe>(!isStripePrimary /*foreign*/);
     }
     return stripe;
 }
@@ -364,11 +364,11 @@ bool TNewJobManager::TStripeListComparator::operator()(IChunkPoolOutput::TCookie
 ////////////////////////////////////////////////////////////////////////////////
 
 TNewJobManager::TNewJobManager()
-    : CookiePool_(std::make_unique<TCookiePool>(TNewJobManager::TStripeListComparator(this /* owner */)))
+    : CookiePool_(std::make_unique<TCookiePool>(TNewJobManager::TStripeListComparator(this /*owner*/)))
 { }
 
 TNewJobManager::TNewJobManager(const NLogging::TLogger& logger)
-    : CookiePool_(std::make_unique<TCookiePool>(TNewJobManager::TStripeListComparator(this /* owner */)))
+    : CookiePool_(std::make_unique<TCookiePool>(TNewJobManager::TStripeListComparator(this /*owner*/)))
     , Logger(logger)
 { }
 
@@ -429,7 +429,7 @@ IChunkPoolOutput::TCookie TNewJobManager::AddJob(std::unique_ptr<TNewJobStub> jo
         }
     }
 
-    Jobs_.emplace_back(this /* owner */, std::move(jobStub), outputCookie);
+    Jobs_.emplace_back(this /*owner*/, std::move(jobStub), outputCookie);
     Jobs_.back().SetState(EJobState::Pending);
     Jobs_.back().ChangeSuspendedStripeCountBy(initialSuspendedStripeCount);
 
@@ -540,7 +540,7 @@ void TNewJobManager::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     if (context.IsLoad()) {
-        CookiePool_ = std::make_unique<TCookiePool>(TStripeListComparator(this /* owner */));
+        CookiePool_ = std::make_unique<TCookiePool>(TStripeListComparator(this /*owner*/));
     }
 
     Persist(context, DataWeightCounter_);
@@ -654,7 +654,7 @@ void TNewJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJob)
                 break;
             }
 
-            if (!tryJoinJob(finishIndex, finishIndex == startIndex /* force */)) {
+            if (!tryJoinJob(finishIndex, finishIndex == startIndex /*force*/)) {
                 // This case is logged in tryJoinJob.
                 break;
             }

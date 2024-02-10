@@ -150,7 +150,7 @@ public:
     TFixedPriorityExecutor(
         const TThreadPoolIOEngineConfigPtr& config,
         const TString& locationId,
-        NLogging::TLogger /* logger */)
+        NLogging::TLogger /*logger*/)
         : ReadThreadPool_(CreateThreadPool(config->ReadThreadCount, Format("IOR:%v", locationId)))
         , WriteThreadPool_(CreateThreadPool(config->WriteThreadCount, Format("IOW:%v", locationId)))
         , ReadInvoker_(CreatePrioritizedInvoker(ReadThreadPool_->GetInvoker(), NProfiling::TTagSet({{"invoker", "fixed_priority_executor_reader"}, {"location_id", locationId}})))

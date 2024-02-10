@@ -240,14 +240,14 @@ TEST_F(TInputChunkMappingTest, SortedValidation)
 {
     InitChunkMapping(EChunkMappingMode::Sorted);
 
-    auto chunkA1 = CreateChunk(BuildRow({5}), BuildRow({15}), 1000 /* rowCount */);
-    auto chunkA2 = CreateChunk(BuildRow({5}), BuildRow({15}), 1000 /* rowCount */); // Compatible.
-    auto chunkA3 = CreateChunk(BuildRow({6}), BuildRow({15}), 1000 /* rowCount */); // Different min key.
-    auto chunkA4 = CreateChunk(BuildRow({5}), BuildRow({16}), 1000 /* rowCount */); // Different max key.
+    auto chunkA1 = CreateChunk(BuildRow({5}), BuildRow({15}), 1000 /*rowCount*/);
+    auto chunkA2 = CreateChunk(BuildRow({5}), BuildRow({15}), 1000 /*rowCount*/); // Compatible.
+    auto chunkA3 = CreateChunk(BuildRow({6}), BuildRow({15}), 1000 /*rowCount*/); // Different min key.
+    auto chunkA4 = CreateChunk(BuildRow({5}), BuildRow({16}), 1000 /*rowCount*/); // Different max key.
 
-    auto chunkB1 = CreateChunk(BuildRow({10}), BuildRow({20}), 2000 /* rowCount */);
-    auto chunkB2 = CreateChunk(BuildRow({10}), BuildRow({20}), 2000 /* rowCount */); // Compatible.
-    auto chunkB3 = CreateChunk(BuildRow({10}), BuildRow({20}), 2500 /* rowCount */); // Different row count.
+    auto chunkB1 = CreateChunk(BuildRow({10}), BuildRow({20}), 2000 /*rowCount*/);
+    auto chunkB2 = CreateChunk(BuildRow({10}), BuildRow({20}), 2000 /*rowCount*/); // Compatible.
+    auto chunkB3 = CreateChunk(BuildRow({10}), BuildRow({20}), 2500 /*rowCount*/); // Different row count.
 
     auto stripeA1B1 = CreateStripe({chunkA1, chunkB1});
     auto stripeA2B2 = CreateStripe({chunkA2, chunkB2});
@@ -286,10 +286,10 @@ TEST_F(TInputChunkMappingTest, TestChunkSliceLimits)
 
     auto stripeAWithLimits = CreateStripe({chunkA});
     TInputSliceLimit lowerLimit;
-    lowerLimit.KeyBound = TKeyBound::FromRow(BuildRow({12}), /* isInclusive */ true, /* isUpper */ false);
+    lowerLimit.KeyBound = TKeyBound::FromRow(BuildRow({12}), /*isInclusive*/ true, /*isUpper*/ false);
     lowerLimit.RowIndex = 34;
     TInputSliceLimit upperLimit;
-    upperLimit.KeyBound = TKeyBound::FromRow(BuildRow({56}), /* isInclusive */ false, /* isUpper */ false);
+    upperLimit.KeyBound = TKeyBound::FromRow(BuildRow({56}), /*isInclusive*/ false, /*isUpper*/ false);
     upperLimit.RowIndex = 78;
     stripeAWithLimits->DataSlices[0]->LowerLimit() = stripeAWithLimits->DataSlices[0]->ChunkSlices[0]->LowerLimit() = lowerLimit;
     stripeAWithLimits->DataSlices[0]->UpperLimit() = stripeAWithLimits->DataSlices[0]->ChunkSlices[0]->UpperLimit() = upperLimit;

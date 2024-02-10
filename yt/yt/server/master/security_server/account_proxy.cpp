@@ -269,7 +269,7 @@ private:
                     account->ClusterResourceLimits(),
                     consumer,
                     Bootstrap_,
-                    /* serializeDiskSpace */ true);
+                    /*serializeDiskSpace*/ true);
                 return true;
 
             case EInternedAttributeKey::ViolatedResourceLimits: {
@@ -303,7 +303,7 @@ private:
 
             case EInternedAttributeKey::TotalChildrenResourceLimits: {
                 auto resourceLimits = account->ComputeTotalChildrenLimits();
-                SerializeClusterResourceLimits(resourceLimits, consumer, Bootstrap_, /* serializeDiskSpace */ true);
+                SerializeClusterResourceLimits(resourceLimits, consumer, Bootstrap_, /*serializeDiskSpace*/ true);
                 return true;
             }
 

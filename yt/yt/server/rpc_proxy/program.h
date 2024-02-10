@@ -91,7 +91,7 @@ protected:
             defaultConfig->BlackboxTokenAuthenticator->Scope = "yt:api";
             // Dump it into node and apply patch from config file (if present).
             configNode = NYTree::ConvertToNode(defaultConfig);
-            if (auto configNodePatch = GetConfigNode(true /* returnNullIfNotSupplied */)) {
+            if (auto configNodePatch = GetConfigNode(true /*returnNullIfNotSupplied*/)) {
                 configNode = NYTree::PatchNode(configNode, configNodePatch);
             }
             // Finally load it back.

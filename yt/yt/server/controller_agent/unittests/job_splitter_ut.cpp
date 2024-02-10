@@ -115,7 +115,7 @@ TEST(TJobSplitterTest, SplitLongAmongRunningInterruptibleJob)
 
     TJobId slowJobId = MakeJobId(0, 0);
     OnJobStarted(jobSplitter, slowJobId, CreateTwoRowStripeList(), true);
-    jobSplitter->OnJobRunning(CreateOneRowProgressJobSummary(slowJobId, /* isSlow */ true));
+    jobSplitter->OnJobRunning(CreateOneRowProgressJobSummary(slowJobId, /*isSlow*/ true));
 
     // We need two fast jobs because we compare with median among running jobs.
     LaunchTwoFastJobs(MakeJobId(0, 1), MakeJobId(0, 2), jobSplitter);
@@ -136,7 +136,7 @@ TEST(TJobSplitterTest, SpeculateLongAmongRunningNonInterruptibleJob)
         .WillRepeatedly(Return(true));
 
     OnJobStarted(jobSplitter, slowJobId, CreateTwoRowStripeList(), true);
-    jobSplitter->OnJobRunning(CreateOneRowProgressJobSummary(slowJobId, /* isSlow */ true));
+    jobSplitter->OnJobRunning(CreateOneRowProgressJobSummary(slowJobId, /*isSlow*/ true));
 
     LaunchTwoFastJobs(MakeJobId(0, 1), MakeJobId(0, 2), jobSplitter);
 
@@ -152,7 +152,7 @@ TEST(TJobSplitterTest, SpeculateLongAmongRunningInterruptibleJobWithTooSmallTota
     auto smallStripeList = CreateTwoRowStripeList();
     smallStripeList->TotalDataWeight = 10;
     OnJobStarted(jobSplitter, slowJobId, smallStripeList, true);
-    jobSplitter->OnJobRunning(CreateOneRowProgressJobSummary(slowJobId, /* isSlow */ true));
+    jobSplitter->OnJobRunning(CreateOneRowProgressJobSummary(slowJobId, /*isSlow*/ true));
 
     LaunchTwoFastJobs(MakeJobId(0, 1), MakeJobId(0, 2), jobSplitter);
 
@@ -203,7 +203,7 @@ TEST(TJobSplitterTest, DoNothingWithNotLongAndNotResidualJob)
 
     TJobId slowJobId = MakeJobId(0, 0);
     OnJobStarted(jobSplitter, slowJobId, CreateTwoRowStripeList(), true);
-    jobSplitter->OnJobRunning(CreateOneRowProgressJobSummary(slowJobId, /* isSlow */ false));
+    jobSplitter->OnJobRunning(CreateOneRowProgressJobSummary(slowJobId, /*isSlow*/ false));
 
     LaunchTwoFastJobs(MakeJobId(0, 1), MakeJobId(0, 2), jobSplitter);
 
@@ -221,7 +221,7 @@ TEST(TJobSplitterTest, SpeculateLongJobWithNoProgressWhenHasCompletedJobs)
 
     TJobId completedJobId = MakeJobId(0, 1);
     OnJobStarted(jobSplitter, completedJobId, CreateTwoRowStripeList(), true);
-    jobSplitter->OnJobCompleted(CreateCompletedJobSummary(completedJobId, /* prepareDuration */ TDuration::Seconds(1)));
+    jobSplitter->OnJobCompleted(CreateCompletedJobSummary(completedJobId, /*prepareDuration*/ TDuration::Seconds(1)));
 
     EXPECT_EQ(EJobSplitterVerdict::LaunchSpeculative, jobSplitter->ExamineJob(noProgressJobId));
 }

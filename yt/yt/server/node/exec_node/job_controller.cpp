@@ -435,7 +435,7 @@ public:
         auto id = TGuid::Create();
         YT_VERIFY(OutstandingThrottlingRequests_.emplace(id, future).second);
         // Remove future from outstanding requests after it was set + timeout.
-        future.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& /* error */) {
+        future.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& /*error*/) {
             TDelayedExecutor::Submit(
                 BIND(&TJobController::EvictThrottlingRequest, this_, id).Via(Bootstrap_->GetJobInvoker()),
                 GetDynamicConfig()->JobCommon->JobThrottler->MaxBackoffTime * 2);

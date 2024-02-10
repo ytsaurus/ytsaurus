@@ -60,8 +60,8 @@ TString ToString(const TInputStreamDescriptor& descriptor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TInputStreamDescriptor IntermediateInputStreamDescriptor(false /* isTeleportable */, true /* isPrimary */, false /* isVersioned */);
-TInputStreamDescriptor TeleportableIntermediateInputStreamDescriptor(true /* isTeleportable */, true /* isPrimary */, false /* isVersioned */);
+TInputStreamDescriptor IntermediateInputStreamDescriptor(false /*isTeleportable*/, true /*isPrimary*/, false /*isVersioned*/);
+TInputStreamDescriptor TeleportableIntermediateInputStreamDescriptor(true /*isTeleportable*/, true /*isPrimary*/, false /*isVersioned*/);
 
 ////////////////////////////////////////////////////////////////////////////////
 

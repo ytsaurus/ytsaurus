@@ -82,17 +82,17 @@ protected:
 
     static TJobResourcesWithQuota CreateJobResourceLimits(TCpuResource cpu, i64 memory, int network)
     {
-        return TJobResourcesWithQuota(CreateResourceVector(cpu, memory, network, /* userSlots */ 1));
+        return TJobResourcesWithQuota(CreateResourceVector(cpu, memory, network, /*userSlots*/ 1));
     }
 };
 
 TEST_F(TFairSharePackingAnglePackingMetricTest, TestPerfectJobHasZeroMetricValue)
 {
-    auto totalResources = CreateResourceVector(1000, 2000_GB, /* network */ 10000, /* userSlots */ 10000);
+    auto totalResources = CreateResourceVector(1000, 2000_GB, /*network*/ 10000, /*userSlots*/ 10000);
 
-    auto jobResources = CreateJobResourceLimits(10, 10_GB, /* network */ 0);
+    auto jobResources = CreateJobResourceLimits(10, 10_GB, /*network*/ 0);
 
-    auto nodeLimits = CreateResourceVector(100, 150_GB, /* network */ 100, /* userSlots */ 200);
+    auto nodeLimits = CreateResourceVector(100, 150_GB, /*network*/ 100, /*userSlots*/ 200);
     auto nodeUsage = CreateResourceVector(
         nodeLimits.GetCpu() - 50,
         nodeLimits.GetMemory() - 50_GB,
@@ -105,9 +105,9 @@ TEST_F(TFairSharePackingAnglePackingMetricTest, TestPerfectJobHasZeroMetricValue
 
 TEST_F(TFairSharePackingAnglePackingMetricTest, TestCompareDifferentAngles)
 {
-    auto totalResources = CreateResourceVector(1000, 2000_GB, /* network */ 10000, /* userSlots */ 10000);
+    auto totalResources = CreateResourceVector(1000, 2000_GB, /*network*/ 10000, /*userSlots*/ 10000);
 
-    auto nodeLimits = CreateResourceVector(500, 1000_GB, /* network */ 1000, /* userSlots */ 2000);
+    auto nodeLimits = CreateResourceVector(500, 1000_GB, /*network*/ 1000, /*userSlots*/ 2000);
     auto nodeUsage = CreateResourceVector(
         nodeLimits.GetCpu() - 120,
         nodeLimits.GetMemory() - 10_GB,
@@ -116,24 +116,24 @@ TEST_F(TFairSharePackingAnglePackingMetricTest, TestCompareDifferentAngles)
     auto nodeResourcesSnapshot = TPackingNodeResourcesSnapshot(nodeUsage, nodeLimits, CreateDiskQuota(100));
 
     EXPECT_LT(
-        AnglePackingMetric(nodeResourcesSnapshot, CreateJobResourceLimits(13, 1_GB, /* network */ 0), totalResources),
-        AnglePackingMetric(nodeResourcesSnapshot, CreateJobResourceLimits(11, 1_GB, /* network */ 0), totalResources));
+        AnglePackingMetric(nodeResourcesSnapshot, CreateJobResourceLimits(13, 1_GB, /*network*/ 0), totalResources),
+        AnglePackingMetric(nodeResourcesSnapshot, CreateJobResourceLimits(11, 1_GB, /*network*/ 0), totalResources));
 
     EXPECT_LT(
-        AnglePackingMetric(nodeResourcesSnapshot, CreateJobResourceLimits(12, 1_GB, /* network */ 0), totalResources),
-        AnglePackingMetric(nodeResourcesSnapshot, CreateJobResourceLimits(13, 1_GB, /* network */ 0), totalResources));
+        AnglePackingMetric(nodeResourcesSnapshot, CreateJobResourceLimits(12, 1_GB, /*network*/ 0), totalResources),
+        AnglePackingMetric(nodeResourcesSnapshot, CreateJobResourceLimits(13, 1_GB, /*network*/ 0), totalResources));
 
     EXPECT_LT(
-        AnglePackingMetric(nodeResourcesSnapshot, CreateJobResourceLimits(13, 1_GB, /* network */ 0), totalResources),
-        AnglePackingMetric(nodeResourcesSnapshot, CreateJobResourceLimits(14, 1_GB, /* network */ 0), totalResources));
+        AnglePackingMetric(nodeResourcesSnapshot, CreateJobResourceLimits(13, 1_GB, /*network*/ 0), totalResources),
+        AnglePackingMetric(nodeResourcesSnapshot, CreateJobResourceLimits(14, 1_GB, /*network*/ 0), totalResources));
 
     EXPECT_LT(
-        AnglePackingMetric(nodeResourcesSnapshot, CreateJobResourceLimits(13, 1001_MB, /* network */ 0), totalResources),
-        AnglePackingMetric(nodeResourcesSnapshot, CreateJobResourceLimits(13, 1000_MB, /* network */ 0), totalResources));
+        AnglePackingMetric(nodeResourcesSnapshot, CreateJobResourceLimits(13, 1001_MB, /*network*/ 0), totalResources),
+        AnglePackingMetric(nodeResourcesSnapshot, CreateJobResourceLimits(13, 1000_MB, /*network*/ 0), totalResources));
 
     EXPECT_NEAR(
-        AnglePackingMetric(nodeResourcesSnapshot, CreateJobResourceLimits(13, 1000_MB, /* network */ 0), totalResources),
-        AnglePackingMetric(nodeResourcesSnapshot, CreateJobResourceLimits(TCpuResource(19.5), 1500_MB, /* network */ 0), totalResources),
+        AnglePackingMetric(nodeResourcesSnapshot, CreateJobResourceLimits(13, 1000_MB, /*network*/ 0), totalResources),
+        AnglePackingMetric(nodeResourcesSnapshot, CreateJobResourceLimits(TCpuResource(19.5), 1500_MB, /*network*/ 0), totalResources),
         ABS_ERROR);
 }
 

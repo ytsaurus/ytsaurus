@@ -136,7 +136,7 @@ private:
 
             nodeTracker->UpdateLastSeenTime(node);
 
-            ProcessHeartbeat(node, request, response, /* legacyFullHeartbeat */ false);
+            ProcessHeartbeat(node, request, response, /*legacyFullHeartbeat*/ false);
         }
     }
 

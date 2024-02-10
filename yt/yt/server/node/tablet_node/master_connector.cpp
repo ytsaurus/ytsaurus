@@ -119,7 +119,7 @@ private:
     }
 
     void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
+        const TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
         const TClusterNodeDynamicConfigPtr& newNodeConfig)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -135,7 +135,7 @@ private:
         YT_LOG_INFO("Starting tablet node heartbeats");
 
         for (auto cellTag : Bootstrap_->GetMasterCellTags()) {
-            DoScheduleHeartbeat(cellTag, /* immediately */ true);
+            DoScheduleHeartbeat(cellTag, /*immediately*/ true);
         }
     }
 
@@ -173,12 +173,12 @@ private:
                 cellTag);
 
             // Schedule next heartbeat.
-            DoScheduleHeartbeat(cellTag, /* immediately */ false);
+            DoScheduleHeartbeat(cellTag, /*immediately*/ false);
         } else {
             YT_LOG_WARNING(rspOrError, "Error reporting tablet node heartbeat to master (CellTag: %v)",
                 cellTag);
             if (IsRetriableError(rspOrError)) {
-                DoScheduleHeartbeat(cellTag, /* immediately */ false);
+                DoScheduleHeartbeat(cellTag, /*immediately*/ false);
             } else {
                 Bootstrap_->ResetAndRegisterAtMaster();
             }

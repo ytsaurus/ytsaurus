@@ -214,7 +214,7 @@ TKeyBound TChunkList::GetPivotKeyBound() const
 {
     return PivotKey_
         ? TKeyBound::FromRow() >= PivotKey_
-        : TKeyBound::MakeUniversal(/* isUpper */ false);
+        : TKeyBound::MakeUniversal(/*isUpper*/ false);
 }
 
 bool TChunkList::IsSealed() const

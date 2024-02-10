@@ -244,7 +244,7 @@ protected:
                 key = TOutputOrder::TEntry(joblet->OutputCookie);
             }
 
-            RegisterOutput(jobSummary, joblet->ChunkListIds, joblet, key, /* processEmptyStripes */ true);
+            RegisterOutput(jobSummary, joblet->ChunkListIds, joblet, key, /*processEmptyStripes*/ true);
 
             return result;
         }
@@ -387,7 +387,7 @@ protected:
     // XXX(max42): this helper seems redundant.
     TChunkStripePtr CreateChunkStripe(TLegacyDataSlicePtr dataSlice)
     {
-        TChunkStripePtr chunkStripe = New<TChunkStripe>(false /* foreign */);
+        TChunkStripePtr chunkStripe = New<TChunkStripe>(false /*foreign*/);
         chunkStripe->DataSlices.emplace_back(std::move(dataSlice));
         return chunkStripe;
     }
@@ -433,7 +433,7 @@ protected:
                     InputTables_[index]->Teleportable = CheckTableSchemaCompatibility(
                         *InputTables_[index]->Schema,
                         *OutputTables_[0]->TableUploadOptions.TableSchema.Get(),
-                        false /* ignoreSortOrder */).first == ESchemaCompatibility::FullyCompatible;
+                        false /*ignoreSortOrder*/).first == ESchemaCompatibility::FullyCompatible;
                 }
             }
         }
@@ -1017,7 +1017,7 @@ private:
                         const auto& [compatibility, error] = CheckTableSchemaCompatibility(
                             *InputTables_[0]->Schema,
                             *table->TableUploadOptions.TableSchema.Get(),
-                            /* ignoreSortOrder */ false);
+                            /*ignoreSortOrder*/ false);
                         if (compatibility != ESchemaCompatibility::FullyCompatible) {
                             THROW_ERROR_EXCEPTION(error);
                         }

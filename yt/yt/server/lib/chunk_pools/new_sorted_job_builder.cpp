@@ -441,7 +441,7 @@ private:
             TPrimaryEndpoint endpoint = {
                 EPrimaryEndpointType::Barrier,
                 nullptr,
-                TKeyBound::FromRow(pivotKey, /* isInclusive */ true, /* isUpper */ false),
+                TKeyBound::FromRow(pivotKey, /*isInclusive*/ true, /*isUpper*/ false),
             };
             SegmentPrimaryEndpoints_[0].emplace_back(endpoint);
         }

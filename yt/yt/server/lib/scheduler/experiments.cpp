@@ -250,8 +250,8 @@ std::vector<TExperimentAssignmentPtr> TExperimentAssigner::Assign(
                 groupName,
                 experiment->Config->Ticket,
                 experiment->Config->Dimension,
-                /* experimentUniformSample */ 0.0,
-                /* groupUniformSample */ 0.0,
+                /*experimentUniformSample*/ 0.0,
+                /*groupUniformSample*/ 0.0,
                 groupIt->second);
         }
     } else {
@@ -303,7 +303,7 @@ std::vector<TExperimentAssignmentPtr> TExperimentAssigner::Assign(
         for (const auto& dimensionExperiments : GetValues(dimensionToExperiments)) {
             auto [experimentIt, experimentUniformSample] = pickElement(
                 dimensionExperiments,
-                /* forcePick */ false,
+                /*forcePick*/ false,
                 [] (const TPreparedExperimentPtr& experiment) {
                     return experiment->Config->Fraction;
                 });
@@ -314,7 +314,7 @@ std::vector<TExperimentAssignmentPtr> TExperimentAssigner::Assign(
             auto [experimentName, experiment] = *experimentIt;
             auto [groupIt, groupUniformSample] = pickElement(
                 experiment->Config->Groups,
-                /* forcePick */ true,
+                /*forcePick*/ true,
                 [] (const TExperimentGroupConfigPtr& experiment) {
                     return experiment->Fraction;
                 });

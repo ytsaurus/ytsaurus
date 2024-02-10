@@ -186,7 +186,7 @@ private:
             YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
                 ->CommitAndLog(Logger));
         } else {
-            multicellManager->PostToPrimaryMaster(request, /* reliable */ false);
+            multicellManager->PostToPrimaryMaster(request, /*reliable*/ false);
         }
     }
 };

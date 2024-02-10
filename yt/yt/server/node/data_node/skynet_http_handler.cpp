@@ -220,9 +220,9 @@ private:
             chunkReader,
             New<TNameTable>(),
             chunkReadOptions,
-            /* sortColumns */ {},
-            /* omittedInaccessibleColumns */ {},
-            /* columnFilter */ {},
+            /*sortColumns*/ {},
+            /*omittedInaccessibleColumns*/ {},
+            /*columnFilter*/ {},
             readRange);
 
         auto apiReader = CreateApiFromSchemalessChunkReaderAdapter(std::move(schemalessReader));

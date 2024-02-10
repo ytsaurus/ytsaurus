@@ -260,7 +260,7 @@ bool TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
     securityManager->SetAccount(
         trunkNode,
         clonedAccount,
-        /* transaction */ nullptr);
+        /*transaction*/ nullptr);
 
     auto sourceAcd = Load<TAccessControlDescriptor>(*context);
     if ((context->GetMode() == ENodeCloneMode::Move || factory->ShouldPreserveAcl()) &&
@@ -453,7 +453,7 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
     securityManager->SetAccount(
         clonedTrunkNode,
         account,
-        /* transaction */ nullptr);
+        /*transaction*/ nullptr);
 
     return clonedTrunkNode;
 }

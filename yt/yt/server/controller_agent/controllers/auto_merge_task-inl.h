@@ -129,7 +129,7 @@ private:
         if (this->IsCompleted()) {
             return;
         }
-        CanScheduleJob_ = this->TaskHost_->GetAutoMergeDirector()->CanScheduleTaskJob(LastChunkCount_ /* intermediateChunkCount */);
+        CanScheduleJob_ = this->TaskHost_->GetAutoMergeDirector()->CanScheduleTaskJob(LastChunkCount_ /*intermediateChunkCount*/);
         if (CanScheduleJob_) {
             this->TaskHost_->UpdateTask(this);
         }

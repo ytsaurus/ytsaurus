@@ -15,8 +15,8 @@ static const TLogger Logger("AutoMergeTest");
 TEST(TAutoMergeTest, SimpleScenario)
 {
     TAutoMergeDirector director(
-        20 /* maxIntermediateChunkCount */,
-        5 /* maxChunkCountPerMergeJob */,
+        20 /*maxIntermediateChunkCount*/,
+        5 /*maxChunkCountPerMergeJob*/,
         Logger
     );
 
@@ -79,8 +79,8 @@ TEST(TAutoMergeTest, SimpleScenario)
 TEST(TAutoMergeTest, ForceFlush)
 {
     TAutoMergeDirector director(
-        20 /* maxIntermediateChunkCount */,
-        5 /* maxChunkCountPerMergeJob */,
+        20 /*maxIntermediateChunkCount*/,
+        5 /*maxChunkCountPerMergeJob*/,
         Logger
     );
 
@@ -116,8 +116,8 @@ TEST(TAutoMergeTest, ForceFlush)
 TEST(TAutoMergeTest, BypassMarginalJobs)
 {
     TAutoMergeDirector director(
-        20 /* maxIntermediateChunkCount */,
-        5 /* maxChunkCountPerMergeJob */,
+        20 /*maxIntermediateChunkCount*/,
+        5 /*maxChunkCountPerMergeJob*/,
         Logger
     );
 
@@ -148,8 +148,8 @@ TEST(TAutoMergeTest, BypassMarginalJobs)
 TEST(TAutoMergeTest, JobFailure)
 {
     TAutoMergeDirector director(
-        20 /* maxIntermediateChunkCount */,
-        5 /* maxChunkCountPerMergeJob */,
+        20 /*maxIntermediateChunkCount*/,
+        5 /*maxChunkCountPerMergeJob*/,
         Logger
     );
 
@@ -172,7 +172,7 @@ TEST(TAutoMergeTest, JobFailure)
     director.OnMergeJobStarted();
     // If merge job fails, the only thing that should be done is an OnMergeTaskFinished call with
     // zero argument.
-    director.OnMergeJobFinished(0 /* unregisteredIntermediateChunkCount */);
+    director.OnMergeJobFinished(0 /*unregisteredIntermediateChunkCount*/);
 
     EXPECT_TRUE(director.ShouldScheduleMergeJob(10));
     director.OnMergeJobStarted();

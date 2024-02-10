@@ -20,7 +20,7 @@ TString ToString(const TPersistentPoolStatePtr& state)
     return ToStringViaBuilder(state);
 }
 
-void FormatValue(TStringBuilderBase* builder, const TPersistentPoolStatePtr& state, TStringBuf /* format */)
+void FormatValue(TStringBuilderBase* builder, const TPersistentPoolStatePtr& state, TStringBuf /*format*/)
 {
     builder->AppendFormat("{AccumulatedResourceVolume: %v}", state->AccumulatedResourceVolume);
 }

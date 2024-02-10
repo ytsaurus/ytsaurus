@@ -949,7 +949,7 @@ protected:
 
     NTableClient::TSortColumns CheckInputTablesSorted(
         const NTableClient::TSortColumns& sortColumns,
-        TInputTableFilter inputTableFilter = [](const TInputTablePtr& /* table */) { return true; });
+        TInputTableFilter inputTableFilter = [](const TInputTablePtr& /*table*/) { return true; });
 
     static bool CheckKeyColumnsCompatible(
         const NTableClient::TKeyColumns& fullColumns,

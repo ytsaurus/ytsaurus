@@ -300,7 +300,7 @@ protected:
                     InputTables_[index]->Teleportable = CheckTableSchemaCompatibility(
                         *InputTables_[index]->Schema,
                         *OutputTables_[0]->TableUploadOptions.TableSchema.Get(),
-                        false /* ignoreSortOrder */).first == ESchemaCompatibility::FullyCompatible;
+                        false /*ignoreSortOrder*/).first == ESchemaCompatibility::FullyCompatible;
                 }
             }
         }
@@ -454,7 +454,7 @@ protected:
         TOperationControllerBase::OnChunksReleased(chunkCount);
 
         if (const auto& autoMergeDirector = GetAutoMergeDirector()) {
-            autoMergeDirector->OnMergeJobFinished(chunkCount /* unregisteredIntermediateChunkCount */);
+            autoMergeDirector->OnMergeJobFinished(chunkCount /*unregisteredIntermediateChunkCount*/);
         }
     }
 

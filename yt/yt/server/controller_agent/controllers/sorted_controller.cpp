@@ -399,7 +399,7 @@ protected:
                     DataWeightRatio,
                     TotalEstimatedInputChunkCount,
                     PrimaryInputDataWeight,
-                    std::numeric_limits<i64>::max() / 4 /* InputRowCount */, // It is not important in sorted operations.
+                    std::numeric_limits<i64>::max() / 4 /*InputRowCount*/, // It is not important in sorted operations.
                     GetForeignInputDataWeight(),
                     InputTables_.size(),
                     GetPrimaryInputTableCount(),
@@ -425,7 +425,7 @@ protected:
 
     void CheckInputTableSortColumnTypes(
         const TSortColumns& sortColumns,
-        std::function<bool(const TInputTablePtr& table)> inputTableFilter = [] (const TInputTablePtr& /* table */) { return true; })
+        std::function<bool(const TInputTablePtr& table)> inputTableFilter = [] (const TInputTablePtr& /*table*/) { return true; })
     {
         YT_VERIFY(!InputTables_.empty());
 
@@ -578,7 +578,7 @@ protected:
                     inputTable->Teleportable = CheckTableSchemaCompatibility(
                         *inputTable->Schema,
                         *OutputTables_[*tableIndex]->TableUploadOptions.TableSchema.Get(),
-                        false /* ignoreSortOrder */).first == ESchemaCompatibility::FullyCompatible;
+                        false /*ignoreSortOrder*/).first == ESchemaCompatibility::FullyCompatible;
                     if (GetJobType() == EJobType::SortedReduce) {
                         inputTable->Teleportable &= inputTable->Path.GetTeleport();
                     }
@@ -684,7 +684,7 @@ protected:
 
     virtual IChunkSliceFetcherFactoryPtr CreateChunkSliceFetcherFactory()
     {
-        return New<TChunkSliceFetcherFactory>(this /* controller */);
+        return New<TChunkSliceFetcherFactory>(this /*controller*/);
     }
 
     virtual TSortedChunkPoolOptions GetSortedChunkPoolOptions()
@@ -715,7 +715,7 @@ protected:
         TOperationControllerBase::OnChunksReleased(chunkCount);
 
         if (const auto& autoMergeDirector = GetAutoMergeDirector()) {
-            autoMergeDirector->OnMergeJobFinished(chunkCount /* unregisteredIntermediateChunkCount */);
+            autoMergeDirector->OnMergeJobFinished(chunkCount /*unregisteredIntermediateChunkCount*/);
         }
     }
 

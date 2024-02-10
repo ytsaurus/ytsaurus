@@ -1755,7 +1755,7 @@ private:
         }
 
         if (matchedTemplateConfigs.empty()) {
-            return ParsePoolTreeConfig(poolTreeAttributes, /* commonConfig */ nullptr);
+            return ParsePoolTreeConfig(poolTreeAttributes, /*commonConfig*/ nullptr);
         }
 
         std::sort(
@@ -1784,7 +1784,7 @@ private:
             if (IdToTree_.find(key) == IdToTree_.end()) {
                 treesToAdd->insert(key);
                 try {
-                    auto config = ParsePoolTreeConfig(poolsMap->FindChild(key), /* commonConfig */ nullptr);
+                    auto config = ParsePoolTreeConfig(poolsMap->FindChild(key), /*commonConfig*/ nullptr);
                     treeIdToFilter->emplace(key, config->NodesFilter);
                 } catch (const std::exception&) {
                     // Do nothing, alert will be set later.
@@ -1801,7 +1801,7 @@ private:
             }
 
             try {
-                auto config = ParsePoolTreeConfig(child, /* commonConfig */ nullptr);
+                auto config = ParsePoolTreeConfig(child, /*commonConfig*/ nullptr);
                 treeIdToFilter->emplace(treeId, config->NodesFilter);
 
                 if (config->NodesFilter != tree->GetNodesFilter()) {

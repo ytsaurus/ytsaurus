@@ -177,7 +177,7 @@ protected:
     void ValidatePermission(
         NYTree::EPermissionCheckScope scope,
         NYTree::EPermission permission,
-        const TString& /* user */ = "") override;
+        const TString& /*user*/ = "") override;
 
     // Inject other overloads into the scope.
     using THierarchicPermissionValidator<TCypressNode>::ValidatePermission;

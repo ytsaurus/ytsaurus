@@ -1245,7 +1245,7 @@ void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium)
         medium->GetName());
 }
 
-void TChunkOwnerNodeProxy::ValidateReadLimit(const NChunkClient::NProto::TReadLimit& /* readLimit */) const
+void TChunkOwnerNodeProxy::ValidateReadLimit(const NChunkClient::NProto::TReadLimit& /*readLimit*/) const
 { }
 
 void TChunkOwnerNodeProxy::MaybeScheduleChunkMerge()
@@ -1594,7 +1594,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     }
 
     auto* uploadTransaction = transactionManager->StartUploadTransaction(
-        /* parent */ Transaction_,
+        /*parent*/ Transaction_,
         prerequisiteTransactions,
         replicatedToCellTags,
         uploadTransactionTimeout,
@@ -1621,7 +1621,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                 node->GetVersionedId(),
                 chunkSchema,
                 chunkSchemaId,
-                /* isChunkSchema */ true);
+                /*isChunkSchema*/ true);
 
             uploadContext.ChunkSchema = CalculateEffectiveMasterTableSchema(node, chunkSchema, chunkSchemaId, uploadTransaction);
             ToProto(response->mutable_upload_chunk_schema_id(), uploadContext.ChunkSchema->GetId());

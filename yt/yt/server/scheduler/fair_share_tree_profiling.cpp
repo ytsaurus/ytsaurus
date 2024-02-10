@@ -250,7 +250,7 @@ void TFairShareTreeProfileManager::RegisterPoolProfiler(const TString& poolName)
 
     auto insertResult = PoolNameToProfilingEntry_.emplace(
         poolName,
-        TPoolProfilingEntry{std::move(counters), /* RemoveTime */ std::nullopt, New<NProfiling::TBufferedProducer>()});
+        TPoolProfilingEntry{std::move(counters), /*RemoveTime*/ std::nullopt, New<NProfiling::TBufferedProducer>()});
     YT_VERIFY(insertResult.second);
 
     const auto& entry = insertResult.first->second;

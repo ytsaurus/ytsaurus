@@ -451,7 +451,7 @@ public:
                     // committing a boomerang mutation right now, and
                     // replies to those are passed via the response keeper.
                     if (auto setResponseKeeperPromise =
-                        responseKeeper->EndRequest(mutationId, NRpc::CreateErrorResponseMessage(error), /* remember */ false))
+                        responseKeeper->EndRequest(mutationId, NRpc::CreateErrorResponseMessage(error), /*remember*/ false))
                     {
                         setResponseKeeperPromise();
                     }
@@ -1527,7 +1527,7 @@ TObject* TObjectManager::CreateObject(
     switch (object->GetLifeStage()) {
         case EObjectLifeStage::RemovalPreCommitted:
             object->SetLifeStage(EObjectLifeStage::RemovalStarted);
-            /* fallthrough */
+            /*fallthrough*/
 
         case EObjectLifeStage::RemovalStarted:
             CheckRemovingObjectRefCounter(object);

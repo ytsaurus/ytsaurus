@@ -183,7 +183,7 @@ private:
     THashMap<TNodeId, TInstant> SuspiciousNodesMarkTime_;
 
     void OnDynamicConfigChanged(
-        const TReplicatorHintConfigPtr& /* oldConfig */,
+        const TReplicatorHintConfigPtr& /*oldConfig*/,
         const TReplicatorHintConfigPtr& newConfig)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);

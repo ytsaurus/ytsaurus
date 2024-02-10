@@ -930,7 +930,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
 
                 // State change must happen before aborting allocations.
                 auto previousSchedulerState = execNode->GetSchedulerState();
-                UpdateNodeState(execNode, /* newMasterState */ newState, /* newSchedulerState */ ENodeState::Offline, error);
+                UpdateNodeState(execNode, /*newMasterState*/ newState, /*newSchedulerState*/ ENodeState::Offline, error);
                 if (oldState == NNodeTrackerClient::ENodeState::Online && previousSchedulerState == ENodeState::Online) {
                     SubtractNodeResources(execNode);
 
@@ -941,7 +941,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
                     AddNodeResources(execNode);
                 }
                 execNode->SetTags(std::move(tags));
-                UpdateNodeState(execNode, /* newMasterState */ newState, /* newSchedulerState */ execNode->GetSchedulerState());
+                UpdateNodeState(execNode, /*newMasterState*/ newState, /*newSchedulerState*/ execNode->GetSchedulerState());
             }
             ++nodeChangesCount;
         }
@@ -1430,7 +1430,7 @@ void TNodeShard::OnNodeHeartbeatLeaseExpired(TNodeId nodeId)
 
     // We intentionally do not abort allocations here, it will happen when RegistrationLease expired or
     // at node attributes update by separate timeout.
-    UpdateNodeState(node, /* newMasterState */ node->GetMasterState(), /* newSchedulerState */ ENodeState::Offline);
+    UpdateNodeState(node, /*newMasterState*/ node->GetMasterState(), /*newSchedulerState*/ ENodeState::Offline);
 
     auto lease = TLeaseManager::CreateLease(
         Config_->NodeHeartbeatTimeout,

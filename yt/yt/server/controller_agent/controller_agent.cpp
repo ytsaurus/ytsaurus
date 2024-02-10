@@ -663,7 +663,7 @@ public:
                     error,
                     "Unexpected operation disposal fail");
 
-                result.ResidualJobMetrics = controller->PullJobMetricsDelta(/* force */ true);
+                result.ResidualJobMetrics = controller->PullJobMetricsDelta(/*force*/ true);
             }
         }
 
@@ -790,7 +790,7 @@ public:
         return WithSoftTimeout(
             asyncResult,
             Config_->HeavyRequestImmediateResponseTimeout,
-            /* onFinishedAfterTimeout */ BIND(
+            /*onFinishedAfterTimeout*/ BIND(
                 &TImpl::OnHeavyControllerActionFinished<TOperationControllerInitializeResult>,
                 MakeWeak(this),
                 operation->GetId(),
@@ -811,7 +811,7 @@ public:
         return WithSoftTimeout(
             asyncResult,
             Config_->HeavyRequestImmediateResponseTimeout,
-            /* onFinishedAfterTimeout */ BIND(
+            /*onFinishedAfterTimeout*/ BIND(
                 &TImpl::OnHeavyControllerActionFinished<TOperationControllerPrepareResult>,
                 MakeWeak(this),
                 operation->GetId(),
@@ -832,7 +832,7 @@ public:
         return WithSoftTimeout(
             asyncResult,
             Config_->HeavyRequestImmediateResponseTimeout,
-            /* onFinishedAfterTimeout */ BIND(
+            /*onFinishedAfterTimeout*/ BIND(
                 &TImpl::OnHeavyControllerActionFinished<TOperationControllerMaterializeResult>,
                 MakeWeak(this),
                 operation->GetId(),
@@ -853,7 +853,7 @@ public:
         return WithSoftTimeout(
             asyncResult,
             Config_->HeavyRequestImmediateResponseTimeout,
-            /* onFinishedAfterTimeout */ BIND(
+            /*onFinishedAfterTimeout*/ BIND(
                 &TImpl::OnHeavyControllerActionFinished<TOperationControllerReviveResult>,
                 MakeWeak(this),
                 operation->GetId(),
@@ -892,7 +892,7 @@ public:
         return WithSoftTimeout(
             asyncResult,
             Config_->HeavyRequestImmediateResponseTimeout,
-            /* onFinishedAfterTimeout */ BIND(
+            /*onFinishedAfterTimeout*/ BIND(
                 &TImpl::OnHeavyControllerActionFinished<TOperationControllerCommitResult>,
                 MakeWeak(this),
                 operation->GetId(),
@@ -1242,7 +1242,7 @@ private:
             ->GetClient()
             ->GetNativeConnection()
             ->GetClusterDirectorySynchronizer()
-            ->Sync(/* force */ true))
+            ->Sync(/*force*/ true))
             .ThrowOnError();
 
         YT_LOG_INFO("Cluster directory synchronized");
@@ -1256,7 +1256,7 @@ private:
             ->GetClient()
             ->GetNativeConnection()
             ->GetMediumDirectorySynchronizer()
-            ->NextSync(/* force */ true))
+            ->NextSync(/*force*/ true))
             .ThrowOnError();
 
         YT_LOG_INFO("Medium directory received");
@@ -1580,7 +1580,7 @@ private:
 
             // We must to sent job metrics for finished operations.
             if (preparedRequest.OperationJobMetricsSent || flushJobMetrics) {
-                auto jobMetricsDelta = controller->PullJobMetricsDelta(/* force */ flushJobMetrics);
+                auto jobMetricsDelta = controller->PullJobMetricsDelta(/*force*/ flushJobMetrics);
                 ToProto(protoOperation->mutable_job_metrics(), jobMetricsDelta);
             }
 
@@ -2143,7 +2143,7 @@ private:
     {
     public:
         explicit TOperationsService(const TControllerAgent::TImpl* controllerAgent)
-            : TVirtualMapBase(nullptr /* owningNode */)
+            : TVirtualMapBase(nullptr /*owningNode*/)
             , ControllerAgent_(controllerAgent)
         { }
 

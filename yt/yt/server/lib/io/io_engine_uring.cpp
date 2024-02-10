@@ -138,7 +138,7 @@ class TUring
 public:
     explicit TUring(int queueSize)
     {
-        auto result = HandleUringEintr(io_uring_queue_init, queueSize, &Uring_, /* flags */ 0);
+        auto result = HandleUringEintr(io_uring_queue_init, queueSize, &Uring_, /*flags*/ 0);
         if (result < 0) {
             THROW_ERROR_EXCEPTION("Failed to initialize uring")
                 << TError::FromSystem(-result);
@@ -1883,7 +1883,7 @@ bool IsUringIOEngineSupported()
 {
 #ifdef _linux_
     io_uring uring;
-    auto result = io_uring_queue_init(MaxUringConcurrentRequestsPerThread, &uring, /* flags */ 0);
+    auto result = io_uring_queue_init(MaxUringConcurrentRequestsPerThread, &uring, /*flags*/ 0);
     if (result < 0) {
         return false;
     }

@@ -1136,8 +1136,8 @@ public:
         TChunkRequisition requisition(
             account,
             mediumIndex,
-            TReplicationPolicy(replicationFactor, false /* dataPartsOnly */),
-            false /* committed */);
+            TReplicationPolicy(replicationFactor, false /*dataPartsOnly*/),
+            false /*committed*/);
         requisition.SetVital(vital);
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto requisitionIndex = ChunkRequisitionRegistry_.GetOrCreate(requisition, objectManager);

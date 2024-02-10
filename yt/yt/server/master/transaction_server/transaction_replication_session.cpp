@@ -588,7 +588,7 @@ TFuture<TSharedRefArray> TTransactionReplicationSessionWithBoomerangs::FindReque
     YT_VERIFY(mutationId);
 
     const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
-    return responseKeeper->FindRequest(mutationId, /* isRetry */ true);
+    return responseKeeper->FindRequest(mutationId, /*isRetry*/ true);
 }
 
 void TTransactionReplicationSessionWithBoomerangs::EndRequestInResponseKeeper(const TError& error)
@@ -598,7 +598,7 @@ void TTransactionReplicationSessionWithBoomerangs::EndRequestInResponseKeeper(co
 
     const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
     if (auto setResponseKeeperPromise =
-        responseKeeper->EndRequest(mutationId, error, /* remember */ false))
+        responseKeeper->EndRequest(mutationId, error, /*remember*/ false))
     {
         setResponseKeeperPromise();
     }

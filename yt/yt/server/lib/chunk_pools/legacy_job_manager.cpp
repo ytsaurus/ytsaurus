@@ -220,7 +220,7 @@ const TChunkStripePtr& TLegacyJobStub::GetStripe(int streamIndex, int rangeIndex
 {
     auto& stripe = StripeMap_[std::pair(streamIndex, rangeIndex)];
     if (!stripe) {
-        stripe = New<TChunkStripe>(!isStripePrimary /* foreign */);
+        stripe = New<TChunkStripe>(!isStripePrimary /*foreign*/);
     }
     return stripe;
 }
@@ -406,11 +406,11 @@ bool TLegacyJobManager::TStripeListComparator::operator()(IChunkPoolOutput::TCoo
 ////////////////////////////////////////////////////////////////////////////////
 
 TLegacyJobManager::TLegacyJobManager()
-    : CookiePool_(std::make_unique<TCookiePool>(TLegacyJobManager::TStripeListComparator(this /* owner */)))
+    : CookiePool_(std::make_unique<TCookiePool>(TLegacyJobManager::TStripeListComparator(this /*owner*/)))
 { }
 
 TLegacyJobManager::TLegacyJobManager(const TLogger& logger)
-    : CookiePool_(std::make_unique<TCookiePool>(TLegacyJobManager::TStripeListComparator(this /* owner */)))
+    : CookiePool_(std::make_unique<TCookiePool>(TLegacyJobManager::TStripeListComparator(this /*owner*/)))
     , Logger(logger)
 { }
 
@@ -471,7 +471,7 @@ IChunkPoolOutput::TCookie TLegacyJobManager::AddJob(std::unique_ptr<TLegacyJobSt
         }
     }
 
-    Jobs_.emplace_back(this /* owner */, std::move(jobStub), outputCookie);
+    Jobs_.emplace_back(this /*owner*/, std::move(jobStub), outputCookie);
     Jobs_.back().SetState(EJobState::Pending);
     Jobs_.back().ChangeSuspendedStripeCountBy(initialSuspendedStripeCount);
 
@@ -582,7 +582,7 @@ void TLegacyJobManager::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     if (context.IsLoad()) {
-        CookiePool_ = std::make_unique<TCookiePool>(TStripeListComparator(this /* owner */));
+        CookiePool_ = std::make_unique<TCookiePool>(TStripeListComparator(this /*owner*/));
     }
 
     Persist(context, DataWeightCounter_);
@@ -696,7 +696,7 @@ void TLegacyJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJo
                 break;
             }
 
-            if (!tryJoinJob(finishIndex, finishIndex == startIndex /* force */)) {
+            if (!tryJoinJob(finishIndex, finishIndex == startIndex /*force*/)) {
                 // This case is logged in tryJoinJob.
                 break;
             }
@@ -713,7 +713,7 @@ void TLegacyJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJo
                 auto& job = Jobs_[index];
                 job.Remove();
             }
-            currentJobStub->Finalize(false /* sortByPosition */);
+            currentJobStub->Finalize(false /*sortByPosition*/);
             newJobs.emplace_back(std::move(currentJobStub));
         } else {
             YT_LOG_DEBUG("Leaving job as is (Cookie: %v)", startIndex);

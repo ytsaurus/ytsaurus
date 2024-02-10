@@ -347,7 +347,7 @@ public:
         }
 
         if (UserJobSpec_.has_core_table_spec()) {
-            auto coreDumped = jobResultError && jobResultError->Attributes().Get("core_dumped", false /* defaultValue */);
+            auto coreDumped = jobResultError && jobResultError->Attributes().Get("core_dumped", false /*defaultValue*/);
             std::optional<TDuration> finalizationTimeout;
             if (coreDumped) {
                 finalizationTimeout = Config_->CoreWatcher->FinalizationTimeout;

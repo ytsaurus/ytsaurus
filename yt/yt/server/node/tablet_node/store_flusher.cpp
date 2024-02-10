@@ -181,7 +181,7 @@ private:
     }
 
     void OnDynamicConfigChanged(
-        const NClusterNode::TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
+        const NClusterNode::TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
         const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig)
     {
         const auto& config = newNodeConfig->TabletNode->StoreFlusher;

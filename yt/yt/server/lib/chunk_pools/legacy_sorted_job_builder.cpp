@@ -112,14 +112,14 @@ public:
                 EEndpointType::Left,
                 dataSlice,
                 GetKeyPrefix(dataSlice->LegacyLowerLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_),
-                0LL /* RowIndex */
+                0LL /*RowIndex*/
             };
 
             rightEndpoint = {
                 EEndpointType::Right,
                 dataSlice,
                 GetKeySuccessor(GetKeyPrefix(dataSlice->LegacyUpperLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_), RowBuffer_),
-                0LL /* RowIndex */
+                0LL /*RowIndex*/
             };
         } else {
             int leftRowIndex = dataSlice->LegacyLowerLimit().RowIndex.value_or(0);
@@ -165,7 +165,7 @@ public:
         BuildJobs();
         AttachForeignSlices();
         for (auto& job : Jobs_) {
-            job->Finalize(true /* sortByPosition */);
+            job->Finalize(true /*sortByPosition*/);
 
             if (job->GetDataWeight() > JobSizeConstraints_->GetMaxDataWeightPerJob()) {
                 YT_LOG_DEBUG("Maximum allowed data weight per sorted job exceeds the limit (DataWeight: %v, MaxDataWeightPerJob: %v, "
@@ -391,7 +391,7 @@ private:
                 Jobs_.back()->AddDataSlice(
                     exactDataSlice,
                     inputCookie,
-                    true /* isPrimary */);
+                    true /*isPrimary*/);
                 lowerLimit = upperLimit;
                 if (lowerLimit >= dataSlice->LegacyUpperLimit().Key) {
                     openedSlicesLowerLimits.erase(iterator);
@@ -474,7 +474,7 @@ private:
                     exactDataSlice->CopyPayloadFrom(*dataSlice);
                     auto inputCookie = GetOrCrash(DataSliceToInputCookie_, dataSlice);
                     exactDataSlice->Tag = inputCookie;
-                    Jobs_.back()->AddDataSlice(exactDataSlice, inputCookie, true /* isPrimary */);
+                    Jobs_.back()->AddDataSlice(exactDataSlice, inputCookie, true /*isPrimary*/);
                     openedSlicesLowerLimits.erase(it);
                 }
             } else if (Endpoints_[index].Type == EEndpointType::ForeignRight) {
@@ -522,7 +522,7 @@ private:
                 }
             }
         }
-        endJob(MaxKey(), true /* inclusive */);
+        endJob(MaxKey(), true /*inclusive*/);
 
         JobSizeConstraints_->UpdateInputDataWeight(totalDataWeight);
 

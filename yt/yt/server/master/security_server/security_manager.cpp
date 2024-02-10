@@ -3527,7 +3527,7 @@ private:
                 for (const auto& [account, refCounter] : schema->ReferencingAccounts()) {
                     YT_VERIFY(schema->GetChargedMasterMemoryUsage(account.Get()) == 0);
 
-                    IncreaseMasterMemoryUsage(schema, account.Get(), +1, /* recomputingMasterMemory */ true);
+                    IncreaseMasterMemoryUsage(schema, account.Get(), +1, /*recomputingMasterMemory*/ true);
                 }
             }
         }
@@ -4932,7 +4932,7 @@ void TAccountTypeHandler::RegisterName(const TString& name, TAccount* account) n
     Owner_->RegisterAccountName(name, account);
 }
 
-void TAccountTypeHandler::UnregisterName(const TString& name, TAccount* /* account */) noexcept
+void TAccountTypeHandler::UnregisterName(const TString& name, TAccount* /*account*/) noexcept
 {
     Owner_->UnregisterAccountName(name);
 }
@@ -4992,7 +4992,7 @@ std::optional<TObject*> TUserTypeHandler::FindObjectByAttributes(
 {
     auto name = attributes->Get<TString>("name");
 
-    return Owner_->FindUserByNameOrAlias(name, /* activeLifeStageOnly */ true);
+    return Owner_->FindUserByNameOrAlias(name, /*activeLifeStageOnly*/ true);
 }
 
 IObjectProxyPtr TUserTypeHandler::DoGetProxy(
@@ -5093,7 +5093,7 @@ TObject* TProxyRoleTypeHandler::CreateObject(
 
 IObjectProxyPtr TProxyRoleTypeHandler::DoGetProxy(
     TProxyRole* proxyRole,
-    TTransaction* /* transaction */)
+    TTransaction* /*transaction*/)
 {
     return CreateProxyRoleProxy(Owner_->Bootstrap_, &Metadata_, proxyRole);
 }

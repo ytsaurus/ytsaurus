@@ -564,7 +564,7 @@ protected:
                 pivotKeyLowerBound = chunkList->Children()[entry->ChildIndex]->AsChunkList()->GetPivotKeyBound().ToOwning();
                 nextPivotKeyUpperBound = entry->ChildIndex + 1 < std::ssize(chunkList->Children())
                     ? chunkList->Children()[entry->ChildIndex + 1]->AsChunkList()->GetPivotKeyBound().Invert().ToOwning()
-                    : TOwningKeyBound::MakeUniversal(/* isUpper */ true);
+                    : TOwningKeyBound::MakeUniversal(/*isUpper*/ true);
             }
 
             // Tablet index.
@@ -831,8 +831,8 @@ protected:
                             legacySubtreeStartLimit = chunkView->Modifier().GetAdjustedLowerReadLimit(legacySubtreeStartLimit);
                             legacySubtreeEndLimit = chunkView->Modifier().GetAdjustedUpperReadLimit(legacySubtreeEndLimit);
 
-                            subtreeStartLimit = ReadLimitFromLegacyReadLimit(legacySubtreeStartLimit, /* isUpper */ false, Comparator_.GetLength());
-                            subtreeEndLimit = ReadLimitFromLegacyReadLimit(legacySubtreeEndLimit, /* isUpper */ true, Comparator_.GetLength());
+                            subtreeStartLimit = ReadLimitFromLegacyReadLimit(legacySubtreeStartLimit, /*isUpper*/ false, Comparator_.GetLength());
+                            subtreeEndLimit = ReadLimitFromLegacyReadLimit(legacySubtreeEndLimit, /*isUpper*/ true, Comparator_.GetLength());
 
                             YT_LOG_TRACE(
                                 "Adjusting subtree limits using chunk view (SubtreeStartLimit: %v, SubtreeEndLimit: %v)",
@@ -1561,8 +1561,8 @@ void TraverseChunkTree(
 
     if (legacyLowerLimit.HasLegacyKey() || legacyUpperLimit.HasLegacyKey()) {
         YT_VERIFY(comparator);
-        lowerLimit = ReadLimitFromLegacyReadLimit(legacyLowerLimit, /* isUpper */ false, comparator.GetLength());
-        upperLimit = ReadLimitFromLegacyReadLimit(legacyUpperLimit, /* isUpper */ true, comparator.GetLength());
+        lowerLimit = ReadLimitFromLegacyReadLimit(legacyLowerLimit, /*isUpper*/ false, comparator.GetLength());
+        upperLimit = ReadLimitFromLegacyReadLimit(legacyUpperLimit, /*isUpper*/ true, comparator.GetLength());
     } else {
         lowerLimit = ReadLimitFromLegacyReadLimitKeyless(legacyLowerLimit);
         upperLimit = ReadLimitFromLegacyReadLimitKeyless(legacyUpperLimit);

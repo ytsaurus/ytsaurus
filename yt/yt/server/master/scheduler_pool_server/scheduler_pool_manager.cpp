@@ -79,7 +79,7 @@ public:
                 treeName);
         }
 
-        auto* rootPool = CreateSchedulerPoolObject(/* isRoot */ true);
+        auto* rootPool = CreateSchedulerPoolObject(/*isRoot*/ true);
 
         auto* poolTree = CreateSchedulerPoolTreeObject();
         poolTree->SetTreeName(treeName);

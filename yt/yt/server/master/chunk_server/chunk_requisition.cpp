@@ -632,22 +632,22 @@ void TChunkRequisitionRegistry::EnsureBuiltinRequisitionsInitialized(
     TChunkRequisition defaultRequisition(
         chunkWiseAccountingMigrationAccount,
         DefaultStoreMediumIndex,
-        TReplicationPolicy(NChunkClient::DefaultReplicationFactor, false /* dataPartsOnly */),
-        true /* committed */);
+        TReplicationPolicy(NChunkClient::DefaultReplicationFactor, false /*dataPartsOnly*/),
+        true /*committed*/);
     YT_VERIFY(Insert(defaultRequisition, objectManager) == MigrationChunkRequisitionIndex);
 
     TChunkRequisition rf2Requisition(
         chunkWiseAccountingMigrationAccount,
         DefaultStoreMediumIndex,
-        TReplicationPolicy(2 /*replicationFactor*/, false /* dataPartsOnly */),
-        true /* committed */);
+        TReplicationPolicy(2 /*replicationFactor*/, false /*dataPartsOnly*/),
+        true /*committed*/);
     YT_VERIFY(Insert(rf2Requisition, objectManager) == MigrationRF2ChunkRequisitionIndex);
 
     TChunkRequisition defaultErasureRequisition(
         chunkWiseAccountingMigrationAccount,
         DefaultStoreMediumIndex,
-        TReplicationPolicy(1 /*replicationFactor*/, false /* dataPartsOnly */),
-        true /* committed */);
+        TReplicationPolicy(1 /*replicationFactor*/, false /*dataPartsOnly*/),
+        true /*committed*/);
     YT_VERIFY(Insert(defaultErasureRequisition, objectManager) == MigrationErasureChunkRequisitionIndex);
 
     FakeRefBuiltinRequisitions();

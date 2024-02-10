@@ -41,7 +41,7 @@ IChunkPoolInput::TCookie TChunkPoolInputBase::AddWithKey(TChunkStripePtr stripe,
     return Add(stripe);
 }
 
-void TChunkPoolInputBase::Reset(TCookie /* cookie */, TChunkStripePtr /* stripe */, TInputChunkMappingPtr /* mapping */)
+void TChunkPoolInputBase::Reset(TCookie /*cookie*/, TChunkStripePtr /*stripe*/, TInputChunkMappingPtr /*mapping*/)
 {
     YT_ABORT();
 }

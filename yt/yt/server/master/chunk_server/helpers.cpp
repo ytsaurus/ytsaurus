@@ -980,7 +980,7 @@ TOwningKeyBound GetUpperKeyBoundOrThrow(const TChunkTree* chunkTree, int keyColu
     // TODO(max42): rewrite without using function above.
     auto upperBoundKey = GetUpperBoundKeyOrThrow(chunkTree, keyColumnCount);
     // NB: upper bound key may contain min/max sentinels.
-    return KeyBoundFromLegacyRow(upperBoundKey, /* isUpper */ true, keyColumnCount);
+    return KeyBoundFromLegacyRow(upperBoundKey, /*isUpper*/ true, keyColumnCount);
 }
 
 TLegacyOwningKey GetMinKeyOrThrow(const TChunk* chunk, std::optional<int> keyColumnCount)
@@ -1070,7 +1070,7 @@ TOwningKeyBound GetLowerKeyBoundOrThrow(const TChunkTree* chunkTree, int keyColu
     // TODO(max42): rewrite without using function above.
     auto lowerBoundKey = GetMinKeyOrThrow(chunkTree, keyColumnCount);
     // NB: min key may contain <min> for dynamic stores.
-    return KeyBoundFromLegacyRow(lowerBoundKey, /* isUpper */ false, keyColumnCount);
+    return KeyBoundFromLegacyRow(lowerBoundKey, /*isUpper*/ false, keyColumnCount);
 }
 
 TLegacyOwningKey GetMaxKeyOrThrow(const TChunk* chunk)

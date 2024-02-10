@@ -393,7 +393,7 @@ public:
         TMasterTableSchemaId hintId) override
     {
         // NB: An existing schema can be recreated without resurrection.
-        auto* masterTableSchema = CreateMasterTableSchema(tableSchema, /* isNative */ false, hintId);
+        auto* masterTableSchema = CreateMasterTableSchema(tableSchema, /*isNative*/ false, hintId);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         // All imported schemas should have an artificial ref.
@@ -412,7 +412,7 @@ public:
 
         auto* schema = FindMasterTableSchema(hintId);
         if (!schema) {
-            schema = DoCreateMasterTableSchema(tableSchema, hintId, /* isNative */ false);
+            schema = DoCreateMasterTableSchema(tableSchema, hintId, /*isNative*/ false);
         } else if (!IsObjectAlive(schema)) {
             ResurrectMasterTableSchema(schema);
             YT_VERIFY(*schema->TableSchema_ == tableSchema);
@@ -433,7 +433,7 @@ public:
     {
         auto* masterTableSchema = FindNativeMasterTableSchema(schema);
         if (!masterTableSchema) {
-            masterTableSchema = CreateMasterTableSchema(schema, /* isNative */ true);
+            masterTableSchema = CreateMasterTableSchema(schema, /*isNative*/ true);
         }
 
         SetTableSchema(schemaHolder, masterTableSchema);
@@ -450,7 +450,7 @@ public:
 
         auto* masterTableSchema = FindNativeMasterTableSchema(schema);
         if (!masterTableSchema) {
-            masterTableSchema = CreateMasterTableSchema(schema, /* isNative */ true);
+            masterTableSchema = CreateMasterTableSchema(schema, /*isNative*/ true);
         }
 
         if (!schemaHolder->StagedObjects().contains(masterTableSchema)) {
@@ -472,7 +472,7 @@ public:
 
         auto* masterTableSchema = FindNativeMasterTableSchema(schema);
         if (!masterTableSchema) {
-            masterTableSchema = CreateMasterTableSchema(schema, /* isNative */ true);
+            masterTableSchema = CreateMasterTableSchema(schema, /*isNative*/ true);
         }
 
         SetChunkSchema(schemaHolder, masterTableSchema);
@@ -570,7 +570,7 @@ public:
         YT_LOG_DEBUG("Resurrecting master table schema object (SchemaId: %v)",
             schema->GetId());
 
-        const auto& tableSchema = schema->AsTableSchema(/* crashOnZombie */ false);
+        const auto& tableSchema = schema->AsTableSchema(/*crashOnZombie*/ false);
         if (schema->IsNative()) {
             auto it = EmplaceOrCrash(
                 NativeTableSchemaToObjectMap_,
@@ -691,7 +691,7 @@ public:
                     THROW_ERROR_EXCEPTION("Both \"schema\" and \"schema_id\" specified and they refer to different schemas");
                 }
             } else {
-                if (*schemaById->AsTableSchema(/* crashOnZombie */ false) != *schema) {
+                if (*schemaById->AsTableSchema(/*crashOnZombie*/ false) != *schema) {
                     THROW_ERROR_EXCEPTION("Both \"schema\" and \"schema_id\" specified and the schemas do not match");
                 }
             }
@@ -720,7 +720,7 @@ public:
         const TTableSchema* effectiveTableSchema = nullptr;
         auto* schemaById = tableManager->FindMasterTableSchema(schemaId);
         if (schemaById) {
-            effectiveTableSchema = schemaById->AsTableSchema(/* crashOnZombie */ false).Get();
+            effectiveTableSchema = schemaById->AsTableSchema(/*crashOnZombie*/ false).Get();
         } else if (tableSchema) {
             effectiveTableSchema = tableSchema.Get();
         } else {
@@ -1410,7 +1410,7 @@ private:
             return;
         }
 
-        EmptyMasterTableSchema_ = DoCreateMasterTableSchema(EmptyTableSchema, EmptyMasterTableSchemaId_, /* isNative */ true);
+        EmptyMasterTableSchema_ = DoCreateMasterTableSchema(EmptyTableSchema, EmptyMasterTableSchemaId_, /*isNative*/ true);
         YT_VERIFY(EmptyMasterTableSchema_->RefObject() == 1);
     }
 
@@ -1795,7 +1795,7 @@ private:
             EmptyMasterTableSchema_ = DoCreateMasterTableSchema(
                 EmptyTableSchema,
                 EmptyMasterTableSchemaId_,
-                /* isNative */ true);
+                /*isNative*/ true);
             YT_VERIFY(EmptyMasterTableSchema_->RefObject() == 1);
         }
     }
@@ -2249,7 +2249,7 @@ private:
     {
         auto* schema = FindMasterTableSchema(hintId);
         if (!schema) {
-            schema = DoCreateMasterTableSchema(tableSchema, hintId, /* isNative */ false);
+            schema = DoCreateMasterTableSchema(tableSchema, hintId, /*isNative*/ false);
         } else if (!IsObjectAlive(schema)) {
             ResurrectMasterTableSchema(schema);
             YT_VERIFY(*schema->TableSchema_ == tableSchema);

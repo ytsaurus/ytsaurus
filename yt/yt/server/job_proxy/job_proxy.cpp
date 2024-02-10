@@ -1379,7 +1379,7 @@ void TJobProxy::CheckMemoryUsage()
                 "(JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, RefCountedTracker: %v)",
                 usage,
                 JobProxyMemoryReserve_,
-                TRefCountedTracker::Get()->GetDebugInfo(2 /* sortByColumn */));
+                TRefCountedTracker::Get()->GetDebugInfo(2 /*sortByColumn*/));
             LastRefCountedTrackerLogTime_ = TInstant::Now();
             LastLoggedJobProxyMaxMemoryUsage_ = usage;
         }
@@ -1391,7 +1391,7 @@ void TJobProxy::CheckMemoryUsage()
             jobProxyMemoryUsage,
             JobProxyMemoryReserve_,
             JobProxyMemoryOvercommitLimit_,
-            TRefCountedTracker::Get()->GetDebugInfo(2 /* sortByColumn */));
+            TRefCountedTracker::Get()->GetDebugInfo(2 /*sortByColumn*/));
     }
 
     i64 totalMemoryUsage = UserJobCurrentMemoryUsage_ + jobProxyMemoryUsage;

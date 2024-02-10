@@ -193,7 +193,7 @@ public:
                 dirtyBlocks.emplace(blockId, it->second);
             }
 
-            WriteBlocks(std::move(dirtyBlocks), true /* flash */, TGuid::Create());
+            WriteBlocks(std::move(dirtyBlocks), true /*flash*/, TGuid::Create());
         }
 
         return VoidFuture;
@@ -336,7 +336,7 @@ public:
         }
 
         auto blockIds = CalcRangeBlockIds(offset, length);
-        auto blocks = BlockCache_->ReadBlocks(std::move(blockIds), true /* fillEmptyBlocksWithZeros */, readId);
+        auto blocks = BlockCache_->ReadBlocks(std::move(blockIds), true /*fillEmptyBlocksWithZeros*/, readId);
 
         std::vector<TSharedRef> refs;
         refs.reserve(blocks.size());
@@ -456,7 +456,7 @@ public:
 
         // Initialize device and block sizes.
         i64 deviceSize = -1, blockSize = -1;
-        auto blocks = BlockCache_->ReadBlocks({{DeviceSizeBlockId, {}}, {BlockSizeBlockId, {}}}, false /* fillEmptyBlocksWithZeros */, TGuid::Create());
+        auto blocks = BlockCache_->ReadBlocks({{DeviceSizeBlockId, {}}, {BlockSizeBlockId, {}}}, false /*fillEmptyBlocksWithZeros*/, TGuid::Create());
         for (auto& [blockId, blockDatum]: blocks) {
             YT_VERIFY(blockId == DeviceSizeBlockId || blockId == BlockSizeBlockId);
 
@@ -483,7 +483,7 @@ public:
 
             blocks[DeviceSizeBlockId] = TSharedMutableRef::MakeCopy<TDynamicTableBlockDeviceTag>(TSharedRef::FromString(ToString(DeviceConfig_->Size)));
             blocks[BlockSizeBlockId] = TSharedMutableRef::MakeCopy<TDynamicTableBlockDeviceTag>(TSharedRef::FromString(ToString(DeviceConfig_->BlockSize)));
-            BlockCache_->WriteBlocks(std::move(blocks), true /* flush */, TGuid::Create());
+            BlockCache_->WriteBlocks(std::move(blocks), true /*flush*/, TGuid::Create());
 
             YT_LOG_INFO("Finish initialization of dynamic table block device (TablePath: %v)",
                 DeviceConfig_->TablePath);
@@ -571,7 +571,7 @@ private:
 
         // Read blocks that we are going to overwrite.
         if (!readBlockIds.empty()) {
-            auto readBlocks = BlockCache_->ReadBlocks(std::move(readBlockIds), true /* fillEmptyBlocksWithZeros */, writeId);
+            auto readBlocks = BlockCache_->ReadBlocks(std::move(readBlockIds), true /*fillEmptyBlocksWithZeros*/, writeId);
             for (auto& [blockId, blockDatum] : readBlocks) {
                 YT_VERIFY(blocks.contains(blockId));
                 blocks[blockId] = std::move(blockDatum);

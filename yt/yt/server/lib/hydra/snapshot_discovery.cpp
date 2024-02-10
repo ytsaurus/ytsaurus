@@ -146,7 +146,7 @@ TFuture<TRemoteSnapshotParams> DiscoverLatestSnapshot(
         std::move(config),
         std::move(cellManager),
         maxSnapshotId,
-        /* exactId */ false);
+        /*exactId*/ false);
     return session->Run();
 }
 
@@ -159,7 +159,7 @@ TFuture<TRemoteSnapshotParams> DiscoverSnapshot(
         std::move(config),
         std::move(cellManager),
         snapshotId,
-        /* exactId */ true);
+        /*exactId*/ true);
     return session->Run();
 }
 

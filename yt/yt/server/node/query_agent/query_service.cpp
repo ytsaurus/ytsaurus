@@ -1650,9 +1650,9 @@ private:
                 columnFilter,
                 std::move(lower),
                 std::move(upper),
-                /* timestampRange */ {},
+                /*timestampRange*/ {},
                 chunkReaderOptions,
-                /* tabletThrottlerKind */ std::nullopt,
+                /*tabletThrottlerKind*/ std::nullopt,
                 EWorkloadCategory::SystemTabletReplication))
             , Logger(logger)
         { }

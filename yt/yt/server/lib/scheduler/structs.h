@@ -109,7 +109,7 @@ struct TCompositeNeededResources
     void Persist(const TStreamPersistenceContext& context);
 };
 
-void FormatValue(TStringBuilderBase* builder, const TCompositeNeededResources& neededResources, TStringBuf /* format */);
+void FormatValue(TStringBuilderBase* builder, const TCompositeNeededResources& neededResources, TStringBuf /*format*/);
 
 TCompositeNeededResources operator + (const TCompositeNeededResources& lhs, const TCompositeNeededResources& rhs);
 TCompositeNeededResources operator - (const TCompositeNeededResources& lhs, const TCompositeNeededResources& rhs);

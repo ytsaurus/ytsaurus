@@ -137,7 +137,7 @@ void FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FromProto(TOperationControllerCommitResult* /* result */, const NControllerAgent::NProto::TCommitOperationResult& /* resultProto */)
+void FromProto(TOperationControllerCommitResult* /*result*/, const NControllerAgent::NProto::TCommitOperationResult& /*resultProto*/)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

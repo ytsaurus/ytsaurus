@@ -497,11 +497,11 @@ void SerializeClusterResources(
 
     DoSerializeClusterResources(
         resources,
-        /* multicellStatistics */ nullptr,
-        /* committed */ false, // Doesn't matter.
+        /*multicellStatistics*/ nullptr,
+        /*committed*/ false, // Doesn't matter.
         fluent,
         bootstrap,
-        /* serializeTabletResources */ true);
+        /*serializeTabletResources*/ true);
 
     fluent
         .EndMap();
@@ -517,11 +517,11 @@ void SerializeRichClusterResources(
 
     DoSerializeClusterResources(
         resources.ClusterResources,
-        /* multicellStatistics */ nullptr,
-        /* committed */ false, // Doesn't matter.
+        /*multicellStatistics*/ nullptr,
+        /*committed*/ false, // Doesn't matter.
         fluent,
         bootstrap,
-        /* serializeTabletResources */ false);
+        /*serializeTabletResources*/ false);
 
     Serialize(resources.TabletResources, fluent);
 
@@ -581,7 +581,7 @@ void SerializeAccountClusterResourceUsage(
         committed,
         fluent,
         bootstrap,
-        /* serializeTabletResources */ true,
+        /*serializeTabletResources*/ true,
         additionalMediumIndexes);
 
     fluent
@@ -597,7 +597,7 @@ void DeserializeClusterResources(
         clusterResources,
         std::move(node),
         bootstrap,
-        /* deserializeTabletResources */ true);
+        /*deserializeTabletResources*/ true);
 }
 
 void DeserializeRichClusterResources(
@@ -611,7 +611,7 @@ void DeserializeRichClusterResources(
         result.ClusterResources,
         node,
         bootstrap,
-        /* serializeTabletResources */ false);
+        /*serializeTabletResources*/ false);
 
     auto map = node->AsMap();
 

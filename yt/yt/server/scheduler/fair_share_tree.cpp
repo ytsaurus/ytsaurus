@@ -772,7 +772,7 @@ public:
                         updatePoolAction.Name,
                         updatePoolAction.ObjectId,
                         updatePoolAction.PoolConfig,
-                        /* defaultConfigured */ false,
+                        /*defaultConfigured*/ false,
                         Config_,
                         TreeId_,
                         Logger);
