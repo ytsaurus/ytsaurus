@@ -31,6 +31,10 @@ using namespace NThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = QueryAgentLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDistributedSession
     : public IDistributedSession
 {
@@ -46,11 +50,11 @@ public:
         , RetentionTime_(retentionTime)
     { }
 
-    void InsertReaderOrThrow(ISchemafulUnversionedReaderPtr reader, TRowsetId rowsetId) override
+    void InsertOrThrow(ISchemafulUnversionedReaderPtr reader, TRowsetId rowsetId) override
     {
         auto guard = Guard(SessionLock_);
 
-        auto [_, inserted] = RowsetMap_.insert(std::pair{rowsetId, std::move(reader)});
+        auto [_, inserted] = RowsetMap_.emplace(rowsetId, std::move(reader));
         THROW_ERROR_EXCEPTION_UNLESS(inserted,
             "Rowset %v is already present in session %v",
             rowsetId,
@@ -63,10 +67,11 @@ public:
 
         auto it = RowsetMap_.find(rowsetId);
         if (it == RowsetMap_.end()) {
-            THROW_ERROR_EXCEPTION("Rowset %v not found in session %v", rowsetId, SessionId_);
-        } else {
-            return it->second;
+            THROW_ERROR_EXCEPTION("Rowset %v not found in session %v",
+                rowsetId,
+                SessionId_);
         }
+        return it->second;
     }
 
     void RenewLease() const override
@@ -103,35 +108,37 @@ public:
         TTableSchemaPtr schema,
         const std::vector<TRange<TUnversionedRow>>& subranges,
         INodeChannelFactoryPtr channelFactory,
-        TQueryAgentConfigPtr config) override
+        size_t desiredUncompressedBlockSize) override
     {
         auto proxy = TQueryServiceProxy(channelFactory->CreateChannel(nodeAddress));
 
         {
+            YT_LOG_DEBUG("Propagating distributed session (SessionId: %v, NodeAddress: %v)",
+                SessionId_,
+                nodeAddress);
+
             auto request = proxy.CreateDistributedSession();
             ToProto(request->mutable_session_id(), SessionId_);
             request->set_retention_time(ToProto<i64>(RetentionTime_));
             request->set_codec(static_cast<int>(CodecId_));
 
-            WaitFor(request->Invoke()).ValueOrThrow();
+            WaitFor(request->Invoke())
+                .ValueOrThrow();
         }
 
         PropagateToNode(nodeAddress);
 
-        auto request = proxy.PushRowset();
-        ToProto(request->mutable_session_id(), SessionId_);
-        ToProto(request->mutable_rowset_id(), rowsetId);
-        ToProto(request->mutable_schema(), schema);
-
         auto rowsetEncoder = CreateWireProtocolRowsetWriter(
             CodecId_,
-            config->DesiredUncompressedResponseBlockSize,
+            desiredUncompressedBlockSize,
             schema,
             false,
             QueryAgentLogger);
 
         bool ready = true;
+        int rowCount = 0;
         for (const auto& subrange : subranges) {
+            rowCount += subrange.Size();
             if (!ready) {
                 WaitFor(rowsetEncoder->GetReadyEvent())
                     .ThrowOnError();
@@ -139,9 +146,21 @@ public:
             ready = rowsetEncoder->Write(subrange);
         }
 
-        request->Attachments() = rowsetEncoder->GetCompressedBlocks();
+        {
+            YT_LOG_DEBUG("Pushing rowset (SessionId: %v, RowsetId: %v, RowCount: %v)",
+                SessionId_,
+                rowsetId,
+                rowCount);
 
-        return request->Invoke().AsVoid();
+            auto request = proxy.PushRowset();
+            ToProto(request->mutable_session_id(), SessionId_);
+            ToProto(request->mutable_rowset_id(), rowsetId);
+            ToProto(request->mutable_schema(), schema);
+
+            request->Attachments() = rowsetEncoder->GetCompressedBlocks();
+
+            return request->Invoke().AsVoid();
+        }
     }
 
 private:

@@ -1513,7 +1513,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, GetOrderedTabletSafeTrimRowCount)
     {
-        context->SetRequestInfo("Subrequests: %v", request->subrequests_size());
+        context->SetRequestInfo("Subrequests: %v",
+            request->subrequests_size());
 
         std::vector<TFuture<i64>> asyncSubrequests;
         asyncSubrequests.reserve(request->subrequests_size());
@@ -1940,7 +1941,9 @@ private:
         auto retentionTime = FromProto<TDuration>(request->retention_time());
         auto codecId = CheckedEnumCast<ECodec>(request->codec());
 
-        context->SetRequestInfo("DistributedSessionId: %v", sessionId);
+        context->SetRequestInfo("DistributedSessionId: %v, CodecId: %v",
+            sessionId,
+            codecId);
 
         DistributedSessionManager_->GetDistributedSessionOrCreate(sessionId, retentionTime, codecId);
 
@@ -1952,7 +1955,8 @@ private:
         auto sessionId = FromProto<TDistributedSessionId>(request->session_id());
         auto session = DistributedSessionManager_->GetDistributedSessionOrThrow(sessionId);
 
-        context->SetRequestInfo("DistributedSessionId: %v", sessionId);
+        context->SetRequestInfo("DistributedSessionId: %v",
+            sessionId);
 
         session->RenewLease();
 
@@ -1967,7 +1971,8 @@ private:
     {
         auto sessionId = FromProto<TDistributedSessionId>(request->session_id());
 
-        context->SetRequestInfo("SessionId: %v", sessionId);
+        context->SetRequestInfo("SessionId: %v",
+            sessionId);
 
         if (DistributedSessionManager_->CloseDistributedSession(sessionId)) {
             YT_LOG_DEBUG("Distributed query session closed remotely (SessionId: %v)", sessionId);
@@ -1982,10 +1987,12 @@ private:
         auto rowsetId = FromProto<TRowsetId>(request->rowset_id());
         auto schema = FromProto<TTableSchemaPtr>(request->schema());
 
-        context->SetRequestInfo("SessionId: %v, RowsetId: %v", sessionId, rowsetId);
+        context->SetRequestInfo("SessionId: %v, RowsetId: %v",
+            sessionId,
+            rowsetId);
 
         auto session = DistributedSessionManager_->GetDistributedSessionOrThrow(sessionId);
-        session->InsertReaderOrThrow(
+        session->InsertOrThrow(
             CreateWireProtocolRowsetReader(
                 request->Attachments(),
                 session->GetCodecId(),

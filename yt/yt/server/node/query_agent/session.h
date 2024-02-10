@@ -19,7 +19,7 @@ namespace NYT::NQueryAgent {
 struct IDistributedSession
     : public TRefCounted
 {
-    virtual void InsertReaderOrThrow(
+    virtual void InsertOrThrow(
         NTableClient::ISchemafulUnversionedReaderPtr reader,
         NQueryClient::TRowsetId id) = 0;
 
@@ -39,7 +39,7 @@ struct IDistributedSession
         NTableClient::TTableSchemaPtr schema,
         const std::vector<TRange<NTableClient::TUnversionedRow>>& subranges,
         NNodeTrackerClient::INodeChannelFactoryPtr channelFactory,
-        TQueryAgentConfigPtr config) = 0;
+        size_t desiredUncompressedResponseBlockSize) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDistributedSession)
