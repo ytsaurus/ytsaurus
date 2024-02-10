@@ -872,8 +872,10 @@ protected:
         const NChunkClient::TChunkReplicaWithMediumList& replicas,
         TInputChunkDescriptor* descriptor);
 
+    bool IsLegacyOutputLivePreviewSupported() const;
     bool IsOutputLivePreviewSupported() const;
-    bool IsIntermediateLivePreviewSupported() const;
+    bool IsLegacyIntermediateLivePreviewSupported() const;
+    virtual bool IsIntermediateLivePreviewSupported() const;
 
     //! Accumulate information about legacy live preview depending on operation type and user intent.
     virtual ELegacyLivePreviewMode GetLegacyOutputLivePreviewMode() const;
@@ -1477,35 +1479,7 @@ private:
         const TJobSummary& jobSummary,
         const NChunkClient::NProto::TChunkSpec& chunkSpec);
 
-    //! Helper class that implements IPersistentChunkPoolInput interface for output tables.
-    class TSink
-        : public NChunkPools::IPersistentChunkPoolInput
-        , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
-    {
-    public:
-        //! Used only for persistence.
-        TSink() = default;
-
-        TSink(TThis* controller, int outputTableIndex);
-
-        TCookie AddWithKey(NChunkPools::TChunkStripePtr stripe, NChunkPools::TChunkStripeKey key) override;
-
-        TCookie Add(NChunkPools::TChunkStripePtr stripe) override;
-
-        void Suspend(TCookie cookie) override;
-        void Resume(TCookie cookie) override;
-        void Reset(TCookie cookie, NChunkPools::TChunkStripePtr stripe, NChunkPools::TInputChunkMappingPtr chunkMapping) override;
-        void Finish() override;
-        bool IsFinished() const override;
-
-        void Persist(const TPersistenceContext& context) override;
-
-    private:
-        DECLARE_DYNAMIC_PHOENIX_TYPE(TSink, 0x7fb74a90);
-
-        TThis* Controller_;
-        int OutputTableIndex_ = -1;
-    };
+    friend class TSink;
 
     TControllerFeatures ControllerFeatures_;
 

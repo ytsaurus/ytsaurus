@@ -4630,6 +4630,11 @@ private:
         return ToLegacyLivePreviewMode(Spec->EnableLegacyLivePreview);
     }
 
+    bool IsIntermediateLivePreviewSupported() const override
+    {
+        return true;
+    }
+
     bool IsInputDataSizeHistogramSupported() const override
     {
         return true;

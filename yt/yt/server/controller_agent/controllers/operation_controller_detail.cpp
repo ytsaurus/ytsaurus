@@ -4,6 +4,7 @@
 #include "job_info.h"
 #include "job_helpers.h"
 #include "helpers.h"
+#include "sink.h"
 #include "task.h"
 
 #include <yt/yt/server/controller_agent/intermediate_chunk_scraper.h>
@@ -1509,7 +1510,7 @@ bool TOperationControllerBase::IsTransactionNeeded(ETransactionType type) const
 {
     switch (type) {
         case ETransactionType::Async:
-            return IsIntermediateLivePreviewSupported() || IsOutputLivePreviewSupported() || GetStderrTablePath();
+            return IsLegacyIntermediateLivePreviewSupported() || IsLegacyOutputLivePreviewSupported() || GetStderrTablePath();
         case ETransactionType::Input:
             return !GetInputTablePaths().empty() || HasUserJobFiles() || HasDiskRequestsWithSpecifiedAccount();
         case ETransactionType::Output:
@@ -1754,7 +1755,7 @@ void TOperationControllerBase::PickIntermediateDataCells()
 
     int intermediateDataCellCount = std::min<int>(Config->IntermediateOutputMasterCellCount, IntermediateOutputCellTagList.size());
     // TODO(max42, gritukan): Remove it when new live preview will be ready.
-    if (IsIntermediateLivePreviewSupported()) {
+    if (IsLegacyIntermediateLivePreviewSupported()) {
         intermediateDataCellCount = 1;
     }
 
@@ -2052,7 +2053,7 @@ THashSet<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
 
 void TOperationControllerBase::ReinstallLivePreview()
 {
-    if (IsOutputLivePreviewSupported()) {
+    if (IsLegacyOutputLivePreviewSupported()) {
         for (const auto& table : OutputTables_) {
             std::vector<TChunkTreeId> childIds;
             childIds.reserve(table->OutputChunkTreeIds.size());
@@ -2066,7 +2067,7 @@ void TOperationControllerBase::ReinstallLivePreview()
         }
     }
 
-    if (IsIntermediateLivePreviewSupported()) {
+    if (IsLegacyIntermediateLivePreviewSupported()) {
         std::vector<TChunkTreeId> childIds;
         childIds.reserve(ChunkOriginMap.size());
         for (const auto& [chunkId, job] : ChunkOriginMap) {
@@ -4098,18 +4099,28 @@ bool TOperationControllerBase::AreForeignTablesSupported() const
     return false;
 }
 
-bool TOperationControllerBase::IsOutputLivePreviewSupported() const
+bool TOperationControllerBase::IsLegacyOutputLivePreviewSupported() const
 {
     return !IsLegacyLivePreviewSuppressed &&
         (GetLegacyOutputLivePreviewMode() == ELegacyLivePreviewMode::DoNotCare ||
         GetLegacyOutputLivePreviewMode() == ELegacyLivePreviewMode::ExplicitlyEnabled);
 }
 
-bool TOperationControllerBase::IsIntermediateLivePreviewSupported() const
+bool TOperationControllerBase::IsOutputLivePreviewSupported() const
+{
+    return !OutputTables_.empty();
+}
+
+bool TOperationControllerBase::IsLegacyIntermediateLivePreviewSupported() const
 {
     return !IsLegacyLivePreviewSuppressed &&
         (GetLegacyIntermediateLivePreviewMode() == ELegacyLivePreviewMode::DoNotCare ||
         GetLegacyIntermediateLivePreviewMode() == ELegacyLivePreviewMode::ExplicitlyEnabled);
+}
+
+bool TOperationControllerBase::IsIntermediateLivePreviewSupported() const
+{
+    return false;
 }
 
 ELegacyLivePreviewMode TOperationControllerBase::GetLegacyOutputLivePreviewMode() const
@@ -5660,7 +5671,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         batchReq->AddRequest(req, key);
     };
 
-    if (IsOutputLivePreviewSupported()) {
+    if (IsLegacyOutputLivePreviewSupported()) {
         YT_LOG_INFO("Creating live preview for output tables");
 
         for (int index = 0; index < std::ssize(OutputTables_); ++index) {
@@ -5701,9 +5712,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
             StderrTable_->TableUploadOptions.TableSchema.Get());
     }
 
-    if (GetLegacyIntermediateLivePreviewMode() == ELegacyLivePreviewMode::DoNotCare ||
-        GetLegacyIntermediateLivePreviewMode() == ELegacyLivePreviewMode::ExplicitlyEnabled)
-    {
+    if (IsIntermediateLivePreviewSupported()) {
         auto name = "intermediate";
         IntermediateTable->LivePreviewTableName = name;
         (*LivePreviews_)[name] = New<TLivePreview>(
@@ -5717,7 +5726,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         RegisterLivePreviewTable("core", CoreTable_);
     }
 
-    if (IsIntermediateLivePreviewSupported()) {
+    if (IsLegacyIntermediateLivePreviewSupported()) {
         YT_LOG_INFO("Creating live preview for intermediate table");
 
         auto path = GetOperationPath(OperationId) + "/intermediate";
@@ -5749,7 +5758,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         table.LivePreviewTableId = FromProto<NCypressClient::TNodeId>(rsp->node_id());
     };
 
-    if (IsOutputLivePreviewSupported()) {
+    if (IsLegacyOutputLivePreviewSupported()) {
         auto rspsOrError = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create_output");
         YT_VERIFY(rspsOrError.size() == OutputTables_.size());
 
@@ -5767,7 +5776,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         YT_LOG_INFO("Live preview for stderr table created");
     }
 
-    if (IsIntermediateLivePreviewSupported()) {
+    if (IsLegacyIntermediateLivePreviewSupported()) {
         auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCreate>("create_intermediate");
         handleResponse(*IntermediateTable, rsp.Value());
 
@@ -8319,7 +8328,7 @@ void TOperationControllerBase::RegisterLivePreviewTable(TString name, const TOut
 
 void TOperationControllerBase::AttachToIntermediateLivePreview(TInputChunkPtr chunk)
 {
-    if (IsIntermediateLivePreviewSupported()) {
+    if (IsLegacyIntermediateLivePreviewSupported()) {
         AttachToLivePreview(chunk->GetChunkId(), IntermediateTable->LivePreviewTableId);
     }
     AttachToLivePreview(IntermediateTable->LivePreviewTableName, chunk);
@@ -8502,7 +8511,7 @@ void TOperationControllerBase::RegisterTeleportChunk(
         table->OutputChunks.push_back(chunk);
     }
 
-    if (IsOutputLivePreviewSupported()) {
+    if (IsLegacyOutputLivePreviewSupported()) {
         AttachToLivePreview(chunk->GetChunkId(), table->LivePreviewTableId);
     }
     AttachToLivePreview(table->LivePreviewTableName, chunk);
@@ -9071,11 +9080,16 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
             .Item("data_slice_count").Value(GetDataSliceCount())
         .EndMap()
         .Item("live_preview").BeginMap()
-            .Item("output_supported").Value(IsOutputLivePreviewSupported())
-            .Item("intermediate_supported").Value(IsIntermediateLivePreviewSupported())
+            .Item("output_supported").Value(IsLegacyOutputLivePreviewSupported())
+            .Item("intermediate_supported").Value(IsLegacyIntermediateLivePreviewSupported())
             .Item("stderr_supported").Value(static_cast<bool>(StderrTable_))
             .Item("core_supported").Value(static_cast<bool>(CoreTable_))
-            .Item("virtual_table_format_supported").Value(static_cast<bool>(LivePreviews_))
+            .Item("virtual_table_format").BeginMap()
+                .Item("output_supported").Value(IsOutputLivePreviewSupported())
+                .Item("intermediate_supported").Value(IsIntermediateLivePreviewSupported())
+                .Item("stderr_supported").Value(static_cast<bool>(StderrTable_))
+                .Item("core_supported").Value(static_cast<bool>(CoreTable_))
+            .EndMap()
         .EndMap()
         .Item("schedule_job_statistics").BeginMap()
             .Item("count").Value(ScheduleJobStatistics_->GetCount())
@@ -11120,94 +11134,6 @@ std::unique_ptr<TAbortedJobSummary> TOperationControllerBase::RegisterOutputChun
 
     return nullptr;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-TOperationControllerBase::TSink::TSink(TOperationControllerBase* controller, int outputTableIndex)
-    : Controller_(controller)
-    , OutputTableIndex_(outputTableIndex)
-{ }
-
-IChunkPoolInput::TCookie TOperationControllerBase::TSink::AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key)
-{
-    YT_VERIFY(stripe->ChunkListId);
-    auto& table = Controller_->OutputTables_[OutputTableIndex_];
-    auto chunkListId = stripe->ChunkListId;
-
-    if (table->TableUploadOptions.TableSchema->IsSorted() && Controller_->ShouldVerifySortedOutput()) {
-        // We override the key suggested by the task with the one formed by the stripe boundary keys.
-        YT_VERIFY(stripe->BoundaryKeys);
-        key = stripe->BoundaryKeys;
-    }
-
-    if (Controller_->IsOutputLivePreviewSupported()) {
-        Controller_->AttachToLivePreview(chunkListId, table->LivePreviewTableId);
-    }
-
-    Controller_->AttachToLivePreview(table->LivePreviewTableName, stripe);
-
-    table->OutputChunkTreeIds.emplace_back(key, chunkListId);
-    table->ChunkCount += stripe->GetStatistics().ChunkCount;
-
-    const auto& Logger = Controller_->Logger;
-    YT_LOG_DEBUG("Output stripe registered (Table: %v, ChunkListId: %v, Key: %v, ChunkCount: %v)",
-        OutputTableIndex_,
-        chunkListId,
-        key,
-        stripe->GetStatistics().ChunkCount);
-
-    if (table->Dynamic) {
-        for (auto& slice : stripe->DataSlices) {
-            YT_VERIFY(slice->ChunkSlices.size() == 1);
-            table->OutputChunks.push_back(slice->ChunkSlices[0]->GetInputChunk());
-        }
-    }
-
-    return IChunkPoolInput::NullCookie;
-}
-
-IChunkPoolInput::TCookie TOperationControllerBase::TSink::Add(TChunkStripePtr stripe)
-{
-    return AddWithKey(stripe, TChunkStripeKey());
-}
-
-void TOperationControllerBase::TSink::Suspend(TCookie /*cookie*/)
-{
-    YT_ABORT();
-}
-
-void TOperationControllerBase::TSink::Resume(TCookie /*cookie*/)
-{
-    YT_ABORT();
-}
-
-void TOperationControllerBase::TSink::Reset(
-    TCookie /*cookie*/,
-    TChunkStripePtr /*stripe*/,
-    TInputChunkMappingPtr /*mapping*/)
-{
-    YT_ABORT();
-}
-
-void TOperationControllerBase::TSink::Finish()
-{
-    // Mmkay. Don't know what to do here though :)
-}
-
-bool TOperationControllerBase::TSink::IsFinished() const
-{
-    return false;
-}
-
-void TOperationControllerBase::TSink::Persist(const TPersistenceContext& context)
-{
-    using NYT::Persist;
-
-    Persist(context, Controller_);
-    Persist(context, OutputTableIndex_);
-}
-
-DEFINE_DYNAMIC_PHOENIX_TYPE(TOperationControllerBase::TSink);
 
 ////////////////////////////////////////////////////////////////////////////////
 
