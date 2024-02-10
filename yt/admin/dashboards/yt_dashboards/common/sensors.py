@@ -73,6 +73,7 @@ NodePorto =     ProjectSensor("node_porto",                                     
 NodeUserJob =   ProjectSensor("node_user_job",                                           "yt-data-node|yt-exec-node|yt-tablet-node")  # noqa: E222
 NodeRpc =       ProjectSensor("tab_node_rpc|exe_node_rpc|node_rpc",                      "yt-data-node|yt-exec-node|yt-tablet-node", base=RpcBase)  # noqa: E222
 NodeRpcClient = ProjectSensor("tab_node_rpc_client|exe_node_rpc_client|node_rpc_client", "yt-data-node|yt-exec-node|yt-tablet-node", base=RpcBase)  # noqa: E222
+NodeMonitor =   ProjectSensor("node_monitor",                                            "yt-node-monitor")  # noqa: E222
 
 # Data nodes.
 DatNode =          ProjectSensor("dat_node",            "yt-data-node")  # noqa: E222

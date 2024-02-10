@@ -86,6 +86,9 @@ class MonitoringExpr(Taggable):
     def series_sum(self, label):
         return self.func("series_sum", f'"{label}"', self)
 
+    def top_avg(self, k):
+        return self.func("top_avg", k, self)
+
     def top_max(self, k):
         return self.func("top_max", k, self)
 

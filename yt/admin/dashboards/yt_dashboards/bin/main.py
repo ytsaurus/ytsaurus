@@ -6,6 +6,7 @@ from yt_dashboards.artemis import (
     build_local_artemis, build_bundle_artemis, build_global_artemis, build_local_artemis_container)
 from yt_dashboards.scheduler_internal import build_scheduler_internal
 from yt_dashboards.scheduler_pool import build_scheduler_pool
+from yt_dashboards.cluster_resources import build_cluster_resources
 from yt_dashboards.cache import build_cache_with_ghosts
 from yt_dashboards.key_filter import build_key_filter
 
@@ -53,6 +54,10 @@ dashboards = {
         "func": build_scheduler_pool,
         "monitoring": {},
         "grafana": {},
+    },
+    "cluster-resources": {
+        "func": build_cluster_resources,
+        "monitoring": {},
     },
     "per-table-compaction": {
         "func": lsm.build_per_table_compaction,

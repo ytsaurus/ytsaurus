@@ -299,7 +299,10 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
                 if SystemFields.Stack in other_tags:
                     stack = other_tags[SystemFields.Stack]
                 if SystemFields.Range in other_tags:
-                    range = other_tags[SystemFields.Range]
+                    minValue, maxValue, axis = other_tags[SystemFields.Range]
+                    if axis != SystemFields.LeftAxis:
+                        raise Exception("Grafana dashboard generator supports only left axis")
+                    range = (minValue, maxValue)
 
                 target = {
                     "datasource": self.datasource,
@@ -328,7 +331,8 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
             "fieldConfig": {"defaults": {"unit": "short", "custom": {}}},
         }
 
-        (minValue, maxValue) = range
+        minValue, maxValue = range
+
         if minValue is not None:
             result["fieldConfig"]["defaults"]["min"] = minValue
         if maxValue is not None:
@@ -352,8 +356,8 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
             return content
 
         custom_settings = content["fieldConfig"]["defaults"]["custom"]
-        if cell.yaxis_label is not None:
-            custom_settings["axisLabel"] = cell.yaxis_label
+        if cell.yaxis_to_label and SystemFields.LeftAxis in cell.yaxis_to_label:
+            custom_settings["axisLabel"] = cell.yaxis_to_label[SystemFields.LeftAxis]
         if cell.display_legend is not None:
             if "hideFrom" not in custom_settings:
                 custom_settings["hideFrom"] = {}
@@ -448,7 +452,9 @@ class GrafanaDebugSerializer(GrafanaSerializerBase):
         if other_tags.get(GrafanaSystemTags.Rate, False):
             query_parts.append("$rate=True")
 
-        (minValue, maxValue) = other_tags.get(SystemFields.Range, (None, None))
+        minValue, maxValue, axis = other_tags.get(SystemFields.Range, (None, None, None))
+        if axis is not None and axis != SystemFields.LeftAxis:
+            raise Exception("Grafana dashboard generator supports only left axis")
         if minValue is not None:
             query_parts.append(f"$min={minValue}")
         if maxValue is not None:

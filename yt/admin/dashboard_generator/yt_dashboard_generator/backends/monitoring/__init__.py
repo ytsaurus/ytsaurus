@@ -202,7 +202,7 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
             assert False
 
         stack = None
-        range = (None, None)
+        axis_to_range = {}
         downsampling_aggregation = None
         targets = []
         for sensor in sensors:
@@ -210,7 +210,8 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
             if SystemFields.Stack in tags:
                 stack = tags[SystemFields.Stack]
             if SystemFields.Range in tags:
-                range = tags[SystemFields.Range]
+                min, max, axis = tags[SystemFields.Range]
+                axis_to_range[axis] = (min, max)
             if MonitoringSystemFields.DownsamplingAggregation in tags:
                 downsampling_aggregation = tags[MonitoringSystemFields.DownsamplingAggregation]
             targets.append({"query": self._get_sensor_query(sensor)})
@@ -235,11 +236,15 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
         if stack is not None:
             settings["type"] = "VISUALIZATION_TYPE_STACK" if stack \
                 else "VISUALIZATION_TYPE_LINE"
-        minValue, maxValue = range
-        if minValue is not None:
-            settings.setdefault("yaxis_settings", {}).setdefault("left", {})["min"] = str(minValue)
-        if maxValue is not None:
-            settings.setdefault("yaxis_settings", {}).setdefault("left", {})["max"] = str(maxValue)
+
+        for axis, range in axis_to_range.items():
+            assert axis in (SystemFields.LeftAxis, SystemFields.RightAxis)
+            axisKey = "left" if axis == SystemFields.LeftAxis else "right"
+            minValue, maxValue = range
+            if minValue is not None:
+                settings.setdefault("yaxis_settings", {}).setdefault(axisKey, {})["min"] = str(minValue)
+            if maxValue is not None:
+                settings.setdefault("yaxis_settings", {}).setdefault(axisKey, {})["max"] = str(maxValue)
 
         if "yaxis_settings" not in settings:
             settings["yaxis_settings"] = {}
@@ -247,14 +252,21 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
         series_overrides = result["chart"]["series_overrides"]
         for index, sensor in enumerate(sensors):
             tags = sensor.get_tags()
-            if SystemFields.SensorStackOverride not in tags:
+            settings = {}
+
+            if SystemFields.SensorStackOverride in tags:
+                series_stack = tags[SystemFields.SensorStackOverride]
+                settings["type"] = "SERIES_VISUALIZATION_TYPE_STACK" if series_stack else "SERIES_VISUALIZATION_TYPE_LINE"
+            if SystemFields.Axis in tags:
+                axis = tags[SystemFields.Axis]
+                settings["yaxisPosition"] = "YAXIS_POSITION_LEFT" if axis == SystemFields.LeftAxis else "YAXIS_POSITION_RIGHT"
+
+            if not settings:
                 continue
-            series_stack = tags[SystemFields.SensorStackOverride]
+
             override = {
                 "target_index": str(index),
-                "settings": {
-                    "type": "SERIES_VISUALIZATION_TYPE_STACK" if series_stack else "SERIES_VISUALIZATION_TYPE_LINE",
-                },
+                "settings": settings,
             }
             series_overrides.append(override)
 
@@ -272,11 +284,12 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
         if cell.display_legend is not None:
             chart["displayLegend"] = cell.display_legend
 
-        if cell.yaxis_label is not None:
+        for axis, label in cell.yaxis_to_label.items():
+            assert axis in (SystemFields.LeftAxis, SystemFields.RightAxis)
+            axisKey = "left" if axis == SystemFields.LeftAxis else "right"
+
             settings = chart["visualization_settings"]
-            if "left" not in settings["yaxis_settings"]:
-                settings["yaxis_settings"]["left"] = {}
-            settings["yaxis_settings"]["left"]["title"] = cell.yaxis_label
+            settings["yaxis_settings"].setdefault(axisKey, {})["title"] = label
 
         return content
 

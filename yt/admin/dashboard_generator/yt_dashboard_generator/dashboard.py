@@ -1,4 +1,4 @@
-from .taggable import Taggable
+from .taggable import Taggable, SystemFields
 from .serializer import DebugSerializer
 
 from tabulate import tabulate
@@ -12,7 +12,13 @@ class Cell(Taggable):
     def __init__(self, title, sensor, yaxis_label=None, display_legend=None):
         self.title = title
         self.sensor = sensor
-        self.yaxis_label = yaxis_label
+        self.yaxis_to_label = {}
+        if isinstance(yaxis_label, str):
+            self.yaxis_to_label[SystemFields.LeftAxis] = yaxis_label
+        elif isinstance(yaxis_label, dict):
+            self.yaxis_to_label = yaxis_label
+        else:
+            pass
         self.display_legend = display_legend
 
     def value(self, key, value):
@@ -29,8 +35,9 @@ class Cell(Taggable):
         s = serializer.on_cell_content(s)
         return serializer.on_cell(self, s)
 
-    def set_yaxis_label(self, label):
-        self.yaxis_label = label
+    def set_yaxis_label(self, label, axis=SystemFields.LeftAxis):
+        assert axis in (SystemFields.LeftAxis, SystemFields.RightAxis)
+        self.yaxis_to_label[axis] = label
 
     def set_display_legend(self, value):
         self.display_legend = value

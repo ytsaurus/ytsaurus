@@ -12,6 +12,9 @@ class SystemFields(Enum):
     Range = auto()
     LegendFormat = auto()
     SensorStackOverride = auto()
+    Axis = auto()
+    LeftAxis = auto()
+    RightAxis = auto()
 
 
 ContainerTemplate = "{{container}}"
@@ -70,11 +73,16 @@ class Taggable(ABC):
     def sensor_stack(self, value=True):
         return self.value(SystemFields.SensorStackOverride, value)
 
+    def axis(self, value):
+        assert value in (SystemFields.LeftAxis, SystemFields.RightAxis)
+        return self.value(SystemFields.Axis, value)
+
     def query_transformation(self, transformation):
         return self.value(SystemFields.QueryTransformation, transformation)
 
-    def range(self, min, max):
-        return self.value(SystemFields.Range, (min, max))
+    def range(self, min, max, axis=SystemFields.LeftAxis):
+        assert axis in (SystemFields.LeftAxis, SystemFields.RightAxis)
+        return self.value(SystemFields.Range, (min, max, axis))
 
     def min(self, min):
         return self.range(min, None)
