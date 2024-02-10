@@ -3078,7 +3078,7 @@ evtimerfd_init (EV_P)
 /*****************************************************************************/
 
 #if EV_USE_IOCP
-# include "ev_iocp.c"
+# error #include "ev_iocp.c"
 #endif
 #if EV_USE_PORT
 # error #include "ev_port.c"
