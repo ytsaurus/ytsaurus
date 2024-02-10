@@ -44,9 +44,7 @@ TSchemafulRowMerger::TSchemafulRowMerger(
     }
     for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
         int id = ColumnIds_[index];
-        if (id >= KeyColumnCount_) {
-            ColumnIdToIndex_[id] = index;
-        }
+        ColumnIdToIndex_[id] = index;
     }
 
     MergedTimestamps_.resize(ColumnCount_);
@@ -60,7 +58,6 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
         return;
     }
 
-    YT_ASSERT(row.GetKeyCount() == KeyColumnCount_);
     YT_ASSERT(row.GetWriteTimestampCount() <= 1);
     YT_ASSERT(row.GetDeleteTimestampCount() <= 1);
 
@@ -69,16 +66,20 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
             MergedRow_ = RowBuffer_->AllocateUnversioned(ColumnIds_.size());
         }
 
-        const auto* keyBegin = row.Keys().begin();
         for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
             int id = ColumnIds_[index];
-            auto& mergedValue = MergedRow_[index];
             if (id < KeyColumnCount_) {
+                continue;
+            }
+            MergedRow_[index] = MakeUnversionedNullValue(id);
+            MergedTimestamps_[index] = NullTimestamp;
+        }
+
+        for (auto key : row.Keys()) {
+            auto index = ColumnIdToIndex_[key.Id];
+            if (index != -1) {
                 MergedTimestamps_[index] = MaxTimestamp;
-                mergedValue = keyBegin[id];
-            } else {
-                MergedTimestamps_[index] = NullTimestamp;
-                mergedValue = MakeUnversionedNullValue(id);
+                MergedRow_[index] = key;
             }
         }
 
@@ -130,23 +131,25 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row, TTimestamp upperTimes
         return;
     }
 
-    YT_ASSERT(row.GetKeyCount() == KeyColumnCount_);
-
     if (!Started_) {
         if (!MergedRow_) {
             MergedRow_ = RowBuffer_->AllocateUnversioned(ColumnIds_.size());
         }
 
-        const auto* keyBegin = row.Keys().begin();
-        for (int index = 0; index < std::ssize(ColumnIds_); ++index) {
+        for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
             int id = ColumnIds_[index];
-            auto* mergedValue = &MergedRow_[index];
             if (id < KeyColumnCount_) {
+                continue;
+            }
+            MergedRow_[index] = MakeUnversionedNullValue(id);
+            MergedTimestamps_[index] = NullTimestamp;
+        }
+
+        for (auto key : row.Keys()) {
+            auto index = ColumnIdToIndex_[key.Id];
+            if (index != -1) {
                 MergedTimestamps_[index] = MaxTimestamp;
-                *mergedValue = keyBegin[id];
-            } else {
-                MergedTimestamps_[index] = NullTimestamp;
-                *mergedValue = MakeUnversionedNullValue(id);
+                MergedRow_[index] = key;
             }
         }
 
