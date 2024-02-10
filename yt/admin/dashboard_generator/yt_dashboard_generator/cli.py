@@ -161,15 +161,15 @@ class Cli():
                 dashboard.set_dashboard_id(args.dashboard_id)
             if args.use_test_dashboard_id:
                 if config is None:
-                    raise Exception("Config is not specifed for using test dashboard id")
+                    raise Exception("Config is not specified for using test dashboard id")
                 if TEST_DASHBOARD_KEY not in config or backend.get_backend_name() not in config[TEST_DASHBOARD_KEY]:
                     raise Exception("Test dashboard id is not specified for {} backend".format(backend.get_backend_name()))
                 dashboard.set_dashboard_id(config[TEST_DASHBOARD_KEY][backend.get_backend_name()])
         else:
             if args.dashboard_id is not None:
-                raise Exception("Option --dashboard-id is applicable iff exactly one dashbord is selected")
+                raise Exception("Option --dashboard-id is applicable iff exactly one dashboard is selected")
             if args.use_test_dashboard_id:
-                raise Exception("Option --use-test-dashboard-id is applicable iff exactly one dashbord is selected")
+                raise Exception("Option --use-test-dashboard-id is applicable iff exactly one dashboard is selected")
 
         if args.command == "diff":
             for d in selected_dashboards:
