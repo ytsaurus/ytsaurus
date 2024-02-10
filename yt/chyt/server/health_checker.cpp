@@ -84,7 +84,7 @@ void THealthChecker::ExecuteQuery(const TString& query)
 {
     auto session = std::make_shared<DB::Session>(getContext(), DB::ClientInfo::Interface::TCP);
     auto context = NDetail::PrepareContextForQuery(session, DatabaseUser_, Config_->Timeout, Host_);
-    auto blockIO = DB::executeQuery(query, context, true /* internal */);
+    auto blockIO = DB::executeQuery(query, context, true /*internal*/);
     NDetail::ValidateQueryResult(blockIO);
 }
 

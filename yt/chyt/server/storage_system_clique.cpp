@@ -45,13 +45,13 @@ public:
     }
 
     DB::Pipe read(
-        const DB::Names& /* columnNames */,
+        const DB::Names& /*columnNames*/,
         const DB::StorageSnapshotPtr& storageSnapshot,
-        DB::SelectQueryInfo& /* queryInfo */,
-        DB::ContextPtr /* context */,
-        DB::QueryProcessingStage::Enum /* processedStage */,
-        size_t /* maxBlockSize */,
-        size_t /* numStreams */) override
+        DB::SelectQueryInfo& /*queryInfo*/,
+        DB::ContextPtr /*context*/,
+        DB::QueryProcessingStage::Enum /*processedStage*/,
+        size_t /*maxBlockSize*/,
+        size_t /*numStreams*/) override
     {
         auto nodes = Discovery_->List();
 

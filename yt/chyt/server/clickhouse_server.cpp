@@ -87,7 +87,7 @@ public:
 
         // NB: under debug build this method does not fit in regular fiber stack
         // due to force inlining stack bloat: https://max42.at.yandex-team.ru/103.
-        TCoroutine<void()> coroutine(BIND([&] (TCoroutine<void()>& /* self */) {
+        TCoroutine<void()> coroutine(BIND([&] (TCoroutine<void()>& /*self*/) {
             SetupContext();
         }), EExecutionStackKind::Large);
         coroutine.Run();

@@ -25,7 +25,7 @@ public:
     bool getRaw(const std::string& key, std::string& value) const override
     {
         TNodeWalkOptions pocoConfigWalkOptions = FindNodeByYPathOptions;
-        pocoConfigWalkOptions.NodeCannotHaveChildrenHandler = [] (const INodePtr& /* node */) {
+        pocoConfigWalkOptions.NodeCannotHaveChildrenHandler = [] (const INodePtr& /*node*/) {
             return nullptr;
         };
 

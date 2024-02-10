@@ -208,7 +208,7 @@ public:
             ProxyAddress_);
     }
 
-    TUnversionedOwningRow ToRow(int /* archiveVersion */) const override
+    TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
     {
         const auto& index = TDistributedQueriesTableDescriptor::Get().Index;
 
@@ -277,7 +277,7 @@ public:
             Statistics_);
     }
 
-    TUnversionedOwningRow ToRow(int /* archiveVersion */) const override
+    TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
     {
         const auto& index = TSecondaryQueriesTableDescriptor::Get().Index;
 

@@ -133,7 +133,7 @@ void TMemoryWatchdog::CheckMinimumWindowRss(size_t minimumWindowRss)
 void TMemoryWatchdog::DumpRefCountedTracker()
 {
     WriteToStderr("*** RefCountedTracker ***\n");
-    WriteToStderr(TRefCountedTracker::Get()->GetDebugInfo(2 /* sortByColumn */));
+    WriteToStderr(TRefCountedTracker::Get()->GetDebugInfo(2 /*sortByColumn*/));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

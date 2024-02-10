@@ -128,7 +128,7 @@ public:
             XX(DB::TypeIndex::Date, DB::UInt16, EValueType::Uint64, Uint64)
             XX(DB::TypeIndex::DateTime, DB::UInt32, EValueType::Uint64, Uint64)
             XX(DB::TypeIndex::Interval, DB::Int64, EValueType::Int64, Int64)
-            /* else */ if constexpr (TypeId == DB::TypeIndex::String) {
+            /*else*/ if constexpr (TypeId == DB::TypeIndex::String) {
                 YT_ASSERT(ColumnString_);
                 values[index].Type = EValueType::String;
                 // Use fully qualified method to prevent virtual call.
@@ -181,7 +181,7 @@ public:
         XX(DB::TypeIndex::Date, DB::UInt16, WriteBinaryUint64)
         XX(DB::TypeIndex::DateTime, DB::UInt32, WriteBinaryUint64)
         XX(DB::TypeIndex::Interval, DB::Int64, WriteBinaryInt64)
-        /* else */ if constexpr (TypeId == DB::TypeIndex::String) {
+        /*else*/ if constexpr (TypeId == DB::TypeIndex::String) {
             YT_ASSERT(ColumnString_);
             // Use fully qualified method to prevent virtual call.
             auto stringRef = ColumnString_->DB::ColumnString::getDataAt(CurrentValueIndex_);

@@ -54,18 +54,18 @@ IJobSizeConstraintsPtr CreateClickHouseJobSizeConstraints(
     }
 
     return CreateExplicitJobSizeConstraints(
-        false /* canAdjustDataWeightPerJob */,
-        true /* isExplicitJobCount */,
+        false /*canAdjustDataWeightPerJob*/,
+        true /*isExplicitJobCount*/,
         jobCount,
         dataWeightPerJob,
-        1024 * 1024 * 1_TB /* primaryDataWeightPerJob */,
-        1'000'000'000'000ll /* maxDataSlicesPerJob */,
-        1024 * 1024 * 1_TB /* maxDataWeightPerJob */,
-        1024 * 1024 * 1_TB /* primaryMaxDataWeightPerJob */,
-        inputSliceDataWeight /* inputSliceDataWeight */,
-        std::max<i64>(1, totalRowCount / jobCount) /* inputSliceRowCount */,
-        0 /* foreignSliceDataWeight */,
-        std::nullopt /* samplingRate */);
+        1024 * 1024 * 1_TB /*primaryDataWeightPerJob*/,
+        1'000'000'000'000ll /*maxDataSlicesPerJob*/,
+        1024 * 1024 * 1_TB /*maxDataWeightPerJob*/,
+        1024 * 1024 * 1_TB /*primaryMaxDataWeightPerJob*/,
+        inputSliceDataWeight /*inputSliceDataWeight*/,
+        std::max<i64>(1, totalRowCount / jobCount) /*inputSliceRowCount*/,
+        0 /*foreignSliceDataWeight*/,
+        std::nullopt /*samplingRate*/);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

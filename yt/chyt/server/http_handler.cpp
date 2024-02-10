@@ -36,7 +36,7 @@ public:
     { }
 
     void handleRequest(
-        DB::HTTPServerRequest& /* request */,
+        DB::HTTPServerRequest& /*request*/,
         DB::HTTPServerResponse& response) override
     {
         try {

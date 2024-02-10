@@ -161,7 +161,7 @@ class TRawYsonToStringConverter
     : public TYsonExtractingConverterBase
 {
 public:
-    TRawYsonToStringConverter(const TComplexTypeFieldDescriptor& /* descriptor */, const TCompositeSettingsPtr& settings)
+    TRawYsonToStringConverter(const TComplexTypeFieldDescriptor& /*descriptor*/, const TCompositeSettingsPtr& settings)
         : Column_(DB::ColumnString::create())
         , Settings_(settings)
         , YsonOutput_(YsonBuffer_)
@@ -1044,7 +1044,7 @@ public:
         : Descriptor_(std::move(descriptor))
         , Settings_(std::move(settings))
         , EnableReadOnlyConversions_(enableReadOnlyConversions)
-        , RootConverter_(CreateConverter(Descriptor_, /* isOutermost */ true))
+        , RootConverter_(CreateConverter(Descriptor_, /*isOutermost*/ true))
     { }
 
     void ConsumeUnversionedValues(TUnversionedValueRange values)

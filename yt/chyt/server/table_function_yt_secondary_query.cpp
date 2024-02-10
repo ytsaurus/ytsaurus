@@ -85,10 +85,10 @@ public:
     }
 
     StoragePtr executeImpl(
-        const ASTPtr& /* functionAst */,
+        const ASTPtr& /*functionAst*/,
         ContextPtr context,
-        const std::string& /* tableName */,
-        ColumnsDescription /* cachedColumns */,
+        const std::string& /*tableName*/,
+        ColumnsDescription /*cachedColumns*/,
         bool /*isInsertQuery*/) const override
     {
         return Execute(context, std::move(subquerySpec));

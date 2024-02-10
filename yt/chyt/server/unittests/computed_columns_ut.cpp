@@ -62,7 +62,7 @@ TEST_P(TComputedColumnPredicatePopulationTest, Test)
     const auto& [schema, originalPredicate, expectedPredicateWithIn, expectedPredicateWithDnf] = GetParam();
 
     DB::ParserExpressionWithOptionalAlias parser(false);
-    auto originalAst = DB::parseQuery(parser, originalPredicate, 0 /* maxQuerySize */, 0 /* maxQueryDepth */);
+    auto originalAst = DB::parseQuery(parser, originalPredicate, 0 /*maxQuerySize*/, 0 /*maxQueryDepth*/);
     DB::PreparedSets preparedSets;
     TQuerySettingsPtr settings = New<TQuerySettings>();
     for (auto deducedStatementMode : TEnumTraits<EDeducedStatementMode>::GetDomainValues()) {

@@ -334,7 +334,7 @@ private:
             }
 
             size_t position = 0;
-            aggregator->update(virtualValues, &position, /* limit */ 1);
+            aggregator->update(virtualValues, &position, /*limit*/ 1);
             // Aggregator should read rows and update position.
             YT_VERIFY(position == 1);
 
@@ -467,7 +467,7 @@ private:
         columnSchemas.reserve(VirtualColumnNames_.size());
         for (const auto& column : VirtualColumnNames_) {
             auto id = directory->NameTable->GetIdOrThrow(column);
-            columnSchemas.emplace_back(column, MakeLogicalType(GetLogicalType(row[id].Type), /* required */ true));
+            columnSchemas.emplace_back(column, MakeLogicalType(GetLogicalType(row[id].Type), /*required*/ true));
         }
         directory->Schema = New<TTableSchema>(std::move(columnSchemas));
 
@@ -565,7 +565,7 @@ private:
         MasterChunkSpecFetcher_ = New<TMasterChunkSpecFetcher>(
             Client_,
             *QueryContext_->Settings->FetchChunksReadOptions,
-            nullptr /* nodeDirectory */,
+            nullptr /*nodeDirectory*/,
             Invoker_,
             Config_->MaxChunksPerFetch,
             Config_->MaxChunksPerLocateRequest,
@@ -657,9 +657,9 @@ private:
                     /*columnRenameDescriptors*/ {});
             } else {
                 dataSource = MakeUnversionedDataSource(
-                    std::nullopt /* path */,
+                    std::nullopt /*path*/,
                     table->Schema,
-                    std::nullopt /* columns */,
+                    std::nullopt /*columns*/,
                     // TODO(max42): YT-10402, omitted inaccessible columns
                     /*omittedInaccessibleColumns*/ {},
                     /*columnRenameDescriptors*/ {});
@@ -727,7 +727,7 @@ private:
 
         dataSlice->VirtualRowIndex = dataSliceDescriptor.VirtualRowIndex;
 
-        dataSlice->TransformToNew(RowBuffer_, keyLength, /* trimChunkSliceKeys */ true);
+        dataSlice->TransformToNew(RowBuffer_, keyLength, /*trimChunkSliceKeys*/ true);
 
         InputDataSlices_[tableIndex].emplace_back(std::move(dataSlice));
     }
@@ -924,7 +924,7 @@ std::vector<TSubquery> BuildThreadSubqueries(
                 .RowBuffer = queryContext->RowBuffer,
                 .Logger = queryContext->Logger.WithTag("Name: Root"),
             },
-            TInputStreamDirectory({TInputStreamDescriptor(false /* isTeleportable */, true /* isPrimary */, false /* isVersioned */)}));
+            TInputStreamDirectory({TInputStreamDescriptor(false /*isTeleportable*/, true /*isPrimary*/, false /*isVersioned*/)}));
     } else if (poolKind == EPoolKind::Sorted) {
         YT_VERIFY(keyColumnCount);
         TComparator comparator(std::vector<ESortOrder>(*keyColumnCount, ESortOrder::Ascending));
@@ -948,8 +948,8 @@ std::vector<TSubquery> BuildThreadSubqueries(
                 // isVersioned is almost a meaningless specification for modern sorted pool.
                 // By forcefully considering both streams to be versioned, we only disable some
                 // sanity checks that are wrong for dynamic tables.
-                TInputStreamDescriptor(false /* isTeleportable */, true /* isPrimary */, true /* isVersioned */),
-                TInputStreamDescriptor(false /* isTeleportable */, true /* isPrimary */, true /* isVersioned */)
+                TInputStreamDescriptor(false /*isTeleportable*/, true /*isPrimary*/, true /*isVersioned*/),
+                TInputStreamDescriptor(false /*isTeleportable*/, true /*isPrimary*/, true /*isVersioned*/)
             }));
     } else {
         Y_UNREACHABLE();

@@ -149,7 +149,7 @@ struct TComputedColumnPopulationMatcher
         TLogger Logger;
     };
 
-    static bool needChildVisit(const DB::ASTPtr& node, const DB::ASTPtr& /* child */)
+    static bool needChildVisit(const DB::ASTPtr& node, const DB::ASTPtr& /*child*/)
     {
         return !node->as<DB::ASTSubquery>();
     }
@@ -310,7 +310,7 @@ struct TComputedColumnPopulationMatcher
         return inAst;
     }
 
-    static DB::ASTPtr PrepareDNFStatement(const TInclusionStatement& resultStatement, Data& /* data */)
+    static DB::ASTPtr PrepareDNFStatement(const TInclusionStatement& resultStatement, Data& /*data*/)
     {
         DB::ASTs conjuncts;
         for (const auto& tuple : resultStatement.PossibleTuples) {

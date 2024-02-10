@@ -500,7 +500,7 @@ public:
                 , CommitCallback_(std::move(commitCallback))
             { }
 
-            void consume(DB::Chunk /* chunk */) override
+            void consume(DB::Chunk /*chunk*/) override
             { }
 
             void onFinish() override
@@ -859,7 +859,7 @@ public:
         return Schema_->IsSorted();
     }
 
-    bool mayBenefitFromIndexForIn(const DB::ASTPtr& /* queryAst */, DB::ContextPtr /* context */, const DB::StorageMetadataPtr& /* metadata_snapshot */) const override
+    bool mayBenefitFromIndexForIn(const DB::ASTPtr& /*queryAst*/, DB::ContextPtr /*context*/, const DB::StorageMetadataPtr& /*metadata_snapshot*/) const override
     {
         return supportsIndexForIn();
     }

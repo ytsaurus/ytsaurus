@@ -192,7 +192,7 @@ std::pair<TYTColumn, std::any> UnversionedValuesToYtColumn(TUnversionedValues va
 {
     TDataBlockWriter blockWriter;
     auto writer = CreateUnversionedColumnWriter(
-        /* columnIndex */ 0,
+        /*columnIndex*/ 0,
         columnSchema,
         &blockWriter);
 
@@ -203,16 +203,16 @@ std::pair<TYTColumn, std::any> UnversionedValuesToYtColumn(TUnversionedValues va
         writer->WriteUnversionedValues(MakeRange(&row, 1));
     }
 
-    writer->FinishBlock(/* blockIndex */ 0);
-    auto block = blockWriter.DumpBlock(/* blockIndex */ 0, values.size());
+    writer->FinishBlock(/*blockIndex*/ 0);
+    auto block = blockWriter.DumpBlock(/*blockIndex*/ 0, values.size());
     auto meta = writer->ColumnMeta();
 
-    auto reader = CreateUnversionedColumnReader(columnSchema, meta, /* columnIndex */ 0, /* columnId */ 0, /* sortOrder */ std::nullopt);
+    auto reader = CreateUnversionedColumnReader(columnSchema, meta, /*columnIndex*/ 0, /*columnId*/ 0, /*sortOrder*/ std::nullopt);
 
     struct TTag
     { };
 
-    reader->SetCurrentBlock(MergeRefsToRef<TTag>(block.Data), /* blockIndex */ 0);
+    reader->SetCurrentBlock(MergeRefsToRef<TTag>(block.Data), /*blockIndex*/ 0);
 
     auto columns = std::make_unique<IUnversionedColumnarRowBatch::TColumn[]>(reader->GetBatchColumnCount());
     reader->ReadColumnarBatch(MakeMutableRange(columns.get(), reader->GetBatchColumnCount()), values.size());
@@ -275,7 +275,7 @@ TEST_F(TTestYTCHConversion, TestAnyPassthrough)
 
     auto anyYsons = ToYsonStringBufs(ysons);
     auto [anyUnversionedValues, anyUnversionedValuesOwner] = YsonStringBufsToAnyUnversionedValues(anyYsons);
-    auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, TColumnSchema(/* name */ "", logicalType));
+    auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, TColumnSchema(/*name*/ "", logicalType));
 
 
     for (const auto& ysonFormat : TEnumTraits<EExtendedYsonFormat>::GetDomainValues()) {
@@ -389,8 +389,8 @@ TEST_F(TTestYTCHConversion, TestSimpleTypes)
         auto logicalType = SimpleLogicalType(simpleLogicalValueType);
 
         auto [unversionedValues, unversionedValuesOwner] = YsonStringBufsToVariadicUnversionedValues(ysons);
-        TColumnSchema columnSchemaRequired(/* name */ "", logicalType);
-        TColumnSchema columnSchemaOptional(/* name */ "", OptionalLogicalType(logicalType));
+        TColumnSchema columnSchemaRequired(/*name*/ "", logicalType);
+        TColumnSchema columnSchemaOptional(/*name*/ "", OptionalLogicalType(logicalType));
         auto [ytColumnOptional, ytColumnOptionalOwner] = UnversionedValuesToYtColumn(unversionedValues, columnSchemaOptional);
         auto [ytColumnRequired, ytColumnRequiredOwner] = UnversionedValuesToYtColumn(unversionedValues, columnSchemaRequired);
 
@@ -477,7 +477,7 @@ TEST_F(TTestYTCHConversion, TestOptionalSimpleType)
         ExpectDataConversion(descriptor, ysons, expectedFields);
         ExpectDataConversion(descriptor, variadicUnversionedValues, expectedFields);
 
-        TColumnSchema columnSchema(/* name */ "", logicalType);
+        TColumnSchema columnSchema(/*name*/ "", logicalType);
 
         if (nestingLevel == 1) {
             // We may interpret values as unversioned values <Null>, <Null> and 42.
@@ -530,7 +530,7 @@ TEST_F(TTestYTCHConversion, TestNullAndVoid)
             ExpectDataConversion(descriptor, ysons, expectedFields);
             ExpectDataConversion(descriptor, variadicUnversionedValues, expectedFields);
 
-            TColumnSchema columnSchema(/* name */ "", logicalType);
+            TColumnSchema columnSchema(/*name*/ "", logicalType);
 
             if (nestingLevel == 0) {
                 // We may interpret values as unversioned values <Null> and <Null>.
@@ -572,7 +572,7 @@ TEST_F(TTestYTCHConversion, TestListInt32)
     };
 
     auto [anyUnversionedValues, anyUnversionedValuesOwner] = YsonStringBufsToAnyUnversionedValues(ysonsListInt32);
-    auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, TColumnSchema(/* name */ "", logicalType));
+    auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, TColumnSchema(/*name*/ "", logicalType));
 
     ExpectDataConversion(descriptor, ysonsListInt32, expectedFields);
     ExpectDataConversion(descriptor, anyUnversionedValues, expectedFields);
@@ -605,7 +605,7 @@ TEST_F(TTestYTCHConversion, TestListListInt32)
     };
 
     auto [anyUnversionedValues, anyUnversionedValuesOwner] = YsonStringBufsToAnyUnversionedValues(ysonsListListInt32);
-    auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, TColumnSchema(/* name */ "", logicalType));
+    auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, TColumnSchema(/*name*/ "", logicalType));
 
     ExpectDataConversion(descriptor, ysonsListListInt32, expectedFields);
     ExpectDataConversion(descriptor, anyUnversionedValues, expectedFields);
@@ -636,7 +636,7 @@ TEST_F(TTestYTCHConversion, TestListAny)
     };
 
     auto [anyUnversionedValues, anyUnversionedValuesOwner] = YsonStringBufsToAnyUnversionedValues(ysonsListAny);
-    auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, TColumnSchema(/* name */ "", logicalType));
+    auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, TColumnSchema(/*name*/ "", logicalType));
 
     ExpectDataConversion(descriptor, ysonsListAny, expectedFields);
     ExpectDataConversion(descriptor, anyUnversionedValues, expectedFields);
@@ -669,7 +669,7 @@ TEST_F(TTestYTCHConversion, TestOptionalListOptionalInt32)
     };
 
     auto [anyUnversionedValues, anyUnversionedValuesOwner] = YsonStringBufsToAnyUnversionedValues(ysonsOptionalListOptionalInt32);
-    auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, TColumnSchema(/* name */ "", logicalType));
+    auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, TColumnSchema(/*name*/ "", logicalType));
 
     ExpectDataConversion(descriptor, ysonsOptionalListOptionalInt32, expectedFields);
     ExpectDataConversion(descriptor, anyUnversionedValues, expectedFields);
@@ -701,7 +701,7 @@ TEST_F(TTestYTCHConversion, TestDictIntString)
     };
 
     auto [anyUnversionedValues, anyUnversionedValuesOwner] = YsonStringBufsToAnyUnversionedValues(ysonsDictIntString);
-    auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, TColumnSchema(/* name */ "", logicalType));
+    auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, TColumnSchema(/*name*/ "", logicalType));
 
     ExpectDataConversion(descriptor, ysonsDictIntString, expectedFields);
     ExpectDataConversion(descriptor, anyUnversionedValues, expectedFields);
@@ -732,7 +732,7 @@ TEST_F(TTestYTCHConversion, TestOptionalTupleInt32String)
     };
 
     auto [anyUnversionedValues, anyUnversionedValuesOwner] = YsonStringBufsToAnyUnversionedValues(ysonsOptionalTupleInt32String);
-    auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, TColumnSchema(/* name */ "", logicalType));
+    auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, TColumnSchema(/*name*/ "", logicalType));
 
     ExpectDataConversion(descriptor, ysonsOptionalTupleInt32String, expectedFields);
     ExpectDataConversion(descriptor, anyUnversionedValues, expectedFields);
@@ -777,7 +777,7 @@ TEST_F(TTestYTCHConversion, TestOptionalStructInt32String)
     };
 
     auto [anyUnversionedValues, anyUnversionedValuesOwner] = YsonStringBufsToAnyUnversionedValues(ysonsOptionalStructInt32String);
-    auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, TColumnSchema(/* name */ "", logicalType));
+    auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(anyUnversionedValues, TColumnSchema(/*name*/ "", logicalType));
 
     ExpectDataConversion(descriptor, ysonsOptionalStructInt32String, expectedFields);
     ExpectDataConversion(descriptor, anyUnversionedValues, expectedFields);
@@ -840,7 +840,7 @@ TEST_F(TTestYTCHConversion, TestDecimal)
 
             auto ysons = ToYsonStringBufs(ysonStrings);
             auto [unversionedValues, unversionedValuesOwner] = YsonStringBufsToVariadicUnversionedValues(ysons);
-            auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(unversionedValues, TColumnSchema(/* name */ "", logicalType));
+            auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(unversionedValues, TColumnSchema(/*name*/ "", logicalType));
 
             for (const auto& value : unversionedValues) {
                 if (value.Type != EValueType::Null) {
@@ -919,7 +919,7 @@ TEST_F(TTestYTCHConversion, TestOptionalDecimal)
 
             auto ysons = ToYsonStringBufs(ysonStrings);
             auto [unversionedValues, unversionedValuesOwner] = YsonStringBufsToVariadicUnversionedValues(ysons);
-            auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(unversionedValues, TColumnSchema(/* name */ "", logicalType));
+            auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(unversionedValues, TColumnSchema(/*name*/ "", logicalType));
 
             ExpectDataConversion(descriptor, ysons, expectedFields);
             ExpectDataConversion(descriptor, unversionedValues, expectedFields);
@@ -990,7 +990,7 @@ TEST_F(TTestYTCHConversion, TestListDecimal)
 
             auto ysons = ToYsonStringBufs(ysonStrings);
             auto [unversionedValues, unversionedValuesOwner] = YsonStringBufsToVariadicUnversionedValues(ysons);
-            auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(unversionedValues, TColumnSchema(/* name */ "", logicalType));
+            auto [ytColumn, ytColumnOwner] = UnversionedValuesToYtColumn(unversionedValues, TColumnSchema(/*name*/ "", logicalType));
 
             ExpectDataConversion(descriptor, ysons, expectedFields);
             ExpectDataConversion(descriptor, unversionedValues, expectedFields);
@@ -1011,12 +1011,12 @@ TEST_F(TTestYTCHConversion, TestAnyUpcast)
     std::vector<TUnversionedValue> anyValues = {MakeUnversionedAnyValue("{a=1}"), MakeUnversionedAnyValue("[]")};
 
     Settings_->DefaultYsonFormat = EExtendedYsonFormat::Text;
-    TColumnSchema int64ColumnSchema(/* name */ "", SimpleLogicalType(ESimpleLogicalValueType::Int64));
-    TColumnSchema int16ColumnSchema(/* name */ "", SimpleLogicalType(ESimpleLogicalValueType::Int16));
-    TColumnSchema stringColumnSchema(/* name */ "", SimpleLogicalType(ESimpleLogicalValueType::String));
-    TColumnSchema doubleColumnSchema(/* name */ "", SimpleLogicalType(ESimpleLogicalValueType::Double));
-    TColumnSchema booleanColumnSchema(/* name */ "", SimpleLogicalType(ESimpleLogicalValueType::Boolean));
-    TColumnSchema anyColumnSchema(/* name */ "", SimpleLogicalType(ESimpleLogicalValueType::Any));
+    TColumnSchema int64ColumnSchema(/*name*/ "", SimpleLogicalType(ESimpleLogicalValueType::Int64));
+    TColumnSchema int16ColumnSchema(/*name*/ "", SimpleLogicalType(ESimpleLogicalValueType::Int16));
+    TColumnSchema stringColumnSchema(/*name*/ "", SimpleLogicalType(ESimpleLogicalValueType::String));
+    TColumnSchema doubleColumnSchema(/*name*/ "", SimpleLogicalType(ESimpleLogicalValueType::Double));
+    TColumnSchema booleanColumnSchema(/*name*/ "", SimpleLogicalType(ESimpleLogicalValueType::Boolean));
+    TColumnSchema anyColumnSchema(/*name*/ "", SimpleLogicalType(ESimpleLogicalValueType::Any));
 
     auto [ytInt64Column, ytInt64ColumnOwner] = UnversionedValuesToYtColumn(intValues, int64ColumnSchema);
     auto [ytInt16Column, ytInt16ColumnOwner] = UnversionedValuesToYtColumn(intValues, int16ColumnSchema);
@@ -1043,8 +1043,8 @@ TEST_F(TTestYTCHConversion, TestIntegerUpcast)
     std::vector<TUnversionedValue> intValues = {MakeUnversionedInt64Value(42), MakeUnversionedInt64Value(-17)};
 
     Settings_->DefaultYsonFormat = EExtendedYsonFormat::Text;
-    TColumnSchema int32ColumnSchema(/* name */ "", SimpleLogicalType(ESimpleLogicalValueType::Int32));
-    TColumnSchema int16ColumnSchema(/* name */ "", SimpleLogicalType(ESimpleLogicalValueType::Int16));
+    TColumnSchema int32ColumnSchema(/*name*/ "", SimpleLogicalType(ESimpleLogicalValueType::Int32));
+    TColumnSchema int16ColumnSchema(/*name*/ "", SimpleLogicalType(ESimpleLogicalValueType::Int16));
 
     auto [ytInt16Column, ytInt16ColumnOwner] = UnversionedValuesToYtColumn(intValues, int16ColumnSchema);
 
@@ -1059,18 +1059,18 @@ TEST_F(TTestYTCHConversion, TestReadOnlyConversions)
 {
     std::vector<TColumnSchema> readOnlyColumnSchemas{
         TColumnSchema(
-            /* name */ "",
+            /*name*/ "",
             OptionalLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Double)))),
         TColumnSchema(
-            /* name */ "",
+            /*name*/ "",
             OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint8)))),
         TColumnSchema(
-            /* name */ "",
+            /*name*/ "",
             DictLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32), SimpleLogicalType(ESimpleLogicalValueType::String))),
     };
     for (const auto& columnSchema : readOnlyColumnSchemas) {
         TComplexTypeFieldDescriptor descriptor(columnSchema);
-        EXPECT_THROW(TYTCHConverter(descriptor, Settings_, /* enableReadOnlyConversions */ false), std::exception)
+        EXPECT_THROW(TYTCHConverter(descriptor, Settings_, /*enableReadOnlyConversions*/ false), std::exception)
             << Format("Conversion of %v did not throw", *columnSchema.LogicalType());
     }
 }
@@ -1099,7 +1099,7 @@ TEST_F(TBenchmarkYTCHConversion, TestStringConversionSpeedSmall)
         ysons.push_back("E" + ToString(i));
     }
 
-    auto columnSchema = TColumnSchema(/* name */ "", SimpleLogicalType(ESimpleLogicalValueType::String));
+    auto columnSchema = TColumnSchema(/*name*/ "", SimpleLogicalType(ESimpleLogicalValueType::String));
     TComplexTypeFieldDescriptor descriptor(columnSchema.LogicalType());
 
     auto anyYsons = ToYsonStringBufs(ysons);
@@ -1120,7 +1120,7 @@ TEST_F(TBenchmarkYTCHConversion, TestStringConversionSpeedMedium)
         ysons.push_back(TString{"E", 14} + ToString(i));
     }
 
-    auto columnSchema = TColumnSchema(/* name */ "", SimpleLogicalType(ESimpleLogicalValueType::String));
+    auto columnSchema = TColumnSchema(/*name*/ "", SimpleLogicalType(ESimpleLogicalValueType::String));
     TComplexTypeFieldDescriptor descriptor(columnSchema.LogicalType());
 
     auto anyYsons = ToYsonStringBufs(ysons);
@@ -1141,7 +1141,7 @@ TEST_F(TBenchmarkYTCHConversion, TestStringConversionSpeedBig)
         ysons.push_back("E" + ToString(i) + TString(256, 'f'));
     }
 
-    auto columnSchema = TColumnSchema(/* name */ "", SimpleLogicalType(ESimpleLogicalValueType::String));
+    auto columnSchema = TColumnSchema(/*name*/ "", SimpleLogicalType(ESimpleLogicalValueType::String));
     TComplexTypeFieldDescriptor descriptor(columnSchema.LogicalType());
 
     auto anyYsons = ToYsonStringBufs(ysons);

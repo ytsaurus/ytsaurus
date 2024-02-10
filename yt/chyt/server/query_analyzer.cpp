@@ -61,7 +61,7 @@ void FillDataSliceDescriptors(
             auto& inputDataSliceDescriptor = inputDataSliceDescriptors.emplace_back();
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                 auto& chunkSpec = inputDataSliceDescriptor.ChunkSpecs.emplace_back();
-                ToProto(&chunkSpec, chunkSlice, /* comparator */ TComparator(), EDataSourceType::UnversionedTable);
+                ToProto(&chunkSpec, chunkSlice, /*comparator*/ TComparator(), EDataSourceType::UnversionedTable);
                 auto it = miscExtMap.find(chunkSlice->GetInputChunk()->GetChunkId());
                 YT_VERIFY(it != miscExtMap.end());
                 if (it->second) {

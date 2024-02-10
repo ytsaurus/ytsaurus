@@ -916,7 +916,7 @@ private:
             return;
         }
 
-        for (const auto& [name, _] : Discovery_->List(/* eraseBanned */ false)) {
+        for (const auto& [name, _] : Discovery_->List(/*eraseBanned*/ false)) {
             if (KnownInstances_.insert(name).second) {
                 UnknownInstancePingCounter_.erase(name);
             }

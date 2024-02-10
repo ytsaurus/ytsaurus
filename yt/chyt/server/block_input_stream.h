@@ -62,7 +62,7 @@ private:
 
     TDuration WaitReadyEventTime_;
 
-    NProfiling::TWallTimer IdleTimer_ = NProfiling::TWallTimer(false /* start */);
+    NProfiling::TWallTimer IdleTimer_ = NProfiling::TWallTimer(false /*start*/);
 
     int ReadCount_ = 0;
 

@@ -50,10 +50,10 @@ public:
     }
 
     void createTable(
-        const DB::ContextPtr /* context */,
-        const std::string& /* name */,
-        const DB::StoragePtr& /* table */,
-        const DB::ASTPtr& /* query */) override
+        const DB::ContextPtr /*context*/,
+        const std::string& /*name*/,
+        const DB::StoragePtr& /*table*/,
+        const DB::ASTPtr& /*query*/) override
     {
         // Table already created, nothing to do here.
     }
@@ -145,7 +145,7 @@ public:
         THROW_ERROR_EXCEPTION("Getting CREATE DATABASE query is not supported");
     }
 
-    void dropTable(DB::ContextPtr context, const String& name, bool /* noDelay */) override
+    void dropTable(DB::ContextPtr context, const String& name, bool /*noDelay*/) override
     {
         auto* queryContext = GetQueryContext(context);
         auto path = TYPath(name);
@@ -227,10 +227,10 @@ public:
             data,
             data + query.size(),
             errorMessage,
-            false /* hilite */,
+            false /*hilite*/,
             "(n/a)",
-            false /* allow_multi_statements */,
-            0 /* max_query_size */,
+            false /*allow_multi_statements*/,
+            0 /*max_query_size*/,
             DBMS_DEFAULT_MAX_PARSER_DEPTH);
 
         if (!ast && throwOnError) {

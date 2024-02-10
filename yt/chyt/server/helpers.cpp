@@ -70,8 +70,8 @@ void RegisterNewUser(
 {
     auto user = std::make_unique<DB::User>();
     user->setName(userName);
-    user->access.grant(DB::AccessFlags::allFlags(), "YT" /* database */);
-    user->access.grant(DB::AccessFlags::allFlags(), "system" /* database */);
+    user->access.grant(DB::AccessFlags::allFlags(), "YT" /*database*/);
+    user->access.grant(DB::AccessFlags::allFlags(), "system" /*database*/);
     user->access.grant(DB::AccessType::CREATE_TEMPORARY_TABLE);
     user->access.grant(DB::AccessType::dictGet);
 

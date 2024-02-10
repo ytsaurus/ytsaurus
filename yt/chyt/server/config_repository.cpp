@@ -44,7 +44,7 @@ public:
         return Dictionaries_.contains(configFile);
     }
 
-    Poco::Timestamp getUpdateTime(const std::string& /* configFile */) override
+    Poco::Timestamp getUpdateTime(const std::string& /*configFile*/) override
     {
         return Poco::Timestamp::TIMEVAL_MAX;
     }
