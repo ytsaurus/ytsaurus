@@ -38,24 +38,77 @@ jobs:
       - name: Checkout ytsaurus
         uses: actions/checkout@v3
         with:
-          path: .
+          path: ytsaurus
           fetch-depth: 0
+      - name: Checkout ydb
+        uses: actions/checkout@v3
+        with:
+          repository: ydb-platform/ydb
+          ref: 31adbe01b564f452d8c0e21b8c3331bc8a324855
+          path: ydb
 
   build:
     name: Build
     needs:
       - start-vm
       - checkout
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      build-python: true
+      build-query-tracker-ya-make: true
+    uses: ./.github/workflows/build-jobs.yaml
+
+  tag:
+    name: Calculate docker tag
+    needs:
+      - start-vm
+      - build
     runs-on: ${{ needs.start-vm.outputs.label }}
+    outputs:
+      image-tag: ${{ steps.tag.outputs.IMAGE_TAG }}
+      nightly-image-tag: ${{ steps.tag.outputs.NIGHTLY_IMAGE_TAG }}
     steps:
-      - name: Run ya make
-        run: ./ya make -T yt/yt
+      - name: Calculate docker tag
+        id: tag
+        run: |
+          if [[ $GITHUB_REF =~ main$ ]];
+          then
+            IMAGE_TAG=dev
+          elif [[ $GITHUB_REF =~ test ]];
+          then
+            IMAGE_TAG=test
+          elif [[ $GITHUB_REF =~ stable ]];
+          then
+            IMAGE_TAG=dev-${GITHUB_REF#refs/*/stable/}
+          else
+            IMAGE_TAG=dev-test
+          fi
+
+          cd ytsaurus
+          NIGHTLY_IMAGE_TAG=${IMAGE_TAG}-$(git rev-list --count HEAD)-${GITHUB_SHA}
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "NIGHTLY_IMAGE_TAG=$NIGHTLY_IMAGE_TAG" >> $GITHUB_OUTPUT
+
+  docker:
+    name: Docker images
+    needs:
+      - start-vm
+      - tag
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      publish-query-tracker-ya-make: true
+      image-tag: ${{ needs.tag.outputs.image-tag }}
+      nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
+    secrets:
+      DOCKER_HUB_LOGIN: ${{ secrets.DOCKER_HUB_LOGIN }}
+      DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
+    uses: ./.github/workflows/docker-jobs.yaml
 
   stop-vm:
     name: Stop VM
     needs:
       - start-vm
-      - build
+      - docker
     runs-on: trampoline
     if: ${{ always() }}
     steps:
@@ -67,3 +120,25 @@ jobs:
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           label: ${{ needs.start-vm.outputs.label }}
           instance-id: ${{ needs.start-vm.outputs.instance-id }}
+
+  send-notifications:
+    name: Send notifications
+    needs:
+      - stop-vm
+    runs-on: trampoline
+    if: ${{ failure() }}
+    steps:
+      - name: Send telegram message
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          disable_web_page_preview: true
+          format: markdown
+          message: |
+            Workflow *${{github.workflow}}* failed: ${{github.server_url}}/${{github.repository}}/actions/runs/${{github.run_id}}.
+            Git ${{github.ref_type}}: *${{github.ref_name}}*.
+            Commit:
+            ```
+            ${{github.event.head_commit.message}}
+            ```
