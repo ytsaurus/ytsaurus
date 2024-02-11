@@ -345,6 +345,7 @@ SRCS(
     replicated_table_tracker_client/proto/replicated_table_tracker_client.proto
 
     scheduler/config.cpp
+    scheduler/disk_resources.cpp
     scheduler/helpers.cpp
     scheduler/job_resources_helpers.cpp
     scheduler/job_resources_with_quota.cpp

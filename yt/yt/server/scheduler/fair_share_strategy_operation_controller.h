@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/ytlib/scheduler/disk_resources.h>
+
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NScheduler {
@@ -39,7 +41,7 @@ public:
     TControllerScheduleAllocationResultPtr ScheduleAllocation(
         const ISchedulingContextPtr& schedulingContext,
         const TJobResources& availableResources,
-        const NNodeTrackerClient::NProto::TDiskResources& availableDiskResources,
+        const TDiskResources& availableDiskResources,
         TDuration timeLimit,
         const TString& treeId,
         const TString& poolPath,

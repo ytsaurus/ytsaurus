@@ -35,9 +35,9 @@ bool TPackingHeartbeatSnapshot::CanSchedule(const TJobResourcesWithQuota& alloca
 TPackingHeartbeatSnapshot CreateHeartbeatSnapshot(const ISchedulingContextPtr& schedulingContext)
 {
     TDiskQuota diskQuota;
-    for (const auto& locationResources : schedulingContext->DiskResources().disk_location_resources()) {
-        int mediumIndex = locationResources.medium_index();
-        i64 freeDiskSpace = locationResources.limit() - locationResources.usage();
+    for (const auto& locationResources : schedulingContext->DiskResources().DiskLocationResources) {
+        int mediumIndex = locationResources.MediumIndex;
+        i64 freeDiskSpace = locationResources.Limit - locationResources.Usage;
         auto it = diskQuota.DiskSpacePerMedium.find(mediumIndex);
         if (it == diskQuota.DiskSpacePerMedium.end()) {
             diskQuota.DiskSpacePerMedium.emplace(mediumIndex, freeDiskSpace);

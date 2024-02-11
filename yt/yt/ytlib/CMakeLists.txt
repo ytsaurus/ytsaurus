@@ -1341,6 +1341,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/registration_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/config.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/disk_resources.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/job_resources_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/job_resources_with_quota.cpp

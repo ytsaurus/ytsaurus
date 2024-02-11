@@ -23,7 +23,7 @@ void ToProto(NProto::TScheduleAllocationRequest* protoRequest, const TScheduleAl
     protoRequest->set_tree_id(request.TreeId);
     ToProto(protoRequest->mutable_allocation_resource_limits(), request.AllocationResourceLimits);
     protoRequest->set_pool_path(request.PoolPath);
-    protoRequest->mutable_node_disk_resources()->CopyFrom(request.NodeDiskResources);
+    ToProto(protoRequest->mutable_node_disk_resources(), request.NodeDiskResources);
     auto* spec = protoRequest->mutable_spec();
     if (request.Spec.WaitingForResourcesOnNodeTimeout) {
         spec->set_waiting_for_resources_on_node_timeout(ToProto<i64>(*request.Spec.WaitingForResourcesOnNodeTimeout));

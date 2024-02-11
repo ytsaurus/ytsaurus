@@ -31,7 +31,7 @@ public:
     TJobResourcesWithQuota GetConditionalDiscountForOperation(TOperationId operationId) const override;
     void SetConditionalDiscountForOperation(TOperationId operationId, const TJobResourcesWithQuota& discountForOperation) override;
 
-    NNodeTrackerClient::NProto::TDiskResources GetDiskResourcesWithDiscountForOperation(TOperationId operationId) const override;
+    TDiskResources GetDiskResourcesWithDiscountForOperation(TOperationId operationId) const override;
     TJobResources GetNodeFreeResourcesWithoutDiscount() const override;
     TJobResources GetNodeFreeResourcesWithDiscount() const override;
     TJobResources GetNodeFreeResourcesWithDiscountForOperation(TOperationId operationId) const override;
@@ -40,8 +40,8 @@ public:
     const TJobResources& ResourceUsage() const;
     TJobResources& ResourceUsage() override;
 
-    const NNodeTrackerClient::NProto::TDiskResources& DiskResources() const override;
-    NNodeTrackerClient::NProto::TDiskResources& DiskResources();
+    const TDiskResources& DiskResources() const override;
+    TDiskResources& DiskResources();
     const std::vector<TDiskQuota>& DiskRequests() const override;
 
     const TExecNodeDescriptorPtr& GetNodeDescriptor() const override;
@@ -91,7 +91,7 @@ private:
     TJobResources ResourceUsage_;
     TJobResources ResourceLimits_;
 
-    NNodeTrackerClient::NProto::TDiskResources DiskResources_;
+    TDiskResources DiskResources_;
     std::optional<int> DiscountMediumIndex_;
 
     std::vector<TAllocationPtr> StartedAllocations_;

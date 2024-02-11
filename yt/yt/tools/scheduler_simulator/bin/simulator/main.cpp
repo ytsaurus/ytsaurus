@@ -64,10 +64,14 @@ std::vector<TExecNodePtr> CreateExecNodes(const std::vector<TNodeGroupConfigPtr>
 {
     std::vector<TExecNodePtr> execNodes;
 
-    NNodeTrackerClient::NProto::TDiskResources diskResources;
-    auto* locationResources = diskResources.add_disk_location_resources();
-    locationResources->set_limit(100_GB);
-    locationResources->set_usage(0);
+    auto diskResources = TDiskResources{
+        .DiskLocationResources = {
+            TDiskResources::TDiskLocationResources{
+                .Usage = 0,
+                .Limit = 100_GB,
+            },
+        },
+    };
 
     for (const auto& nodeGroupConfig : nodeGroups) {
         for (int i = 0; i < nodeGroupConfig->Count; ++i) {

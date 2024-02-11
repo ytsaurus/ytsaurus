@@ -182,14 +182,6 @@ TString TSchedulerStrategyHost::FormatResources(const TJobResourcesWithQuota& re
     return NScheduler::FormatResources(resources);
 }
 
-TString TSchedulerStrategyHost::FormatResourceUsage(
-    const TJobResources& usage,
-    const TJobResources& limits,
-    const NNodeTrackerClient::NProto::TDiskResources& diskResources) const
-{
-    return NScheduler::FormatResourceUsage(usage, limits, diskResources, MediumDirectory_);
-}
-
 void TSchedulerStrategyHost::SerializeResources(const TJobResourcesWithQuota& resources, NYson::IYsonConsumer* consumer) const
 {
     return NScheduler::SerializeJobResourcesWithQuota(resources, MediumDirectory_, consumer);

@@ -8,6 +8,8 @@
 #include <yt/yt/server/lib/controller_agent/public.h>
 #include <yt/yt/server/lib/controller_agent/structs.h>
 
+#include <yt/yt/ytlib/scheduler/disk_resources.h>
+
 #include <yt/yt/client/api/public.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -48,7 +50,7 @@ struct TScheduleAllocationRequest
     TString PoolPath;
     NNodeTrackerClient::TNodeId NodeId;
     TJobResources NodeResourceLimits;
-    NNodeTrackerClient::NProto::TDiskResources NodeDiskResources;
+    TDiskResources NodeDiskResources;
     TScheduleAllocationSpec Spec;
 };
 

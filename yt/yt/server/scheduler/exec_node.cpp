@@ -79,7 +79,7 @@ const TJobResources& TExecNode::GetResourceUsage() const
 }
 
 
-const NNodeTrackerClient::NProto::TDiskResources& TExecNode::GetDiskResources() const
+const TDiskResources& TExecNode::GetDiskResources() const
 {
     return DiskResources_;
 }
@@ -92,9 +92,9 @@ void TExecNode::SetResourceUsage(const TJobResources& value)
     ResourceUsage_ = value;
 }
 
-void TExecNode::SetDiskResources(const NNodeTrackerClient::NProto::TDiskResources& value)
+void TExecNode::SetDiskResources(TDiskResources value)
 {
-    DiskResources_ = value;
+    DiskResources_ = std::move(value);
 }
 
 void TExecNode::SetTags(TBooleanFormulaTags tags)

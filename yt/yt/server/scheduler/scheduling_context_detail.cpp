@@ -7,6 +7,7 @@
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/structs.h>
 
+#include <yt/yt/ytlib/scheduler/disk_resources.h>
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 #include <yt/yt/client/node_tracker_client/helpers.h>
@@ -17,6 +18,8 @@ namespace NYT::NScheduler {
 
 using namespace NObjectClient;
 using namespace NControllerAgent;
+
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,11 +44,11 @@ TSchedulingContextBase::TSchedulingContextBase(
     , DiskResources_(Node_->GetDiskResources())
     , RunningAllocations_(runningAllocations)
 {
-    if (const auto& diskLocationResources = DiskResources_.disk_location_resources();
+    if (const auto& diskLocationResources = DiskResources_.DiskLocationResources;
         diskLocationResources.size() == 1 &&
         Config_->ConsiderDiskQuotaInPreemptiveSchedulingDiscount)
     {
-        DiscountMediumIndex_ = diskLocationResources.begin()->medium_index();
+        DiscountMediumIndex_ = diskLocationResources.front().MediumIndex;
     }
 }
 
@@ -95,12 +98,12 @@ void TSchedulingContextBase::IncreaseUnconditionalDiscount(const TJobResourcesWi
     }
 }
 
-const NNodeTrackerClient::NProto::TDiskResources& TSchedulingContextBase::DiskResources() const
+const TDiskResources& TSchedulingContextBase::DiskResources() const
 {
     return DiskResources_;
 }
 
-NNodeTrackerClient::NProto::TDiskResources& TSchedulingContextBase::DiskResources()
+TDiskResources& TSchedulingContextBase::DiskResources()
 {
     return DiskResources_;
 }
@@ -240,15 +243,15 @@ TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithDiscountForOperati
     return ResourceLimits_ - ResourceUsage_ + UnconditionalDiscount_.ToJobResources() + GetConditionalDiscountForOperation(operationId).ToJobResources();
 }
 
-NNodeTrackerClient::NProto::TDiskResources TSchedulingContextBase::GetDiskResourcesWithDiscountForOperation(TOperationId operationId) const
+TDiskResources TSchedulingContextBase::GetDiskResourcesWithDiscountForOperation(TOperationId operationId) const
 {
     auto diskResources = DiskResources_;
     if (DiscountMediumIndex_) {
         auto discountForOperation = GetOrDefault(UnconditionalDiscount_.DiskQuota().DiskSpacePerMedium, *DiscountMediumIndex_) +
             GetOrDefault(GetConditionalDiscountForOperation(operationId).DiskQuota().DiskSpacePerMedium, *DiscountMediumIndex_);
 
-        auto& diskLocation = *diskResources.mutable_disk_location_resources()->begin();
-        diskLocation.set_usage(std::max(0l, diskLocation.usage() - discountForOperation));
+        auto& diskLocation = diskResources.DiskLocationResources.front();
+        diskLocation.Usage = std::max(0l, diskLocation.Usage - discountForOperation);
     }
     return diskResources;
 }
@@ -301,7 +304,7 @@ void TSchedulingContextBase::SetConditionalDiscountForOperation(TOperationId ope
 TDiskQuota TSchedulingContextBase::GetDiskQuotaWithCompactedDefaultMedium(TDiskQuota diskQuota) const
 {
     if (diskQuota.DiskSpaceWithoutMedium) {
-        diskQuota.DiskSpacePerMedium[DiskResources_.default_medium_index()] += *diskQuota.DiskSpaceWithoutMedium;
+        diskQuota.DiskSpacePerMedium[DiskResources_.DefaultMediumIndex] += *diskQuota.DiskSpaceWithoutMedium;
         diskQuota.DiskSpaceWithoutMedium = {};
     }
 

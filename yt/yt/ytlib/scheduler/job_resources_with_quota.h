@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "disk_resources.h"
 #include "job_resources.h"
 
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
@@ -81,12 +82,12 @@ using TJobResourcesWithQuotaList = TCompactVector<TJobResourcesWithQuota, 8>;
 bool Dominates(const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs);
 
 bool CanSatisfyDiskQuotaRequest(
-    const NNodeTrackerClient::NProto::TDiskResources& diskResources,
+    const TDiskResources& diskResources,
     TDiskQuota diskQuotaRequest,
     bool considerUsage = true);
 
 bool CanSatisfyDiskQuotaRequests(
-    const NNodeTrackerClient::NProto::TDiskResources& diskResources,
+    const TDiskResources& diskResources,
     const std::vector<TDiskQuota>& diskQuotaRequests,
     bool considerUsage = true);
 

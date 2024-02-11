@@ -262,11 +262,11 @@ bool CanSatisfyDiskQuotaRequest(
     return false;
 }
 
-bool HasLocationWithDefaultMedium(const NNodeTrackerClient::NProto::TDiskResources& diskResources)
+bool HasLocationWithDefaultMedium(const TDiskResources& diskResources)
 {
     bool hasLocationWithDefaultMedium = false;
-    for (const auto& diskLocationResources : diskResources.disk_location_resources()) {
-        if (diskLocationResources.medium_index() == diskResources.default_medium_index()) {
+    for (const auto& diskLocationResources : diskResources.DiskLocationResources) {
+        if (diskLocationResources.MediumIndex == diskResources.DefaultMediumIndex) {
             hasLocationWithDefaultMedium = true;
         }
     }
@@ -274,16 +274,16 @@ bool HasLocationWithDefaultMedium(const NNodeTrackerClient::NProto::TDiskResourc
 }
 
 bool CanSatisfyDiskQuotaRequest(
-    const NNodeTrackerClient::NProto::TDiskResources& diskResources,
+    const TDiskResources& diskResources,
     TDiskQuota diskQuotaRequest,
     bool considerUsage)
 {
     THashMap<int, std::vector<i64>> availableDiskSpacePerMedium;
-    for (const auto& diskLocationResources : diskResources.disk_location_resources()) {
-        availableDiskSpacePerMedium[diskLocationResources.medium_index()].push_back(
+    for (const auto& diskLocationResources : diskResources.DiskLocationResources) {
+        availableDiskSpacePerMedium[diskLocationResources.MediumIndex].push_back(
             considerUsage
-                ? diskLocationResources.limit() - diskLocationResources.usage()
-                : diskLocationResources.limit());
+                ? diskLocationResources.Limit - diskLocationResources.Usage
+                : diskLocationResources.Limit);
     }
     for (auto [mediumIndex, diskSpace] : diskQuotaRequest.DiskSpacePerMedium) {
         if (!CanSatisfyDiskQuotaRequest(availableDiskSpacePerMedium[mediumIndex], diskSpace)) {
@@ -292,7 +292,7 @@ bool CanSatisfyDiskQuotaRequest(
     }
     if (diskQuotaRequest.DiskSpaceWithoutMedium &&
         !CanSatisfyDiskQuotaRequest(
-            availableDiskSpacePerMedium[diskResources.default_medium_index()],
+            availableDiskSpacePerMedium[diskResources.DefaultMediumIndex],
             *diskQuotaRequest.DiskSpaceWithoutMedium))
     {
         return false;
@@ -306,16 +306,16 @@ bool CanSatisfyDiskQuotaRequest(
 }
 
 bool CanSatisfyDiskQuotaRequests(
-    const NNodeTrackerClient::NProto::TDiskResources& diskResources,
+    const TDiskResources& diskResources,
     const std::vector<TDiskQuota>& diskQuotaRequests,
     bool considerUsage)
 {
     THashMap<int, std::vector<i64>> availableDiskSpacePerMedium;
-    for (const auto& diskLocationResources : diskResources.disk_location_resources()) {
-        availableDiskSpacePerMedium[diskLocationResources.medium_index()].push_back(
+    for (const auto& diskLocationResources : diskResources.DiskLocationResources) {
+        availableDiskSpacePerMedium[diskLocationResources.MediumIndex].push_back(
             considerUsage
-                ? diskLocationResources.limit() - diskLocationResources.usage()
-                : diskLocationResources.limit());
+                ? diskLocationResources.Limit - diskLocationResources.Usage
+                : diskLocationResources.Limit);
     }
 
     THashMap<int, std::vector<i64>> diskSpaceRequestsPerMedium;
@@ -325,7 +325,7 @@ bool CanSatisfyDiskQuotaRequests(
             diskSpaceRequestsPerMedium[mediumIndex].push_back(diskSpace);
         }
         if (diskQuotaRequest.DiskSpaceWithoutMedium) {
-            diskSpaceRequestsPerMedium[diskResources.default_medium_index()].push_back(*diskQuotaRequest.DiskSpaceWithoutMedium);
+            diskSpaceRequestsPerMedium[diskResources.DefaultMediumIndex].push_back(*diskQuotaRequest.DiskSpaceWithoutMedium);
         }
         if (!diskQuotaRequest && !diskQuotaRequest.DiskSpaceWithoutMedium) {
             hasEmptyDiskRequest = true;

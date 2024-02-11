@@ -470,11 +470,11 @@ private:
         TSchedulerOperationElement* element,
         TJobResources* precommittedResourcesOutput,
         TJobResources* availableResourcesOutput,
-        NNodeTrackerClient::NProto::TDiskResources* availableDiskResourcesOutput);
+        TDiskResources* availableDiskResourcesOutput);
     TControllerScheduleAllocationResultPtr DoScheduleAllocation(
         TSchedulerOperationElement* element,
         const TJobResources& availableResources,
-        const NNodeTrackerClient::NProto::TDiskResources& availableDiskResources,
+        const TDiskResources& availableDiskResources,
         TJobResources* precommittedResources);
     void FinishScheduleAllocation(TSchedulerOperationElement* element);
 
