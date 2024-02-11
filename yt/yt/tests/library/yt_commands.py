@@ -113,7 +113,7 @@ def raises_yt_error(code=None, required=True):
         elif isinstance(code, str):
             if code not in str(e):
                 raise AssertionError(
-                    "Raised error doesn't contain {}:\n{}".format(
+                    "Raised error doesn't contain \"{}\":\n{}".format(
                         code,
                         e,
                     )
