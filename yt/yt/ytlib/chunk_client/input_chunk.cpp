@@ -439,7 +439,7 @@ TChunkId EncodeChunkId(const TInputChunkPtr& inputChunk, TNodeId nodeId)
     TChunkIdWithIndexes chunkIdWithIndexes(
         inputChunk->GetChunkId(),
         replicaIt->GetReplicaIndex(),
-        0 /* mediumIndex */);
+        0 /*mediumIndex*/);
     return EncodeChunkId(chunkIdWithIndexes);
 }
 

@@ -473,7 +473,7 @@ TFuture<void> TErasureWriter::EncodeAndWriteParityBlocks(const std::vector<std::
             BIND(
                 &TErasurePartWriterWrapper::WriteStripe,
                 WriterWrappers_[partIndex],
-                /* blockIndex */ 0,
+                /*blockIndex*/ 0,
                 parityBlocks[index])
             .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
             .Run());

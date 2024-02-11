@@ -117,8 +117,8 @@ std::vector<NYPath::TRichYPath> CombineDataSlices(
             auto lowerLimit = GetAbsoluteLowerReadLimit(tableSlices[firstSlice], versioned, sorted);
             auto upperLimit = GetAbsoluteUpperReadLimit(tableSlices[lastSlice - 1], versioned, sorted);
             ranges.emplace_back(
-                ReadLimitFromLegacyReadLimit(lowerLimit, /* isUpper */ false, keyLength),
-                ReadLimitFromLegacyReadLimit(upperLimit, /* isUpper */ true, keyLength));
+                ReadLimitFromLegacyReadLimit(lowerLimit, /*isUpper*/ false, keyLength),
+                ReadLimitFromLegacyReadLimit(upperLimit, /*isUpper*/ true, keyLength));
 
             firstSlice = lastSlice;
         }

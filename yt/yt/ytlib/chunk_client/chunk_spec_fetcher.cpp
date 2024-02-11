@@ -344,7 +344,7 @@ void TTabletChunkSpecFetcher::AddSorted(
             }
 
             auto tabletUpperBound = tabletIndex + 1 == tabletInfos.size()
-                ? TKeyBound::MakeUniversal(/* isUpper */ true)
+                ? TKeyBound::MakeUniversal(/*isUpper*/ true)
                 : tabletInfos[tabletIndex + 1]->GetLowerKeyBound().Invert();
 
             auto subrangeLowerBound = tabletLowerBound;

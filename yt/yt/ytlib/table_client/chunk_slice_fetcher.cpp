@@ -341,14 +341,14 @@ private:
         if (!chunkSlice->LowerLimit().KeyBound || chunkSlice->LowerLimit().KeyBound.IsUniversal()) {
             chunkSlice->LowerLimit().KeyBound = TKeyBound::FromRowUnchecked(
                 chunkSlice->GetInputChunk()->BoundaryKeys()->MinKey,
-                /* isInclusive */ true,
-                /* isUpper */ false);
+                /*isInclusive*/ true,
+                /*isUpper*/ false);
         }
         if (!chunkSlice->UpperLimit().KeyBound || chunkSlice->UpperLimit().KeyBound.IsUniversal()) {
             chunkSlice->UpperLimit().KeyBound = TKeyBound::FromRowUnchecked(
                 chunkSlice->GetInputChunk()->BoundaryKeys()->MaxKey,
-                /* isInclusive */ true,
-                /* isUpper */ true);
+                /*isInclusive*/ true,
+                /*isUpper*/ true);
         }
     }
 

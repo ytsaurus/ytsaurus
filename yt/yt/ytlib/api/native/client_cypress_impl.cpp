@@ -1560,7 +1560,7 @@ private:
             auto schemasCompatibility = CheckTableSchemaCompatibility(
                 inputTableSchema,
                 *OutputTableSchema_,
-                /* ignoreSortOrder */false);
+                /*ignoreSortOrder*/false);
             if (schemasCompatibility.first != ESchemaCompatibility::FullyCompatible) {
                 YT_LOG_DEBUG(schemasCompatibility.second,
                     "Input table schema and output table schema are incompatible; "
@@ -1580,7 +1580,7 @@ private:
             Options_.ChunkMetaFetcherConfig,
             Client_->Connection_->GetNodeDirectory(),
             Client_->Connection_->GetInvoker(),
-            nullptr /* fetcherChunkScraper */,
+            nullptr /*fetcherChunkScraper*/,
             Client_,
             Logger,
             TUserWorkloadDescriptor{EUserWorkloadCategory::Batch},

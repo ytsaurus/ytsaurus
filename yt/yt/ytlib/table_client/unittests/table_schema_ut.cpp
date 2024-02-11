@@ -335,12 +335,12 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
                     .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("KeyName2", EValueType::String)
                     .SetSortOrder(ESortOrder::Ascending),
-            }, false /* strict */, true /* unique_keys */),
+            }, false /*strict*/, true /*unique_keys*/),
             TTableSchema({
                 TColumnSchema("KeyName1", EValueType::String)
                     .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("KeyName2", EValueType::String),
-            }, false /* strict */, true /* unique_keys */)
+            }, false /*strict*/, true /*unique_keys*/)
         },
         {
             TTableSchema({
@@ -350,7 +350,7 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
                     .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("KeyName3", EValueType::String)
                     .SetSortOrder(ESortOrder::Ascending),
-            }, false /* strict */),
+            }, false /*strict*/),
             TTableSchema({
                 TColumnSchema("KeyName1", EValueType::String)
                     .SetSortOrder(ESortOrder::Ascending),
@@ -359,7 +359,7 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
                 TColumnSchema("KeyName3", EValueType::String)
                     .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("KeyName2", EValueType::String),
-            }, false /* strict */)
+            }, false /*strict*/)
         },
         {
             // Deleting a key column from the strict schema is not allowed.
@@ -369,12 +369,12 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
                 TColumnSchema("KeyName2", EValueType::String)
                     .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("Value1", EValueType::String)
-            }, true /* strict */, true /* uniqueKeys */, ETableSchemaModification::None, {}),
+            }, true /*strict*/, true /*uniqueKeys*/, ETableSchemaModification::None, {}),
             TTableSchema({
                 TColumnSchema("KeyName1", EValueType::String)
                     .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("Value1", EValueType::String)
-            }, true /* strict */, true /* uniqueKeys */, ETableSchemaModification::None, {
+            }, true /*strict*/, true /*uniqueKeys*/, ETableSchemaModification::None, {
                 TDeletedColumn(TStableName("Value")),
             })
         },
@@ -384,14 +384,14 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
                 TColumnSchema("KeyName1", EValueType::String)
                     .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("Value1", EValueType::String)
-            }, true /* strict */, true /* uniqueKeys */, ETableSchemaModification::None, {
+            }, true /*strict*/, true /*uniqueKeys*/, ETableSchemaModification::None, {
                 TDeletedColumn(TStableName("Value")),
             }),
             TTableSchema({
                 TColumnSchema("KeyName1", EValueType::String)
                     .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("Value1", EValueType::String)
-            }, true /* strict */, true /* uniqueKeys */, ETableSchemaModification::None, {}),
+            }, true /*strict*/, true /*uniqueKeys*/, ETableSchemaModification::None, {}),
         },
     };
 
@@ -405,17 +405,17 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
             TColumnSchema("KeyName1", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("Name1", EValueType::Int64)
-        }, true /* strict */),
+        }, true /*strict*/),
         TTableSchema({
             TColumnSchema("KeyName1", EValueType::String),
             TColumnSchema("Name1", EValueType::Int64)
-        }, true /* strict */),
-        enabledFeatures, true /* isDynamicTable */), std::exception);
+        }, true /*strict*/),
+        enabledFeatures, true /*isDynamicTable*/), std::exception);
 
     EXPECT_THROW(ValidateTableSchemaUpdateInternal(
         TTableSchema({}, true),
         TTableSchema({}, false),
-        enabledFeatures, true /* isDynamicTable */), std::exception);
+        enabledFeatures, true /*isDynamicTable*/), std::exception);
 
     std::vector<std::vector<TTableSchema>> validUpdates{
         {
@@ -512,13 +512,13 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
                     .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("KeyName3", EValueType::String)
                     .SetSortOrder(ESortOrder::Ascending),
-            }, false /* strict */, true /* uniqueKeys */),
+            }, false /*strict*/, true /*uniqueKeys*/),
             TTableSchema({
                 TColumnSchema("KeyName1", EValueType::String)
                     .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("KeyName3", EValueType::String),
                 TColumnSchema("KeyName2", EValueType::String),
-            }, false /* strict */)
+            }, false /*strict*/)
         },
         {
             // We may even make several last key columns non-key and add some new key columns at the same time.
@@ -527,14 +527,14 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
                     .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("KeyName2", EValueType::String)
                     .SetSortOrder(ESortOrder::Ascending),
-            }, true /* strict */),
+            }, true /*strict*/),
             TTableSchema({
                 TColumnSchema("KeyName1", EValueType::String)
                     .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("KeyName3", EValueType::String)
                     .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("KeyName2", EValueType::String),
-            }, true /* strict */)
+            }, true /*strict*/)
         },
         {
             // Making table unsorted by removing sort order for all columns is also ok.
@@ -555,12 +555,12 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
                 TColumnSchema("KeyName1", EValueType::String)
                     .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("Value1", EValueType::String)
-            }, true /* strict */, true /* uniqueKeys */, ETableSchemaModification::None, {}),
+            }, true /*strict*/, true /*uniqueKeys*/, ETableSchemaModification::None, {}),
             TTableSchema({
                 TColumnSchema("KeyName1", EValueType::String)
                     .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("Value1", EValueType::String)
-            }, true /* strict */, true /* uniqueKeys */, ETableSchemaModification::None, {
+            }, true /*strict*/, true /*uniqueKeys*/, ETableSchemaModification::None, {
                 TDeletedColumn(TStableName("Value")),
             }),
         },
@@ -570,12 +570,12 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
                 TColumnSchema("KeyName1", EValueType::String)
                     .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("Value1", EValueType::String)
-            }, false /* strict */, true /* uniqueKeys */, ETableSchemaModification::None, {}),
+            }, false /*strict*/, true /*uniqueKeys*/, ETableSchemaModification::None, {}),
             TTableSchema({
                 TColumnSchema("KeyName1", EValueType::String)
                     .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("Value1", EValueType::String)
-            }, false /* strict */, true /* uniqueKeys */, ETableSchemaModification::None, {
+            }, false /*strict*/, true /*uniqueKeys*/, ETableSchemaModification::None, {
                 TDeletedColumn(TStableName("Value")),
             }),
         }
@@ -597,7 +597,7 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
             TColumnSchema("Name2", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
                 .SetExpression(TString("Name"))
-        }), enabledFeatures, false /* isDynamicTable */, true /* isEmptyTable */);
+        }), enabledFeatures, false /*isDynamicTable*/, true /*isEmptyTable*/);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

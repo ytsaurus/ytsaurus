@@ -1570,7 +1570,7 @@ private:
                         .AsyncVia(transaction->SerializedInvoker_)));
                 }
             } else if (HasChaosReplicas()) {
-                DoRegisterSyncReplicas(futures, transaction, /* syncReplicas */ {});
+                DoRegisterSyncReplicas(futures, transaction, /*syncReplicas*/ {});
             }
         }
 

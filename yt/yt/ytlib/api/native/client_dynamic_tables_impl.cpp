@@ -908,7 +908,7 @@ std::vector<TUnversionedLookupRowsResult> TClient::DoMultiLookupRows(
                             subrequest.NameTable,
                             subrequest.Keys,
                             lookupRowsOptions,
-                            /* retentionConfig */ std::nullopt,
+                            /*retentionConfig*/ std::nullopt,
                             GetLookupRowsEncoder(),
                             GetLookupRowsDecoder(),
                             fallbackHandler);

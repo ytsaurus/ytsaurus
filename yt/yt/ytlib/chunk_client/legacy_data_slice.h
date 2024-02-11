@@ -43,7 +43,7 @@ public:
         EDataSourceType type,
         TChunkSliceList chunkSlices,
         TInputSliceLimit lowerLimit,
-        TInputSliceLimit upperLimit = TInputSliceLimit(/* isUpper */ true),
+        TInputSliceLimit upperLimit = TInputSliceLimit(/*isUpper*/ true),
         std::optional<i64> tag = std::nullopt);
 
     int GetChunkCount() const;
@@ -155,7 +155,7 @@ TLegacyDataSlicePtr CreateInputDataSlice(
     const TLegacyDataSlicePtr& dataSlice,
     const NTableClient::TComparator& comparator,
     NTableClient::TKeyBound lowerKeyBound,
-    NTableClient::TKeyBound upperKeyBound = NTableClient::TKeyBound::MakeUniversal(/* isUpper */ true));
+    NTableClient::TKeyBound upperKeyBound = NTableClient::TKeyBound::MakeUniversal(/*isUpper*/ true));
 
 TLegacyDataSlicePtr CreateUnversionedInputDataSlice(TInputChunkSlicePtr chunkSlice);
 

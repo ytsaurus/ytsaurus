@@ -138,8 +138,8 @@ public:
     TInputChunkSlice(
         const TInputChunkSlice& inputSlice,
         const NTableClient::TComparator& comparator,
-        NTableClient::TKeyBound lowerKeyBound = NTableClient::TKeyBound::MakeUniversal(/* isUpper */ false),
-        NTableClient::TKeyBound upperKeyBound = NTableClient::TKeyBound::MakeUniversal(/* isUpper */ true));
+        NTableClient::TKeyBound lowerKeyBound = NTableClient::TKeyBound::MakeUniversal(/*isUpper*/ false),
+        NTableClient::TKeyBound upperKeyBound = NTableClient::TKeyBound::MakeUniversal(/*isUpper*/ true));
 
     TInputChunkSlice(
         const TInputChunkSlice& inputSlice,
@@ -240,8 +240,8 @@ TInputChunkSlicePtr CreateInputChunkSlice(
 TInputChunkSlicePtr CreateInputChunkSlice(
     const TInputChunkSlice& inputSlice,
     const NTableClient::TComparator& comparator,
-    NTableClient::TKeyBound lowerKeyBound = NTableClient::TKeyBound::MakeUniversal(/* isUpper */ false),
-    NTableClient::TKeyBound upperKeyBound = NTableClient::TKeyBound::MakeUniversal(/* isUpper */ true));
+    NTableClient::TKeyBound lowerKeyBound = NTableClient::TKeyBound::MakeUniversal(/*isUpper*/ false),
+    NTableClient::TKeyBound upperKeyBound = NTableClient::TKeyBound::MakeUniversal(/*isUpper*/ true));
 
 //! Constructs a new chunk slice based on inputChunk with limits from protoChunkSpec.
 TInputChunkSlicePtr CreateInputChunkSlice(

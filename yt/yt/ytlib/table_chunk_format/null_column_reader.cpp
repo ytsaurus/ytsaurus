@@ -70,7 +70,7 @@ public:
     }
 
 private:
-    std::unique_ptr<IUnversionedSegmentReader> CreateSegmentReader(int segmentIndex, bool /* scan */) override
+    std::unique_ptr<IUnversionedSegmentReader> CreateSegmentReader(int segmentIndex, bool /*scan*/) override
     {
         using TSegmentReader = TDenseUnversionedSegmentReader<
             EValueType::Null,

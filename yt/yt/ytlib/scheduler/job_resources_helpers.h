@@ -43,7 +43,7 @@ void SerializeJobResourcesWithQuota(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, const TDiskQuota& diskQuota, TStringBuf /* format */);
+void FormatValue(TStringBuilderBase* builder, const TDiskQuota& diskQuota, TStringBuf /*format*/);
 
 TString FormatResourceUsage(
     const TJobResources& usage,

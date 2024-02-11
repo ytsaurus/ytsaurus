@@ -76,7 +76,7 @@ struct TTableData
         Schema = ConvertTo<TTableSchema>(TYsonString(rawTableData.Schema));
         Rows.reserve(rawTableData.Rows.size());
         for (const auto& rawRow : rawTableData.Rows) {
-            Rows.push_back(YsonToSchemafulRow(rawRow, Schema, /* treatMissingAsNull */false));
+            Rows.push_back(YsonToSchemafulRow(rawRow, Schema, /*treatMissingAsNull*/false));
         }
     }
 };
@@ -99,9 +99,9 @@ TTableData RandomTable(int columnCount, TComparator comparator, int rowCount, in
             sortOrder = comparator.SortOrders()[columnIndex];
         }
         TColumnSchema columnSchema(
-            /* name */Format("c%v", columnIndex),
-            /* type */EValueType::Int64,
-            /* sortOrder */sortOrder);
+            /*name*/Format("c%v", columnIndex),
+            /*type*/EValueType::Int64,
+            /*sortOrder*/sortOrder);
         columns.push_back(std::move(columnSchema));
     }
 

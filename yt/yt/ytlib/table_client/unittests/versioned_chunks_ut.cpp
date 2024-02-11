@@ -439,7 +439,7 @@ protected:
                         TChunkReaderConfig::GetDefault(),
                         MemoryReader,
                         chunkState->BlockCache,
-                        /* chunkReadOptions */ {},
+                        /*chunkReadOptions*/ {},
                         chunkMeta);
 
                 versionedReader = NColumnarChunkFormat::CreateVersionedChunkReader(
@@ -839,7 +839,7 @@ protected:
                     TChunkReaderConfig::GetDefault(),
                     memoryReader,
                     chunkState->BlockCache,
-                    /* chunkReadOptions */ {},
+                    /*chunkReadOptions*/ {},
                     chunkMeta);
 
             versionedReader = NColumnarChunkFormat::CreateVersionedChunkReader(
@@ -953,7 +953,7 @@ protected:
                     TChunkReaderConfig::GetDefault(),
                     memoryReader,
                     chunkState->BlockCache,
-                    /* chunkReadOptions */ {},
+                    /*chunkReadOptions*/ {},
                     chunkMeta);
 
             if (chunkState->LookupHashTable) {

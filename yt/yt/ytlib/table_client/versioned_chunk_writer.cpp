@@ -986,7 +986,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
         schemaId,
         parentChunkListId,
         std::move(chunkWriterFactory),
-        /* trafficMeter */ nullptr,
+        /*trafficMeter*/ nullptr,
         std::move(throttler),
         std::move(blockCache));
     writer->Init();

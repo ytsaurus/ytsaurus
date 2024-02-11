@@ -60,7 +60,7 @@ TEST_P(TValueConsumerTypeConversionTest, TestBehaviour)
 
     StrictMock<TMockValueConsumer> mock(
         New<TNameTable>(),
-        true /* allowUnknownColumns */,
+        true /*allowUnknownColumns*/,
         schema,
         typeConversionConfig);
 

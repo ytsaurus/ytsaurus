@@ -67,7 +67,7 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
     auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
     auto fetcher = New<TColumnarStatisticsFetcher>(
         CreateSerializedInvoker(GetCurrentInvoker()),
-        this /* client */,
+        this /*client*/,
         TColumnarStatisticsFetcher::TOptions{
             .Config = options.FetcherConfig,
             .NodeDirectory = nodeDirectory,

@@ -172,7 +172,7 @@ TString FormatResourcesConfig(const TJobResourcesConfigPtr& config)
     return builder.Flush();
 }
 
-void FormatValue(TStringBuilderBase* builder, const TDiskQuota& diskQuota, TStringBuf /* format */)
+void FormatValue(TStringBuilderBase* builder, const TDiskQuota& diskQuota, TStringBuf /*format*/)
 {
     builder->AppendFormat(
         "%v {DiskSpaceWithoutMedium: %v}",

@@ -41,7 +41,7 @@ public:
         , KeyColumns_(std::move(keyColumns))
         , Comparator_(std::move(comparator))
         , RowBuffer_(New<TRowBuffer>(TSchemalessSortingReaderTag()))
-        , RowReorderer_(std::move(nameTable), RowBuffer_, /* deepCapture */ true, KeyColumns_)
+        , RowReorderer_(std::move(nameTable), RowBuffer_, /*deepCapture*/ true, KeyColumns_)
     {
         YT_VERIFY(std::ssize(KeyColumns_) == Comparator_.GetLength());
 
@@ -103,7 +103,7 @@ public:
     }
 
     TInterruptDescriptor GetInterruptDescriptor(
-        TRange<TUnversionedRow> /* unreadRows */) const override
+        TRange<TUnversionedRow> /*unreadRows*/) const override
     {
         YT_ABORT();
     }

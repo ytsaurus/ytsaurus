@@ -482,8 +482,8 @@ TInputChunkSlice::TInputChunkSlice(
     , IsLegacy(chunkSlice.IsLegacy)
 {
     YT_VERIFY(!chunkSlice.IsLegacy);
-    LowerLimit_.MergeLower(TInputSliceLimit(protoChunkSlice.lower_limit(), rowBuffer, keySet, keyBoundPrefixes, comparator.GetLength(), /* isUpper */ false), comparator);
-    UpperLimit_.MergeUpper(TInputSliceLimit(protoChunkSlice.upper_limit(), rowBuffer, keySet, keyBoundPrefixes, comparator.GetLength(), /* isUpper */ true), comparator);
+    LowerLimit_.MergeLower(TInputSliceLimit(protoChunkSlice.lower_limit(), rowBuffer, keySet, keyBoundPrefixes, comparator.GetLength(), /*isUpper*/ false), comparator);
+    UpperLimit_.MergeUpper(TInputSliceLimit(protoChunkSlice.upper_limit(), rowBuffer, keySet, keyBoundPrefixes, comparator.GetLength(), /*isUpper*/ true), comparator);
 
     PartIndex_ = DefaultPartIndex;
 
@@ -702,9 +702,9 @@ void TInputChunkSlice::TransformToNew(const TRowBufferPtr& rowBuffer, std::optio
     };
 
     LowerLimit_.RowIndex = LegacyLowerLimit_.RowIndex;
-    LowerLimit_.KeyBound = KeyBoundFromLegacyRow(LegacyLowerLimit_.Key, /* isUpper */ false, getKeyLength(LegacyLowerLimit_.Key), rowBuffer);
+    LowerLimit_.KeyBound = KeyBoundFromLegacyRow(LegacyLowerLimit_.Key, /*isUpper*/ false, getKeyLength(LegacyLowerLimit_.Key), rowBuffer);
     UpperLimit_.RowIndex = LegacyUpperLimit_.RowIndex;
-    UpperLimit_.KeyBound = KeyBoundFromLegacyRow(LegacyUpperLimit_.Key, /* isUpper */ true, getKeyLength(LegacyUpperLimit_.Key), rowBuffer);
+    UpperLimit_.KeyBound = KeyBoundFromLegacyRow(LegacyUpperLimit_.Key, /*isUpper*/ true, getKeyLength(LegacyUpperLimit_.Key), rowBuffer);
     LegacyLowerLimit_ = TLegacyInputSliceLimit();
     LegacyUpperLimit_ = TLegacyInputSliceLimit();
 
@@ -841,8 +841,8 @@ void InferLimitsFromBoundaryKeys(
     } else {
         if (const auto& boundaryKeys = chunkSlice->GetInputChunk()->BoundaryKeys()) {
             YT_VERIFY(comparator);
-            auto chunkLowerBound = KeyBoundFromLegacyRow(boundaryKeys->MinKey, /* isUpper */ false, comparator.GetLength(), rowBuffer);
-            auto chunkUpperBound = KeyBoundFromLegacyRow(GetKeySuccessor(boundaryKeys->MaxKey, rowBuffer), /* isUpper */ true, comparator.GetLength(), rowBuffer);
+            auto chunkLowerBound = KeyBoundFromLegacyRow(boundaryKeys->MinKey, /*isUpper*/ false, comparator.GetLength(), rowBuffer);
+            auto chunkUpperBound = KeyBoundFromLegacyRow(GetKeySuccessor(boundaryKeys->MaxKey, rowBuffer), /*isUpper*/ true, comparator.GetLength(), rowBuffer);
             if (comparator.StrongerKeyBound(chunkSlice->LowerLimit().KeyBound, chunkLowerBound) == chunkLowerBound) {
                 chunkLowerBound.Prefix = rowBuffer->CaptureRow(chunkLowerBound.Prefix);
                 chunkSlice->LowerLimit().KeyBound = chunkLowerBound;
@@ -912,16 +912,16 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlic
         // as failure to do so would break readers when reducing by shorter key than present in chunk schema.
         // Do not remove this logic unless there are no more nodes on 20.3.
 
-        auto chunkMinKeyBound = TKeyBound::MakeUniversal(/* isUpper */ false);
-        auto chunkMaxKeyBound = TKeyBound::MakeUniversal(/* isUpper */ true);
+        auto chunkMinKeyBound = TKeyBound::MakeUniversal(/*isUpper*/ false);
+        auto chunkMaxKeyBound = TKeyBound::MakeUniversal(/*isUpper*/ true);
 
         // NB: for dynamic table data slices involving dynamic stores boundary keys may contain sentinels.
         // But we do not prune limits for them anyway.
         if (const auto& boundaryKeys = inputSlice->GetInputChunk()->BoundaryKeys();
             boundaryKeys && dataSourceType == EDataSourceType::UnversionedTable)
         {
-            chunkMinKeyBound = TKeyBound::FromRow(boundaryKeys->MinKey, /* isInclusive */ true, /* isUpper */ false);
-            chunkMaxKeyBound = TKeyBound::FromRow(boundaryKeys->MaxKey, /* isInclusive */ true, /* isUpper */ true);
+            chunkMinKeyBound = TKeyBound::FromRow(boundaryKeys->MinKey, /*isInclusive*/ true, /*isUpper*/ false);
+            chunkMaxKeyBound = TKeyBound::FromRow(boundaryKeys->MaxKey, /*isInclusive*/ true, /*isUpper*/ true);
         }
 
         // NB: we prune non-trivial key bounds only if comparator is passed.

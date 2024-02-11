@@ -30,7 +30,7 @@ public:
         : KeySetReader_(wirePivots)
         , Comparator_(comparator)
     {
-        PartitionLowerBounds_.push_back(TOwningKeyBound::MakeUniversal(/* isUpper */false));
+        PartitionLowerBounds_.push_back(TOwningKeyBound::MakeUniversal(/*isUpper*/false));
 
         for (const auto& key : KeySetReader_->GetKeys()) {
             PartitionLowerBounds_.push_back(

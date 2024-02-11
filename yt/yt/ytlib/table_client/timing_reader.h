@@ -31,7 +31,7 @@ protected:
 
 private:
     NProfiling::TWallTimer TotalTimer_;
-    NProfiling::TWallTimer ReadTimer_ = NProfiling::TWallTimer(false /* start */);
+    NProfiling::TWallTimer ReadTimer_ = NProfiling::TWallTimer(false /*start*/);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

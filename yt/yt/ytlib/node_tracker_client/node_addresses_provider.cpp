@@ -104,7 +104,7 @@ public:
         return ChannelPromise_;
     }
 
-    TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /* request */) override
+    TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /*request*/) override
     {
         return GetChannel();
     }

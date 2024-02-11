@@ -126,8 +126,8 @@ bool FindBoundaryKeyBounds(
     FromProto(&minKey, boundaryKeys->min());
     FromProto(&maxKey, boundaryKeys->max());
 
-    *lowerBound = TOwningKeyBound::FromRow(minKey, /* isInclusive */true, /* isUpper */false);
-    *upperBound = TOwningKeyBound::FromRow(maxKey, /* isInclusive */true, /* isUpper */true);
+    *lowerBound = TOwningKeyBound::FromRow(minKey, /*isInclusive*/true, /*isUpper*/false);
+    *upperBound = TOwningKeyBound::FromRow(maxKey, /*isInclusive*/true, /*isUpper*/true);
     return true;
 }
 

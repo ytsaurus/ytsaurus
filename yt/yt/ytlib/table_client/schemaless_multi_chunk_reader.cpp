@@ -202,10 +202,10 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
 
                         int keyColumnCount = sortColumns.size();
                         if (chunkSpec.has_lower_limit()) {
-                            FromProto(&readRange.LowerLimit(), chunkSpec.lower_limit(), /* isUpper */ false, keyColumnCount);
+                            FromProto(&readRange.LowerLimit(), chunkSpec.lower_limit(), /*isUpper*/ false, keyColumnCount);
                         }
                         if (chunkSpec.has_upper_limit()) {
-                            FromProto(&readRange.UpperLimit(), chunkSpec.upper_limit(), /* isUpper */ true, keyColumnCount);
+                            FromProto(&readRange.UpperLimit(), chunkSpec.upper_limit(), /*isUpper*/ true, keyColumnCount);
                         }
 
                         if (chunkReadOptions.GranuleFilter) {
@@ -550,7 +550,7 @@ void TSchemalessMultiChunkReader::SkipCurrentReader()
     }
 
     // Pretend that current reader already finished.
-    if (!MultiReaderManager_->OnEmptyRead(/* readerFinished */ true)) {
+    if (!MultiReaderManager_->OnEmptyRead(/*readerFinished*/ true)) {
         Finished_ = true;
     }
 }

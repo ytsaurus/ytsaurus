@@ -529,31 +529,31 @@ void TReaderVirtualValues::FillRleColumn(IUnversionedColumnarRowBatch::TColumn* 
     if (IsIntegralType(value.Type)) {
         ReadColumnarIntegerValues(
             rleColumn,
-            /* startIndex */ 0,
-            /* valueCount */ 1,
+            /*startIndex*/ 0,
+            /*valueCount*/ 1,
             value.Type,
-            /* baseValue */ 0,
+            /*baseValue*/ 0,
             MakeRange(&value.Data.Uint64, 1));
         rleColumn->Values->ZigZagEncoded = false;
     } else if (IsStringLikeType(value.Type)) {
         ReadColumnarStringValues(
             rleColumn,
-            /* startIndex */ 0,
-            /* valueCount */ 1,
+            /*startIndex*/ 0,
+            /*valueCount*/ 1,
             value.Length,
             MakeRange<ui32>(reinterpret_cast<const ui32*>(&Zero_), 1),
             TRef(value.Data.String, value.Length));
     } else if (value.Type == EValueType::Double) {
         ReadColumnarFloatingPointValues(
             rleColumn,
-            /* startIndex */ 0,
-            /* valueCount */ 1,
+            /*startIndex*/ 0,
+            /*valueCount*/ 1,
             MakeRange(&value.Data.Double, 1));
     } else if (value.Type == EValueType::Boolean) {
         ReadColumnarBooleanValues(
             rleColumn,
-            /* startIndex */ 0,
-            /* valueCount */ 1,
+            /*startIndex*/ 0,
+            /*valueCount*/ 1,
             TRef(&value.Data.Boolean, 1));
     } else if (value.Type == EValueType::Null) {
         rleColumn->StartIndex = 0;

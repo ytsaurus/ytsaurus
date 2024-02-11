@@ -262,9 +262,9 @@ protected:
             TChunkReaderOptions::GetDefault(),
             MemoryReader_,
             readNameTable,
-            /* chunkReadOptions */ {},
-            /* sortColumns */ schema.GetSortColumns(),
-            /* omittedInaccessibleColumns */ {},
+            /*chunkReadOptions*/ {},
+            /*sortColumns*/ schema.GetSortColumns(),
+            /*omittedInaccessibleColumns*/ {},
             columnFilter,
             TReadRange(lowerReadLimit, upperReadLimit));
     }
@@ -293,8 +293,8 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
 
     auto legacyReadRange = std::get<3>(GetParam());
 
-    auto lowerReadLimit = ReadLimitFromLegacyReadLimit(legacyReadRange.LowerLimit(), /* isUpper */ false, keyColumnCount);
-    auto upperReadLimit = ReadLimitFromLegacyReadLimit(legacyReadRange.UpperLimit(), /* isUpper */ true, keyColumnCount);
+    auto lowerReadLimit = ReadLimitFromLegacyReadLimit(legacyReadRange.LowerLimit(), /*isUpper*/ false, keyColumnCount);
+    auto upperReadLimit = ReadLimitFromLegacyReadLimit(legacyReadRange.UpperLimit(), /*isUpper*/ true, keyColumnCount);
 
     auto chunkReader = CreateReader(readNameTable, lowerReadLimit, upperReadLimit);
 
@@ -439,9 +439,9 @@ protected:
             TChunkReaderOptions::GetDefault(),
             MemoryReader_,
             TNameTable::FromSchema(*Schema_),
-            /* chunkReadOptions */ {},
-            /* sortColumns */ {},
-            /* omittedInaccessibleColumns */ {},
+            /*chunkReadOptions*/ {},
+            /*sortColumns*/ {},
+            /*omittedInaccessibleColumns*/ {},
             columnFilter,
             TReadRange());
     }
@@ -787,10 +787,10 @@ protected:
             options,
             MemoryReader_,
             WriteNameTable_,
-            /* chunkReadOptions */ {},
+            /*chunkReadOptions*/ {},
             sortColumns,
-            /* omittedInaccessibleColumns */ {},
-            /* columnFilter */ {},
+            /*omittedInaccessibleColumns*/ {},
+            /*columnFilter*/ {},
             keys);
     }
 
@@ -815,10 +815,10 @@ protected:
             options,
             MemoryReader_,
             WriteNameTable_,
-            /* chunkReadOptions */ {},
+            /*chunkReadOptions*/ {},
             sortColumns,
-            /* omittedInaccessibleColumns */ {},
-            /* columnFilter */ {},
+            /*omittedInaccessibleColumns*/ {},
+            /*columnFilter*/ {},
             keys);
     }
 
@@ -844,10 +844,10 @@ protected:
             options,
             MemoryReader_,
             WriteNameTable_,
-            /* chunkReadOptions */ {},
+            /*chunkReadOptions*/ {},
             sortColumns,
-            /* omittedInaccessibleColumns */ {},
-            /* columnFilter */ {},
+            /*omittedInaccessibleColumns*/ {},
+            /*columnFilter*/ {},
             readRange);
     }
 

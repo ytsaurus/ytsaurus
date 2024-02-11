@@ -215,9 +215,9 @@ void TLegacyDataSlice::TransformToNew(const TRowBufferPtr& rowBuffer, int keyLen
     YT_VERIFY(IsLegacy);
 
     LowerLimit_.RowIndex = LegacyLowerLimit_.RowIndex;
-    LowerLimit_.KeyBound = KeyBoundFromLegacyRow(LegacyLowerLimit_.Key, /* isUpper */ false, keyLength, rowBuffer);
+    LowerLimit_.KeyBound = KeyBoundFromLegacyRow(LegacyLowerLimit_.Key, /*isUpper*/ false, keyLength, rowBuffer);
     UpperLimit_.RowIndex = LegacyUpperLimit_.RowIndex;
-    UpperLimit_.KeyBound = KeyBoundFromLegacyRow(LegacyUpperLimit_.Key, /* isUpper */ true, keyLength, rowBuffer);
+    UpperLimit_.KeyBound = KeyBoundFromLegacyRow(LegacyUpperLimit_.Key, /*isUpper*/ true, keyLength, rowBuffer);
     LegacyLowerLimit_ = TLegacyInputSliceLimit();
     LegacyUpperLimit_ = TLegacyInputSliceLimit();
 
@@ -538,12 +538,12 @@ void InferLimitsFromBoundaryKeys(
     } else {
         YT_VERIFY(comparator);
 
-        auto lowerBound = TKeyBound::MakeUniversal(/* isUpper */ false);
-        auto upperBound = TKeyBound::MakeUniversal(/* isUpper */ true);
+        auto lowerBound = TKeyBound::MakeUniversal(/*isUpper*/ false);
+        auto upperBound = TKeyBound::MakeUniversal(/*isUpper*/ true);
         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
             if (const auto& boundaryKeys = chunkSlice->GetInputChunk()->BoundaryKeys()) {
-                auto chunkLowerBound = KeyBoundFromLegacyRow(boundaryKeys->MinKey, /* isUpper */ false, comparator.GetLength(), rowBuffer);
-                auto chunkUpperBound = KeyBoundFromLegacyRow(GetKeySuccessor(boundaryKeys->MaxKey, rowBuffer), /* isUpper */ true, comparator.GetLength(), rowBuffer);
+                auto chunkLowerBound = KeyBoundFromLegacyRow(boundaryKeys->MinKey, /*isUpper*/ false, comparator.GetLength(), rowBuffer);
+                auto chunkUpperBound = KeyBoundFromLegacyRow(GetKeySuccessor(boundaryKeys->MaxKey, rowBuffer), /*isUpper*/ true, comparator.GetLength(), rowBuffer);
                 comparator.ReplaceIfStrongerKeyBound(lowerBound, chunkLowerBound);
                 comparator.ReplaceIfStrongerKeyBound(upperBound, chunkUpperBound);
             }
@@ -570,9 +570,9 @@ void SetLimitsFromShortenedBoundaryKeys(
     auto chunk = dataSlice->GetSingleUnversionedChunk();
     if (const auto& boundaryKeys = chunk->BoundaryKeys()) {
         dataSlice->LowerLimit().KeyBound = TKeyBound::FromRow(
-            rowBuffer->CaptureRow(MakeRange(boundaryKeys->MinKey.Begin(), prefixLength)), /* isInclusive */ true, /* isUpper */ false);
+            rowBuffer->CaptureRow(MakeRange(boundaryKeys->MinKey.Begin(), prefixLength)), /*isInclusive*/ true, /*isUpper*/ false);
         dataSlice->UpperLimit().KeyBound = TKeyBound::FromRow(
-            rowBuffer->CaptureRow(MakeRange(boundaryKeys->MaxKey.Begin(), prefixLength)), /* isInclusive */ true, /* isUpper */ true);
+            rowBuffer->CaptureRow(MakeRange(boundaryKeys->MaxKey.Begin(), prefixLength)), /*isInclusive*/ true, /*isUpper*/ true);
     }
 }
 
@@ -648,7 +648,7 @@ std::vector<TLegacyDataSlicePtr> CombineVersionedChunkSlices(const std::vector<T
     std::sort(boundaries.begin(), boundaries.end(), [&] (const auto& lhs, const auto& rhs) {
         const auto& [lhsBound, lhsIndex] = lhs;
         const auto& [rhsBound, rhsIndex] = rhs;
-        auto result = comparator.CompareKeyBounds(lhsBound, rhsBound, /* lowerVsUpper */ 0);
+        auto result = comparator.CompareKeyBounds(lhsBound, rhsBound, /*lowerVsUpper*/ 0);
         if (result != 0) {
             return result < 0;
         }
@@ -668,7 +668,7 @@ std::vector<TLegacyDataSlicePtr> CombineVersionedChunkSlices(const std::vector<T
             int chunkIndex = std::get<1>(boundary);
             bool isUpper = keyBound.IsUpper;
 
-            if (comparator.CompareKeyBounds(keyBound, currentKeyBound, /* lowerVsUpper */ 0) != 0) {
+            if (comparator.CompareKeyBounds(keyBound, currentKeyBound, /*lowerVsUpper*/ 0) != 0) {
                 break;
             }
 
@@ -686,7 +686,7 @@ std::vector<TLegacyDataSlicePtr> CombineVersionedChunkSlices(const std::vector<T
                 chunks.push_back(chunkSlices[chunkIndex]);
             }
 
-            auto upper = index == std::ssize(boundaries) ? TKeyBound::MakeUniversal(/* isUpper */ true) : std::get<0>(boundaries[index]);
+            auto upper = index == std::ssize(boundaries) ? TKeyBound::MakeUniversal(/*isUpper*/ true) : std::get<0>(boundaries[index]);
             upper = upper.UpperCounterpart();
 
             auto slice = CreateInputDataSlice(

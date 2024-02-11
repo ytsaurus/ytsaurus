@@ -26,7 +26,7 @@ struct IChunkPoolInput
 
     virtual TCookie Add(TChunkStripePtr stripe) = 0;
 
-    virtual TCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey /* key */)
+    virtual TCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey /*key*/)
     {
         return Add(stripe);
     }

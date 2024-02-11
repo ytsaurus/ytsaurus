@@ -1953,10 +1953,10 @@ private:
 
             ReadColumnarIntegerValues(
                 allBatchColumns->data() + currentBatchColumnIndex,
-                /* startIndex */ 0,
+                /*startIndex*/ 0,
                 rowCount,
                 NTableClient::EValueType::Int64,
-                /* baseValue */ 0,
+                /*baseValue*/ 0,
                 dataValues);
             auto* rootColumn = allBatchColumns->data() + currentBatchColumnIndex;
             rootColumn->Id = RowIndexId_;

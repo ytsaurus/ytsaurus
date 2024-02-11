@@ -725,7 +725,7 @@ protected:
             NodeStatusDirectory_->UpdateSuspicionMarkTime(
                 peer.Replica.GetNodeId(),
                 peer.Address,
-                /* suspicious */ true,
+                /*suspicious*/ true,
                 std::nullopt);
         }
 
@@ -1322,7 +1322,7 @@ private:
             NodeStatusDirectory_->UpdateSuspicionMarkTime(
                 peer.Replica.GetNodeId(),
                 peer.Address,
-                /* suspicious */ false,
+                /*suspicious*/ false,
                 peer.NodeSuspicionMarkTime);
             peer.NodeSuspicionMarkTime.reset();
 
@@ -2001,7 +2001,7 @@ private:
                         << TErrorAttribute("block_id", ToString(blockId))
                         << TErrorAttribute("peer", respondedPeer.Address)
                         << error,
-                    /* raiseAlert */ true);
+                    /*raiseAlert*/ true);
 
                 ++invalidBlockCount;
                 continue;
@@ -2370,7 +2370,7 @@ private:
                         << TErrorAttribute("block_id", ToString(TBlockId(ChunkId_, FirstBlockIndex_ + blocksReceived)))
                         << TErrorAttribute("peer", peerAddress)
                         << error,
-                    /* raiseAlert */ true);
+                    /*raiseAlert*/ true);
 
                 BanPeer(peerAddress, false);
                 FetchedBlocks_.clear();
