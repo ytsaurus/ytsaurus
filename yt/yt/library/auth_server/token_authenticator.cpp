@@ -134,9 +134,11 @@ private:
         // `oauthScope` is space-delimited list of provided scopes.
         if (Config_->EnableScopeCheck) {
             bool matchedScope = false;
-            TStringBuf providedScopes(oauthScope.Value());
+            TStringBuf providedScopesStr(oauthScope.Value());
             TStringBuf providedScope;
-            while (providedScopes.NextTok(' ', providedScope)) {
+            std::vector<TStringBuf> providedScopes;
+            while (providedScopesStr.NextTok(' ', providedScope)) {
+                providedScopes.push_back(providedScope);
                 if (providedScope == Config_->Scope) {
                     matchedScope = true;
                 }
@@ -144,7 +146,8 @@ private:
             if (!matchedScope) {
                 TokenScopeCheckErrors_.Increment();
                 return TError(NRpc::EErrorCode::InvalidCredentials, "Token does not provide a valid scope")
-                    << TErrorAttribute("scope", oauthScope.Value());
+                    << TErrorAttribute("provided_scopes", providedScopes)
+                    << TErrorAttribute("allowed_scope", Config_->Scope);
             }
         }
 

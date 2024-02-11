@@ -110,7 +110,7 @@ private:
 
             return TError(NRpc::EErrorCode::InvalidCredentials,
                 "Ticket does not provide an allowed scope")
-                << TErrorAttribute("scopes", scopes)
+                << TErrorAttribute("provided_scopes", scopes)
                 << TErrorAttribute("allowed_scopes", allowedScopes);
         } catch (const std::exception& ex) {
             TError error(ex);
