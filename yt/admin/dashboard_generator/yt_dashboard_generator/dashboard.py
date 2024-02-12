@@ -68,8 +68,8 @@ class Row(Taggable):
         self.cells.append(Cell(title, sensor, yaxis_label=yaxis_label, display_legend=display_legend))
         return self
 
-    def row(self):
-        return self.owner.row()
+    def row(self, height=None):
+        return self.owner.row(height)
 
 
 class Rowset(Taggable):
