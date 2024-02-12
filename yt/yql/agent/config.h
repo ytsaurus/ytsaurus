@@ -19,6 +19,7 @@ namespace NYT::NYqlAgent {
 class TVanillaJobFile
     : public NYTree::TYsonStruct
 {
+public:
     TString Name;
     TString LocalPath;
 
@@ -32,6 +33,7 @@ DEFINE_REFCOUNTED_TYPE(TVanillaJobFile)
 class TDqYtBackend
     : public NYTree::TYsonStruct
 {
+public:
     TString ClusterName;
     ui32 JobsPerOperation;
     ui32 MaxJobs;
@@ -64,6 +66,7 @@ DEFINE_REFCOUNTED_TYPE(TDqYtBackend)
 class TDqYtCoordinator
     : public NYTree::TYsonStruct
 {
+public:
     TString ClusterName;
     TString Prefix;
     TString TokenFile;
@@ -77,28 +80,19 @@ class TDqYtCoordinator
 
 DEFINE_REFCOUNTED_TYPE(TDqYtCoordinator)
 
-class TDqICSettings
-    : public NYTree::TYsonStruct
-{
-    i64 CloseOnIdleMs;
-
-    REGISTER_YSON_STRUCT(TDqICSettings);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TDqICSettings)
-
 class TDqManagerConfig
     : public NYTree::TYsonStruct
 {
+public:
     ui16 InterconnectPort;
     ui16 GrpcPort;
     ui32 ActorThreads;
     bool UseIPv4;
     std::vector<TDqYtBackendPtr> YtBackends;
     TDqYtCoordinatorPtr YtCoordinator;
-    TDqICSettingsPtr ICSettings;
+
+    //! Dq Interconnect Settings. Fields from NYql::NProto::TDqConfig::TICSettings with snake case keys.
+    NYTree::INodePtr ICSettings;
 
     REGISTER_YSON_STRUCT(TDqManagerConfig);
 

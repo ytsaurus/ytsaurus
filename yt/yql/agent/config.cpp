@@ -79,7 +79,7 @@ constexpr auto DefaultGatewaySettings = std::to_array<std::pair<TStringBuf, TStr
     {"_EnableWriteReorder", "true"},
     {"_EnableYtPartitioning", "true"},
     {"HybridDqExecution", "true"},
-    {"DQRPCReaderInflight", "1"}
+    {"DQRPCReaderInflight", "1"},
 });
 
 constexpr auto DefaultDqGatewaySettings = std::to_array<std::pair<TStringBuf, TStringBuf>>({
@@ -98,7 +98,7 @@ constexpr auto DefaultDqGatewaySettings = std::to_array<std::pair<TStringBuf, TS
     {"MemoryLimit", "3G"},
     {"_EnablePrecompute", "1"},
     {"UseAggPhases", "true"},
-    {"UseWideChannels", "true"}
+    {"UseWideChannels", "true"},
 });
 
 constexpr auto DefaultClusterSettings = std::to_array<std::pair<TStringBuf, TStringBuf>>({
@@ -136,14 +136,16 @@ IListNodePtr MergeDefaultSettings(const IListNodePtr& settings, const auto& defa
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TVanillaJobFile::Register(TRegistrar registrar) {
+void TVanillaJobFile::Register(TRegistrar registrar)
+{
     registrar.Parameter("name", &TThis::Name)
         .NonEmpty();
     registrar.Parameter("local_path", &TThis::LocalPath)
         .NonEmpty();
 }
 
-void TDqYtBackend::Register(TRegistrar registrar) {
+void TDqYtBackend::Register(TRegistrar registrar)
+{
     registrar.Parameter("cluster_name", &TThis::ClusterName)
         .Default();
     registrar.Parameter("jobs_per_operation", &TThis::JobsPerOperation)
@@ -186,7 +188,8 @@ void TDqYtBackend::Register(TRegistrar registrar) {
         .Default(true);
 }
 
-void TDqYtCoordinator::Register(TRegistrar registrar) {
+void TDqYtCoordinator::Register(TRegistrar registrar)
+{
     registrar.Parameter("cluster_name", &TThis::ClusterName)
         .Default();
     registrar.Parameter("prefix", &TThis::Prefix)
@@ -199,12 +202,8 @@ void TDqYtCoordinator::Register(TRegistrar registrar) {
         .Default();
 }
 
-void TDqICSettings::Register(TRegistrar registrar) {
-    registrar.Parameter("close_on_idle_ms", &TThis::CloseOnIdleMs)
-        .Default(0);
-}
-
-void TDqManagerConfig::Register(TRegistrar registrar) {
+void TDqManagerConfig::Register(TRegistrar registrar)
+{
     registrar.Parameter("interconnect_port", &TThis::InterconnectPort)
         .Default();
     registrar.Parameter("grpc_port", &TThis::GrpcPort)
@@ -219,7 +218,7 @@ void TDqManagerConfig::Register(TRegistrar registrar) {
     registrar.Parameter("yt_coordinator", &TThis::YtCoordinator)
         .DefaultNew();
     registrar.Parameter("interconnect_settings", &TThis::ICSettings)
-        .DefaultNew();
+        .Default(GetEphemeralNodeFactory()->CreateMap());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -270,10 +269,10 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
         fileStorageConfig->AddChild("retry_count", BuildYsonNodeFluently().Value(3));
 
         auto gatewaySettings = gatewayConfig->FindChild("default_settings");
-        if (!gatewaySettings) {
-            gatewaySettings = GetEphemeralNodeFactory()->CreateList();
-        } else {
+        if (gatewaySettings) {
             gatewayConfig->RemoveChild(gatewaySettings);
+        } else {
+            gatewaySettings = GetEphemeralNodeFactory()->CreateList();
         }
         gatewaySettings = MergeDefaultSettings(gatewaySettings->AsList(), DefaultGatewaySettings);
         YT_VERIFY(gatewayConfig->AddChild("default_settings", std::move(gatewaySettings)));
@@ -292,15 +291,21 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
 
         auto dqGatewayConfig = config->DqGatewayConfig->AsMap();
         auto dqGatewaySettings = dqGatewayConfig->FindChild("default_settings");
-        if (!dqGatewaySettings) {
-            dqGatewaySettings = GetEphemeralNodeFactory()->CreateList();
-        } else {
+        if (dqGatewaySettings) {
             dqGatewayConfig->RemoveChild(dqGatewaySettings);
+        } else {
+            dqGatewaySettings = GetEphemeralNodeFactory()->CreateList();
         }
         dqGatewaySettings = MergeDefaultSettings(dqGatewaySettings->AsList(), DefaultDqGatewaySettings);
         YT_VERIFY(dqGatewayConfig->AddChild("default_settings", std::move(dqGatewaySettings)));
 
         dqGatewayConfig->AddChild("default_auto_percentage", BuildYsonNodeFluently().Value(100));
+
+        auto icSettingsConfig = config->DqManagerConfig->ICSettings->AsMap();
+        auto closeOnIdleMs = icSettingsConfig->FindChild("close_on_idle_ms");
+        if (!closeOnIdleMs) {
+            icSettingsConfig->AddChild("close_on_idle_ms", BuildYsonNodeFluently().Value(0));
+        }
     });
 }
 

@@ -25,7 +25,6 @@ DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
 DECLARE_REFCOUNTED_CLASS(TVanillaJobFile)
 DECLARE_REFCOUNTED_CLASS(TDqYtBackend)
 DECLARE_REFCOUNTED_CLASS(TDqYtCoordinator)
-DECLARE_REFCOUNTED_CLASS(TDqICSettings)
 DECLARE_REFCOUNTED_CLASS(TDqManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
