@@ -299,13 +299,12 @@ private:
             if (store->IsSorted()) {
                 const auto& compactionHints = store->AsSortedChunk()->CompactionHints();
 
-                if (!compactionHints.ChunkViewSize.IsRequestStatus()) {
-                    lsmStore->CompactionHints().IsChunkViewTooNarrow =
-                        compactionHints.ChunkViewSize.AsResult() == EChunkViewSizeStatus::CompactionRequired;
+                if (auto hint = compactionHints.ChunkViewSize.CompactionHint) {
+                    lsmStore->CompactionHints().IsChunkViewTooNarrow = *hint == EChunkViewSizeStatus::CompactionRequired;
                 }
 
-                if (!compactionHints.RowDigest.IsRequestStatus()) {
-                    lsmStore->CompactionHints().RowDigest = compactionHints.RowDigest.AsResult();
+                if (auto hint = compactionHints.RowDigest.CompactionHint) {
+                    lsmStore->CompactionHints().RowDigest = *hint;
                 }
             }
         }

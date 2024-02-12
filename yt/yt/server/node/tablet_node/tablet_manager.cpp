@@ -195,16 +195,16 @@ public:
             Bootstrap_))
         , RowDigestFetcher_(CreateRowDigestFetcher(
             slot->GetCellId(),
-            Bootstrap_->GetDynamicConfigManager()->GetConfig(),
-            Slot_->GetAutomatonInvoker()))
+            Slot_->GetAutomatonInvoker(),
+            Bootstrap_->GetDynamicConfigManager()->GetConfig()))
         , ChunkViewSizeFetcher_(CreateChunkViewSizeFetcher(
             slot->GetCellId(),
-            Bootstrap_->GetDynamicConfigManager()->GetConfig(),
             Bootstrap_->GetNodeDirectory(),
             Slot_->GetAutomatonInvoker(),
             Bootstrap_->GetStorageHeavyInvoker(),
             Bootstrap_->GetClient(),
-            Bootstrap_->GetConnection()->GetChunkReplicaCache()))
+            Bootstrap_->GetConnection()->GetChunkReplicaCache(),
+            Bootstrap_->GetDynamicConfigManager()->GetConfig()))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
@@ -986,9 +986,6 @@ private:
         for (auto [tabletId, tablet] : TabletMap_) {
             CheckIfTabletFullyUnlocked(tablet);
             CheckIfTabletFullyFlushed(tablet);
-
-            RowDigestFetcher_->FetchStoreInfos(tablet);
-            ChunkViewSizeFetcher_->FetchStoreInfos(tablet);
         }
 
         DecommissionCheckExecutor_->Start();
@@ -1156,11 +1153,6 @@ private:
             MakeRange(GET_FROM_REPLICATABLE(hunk_chunks)),
             /*createDynamicStore*/ !freeze && !isSmoothMoveTarget,
             mountHint);
-
-        if (IsLeader()) {
-            RowDigestFetcher_->FetchStoreInfos(tablet);
-            ChunkViewSizeFetcher_->FetchStoreInfos(tablet);
-        }
 
         tablet->SetState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
 
@@ -1495,6 +1487,12 @@ private:
         std::vector<TError> configErrors;
         auto settings = rawSettings.BuildEffectiveSettings(&configErrors, nullptr);
 
+        bool rowDigestChanged = *settings.MountConfig->RowDigestCompaction !=
+            *tablet->GetSettings().MountConfig->RowDigestCompaction;
+
+        bool chunkViewSizeChanged = settings.MountConfig->MaxChunkViewSizeRatio !=
+            tablet->GetSettings().MountConfig->MaxChunkViewSizeRatio;
+
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->Remount(settings);
 
@@ -1510,9 +1508,15 @@ private:
                 StopTableReplicaEpoch(&replicaInfo);
                 StartTableReplicaEpoch(tablet, &replicaInfo);
             }
+        }
 
-            RowDigestFetcher_->FetchStoreInfos(tablet);
+        if (chunkViewSizeChanged) {
+            ChunkViewSizeFetcher_->ResetCompactionHints(tablet);
             ChunkViewSizeFetcher_->FetchStoreInfos(tablet);
+        }
+        if (rowDigestChanged) {
+            RowDigestFetcher_->ResetCompactionHints(tablet);
+            RowDigestFetcher_->FetchStoreInfos(tablet);
         }
     }
 
@@ -1759,11 +1763,6 @@ private:
 
         storeManager->BulkAddStores(MakeRange(storesToAdd), /*onMount*/ false);
 
-        if (IsLeader()) {
-            RowDigestFetcher_->FetchStoreInfos(tablet, storesToAdd);
-            ChunkViewSizeFetcher_->FetchStoreInfos(tablet, storesToAdd);
-        }
-
         const auto& lockManager = tablet->GetLockManager();
 
         // COMPAT(ifsmirnov)
@@ -1785,6 +1784,8 @@ private:
         } else {
             UpdateTabletSnapshot(tablet);
         }
+
+        FetchCompactionHints(tablet, storesToAdd);
 
         YT_LOG_INFO(
             "Tablet unlocked by bulk insert (%v, TransactionId: %v, AddedStoreIds: %v, LockManagerEpoch: %v)",
@@ -2713,12 +2714,6 @@ private:
             }
         }
 
-        if (IsLeader()) {
-            std::optional<TRange<IStorePtr>> storesRange({addedStores.begin(), addedStores.end()});
-            RowDigestFetcher_->FetchStoreInfos(tablet, storesRange);
-            ChunkViewSizeFetcher_->FetchStoreInfos(tablet, storesRange);
-        }
-
         auto retainedTimestamp = std::max(
             tablet->GetRetainedTimestamp(),
             static_cast<TTimestamp>(request->retained_timestamp()));
@@ -2773,6 +2768,8 @@ private:
 
         CheckIfTabletFullyFlushed(tablet);
         Slot_->GetSmoothMovementTracker()->CheckTablet(tablet);
+
+        FetchCompactionHints(tablet, {{addedStores.begin(), addedStores.end()}});
     }
 
     void HydraSplitPartition(TReqSplitPartition* request)
@@ -4035,6 +4032,8 @@ private:
 
         tablet->SmoothMovementData().SetStageChangeScheduled(false);
 
+        FetchCompactionHints(tablet);
+
         YT_VERIFY(tablet->GetTransientTabletLockCount() == 0);
     }
 
@@ -4072,21 +4071,7 @@ private:
 
     void StopTabletEpoch(TTablet* tablet)
     {
-        for (const auto& [storeId, store] : tablet->StoreIdMap()) {
-            if (store->GetType() == EStoreType::SortedChunk) {
-                auto& compactionHints = store->AsSortedChunk()->CompactionHints();
-
-                if (compactionHints.RowDigest.IsCertainRequestStatus(ECompactionHintRequestStatus::Requested)) {
-                    compactionHints.RowDigest.SetRequestStatus(ECompactionHintRequestStatus::None);
-                }
-
-                if (TypeFromId(store->GetId()) == EObjectType::ChunkView) {
-                    if (compactionHints.ChunkViewSize.IsCertainRequestStatus(ECompactionHintRequestStatus::Requested)) {
-                        compactionHints.ChunkViewSize.SetRequestStatus(ECompactionHintRequestStatus::None);
-                    }
-                }
-            }
-        }
+        ResetCompactionHints(tablet);
 
         if (const auto& storeManager = tablet->GetStoreManager()) {
             // Store Manager could be null if snapshot loading is aborted.
@@ -5088,14 +5073,23 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        RowDigestFetcher_->Reconfigure(oldConfig, newConfig);
-        ChunkViewSizeFetcher_->Reconfigure(oldConfig, newConfig);
-        if (IsLeader() &&
+        RowDigestFetcher_->Reconfigure(newConfig);
+        ChunkViewSizeFetcher_->Reconfigure(newConfig);
+
+        if (!IsRecovery() &&
+            IsLeader() &&
             newConfig->TabletNode->StoreCompactor->UseRowDigests &&
             !oldConfig->TabletNode->StoreCompactor->UseRowDigests)
         {
             for (auto& [tabletId, tablet] : Tablets()) {
                 RowDigestFetcher_->FetchStoreInfos(tablet);
+            }
+        }
+        if (!newConfig->TabletNode->StoreCompactor->UseRowDigests &&
+            oldConfig->TabletNode->StoreCompactor->UseRowDigests)
+        {
+            for (auto& [tabletId, tablet] : Tablets()) {
+                RowDigestFetcher_->ResetCompactionHints(tablet);
             }
         }
     }
@@ -5333,6 +5327,20 @@ private:
                 << TErrorAttribute("trimmed_row_count", trimmedRowCount)
                 << TErrorAttribute("replication_timestamp", replicationTimestamp);
         }
+    }
+
+    void FetchCompactionHints(TTablet* tablet, const std::optional<TRange<IStorePtr>>& stores = {})
+    {
+        if (IsLeader()) {
+            ChunkViewSizeFetcher_->FetchStoreInfos(tablet, stores);
+            RowDigestFetcher_->FetchStoreInfos(tablet, stores);
+        }
+    }
+
+    void ResetCompactionHints(TTablet* tablet)
+    {
+        ChunkViewSizeFetcher_->ResetCompactionHints(tablet);
+        RowDigestFetcher_->ResetCompactionHints(tablet);
     }
 };
 

@@ -10,8 +10,8 @@ namespace NYT::NTabletNode {
 
 TCompactionHintFetcherPtr CreateRowDigestFetcher(
     TTabletCellId cellId,
-    NClusterNode::TClusterNodeDynamicConfigPtr config,
-    IInvokerPtr invoker);
+    IInvokerPtr invoker,
+    const NClusterNode::TClusterNodeDynamicConfigPtr& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

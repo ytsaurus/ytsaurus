@@ -94,6 +94,8 @@ public:
     static void Register(TRegistrar registrar);
 };
 
+bool operator==(const TRowDigestCompactionConfig& lhs, const TRowDigestCompactionConfig& rhs);
+
 DEFINE_REFCOUNTED_TYPE(TRowDigestCompactionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -532,10 +534,11 @@ public:
     std::optional<int> MaxConcurrentCompactions;
     std::optional<int> MaxConcurrentPartitionings;
 
-    NConcurrency::TThroughputThrottlerConfigPtr RowDigestRequestThrottler;
+    TDuration ChunkViewSizeFetchPeriod;
     NConcurrency::TThroughputThrottlerConfigPtr ChunkViewSizeRequestThrottler;
-    TDuration RowDigestThrottlerTryAcquireBackoff;
-    TDuration ChunkViewSizeThrottlerTryAcquireBackoff;
+
+    TDuration RowDigestFetchPeriod;
+    NConcurrency::TThroughputThrottlerConfigPtr RowDigestRequestThrottler;
     bool UseRowDigests;
 
     int MaxCompactionStructuredLogEvents;

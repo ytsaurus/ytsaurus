@@ -88,6 +88,18 @@ bool IsNewScanReaderEnabled(const TTableMountConfigPtr& mountConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(
+    const TCompactionHints& compactionHints,
+    NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer).BeginMap()
+        .Item("chunk_view_size").Value(compactionHints.ChunkViewSize)
+        .Item("row_digest").Value(compactionHints.RowDigest)
+    .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFilteringReader
     : public IVersionedReader
 {
@@ -363,9 +375,7 @@ void TSortedChunkStore::BuildOrchidYson(TFluentMap fluent)
         .Item("min_key").Value(GetMinKey())
         .Item("upper_bound_key").Value(GetUpperBoundKey())
         .Item("max_clip_timestamp").Value(MaxClipTimestamp_)
-        .DoIf(TypeFromId(StoreId_) == EObjectType::ChunkView, [&] (auto fluent) {
-            fluent.Item("chunk_view_size_fetch_status").Value(CompactionHints().ChunkViewSize);
-        });
+        .Item("compaction_hints").Value(CompactionHints_);
 }
 
 TLegacyOwningKey TSortedChunkStore::GetMinKey() const
