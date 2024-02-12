@@ -453,8 +453,8 @@ class TStoreBackgroundActivityOrchidConfig
     : public NYTree::TYsonStruct
 {
 public:
-    i64 MaxFailedTaskCount;
-    i64 MaxCompletedTaskCount;
+    int MaxFailedTaskCount;
+    int MaxCompletedTaskCount;
 
     REGISTER_YSON_STRUCT(TStoreBackgroundActivityOrchidConfig);
 

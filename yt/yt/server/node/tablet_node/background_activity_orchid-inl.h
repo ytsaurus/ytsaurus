@@ -14,11 +14,10 @@ namespace NYT::NTabletNode {
 
 template <class TTaskInfo>
 TBackgroundActivityOrchid<TTaskInfo>::TBackgroundActivityOrchid(
-    i64 maxFailedTaskCount,
-    i64 maxCompletedTaskCount)
-    : MaxFailedTaskCount_(maxFailedTaskCount)
-    , MaxCompletedTaskCount_(maxCompletedTaskCount)
-{ }
+    const TStoreBackgroundActivityOrchidConfigPtr& config)
+{
+    Reconfigure(config);
+}
 
 template <class TTaskInfo>
 void TBackgroundActivityOrchid<TTaskInfo>::Reconfigure(
@@ -78,8 +77,8 @@ void TBackgroundActivityOrchid<TTaskInfo>::Serialize(NYson::IYsonConsumer* consu
     auto guard = Guard(SpinLock_);
     auto pendingTasks = GetFromHashMap(PendingTasks_);
     auto runningTasks = GetFromHashMap(RunningTasks_);
-    auto failedTasks = GetFromDeque(FailedTasks_);
-    auto completedTasks = GetFromDeque(CompletedTasks_);
+    std::vector<TTaskInfo> failedTasks(FailedTasks_.begin(), FailedTasks_.end());
+    std::vector<TTaskInfo> completedTasks(CompletedTasks_.begin(), CompletedTasks_.end());
     guard.Release();
 
     std::stable_sort(
@@ -148,22 +147,7 @@ std::vector<TTaskInfo> TBackgroundActivityOrchid<TTaskInfo>::GetFromHashMap(
 
     std::vector<TTaskInfo> output;
     output.reserve(source.size());
-    for (const auto& [id, task] : source) {
-        output.push_back(task);
-    }
-
-    return output;
-}
-
-template <class TTaskInfo>
-std::vector<TTaskInfo> TBackgroundActivityOrchid<TTaskInfo>::GetFromDeque(
-    const std::deque<TTaskInfo>& source) const
-{
-    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
-
-    std::vector<TTaskInfo> output;
-    output.reserve(source.size());
-    for (const auto& task : source) {
+    for (const auto& [taskId, task] : source) {
         output.push_back(task);
     }
 
