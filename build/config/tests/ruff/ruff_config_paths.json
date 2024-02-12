@@ -1,0 +1,4 @@
+{
+    "taxi/backend-py3/": "taxi/backend-py3/pyproject.toml",
+    "taxi/uservices/": "taxi/uservices/pyproject.toml"
+}
