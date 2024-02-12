@@ -1215,6 +1215,7 @@ def get_checks_config():
                 enable_query_tracker_alerts,
                 system_quotas_only_per_account_tablet_resources,
                 enable_tablet_cell_snapshot_convergence,
+                tablet_stress_test,
             ),
             "arnold": deep_merge(
                 skynet_manager,
