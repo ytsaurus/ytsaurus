@@ -59,13 +59,15 @@ class TCypressFileBlockDevice
 {
 public:
     TCypressFileBlockDevice(
-        const TString& exportId,
+        TString exportId,
         TCypressFileBlockDeviceConfigPtr config,
         NApi::NNative::IClientPtr client,
         IInvokerPtr invoker,
         const NLogging::TLogger& logger)
-        : ExportId_(exportId)
+        : ExportId_(std::move(exportId))
         , Config_(std::move(config))
+        , InThrottler_(GetUnlimitedThrottler())
+        , OutRpsThrottler_(GetUnlimitedThrottler())
         , Client_(std::move(client))
         , Invoker_(std::move(invoker))
         , Logger(logger.WithTag("ExportId: %v", ExportId_))
@@ -78,15 +80,19 @@ public:
     }
 
     TCypressFileBlockDevice(
-        const TString& exportId,
+        TString exportId,
         const ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
         TCypressFileBlockDeviceConfigPtr config,
+        IThroughputThrottlerPtr inThrottler,
+        IThroughputThrottlerPtr outRpsThrottler,
         NApi::NNative::IClientPtr client,
         IInvokerPtr invoker,
         const NLogging::TLogger& logger)
-        : ExportId_(exportId)
+        : ExportId_(std::move(exportId))
         , ChunkSpecs_(chunkSpecs)
         , Config_(std::move(config))
+        , InThrottler_(std::move(inThrottler))
+        , OutRpsThrottler_(std::move(outRpsThrottler))
         , Client_(std::move(client))
         , Invoker_(std::move(invoker))
         , Logger(logger.WithTag("ExportId: %v", ExportId_))
@@ -266,7 +272,6 @@ private:
         }
 
         std::vector<TFuture<std::vector<TSharedRef>>> readFutures;
-        // TODO(yuryalekseev): use lower bound
         for (const auto& chunk : chunks) {
             auto chunkBegin = chunk.Offset;
             auto chunkEnd = chunkBegin + chunk.Size;
@@ -306,7 +311,6 @@ private:
 
         std::vector<int> blockIndexes;
         i64 blockOffsetWithinChunk = 0;
-        // TODO(yuryalekseev): use lower bound
         for (auto blockIndex = 0; blockIndex < std::ssize(chunk.Blocks); ++blockIndex) {
             auto blockSize = chunk.Blocks[blockIndex].Size;
 
@@ -408,27 +412,29 @@ private:
 
             chunk.Size = miscExt.uncompressed_data_size();
 
-            YT_LOG_INFO("Creating chunk reader (File: %v, Chunk: %v)",
+            YT_LOG_INFO("Start creating chunk reader (File: %v, Chunk: %v)",
                 userObject.GetPath(),
                 chunk.Index);
 
             auto readerConfig = New<TReplicationReaderConfig>();
             readerConfig->UseBlockCache = true;
 
-            chunk.Reader = CreateReplicationReader(
+            auto reader = CreateReplicationReader(
                 std::move(readerConfig),
                 New<TRemoteReaderOptions>(),
                 ChunkReaderHost_,
                 FromProto<TChunkId>(chunkSpec.chunk_id()),
                 {} /* seedReplicas */);
 
+            chunk.Reader = CreateReplicationReaderThrottlingAdapter(std::move(reader), InThrottler_, OutRpsThrottler_);
+
             chunk.ReadBlocksOptions.ClientOptions.WorkloadDescriptor.Category = EWorkloadCategory::UserInteractive;
 
-            YT_LOG_INFO("Created chunk reader (File: %v, Chunk: %v)",
+            YT_LOG_INFO("Finish creating chunk reader (File: %v, Chunk: %v)",
                 userObject.GetPath(),
                 chunk.Index);
 
-            YT_LOG_INFO("Fetching chunk meta blocks extension (File: %v, Chunk: %v)",
+            YT_LOG_INFO("Start fetching chunk meta blocks extension (File: %v, Chunk: %v)",
                 userObject.GetPath(),
                 chunk.Index);
 
@@ -438,7 +444,7 @@ private:
 
             auto blocksExt = GetProtoExtension<NFileClient::NProto::TBlocksExt>(chunk.Meta->extensions());
 
-            YT_LOG_INFO("Fetched chunk meta blocks extension (File: %v, Chunk: %v, BlockInfos: %v)",
+            YT_LOG_INFO("Finish fetching chunk meta blocks extension (File: %v, Chunk: %v, BlockInfos: %v)",
                 userObject.GetPath(),
                 chunk.Index,
                 blocksExt.blocks_size());
@@ -466,6 +472,8 @@ private:
     const TString ExportId_;
     const std::optional<::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>> ChunkSpecs_;
     const TCypressFileBlockDeviceConfigPtr Config_;
+    const IThroughputThrottlerPtr InThrottler_;
+    const IThroughputThrottlerPtr OutRpsThrottler_;
     const NApi::NNative::IClientPtr Client_;
     const IInvokerPtr Invoker_;
     const NLogging::TLogger Logger;
@@ -650,37 +658,41 @@ std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(
 ////////////////////////////////////////////////////////////////////////////////
 
 IBlockDevicePtr CreateCypressFileBlockDevice(
-    const TString& exportId,
+    TString exportId,
     TCypressFileBlockDeviceConfigPtr exportConfig,
     NApi::NNative::IClientPtr client,
     IInvokerPtr invoker,
-    const NLogging::TLogger& logger)
+    NLogging::TLogger logger)
 {
     return New<TCypressFileBlockDevice>(
-        exportId,
+        std::move(exportId),
         std::move(exportConfig),
         std::move(client),
         std::move(invoker),
-        logger);
+        std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IBlockDevicePtr CreateCypressFileBlockDevice(
-    const TString& exportId,
+    TString exportId,
     const ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
     TCypressFileBlockDeviceConfigPtr exportConfig,
+    IThroughputThrottlerPtr inThrottler,
+    IThroughputThrottlerPtr outRpsThrottler,
     NApi::NNative::IClientPtr client,
     IInvokerPtr invoker,
-    const NLogging::TLogger& logger)
+    NLogging::TLogger logger)
 {
     return New<TCypressFileBlockDevice>(
-        exportId,
+        std::move(exportId),
         chunkSpecs,
         std::move(exportConfig),
+        std::move(inThrottler),
+        std::move(outRpsThrottler),
         std::move(client),
         std::move(invoker),
-        logger);
+        std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

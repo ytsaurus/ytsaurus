@@ -103,6 +103,8 @@ static const TString MountSuffix = "mount";
 namespace {
 
 IBlockDevicePtr CreateCypressFileBlockDevice(
+    IThroughputThrottlerPtr inThrottler,
+    IThroughputThrottlerPtr outRpsThrottler,
     const TArtifactKey& artifactKey,
     NApi::NNative::IClientPtr client,
     IInvokerPtr invoker,
@@ -130,6 +132,8 @@ IBlockDevicePtr CreateCypressFileBlockDevice(
         artifactKey.nbd_export_id(),
         artifactKey.chunk_specs(),
         std::move(config),
+        std::move(inThrottler),
+        std::move(outRpsThrottler),
         std::move(client),
         std::move(invoker),
         Logger);
@@ -2813,6 +2817,8 @@ private:
             auto client = nbdServer->GetConnection()->CreateNativeClient(clientOptions);
 
             auto device = CreateCypressFileBlockDevice(
+                Bootstrap_->GetDefaultInThrottler(),
+                Bootstrap_->GetReadRpsOutThrottler(),
                 layer,
                 std::move(client),
                 nbdServer->GetInvoker(),
