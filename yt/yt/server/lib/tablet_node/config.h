@@ -866,12 +866,11 @@ class TStatisticsReporterConfig
 {
 public:
     bool Enable;
-    TDuration Period;
-    TDuration Splay;
-    double Jitter;
-    NYPath::TYPath TablePath;
-    i64 MaxTabletsPerTransaction;
+    int MaxTabletsPerTransaction;
     TDuration ReportBackoffTime;
+    NYPath::TYPath TablePath;
+
+    NConcurrency::TPeriodicExecutorOptions PeriodicOptions;
 
     REGISTER_YSON_STRUCT(TStatisticsReporterConfig);
 

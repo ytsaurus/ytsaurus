@@ -3228,6 +3228,11 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                     "enable" : True,
                     "period": 1,
                     "table_path": statistics_path,
+                    "periodic_options": {
+                        "period": 1,
+                        "splay": 0,
+                        "jitter": 0,
+                    }
                 }
             }
         })

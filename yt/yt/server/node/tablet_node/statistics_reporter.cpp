@@ -91,16 +91,12 @@ void TStatisticsReporter::Reconfigure(const NClusterNode::TClusterNodeDynamicCon
 
     auto guard = Guard(Spinlock_);
     Enable_ = statisticsReporterConfig->Enable;
-    TablePath_ = statisticsReporterConfig->TablePath;
     MaxTabletsPerTransaction_ = statisticsReporterConfig->MaxTabletsPerTransaction;
     ReportBackoffTime_ = statisticsReporterConfig->ReportBackoffTime;
+    TablePath_ = statisticsReporterConfig->TablePath;
     guard.Release();
 
-    Executor_->SetOptions(TPeriodicExecutorOptions{
-        .Period = statisticsReporterConfig->Period,
-        .Splay = statisticsReporterConfig->Splay,
-        .Jitter = statisticsReporterConfig->Jitter,
-    });
+    Executor_->SetOptions(statisticsReporterConfig->PeriodicOptions);
 
     if (Started_ && enableChanged) {
         if (Enable_) {
@@ -181,7 +177,7 @@ void TStatisticsReporter::WriteRows(
     TRange<TUnversionedRow> rows,
     TRowBufferPtr&& rowBuffer)
 {
-    i64 reportedTabletCount = rows.size();
+    int reportedTabletCount = rows.size();
 
     YT_LOG_DEBUG("Started reporting tablet statistics batch (TabletCount: %v)",
         reportedTabletCount);
