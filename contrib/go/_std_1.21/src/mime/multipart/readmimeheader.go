@@ -5,8 +5,7 @@ package multipart
 
 import (
 	"net/textproto"
-	_ "unsafe" // for go:linkname
-
+	_ "unsafe"
 )
 
 // readMIMEHeader is defined in package net/textproto.

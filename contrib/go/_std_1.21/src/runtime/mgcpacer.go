@@ -8,8 +8,7 @@ import (
 	"internal/cpu"
 	"internal/goexperiment"
 	"runtime/internal/atomic"
-	_ "unsafe" // for go:linkname
-
+	_ "unsafe"
 )
 
 const (

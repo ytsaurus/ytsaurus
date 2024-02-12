@@ -34,8 +34,7 @@ package runtime
 
 import (
 	"runtime/internal/atomic"
-	_ "unsafe" // for go:linkname
-
+	_ "unsafe"
 )
 
 // sig handles communication between the signal handler and os/signal.

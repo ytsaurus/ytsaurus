@@ -12,8 +12,7 @@ import (
 	"io/fs"
 	"runtime"
 	"syscall"
-	_ "unsafe" // for go:linkname
-
+	_ "unsafe"
 )
 
 const _UTIME_OMIT = unix.UTIME_OMIT

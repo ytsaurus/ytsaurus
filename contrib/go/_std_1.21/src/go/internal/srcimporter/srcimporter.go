@@ -19,8 +19,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	_ "unsafe" // for go:linkname
-
+	_ "unsafe"
 )
 
 // An Importer provides the context for importing packages from source code.

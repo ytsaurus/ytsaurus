@@ -5,7 +5,7 @@
 package metrics
 
 import (
-	_ "runtime" // depends on the runtime via a linkname'd function
+	_ "runtime"
 	"unsafe"
 )
 

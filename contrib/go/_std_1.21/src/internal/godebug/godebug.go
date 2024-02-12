@@ -39,8 +39,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"unsafe"
-	_ "unsafe" // go:linkname
-
+	_ "unsafe"
 )
 
 // A Setting is a single setting in the $GODEBUG environment variable.

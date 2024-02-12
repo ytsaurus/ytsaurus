@@ -21,8 +21,7 @@ import (
 	"internal/godebug"
 	"sync"
 	"sync/atomic"
-	_ "unsafe" // for go:linkname
-
+	_ "unsafe"
 )
 
 // A Source represents a source of uniformly-distributed
