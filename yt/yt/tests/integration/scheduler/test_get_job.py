@@ -91,6 +91,15 @@ class _TestGetJobBase(YTEnvSetup):
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 2,
+            },
+        },
+    }
+
     DELTA_DYNAMIC_NODE_CONFIG = {
         "%true": {
             "exec_node": {
@@ -432,11 +441,11 @@ class TestGetJob(_TestGetJobCommon):
 
             return _get_job_from_archive(op1.id, job_id).get("interruption_info", None)
 
-        wait(lambda: get_interruption_info() is not None, ignore_exceptions=True)
+        wait(lambda: get_interruption_info().get("interruption_reason", None) is not None, ignore_exceptions=True)
         interruption_info = get_interruption_info()
         print_debug(interruption_info)
-        assert interruption_info["interruption_reason"] == "preemption"
-        preemption_reason = interruption_info["preemption_reason"]
+        assert interruption_info.get("interruption_reason", None) == "preemption"
+        preemption_reason = interruption_info.get("preemption_reason", None)
         assert preemption_reason.startswith("Preempted to start allocation") and \
             "of operation {}".format(op2.id) in preemption_reason
 
