@@ -30,29 +30,33 @@ void TDiskResources::Persist(const TStreamPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToProto(
+    NNodeTrackerClient::NProto::TDiskLocationResources* protoDiskLocationResources,
+    const TDiskResources::TDiskLocationResources& diskLocationResources)
+{
+    protoDiskLocationResources->set_usage(diskLocationResources.Usage);
+    protoDiskLocationResources->set_limit(diskLocationResources.Limit);
+    protoDiskLocationResources->set_medium_index(diskLocationResources.MediumIndex);
+}
+
+void FromProto(
+    TDiskResources::TDiskLocationResources* diskLocationResources,
+    const NNodeTrackerClient::NProto::TDiskLocationResources& protoDiskLocationResources)
+{
+    diskLocationResources->Usage = protoDiskLocationResources.usage();
+    diskLocationResources->Limit = protoDiskLocationResources.limit();
+    diskLocationResources->MediumIndex = protoDiskLocationResources.medium_index();
+}
+
 void ToProto(NNodeTrackerClient::NProto::TDiskResources* protoDiskResources, const TDiskResources& diskResources)
 {
-    for (const auto& diskLocationResources : diskResources.DiskLocationResources) {
-        auto* protoDiskLocationResources = protoDiskResources->add_disk_location_resources();
-        protoDiskLocationResources->set_usage(diskLocationResources.Usage);
-        protoDiskLocationResources->set_limit(diskLocationResources.Limit);
-        protoDiskLocationResources->set_medium_index(diskLocationResources.MediumIndex);
-    }
+    ToProto(protoDiskResources->mutable_disk_location_resources(), diskResources.DiskLocationResources);
     protoDiskResources->set_default_medium_index(diskResources.DefaultMediumIndex);
 }
 
 void FromProto(TDiskResources* diskResources, const NNodeTrackerClient::NProto::TDiskResources& protoDiskResources)
 {
-    diskResources->DiskLocationResources.clear();
-    for (auto protoLocationResources : protoDiskResources.disk_location_resources()) {
-        diskResources->DiskLocationResources.push_back(
-            TDiskResources::TDiskLocationResources{
-                .Usage = protoLocationResources.usage(),
-                .Limit = protoLocationResources.limit(),
-                .MediumIndex = protoLocationResources.medium_index(),
-            }
-        );
-    }
+    diskResources->DiskLocationResources = FromProto<std::vector<TDiskResources::TDiskLocationResources>>(protoDiskResources.disk_location_resources());
     diskResources->DefaultMediumIndex = protoDiskResources.default_medium_index();
 }
 
