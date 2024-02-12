@@ -975,16 +975,6 @@ void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Loa
     using NYT::Load;
 
     Load(context, StoredReplicas);
-
-    // COMPAT(kvk1920, gritukan)
-    if (context.GetVersion() < EMasterReign::RemoveCacheMedium) {
-        auto cachedReplicasPresented = Load<bool>(context);
-        if (cachedReplicasPresented) {
-            // Cached replicas are simply dropped.
-            Load<THashSet<TChunkLocationPtrWithReplicaInfo>>(context);
-        }
-    }
-
     Load(context, LastSeenReplicas);
     Load(context, CurrentLastSeenReplicaIndex);
     Load(context, ApprovedReplicaCount);

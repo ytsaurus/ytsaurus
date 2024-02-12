@@ -346,12 +346,9 @@ void TUser::Load(TLoadContext& context)
 
     using NYT::Load;
     Load(context, Banned_);
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= EMasterReign::UserPassword) {
-        Load(context, HashedPassword_);
-        Load(context, PasswordSalt_);
-        Load(context, PasswordRevision_);
-    }
+    Load(context, HashedPassword_);
+    Load(context, PasswordSalt_);
+    Load(context, PasswordRevision_);
     Load(context, *ObjectServiceRequestLimits_);
 
     // COMPAT(vovamelnikov)

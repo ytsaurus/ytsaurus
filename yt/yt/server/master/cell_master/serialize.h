@@ -37,41 +37,6 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign);
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EMasterReign,
-    // 22.4 starts here.
-    ((ZookeeperShards)                                              (2200))  // gritukan
-    ((QueueAgentStageWritabilityAndDefaults)                        (2201))  // achulkov2
-    ((UserPassword)                                                 (2202))  // gritukan
-    ((SetUserPassword)                                              (2203))  // gritukan
-    ((RefCountedCoWs)                                               (2204))  // babenko
-    ((RemovableQueueAgentStage)                                     (2205))  // achulkov2
-    ((FixTransactionRotator)                                        (2206))  // kvk1920
-    ((BundleControllerConfigAttribute)                              (2207))  // capone212
-    ((FixNodeRegistration)                                          (2208))  // kvk1920
-    ((ChunkReincarnator)                                            (2209))  // kvk1920
-    ((InternedForcedChunkViewCompactionRevision)                    (2210))  // ifsmirnov
-    ((MaintenanceRequests)                                          (2211))  // kvk1920
-    ((HydraDynamicConfig)                                           (2212))  // aleksandra-zh
-    ((RecomputeAccountRefCounters)                                  (2213))  // gritukan
-    ((SharedLockIsEnoughForMountConfig)                             (2214))  // ifsmirnov
-    ((RemoveCacheMedium)                                            (2215))  // gritukan
-    ((PerAccountMergerStatistics)                                   (2216))  // aleksandra-zh
-    ((SplitNodeDisposal)                                            (2217))  // aleksandra-zh
-    ((MultisetAttributesReplication)                                (2218))  // shakurov
-    ((SetLastMountTransactionInMount)                               (2219))  // savrus
-    ((ChunkFormat)                                                  (2220))  // babenko
-    ((DropDNLCompats)                                               (2221))  // akozhikhov
-    ((MountConfigExperiments)                                       (2222))  // ifsmirnov
-    ((RemountNeededNotification)                                    (2223))  // ifsmirnov
-    ((FixZombification)                                             (2224))  // gritukan
-    ((TabletBalancerConfigUnrecognizedStrategyKeep)                 (2225))  // alexelexa
-    ((FixClonedTrunkNodeStatistics_22_4)                            (2226))  // shakurov
-    ((FixAccountResourceUsageCharge)                                (2227))  // gritukan
-    ((FixTouchTime)                                                 (2228))  // shakurov
-    ((AllowSettingChunkMergerMode)                                  (2229))  // aleksandra-zh
-    ((ObjectRevisions)                                              (2230))  // shakurov
-    ((IncreaseCollocationSizeLimit)                                 (2231))  // akozhikhov
-    ((FlagToDisableIncomingReplication)                             (2232))  // akozhikhov
-    ((FixTouchTime2)                                                (2233))  // shakurov
     // 23.1
     ((RipEnableUnlockCommand)                                       (2300))  // babenko
     ((RipEnableRevisionChangingForBuiltinAttributes)                (2301))  // babenko

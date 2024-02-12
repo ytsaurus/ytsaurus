@@ -282,9 +282,7 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
             GetId());
     }
 
-    if (context.GetVersion() >= EMasterReign::AllowSettingChunkMergerMode) {
-        Load(context, AllowUsingChunkMerger_);
-    }
+    Load(context, AllowUsingChunkMerger_);
 
     if (context.GetVersion() >= EMasterReign::SupportAccountChunkMergerCriteria) {
         Load(context, ChunkMergerCriteria_);

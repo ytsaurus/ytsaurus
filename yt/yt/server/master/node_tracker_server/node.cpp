@@ -627,19 +627,9 @@ void TNode::Save(TSaveContext& context) const
 void TNode::Load(TLoadContext& context)
 {
     TObject::Load(context);
+    TMaintenanceTarget::Load(context);
 
     using NYT::Load;
-
-    // COMPAT(kvk1920)
-    if (context.GetVersion() < EMasterReign::MaintenanceRequests) {
-        for (auto type : TEnumTraits<EMaintenanceType>::GetDomainValues()) {
-            if (Load<bool>(context)) {
-                Y_UNUSED(SetMaintenanceFlag(type, /*user*/ "", /*instant*/ TInstant::Zero()));
-            }
-        }
-    } else {
-        TMaintenanceTarget::Load(context);
-    }
 
     Load(context, NodeAddresses_);
 
@@ -715,11 +705,7 @@ void TNode::Load(TLoadContext& context)
     Load(context, ExecNodeIsNotDataNode_);
     Load(context, ReplicaEndorsements_);
     Load(context, ConsistentReplicaPlacementTokenCount_);
-
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= EMasterReign::SplitNodeDisposal) {
-        Load(context, NextDisposedLocationIndex_);
-    }
+    Load(context, NextDisposedLocationIndex_);
 
     // COMPAT(aleksandra-zh)
     if (context.GetVersion() >= EMasterReign::ReliableNodeStateGossip) {

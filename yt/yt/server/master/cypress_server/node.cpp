@@ -284,12 +284,6 @@ void TCypressNode::Load(NCellMaster::TLoadContext& context)
     Load(context, ExpirationTimeout_);
     Load(context, CreationTime_);
     Load(context, ModificationTime_);
-    // COMPAT(shakurov)
-    if (context.GetVersion() < EMasterReign::ObjectRevisions) {
-        // These are TObject members.
-        Load(context, AttributeRevision_);
-        Load(context, ContentRevision_);
-    }
     Load(context, NativeContentRevision_);
     Load(context, Account_);
     Load(context, Acd_);
