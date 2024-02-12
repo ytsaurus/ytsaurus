@@ -2230,7 +2230,7 @@ class YtClient(ClientState):
         :type source_table: list[str or :class:`TablePath <yt.wrapper.ypath.TablePath>`]
         :param destination_table: destination table.
         :type destination_table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
-        :param str cluster_name: cluster name.
+        :param str cluster_name: source cluster name.
         :param str network_name: network name.
         :param dict spec: operation spec.
         :param bool copy_attributes: copy attributes source_table to destination_table.
