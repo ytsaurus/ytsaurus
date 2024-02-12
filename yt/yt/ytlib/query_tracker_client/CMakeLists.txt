@@ -31,8 +31,13 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_tracker_client/records/query.yaml
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
   COMMAND
-  Python3::Interpreter
+  ${CMAKE_COMMAND}
+  -E
+  env
+  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  ${Python3_EXECUTABLE}
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_tracker_client/records/query.yaml

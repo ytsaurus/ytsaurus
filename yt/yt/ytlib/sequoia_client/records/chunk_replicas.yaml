@@ -1,12 +1,9 @@
 namespace: NYT::NSequoiaClient::NRecords
 
-h_verbatim: |
-  #include <yt/yt/client/node_tracker_client/public.h>
-
-  #include <library/cpp/yt/yson_string/string.h>
-
 types:
-  - type_name: TChunkReplicas
+  - table_name: chunk_replicas
+    table_group: chunk_tables
+    type_name: TChunkReplicas
     fields:
       - cpp_name: IdHash
         cpp_type: ui32
@@ -24,13 +21,13 @@ types:
         cpp_type: NYson::TYsonString
         column_name: replicas
         column_type: Any
-        aggregate: True
+        aggregate: _yt_stored_replica_set
 
       - cpp_name: LastSeenReplicas
         cpp_type: NYson::TYsonString
         column_name: last_seen_replicas
         column_type: Any
-        aggregate: True
+        aggregate: _yt_last_seen_replica_set
 
     verbatim: |
       static constexpr auto Table = ESequoiaTable::ChunkReplicas;

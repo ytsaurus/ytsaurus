@@ -5,9 +5,10 @@ from yt_env_setup import (
 )
 
 from yt_sequoia_helpers import (
-    SEQUOIA_CHUNK_TABLES, CHUNK_REPLICAS_TABLE, LOCATION_REPLICAS_TABLE,
     select_rows_from_ground,
 )
+
+from yt.sequoia_tools import DESCRIPTORS
 
 from yt_commands import (
     authors, create, get, remove, get_singular_chunk_id, write_table, read_table, wait,
@@ -18,8 +19,8 @@ from yt_commands import (
 
 def sequoia_tables_empty():
     return all(
-        select_rows_from_ground(f"* from [{table.get_path()}]") == []
-        for table in SEQUOIA_CHUNK_TABLES)
+        select_rows_from_ground(f"* from [{table.get_default_path()}]") == []
+        for table in DESCRIPTORS.get_group("chunk_tables"))
 
 
 class TestSequoiaReplicas(YTEnvSetup):
@@ -94,11 +95,11 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         chunk_id = get_singular_chunk_id("//tmp/t")
 
-        assert len(select_rows_from_ground(f"* from [{CHUNK_REPLICAS_TABLE.get_path()}]")) > 0
-        wait(lambda: len(select_rows_from_ground(f"* from [{CHUNK_REPLICAS_TABLE.get_path()}]")) == 1)
-        wait(lambda: len(select_rows_from_ground(f"* from [{LOCATION_REPLICAS_TABLE.get_path()}]")) == 3)
+        assert len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) > 0
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 3)
 
-        rows = select_rows_from_ground(f"* from [{CHUNK_REPLICAS_TABLE.get_path()}]")
+        rows = select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")
         assert len(rows) == 1
         assert len(rows[0]["replicas"]) == 3
 
@@ -108,8 +109,8 @@ class TestSequoiaReplicas(YTEnvSetup):
         remove("//tmp/t")
 
         wait(lambda: not exists("#{}".format(chunk_id)))
-        wait(lambda: len(select_rows_from_ground(f"* from [{CHUNK_REPLICAS_TABLE.get_path()}]")) == 0)
-        wait(lambda: len(select_rows_from_ground(f"* from [{LOCATION_REPLICAS_TABLE.get_path()}]")) == 0)
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 0)
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 0)
 
     @authors("aleksandra-zh")
     def test_chunk_replicas_node_offline2(self):
@@ -121,19 +122,19 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         chunk_id = get_singular_chunk_id("//tmp/t")
 
-        assert len(select_rows_from_ground(f"* from [{CHUNK_REPLICAS_TABLE.get_path()}]")) > 0
-        wait(lambda: len(select_rows_from_ground(f"* from [{CHUNK_REPLICAS_TABLE.get_path()}]")) == 1)
-        wait(lambda: len(select_rows_from_ground(f"* from [{LOCATION_REPLICAS_TABLE.get_path()}]")) == 3)
+        assert len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) > 0
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 3)
 
         with Restarter(self.Env, NODES_SERVICE, indexes=self.table_node_indexes):
             remove("//tmp/t")
 
             wait(lambda: not exists("#{}".format(chunk_id)))
-            wait(lambda: len(select_rows_from_ground(f"* from [{CHUNK_REPLICAS_TABLE.get_path()}]")) == 0)
-            wait(lambda: len(select_rows_from_ground(f"* from [{LOCATION_REPLICAS_TABLE.get_path()}]")) == 0)
+            wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 0)
+            wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 0)
 
-        wait(lambda: len(select_rows_from_ground(f"* from [{CHUNK_REPLICAS_TABLE.get_path()}]")) == 0)
-        wait(lambda: len(select_rows_from_ground(f"* from [{LOCATION_REPLICAS_TABLE.get_path()}]")) == 0)
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 0)
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 0)
 
     @authors("aleksandra-zh")
     def test_replication(self):
@@ -141,8 +142,8 @@ class TestSequoiaReplicas(YTEnvSetup):
         create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM, "replication_factor": 2})
 
         write_table("//tmp/t", [{"x": 1}], table_writer={"upload_replication_factor": 2})
-        wait(lambda: len(select_rows_from_ground(f"* from [{CHUNK_REPLICAS_TABLE.get_path()}]")) == 1)
-        wait(lambda: len(select_rows_from_ground(f"* from [{LOCATION_REPLICAS_TABLE.get_path()}]")) == 2)
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 2)
 
         assert read_table("//tmp/t") == [{"x": 1}]
 
@@ -151,8 +152,8 @@ class TestSequoiaReplicas(YTEnvSetup):
         set("//tmp/t/@replication_factor", 3)
 
         wait(lambda: len(get("#{}/@stored_replicas".format(chunk_id))) == 3)
-        wait(lambda: len(select_rows_from_ground(f"* from [{CHUNK_REPLICAS_TABLE.get_path()}]")) == 1)
-        wait(lambda: len(select_rows_from_ground(f"* from [{LOCATION_REPLICAS_TABLE.get_path()}]")) == 3)
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 3)
 
         remove("//tmp/t")
 
@@ -167,11 +168,11 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         chunk_id = get_singular_chunk_id("//tmp/t")
 
-        assert len(select_rows_from_ground(f"* from [{CHUNK_REPLICAS_TABLE.get_path()}]")) > 0
-        wait(lambda: len(select_rows_from_ground(f"* from [{CHUNK_REPLICAS_TABLE.get_path()}]")) == 1)
-        wait(lambda: len(select_rows_from_ground(f"* from [{LOCATION_REPLICAS_TABLE.get_path()}]")) == 3)
+        assert len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) > 0
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 3)
 
-        rows = select_rows_from_ground(f"* from [{CHUNK_REPLICAS_TABLE.get_path()}]")
+        rows = select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")
         assert len(rows) == 1
         assert len(rows[0]["last_seen_replicas"]) == 3
 

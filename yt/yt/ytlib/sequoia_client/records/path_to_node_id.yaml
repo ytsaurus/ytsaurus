@@ -1,7 +1,9 @@
 namespace: NYT::NSequoiaClient::NRecords
 
 types:
-  - type_name: TPathToNodeId
+  - table_name: path_to_node_id
+    table_group: resolve_tables
+    type_name: TPathToNodeId
     fields:
       - cpp_name: Path
         cpp_type: TMangledSequoiaPath
