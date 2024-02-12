@@ -335,7 +335,7 @@ private:
         const TExecNodePtr& node,
         const TJobResources& limits,
         const TJobResources& usage,
-        const NNodeTrackerClient::NProto::TDiskResources& diskResources);
+        TDiskResources diskResources);
 
     void BeginNodeHeartbeatProcessing(const TExecNodePtr& node);
     void EndNodeHeartbeatProcessing(const TExecNodePtr& node);

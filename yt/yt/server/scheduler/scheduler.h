@@ -149,10 +149,6 @@ public:
 
     // TODO(eshcherbin): Do we need these methods in the header?
     TString FormatResources(const TJobResourcesWithQuota& resources) const;
-    TString FormatResourceUsage(
-        const TJobResources& usage,
-        const TJobResources& limits,
-        const NNodeTrackerClient::NProto::TDiskResources& diskResources) const;
 
     void SetMediumDirectory(const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 

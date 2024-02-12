@@ -102,14 +102,14 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
     YT_LOG_DEBUG(
         "Heartbeat started "
         "(VirtualTimestamp: %v, NodeId: %v, NodeAddress: %v, "
-        "ResourceUsage: %v, JobCount: %v)",
+        "ResourceUsage: %v, DiskResources: %v, JobCount: %v)",
         event.Time,
         event.NodeId,
         node->GetDefaultAddress(),
-        StrategyHost_->FormatResourceUsage(
+        NScheduler::FormatResourceUsage(
             TJobResources(node->GetResourceUsage()),
-            TJobResources(node->GetResourceLimits()),
-            node->GetDiskResources()),
+            TJobResources(node->GetResourceLimits())),
+        node->GetDiskResources(),
         node->Allocations().size());
 
     // Prepare scheduling context.

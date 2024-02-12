@@ -620,7 +620,7 @@ TFuture<void> TOperationControllerImpl::GetFullHeartbeatProcessed()
 TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::ScheduleAllocation(
     const ISchedulingContextPtr& context,
     const TJobResources& allocationLimits,
-    const NNodeTrackerClient::NProto::TDiskResources& diskResourceLimits,
+    const TDiskResources& diskResourceLimits,
     const TString& treeId,
     const TString& poolPath,
     const TFairShareStrategyTreeConfigPtr& treeConfig)

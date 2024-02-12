@@ -207,7 +207,7 @@ void TFairShareStrategyOperationController::AbortAllocation(TAllocationId alloca
 TControllerScheduleAllocationResultPtr TFairShareStrategyOperationController::ScheduleAllocation(
     const ISchedulingContextPtr& context,
     const TJobResources& availableResources,
-    const NNodeTrackerClient::NProto::TDiskResources& availableDiskResources,
+    const TDiskResources& availableDiskResources,
     TDuration timeLimit,
     const TString& treeId,
     const TString& poolPath,

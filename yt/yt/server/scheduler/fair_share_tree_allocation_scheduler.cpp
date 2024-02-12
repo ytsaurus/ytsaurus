@@ -1750,7 +1750,7 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TSchedulerOperationElement*
 
     TJobResources precommittedResources;
     TJobResources availableAllocationResources;
-    NNodeTrackerClient::NProto::TDiskResources availableDiskResources;
+    TDiskResources availableDiskResources;
 
     auto scheduleAllocationEpoch = element->GetControllerEpoch();
 
@@ -1896,7 +1896,7 @@ std::optional<EDeactivationReason> TScheduleAllocationsContext::TryStartSchedule
     TSchedulerOperationElement* element,
     TJobResources* precommittedResourcesOutput,
     TJobResources* availableResourcesOutput,
-    NNodeTrackerClient::NProto::TDiskResources* availableDiskResourcesOutput)
+    TDiskResources* availableDiskResourcesOutput)
 {
     const auto& minNeededResources = element->AggregatedMinNeededAllocationResources();
 
@@ -1933,7 +1933,7 @@ std::optional<EDeactivationReason> TScheduleAllocationsContext::TryStartSchedule
 TControllerScheduleAllocationResultPtr TScheduleAllocationsContext::DoScheduleAllocation(
     TSchedulerOperationElement* element,
     const TJobResources& availableResources,
-    const NNodeTrackerClient::NProto::TDiskResources& availableDiskResources,
+    const TDiskResources& availableDiskResources,
     TJobResources* precommittedResources)
 {
     ++SchedulingStatistics_.ControllerScheduleAllocationCount;

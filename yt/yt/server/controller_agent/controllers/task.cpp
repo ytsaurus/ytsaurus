@@ -638,7 +638,7 @@ void TTask::ScheduleAllocation(
         YT_LOG_DEBUG(
             "Allocation actual resource demand is not met (AvailableJobResources: %v, AvailableDiskResources: %v, NeededResources: %v)",
             jobLimits,
-            NNodeTrackerClient::ToString(context->DiskResources(), TaskHost_->GetMediumDirectory()),
+            NScheduler::ToString(context->DiskResources(), TaskHost_->GetMediumDirectory()),
             FormatResources(neededResources));
         CheckResourceDemandSanity(neededResources);
         abortJob(EScheduleAllocationFailReason::NotEnoughResources, EAbortReason::SchedulingOther);

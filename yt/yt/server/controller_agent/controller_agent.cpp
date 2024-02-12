@@ -33,6 +33,7 @@
 
 #include <yt/yt/ytlib/event_log/event_log.h>
 
+#include <yt/yt/ytlib/scheduler/disk_resources.h>
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 #include <yt/yt/ytlib/scheduler/config.h>
 #include <yt/yt/ytlib/scheduler/helpers.h>
@@ -110,7 +111,7 @@ public:
         const NScheduler::NProto::TScheduleAllocationRequest* request,
         const TExecNodeDescriptorPtr& nodeDescriptor,
         const NScheduler::NProto::TScheduleAllocationSpec& scheduleAllocationSpec)
-        : DiskResources_(request->node_disk_resources())
+        : DiskResources_(FromProto<TDiskResources>(request->node_disk_resources()))
         , AllocationId_(FromProto<TAllocationId>(request->allocation_id()))
         , NodeDescriptor_(nodeDescriptor)
         , ScheduleAllocationSpec_(scheduleAllocationSpec)
@@ -127,7 +128,7 @@ public:
         return NodeDescriptor_;
     }
 
-    const NNodeTrackerClient::NProto::TDiskResources& DiskResources() const override
+    const TDiskResources& DiskResources() const override
     {
         return DiskResources_;
     }
@@ -148,7 +149,7 @@ public:
     }
 
 private:
-    const NNodeTrackerClient::NProto::TDiskResources& DiskResources_;
+    const NScheduler::TDiskResources DiskResources_;
     const TAllocationId AllocationId_;
     const TExecNodeDescriptorPtr& NodeDescriptor_;
     const NScheduler::NProto::TScheduleAllocationSpec ScheduleAllocationSpec_;
