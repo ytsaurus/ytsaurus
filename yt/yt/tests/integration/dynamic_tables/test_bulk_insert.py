@@ -3,7 +3,7 @@ from yt_dynamic_tables_base import DynamicTablesBase
 from yt_env_setup import parametrize_external
 
 from yt_commands import (
-    authors, wait, create, ls, get, set, copy, remove,
+    authors, wait, create, ls, get, set, copy, remove, generate_uuid,
     exists, create_account,
     create_user, start_transaction, abort_transaction, commit_transaction, lock,
     insert_rows, select_rows, lookup_rows, alter_table, read_table, write_table,
@@ -75,23 +75,31 @@ class TestBulkInsert(DynamicTablesBase):
     def test_basic_bulk_insert(self, external, freeze):
         sync_create_cells(1)
         create("table", "//tmp/t_input")
-        self._create_simple_dynamic_table("//tmp/t_output", external=external)
-        sync_mount_table("//tmp/t_output", freeze=freeze)
+
+        output_table_path = f"//tmp/t_output{generate_uuid()}"
+        self._create_simple_dynamic_table(output_table_path, external=external)
+        sync_mount_table(output_table_path, freeze=freeze)
+
+        profiling = self._get_delta_profiling_wrapper(
+            profiling_path="write",
+            counters=["bulk_insert_row_count", "bulk_insert_data_weight"],
+            table=output_table_path,
+        )
 
         rows = [{"key": 1, "value": "1"}]
         write_table("//tmp/t_input", rows)
 
         ts_before = generate_timestamp()
 
-        op = map(in_="//tmp/t_input", out="<append=true>//tmp/t_output", command="cat")
+        op = map(in_="//tmp/t_input", out=f"<append=true>{output_table_path}", command="cat")
 
         assert "legacy_live_preview_suppressed" in op.get_alerts()
         assert "dynamic" in str(op.get_alerts()["legacy_live_preview_suppressed"])
 
-        assert read_table("//tmp/t_output") == rows
-        assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
+        assert read_table(output_table_path) == rows
+        assert_items_equal(select_rows(f"* from [{output_table_path}]"), rows)
 
-        actual = lookup_rows("//tmp/t_output", [{"key": 1}], versioned=True)
+        actual = lookup_rows(output_table_path, [{"key": 1}], versioned=True)
         assert len(actual) == 1
 
         row = actual[0]
@@ -104,9 +112,11 @@ class TestBulkInsert(DynamicTablesBase):
         assert str(row["value"][0]) == "1"
 
         expected_chunk_count = 1 if freeze else 3
-        wait(lambda: get("//tmp/t_output/@chunk_count") == expected_chunk_count)
+        wait(lambda: get(f"{output_table_path}/@chunk_count") == expected_chunk_count)
 
-        assert lookup_rows("//tmp/t_output", [{"key": 123}]) == []
+        assert lookup_rows(output_table_path, [{"key": 123}]) == []
+
+        wait(lambda: profiling.get_deltas() == [1, 10])
 
     def test_not_sorted_output(self):
         sync_create_cells(1)

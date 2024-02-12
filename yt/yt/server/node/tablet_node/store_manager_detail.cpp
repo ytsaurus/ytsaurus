@@ -194,7 +194,9 @@ void TStoreManagerBase::AddStore(IStorePtr store, bool onMount, bool onFlush, TP
 
 void TStoreManagerBase::BulkAddStores(TRange<IStorePtr> stores, bool onMount)
 {
+    TBulkInsertProfiler bulkInsertProfiler(Tablet_);
     for (auto store : stores) {
+        bulkInsertProfiler.Update(store);
         AddStore(std::move(store), onMount, /*onFlush*/ false);
     }
 }

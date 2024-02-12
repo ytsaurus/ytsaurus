@@ -127,6 +127,8 @@ TTablePullerCounters::TTablePullerCounters(const NProfiling::TProfiler& profiler
 TWriteCounters::TWriteCounters(const TProfiler& profiler)
     : RowCount(profiler.Counter("/write/row_count"))
     , DataWeight(profiler.Counter("/write/data_weight"))
+    , BulkInsertRowCount(profiler.Counter("/write/bulk_insert_row_count"))
+    , BulkInsertDataWeight(profiler.Counter("/write/bulk_insert_data_weight"))
     , ValidateResourceWallTime(profiler.Timer("/write/validate_resource_wall_time"))
 { }
 
@@ -416,6 +418,24 @@ void TWriterProfiler::Update(
         HunkChunkDataStatistics_ += hunkChunkWriter->GetDataStatistics();
     }
     HunkChunkWriterStatistics_ = hunkChunkWriterStatistics;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBulkInsertProfiler::TBulkInsertProfiler(TTablet* tablet)
+    : Counters_(tablet->GetTableProfiler()->GetWriteCounters(GetCurrentProfilingUser()))
+{ }
+
+void TBulkInsertProfiler::Update(const IStorePtr& store)
+{
+    RowCount_ += store->GetRowCount();
+    DataWeight_ += store->GetDataWeight();
+}
+
+TBulkInsertProfiler::~TBulkInsertProfiler()
+{
+    Counters_->BulkInsertRowCount.Increment(RowCount_);
+    Counters_->BulkInsertDataWeight.Increment(DataWeight_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

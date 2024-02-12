@@ -6,7 +6,7 @@ from yt_helpers import profiler_factory
 
 from yt_commands import (
     authors, create_dynamic_table, wait, create, ls, get, move, create_user, make_ace,
-    insert_rows, raises_yt_error, select_rows, sorted_dicts,
+    insert_rows, raises_yt_error, select_rows, sorted_dicts, generate_uuid,
     write_local_file, reshard_table, sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
     WaitFailed)
 
@@ -1677,9 +1677,11 @@ class TestQuery(DynamicTablesBase):
     def test_filter_ranges(self, optimize_for):
         sync_create_cells(1)
 
+        table_path = f"//tmp/t{generate_uuid()}"
+
         create(
             "table",
-            "//tmp/t",
+            table_path,
             attributes={
                 "dynamic": True,
                 "schema": [
@@ -1701,25 +1703,25 @@ class TestQuery(DynamicTablesBase):
             },
         )
 
-        sync_mount_table("//tmp/t")
+        sync_mount_table(table_path)
 
         rows = [
             {"a": 1, "b": 1, "c": 1, "d": 1},
             {"a": 3, "b": 3, "c": 3, "d": 3},
             {"a": 5, "b": 5, "c": 5, "d": 5},
         ]
-        insert_rows("//tmp/t", rows)
+        insert_rows(table_path, rows)
 
-        sync_flush_table("//tmp/t")
+        sync_flush_table(table_path)
 
-        profiling = self._get_key_filter_profiling_wrapper("select", "//tmp/t")
+        profiling = self._get_key_filter_profiling_wrapper("select", table_path)
 
         def _check_query(expected, predicate, min_input):
             def _check_counters():
-                input, filtered_out, false_positive = profiling.get_counters_delta()
+                input, filtered_out, false_positive = profiling.get_deltas()
                 return input >= min_input and 0 <= filtered_out + false_positive <= input
 
-            assert_items_equal(select_rows(f"* from [//tmp/t] where {predicate}"), expected)
+            assert_items_equal(select_rows(f"* from [{table_path}] where {predicate}"), expected)
             wait(_check_counters)
             profiling.commit()
 

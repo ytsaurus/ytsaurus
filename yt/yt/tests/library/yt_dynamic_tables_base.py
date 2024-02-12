@@ -282,40 +282,41 @@ class DynamicTablesBase(YTEnvSetup):
                     raise
         raise RuntimeError
 
-    def _get_key_filter_profiling_wrapper(self, method, table, user=None):
+    def _get_delta_profiling_wrapper(self, profiling_path, counters, table, user=None):
         self_ = self
 
         class Wrapper:
             def __init__(self):
-                self.method = method
-                self.entry = "range" if self.method == "select" else "key"
                 self.tablet_profiling = self_._get_table_profiling(table, user)
-                self.input = self._get_counter("input")
-                self.filtered_out = self._get_counter("filtered_out")
-                self.false_positive = self._get_counter("false_positive")
-                self.input_delta = 0
-                self.filtered_out_delta = 0
-                self.false_positive_delta = 0
+                self.profiling_path = profiling_path
+                self.amount = len(counters)
+                self.counters = counters
+                self.values = [self._get_counter(counters[i]) for i in range(self.amount)]
+                self.deltas = [0] * self.amount
 
             def _get_counter(self, counter):
-                return self.tablet_profiling.get_counter(
-                    f"{self.method}/{self.entry}_filter/{counter}_{self.entry}_count"
-                )
+                return self.tablet_profiling.get_counter(f"{self.profiling_path}/{counter}")
 
-            def get_counters_delta(self):
-                self.input_delta = self._get_counter("input") - self.input
-                self.filtered_out_delta = self._get_counter("filtered_out") - self.filtered_out
-                self.false_positive_delta = self._get_counter("false_positive") - self.false_positive
-
-                return self.input_delta, self.filtered_out_delta, self.false_positive_delta
+            def get_deltas(self):
+                self.deltas = [self._get_counter(self.counters[i]) - self.values[i] for i in range(self.amount)]
+                return self.deltas
 
             def commit(self):
-                self.input += self.input_delta
-                self.filtered_out += self.filtered_out_delta
-                self.false_positive += self.false_positive_delta
-
-                self.input_delta = 0
-                self.filtered_out_delta = 0
-                self.false_positive_delta = 0
+                for i in range(self.amount):
+                    self.values[i] += self.deltas[i]
+                    self.deltas[i] = 0
 
         return Wrapper()
+
+    def _get_key_filter_profiling_wrapper(self, method, table, user=None):
+        entry = "range" if method == "select" else "key"
+
+        def get_counter(counter_pref):
+            return f"{counter_pref}_{entry}_count"
+
+        return self._get_delta_profiling_wrapper(
+            f"{method}/{entry}_filter",
+            [get_counter("input"), get_counter("filtered_out"), get_counter("false_positive")],
+            table,
+            user,
+        )
