@@ -156,7 +156,7 @@ struct TOperationSnapshot
 struct TAgentToSchedulerRunningAllocationStatistics
 {
     TAllocationId AllocationId;
-    TInstant PreemptibleProgressStartTime = TInstant();
+    TInstant PreemptibleProgressStartTime;
 };
 
 void ToProto(

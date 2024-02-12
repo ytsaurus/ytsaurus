@@ -1549,7 +1549,7 @@ void TJobTracker::HandleRunningJobInfo(
             });
 
         if (shouldSkipRunningJobEvents) {
-            YT_LOG_DEBUG("Skipping running job summary because operationController invoker is overloaded");
+            YT_LOG_DEBUG("Skipping running job summary because operation controller invoker is overloaded");
             ++heartbeatCounters.ThrottledRunningJobEventCount;
 
             return;
