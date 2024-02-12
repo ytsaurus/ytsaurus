@@ -12,8 +12,8 @@ from yt_commands import (
     generate_timestamp, get_tablet_leader_address, sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_freeze_table, sync_unfreeze_table, sync_flush_table, sync_reshard_table,
     get_singular_chunk_id, update_op_parameters,
-    disable_scheduler_jobs_on_node, ban_node, disable_write_sessions_on_node, disable_tablet_cells_on_node,
-    enable_tablet_cells_on_node, unban_node)
+    disable_scheduler_jobs_on_node, set_node_banned, disable_write_sessions_on_node, disable_tablet_cells_on_node,
+    enable_tablet_cells_on_node)
 
 from yt.common import YtError
 import yt.yson as yson
@@ -486,13 +486,13 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         chunk_node = stored_replicas[0]
         assert chunk_node != cell_node
 
-        ban_node(chunk_node, "test dynamic store not scraped")
+        set_node_banned(chunk_node, True)
 
         create("table", "//tmp/t_out")
         op = merge(in_="//tmp/t_in", out="//tmp/t_out", mode="ordered", track=False)
         wait(lambda: op.get_state() == "materializing")
 
-        unban_node(chunk_node)
+        set_node_banned(chunk_node, False)
         op.track()
 
     def test_dynamic_store_not_unavailable_after_job_aborted(self):
@@ -530,7 +530,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
             })
         wait(lambda: op.get_state() == "running")
 
-        ban_node(chunk_node, "ban chunk node")
+        set_node_banned(chunk_node, True)
         wait(lambda: get("#{}/@replication_status/default/lost".format(chunk_id)))
 
         update_op_parameters(
@@ -549,7 +549,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         wait(lambda: get(orchid_path))
         assert get(orchid_path) == [chunk_id]
 
-        unban_node(chunk_node)
+        set_node_banned(chunk_node, False)
 
         op.track()
 

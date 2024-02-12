@@ -7,7 +7,7 @@ from yt_commands import (
     map, run_test_vanilla, run_sleeping_vanilla,
     update_pool_tree_config, update_scheduler_config, update_pool_tree_config_option,
     create_pool_tree, remove_pool_tree, set,
-    ban_node, unban_node)
+    set_node_banned)
 
 from yt_helpers import read_structured_log, write_log_barrier
 
@@ -108,14 +108,14 @@ class TestEventLog(YTEnvSetup):
         write_table("//tmp/t1", [{"a": "b"}])
 
         for node in ls("//sys/cluster_nodes"):
-            ban_node(node, "test scheduler event log buffering")
+            set_node_banned(node, True, wait_for_master=False)
 
         time.sleep(2)
         op = map(track=False, in_="//tmp/t1", out="//tmp/t2", command="cat")
         time.sleep(2)
 
         for node in ls("//sys/cluster_nodes"):
-            unban_node(node)
+            set_node_banned(node, False, wait_for_master=False)
 
         op.track()
 

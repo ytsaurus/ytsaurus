@@ -18,7 +18,7 @@ from yt_commands import (
     sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id,
     align_chaos_cell_tag, migrate_replication_cards, alter_replication_card,
     get_in_sync_replicas, generate_timestamp, MaxTimestamp, raises_yt_error,
-    create_table_replica, sync_enable_table_replica, get_tablet_infos, ban_node,
+    create_table_replica, sync_enable_table_replica, get_tablet_infos, set_node_banned,
     suspend_chaos_cells, resume_chaos_cells, merge, add_maintenance, remove_maintenance,
     sync_freeze_table, lock, get_tablet_errors)
 
@@ -713,7 +713,7 @@ class TestChaos(ChaosTestBase):
         cell_id = get("#{0}/@cell_id".format(tablet_id))
         build_snapshot(cell_id=cell_id)
         peer = get("//sys/tablet_cells/{}/@peers/0/address".format(cell_id))
-        ban_node(peer, "test replication progress")
+        set_node_banned(peer, True)
         wait_for_cells([cell_id], decommissioned_addresses=[peer])
 
         orchid = get("#{0}/orchid".format(tablet_id))

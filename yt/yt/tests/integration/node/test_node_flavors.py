@@ -5,7 +5,7 @@ from yt_commands import (
     create, get, ls, write_table, wait, remove, exists, update_nodes_dynamic_config,
     get_data_nodes, get_exec_nodes, get_tablet_nodes, get_chaos_nodes, get_singular_chunk_id,
     sync_mount_table, sync_unmount_table, run_test_vanilla, sync_create_cells,
-    ban_node, unban_node)
+    set_node_banned)
 
 from yt.environment.helpers import assert_items_equal
 
@@ -127,9 +127,9 @@ class TestNodeFlavors(YTEnvSetup):
             assert get("//sys/exec_nodes/{}/@banned".format(node)) == expected
 
         check_banned(False)
-        ban_node(str(node), "test ban multi flavor node")
+        set_node_banned(str(node), True, wait_for_master=False)
         check_banned(True)
-        unban_node(str(node))
+        set_node_banned(str(node), False, wait_for_master=False)
         check_banned(False)
 
     @authors("gritukan")

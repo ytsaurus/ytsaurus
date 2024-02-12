@@ -9,7 +9,7 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_reshard_table,
     sync_flush_table, sync_compact_table, update_nodes_dynamic_config, set_banned_flag,
     get_cell_leader_address, get_tablet_leader_address, WaitFailed, raises_yt_error,
-    ban_node, wait_for_cells, build_snapshot, sort, merge)
+    set_node_banned, wait_for_cells, build_snapshot, sort, merge)
 
 from yt_type_helpers import make_schema
 
@@ -1712,7 +1712,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
 
         build_snapshot(cell_id=cell_id)
 
-        ban_node(leader_address)
+        set_node_banned(leader_address, True)
         wait_for_cells([cell_id], decommissioned_addresses=[leader_address])
 
         expected = [{"key": i, "value": make_value(i)} for i in range(100, 200, 2)]

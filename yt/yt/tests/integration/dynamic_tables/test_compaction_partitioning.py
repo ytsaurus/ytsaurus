@@ -6,7 +6,7 @@ from yt_commands import (
     remount_table, get_tablet_leader_address, sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_reshard_table, sync_flush_table, build_snapshot, sorted_dicts, sync_compact_table,
     sync_freeze_table, sync_unfreeze_table, get_singular_chunk_id,
-    ban_node, disable_write_sessions_on_node, update_nodes_dynamic_config)
+    set_node_banned, disable_write_sessions_on_node, update_nodes_dynamic_config)
 
 from yt.common import YtError
 
@@ -52,7 +52,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         build_snapshot(cell_id=cell_id)
 
         peer = get("//sys/tablet_cells/{}/@peers/0/address".format(cell_id))
-        ban_node(peer, "tablet cell peer")
+        set_node_banned(peer, True)
         wait(lambda: get("//sys/tablet_cells/{}/@health".format(cell_id)) == "good")
 
         set("//tmp/t/@enable_compaction_and_partitioning", True)
@@ -456,7 +456,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
         chunk_id = get_singular_chunk_id("//tmp/t")
         chunk_node = get(f"#{chunk_id}/@stored_replicas/0")
-        ban_node(chunk_node, "stored replica")
+        set_node_banned(chunk_node, True)
 
         assert _get_running_compaction_count() == 0.0
         set("//tmp/t/@auto_compaction_period", 1)
@@ -779,7 +779,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         chunk_id = get("//tmp/t/@chunk_ids")[0]
 
         peer = get("//sys/tablet_cells/{}/@peers/0/address".format(cell_id))
-        ban_node(peer, "tablet cell peer")
+        set_node_banned(peer, True)
 
         wait(lambda: get("//sys/tablet_cells/{}/@health".format(cell_id)) == "good")
 

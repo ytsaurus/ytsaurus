@@ -14,7 +14,7 @@ from yt_commands import (
     sync_reshard_table, sync_flush_table, sync_compact_table,
     get_singular_chunk_id, create_dynamic_table, get_tablet_leader_address,
     raises_yt_error, build_snapshot, AsyncLastCommittedTimestamp, MinTimestamp,
-    disable_write_sessions_on_node, ban_node, disable_tablet_cells_on_node)
+    disable_write_sessions_on_node, set_node_banned, disable_tablet_cells_on_node)
 
 import yt_error_codes
 
@@ -997,7 +997,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         build_snapshot(cell_id=cell_id)
 
         peer = get("//sys/tablet_cells/{}/@peers/0/address".format(cell_id))
-        ban_node(peer, "test save chunk view to snapshot")
+        set_node_banned(peer, True)
 
         wait_for_cells([cell_id], decommissioned_addresses=[peer])
 
