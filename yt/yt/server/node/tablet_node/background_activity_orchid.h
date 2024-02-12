@@ -10,11 +10,11 @@ struct TTaskInfoBase
 {
     TGuid TaskId;
     TTabletId TabletId;
-    NHydra::TRevision MountRevision;
+    NHydra::TRevision MountRevision = NHydra::NullRevision;
     TString TablePath;
     TString TabletCellBundle;
-    TInstant StartTime{};
-    TInstant FinishTime{};
+    TInstant StartTime;
+    TInstant FinishTime;
 };
 
 void Serialize(const TTaskInfoBase& task, NYson::IYsonConsumer* consumer);
@@ -27,7 +27,7 @@ class TBackgroundActivityOrchid final
 public:
     using TTaskMap = THashMap<TGuid, TTaskInfo>;
 
-    TBackgroundActivityOrchid(i64 maxFailedTaskCount, i64 maxCompletedTaskCount);
+    TBackgroundActivityOrchid(const TStoreBackgroundActivityOrchidConfigPtr& config);
 
     void Reconfigure(const TStoreBackgroundActivityOrchidConfigPtr& config);
 
@@ -47,14 +47,13 @@ private:
     TTaskMap RunningTasks_;
     std::deque<TTaskInfo> FailedTasks_;
     std::deque<TTaskInfo> CompletedTasks_;
-    i64 MaxFailedTaskCount_;
-    i64 MaxCompletedTaskCount_;
+    int MaxFailedTaskCount_;
+    int MaxCompletedTaskCount_;
 
     void OnTaskFinished(TGuid taskId, std::deque<TTaskInfo>* deque, i64 maxTaskCount);
 
     void ShrinkDeque(std::deque<TTaskInfo>* deque, i64 targetSize);
     std::vector<TTaskInfo> GetFromHashMap(const TTaskMap& source) const;
-    std::vector<TTaskInfo> GetFromDeque(const std::deque<TTaskInfo>& source) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

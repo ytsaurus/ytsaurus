@@ -138,7 +138,7 @@ struct TCompactionTaskInfo
     int Effect;
     NLsm::EStoreCompactionReason Reason;
 
-    i64 GetStoreCount() const
+    int GetStoreCount() const
     {
         return StoreCount;
     }
@@ -676,11 +676,9 @@ public:
             Config_->MaxConcurrentCompactions,
             Profiler_.Gauge("/running_compactions")))
         , CompactionOrchid_(New<TCompactionOrchid>(
-            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->Orchid->MaxFailedTaskCount,
-            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->Orchid->MaxCompletedTaskCount))
+            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->Orchid))
         , PartitioningOrchid_(New<TCompactionOrchid>(
-            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->Orchid->MaxFailedTaskCount,
-            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->Orchid->MaxCompletedTaskCount))
+            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->Orchid))
         , OrchidService_(CreateOrchidService())
     { }
 
@@ -900,7 +898,7 @@ private:
 
         ~TTask();
 
-        i64 GetStoreCount() const
+        int GetStoreCount() const
         {
             return ssize(StoreIds);
         }
@@ -955,7 +953,7 @@ private:
             };
         }
 
-        static inline bool Comparer(const std::unique_ptr<TTask>& lhs, const std::unique_ptr<TTask>& rhs)
+        static bool Comparer(const std::unique_ptr<TTask>& lhs, const std::unique_ptr<TTask>& rhs)
         {
             return GetOrderingTuple(*lhs) < GetOrderingTuple(*rhs);
         }
@@ -981,7 +979,7 @@ private:
 
     const TCompactionOrchidPtr CompactionOrchid_;
     const TCompactionOrchidPtr PartitioningOrchid_;
-    IYPathServicePtr OrchidService_;
+    const IYPathServicePtr OrchidService_;
 
 
     void OnDynamicConfigChanged(
