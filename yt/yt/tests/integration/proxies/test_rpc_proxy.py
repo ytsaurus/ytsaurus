@@ -1271,7 +1271,7 @@ class TestRpcProxyHeapUsageStatistics(TestRpcProxyHeapUsageStatisticsBase):
 
         wait(lambda: self.check_memory_usage(get(rpc_proxy_agent_orchid + "/heap_usage_statistics"), user))
 
-    @authors("ni-stoiko")
+    @authors("ni-stoiko", "galtsev")
     @pytest.mark.timeout(120)
     @flaky(max_runs=3)
     def test_heap_usage_gauge(self):
