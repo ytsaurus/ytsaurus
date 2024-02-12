@@ -41,7 +41,8 @@ struct TLookupCounters
     TLookupCounters() = default;
 
     TLookupCounters(
-        const NProfiling::TProfiler& profiler,
+        const NProfiling::TProfiler& tabletProfiler,
+        const NProfiling::TProfiler& mediumProfiler,
         const NTableClient::TTableSchemaPtr& schema);
 
     NProfiling::TCounter CacheHits;
@@ -88,7 +89,8 @@ struct TSelectRowsCounters
     TSelectRowsCounters() = default;
 
     TSelectRowsCounters(
-        const NProfiling::TProfiler& profiler,
+        const NProfiling::TProfiler& tabletProfiler,
+        const NProfiling::TProfiler& mediumProfiler,
         const NTableClient::TTableSchemaPtr& schema);
 
     NProfiling::TCounter RowCount;
@@ -423,8 +425,9 @@ public:
     TTableProfiler() = default;
 
     TTableProfiler(
-        const NProfiling::TProfiler& profiler,
+        const NProfiling::TProfiler& tableProfiler,
         const NProfiling::TProfiler& diskProfiler,
+        const NProfiling::TProfiler& mediumProfiler,
         NTableClient::TTableSchemaPtr schema);
 
     static TTableProfilerPtr GetDisabled();
@@ -455,6 +458,7 @@ public:
 private:
     const bool Disabled_ = true;
     const NProfiling::TProfiler Profiler_ = {};
+    const NProfiling::TProfiler MediumProfiler_ = {};
     const NTableClient::TTableSchemaPtr Schema_;
 
     template <class TCounter>
@@ -469,7 +473,8 @@ private:
         TCounter* Get(
             bool disabled,
             const std::optional<TString>& userTag,
-            const NProfiling::TProfiler& profiler,
+            const NProfiling::TProfiler& tableProfiler,
+            const NProfiling::TProfiler& mediumProfiler,
             const NTableClient::TTableSchemaPtr& schema);
     };
 

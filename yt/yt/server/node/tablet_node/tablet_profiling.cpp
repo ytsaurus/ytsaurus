@@ -54,6 +54,7 @@ TKeyFilterCounters::TKeyFilterCounters(const TProfiler& profiler)
 
 TLookupCounters::TLookupCounters(
     const TProfiler& profiler,
+    const TProfiler& mediumProfiler,
     const TTableSchemaPtr& schema)
     : CacheHits(profiler.Counter("/lookup/cache_hits"))
     , CacheOutdated(profiler.Counter("/lookup/cache_outdated"))
@@ -73,7 +74,9 @@ TLookupCounters::TLookupCounters(
         TDuration::MicroSeconds(1),
         TDuration::Seconds(10)))
     , RetryCount(profiler.Counter("/lookup/retry_count"))
-    , ChunkReaderStatisticsCounters(profiler.WithPrefix("/lookup/chunk_reader_statistics"))
+    , ChunkReaderStatisticsCounters(
+        profiler.WithPrefix("/lookup/chunk_reader_statistics"),
+        mediumProfiler.WithPrefix("/lookup/medium_statistics"))
     , HunkChunkReaderCounters(profiler.WithPrefix("/lookup/hunks"), schema)
     , KeyFilterCounters(profiler.WithPrefix("/lookup/key_filter"))
 { }
@@ -86,7 +89,10 @@ TRangeFilterCounters::TRangeFilterCounters(const TProfiler& profiler)
     , FalsePositiveRangeCount(profiler.Counter("/false_positive_range_count"))
 { }
 
-TSelectRowsCounters::TSelectRowsCounters(const TProfiler& profiler, const NTableClient::TTableSchemaPtr& schema)
+TSelectRowsCounters::TSelectRowsCounters(
+    const NProfiling::TProfiler& profiler,
+    const NProfiling::TProfiler& mediumProfiler,
+    const NTableClient::TTableSchemaPtr& schema)
     : RowCount(profiler.Counter("/select/row_count"))
     , DataWeight(profiler.Counter("/select/data_weight"))
     , UnmergedRowCount(profiler.Counter("/select/unmerged_row_count"))
@@ -98,7 +104,9 @@ TSelectRowsCounters::TSelectRowsCounters(const TProfiler& profiler, const NTable
         TDuration::MicroSeconds(1),
         TDuration::Seconds(10)))
     , RangeFilterCounters(profiler.WithPrefix("/select/range_filter"))
-    , ChunkReaderStatisticsCounters(profiler.WithPrefix("/select/chunk_reader_statistics"))
+    , ChunkReaderStatisticsCounters(
+        profiler.WithPrefix("/select/chunk_reader_statistics"),
+        mediumProfiler.WithPrefix("/select/medium_statistics"))
     , HunkChunkReaderCounters(profiler.WithPrefix("/select/hunks"), schema)
 { }
 
@@ -585,7 +593,12 @@ public:
             .WithSparse()
             .WithTags(diskTagSet);
 
-        p = New<TTableProfiler>(tableProfiler, diskProfiler, schema);
+        auto mediumProfiler = TabletNodeProfiler
+            .WithHot()
+            .WithTag("tablet_cell_bundle", bundle)
+            .WithTag("medium", medium);
+
+        p = New<TTableProfiler>(tableProfiler, diskProfiler, mediumProfiler, schema);
         profiler = p;
         return p;
     }
@@ -648,7 +661,8 @@ template <class TCounter>
 TCounter* TTableProfiler::TUserTaggedCounter<TCounter>::Get(
     bool disabled,
     const std::optional<TString>& userTag,
-    const TProfiler& profiler,
+    const TProfiler& tabletProfiler,
+    const TProfiler& mediumProfiler,
     const TTableSchemaPtr& schema)
 {
     if (disabled) {
@@ -658,9 +672,9 @@ TCounter* TTableProfiler::TUserTaggedCounter<TCounter>::Get(
 
     return Counters.FindOrInsert(userTag, [&] {
         if (userTag) {
-            return TCounter(profiler.WithTag("user", *userTag), schema);
+            return TCounter(tabletProfiler.WithTag("user", *userTag), mediumProfiler, schema);
         } else {
-            return TCounter(profiler, schema);
+            return TCounter(tabletProfiler, mediumProfiler, schema);
         }
     }).first;
 }
@@ -669,9 +683,11 @@ TCounter* TTableProfiler::TUserTaggedCounter<TCounter>::Get(
 TTableProfiler::TTableProfiler(
     const TProfiler& profiler,
     const TProfiler& diskProfiler,
+    const TProfiler& mediumProfiler,
     TTableSchemaPtr schema)
     : Disabled_(false)
     , Profiler_(profiler)
+    , MediumProfiler_(mediumProfiler)
     , Schema_(std::move(schema))
 {
     for (auto method : TEnumTraits<EChunkWriteProfilingMethod>::GetDomainValues()) {
@@ -726,7 +742,7 @@ TTabletCounters TTableProfiler::GetTabletCounters()
 
 TLookupCounters* TTableProfiler::GetLookupCounters(const std::optional<TString>& userTag)
 {
-    return LookupCounters_.Get(Disabled_, userTag, Profiler_, Schema_);
+    return LookupCounters_.Get(Disabled_, userTag, Profiler_, MediumProfiler_, Schema_);
 }
 
 TWriteCounters* TTableProfiler::GetWriteCounters(const std::optional<TString>& userTag)
@@ -741,7 +757,7 @@ TCommitCounters* TTableProfiler::GetCommitCounters(const std::optional<TString>&
 
 TSelectRowsCounters* TTableProfiler::GetSelectRowsCounters(const std::optional<TString>& userTag)
 {
-    return SelectRowsCounters_.Get(Disabled_, userTag, Profiler_, Schema_);
+    return SelectRowsCounters_.Get(Disabled_, userTag, Profiler_, MediumProfiler_, Schema_);
 }
 
 TRemoteDynamicStoreReadCounters* TTableProfiler::GetRemoteDynamicStoreReadCounters(const std::optional<TString>& userTag)
