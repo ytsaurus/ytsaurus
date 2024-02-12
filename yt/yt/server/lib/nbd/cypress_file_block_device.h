@@ -10,21 +10,23 @@ namespace NYT::NNbd {
 ////////////////////////////////////////////////////////////////////////////////
 
 IBlockDevicePtr CreateCypressFileBlockDevice(
-    const TString& exportId,
+    TString exportId,
     TCypressFileBlockDeviceConfigPtr config,
     NApi::NNative::IClientPtr client,
     IInvokerPtr invoker,
-    const NLogging::TLogger& logger);
+    NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IBlockDevicePtr CreateCypressFileBlockDevice(
-    const TString& exportId,
+    TString exportId,
     const ::google::protobuf::RepeatedPtrField<::NYT::NChunkClient::NProto::TChunkSpec>& chunkSpecs,
     TCypressFileBlockDeviceConfigPtr config,
+    NConcurrency::IThroughputThrottlerPtr inThrottler,
+    NConcurrency::IThroughputThrottlerPtr outRpsThrottler,
     NApi::NNative::IClientPtr client,
     IInvokerPtr invoker,
-    const NLogging::TLogger& logger);
+    NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
