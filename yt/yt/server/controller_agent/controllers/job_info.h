@@ -52,9 +52,9 @@ struct TJoblet
 
     TInstant StartTime;
     TInstant FinishTime;
-    TInstant LastUpdateTime = TInstant();
-    TInstant LastStatisticsUpdateTime = TInstant();
-    TInstant NodeJobStartTime = TInstant();
+    TInstant LastUpdateTime;
+    TInstant LastStatisticsUpdateTime;
+    TInstant NodeJobStartTime;
 
     // There are no joblets for finished jobs, JobState may not contain finished states.
     std::optional<EJobState> JobState;

@@ -157,7 +157,7 @@ struct TOperationSnapshot
 struct TAgentToSchedulerRunningJobStatistics
 {
     TJobId JobId;
-    TInstant PreemptibleProgressStartTime = TInstant();
+    TInstant PreemptibleProgressStartTime;
 };
 
 void ToProto(
