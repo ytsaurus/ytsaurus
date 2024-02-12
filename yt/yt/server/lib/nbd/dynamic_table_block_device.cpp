@@ -46,12 +46,12 @@ public:
         // Setup name table.
         NameTable_->RegisterName("device_id");
         NameTable_->RegisterName("block_id");
-        NameTable_->RegisterName("block_datum");
+        NameTable_->RegisterName("block_payload");
 
         // Save column ids.
         DeviceIdColumn_ = NameTable_->GetId("device_id");
         BlockIdColumn_ = NameTable_->GetId("block_id");
-        BlockDatumColumn_ = NameTable_->GetId("block_datum");
+        BlockPayloadColumn_ = NameTable_->GetId("block_payload");
     }
 
     std::map<i64, TSharedMutableRef> ReadBlocks(
@@ -66,10 +66,10 @@ public:
 
         // First try to get blocks from the cache.
         std::map<i64, TSharedMutableRef> blocksToRead;
-        for (auto& [blockId, blockDatum] : blocks) {
+        for (auto& [blockId, blockPayload] : blocks) {
             auto it = BlockCache_.find(blockId);
             if (it != BlockCache_.end()) {
-                blockDatum = it->second;
+                blockPayload = it->second;
             } else {
                 blocksToRead.emplace(blockId, TSharedMutableRef::MakeEmpty());
             }
@@ -88,18 +88,18 @@ public:
             for (auto row : rows) {
                 auto deviceId = FromUnversionedValue<i64>(row[DeviceIdColumn_]);
                 auto blockId = FromUnversionedValue<i64>(row[BlockIdColumn_]);
-                auto blockDatum = TSharedMutableRef::MakeCopy<TDynamicTableBlockDeviceTag>(TSharedRef::FromString(FromUnversionedValue<TString>(row[BlockDatumColumn_])));
+                auto blockPayload = TSharedMutableRef::MakeCopy<TDynamicTableBlockDeviceTag>(TSharedRef::FromString(FromUnversionedValue<TString>(row[BlockPayloadColumn_])));
 
                 YT_VERIFY(deviceId == DeviceId_);
                 YT_VERIFY(blocksToRead.contains(blockId));
-                blocks[blockId] = blockDatum;
-                BlockCache_[blockId] = std::move(blockDatum);
+                blocks[blockId] = blockPayload;
+                BlockCache_[blockId] = blockPayload;
             }
 
-            for (auto& [blockId, blockDatum] : blocks) {
-                if (blockDatum.empty() && fillEmptyBlocksWithZeros) {
-                    blockDatum = TSharedMutableRef::Allocate<TDynamicTableBlockDeviceTag>(DeviceConfig_->BlockSize, {.InitializeStorage = true});
-                    BlockCache_[blockId] = blockDatum;
+            for (auto& [blockId, blockPayload] : blocks) {
+                if (blockPayload.empty() && fillEmptyBlocksWithZeros) {
+                    blockPayload = TSharedMutableRef::Allocate<TDynamicTableBlockDeviceTag>(DeviceConfig_->BlockSize, {.InitializeStorage = true});
+                    BlockCache_[blockId] = blockPayload;
                 }
             }
         }
@@ -122,8 +122,8 @@ public:
             flush,
             writeId);
 
-        for (auto& [blockId, blockDatum] : blocks) {
-            BlockCache_[blockId] = flush ? blockDatum : std::move(blockDatum);
+        for (auto& [blockId, blockPayload] : blocks) {
+            BlockCache_[blockId] = blockPayload;
             DirtyBlocks_.insert(blockId);
         }
 
@@ -148,11 +148,11 @@ public:
         RowBuffer_->Clear();
         std::vector<TUnversionedRow> rows;
         rows.reserve(blocks.size());
-        for (auto& [blockId, blockDatum] : blocks) {
+        for (auto& [blockId, blockPayload] : blocks) {
             TUnversionedRowBuilder builder;
             builder.AddValue(ToUnversionedValue(DeviceId_, RowBuffer_, DeviceIdColumn_));
             builder.AddValue(ToUnversionedValue(blockId, RowBuffer_, BlockIdColumn_));
-            builder.AddValue(ToUnversionedValue(ToString(blockDatum), RowBuffer_, BlockDatumColumn_));
+            builder.AddValue(ToUnversionedValue(ToString(blockPayload), RowBuffer_, BlockPayloadColumn_));
             rows.push_back(RowBuffer_->CaptureRow(builder.GetRow()));
         }
 
@@ -193,7 +193,7 @@ public:
                 dirtyBlocks.emplace(blockId, it->second);
             }
 
-            WriteBlocks(std::move(dirtyBlocks), true /*flash*/, TGuid::Create());
+            WriteBlocks(std::move(dirtyBlocks), true /*flush*/, TGuid::Create());
         }
 
         return VoidFuture;
@@ -210,7 +210,7 @@ private:
     const TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
     int DeviceIdColumn_;
     int BlockIdColumn_;
-    int BlockDatumColumn_;
+    int BlockPayloadColumn_;
 
     std::map<i64, TSharedMutableRef> BlockCache_;
     std::unordered_set<i64> DirtyBlocks_;
@@ -340,7 +340,7 @@ public:
 
         std::vector<TSharedRef> refs;
         refs.reserve(blocks.size());
-        for (auto& [blockId, blockDatum] : blocks) {
+        for (auto& [blockId, blockPayload] : blocks) {
             YT_VERIFY(0 < length);
 
             i64 beginWithinBlock = offset % DeviceConfig_->BlockSize;
@@ -353,7 +353,7 @@ public:
             YT_VERIFY(sizeWithinBlock <= DeviceConfig_->BlockSize);
             YT_VERIFY(sizeWithinBlock <= length);
 
-            refs.insert(refs.end(), blockDatum.Slice(beginWithinBlock, endWithinBlock));
+            refs.insert(refs.end(), blockPayload.Slice(beginWithinBlock, endWithinBlock));
 
             offset += sizeWithinBlock;
             length -= sizeWithinBlock;
@@ -457,19 +457,19 @@ public:
         // Initialize device and block sizes.
         i64 deviceSize = -1, blockSize = -1;
         auto blocks = BlockCache_->ReadBlocks({{DeviceSizeBlockId, {}}, {BlockSizeBlockId, {}}}, false /*fillEmptyBlocksWithZeros*/, TGuid::Create());
-        for (auto& [blockId, blockDatum]: blocks) {
+        for (auto& [blockId, blockPayload]: blocks) {
             YT_VERIFY(blockId == DeviceSizeBlockId || blockId == BlockSizeBlockId);
 
-            if (blockDatum.empty()) {
+            if (blockPayload.empty()) {
                 continue;
             }
 
             if (blockId == DeviceSizeBlockId) {
-                deviceSize = std::stoll(ToString(blockDatum));
+                deviceSize = std::stoll(ToString(blockPayload));
             }
 
             if (blockId == BlockSizeBlockId) {
-                blockSize = std::stoll(ToString(blockDatum));
+                blockSize = std::stoll(ToString(blockPayload));
             }
         }
 
@@ -572,14 +572,14 @@ private:
         // Read blocks that we are going to overwrite.
         if (!readBlockIds.empty()) {
             auto readBlocks = BlockCache_->ReadBlocks(std::move(readBlockIds), true /*fillEmptyBlocksWithZeros*/, writeId);
-            for (auto& [blockId, blockDatum] : readBlocks) {
+            for (auto& [blockId, blockPayload] : readBlocks) {
                 YT_VERIFY(blocks.contains(blockId));
-                blocks[blockId] = std::move(blockDatum);
+                blocks[blockId] = blockPayload;
             }
         }
 
         i64 dataOffset = 0;
-        for (auto& [blockId, blockDatum] : blocks) {
+        for (auto& [blockId, blockPayload] : blocks) {
             YT_VERIFY(0 < length);
 
             i64 beginWithinBlock = offset % DeviceConfig_->BlockSize;
@@ -593,11 +593,11 @@ private:
             YT_VERIFY(sizeWithinBlock <= length);
             YT_VERIFY(dataOffset + sizeWithinBlock <= std::ssize(data));
 
-            if (blockDatum.empty()) {
-                blockDatum = TSharedMutableRef::Allocate<TDynamicTableBlockDeviceTag>(DeviceConfig_->BlockSize, {.InitializeStorage = true});
+            if (blockPayload.empty()) {
+                blockPayload = TSharedMutableRef::Allocate<TDynamicTableBlockDeviceTag>(DeviceConfig_->BlockSize, {.InitializeStorage = true});
             }
 
-            YT_VERIFY(std::ssize(blockDatum) == DeviceConfig_->BlockSize);
+            YT_VERIFY(std::ssize(blockPayload) == DeviceConfig_->BlockSize);
 
             /*
                 Overwrite the middle of the block by new data.
@@ -608,9 +608,9 @@ private:
             */
 
             for (auto i = 0; i < sizeWithinBlock; ++i) {
-                YT_VERIFY(beginWithinBlock + i < std::ssize(blockDatum));
+                YT_VERIFY(beginWithinBlock + i < std::ssize(blockPayload));
                 YT_VERIFY(dataOffset + i < std::ssize(data));
-                blockDatum[beginWithinBlock + i] = data[dataOffset + i];
+                blockPayload[beginWithinBlock + i] = data[dataOffset + i];
             }
 
             offset += sizeWithinBlock;

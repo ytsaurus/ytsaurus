@@ -3,7 +3,7 @@
 ## Create dynamic table that will be storing NBD devices
 
 ```bash
-user@host:~$ yt create table //path/nbd_devices --attributes '{dynamic=%true;schema=[{name=device_id;type=string;sort_order=ascending}; {name=block_id;type=int64;sort_order=ascending}; {name=block_datum;type=string;}]}'
+user@host:~$ yt create table //path/nbd_devices --attributes '{dynamic=%true;schema=[{name=device_id;type=int64;sort_order=ascending}; {name=block_id;type=int64;sort_order=ascending}; {name=block_payload;type=string;}]}'
 ```
 
 where `//path/nbd_devices` is the path to the dynamic table on cluster. It's important to use schema exactly like in the example above.
