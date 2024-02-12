@@ -647,6 +647,9 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
             return type == "7b"
 
         def check():
+            def has_compaction_hint(store_orchid):
+                return "compaction_hint" in store_orchid.get("compaction_hints")["chunk_view_size"]
+
             try:
                 for tablet_id in tablet_ids:
                     tablet_orchid = self._find_tablet_orchid(get_tablet_leader_address(tablet_id), tablet_id)
@@ -654,13 +657,13 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
                         for store_id, store_orchid in partition["stores"].items():
                             if not is_chunk_view(store_id):
                                 continue
-                            if store_orchid.get("chunk_view_size_fetch_status", "none") not in ("compaction_required", "compaction_not_required"):
+                            if not has_compaction_hint(store_orchid):
                                 return False
 
                     for store_id, store_orchid in tablet_orchid["eden"]["stores"].items():
                         if not is_chunk_view(store_id):
                             continue
-                        if store_orchid.get("chunk_view_size_fetch_status", "none") not in ("compaction_required", "compaction_not_required"):
+                        if not has_compaction_hint(store_orchid):
                             return False
                 return True
             except YtError:
@@ -723,6 +726,81 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         check(1, 1, 0.89)
         check(0, 1, 0.99)
         check(0, 0, 0.99)
+
+    @authors("dave11ar")
+    def test_compaction_hints_after_cell_moved(self):
+        cell_id = sync_create_cells(1)[0]
+
+        self._create_simple_table(
+            "//tmp/t",
+            mount_config={
+                "row_digest_compaction": {
+                    "max_obsolete_timestamp_ratio": 0,
+                },
+                "min_data_ttl": 5000,
+                "max_data_ttl": 5000,
+            },
+            chunk_writer={
+                "versioned_row_digest": {
+                    "enable": True,
+                }
+            },
+            compression_codec="none"
+        )
+        sync_mount_table("//tmp/t")
+
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "store_compactor": {
+                    "row_digest_fetch_period": 5000,
+                    "row_digest_request_throttler": {
+                        "limit": 0.
+                    },
+                    "use_row_digests": True,
+                }
+            }
+        })
+        for i in range(10):
+            insert_rows("//tmp/t", [{"key": 1, "value": "a" * i * 1000}])
+
+        sync_flush_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets")[0]["tablet_id"]
+
+        def check_no_hint():
+            store_orchid = self._find_tablet_orchid(
+                get_tablet_leader_address(tablet_id),
+                tablet_id)["partitions"][0]["stores"][chunk_id]
+
+            row_digest = store_orchid.get("compaction_hints")["row_digest"]
+            return "compaction_hint" not in row_digest
+
+        wait(lambda: get("//tmp/t/@chunk_ids"))
+        chunk_id = get("//tmp/t/@chunk_ids")[0]
+
+        peer = get("//sys/tablet_cells/{}/@peers/0/address".format(cell_id))
+        ban_node(peer, "tablet cell peer")
+
+        wait(lambda: get("//sys/tablet_cells/{}/@health".format(cell_id)) == "good")
+
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "store_compactor": {
+                    "row_digest_fetch_period": 5000,
+                    "row_digest_request_throttler": {
+                        "limit": 10000,
+                    },
+                    "use_row_digests": True,
+                }
+            }
+        })
+
+        wait(lambda: get("//tmp/t/@chunk_ids"))
+        assert chunk_id in get("//tmp/t/@chunk_ids")
+        assert check_no_hint()
+
+        wait(lambda: chunk_id not in get("//tmp/t/@chunk_ids"))
+
 
 ################################################################################
 

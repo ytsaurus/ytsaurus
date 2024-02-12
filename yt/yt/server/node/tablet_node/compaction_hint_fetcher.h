@@ -4,65 +4,60 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/yt/server/lib/lsm/store.h>
-
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TResult>
-class TCompactionHintRequestWithResult
+struct TCompactionHintFetchStatus
 {
-public:
-    void SetRequestStatus(ECompactionHintRequestStatus status);
-    void SetResult(TResult result);
+    bool IsFetchNeeded = false;
+    bool InQueue = false;
+    int RequestStep = 0;
 
-    bool IsRequestStatus() const;
-    bool IsCertainRequestStatus(ECompactionHintRequestStatus status) const;
-
-    ECompactionHintRequestStatus AsRequestStatus() const;
-    const TResult& AsResult() const;
-
-private:
-    std::variant<ECompactionHintRequestStatus, TResult> Data_;
+    bool ShouldAddToQueue();
+    bool ShouldMakeFirstRequest();
+    bool ShouldConsumeRequestResult(int requestStep);
 };
 
 template <class TResult>
+struct TCompactionHint
+{
+    TCompactionHintFetchStatus FetchStatus;
+    std::optional<TResult> CompactionHint;
+};
+
 void Serialize(
-    const TCompactionHintRequestWithResult<TResult>& hint,
+    const TCompactionHintFetchStatus& compactionHintFetchStatus,
+    NYson::IYsonConsumer* consumer);
+
+template <class TResult>
+void Serialize(
+    const TCompactionHint<TResult>& compactionHint,
     NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSortedChunkStoreCompactionHints
-{
-    TCompactionHintRequestWithResult<NLsm::TRowDigestUpcomingCompactionInfo> RowDigest;
-    TCompactionHintRequestWithResult<EChunkViewSizeStatus> ChunkViewSize;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-class TProfiledQueue
+class TFetchCandidateQueue
 {
 public:
-    explicit TProfiledQueue(NProfiling::TGauge sizeCounter);
+    explicit TFetchCandidateQueue(
+        TCompactionHintFetcher* fetcher,
+        NProfiling::TGauge sizeGauge);
 
-    void Push(T value);
-    template <class ...Args>
-    void Emplace(Args&& ...args);
+    void Push(const IStorePtr& store);
+    IStorePtr PopAndGet();
+    void Clear();
 
-    void Pop();
-    T PopAndGet();
-
-    i64 Size() const;
     bool Empty() const;
+    i64 Size() const;
 
 private:
+    void ChangeInQueueStatus(const IStorePtr& store, bool status);
     void UpdateSize();
 
-    std::queue<T> Queue_;
-    NProfiling::TGauge SizeCounter_;
+    TCompactionHintFetcher* Fetcher_;
+    NProfiling::TGauge SizeGauge_;
+    std::queue<TWeakPtr<IStore>> Queue_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -79,44 +74,49 @@ public:
         TTablet* tablet,
         const std::optional<TRange<IStorePtr>>& stores = std::nullopt);
 
-    virtual void Reconfigure(
-        const NClusterNode::TClusterNodeDynamicConfigPtr& oldConfig,
-        const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig) = 0;
+    void ResetCompactionHints(TTablet* tablet) const;
+
+    virtual void Reconfigure(const NClusterNode::TClusterNodeDynamicConfigPtr& config) = 0;
 
 protected:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     const IInvokerPtr Invoker_;
-
+    const NConcurrency::TPeriodicExecutorPtr FetchingExecutor_;
     const NConcurrency::IReconfigurableThroughputThrottlerPtr RequestThrottler_;
 
-    TDuration ThrottlerTryAcquireBackoff_;
-
     NProfiling::TProfiler Profiler_;
+    const NProfiling::TCounter FinishedRequestCount_;
 
     void AddToQueue(const IStorePtr& store);
 
     void ClearQueue();
 
-    void OnRequestFailed(const IStorePtr& store);
+    void OnRequestFailed(
+        const IStorePtr& store,
+        int requestStep);
 
-    std::vector<IStorePtr> GetStoresForRequest();
+    bool IsValidStoreState(const IStorePtr& store);
 
 private:
     const NProfiling::TCounter RequestCount_;
     const NProfiling::TCounter FailedRequestCount_;
     const NProfiling::TCounter ThrottledRequestCount_;
 
-    TProfiledQueue<TWeakPtr<IStore>> StoresQueue_;
+    TFetchCandidateQueue StoresQueue_;
 
-    virtual bool HasRequestStatus(const IStorePtr& store) const = 0;
-    virtual ECompactionHintRequestStatus GetRequestStatus(const IStorePtr& store) const = 0;
-    virtual void SetRequestStatus(const IStorePtr& store, ECompactionHintRequestStatus status) const = 0;
+    friend TFetchCandidateQueue;
 
-    virtual bool IsFetchingRequiredForStore(const IStorePtr& store) const = 0;
-    virtual bool IsFetchingRequiredForTablet(const TTablet& tablet) const = 0;
+    void GetStoresFromQueueAndMakeRequest();
 
-    virtual void TryMakeRequest() = 0;
+    virtual void ResetResult(const IStorePtr& store) const = 0;
+
+    virtual bool IsFetchableStore(const IStorePtr& store) const = 0;
+    virtual bool IsFetchableTablet(const TTablet& tablet) const = 0;
+
+    virtual TCompactionHintFetchStatus& GetFetchStatus(const IStorePtr& store) const = 0;
+
+    virtual void MakeRequest(std::vector<IStorePtr>&& stores) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompactionHintFetcher)

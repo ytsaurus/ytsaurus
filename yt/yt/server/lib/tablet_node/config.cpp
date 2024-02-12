@@ -56,6 +56,12 @@ void TRowDigestCompactionConfig::Register(TRegistrar registrar)
         .Default(8192);
 }
 
+bool operator==(const TRowDigestCompactionConfig& lhs, const TRowDigestCompactionConfig& rhs)
+{
+    return lhs.MaxObsoleteTimestampRatio == rhs.MaxObsoleteTimestampRatio &&
+        lhs.MaxTimestampsPerValue == rhs.MaxTimestampsPerValue;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TBuiltinTableMountConfig::Register(TRegistrar registrar)
@@ -599,14 +605,15 @@ void TStoreCompactorDynamicConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Optional();
 
-    registrar.Parameter("row_digest_request_throttler", &TThis::RowDigestRequestThrottler)
-        .DefaultNew();
+    registrar.Parameter("chunk_view_size_fetch_period", &TThis::ChunkViewSizeFetchPeriod)
+        .Default(TDuration::Seconds(5));
     registrar.Parameter("chunk_view_size_request_throttler", &TThis::ChunkViewSizeRequestThrottler)
         .DefaultNew();
-    registrar.Parameter("row_digest_throttler_try_acquire_backoff", &TThis::RowDigestThrottlerTryAcquireBackoff)
-        .Default(TDuration::Seconds(1));
-    registrar.Parameter("chunk_view_size_throttler_try_acquire_backoff", &TThis::ChunkViewSizeThrottlerTryAcquireBackoff)
-        .Default(TDuration::Seconds(1));
+
+    registrar.Parameter("row_digest_fetch_period", &TThis::RowDigestFetchPeriod)
+        .Default(TDuration::Seconds(5));
+    registrar.Parameter("row_digest_request_throttler", &TThis::RowDigestRequestThrottler)
+        .DefaultNew();
     registrar.Parameter("use_row_digests", &TThis::UseRowDigests)
         .Default(false);
 

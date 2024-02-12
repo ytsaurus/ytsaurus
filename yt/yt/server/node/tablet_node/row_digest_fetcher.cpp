@@ -44,8 +44,8 @@ class TRowDigestFetcher
 public:
     TRowDigestFetcher(
         TTabletCellId cellId,
-        TClusterNodeDynamicConfigPtr config,
-        IInvokerPtr invoker)
+        IInvokerPtr invoker,
+        const TClusterNodeDynamicConfigPtr& config)
         : TCompactionHintFetcher(
             std::move(invoker),
             TabletNodeProfiler
@@ -53,85 +53,70 @@ public:
                 .WithTag("cell_id", ToString(cellId)))
         , RowDigestParseCumulativeTime_(Profiler_.TimeCounter("/row_digest_parse_cumulative_time"))
     {
-        Invoker_->Invoke(BIND(
-            &TCompactionHintFetcher::Reconfigure,
-            MakeWeak(this),
-            /*oldConfig*/ nullptr,
-            std::move(config)));
+        Reconfigure(config);
     }
 
-    void Reconfigure(
-        const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
-        const TClusterNodeDynamicConfigPtr& newConfig) override
+    void Reconfigure(const TClusterNodeDynamicConfigPtr& config) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        const auto& storeCompactorConfig = config->TabletNode->StoreCompactor;
+        FetchingExecutor_->SetPeriod(storeCompactorConfig->RowDigestFetchPeriod);
+        RequestThrottler_->Reconfigure(storeCompactorConfig->RowDigestRequestThrottler);
 
-        const auto& config = newConfig->TabletNode->StoreCompactor;
-        RequestThrottler_->Reconfigure(config->RowDigestRequestThrottler);
-        ThrottlerTryAcquireBackoff_ = config->RowDigestThrottlerTryAcquireBackoff;
-        UseRowDigests_ = config->UseRowDigests;
-
-        if (!UseRowDigests_) {
-            ClearQueue();
-        }
+        Invoker_->Invoke(BIND(
+            &TRowDigestFetcher::DoReconfigure,
+            MakeWeak(this),
+            storeCompactorConfig->UseRowDigests));
     }
 
 private:
     const TTimeCounter RowDigestParseCumulativeTime_;
 
-    bool UseRowDigests_;
+    bool UseRowDigests_ = false;
 
-    static TCompactionHintRequestWithResult<TRowDigestUpcomingCompactionInfo>& GetRowDigestCompactionHints(
-        const IStorePtr& store)
+    void DoReconfigure(bool useRowDigests)
     {
-        return store->AsSortedChunk()->CompactionHints().RowDigest;
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+        if (UseRowDigests_ == useRowDigests) {
+            return;
+        }
+
+        if (UseRowDigests_ = useRowDigests) {
+            FetchingExecutor_->Start();
+        } else {
+            YT_UNUSED_FUTURE(WaitFor(FetchingExecutor_->Stop()));
+            ClearQueue();
+        }
     }
 
-    bool HasRequestStatus(const IStorePtr& store) const override
+    void ResetResult(const IStorePtr& store) const override
     {
-        return GetRowDigestCompactionHints(store).IsRequestStatus();
+        store->AsSortedChunk()->CompactionHints().RowDigest.CompactionHint.reset();
     }
 
-    ECompactionHintRequestStatus GetRequestStatus(const IStorePtr& store) const override
-    {
-        return GetRowDigestCompactionHints(store).AsRequestStatus();
-    }
-
-    void SetRequestStatus(const IStorePtr& store, ECompactionHintRequestStatus status) const override
-    {
-        GetRowDigestCompactionHints(store).SetRequestStatus(status);
-    }
-
-    bool IsFetchingRequiredForStore(const IStorePtr& store) const override
+    bool IsFetchableStore(const IStorePtr& store) const override
     {
         return store->GetType() == EStoreType::SortedChunk;
     }
 
-    bool IsFetchingRequiredForTablet(const TTablet& tablet) const override
+    bool IsFetchableTablet(const TTablet& tablet) const override
     {
         return UseRowDigests_ && tablet.IsPhysicallySorted();
     }
 
-    void TryMakeRequest() override
+    TCompactionHintFetchStatus& GetFetchStatus(const IStorePtr& store) const override
     {
+        return store->AsSortedChunk()->CompactionHints().RowDigest.FetchStatus;
+    }
+
+    void MakeRequest(std::vector<IStorePtr>&& stores) override
+    {
+        static constexpr int RequestStep = 1;
+
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto stores = GetStoresForRequest();
-        if (stores.empty()) {
-            return;
-        }
-
-        if (!UseRowDigests_) {
-            for (const auto& store : stores) {
-                SetRequestStatus(store, ECompactionHintRequestStatus::None);
-            }
-            return;
-        }
+        YT_ASSERT(!stores.empty());
 
         std::vector<TFuture<TRefCountedChunkMetaPtr>> asyncRowDigestMetas;
-        for (auto& store : stores) {
-            SetRequestStatus(store, ECompactionHintRequestStatus::Requested);
-
+        for (const auto& store : stores) {
             auto sortedChunkStore = store->AsSortedChunk();
 
             auto reader = sortedChunkStore->GetBackendReaders(
@@ -140,6 +125,9 @@ private:
                 /*options*/ {},
                 /*partitionTag*/ {},
                 std::vector<int>{TProtoExtensionTag<TVersionedRowDigestExt>::Value}));
+
+            GetFetchStatus(store).RequestStep = RequestStep;
+
             YT_LOG_DEBUG("Requesting row digest for store (StoreId: %v, ChunkId: %v)",
                 sortedChunkStore->GetId(),
                 sortedChunkStore->GetChunkId());
@@ -149,57 +137,68 @@ private:
             .SubscribeUnique(BIND(
                 &TRowDigestFetcher::OnRowDigestMetaReceived,
                 MakeStrong(this),
-                Passed(std::move(stores)))
+                std::move(stores))
                 .Via(Invoker_));
     }
 
     void OnRowDigestMetaReceived(
-        std::vector<IStorePtr> stores,
+        const std::vector<IStorePtr>& stores,
         TErrorOr<std::vector<TErrorOr<TRefCountedChunkMetaPtr>>> allSetResult)
     {
+        static constexpr int RequestStep = 2;
+
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
         YT_VERIFY(allSetResult.IsOK());
         auto errorOrRsps = allSetResult.Value();
         YT_VERIFY(stores.size() == errorOrRsps.size());
 
-        if (!UseRowDigests_) {
-            for (const auto& store : stores) {
-                SetRequestStatus(store, ECompactionHintRequestStatus::None);
-            }
-            return;
-        }
-
+        i64 finishedRequestCount = 0;
         for (const auto& [store, errorOrRsp] : Zip(stores, errorOrRsps)) {
             if (!errorOrRsp.IsOK()) {
-                OnRequestFailed(store);
+                OnRequestFailed(store, RequestStep - 1);
                 YT_LOG_WARNING(errorOrRsp, "Failed to receive row digest for chunk (StoreId: %v)",
                     store->GetId());
                 continue;
             }
 
-            auto rowDigestExt = FindProtoExtension<TVersionedRowDigestExt>(
-                errorOrRsp.Value()->extensions());
+            if (IsValidStoreState(store) && GetFetchStatus(store).ShouldConsumeRequestResult(RequestStep)) {
+                auto sortedChunkStore = store->AsSortedChunk();
 
-            if (!rowDigestExt) {
-                YT_LOG_DEBUG(errorOrRsp, "Chunk meta does not contain row digest (StoreId: %v)",
-                    store->GetId());
-                continue;
+                auto rowDigestExt = FindProtoExtension<TVersionedRowDigestExt>(
+                    errorOrRsp.Value()->extensions());
+
+                if (!rowDigestExt) {
+                    YT_LOG_DEBUG(errorOrRsp, "Chunk meta does not contain row digest (StoreId: %v, ChunkId: %v)",
+                        sortedChunkStore->GetId(),
+                        sortedChunkStore->GetChunkId());
+                    continue;
+                }
+
+                TVersionedRowDigest digest;
+
+                TWallTimer timer;
+                FromProto(&digest, rowDigestExt.value());
+                RowDigestParseCumulativeTime_.Add(timer.GetElapsedTime());
+
+                auto& compactionHints = sortedChunkStore->CompactionHints().RowDigest;
+                compactionHints.FetchStatus.RequestStep = RequestStep;
+                compactionHints.CompactionHint = GetUpcomingCompactionInfo(
+                    store->GetId(),
+                    store->GetTablet()->GetSettings().MountConfig,
+                    digest);
+
+                ++finishedRequestCount;
+                YT_LOG_DEBUG("Finished fetching row digest (StoreId: %v, ChunkId: %v, "
+                    "CompactionHintReason: %v, CompactionHintTimestamp: %v)",
+                    sortedChunkStore->GetId(),
+                    sortedChunkStore->GetChunkId(),
+                    compactionHints.CompactionHint->Reason,
+                    compactionHints.CompactionHint->Timestamp);
             }
 
-            TVersionedRowDigest digest;
-
-            TWallTimer timer;
-            FromProto(&digest, rowDigestExt.value());
-            RowDigestParseCumulativeTime_.Add(timer.GetElapsedTime());
-
-            GetRowDigestCompactionHints(store).SetResult(GetUpcomingCompactionInfo(
-                store->GetId(),
-                store->GetTablet()->GetSettings().MountConfig,
-                digest));
+            FinishedRequestCount_.Increment(finishedRequestCount);
         }
-
-        TryMakeRequest();
     }
 };
 
@@ -207,13 +206,13 @@ private:
 
 TCompactionHintFetcherPtr CreateRowDigestFetcher(
     TTabletCellId cellId,
-    TClusterNodeDynamicConfigPtr config,
-    IInvokerPtr invoker)
+    IInvokerPtr invoker,
+    const TClusterNodeDynamicConfigPtr& config)
 {
     return New<TRowDigestFetcher>(
         cellId,
-        std::move(config),
-        std::move(invoker));
+        std::move(invoker),
+        config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

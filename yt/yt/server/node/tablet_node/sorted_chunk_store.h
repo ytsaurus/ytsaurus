@@ -4,6 +4,8 @@
 #include "store_detail.h"
 #include "compaction_hint_fetcher.h"
 
+#include <yt/yt/server/lib/lsm/store.h>
+
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
@@ -19,12 +21,24 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCompactionHints
+{
+    TCompactionHint<EChunkViewSizeStatus> ChunkViewSize;
+    TCompactionHint<NLsm::TRowDigestUpcomingCompactionInfo> RowDigest;
+};
+
+void Serialize(
+    const TCompactionHints& compactionHints,
+    NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSortedChunkStore
     : public TChunkStoreBase
     , public TSortedStoreBase
 {
 public:
-    DEFINE_BYREF_RW_PROPERTY(TSortedChunkStoreCompactionHints, CompactionHints);
+    DEFINE_BYREF_RW_PROPERTY(TCompactionHints, CompactionHints);
 
 public:
     TSortedChunkStore(

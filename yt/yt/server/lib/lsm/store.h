@@ -18,6 +18,10 @@ struct TRowDigestUpcomingCompactionInfo
     TInstant Timestamp;
 };
 
+void Serialize(
+    const TRowDigestUpcomingCompactionInfo& info,
+    NYson::IYsonConsumer* consumer);
+
 struct TCompactionHints
 {
     TRowDigestUpcomingCompactionInfo RowDigest;

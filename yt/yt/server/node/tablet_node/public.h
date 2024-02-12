@@ -73,13 +73,6 @@ DEFINE_ENUM(ETabletLockType,
     ((PersistentTransaction)         (2))
 );
 
-
-DEFINE_ENUM(ECompactionHintRequestStatus,
-    ((None)         (0))
-    ((InQueue)      (1))
-    ((Requested)    (2))
-);
-
 DEFINE_ENUM(EChunkViewSizeStatus,
     (CompactionRequired)
     (CompactionNotRequired)
