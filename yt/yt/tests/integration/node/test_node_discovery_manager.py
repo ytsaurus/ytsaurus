@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_helpers import profiler_factory
 
-from yt_commands import authors, print_debug, wait, ls, get, set, exists, create_rack, start_transaction, ban_node
+from yt_commands import authors, print_debug, wait, ls, get, set, exists, create_rack, start_transaction, set_node_banned
 
 from yt.common import YtError
 
@@ -30,7 +30,7 @@ class NodeDiscoveryManagerBase(YTEnvSetup):
         set("//sys/cluster_nodes/{0}/@user_tags".format(self.select_node(id)), tags)
 
     def ban_node(self, id):
-        ban_node(self.select_node(id), "ban node")
+        set_node_banned(self.select_node(id), True)
 
     def wait_for_config_at_nodes(self, expected_nodes):
         for node in ls("//sys/cluster_nodes"):

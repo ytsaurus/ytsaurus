@@ -11,7 +11,7 @@ from yt_commands import (
     map, merge, sort, interrupt_job, get_first_chunk_id,
     get_singular_chunk_id, check_all_stderrs,
     create_test_tables, assert_statistics, extract_statistic_v2,
-    ban_node, unban_node, update_inplace)
+    set_node_banned, update_inplace)
 
 from yt_type_helpers import make_schema, normalize_schema, make_column
 
@@ -2165,7 +2165,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
         banned = False
         for node in ls("//sys/cluster_nodes"):
             if node == replica_to_ban:
-                ban_node(node, "test unavailable chunk")
+                set_node_banned(node, True)
                 banned = True
         assert banned
 
@@ -2190,7 +2190,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
         unbanned = False
         for node in ls("//sys/cluster_nodes"):
             if node == replica_to_ban:
-                unban_node(node)
+                set_node_banned(node, False)
                 unbanned = True
         assert unbanned
 

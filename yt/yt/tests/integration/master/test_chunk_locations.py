@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, set, get, ls, remove, exists, wait, get_driver, raises_yt_error,
     create_domestic_medium, create, write_table, read_table,
-    ban_node, unban_node, build_snapshot, get_active_primary_master_leader_address)
+    set_node_banned, build_snapshot, get_active_primary_master_leader_address)
 
 from yt_helpers import profiler_factory
 
@@ -33,7 +33,7 @@ class TestChunkLocations(YTEnvSetup):
                 assert get("//sys/chunk_locations/{}/@state".format(location_uuid)) == state
 
         check_locations_state("online")
-        ban_node(node_address, "test location offline state")
+        set_node_banned(node_address, True)
         wait(lambda: get("//sys/cluster_nodes/{0}/@state".format(node_address)) == "offline")
         check_locations_state("offline")
 
@@ -44,8 +44,7 @@ class TestChunkLocations(YTEnvSetup):
         location_uuids = list(get("//sys/cluster_nodes/{}/@chunk_locations".format(node_address)).keys())
         assert len(location_uuids) > 0
 
-        ban_node(node_address, "test removing node destroys locations")
-        wait(lambda: get("//sys/cluster_nodes/{0}/@state".format(node_address)) == "offline")
+        set_node_banned(node_address, True)
 
         with Restarter(self.Env, NODES_SERVICE):
             remove("//sys/cluster_nodes/{}".format(node_address))
@@ -73,13 +72,12 @@ class TestChunkLocations(YTEnvSetup):
         location_uuids = list(get("//sys/cluster_nodes/{}/@chunk_locations".format(node_address)).keys())
         assert len(location_uuids) > 0
 
-        ban_node(node_address, "test can remove location for offline node")
-        wait(lambda: get("//sys/cluster_nodes/{0}/@state".format(node_address)) == "offline")
+        set_node_banned(node_address, True)
 
         with Restarter(self.Env, NODES_SERVICE):
             for location_uuid in location_uuids:
                 remove("//sys/chunk_locations/{}".format(location_uuid))
-            unban_node(node_address)
+            set_node_banned(node_address, False, wait_for_master=False)
 
         wait(lambda: all(exists("//sys/chunk_locations/{}".format(location_uuid)) for location_uuid in location_uuids))
 

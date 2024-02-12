@@ -8,7 +8,7 @@ from yt_env_setup import (
 
 from yt_commands import (
     authors, run_sleeping_vanilla, get, ls, wait,
-    ban_node, unban_node, exists,
+    set_node_banned, exists,
     run_test_vanilla, with_breakpoint,
     wait_breakpoint, release_breakpoint,
     update_controller_agent_config, update_nodes_dynamic_config,
@@ -179,7 +179,7 @@ class TestJobTracker(YTEnvSetup):
         job_info = self._get_job_info(op, job_id)
 
         node_address = job_info["node_address"]
-        ban_node(node_address)
+        set_node_banned(node_address, True)
 
         wait(
             lambda: not exists(
@@ -198,7 +198,7 @@ class TestJobTracker(YTEnvSetup):
         assert len(aborted_job_events) == 1
         assert aborted_job_events[job_id]["reason"] == "node_offline"
 
-        unban_node(node_address)
+        set_node_banned(node_address, False)
 
     @authors("pogorelov")
     def test_job_finish(self):

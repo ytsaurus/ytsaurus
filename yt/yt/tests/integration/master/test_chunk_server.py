@@ -4,7 +4,7 @@ from yt_commands import (
     authors, create_user, wait, create, ls, get, set, remove, exists,
     start_transaction, insert_rows, build_snapshot, gc_collect, concatenate, create_account, create_rack,
     read_table, write_table, write_journal, merge, sync_create_cells, sync_mount_table, sync_unmount_table, sync_control_chunk_replicator, get_singular_chunk_id,
-    multicell_sleep, update_nodes_dynamic_config, switch_leader, ban_node, add_maintenance, remove_maintenance,
+    multicell_sleep, update_nodes_dynamic_config, switch_leader, set_node_banned, add_maintenance, remove_maintenance,
     set_node_decommissioned, execute_command, is_active_primary_master_leader, is_active_primary_master_follower,
     get_active_primary_master_leader_address, get_active_primary_master_follower_address, create_tablet_cell_bundle)
 
@@ -148,7 +148,7 @@ class TestChunkServer(YTEnvSetup):
         nodes = get("#%s/@stored_replicas" % chunk_id)
 
         for index in (4, 6, 11, 15):
-            ban_node(nodes[index], "test decommission erasure 3")
+            set_node_banned(nodes[index], True, wait_for_master=False)
         set_node_decommissioned(nodes[0], True)
 
         wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == 12)
@@ -180,7 +180,7 @@ class TestChunkServer(YTEnvSetup):
         wait(lambda: get("//sys/@chunk_replicator_enabled"))
 
         for i in range(19):
-            ban_node(nodes[i], "test disable replicator when few nodes are online")
+            set_node_banned(nodes[i], True, wait_for_master=False)
 
         wait(lambda: not get("//sys/@chunk_replicator_enabled"))
 
@@ -340,7 +340,7 @@ class TestChunkServer(YTEnvSetup):
         wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 1)
 
         node = get(f"#{chunk_id}/@stored_replicas")[0]
-        ban_node(node, "test_historically_non_vital")
+        set_node_banned(node, True)
 
         wait(lambda: chunk_id in get("//sys/lost_chunks"))
         assert chunk_id not in get("//sys/lost_vital_chunks")
@@ -1392,7 +1392,7 @@ class TestChunkServerCypressIntegration(YTEnvSetup):
         write_table("//tmp/t", {"a": "b"}, table_writer={"upload_replication_factor": 8})
         chunk_id = get_singular_chunk_id("//tmp/t")
         node = get(f"#{chunk_id}/@stored_replicas")[0]
-        ban_node(node, "test_historically_non_vital")
+        set_node_banned(node, True)
         wait(lambda: chunk_id in get("//sys/lost_chunks"))
 
         with pytest.raises(YtError, match="Mutating request through virtual map is forbidden"):

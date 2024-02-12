@@ -27,7 +27,7 @@ from yt_commands import (
     sync_remove_tablet_cells, set_node_decommissioned, create_dynamic_table, build_snapshot, get_driver,
     AsyncLastCommittedTimestamp, create_domestic_medium, raises_yt_error, get_tablet_errors,
     suspend_tablet_cells, resume_tablet_cells, update_nodes_dynamic_config,
-    ban_node, unban_node, decommission_node, recommission_node, disable_tablet_cells_on_node, enable_tablet_cells_on_node)
+    set_node_banned, decommission_node, recommission_node, disable_tablet_cells_on_node, enable_tablet_cells_on_node)
 
 from yt_type_helpers import make_schema, optional_type
 import yt_error_codes
@@ -1852,10 +1852,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//sys/cluster_nodes/{0}/@user_tags".format(node), ["b"])
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
 
-        ban_node(node, "test bunle node list")
+        set_node_banned(node, True)
         assert get("//sys/tablet_cell_bundles/b/@nodes") == []
-        unban_node(node)
-        wait(lambda: get("//sys/cluster_nodes/{0}/@state".format(node)) == "online")
+        set_node_banned(node, False)
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
 
         decommission_node(node, "test bunle node list")
@@ -2372,7 +2371,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         chunk_replica_address = list(
             [str(r) for r in get("#{}/@stored_replicas".format(chunk_id)) if r.attributes["index"] == 0]
         )[0]
-        ban_node(chunk_replica_address, "test erasure snapshots")
+        set_node_banned(chunk_replica_address, True)
 
         wait_for_cells([cell_id], decommissioned_addresses=[chunk_replica_address])
 

@@ -14,7 +14,7 @@ from yt_commands import (
     sync_create_cells, get_singular_chunk_id,
     update_nodes_dynamic_config, set_node_banned, check_all_stderrs,
     assert_statistics, assert_statistics_v2, extract_statistic_v2,
-    heal_exec_node, ban_node,
+    heal_exec_node,
     make_random_string, raises_yt_error, update_controller_agent_config, update_scheduler_config,
     get_supported_erasure_codecs)
 
@@ -990,7 +990,7 @@ class TestFilesInSandbox(YTEnvSetup):
         banned = False
         for node in ls("//sys/cluster_nodes"):
             if node == replica_to_ban:
-                ban_node(node, "test operation abort with lost file")
+                set_node_banned(node, True)
                 banned = True
         assert banned
 

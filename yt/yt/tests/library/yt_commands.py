@@ -2624,6 +2624,7 @@ def check_all_stderrs(op, expected_content, expected_count, substring=False):
 ##################################################################
 
 
+# TODO(babenko): eliminate in favor of set_node_banned
 def set_banned_flag(value, nodes=None, driver=None, wait_for_scheduler=False):
     if not nodes:
         nodes = ls("//sys/cluster_nodes", driver=driver)
@@ -2632,7 +2633,7 @@ def set_banned_flag(value, nodes=None, driver=None, wait_for_scheduler=False):
         return
 
     for node in nodes:
-        (ban_node if value else unban_node)(node, driver=driver)
+        (_ban_node if value else _unban_node)(node, driver=driver)
 
     target_state = "offline" if value else "online"
 
@@ -2701,23 +2702,24 @@ def set_node_maintenance_flag(address, type, reason="", driver=None):
         set(f"{path}/@{flag}", True, driver=driver)
 
 
-def ban_node(address, reason="", driver=None):
+def _ban_node(address, reason="", driver=None):
     set_node_maintenance_flag(address, "ban", reason, driver=driver)
 
 
-def unban_node(address, driver=None):
+def _unban_node(address, driver=None):
     clear_node_maintenance_flag(address, "ban", driver=driver)
 
 
-def set_node_banned(address, value, driver=None):
+def set_node_banned(address, value, wait_for_master=True, driver=None):
     if value:
-        ban_node(address, reason="set_node_banned(True)", driver=driver)
+        _ban_node(address, reason="set_node_banned(True)", driver=driver)
         state = "offline"
     else:
-        unban_node(address, driver=driver)
+        _unban_node(address, driver=driver)
         state = "online"
-    print_debug(f"waiting for node {address} to become {state}...")
-    wait(lambda: get(f"//sys/cluster_nodes/{address}/@state", driver=driver) == state)
+    if wait_for_master:
+        print_debug(f"Waiting for node {address} to become {state} at master...")
+        wait(lambda: get(f"//sys/cluster_nodes/{address}/@state", driver=driver) == state)
 
 
 def decommission_node(address, reason="", driver=None):
