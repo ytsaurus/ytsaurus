@@ -57,10 +57,6 @@ struct ISchedulerStrategyHost
     virtual void AbortJobsAtNode(NNodeTrackerClient::TNodeId nodeId, EAbortReason reason) = 0;
 
     virtual TString FormatResources(const TJobResourcesWithQuota& resources) const = 0;
-    virtual TString FormatResourceUsage(
-        const TJobResources& usage,
-        const TJobResources& limits,
-        const NNodeTrackerClient::NProto::TDiskResources& diskResources) const = 0;
     virtual void SerializeResources(const TJobResourcesWithQuota& resources, NYson::IYsonConsumer* consumer) const = 0;
     virtual void SerializeDiskQuota(const TDiskQuota& diskQuota, NYson::IYsonConsumer* consumer) const = 0;
 

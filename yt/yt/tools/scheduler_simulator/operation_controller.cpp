@@ -205,7 +205,7 @@ public:
     TFuture<TControllerScheduleJobResultPtr> ScheduleJob(
         const ISchedulingContextPtr& context,
         const TJobResources& nodeLimits,
-        const NNodeTrackerClient::NProto::TDiskResources& diskResourceLimits,
+        const TDiskResources& diskResourceLimits,
         const TString& /* treeId */,
         const TString& /* poolPath */,
         const TFairShareStrategyTreeConfigPtr& /* treeConfig */) override;
@@ -446,7 +446,7 @@ bool TSimulatorOperationController::FindJobToSchedule(
 TFuture<TControllerScheduleJobResultPtr> TSimulatorOperationController::ScheduleJob(
     const ISchedulingContextPtr& context,
     const TJobResources& nodeLimits,
-    const NNodeTrackerClient::NProto::TDiskResources& /*diskResourceLimits*/,
+    const TDiskResources& /*diskResourceLimits*/,
     const TString& /* treeId */,
     const TString& /* poolPath */,
     const TFairShareStrategyTreeConfigPtr& /* treeConfig */)

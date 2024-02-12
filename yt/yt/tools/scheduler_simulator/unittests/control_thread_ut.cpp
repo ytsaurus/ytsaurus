@@ -221,10 +221,15 @@ protected:
         node->SetTags(TBooleanFormulaTags(THashSet<TString>{"internal"}));
         node->SetResourceLimits(resourceLimits);
 
-        NNodeTrackerClient::NProto::TDiskResources diskResources;
-        auto* locationResources = diskResources.add_disk_location_resources();
-        locationResources->set_limit(100_GB);
-        locationResources->set_usage(0);
+        auto diskResources = TDiskResources{
+            .DiskLocationResources = {
+                TDiskResources::TDiskLocationResources{
+                    .Usage = 0,
+                    .Limit = 100_GB,
+                },
+            },
+        };
+
         node->SetDiskResources(diskResources);
 
         return node;

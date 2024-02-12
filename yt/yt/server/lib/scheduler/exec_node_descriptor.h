@@ -7,8 +7,6 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/yt/ytlib/node_tracker_client/public.h>
-
 #include <yt/yt/ytlib/scheduler/proto/scheduler_service.pb.h>
 #include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
 
@@ -34,7 +32,7 @@ struct TExecNodeDescriptor
         bool online,
         const TJobResources& resourceUsage,
         const TJobResources& resourceLimits,
-        const NNodeTrackerClient::NProto::TDiskResources& diskResources,
+        const TDiskResources& diskResources,
         const TBooleanFormulaTags& tags,
         std::optional<TString> infinibandCluster,
         NYTree::IAttributeDictionaryPtr schedulingOptions);
@@ -48,7 +46,7 @@ struct TExecNodeDescriptor
     bool Online = false;
     TJobResources ResourceUsage;
     TJobResources ResourceLimits;
-    NNodeTrackerClient::NProto::TDiskResources DiskResources;
+    TDiskResources DiskResources;
     TBooleanFormulaTags Tags;
     std::optional<TString> InfinibandCluster;
     NYTree::IAttributeDictionaryPtr SchedulingOptions;

@@ -1639,18 +1639,6 @@ public:
         return NScheduler::FormatResources(resources);
     }
 
-    TString FormatResourceUsage(
-        const TJobResources& usage,
-        const TJobResources& limits,
-        const NNodeTrackerClient::NProto::TDiskResources& diskResources) const override
-    {
-        auto mediumDirectory = Bootstrap_
-            ->GetClient()
-            ->GetNativeConnection()
-            ->GetMediumDirectory();
-        return NScheduler::FormatResourceUsage(usage, limits, diskResources, mediumDirectory);
-    }
-
     void SerializeResources(const TJobResourcesWithQuota& resources, IYsonConsumer* consumer) const override
     {
         auto mediumDirectory = Bootstrap_
@@ -4635,17 +4623,6 @@ int TScheduler::GetOperationArchiveVersion() const
 TString TScheduler::FormatResources(const TJobResourcesWithQuota& resources) const
 {
     return Impl_->FormatResources(resources);
-}
-
-TString TScheduler::FormatResourceUsage(
-    const TJobResources& usage,
-    const TJobResources& limits,
-    const NNodeTrackerClient::NProto::TDiskResources& diskResources) const
-{
-    return Impl_->FormatResourceUsage(
-        usage,
-        limits,
-        diskResources);
 }
 
 TFuture<void> TScheduler::SetOperationAlert(

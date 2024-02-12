@@ -63,10 +63,6 @@ public:
     const TString& GetMediumNameByIndex(int mediumIndex) const override;
 
     TString FormatResources(const NScheduler::TJobResourcesWithQuota& resources) const override;
-    TString FormatResourceUsage(
-        const NScheduler::TJobResources& usage,
-        const NScheduler::TJobResources& limits,
-        const NNodeTrackerClient::NProto::TDiskResources& diskResources) const override;
     void SerializeResources(const NScheduler::TJobResourcesWithQuota& resources, NYson::IYsonConsumer* consumer) const override;
     void SerializeDiskQuota(const NScheduler::TDiskQuota& diskQuota, NYson::IYsonConsumer* consumer) const override;
 

@@ -206,15 +206,6 @@ public:
         return NScheduler::FormatResources(resources);
     }
 
-    TString FormatResourceUsage(
-        const TJobResources& usage,
-        const TJobResources& limits,
-        const NNodeTrackerClient::NProto::TDiskResources& diskResources) const override
-    {
-        YT_VERIFY(MediumDirectory_);
-        return NScheduler::FormatResourceUsage(usage, limits, diskResources, MediumDirectory_);
-    }
-
     void SerializeResources(const TJobResourcesWithQuota& /*resources*/, NYson::IYsonConsumer* /*consumer*/) const override
     {
         YT_UNIMPLEMENTED();
@@ -341,7 +332,7 @@ public:
     MOCK_METHOD(TFuture<TControllerScheduleJobResultPtr>, ScheduleJob, (
         const ISchedulingContextPtr& context,
         const TJobResources& jobLimits,
-        const NNodeTrackerClient::NProto::TDiskResources& diskResourceLimits,
+        const TDiskResources& diskResourceLimits,
         const TString& treeId,
         const TString& poolPath,
         const TFairShareStrategyTreeConfigPtr& treeConfig), (override));
@@ -709,15 +700,22 @@ protected:
 
     TExecNodePtr CreateTestExecNode(const TJobResourcesWithQuota& nodeResources, TBooleanFormulaTags tags = {})
     {
-        NNodeTrackerClient::NProto::TDiskResources diskResources;
-        diskResources.mutable_disk_location_resources()->Add();
-        diskResources.mutable_disk_location_resources(0)->set_limit(GetOrDefault(nodeResources.DiskQuota().DiskSpacePerMedium, NChunkClient::DefaultSlotsMediumIndex));
+        auto diskResources = TDiskResources{
+            .DiskLocationResources = {
+                TDiskResources::TDiskLocationResources{
+                    .Usage = 0,
+                    .Limit = GetOrDefault(
+                        nodeResources.DiskQuota().DiskSpacePerMedium,
+                        NChunkClient::DefaultSlotsMediumIndex),
+                },
+            },
+        };
 
         auto nodeId = ExecNodeId_;
         ExecNodeId_ = NNodeTrackerClient::TNodeId(nodeId.Underlying() + 1);
         auto execNode = New<TExecNode>(nodeId, NNodeTrackerClient::TNodeDescriptor(), ENodeState::Online);
         execNode->SetResourceLimits(nodeResources.ToJobResources());
-        execNode->SetDiskResources(diskResources);
+        execNode->SetDiskResources(std::move(diskResources));
 
         execNode->SetTags(std::move(tags));
 
@@ -1191,7 +1189,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
     auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
     auto context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
 
-    EXPECT_EQ(0, context->SchedulingContext()->DiskResources().default_medium_index());
+    EXPECT_EQ(0, context->SchedulingContext()->DiskResources().DefaultMediumIndex);
 
     context->StartStage(EJobSchedulingStage::PreemptiveNormal, &PreemptiveSchedulingProfilingCounters_);
     context->PrepareForScheduling();

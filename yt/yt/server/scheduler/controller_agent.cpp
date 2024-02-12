@@ -23,7 +23,7 @@ void ToProto(NProto::TScheduleJobRequest* protoRequest, const TScheduleJobReques
     protoRequest->set_tree_id(request.TreeId);
     ToProto(protoRequest->mutable_job_resource_limits(), request.JobResourceLimits);
     protoRequest->set_pool_path(request.PoolPath);
-    protoRequest->mutable_node_disk_resources()->CopyFrom(request.NodeDiskResources);
+    ToProto(protoRequest->mutable_node_disk_resources(), request.NodeDiskResources);
     auto* spec = protoRequest->mutable_spec();
     if (request.Spec.WaitingJobTimeout) {
         spec->set_waiting_job_timeout(ToProto<i64>(*request.Spec.WaitingJobTimeout));

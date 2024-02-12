@@ -556,7 +556,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             node,
             ToJobResources(request->resource_limits()),
             ToJobResources(request->resource_usage()),
-            request->disk_resources());
+            FromProto<TDiskResources>(request->disk_resources()));
     }
 
     TLeaseManager::RenewLease(node->GetHeartbeatLease(), Config_->NodeHeartbeatTimeout);
@@ -2051,7 +2051,7 @@ void TNodeShard::UpdateNodeResources(
     const TExecNodePtr& node,
     const TJobResources& limits,
     const TJobResources& usage,
-    const NNodeTrackerClient::NProto::TDiskResources& diskResources)
+    TDiskResources diskResources)
 {
     auto oldResourceLimits = node->GetResourceLimits();
 
@@ -2063,7 +2063,7 @@ void TNodeShard::UpdateNodeResources(
         }
         node->SetResourceLimits(limits);
         node->SetResourceUsage(usage);
-        node->SetDiskResources(diskResources);
+        node->SetDiskResources(std::move(diskResources));
     } else {
         if (node->GetResourceLimits().GetUserSlots() > 0 && node->GetMasterState() == NNodeTrackerClient::ENodeState::Online) {
             ExecNodeCount_ -= 1;

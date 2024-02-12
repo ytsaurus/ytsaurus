@@ -154,12 +154,12 @@ public:
      */
     const TJobResources& GetResourceUsage() const;
 
-    const NNodeTrackerClient::NProto::TDiskResources& GetDiskResources() const;
+    const TDiskResources& GetDiskResources() const;
 
     //! Sets the node's resource usage.
     void SetResourceUsage(const TJobResources& value);
 
-    void SetDiskResources(const NNodeTrackerClient::NProto::TDiskResources& value);
+    void SetDiskResources(TDiskResources value);
 
     void SetTags(TBooleanFormulaTags tags);
 
@@ -167,7 +167,7 @@ public:
 
 private:
     TJobResources ResourceUsage_;
-    NNodeTrackerClient::NProto::TDiskResources DiskResources_;
+    TDiskResources DiskResources_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     TJobResources ResourceLimits_;
