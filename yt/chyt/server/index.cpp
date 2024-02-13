@@ -83,4 +83,4 @@ TClickHouseIndexPtr TClickHouseIndexBuilder::CreateIndex(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NYT::NClickHouseServer
+} // namespace NYT::NClickHouseServer

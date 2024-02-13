@@ -45,4 +45,4 @@ void TPermissionCacheConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NYT::NSecurityClient
+} // namespace NYT::NSecurityClient

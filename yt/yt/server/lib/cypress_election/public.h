@@ -12,4 +12,4 @@ DECLARE_REFCOUNTED_STRUCT(TCypressElectionManagerOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NYT::NCypressElection
+} // namespace NYT::NCypressElection

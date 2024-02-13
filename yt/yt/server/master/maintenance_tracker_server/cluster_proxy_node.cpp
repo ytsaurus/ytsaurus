@@ -24,4 +24,4 @@ void TClusterProxyNode::Load(TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NYT::NMaintenanceTrackerServer
+} // namespace NYT::NMaintenanceTrackerServer

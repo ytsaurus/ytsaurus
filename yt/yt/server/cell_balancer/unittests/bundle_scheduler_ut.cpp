@@ -5066,4 +5066,4 @@ TEST(TDataCentersPriority, ChangeForbiddenSeveralTimes)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // NYT::NCellBalancer
+} // namespace NYT::NCellBalancer

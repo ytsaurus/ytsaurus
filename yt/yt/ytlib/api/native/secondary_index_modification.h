@@ -19,4 +19,4 @@ TSharedRange<TRowModification> GetUnfoldedIndexModifications(
     const std::optional<NTableClient::TUnversionedValue>& empty,
     int unfoldedKeyPosition);
 
-} // NYT::NApi::NNative
+} // namespace NYT::NApi::NNative

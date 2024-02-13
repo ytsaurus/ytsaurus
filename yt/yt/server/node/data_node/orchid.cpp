@@ -49,4 +49,4 @@ NYTree::IYPathServicePtr GetOrchidService(const IBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NYT::NDataNode
+} // namespace NYT::NDataNode

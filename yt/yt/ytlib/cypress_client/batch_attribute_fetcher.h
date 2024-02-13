@@ -90,4 +90,4 @@ DEFINE_REFCOUNTED_TYPE(TBatchAttributeFetcher)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NYT::NCypressClient
+} // namespace NYT::NCypressClient

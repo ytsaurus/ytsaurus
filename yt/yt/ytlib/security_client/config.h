@@ -33,4 +33,4 @@ DEFINE_REFCOUNTED_TYPE(TPermissionCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NYT::NSecurityClient
+} // namespace NYT::NSecurityClient

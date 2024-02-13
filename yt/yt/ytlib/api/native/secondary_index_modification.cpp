@@ -240,4 +240,4 @@ TSharedRange<TRowModification> GetUnfoldedIndexModifications(
     return MakeSharedRange(std::move(secondaryModifications), std::move(rowBuffer));
 }
 
-} // NYT::NApi::NNative
+} // namespace NYT::NApi::NNative

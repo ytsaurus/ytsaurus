@@ -47,4 +47,4 @@ NYTree::IYPathServicePtr GetOrchidService(const IBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NYT::NExecNode
+} // namespace NYT::NExecNode

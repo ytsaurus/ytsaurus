@@ -65,4 +65,4 @@ TNodeMemoryUsageSummary CalculateNodeMemoryUsageSummary(const std::vector<TTable
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NYT::NTabletNode
+} // namespace NYT::NTabletNode

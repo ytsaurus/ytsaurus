@@ -4078,4 +4078,4 @@ void TFairShareTreeAllocationScheduler::UpdateDynamicAttributesListSnapshot(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NYT::NScheduler
+} // namespace NYT::NScheduler
