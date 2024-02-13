@@ -51,6 +51,13 @@ type Config struct {
 	// TLS is not supported in local mode.
 	UseTLS bool
 
+	// CertificateAuthorityData contains PEM-encoded certificate authority certificates.
+	//
+	// Client appends this certificates to the system cert pool.
+	//
+	// This option is relevant for HTTP client with enabled TLS.
+	CertificateAuthorityData []byte
+
 	// Token configures OAuth token used by the client.
 	//
 	// If Token is not set, value of YT_TOKEN environment variable is used instead.

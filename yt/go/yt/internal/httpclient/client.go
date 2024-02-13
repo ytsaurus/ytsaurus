@@ -662,6 +662,12 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 		return nil, err
 	}
 
+	if len(c.CertificateAuthorityData) > 0 {
+		if ok := certPool.AppendCertsFromPEM(c.CertificateAuthorityData); !ok {
+			return nil, errors.New("invalid PEM encoded certificate")
+		}
+	}
+
 	client.config = c
 	client.clusterURL = yt.NormalizeProxyURL(proxy, c.DisableProxyDiscovery, c.UseTVMOnlyEndpoint, getTVMOnlyPort(c))
 	client.netDialer = &net.Dialer{
