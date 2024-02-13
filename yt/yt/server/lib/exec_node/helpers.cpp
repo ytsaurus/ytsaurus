@@ -1,16 +1,16 @@
 #include "helpers.h"
 
-#include <library/cpp/yt/string/enum.h>
-
 namespace NYT::NExecNode {
 
 using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetSandboxRelPath(ESandboxKind sandboxKind)
+const TString& GetSandboxRelPath(ESandboxKind sandboxKind)
 {
-    return FormatEnum(sandboxKind);
+    const auto& sandboxName = SandboxDirectoryNames[sandboxKind];
+    YT_VERIFY(sandboxName);
+    return sandboxName;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
