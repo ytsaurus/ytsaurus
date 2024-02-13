@@ -7,7 +7,7 @@ from yt_commands import (
     sync_mount_table, sync_unmount_table,
     sync_reshard_table, make_random_string)
 
-from yt_type_helpers import optional_type, list_type, dict_type, struct_type, variant_struct_type
+from yt_type_helpers import optional_type, list_type, dict_type, struct_type, variant_struct_type, make_schema, make_column
 
 from yt.test_helpers import assert_items_equal
 from yt.common import YtError
@@ -30,6 +30,13 @@ def create_protobuf_format(configs, enumerations={}):
     return yson.to_yson_type("protobuf", attributes={
         "tables": configs,
         "enumerations": enumerations,
+    })
+
+
+def create_protobuf_descriptor_format(file_descriptor_set_text: str, type_names: list[str]):
+    return yson.to_yson_type("protobuf", attributes={
+        "file_descriptor_set_text": file_descriptor_set_text,
+        "type_names": type_names,
     })
 
 
@@ -1027,3 +1034,93 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
 
         assert_rowsets_equal(read_table("//tmp/t_out1"), SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD)
         assert_rowsets_equal(read_table("//tmp/t_out2"), SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD)
+
+    def test_intermediate_mapreduce(self):
+        complex_schema = make_schema([
+            make_column("key", "int64"),
+            make_column("value", struct_type([("field", "string")])),
+        ])
+        create("table", "//tmp/t_in1", attributes={"schema": complex_schema})
+        create("table", "//tmp/t_in2")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in1", [
+            {"key": 1, "value": {"field": "foo"}},
+        ])
+        write_table("//tmp/t_in2", [
+            {"key": 1},
+        ])
+
+        proto_format = create_protobuf_descriptor_format(
+            file_descriptor_set_text="""
+            file {
+                name: "google/protobuf/descriptor.proto"
+                package: "google.protobuf"
+                options {
+                    java_package: "com.google.protobuf"
+                    java_outer_classname: "DescriptorProtos"
+                    optimize_for: SPEED
+                    go_package: "google.golang.org/protobuf/types/descriptorpb"
+                    cc_enable_arenas: true objc_class_prefix: "GPB"
+                    csharp_namespace: "Google.Protobuf.Reflection"
+                }
+            }
+            file {
+                name: "data.proto"
+                options { }
+                message_type {
+                    name: "TInner"
+                    options { }
+                    field {
+                        name: "field"
+                        number: 1
+                        label: LABEL_OPTIONAL
+                        type: TYPE_STRING options { }
+                    }
+                }
+                message_type {
+                    name: "TRow1"
+                    options { [NYT.default_field_flags]: SERIALIZATION_YT }
+                    field {
+                        name: "key"
+                        number: 1
+                        label: LABEL_OPTIONAL
+                        type: TYPE_INT64
+                        options { }
+                    }
+                    field {
+                        name: "value"
+                        number: 2
+                        label: LABEL_OPTIONAL
+                        type: TYPE_MESSAGE
+                        type_name: ".TInner"
+                        options { }
+                    }
+                }
+                message_type {
+                    name: "TRow2"
+                    options { }
+                    field {
+                        name: "key"
+                        number: 1
+                        label: LABEL_OPTIONAL
+                        type: TYPE_INT64 options { }
+                    }
+                }
+            }
+            """,
+            type_names=["TRow1", "TRow2"]
+        )
+        map_reduce(
+            in_=["//tmp/t_in1", "//tmp/t_in2"],
+            out="//tmp/t_out",
+            reduce_by=["key"],
+            spec={
+                "reducer": {
+                    "enable_input_table_index": True,
+                    "input_format": proto_format,
+                    "output_format": "yson",
+                    "command": "cat > /dev/null",
+                },
+            },
+        )
