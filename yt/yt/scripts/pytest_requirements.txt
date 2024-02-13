@@ -16,6 +16,8 @@ psutil==5.9.5
 protobuf==4.23.1
 grpcio==1.54.2
 
+dacite==1.8.1
+
 # TODO: Enable when portopy will be available in public pypi.
 # portopy==5.2.8
 
