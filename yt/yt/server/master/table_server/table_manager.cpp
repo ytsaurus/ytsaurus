@@ -472,7 +472,6 @@ public:
 
         auto* masterTableSchema = FindNativeMasterTableSchema(schema);
         if (!masterTableSchema) {
-
             masterTableSchema = CreateMasterTableSchema(schema, /* isNative */ true);
         }
 
