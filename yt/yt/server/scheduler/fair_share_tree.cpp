@@ -894,6 +894,30 @@ public:
             .Run(operation, poolName);
     }
 
+    TError CheckOperationNecessaryResourceDemand(TOperationId operationId) const override
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+        auto element = GetOperationElement(operationId);
+
+        std::vector<EJobResourceType> resourcesWithDemandViolations;
+        #define XX(name, Name) \
+            if (element->GetAggregatedInitialMinNeededResources().Get##Name() == 0 && \
+                Config_->NecessaryResourcesForOperation.contains(EJobResourceType::Name)) \
+            { \
+                resourcesWithDemandViolations.push_back(EJobResourceType::Name); \
+            }
+        ITERATE_JOB_RESOURCES(XX)
+        #undef XX
+
+        if (resourcesWithDemandViolations.empty()) {
+            return TError();
+        }
+
+        return TError("Operation has zero demand for resources which are necessary in tree %Qlv", GetId())
+            << TErrorAttribute("necessary_resources_with_zero_demand", resourcesWithDemandViolations);
+    }
+
     TPersistentTreeStatePtr BuildPersistentState() const override
     {
         auto result = New<TPersistentTreeState>();

@@ -437,6 +437,8 @@ public:
 
     TDuration PriorityModuleAssignmentTimeout;
 
+    THashSet<EJobResourceType> NecessaryResourcesForOperation;
+
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 
     static void Register(TRegistrar registrar);

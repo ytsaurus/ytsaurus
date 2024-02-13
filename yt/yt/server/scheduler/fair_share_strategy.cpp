@@ -1321,6 +1321,10 @@ public:
             auto tree = GetTree(treeId);
             tree->OnOperationMaterialized(operationId);
 
+            if (auto error = tree->CheckOperationNecessaryResourceDemand(operationId); !error.IsOK()) {
+                return error;
+            }
+
             if (auto error = tree->CheckOperationSchedulingInSeveralTreesAllowed(operationId); !error.IsOK()) {
                 multiTreeSchedulingErrors.push_back(TError("Scheduling in several trees is forbidden by %Qlv tree's configuration")
                     << std::move(error));
