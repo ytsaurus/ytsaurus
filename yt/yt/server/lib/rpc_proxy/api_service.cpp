@@ -2612,15 +2612,17 @@ private:
         options.CheckpointCheckPeriod = FromProto<TDuration>(request->checkpoint_check_period());
         options.CheckpointCheckTimeout = FromProto<TDuration>(request->checkpoint_check_timeout());
         options.Force = request->force();
+        options.PreserveAccount = request->preserve_account();
 
         context->SetRequestInfo(
             "ClusterCount: %v, CheckpointTimestampDelay: %v, CheckpointCheckPeriod: %v, "
-            "CheckpointCheckTimeout: %v, Force: %v",
+            "CheckpointCheckTimeout: %v, Force: %v, PreserveAccount: %v",
             manifest->Clusters.size(),
             options.CheckpointTimestampDelay,
             options.CheckpointCheckPeriod,
             options.CheckpointCheckTimeout,
-            options.Force);
+            options.Force,
+            options.PreserveAccount);
 
         ExecuteCall(
             context,
@@ -2641,13 +2643,16 @@ private:
         options.Force = request->force();
         options.Mount = request->mount();
         options.EnableReplicas = request->enable_replicas();
+        options.PreserveAccount = request->preserve_account();
 
         context->SetRequestInfo(
-            "ClusterCount: %v, Force: %v, Mount: %v, EnableReplicas: %v",
+            "ClusterCount: %v, Force: %v, Mount: %v, EnableReplicas: %v, "
+            "PreserveAccount: %v",
             manifest->Clusters.size(),
             options.Force,
             options.Mount,
-            options.EnableReplicas);
+            options.EnableReplicas,
+            options.PreserveAccount);
 
         ExecuteCall(
             context,

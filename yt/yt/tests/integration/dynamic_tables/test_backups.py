@@ -6,7 +6,8 @@ from yt_commands import (
     generate_timestamp, set, sync_compact_table, read_table, merge, create,
     get_driver, sync_enable_table_replica, create_table_replica, sync_disable_table_replica,
     sync_alter_table_replica_mode, remount_table, get_tablet_infos, alter_table_replica,
-    write_table, remote_copy, alter_table, copy, move, delete_rows, disable_write_sessions_on_node)
+    write_table, remote_copy, alter_table, copy, move, delete_rows, disable_write_sessions_on_node,
+    create_account)
 
 import yt_error_codes
 
@@ -786,6 +787,32 @@ class TestBackups(DynamicTablesBase):
             remove("//tmp/res_copy")
             remove("//tmp/res_move2")
 
+    def test_preserve_account_on_backup_restore(self):
+        original_account = "test_original_account"
+        backup_account = "test_backup_account"
+        create_account(original_account)
+        create_account(backup_account)
+        set(f"//sys/accounts/{original_account}/@resource_limits/tablet_count", 5)
+        set(f"//sys/accounts/{backup_account}/@resource_limits/tablet_count", 5)
+
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t", account=original_account)
+
+        create_table_backup(
+            ["//tmp/t", "//tmp/bak"],
+            checkpoint_timestamp_delay=3000,
+            preserve_account=True)
+
+        assert get("//tmp/bak/@account") == original_account
+        set("//tmp/bak/@account", backup_account)
+
+        restore_table_backup(
+            ["//tmp/bak", "//tmp/res"],
+            mount=False,
+            preserve_account=True)
+
+        assert get("//tmp/res/@account") == backup_account
+
 ##################################################################
 
 
@@ -794,8 +821,8 @@ class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
     NUM_SCHEDULERS = 1
     ENABLE_BULK_INSERT = True
 
-    def _create_tables(self, replica_modes, mount=True):
-        self._create_replicated_table("//tmp/t", mount=mount)
+    def _create_tables(self, replica_modes, mount=True, **attributes):
+        self._create_replicated_table("//tmp/t", mount=mount, **attributes)
         for i, mode in enumerate(replica_modes):
             replica_path = "//tmp/r" + str(i + 1)
             replica_id = create_table_replica(
@@ -803,7 +830,7 @@ class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
                 self.REPLICA_CLUSTER_NAME,
                 replica_path,
                 mode=mode)
-            self._create_replica_table(replica_path, replica_id, mount=mount)
+            self._create_replica_table(replica_path, replica_id, mount=mount, **attributes)
             sync_enable_table_replica(replica_id)
 
     def _make_backup_manifest(self, table_count_or_list):

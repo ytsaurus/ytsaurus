@@ -440,10 +440,13 @@ void TClusterBackupSession::CloneTables(ENodeCloneMode nodeCloneMode)
     options.TransactionId = Transaction_->GetId();
 
     bool force;
+    bool preserveAccount;
     if (nodeCloneMode == ENodeCloneMode::Backup) {
         force = GetCreateOptions().Force;
+        preserveAccount = GetCreateOptions().PreserveAccount;
     } else {
         force = GetRestoreOptions().Force;
+        preserveAccount = GetRestoreOptions().PreserveAccount;
     }
 
     // TODO(ifsmirnov): this doesn't work for tables beyond the portals.
@@ -454,6 +457,7 @@ void TClusterBackupSession::CloneTables(ENodeCloneMode nodeCloneMode)
         auto req = TCypressYPathProxy::Copy(table.DestinationPath);
         req->set_mode(static_cast<int>(nodeCloneMode));
         req->set_force(force);
+        req->set_preserve_account(preserveAccount);
         Client_->SetTransactionId(req, options, /*allowNullTransaction*/ false);
         Client_->SetMutationId(req, options);
         auto* ypathExt = req->Header().MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);

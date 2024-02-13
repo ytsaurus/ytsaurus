@@ -907,7 +907,7 @@ class BackupManifest(object):
 
 def create_table_backup(
         manifest, force=None, checkpoint_timestamp_delay=None,
-        checkpoint_check_timeout=None, client=None):
+        checkpoint_check_timeout=None, preserve_account=None, client=None):
     """Creates a consistent backup copy of a collection of tables.
 
     :param manifest: description of tables to be backed up.
@@ -921,12 +921,14 @@ def create_table_backup(
     set_param(params, "force", force)
     set_param(params, "checkpoint_timestamp_delay", checkpoint_timestamp_delay)
     set_param(params, "checkpoint_check_timeout", checkpoint_check_timeout)
+    set_param(params, "preserve_account", preserve_account)
 
     return make_request("create_table_backup", params, client=client)
 
 
 def restore_table_backup(
-        manifest, force=None, mount=None, enable_replicas=None, client=None):
+        manifest, force=None, mount=None, enable_replicas=None,
+        preserve_account=None, client=None):
     """Restores a collection of tables from its backup copy.
 
     :param manifest: description of tables to be restored.
@@ -942,5 +944,6 @@ def restore_table_backup(
     set_param(params, "force", force)
     set_param(params, "mount", mount)
     set_param(params, "enable_replicas", enable_replicas)
+    set_param(params, "preserve_account", preserve_account)
 
     return make_request("restore_table_backup", params, client=client)

@@ -518,7 +518,7 @@ class YtClient(ClientState):
     def create_table_backup(
             self,
             manifest,
-            force=None, checkpoint_timestamp_delay=None, checkpoint_check_timeout=None):
+            force=None, checkpoint_timestamp_delay=None, checkpoint_check_timeout=None, preserve_account=None):
         """
         Creates a consistent backup copy of a collection of tables.
 
@@ -530,7 +530,8 @@ class YtClient(ClientState):
         return client_api.create_table_backup(
             manifest,
             client=self,
-            force=force, checkpoint_timestamp_delay=checkpoint_timestamp_delay, checkpoint_check_timeout=checkpoint_check_timeout)
+            force=force, checkpoint_timestamp_delay=checkpoint_timestamp_delay, checkpoint_check_timeout=checkpoint_check_timeout,
+            preserve_account=preserve_account)
 
     def create_temp_table(
             self,
@@ -1907,7 +1908,7 @@ class YtClient(ClientState):
     def restore_table_backup(
             self,
             manifest,
-            force=None, mount=None, enable_replicas=None):
+            force=None, mount=None, enable_replicas=None, preserve_account=None):
         """
         Restores a collection of tables from its backup copy.
 
@@ -1921,7 +1922,7 @@ class YtClient(ClientState):
         return client_api.restore_table_backup(
             manifest,
             client=self,
-            force=force, mount=mount, enable_replicas=enable_replicas)
+            force=force, mount=mount, enable_replicas=enable_replicas, preserve_account=preserve_account)
 
     def resume_operation(
             self,
