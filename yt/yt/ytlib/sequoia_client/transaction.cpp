@@ -177,15 +177,11 @@ public:
 
     virtual TFuture<TSelectRowsResult> SelectRows(
         ESequoiaTable table,
-        const std::vector<TString>& whereConjuncts,
-        const std::vector<TString>& orderByExpressions,
-        std::optional<i64> limit) override
+        const TSelectRowsRequest& request) override
     {
         return SequoiaClient_->SelectRows(
             table,
-            whereConjuncts,
-            orderByExpressions,
-            limit,
+            request,
             Transaction_->GetStartTimestamp());
     }
 

@@ -64,14 +64,14 @@ TFuture<void> RemoveSubtree(
     const NYPath::TYPath& path,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction,
     bool removeRoot = true,
-    NCypressClient::TNodeId subtreeParentIdHint = NObjectClient::NullObjectId);
+    NCypressClient::TNodeId subtreeParentIdHint = {});
 
 //! Same as RemoveSubtree, but does not provoke an additional select.
 void RemoveSelectedSubtree(
     const std::vector<NSequoiaClient::NRecords::TPathToNodeId>& nodesToRemove,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction,
     bool removeRoot = true,
-    NCypressClient::TNodeId subtreeParentIdHint = NObjectClient::NullObjectId);
+    NCypressClient::TNodeId subtreeParentIdHint = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

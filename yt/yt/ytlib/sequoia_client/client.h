@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "helpers.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -27,16 +28,12 @@ struct ISequoiaClient
 
     virtual TFuture<NApi::TSelectRowsResult> SelectRows(
         ESequoiaTable table,
-        const std::vector<TString>& whereConjuncts,
-        const std::vector<TString>& orderByExpressions,
-        std::optional<i64> limit,
+        const TSelectRowsRequest& request,
         NTransactionClient::TTimestamp timestamp = NTransactionClient::SyncLastCommittedTimestamp) = 0;
 
     template <class TRecord>
     TFuture<std::vector<TRecord>> SelectRows(
-        const std::vector<TString>& whereConjunts,
-        const std::vector<TString>& orderByExpressions = {},
-        std::optional<i64> limit = {},
+        const TSelectRowsRequest& request,
         NTransactionClient::TTimestamp timestamp = NTransactionClient::SyncLastCommittedTimestamp);
 
     virtual TFuture<ISequoiaTransactionPtr> StartTransaction(

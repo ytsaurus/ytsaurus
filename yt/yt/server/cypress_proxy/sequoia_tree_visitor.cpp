@@ -7,7 +7,6 @@
 #include <yt/yt/core/yson/producer.h>
 #include <yt/yt/core/yson/async_consumer.h>
 
-
 namespace NYT::NCypressProxy {
 
 using namespace NCypressClient;
@@ -26,7 +25,7 @@ public:
     TSequoiaTreeVisitor(
         NYson::IAsyncYsonConsumer* consumer,
         const TAttributeFilter& attributeFilter,
-        i64 maxAllowedNodeDepth,
+        int maxAllowedNodeDepth,
         const THashMap<TNodeId, std::vector<NRecords::TChildNode>>& nodeIdToChildren,
         const THashMap<TNodeId, TYPathProxy::TRspGetPtr>& nodeIdToMasterResponse)
         : Consumer(consumer)
@@ -38,24 +37,24 @@ public:
 
     void Visit(TNodeId rootId)
     {
-        VisitAny(rootId, /* currentNodeDepth */ 0);
+        VisitAny(rootId, /*currentNodeDepth*/ 0);
     }
 
 private:
     NYson::IAsyncYsonConsumer* const Consumer;
     const TAttributeFilter AttributeFilter_;
-    i64 MaxAllowedNodeDepth_;
+    const int MaxAllowedNodeDepth_;
     const THashMap<TNodeId, std::vector<NRecords::TChildNode>> NodeIdToChildren_;
     const THashMap<TNodeId, TYPathProxy::TRspGetPtr> NodeIdToMasterResponse_;
 
-    void VisitAny(TNodeId nodeId, i64 currentNodeDepth)
+    void VisitAny(TNodeId nodeId, int currentNodeDepth)
     {
         ++currentNodeDepth;
 
         if (AttributeFilter_) {
             auto masterResponse = GetOrCrash(NodeIdToMasterResponse_, nodeId)->value();
             auto node = ConvertToNode(NYson::TYsonString(masterResponse));
-            node->WriteAttributes(Consumer, AttributeFilter_, /* stable */ true);
+            node->WriteAttributes(Consumer, AttributeFilter_, /*stable*/ true);
         }
 
         auto nodeType = TypeFromId(nodeId);
@@ -75,6 +74,7 @@ private:
 
             default:
                 VisitEntity(nodeId);
+                break;
         }
     }
 
@@ -105,16 +105,16 @@ private:
                 break;
 
             default:
-                YT_ABORT();
+                THROW_ERROR_EXCEPTION("Unknown scalar type encountered while traversing Sequoia tree");
         }
     }
 
-    void VisitEntity(TNodeId /* nodeId */)
+    void VisitEntity(TNodeId /*nodeId*/)
     {
         Consumer->OnEntity();
     }
 
-    void VisitMap(TNodeId nodeId, i64 currentNodeDepth)
+    void VisitMap(TNodeId nodeId, int currentNodeDepth)
     {
         const auto& children = GetOrCrash(NodeIdToChildren_, nodeId);
         // If map node has no children, then it's better to return an empty map,
@@ -137,8 +137,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 void VisitSequoiaTree(
-    TNodeId root,
-    i64 maxAllowedNodeDepth,
+    TNodeId rootId,
+    int maxAllowedNodeDepth,
     NYson::IYsonConsumer* consumer,
     const TAttributeFilter& attributeFilter,
     const THashMap<TNodeId, std::vector<NRecords::TChildNode>>& nodeIdToChildren,
@@ -146,7 +146,7 @@ void VisitSequoiaTree(
 {
     NYson::TAsyncYsonConsumerAdapter adapter(consumer);
     VisitSequoiaTree(
-        root,
+        rootId,
         maxAllowedNodeDepth,
         &adapter,
         attributeFilter,
@@ -155,8 +155,8 @@ void VisitSequoiaTree(
 }
 
 void VisitSequoiaTree(
-    TNodeId root,
-    i64 maxAllowedNodeDepth,
+    TNodeId rootId,
+    int maxAllowedNodeDepth,
     NYson::IAsyncYsonConsumer* consumer,
     const TAttributeFilter& attributeFilter,
     const THashMap<TNodeId, std::vector<NRecords::TChildNode>>& nodeIdToChildren,
@@ -168,7 +168,7 @@ void VisitSequoiaTree(
         maxAllowedNodeDepth,
         std::move(nodeIdToChildren),
         std::move(nodeIdToMasterResponse));
-    treeVisitor.Visit(root);
+    treeVisitor.Visit(rootId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

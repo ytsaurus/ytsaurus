@@ -51,25 +51,28 @@ public:
             options);
     }
 
-    TFuture<NApi::TSelectRowsResult> SelectRows(
+        TFuture<NApi::TSelectRowsResult> SelectRows(
         ESequoiaTable table,
-        const std::vector<TString>& whereConjuncts,
-        const std::vector<TString>& orderByExpressions,
-        std::optional<i64> limit,
+        const TSelectRowsRequest& request,
         NTransactionClient::TTimestamp timestamp) override
     {
         auto* tableDescriptor = ITableDescriptor::Get(table);
         TQueryBuilder builder;
         builder.SetSource(GetSequoiaTablePath(NativeRootClient_, tableDescriptor));
         builder.AddSelectExpression("*");
-        for (const auto& whereConjunct : whereConjuncts) {
+        for (const auto& whereConjunct : request.Where) {
             builder.AddWhereConjunct(whereConjunct);
         }
-        for (const auto& orderByExpression : orderByExpressions) {
+        for (const auto& orderByExpression : request.OrderBy) {
             builder.AddOrderByExpression(orderByExpression);
         }
+        auto limit = request.Limit;
         if (limit) {
             builder.SetLimit(*limit);
+        } else if (!request.OrderBy.empty()) {
+            // TODO(h0pless): This is an arbitrary value. Remove it once ORDER BY will work with an unspecified limit.
+            // For details see YT-16489.
+            builder.SetLimit(100'000);
         }
 
         NApi::TSelectRowsOptions options;
