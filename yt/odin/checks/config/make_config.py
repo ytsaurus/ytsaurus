@@ -1186,7 +1186,12 @@ def get_checks_config():
             "queue_agent_alerts": {
                 "alerts": instant_force_ok,
                 "options": {
-                    "queue_agent_stage_clusters": ["hume", "pythia", "markov", "ada"]
+                    "queue_agent_stage_clusters": {
+                        "hume": "hume",
+                        "pythia": "pythia",
+                        "markov": "markov",
+                        "ada": "ada",
+                    }
                 }
             },
             "query_tracker_alerts": {
