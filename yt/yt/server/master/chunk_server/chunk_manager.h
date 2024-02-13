@@ -365,6 +365,11 @@ struct IChunkManager
     virtual std::vector<TNodeId> GetLastSeenReplicas(
         const NObjectServer::TEphemeralObjectPtr<TChunk>& chunk) const = 0;
 
+    virtual TErrorOr<TChunkLocationPtrWithReplicaInfoList> GetSequoiaChunkReplicas(
+        const NObjectServer::TEphemeralObjectPtr<TChunk>& chunk) const = 0;
+    virtual THashMap<TChunkId, TErrorOr<TChunkLocationPtrWithReplicaInfoList>> GetSequoiaChunkReplicas(
+        const std::vector<NObjectServer::TEphemeralObjectPtr<TChunk>>& chunks) const = 0;
+
 private:
     friend class TChunkTypeHandler;
     friend class TChunkListTypeHandler;

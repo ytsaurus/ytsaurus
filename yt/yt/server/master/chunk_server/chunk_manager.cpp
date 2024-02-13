@@ -2783,17 +2783,28 @@ private:
         return replicas;
     }
 
-    virtual THashMap<TChunkId, TErrorOr<TChunkLocationPtrWithReplicaInfoList>> GetChunkReplicas(const std::vector<TEphemeralObjectPtr<TChunk>>& chunks) const override
+    virtual TErrorOr<TChunkLocationPtrWithReplicaInfoList> GetSequoiaChunkReplicas(const TEphemeralObjectPtr<TChunk>& chunk) const override
     {
         YT_VERIFY(!HasMutationContext());
 
-        const auto& config = GetDynamicConfig();
+        std::vector<TEphemeralObjectPtr<TChunk>> chunks;
+        chunks.emplace_back(chunk.Get());
+        auto result = GetSequoiaChunkReplicas(chunks);
+        return GetOrCrash(result, chunk->GetId());
+    }
+
+    virtual THashMap<TChunkId, TErrorOr<TChunkLocationPtrWithReplicaInfoList>> GetSequoiaChunkReplicas(const std::vector<TEphemeralObjectPtr<TChunk>>& chunks) const override
+    {
+        YT_VERIFY(!HasMutationContext());
+
+        auto config = GetDynamicConfig();
 
         THashMap<TChunkId, TErrorOr<TChunkLocationPtrWithReplicaInfoList>> result;
 
         std::vector<TChunkId> sequoiaChunkIds;
         for (const auto& chunk : chunks) {
             auto chunkId = chunk->GetId();
+            result[chunkId] = {};
             if (config->FetchReplicasFromSequoia && CanHaveSequoiaReplicas(chunkId)) {
                 sequoiaChunkIds.push_back(chunkId);
             }
@@ -2826,6 +2837,14 @@ private:
                 }
             }
         }
+        return result;
+    }
+
+    virtual THashMap<TChunkId, TErrorOr<TChunkLocationPtrWithReplicaInfoList>> GetChunkReplicas(const std::vector<TEphemeralObjectPtr<TChunk>>& chunks) const override
+    {
+        YT_VERIFY(!HasMutationContext());
+
+        auto result = GetSequoiaChunkReplicas(chunks);
 
         for (const auto& chunk : chunks) {
             auto masterReplicas = chunk->StoredReplicas();
@@ -5625,7 +5644,7 @@ private:
             return;
         }
 
-        const auto& config = GetDynamicConfig();
+        auto config = GetDynamicConfig();
 
         std::vector<TChunkId> chunkIds;
         chunkIds.reserve(std::min<ssize_t>(std::ssize(SequoiaChunkPurgatory_), config->SequoiaReplicaRemovalBatchSize));
