@@ -713,6 +713,7 @@ private:
             Schema_,
             ColumnFilter_,
             std::move(ChunkFragmentReader_),
+            /*dictionaryCompressionFactory*/ nullptr,
             std::move(ChunkReadOptions_),
             std::move(rows));
     }
@@ -724,6 +725,7 @@ private:
 
         return DecodeHunksInVersionedRows(
             std::move(ChunkFragmentReader_),
+            /*dictionaryCompressionFactory*/ nullptr,
             std::move(ChunkReadOptions_),
             std::move(rows));
     }

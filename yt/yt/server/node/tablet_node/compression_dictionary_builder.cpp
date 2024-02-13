@@ -702,7 +702,7 @@ private:
         }
 
         // This is actually redundant.
-        HunkWriter_->OnParentReaderFinished();
+        HunkWriter_->OnParentReaderFinished(/*compressionDictionaryId*/ NullChunkId);
         YT_VERIFY(HunkWriter_->GetErasureCodecId() == NErasure::ECodec::None);
 
         HunkWriter_->GetMeta()->RegisterFinalizer([&] (TDeferredChunkMeta* meta) mutable {

@@ -4,6 +4,7 @@
 #include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
+#include "hunks_serialization.h"
 
 #include <yt/yt/ytlib/tablet_client/public.h>
 

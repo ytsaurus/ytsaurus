@@ -193,6 +193,7 @@ target_sources(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/chaos_agent.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/chunk_view_size_fetcher.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/compression_dictionary_builder.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/compression_dictionary_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/distributed_throttler_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/dynamic_store_bits.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/hedging_manager_registry.cpp
@@ -204,6 +205,7 @@ target_sources(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/hunk_tablet.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/hunk_tablet_scanner.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/hunk_tablet_manager.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/hunks_serialization.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/in_memory_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/in_memory_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/lock_manager.cpp

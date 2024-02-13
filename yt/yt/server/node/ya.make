@@ -98,6 +98,7 @@ SRCS(
     tablet_node/chaos_agent.cpp
     tablet_node/chunk_view_size_fetcher.cpp
     tablet_node/compression_dictionary_builder.cpp
+    tablet_node/compression_dictionary_manager.cpp
     tablet_node/distributed_throttler_manager.cpp
     tablet_node/dynamic_store_bits.cpp
     tablet_node/hedging_manager_registry.cpp
@@ -109,6 +110,7 @@ SRCS(
     tablet_node/hunk_tablet.cpp
     tablet_node/hunk_tablet_scanner.cpp
     tablet_node/hunk_tablet_manager.cpp
+    tablet_node/hunks_serialization.cpp
     tablet_node/in_memory_manager.cpp
     tablet_node/in_memory_service.cpp
     tablet_node/in_memory_service.proto
