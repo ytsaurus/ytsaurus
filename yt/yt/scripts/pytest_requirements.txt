@@ -17,6 +17,7 @@ protobuf==4.23.1
 grpcio==1.54.2
 
 dacite==1.8.1
+pyaml==23.9.7
 
 # TODO: Enable when portopy will be available in public pypi.
 # portopy==5.2.8
