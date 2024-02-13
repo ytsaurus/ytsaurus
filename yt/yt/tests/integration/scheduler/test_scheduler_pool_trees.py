@@ -1833,6 +1833,37 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
 ##################################################################
 
 
+class TestForbidOperationsWithZeroResourceDemand(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    @authors("omgronny")
+    def test_forbid_operations_with_zero_resource_demand(self):
+        create_pool_tree(
+            "other",
+            config={
+                "nodes_filter": "other",
+                "necessary_resources_for_operation": ["gpu", "network"],
+            })
+        create_pool("pool", pool_tree="other")
+
+        with raises_yt_error("Operation has zero demand for resources which are necessary in tree \"other\""):
+            run_sleeping_vanilla(
+                spec={
+                    "pool": "pool",
+                    "pool_trees": ["other"],
+                    "resource_limits": {
+                        "cpu": 0,
+                    },
+                },
+                track=True,
+            )
+
+
+##################################################################
+
+
 class TestTreeSetChangedDuringFairShareUpdate(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1

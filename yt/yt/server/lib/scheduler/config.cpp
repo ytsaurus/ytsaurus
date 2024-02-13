@@ -570,6 +570,9 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_guarantee_priority_scheduling", &TThis::EnableGuaranteePriorityScheduling)
         .Default(false);
 
+    registrar.Parameter("necessary_resources_for_operation", &TThis::NecessaryResourcesForOperation)
+        .Default();
+
     registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
         if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive starvation satisfaction threshold must be less than starvation satisfaction threshold")
