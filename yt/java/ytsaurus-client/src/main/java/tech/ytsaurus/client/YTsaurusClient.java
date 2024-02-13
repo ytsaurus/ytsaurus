@@ -508,7 +508,6 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
             return self();
         }
 
-
         /**
          * Set settings of YtClient.
          */
