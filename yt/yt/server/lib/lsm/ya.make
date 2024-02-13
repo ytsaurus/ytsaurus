@@ -6,10 +6,10 @@ SRCS(
     lsm_backend.cpp
     partition_balancer.cpp
     partition.cpp
+    store.cpp
     store_compactor.cpp
     store_rotator.cpp
     tablet.cpp
-    store.cpp
 )
 
 PEERDIR(

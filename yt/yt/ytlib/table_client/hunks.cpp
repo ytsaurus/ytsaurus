@@ -948,10 +948,30 @@ public:
 
                 auto handleInlineHunkValue =
                     [&](const TInlineHunkValue &inlineHunkValue) {
-                      auto payloadLength =
-                          static_cast<i64>(inlineHunkValue.Payload.Size());
-                      if (payloadLength < *maxInlineHunkSize) {
-                        // Leave as is.
+                        auto payloadLength =
+                            static_cast<i64>(inlineHunkValue.Payload.Size());
+                        if (payloadLength < *maxInlineHunkSize) {
+                            // Leave as is.
+                            if (columnarStatisticsThunk) {
+                                columnarStatisticsThunk->UpdateStatistics(
+                                    value.Id, inlineHunkValue);
+                            }
+                            return;
+                        }
+
+                        HunkCount_ += 1;
+                        TotalHunkLength_ += payloadLength;
+
+                        auto [blockIndex, blockOffset, hunkWriterReady] =
+                            HunkChunkPayloadWriter_->WriteHunk(inlineHunkValue.Payload);
+                        ready &= hunkWriterReady;
+
+                        TLocalRefHunkValue localRefHunkValue{
+                            .ChunkIndex = GetHunkChunkPayloadWriterChunkIndex(),
+                            .BlockIndex = blockIndex,
+                            .BlockOffset = blockOffset,
+                            .Length = payloadLength,
+                        };
                         if (columnarStatisticsThunk) {
                           columnarStatisticsThunk->UpdateStatistics(
                               value.Id, inlineHunkValue);

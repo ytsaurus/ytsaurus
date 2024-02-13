@@ -23,12 +23,13 @@ class THunkChunksInfo;
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ETabletBackgroundActivity,
-    ((Compaction)     (0))
-    ((Flush)          (1))
-    ((Partitioning)   (2))
-    ((Preload)        (3))
-    ((Rotation)       (4))
-    ((Pull)           (5))
+    ((Compaction)           (0))
+    ((Flush)                (1))
+    ((Partitioning)         (2))
+    ((Preload)              (3))
+    ((Rotation)             (4))
+    ((Pull)                 (5))
+    ((DictionaryBuilding)   (6))
 );
 
 DEFINE_ENUM(ETabletCellLifeStage,
@@ -39,12 +40,13 @@ DEFINE_ENUM(ETabletCellLifeStage,
 );
 
 DEFINE_ENUM(ETabletStoresUpdateReason,
-    ((Unknown)          (0))
-    ((Flush)            (1))
-    ((Compaction)       (2))
-    ((Partitioning)     (3))
-    ((Trim)             (4))
-    ((Sweep)            (5))
+    ((Unknown)              (0))
+    ((Flush)                (1))
+    ((Compaction)           (2))
+    ((Partitioning)         (3))
+    ((Trim)                 (4))
+    ((Sweep)                (5))
+    ((DictionaryBuilding)   (6))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
