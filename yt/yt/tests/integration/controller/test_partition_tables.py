@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, create, get, insert_rows, partition_tables, raises_yt_error, read_table,
+    alter_table, authors, create, get, insert_rows, partition_tables, raises_yt_error, read_table,
     sorted_dicts, sync_create_cells, sync_flush_table, sync_mount_table, sync_reshard_table, write_table)
 
 from yt.yson import dumps, to_yson_type
@@ -497,3 +497,27 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
             }
             for lower_limit in range(0, 6000, 3000)
         ]
+
+    @authors("galtsev")
+    def test_chunk_keys_wider_than_table_keys(self):
+        table = "//tmp/different-key-width"
+        wide_key_schema = [
+            {"name": name, "type": "int64", "sort_order": "ascending"}
+            for name in ["a", "b", "c"]
+        ]
+        create("table", table, attributes={
+            "replication_factor": 1,
+            "schema": wide_key_schema,
+        })
+
+        write_table(f"<append=%true>{table}", [{"a": i, "b": i, "c": i} for i in range(10)])
+
+        narrow_key_schema = wide_key_schema.copy()
+        del narrow_key_schema[-1]["sort_order"]
+        alter_table(table, schema=narrow_key_schema)
+
+        chunk_id = get(f"{table}/@chunk_ids")[0]
+        assert len(get(f"{table}/@key_columns")) < len(get(f"#{chunk_id}/@min_key"))
+
+        in_table = f"{table}[3:4]"
+        partition_tables([in_table], data_weight_per_partition=1)

@@ -408,7 +408,7 @@ std::tuple<std::vector<NChunkClient::TInputChunkPtr>, TTableSchemaPtr, bool> Col
 
     std::vector<TInputChunkPtr> inputChunks;
     for (const auto& chunkSpec : chunkSpecs) {
-        inputChunks.push_back(New<TInputChunk>(chunkSpec));
+        inputChunks.push_back(New<TInputChunk>(chunkSpec, schema->GetKeyColumnCount()));
     }
 
     return {std::move(inputChunks), std::move(schema), dynamic};
