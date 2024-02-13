@@ -163,6 +163,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChaosReplicatedConsumersFix)                                  (2458))  // cherepashka
     ((FixListNodeDeprecation_23_2)                                  (2459))  // kvk1920
     ((ValueDictionaryCompression_23_2)                              (2460))  // akozhikhov
+    ((CheckChunkCountPerTabletBeforeMount_23_2)                     (2461))  // alexelexa
     // 24.1 starts here.
     ((SecondaryIndex)                                               (2500))  // sabdenovch
     ((SecondaryIndexReplication)                                    (2501))  // sabdenovch
@@ -198,6 +199,7 @@ DEFINE_ENUM(EMasterReign,
     ((DistributedTabletPrerequisites)                               (2531))  // gritukan
     ((SecondaryIndexUnfolding)                                      (2532))  // sabdenovch
     ((TablesInSequoia)                                              (2533))  // h0pless
+    ((CheckChunkCountPerTabletBeforeMount)                          (2534))  // alexelexa
     // 24.2 starts here.
 );
 

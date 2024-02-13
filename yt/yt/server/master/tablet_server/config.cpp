@@ -224,6 +224,9 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
         .Default(true)
         .DontSerializeDefault();
 
+    registrar.Parameter("max_chunks_per_mounted_tablet", &TThis::MaxChunksPerMountedTablet)
+        .Default(15000);
+
     registrar.Preprocessor([] (TThis* config) {
         config->StoreChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);
         config->StoreChunkReader->BanPeersPermanently = false;
