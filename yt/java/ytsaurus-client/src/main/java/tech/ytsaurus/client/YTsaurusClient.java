@@ -488,22 +488,15 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
          */
         @Deprecated
         public TBuilder setRpcOptions(RpcOptions rpcOptions) {
-            this.config = YTsaurusClientConfig.builder()
+            this.config = this.config.toBuilder()
                     .setRpcOptions(rpcOptions)
                     .build();
             return self();
         }
 
-        /**
-         * Set miscellaneous options.
-         * Part of YtClientConfiguration.
-         *
-         * @deprecated prefer to use {@link #setConfig(YTsaurusClientConfig)} ()}
-         */
-        @Deprecated
         public TBuilder setProxyNetworkName(String networkName) {
-            this.config = YTsaurusClientConfig.builder()
-                    .seProxytNetworkName(networkName)
+            this.config = this.config.toBuilder()
+                    .setProxyNetworkName(networkName)
                     .build();
             return self();
         }
@@ -676,17 +669,6 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
          */
         public TBuilder setProxyRole(@Nullable String proxyRole) {
             this.proxyRole = proxyRole;
-            return self();
-        }
-        
-        /**
-         * Set proxy network name to use.
-         *
-         * <p>
-         * If no proxy network name is specified default network name will be used.
-         */
-        public TBuilder setProxyNetworkName(@Nullable String proxyNetworkName) {
-            this.proxyNetworkName = proxyNetworkName;
             return self();
         }
 
