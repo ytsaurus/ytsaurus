@@ -33,10 +33,7 @@ void Load<THunkChunkRef, NTabletNode::TLoadContext>(
     Load(context, hunkChunkRef.ErasureCodec);
     Load(context, hunkChunkRef.HunkCount);
     Load(context, hunkChunkRef.TotalHunkLength);
-    if (context.GetVersion() >= NTabletNode::ETabletReign::HunkValueDictionaryCompression ||
-        (context.GetVersion() >= NTabletNode::ETabletReign::HunkValueDictionaryCompression_23_2 &&
-         context.GetVersion() < NTabletNode::ETabletReign::NoMountRevisionCheckInBulkInsert))
-    {
+    if (context.GetVersion() >= NTabletNode::ETabletReign::HunkValueDictionaryCompression_23_2) {
         Load(context, hunkChunkRef.CompressionDictionaryId);
     }
 }
