@@ -84,6 +84,7 @@ IServerPtr CreateServer(
     } else {
         YT_ABORT();
     }
+    sslContext->Commit();
 
     auto address = TNetworkAddress::CreateIPv6Any(config->Port);
     auto tlsListener = sslContext->CreateListener(address, poller, acceptor);
