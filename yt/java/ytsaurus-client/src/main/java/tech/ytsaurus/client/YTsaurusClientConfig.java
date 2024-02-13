@@ -191,7 +191,6 @@ public class YTsaurusClientConfig {
         private boolean useTLS = false;
         private boolean tvmOnly = false;
         private boolean ignoreBalancers = false;
-        private String proxyNetworkName;
 
         public Builder setRpcOptions(RpcOptions rpcOptions) {
             this.rpcOptions = rpcOptions;
@@ -279,11 +278,6 @@ public class YTsaurusClientConfig {
          */
         public Builder setIgnoreBalancers(boolean ignoreBalancers) {
             this.ignoreBalancers = ignoreBalancers;
-            return this;
-        }
-
-        public Builder setProxyNetworkName(String proxyNetworkName) {
-            this.proxyNetworkName = proxyNetworkName;
             return this;
         }
 

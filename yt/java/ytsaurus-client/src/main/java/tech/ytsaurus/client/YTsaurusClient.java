@@ -488,15 +488,8 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
          */
         @Deprecated
         public TBuilder setRpcOptions(RpcOptions rpcOptions) {
-            this.config = this.config.toBuilder()
+            this.config = YTsaurusClientConfig.builder()
                     .setRpcOptions(rpcOptions)
-                    .build();
-            return self();
-        }
-
-        public TBuilder setProxyNetworkName(String networkName) {
-            this.config = this.config.toBuilder()
-                    .setProxyNetworkName(networkName)
                     .build();
             return self();
         }
