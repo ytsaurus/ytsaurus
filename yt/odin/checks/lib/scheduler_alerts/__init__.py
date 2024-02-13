@@ -1,9 +1,25 @@
+import re
+
+
 def get_pool_trees(alert):
     result = []
     for error in alert["inner_errors"]:
         if "pool_tree" in error["attributes"]:
             result.append(error["attributes"]["pool_tree"])
     return result
+
+
+def match_pool_tree(pool_tree, pool_tree_matchers):
+    for matcher in pool_tree_matchers:
+        if isinstance(matcher, str):
+            if pool_tree == matcher:
+                return True
+        elif isinstance(matcher, re.Pattern):
+            if matcher.match(pool_tree):
+                return True
+        else:
+            raise RuntimeError("Unsupported matcher {}".format(matcher))
+    return False
 
 
 def run_check_impl(yt_client,
@@ -36,8 +52,8 @@ def run_check_impl(yt_client,
                 pool_trees = get_pool_trees(alert)
                 if any(  # noqa
                        map(lambda pool_tree:  # noqa
-                               (pool_tree not in skip_pool_trees) and  # noqa
-                               (not include_pool_trees or pool_tree in include_pool_trees),  # noqa
+                               not match_pool_tree(pool_tree, skip_pool_trees) and  # noqa
+                               (not include_pool_trees or match_pool_tree(pool_tree, include_pool_trees)),  # noqa
                            pool_trees)  # noqa
                 ):   # noqa
                     alerts.append(alert)
