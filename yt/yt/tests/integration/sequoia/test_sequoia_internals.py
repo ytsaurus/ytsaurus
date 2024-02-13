@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, create, ls, get, remove, build_master_snapshots, raises_yt_error,
-    exists, set, copy, move,
+    exists, set, copy, move, write_table, read_table,
 )
 
 from yt_sequoia_helpers import (
@@ -58,6 +58,16 @@ class TestSequoiaInternals(YTEnvSetup):
         "10": {"roles": ["sequoia_node_host"]},
         "11": {"roles": ["sequoia_node_host"]},
     }
+
+    @authors("h0pless")
+    def test_create_table(self):
+        create("table", "//tmp/some_dir/table", recursive=True)
+        assert get("//tmp") == {"some_dir": {"table": yson.YsonEntity()}}
+        write_table("//tmp/some_dir/table", [{"x": "hello"}])
+
+        # We should not read anything from table with get.
+        assert get("//tmp") == {"some_dir": {"table": yson.YsonEntity()}}
+        assert read_table("//tmp/some_dir/table") == [{"x": "hello"}]
 
     @authors("h0pless")
     def test_get(self):

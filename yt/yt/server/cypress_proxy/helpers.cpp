@@ -79,7 +79,7 @@ TYPath JoinNestedNodesToPath(
 
 bool IsSupportedSequoiaType(EObjectType type)
 {
-    return IsSequoiaCompositeNodeType(type) || IsScalarType(type);
+    return IsSequoiaCompositeNodeType(type) || IsScalarType(type) || IsChunkOwnerType(type);
 }
 
 bool IsSequoiaCompositeNodeType(EObjectType type)

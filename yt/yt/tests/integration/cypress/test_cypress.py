@@ -77,64 +77,64 @@ class TestCypress(YTEnvSetup):
     @authors("panin", "ignat")
     def test_invalid_cases(self):
         # path not starting with /
-        with pytest.raises(YtError, match="Path \"a\" does not start with a valid root-designator"):
+        with raises_yt_error("Path \"a\" does not start with a valid root-designator"):
             set("a", 20)
 
         # path starting with single /
-        with pytest.raises(YtError, match="Expected \"slash\" in YPath but found \"literal\""):
+        with raises_yt_error("Expected \"slash\" in YPath but found \"literal\""):
             set("/a", 20)
 
         # empty path
-        with pytest.raises(YtError, match="YPath cannot be empty"):
+        with raises_yt_error("YPath cannot be empty"):
             set("", 20)
 
         # empty token in path
         # TODO(h0pless): Maybe make sure the error doesn't change.
         if self.USE_SEQUOIA:
-            error_text = "Expected \"literal\" in YPath but found \"slash\" token \"/\""
+            error_message = "Expected \"literal\" in YPath but found \"slash\" token \"/\""
         else:
-            error_text = "Unexpected \"slash\" token \"/\" in YPath"
-        with pytest.raises(YtError, match=error_text):
+            error_message = "Unexpected \"slash\" token \"/\" in YPath"
+        with raises_yt_error(error_message):
             set("//tmp//a/b", 20)
 
         # change the type of root
-        with pytest.raises(YtError, match="\"set\" command without \"force\" flag is forbidden"):
+        with raises_yt_error("\"set\" command without \"force\" flag is forbidden"):
             set("/", [])
 
         # remove the root
-        with pytest.raises(YtError, match="Node / cannot be removed"):
+        with raises_yt_error("Node / cannot be removed"):
             remove("/")
 
         # get non existent child
-        with pytest.raises(YtError, match="Node //tmp has no child with key \"b\""):
+        with raises_yt_error("Node //tmp has no child with key \"b\""):
             get("//tmp/b")
 
         # remove non existent child
-        with pytest.raises(YtError, match="Node //tmp has no child with key \"b\""):
+        with raises_yt_error("Node //tmp has no child with key \"b\""):
             remove("//tmp/b")
 
         # can"t create entity node inside cypress
-        with pytest.raises(YtError, match="Entity nodes cannot be created"):
+        with raises_yt_error("Entity nodes cannot be created"):
             set("//tmp/entity", None)
 
     @authors("ignat")
     def test_remove(self):
-        with pytest.raises(YtError, match="Node //tmp has no child with key \"x\""):
+        with raises_yt_error("Node //tmp has no child with key \"x\""):
             remove("//tmp/x", recursive=False)
-        with pytest.raises(YtError, match="Node //tmp has no child with key \"x\""):
+        with raises_yt_error("Node //tmp has no child with key \"x\""):
             remove("//tmp/x")
         remove("//tmp/x", force=True)
 
-        with pytest.raises(YtError, match="Node //tmp has no child with key \"1\""):
+        with raises_yt_error("Node //tmp has no child with key \"1\""):
             remove("//tmp/1", recursive=False)
-        with pytest.raises(YtError, match="Node //tmp has no child with key \"1\""):
+        with raises_yt_error("Node //tmp has no child with key \"1\""):
             remove("//tmp/1")
         remove("//tmp/1", force=True)
 
         create("map_node", "//tmp/x/1/y", recursive=True)
-        with pytest.raises(YtError, match="Cannot remove non-empty composite node"):
+        with raises_yt_error("Cannot remove non-empty composite node"):
             remove("//tmp/x", recursive=False)
-        with pytest.raises(YtError, match="Cannot remove non-empty composite node"):
+        with raises_yt_error("Cannot remove non-empty composite node"):
             remove("//tmp/x", recursive=False, force=True)
         remove("//tmp/x/1/y", recursive=False)
         remove("//tmp/x")
@@ -155,7 +155,7 @@ class TestCypress(YTEnvSetup):
             remove(path, force=True)
 
         for builtin_path in ["//tmp/@key", "//tmp/@key/inner"]:
-            with pytest.raises(YtError, match="Attribute .* cannot be removed"):
+            with raises_yt_error("Attribute \"key\" cannot be removed"):
                 remove(builtin_path, force=True)
 
     @authors("ignat")
@@ -345,7 +345,6 @@ class TestCypress(YTEnvSetup):
             set("//tmp/t/@", [1, 2, 3])
 
     @authors("ifsmirnov")
-    @not_implemented_in_sequoia
     def test_reserved_attributes(self):
         set(
             "//sys/@config/object_manager/reserved_attributes/table",
@@ -363,7 +362,7 @@ class TestCypress(YTEnvSetup):
         set("//sys/@config/object_manager/reserved_attributes/table/account", "message")
         set("//tmp/t/@account", "tmp")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing EObjectType value \"bad_object_name\""):
             set(
                 "//sys/@config/object_manager/reserved_attributes/bad_object_name",
                 {"foo": "bar"},
@@ -382,7 +381,6 @@ class TestCypress(YTEnvSetup):
         assert "attr" in get("//tmp/t/@", tx=tx)
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     def test_attributes_yt_11973(self):
         create("table", "//tmp/test_node")
 
@@ -557,9 +555,9 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/c/b/@path") == "//tmp/c/b"
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_copy_simple6a(self):
-        with pytest.raises(YtError, match="Cannot copy or move a node to itself"):
+        error_message = "Scion cannot be cloned" if self.USE_SEQUOIA else "Cannot copy or move a node to itself"
+        with raises_yt_error(error_message):
             copy("//tmp", "//tmp/a")
 
     @authors("babenko")
@@ -592,13 +590,12 @@ class TestCypress(YTEnvSetup):
         copy("//tmp/a", "//tmp/b/c", recursive=True)
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_copy_recursive_fail(self):
         create("map_node", "//tmp/a")
-        with pytest.raises(YtError, match="Node //tmp has no child with key \"b\""):
+        with raises_yt_error("Node //tmp has no child with key \"b\""):
             copy("//tmp/a", "//tmp/b/c", recursive=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Expected \"literal\" in YPath but found \"at\" token \"@\""):
             copy("//tmp/a", "//tmp/b/c/d/@e", recursive=True)
         assert not exists("//tmp/b/c/d")
 
@@ -719,19 +716,21 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko", "ignat")
     def test_copy_unexisting_path(self):
-        with pytest.raises(YtError, match="Node //tmp has no child with key \"x\""):
+        if self.USE_SEQUOIA:
+            error_message = "Scion cannot be cloned"
+        else:
+            error_message = "Node //tmp has no child with key \"x\""
+        with raises_yt_error(error_message):
             copy("//tmp/x", "//tmp/y")
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_copy_cannot_have_children(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        with pytest.raises(YtError):
+        with raises_yt_error("//tmp/t1 cannot have children"):
             copy("//tmp/t2", "//tmp/t1/xxx")
 
     @authors("ignat")
-    @not_implemented_in_sequoia
     def test_copy_table_compression_codec(self):
         create("table", "//tmp/t1")
         assert get("//tmp/t1/@compression_codec") == "lz4"
@@ -740,7 +739,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t2/@compression_codec") == "zlib_6"
 
     @authors("levysotsky")
-    @not_implemented_in_sequoia
     def test_copy_ignore_existing(self):
         create("map_node", "//tmp/a")
         create("map_node", "//tmp/b/c", recursive=True)
@@ -751,10 +749,10 @@ class TestCypress(YTEnvSetup):
         copy("//tmp/b", "//tmp/a", force=True)
         assert exists("//tmp/a/c")
 
-        with pytest.raises(YtError, match="Node //tmp/a already exists"):
+        with raises_yt_error("Node //tmp/a already exists"):
             copy("//tmp/b", "//tmp/a")
         # Two options simultaneously are forbidden.
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously"):
             copy("//tmp/b", "//tmp/new", ignore_existing=True, force=True)
 
     @authors("babenko")
@@ -866,7 +864,6 @@ class TestCypress(YTEnvSetup):
             copy("//tmp/t1", "//tmp/t2", force=True)
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_copy_force3(self):
         create("table", "//tmp/t1")
         set("//tmp/t2", {})
@@ -935,7 +932,7 @@ class TestCypress(YTEnvSetup):
         set("//tmp/a", 1)
         move("//tmp/a", "//tmp/b")
         assert get("//tmp/b") == 1
-        with pytest.raises(YtError, match="Node //tmp has no child with key \"a\""):
+        with raises_yt_error("Node //tmp has no child with key \"a\""):
             get("//tmp/a")
 
     @authors("babenko", "ignat")
@@ -953,7 +950,7 @@ class TestCypress(YTEnvSetup):
     @authors("babenko", "ignat")
     @not_implemented_in_sequoia
     def test_move_simple3(self):
-        with pytest.raises(YtError, match="Cannot copy or move a node to itself"):
+        with raises_yt_error("Cannot copy or move a node to itself"):
             move("//tmp", "//tmp/a")
 
     @authors("babenko", "ignat")
@@ -980,18 +977,16 @@ class TestCypress(YTEnvSetup):
         move("//tmp/a", "//tmp/b/c", recursive=True)
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_move_recursive_fail(self):
         create("map_node", "//tmp/a")
-        with pytest.raises(YtError, match="Node //tmp has no child with key \"b\""):
+        with raises_yt_error("Node //tmp has no child with key \"b\""):
             move("//tmp/a", "//tmp/b/c", recursive=False)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Expected \"literal\" in YPath but found \"at\" token \"@\""):
             move("//tmp/a", "//tmp/b/c/d/@e", recursive=True)
         assert not exists("//tmp/b/c/d")
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_move_force1(self):
         create("table", "//tmp/t1")
         set("//tmp/t1/@a", 1)
@@ -1013,7 +1008,6 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/t1")
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_move_force3(self):
         create("table", "//tmp/t1")
         set("//tmp/t2", {})
@@ -1023,8 +1017,8 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     def test_move_force4(self):
-        error_text = "//tmp is not a local object" if self.USE_SEQUOIA else "Node / cannot be replaced"
-        with pytest.raises(YtError, match=error_text):
+        error_message = "//tmp is not a local object" if self.USE_SEQUOIA else "Node / cannot be replaced"
+        with raises_yt_error(error_message):
             copy("//tmp", "/", force=True)
 
     @authors("babenko")
@@ -1214,7 +1208,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/m/t/@key", tx=tx2) == "t"
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_exists(self):
         assert exists("//tmp")
         assert not exists("//tmp/a")
@@ -1261,7 +1254,7 @@ class TestCypress(YTEnvSetup):
     @authors("babenko")
     def test_create_recursive_fail(self):
         create("map_node", "//tmp/some_node")
-        with pytest.raises(YtError, match="Node //tmp has no child with key \"a\""):
+        with raises_yt_error("Node //tmp has no child with key \"a\""):
             create("map_node", "//tmp/a/b")
 
     @authors("babenko", "ignat")
@@ -1274,16 +1267,15 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/a/b", ignore_existing=True)
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_create_ignore_existing_fail(self):
         create("map_node", "//tmp/a/b", recursive=True)
-        with pytest.raises(YtError):
+        existing_type = "sequoia_map_node" if self.USE_SEQUOIA else "map_node"
+        with raises_yt_error(f"//tmp/a/b already exists and has type \"{existing_type}\" while node of \"table\" type is about to be created"):
             create("table", "//tmp/a/b", ignore_existing=True)
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_create_ignore_existing_force_fail(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously"):
             create("table", "//tmp/t", ignore_existing=True, force=True)
 
     @authors("gritukan")
@@ -1302,7 +1294,6 @@ class TestCypress(YTEnvSetup):
             create("map_node", "//tmp/a/b", ignore_type_mismatch=True)
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_create_force(self):
         id1 = create("table", "//tmp/t", force=True)
         assert get("//tmp/t/@id") == id1
@@ -1312,10 +1303,9 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t/@id") == id3
 
     @authors("ignat")
-    @not_implemented_in_sequoia
     def test_create_recursive(self):
         assert not exists("//tmp/a/b/c/d")
-        with pytest.raises(YtError):
+        with raises_yt_error("Expected \"literal\" in YPath but found \"at\" token \"@\""):
             create("map_node", "//tmp/a/b/c/d/@d", recursive=True)
         assert not exists("//tmp/a/b/c/d")
         create("map_node", "//tmp/a/b/c/d", recursive=True)
@@ -1554,17 +1544,17 @@ class TestCypress(YTEnvSetup):
         link("//tmp/a/b/c", "//tmp/a/l1")
         create("map_node", "//tmp/r")
         link("//tmp/r", "//tmp/r/l2")
-        with pytest.raises(YtError, match="Failed to create link: link is cyclic"):
+        with raises_yt_error("Failed to create link: link is cyclic"):
             link("//tmp/a/l1", "//tmp/a/b/c", force=True)
-        with pytest.raises(YtError, match="Failed to create link: link is cyclic"):
+        with raises_yt_error("Failed to create link: link is cyclic"):
             link("//tmp/r/l2", "//tmp/r/l2", force=True)
-        with pytest.raises(YtError, match="Failed to create link: link is cyclic"):
+        with raises_yt_error("Failed to create link: link is cyclic"):
             link("//tmp/r/l2/l2/l2", "//tmp/r/l2", force=True)
-        with pytest.raises(YtError, match="Failed to create link: link is cyclic"):
+        with raises_yt_error("Failed to create link: link is cyclic"):
             create("link", "//tmp/a/b/c/d", attributes={"target_path": "//tmp/a/b/c/d"})
-        with pytest.raises(YtError, match="Failed to create link: link is cyclic"):
+        with raises_yt_error("Failed to create link: link is cyclic"):
             create("link", "//tmp/a/b/c/d/e", attributes={"target_path": "//tmp/a/b/c/d/e"}, recursive=True)
-        with pytest.raises(YtError, match="Failed to create link: link is cyclic"):
+        with raises_yt_error("Failed to create link: link is cyclic"):
             create("link", "//tmp/a/b/c/d/e", attributes={"target_path": "//tmp/a/b/c/d/e"}, recursive=True, force=True)
 
     # Test for YTADMINREQ-29192 issue.
@@ -1605,7 +1595,6 @@ class TestCypress(YTEnvSetup):
         assert get("#{0}&/@type".format(id)) == "link"
 
     @authors("kiselyovp")
-    @not_implemented_in_sequoia
     def test_escaped_symbols(self):
         with pytest.raises(YtError):
             create("map_node", "//tmp/special@&*[{symbols")
@@ -1623,7 +1612,6 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/string_node")
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_access_stat1(self):
         create("map_node", "//tmp/d")
         time.sleep(1)
@@ -1645,7 +1633,6 @@ class TestCypress(YTEnvSetup):
         assert c2 == c1 + 1
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_access_stat3(self):
         create("map_node", "//tmp/d")
         time.sleep(1)
@@ -1656,7 +1643,6 @@ class TestCypress(YTEnvSetup):
         assert c1 == c2
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_access_stat4(self):
         create("map_node", "//tmp/d")
         time.sleep(1)
@@ -1667,7 +1653,6 @@ class TestCypress(YTEnvSetup):
         assert c1 == c2
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_access_stat5(self):
         create("map_node", "//tmp/d")
         time.sleep(1)
@@ -1700,13 +1685,11 @@ class TestCypress(YTEnvSetup):
         assert c2 == c1 + 1
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_access_stat8(self):
         create("table", "//tmp/t")
         assert get("//tmp/t/@access_time") == get("//tmp/t/@creation_time")
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_access_stat9(self):
         create("table", "//tmp/t1")
         copy("//tmp/t1", "//tmp/t2")
@@ -1722,7 +1705,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t1/@access_time") > creation_time
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_access_stat_suppress1(self):
         create("map_node", "//tmp/d")
         time.sleep(1)
@@ -1733,7 +1715,6 @@ class TestCypress(YTEnvSetup):
         assert c1 == c2
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_access_stat_suppress2(self):
         create("map_node", "//tmp/d")
         time.sleep(1)
@@ -2070,9 +2051,8 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t")
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_no_expiration_time_for_root(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot set \"expiration_time\" for the root"):
             set("//@expiration_time", str(get_current_time()))
 
     @authors("shakurov")
@@ -3944,7 +3924,7 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/node")
 
         # Can't access node by path
-        with pytest.raises(YtError, match="Node //tmp has no child with key \"node\""):
+        with raises_yt_error("Node //tmp has no child with key \"node\""):
             get("//tmp/node")
 
         # But it's possible using object_id
@@ -3954,11 +3934,11 @@ class TestCypress(YTEnvSetup):
         abort_transaction(tx)
 
         # Check that we always receive correct errors
-        with pytest.raises(YtError, match="No such transaction"):
+        with raises_yt_error("No such transaction"):
             get("//tmp/node", tx=tx) == 42
-        with pytest.raises(YtError, match="No such object"):
+        with raises_yt_error("No such object"):
             get("#{}".format(object_id))
-        with pytest.raises(YtError, match="No such transaction"):
+        with raises_yt_error("No such transaction"):
             get("#{}".format(object_id), tx=tx)
 
 
@@ -4022,9 +4002,9 @@ class TestCypressPortal(TestCypressMulticell):
         link("//portals/p/a/b/c", "//portals/p/a/l1")
         create("map_node", "//portals/p/r")
         link("//portals/p/r", "//portals/p/r/l2")
-        with pytest.raises(YtError, match="Failed to create link: link is cyclic"):
+        with raises_yt_error("Failed to create link: link is cyclic"):
             link("//portals/p/a/l1", "//portals/p/a/b/c", force=True)
-        with pytest.raises(YtError, match="Failed to create link: link is cyclic"):
+        with raises_yt_error("Failed to create link: link is cyclic"):
             link("//portals/p/r/l2", "//portals/p/r/l2", force=True)
 
     @authors("h0pless")
@@ -4034,7 +4014,7 @@ class TestCypressPortal(TestCypressMulticell):
 
         # This will provoke a rollback.
         set("//sys/@config/cypress_manager/max_locks_per_transaction_subtree", 0)
-        with pytest.raises(YtError, match="Cannot create \"exclusive\" lock for node"):
+        with raises_yt_error("Cannot create \"exclusive\" lock for node"):
             copy("//tmp/t", "//portals/p/t")
 
         remove("//sys/@config/cypress_manager/max_locks_per_transaction_subtree")
@@ -4725,11 +4705,13 @@ class TestSequoia(TestCypressMulticell):
     USE_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
     NUM_CYPRESS_PROXIES = 1
+    NUM_SECONDARY_MASTER_CELLS = 3
 
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["sequoia_node_host"]},
         "11": {"roles": ["sequoia_node_host"]},
-        "12": {"roles": ["sequoia_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["chunk_host"]},
     }
 
 

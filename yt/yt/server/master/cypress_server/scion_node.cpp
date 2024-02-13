@@ -31,17 +31,14 @@ void TScionNode::Load(TLoadContext& context)
     Load(context, RootstockId_);
     // COMPAT(kvk1920)
     if (context.GetVersion() < EMasterReign::SequoiaMapNode) {
-        YT_VERIFY(SequoiaProperties_);
-
         Load<bool>(context); // RemovalStarted.
-        auto key = Load<std::optional<TString>>(context);
+        auto legacyKey = Load<std::optional<TString>>(context);
         Load<TNodeId>(context); // ParentId.
-        Load(context, SequoiaProperties()->Path);
-        if (key) {
-            SequoiaProperties()->Key = std::move(*key);
-        } else {
-            SequoiaProperties()->Key = DirNameAndBaseName(SequoiaProperties()->Path).second;
-        }
+
+        auto path = Load<TYPath>(context);
+        auto key = legacyKey ? *legacyKey : DirNameAndBaseName(path).second;
+        ImmutableSequoiaProperties_ = std::make_unique<TCypressNode::TImmutableSequoiaProperties>(key, path);
+        MutableSequoiaProperties_ = std::make_unique<TCypressNode::TMutableSequoiaProperties>();
     }
     Load(context, EffectiveInheritableAttributes_);
     Load(context, EffectiveAnnotationPath_);

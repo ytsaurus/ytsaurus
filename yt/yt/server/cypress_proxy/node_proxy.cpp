@@ -11,6 +11,10 @@
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
+#include <yt/yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
+
+#include <yt/yt/ytlib/chunk_client/proto/chunk_owner_ypath.pb.h>
+
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 #include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 
@@ -43,6 +47,7 @@
 namespace NYT::NCypressProxy {
 
 using namespace NApi;
+using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NObjectClient;
@@ -101,12 +106,19 @@ protected:
     const TYPath Path_;
     const ISequoiaTransactionPtr Transaction_;
 
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetBasicAttributes);
+    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create);
+    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Copy);
+
     bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Exists);
         DISPATCH_YPATH_SERVICE_METHOD(Get);
         DISPATCH_YPATH_SERVICE_METHOD(Set);
         DISPATCH_YPATH_SERVICE_METHOD(Remove);
+        DISPATCH_YPATH_SERVICE_METHOD(GetBasicAttributes);
+        DISPATCH_YPATH_SERVICE_METHOD(Create);
+        DISPATCH_YPATH_SERVICE_METHOD(Copy);
 
         return TYPathServiceBase::DoInvoke(context);
     }
@@ -144,6 +156,28 @@ protected:
         return CreateObjectServiceWriteProxy(
             Bootstrap_->GetNativeRootClient(),
             CellTagFromId(id));
+    }
+
+    void ValidateCreateOptions(
+        const TCtxCreatePtr& context,
+        const TReqCreate* request)
+    {
+        if (request->ignore_type_mismatch()) {
+            THROW_ERROR_EXCEPTION("Create with \"ignore_type_mismatch\" flag is not supported in Sequoia yet");
+        }
+        if (request->lock_existing()) {
+            THROW_ERROR_EXCEPTION("Create with \"lock_existing\" flag is not supported in Sequoia yet");
+        }
+        if (GetTransactionId(context->RequestHeader())) {
+            THROW_ERROR_EXCEPTION("Create with transaction is not supported in Sequoia yet");
+        }
+
+        auto type = CheckedEnumCast<EObjectType>(request->type());
+        if (type == EObjectType::SequoiaMapNode) {
+            THROW_ERROR_EXCEPTION("%Qlv is internal type and should not be used directly; use %Qlv instead",
+                EObjectType::SequoiaMapNode,
+                EObjectType::MapNode);
+        }
     }
 
     TCellTag RemoveRootstock()
@@ -335,6 +369,319 @@ protected:
     }
 };
 
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, GetBasicAttributes)
+{
+    context->SetRequestInfo();
+    auto newRequest = TObjectYPathProxy::GetBasicAttributes();
+    newRequest->CopyFrom(*request);
+    ForwardRequest(std::move(newRequest), response, context);
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Create)
+{
+    auto type = CheckedEnumCast<EObjectType>(request->type());
+    auto ignoreExisting = request->ignore_existing();
+    auto lockExisting = request->lock_existing();
+    auto recursive = request->recursive();
+    auto force = request->force();
+    auto ignoreTypeMismatch = request->ignore_type_mismatch();
+    auto hintId = FromProto<TNodeId>(request->hint_id());
+    auto transactionId = GetTransactionId(context->RequestHeader());
+
+    context->SetRequestInfo(
+        "Type: %v, IgnoreExisting: %v, LockExisting: %v, Recursive: %v, "
+        "Force: %v, IgnoreTypeMismatch: %v, HintId: %v, TransactionId: %v",
+        type,
+        ignoreExisting,
+        lockExisting,
+        recursive,
+        force,
+        ignoreTypeMismatch,
+        hintId,
+        transactionId);
+
+    ValidateCreateOptions(context, request);
+
+    // This alert can be safely removed, since hintId is not used in this function.
+    YT_LOG_ALERT_IF(hintId, "Hint ID was recieved on cypress proxy (HintId: %v)", hintId);
+
+    if (type == EObjectType::MapNode) {
+        type = EObjectType::SequoiaMapNode;
+    }
+
+    if (ignoreExisting && force) {
+        THROW_ERROR_EXCEPTION("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously");
+    }
+
+    if (!IsSupportedSequoiaType(type)) {
+        THROW_ERROR_EXCEPTION("Creation of %Qlv is not supported in Sequoia yet",
+            type);
+    }
+
+    auto unresolvedSuffix = GetRequestTargetYPath(context->GetRequestHeader());
+    auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
+    if (unresolvedSuffixTokens.empty() && !force) {
+        if (!ignoreExisting) {
+            ThrowAlreadyExists(Path_);
+        }
+
+        // Existing Scion instead of SequoiaMapNode is OK when ignore_existing is set.
+        auto thisType = TypeFromId(Id_);
+        auto compatibleTypes = type == EObjectType::SequoiaMapNode && thisType == EObjectType::Scion;
+        if (thisType != type && !force && !ignoreTypeMismatch && !compatibleTypes) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "%v already exists and has type %Qlv while node of %Qlv type is about to be created",
+                Path_,
+                thisType,
+                type);
+        }
+
+        // TODO(h0pless): If lockExisting - lock the node.
+        WaitFor(Transaction_->Commit())
+            .ThrowOnError();
+
+        ToProto(response->mutable_node_id(), Id_);
+        response->set_cell_tag(ToProto<int>(CellTagFromId(Id_)));
+
+        context->SetResponseInfo("ExistingNodeId: %v",
+            Id_);
+        context->Reply();
+        return;
+    }
+
+    if (!recursive && std::ssize(unresolvedSuffixTokens) > 1) {
+        ThrowNoSuchChild(Path_, unresolvedSuffixTokens[0]);
+    }
+
+    auto parentPath = Path_;
+    auto parentId = Id_;
+    auto requestedChildPath = Path_ + unresolvedSuffix;
+
+    TString targetName;
+    if (unresolvedSuffixTokens.empty() && force) {
+        auto [updatedParentPath, updatedTargetName] = DirNameAndBaseName(Path_);
+        parentPath = std::move(updatedParentPath);
+        targetName = std::move(updatedTargetName);
+        // TODO(h0pless): Maybe add parentId to resolve result, then it can be passed here to avoid another lookup.
+        parentId = LookupNodeId(parentPath, Transaction_);
+
+        auto removeFuture = RemoveSubtree(Path_, Transaction_);
+        WaitFor(removeFuture)
+            .ThrowOnError();
+    } else {
+        if (!IsSequoiaCompositeNodeType(TypeFromId(Id_))) {
+            THROW_ERROR_EXCEPTION("%v cannot have children",
+                Path_);
+        }
+
+        targetName = TYPath(unresolvedSuffixTokens.back());
+        unresolvedSuffixTokens.pop_back();
+    }
+
+    LockRowInPathToIdTable(parentPath, Transaction_);
+
+    auto intermediateParentId = CreateIntermediateNodes(
+        parentPath,
+        parentId,
+        unresolvedSuffixTokens,
+        Transaction_);
+
+    auto childCellTag = Transaction_->GetRandomSequoiaNodeHostCellTag();
+    auto childId = Transaction_->GenerateObjectId(type, childCellTag);
+    CreateNode(
+        type,
+        childId,
+        requestedChildPath,
+        Transaction_);
+    AttachChild(intermediateParentId, childId, targetName, Transaction_);
+
+    WaitFor(Transaction_->Commit({
+        .CoordinatorCellId = CellIdFromObjectId(parentId),
+        .Force2PC = true,
+        .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
+    }))
+        .ThrowOnError();
+
+    ToProto(response->mutable_node_id(), childId);
+    response->set_cell_tag(ToProto<int>(childCellTag));
+
+    // TODO(h0pless): Add account info here, currently impossible to integrate properly due to the fact
+    // that there is no such attribute stored in Sequoia dynamic tables.
+    context->SetResponseInfo("NodeId: %v, CellTag: %v",
+        Id_,
+        CellTagFromId(Id_));
+    context->Reply();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Copy)
+{
+    const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+    if (ypathExt.additional_paths_size() != 1) {
+        THROW_ERROR_EXCEPTION("Invalid number of additional paths");
+    }
+
+    const auto& originalSourcePath = ypathExt.additional_paths(0);
+    auto options = FromProto<TCopyOptions>(*request);
+
+    // These are handled on cypress proxy and are not needed on master.
+    auto force = request->force();
+    auto ignoreExisting = request->ignore_existing();
+    auto recursive = request->recursive();
+
+    // This one is unimplemented yet.
+    auto lockExisting = request->lock_existing();
+
+    context->SetRequestInfo("TransactionId: %v, PreserveAccount: %v, PreserveCreationTime: %v, "
+        "PreserveModificationTime: %v, PreserveExpirationTime: %v, PreserveExpirationTimeout: %v, "
+        "PreserveOwner: %v, PreserveAcl: %v, Recursive: %v, IgnoreExisting: %v, LockExisting: %v, "
+        "Force: %v, PessimisticQuotaCheck: %v, Mode: %v, OriginalSourcePath: %v",
+        GetTransactionId(context->RequestHeader()),
+        options.PreserveAccount,
+        options.PreserveCreationTime,
+        options.PreserveModificationTime,
+        options.PreserveExpirationTime,
+        options.PreserveExpirationTimeout,
+        options.PreserveOwner,
+        options.PreserveAcl,
+        recursive,
+        ignoreExisting,
+        lockExisting,
+        force,
+        options.PessimisticQuotaCheck,
+        options.Mode,
+        originalSourcePath);
+
+    // TODO(h0pless): Actually support this option when transactions are introduced.
+    if (lockExisting) {
+        THROW_ERROR_EXCEPTION("Copy with \"lock_existing\" flag is not supported in Sequoia yet");
+    }
+
+    // TODO(h0pless): Support acl preservation. It has to be done here and in master.
+    if (options.PreserveAcl) {
+        THROW_ERROR_EXCEPTION("Copy with \"preserve_acl\" flag is not supported in Sequoia yet");
+    }
+
+    if (ignoreExisting && force) {
+        THROW_ERROR_EXCEPTION("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously");
+    }
+
+    if (ignoreExisting && options.Mode == ENodeCloneMode::Move) {
+        // This practically never happens. Maybe consider adding YT_VERIFY here.
+        THROW_ERROR_EXCEPTION("Cannot specify \"ignore_existing\" for move operation");
+    }
+
+    auto sourcePathResolveResult = ResolvePath(Transaction_, originalSourcePath);
+    const auto* payload = std::get_if<TSequoiaResolveResult>(&sourcePathResolveResult);
+    if (!payload) {
+        // TODO(h0pless): Throw CrossCellAdditionalPath error once {Begin,End}Copy are working.
+        THROW_ERROR_EXCEPTION("%v is not a sequoia object, Cypress-to-Sequoia copy is not supported yet", originalSourcePath);
+    }
+
+    // TODO(h0pless): This might not be the best solution in a long run, but it'll work for now.
+    if (TypeFromId(payload->ResolvedPrefixNodeId) == EObjectType::Scion) {
+        THROW_ERROR_EXCEPTION("Scion cannot be cloned");
+    }
+
+    // NB: Rewriting in case there were symlinks in the original source path.
+    const auto& sourceRootPath = payload->ResolvedPrefix;
+    if (!payload->UnresolvedSuffix.empty()) {
+        auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(payload->UnresolvedSuffix);
+        ThrowNoSuchChild(sourceRootPath, unresolvedSuffixTokens[0]);
+    }
+
+    // Validate there are no duplicate or missing destination nodes.
+    auto unresolvedDestinationSuffix = GetRequestTargetYPath(context->GetRequestHeader());
+    auto destinationSuffixDirectoryTokens = TokenizeUnresolvedSuffix(unresolvedDestinationSuffix);
+    if (destinationSuffixDirectoryTokens.empty() && !force) {
+        if (!ignoreExisting) {
+            ThrowAlreadyExists(Path_);
+        }
+
+        // TODO(h0pless): If lockExisting - lock the node.
+        WaitFor(Transaction_->Commit())
+            .ThrowOnError();
+
+        ToProto(response->mutable_node_id(), Id_);
+
+        context->SetResponseInfo("ExistingNodeId: %v",
+            Id_);
+        context->Reply();
+        return;
+    }
+
+    if (!recursive && std::ssize(destinationSuffixDirectoryTokens) > 1) {
+        ThrowNoSuchChild(Path_, destinationSuffixDirectoryTokens[0]);
+    }
+
+    auto nodesToCopy = SelectSubtree(sourceRootPath, Transaction_);
+    auto destinationRootPath = Path_ + unresolvedDestinationSuffix;
+    auto parentPath = Path_;
+    auto parentId = Id_;
+    TString targetName;
+
+    auto overwriteDestinationSubtree = destinationSuffixDirectoryTokens.empty() && force;
+    if (overwriteDestinationSubtree) {
+        auto [updatedParentPath, updatedTargetName] = DirNameAndBaseName(Path_);
+        parentPath = std::move(updatedParentPath);
+        targetName = std::move(updatedTargetName);
+        parentId = LookupNodeId(parentPath, Transaction_);
+    } else {
+        if (!IsSequoiaCompositeNodeType(TypeFromId(Id_))) {
+            THROW_ERROR_EXCEPTION("%v cannot have children",
+                Path_);
+        }
+
+        targetName = destinationSuffixDirectoryTokens.back();
+        destinationSuffixDirectoryTokens.pop_back();
+    }
+
+    std::vector<NRecords::TPathToNodeId> nodesToRemove;
+    if (overwriteDestinationSubtree) {
+        nodesToRemove = SelectSubtree(destinationRootPath, Transaction_);
+        RemoveSelectedSubtree(
+            nodesToRemove,
+            Transaction_,
+            /*removeRoot*/ true,
+            parentId);
+    }
+
+    // Select returns sorted entries and destination subtree cannot include source subtree.
+    // Thus to check that subtrees don't overlap it's enough to check source root with
+    // first and last elements of the destination subtree.
+    if (options.Mode == ENodeCloneMode::Move && (nodesToRemove.empty() ||
+        sourceRootPath < DemangleSequoiaPath(nodesToRemove.front().Key.Path) ||
+        DemangleSequoiaPath(nodesToRemove.back().Key.Path) < sourceRootPath))
+    {
+        // TODO(h0pless): Maybe add parentId to resolve result, then it can be passed here to avoid another lookup.
+        RemoveSelectedSubtree(nodesToCopy, Transaction_);
+    }
+
+    LockRowInPathToIdTable(parentPath, Transaction_);
+
+    auto bottommostCreatedNodeId = CreateIntermediateNodes(
+        parentPath,
+        parentId,
+        destinationSuffixDirectoryTokens,
+        Transaction_);
+
+    auto destinationId = CopySubtree(nodesToCopy, sourceRootPath, destinationRootPath, options, Transaction_);
+
+    AttachChild(bottommostCreatedNodeId, destinationId, targetName, Transaction_);
+
+    WaitFor(Transaction_->Commit({
+        .CoordinatorCellId = CellIdFromObjectId(parentId),
+        .Force2PC = true,
+        .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
+    }))
+        .ThrowOnError();
+
+    ToProto(response->mutable_node_id(), destinationId);
+
+    context->SetResponseInfo("NodeId: %v", destinationId);
+    context->Reply();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMapLikeNodeProxy
@@ -344,31 +691,12 @@ public:
     using TNodeProxyBase::TNodeProxyBase;
 
 private:
-    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create);
-    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Copy);
     DECLARE_YPATH_SERVICE_METHOD(NYTree::NProto, List);
 
     bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
-        DISPATCH_YPATH_SERVICE_METHOD(Create);
-        DISPATCH_YPATH_SERVICE_METHOD(Copy);
         DISPATCH_YPATH_SERVICE_METHOD(List);
         return TNodeProxyBase::DoInvoke(context);
-    }
-
-    void ValidateCreateOptions(
-        const TCtxCreatePtr& context,
-        const TReqCreate* request)
-    {
-        if (request->ignore_type_mismatch()) {
-            THROW_ERROR_EXCEPTION("Create with \"ignore_type_mismatch\" flag is not supported in Sequoia yet");
-        }
-        if (request->lock_existing()) {
-            THROW_ERROR_EXCEPTION("Create with \"lock_existing\" flag is not supported in Sequoia yet");
-        }
-        if (GetTransactionId(context->RequestHeader())) {
-            THROW_ERROR_EXCEPTION("Create with transaction is not supported in Sequoia yet");
-        }
     }
 
     // TODO(h0pless): This class can be moved to helpers.
@@ -377,7 +705,7 @@ private:
         : public NYson::TForwardingYsonConsumer
     {
     public:
-        TTreeBuilder(TMapLikeNodeProxy* owner)
+        explicit TTreeBuilder(TMapLikeNodeProxy* owner)
             : Owner_(owner)
         {
             YT_VERIFY(Owner_);
@@ -469,13 +797,14 @@ private:
         }
 
     private:
-        TMapLikeNodeProxy* Owner_;
+        const TMapLikeNodeProxy* Owner_;
         TString Key_;
         TYPath ParentPath_;
         TNodeId ResultNodeId_;
         std::stack<std::pair<TString, TNodeId>> NodeStack_;
 
-        TNodeId CreateNode(EObjectType type) {
+        TNodeId CreateNode(EObjectType type)
+        {
             auto nodeId = Owner_->Transaction_->GenerateObjectId(type);
             NCypressProxy::CreateNode(type, nodeId, Format("%v/%v", ParentPath_, Key_), Owner_->Transaction_);
             return nodeId;
@@ -744,7 +1073,7 @@ private:
 
         // There is no composite node type other than Sequoia map node. If we
         // have unresolved suffix it can be either attribute or non-existent child.
-        ThrowNoSuchChild(Path_, tokenizer.GetToken());
+        ThrowNoSuchChild(Path_, tokenizer.GetLiteralValue());
     }
 
     void SetRecursive(
@@ -762,12 +1091,12 @@ private:
 
         auto unresolvedSuffix = "/" + path;
         auto destinationPath = Path_ + unresolvedSuffix;
-        auto unresolvedSuffixDirectoryTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
-        auto targetName = unresolvedSuffixDirectoryTokens.back();
-        unresolvedSuffixDirectoryTokens.pop_back();
+        auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
+        auto targetName = unresolvedSuffixTokens.back();
+        unresolvedSuffixTokens.pop_back();
 
-        if (!recursive && !unresolvedSuffixDirectoryTokens.empty()) {
-            ThrowNoSuchChild(Path_, unresolvedSuffixDirectoryTokens[0]);
+        if (!recursive && !unresolvedSuffixTokens.empty()) {
+            ThrowNoSuchChild(Path_, unresolvedSuffixTokens[0]);
         }
 
         // Acquire shared lock on parent node.
@@ -776,7 +1105,7 @@ private:
         auto targetParentId = CreateIntermediateNodes(
             Path_,
             Id_,
-            unresolvedSuffixDirectoryTokens,
+            unresolvedSuffixTokens,
             Transaction_);
 
         TTreeBuilder builder(this);
@@ -822,122 +1151,11 @@ private:
         // have unresolved suffix it can be either attribute or non-existent child.
         // Flag force was specifically designed to ignore this error.
         if (!force) {
-            ThrowNoSuchChild(Path_, tokenizer.GetToken());
+            ThrowNoSuchChild(Path_, tokenizer.GetLiteralValue());
         }
         context->Reply();
     }
 };
-
-DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Create)
-{
-    auto type = CheckedEnumCast<EObjectType>(request->type());
-    auto ignoreExisting = request->ignore_existing();
-    auto lockExisting = request->lock_existing();
-    auto recursive = request->recursive();
-    auto force = request->force();
-    auto ignoreTypeMismatch = request->ignore_type_mismatch();
-    // TODO(h0pless): Decide what to do with hint id here.
-    auto hintId = FromProto<TNodeId>(request->hint_id());
-    auto transactionId = GetTransactionId(context->RequestHeader());
-
-    context->SetRequestInfo(
-        "Type: %v, IgnoreExisting: %v, LockExisting: %v, Recursive: %v, "
-        "Force: %v, IgnoreTypeMismatch: %v, HintId: %v, TransactionId: %v",
-        type,
-        ignoreExisting,
-        lockExisting,
-        recursive,
-        force,
-        ignoreTypeMismatch,
-        hintId,
-        transactionId);
-
-    ValidateCreateOptions(context, request);
-
-    if (type == EObjectType::SequoiaMapNode) {
-        THROW_ERROR_EXCEPTION("%Qlv is internal type and should not be used directly; use %Qlv instead",
-            EObjectType::SequoiaMapNode,
-            EObjectType::MapNode);
-    }
-
-    if (type != EObjectType::MapNode && !IsScalarType(type)) {
-        THROW_ERROR_EXCEPTION("Creation of %Qlv is not supported in Sequoia yet",
-            type);
-    }
-
-    if (type == EObjectType::MapNode) {
-        type = EObjectType::SequoiaMapNode;
-    }
-
-    auto unresolvedSuffix = GetRequestTargetYPath(context->GetRequestHeader());
-    auto unresolvedSuffixDirectoryTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
-    if (unresolvedSuffixDirectoryTokens.empty() && !force) {
-        if (!ignoreExisting) {
-            ThrowAlreadyExists(Path_);
-        }
-
-        // TODO(h0pless): If lockExisting - lock the node.
-        WaitFor(Transaction_->Commit())
-            .ThrowOnError();
-
-        ToProto(response->mutable_node_id(), Id_);
-        response->set_cell_tag(ToProto<int>(CellTagFromId(Id_)));
-        context->Reply();
-        return;
-    }
-
-    if (!recursive && std::ssize(unresolvedSuffixDirectoryTokens) > 1) {
-        ThrowNoSuchChild(Path_, unresolvedSuffixDirectoryTokens[0]);
-    }
-
-    auto parentPath = Path_;
-    auto parentId = Id_;
-    auto requestedChildPath = Path_ + unresolvedSuffix;
-
-    TString targetName;
-    if (unresolvedSuffixDirectoryTokens.empty() && force) {
-        auto [updatedParentPath, updatedTargetName] = DirNameAndBaseName(Path_);
-        parentPath = std::move(updatedParentPath);
-        targetName = std::move(updatedTargetName);
-        // TODO(h0pless): Maybe add parentId to resolve result, then it can be passed here to avoid another lookup.
-        parentId = LookupNodeId(parentPath, Transaction_);
-
-        auto removeFuture = RemoveSubtree(Path_, Transaction_);
-        WaitFor(removeFuture)
-            .ThrowOnError();
-    } else {
-        targetName = TYPath(unresolvedSuffixDirectoryTokens.back());
-        unresolvedSuffixDirectoryTokens.pop_back();
-    }
-
-    LockRowInPathToIdTable(parentPath, Transaction_);
-
-    auto intermediateParentId = CreateIntermediateNodes(
-        parentPath,
-        parentId,
-        unresolvedSuffixDirectoryTokens,
-        Transaction_);
-
-    auto childCellTag = Transaction_->GetRandomSequoiaNodeHostCellTag();
-    auto childId = Transaction_->GenerateObjectId(type, childCellTag);
-    CreateNode(
-        type,
-        childId,
-        requestedChildPath,
-        Transaction_);
-    AttachChild(intermediateParentId, childId, targetName, Transaction_);
-
-    WaitFor(Transaction_->Commit({
-        .CoordinatorCellId = CellIdFromObjectId(parentId),
-        .Force2PC = true,
-        .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
-    }))
-        .ThrowOnError();
-
-    ToProto(response->mutable_node_id(), childId);
-    response->set_cell_tag(ToProto<int>(childCellTag));
-    context->Reply();
-}
 
 DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, List)
 {
@@ -952,10 +1170,10 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, List)
         attributeFilter);
 
     auto unresolvedSuffix = GetRequestTargetYPath(context->GetRequestHeader());
-    if (auto unresolvedSuffixDirectoryTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
-        !unresolvedSuffixDirectoryTokens.empty())
+    if (auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
+        !unresolvedSuffixTokens.empty())
     {
-        ThrowNoSuchChild(Path_, unresolvedSuffixDirectoryTokens[0]);
+        ThrowNoSuchChild(Path_, unresolvedSuffixTokens[0]);
     }
 
     LockRowInPathToIdTable(Path_, Transaction_);
@@ -980,157 +1198,51 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, List)
     context->Reply();
 }
 
-DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, Copy)
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkOwnerNodeSequoiaProxy
+    : public TNodeProxyBase
 {
-    const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-    if (ypathExt.additional_paths_size() != 1) {
-        THROW_ERROR_EXCEPTION("Invalid number of additional paths");
-    }
+public:
+    using TNodeProxyBase::TNodeProxyBase;
 
-    const auto& originalSourcePath = ypathExt.additional_paths(0);
-    auto options = FromProto<TCopyOptions>(*request);
+private:
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, BeginUpload);
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, EndUpload);
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, GetUploadParams);
 
-    // These are handled on cypress proxy and are not needed on master.
-    auto force = request->force();
-    auto ignoreExisting = request->ignore_existing();
-    auto recursive = request->recursive();
-
-    // This one is unimplemented yet.
-    auto lockExisting = request->lock_existing();
-
-    context->SetRequestInfo("TransactionId: %v, PreserveAccount: %v, PreserveCreationTime: %v, "
-        "PreserveModificationTime: %v, PreserveExpirationTime: %v, PreserveExpirationTimeout: %v, "
-        "PreserveOwner: %v, PreserveAcl: %v, Recursive: %v, IgnoreExisting: %v, LockExisting: %v, "
-        "Force: %v, PessimisticQuotaCheck: %v, Mode: %v, OriginalSourcePath: %v",
-        GetTransactionId(context->RequestHeader()),
-        options.PreserveAccount,
-        options.PreserveCreationTime,
-        options.PreserveModificationTime,
-        options.PreserveExpirationTime,
-        options.PreserveExpirationTimeout,
-        options.PreserveOwner,
-        options.PreserveAcl,
-        recursive,
-        ignoreExisting,
-        lockExisting,
-        force,
-        options.PessimisticQuotaCheck,
-        options.Mode,
-        originalSourcePath);
-
-    // TODO(h0pless): Actually support this option when transactions are introduced.
-    if (lockExisting) {
-        THROW_ERROR_EXCEPTION("Copy with \"lock_existing\" flag is not supported in Sequoia yet");
-    }
-
-    // TODO(h0pless): Support acl preservation. It has to be done here and in master.
-    if (options.PreserveAcl) {
-        THROW_ERROR_EXCEPTION("Copy with \"preserve_acl\" flag is not supported in Sequoia yet");
-    }
-
-    if (ignoreExisting && force) {
-        THROW_ERROR_EXCEPTION("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously");
-    }
-
-    if (ignoreExisting && options.Mode == ENodeCloneMode::Move) {
-        // This practically never happens. Maybe consider adding YT_VERIFY here.
-        THROW_ERROR_EXCEPTION("Cannot specify \"ignore_existing\" for move operation");
-    }
-
-    auto sourcePathResolveResult = ResolvePath(Transaction_, originalSourcePath);
-    const auto* payload = std::get_if<TSequoiaResolveResult>(&sourcePathResolveResult);
-    if (!payload) {
-        // TODO(h0pless): Throw CrossCellAdditionalPath error once {Begin,End}Copy are working.
-        THROW_ERROR_EXCEPTION("%v is not a Sequoia object, Cypress-to-Sequoia copy is not supported yet", originalSourcePath);
-    }
-
-    // NB: Rewriting in case there were symlinks in the original source path.
-    const auto& sourceRootPath = payload->ResolvedPrefix;
-    if (!payload->UnresolvedSuffix.empty()) {
-        auto unresolvedSuffixDirectoryTokens = TokenizeUnresolvedSuffix(payload->UnresolvedSuffix);
-        ThrowNoSuchChild(sourceRootPath, unresolvedSuffixDirectoryTokens[0]);
-    }
-
-    // Validate there are no duplicate or missing destination nodes.
-    auto unresolvedDestinationSuffix = GetRequestTargetYPath(context->GetRequestHeader());
-    auto destinationSuffixDirectoryTokens = TokenizeUnresolvedSuffix(unresolvedDestinationSuffix);
-    if (destinationSuffixDirectoryTokens.empty() && !force) {
-        if (!ignoreExisting) {
-            ThrowAlreadyExists(Path_);
-        }
-
-        // TODO(h0pless): If lockExisting - lock the node.
-        WaitFor(Transaction_->Commit())
-            .ThrowOnError();
-
-        ToProto(response->mutable_node_id(), Id_);
-        context->Reply();
-        return;
-    }
-
-    if (!recursive && std::ssize(destinationSuffixDirectoryTokens) > 1) {
-        ThrowNoSuchChild(Path_, destinationSuffixDirectoryTokens[0]);
-    }
-
-    auto nodesToCopy = SelectSubtree(sourceRootPath, Transaction_);
-    auto destinationRootPath = Path_ + unresolvedDestinationSuffix;
-    auto parentPath = Path_;
-    auto parentId = Id_;
-    TString targetName;
-
-    auto overwriteDestinationSubtree = destinationSuffixDirectoryTokens.empty() && force;
-    if (overwriteDestinationSubtree) {
-        auto [updatedParentPath, updatedTargetName] = DirNameAndBaseName(Path_);
-        parentPath = std::move(updatedParentPath);
-        targetName = std::move(updatedTargetName);
-        parentId = LookupNodeId(parentPath, Transaction_);
-    } else {
-        targetName = destinationSuffixDirectoryTokens.back();
-        destinationSuffixDirectoryTokens.pop_back();
-    }
-
-    std::vector<NRecords::TPathToNodeId> nodesToRemove;
-    if (overwriteDestinationSubtree) {
-        nodesToRemove = SelectSubtree(destinationRootPath, Transaction_);
-        RemoveSelectedSubtree(
-            nodesToRemove,
-            Transaction_,
-            /*removeRoot*/ true,
-            parentId);
-    }
-
-    // Select returns sorted entries and destination subtree cannot include source subtree.
-    // Thus to check that subtrees don't overlap it's enough to check source root with
-    // first and last elements of the destination subtree.
-    if (options.Mode == ENodeCloneMode::Move && (nodesToRemove.empty() ||
-        sourceRootPath < DemangleSequoiaPath(nodesToRemove.front().Key.Path) ||
-        DemangleSequoiaPath(nodesToRemove.back().Key.Path) < sourceRootPath))
+    bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
-        // TODO(h0pless): Maybe add parentId to resolve result, then it can be passed here to avoid another lookup.
-        RemoveSelectedSubtree(nodesToCopy, Transaction_);
+        DISPATCH_YPATH_SERVICE_METHOD(BeginUpload);
+        DISPATCH_YPATH_SERVICE_METHOD(EndUpload);
+        DISPATCH_YPATH_SERVICE_METHOD(GetUploadParams);
+
+        return TNodeProxyBase::DoInvoke(context);
     }
+};
 
-    LockRowInPathToIdTable(parentPath, Transaction_);
+DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeSequoiaProxy, BeginUpload)
+{
+    context->SetRequestInfo();
+    auto newRequest = TChunkOwnerYPathProxy::BeginUpload();
+    newRequest->CopyFrom(*request);
+    ForwardRequest(std::move(newRequest), response, context);
+}
 
-    auto bottommostCreatedNodeId = CreateIntermediateNodes(
-        parentPath,
-        parentId,
-        destinationSuffixDirectoryTokens,
-        Transaction_);
+DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeSequoiaProxy, EndUpload)
+{
+    context->SetRequestInfo();
+    auto newRequest = TChunkOwnerYPathProxy::EndUpload();
+    newRequest->CopyFrom(*request);
+    ForwardRequest(std::move(newRequest), response, context);
+}
 
-    auto destinationId = CopySubtree(nodesToCopy, sourceRootPath, destinationRootPath, options, Transaction_);
-
-    AttachChild(bottommostCreatedNodeId, destinationId, targetName, Transaction_);
-
-    WaitFor(Transaction_->Commit({
-        .CoordinatorCellId = CellIdFromObjectId(parentId),
-        .Force2PC = true,
-        .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
-    }))
-        .ThrowOnError();
-
-    ToProto(response->mutable_node_id(), destinationId);
-    context->Reply();
+DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeSequoiaProxy, GetUploadParams)
+{
+    context->SetRequestInfo();
+    auto newRequest = TChunkOwnerYPathProxy::GetUploadParams();
+    newRequest->CopyFrom(*request);
+    ForwardRequest(std::move(newRequest), response, context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1147,6 +1259,8 @@ IYPathServicePtr CreateNodeProxy(
     TIntrusivePtr<TNodeProxyBase> proxy;
     if (IsSequoiaCompositeNodeType(type)) {
         proxy = New<TMapLikeNodeProxy>(bootstrap, id, std::move(resolvedPath), std::move(transaction));
+    } else if (IsChunkOwnerType(type)) {
+        proxy = New<TChunkOwnerNodeSequoiaProxy>(bootstrap, id, std::move(resolvedPath), std::move(transaction));
     } else {
         proxy = New<TNodeProxyBase>(bootstrap, id, std::move(resolvedPath), std::move(transaction));
     }

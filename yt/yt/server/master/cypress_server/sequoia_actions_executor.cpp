@@ -80,6 +80,14 @@ private:
         }
     }
 
+    static bool CanCreateSequoiaType(EObjectType type)
+    {
+        return
+            type == EObjectType::SequoiaMapNode ||
+            IsScalarType(type) ||
+            IsChunkOwnerType(type);
+    }
+
     // NB: Sequoia node has to be created in prepare phase since we cannot
     // guarantee that object id will not be used between prepare and commit.
     // It's ok because this node cannot be reached from any other node until
@@ -103,7 +111,7 @@ private:
         }
 
         auto type = CheckedEnumCast<EObjectType>(request->type());
-        if (type != EObjectType::SequoiaMapNode && !IsScalarType(type)) {
+        if (!CanCreateSequoiaType(type)) {
             THROW_ERROR_EXCEPTION("Type %Qlv is not supported in Sequoia", type);
         }
 
@@ -122,12 +130,13 @@ private:
             const_cast<NYTree::IAttributeDictionary*>(attributes),
             const_cast<NYTree::IAttributeDictionary*>(attributes))->GetTrunkNode();
 
-        node->SequoiaProperties() = std::make_unique<TCypressNode::TSequoiaProperties>();
-        *node->SequoiaProperties() = {
-            .Key = NYPath::DirNameAndBaseName(request->path()).second,
-            .Path = request->path(),
-            .BeingCreated = true,
-        };
+        TCypressNode::TImmutableSequoiaProperties immutableProperties(
+            /*key*/ NYPath::DirNameAndBaseName(request->path()).second,
+            /*path*/ request->path());
+
+        node->ImmutableSequoiaProperties() = std::make_unique<TCypressNode::TImmutableSequoiaProperties>(std::move(immutableProperties));
+        node->MutableSequoiaProperties() = std::make_unique<TCypressNode::TMutableSequoiaProperties>();
+        *node->MutableSequoiaProperties() = { .BeingCreated = true };
 
         node->VerifySequoia();
         node->RefObject();
@@ -148,7 +157,7 @@ private:
 
         VerifySequoiaNode(node);
 
-        auto beingCreated = std::exchange(node->SequoiaProperties()->BeingCreated, false);
+        auto beingCreated = std::exchange(node->MutableSequoiaProperties()->BeingCreated, false);
         YT_VERIFY(beingCreated);
     }
 
@@ -181,7 +190,7 @@ private:
         auto* parent = cypressManager->GetNodeOrThrow(TVersionedNodeId(parentId));
 
         VerifySequoiaNode(parent);
-        auto beingCreated = parent->SequoiaProperties()->BeingCreated;
+        auto beingCreated = parent->MutableSequoiaProperties()->BeingCreated;
         THROW_ERROR_EXCEPTION_IF(
             !beingCreated && !options.LatePrepare,
             "Operation is not atomic for user");
@@ -352,7 +361,7 @@ private:
 
         // Maybe this is excessive.
         auto type = sourceNode->GetType();
-        if (type != EObjectType::SequoiaMapNode && !IsScalarType(type)) {
+        if (!CanCreateSequoiaType(type)) {
             THROW_ERROR_EXCEPTION("Type %Qlv is not supported in Sequoia", type);
         }
 
@@ -377,12 +386,14 @@ private:
             factoryOptions);
 
         auto* clonedNode = nodeFactory->CloneNode(sourceNode, mode, destinationNodeId);
-        clonedNode->SequoiaProperties() = std::make_unique<TCypressNode::TSequoiaProperties>();
-        *clonedNode->SequoiaProperties() = {
-            .Key = NYPath::DirNameAndBaseName(request->dst_path()).second,
-            .Path = request->dst_path(),
-            .BeingCreated = true,
-        };
+
+        TCypressNode::TImmutableSequoiaProperties immutableProperties(
+            /*key*/ NYPath::DirNameAndBaseName(request->dst_path()).second,
+            /*path*/ request->dst_path());
+
+        clonedNode->ImmutableSequoiaProperties() = std::make_unique<TCypressNode::TImmutableSequoiaProperties>(std::move(immutableProperties));
+        clonedNode->MutableSequoiaProperties() = std::make_unique<TCypressNode::TMutableSequoiaProperties>();
+        *clonedNode->MutableSequoiaProperties() = {.BeingCreated = true};
 
         clonedNode->VerifySequoia();
         clonedNode->RefObject();
@@ -407,7 +418,7 @@ private:
 
         VerifySequoiaNode(node);
 
-        auto beingCreated = std::exchange(node->SequoiaProperties()->BeingCreated, false);
+        auto beingCreated = std::exchange(node->MutableSequoiaProperties()->BeingCreated, false);
         YT_VERIFY(beingCreated);
     }
 
