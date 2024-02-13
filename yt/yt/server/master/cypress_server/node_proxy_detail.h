@@ -495,14 +495,14 @@ private:
 
 class TSequoiaMapNodeProxy
     : public TCypressNodeProxyBase<
-        TNontemplateCypressNodeProxyBase,
+        TNontemplateCompositeCypressNodeProxyBase,
         NYTree::IEntityNode,
         TSequoiaMapNode>
     , public virtual NYTree::TSupportsList
 {
 public:
     using TBase = TCypressNodeProxyBase<
-        TNontemplateCypressNodeProxyBase,
+        TNontemplateCompositeCypressNodeProxyBase,
         NYTree::IEntityNode,
         TSequoiaMapNode>;
 
@@ -515,6 +515,14 @@ public:
     bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
 
     void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
+
+    //! Returns the number of child nodes.
+    int GetChildCount() const override;
+
+    // Methods below are unimplemented.
+    void Clear() override;
+    void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
+    void RemoveChild(const NYTree::INodePtr& child) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

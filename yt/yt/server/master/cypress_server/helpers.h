@@ -103,8 +103,6 @@ bool IsAncestorOf(
     const TCypressNode* trunkAncestor,
     const TCypressNode* trunkDescendant);
 
-bool IsChunkOwnerType(NObjectClient::EObjectType type);
-
 TNodeId MakePortalExitNodeId(
     TNodeId entranceNodeId,
     NObjectClient::TCellTag exitCellTag);

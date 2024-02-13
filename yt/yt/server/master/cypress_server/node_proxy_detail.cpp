@@ -2923,6 +2923,60 @@ void TCypressMapNodeProxy::ListSelf(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSequoiaMapNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
+{
+    TBase::ListSystemAttributes(descriptors);
+
+    if (Bootstrap_->GetConfig()->ExposeTestingFacilities) {
+        descriptors->push_back(EInternedAttributeKey::Children);
+    }
+}
+
+bool TSequoiaMapNodeProxy::GetBuiltinAttribute(
+    NYTree::TInternedAttributeKey key,
+    NYson::IYsonConsumer* consumer)
+{
+    auto* mapNode = GetThisImpl();
+    const auto Logger = CypressServerLogger;
+
+    switch (key) {
+        case EInternedAttributeKey::Type:
+            BuildYsonFluently(consumer)
+                .Value(EObjectType::MapNode);
+            return true;
+        case EInternedAttributeKey::Path:
+            if (mapNode->ImmutableSequoiaProperties()) {
+                BuildYsonFluently(consumer)
+                    .Value(mapNode->ImmutableSequoiaProperties()->Path);
+                return true;
+            }
+            YT_LOG_ALERT("Sequoia node is lacking required attribute \"path\" (NodeId: %v)",
+                mapNode->GetId());
+            return false;
+        case EInternedAttributeKey::Key:
+            if (mapNode->ImmutableSequoiaProperties()) {
+                BuildYsonFluently(consumer)
+                    .Value(mapNode->ImmutableSequoiaProperties()->Key);
+                return true;
+            }
+            YT_LOG_ALERT("Sequoia node is lacking required attribute \"key\" (NodeId: %v)",
+                mapNode->GetId());
+            return false;
+        case EInternedAttributeKey::Children: {
+            if (!Bootstrap_->GetConfig()->ExposeTestingFacilities) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(mapNode->KeyToChild());
+            return true;
+        }
+        default:
+            break;
+    }
+
+    return TBase::GetBuiltinAttribute(key, consumer);
+}
+
 void TSequoiaMapNodeProxy::GetSelf(
     TReqGet* request,
     TRspGet* response,
@@ -2950,61 +3004,28 @@ void TSequoiaMapNodeProxy::GetSelf(
             context->Reply(resultOrError);
         }
     }));
-
 }
 
-void TSequoiaMapNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
+int TSequoiaMapNodeProxy::GetChildCount() const
 {
-    TBase::ListSystemAttributes(descriptors);
-
-    if (Bootstrap_->GetConfig()->ExposeTestingFacilities) {
-        descriptors->push_back(EInternedAttributeKey::Children);
-    }
+    const auto* node = GetThisImpl();
+    const auto* mapNode = node->As<TSequoiaMapNode>();
+    return mapNode->KeyToChild().size();
 }
 
-bool TSequoiaMapNodeProxy::GetBuiltinAttribute(
-    NYTree::TInternedAttributeKey key,
-    NYson::IYsonConsumer* consumer)
+void TSequoiaMapNodeProxy::Clear()
 {
-    auto* mapNode = GetThisImpl();
-    const auto Logger = CypressServerLogger;
+    YT_ABORT();
+}
 
-    switch (key) {
-        case EInternedAttributeKey::Type:
-            BuildYsonFluently(consumer)
-                .Value(EObjectType::MapNode);
-            return true;
-        case EInternedAttributeKey::Path:
-            if (mapNode->SequoiaProperties()) {
-                BuildYsonFluently(consumer)
-                    .Value(mapNode->SequoiaProperties()->Path);
-                return true;
-            }
-            YT_LOG_ALERT("Sequoia node is lacking required attribute \"path\" (NodeId: %v)",
-                mapNode->GetId());
-            return false;
-        case EInternedAttributeKey::Key:
-            if (mapNode->SequoiaProperties()) {
-                BuildYsonFluently(consumer)
-                    .Value(mapNode->SequoiaProperties()->Key);
-                return true;
-            }
-            YT_LOG_ALERT("Sequoia node is lacking required attribute \"key\" (NodeId: %v)",
-                mapNode->GetId());
-            return false;
-        case EInternedAttributeKey::Children: {
-            if (!Bootstrap_->GetConfig()->ExposeTestingFacilities) {
-                break;
-            }
-            BuildYsonFluently(consumer)
-                .Value(mapNode->KeyToChild());
-            return true;
-        }
-        default:
-            break;
-    }
+void TSequoiaMapNodeProxy::ReplaceChild(const NYTree::INodePtr& /*oldChild*/, const NYTree::INodePtr& /*newChild*/)
+{
+    YT_ABORT();
+}
 
-    return TBase::GetBuiltinAttribute(key, consumer);
+void TSequoiaMapNodeProxy::RemoveChild(const NYTree::INodePtr& /*child*/)
+{
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

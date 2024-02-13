@@ -430,10 +430,16 @@ public:
         securityManager->ValidateResourceUsageIncrease(account, deltaResources);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto currentCellRoles = multicellManager->GetMasterCellRoles(multicellManager->GetCellTag());
+
+        bool isExternalizable = Any(handler->GetFlags() & ETypeFlags::Externalizable);
+        bool isSequoiaNodeHost = Any(currentCellRoles & EMasterCellRoles::SequoiaNodeHost);
+        bool isPortal = Shard_ && Shard_->GetRoot() && Shard_->GetRoot()->GetType() == EObjectType::PortalExit;
+        bool isMulticell = !multicellManager->GetRegisteredMasterCellTags().empty();
+
         bool defaultExternal =
-            Any(handler->GetFlags() & ETypeFlags::Externalizable) &&
-            (multicellManager->IsPrimaryMaster() || Shard_ && Shard_->GetRoot() && Shard_->GetRoot()->GetType() == EObjectType::PortalExit) &&
-            !multicellManager->GetRegisteredMasterCellTags().empty();
+            isMulticell && isExternalizable &&
+            (multicellManager->IsPrimaryMaster() || isPortal || isSequoiaNodeHost);
         ValidateCreateNonExternalNode(explicitAttributes);
         bool external = explicitAttributes->GetAndRemove<bool>("external", defaultExternal);
 
@@ -457,8 +463,7 @@ public:
             } else {
                 externalCellTag = multicellManager->PickSecondaryChunkHostCell(externalCellBias);
                 if (externalCellTag == InvalidCellTag) {
-                    auto roles = multicellManager->GetMasterCellRoles(multicellManager->GetCellTag());
-                    if (Any(roles & EMasterCellRoles::ChunkHost)) {
+                    if (Any(currentCellRoles & EMasterCellRoles::ChunkHost)) {
                         external = false;
                         externalCellTag = NotReplicatedCellTagSentinel;
                     } else {
@@ -1624,8 +1629,8 @@ public:
             if (pathRootType) {
                 *pathRootType = EPathRootType::PortalExit;
             }
-        } else if (currentNode->SequoiaProperties()) {
-            builder.AppendString(currentNode->SequoiaProperties()->Path);
+        } else if (currentNode->ImmutableSequoiaProperties()) {
+            builder.AppendString(currentNode->ImmutableSequoiaProperties()->Path);
             if (pathRootType) {
                 *pathRootType = EPathRootType::SequoiaNode;
             }

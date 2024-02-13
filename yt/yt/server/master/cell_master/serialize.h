@@ -197,6 +197,7 @@ DEFINE_ENUM(EMasterReign,
     ((SmoothTabletMovement)                                         (2530))  // ifsmirnov
     ((DistributedTabletPrerequisites)                               (2531))  // gritukan
     ((SecondaryIndexUnfolding)                                      (2532))  // sabdenovch
+    ((TablesInSequoia)                                              (2533))  // h0pless
     // 24.2 starts here.
 );
 

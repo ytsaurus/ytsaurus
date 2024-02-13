@@ -1369,8 +1369,13 @@ private:
         auto it = config->CellDescriptors.find(cellTag);
         if (it != config->CellDescriptors.end() && it->second->Roles) {
             auto roles = *it->second->Roles;
-            if (Any(roles & EMasterCellRoles::ChunkHost) && Any(roles & EMasterCellRoles::DedicatedChunkHost)) {
-                auto alert = TError("Cell received conflicting chunk_host and dedicated_chunk_host roles")
+            if (Any(roles & (EMasterCellRoles::ChunkHost | EMasterCellRoles::DedicatedChunkHost))) {
+                auto alert = TError("Cell received conflicting \"chunk_host\" and \"dedicated_chunk_host\" roles")
+                    << TErrorAttribute("cell_tag", cellTag);
+                ConflictingCellRolesAlerts_.emplace(cellTag, std::move(alert));
+            }
+            if (Any(roles & (EMasterCellRoles::ChunkHost | EMasterCellRoles::SequoiaNodeHost))) {
+                auto alert = TError("Cell received conflicting \"chunk_host\" and \"sequoia_node_host\" roles")
                     << TErrorAttribute("cell_tag", cellTag);
                 ConflictingCellRolesAlerts_.emplace(cellTag, std::move(alert));
             }

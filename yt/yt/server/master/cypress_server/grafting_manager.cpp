@@ -361,11 +361,8 @@ private:
             scionNode->EffectiveInheritableAttributes().emplace(effectiveInheritableAttributes->Attributes().ToPersistent());
         }
 
-        scionNode->SequoiaProperties() = std::make_unique<TCypressNode::TSequoiaProperties>();
-        *scionNode->SequoiaProperties() = {
-            .Key = key,
-            .Path = path,
-        };
+        scionNode->ImmutableSequoiaProperties() = std::make_unique<TCypressNode::TImmutableSequoiaProperties>(key, path);
+        scionNode->MutableSequoiaProperties() = std::make_unique<TCypressNode::TMutableSequoiaProperties>();
 
         scionNode->Acd().SetEntries(effectiveAcl);
         scionNode->Acd().SetInherit(inheritAcl);

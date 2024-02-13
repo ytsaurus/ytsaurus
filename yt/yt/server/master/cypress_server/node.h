@@ -230,16 +230,26 @@ public:
 
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNode, TDuration, ExpirationTimeout);
 
-    struct TSequoiaProperties
+    struct TImmutableSequoiaProperties
     {
-        NYPath::TYPath Key;
-        TString Path;
+        const TString Key;
+        const NYPath::TYPath Path;
+
+        TImmutableSequoiaProperties(NYPath::TYPath key, TString path);
+
+        bool operator==(const TImmutableSequoiaProperties& rhs) const noexcept = default;
+        // Save/Load methods don't work with const fields, sadly.
+    };
+    DEFINE_BYREF_RW_PROPERTY(std::unique_ptr<TImmutableSequoiaProperties>, ImmutableSequoiaProperties);
+
+    struct TMutableSequoiaProperties
+    {
         bool BeingCreated = false;
 
         void Save(NCellMaster::TSaveContext& context) const;
         void Load(NCellMaster::TLoadContext& context);
     };
-    DEFINE_BYREF_RW_PROPERTY(std::unique_ptr<TSequoiaProperties>, SequoiaProperties);
+    DEFINE_BYREF_RW_PROPERTY(std::unique_ptr<TMutableSequoiaProperties>, MutableSequoiaProperties);
 
     using TObject::TObject;
     explicit TCypressNode(TVersionedNodeId id);

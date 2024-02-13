@@ -329,7 +329,7 @@ void AttachChildToSequoiaNodeOrThrow(
     auto& children = sequoiaTrunkNode->MutableChildren();
     if (children.Contains(childKey)) {
         THROW_ERROR_EXCEPTION("Node %Qv already has child %Qv",
-            sequoiaTrunkNode->SequoiaProperties()->Path,
+            sequoiaTrunkNode->ImmutableSequoiaProperties()->Path,
             childKey);
     }
     children.Insert(childKey, childId);
@@ -403,14 +403,6 @@ bool IsAncestorOf(
         current = current->GetParent();
     }
     return false;
-}
-
-bool IsChunkOwnerType(EObjectType type)
-{
-    return
-        IsTableType(type) ||
-        type == EObjectType::File ||
-        type == EObjectType::Journal;
 }
 
 TNodeId MakePortalExitNodeId(

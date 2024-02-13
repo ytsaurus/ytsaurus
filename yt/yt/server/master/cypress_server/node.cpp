@@ -243,7 +243,11 @@ void TCypressNode::CheckInvariants(TBootstrap* bootstrap) const
 {
     TObject::CheckInvariants(bootstrap);
 
-    YT_VERIFY(!SequoiaProperties() || (IsSequoia() || GetType() == EObjectType::Rootstock));
+    if (IsSequoia() && IsNative()) {
+        YT_VERIFY(MutableSequoiaProperties() && ImmutableSequoiaProperties());
+    } else {
+        YT_VERIFY(!MutableSequoiaProperties() && !ImmutableSequoiaProperties());
+    }
 }
 
 void TCypressNode::Save(NCellMaster::TSaveContext& context) const
@@ -268,7 +272,14 @@ void TCypressNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, AccessCounter_);
     Save(context, Shard_);
     Save(context, Annotation_);
-    TUniquePtrSerializer<>::Save(context, SequoiaProperties_);
+
+    // Save/Load functions won't work for this class because of const qualifiers on fields.
+    Save(context, ImmutableSequoiaProperties_.operator bool());
+    if (ImmutableSequoiaProperties_) {
+        Save(context, ImmutableSequoiaProperties_->Key);
+        Save(context, ImmutableSequoiaProperties_->Path);
+    }
+    TUniquePtrSerializer<>::Save(context, MutableSequoiaProperties_);
 }
 
 void TCypressNode::Load(NCellMaster::TLoadContext& context)
@@ -294,10 +305,37 @@ void TCypressNode::Load(NCellMaster::TLoadContext& context)
     Load(context, Shard_);
     Load(context, Annotation_);
 
-    if (context.GetVersion() >= EMasterReign::SequoiaMapNode) {
-        TUniquePtrSerializer<>::Load(context, SequoiaProperties_);
-    } else if (IsSequoia()) {
-        SequoiaProperties() = std::make_unique<TSequoiaProperties>();
+    auto loadImmutableProperties = [&] () {
+        if (Load<bool>(context)) {
+            ImmutableSequoiaProperties_ = std::make_unique<TImmutableSequoiaProperties>(
+                Load<TString>(context),
+                Load<NYPath::TYPath>(context));
+        }
+    };
+
+    // NB: If object is older than SequoiaMapNode reign - it should only have SequoiaProperties if it's a scion.
+    // That case is handled in an appropriate class.
+    if (context.GetVersion() >= EMasterReign::TablesInSequoia) {
+        loadImmutableProperties();
+        TUniquePtrSerializer<>::Load(context, MutableSequoiaProperties_);
+    } else if (context.GetVersion() >= EMasterReign::SequoiaMapNode) {
+        loadImmutableProperties();
+        if (ImmutableSequoiaProperties_ && context.GetVersion() >= EMasterReign::SequoiaPropertiesBeingCreated) {
+            auto beingCreated = Load<bool>(context);
+            MutableSequoiaProperties_ = std::make_unique<TMutableSequoiaProperties>();
+            MutableSequoiaProperties_->BeingCreated = beingCreated;
+        }
+
+        // Only Sequoia nodes should have sequoia properties, but before TablesInSequoia reign it was not the case.
+        // Let's remove them after load.
+        if (!IsSequoia()) {
+            YT_VERIFY(!ImmutableSequoiaProperties_ ||
+                ImmutableSequoiaProperties_->Key.empty() && ImmutableSequoiaProperties_->Path.empty());
+            YT_VERIFY(!MutableSequoiaProperties_ || !MutableSequoiaProperties_->BeingCreated);
+
+            ImmutableSequoiaProperties_.reset();
+            MutableSequoiaProperties_.reset();
+        }
     }
 }
 
@@ -321,27 +359,26 @@ void TCypressNode::LoadEctoplasm(TStreamLoadContext& context)
 
 void TCypressNode::VerifySequoia() const
 {
-    YT_VERIFY(IsSequoia() && SequoiaProperties());
+    YT_VERIFY(IsSequoia() && ImmutableSequoiaProperties() && MutableSequoiaProperties());
 }
 
-void TCypressNode::TSequoiaProperties::Save(NCellMaster::TSaveContext& context) const
+TCypressNode::TImmutableSequoiaProperties::TImmutableSequoiaProperties(NYPath::TYPath key, TString path)
+    : Key(std::move(key))
+    , Path(std::move(path))
+{ }
+
+void TCypressNode::TMutableSequoiaProperties::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
 
-    Save(context, Key);
-    Save(context, Path);
     Save(context, BeingCreated);
 }
 
-void TCypressNode::TSequoiaProperties::Load(NCellMaster::TLoadContext& context)
+void TCypressNode::TMutableSequoiaProperties::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
 
-    Load(context, Key);
-    Load(context, Path);
-    if (context.GetVersion() >= EMasterReign::SequoiaPropertiesBeingCreated) {
-        Load(context, BeingCreated);
-    }
+    Load(context, BeingCreated);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
