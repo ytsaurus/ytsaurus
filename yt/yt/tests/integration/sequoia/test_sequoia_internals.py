@@ -7,8 +7,9 @@ from yt_commands import (
 
 from yt_sequoia_helpers import (
     resolve_sequoia_id, resolve_sequoia_path, select_rows_from_ground,
-    PATH_TO_NODE_ID_TABLE,
 )
+
+from yt.sequoia_tools import DESCRIPTORS
 
 from yt.common import YtError
 import yt.yson as yson
@@ -143,14 +144,14 @@ class TestSequoiaInternals(YTEnvSetup):
 
         if copy_mode == "copy":
             copy("//tmp/strings", "//tmp/other")
-            assert select_rows_from_ground(f"path from [{PATH_TO_NODE_ID_TABLE.get_path()}]") == COMMON_ROWS + [
+            assert select_rows_from_ground(f"path from [{DESCRIPTORS.path_to_node_id.get_default_path()}]") == COMMON_ROWS + [
                 {'path': '//tmp/strings/'},
                 {'path': '//tmp/strings/s1/'},
                 {'path': '//tmp/strings/s2/'},
             ]
         else:
             move("//tmp/strings", "//tmp/other")
-            assert select_rows_from_ground(f"path from [{PATH_TO_NODE_ID_TABLE.get_path()}]") == COMMON_ROWS
+            assert select_rows_from_ground(f"path from [{DESCRIPTORS.path_to_node_id.get_default_path()}]") == COMMON_ROWS
 
     @authors("h0pless")
     @pytest.mark.parametrize("copy_mode", ["copy", "move"])
@@ -172,7 +173,7 @@ class TestSequoiaInternals(YTEnvSetup):
 
         if copy_mode == "copy":
             copy("//tmp/src", "//tmp/d/s/t", recursive=True)
-            assert select_rows_from_ground(f"path from [{PATH_TO_NODE_ID_TABLE.get_path()}]") == COMMON_ROWS + [
+            assert select_rows_from_ground(f"path from [{DESCRIPTORS.path_to_node_id.get_default_path()}]") == COMMON_ROWS + [
                 {'path': '//tmp/src/'},
                 {'path': '//tmp/src/a/'},
                 {'path': '//tmp/src/a/b/'},
@@ -181,7 +182,7 @@ class TestSequoiaInternals(YTEnvSetup):
             ]
         else:
             move("//tmp/src", "//tmp/d/s/t", recursive=True)
-            assert select_rows_from_ground(f"path from [{PATH_TO_NODE_ID_TABLE.get_path()}]") == COMMON_ROWS
+            assert select_rows_from_ground(f"path from [{DESCRIPTORS.path_to_node_id.get_default_path()}]") == COMMON_ROWS
 
     @authors("h0pless")
     @pytest.mark.parametrize("copy_mode", ["copy", "move"])
@@ -205,7 +206,7 @@ class TestSequoiaInternals(YTEnvSetup):
 
         if copy_mode == "copy":
             copy("//tmp/src", "//tmp/dst", force=True)
-            assert select_rows_from_ground(f"path from [{PATH_TO_NODE_ID_TABLE.get_path()}]") == COMMON_ROWS + [
+            assert select_rows_from_ground(f"path from [{DESCRIPTORS.path_to_node_id.get_default_path()}]") == COMMON_ROWS + [
                 {'path': '//tmp/src/'},
                 {'path': '//tmp/src/a/'},
                 {'path': '//tmp/src/a/b/'},
@@ -214,7 +215,7 @@ class TestSequoiaInternals(YTEnvSetup):
             ]
         else:
             move("//tmp/src", "//tmp/dst", force=True)
-            assert select_rows_from_ground(f"path from [{PATH_TO_NODE_ID_TABLE.get_path()}]") == COMMON_ROWS
+            assert select_rows_from_ground(f"path from [{DESCRIPTORS.path_to_node_id.get_default_path()}]") == COMMON_ROWS
 
     @authors("h0pless")
     @pytest.mark.parametrize("copy_mode", ["copy", "move"])
@@ -228,7 +229,7 @@ class TestSequoiaInternals(YTEnvSetup):
         else:
             move("//tmp/dst/src", "//tmp/dst", force=True)
 
-        assert select_rows_from_ground(f"path from [{PATH_TO_NODE_ID_TABLE.get_path()}]") == [
+        assert select_rows_from_ground(f"path from [{DESCRIPTORS.path_to_node_id.get_default_path()}]") == [
             {'path': '//tmp/'},
             {'path': '//tmp/dst/'},
             {'path': '//tmp/dst/a/'},
@@ -244,10 +245,10 @@ class TestSequoiaInternals(YTEnvSetup):
         create("map_node", "//tmp/src/d")
         create("map_node", "//tmp/dst")
 
-        original_select_result = select_rows_from_ground(f"* from [{PATH_TO_NODE_ID_TABLE.get_path()}]")
+        original_select_result = select_rows_from_ground(f"* from [{DESCRIPTORS.path_to_node_id.get_default_path()}]")
 
         copy("//tmp/src", "//tmp/dst", ignore_existing=True)
-        assert original_select_result == select_rows_from_ground(f"* from [{PATH_TO_NODE_ID_TABLE.get_path()}]")
+        assert original_select_result == select_rows_from_ground(f"* from [{DESCRIPTORS.path_to_node_id.get_default_path()}]")
 
     @authors("danilalexeev")
     def test_create_recursive_fail(self):

@@ -503,12 +503,16 @@ GENERATE_YT_RECORD(
     sequoia_client/records/chunk_replicas.yaml
     OUTPUT_INCLUDES
         yt/yt/ytlib/sequoia_client/public.h
+        yt/yt/client/node_tracker_client/public.h
+        library/cpp/yt/yson_string/string.h
 )
 
 GENERATE_YT_RECORD(
     sequoia_client/records/location_replicas.yaml
     OUTPUT_INCLUDES
         yt/yt/ytlib/sequoia_client/public.h
+        yt/yt/client/node_tracker_client/public.h
+        yt/yt/client/object_client/public.h
 )
 
 

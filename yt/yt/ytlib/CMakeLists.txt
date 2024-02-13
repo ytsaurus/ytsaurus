@@ -1473,8 +1473,13 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.yaml
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
   COMMAND
-  Python3::Interpreter
+  ${CMAKE_COMMAND}
+  -E
+  env
+  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  ${Python3_EXECUTABLE}
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.yaml
@@ -1484,6 +1489,10 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.cpp
   --output-include
   yt/yt/ytlib/sequoia_client/public.h
+  --output-include
+  yt/yt/client/node_tracker_client/public.h
+  --output-include
+  library/cpp/yt/yson_string/string.h
 )
 add_custom_command(
   OUTPUT
@@ -1492,8 +1501,13 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.yaml
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
   COMMAND
-  Python3::Interpreter
+  ${CMAKE_COMMAND}
+  -E
+  env
+  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  ${Python3_EXECUTABLE}
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.yaml
@@ -1503,6 +1517,10 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.record.cpp
   --output-include
   yt/yt/ytlib/sequoia_client/public.h
+  --output-include
+  yt/yt/client/node_tracker_client/public.h
+  --output-include
+  yt/yt/client/object_client/public.h
 )
 add_custom_command(
   OUTPUT
@@ -1511,8 +1529,13 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.yaml
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
   COMMAND
-  Python3::Interpreter
+  ${CMAKE_COMMAND}
+  -E
+  env
+  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  ${Python3_EXECUTABLE}
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.yaml
@@ -1530,8 +1553,13 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.yaml
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
   COMMAND
-  Python3::Interpreter
+  ${CMAKE_COMMAND}
+  -E
+  env
+  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  ${Python3_EXECUTABLE}
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.yaml
@@ -1549,8 +1577,13 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.yaml
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
   COMMAND
-  Python3::Interpreter
+  ${CMAKE_COMMAND}
+  -E
+  env
+  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  ${Python3_EXECUTABLE}
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.yaml
@@ -1568,8 +1601,13 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.yaml
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
   COMMAND
-  Python3::Interpreter
+  ${CMAKE_COMMAND}
+  -E
+  env
+  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  ${Python3_EXECUTABLE}
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.yaml
@@ -1585,8 +1623,13 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.yaml
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
   COMMAND
-  Python3::Interpreter
+  ${CMAKE_COMMAND}
+  -E
+  env
+  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  ${Python3_EXECUTABLE}
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.yaml
@@ -1602,8 +1645,13 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/operation_id.yaml
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
   COMMAND
-  Python3::Interpreter
+  ${CMAKE_COMMAND}
+  -E
+  env
+  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  ${Python3_EXECUTABLE}
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/operation_id.yaml
@@ -1619,8 +1667,13 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_profile.yaml
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
   COMMAND
-  Python3::Interpreter
+  ${CMAKE_COMMAND}
+  -E
+  env
+  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  ${Python3_EXECUTABLE}
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_profile.yaml
@@ -1636,8 +1689,13 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.yaml
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
   COMMAND
-  Python3::Interpreter
+  ${CMAKE_COMMAND}
+  -E
+  env
+  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  ${Python3_EXECUTABLE}
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.yaml
@@ -1653,8 +1711,13 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_spec.yaml
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
   COMMAND
-  Python3::Interpreter
+  ${CMAKE_COMMAND}
+  -E
+  env
+  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  ${Python3_EXECUTABLE}
   ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_spec.yaml

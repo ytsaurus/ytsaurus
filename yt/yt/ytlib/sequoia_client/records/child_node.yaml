@@ -1,7 +1,9 @@
 namespace: NYT::NSequoiaClient::NRecords
 
 types:
-  - type_name: TChildNode
+  - table_name: child_node
+    table_group: resolve_tables
+    type_name: TChildNode
     fields:
       - cpp_name: ParentId
         cpp_type: NCypressClient::TNodeId
