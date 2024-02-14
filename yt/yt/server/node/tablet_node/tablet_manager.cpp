@@ -2147,9 +2147,12 @@ private:
             }
         }
 
-        if (tablet->GetStoresUpdatePreparedTransactionId()) {
-            THROW_ERROR_EXCEPTION("Cannot prepare stores update since it is already prepared by transaction %v",
-                tablet->GetStoresUpdatePreparedTransactionId());
+        // COMPAT(ifsmirnov)
+        if (GetCurrentMutationContext()->Request().Reign >= static_cast<int>(ETabletReign::SmoothTabletMovement)) {
+            if (tablet->GetStoresUpdatePreparedTransactionId()) {
+                THROW_ERROR_EXCEPTION("Cannot prepare stores update since it is already prepared by transaction %v",
+                    tablet->GetStoresUpdatePreparedTransactionId());
+            }
         }
 
         // Prepare.
@@ -2215,7 +2218,10 @@ private:
             }
         }
 
-        tablet->SetStoresUpdatePreparedTransactionId(transaction->GetId());
+        // COMPAT(ifsmirnov)
+        if (GetCurrentMutationContext()->Request().Reign >= static_cast<int>(ETabletReign::SmoothTabletMovement)) {
+            tablet->SetStoresUpdatePreparedTransactionId(transaction->GetId());
+        }
 
         // TODO(ifsmirnov): log preparation errors as well.
         structuredLogger->OnTabletStoresUpdatePrepared(
@@ -2363,7 +2369,6 @@ private:
                 transaction->GetId(),
                 tabletId,
                 reason);
-            return;
         }
 
         auto* tablet = FindTablet(tabletId);
@@ -2379,14 +2384,18 @@ private:
             return;
         }
 
-        auto expectedTransactionId = tablet->GetStoresUpdatePreparedTransactionId();
-        if (expectedTransactionId != transaction->GetId()) {
-            YT_LOG_DEBUG("Unexpected stores update transaction aborted, ignored "
-                "(%v, TransactionId: %v, PreparedTransactionId: %v)",
-                tablet->GetLoggingTag(),
-                transaction->GetId(),
-                expectedTransactionId);
-            return;
+        // COMPAT(ifsmirnov)
+        if (GetCurrentMutationContext()->Request().Reign >= static_cast<int>(ETabletReign::SmoothTabletMovement)) {
+            auto expectedTransactionId = tablet->GetStoresUpdatePreparedTransactionId();
+            if (expectedTransactionId != transaction->GetId()) {
+                YT_LOG_ALERT("Unexpected stores update transaction aborted, ignored "
+                    "(%v, TransactionId: %v, PreparedTransactionId: %v)",
+                    tablet->GetLoggingTag(),
+                    transaction->GetId(),
+                    expectedTransactionId);
+
+                // Continue nevertheless to mimic old behaviour.
+            }
         }
 
         tablet->SetStoresUpdatePreparedTransactionId({});
@@ -2506,14 +2515,18 @@ private:
             return;
         }
 
-        auto expectedTransactionId = tablet->GetStoresUpdatePreparedTransactionId();
-        if (expectedTransactionId != transaction->GetId()) {
-            YT_LOG_ALERT("Unexpected stores update transaction committed "
-                "(%v, TransactionId: %v, PreparedTransactionId: %v)",
-                tablet->GetLoggingTag(),
-                transaction->GetId(),
-                expectedTransactionId);
-            // Continue nevertheless to mimic old behaviour.
+        // COMPAT(ifsmirnov)
+        if (GetCurrentMutationContext()->Request().Reign >= static_cast<int>(ETabletReign::SmoothTabletMovement)) {
+            auto expectedTransactionId = tablet->GetStoresUpdatePreparedTransactionId();
+            if (expectedTransactionId != transaction->GetId()) {
+                YT_LOG_ALERT("Unexpected stores update transaction committed "
+                    "(%v, TransactionId: %v, PreparedTransactionId: %v)",
+                    tablet->GetLoggingTag(),
+                    transaction->GetId(),
+                    expectedTransactionId);
+
+                // Continue nevertheless to mimic old behaviour.
+            }
         }
 
         tablet->SetStoresUpdatePreparedTransactionId({});
