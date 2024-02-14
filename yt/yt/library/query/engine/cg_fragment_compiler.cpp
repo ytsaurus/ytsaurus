@@ -216,10 +216,37 @@ TValueTypeLabels CodegenHasherBody(
 
     // indexPhi, cmpResultPhi, returnBB, gotoNextBB
 
-    BasicBlock* hashScalarBB = nullptr;
+    BasicBlock* hashInt8ScalarBB = nullptr;
     {
-        hashScalarBB = builder->CreateBBHere("hashNull");
-        builder->SetInsertPoint(hashScalarBB);
+        hashInt8ScalarBB = builder->CreateBBHere("hashNull");
+        builder->SetInsertPoint(hashInt8ScalarBB);
+
+        auto valuePtr = builder->CreateInBoundsGEP(
+            TValueTypeBuilder::Get(builder->getContext()),
+            values,
+            indexPhi);
+        auto value = TCGValue::LoadFromRowValue(
+            builder,
+            valuePtr,
+            EValueType::Boolean);
+
+        result2Phi->addIncoming(builder->getInt64(0), builder->GetInsertBlock());
+        BasicBlock* hashDataBB = builder->CreateBBHere("hashData");
+        builder->CreateCondBr(value.GetIsNull(builder), gotoNextBB, hashDataBB);
+
+        builder->SetInsertPoint(hashDataBB);
+        Value* hashResult = CodegenFingerprint64(
+            builder,
+            builder->CreateIntCast(value.GetTypedData(builder), builder->getInt64Ty(), /*isSigned*/ false));
+
+        result2Phi->addIncoming(hashResult, builder->GetInsertBlock());
+        builder->CreateBr(gotoNextBB);
+    };
+
+    BasicBlock* hashInt64ScalarBB = nullptr;
+    {
+        hashInt64ScalarBB = builder->CreateBBHere("hashNull");
+        builder->SetInsertPoint(hashInt64ScalarBB);
 
         auto valuePtr = builder->CreateInBoundsGEP(
             TValueTypeBuilder::Get(builder->getContext()),
@@ -278,17 +305,17 @@ TValueTypeLabels CodegenHasherBody(
     Value* offsetPtr = builder->CreateGEP(builder->getInt8PtrTy(), labelsArray, indexPhi);
     Value* offset = builder->CreateLoad(builder->getInt8PtrTy(), offsetPtr);
     auto* indirectBranch = builder->CreateIndirectBr(offset);
-    indirectBranch->addDestination(hashScalarBB);
+    indirectBranch->addDestination(hashInt8ScalarBB);
+    indirectBranch->addDestination(hashInt64ScalarBB);
     indirectBranch->addDestination(cmpStringBB);
 
     return TValueTypeLabels{
-        llvm::BlockAddress::get(hashScalarBB),
-        llvm::BlockAddress::get(hashScalarBB),
-        llvm::BlockAddress::get(hashScalarBB),
-        llvm::BlockAddress::get(hashScalarBB),
+        llvm::BlockAddress::get(hashInt8ScalarBB),
+        llvm::BlockAddress::get(hashInt64ScalarBB),
+        llvm::BlockAddress::get(hashInt64ScalarBB),
+        llvm::BlockAddress::get(hashInt64ScalarBB),
         llvm::BlockAddress::get(cmpStringBB)
     };
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -425,6 +452,16 @@ TValueTypeLabels CodegenLessComparerBody(
         return cmpBB;
     };
 
+    BasicBlock* cmpBooleanBB = cmpScalar(
+        [] (TCGBaseContext& builder, Value* lhsData, Value* rhsData) {
+            return builder->CreateICmpEQ(lhsData, rhsData);
+        },
+        [] (TCGBaseContext& builder, Value* lhsData, Value* rhsData) {
+            return builder->CreateICmpULT(lhsData, rhsData);
+        },
+        EValueType::Boolean,
+        "bool");
+
     BasicBlock* cmpIntBB = cmpScalar(
         [] (TCGBaseContext& builder, Value* lhsData, Value* rhsData) {
             return builder->CreateICmpEQ(lhsData, rhsData);
@@ -539,13 +576,14 @@ TValueTypeLabels CodegenLessComparerBody(
     Value* offsetPtr = builder->CreateGEP(builder->getInt8PtrTy(), labelsArray, indexPhi);
     Value* offset = builder->CreateLoad(builder->getInt8PtrTy(), offsetPtr);
     auto* indirectBranch = builder->CreateIndirectBr(offset);
+    indirectBranch->addDestination(cmpBooleanBB);
     indirectBranch->addDestination(cmpIntBB);
     indirectBranch->addDestination(cmpUintBB);
     indirectBranch->addDestination(cmpDoubleBB);
     indirectBranch->addDestination(cmpStringBB);
 
     return TValueTypeLabels{
-        llvm::BlockAddress::get(cmpIntBB),
+        llvm::BlockAddress::get(cmpBooleanBB),
         llvm::BlockAddress::get(cmpIntBB),
         llvm::BlockAddress::get(cmpUintBB),
         llvm::BlockAddress::get(cmpDoubleBB),
@@ -3235,6 +3273,7 @@ TGroupOpSlots MakeCodegenGroupOp(
                 comparerManager->GetEqComparer(keyTypes, builder.Module, 0, commonPrefixWithPrimaryKey),
                 comparerManager->GetHasher(keyTypes, builder.Module, commonPrefixWithPrimaryKey, keyTypes.size()),
                 comparerManager->GetEqComparer(keyTypes, builder.Module, commonPrefixWithPrimaryKey, keyTypes.size()),
+
                 builder->getInt32(keyTypes.size()),
                 builder->getInt32(stateTypes.size()),
 
