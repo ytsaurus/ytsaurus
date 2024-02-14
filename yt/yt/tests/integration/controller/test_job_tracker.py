@@ -12,7 +12,7 @@ from yt_commands import (
     run_test_vanilla, with_breakpoint,
     wait_breakpoint, release_breakpoint,
     update_controller_agent_config, update_nodes_dynamic_config,
-    update_scheduler_config,
+    update_scheduler_config
 )
 from yt_helpers import read_structured_log, write_log_barrier, JobCountProfiler, profiler_factory
 
@@ -403,13 +403,15 @@ class TestJobTracker(YTEnvSetup):
         update_controller_agent_config("job_events_total_time_threshold", 0)
         controller_agent = ls("//sys/controller_agents/instances")[0]
         profiler = profiler_factory().at_controller_agent(controller_agent)
-        throttled_running_job_event_counter = profiler.counter("controller_agent/job_tracker/throttled_running_job_event_count")
-        throttled_heartbeat_counter = profiler.counter("controller_agent/job_tracker/throttled_heartbeat_count")
+        throttled_running_job_event_counter = profiler.counter("controller_agent/job_tracker/node_heartbeat/throttled_running_job_event_count")
+        throttled_heartbeat_counter = profiler.counter("controller_agent/job_tracker/node_heartbeat/throttled_heartbeat_count")
+        throttled_operation_count = profiler.counter("controller_agent/job_tracker/node_heartbeat/throttled_operation_count")
 
         op = run_test_vanilla("sleep 1", job_count=1)
 
         wait(lambda: throttled_heartbeat_counter.get_delta() > 0)
         assert throttled_running_job_event_counter.get_delta() > 0
+        assert throttled_operation_count.get_delta() > 0
 
         update_controller_agent_config("job_events_total_time_threshold", 1000)
 
