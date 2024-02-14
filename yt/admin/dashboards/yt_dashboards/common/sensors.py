@@ -129,6 +129,9 @@ BundleController = ProjectSensor("bundle_controller", "yt_bundle_controller")  #
 # TabletBalancer
 TabletBalancer = ProjectSensor("tablet_balancer", "yt_tablet_balancer")  # noqa: E222
 
+# CHYT
+Chyt = ProjectSensor("clickhouse", "chyt")
+
 
 class SplitNodeSensorsGuard:
     _entered = False

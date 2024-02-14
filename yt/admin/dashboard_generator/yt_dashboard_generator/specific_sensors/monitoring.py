@@ -71,6 +71,9 @@ class MonitoringExpr(Taggable):
     def moving_avg(self, param):
         return self.func("moving_avg", self, param)
 
+    def moving_sum(self, param):
+        return self.func("moving_sum", self, param)
+
     def linear_trend(self, from_ts, to_ts):
         return self.func("linear_trend", self, from_ts, to_ts)
 
@@ -86,6 +89,13 @@ class MonitoringExpr(Taggable):
     def series_sum(self, label):
         return self.func("series_sum", f'"{label}"', self)
 
+    def series_min(self, label):
+        return self.func("series_min", f'"{label}"', self)
+
+    def series_max(self, *labels):
+        labels = [f'"{label}"' for label in labels]
+        return self.func("series_max", *labels, self)
+
     def top_avg(self, k):
         return self.func("top_avg", k, self)
 
@@ -100,6 +110,12 @@ class MonitoringExpr(Taggable):
 
     def downsampling_aggregation(self, value):
         return self.value(MonitoringSystemFields.DownsamplingAggregation, value)
+
+    def drop_nan(self):
+        return self.func("drop_nan", self)
+
+    def sqrt(self):
+        return self.func("sqrt", self)
 
     def value(self, key, value, overwrite=True):
         return MonitoringExpr(

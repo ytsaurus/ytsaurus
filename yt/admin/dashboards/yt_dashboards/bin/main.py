@@ -8,6 +8,7 @@ from yt_dashboards.scheduler_internal import build_scheduler_internal
 from yt_dashboards.scheduler_pool import build_scheduler_pool
 from yt_dashboards.cluster_resources import build_cluster_resources
 from yt_dashboards.cache import build_cache_with_ghosts
+from yt_dashboards.chyt import build_chyt_monitoring
 from yt_dashboards.key_filter import build_key_filter
 
 from yt_dashboards.bundle_ui_dashboard import (
@@ -131,7 +132,15 @@ dashboards = {
     "master-merge-jobs": {
         "func": build_master_merge_jobs,
         "monitoring": {},
-    }
+    },
+    "chyt-monitoring-test": {
+        "func": build_chyt_monitoring,
+        "monitoring": {},
+    },
+    "chyt-monitoring": {
+        "func": build_chyt_monitoring,
+        "monitoring": {},
+    },
 }
 
 

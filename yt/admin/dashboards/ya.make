@@ -6,6 +6,7 @@ PY_SRCS(
     yt_dashboards/artemis.py
     yt_dashboards/bundle_ui_dashboard.py
     yt_dashboards/cache.py
+    yt_dashboards/chyt.py
     yt_dashboards/cluster_resources.py
     yt_dashboards/key_filter.py
     yt_dashboards/lsm.py
