@@ -162,6 +162,8 @@ int GetChunkShardIndex(TChunkId chunkId);
 
 std::vector<TInstant> GenerateChunkCreationTimeHistogramBucketBounds(TInstant now);
 
+TJobPtr MummifyJob(const TJobPtr& job);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

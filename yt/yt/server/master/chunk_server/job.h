@@ -52,6 +52,8 @@ public:
         const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
         NChunkClient::TChunkIdWithIndexes chunkIdWithIndexes);
 
+    explicit TJob(const TJob& other);
+
     [[nodiscard]] virtual bool FillJobSpec(
         NCellMaster::TBootstrap* bootstrap,
         NProto::TJobSpec* jobSpec) const = 0;

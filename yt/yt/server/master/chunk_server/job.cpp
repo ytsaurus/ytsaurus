@@ -37,6 +37,20 @@ TJob::TJob(
     , State_(EJobState::Running)
 { }
 
+TJob::TJob(const TJob& other)
+    : JobId_(other.JobId_)
+    , Type_(other.Type_)
+    , JobEpoch_(other.JobEpoch_)
+    , NodeAddress_(other.NodeAddress_)
+    , ResourceUsage_(other.ResourceUsage_)
+    , ChunkIdWithIndexes_(other.ChunkIdWithIndexes_)
+    , StartTime_(other.StartTime_)
+    , State_(other.State_)
+    , Error_(other.Error_)
+    , SequenceNumber_(other.SequenceNumber_)
+    , Result_(other.Result_)
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

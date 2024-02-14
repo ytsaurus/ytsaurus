@@ -3,6 +3,7 @@
 #include "chunk_manager.h"
 #include "config.h"
 #include "job.h"
+#include "helpers.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
@@ -260,8 +261,9 @@ private:
     TJobCounters JobsFailed_;
     TJobCounters JobsAborted_;
 
-    void RegisterFinishedJob(const TJobPtr& job)
+    void RegisterFinishedJob(const TJobPtr& finishedJob)
     {
+        auto job = MummifyJob(finishedJob);
         auto chunkId = job->GetChunkIdWithIndexes().Id;
         LastFinishedJobs_[chunkId] = job;
         auto& queue = FinishedJobQueues_[job->GetType()][job->GetState()];
