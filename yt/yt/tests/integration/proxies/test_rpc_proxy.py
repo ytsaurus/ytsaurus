@@ -1135,6 +1135,14 @@ class TestCompressionRpcProxy(YTEnvSetup):
         lookup_rows("//tmp/d", [{"key": 0}])
 
 
+class TestModernCompressionRpcProxy(TestCompressionRpcProxy):
+    DELTA_DRIVER_CONFIG = {
+        "request_codec": "lz4",
+        "response_codec": "quick_lz",
+        "enable_legacy_rpc_codecs": False,
+    }
+
+
 ##################################################################
 
 
