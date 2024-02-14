@@ -1457,8 +1457,9 @@ private:
         };
 
         while (!ScheduledJobs_.empty() && hasSpareResources()) {
-            TryScheduleJob(std::move(ScheduledJobs_.front()), context);
+            auto job = std::move(ScheduledJobs_.front());
             ScheduledJobs_.pop();
+            TryScheduleJob(std::move(job), context);
         }
     }
 

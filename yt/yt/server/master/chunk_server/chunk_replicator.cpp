@@ -2670,7 +2670,7 @@ void TChunkReplicator::ScheduleGlobalChunkRefresh()
 
 void TChunkReplicator::OnRefresh()
 {
-    const auto& config = GetDynamicConfig();
+    auto config = GetDynamicConfig();
     if (!config->EnableChunkRefresh) {
         YT_LOG_DEBUG("Chunk refresh disabled");
         return;
