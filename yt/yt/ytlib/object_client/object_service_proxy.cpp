@@ -176,7 +176,7 @@ TSharedRefArray TObjectServiceProxy::TReqExecuteSubbatch::SerializeHeaderless() 
     for (const auto& descriptor : InnerRequestDescriptors_) {
         req.add_part_counts(descriptor.Message.Size());
     }
-    auto body = SerializeProtoToRefWithEnvelope(req);
+    auto body = SerializeProtoToRefWithCompression(req);
 
     std::vector<TSharedRef> data;
     data.reserve(Attachments_.size() + 1);

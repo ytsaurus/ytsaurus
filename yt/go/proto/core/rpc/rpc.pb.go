@@ -602,8 +602,7 @@ type TResponseHeader struct {
 	// If omitted then OK is assumed.
 	Error  *misc.TError `protobuf:"bytes,2,opt,name=error" json:"error,omitempty"`
 	Format *int32       `protobuf:"varint,3,opt,name=format" json:"format,omitempty"` // EMessageFormat
-	// COMPAT(kiseloyvp): this is missing when legacy mode is used
-	Codec *int32 `protobuf:"varint,6,opt,name=codec" json:"codec,omitempty"` // ECodec
+	Codec  *int32       `protobuf:"varint,6,opt,name=codec" json:"codec,omitempty"`   // ECodec
 }
 
 func (x *TResponseHeader) Reset() {
