@@ -39,7 +39,7 @@ void TValidatorJob::Do()
 
     auto client = NYT::CreateClientFromEnv();
 
-    std::mt19937 engine(TInstant::Now().MicroSeconds());
+    std::mt19937_64 engine(TInstant::Now().MicroSeconds());
     std::uniform_int_distribution<int> dist(10000, 40000);
 
     while (true) {

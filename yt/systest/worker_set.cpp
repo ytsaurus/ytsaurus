@@ -164,7 +164,7 @@ TFuture<TWorkerSet::TToken> TWorkerSet::PickWorker()
     auto timeNow = TInstant::Now();
     auto guard = Guard(Lock_);
 
-    std::mt19937 engine(Engine_());
+    std::mt19937_64 engine(Engine_());
     std::vector<int> available;
     for (int i = 0; i < std::ssize(Workers_); ++i) {
         if (CanUseWorker(*Workers_[i], timeNow)) {
@@ -227,7 +227,7 @@ void TWorkerSet::UpdateWorkers(const std::vector<TString>& current)
         }
 
         if (!available.empty() && !Waiters_.empty()) {
-            std::mt19937 engine(Engine_());
+            std::mt19937_64 engine(Engine_());
 
             waiter = Waiters_.front();
             Waiters_.pop_front();

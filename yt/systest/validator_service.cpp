@@ -52,20 +52,7 @@ static int64_t CountAndHashValues(int keyLength, IDatasetIterator* iterator, siz
     // Compute sum for hashes for all rows in the interval.
     *hashValue = 0;
     while (!iterator->Done() && CompareRowPrefix(keyLength, key, iterator->Values()) == 0) {
-        size_t rowHash = 1;  // start with "1" as an empty row marker.
-        for (int i = keyLength; i < std::ssize(iterator->Values()); ++i) {
-            const auto& value = iterator->Values()[i];
-            if (value.IsDouble()) {
-                rowHash = CombineHashes(rowHash, std::hash<double>()(value.AsDouble()));
-            } else if (value.IsArithmetic()) {
-                rowHash = CombineHashes(rowHash, std::hash<int64_t>()(value.ConvertTo<int64_t>()));
-            } else if (value.IsString()) {
-                rowHash = CombineHashes(rowHash, std::hash<TString>()(value.AsString()));
-            } else {
-                THROW_ERROR_EXCEPTION("Unsupported value type %v found",
-                    static_cast<int>(value.GetType()));
-            }
-        }
+        size_t rowHash = RowHash(TRange<TNode>(iterator->Values().begin() + keyLength, iterator->Values().end()));
         *hashValue += rowHash;
         iterator->Next();
         ++count;

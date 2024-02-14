@@ -14,7 +14,7 @@ namespace NYT::NTest {
 
 struct TCallState
 {
-    std::optional<std::mt19937> RandomEngine;
+    std::optional<std::mt19937_64> RandomEngine;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

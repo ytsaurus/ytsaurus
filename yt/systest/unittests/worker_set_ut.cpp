@@ -104,7 +104,7 @@ public:
             auto guard = Guard(Lock_);
             seed = Engine_();
         }
-        std::mt19937 engine(seed);
+        std::mt19937_64 engine(seed);
         std::vector<TString> names;
         names.reserve(NumNames);
         for (int i = 0; i < NumNames; ++i) {
@@ -124,7 +124,7 @@ private:
     const int NumExclude;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
-    std::mt19937 Engine_;
+    std::mt19937_64 Engine_;
 };
 
 TEST_F(TWorkerSetTest, Waiting)

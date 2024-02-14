@@ -72,7 +72,7 @@ private:
     TPromise<void> PollerDone_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
-    std::mt19937 Engine_;
+    std::mt19937_64 Engine_;
     std::vector<std::unique_ptr<TWorker>> Workers_;
     std::unordered_map<TString, int> WorkerIndex_;
     std::deque<TPromise<TToken>> Waiters_;

@@ -11,4 +11,9 @@ std::vector<TNode> PopulateOperationInput(
     TRange<int> operationInputColumns,
     TRange<TNode> input);
 
+std::vector<std::vector<TNode>> PopulateReducerInput(
+    TRange<int> allInputColumns,
+    TRange<int> operationInputColumns,
+    TRange<TRange<TNode>> input);
+
 }  // namespace NYT::NTest

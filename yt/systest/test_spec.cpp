@@ -91,35 +91,57 @@ static bool isLowCardinality(NProto::EColumnType type)
         type == NProto::EColumnType::EInt16;
 }
 
-static std::pair<std::vector<TString>, TString> GetSortAndReduceColumns(
-    std::mt19937& randomEngine,
+static bool TableContainsLowCardinalityColumn(
+    const TTable& table)
+{
+    for (int i = 0; i < std::ssize(table.DataColumns); ++i) {
+        if (!isLowCardinality(table.DataColumns[i].Type)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static std::pair<std::vector<TString>, std::vector<TString>> GetSortAndReduceColumns(
+    std::mt19937_64& randomEngine,
     const TTable& schema)
 {
-    std::uniform_int_distribution<int> dist(0, 5);
-    std::vector<int> reduceable;
-    std::vector<int> summable;
+    std::vector<int> narrow;
+    std::vector<int> allColumns;
     for (int i = 0; i < std::ssize(schema.DataColumns); i++) {
-        if (isNumeric(schema.DataColumns[i].Type)) {
-            summable.push_back(i);
-        }
         if (isLowCardinality(schema.DataColumns[i].Type)) {
-            reduceable.push_back(i);
+            narrow.push_back(i);
         }
+        allColumns.push_back(i);
     }
 
-    std::shuffle(reduceable.begin(), reduceable.end(), randomEngine);
-    std::shuffle(summable.begin(), summable.end(), randomEngine);
+    YT_VERIFY(!narrow.empty());
+    std::shuffle(narrow.begin(), narrow.end(), randomEngine);
 
-    YT_VERIFY(!reduceable.empty());
-    YT_VERIFY(!summable.empty());
+    std::uniform_int_distribution<int> dist(0, 9);
+    int r = dist(randomEngine);
+    if (r > 7 && std::ssize(narrow) >= 3) {
+        narrow.resize(3);
+    } else if (r > 3 && std::ssize(narrow) >= 2) {
+        narrow.resize(2);
+    } else {
+        narrow.resize(1);
+    }
+
+    std::vector<TString> keyColumns;
+    for (int index : narrow) {
+        keyColumns.push_back(schema.DataColumns[index].Name);
+    }
+
+    std::shuffle(allColumns.begin(), allColumns.end(), randomEngine);
+    int limit = std::uniform_int_distribution<int>(1, std::ssize(allColumns))(randomEngine);
 
     std::vector<TString> reduceColumns;
-    reduceColumns.push_back(schema.DataColumns[reduceable[0]].Name);
-    if (reduceable.size() > 1 && dist(randomEngine) >= 3) {
-        reduceColumns.push_back(schema.DataColumns[reduceable[1]].Name);
+    for (int i = 0; i < limit; i++) {
+        reduceColumns.push_back(schema.DataColumns[allColumns[i]].Name);
     }
 
-    return std::pair(reduceColumns, schema.DataColumns[summable[0]].Name);
+    return std::pair(keyColumns, reduceColumns);
 }
 
 static std::vector<int> indexRangeExcept(int start, int limit, std::vector<int> excepted) {
@@ -150,32 +172,45 @@ static void PopulateBootstrapTable(NProto::TTableSpec* table, const int NumRecor
 
 static void PopulateSortReduceTables(
     const TTable& base,
-    std::mt19937& engine,
+    std::mt19937_64& engine,
     TTable* sortTable,
     NProto::TTableSpec* sortProto,
     TTable* reduceTable,
     NProto::TTableSpec* reduceProto)
 {
-    std::vector<TString> columns;
-    TString reduceColumn;
-    std::tie(columns, reduceColumn) = GetSortAndReduceColumns(engine, base);
+    std::vector<TString> keyColumns;
+    std::vector<TString> reduceColumns;
+    std::tie(keyColumns, reduceColumns) = GetSortAndReduceColumns(engine, base);
 
-    ApplySortOperation(base, TSortOperation{columns}, sortTable);
+    ApplySortOperation(base, TSortOperation{keyColumns}, sortTable);
 
-    for (const auto& column : columns) {
+    for (const auto& column : keyColumns) {
         sortProto->mutable_sort()->add_sort_by(column);
         reduceProto->mutable_reduce()->add_reduce_by(column);
     }
 
-    int sumIndex = GetColumnIndexByName(*sortTable, reduceColumn);
-    auto reducer = std::make_unique<TSumReducer>(*sortTable, sumIndex,
-        TDataColumn{"S", NProto::EColumnType::EInt64, std::nullopt});
+    std::vector<std::unique_ptr<IReducer>> columnReducers;
 
+    std::vector<int> nonNumeric;
+    for (const TString& reduceColumn : reduceColumns) {
+        int index = GetColumnIndexByName(*sortTable, reduceColumn);
+        if (isNumeric(sortTable->DataColumns[index].Type)) {
+            columnReducers.push_back(std::make_unique<TSumReducer>(*sortTable, index,
+                    TDataColumn{"S" + std::to_string(std::ssize(columnReducers)), NProto::EColumnType::EInt64, std::nullopt}));
+        } else {
+            nonNumeric.push_back(index);
+        }
+    }
+    if (!nonNumeric.empty()) {
+        columnReducers.push_back(std::make_unique<TSumHashReducer>(*sortTable, nonNumeric,
+            TDataColumn{"S" + std::to_string(std::ssize(columnReducers)), NProto::EColumnType::EInt64, std::nullopt}));
+    }
+    auto reducer = std::make_unique<TConcatenateColumnsReducer>(*sortTable, std::move(columnReducers));
     reducer->ToProto(reduceProto->mutable_reduce()->mutable_operation());
 
     TReduceOperation reduceOperation{
         std::move(reducer),
-        columns
+        keyColumns
     };
 
     std::vector<int> indices;
@@ -218,35 +253,44 @@ std::unique_ptr<IMultiMapper> CreateAlterRename(const TTable& source)
 
 }
 
-std::unique_ptr<IMultiMapper> CreateAlterRenameAndDelete(const TTable& source)
+std::unique_ptr<IMultiMapper> CreateAlterRenameAndDelete(std::mt19937_64& engine, const TTable& source)
 {
-    const int renameIndex = 5;
-    const int deleteIndex = 3;
-    const int numIndices = std::ssize(source.DataColumns);
+    std::vector<int> indices;
+    const int numColumns = std::ssize(source.DataColumns);
+    indices.reserve(numColumns);
+    for (int i = 0; i < numColumns; ++i) {
+        indices.push_back(i);
+    }
+    std::random_shuffle(indices.begin(), indices.end());
+    // At least one and at most all columns are renamed.
+    int renameLimit = std::uniform_int_distribution<int32_t>(1, numColumns)(engine);
+    // At most all remaining columns are deleted.
+    int deleteLimit = std::uniform_int_distribution<int32_t>(renameLimit, numColumns)(engine);
 
-    YT_VERIFY(renameIndex < numIndices);
+    std::sort(indices.begin(), indices.begin() + renameLimit);
+    std::sort(indices.begin() + renameLimit, indices.begin() + deleteLimit);
 
     std::vector<std::unique_ptr<IRowMapper>> columnOperations;
-    columnOperations.push_back(
-        std::make_unique<TIdentityRowMapper>(
-            source,
-            indexRangeExcept(0, 5, {deleteIndex})));
 
-    columnOperations.push_back(
-        std::make_unique<TRenameColumnRowMapper>(
-            source,
-            renameIndex,
-            "Y" + std::to_string(renameIndex)));
+    std::vector<int> identityColumns;
 
-    columnOperations.push_back(
-        std::make_unique<TIdentityRowMapper>(
-            source,
-            indexRangeExcept(6, numIndices, {})));
-
-    columnOperations.push_back(
-        std::make_unique<TDecorateWithDeletedColumnRowMapper>(
-            source, source.DataColumns[deleteIndex].Name));
-
+    for (int column = 0; column < numColumns; ++column) {
+        if (std::binary_search(indices.begin(), indices.begin() + renameLimit, column)) {
+            if (!identityColumns.empty()) {
+                columnOperations.push_back(std::make_unique<TIdentityRowMapper>(source, identityColumns));
+                identityColumns.clear();
+            }
+            columnOperations.push_back(std::make_unique<TRenameColumnRowMapper>(source, column, "R" + source.DataColumns[column].Name));
+        } else if (std::binary_search(indices.begin() + renameLimit, indices.begin() + deleteLimit, column)) {
+            columnOperations.push_back(std::make_unique<TDecorateWithDeletedColumnRowMapper>(source, source.DataColumns[column].Name));
+        } else {
+            identityColumns.push_back(column);
+        }
+    }
+    if (!identityColumns.empty()) {
+        columnOperations.push_back(std::make_unique<TIdentityRowMapper>(source, identityColumns));
+        identityColumns.clear();
+    }
     return std::make_unique<TSingleMultiMapper>(
         source,
         std::make_unique<TConcatenateColumnsRowMapper>(source, std::move(columnOperations)));
@@ -281,7 +325,7 @@ NProto::TSystestSpec GenerateShortSystestSpec(const TTestConfig& config)
         base.push_back(CreateTableFromMapOperation(*op));
     }
 
-    std::mt19937 engine(config.Seed);
+    std::mt19937_64 engine(config.Seed);
 
     if (config.EnableReduce) {
         for (int i = 0; i < config.NumPhases; i++) {
@@ -310,7 +354,7 @@ NProto::TSystestSpec GenerateShortSystestSpec(const TTestConfig& config)
 
             std::unique_ptr<IMultiMapper> op;
             if (config.EnableDeletes) {
-                op = CreateAlterRenameAndDelete(base[i]);
+                op = CreateAlterRenameAndDelete(engine, base[i]);
             } else {
                 op = CreateAlterRename(base[i]);
             }
@@ -318,7 +362,7 @@ NProto::TSystestSpec GenerateShortSystestSpec(const TTestConfig& config)
             op->ToProto(alterTable->mutable_map()->mutable_operation());
             alter.push_back(CreateTableFromMapOperation(*op));
 
-            if (config.EnableReduce) {
+            if (config.EnableReduce && TableContainsLowCardinalityColumn(alter[i])) {
                 auto* sortProto = result.add_table();
                 auto* reduceProto = result.add_table();
 
@@ -340,30 +384,39 @@ NProto::TSystestSpec GenerateShortSystestSpec(const TTestConfig& config)
     return SortSpecTopologically(std::move(result));
 }
 
-NProto::TSystestSpec GenerateSystestSpec(int seed)
+NProto::TSystestSpec GenerateSystestSpec(const TTestConfig& config)
 {
-    const int NumBootstrapRecords = 100000;
-    const int InitialMultiplier = 10;
-    const int InitialIterations = 5;
-
     NProto::TSystestSpec result;
+    PopulateBootstrapTable(result.add_table(), config.NumBootstrapRecords);
+    auto bootstrapDataset = std::make_unique<TBootstrapDataset>(config.NumBootstrapRecords);
 
-    PopulateBootstrapTable(result.add_table(), NumBootstrapRecords);
-    auto bootstrapDataset = std::make_unique<TBootstrapDataset>(NumBootstrapRecords);
-    TTable currentTable(bootstrapDataset->table_schema());
+    TTable bootstrap(bootstrapDataset->table_schema());
 
-    for (int i = 0; i < InitialIterations; i++) {
-        auto* table = result.add_table();
-        auto op = GenerateMultipleColumns(currentTable, InitialMultiplier, seed + i);
-        op->ToProto(table->mutable_map()->mutable_operation());
-        table->set_name("base_" + std::to_string(i));
-        if (i > 0) {
-            table->set_parent("base_" + std::to_string(i - 1));
-        } else {
-            table->set_parent("bootstrap");
+    std::vector<std::vector<TTable>> base(config.NumChains);
+    std::vector<std::vector<TTable>> alter(config.NumChains);
+
+    for (int chainIndex = 0; chainIndex < config.NumChains; ++chainIndex) {
+        for (int phaseIndex = 0; phaseIndex < config.NumPhases; ++phaseIndex) {
+            auto op = GenerateMultipleColumns(
+                phaseIndex > 0 ? base[chainIndex][phaseIndex - 1] : bootstrap, config.Multiplier,
+                config.Seed * 1000000 + chainIndex * 1000 + phaseIndex);
+
+            auto* table = result.add_table();
+            op->ToProto(table->mutable_map()->mutable_operation());
+            table->set_name("base_" + std::to_string(chainIndex) + "_" + std::to_string(phaseIndex));
+
+            if (phaseIndex > 0) {
+                if (config.EnableRenames) {
+                    table->set_parent("alter_" + std::to_string(chainIndex) + "_" + std::to_string(phaseIndex - 1));
+                } else {
+                    table->set_parent("base_" + std::to_string(chainIndex) + "_" + std::to_string(phaseIndex - 1));
+                }
+            } else {
+                table->set_parent("bootstrap");
+            }
+
+            base[chainIndex].push_back(CreateTableFromMapOperation(*op));
         }
-
-        currentTable = CreateTableFromMapOperation(*op);
     }
 
     return result;

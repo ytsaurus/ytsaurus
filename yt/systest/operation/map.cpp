@@ -1,4 +1,5 @@
 
+#include <yt/systest/util.h>
 #include <yt/systest/operation/util.h>
 #include <yt/systest/operation/map.h>
 
@@ -30,7 +31,7 @@ TRange<TDataColumn> TSetSeedRowMapper::OutputColumns() const
 
 std::vector<TNode> TSetSeedRowMapper::Run(TCallState* state, TRange<TNode> input) const
 {
-    state->RandomEngine = std::mt19937(ThisSeed_ + input[0].AsInt64());
+    state->RandomEngine = std::mt19937_64(RowHash(input) + ThisSeed_);
     return {};
 }
 

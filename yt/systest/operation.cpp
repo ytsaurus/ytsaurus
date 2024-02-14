@@ -94,17 +94,14 @@ std::unique_ptr<IReducer> CreateFromProto(
     const NProto::TReducer& operationProto)
 {
     switch (operationProto.operation_case()) {
-        case NProto::TReducer::kMapper: {
-            return nullptr;
-        }
-        case NProto::TReducer::kSequence: {
-            return nullptr;
-        }
         case NProto::TReducer::kSum: {
             return std::make_unique<TSumReducer>(input, operationProto.sum());
         }
+        case NProto::TReducer::kSumHash: {
+            return std::make_unique<TSumHashReducer>(input, operationProto.sum_hash());
+        }
         case NProto::TReducer::kConcatenateColumns: {
-            return nullptr;
+            return std::make_unique<TConcatenateColumnsReducer>(input, operationProto.concatenate_columns());
         }
         case NProto::TReducer::OPERATION_NOT_SET:
             break;

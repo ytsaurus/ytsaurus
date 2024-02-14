@@ -99,4 +99,22 @@ bool IsRetriableError(const TErrorResponse& ex)
     return false;
 }
 
+size_t RowHash(TRange<TNode> row)
+{
+    size_t rowHash = 1;  // start with "1" as an empty row marker.
+    for (const auto& value : row) {
+        if (value.IsDouble()) {
+            rowHash = CombineHashes(rowHash, std::hash<double>()(value.AsDouble()));
+        } else if (value.IsArithmetic()) {
+            rowHash = CombineHashes(rowHash, std::hash<int64_t>()(value.ConvertTo<int64_t>()));
+        } else if (value.IsString()) {
+            rowHash = CombineHashes(rowHash, std::hash<TString>()(value.AsString()));
+        } else {
+            THROW_ERROR_EXCEPTION("Unsupported value type %v found",
+                static_cast<int>(value.GetType()));
+        }
+    }
+    return rowHash;
+}
+
 }  // namespace NYT::NTest

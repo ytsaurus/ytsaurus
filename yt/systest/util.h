@@ -27,4 +27,6 @@ TString DebugString(TRange<TNode> row);
 
 bool IsRetriableError(const TErrorResponse& ex);
 
+size_t RowHash(TRange<TNode> row);
+
 }  // namespace NYT::NTest

@@ -28,4 +28,28 @@ std::vector<TNode> PopulateOperationInput(
     return operationInput;
 }
 
+std::vector<std::vector<TNode>> PopulateReducerInput(
+    TRange<int> allInputColumns,
+    TRange<int> operationInputColumns,
+    TRange<TRange<TNode>> input)
+{
+    std::vector<int> positions;
+    for (int index : operationInputColumns) {
+        int position = std::lower_bound(allInputColumns.begin(), allInputColumns.end(), index)
+            - allInputColumns.begin();
+        positions.push_back(position);
+    }
+    std::sort(positions.begin(), positions.end());
+    std::vector<std::vector<TNode>> result;
+    for (auto row : input) {
+        std::vector<TNode> inputRow;
+        inputRow.reserve(std::ssize(positions));
+        for (int index : positions){
+            inputRow.push_back(row[index]);
+        }
+        result.emplace_back(std::move(inputRow));
+    }
+    return result;
+}
+
 }  // namespace NYT::NTest

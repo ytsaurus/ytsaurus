@@ -32,10 +32,9 @@ message TMultiMapper {
 
 message TReducer {
     oneof operation {
-        TMapperReducer mapper = 1;
-        TSequenceReducer sequence = 2;
-        TSumReducer sum = 3;
-        TConcatenateColumnsReducer concatenate_columns = 4;
+        TSumReducer sum = 1;
+        TSumHashReducer sum_hash = 2;
+        TConcatenateColumnsReducer concatenate_columns = 3;
     }
 }
 
@@ -90,18 +89,15 @@ message TCombineMultiMapper {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TMapperReducer {
-    required TMultiMapper inner = 1;
-}
-
-message TSequenceReducer {
-    repeated TReducer operations = 1;
-};
-
 message TSumReducer {
     required int32 input_column_index = 1;
     required TDataColumn output_column = 2;
-};
+}
+
+message TSumHashReducer {
+    repeated int32 input_column_index = 1;
+    required TDataColumn output_column = 2;
+}
 
 message TConcatenateColumnsReducer {
     repeated TReducer operations = 1;

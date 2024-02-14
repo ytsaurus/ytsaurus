@@ -33,7 +33,7 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     std::random_device RandDevice_;
-    std::mt19937 Engine_;
+    std::mt19937_64 Engine_;
     std::uniform_int_distribution<int32_t> UniformIntDistribution_;
     std::uniform_int_distribution<int16_t> UniformShortDistribution_;
 

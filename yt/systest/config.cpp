@@ -18,6 +18,10 @@ void TTestConfig::RegisterOptions(NLastGetopt::TOpts* opts)
         .StoreResult(&NumPhases)
         .DefaultValue(4);
 
+    opts->AddCharOption('k')
+        .StoreResult(&NumChains)
+        .DefaultValue(1);
+
     opts->AddLongOption("num-bootstrap-records")
         .StoreResult(&NumBootstrapRecords)
         .DefaultValue(10000);
