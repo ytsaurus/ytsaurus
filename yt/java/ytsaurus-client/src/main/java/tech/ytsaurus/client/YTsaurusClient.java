@@ -665,6 +665,17 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
             return self();
         }
 
+        /**
+         * Set proxy network name to use.
+         *
+         * <p>
+         * If no proxy network name is specified default network name will be used.
+         */
+        public TBuilder setProxyNetworkName(@Nullable String proxyNetworkName) {
+            this.proxyNetworkName = proxyNetworkName;
+            return self();
+        }
+
         protected <C, B extends ClientBuilder<C, B>> ClientBuilder<C, B> copyTo(ClientBuilder<C, B> builder) {
             builder.auth = auth;
             builder.compression = compression;
