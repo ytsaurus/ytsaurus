@@ -100,6 +100,10 @@ private:
 
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StoredReplicas)
             .SetPresent(!isForeign));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StoredMasterReplicas)
+            .SetPresent(!isForeign));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StoredSequoiaReplicas)
+            .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LastSeenReplicas)
             .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Movable)
@@ -284,7 +288,47 @@ private:
                 .Value(node->GetDefaultAddress());
         };
 
+        auto buildYsonFromReplicas = [&] (TChunkLocationPtrWithReplicaInfoList& replicas) {
+            SortBy(replicas, [] (TChunkLocationPtrWithReplicaInfo replica) {
+                return std::tuple(replica.GetReplicaIndex(), replica.GetPtr()->GetEffectiveMediumIndex());
+            });
+            BuildYsonFluently(consumer)
+                .DoListFor(replicas, [&] (TFluentList fluent, TChunkLocationPtrWithReplicaInfo replica) {
+                    const auto* location = replica.GetPtr();
+                    serializeReplica(
+                        fluent,
+                        location->GetNode(),
+                        location->IsImaginary() ? nullptr : location->AsReal(),
+                        replica.GetReplicaIndex(),
+                        replica.GetReplicaState(),
+                        location->GetEffectiveMediumIndex());
+                });
+        };
+
         switch (key) {
+            case EInternedAttributeKey::StoredSequoiaReplicas: {
+                if (isForeign) {
+                    break;
+                }
+
+                auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(chunk);
+                // This is context switch, chunk may die.
+                auto replicas = chunkManager->GetSequoiaChunkReplicas(ephemeralChunk)
+                    .ValueOrThrow();
+                buildYsonFromReplicas(replicas);
+                return true;
+            }
+
+            case EInternedAttributeKey::StoredMasterReplicas: {
+                if (isForeign) {
+                    break;
+                }
+                auto masterReplicas = chunk->StoredReplicas();
+                TChunkLocationPtrWithReplicaInfoList replicaList(masterReplicas.begin(), masterReplicas.end());
+                buildYsonFromReplicas(replicaList);
+                return true;
+            }
+
             case EInternedAttributeKey::StoredReplicas: {
                 if (isForeign) {
                     break;
@@ -294,20 +338,7 @@ private:
                 // This is context switch, chunk may die.
                 auto replicas = chunkManager->GetChunkReplicas(ephemeralChunk)
                     .ValueOrThrow();
-                SortBy(replicas, [] (TChunkLocationPtrWithReplicaInfo replica) {
-                    return std::tuple(replica.GetReplicaIndex(), replica.GetPtr()->GetEffectiveMediumIndex());
-                });
-                BuildYsonFluently(consumer)
-                    .DoListFor(replicas, [&] (TFluentList fluent, TChunkLocationPtrWithReplicaInfo replica) {
-                        const auto* location = replica.GetPtr();
-                        serializeReplica(
-                            fluent,
-                            location->GetNode(),
-                            location->IsImaginary() ? nullptr : location->AsReal(),
-                            replica.GetReplicaIndex(),
-                            replica.GetReplicaState(),
-                            location->GetEffectiveMediumIndex());
-                    });
+                buildYsonFromReplicas(replicas);
                 return true;
             }
 

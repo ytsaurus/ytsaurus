@@ -481,6 +481,8 @@
     XX(Statistics, statistics) \
     XX(Status, status) \
     XX(StoredReplicas, stored_replicas) \
+    XX(StoredMasterReplicas, stored_master_replicas) \
+    XX(StoredSequoiaReplicas, stored_sequoia_replicas) \
     XX(StoresUpdatePrepared, stores_update_prepared) \
     XX(StoresUpdatePreparedTransactionId, stores_update_prepared_transaction_id) \
     XX(StrongGuaranteeResources, strong_guarantee_resources) \
