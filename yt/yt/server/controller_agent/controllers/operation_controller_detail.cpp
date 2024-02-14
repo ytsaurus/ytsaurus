@@ -3843,9 +3843,11 @@ void TOperationControllerBase::BuildFinishedJobAttributes(
 
     BuildJobAttributes(joblet, jobSummary->State, stderrSize, fluent);
 
+    bool shouldLogError = jobSummary->State == EJobState::Failed ||
+        jobSummary->State == EJobState::Aborted;
     fluent
         .Item("finish_time").Value(joblet->FinishTime)
-        .DoIf(jobSummary->State == EJobState::Failed, [&] (TFluentMap fluent) {
+        .DoIf(shouldLogError, [&] (TFluentMap fluent) {
             auto error = FromProto<TError>(jobSummary->Result->error());
             fluent.Item("error").Value(error);
         })
