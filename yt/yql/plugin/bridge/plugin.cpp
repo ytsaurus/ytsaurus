@@ -36,10 +36,11 @@ DEFINE_ENUM(EYqlPluginAbiVersion,
     ((TheBigBang)          (0))
     ((AbortQuery)          (1)) // gritukan: Added BridgeAbort; no breaking changes.
     ((ValidateExplain)     (2)) // aleksandr.gaev: Adjusted BridgeRun to accept settings length and execution mode.
+    ((DqManager)           (3)) // mpereskokova: Added BridgeStartYqlPlugin; Adjusted TBridgeYqlPluginOptions to save DQ configs.
 );
 
-constexpr auto MinSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::ValidateExplain;
-constexpr auto MaxSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::ValidateExplain;
+constexpr auto MinSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::DqManager;
+constexpr auto MaxSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::DqManager;
 
 ////////////////////////////////////////////////////////////////////////////////
 

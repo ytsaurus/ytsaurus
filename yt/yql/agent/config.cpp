@@ -166,6 +166,8 @@ void TDqYtBackend::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("user", &TThis::User)
         .Default();
+    registrar.Parameter("pool", &TThis::Pool)
+        .Default();
     registrar.Parameter("pool_trees", &TThis::PoolTrees)
         .Default({});
     registrar.Parameter("owner", &TThis::Owner)
