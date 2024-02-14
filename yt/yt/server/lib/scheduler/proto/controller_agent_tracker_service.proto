@@ -20,6 +20,11 @@ message TExecNodeDescriptor
     repeated string tags = 5;
 }
 
+message TExecNodeDescriptorList
+{
+    repeated TExecNodeDescriptor exec_nodes = 1;
+}
+
 message TOperationAlert
 {
     required int32 type = 1; // EOperationAlertType
@@ -203,13 +208,6 @@ message TRspHeartbeat
         required int64 first_item_id = 1;
         repeated TSchedulerToAgentOperationEvent items = 2;
     }
-
-    message TExecNodeDescriptorList
-    {
-        repeated TExecNodeDescriptor exec_nodes = 1;
-    }
-
-    optional TExecNodeDescriptorList exec_nodes = 1;
 
     required TEventQueueInbox agent_to_scheduler_operation_events = 2;
     required TEventQueueInbox agent_to_scheduler_running_allocation_statistics_updates = 11;

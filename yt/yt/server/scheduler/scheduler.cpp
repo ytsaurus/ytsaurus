@@ -372,6 +372,18 @@ public:
         return CachedExecNodeDescriptors_.Acquire();
     }
 
+    TSharedRef GetCachedProtoExecNodeDescriptors() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto cachedExecNodeDescriptors = CachedSerializedExecNodeDescriptors_.Acquire();
+
+        return
+            cachedExecNodeDescriptors ?
+            cachedExecNodeDescriptors->ExecNodeDescriptors :
+            TSharedRef::MakeEmpty();
+    }
+
     const TSchedulerConfigPtr& GetConfig() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1741,6 +1753,17 @@ private:
 
     TAtomicIntrusivePtr<TRefCountedExecNodeDescriptorMap> CachedExecNodeDescriptors_{New<TRefCountedExecNodeDescriptorMap>()};
 
+    struct TRefCountedExecNodeDescriptorList
+        : public TRefCounted
+    {
+        explicit TRefCountedExecNodeDescriptorList(TSharedRef execNodeDescriptors)
+            : ExecNodeDescriptors(std::move(execNodeDescriptors))
+        { }
+
+        TSharedRef ExecNodeDescriptors;
+    };
+    TAtomicIntrusivePtr<TRefCountedExecNodeDescriptorList> CachedSerializedExecNodeDescriptors_;
+
     TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>> CachedExecNodeMemoryDistributionByTags_;
 
     TJobResourcesProfiler TotalResourceLimitsProfiler_;
@@ -2446,7 +2469,20 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(GetBackgroundInvoker());
 
-        CachedExecNodeDescriptors_.Store(NodeManager_->GetExecNodeDescriptors());
+        auto execNodeDescriptors = NodeManager_->GetExecNodeDescriptors();
+
+        CachedExecNodeDescriptors_.Store(execNodeDescriptors);
+
+        NProto::TExecNodeDescriptorList serializedExecNodeDescriptors;
+
+        serializedExecNodeDescriptors.mutable_exec_nodes()->Reserve(std::ssize(*execNodeDescriptors));
+        for (const auto& [_, descriptor] : *execNodeDescriptors) {
+            ToProto(serializedExecNodeDescriptors.add_exec_nodes(), *descriptor);
+        }
+
+        CachedSerializedExecNodeDescriptors_.Store(
+            New<TRefCountedExecNodeDescriptorList>(
+                SerializeProtoToRefWithEnvelope(serializedExecNodeDescriptors)));
     }
 
     void CheckJobReporterIssues()
@@ -4388,6 +4424,11 @@ IYPathServicePtr TScheduler::CreateOrchidService() const
 TRefCountedExecNodeDescriptorMapPtr TScheduler::GetCachedExecNodeDescriptors() const
 {
     return Impl_->GetCachedExecNodeDescriptors();
+}
+
+TSharedRef TScheduler::GetCachedProtoExecNodeDescriptors() const
+{
+    return Impl_->GetCachedProtoExecNodeDescriptors();
 }
 
 const TSchedulerConfigPtr& TScheduler::GetConfig() const
