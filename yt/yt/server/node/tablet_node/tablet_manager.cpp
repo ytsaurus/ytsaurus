@@ -1040,6 +1040,17 @@ private:
         }
     }
 
+    // COMPAT(ifsmirnov)
+    // Replace all callers with |request.set_mount_revision(...)| when removing the compat.
+    template <class TResponse>
+    void SetMountRevisionCompat(TResponse* response, TTablet* tablet)
+    {
+        const auto* context = GetCurrentMutationContext();
+        if (context->Request().Reign >= static_cast<int>(ETabletReign::SmoothTabletMovement)) {
+            response->set_mount_revision(tablet->GetMountRevision());
+        }
+    }
+
     void HydraMountTablet(TReqMountTablet* request)
     {
         // COMPAT(ifsmirnov)
@@ -1239,7 +1250,7 @@ private:
             TRspMountTablet response;
             ToProto(response.mutable_tablet_id(), tabletId);
             response.set_frozen(freeze);
-            response.set_mount_revision(tablet->GetMountRevision());
+            SetMountRevisionCompat(&response, tablet);
             PostMasterMessage(tablet, response, /*forceCellMailbox*/ true);
         }
 
@@ -1660,7 +1671,7 @@ private:
 
         TRspUnfreezeTablet response;
         ToProto(response.mutable_tablet_id(), tabletId);
-        response.set_mount_revision(tablet->GetMountRevision());
+        SetMountRevisionCompat(&response, tablet);
         PostMasterMessage(tablet, response);
     }
 
@@ -1859,7 +1870,7 @@ private:
                 if (auto replicationProgress = tablet->RuntimeData()->ReplicationProgress.Acquire()) {
                     ToProto(response.mutable_replication_progress(), *replicationProgress);
                 }
-                response.set_mount_revision(tablet->GetMountRevision());
+                SetMountRevisionCompat(&response, tablet);
 
                 if (auto masterEndpointId = tablet->GetMasterAvenueEndpointId()) {
                     Slot_->UnregisterMasterAvenue(masterEndpointId);
@@ -1899,7 +1910,7 @@ private:
                 TRspFreezeTablet response;
                 ToProto(response.mutable_tablet_id(), tabletId);
                 *response.mutable_mount_hint() = tablet->GetMountHint();
-                response.set_mount_revision(tablet->GetMountRevision());
+                SetMountRevisionCompat(&response, tablet);
                 PostMasterMessage(tablet, response);
                 break;
             }
