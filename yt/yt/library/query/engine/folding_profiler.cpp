@@ -1720,6 +1720,7 @@ void TQueryProfiler::Profile(
             MakeCodegenFragmentBodies(codegenSource, fragmentInfos);
 
             schema = arrayJoinClause->GetTableSchema(*schema);
+            TSchemaProfiler::Profile(schema);
             continue;
         }
 
