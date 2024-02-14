@@ -60,6 +60,11 @@ public:
      */
     TRefCountedExecNodeDescriptorMapPtr GetCachedExecNodeDescriptors() const;
 
+    /*!
+     *  \note Thread affinity: any
+     */
+    TSharedRef GetCachedProtoExecNodeDescriptors() const;
+
     const TSchedulerConfigPtr& GetConfig() const;
 
     /*!
