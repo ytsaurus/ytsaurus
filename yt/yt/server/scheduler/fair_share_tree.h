@@ -173,6 +173,8 @@ struct IFairShareTree
     virtual void ValidatePoolLimitsOnPoolChange(const IOperationStrategyHost* operation, const TPoolName& newPoolName) const = 0;
     virtual TFuture<void> ValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolName) const = 0;
 
+    virtual TError CheckOperationNecessaryResourceDemand(TOperationId operationId) const = 0;
+
     virtual void ActualizeEphemeralPoolParents(const THashMap<TString, TString>& userToDefaultPoolMap) = 0;
 
     virtual TPersistentTreeStatePtr BuildPersistentState() const = 0;
