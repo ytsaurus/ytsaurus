@@ -188,6 +188,8 @@ class TestChunkReincarnatorBase(YTEnvSetup):
                 "weak_ref_counter",
                 "estimated_creation_time",
                 "stored_replicas",
+                "stored_master_replicas",
+                "stored_sequoia_replicas",
                 "last_seen_replicas",
                 "replication_status",
                 "scan_flags",

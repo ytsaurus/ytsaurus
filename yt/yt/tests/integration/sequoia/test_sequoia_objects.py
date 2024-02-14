@@ -6,7 +6,9 @@ from yt_env_setup import (
 
 from yt_commands import (
     authors, create, get, remove, get_singular_chunk_id, write_table, read_table, wait,
-    exists, select_rows, create_domestic_medium, ls, set, get_driver)
+    exists, select_rows, create_domestic_medium, ls, set, get_driver, get_account_disk_space_limit, set_account_disk_space_limit)
+
+from yt.wrapper import yson
 
 ##################################################################
 
@@ -194,6 +196,120 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
             "processed_removed_sequoia_replicas_on_master": False
         }
     }
+
+    TABLE_MEDIUM_1 = "table_medium_1"
+    TABLE_MEDIUM_2 = "table_medium_2"
+    NUM_NODES = 15
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        node_flavors = [
+            ["data", "exec"],
+            ["data", "exec"],
+            ["data", "exec"],
+            ["data", "exec"],
+            ["data", "exec"],
+            ["data", "exec"],
+            ["data", "exec"],
+            ["data", "exec"],
+            ["data", "exec"],
+            ["tablet"],
+            ["tablet"],
+            ["tablet"],
+            ["tablet"],
+            ["tablet"],
+            ["tablet"],
+        ]
+
+        if not hasattr(cls, "node_counter"):
+            cls.node_counter = 0
+        config["flavors"] = node_flavors[cls.node_counter]
+        cls.node_counter = (cls.node_counter + 1) % cls.NUM_NODES
+
+    @authors("kivedernikov")
+    def test_empty_sequoia_handler(self):
+        table = "//tmp/t"
+        create("table", table, attributes={"replication_factor": 1})
+        write_table("<append=%true>" + table, {"foo": "bar"}, table_writer={"upload_replication_factor": 1})
+
+        chunk_id = get_singular_chunk_id(table)
+        wait(lambda: len(get("#{}/@stored_sequoia_replicas".format(chunk_id))) == 0)
+        wait(lambda: len(get("#{}/@stored_master_replicas".format(chunk_id))) > 0)
+        remove(table)
+
+    @authors("kivedernikov")
+    def test_master_sequoia_replicas_handler(self):
+        create_domestic_medium(self.TABLE_MEDIUM_1)
+        create_domestic_medium(self.TABLE_MEDIUM_2)
+        set("//sys/media/{}/@enable_sequoia_replicas".format(self.TABLE_MEDIUM_1), True)
+        set("//sys/media/{}/@enable_sequoia_replicas".format(self.TABLE_MEDIUM_2), False)
+        disk_space_limit = get_account_disk_space_limit("tmp", "default")
+        set_account_disk_space_limit("tmp", disk_space_limit, self.TABLE_MEDIUM_1)
+        set_account_disk_space_limit("tmp", disk_space_limit, self.TABLE_MEDIUM_2)
+
+        loc1, loc2 = ls("//sys/chunk_locations")[:2]
+
+        set(f"//sys/chunk_locations/{loc1}/@medium_override", self.TABLE_MEDIUM_1)
+        set(f"//sys/chunk_locations/{loc2}/@medium_override", self.TABLE_MEDIUM_2)
+        table = "//tmp/t"
+        create("table", table, attributes={
+            "media": {
+                self.TABLE_MEDIUM_1: {"replication_factor": 1, "data_parts_only": False},
+                self.TABLE_MEDIUM_2: {"replication_factor": 1, "data_parts_only": False},
+            },
+            "primary_medium": self.TABLE_MEDIUM_1
+        })
+        write_table(table, {"foo": "bar"})
+
+        chunk_id = get(table + "/@chunk_ids")[0]
+
+        def process_yson_medium(data):
+            json_data = yson.yson_to_json(data)
+            return json_data['$attributes']['medium']
+
+        def process_yson_locations(data):
+            json_data = yson.yson_to_json(data)
+            return json_data['$attributes']['location_uuid']
+
+        def check_sequoia_replicas(chunk_id):
+            stored_sequoia_replicas = get("#{}/@stored_sequoia_replicas".format(chunk_id))
+            results = [process_yson_medium(data) == self.TABLE_MEDIUM_1 for data in stored_sequoia_replicas]
+            return all(results) and len(results) > 0
+
+        wait(lambda: check_sequoia_replicas(chunk_id))
+
+        def check_master_replicas(chunk_id):
+            stored_master_replicas = get("#{}/@stored_master_replicas".format(chunk_id))
+            results = [process_yson_medium(data) == self.TABLE_MEDIUM_2 for data in stored_master_replicas]
+            return all(results) and len(results) > 0
+
+        wait(lambda: check_master_replicas(chunk_id))
+
+        def check_stored_replicas(chunk_id):
+            stored_replicas = get("#{}/@stored_replicas".format(chunk_id))
+            stored_sequoia_replicas = get("#{}/@stored_sequoia_replicas".format(chunk_id))
+            stored_master_replicas = get("#{}/@stored_master_replicas".format(chunk_id))
+
+            if len(stored_replicas) != 2 or len(stored_sequoia_replicas) != 1 or len(stored_master_replicas) != 1:
+                return False
+
+            if process_yson_locations(stored_sequoia_replicas[0]) != loc1:
+                return False
+
+            if process_yson_locations(stored_master_replicas[0]) != loc2:
+                return False
+
+            if {process_yson_locations(replica) for replica in stored_replicas} != {loc1, loc2}:
+                return False
+
+            for replica in stored_replicas:
+                if (process_yson_medium(replica) == self.TABLE_MEDIUM_1 and replica not in stored_sequoia_replicas) or \
+                        (process_yson_medium(replica) == self.TABLE_MEDIUM_2 and replica not in stored_master_replicas):
+                    return False
+            return True
+
+        wait(lambda: check_stored_replicas(chunk_id))
+        remove(table)
 
 
 class TestSequoiaReplicasMulticell(TestSequoiaReplicas):
