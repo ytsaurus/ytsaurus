@@ -304,6 +304,8 @@ public:
     // COMPAT(akozhikhov)
     bool ReplicateTableCollocations;
 
+    int MaxChunksPerMountedTablet;
+
     REGISTER_YSON_STRUCT(TDynamicTabletManagerConfig);
 
     static void Register(TRegistrar registrar);

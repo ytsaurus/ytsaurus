@@ -196,6 +196,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChaosReplicatedConsumersFix)                                  (2458))  // cherepashka
     ((FixListNodeDeprecation_23_2)                                  (2459))  // kvk1920
     ((ValueDictionaryCompression_23_2)                              (2460))  // akozhikhov
+    ((CheckChunkCountPerTabletBeforeMount_23_2)                     (2461))  // alexelexa
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

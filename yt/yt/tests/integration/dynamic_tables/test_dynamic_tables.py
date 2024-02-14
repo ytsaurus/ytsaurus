@@ -3151,6 +3151,30 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         for i in range(22):
             assert tablet_infos["tablets"][i]["total_row_count"] == tablet_indexes[i]
 
+    @authors("alexelexa")
+    def test_max_chunks_per_tablet(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
+        sync_flush_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 1, "value": "0"}])
+        sync_unmount_table("//tmp/t")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        chunk_count = get(f"#{tablet_id}/@statistics/chunk_count")
+        assert chunk_count > 1
+
+        set("//sys/@config/tablet_manager/max_chunks_per_mounted_tablet", 1)
+
+        with pytest.raises(YtError, match=f"Cannot mount tablet {tablet_id} since it has too many chunks"):
+            sync_mount_table("//tmp/t")
+
+        set("//sys/@config/tablet_manager/max_chunks_per_mounted_tablet", 5)
+        assert chunk_count < 5
+
+        sync_mount_table("//tmp/t")
+
 
 ##################################################################
 
