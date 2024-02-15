@@ -2398,8 +2398,13 @@ private:
         // COMPAT(ifsmirnov)
         if (GetCurrentMutationContext()->Request().Reign >= static_cast<int>(ETabletReign::SmoothTabletMovement)) {
             auto expectedTransactionId = tablet->GetStoresUpdatePreparedTransactionId();
-            if (expectedTransactionId != transaction->GetId()) {
-                YT_LOG_ALERT("Unexpected stores update transaction aborted, ignored "
+
+            if (expectedTransactionId == transaction->GetId()) {
+                tablet->SetStoresUpdatePreparedTransactionId({});
+            } else {
+                // This is fine because out-of-order aborts may come for transactions
+                // that were not even prepared.
+                YT_LOG_DEBUG("Unexpected stores update transaction aborted, ignored "
                     "(%v, TransactionId: %v, PreparedTransactionId: %v)",
                     tablet->GetLoggingTag(),
                     transaction->GetId(),
@@ -2408,8 +2413,6 @@ private:
                 // Continue nevertheless to mimic old behaviour.
             }
         }
-
-        tablet->SetStoresUpdatePreparedTransactionId({});
 
         THashSet<TChunkId> hunkChunkIdsToAdd;
         for (const auto& descriptor : request->hunk_chunks_to_add()) {
