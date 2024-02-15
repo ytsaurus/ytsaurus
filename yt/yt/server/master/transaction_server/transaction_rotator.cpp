@@ -27,8 +27,8 @@ void TTransactionRotator::Clear()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    PreviousTransaction_.Reset();
-    Transaction_.Reset();
+    PreviousTransaction_.ResetOnClear();
+    Transaction_.ResetOnClear();
 }
 
 void TTransactionRotator::Persist(const TPersistenceContext& context)
