@@ -5,8 +5,23 @@
 1. Напишите код.
 2. Выложите код и зависимости в {{product-name}}. Основной файл `.py` и зависимости в `.py`, `.zip` или `.egg`.
 3. Соберите испольняемый бинарный файл и выложите его в {{product-name}} (Spark 3.2.2+).
-4. Запустите команду `spark-submit-yt`.
+4. Запустите команду `spark-submit-yt` (для запуска во внутреннем standalone кластере) или `spark-submit` (для запуска напрямую в {{product-name}}, доступно с версии SPYT 1.76.0).
 
+## Особенности запуска задач напрямую в {{product-name}} { #submit }
+
+Все примеры, приведённые ниже, написаны для запуска во внутреннем standalone кластере. При запуске задач напрямую в {{product-name}} есть отличия в способе создания объекта SparkSession. Вместо использования функций `with spark_session()` или `spyt.connect()` нужно создавать его напрямую, согласно рекомендациям Spark:
+
+```python
+from pyspark.sql import SparkSession
+
+spark = SparkSession.builder.appName('My Application').getOrCreate()
+
+... # Application code
+
+spark.stop()
+```
+
+Это связано с тем, что функции `with spark_session()` и `spyt.connect()` обращаются к discovery-path, который создаётся в Кипарисе при запуске standalone кластера. В данном способе discovery-path не используется, так как внутренний кластер не создаётся.
 
 ## Запуск без зависимостей  { #simple }
 

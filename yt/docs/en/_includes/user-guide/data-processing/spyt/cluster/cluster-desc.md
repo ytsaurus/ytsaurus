@@ -44,10 +44,9 @@ A more detailed description is available in the [Spark documentation](https://sp
 
 To get executors, the driver sends a request to the resource *scheduler*.
 
-To create containers of the appropriate size, you need to know what cluster nodes exist, and how many resources they have. Usually, container creation is performed by [YARN](https://yarnpkg.com/) or [Mesos](https://mesos.apache.org/), and {{product-name}} has its own resource scheduler.
+To create containers of the appropriate size, you need to know what cluster nodes exist, and how many resources they have. Usually, container creation is performed by [YARN](https://hadoop.apache.org/docs/current/hadoop-yarn/hadoop-yarn-site/YARN.html) or [Mesos](https://mesos.apache.org/), and {{product-name}} has its own resource scheduler.
 
-
-In the current implementation, there is no direct integration with a {{product-name}} scheduler.  Instead, a Vanilla operation is launched in {{product-name}}, and a Spark Standalone resource scheduler is developed in it.
+There are two methods for launching Spark applications in the current implementation: [submitting directly using {{product-name}} scheduler](../../../../../user-guide/data-processing/spyt/launch.md#submit) or deploying an inner Spark standalone cluster using Vanilla operation.
 
 Spark Standalone consists of a *master* and *workers*. Each worker knows how many resources can be borrowed on the cluster node where the worker is launched, and how to provide resources on request. The master coordinates the work: it receives requests from the driver and decides what workers to create executors for.
 

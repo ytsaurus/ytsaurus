@@ -2,7 +2,7 @@
 
 ##  Подготовка { #prepare }
 
-Перед тем, как использовать Spark в Jupyter, необходимо создать [кластер](../../../../../user-guide/data-processing/spyt/cluster/cluster-start.md).
+Перед тем как использовать Spark в Jupyter, необходимо создать [кластер](../../../../../user-guide/data-processing/spyt/cluster/cluster-start.md). Работа со Spark из Jupyter ноутбуков в настоящий момент возможна только с использованием standalone кластера.
 
 При наличии готового кластера для работы с ним необходимо узнать значение `proxy` и `discovery_path`.
 

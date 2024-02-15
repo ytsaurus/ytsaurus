@@ -60,13 +60,13 @@ Publishes as docker images.
 
 Publishes as docker images.
 
-**Current release:** 1.72.0 (`ytsaurus/spyt:1.72.0`)
+**Current release:** 1.76.1 (`ytsaurus/spyt:1.76.1`)
 
 **All releases:**
 
-{% cut "**1.72.0**" %}
+{% cut "**1.76.1**" %}
 
-`ytsaurus/spyt:1.72.0`
+`ytsaurus/spyt:1.76.1`
 
 {% endcut %}
 

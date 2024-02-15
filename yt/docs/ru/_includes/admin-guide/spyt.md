@@ -12,7 +12,7 @@ spec:
   ytsaurus:
     name:
       minisaurus
-  image: ytsaurus/spyt:1.72.0
+  image: ytsaurus/spyt:1.76.1
 ```
 
 Запушить спецификацию можно с помощью `kubectl`:
@@ -38,4 +38,4 @@ NAME     RELEASESTATUS
 myspyt   Finished
 ```
 
-После успешного выполнения всех джобов (когда `RELEASESTATUS` перешел в `Finished`), можно запускать `SPYT`. Подробнее можно почитать [в отдельном разделе](../../user-guide/data-processing/spyt/quick-start).
+После успешного выполнения всех джобов (когда `RELEASESTATUS` перешел в `Finished`), можно запускать `SPYT`. Подробнее можно почитать [в отдельном разделе](../../user-guide/data-processing/spyt/launch).

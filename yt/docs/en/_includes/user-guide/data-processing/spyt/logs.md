@@ -8,9 +8,10 @@ Logs are written to a [dynamic table](../../../../user-guide/dynamic-tables/over
 
 ## Enabling { #log-on }
 
-1. Upgrade `ytsaurus-spyt` to version 0.10.0 or better.
-2. Start a version 0.10.0 cluster or better using the option as follows `spark-launch-yt ... --enable-advanced-event-log`
-3. When starting a job, set `spark.eventLog.enabled=true` as follows: `spark-submit-yt ... --conf spark.eventLog.enabled=true`.
+Set `spark.eventLog.enabled` to `true` on starting a job:
+```bash
+$ spark-submit-yt ... --conf spark.eventLog.enabled=true
+```
 
 
 ## Configuring { #log-settings }

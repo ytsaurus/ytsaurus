@@ -9,11 +9,11 @@ To import from other systems not supported by `import.py` (for example, from S3 
 
 ## Starting SPYT
 
-To start a SPYT cluster, follow the [instruction](./data-processing/spyt/quick-start.md).
+To start a SPYT cluster, follow the [instruction](./data-processing/spyt/launch.md).
 Alternatively, `import.py` can launching the cluster for you before starting the import operation. To start a SPYT cluster using `import.py`, provide the following command line flags:
 
 ```bash
-./import.py \
+$ ./import.py \
     --start-spyt true \
     --discovery_path //path/to/discovery \
     --proxy yt_proxy_host:port
@@ -40,7 +40,7 @@ To import from a different database, add the JDBC driver for that database into 
 When launching `import.py`, provide the SPYT discovery path as a commandline argument.
 
 ```bash
-./import.py --discovery_path //path/to/discovery \
+$ ./import.py --discovery_path //path/to/discovery \
     ... # all other options
 ```
 
@@ -48,8 +48,8 @@ Additional commandline arguments should identify the data source, path to import
 
 To import from Hive, run:
 
-```
-./import.py --discovery_path //path/to/discovery \
+```bash
+$ ./import.py --discovery_path //path/to/discovery \
     --metastore master_host:9083 \
     --warehouse-dir /path/to/hive/warehouse \
     --input hive:database_name.table_name \
@@ -57,8 +57,8 @@ To import from Hive, run:
 ```
 
 Alternatively, provide an SQL query to be executed by Hive, using `hive_sql` input specifier. Query results will be stored in YT.
-```
-./import.py --discovery_path //path/to/discovery \
+```bash
+$ ./import.py --discovery_path //path/to/discovery \
     ...
     --input hive_sql:database_name:SELECT * FROM action_log WHERE action_date > '2023-01-01' \
     ...
@@ -67,7 +67,7 @@ Alternatively, provide an SQL query to be executed by Hive, using `hive_sql` inp
 To import from a database using JDBC protocol (for example, from PostgreSQL), run:
 
 ```bash
-./import.py --discovery_path //path/to/discovery \
+$ ./import.py --discovery_path //path/to/discovery \
     --jdbc postgresql \
     --jdbc-server pg_host:5432 \
     --jdbc-user user \
@@ -79,7 +79,7 @@ To import from a database using JDBC protocol (for example, from PostgreSQL), ru
 To import results of a SQL statement, use `jdbc_sql` input specifier:
 
 ```bash
-./import.py --discovery_path //path/to/discovery \
+$ ./import.py --discovery_path //path/to/discovery \
     ...
     --input jdbc_sql:database_name:SELECT * FROM users WHERE signup_date > '2023-01-01' \
     ...
@@ -88,7 +88,7 @@ To import results of a SQL statement, use `jdbc_sql` input specifier:
 To import a file from HDFS, use an input specifier indicating file format. Path to the file must include HDFS NameNode address:
 
 ```bash
-./import.py --discovery_path //path/to/discovery \
+$ ./import.py --discovery_path //path/to/discovery \
     ...
     --input text:hdfs://namenode/path/to/text/file
     ...

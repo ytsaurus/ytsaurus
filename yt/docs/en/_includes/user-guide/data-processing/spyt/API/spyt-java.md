@@ -11,7 +11,26 @@ All the examples in this section have been collected with `maven`.
 
 ## Running examples { #run-examples }
 
-Each example includes a single class inherited from `SparkAppJava`.`SparkJavaApp` initializes Sparks and exits without errors.
+Each of the examples includes a single class inherited from `SparkAppJava`.`SparkJavaApp` initializes Sparks and exits without errors. This method is suitable for working with [inner Spark standalone cluster](../../../../../user-guide/data-processing/spyt/launch.md#standalone). For launching Spark applications using[{{product-name}} scheduler](../../../../../user-guide/data-processing/spyt/launch.md#submit) you should refer to standard Spark recommendations for creating `SparkSession`:
+
+```java
+import org.apache.spark.SparkConf;
+import org.apache.spark.sql.SparkSession;
+
+class MySparkApplication {
+
+    public static void main(String[] args) {
+        SparkConf conf = new SparkConf();
+        SparkSession spark = SparkSession.builder.config(conf).getOrCreate();
+
+        try {
+            // Application code
+        } finally {
+            spark.stop();
+        }
+    }
+}
+```
 
 ## Reading data from {{product-name}} { #read-data }
 

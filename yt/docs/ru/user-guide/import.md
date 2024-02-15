@@ -8,11 +8,12 @@
 
 ## Запуск SPYT
 
-Для запуска SPYT-кластера можно воспользоваться [инструкцией](./data-processing/spyt/quick-start.md)
+Для запуска SPYT-кластера можно воспользоваться [инструкцией](./data-processing/spyt/launch.md).
+
 Также, `import.py` может запустить кластер перед выполнением операции импорта данных. Для этого, передайте следующие опции командной строки:
 
 ```bash
-./import.py \
+$ ./import.py \
     --start-spyt true \
     --discovery_path //path/to/discovery \
     --proxy yt_proxy_host:port
@@ -39,7 +40,7 @@ jar-зависимости для чтения из Hive предоставля�
 
 При запуске `import.py` необходимо передать discovery-путь для SPYT-кластера
 ```bash
-./import.py --discovery_path //path/to/discovery \
+$ ./import.py --discovery_path //path/to/discovery \
     ... # остальные опциии
 ```
 
@@ -47,8 +48,8 @@ jar-зависимости для чтения из Hive предоставля�
 
 Для Hive:
 
-```
-./import.py --discovery_path //path/to/discovery \
+```bash
+$ ./import.py --discovery_path //path/to/discovery \
     --metastore master_host:9083 \
     --warehouse-dir /path/to/hive/warehouse \
     --input hive:database_name.table_name \
@@ -58,8 +59,8 @@ jar-зависимости для чтения из Hive предоставля�
 Альтернативно, можно передать в Hive SQL-запрос для исполнения, и импортировать результат этого запроса.
 Для этого, используйте префикс `hive_sql` для описания исходных данных:
 
-```
-./import.py --discovery_path //path/to/discovery \
+```bash
+$ ./import.py --discovery_path //path/to/discovery \
     ...
     --input hive_sql:database_name:SELECT * FROM action_log WHERE action_date > '2023-01-01' \
     ...
@@ -68,7 +69,7 @@ jar-зависимости для чтения из Hive предоставля�
 Для СУБД, поддерживающих JDBC-протокол (например, PostgreSQL), используйте следующую команду:
 
 ```bash
-./import.py --discovery_path //path/to/discovery \
+$ ./import.py --discovery_path //path/to/discovery \
     --jdbc postgresql \
     --jdbc-server pg_host:5432 \
     --jdbc-user user \
@@ -81,7 +82,7 @@ jar-зависимости для чтения из Hive предоставля�
 можно использовать префикс `jdbc_sql`:
 
 ```bash
-./import.py --discovery_path //path/to/discovery \
+$ ./import.py --discovery_path //path/to/discovery \
     ...
     --input jdbc_sql:database_name:SELECT * FROM users WHERE signup_date > '2023-01-01' \
     ...
@@ -91,7 +92,7 @@ jar-зависимости для чтения из Hive предоставля�
 адрес HDFS NameNode:
 
 ```bash
-./import.py --discovery_path //path/to/discovery \
+$ ./import.py --discovery_path //path/to/discovery \
     ...
     --input text:hdfs://namenode/path/to/text/file
     ...

@@ -1,10 +1,10 @@
 # Starting a Spark cluster
 
-This section contains expanded instructions for starting a Spark cluster.  Basic start operations are described in the [Quick start](../../../../../user-guide/data-processing/spyt/quick-start.md) section.
+This section contains expanded instructions for starting a Spark cluster.  Basic start operations are described in the [Quick start](../../../../../user-guide/data-processing/spyt/launch.md#standalone) section.
 
 {% note warning "Attention!" %}
 
-A started Spark cluster statically occupies the resources allocated to it. So, it is recommended that the cluster be started in a separate computational pool with guaranteed resources.  It makes sense to use one cluster for the command, and recycle the resources among several users.
+A started Spark cluster statically occupies the resources allocated to it. So, it is recommended that the cluster be started in a separate computational pool with guaranteed resources. It makes sense to use one cluster for the command, and recycle the resources among several users. It is recommended to use [direct submitting](../../../../../user-guide/data-processing/spyt/launch.md#submit) when it is not planned to run Spark tasks at a high intensity (less than one time in an hour).
 
 
 {% endnote %}
@@ -32,7 +32,7 @@ Additional parameters are used for the `spark-launch-yt` launch script, or simil
 Example:
 
 ```bash
-spark-launch-yt
+$ spark-launch-yt
 --proxy <cluster_name>
 --autoscaler-period 1s
 --enable-multi-operation-mode

@@ -2,7 +2,7 @@
 
 ## Setup { #prepare }
 
-Before you can use Spark in Jupyter, you need to create a [cluster](../../../../../user-guide/data-processing/spyt/cluster/cluster-start.md).
+Before you can use Spark in Jupyter, you need to create a [cluster](../../../../../user-guide/data-processing/spyt/cluster/cluster-start.md). Currently working with Spark using Jupyter notebooks is possible only using inner standalone cluster.
 
 If there is one already, you need to find out the values of `proxy` and `discovery_path` to be able to use it.
 

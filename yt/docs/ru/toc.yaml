@@ -267,9 +267,9 @@ items:
           items:
             - name: Обзор
               href: user-guide/data-processing/spyt/overview.md
-            - name: Быстрый старт кластера в SPYT
-              href: user-guide/data-processing/spyt/quick-start.md
-            - name: Кластер SPYT
+            - name: Запуск Spark задач на выполнение
+              href: user-guide/data-processing/spyt/launch.md
+            - name: Внутренний SPYT кластер
               items:
               - name: Описание кластера
                 href: user-guide/data-processing/spyt/cluster/cluster-desc.md
@@ -279,20 +279,20 @@ items:
               #   href: user-guide/data-processing/spyt/cluster/prometheus.md
               - name: Конфигурации
                 href: user-guide/data-processing/spyt/cluster/configuration.md
+              - name: Логи
+                href: user-guide/data-processing/spyt/logs.md
             - name: Чтение и запись под транзакцией
               href: user-guide/data-processing/spyt/read-transaction.md
-            - name: Логи
-              href: user-guide/data-processing/spyt/logs.md
             - name: API
               items:
-                - name: SPYT в Scala
-                  href: user-guide/data-processing/spyt/API/spyt-scala.md
-                - name: SPYT в Java
-                  href: user-guide/data-processing/spyt/API/spyt-java.md
                 - name: SPYT в Python
                   href: user-guide/data-processing/spyt/API/spyt-python.md
                 - name: SPYT в Jupyter
                   href: user-guide/data-processing/spyt/API/spyt-jupyter.md
+                - name: SPYT в Scala
+                  href: user-guide/data-processing/spyt/API/spyt-scala.md
+                - name: SPYT в Java
+                  href: user-guide/data-processing/spyt/API/spyt-java.md
             - name: Справочник
               items:
                 - name: Опции чтения

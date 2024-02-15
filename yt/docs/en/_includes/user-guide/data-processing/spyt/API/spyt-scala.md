@@ -13,7 +13,7 @@ All possible values for `spytVersion` can be found [here](https://github.com/yts
 ```scala
 
 val sparkVersion = "3.2.2"
-val spytVersion = "1.75.2"
+val spytVersion = "1.76.1"
 
 libraryDependencies ++= Seq(
     // Spark dependencies
@@ -44,4 +44,36 @@ spark-submit-yt \
 
 ```
 
+## Differences for submitting directly to {{product-name}} (from version 1.76.0) { #submit }
 
+For submitting Spark tasks [directly to {{product-name}}](../../../../../user-guide/data-processing/spyt/launch.md#submit) a `SparkSession` object should be created according to Spark recommendations:
+
+```scala
+import org.apache.spark.SparkConf
+import org.apache.spark.sql.SparkSession
+
+object MySparkApplication {
+
+    def main(args: Array[String]): Unit = {
+        val conf = new SparkConf()
+        val spark = SparkSession.builder.config(conf).getOrCreate()
+
+        try {
+            // Application code
+        } finally {
+            spark.stop()
+        }
+    }
+}
+```
+
+In this case a standard `spark-submit` command should be used:
+
+```bash
+$ spark-submit \
+  --master ytsaurus://${YT_PROXY} \
+  --deploy-mode cluster \
+  --class tech.ytsaurus.spyt.examples.GroupingExample \
+  yt:///home/spark/examples/scala-examples-assembly-0.1.jar
+
+```

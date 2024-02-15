@@ -8,9 +8,10 @@
 
 ## Включение { #log-on }
 
-1. Обновите `ytsaurus-spyt` до версии 0.10.0 или выше.
-2. Запустите кластер версии 0.10.0 или выше с опцией `spark-launch-yt ... --enable-advanced-event-log`
-3. При запуске джобы укажите в конфигурации `spark.eventLog.enabled=true`, например `spark-submit-yt ... --conf spark.eventLog.enabled=true`.
+При запуске джобы укажите в конфигурации `spark.eventLog.enabled=true`, например:
+```bash
+$ spark-submit-yt ... --conf spark.eventLog.enabled=true
+```
 
 
 ## Настройка { #log-settings }

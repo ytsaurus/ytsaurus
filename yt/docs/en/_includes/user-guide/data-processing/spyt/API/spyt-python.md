@@ -5,8 +5,21 @@
 1. Write some code.
 2. Post your code and dependencies to {{product-name}}. The main `.py` file and the dependencies in `.py`, `.zip`, or `.egg`.
 3. Build a binary file and post it to {{product-name}} (Spark 3.2.2+).
-4. Run `spark-submit-yt`.
+4. Run `spark-submit-yt` for submitting to inner standalone cluster or `spark-submit` for submitting directly to {{product-name}} (available from version 1.76.0)
 
+## Differences for submitting directly to {{product-name}} { #submit }
+
+All of the examples below are written for using with inner Spark standalone cluster. There's some differences for creating SparkSession object when submitting directly to {{product-name}}. Instead of using `with spark_session()` or `spyt.connect()` functions the object should be created explicitly according to Spark recommendations:
+
+```python
+from pyspark.sql import SparkSession
+
+spark = SparkSession.builder.appName('My Application').getOrCreate()
+
+... # Application code
+
+spark.stop()
+```
 
 ## Running with no dependencies { #simple }
 

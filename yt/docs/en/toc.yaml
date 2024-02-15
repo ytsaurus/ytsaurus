@@ -257,8 +257,8 @@ items:
            items:
              - name: Overview
                href: user-guide/data-processing/spyt/overview.md
-             - name: Quick start
-               href: user-guide/data-processing/spyt/quick-start.md
+             - name: Launching Spark tasks in {{product-name}}
+               href: user-guide/data-processing/spyt/launch.md
              - name: SPYT cluster
                items:
                - name: SPYT cluster
@@ -269,20 +269,20 @@ items:
               #    href: user-guide/data-processing/spyt/cluster/prometheus.md
                - name: Configurations
                  href: user-guide/data-processing/spyt/cluster/configuration.md
+               - name: Logs
+                 href: user-guide/data-processing/spyt/logs.md
              - name: Reading and writing within a transaction
                href: user-guide/data-processing/spyt/read-transaction.md
-             - name: Logs
-               href: user-guide/data-processing/spyt/logs.md
              - name: API
                items:
-                 - name: SPYT in Scala
-                   href: user-guide/data-processing/spyt/API/spyt-scala.md
-                 - name: SPYT in Java
-                   href: user-guide/data-processing/spyt/API/spyt-java.md
                  - name: SPYT in Python
                    href: user-guide/data-processing/spyt/API/spyt-python.md
                  - name: SPYT in Jupyter
                    href: user-guide/data-processing/spyt/API/spyt-jupyter.md
+                 - name: SPYT in Scala
+                   href: user-guide/data-processing/spyt/API/spyt-scala.md
+                 - name: SPYT in Java
+                   href: user-guide/data-processing/spyt/API/spyt-java.md
              - name: Thesaurus
                items:
                  - name: Read options

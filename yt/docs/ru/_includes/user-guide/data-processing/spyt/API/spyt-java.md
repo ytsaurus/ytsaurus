@@ -11,7 +11,26 @@
 
 ## Запуск примеров { #run-examples }
 
-Каждый пример состоит из одного класса, который унаследован от `SparkAppJava`.`SparkJavaApp` инициализирует Spark и правильно завершает работу.
+Каждый пример состоит из одного класса, который унаследован от `SparkAppJava`.`SparkJavaApp` инициализирует Spark и правильно завершает работу. Данный способ нужно использовать в случае работы с [внутренним standalone Spark кластером](../../../../../user-guide/data-processing/spyt/launch.md#standalone). В случае, если предполагается использовать [запуск задач с использованием планировщика {{product-name}}](../../../../../user-guide/data-processing/spyt/launch.md#submit), для создания `SparkSession` нужно воспользоваться стандартными рекомендациями Spark:
+
+```java
+import org.apache.spark.SparkConf;
+import org.apache.spark.sql.SparkSession;
+
+class MySparkApplication {
+
+    public static void main(String[] args) {
+        SparkConf conf = new SparkConf();
+        SparkSession spark = SparkSession.builder.config(conf).getOrCreate();
+
+        try {
+            // Application code
+        } finally {
+            spark.stop();
+        }
+    }
+}
+```
 
 ## Чтение данных из {{product-name}} { #read-data }
 
