@@ -52,19 +52,19 @@ message TRspHeartbeat
     message TReconfigureJobCommand
     {
         required NYT.NProto.TGuid job_id = 1;
-        required bytes dynamic_job_spec = 2 [(NYT.NYson.NProto.yson_string) = true];
-        required bytes epoch = 3 [(NYT.NYson.NProto.yson_string) = true];
+        required bytes epoch = 2 [(NYT.NYson.NProto.yson_string) = true];
+        required bytes dynamic_job_spec = 3 [(NYT.NYson.NProto.yson_string) = true];
     }
 
     repeated TReconfigureJobCommand reconfigure_job_commands = 3;
 
-    message TUpdateJobEpochCommand
+    message TAdvanceJobEpochPhaseCommands
     {
         required NYT.NProto.TGuid job_id = 1;
         required bytes epoch = 2 [(NYT.NYson.NProto.yson_string) = true];
     }
 
-    repeated TUpdateJobEpochCommand update_job_epoch_commands = 4;
+    repeated TAdvanceJobEpochPhaseCommands advance_job_epoch_phase_commands = 4;
 
     message TStopJobCommand
     {
