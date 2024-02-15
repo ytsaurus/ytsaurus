@@ -759,10 +759,10 @@ llvm::GlobalVariable* TComparerManager::GetLabelsArray(
 ////////////////////////////////////////////////////////////////////////////////
 
 Function* TComparerManager::GetHasher(
-        const std::vector<EValueType>& types,
-        const TCGModulePtr& module,
-        size_t start,
-        size_t finish)
+    const std::vector<EValueType>& types,
+    const TCGModulePtr& module,
+    size_t start,
+    size_t finish)
 {
     llvm::FoldingSetNodeID id;
     id.AddInteger(start);
