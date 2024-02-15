@@ -21,7 +21,7 @@ using namespace NFlow::NController;
 
 TString TClient::DiscoverPipelineControllerLeader(const TYPath& pipelinePath)
 {
-    YT_LOG_DEBUG("Started discoverying pipeline controller leader (PipelinePath: %v)",
+    YT_LOG_DEBUG("Started discovering pipeline controller leader (PipelinePath: %v)",
         pipelinePath);
 
     TGetNodeOptions options{
@@ -52,7 +52,7 @@ TString TClient::DiscoverPipelineControllerLeader(const TYPath& pipelinePath)
 
     auto address = attributes.Get<TString>(LeaderControllerAddressAttribute);
 
-    YT_LOG_DEBUG("Finished discoverying pipeline controller leader (PipelinePath: %v, Address: %v)",
+    YT_LOG_DEBUG("Finished discovering pipeline controller leader (PipelinePath: %v, Address: %v)",
         pipelinePath,
         address);
 

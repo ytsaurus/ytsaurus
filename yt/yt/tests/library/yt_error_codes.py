@@ -48,6 +48,7 @@ NoOnlineNodeToScheduleJob = 4410
 ControllerMemoryLimitExceeded = 4416
 ContainerDoesNotExist = 12004
 RequestQueueSizeLimitExceeded = 108
+SpecVersionMismatch = 3300
 
 
 class Scheduler(object):

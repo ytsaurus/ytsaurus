@@ -3406,3 +3406,84 @@ def get_supported_erasure_codecs(filter=None):
     if filter is None:
         return yt_tests_settings.supported_erasure_codes
     return [codec for codec in filter if codec in yt_tests_settings.supported_erasure_codes]
+
+
+def get_pipeline_spec(pipeline_path, spec_path=None, **kwargs):
+    kwargs["pipeline_path"] = pipeline_path
+    if spec_path is not None:
+        kwargs["spec_path"] = spec_path
+
+    return execute_command("get_pipeline_spec", kwargs, parse_yson=True)
+
+
+def set_pipeline_spec(pipeline_path, spec, is_raw=False, spec_path=None, expected_version=None, force=None, **kwargs):
+    if not is_raw:
+        spec = yson.dumps(spec)
+
+    kwargs["pipeline_path"] = pipeline_path
+    if spec_path is not None:
+        kwargs["spec_path"] = spec_path
+    if expected_version is not None:
+        kwargs["expected_version"] = expected_version
+    if force is not None:
+        kwargs["force"] = force
+
+    return execute_command("set_pipeline_spec", kwargs, input_stream=BytesIO(spec), parse_yson=not is_raw)
+
+
+def remove_pipeline_spec(pipeline_path, spec_path=None, expected_version=None, force=None, **kwargs):
+    kwargs["pipeline_path"] = pipeline_path
+    if spec_path is not None:
+        kwargs["spec_path"] = spec_path
+    if expected_version is not None:
+        kwargs["expected_version"] = expected_version
+    if force is not None:
+        kwargs["force"] = force
+
+    return execute_command("remove_pipeline_spec", kwargs, parse_yson=True)
+
+
+def get_pipeline_dynamic_spec(pipeline_path, spec_path=None, **kwargs):
+    kwargs["pipeline_path"] = pipeline_path
+    if spec_path is not None:
+        kwargs["spec_path"] = spec_path
+
+    return execute_command("get_pipeline_dynamic_spec", kwargs, parse_yson=True)
+
+
+def set_pipeline_dynamic_spec(pipeline_path, spec, is_raw=False, spec_path=None, expected_version=None, **kwargs):
+    if not is_raw:
+        spec = yson.dumps(spec)
+
+    kwargs["pipeline_path"] = pipeline_path
+    if spec_path is not None:
+        kwargs["spec_path"] = spec_path
+    if expected_version is not None:
+        kwargs["expected_version"] = expected_version
+
+    return execute_command("set_pipeline_dynamic_spec", kwargs, input_stream=BytesIO(spec), parse_yson=not is_raw)
+
+
+def remove_pipeline_dynamic_spec(pipeline_path, spec_path=None, expected_version=None, **kwargs):
+    kwargs["pipeline_path"] = pipeline_path
+    if spec_path is not None:
+        kwargs["spec_path"] = spec_path
+    if expected_version is not None:
+        kwargs["expected_version"] = expected_version
+
+    return execute_command("remove_pipeline_dynamic_spec", kwargs, parse_yson=True)
+
+
+def start_pipeline(pipeline_path, **kwargs):
+    kwargs["pipeline_path"] = pipeline_path
+    return execute_command("start_pipeline", kwargs)
+
+
+def stop_pipeline(pipeline_path, **kwargs):
+    kwargs["pipeline_path"] = pipeline_path
+    return execute_command("stop_pipeline", kwargs)
+
+
+def pause_pipeline(pipeline_path, **kwargs):
+    kwargs["pipeline_path"] = pipeline_path
+    return execute_command("pause_pipeline", kwargs)
