@@ -16,7 +16,7 @@ def _normalize_proxy(proxy):
     if ":" in proxy:
         proxy = proxy.rsplit(":", 1)[0]
 
-    return proxy
+    return proxy.lower()
 
 
 def _strawberry_ctl_handler(family):
