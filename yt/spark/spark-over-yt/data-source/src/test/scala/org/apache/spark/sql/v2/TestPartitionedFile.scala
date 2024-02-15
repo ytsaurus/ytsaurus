@@ -2,7 +2,6 @@ package org.apache.spark.sql.v2
 
 import org.apache.spark.sql.execution.datasources.PartitionedFile
 import tech.ytsaurus.spyt.format.YtPartitionedFile
-import tech.ytsaurus.spyt.fs.YtDynamicPathAttributes
 
 sealed trait TestPartitionedFile {
   def toPartitionedFile: PartitionedFile
@@ -21,12 +20,12 @@ object TestPartitionedFile {
 
   case class Static(path: String, beginRow: Long, endRow: Long) extends TestPartitionedFile {
     override def toPartitionedFile: PartitionedFile =
-      YtPartitionedFile.static(path, beginRow, endRow, 0L, 0L, YtPartitionedFile.emptyInternalRow)
+      YtPartitionedFile.static(path, beginRow, endRow, 0L)
   }
 
   case class Dynamic(path: String, length: Long) extends TestPartitionedFile {
     override def toPartitionedFile: PartitionedFile =
-      YtPartitionedFile.dynamic(path, YtDynamicPathAttributes(), length, 0L, YtPartitionedFile.emptyInternalRow)
+      YtPartitionedFile.dynamic(path, YtPartitionedFile.fullRange, length)
   }
 
   case class Csv(path: String, length: Long) extends TestPartitionedFile {

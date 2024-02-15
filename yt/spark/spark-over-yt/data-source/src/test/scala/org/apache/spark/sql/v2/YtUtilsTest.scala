@@ -7,7 +7,7 @@ import org.apache.spark.sql.v2.YtUtils.{FileWithSchema, _}
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{FlatSpec, Matchers}
 import tech.ytsaurus.spyt.fs.path.YPathEnriched.YtRootPath
-import tech.ytsaurus.spyt.fs.{YtFileStatus, YtStaticPath, YtStaticPathAttributes}
+import tech.ytsaurus.spyt.fs.{YtFileStatus, YtHadoopPath, YtTableMeta}
 import tech.ytsaurus.spyt.wrapper.table.OptimizeMode
 import tech.ytsaurus.spyt.SchemaTestUtils
 
@@ -142,8 +142,8 @@ class YtUtilsTest extends FlatSpec with Matchers with SchemaTestUtils with Table
 
   private def fileStatus(path: String): FileStatus = {
     val ytPath = YtRootPath(new Path(path))
-    val chunkPath = YtStaticPath(ytPath, YtStaticPathAttributes(OptimizeMode.Scan, 0, 1))
-    new YtFileStatus(chunkPath, 1, 0)
+    val chunkPath = YtHadoopPath(ytPath, YtTableMeta(1, 1, 0, OptimizeMode.Scan, isDynamic = false))
+    YtFileStatus.toFileStatus(chunkPath)
   }
 
 }

@@ -31,8 +31,6 @@ sealed trait YPathEnriched {
 
   def withLatestVersion(): YtLatestVersionPath = YtLatestVersionPath(this)
 
-  def withYtPartitioning(): YtPartitionedPath = YtPartitionedPath(this)
-
   def lock()(implicit yt: CompoundClient): YPathEnriched = this
 
 }
@@ -135,14 +133,6 @@ object YPathEnriched {
   }
 
 
-  case class YtPartitionedPath(parent: YPathEnriched) extends YPathEnriched {
-    override def toPath: Path = parent.toPath.child("@yt_partitioned")
-
-    override def child(name: String): YPathEnriched = YtSimplePath(this, name)
-
-    override def lock()(implicit yt: CompoundClient): YPathEnriched = parent.lock().withYtPartitioning()
-  }
-
   object YtObjectPath {
     def unapply(path: Path): Option[(Path, String)] = {
       if (path.getName.startsWith("@node_")) {
@@ -211,8 +201,6 @@ object YPathEnriched {
         YtTimestampPath(ypath(parentPath), timestamp)
       case YtLatestVersionPath(parentPath) =>
         YtLatestVersionPath(ypath(parentPath))
-      case YtPartitionedPath(parentPath) =>
-        YtPartitionedPath(ypath(parentPath))
       case _ =>
         val tr = GlobalTableSettings.getTransaction(path.toString)
         if (path.getParent != null && path.getParent.toString.contains("@")) {

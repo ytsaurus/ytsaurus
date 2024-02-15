@@ -24,7 +24,6 @@ import tech.ytsaurus.spyt.format._
 import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration.Read._
 import tech.ytsaurus.spyt.format.conf.{FilterPushdownConfig, SparkYtWriteConfiguration}
 import tech.ytsaurus.spyt.fs.YtClientConfigurationConverter.ytClientConfiguration
-import tech.ytsaurus.spyt.fs.YtDynamicPath
 import tech.ytsaurus.spyt.logger.YtDynTableLoggerConfig
 import tech.ytsaurus.spyt.serializers.InternalRowDeserializer
 import tech.ytsaurus.spyt.streaming.{YtStreamingSink, YtStreamingSource}
@@ -133,12 +132,7 @@ class YtFileFormat extends FileFormat with DataSourceRegister with StreamSourceP
 
   override def shortName(): String = "yt"
 
-  override def isSplitable(sparkSession: SparkSession, options: Map[String, String], path: Path): Boolean = {
-    path match {
-      case _: YtDynamicPath => false
-      case _ => true
-    }
-  }
+  override def isSplitable(sparkSession: SparkSession, options: Map[String, String], path: Path): Boolean = true
 
   override def supportBatch(sparkSession: SparkSession, dataSchema: StructType): Boolean = {
     YtReaderOptions.supportBatch(dataSchema, sparkSession.sqlContext.conf)

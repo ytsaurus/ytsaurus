@@ -12,15 +12,17 @@ import tech.ytsaurus.spyt.format.YtInputSplit
 import tech.ytsaurus.spyt.fs.YtClientConfigurationConverter.ytClientConfiguration
 import tech.ytsaurus.spyt.fs.conf.{SparkYtSparkSession, YT_MIN_PARTITION_BYTES}
 import tech.ytsaurus.spyt.fs.path.YPathEnriched.ypath
-import tech.ytsaurus.spyt.fs.{YtDynamicPath, YtPath, YtStaticPath}
 import tech.ytsaurus.spyt.serializers.{InternalRowDeserializer, PivotKeysConverter}
 import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.client.CompoundClient
+import tech.ytsaurus.core.cypress.RangeLimit
 import tech.ytsaurus.spyt.common.utils.{ExpressionTransformer, MInfinity, PInfinity}
 import tech.ytsaurus.spyt.format.YtPartitionedFile
 import tech.ytsaurus.spyt.format.conf.{KeyPartitioningConfig, SparkYtConfiguration}
+import tech.ytsaurus.spyt.fs.YtHadoopPath
 import tech.ytsaurus.spyt.serializers.SchemaConverter
 import tech.ytsaurus.spyt.wrapper.client.YtClientProvider
+import tech.ytsaurus.spyt.wrapper.table.OptimizeMode
 import tech.ytsaurus.ysontree.YTreeNode
 
 import scala.collection.mutable.ArrayBuffer
@@ -31,8 +33,7 @@ object YtFilePartition {
   def maxSplitBytes(sparkSession: SparkSession,
                     selectedPartitions: Seq[PartitionDirectory],
                     maybeReadParallelism: Option[Int]): Long = {
-    val defaultMaxSplitBytes =
-      sparkSession.sessionState.conf.filesMaxPartitionBytes
+    val defaultMaxSplitBytes = sparkSession.sessionState.conf.filesMaxPartitionBytes
     val minSplitBytes = org.apache.spark.network.util.JavaUtils.byteStringAs(
       sparkSession.sessionState.conf.getConfString(YT_MIN_PARTITION_BYTES, "1G"),
       ByteUnit.BYTE
@@ -44,12 +45,8 @@ object YtFilePartition {
     val bytesPerCore = totalBytes / defaultParallelism
 
     val maxSplitBytes = maybeReadParallelism
-      .map { readParallelism =>
-        totalBytes / readParallelism + 1
-      }
-      .getOrElse {
-        Math.max(minSplitBytes, Math.min(defaultMaxSplitBytes, Math.max(openCostInBytes, bytesPerCore)))
-      }
+      .map { readParallelism => totalBytes / readParallelism + 1 }
+      .getOrElse { Math.max(minSplitBytes, Math.min(defaultMaxSplitBytes, Math.max(openCostInBytes, bytesPerCore))) }
 
     log.info(s"Planning scan with bin packing, max size: $maxSplitBytes bytes, " +
       s"open cost is considered as scanning $openCostInBytes bytes, " +
@@ -59,34 +56,68 @@ object YtFilePartition {
     maxSplitBytes
   }
 
-  def getPartitionedFile(file: FileStatus,
-                         offset: Long,
-                         size: Long,
-                         partitionValues: InternalRow): PartitionedFile = {
-    YtPath.fromPath(file.getPath) match {
-      case yp: YtDynamicPath =>
-        YtPartitionedFile.dynamic(yp.toStringPath, yp.ypath.toYPath, yp.attrs, file.getLen,
-          file.getModificationTime, partitionValues)
-      case p =>
-        PartitionedFile(partitionValues, p.toUri.toString, offset, size, Array.empty)
+  private def splitTableYtPartitioning(path: YtHadoopPath,
+                                       maxSplitBytes: Long,
+                                       partitionValues: InternalRow,
+                                       readDataSchema: Option[StructType] = None)
+                                      (implicit yt: CompoundClient): Seq[PartitionedFile] = {
+    import scala.collection.JavaConverters._
+    val richYPath = readDataSchema match {
+      case Some(st) if st.nonEmpty && path.meta.optimizeMode == OptimizeMode.Scan =>
+        YtInputSplit.addColumnsList(path.toYPath, st)
+      case _ => path.toYPath
+    }
+    val multiTablePartitions = YtWrapper.splitTables(richYPath, maxSplitBytes)
+    multiTablePartitions.flatMap { multiTablePartition =>
+      val tableRanges = multiTablePartition.getTableRanges.asScala
+      tableRanges.flatMap { tableRange =>
+        // TODO(alex-shishkin): Legacy part, YtPartitionedFile used to contain at most one range
+        val ranges = tableRange.getRanges.asScala
+        ranges.map { range =>
+          val ypathWithSingleRange = tableRange.ranges(range)
+          YtPartitionedFile(ypathWithSingleRange, maxSplitBytes,
+            path.meta.isDynamic, path.meta.modificationTime, partitionValues)
+        }
+      }
     }
   }
 
-  def getPartitionedFile(file: FileStatus,
-                         path: YtStaticPath,
-                         rowOffset: Long,
-                         rowCount: Long,
-                         byteSize: Long,
-                         partitionValues: InternalRow): PartitionedFile = {
-    YtPartitionedFile.static(
-      path.toStringPath,
-      path.ypath.toYPath,
-      path.attrs.beginRow + rowOffset,
-      path.attrs.beginRow + rowOffset + rowCount,
-      byteSize,
-      file.getModificationTime,
-      partitionValues
-    )
+  private def splitStaticTableManual(path: YtHadoopPath,
+                                     maxSplitBytes: Long, partitionValues: InternalRow): Seq[PartitionedFile] = {
+    if (path.meta.rowCount != 0) {
+      val partitionCount = path.meta.size / maxSplitBytes + 1
+      val partitionRowCount = (path.meta.rowCount + partitionCount - 1) / partitionCount
+      val nonEmptyPartitionCount = (path.meta.rowCount + partitionRowCount - 1) / partitionRowCount
+      (0L until nonEmptyPartitionCount).map { partitionIndex =>
+        val partitionStart = partitionIndex * partitionRowCount
+        val partitionEnd = ((partitionIndex + 1) * partitionRowCount) min path.meta.rowCount
+        require(partitionEnd > partitionStart)
+        val approximatePartitionLength = (partitionEnd - partitionStart) * path.meta.approximateRowSize
+        val yPath = path.toYPath.withRange(partitionStart, partitionEnd)
+        YtPartitionedFile(yPath, approximatePartitionLength, isDynamic = false, path.meta.modificationTime, partitionValues)
+      }
+    } else {
+      Nil
+    }
+  }
+
+  private def splitDynamicTableManual(path: YtHadoopPath, keyColumns: Seq[String], partitionValues: InternalRow)
+                                     (implicit yt: CompoundClient): Seq[PartitionedFile] = {
+    // Limits could be merged when partitions are expected to be small.
+    val limits = if (keyColumns.isEmpty) {
+      val tabletCount = YtWrapper.tabletCount(path.toYPath.justPath().toStableString)
+      (0L until tabletCount).map(tabletIndex => RangeLimit.builder().setTabletIndex(tabletIndex).build())
+    } else {
+      val pivotKeys = YtWrapper.pivotKeysYson(path.toYPath.justPath())
+      pivotKeys.map(key => RangeLimit.key(key.asList()))
+    }
+    val allLimits = limits :+ RangeLimit.builder().build()
+    val approximatePartitionLength = if (limits.nonEmpty) path.meta.size / limits.length else 0L
+    allLimits.sliding(2).map {
+      case Seq(lowerLimit, upperLimit) =>
+        val yPath = path.toYPath.withRange(lowerLimit, upperLimit)
+        YtPartitionedFile(yPath, approximatePartitionLength, isDynamic = true, path.meta.modificationTime, partitionValues)
+    }.toSeq
   }
 
   def splitFiles(sparkSession: SparkSession,
@@ -96,62 +127,22 @@ object YtFilePartition {
                  maxSplitBytes: Long,
                  partitionValues: InternalRow,
                  readDataSchema: Option[StructType] = None): Seq[PartitionedFile] = {
-    import scala.collection.JavaConverters._
-
-    def split(length: Long, splitSize: Long)
-             (f: (Long, Long) => PartitionedFile): Seq[PartitionedFile] = {
-      (0L until length by splitSize).map { offset =>
-        val remaining = length - offset
-        val size = if (remaining > splitSize) splitSize else remaining
-        f(offset, size)
-      }
-    }
-
-    if (sparkSession.ytConf(SparkYtConfiguration.Read.YtPartitioningEnabled)) {
-      YtPath.fromPath(file.getPath) match {
-        case yp: YtPath =>
-          implicit val yt: CompoundClient =
-            YtClientProvider.ytClient(ytClientConfiguration(sparkSession.sessionState.conf))
-          val yPath = yp.toYPath
-          val richYPath = readDataSchema match {
-            case Some(st) if st.nonEmpty => YtInputSplit.addColumnsList(yPath, st)
-            case _ => yPath
+    YtHadoopPath.fromPath(file.getPath) match {
+      case yp: YtHadoopPath =>
+        implicit val yt: CompoundClient = YtClientProvider.ytClient(ytClientConfiguration(sparkSession.sessionState.conf))
+        val keyColumns = YtWrapper.keyColumns(yp.toYPath, yp.ypath.transaction)
+        // TODO(alex-shishkin): Ordered dynamic tables could not be partitioned by YT partitioning.
+        if (sparkSession.ytConf(SparkYtConfiguration.Read.YtPartitioningEnabled) && !(yp.meta.isDynamic && keyColumns.isEmpty)) {
+          splitTableYtPartitioning(yp, maxSplitBytes, partitionValues, readDataSchema)
+        } else {
+          if (yp.meta.isDynamic) {
+            splitDynamicTableManual(yp, keyColumns, partitionValues)
+          } else {
+            splitStaticTableManual(yp, maxSplitBytes, partitionValues)
           }
-          // TODO(alex-shishkin): Lookup tables doesn't support using column list while partitioning
-          val multiTablePartitions = YtWrapper.splitTables(richYPath, maxSplitBytes)
-          multiTablePartitions.flatMap { multiTablePartition =>
-            val tableRanges = multiTablePartition.getTableRanges.asScala
-            tableRanges.flatMap { tableRange =>
-              // TODO(alex-shishkin): Legacy part, YtPartitionedFile used to contain at most one range
-              val ranges = tableRange.getRanges.asScala
-              ranges.map { range =>
-                val ypathWithSingleRange = tableRange.ranges(range)
-                YtPartitionedFile(yp.toStringPath, ypathWithSingleRange, maxSplitBytes,
-                  yp.isDynamic, file.getModificationTime, partitionValues)
-              }
-            }
-          }
-        case p =>
-          split(file.getLen, maxSplitBytes) { case (offset, size) =>
-            PartitionedFile(partitionValues, p.toUri.toString, offset, size, Array.empty)
-          }
-      }
-    } else {
-      if (isSplitable) {
-        YtPath.fromPath(file.getPath) match {
-          case yp: YtStaticPath =>
-            val maxSplitRows = Math.max(1, Math.ceil(maxSplitBytes.toDouble / file.getLen * yp.rowCount).toLong)
-            split(yp.rowCount, maxSplitRows) { case (offset, size) =>
-              getPartitionedFile(file, yp, offset, size, size * file.getBlockSize, partitionValues)
-            }
-          case _ =>
-            split(file.getLen, maxSplitBytes) { case (offset, size) =>
-              getPartitionedFile(file, offset, size, partitionValues)
-            }
         }
-      } else {
-        Seq(getPartitionedFile(file, 0, file.getLen, partitionValues))
-      }
+      case _ =>
+        Seq(PartitionedFile(partitionValues, filePath.toUri.toString, 0, file.getLen, Array.empty))
     }
   }
 
@@ -168,76 +159,6 @@ object YtFilePartition {
         case (_, _) => y.length.compare(x.length)
       }
     }
-  }
-
-  def mergeFiles(files: Seq[PartitionedFile]): Array[PartitionedFile] = {
-    val buffer = new ArrayBuffer[PartitionedFile]
-    var currentFile: YtPartitionedFile = null
-
-    def isMergeable(file: YtPartitionedFile): Boolean = {
-      currentFile.path == file.path && currentFile.endRow == file.beginRow
-    }
-
-    def merge(file: YtPartitionedFile): YtPartitionedFile = {
-      currentFile.copy(newEndRow = file.endRow)
-    }
-
-    files.foreach {
-      case ytFile: YtPartitionedFile if !ytFile.isDynamic =>
-        if (currentFile == null) {
-          currentFile = ytFile
-        } else {
-          if (isMergeable(ytFile)) {
-            currentFile = merge(ytFile)
-          } else {
-            buffer.append(currentFile)
-            currentFile = ytFile
-          }
-        }
-      case file =>
-        if (currentFile != null) {
-          buffer.append(currentFile)
-          currentFile = null
-        }
-        buffer.append(file)
-    }
-    if (currentFile != null) {
-      buffer.append(currentFile)
-    }
-
-    buffer.toArray
-  }
-
-  def getFilePartitions(sparkSession: SparkSession,
-                        partitionedFiles: Seq[PartitionedFile],
-                        maxSplitBytes: Long): Seq[FilePartition] = {
-    val partitions = new ArrayBuffer[FilePartition]
-    val currentFiles = new ArrayBuffer[PartitionedFile]
-    var currentSize = 0L
-
-    /** Close the current partition and move to the next. */
-    def closePartition(): Unit = {
-      if (currentFiles.nonEmpty) {
-        // Copy to a new Array.
-        val newPartition = FilePartition(partitions.size, mergeFiles(currentFiles))
-        partitions += newPartition
-      }
-      currentFiles.clear()
-      currentSize = 0
-    }
-
-    val openCostInBytes = sparkSession.sessionState.conf.filesOpenCostInBytes
-    // Assign files to partitions using "Next Fit Decreasing"
-    partitionedFiles.foreach { file =>
-      if (currentSize + file.length > maxSplitBytes) {
-        closePartition()
-      }
-      // Add the given file to the current partition.
-      currentSize += file.length + openCostInBytes
-      currentFiles += file
-    }
-    closePartition()
-    partitions
   }
 
   def tryGetKeyPartitions(sparkSession: SparkSession, splitFiles: Seq[PartitionedFile], schema: StructType,
@@ -288,7 +209,7 @@ object YtFilePartition {
     }
   }
 
-  private def getFilePartitions(partitionedFiles: Seq[PartitionedFile]) = {
+  def getFilePartitions(partitionedFiles: Seq[PartitionedFile]) = {
     partitionedFiles.zipWithIndex.map { case (x, i) => FilePartition(i, Array(x)) }
   }
 

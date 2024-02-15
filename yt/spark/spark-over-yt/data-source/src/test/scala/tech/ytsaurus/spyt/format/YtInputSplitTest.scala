@@ -326,8 +326,7 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark with DynTa
 
   it should "get ypath" in {
     val keyColumns = List("a", "b")
-    val file = YtPartitionedFile.static("//dir/path", 2,
-      5, 10, 0, YtPartitionedFile.emptyInternalRow)
+    val file = YtPartitionedFile.static("//dir/path", 2, 5, 10)
     val baseYPath = file.ypath.withColumns(keyColumns: _*)
     val config = FilterPushdownConfig(enabled = true, unionEnabled = true, ytPathCountLimit = 5)
     pushdownFiltersToYPath(single = false, exampleSet1, keyColumns.map(Some(_)), config, baseYPath).toString shouldBe

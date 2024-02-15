@@ -18,7 +18,8 @@ import org.apache.spark.sql.v2.{YtFilePartition, YtReaderOptions}
 import org.apache.spark.sql.vectorized.{ColumnarBatch, YtFileFormat}
 import org.apache.spark.util.collection.BitSet
 import tech.ytsaurus.spyt.format.conf.YtTableSparkSettings
-import tech.ytsaurus.spyt.fs.{YtDynamicPath, YtPath, YtStaticPath}
+import tech.ytsaurus.spyt.fs.{YtHadoopPath}
+import tech.ytsaurus.spyt.wrapper.table.OptimizeMode
 
 import java.util.concurrent.TimeUnit.NANOSECONDS
 import scala.collection.mutable.HashMap
@@ -37,9 +38,8 @@ case class YtSourceScanExec(
     case yf: YtFileFormat =>
       relation.location.asInstanceOf[InMemoryFileIndex]
         .allFiles().forall { fileStatus =>
-        YtPath.fromPath(fileStatus.getPath) match {
-          case _: YtDynamicPath => false
-          case yp: YtStaticPath => yp.optimizedForScan
+        YtHadoopPath.fromPath(fileStatus.getPath) match {
+          case yp: YtHadoopPath => !yp.meta.isDynamic && yp.meta.optimizeMode == OptimizeMode.Scan
           case _ => false
         }
       }
@@ -455,8 +455,7 @@ case class YtSourceScanExec(
       partition.files.flatMap { file =>
         // getPath() is very expensive so we only want to call it once in this block:
         val filePath = file.getPath
-        val isSplitable = relation.fileFormat.isSplitable(
-          relation.sparkSession, relationOptions, filePath)
+        val isSplitable = relation.fileFormat.isSplitable(relation.sparkSession, relationOptions, filePath)
         YtFilePartition.splitFiles(
           sparkSession = relation.sparkSession,
           file = file,
@@ -468,8 +467,7 @@ case class YtSourceScanExec(
       }
     }.sortBy(_.length)(implicitly[Ordering[Long]].reverse)
 
-    val partitions =
-      FilePartition.getFilePartitions(relation.sparkSession, files, maxSplitBytes)
+    val partitions = FilePartition.getFilePartitions(relation.sparkSession, files, maxSplitBytes)
 
     new FileScanRDD(fsRelation.sparkSession, readFile, partitions)
   }

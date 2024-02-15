@@ -9,13 +9,13 @@ import org.apache.spark.sql.types.{ArrayType, DataType, MapType, StructType}
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import org.apache.spark.sql.v2.YtScanBuilder.pushStructMetadata
 import tech.ytsaurus.spyt.common.utils.ExpressionTransformer.filtersToSegmentSet
+import tech.ytsaurus.spyt.common.utils.SegmentSet
 import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration.Read.KeyColumnsFilterPushdown
 import tech.ytsaurus.spyt.format.conf.YtTableSparkSettings
-import tech.ytsaurus.spyt.fs.{YtDynamicPath, YtPath, YtStaticPath}
-import tech.ytsaurus.spyt.logger.YtLogger
-import tech.ytsaurus.spyt.common.utils.SegmentSet
-import tech.ytsaurus.spyt.logger.YtDynTableLogger
+import tech.ytsaurus.spyt.fs.YtHadoopPath
+import tech.ytsaurus.spyt.logger.{YtDynTableLogger, YtLogger}
 import tech.ytsaurus.spyt.serializers.SchemaConverter
+import tech.ytsaurus.spyt.wrapper.table.OptimizeMode
 
 import scala.collection.JavaConverters._
 
@@ -31,9 +31,8 @@ case class YtScanBuilder(sparkSession: SparkSession,
     sparkSession.sessionState.newHadoopConfWithOptions(caseSensitiveMap)
   }
   lazy val optimizedForScan: Boolean = fileIndex.allFiles().forall { fileStatus =>
-    YtPath.fromPath(fileStatus.getPath) match {
-      case _: YtDynamicPath => false // disable batch reader for dynamic tables, because total row count is unknown
-      case yp: YtStaticPath => yp.optimizedForScan
+    YtHadoopPath.fromPath(fileStatus.getPath) match {
+      case yp: YtHadoopPath => !yp.meta.isDynamic && yp.meta.optimizeMode == OptimizeMode.Scan
       case _ => false
     }
   }

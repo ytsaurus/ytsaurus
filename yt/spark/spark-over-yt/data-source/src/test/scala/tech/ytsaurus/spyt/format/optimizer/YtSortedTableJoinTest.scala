@@ -104,7 +104,7 @@ class YtSortedTableJoinTest extends FlatSpec with Matchers with LocalSpark with 
   it should "be disabled when key partitioning didn't work" in {
     withConfs(conf) {
       // union limit is 2, but here 4 partitions was merged
-      val data = (1L to 2000L).map(x => (x / 200, x / 200))
+      val data = (1L to 2000L).map(x => (x / 1000, x / 200))
       val df = data
         .toDF("a", "b")
       df.write.sortedBy("a", "b").yt(tmpPath)

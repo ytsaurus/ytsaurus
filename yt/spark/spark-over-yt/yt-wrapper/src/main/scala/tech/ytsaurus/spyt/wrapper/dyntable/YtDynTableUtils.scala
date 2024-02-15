@@ -67,17 +67,13 @@ trait YtDynTableUtils {
     pivotKeysYson(path).map(serialiseYson)
   }
 
-  def keyColumns(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Seq[String] = {
-    keyColumns(attribute(path, YtAttributes.sortedBy, transaction))
+  def keyColumns(path: YPath, transaction: Option[String] = None)(implicit yt: CompoundClient): Seq[String] = {
+    keyColumns(attribute(path, YtAttributes.keyColumns, transaction))
   }
 
   def keyColumns(attr: YTreeNode): Seq[String] = {
     import scala.collection.JavaConverters._
     attr.asList().asScala.map(_.stringValue())
-  }
-
-  def keyColumns(attrs: Map[String, YTreeNode]): Seq[String] = {
-    attrs.get(YtAttributes.sortedBy).map(keyColumns).getOrElse(Nil)
   }
 
   def mountTable(path: String)(implicit yt: CompoundClient): Unit = {

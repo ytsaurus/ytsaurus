@@ -1,5 +1,6 @@
 package org.apache.spark.sql.v2
 
+import org.apache.spark.sql.connector.read.Statistics
 import org.apache.spark.sql.execution.SparkPlan
 import org.apache.spark.sql.execution.datasources.PartitionedFile
 import org.apache.spark.sql.execution.datasources.v2.BatchScanExec
@@ -13,6 +14,11 @@ object Utils {
     getRawKeys(task).map {
       case (a, b) => (a.get, b.get)
     }
+  }
+
+  def getStatistics(task: DataFrame): Statistics = {
+    task.collect()
+    extractYtScan(task.queryExecution.executedPlan).estimateStatistics()
   }
 
   private def getRawKeys(task: DataFrame): Seq[(Option[TuplePoint], Option[TuplePoint])] = {
@@ -31,7 +37,7 @@ object Utils {
     }
   }
 
-  private def extractYtScan(plan: SparkPlan): YtScan = {
+  def extractYtScan(plan: SparkPlan): YtScan = {
     plan.collectFirst {
       case BatchScanExec(_, scan: YtScan, _) => scan
     }.get

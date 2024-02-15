@@ -18,7 +18,7 @@ class YtSortedTableAggregationTest extends FlatSpec with Matchers with LocalSpar
 
   import spark.implicits._
 
-  // 1Kb ~ 60 rows with 2 long numbers
+  // 1Kb ~ 200 rows with 2 long numbers
   private val conf = Map(
     s"spark.yt.${SparkYtConfiguration.Read.KeyPartitioning.Enabled.name}" -> "true",
     s"spark.yt.${SparkYtConfiguration.Read.KeyPartitioning.UnionLimit.name}" -> "2",
@@ -63,7 +63,7 @@ class YtSortedTableAggregationTest extends FlatSpec with Matchers with LocalSpar
   it should "be disabled when key partitioning didn't work" in {
     withConfs(conf) {
       // union limit is 2, but here 4 partitions was merged
-      val data = (1L to 2000L).map(x => (x / 200, x / 200))
+      val data = (1L to 2000L).map(x => (x / 1000, x / 200))
       val df = data
         .toDF("a", "b")
       df.write.sortedBy("a", "b").yt(tmpPath)

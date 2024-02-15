@@ -8,7 +8,7 @@ import org.apache.spark.sql.types.{MetadataBuilder, StructField, StructType}
 import org.apache.spark.util.SerializableConfiguration
 import org.slf4j.LoggerFactory
 import tech.ytsaurus.spyt.fs.YtClientConfigurationConverter.ytClientConfiguration
-import tech.ytsaurus.spyt.fs.{YtFileSystemBase, YtPath}
+import tech.ytsaurus.spyt.fs.{YtFileSystemBase, YtHadoopPath}
 import tech.ytsaurus.spyt.fs.path.YPathEnriched
 import tech.ytsaurus.spyt.fs.path.YPathEnriched.ypath
 import tech.ytsaurus.spyt.serializers.SchemaConverter.MetadataFields
@@ -42,7 +42,7 @@ object YtUtils {
 
   private def getTablePath(fileStatus: FileStatus): YPathEnriched = {
     fileStatus.getPath match {
-      case ytPath: YtPath => ytPath.ypath
+      case ytPath: YtHadoopPath => ytPath.ypath
       case p => ypath(p.getParent)
     }
   }

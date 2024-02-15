@@ -15,6 +15,14 @@ trait YtTableAttributes {
     attrs(YtAttributes.rowCount).longValue()
   }
 
+  def chunkRowCount(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Long = {
+    attribute(path, YtAttributes.chunkRowCount, transaction).longValue()
+  }
+
+  def chunkRowCount(attrs: Map[String, YTreeNode]): Long = {
+    attrs(YtAttributes.chunkRowCount).longValue()
+  }
+
   def chunkCount(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Int = {
     attribute(path, YtAttributes.chunkCount, transaction).longValue().toInt
   }
@@ -53,5 +61,9 @@ trait YtTableAttributes {
 
   def tabletCount(attrs: Map[String, YTreeNode]): Long = {
     attrs(YtAttributes.tabletCount).longValue()
+  }
+
+  def tabletCount(path: String)(implicit yt: CompoundClient): Long = {
+    attribute(path, YtAttributes.tabletCount).longValue()
   }
 }

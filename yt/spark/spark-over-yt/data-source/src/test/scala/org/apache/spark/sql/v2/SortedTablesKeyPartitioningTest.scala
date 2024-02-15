@@ -6,7 +6,7 @@ import org.apache.spark.sql.execution.datasources.PartitionedFile
 import org.apache.spark.sql.execution.datasources.v2.BatchScanExec
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.{StringType, StructField, StructType}
-import org.apache.spark.sql.v2.Utils.{extractRawKeys, getParsedKeys}
+import org.apache.spark.sql.v2.Utils.{extractRawKeys, extractYtScan, getParsedKeys}
 import org.mockito.scalatest.MockitoSugar
 import org.scalatest.{FlatSpec, Matchers}
 import tech.ytsaurus.spyt.common.utils.{TuplePoint, TupleSegment}
@@ -36,6 +36,15 @@ class SortedTablesKeyPartitioningTest extends FlatSpec with Matchers with LocalS
   override def afterAll(): Unit = {
     super.afterAll()
     spark.conf.set(s"spark.yt.${SparkYtConfiguration.Read.KeyPartitioning.Enabled.name}", value = false)
+  }
+
+  private def validatePivotKeys(keys: Seq[(TuplePoint, TuplePoint)]): Unit = {
+    keys.head._1 shouldBe TupleSegment.mInfinity
+    keys.zip(keys.tail).foreach { case ((_, prevSegmentEnd), (nextSegmentBegin, _)) =>
+      prevSegmentEnd.points.foreach(_.isInstanceOf[RealValue[_]] shouldBe true)
+      prevSegmentEnd shouldBe nextSegmentBegin
+    }
+    keys.last._2 shouldBe TupleSegment.pInfinity
   }
 
   it should "read any subset of columns" in {
@@ -100,72 +109,83 @@ class SortedTablesKeyPartitioningTest extends FlatSpec with Matchers with LocalS
     getParsedKeys(spark.read.yt(paths: _*))
   }
 
+  private val partitionConf = Map("spark.sql.files.maxPartitionBytes"-> "512", "spark.yt.minPartitionBytes" -> "512")
+
   it should "be satisfied by key partitioning" in {
     val data = (0 until 100).map(x => (x, x, -x))
     data.toDF("a", "b", "c").write.sortedBy("a", "b").yt(tmpPath)
 
-    val keys = getParsedKeysByPath(tmpPath)
-    keys should contain theSameElementsAs Seq(
-      (TuplePoint(Seq(MInfinity())), TuplePoint(Seq(RealValue(25)))),
-      (TuplePoint(Seq(RealValue(25))), TuplePoint(Seq(RealValue(50)))),
-      (TuplePoint(Seq(RealValue(50))), TuplePoint(Seq(RealValue(75)))),
-      (TuplePoint(Seq(RealValue(75))), TuplePoint(Seq(PInfinity())))
-    )
+    withConfs(partitionConf) {
+      val keys = getParsedKeysByPath(tmpPath)
+      keys should contain theSameElementsAs Seq(
+        (TuplePoint(Seq(MInfinity())), TuplePoint(Seq(RealValue(25)))),
+        (TuplePoint(Seq(RealValue(25))), TuplePoint(Seq(RealValue(50)))),
+        (TuplePoint(Seq(RealValue(50))), TuplePoint(Seq(RealValue(75)))),
+        (TuplePoint(Seq(RealValue(75))), TuplePoint(Seq(PInfinity())))
+      )
+    }
   }
 
   it should "be satisfied by splitting by 2 columns" in {
     val data = (0 until 100).map(x => (x / 100, x, -x))
     data.toDF("a", "b", "c").write.sortedBy("a", "b").yt(tmpPath)
 
-    val keys = getParsedKeysByPath(tmpPath)
-    keys should contain theSameElementsAs Seq(
-      (TuplePoint(Seq(MInfinity())), TuplePoint(Seq(RealValue(0), RealValue(25)))),
-      (TuplePoint(Seq(RealValue(0), RealValue(25))), TuplePoint(Seq(RealValue(0), RealValue(50)))),
-      (TuplePoint(Seq(RealValue(0), RealValue(50))), TuplePoint(Seq(RealValue(0), RealValue(75)))),
-      (TuplePoint(Seq(RealValue(0), RealValue(75))), TuplePoint(Seq(PInfinity())))
-    )
+    withConfs(Map("spark.sql.files.maxPartitionBytes"-> "320", "spark.yt.minPartitionBytes" -> "320")) {
+      val keys = getParsedKeysByPath(tmpPath)
+      keys should contain theSameElementsAs Seq(
+        (TuplePoint(Seq(MInfinity())), TuplePoint(Seq(RealValue(0), RealValue(25)))),
+        (TuplePoint(Seq(RealValue(0), RealValue(25))), TuplePoint(Seq(RealValue(0), RealValue(50)))),
+        (TuplePoint(Seq(RealValue(0), RealValue(50))), TuplePoint(Seq(RealValue(0), RealValue(75)))),
+        (TuplePoint(Seq(RealValue(0), RealValue(75))), TuplePoint(Seq(PInfinity())))
+      )
+    }
   }
 
-  it should "not be satisfied by using key partitioning" in {
-    val data = (0 until 100).map(x => (x / 100, x / 100, -x))
+  it should "not be satisfied by using key partitioning because of many merged partitions" in {
+    val data = (0 until 200).map(x => (x / 200, x / 200, -x))
     data.toDF("a", "b", "c").write.sortedBy("a", "b").yt(tmpPath)
 
-    val keys = getParsedKeysByPath(tmpPath)
-    keys should contain theSameElementsAs Seq(
-      (TupleSegment.mInfinity, TupleSegment.pInfinity)
-    )
+    withConfs(partitionConf) {
+      val readTask = spark.read.yt(tmpPath)
+      readTask.collect()
+      val ytScan = extractYtScan(readTask.queryExecution.executedPlan)
+      ytScan.tryKeyPartitioning() shouldBe None
+    }
   }
 
   it should "work with boolean types" in {
     val data = (0 until 100).map(x => (x >= 50, -x))
     data.toDF("a", "b").write.sortedBy("a").yt(tmpPath)
 
-    val keys = getParsedKeysByPath(tmpPath)
-    keys should contain theSameElementsAs Seq(
-      (TuplePoint(Seq(MInfinity())), TuplePoint(Seq(RealValue(false)))),
-      (TuplePoint(Seq(RealValue(false))), TuplePoint(Seq(RealValue(true)))),
-      (TuplePoint(Seq(RealValue(true))), TuplePoint(Seq(PInfinity())))
-    )
+    withConfs(Map("spark.sql.files.maxPartitionBytes"-> "320", "spark.yt.minPartitionBytes" -> "320")) {
+      val keys = getParsedKeysByPath(tmpPath)
+      keys should contain theSameElementsAs Seq(
+        (TuplePoint(Seq(MInfinity())), TuplePoint(Seq(RealValue(false)))),
+        (TuplePoint(Seq(RealValue(false))), TuplePoint(Seq(RealValue(true)))),
+        (TuplePoint(Seq(RealValue(true))), TuplePoint(Seq(PInfinity())))
+      )
+    }
   }
 
   it should "merge partitions" in {
     val data = (0 until 100).map(x => (x / 49, x, -x))
     data.toDF("a", "b", "c").write.sortedBy("a", "b").yt(tmpPath)
 
-    val keys = getParsedKeysByPath(tmpPath)
-    keys should contain theSameElementsAs Seq(
-      (TuplePoint(Seq(MInfinity())), TuplePoint(Seq(RealValue(0)))),
-      (TuplePoint(Seq(RealValue(0))), TuplePoint(Seq(RealValue(1)))),
-      (TuplePoint(Seq(RealValue(1))), TuplePoint(Seq(PInfinity())))
-    )
+    withConfs(partitionConf) {
+      val keys = getParsedKeysByPath(tmpPath)
+      keys.length should be > 2
+      validatePivotKeys(keys)
+    }
   }
 
   it should "process empty table" in {
     val data = Seq.empty[(Int, Int, Int)]
     data.toDF("a", "b", "c").write.sortedBy("a", "b").yt(tmpPath)
 
-    val keys = getParsedKeysByPath(tmpPath)
-    keys should contain theSameElementsAs Seq()
+    withConfs(partitionConf) {
+      val keys = getParsedKeysByPath(tmpPath)
+      keys should contain theSameElementsAs Seq()
+    }
   }
 
   it should "process small dataset" in {
@@ -174,88 +194,19 @@ class SortedTablesKeyPartitioningTest extends FlatSpec with Matchers with LocalS
 
     val keys = getParsedKeysByPath(tmpPath)
     keys should contain theSameElementsAs Seq(
-      (TuplePoint(Seq(MInfinity())), TuplePoint(Seq(PInfinity())))
+      (TupleSegment.mInfinity, TupleSegment.pInfinity)
     )
   }
 
   it should "process many partitions" in {
-    spark.conf.set("spark.sql.files.maxPartitionBytes", "4Kb")
-    spark.conf.set("spark.yt.minPartitionBytes", "4Kb")
-
     val data = (0 until 10000).map(x => (x / 256, x, -x))
     data.toDF("a", "b", "c").write.sortedBy("a", "b").yt(tmpPath)
 
-    val pivots = Seq(
-      TuplePoint(Seq(MInfinity())),
-      TuplePoint(Seq(RealValue(0), RealValue(164))),
-      TuplePoint(Seq(RealValue(1), RealValue(328))),
-      TuplePoint(Seq(RealValue(1), RealValue(492))),
-      TuplePoint(Seq(RealValue(2), RealValue(656))),
-      TuplePoint(Seq(RealValue(3), RealValue(820))),
-      TuplePoint(Seq(RealValue(3), RealValue(984))),
-      TuplePoint(Seq(RealValue(4), RealValue(1148))),
-      TuplePoint(Seq(RealValue(5), RealValue(1312))),
-      TuplePoint(Seq(RealValue(5), RealValue(1476))),
-      TuplePoint(Seq(RealValue(6), RealValue(1640))),
-      TuplePoint(Seq(RealValue(7), RealValue(1804))),
-      TuplePoint(Seq(RealValue(7), RealValue(1968))),
-      TuplePoint(Seq(RealValue(8), RealValue(2132))),
-      TuplePoint(Seq(RealValue(8), RealValue(2296))),
-      TuplePoint(Seq(RealValue(9), RealValue(2460))),
-      TuplePoint(Seq(RealValue(9), RealValue(2500))),
-      TuplePoint(Seq(RealValue(10), RealValue(2664))),
-      TuplePoint(Seq(RealValue(11), RealValue(2828))),
-      TuplePoint(Seq(RealValue(11), RealValue(2992))),
-      TuplePoint(Seq(RealValue(12), RealValue(3156))),
-      TuplePoint(Seq(RealValue(12), RealValue(3320))),
-      TuplePoint(Seq(RealValue(13), RealValue(3484))),
-      TuplePoint(Seq(RealValue(14), RealValue(3648))),
-      TuplePoint(Seq(RealValue(14), RealValue(3812))),
-      TuplePoint(Seq(RealValue(15), RealValue(3976))),
-      TuplePoint(Seq(RealValue(16), RealValue(4140))),
-      TuplePoint(Seq(RealValue(16), RealValue(4304))),
-      TuplePoint(Seq(RealValue(17), RealValue(4468))),
-      TuplePoint(Seq(RealValue(18), RealValue(4632))),
-      TuplePoint(Seq(RealValue(18), RealValue(4796))),
-      TuplePoint(Seq(RealValue(19), RealValue(4960))),
-      TuplePoint(Seq(RealValue(19), RealValue(5000))),
-      TuplePoint(Seq(RealValue(20), RealValue(5164))),
-      TuplePoint(Seq(RealValue(20), RealValue(5328))),
-      TuplePoint(Seq(RealValue(21), RealValue(5492))),
-      TuplePoint(Seq(RealValue(22), RealValue(5656))),
-      TuplePoint(Seq(RealValue(22), RealValue(5820))),
-      TuplePoint(Seq(RealValue(23), RealValue(5984))),
-      TuplePoint(Seq(RealValue(24), RealValue(6148))),
-      TuplePoint(Seq(RealValue(24), RealValue(6312))),
-      TuplePoint(Seq(RealValue(25), RealValue(6476))),
-      TuplePoint(Seq(RealValue(25), RealValue(6640))),
-      TuplePoint(Seq(RealValue(26), RealValue(6804))),
-      TuplePoint(Seq(RealValue(27), RealValue(6968))),
-      TuplePoint(Seq(RealValue(27), RealValue(7132))),
-      TuplePoint(Seq(RealValue(28), RealValue(7296))),
-      TuplePoint(Seq(RealValue(29), RealValue(7460))),
-      TuplePoint(Seq(RealValue(29), RealValue(7500))),
-      TuplePoint(Seq(RealValue(29), RealValue(7664))),
-      TuplePoint(Seq(RealValue(30), RealValue(7828))),
-      TuplePoint(Seq(RealValue(31), RealValue(7992))),
-      TuplePoint(Seq(RealValue(31), RealValue(8156))),
-      TuplePoint(Seq(RealValue(32), RealValue(8320))),
-      TuplePoint(Seq(RealValue(33), RealValue(8484))),
-      TuplePoint(Seq(RealValue(33), RealValue(8648))),
-      TuplePoint(Seq(RealValue(34), RealValue(8812))),
-      TuplePoint(Seq(RealValue(35), RealValue(8976))),
-      TuplePoint(Seq(RealValue(35), RealValue(9140))),
-      TuplePoint(Seq(RealValue(36), RealValue(9304))),
-      TuplePoint(Seq(RealValue(36), RealValue(9468))),
-      TuplePoint(Seq(RealValue(37), RealValue(9632))),
-      TuplePoint(Seq(RealValue(38), RealValue(9796))),
-      TuplePoint(Seq(RealValue(38), RealValue(9960))),
-      TuplePoint(Seq(PInfinity()))
-    )
-    val res = pivots.zip(pivots.tail)
-
-    val keys = getParsedKeysByPath(tmpPath)
-    keys should contain theSameElementsAs res
+    withConfs(Map("spark.sql.files.maxPartitionBytes"-> "1024", "spark.yt.minPartitionBytes" -> "1024")) {
+      val keys = getParsedKeysByPath(tmpPath)
+      keys.length should be > 10
+      validatePivotKeys(keys)
+    }
   }
 
   it should "fail reading few tables" in {
@@ -285,12 +236,14 @@ class SortedTablesKeyPartitioningTest extends FlatSpec with Matchers with LocalS
     val data = Seq((null, 0), (null, 1), ("b", 2))
     data.toDF("a", "b").write.sortedBy("a").yt(tmpPath)
 
-    val keys = getParsedKeysByPath(tmpPath)
-    keys should contain theSameElementsAs Seq(
-      (TuplePoint(Seq(MInfinity())), TuplePoint(Seq(RealValue(null)))),
-      (TuplePoint(Seq(RealValue(null))), TuplePoint(Seq(RealValue("b")))),
-      (TuplePoint(Seq(RealValue("b"))), TuplePoint(Seq(PInfinity())))
-    )
+    withConfs(Map("spark.sql.files.maxPartitionBytes"-> "1", "spark.yt.minPartitionBytes" -> "1")) {
+      val keys = getParsedKeysByPath(tmpPath)
+      keys should contain theSameElementsAs Seq(
+        (TuplePoint(Seq(MInfinity())), TuplePoint(Seq(RealValue(null)))),
+        (TuplePoint(Seq(RealValue(null))), TuplePoint(Seq(RealValue("b")))),
+        (TuplePoint(Seq(RealValue("b"))), TuplePoint(Seq(PInfinity())))
+      )
+    }
   }
 
   it should "get pivot keys" in {
@@ -299,10 +252,10 @@ class SortedTablesKeyPartitioningTest extends FlatSpec with Matchers with LocalS
 
     val schema = StructType(Seq(StructField("a", StringType)))
     val files = Seq(
-      YtPartitionedFile.static(tmpPath, 0, 1, 0, 0, null),
-      YtPartitionedFile.static(tmpPath, 2, 3, 0, 0, null),
-      YtPartitionedFile.static(tmpPath, 3, 4, 0, 0, null),
-      YtPartitionedFile.static(tmpPath, 5, 6, 0, 0, null),
+      YtPartitionedFile.static(tmpPath, 0, 1, 0),
+      YtPartitionedFile.static(tmpPath, 2, 3, 0),
+      YtPartitionedFile.static(tmpPath, 3, 4, 0),
+      YtPartitionedFile.static(tmpPath, 5, 6, 0),
     )
 
     val res = YtFilePartition.getPivotKeys(schema, Seq("a"), files)

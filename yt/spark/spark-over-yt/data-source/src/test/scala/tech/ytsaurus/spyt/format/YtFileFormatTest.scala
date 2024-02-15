@@ -493,6 +493,23 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     ))
   }
 
+  it should "read subdirectories" in {
+    YtWrapper.createDir(tmpPath)
+    YtWrapper.createDir(s"$tmpPath/subdir")
+    val table = s"$tmpPath/subdir/table"
+    writeTableFromYson(Seq(
+      """{a = 0; b = "a"; c = 0.3}""",
+      """{a = 3; b = "b"; c = 1.5}"""
+    ), table, atomicSchema)
+
+    val res = spark.read.yt(table)
+    res.columns should contain theSameElementsAs Seq("a", "b", "c")
+    res.select("a", "b", "c").collect() should contain theSameElementsAs Seq(
+      Row(0, "a", 0.3),
+      Row(3, "b", 1.5)
+    )
+  }
+
   it should "enable/disable batch reading" in {
     import OptimizeMode._
     spark.conf.set(SQLConf.PARALLEL_PARTITION_DISCOVERY_THRESHOLD.key, "3")

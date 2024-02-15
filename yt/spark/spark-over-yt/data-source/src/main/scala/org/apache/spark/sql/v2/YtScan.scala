@@ -3,27 +3,24 @@ package org.apache.spark.sql.v2
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.spark.internal.Logging
-import org.apache.spark.internal.config.IO_WARNING_LARGEFILETHRESHOLD
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.codegen.GenerateUnsafeProjection
 import org.apache.spark.sql.connector.read.partitioning.{Distribution, Partitioning}
-import org.apache.spark.sql.connector.read.{PartitionReaderFactory, SupportsReportPartitioning}
+import org.apache.spark.sql.connector.read.{PartitionReaderFactory, Statistics, SupportsReportPartitioning}
 import org.apache.spark.sql.execution.datasources.v2.FileScan
 import org.apache.spark.sql.execution.datasources.{FilePartition, PartitionDirectory, PartitionedFile, PartitioningAwareFileIndex}
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
-import org.apache.spark.sql.v2.YtFilePartition.{getFilePartitions, tryGetKeyPartitions}
+import org.apache.spark.sql.v2.YtFilePartition.tryGetKeyPartitions
 import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.util.SerializableConfiguration
-import tech.ytsaurus.spyt.common.utils._
-import tech.ytsaurus.spyt.format.conf.YtTableSparkSettings
-import tech.ytsaurus.spyt.fs.YtDynamicPath
 import tech.ytsaurus.spyt.common.utils.SegmentSet
-import tech.ytsaurus.spyt.format.conf.{FilterPushdownConfig, KeyPartitioningConfig}
+import tech.ytsaurus.spyt.format.conf.{FilterPushdownConfig, KeyPartitioningConfig, YtTableSparkSettings}
+import tech.ytsaurus.spyt.fs.YtHadoopPath
 import tech.ytsaurus.spyt.logger.YtDynTableLoggerConfig
 
-import java.util.Locale
+import java.util.{Locale, OptionalLong}
 import scala.collection.JavaConverters._
 
 case class YtScan(sparkSession: SparkSession,
@@ -37,7 +34,8 @@ case class YtScan(sparkSession: SparkSession,
                   dataFilters: Seq[Expression] = Seq.empty,
                   pushedFilterSegments: SegmentSet = SegmentSet(),
                   pushedFilters: Seq[Filter] = Nil,
-                  keyPartitionsHint: Option[Seq[FilePartition]] = None) extends FileScan with SupportsReportPartitioning with Logging {
+                  keyPartitionsHint: Option[Seq[FilePartition]] = None) extends FileScan
+  with SupportsReportPartitioning with Logging {
   private val filterPushdownConf = FilterPushdownConfig(sparkSession)
   private val keyPartitioningConf = KeyPartitioningConfig(sparkSession)
 
@@ -45,12 +43,7 @@ case class YtScan(sparkSession: SparkSession,
     keyPartitionsHint.isDefined
   }
 
-  override def isSplitable(path: Path): Boolean = {
-    path match {
-      case _: YtDynamicPath => false
-      case _ => true
-    }
-  }
+  override def isSplitable(path: Path): Boolean = true
 
   override def createReaderFactory(): PartitionReaderFactory = {
     val broadcastedConf = sparkSession.sparkContext.broadcast(
@@ -97,8 +90,7 @@ case class YtScan(sparkSession: SparkSession,
   private[v2] def getPartitions: Seq[FilePartition] = partitions
 
   private def tryGetKeyPartitioning(columns: Option[Seq[String]] = None): Option[Seq[FilePartition]] = {
-    val (_, splitFiles) = preparePartitioning()
-
+    val splitFiles = preparePartitioning()
     tryGetKeyPartitions(sparkSession, splitFiles, readDataSchema, keyPartitioningConf, columns)
   }
 
@@ -112,26 +104,15 @@ case class YtScan(sparkSession: SparkSession,
 
   override protected lazy val partitions: Seq[FilePartition] = {
     keyPartitionsHint.getOrElse {
-      val (maxSplitBytes, splitFiles) = preparePartitioning()
-
-      getFilePartitions(sparkSession, splitFiles, maxSplitBytes)
+      val splitFiles = preparePartitioning()
+      YtFilePartition.getFilePartitions(splitFiles)
     }
   }
 
-  private def preparePartitioning(): (Long, Seq[PartitionedFile]) = {
+  private def preparePartitioning(): Seq[PartitionedFile] = {
     val selectedPartitions = fileIndex.listFiles(partitionFilters, dataFilters)
     val maxSplitBytes = YtFilePartition.maxSplitBytes(sparkSession, selectedPartitions, maybeReadParallelism)
-    val splitFiles = getSplitFiles(selectedPartitions, maxSplitBytes)
-
-    if (splitFiles.length == 1) {
-      val path = new Path(splitFiles.head.filePath)
-      if (!isSplitable(path) && splitFiles.head.length >
-        sparkSession.sparkContext.getConf.get(IO_WARNING_LARGEFILETHRESHOLD)) {
-        logWarning(s"Loading one large unsplittable file ${path.toString} with only one " +
-          s"partition, the reason is: ${getFileUnSplittableReason(path)}")
-      }
-    }
-    (maxSplitBytes, splitFiles)
+    getSplitFiles(selectedPartitions, maxSplitBytes)
   }
 
   private def getSplitFiles(selectedPartitions: Seq[PartitionDirectory], maxSplitBytes: Long): Seq[PartitionedFile] = {
@@ -144,8 +125,7 @@ case class YtScan(sparkSession: SparkSession,
           s"in partition schema ${fileIndex.partitionSchema}")
       )
     }
-    lazy val partitionValueProject =
-      GenerateUnsafeProjection.generate(readPartitionAttributes, partitionAttributes)
+    lazy val partitionValueProject = GenerateUnsafeProjection.generate(readPartitionAttributes, partitionAttributes)
     selectedPartitions.flatMap { partition =>
       // Prune partition values if part of the partition columns are not required.
       val partitionValues = if (readPartitionAttributes != partitionAttributes) {
@@ -172,6 +152,24 @@ case class YtScan(sparkSession: SparkSession,
     override def numPartitions(): Int = partitions.length
 
     override def satisfy(distribution: Distribution): Boolean = false
+  }
+
+  override def estimateStatistics(): Statistics = new Statistics {
+    override val sizeInBytes: OptionalLong = OptionalLong.of(fileIndex.sizeInBytes)
+
+    override val numRows: OptionalLong = {
+      val rowCounts = fileIndex.allFiles().map { status =>
+        YtHadoopPath.fromPath(status.getPath) match {
+          case yp: YtHadoopPath => Some(yp.meta.rowCount)
+          case _ => None
+        }
+      }
+      if (rowCounts.forall(_.isDefined)) {
+        OptionalLong.of(rowCounts.map(_.get).sum)
+      } else {
+        OptionalLong.empty()
+      }
+    }
   }
 }
 
