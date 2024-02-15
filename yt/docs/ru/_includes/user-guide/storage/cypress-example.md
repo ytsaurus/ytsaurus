@@ -9,7 +9,7 @@
 ### Описание команды list
 
 ```bash
-yt list [-l] [--format FORMAT] [--attribute ATTRIBUTES]
+$ yt list [-l] [--format FORMAT] [--attribute ATTRIBUTES]
 [--max-size MAX_SIZE] [--absolute] <path>
 ```
 
@@ -18,10 +18,10 @@ yt list [-l] [--format FORMAT] [--attribute ATTRIBUTES]
 ### Вызов команды list
 
 ```bash
-yt list -l --max-size 3 //home/dev
-string_node   dev            0 2018-12-22 09:30 some_key
-  map_node    dev         1248 2019-01-22 13:14 ifs
-  map_node    dev  69856453509 2019-02-26 09:05 zuci42
+$ yt list -l --max-size 3 //home/dev
+string_node   dev            0 2018-12-22 09:30 some_key1
+  map_node    dev         1248 2019-01-22 13:14 username1
+  map_node    dev  69856453509 2019-02-26 09:05 username2
 WARNING: list is incomplete, check --max-size option
 ```
 
@@ -30,8 +30,8 @@ WARNING: list is incomplete, check --max-size option
 ### Вызов команды list с опцией format
 
 ```bash
-yt list --format json //home/dev
-["some_key","ifs","zuci42","data_com","andozer","renadeen","is","babenko","ivanashevi","alximik","tsufiev","alxsev","t","psushin"]
+$ yt list --format json //home/dev
+["some_key1","username1","username2","some_key2","username3","some_key3"]
 ```
 
 С помощью опции `--attribute` (которая может быть указана несколько раз) могут быть запрошены дополнительные атрибуты узлов, соответствующих перечисляемым ключам. К примеру, `--attribute account` добавит к каждому ключу аккаунт, которому принадлежит данный узел. Опцию `--attribute` можно использовать только совместно с опцией `--format`.
@@ -39,7 +39,7 @@ yt list --format json //home/dev
 ### Вызов команды list с опцией attribute
 
 ```bash
-yt list --attribute account --attribute owner --format "<format=pretty>json" --max-size 3 //home/dev
+$ yt list --attribute account --attribute owner --format "<format=pretty>json" --max-size 3 //home/dev
 {
     "$attributes": {
         "incomplete": true
@@ -48,23 +48,23 @@ yt list --attribute account --attribute owner --format "<format=pretty>json" --m
         {
             "$attributes": {
                 "account": "dev",
-                "owner": "babenko"
+                "owner": "username1"
             },
-            "$value": "some_key"
+            "$value": "some_key1"
         },
         {
             "$attributes": {
                 "account": "dev",
-                "owner": "ifsmirnov"
+                "owner": "username2"
             },
-            "$value": "ifs"
+            "$value": "some_key2"
         },
         {
             "$attributes": {
                 "account": "dev",
-                "owner": "renadeen"
+                "owner": "username3"
             },
-            "$value": "zuci42"
+            "$value": "some_key3"
         }
     ]
 }
@@ -75,10 +75,10 @@ yt list --attribute account --attribute owner --format "<format=pretty>json" --m
 ### Вызов команды list с опцией max-size
 
 ```bash
-yt list --max-size 3 //home/dev
-some_key
-ifs
-zuci42
+$ yt list --max-size 3 //home/dev
+some_key1
+username1
+username2
 WARNING: list is incomplete, check --max-size option
 ```
 
@@ -87,10 +87,10 @@ WARNING: list is incomplete, check --max-size option
 ### Вызов команды list с опцией absolute
 
 ```bash
-yt list --absolute --max-size 3 //home/dev
-//home/dev/some_key
-//home/dev/ifs
-//home/dev/zuci42
+$ yt list --absolute --max-size 3 //home/dev
+//home/dev/some_key1
+//home/dev/username1
+//home/dev/username2
 WARNING: list is incomplete, check --max-size option
 ```
 
@@ -101,7 +101,7 @@ WARNING: list is incomplete, check --max-size option
 ### Описание команды create
 
 ```bash
-yt create [-r, --recursive] [-i,--ignore-existing] [-l,--lock-existing] [-f, --force] [--attributes ATTRIBUTES] <type> <path>
+$ yt create [-r, --recursive] [-i,--ignore-existing] [-l,--lock-existing] [-f, --force] [--attributes ATTRIBUTES] <type> <path>
 ```
 
 Опция `-r, --recursive` создаст все промежуточные узлы типа `map_node`.
@@ -109,7 +109,7 @@ yt create [-r, --recursive] [-i,--ignore-existing] [-l,--lock-existing] [-f, --f
 ### Вызов команды create с опцией recursive
 
 ```bash
-yt create --recursive map_node //home/dev/test1/test2/test3
+$ yt create --recursive map_node //home/dev/test1/test2/test3
 127c1-388f86-3fe012f-6f994b03
 ```
 
@@ -118,13 +118,13 @@ yt create --recursive map_node //home/dev/test1/test2/test3
 ### Вызов команды create без опции ignore-existing
 
 ```bash
-yt create map_node //home/dev/test1/test2/test3
+$ yt create map_node //home/dev/test1/test2/test3
 Node //home/dev/test1/test2/test3 already exists
 ```
 ### Вызов команды create с опцией ignore-existing
 
 ```bash
-yt create --ignore-existing map_node //home/dev/test1/test2/test3
+$ yt create --ignore-existing map_node //home/dev/test1/test2/test3
 127c1-388f86-3fe012f-6f994b03
 ```
 
@@ -135,7 +135,7 @@ yt create --ignore-existing map_node //home/dev/test1/test2/test3
 ### Вызов команды create с опцией force
 
 ```bash
-yt create --force map_node //home/dev/test1/test2/test3
+$ yt create --force map_node //home/dev/test1/test2/test3
 127c1-4352be-3fe012f-6acab448
 ```
 
@@ -144,12 +144,12 @@ yt create --force map_node //home/dev/test1/test2/test3
 ### Вызов команды create с опцией attributes
 
 ```bash
-yt create --attributes "{test_attr=test1;}" map_node //home/dev/test1/test2/test3
+$ yt create --attributes "{test_attr=test1;}" map_node //home/dev/test1/test2/test3
 127c2-1b78-3fe012f-288106fe
 ```
 ### Проверка результата команды create с опцией attributes
 ```bash
-yt get //home/dev/test1/test2/test3/@test_attr
+$ yt get //home/dev/test1/test2/test3/@test_attr
 "test1"
 ```
 
@@ -160,7 +160,7 @@ yt get //home/dev/test1/test2/test3/@test_attr
 ### Описание команды remove
 
 ```bash
-yt remove [-r, --recursive] [-f, --force] <path>
+$ yt remove [-r, --recursive] [-f, --force] <path>
 ```
 
 Опция `-r, --recursive` позволяет удалить все поддерево рекурсивно.
@@ -168,12 +168,12 @@ yt remove [-r, --recursive] [-f, --force] <path>
 ### Вызов команды remove без опции recursive
 
 ```bash
-yt remove //home/dev/test1
+$ yt remove //home/dev/test1
 Cannot remove non-empty composite node
 ```
 ### Вызов команды remove с опцией recursive
 ```bash
-yt remove --recursive //home/dev/test1
+$ yt remove --recursive //home/dev/test1
 ```
 
 Опция `-f, --force` позволяет игнорировать отсутствие указанного узла.
@@ -181,12 +181,12 @@ yt remove --recursive //home/dev/test1
 ### Вызов команды remove без опции force
 
 ```bash
-yt remove //home/dev/test1
+$ yt remove //home/dev/test1
 Node //home/dev has no child with key "test1"
 ```
 ### Вызов команды remove с опцией force
 ```bash
-yt remove --force //home/dev/test1
+$ yt remove --force //home/dev/test1
 ```
 
 ## Exists { #exists }
@@ -196,16 +196,16 @@ yt remove --force //home/dev/test1
 ### Описание команды exists
 
 ```bash
-yt exists <path>
+$ yt exists <path>
 ```
 ### Вызов команды exists над существующим узлом
 ```bash
-yt exists //home/dev/test1/test2/test3
+$ yt exists //home/dev/test1/test2/test3
 true
 ```
 ### Вызов команды exists над несуществующим узлом
 ```bash
-yt exists //home/dev/test1/test2/test4
+$ yt exists //home/dev/test1/test2/test4
 false
 ```
 
@@ -216,7 +216,7 @@ false
 ### Описание команды get
 
 ```bash
-yt get [--max-size MAX_SIZE] [--format FORMAT] [--attribute ATTRIBUTES] <path>
+$ yt get [--max-size MAX_SIZE] [--format FORMAT] [--attribute ATTRIBUTES] <path>
 ```
 
 Путь `<path>` должен существовать.
@@ -224,20 +224,20 @@ yt get [--max-size MAX_SIZE] [--format FORMAT] [--attribute ATTRIBUTES] <path>
 ### Вызов команды get над несуществующим узлом
 
 ```bash
-yt get //home/dev/test1/test2/test4
+$ yt get //home/dev/test1/test2/test4
 Error resolving path //home/dev/test1/test2/test4
 Node //home/dev/test1/test2 has no child with key "test4"
 ```
 ### Вызов команды get над существующим узлом
 ```bash
-yt get //home/dev/test1/test2
+$ yt get //home/dev/test1/test2
 {
     "test3" = {};
 }
 ```
 ### Вызов команды get над атрибутом узла
 ```bash
-yt get //home/dev/test1/test2/@account
+$ yt get //home/dev/test1/test2/@account
 "dev"
 ```
 
@@ -251,12 +251,12 @@ yt get //home/dev/test1/test2/@account
 
 ### Вызов команды get без опции max-size
 ```bash
-yt get //sys/transactions/@type
+$ yt get //sys/transactions/@type
 "transaction_map"
 ```
 ### Вызов команды get с опцией max-size
 ```bash
-yt get --max-size 3 //sys/transactions
+$ yt get --max-size 3 //sys/transactions
 <
     "incomplete" = %true;
 > {
@@ -271,7 +271,7 @@ yt get --max-size 3 //sys/transactions
 ### Вызов команды get с опцией format
 
 ```bash
-yt get --format "<format=pretty>json" //home/dev/test1
+$ yt get --format "<format=pretty>json" //home/dev/test1
 {
     "test2": {
         "test3": {
@@ -286,7 +286,7 @@ yt get --format "<format=pretty>json" //home/dev/test1
 ### Вызов команды get с опцией attribute
 
 ```bash
-yt get --attribute opaque //home/dev/test1/test2
+$ yt get --attribute opaque //home/dev/test1/test2
 <
     "opaque" = %false;
 > {
@@ -306,15 +306,15 @@ yt get --attribute opaque //home/dev/test1/test2
 ### Описание команды set
 
 ```bash
-yt set [--format FORMAT] [-r, --recursive] [-f, --force]<path> <value>
+$ yt set [--format FORMAT] [-r, --recursive] [-f, --force]<path> <value>
 ```
 ### Вызов команды set
 ```bash
-yt set //home/dev/test1/@some_attr test
+$ yt set //home/dev/test1/@some_attr test
 ```
 ### Проверка вызова команды set
 ```bash
-yt get //home/dev/test1/@some_attr
+$ yt get //home/dev/test1/@some_attr
 "test"
 ```
 
@@ -323,11 +323,11 @@ yt get //home/dev/test1/@some_attr
 ### Вызов команды set с опцией format
 
 ```bash
-yt set --format json //home/dev/test1/test2/test4 '{"some_test_key":"some_test_value"}'
+$ yt set --format json //home/dev/test1/test2/test4 '{"some_test_key":"some_test_value"}'
 ```
 ### Вызов команды set без опции format
 ```bash
-yt get //home/dev/test1/test2/test4
+$ yt get //home/dev/test1/test2/test4
 {
     "some_test_key" = "some_test_value";
 }
@@ -338,13 +338,13 @@ yt get //home/dev/test1/test2/test4
 ### Вызов команды set без опции recursive
 
 ```bash
-yt set //home/dev/test1/test2/test3 some_test_value
+$ yt set //home/dev/test1/test2/test3 some_test_value
 Node //home/dev has no child with key "test1"
 ```
 
 ### Вызов команды set с опцией recursive
 ```bash
-yt set --recursive //home/dev/test1/test2/test3 some_test_value
+$ yt set --recursive //home/dev/test1/test2/test3 some_test_value
 ```
 
 Опция `-f, --force` позволяет менять любые узлы Кипариса, а не только атрибуты и документы.
@@ -362,7 +362,7 @@ yt set --recursive //home/dev/test1/test2/test3 some_test_value
 ### Описание команды copy/move
 
 ```bash
-yt copy/move [--preserve-account | --no-preserve-account]
+$ yt copy/move [--preserve-account | --no-preserve-account]
                [--preserve-expiration-time] [--preserve-expiration-timeout]
                [--preserve-creation-time]
                [-r, --recursive] [-f, --force]
@@ -380,19 +380,19 @@ yt copy/move [--preserve-account | --no-preserve-account]
 ### Проверка аккаунта
 
 ```bash
-yt get //home/dev/test1/test_file/@account
+$ yt get //home/dev/test1/test_file/@account
 "dev"
 ```
 ### Вызов команды copy
 ```bash
-yt copy //home/dev/test1/test_file //home/dev/test1/test2/test_file_new
+$ yt copy //home/dev/test1/test_file //home/dev/test1/test2/test_file_new
 
 yt get //home/dev/test1/test2/test_file_new/@account
 "tmp"
 ```
 ### Вызов команды copy с опцией preserve-account
 ```bash
-yt copy --preserve-account //home/dev/test1/test_file //home/dev/test1/test2/test_file_new_p
+$ yt copy --preserve-account //home/dev/test1/test_file //home/dev/test1/test2/test_file_new_p
 
 yt get //home/dev/test1/test2/test_file_new_p/@account
 "dev"
@@ -403,12 +403,12 @@ yt get //home/dev/test1/test2/test_file_new_p/@account
 ### Вызов команды copy без опции recursive
 
 ```bash
-yt copy //home/dev/test1/test_file //home/dev/test1/test2/test3/test_file_new
+$ yt copy //home/dev/test1/test_file //home/dev/test1/test2/test3/test_file_new
 Node //home/dev/test1/test2 has no child with key "test3"
 ```
 ### Вызов команды copy с опцией recursive
 ```bash
-yt copy --recursive //home/dev/test1/test_file //home/dev/test1/test2/test3/test_file_new
+$ yt copy --recursive //home/dev/test1/test_file //home/dev/test1/test2/test3/test_file_new
 ```
 
 Опция `-f, --force` позволяет выполнить команду, даже если узел назначения существует. Существующий узел при этом удаляется.
@@ -416,12 +416,12 @@ yt copy --recursive //home/dev/test1/test_file //home/dev/test1/test2/test3/test
 ### Вызов команды copy без опции force
 
 ```bash
-yt copy //home/dev/test1/test_file //home/dev/test1/test2/test_file_new
+$ yt copy //home/dev/test1/test_file //home/dev/test1/test2/test_file_new
 Node //home/dev/test1/test2/test_file_new already exists
 ```
 ### Вызов команды copy с опцией force
 ```bash
-yt copy --force //home/dev/test1/test_file //home/dev/test1/test2/test_file_new
+$ yt copy --force //home/dev/test1/test_file //home/dev/test1/test2/test_file_new
 ```
 
 ## Link { #link }
@@ -431,7 +431,7 @@ yt copy --force //home/dev/test1/test_file //home/dev/test1/test2/test_file_new
 ### Описание команды link
 
 ```bash
-yt link [-r, --recursive]
+$ yt link [-r, --recursive]
           [-i, --ignore-existing] [-l, --lock-existing]
           [-f, --force]
           <target_path> <link_path>
@@ -442,12 +442,12 @@ yt link [-r, --recursive]
 ### Вызов команды link без опции recursive
 
 ```bash
-yt link //home/dev/test1/test_file //home/dev/test1/test2/link_test_file
+$ yt link //home/dev/test1/test_file //home/dev/test1/test2/link_test_file
 Node //home/dev/test1 has no child with key "test2"
 ```
 ### Вызов команды link с опцией recursive
 ```bash
-yt link --recursive  //home/dev/test1/test_file //home/dev/test1/test2/link_test_file
+$ yt link --recursive  //home/dev/test1/test_file //home/dev/test1/test2/link_test_file
 ```
 
 Опция `-i, --ignore-existing` не будет пересоздавать заново указанную ссылку, если она уже существует.
@@ -455,12 +455,12 @@ yt link --recursive  //home/dev/test1/test_file //home/dev/test1/test2/link_test
 ### Вызов команды link без опции ignore-existing
 
 ```bash
-yt link //home/dev/test1/test_file //home/dev/test1/test2/link_test_file
+$ yt link //home/dev/test1/test_file //home/dev/test1/test2/link_test_file
 Node //home/dev/test1/test2/link_test_file already exists
 ```
 ### Вызов команды link с опцией ignore-existing
 ```bash
-yt link --ignore-existing //home/dev/test1/test_file //home/dev/test1/test2/link_test_file
+$ yt link --ignore-existing //home/dev/test1/test_file //home/dev/test1/test2/link_test_file
 ```
 
 Опция `-l, --lock-existing` гарантирует, что на ссылку будет установлена [exclusive-блокировка](../../../user-guide/storage/transactions.md#locks), даже если ссылка уже существует. (Имеет смысл только вместе с `--ignore-existing`; в случае невозможности установить блокировку команда завершится ошибкой).
@@ -479,7 +479,7 @@ yt link --ignore-existing //home/dev/test1/test_file //home/dev/test1/test2/link
 
 ### Описание команды concatenate
 ```bash
-yt concatenate --src <source_paths> --dst <destination_path>
+$ yt concatenate --src <source_paths> --dst <destination_path>
 ```
 
 {% note warning "Внимание" %}
