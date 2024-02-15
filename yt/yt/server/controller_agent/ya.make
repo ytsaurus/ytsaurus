@@ -13,7 +13,6 @@ SRCS(
     master_connector.cpp
     helpers.cpp
     intermediate_chunk_scraper.cpp
-    job_spec_service.cpp
     job_size_constraints.cpp
     job_monitoring_index_manager.cpp
     job_prober_service.cpp
