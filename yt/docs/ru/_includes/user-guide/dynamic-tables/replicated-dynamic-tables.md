@@ -1,7 +1,8 @@
 # Реплицированные таблицы
 
 ## Общие сведения { #common }
-Реплицированные динамические таблицы — это разновидность таблиц в {{product-name}}, которая не хранит полный набор записанных данных, а представляет собой очередь на репликацию. По мере успешной записи в таблицы-реплики текущей динамической таблицы, данные из исходной таблицы удаляются.
+
+Реплицированные динамические таблицы — это разновидность таблиц в {{product-name}}, которая не хранит полный набор записанных данных, а представляет собой очередь на репликацию. По мере успешной записи в реплики данные из реплицированной динамической таблицы удаляются.
 
 Копии (реплики) реплицированной таблицы могут находиться как на том же кластере что и таблица источник (внутрикластерная репликация), так и на других кластерах, часто расположенных в разных ДЦ (межкластерная репликация). Репликация между динамическими таблицами позволяет иметь несколько копий одной и той же таблицы в независимых кластерах и организовать автоматическое копирование данных между ними.
 
@@ -11,11 +12,11 @@
 - повысить отказоустойчивость пользовательского сервиса за счёт изоляции реплик таблицы;
 - проводить обновления кластеров {{product-name}} с меньшим временем простоя для пользователя (или без такового).
 
-Реплицированными могут быть как [сортированные](../../../user-guide/dynamic-tables/overview.md) так и [упорядоченные](../../../user-guide/dynamic-tables/ordered-dynamic-tables.md) динамические таблицы. Сами реплики могут быть **синхронными** и **асинхронными**. Успешный коммит транзакции записи гарантирует, что данные попали в синхронную реплику и в очередь репликации. В асинхронные реплики данные будут записаны в фоне, Подробнее можно прочитать в разделе [Репликация](#replication)
+Реплицированными могут быть как [сортированные](../../../user-guide/dynamic-tables/overview.md), так и [упорядоченные](../../../user-guide/dynamic-tables/ordered-dynamic-tables.md) динамические таблицы. Сами реплики могут быть **синхронными** и **асинхронными**. Успешный коммит транзакции записи гарантирует, что данные попали в синхронную реплику и в очередь репликации. В асинхронные реплики данные будут записаны в фоне. Подробнее можно прочитать в разделе [Репликация](#replication).
 
-У каждой реплицированной динамической таблицы могут быть реплики обоих видов. Консистентность данных при записи в реплицированную динамическую таблицу такая же как и в случае использования нереплицированной динамической таблицы (сортированной или упорядоченной соответственно).
+У каждой реплицированной динамической таблицы могут быть реплики обоих видов. Консистентность данных при записи в реплицированную динамическую таблицу такая же, как и в случае использования нереплицированной динамической таблицы (сортированной или упорядоченной соответственно).
 
-Для того, чтобы воспользоваться репликацией, необходимо иметь один **мета-кластер** и один или более **кластеров-реплик**. Настройка репликации состоит из нескольких шагов:
+Для того чтобы воспользоваться репликацией, необходимо иметь один **мета-кластер** и один или более **кластеров-реплик**. Настройка репликации состоит из нескольких шагов:
 
 1. Создание на мета-кластере специального объекта `replicated_table`, хранящего информацию о репликах и статусе репликации;
 2. Создание на каждом из кластеров-реплик по одной динамической таблице (сортированной или упорядоченной в зависимости от решаемой задачи);
@@ -93,14 +94,14 @@
 ```bash
 yt create replicated_table //tmp/replicated --attr '{dynamic=%true; schema=[{name=k;type=string;sort_order=ascending};{name=v;type=string}]}'
 
-yt create table_replica --attr '{table_path="//tmp/replicated"; <cluster-name>="replica_cluster";replica_path="//tmp/replica"}'
+yt create table_replica --attr '{table_path="//tmp/replicated"; cluster_name="replica_cluster";replica_path="//tmp/replica"}'
 ```
 
 Данный набор команд создает на метакластере реплицированную таблицу `//tmp/replicated`, а также конфигурирует для нее (асинхронную) реплику на кластере `replica_cluster` по пути `//tmp/replica`.
 
 Указанные команды **не создают** сами по себе таблицу `//tmp/replica` на кластере-реплике, а лишь настраивают реплику для `//tmp/replicated`. Создание таблиц-реплик необходимо выполнять самостоятельно.
 
-Стоит обратить внимание, что сразу после создания реплики, она находится в **отключенном состоянии** (`state = "disabled"`), при котором репликация отключена. Чтобы запустить реплику необходимо выполнить команду `alter-table-replica --enable`, смотрите далее.
+Стоит обратить внимание, что сразу после создания реплики, она находится в **отключенном состоянии** (`state = "disabled"`), при котором репликация отключена. Чтобы запустить реплику, необходимо выполнить команду `alter-table-replica --enable`. Подробнее [ниже](#replica-state).
 
 У каждой созданной реплики (как и у любого объекта мастер-сервера) существует id. Для просмотра информации о реплике можно использовать следующие команды:
 
@@ -133,7 +134,7 @@ yt create table //tmp/replica --attr '{dynamic=%true; upstream_replica_id=replic
 
 Атрибут `upstream_replica_id` у таблицы можно изменить и после создания с помощью команды `alter-table`. При этом, все таблеты таблицы должны быть отмонтированы.
 
-### Настройки реплик
+### Настройки реплик {#replica-state}
 
 Сразу после создания реплики она находится в состоянии `disabled` (атрибут `state`). В таком положении репликация не осуществляется. Для того, чтобы включить реплику, необходимо воспользоваться командой `alter-table-replica`:
 
@@ -178,7 +179,7 @@ yt alter-table-replica replica-id --disable
 Текущий режим для таблицы-реплики можно посмотреть с помощью аттрибута `replicated_table_tracker_enabled` объекта реплики мета-кластера:
 
 ```bash
-yt meta-cluster get //home/some_meta_table/@replicas
+$ yt --proxy meta-cluster get //home/some_meta_table/@replicas
 
 "table-replica-id" = {
      "cluster_name" = "some_name";
@@ -248,6 +249,12 @@ yt set //tmp/replicated_table/@replication_throttler '{period=1000;limit=1000000
 
 По умолчанию асихнронная репликация упорядоченной динтаблицы пишет строки в произвольный таблет реплики. Если вам нужно сохранение индекса таблета (а это важно, если вы хотите видеть в разных репликах одну и ту же строку в таблетах под одним и тем же индексом), выставите атрибут `preserve_tablet_index` на самой упорядоченной динтаблице в `%true`. Если вы пользуетесь таким атрибутом, то вам нужно самостоятельно следить за тем, чтобы у реплицированной таблицы и у таблиц-реплик было строго одинаковое количество таблетов.
 
+## Изменение схемы { #alter_schema }
+
+Совместимое изменение схемы как таблицы-реплики, так и реплицированной таблицы можно выполнить с помощью команды `alter-table`. Команду необходимо выполнять на каждой таблице независимо. Перед вызовом команды таблицу необходимо отмонтировать.
+
+Схемы таблиц-реплик не обязаны совпадать со схемой реплицированной таблицы, но должны быть не уже схемы последней, чтобы репликация работала корректно. Изменение схемы нужно начинать с реплик, а затем переходить к реплицированной таблице.
+
 ## Устойчивость к даунтаймам и обновлениям { #downtimes }
 
 Каждый кластер-реплика существует независимо. При отключении кластера-реплики нет возможности читать из него данные. Обновления реплик можно выполнять независимо.
@@ -265,32 +272,32 @@ yt set //tmp/replicated_table/@replication_throttler '{period=1000;limit=1000000
 
 | Имя                    | Тип                  | Описание                                                 |
 | -------------------------- | ------------------------ | ------------------------------------------------------------ |
-| replicas                 | Guid->ReplicaInfo      | Описание реплик (ключи — id реплик, значения — некоторые их важные атрибуты). |
-| replicated_table_options | ReplicatedTableOptions | Настройки автоматики переключения реплик.       |
-| preserve_tablet_index | bool | Сохранять при репликации упорядоченных динтаблиц tablet index; по умолчанию `%false`. |
+| replicas                 | Guid->ReplicaInfo      | Описание реплик (ключи — id реплик, значения — некоторые их важные атрибуты) |
+| replicated_table_options | ReplicatedTableOptions | Настройки автоматики переключения реплик       |
+| preserve_tablet_index | bool | Сохранять при репликации упорядоченных динтаблиц tablet index; по умолчанию `%false` |
 
 Здесь `ReplicatedTableOptions` имеют вид:
 
 
 | Имя                           | Тип   | Описание                                                 |
 | --------------------------------- | --------- | ------------------------------------------------------------ |
-| enable_replicated_table_tracker | bool    | Включена ли автоматика переключения синхронных реплик; по умолчанию `%false`. |
-| max_sync_replica_count              | integer | Максимальное и желаемое количество синхронных реплик, которые нужно поддерживать автоматике. |
-| min_sync_replica_count              | integer | Минимальное количество синхронных реплик, которые нужно поддерживать автоматике. |
-| preferred_sync_replica_clusters   | list | Список предпочтительных кластеров для синхронных реплик. |
+| enable_replicated_table_tracker | bool    | Включена ли автоматика переключения синхронных реплик; по умолчанию `%false` |
+| max_sync_replica_count              | integer | Максимальное и желаемое количество синхронных реплик, которые нужно поддерживать автоматике |
+| min_sync_replica_count              | integer | Минимальное количество синхронных реплик, которые нужно поддерживать автоматике |
+| preferred_sync_replica_clusters   | list | Список предпочтительных кластеров для синхронных реплик |
 
 Каждая реплика описывается словарём `ReplicaInfo` следующего вида:
 
 | Имя                | Тип             | Описание                                                 |
 | ---------------------- | ------------------- | ------------------------------------------------------------ |
-| <cluster-name>         | string            | Имя кластера-реплики.                                        |
-| replica_path         | string            | Путь к таблице с репликой на кластере-реплике.               |
-| state                | TableReplicaState | Состояние реплики^[enabled/enabling/disabled/disabling]                                           |
-| mode                 | TableReplicaMode  | Режим работы реплики: `async` или `sync`.                    |
-| replication_lag_time | Duration          | Оценка лага реплики.                                         |
-| errors[*](**)               | Error           | Список ошибок при репликации на данную реплику.              |
-| preserve_timestamps  | bool              | Сохранять исходные `timestamp` ? По умолчанию `true`. Имеет смысл только для асинхронных реплик. |
-| atomicity            | EAtomicity        | `full` или `none`. Имеет смысл только для асинхронных реплик. |
+| cluster_name         | string            | Имя кластера-реплики                                        |
+| replica_path         | string            | Путь к таблице с репликой на кластере-реплике               |
+| state                | TableReplicaState | Состояние реплики                                        |
+| mode                 | TableReplicaMode  | Режим работы реплики: `async` или `sync`                    |
+| replication_lag_time | Duration          | Оценка лага реплики                                         |
+| errors               | Error[*](**)           | Список ошибок при репликации на данную реплику              |
+| preserve_timestamps  | bool              | Сохранять исходные `timestamp` ? По умолчанию `true`. Имеет смысл только для асинхронных реплик |
+| atomicity            | EAtomicity        | `full` или `none`. Имеет смысл только для асинхронных реплик |
 
 Параметр `replication_lag_time` дает примерную оценку лага репликации (с точностью до десятков секунд).
 
@@ -298,30 +305,30 @@ yt set //tmp/replicated_table/@replication_throttler '{period=1000;limit=1000000
 
 | Имя                           | Тип              | Описание                                                 |
 | --------------------------------- | -------------------- | ------------------------------------------------------------ |
-| mode                            | ReplicaMode        | Режим реплики: `sync`, `async`.                              |
-| start_replication_timestamp     | Timestamp          | Начальный timestamp для реплики.                             |
-| table_path                      | string             | Путь к реплицированной таблице на метакластере.              |
-| tablets[*](*)                   | TabletReplicaInfo | Описание состояния таблетов; позиция в списке соответствует индексу таблета, как в самой таблице. |
-| enable_replicated_table_tracker | bool               | Включает автоматику переключения синхронных реплик (смотрите выше); по умолчанию `%true.` |
+| mode                            | ReplicaMode        | Режим реплики: `sync`, `async`                              |
+| start_replication_timestamp     | Timestamp          | Начальный timestamp для реплики                             |
+| table_path                      | string             | Путь к реплицированной таблице на метакластере              |
+| tablets                   | TabletReplicaInfo[*](**) | Описание состояния таблетов; позиция в списке соответствует индексу таблета, как в самой таблице |
+| enable_replicated_table_tracker | bool               | Включает автоматику переключения синхронных реплик (см. выше); по умолчанию `%true` |
 
 Структура `TabletReplicaInfo` имеет следующий вид:
 
 | Имя                         | Тип             | Описание                                                 |
 | ------------------------------- | ------------------- | ------------------------------------------------------------ |
-| tablet_id                     | Guid              | Id таблета.                                                  |
-| state                         | TableReplicaState | Состояние данной реплики данного таблета.                    |
-| current_replication_row_index | integer           | Граница репликации в очереди по индексу записи (репликации подлежат записи с индексом >= данного ). |
-| current_replication_timestamp | Timestamp         | Граница репликации в очереди по timestamp (репликации подлежат записи с timestamp > данного). |
-| replication_lag_time          | Duration          | Оценка лага реплики для данного таблета.                     |
-| flushed_row_count             | integer           | Количество записанных на диск строк в данном таблете; если реплицированная таблица заморожена, то это значение можно сравнивать с `current_replication_row_index` для слежения за репликацией. |
-| trimmed_row_count`             | integer           | Количество начальных строк в данном таблете, которые были реплицированы всюду и чанки которых были удалены (log truncation). |
-| replication_error             | Error             | Описывает ошибку при репликации. В случае отсутствия ошибки данный тег также будет отсутствовать. |
+| tablet_id                     | Guid              | Id таблета                                                  |
+| state                         | TableReplicaState | Состояние данной реплики данного таблета                    |
+| current_replication_row_index | integer           | Граница репликации в очереди по индексу записи (репликации подлежат записи с индексом >= данного) |
+| current_replication_timestamp | Timestamp         | Граница репликации в очереди по timestamp (репликации подлежат записи с timestamp > данного) |
+| replication_lag_time          | Duration          | Оценка лага реплики для данного таблета                     |
+| flushed_row_count             | integer           | Количество записанных на диск строк в данном таблете; если реплицированная таблица заморожена, то это значение можно сравнивать с `current_replication_row_index` для слежения за репликацией |
+| trimmed_row_count`             | integer           | Количество начальных строк в данном таблете, которые были реплицированы всюду и чанки которых были удалены (log truncation) |
+| replication_error             | Error             | Описывает ошибку при репликации. В случае отсутствия ошибки данный тег также будет отсутствовать |
 
 В процессе работы репликатора параметры `current_replication_row_index` и `current_replication_timestamp` монотонно растут, отмечая успешно отреплицированные записи.
 
 ## Проверка очереди репликации { #queue_check }
 
-Проверка очереди репликации полезно выполнять для того чтобы пересоздать реплицированную таблицу, при этом не потеряв изменения.  Порядок действий таков:
+Проверку очереди репликации полезно выполнять для того, чтобы пересоздать реплицированную таблицу, при этом не потеряв изменения. Порядок действий таков:
 
 1. Выполнить команду `freeze-table` для реплицированной таблицы.
 2. Дождаться (опрашивая атрибут `tablet_state` у таблице), пока все таблеты перейдут в состояние `frozen`.
@@ -345,32 +352,32 @@ yt create replicated_table //tmp/replicated --attr '{
 }'
 730e-68d3e-3ff01a9-325bbdcd
 
-# Создание реплики, связанную с кластером <cluster-name>.
+# Создание реплики, связанной с кластером first-replica-cluster.
 yt create table_replica --attr '{
   table_path="//tmp/replicated";
-  <cluster-name>="cluster-name";
+  cluster_name="first-replica-cluster";
   replica_path="//tmp/replica"
 }'
 730e-7bcd8-3ff02c5-fd0b36ee
 
-# Создание второй реплики на кластере <cluster-name>.
+# Создание второй реплики на кластере second-replica-cluster.
 yt create table_replica --attr '{
   table_path="//tmp/replicated";
-  <cluster-name>="<cluster-name>";
+  cluster_name="second-replica-cluster";
   replica_path="//tmp/replica"
 }'
 730e-8611b-3ff02c5-f647333f
 
-# Создание таблицы-реплики на кластере <cluster-name>.
-YT_PROXY=cluster-name yt create table //tmp/replica --attr '{
+# Создание таблицы-реплики на кластере first-replica-cluster.
+YT_PROXY=first-replica-cluster yt create table //tmp/replica --attr '{
   dynamic=%true;
   upstream_replica_id="730e-7bcd8-3ff02c5-fd0b36ee";
   schema=[{name=k;type=int64;sort_order=ascending};{name=v;type=int64}]
 }'
 6cd9-66770-3ee0191-980d9f6
 
-# Создание таблицы-реплики на кластере <cluster-name>.
-YT_PROXY=<cluster-name> yt create table //tmp/replica --attr '{
+# Создание таблицы-реплики на кластере second-replica-cluster.
+YT_PROXY=second-replica-cluster yt create table //tmp/replica --attr '{
   dynamic=%true;
   upstream_replica_id="730e-8611b-3ff02c5-f647333f";
   schema=[{name=k;type=int64;sort_order=ascending};{name=v;type=int64}]
@@ -379,18 +386,18 @@ YT_PROXY=<cluster-name> yt create table //tmp/replica --attr '{
 
 # Монтирование таблицы-реплики и реплицированной таблицы.
 yt mount-table //tmp/replicated
-YT_PROXY=cluster-name yt mount-table //tmp/replica
-YT_PROXY=<cluster-name> yt mount-table //tmp/replica
+YT_PROXY=first-replica-cluster yt mount-table //tmp/replica
+YT_PROXY=second-replica-cluster yt mount-table //tmp/replica
 
 # Запись данных в реплицированную таблицу.
 echo '{k=1;v=100}' | yt insert-rows //tmp/replicated --format yson
 Table //tmp/replicated has no synchronous replicas
 
-# Выставление флага no-require-sync-replica, чтобы форсировать запись
+# Выставление флага no-require-sync-replica, чтобы форсировать запись.
 echo '{k=1;v=100}' | yt insert-rows //tmp/replicated --format yson --no-require-sync-replica
 
-# Запись прошла успешно, но в реплике нет данных:
-YT_PROXY=cluster-name yt select-rows '* from [//tmp/replica]' --format yson
+# Запись прошла успешно, но в реплике нет данных.
+YT_PROXY=first-replica-cluster yt select-rows '* from [//tmp/replica]' --format yson
 
 # Просмотр состояния реплики.
 yt get '#730e-7bcd8-3ff02c5-fd0b36ee/@state'
@@ -401,7 +408,7 @@ yt alter-table-replica 730e-8611b-3ff02c5-f647333f --enable
 yt alter-table-replica 730e-7bcd8-3ff02c5-fd0b36ee --enable
 
 # Проверка успешности репликации.
-YT_PROXY=cluster-name yt select-rows '* from [//tmp/replica]' --format json
+YT_PROXY=first-replica-cluster yt select-rows '* from [//tmp/replica]' --format json
 {"k":1,"v":100}
 
 # Попытка прочитать данные прямо из реплицированной таблицы.
@@ -414,27 +421,27 @@ yt alter-table-replica 730e-8611b-3ff02c5-f647333f --disable
 echo '{k=2;v=200}' | yt insert-rows //tmp/replicated --format yson --no-require-sync-replica
 
 # Чтение из реплик
-YT_PROXY=cluster-name yt select-rows '* from [//tmp/replica]' --format json
+YT_PROXY=first-replica-cluster yt select-rows '* from [//tmp/replica]' --format json
 {"k":1,"v":100}
 {"k":2,"v":200}
 
-YT_PROXY=<cluster-name> yt select-rows '* from [//tmp/replica]' --format json
+YT_PROXY=second-replica-cluster yt select-rows '* from [//tmp/replica]' --format json
 {"k":1,"v":100}
 
-# Видно, что в <cluster-name> данные пришли, а в <cluster-name> нет.
+# Видно, что в first-replica-cluster данные пришли, а в second-replica-cluster нет.
 # Неработающую репликацию можно заметить по растущему лагу.
 yt get '#730e-8611b-3ff02c5-f647333f/@replication_lag_time'
 141000
 
-# Изменение типа репликации на <cluster-name> и включение реплики
+# Изменение типа репликации на first-replica-cluster и включение реплики.
 yt alter-table-replica 730e-8611b-3ff02c5-f647333f --enable --mode sync
 
-# Чтение данных из <cluster-name> и проверка наличия данных
-YT_PROXY=<cluster-name> yt select-rows '* from [//tmp/replica]' --format json
+# Чтение данных из first-replica-cluster и проверка наличия данных.
+YT_PROXY=first-replica-cluster yt select-rows '* from [//tmp/replica]' --format json
 {"k":1,"v":100}
 {"k":2,"v":200}
 
-# Наличие синхронной реплики дает возможность читать прямо из реплицированной таблицы
+# Наличие синхронной реплики даёт возможность читать прямо из реплицированной таблицы.
 yt select-rows '* from [//tmp/replicated]' --format json
 {"k":1,"v":100}
 {"k":2,"v":200}
@@ -442,17 +449,17 @@ yt select-rows '* from [//tmp/replicated]' --format json
 # Удаление первой строки, на этот раз в синхронном режиме.
 echo '{k=1}' | yt delete-rows //tmp/replicated --format yson
 
-# Проверка выполнения команды
-YT_PROXY=cluster-name yt select-rows '* from [//tmp/replica]' --format json
+# Проверка выполнения команды.
+YT_PROXY=first-replica-cluster yt select-rows '* from [//tmp/replica]' --format json
 {"k":2,"v":200}
 
-YT_PROXY=<cluster-name> yt select-rows '* from [//tmp/replica]' --format json
+YT_PROXY=second-replica-cluster yt select-rows '* from [//tmp/replica]' --format json
 {"k":2,"v":200}
 
-# Отключение записи в реплицированную таблицу
+# Отключение записи в реплицированную таблицу.
 yt freeze-table //tmp/replicated
 
-# Проверка того что таблет заморожен, т.е. все данные записаны на диск.
+# Проверка того, что таблет заморожен, т. е. все данные записаны на диск.
 yt get //tmp/replicated/@tablet_state
 "frozen"
 
@@ -484,7 +491,7 @@ yt get '#730e-8611b-3ff02c5-f647333f/@tablets'
     };
 ]
 
-# Видно, что значения flushed_row_count и current_replication_row_index одинаковы, т.е. обе реплики полностью отреплицированы.
+# Видно, что значения flushed_row_count и current_replication_row_index одинаковы, т. е. обе реплики полностью отреплицированы.
 ```
 
 [**]: Параметр встречается в ответе несколько раз.

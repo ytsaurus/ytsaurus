@@ -114,8 +114,6 @@ You can write of one or more dynamic tables within a single tablet transaction t
 
 You can specify the `atomicity` and `durability` settings for tablet transactions.
 
-Apply tablet transactions by default if there is no need to update Cypress in a transactional way.
-
 ### Writing rows { #insert_rows }
 
 The client can write data within the active transaction using the `insert_rows` method. To do this, the rows to be written must be reported. All key fields must be present in each such row. Some of the data fields from those specified in the schema may be missing.

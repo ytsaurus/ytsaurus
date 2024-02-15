@@ -145,7 +145,7 @@ If the data scenario involves the constant addition of deltas to values already 
 
 No old value is read, only the delta is written to the table. The actual summing up occurs when reading. The values in the tables are stored together with a timestamp. When reading from an aggregation column, values corresponding to the same key and the same column, but with different timestamps, are summed up. To perform optimization, the old data in the aggregation column is summed up at the compaction stage, and only one value corresponding to their sum remains in the table.
 
-The following aggregate functions are supported: `sum`, `min`, `max`, or [`first`](*first).
+The following aggregate functions are supported: `sum`, `min`, `max`, or `first`.
 
 The default setting is to overwrite what is in the table. To write a delta, specify the `aggregate=true` option in the write command.
 
