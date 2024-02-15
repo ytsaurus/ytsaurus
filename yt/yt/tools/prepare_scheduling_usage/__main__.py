@@ -120,6 +120,33 @@ def get_item(other_columns, key, default_value=None):
     return other_columns[key]
 
 
+def get_sdk(spec):
+    if get_item(spec, "annotations", {}).get("nv_block_id"):
+        return "Nirvana"
+    elif get_item(spec, "started_by", {}).get("python_version"):
+        return "Python"
+    elif (get_item(spec, "started_by", {}).get("user") == "yqlworker"
+          or get_item(spec, "description", {}).get("yql_runner")):
+        return "YQL"
+    elif get_item(spec, "started_by", {}).get("wrapper_version", "").startswith("YT C++"):
+        return "C++"
+    elif get_item(spec, "started_by", {}).get("wrapper_version", "").startswith("yt/java/ytclient"):
+        return "Java"
+    elif get_item(spec, "started_by", {}).get("wrapper_version", "").startswith("iceberg/inside-yt"):
+        return "Java Iceberg"
+    elif get_item(spec, "started_by", {}).get("wrapper_version", "").startswith("JavaScript Wrapper"):
+        return "JavaScript"
+    elif not get_item(spec, "started_by"):
+        return "Go"
+    else:
+        return "Unknown"
+
+
+def optional_date_string_to_timestamp(s):
+    if s:
+        return date_string_to_timestamp(s)
+
+
 @yt_dataclass
 class InputRow:
     other: OtherColumns
@@ -135,8 +162,10 @@ class OperationInfo:
     operation_type: typing.Optional[str]
     operation_state: typing.Optional[str]
     user: typing.Optional[str]
+    sdk: typing.Optional[str]
     # TODO(ignat): Tuple?
     pools: typing.List[str]
+    title: typing.Optional[str]
     annotations: typing.Optional[YsonBytes]
     accumulated_resource_usage_cpu: typing.Optional[float]
     accumulated_resource_usage_memory: typing.Optional[float]
@@ -284,6 +313,9 @@ def merge_info(info_base, info_update):
     info_base.finish_time = info_update.finish_time
     info_base.job_statistics = info_update.job_statistics
 
+    info_base.title = info_base.title or info_update.title
+    info_base.sdk = info_base.sdk or info_update.sdk
+
     if len(info_update.other):
         info_base.other = info_update.other
 
@@ -358,7 +390,8 @@ class ExtractPoolsMapping(TypedJob):
 
 class FilterAndNormalizeEvents(TypedJob):
     def __init__(self, cluster_and_tree_to_pool_mapping):
-        self._known_events = ("operation_completed", "operation_aborted", "operation_failed", "accumulated_usage_info")
+        self._known_events = ("operation_completed", "operation_aborted", "operation_failed", "operation_started",
+                              "accumulated_usage_info")
         self._cluster_and_tree_to_pool_mapping = cluster_and_tree_to_pool_mapping
 
     def prepare_operation(self, context, preparer):
@@ -377,7 +410,9 @@ class FilterAndNormalizeEvents(TypedJob):
                 operation_type=info["operation_type"],
                 operation_state="running",
                 user=info["user"],
+                sdk=None,
                 pools=pools,
+                title=None,
                 annotations=yson.dumps(info.get("trimmed_annotations")),
                 accumulated_resource_usage_cpu=info["accumulated_resource_usage"]["cpu"],
                 accumulated_resource_usage_memory=info["accumulated_resource_usage"]["user_memory"],
@@ -401,7 +436,7 @@ class FilterAndNormalizeEvents(TypedJob):
                 other=OtherColumns(dict()),
             )
 
-    def _process_operation_finished(self, input_row):
+    def _process_operation_finished_or_started(self, input_row):
         accumulated_resource_usage_per_tree = input_row["accumulated_resource_usage_per_tree"]
         if accumulated_resource_usage_per_tree is None:
             return
@@ -411,10 +446,11 @@ class FilterAndNormalizeEvents(TypedJob):
         else:
             scheduling_info_per_tree = input_row["_rest"].get("scheduling_info_per_tree")
 
-        if "runtime_parameters" in input_row:
-            runtime_parameters = input_row["runtime_parameters"]
-        else:
-            runtime_parameters = input_row["_rest"]["runtime_parameters"]
+        if input_row["event_type"] != "operation_started":
+            if "runtime_parameters" in input_row:
+                runtime_parameters = input_row["runtime_parameters"]
+            else:
+                runtime_parameters = input_row["_rest"]["runtime_parameters"]
 
         all_job_statistics = get_item(get_item(input_row, "progress"), "job_statistics_v2")
         for pool_tree in accumulated_resource_usage_per_tree:
@@ -432,6 +468,9 @@ class FilterAndNormalizeEvents(TypedJob):
             annotations_yson = yson.dumps(get_item(input_row, "trimmed_annotations"))
             usage = input_row["accumulated_resource_usage_per_tree"][pool_tree]
             ms_multiplier = 1.0 / 1000
+            operation_state = "running" \
+                if input_row["event_type"] == "operation_started" \
+                else input_row["event_type"][len("operation_"):]
             yield OperationInfo(
                 timestamp=date_string_to_timestamp(input_row["timestamp"]),
                 cluster=input_row["cluster"],
@@ -439,9 +478,11 @@ class FilterAndNormalizeEvents(TypedJob):
                 pool_path=build_pool_path(pools),
                 operation_id=input_row["operation_id"],
                 operation_type=input_row["operation_type"],
-                operation_state=input_row["event_type"][len("operation_"):],
+                operation_state=operation_state,
                 user=input_row["authenticated_user"],
+                sdk=get_sdk(get_item(input_row, "spec")),
                 pools=pools,
+                title=get_item(input_row, "spec", {}).get("title"),
                 annotations=annotations_yson,
                 accumulated_resource_usage_cpu=usage["cpu"],
                 accumulated_resource_usage_memory=usage["user_memory"],
@@ -469,8 +510,8 @@ class FilterAndNormalizeEvents(TypedJob):
                 data_output_chunk_count=extract_data_output_stat(job_statistics, "chunk_count"),
                 data_output_data_weight=extract_data_output_stat(job_statistics, "data_weight"),
                 job_statistics=yson.dumps(job_statistics),
-                start_time=date_string_to_timestamp(input_row["start_time"]),
-                finish_time=date_string_to_timestamp(input_row["finish_time"]),
+                start_time=optional_date_string_to_timestamp(get_item(input_row, "start_time")),
+                finish_time=optional_date_string_to_timestamp(get_item(input_row, "finish_time")),
                 other=OtherColumns(dict()),
             )
 
@@ -496,7 +537,7 @@ class FilterAndNormalizeEvents(TypedJob):
         if event_type == "accumulated_usage_info":
             yield from self._process_accumulated_usage_info(input_row)
         else:
-            yield from self._process_operation_finished(input_row)
+            yield from self._process_operation_finished_or_started(input_row)
 
 
 class AggregateEvents(TypedJob):

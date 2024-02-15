@@ -38,7 +38,9 @@ class OperationInfo:
     operation_type: typing.Optional[str]
     operation_state: typing.Optional[str]
     user: typing.Optional[str]
+    sdk: typing.Optional[str]
     pools: typing.List[str]
+    title: typing.Optional[str]
     annotations: typing.Optional[YsonBytes]
     accumulated_resource_usage_cpu: typing.Optional[float]
     accumulated_resource_usage_memory: typing.Optional[float]
@@ -103,6 +105,7 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
             assert row["operation_id"] == op_id
             assert row["cluster"] == "local_cluster"
             assert row["pool_path"] == "/parent_pool/test_pool"
+            assert row["title"] == "test_title"
             if isinstance(row["annotations"], str):
                 row["annotations"] = yson.loads(row["annotations"].encode("ascii"))
             assert row["annotations"] == {"my_key": "my_value"}
@@ -135,7 +138,8 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
             "sleep 5.2",
             pool="test_pool",
             spec={
-                "annotations": {"my_key": "my_value"}
+                "annotations": {"my_key": "my_value"},
+                "title": "test_title"
             },
             track=True)
 
