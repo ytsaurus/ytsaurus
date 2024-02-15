@@ -13,7 +13,6 @@ struct TNetworkConfig {
 
 struct TTestConfig {
     int NumPhases;
-    int NumChains;
     int Seed;
     int Multiplier;
     int64_t NumBootstrapRecords;

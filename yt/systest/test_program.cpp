@@ -61,7 +61,7 @@ void TProgram::DoRun(const NLastGetopt::TOptsParseResult&)
 
     YT_LOG_INFO("Starting tester");
 
-    auto testSpec = GenerateShortSystestSpec(Config_.TestConfig);
+    auto testSpec = GenerateSystestSpec(Config_.TestConfig);
 
     auto client = NYT::CreateClientFromEnv();
     auto rpcClient = CreateRpcClient(Config_.NetworkConfig);

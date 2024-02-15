@@ -91,8 +91,7 @@ static bool isLowCardinality(NProto::EColumnType type)
         type == NProto::EColumnType::EInt16;
 }
 
-static bool TableContainsLowCardinalityColumn(
-    const TTable& table)
+static bool TableContainsLowCardinalityColumn(const TTable& table)
 {
     for (int i = 0; i < std::ssize(table.DataColumns); ++i) {
         if (!isLowCardinality(table.DataColumns[i].Type)) {
@@ -217,9 +216,7 @@ static void PopulateSortReduceTables(
     *reduceTable = CreateTableFromReduceOperation(*sortTable, reduceOperation, &indices);
 }
 
-///////////////////////////////////////////////////////////////////////////////
-
-std::unique_ptr<IMultiMapper> CreateAlterRename(const TTable& source)
+static std::unique_ptr<IMultiMapper> CreateAlterRename(const TTable& source)
 {
     const int renameIndex = 5;
     const int numIndices = std::ssize(source.DataColumns);
@@ -253,7 +250,7 @@ std::unique_ptr<IMultiMapper> CreateAlterRename(const TTable& source)
 
 }
 
-std::unique_ptr<IMultiMapper> CreateAlterRenameAndDelete(std::mt19937_64& engine, const TTable& source)
+static std::unique_ptr<IMultiMapper> CreateAlterRenameAndDelete(std::mt19937_64& engine, const TTable& source)
 {
     std::vector<int> indices;
     const int numColumns = std::ssize(source.DataColumns);
@@ -296,130 +293,151 @@ std::unique_ptr<IMultiMapper> CreateAlterRenameAndDelete(std::mt19937_64& engine
         std::make_unique<TConcatenateColumnsRowMapper>(source, std::move(columnOperations)));
 }
 
-NProto::TSystestSpec GenerateShortSystestSpec(const TTestConfig& config)
+///////////////////////////////////////////////////////////////////////////////
+
+class TSystestSpecGenerator
 {
-    NProto::TSystestSpec result;
-    PopulateBootstrapTable(result.add_table(), config.NumBootstrapRecords);
-    auto bootstrapDataset = std::make_unique<TBootstrapDataset>(config.NumBootstrapRecords);
+public:
+    explicit TSystestSpecGenerator(const TTestConfig& config)
+        : Config_(config)
+    {
+    }
 
-    TTable bootstrap(bootstrapDataset->table_schema());
-    std::vector<TTable> base, sort, reduce, alter, alterSort, alterReduce;
+    NProto::TSystestSpec Generate();
 
-    for (int i = 0; i < config.NumPhases; i++) {
-        auto* table = result.add_table();
-        auto op = GenerateMultipleColumns(
-            i > 0 ? base[i - 1] : bootstrap, config.Multiplier, config.Seed + i);
+private:
+    const TTestConfig Config_;
+    NProto::TSystestSpec Result_;
 
-        op->ToProto(table->mutable_map()->mutable_operation());
-        table->set_name("base_" + std::to_string(i));
-        if (i > 0) {
-            if (config.EnableRenames) {
-                table->set_parent("alter_" + std::to_string(i - 1));
-            } else {
-                table->set_parent("base_" + std::to_string(i - 1));
-            }
+    std::vector<TTable> Tables_;
+    std::vector<TString> TableNames_;
+
+    int AddMap(const TString& name, int seed, int parent, int multiplier);
+    int AddAlter(const TString& name, int seed, int parent);
+    int AddSortReduce(const TString& sortName, const TString& reduceName, int seed, int parent);
+    void CreateChain(const TString& chainName, int seed, int startIndex, int multiplier, int chainLength);
+};
+
+int TSystestSpecGenerator::AddMap(const TString& name, int seed, int parent, int multiplier)
+{
+    auto op = GenerateMultipleColumns(Tables_.at(parent), multiplier, seed);
+
+    auto* table = Result_.add_table();
+    op->ToProto(table->mutable_map()->mutable_operation());
+    table->set_name(name);
+    table->set_parent(TableNames_.at(parent));
+
+    Tables_.push_back(CreateTableFromMapOperation(*op));
+    TableNames_.push_back(table->name());
+
+    return std::ssize(Tables_) - 1;
+}
+
+int TSystestSpecGenerator::AddAlter(const TString& name, int seed, int parent)
+{
+    auto* alterTable = Result_.add_table();
+    alterTable->set_name(name);
+    alterTable->set_parent(TableNames_.at(parent));
+
+    std::unique_ptr<IMultiMapper> op;
+
+    std::mt19937_64 engine(seed);
+    if (Config_.EnableDeletes) {
+        op = CreateAlterRenameAndDelete(engine, Tables_.at(parent));
+    } else {
+        op = CreateAlterRename(Tables_.at(parent));
+    }
+
+    op->ToProto(alterTable->mutable_map()->mutable_operation());
+
+    Tables_.push_back(CreateTableFromMapOperation(*op));
+    TableNames_.push_back(alterTable->name());
+    return std::ssize(Tables_) - 1;
+}
+
+int TSystestSpecGenerator::AddSortReduce(const TString& sortName, const TString& reduceName, int seed, int parent)
+{
+    auto* sortProto = Result_.add_table();
+    auto* reduceProto = Result_.add_table();
+
+    sortProto->set_name(sortName);
+    sortProto->set_parent(TableNames_.at(parent));
+
+    reduceProto->set_name(reduceName);
+    reduceProto->set_parent(sortName);
+
+    std::mt19937_64 engine(seed);
+    TTable sortTable, reduceTable;
+    PopulateSortReduceTables(Tables_[parent], engine, &sortTable, sortProto, &reduceTable, reduceProto);
+
+    Tables_.push_back(sortTable);
+    TableNames_.push_back(sortName);
+
+    Tables_.push_back(reduceTable);
+    TableNames_.push_back(reduceName);
+    return std::ssize(Tables_) - 1;
+}
+
+void TSystestSpecGenerator::CreateChain(const TString& chainName, int seed, int startIndex, int multiplier, int chainLength)
+{
+    int baseIndex = -1;
+    int alterIndex = -1;
+    for (int phaseIndex = 0; phaseIndex < chainLength; ++phaseIndex) {
+        int parentIndex;
+        if (phaseIndex == 0) {
+            parentIndex = startIndex;
         } else {
-            table->set_parent("bootstrap");
+            parentIndex = Config_.EnableRenames ? alterIndex : baseIndex;
+        }
+        baseIndex = AddMap(
+            chainName + "_base_" + std::to_string(phaseIndex),
+            seed * 1000 + phaseIndex * 10,
+            parentIndex,
+            multiplier);
+
+        if (Config_.EnableReduce) {
+            AddSortReduce(
+                chainName + "_sort_" + std::to_string(phaseIndex),
+                chainName + "_reduce_" + std::to_string(phaseIndex),
+                seed * 1000 + phaseIndex * 10 + 1,
+                baseIndex);
         }
 
-        base.push_back(CreateTableFromMapOperation(*op));
-    }
+        if (Config_.EnableRenames) {
+            alterIndex = AddAlter(
+                chainName + "_alter_" + std::to_string(phaseIndex),
+                seed * 1000 + phaseIndex * 10 + 2,
+                baseIndex);
 
-    std::mt19937_64 engine(config.Seed);
-
-    if (config.EnableReduce) {
-        for (int i = 0; i < config.NumPhases; i++) {
-            auto* sortProto = result.add_table();
-            auto* reduceProto = result.add_table();
-
-            sortProto->set_name("sort_" + std::to_string(i));
-            sortProto->set_parent("base_" + std::to_string(i));
-
-            reduceProto->set_name("reduce_" + std::to_string(i));
-            reduceProto->set_parent("sort_" + std::to_string(i));
-
-            TTable sortTable, reduceTable;
-            PopulateSortReduceTables(base[i], engine, &sortTable, sortProto, &reduceTable, reduceProto);
-
-            sort.push_back(sortTable);
-            reduce.push_back(reduceTable);
-        }
-    }
-
-    if (config.EnableRenames) {
-        for (int i = 0; i < config.NumPhases; i++) {
-            auto* alterTable = result.add_table();
-            alterTable->set_name("alter_" + std::to_string(i));
-            alterTable->set_parent("base_" + std::to_string(i));
-
-            std::unique_ptr<IMultiMapper> op;
-            if (config.EnableDeletes) {
-                op = CreateAlterRenameAndDelete(engine, base[i]);
-            } else {
-                op = CreateAlterRename(base[i]);
-            }
-
-            op->ToProto(alterTable->mutable_map()->mutable_operation());
-            alter.push_back(CreateTableFromMapOperation(*op));
-
-            if (config.EnableReduce && TableContainsLowCardinalityColumn(alter[i])) {
-                auto* sortProto = result.add_table();
-                auto* reduceProto = result.add_table();
-
-                sortProto->set_name("alter_sort_" + std::to_string(i));
-                sortProto->set_parent("alter_" + std::to_string(i));
-
-                reduceProto->set_name("alter_reduce_" + std::to_string(i));
-                reduceProto->set_parent("alter_sort_" + std::to_string(i));
-
-                TTable sortTable, reduceTable;
-                PopulateSortReduceTables(alter[i], engine, &sortTable, sortProto, &reduceTable, reduceProto);
-
-                alterSort.push_back(sortTable);
-                alterReduce.push_back(reduceTable);
+            if (Config_.EnableReduce && TableContainsLowCardinalityColumn(Tables_[alterIndex])) {
+                AddSortReduce(
+                    chainName + "_alter_sort_" + std::to_string(phaseIndex),
+                    chainName + "_alter_reduce_" + std::to_string(phaseIndex),
+                    seed * 1000 + phaseIndex * 10 + 3,
+                    alterIndex);
             }
         }
     }
+}
 
-    return SortSpecTopologically(std::move(result));
+NProto::TSystestSpec TSystestSpecGenerator::Generate()
+{
+    PopulateBootstrapTable(Result_.add_table(), Config_.NumBootstrapRecords);
+    auto bootstrapDataset = std::make_unique<TBootstrapDataset>(Config_.NumBootstrapRecords);
+    TTable bootstrap(bootstrapDataset->table_schema());
+
+    Tables_.push_back(bootstrap);
+    TableNames_.push_back("bootstrap");
+
+    CreateChain("s", Config_.Seed, 0, Config_.Multiplier, Config_.NumPhases);
+
+    return SortSpecTopologically(Result_);
 }
 
 NProto::TSystestSpec GenerateSystestSpec(const TTestConfig& config)
 {
-    NProto::TSystestSpec result;
-    PopulateBootstrapTable(result.add_table(), config.NumBootstrapRecords);
-    auto bootstrapDataset = std::make_unique<TBootstrapDataset>(config.NumBootstrapRecords);
-
-    TTable bootstrap(bootstrapDataset->table_schema());
-
-    std::vector<std::vector<TTable>> base(config.NumChains);
-    std::vector<std::vector<TTable>> alter(config.NumChains);
-
-    for (int chainIndex = 0; chainIndex < config.NumChains; ++chainIndex) {
-        for (int phaseIndex = 0; phaseIndex < config.NumPhases; ++phaseIndex) {
-            auto op = GenerateMultipleColumns(
-                phaseIndex > 0 ? base[chainIndex][phaseIndex - 1] : bootstrap, config.Multiplier,
-                config.Seed * 1000000 + chainIndex * 1000 + phaseIndex);
-
-            auto* table = result.add_table();
-            op->ToProto(table->mutable_map()->mutable_operation());
-            table->set_name("base_" + std::to_string(chainIndex) + "_" + std::to_string(phaseIndex));
-
-            if (phaseIndex > 0) {
-                if (config.EnableRenames) {
-                    table->set_parent("alter_" + std::to_string(chainIndex) + "_" + std::to_string(phaseIndex - 1));
-                } else {
-                    table->set_parent("base_" + std::to_string(chainIndex) + "_" + std::to_string(phaseIndex - 1));
-                }
-            } else {
-                table->set_parent("bootstrap");
-            }
-
-            base[chainIndex].push_back(CreateTableFromMapOperation(*op));
-        }
-    }
-
-    return result;
+    TSystestSpecGenerator generator(config);
+    return generator.Generate();
 }
 
 }  // namespace NYT::NTest

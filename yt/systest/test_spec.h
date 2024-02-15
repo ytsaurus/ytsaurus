@@ -5,7 +5,7 @@
 
 namespace NYT::NTest {
 
-NProto::TSystestSpec GenerateSystestSpec(int seed);
+NProto::TSystestSpec GenerateSystestSpec(const TTestConfig& config);
 
 NProto::TSystestSpec GenerateShortSystestSpec(const TTestConfig& config);
 
