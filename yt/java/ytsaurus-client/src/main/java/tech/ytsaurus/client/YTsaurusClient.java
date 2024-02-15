@@ -130,6 +130,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
                 builder.builder.clusters,
                 builder.builder.preferredClusterName,
                 builder.builder.proxyRole,
+                builder.builder.proxyNetworkName,
                 builder.builder.config.getUseTLS(),
                 builder.builder.config.getTvmOnly(),
                 builder.builder.config.getIgnoreBalancers(),
@@ -279,6 +280,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
                 List<YTsaurusCluster> clusters,
                 @Nullable String localDataCenterName,
                 @Nullable String proxyRole,
+                @Nullable String proxyNetworkName,
                 boolean useTLS,
                 boolean tvmOnly,
                 boolean ignoreBalancers,
@@ -309,6 +311,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
                                     .setBalancerFqdn(curCluster.balancerFqdn)
                                     .setBalancerPort(curCluster.port)
                                     .setRole(proxyRole)
+                                    .setProxyNetworkName(proxyNetworkName)
                                     .setUseTLS(useTLS)
                                     .setTvmOnly(tvmOnly)
                                     .setIgnoreBalancers(ignoreBalancers)
@@ -534,6 +537,9 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
         String preferredClusterName;
         @Nullable
         String proxyRole;
+        @Nullable
+        String proxyNetworkName;
+
         List<YTsaurusCluster> clusters = new ArrayList<>();
         boolean enableValidation = true;
         Executor heavyExecutor = ForkJoinPool.commonPool();
@@ -659,6 +665,17 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
             return self();
         }
 
+        /**
+         * Set proxy network name to use.
+         *
+         * <p>
+         * If no proxy network name is specified default network name will be used.
+         */
+        public TBuilder setProxyNetworkName(@Nullable String proxyNetworkName) {
+            this.proxyNetworkName = proxyNetworkName;
+            return self();
+        }
+
         protected <C, B extends ClientBuilder<C, B>> ClientBuilder<C, B> copyTo(ClientBuilder<C, B> builder) {
             builder.auth = auth;
             builder.compression = compression;
@@ -671,6 +688,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
             builder.clusters = clusters;
             builder.enableValidation = enableValidation;
             builder.heavyExecutor = heavyExecutor;
+            builder.proxyNetworkName = proxyNetworkName;
 
             return builder;
         }

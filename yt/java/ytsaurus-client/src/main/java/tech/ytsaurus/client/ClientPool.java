@@ -412,6 +412,8 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
         EventLoopGroup eventLoop;
         @Nullable
         Random random;
+        @Nullable
+        String proxyNetworkName;
 
         T setDataCenterName(String dataCenterName) {
             this.dataCenterName = dataCenterName;
@@ -469,6 +471,12 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
 
         T setToken(@Nullable String token) {
             this.token = token;
+            //noinspection unchecked
+            return (T) this;
+        }
+
+        T setProxyNetworkName(@Nullable String proxyNetworkName) {
+            this.proxyNetworkName = proxyNetworkName;
             //noinspection unchecked
             return (T) this;
         }
@@ -849,6 +857,8 @@ class HttpProxyGetter implements ProxyGetter {
     private final boolean ignoreBalancers;
     @Nullable
     private final String token;
+    @Nullable
+    String proxyNetworkName;
 
     HttpProxyGetter(HttpClient httpClient, ClientPoolService.HttpBuilder httpBuilder) {
         this.httpClient = httpClient;
@@ -859,6 +869,7 @@ class HttpProxyGetter implements ProxyGetter {
         this.tvmOnly = httpBuilder.tvmOnly;
         this.ignoreBalancers = httpBuilder.ignoreBalancers;
         this.token = httpBuilder.token;
+        this.proxyNetworkName = httpBuilder.proxyNetworkName;
     }
 
     @Override
@@ -868,6 +879,9 @@ class HttpProxyGetter implements ProxyGetter {
         );
         if (role != null) {
             discoverProxiesUrl += "&role=" + role;
+        }
+        if (proxyNetworkName != null) {
+            discoverProxiesUrl += "&network_name=" + proxyNetworkName;
         }
         if (tvmOnly) {
             discoverProxiesUrl += "&address_type=tvm_only_internal_rpc";
