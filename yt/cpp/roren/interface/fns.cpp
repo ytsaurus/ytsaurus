@@ -4,6 +4,12 @@ namespace NRoren {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFnAttributes& TFnAttributes::SetIsPure(bool isPure)
+{
+    IsPure_ = isPure;
+    return *this;
+}
+
 TFnAttributes& TFnAttributes::SetName(std::optional<TString> name) &
 {
     Name_ = std::move(name);

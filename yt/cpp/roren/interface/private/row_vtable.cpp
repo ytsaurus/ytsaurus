@@ -62,6 +62,7 @@ TRowVtable LoadVtableFromNode(const NYT::TNode& node)
 void TSerializer<NRoren::NPrivate::TRowVtable>::Save(IOutputStream* output, const NRoren::NPrivate::TRowVtable& rowVtable)
 {
     ::Save(output, rowVtable.TypeName);
+    ::Save(output, rowVtable.TypeHash);
     ::Save(output, static_cast<ui64>(rowVtable.DataSize));
     ::Save(output, reinterpret_cast<ui64>(rowVtable.DefaultConstructor));
     ::Save(output, reinterpret_cast<ui64>(rowVtable.Destructor));
@@ -82,6 +83,7 @@ void TSerializer<NRoren::NPrivate::TRowVtable>::Load(
     ui64 defaultConstructor, destructor, copyConstructor, rawCoderFactory, keyVtableFactory, valueVtableFactory;
 
     ::Load(input, rowVtable.TypeName);
+    ::Load(input, rowVtable.TypeHash);
     ::Load(input, dataSize);
     ::Load(input, defaultConstructor);
     ::Load(input, destructor);

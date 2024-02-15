@@ -176,6 +176,7 @@ public:
     template <typename TInput, typename TOutput>
     static TIntrusivePtr<TLambda1RawParDo> MakeIntrusive(TRawFunction1<TInput, TOutput> function, TFnAttributes fnAttributes)
     {
+        fnAttributes.SetIsPure();
         return ::MakeIntrusive<TLambda1RawParDo>(
             &RawWrapper1Func<TInput, TOutput>,
             EWrapperType::WrapperType1,
@@ -189,6 +190,7 @@ public:
     template <typename TInput, typename TOutput>
     static TIntrusivePtr<TLambda1RawParDo> MakeIntrusive(TRawFunction2<TInput, TOutput> function, TFnAttributes fnAttributes)
     {
+        fnAttributes.SetIsPure();
         return ::MakeIntrusive<TLambda1RawParDo>(
             &RawWrapper2Func<TInput, TOutput>,
             EWrapperType::WrapperType2,

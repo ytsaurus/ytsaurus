@@ -25,20 +25,24 @@ TRowVtable CrashingGetVtableFactory();
 struct TRowVtable
 {
 public:
+    using TUniquePtr = std::unique_ptr<void, std::function<void(void*)>>;
     using TUniDataFunction = void (*)(void*);
     using TCopyDataFunction = void (*)(void*, const void*);
     using TRawCoderFactoryFunction = IRawCoderPtr (*)();
     using TRowVtableFactoryFunction = TRowVtable (*)();
+    using TRawToUniquePtr = TUniquePtr (*)(const void*);
 
 public:
     static constexpr ssize_t NotKv = -1;
 
 public:
     TString TypeName = {};
+    size_t TypeHash = 0xDEADBEEF;
     ssize_t DataSize = 0;
     TUniDataFunction DefaultConstructor = nullptr;
     TUniDataFunction Destructor = nullptr;
     TCopyDataFunction CopyConstructor = nullptr;
+    TRawToUniquePtr CopyToUniquePtr = nullptr;
     TRawCoderFactoryFunction RawCoderFactory = &CrashingCoderFactory;
     ssize_t KeyOffset = NotKv;
     ssize_t ValueOffset = NotKv;
@@ -57,6 +61,7 @@ TRowVtable MakeRowVtable()
     TRowVtable vtable;
 
     vtable.TypeName = typeid(T).name();
+    vtable.TypeHash = typeid(T).hash_code();
 
     if constexpr (std::is_same_v<T, void>) {
         auto noop = [] (void* ) {
@@ -81,6 +86,12 @@ TRowVtable MakeRowVtable()
             new(destination) T(*reinterpret_cast<const T*>(source));
         };
         vtable.RawCoderFactory = &MakeDefaultRawCoder<T>;
+        vtable.CopyToUniquePtr = [] (const void* p) {
+            return TRowVtable::TUniquePtr(
+                new T(*reinterpret_cast<const T*>(p)),
+                [] (void* p) { delete static_cast<T*>(p); }
+            );
+        };
 
         if constexpr (NTraits::IsTKV<T>) {
             vtable.KeyOffset = T::KeyOffset;

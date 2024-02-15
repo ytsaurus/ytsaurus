@@ -13,6 +13,7 @@ class TFnAttributesOps
 public:
     static void Merge(TFnAttributes& destination, const TFnAttributes& source);
 
+    static bool GetIsPure(const TFnAttributes& attributes);
     static const std::vector<TString> GetResourceFileList(const TFnAttributes& attributes);
 };
 

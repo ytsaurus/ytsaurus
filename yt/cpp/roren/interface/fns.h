@@ -56,6 +56,8 @@ private:
 class TFnAttributes
 {
 public:
+    TFnAttributes& SetIsPure(bool isPure = true);
+
     /// @brief Name of a function. Used in debug and info purposes.
     TFnAttributes& SetName(std::optional<TString> name) &;
     TFnAttributes SetName(std::optional<TString> name) &&;
@@ -77,6 +79,7 @@ public:
     TFnAttributes AddResourceFile(const TString& resourceFile)&&;
 
 private:
+    bool IsPure_ = false;
     std::vector<TString> ResourceFileList_;
     std::optional<TString> Name_;
 
