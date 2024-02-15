@@ -1653,6 +1653,20 @@ private:
         }
     }
 
+    bool HasExecNodes(const TIntrusivePtr<TTypedClientResponse<NScheduler::NProto::TRspHeartbeat>>& rsp) const
+    {
+        return !rsp->Attachments().empty() && !rsp->Attachments()[0].Empty();
+    }
+
+    NScheduler::NProto::TExecNodeDescriptorList
+    GetExecNodeDescriptorList(const TIntrusivePtr<TTypedClientResponse<NScheduler::NProto::TRspHeartbeat>>& rsp) const
+    {
+        NScheduler::NProto::TExecNodeDescriptorList descriptorList;
+        DeserializeProtoWithEnvelope(&descriptorList, rsp->Attachments()[0]);
+
+        return descriptorList;
+    }
+
     void SendHeartbeat()
     {
         auto preparedRequest = PrepareHeartbeatRequest();
@@ -1686,28 +1700,37 @@ private:
         HandleAbortedAllocationEvents(rsp);
         HandleOperationEvents(rsp);
 
-        if (rsp->has_exec_nodes()) {
-            int onlineExecNodeCount = 0;
-            auto execNodeDescriptors = New<TRefCountedExecNodeDescriptorMap>();
-            for (const auto& protoDescriptor : rsp->exec_nodes().exec_nodes()) {
-                auto descriptor = New<TExecNodeDescriptor>();
-                FromProto(descriptor.Get(), protoDescriptor);
-                if (descriptor->Online) {
-                    ++onlineExecNodeCount;
+        if (HasExecNodes(rsp)) {
+            auto error = WaitFor(BIND([&, this_ = MakeStrong(this)] {
+                int onlineExecNodeCount = 0;
+                auto execNodeDescriptors = New<TRefCountedExecNodeDescriptorMap>();
+
+                auto descriptorList = GetExecNodeDescriptorList(rsp);
+                for (const auto& protoDescriptor : descriptorList.exec_nodes()) {
+                    auto descriptor = New<TExecNodeDescriptor>();
+                    FromProto(descriptor.Get(), protoDescriptor);
+                    if (descriptor->Online) {
+                        ++onlineExecNodeCount;
+                    }
+                    EmplaceOrCrash(
+                        *execNodeDescriptors,
+                        protoDescriptor.node_id(),
+                        std::move(descriptor));
                 }
-                YT_VERIFY(execNodeDescriptors->emplace(
-                    protoDescriptor.node_id(),
-                    std::move(descriptor)).second);
-            }
 
-            JobTracker_->UpdateExecNodes(execNodeDescriptors);
+                JobTracker_->UpdateExecNodes(execNodeDescriptors);
 
-            {
-                auto guard = WriterGuard(ExecNodeDescriptorsLock_);
-                std::swap(CachedExecNodeDescriptors_, execNodeDescriptors);
-                OnlineExecNodeCount_ = onlineExecNodeCount;
-            }
-            YT_LOG_DEBUG("Exec node descriptors updated");
+                {
+                    auto guard = WriterGuard(ExecNodeDescriptorsLock_);
+                    std::swap(CachedExecNodeDescriptors_, execNodeDescriptors);
+                    OnlineExecNodeCount_ = onlineExecNodeCount;
+                }
+                YT_LOG_DEBUG("Exec node descriptors updated");
+            })
+                .AsyncVia(GetExecNodesUpdateInvoker())
+                .Run());
+
+            YT_LOG_FATAL_UNLESS(error.IsOK(), error, "Unexcepted fail during exec node descriptors update");
         }
 
         for (const auto& protoOperationId : rsp->operation_ids_to_unregister()) {

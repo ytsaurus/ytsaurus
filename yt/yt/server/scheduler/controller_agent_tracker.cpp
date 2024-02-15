@@ -820,10 +820,7 @@ public:
                     const auto Logger = SchedulerLogger
                         .WithTag("RequestId: %v, IncarnationId: %v", context->GetRequestId(), request->agent_id());
                     YT_LOG_DEBUG("Filling exec node descriptors");
-                    auto descriptors = scheduler->GetCachedExecNodeDescriptors();
-                    for (const auto& [_, descriptor] : *descriptors) {
-                        ToProto(response->mutable_exec_nodes()->add_exec_nodes(), *descriptor);
-                    }
+                    response->Attachments().push_back(scheduler->GetCachedProtoExecNodeDescriptors());
                     YT_LOG_DEBUG("Exec node descriptors filled");
                 })
                 .ThrowOnError();
