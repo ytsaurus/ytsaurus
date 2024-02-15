@@ -8,6 +8,21 @@
     operation_spec={
     };
     task_spec={
+        monitoring={
+            enable=%true;
+            sensor_names=[
+                "cpu/user";
+                "cpu/system";
+                "cpu/wait";
+                "cpu/throttled";
+                "current_memory/rss";
+                "current_memory/mapped_file";
+                "current_memory/major_page_faults";
+                "tmpfs_size";
+                "disk/usage";
+                "disk/limit";
+            ];
+        };
         use_porto_memory_tracking=%true;
     };
     run_as_root=%true;

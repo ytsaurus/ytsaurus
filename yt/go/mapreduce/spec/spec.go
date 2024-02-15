@@ -56,8 +56,9 @@ type UserScript struct {
 
 	NetworkProject string `yson:"network_project,omitempty"`
 
-	EnablePorto            string `yson:"enable_porto,omitempty"`
-	UsePortoMemoryTracking *bool  `yson:"use_porto_memory_tracking,omitempty"`
+	EnablePorto            string         `yson:"enable_porto,omitempty"`
+	UsePortoMemoryTracking *bool          `yson:"use_porto_memory_tracking,omitempty"`
+	Monitoring             map[string]any `yson:"monitoring,omitempty"`
 
 	// Following fields are used only in vanilla operations.
 	JobCount         int           `yson:"job_count,omitempty"`
