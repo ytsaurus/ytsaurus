@@ -8,6 +8,17 @@ import yt.yson as yson
 import os
 
 
+def _normalize_proxy(proxy):
+    for prefix in ["http://", "https://"]:
+        if proxy.startswith(prefix):
+            proxy = proxy[len(prefix):]
+
+    if ":" in proxy:
+        proxy = proxy.rsplit(":", 1)[0]
+
+    return proxy
+
+
 def _strawberry_ctl_handler(family):
     def handler(**kwargs):
         address = kwargs.pop("address")
@@ -17,7 +28,7 @@ def _strawberry_ctl_handler(family):
         cluster_proxy = yt.config["proxy"]["url"]
         params = kwargs
 
-        if cluster_proxy not in proxy_choices:
+        if _normalize_proxy(cluster_proxy) not in map(_normalize_proxy, proxy_choices):
             address = strawberry.get_full_ctl_address(address, family)
             msg = "bad cluster proxy choice: {}\n".format(cluster_proxy)
             msg += "controller {} serves only following clusters: {}\n".format(address, proxy_choices)
