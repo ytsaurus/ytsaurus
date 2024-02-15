@@ -217,6 +217,8 @@ public:
 
     void SetStored();
 
+    bool IsGrowingStale(TDuration maxDelay) const;
+
     bool IsJobProxyCompleted() const noexcept;
 
     bool IsInterruptible() const noexcept;
@@ -340,8 +342,9 @@ private:
     NScheduler::EInterruptReason InterruptionReason_ = NScheduler::EInterruptReason::None;
     std::optional<NScheduler::TPreemptedFor> PreemptedFor_;
 
-    //! True if scheduler asked to store this job.
+    //! True if agent asked to store this job.
     bool Stored_ = false;
+    TInstant LastStoredTime_;
 
     TPromise<void> CleanupFinished_ = NewPromise<void>();
 

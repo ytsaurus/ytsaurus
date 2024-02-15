@@ -52,7 +52,6 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
         GetConfig()->HeartbeatExecutor))
     , StatisticsThrottler_(CreateReconfigurableThroughputThrottler(
         GetConfig()->StatisticsThrottler))
-    , TotalConfirmationRequestBackoffStrategy_(GetConfig()->TotalConfirmationBackoffStrategy)
 {
     YT_LOG_DEBUG("Controller agent connector created (AgentAddress: %v, IncarnationId: %v)",
         ControllerAgentDescriptor_.Address,
@@ -224,7 +223,6 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnConfigUpdated(
 
     HeartbeatExecutor_->SetOptions(newConfig->HeartbeatExecutor);
     StatisticsThrottler_->Reconfigure(newConfig->StatisticsThrottler);
-    TotalConfirmationRequestBackoffStrategy_.UpdateOptions(newConfig->TotalConfirmationBackoffStrategy);
 }
 
 TControllerAgentConnectorPool::TControllerAgentConnector::~TControllerAgentConnector()
@@ -368,8 +366,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoPrepareHeartbea
     context->ControllerAgentConnector = MakeStrong(this);
     context->StatisticsThrottler = StatisticsThrottler_;
     context->RunningJobStatisticsSendingBackoff = GetConfig()->RunningJobStatisticsSendingBackoff;
-    context->NeedTotalConfirmation = TotalConfirmationRequestBackoffStrategy_
-        .RecordInvocationIfOverBackoff();
+    context->JobStalenessDelay = GetConfig()->JobStalenessDelay;
 
     context->JobsToForcefullySend = EnqueuedFinishedJobs_;
     context->UnconfirmedJobIds = std::move(UnconfirmedJobIds_);

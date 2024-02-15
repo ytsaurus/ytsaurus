@@ -504,11 +504,8 @@ void TControllerAgentConnectorDynamicConfig::Register(TRegistrar registrar)
         .DefaultCtor([] { return NConcurrency::TThroughputThrottlerConfig::Create(1_MB); });
     registrar.Parameter("running_job_statistics_sending_backoff", &TThis::RunningJobStatisticsSendingBackoff)
         .Default(TDuration::Seconds(30));
-    registrar.Parameter("total_confirmation_backoff_strategy", &TThis::TotalConfirmationBackoffStrategy)
-        .Default({
-            .Backoff = TDuration::Minutes(10),
-            .BackoffJitter = 0.1,
-        });
+    registrar.Parameter("job_staleness_delay", &TThis::JobStalenessDelay)
+        .Default(TDuration::Minutes(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

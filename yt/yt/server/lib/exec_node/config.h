@@ -389,7 +389,7 @@ class TControllerAgentConnectorDynamicConfig
     : public THeartbeatReporterDynamicConfigBase
 {
 public:
-    TConstantBackoffOptions TotalConfirmationBackoffStrategy;
+    TDuration JobStalenessDelay;
 
     TDuration SettleJobsTimeout;
 
