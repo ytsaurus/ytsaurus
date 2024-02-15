@@ -823,6 +823,10 @@ def _build_node_configs(node_dirs,
                 _get_node_job_environment_config(yt_config, index, logs_dir)
             )
 
+        if yt_config.jobs_environment_type == "cri":
+            # Forward variables set in docker image into user job environment.
+            set_at(config, "exec_node/forward_all_environment_variables", True)
+
         if yt_config.use_slot_user_id:
             start_uid = 10000 + config["rpc_port"]
             set_at(config, "exec_node/slot_manager/job_environment/start_uid", start_uid)

@@ -584,6 +584,9 @@ public:
     //! Enables job abort on violated memory reserve.
     bool AlwaysAbortOnMemoryReserveOverdraft;
 
+    //! Forward variables from job proxy environment to user job.
+    bool ForwardAllEnvironmentVariables;
+
     TNbdConfigPtr Nbd;
 
     REGISTER_YSON_STRUCT(TExecNodeConfig);
