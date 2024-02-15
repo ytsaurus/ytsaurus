@@ -1,39 +1,12 @@
 #include "chunk_reader_statistics.h"
 
-#include <yt/yt/core/profiling/timing.h>
-
 #include <yt/yt/core/misc/statistics.h>
-
-#include <yt/yt/library/profiling/solomon/sensor.h>
 
 namespace NYT::NChunkClient {
 
 using namespace NProfiling;
 using namespace NYPath;
 using namespace NTableClient;
-
-////////////////////////////////////////////////////////////////////////////////
-
-THistogramPtr TChunkReaderStatistics::CreateRequestTimeHistogram()
-{
-    TSensorOptions options;
-    options.HistogramMax = MaxTrackedLatency;
-    options.HistogramMin = MinTrackedLatency;
-
-    return New<THistogram>(options);
-}
-
-void TChunkReaderStatistics::RecordDataWaitTime(TDuration duration)
-{
-    DataWaitTime.fetch_add(DurationToValue(duration), std::memory_order::relaxed);
-    DataWaitTimeHistogram->Record(duration);
-}
-
-void TChunkReaderStatistics::RecordMetaWaitTime(TDuration duration)
-{
-    MetaWaitTime.fetch_add(DurationToValue(duration), std::memory_order::relaxed);
-    MetaWaitTimeHistogram->Record(duration);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,23 +84,7 @@ void DumpTimingStatistics(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void LoadTimeHistogram(
-    const THistogramPtr& source,
-    const TEventTimer& timer)
-{
-    auto snapshot = source->GetSnapshot(true);
-    const auto& bounds = snapshot.Bounds;
-
-    for (int index = 0; index < std::ssize(bounds); ++index) {
-        timer.Record(TDuration::Seconds(bounds[index]), snapshot.Values[index]);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TChunkReaderStatisticsCounters::TChunkReaderStatisticsCounters(
-    const NProfiling::TProfiler& profiler,
-    const NProfiling::TProfiler& histogramProfiler)
+TChunkReaderStatisticsCounters::TChunkReaderStatisticsCounters(const NProfiling::TProfiler& profiler)
     : DataBytesReadFromDisk_(profiler.Counter("/data_bytes_read_from_disk"))
     , DataIORequests_(profiler.Counter("/data_io_requests"))
     , DataBytesTransmitted_(profiler.Counter("/data_bytes_transmitted"))
@@ -144,12 +101,6 @@ TChunkReaderStatisticsCounters::TChunkReaderStatisticsCounters(
     , MetaWaitTime_(profiler.TimeCounter("/meta_wait_time"))
     , MetaReadFromDiskTime_(profiler.TimeCounter("/meta_read_from_disk_time"))
     , PickPeerWaitTime_(profiler.TimeCounter("/pick_peer_wait_time"))
-    , DataWaitTimeHistogram_(histogramProfiler.TimeHistogram("/data_wait_time_histogram",
-        TChunkReaderStatistics::MinTrackedLatency,
-        TChunkReaderStatistics::MaxTrackedLatency))
-    , MetaWaitTimeHistogram_(histogramProfiler.TimeHistogram("/meta_wait_time_histogram",
-        TChunkReaderStatistics::MinTrackedLatency,
-        TChunkReaderStatistics::MaxTrackedLatency))
 { }
 
 void TChunkReaderStatisticsCounters::Increment(
@@ -179,9 +130,6 @@ void TChunkReaderStatisticsCounters::Increment(
         WastedDataBytesReadFromCache_.Increment(chunkReaderStatistics->DataBytesReadFromCache.load(std::memory_order::relaxed));
         WastedMetaBytesReadFromDisk_.Increment(chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order::relaxed));
     }
-
-    LoadTimeHistogram(chunkReaderStatistics->DataWaitTimeHistogram, DataWaitTimeHistogram_);
-    LoadTimeHistogram(chunkReaderStatistics->MetaWaitTimeHistogram, MetaWaitTimeHistogram_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

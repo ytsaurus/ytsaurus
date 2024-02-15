@@ -25,6 +25,7 @@
 using namespace NYT;
 using namespace NConcurrency;
 using namespace NThreading;
+using namespace NProfiling;
 
 const NLogging::TLogger Logger("Main");
 

@@ -59,6 +59,7 @@ void DoDownloadSnapshot(
             .ReadTimeout = config->SnapshotDownloadStreamingStallTimeout
         };
         proxy.SetDefaultResponseCodec(config->SnapshotDownloadStreamingCompressionCodec);
+        proxy.SetDefaultEnableLegacyRpcCodecs(false);
 
         auto req = proxy.ReadSnapshot();
         req->set_snapshot_id(snapshotId);

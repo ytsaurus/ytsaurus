@@ -176,7 +176,11 @@ TSharedRefArray TObjectServiceProxy::TReqExecuteSubbatch::SerializeHeaderless() 
     for (const auto& descriptor : InnerRequestDescriptors_) {
         req.add_part_counts(descriptor.Message.Size());
     }
-    auto body = SerializeProtoToRefWithCompression(req);
+
+    // COMPAT(danilalexeev): legacy RPC codecs.
+    auto body = EnableLegacyRpcCodecs_
+        ? SerializeProtoToRefWithEnvelope(req, RequestCodec_)
+        : SerializeProtoToRefWithCompression(req, RequestCodec_);
 
     std::vector<TSharedRef> data;
     data.reserve(Attachments_.size() + 1);
