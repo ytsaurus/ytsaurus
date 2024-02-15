@@ -519,6 +519,14 @@ T* TObjectPtr<T, C>::GetUnsafe() const noexcept
 }
 
 template <class T, class C>
+void TObjectPtr<T, C>::ResetOnClear() noexcept
+{
+    YT_ASSERT(!IsInMutation());
+
+    Ptr_ = nullptr;
+}
+
+template <class T, class C>
 template <class U>
 bool TObjectPtr<T, C>::operator==(const TObjectPtr<U, C>& other) const noexcept
 {

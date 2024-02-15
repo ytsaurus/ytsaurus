@@ -385,6 +385,9 @@ public:
     //! Same as |Get| but does not check thread affinity.
     T* GetUnsafe() const noexcept;
 
+    //! Same as |Reset| but does not check object liveness.
+    void ResetOnClear() noexcept;
+
     template <class U>
     bool operator==(const TObjectPtr<U, C>& other) const noexcept;
     template <class U>
