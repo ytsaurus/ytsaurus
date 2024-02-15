@@ -109,7 +109,7 @@ TFuture<TAsyncSemaphoreGuard> TAsyncSemaphore::AsyncAcquire(i64 slots)
         return MakeFuture(TAsyncSemaphoreGuard(this, slots));
     } else {
         auto promise = NewPromise<TAsyncSemaphoreGuard>();
-        Waiters_.push(TWaiter{std::move(promise), slots});
+        Waiters_.push(TWaiter{promise, slots});
         return promise.ToFuture();
     }
 }
