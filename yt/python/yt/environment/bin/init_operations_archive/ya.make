@@ -1,4 +1,4 @@
-PY3_PROGRAM(init_operations_archive)
+PY3_PROGRAM(init-operations-archive)
 
 PEERDIR(
     yt/python/yt/environment
