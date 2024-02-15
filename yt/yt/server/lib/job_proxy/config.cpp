@@ -218,6 +218,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_stderr_and_core_live_preview", &TThis::EnableStderrAndCoreLivePreview)
         .Default(true);
 
+    registrar.Parameter("forward_all_environment_variables", &TThis::ForwardAllEnvironmentVariables)
+        .Default(false);
+
     registrar.Parameter("tvm_bridge_connection", &TThis::TvmBridgeConnection)
         .Default();
 
