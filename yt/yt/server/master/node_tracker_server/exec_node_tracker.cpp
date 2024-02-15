@@ -117,8 +117,13 @@ private:
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
         auto expectedMutationCommitDuration = config->CellMaster->ExpectedMutationCommitDuration;
 
-        semaphore->AsyncAcquire(
-            BIND([=, mutation = std::move(mutation), context = std::move(context)] (TAsyncSemaphoreGuard) {
+        semaphore->AsyncAcquire().SubscribeUnique(
+            BIND([=, mutation = std::move(mutation), context = std::move(context)] (TErrorOr<TAsyncSemaphoreGuard>&& guardOrError) {
+                if (!guardOrError.IsOK()) {
+                    context->Reply(TError("Failed to acquire semaphore") << guardOrError);
+                    return;
+                }
+
                 auto requestTimeout = context->GetTimeout();
                 auto timeAfter = NProfiling::GetInstant();
                 if (requestTimeout && timeAfter + expectedMutationCommitDuration >= timeBefore + *requestTimeout) {

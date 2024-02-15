@@ -82,20 +82,18 @@ private:
     void EnsureOpen();
     void CacheUncompressedBlock(const TSharedRef& block, EBlockType blockType, int blockIndex);
 
-    void DoCompressBlock(
+    TBlock DoCompressBlock(
         const TSharedRef& uncompressedBlock,
         EBlockType blockType,
         int blockIndex,
         std::optional<int> groupIndex,
-        TPromise<TBlock> promise,
-        NConcurrency::TAsyncSemaphoreGuard guard);
-    void DoCompressVector(
+        NConcurrency::TAsyncSemaphoreGuard&& guard);
+    TBlock DoCompressVector(
         const std::vector<TSharedRef>& uncompressedVectorizedBlock,
         EBlockType blockType,
         int blockIndex,
         std::optional<int> groupIndex,
-        TPromise<TBlock> promise,
-        NConcurrency::TAsyncSemaphoreGuard guard);
+        NConcurrency::TAsyncSemaphoreGuard&& guard);
 
     void ProcessCompressedBlock(i64 delta);
 

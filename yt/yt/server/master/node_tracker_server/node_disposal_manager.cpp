@@ -86,8 +86,11 @@ public:
             &TNodeDisposalManager::HydraStartNodeDisposal,
             this);
 
-        DisposeNodeSemaphore_->AsyncAcquire(
-            BIND([mutation = std::move(mutation)] (TAsyncSemaphoreGuard) {
+        DisposeNodeSemaphore_->AsyncAcquire().SubscribeUnique(
+            BIND([mutation = std::move(mutation)] (TErrorOr<TAsyncSemaphoreGuard>&& guardOrError) {
+                // Even if acquiring semaphore failed, we still have to commit mutation.
+                YT_LOG_ALERT_UNLESS(guardOrError.IsOK(), guardOrError, "Failed to acquire node disposal semaphore");
+
                 Y_UNUSED(WaitFor(mutation->CommitAndLog(Logger)));
             })
             .Via(EpochAutomatonInvoker_));

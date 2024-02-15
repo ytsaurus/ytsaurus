@@ -528,19 +528,16 @@ public:
             tablet->GetLoggingTag(),
             transaction->GetId());
 
-        auto promise = NewPromise<void>();
-        auto future = promise.ToFuture();
-        tablet
+        return tablet
             ->GetStoresUpdateCommitSemaphore()
-            ->AsyncAcquire(
+            ->AsyncAcquire()
+            .ApplyUnique(
                 BIND(
                     &TTabletManager::OnStoresUpdateCommitSemaphoreAcquired,
-                    MakeWeak(this),
+                    MakeStrong(this),
                     tablet,
-                    transaction,
-                    Passed(std::move(promise)))
-                .Via(tablet->GetEpochAutomatonInvoker()));
-        return future;
+                    transaction)
+                .AsyncVia(tablet->GetEpochAutomatonInvoker()));
     }
 
     IYPathServicePtr GetOrchidService() override
@@ -4953,11 +4950,10 @@ private:
     }
 
 
-    void OnStoresUpdateCommitSemaphoreAcquired(
+    TFuture<void> OnStoresUpdateCommitSemaphoreAcquired(
         TTablet* tablet,
         const ITransactionPtr& transaction,
-        TPromise<void> promise,
-        TAsyncSemaphoreGuard /*guard*/)
+        TAsyncSemaphoreGuard&&)
     {
         try {
             YT_LOG_DEBUG("Started committing tablet stores update transaction (%v, TransactionId: %v)",
@@ -5000,9 +4996,9 @@ private:
                 tablet->GetLoggingTag(),
                 transaction->GetId());
 
-            promise.Set();
+            return VoidFuture;
         } catch (const std::exception& ex) {
-            promise.Set(TError(ex));
+            return MakeFuture(TError(ex));
         }
     }
 
