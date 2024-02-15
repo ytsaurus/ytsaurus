@@ -95,7 +95,9 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const INodeMemoryTrackerPtr& memoryTracker,
     const IInvokerPtr& compressionInvoker,
     const TReaderProfilerPtr& readerProfiler,
-    const INodeMemoryReferenceTrackerPtr& memoryReferenceTracker);
+    const INodeMemoryReferenceTrackerPtr& memoryReferenceTracker,
+    bool enablePreliminaryNetworkThrottling,
+    const NConcurrency::IThroughputThrottlerPtr& networkThrottler);
 
 ////////////////////////////////////////////////////////////////////////////////
 
