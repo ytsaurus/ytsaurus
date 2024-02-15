@@ -1667,6 +1667,32 @@ private:
         return descriptorList;
     }
 
+    void UpdateExecNodeDescriptors(NScheduler::NProto::TExecNodeDescriptorList descriptorList)
+    {
+        int onlineExecNodeCount = 0;
+        auto execNodeDescriptors = New<TRefCountedExecNodeDescriptorMap>();
+
+        for (const auto& protoDescriptor : descriptorList.exec_nodes()) {
+            auto descriptor = New<TExecNodeDescriptor>();
+            FromProto(descriptor.Get(), protoDescriptor);
+            if (descriptor->Online) {
+                ++onlineExecNodeCount;
+            }
+            EmplaceOrCrash(
+                *execNodeDescriptors,
+                protoDescriptor.node_id(),
+                std::move(descriptor));
+        }
+
+        JobTracker_->UpdateExecNodes(execNodeDescriptors);
+
+        {
+            auto guard = WriterGuard(ExecNodeDescriptorsLock_);
+            std::swap(CachedExecNodeDescriptors_, execNodeDescriptors);
+            OnlineExecNodeCount_ = onlineExecNodeCount;
+        }
+    }
+
     void SendHeartbeat()
     {
         auto preparedRequest = PrepareHeartbeatRequest();
@@ -1701,36 +1727,7 @@ private:
         HandleOperationEvents(rsp);
 
         if (HasExecNodes(rsp)) {
-            auto error = WaitFor(BIND([&, this_ = MakeStrong(this)] {
-                int onlineExecNodeCount = 0;
-                auto execNodeDescriptors = New<TRefCountedExecNodeDescriptorMap>();
-
-                auto descriptorList = GetExecNodeDescriptorList(rsp);
-                for (const auto& protoDescriptor : descriptorList.exec_nodes()) {
-                    auto descriptor = New<TExecNodeDescriptor>();
-                    FromProto(descriptor.Get(), protoDescriptor);
-                    if (descriptor->Online) {
-                        ++onlineExecNodeCount;
-                    }
-                    EmplaceOrCrash(
-                        *execNodeDescriptors,
-                        protoDescriptor.node_id(),
-                        std::move(descriptor));
-                }
-
-                JobTracker_->UpdateExecNodes(execNodeDescriptors);
-
-                {
-                    auto guard = WriterGuard(ExecNodeDescriptorsLock_);
-                    std::swap(CachedExecNodeDescriptors_, execNodeDescriptors);
-                    OnlineExecNodeCount_ = onlineExecNodeCount;
-                }
-                YT_LOG_DEBUG("Exec node descriptors updated");
-            })
-                .AsyncVia(GetExecNodesUpdateInvoker())
-                .Run());
-
-            YT_LOG_FATAL_UNLESS(error.IsOK(), error, "Unexcepted fail during exec node descriptors update");
+            GetExecNodesUpdateInvoker()->Invoke(BIND(&TImpl::UpdateExecNodeDescriptors, MakeStrong(this), GetExecNodeDescriptorList(rsp)));
         }
 
         for (const auto& protoOperationId : rsp->operation_ids_to_unregister()) {
