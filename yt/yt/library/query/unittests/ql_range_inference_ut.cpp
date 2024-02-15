@@ -1657,7 +1657,7 @@ TEST_P(TInferRangesTest, Stress)
         Y_UNUSED(inferredRanges);
 
         TCGVariables variables;
-        auto image = Profile(expr, schema, nullptr, &variables)();
+        auto image = Profile(expr, schema, /*id*/ nullptr, &variables)();
         auto instance = image.Instantiate();
 
         for (int j = 0; j < 1000; ++j) {
@@ -1666,7 +1666,13 @@ TEST_P(TInferRangesTest, Stress)
 
             // Evaluate predicate.
             TUnversionedValue resultValue{};
-            instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &resultValue, row.Elements(), rowBuffer);
+            instance.Run(
+                variables.GetLiteralValues(),
+                variables.GetOpaqueData(),
+                variables.GetOpaqueDataSizes(),
+                &resultValue,
+                row.Elements(),
+                rowBuffer);
 
             // Validate row in ranges.
             auto foundIt = BinarySearch(inferredRanges.begin(), inferredRanges.end(), [&] (TRowRange* rowRange) {

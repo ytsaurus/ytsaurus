@@ -277,6 +277,7 @@ message TQueryOptions
     optional bool new_range_inference = 15;
     optional bool use_canonical_null_relations = 16;
     optional bool merge_versioned_rows = 17 [default = true];
+    optional bool use_web_assembly = 18;
 }
 
 message TDataSource

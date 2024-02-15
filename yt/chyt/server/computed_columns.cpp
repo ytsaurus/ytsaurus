@@ -205,7 +205,9 @@ struct TComputedColumnPopulationMatcher
                     entry.Expression,
                     data.TableSchema->Filter(entry.References),
                     nullptr,
-                    &variables)();
+                    &variables,
+                    /*useCanonicalNullRelations*/ false,
+                    /*useWebAssembly*/ false)();
 
                 auto instance = image.Instantiate();
 
@@ -216,6 +218,7 @@ struct TComputedColumnPopulationMatcher
                 instance.Run(
                     variables.GetLiteralValues(),
                     variables.GetOpaqueData(),
+                    variables.GetOpaqueDataSizes(),
                     &resultValue,
                     TRange<TUnversionedValue>(referenceValues.data(), referenceValues.size()),
                     rowBuffer);

@@ -54,6 +54,11 @@ size_t TWebAssemblyMemoryPool::GetCapacity() const
     return Size_;
 }
 
+bool TWebAssemblyMemoryPool::HasCompartment() const
+{
+    return Compartment_;
+}
+
 char* TWebAssemblyMemoryPool::AllocateUnaligned(size_t size)
 {
     auto offset = Compartment_->AllocateBytes(size);
@@ -64,9 +69,10 @@ char* TWebAssemblyMemoryPool::AllocateUnaligned(size_t size)
 
 char* TWebAssemblyMemoryPool::AllocateAligned(size_t size, int align)
 {
-    auto unaligned = Compartment_->AllocateBytes(size + align);
+    uintptr_t unaligned = Compartment_->AllocateBytes(size + align);
     Allocations_.push_back(unaligned);
     auto aligned = AlignUp(std::bit_cast<char*>(unaligned), align);
+    Size_ += size + align;
     return std::bit_cast<char*>(aligned);
 }
 

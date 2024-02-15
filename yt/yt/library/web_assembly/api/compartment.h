@@ -28,9 +28,9 @@ struct IWebAssemblyCompartment
     virtual void* GetContext() = 0;
 
     //! Converts compartment offset to host pointer and checks boundaries.
-    virtual uintptr_t GetHostPointer(uintptr_t offset, size_t length) = 0;
+    virtual void* GetHostPointer(uintptr_t offset, size_t length) = 0;
     //! Converts host pointer to compartment offset.
-    virtual uintptr_t GetCompartmentOffset(uintptr_t hostAddress) = 0;
+    virtual uintptr_t GetCompartmentOffset(void* hostAddress) = 0;
 
     //! Clones compartment.
     //! NB: Cloning is slow and should not be called too often.

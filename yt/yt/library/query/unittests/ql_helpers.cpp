@@ -1,5 +1,7 @@
 #include "ql_helpers.h"
 
+#include <yt/yt/library/query/engine/folding_profiler.h>
+
 #include <yt/yt/core/yson/public.h>
 #include <yt/yt/core/yson/string.h>
 
@@ -97,6 +99,32 @@ TFuture<TDataSplit> RaiseTableNotFound(const TYPath& path)
     return MakeFuture<TDataSplit>(TError(
         "Could not find table %v",
         path));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ProfileForBothExecutionBackends(
+    const TConstBaseQueryPtr& query,
+    llvm::FoldingSetNodeID* id,
+    TCGVariables* variables,
+    TJoinSubqueryProfiler joinProfiler)
+{
+    Profile(query, id, variables, joinProfiler, /*useCanonicalNullRelations*/ false, /*useWebAssembly*/ false)();
+    if (EnableWebAssemblyInUnitTests()) {
+        Profile(query, id, variables, joinProfiler, /*useCanonicalNullRelations*/ false, /*useWebAssembly*/ true)();
+    }
+}
+
+void ProfileForBothExecutionBackends(
+    const TConstExpressionPtr& expr,
+    const TTableSchemaPtr& schema,
+    llvm::FoldingSetNodeID* id,
+    TCGVariables* variables)
+{
+    Profile(expr, schema, id, variables, /*useCanonicalNullRelations*/ false, /*useWebAssembly*/ false)();
+    if (EnableWebAssemblyInUnitTests()) {
+        Profile(expr, schema, id, variables, /*useCanonicalNullRelations*/ false, /*useWebAssembly*/ true)();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

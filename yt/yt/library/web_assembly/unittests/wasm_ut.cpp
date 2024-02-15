@@ -32,7 +32,7 @@ TEST_F(TWebAssemblyTest, AllocateAndFree)
     auto compartment = CreateBaseImage();
     std::vector<uintptr_t> offsets;
     for (int i = 0; i < 1024; ++i) {
-        auto offset = compartment->AllocateBytes(1024);
+        uintptr_t offset = compartment->AllocateBytes(1024);
         offsets.push_back(offset);
     }
 
@@ -196,8 +196,8 @@ TEST_F(TWebAssemblyTest, SimpleArraySum)
     for (int iteration = 0; iteration < 100; ++iteration) {
         i64 length = std::rand() % maxLength;
         auto byteLength = sizeof(i64) * length;
-        auto offset = compartment->AllocateBytes(byteLength);
-        auto hostPointer = compartment->GetHostPointer(offset, byteLength);
+        uintptr_t offset = compartment->AllocateBytes(byteLength);
+        void* hostPointer = compartment->GetHostPointer(offset, byteLength);
         i64* array = std::bit_cast<i64*>(hostPointer);
 
         i64 expected = 0;
@@ -277,7 +277,7 @@ TEST_F(TWebAssemblyTest, BadPointerDereference)
 
     i64 length = 5;
     auto byteLength = sizeof(i64) * length;
-    auto offset = compartment->AllocateBytes(byteLength);
+    uintptr_t offset = compartment->AllocateBytes(byteLength);
     auto* array = ConvertPointerFromWasmToHost(std::bit_cast<i64*>(offset), length);
 
     for (int i = 0; i < length; ++i) {

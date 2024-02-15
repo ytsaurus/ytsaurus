@@ -15,6 +15,7 @@ int TCGVariables::AddOpaque(TArgs&& ... args)
 
     int index = static_cast<int>(OpaquePointers_.size());
     OpaquePointers_.push_back(pointer);
+    OpaquePointeeSizes_.push_back(std::is_trivially_copyable_v<T> ? sizeof(T) : 0);
 
     return index;
 }

@@ -1450,6 +1450,7 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
     serialized->set_verbose_logging(original.VerboseLogging);
     serialized->set_new_range_inference(original.NewRangeInference);
     serialized->set_use_canonical_null_relations(original.UseCanonicalNullRelations);
+    serialized->set_use_web_assembly(original.UseWebAssembly);
     serialized->set_max_subqueries(original.MaxSubqueries);
     serialized->set_enable_code_cache(original.EnableCodeCache);
     ToProto(serialized->mutable_workload_descriptor(), original.WorkloadDescriptor);
@@ -1507,6 +1508,9 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     }
     if (serialized.has_merge_versioned_rows()) {
         original->MergeVersionedRows = serialized.merge_versioned_rows();
+    }
+    if (serialized.has_use_web_assembly()) {
+        original->UseWebAssembly = serialized.use_web_assembly();
     }
 }
 

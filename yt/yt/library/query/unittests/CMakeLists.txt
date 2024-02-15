@@ -50,6 +50,7 @@ target_sources(unittester-query PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_query_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_range_inference_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_range_coordination_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/disable_web_assembly.cpp
 )
 add_test(
   NAME

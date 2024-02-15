@@ -142,10 +142,16 @@ std::pair<const TPIValue*, int> TTopCollector::Capture(const TPIValue* row)
 
             for (size_t contextId = 0; contextId < contextsToRows.size(); ++contextId) {
                 for (auto rowId : contextsToRows[contextId]) {
-                    auto& row = Rows_[rowId].first;
-
-                    auto savedSize = context.GetSize();
-                    row = CapturePIValueRange(&context, MakeRange(row, RowSize_)).Begin();
+                    auto* oldRow = Rows_[rowId].first;
+                    i64 savedSize = context.GetSize();
+                    auto* newRow = CapturePIValueRange(
+                        &context,
+                        MakeRange(oldRow, RowSize_),
+                        NWebAssembly::EAddressSpace::WebAssembly,
+                        NWebAssembly::EAddressSpace::WebAssembly,
+                        /*captureValues*/ true)
+                        .Begin();
+                    Rows_[rowId].first = newRow;
                     AllocatedMemorySize_ += context.GetSize() - savedSize;
                 }
 
@@ -173,7 +179,13 @@ std::pair<const TPIValue*, int> TTopCollector::Capture(const TPIValue* row)
     auto savedSize = context.GetSize();
     auto savedCapacity = context.GetCapacity();
 
-    TPIValue* capturedRow = CapturePIValueRange(&context, MakeRange(row, RowSize_)).Begin();
+    TPIValue* capturedRow = CapturePIValueRange(
+        &context,
+        MakeRange(row, RowSize_),
+        NWebAssembly::EAddressSpace::WebAssembly,
+        NWebAssembly::EAddressSpace::WebAssembly,
+        /*captureValues*/ true)
+        .Begin();
 
     AllocatedMemorySize_ += context.GetSize() - savedSize;
     TotalMemorySize_ += context.GetCapacity() - savedCapacity;
@@ -187,10 +199,10 @@ std::pair<const TPIValue*, int> TTopCollector::Capture(const TPIValue* row)
 
 void TTopCollector::AccountGarbage(const TPIValue* row)
 {
+    row = ConvertPointerFromWasmToHost(row, RowSize_);
     GarbageMemorySize_ += GetUnversionedRowByteSize(RowSize_);
     for (int index = 0; index < static_cast<int>(RowSize_); ++index) {
-        const auto& value = row[index];
-
+        auto& value = row[index];
         if (IsStringLikeType(EValueType(value.Type))) {
             GarbageMemorySize_ += value.Length;
         }
@@ -250,43 +262,56 @@ TWriteOpClosure::TWriteOpClosure(IMemoryChunkProviderPtr chunkProvider)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCGQueryInstance::TCGQueryInstance(TCGQueryCallback callback)
+TCGQueryInstance::TCGQueryInstance(
+    TCGQueryCallback callback,
+    std::unique_ptr<IWebAssemblyCompartment> compartment)
     : Callback_(std::move(callback))
+    , Compartment_(std::move(compartment))
 { }
 
 void TCGQueryInstance::Run(
     TRange<TPIValue> literalValues,
     TRange<void*> opaqueData,
+    TRange<size_t> opaqueDataSizes,
     TExecutionContext* context)
 {
-    Callback_(literalValues, opaqueData, context);
+    Callback_(literalValues, opaqueData, opaqueDataSizes, context, Compartment_.get());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCGQueryImage::TCGQueryImage(TCGQueryCallback callback)
+TCGQueryImage::TCGQueryImage(
+    TCGQueryCallback callback,
+    std::unique_ptr<IWebAssemblyCompartment> compartment)
     : Callback_(std::move(callback))
+    , Compartment_(std::move(compartment))
 { }
 
 TCGQueryInstance TCGQueryImage::Instantiate() const
 {
-    return TCGQueryInstance(Callback_);
+    return TCGQueryInstance(
+        Callback_,
+        Compartment_ ? Compartment_->Clone() : std::unique_ptr<IWebAssemblyCompartment>());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCGExpressionInstance::TCGExpressionInstance(TCGExpressionCallback callback)
+TCGExpressionInstance::TCGExpressionInstance(
+    TCGExpressionCallback callback,
+    std::unique_ptr<IWebAssemblyCompartment> compartment)
     : Callback_(std::move(callback))
+    , Compartment_(std::move(compartment))
 { }
 
 void TCGExpressionInstance::Run(
     TRange<TPIValue> literalValues,
     TRange<void*> opaqueData,
+    TRange<size_t> opaqueDataSizes,
     TValue* result,
     TRange<TValue> inputRow,
     const TRowBufferPtr& buffer)
 {
-    Callback_(literalValues, opaqueData, result, inputRow, buffer);
+    Callback_(literalValues, opaqueData, opaqueDataSizes, result, inputRow, buffer, Compartment_.get());
 }
 
 TCGExpressionInstance::operator bool() const
@@ -296,13 +321,18 @@ TCGExpressionInstance::operator bool() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCGExpressionImage::TCGExpressionImage(TCGExpressionCallback callback)
+TCGExpressionImage::TCGExpressionImage(
+    TCGExpressionCallback callback,
+    std::unique_ptr<IWebAssemblyCompartment> compartment)
     : Callback_(std::move(callback))
+    , Compartment_(std::move(compartment))
 { }
 
 TCGExpressionInstance TCGExpressionImage::Instantiate() const
 {
-    return TCGExpressionInstance(Callback_);
+    return TCGExpressionInstance(
+        Callback_,
+        Compartment_ ? Compartment_->Clone() : std::unique_ptr<IWebAssemblyCompartment>());
 }
 
 TCGExpressionImage::operator bool() const
@@ -312,39 +342,47 @@ TCGExpressionImage::operator bool() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCGAggregateInstance::TCGAggregateInstance(TCGAggregateCallbacks callbacks)
+TCGAggregateInstance::TCGAggregateInstance(
+    TCGAggregateCallbacks callbacks,
+    std::unique_ptr<IWebAssemblyCompartment> compartment)
     : Callbacks_(std::move(callbacks))
+    , Compartment_(std::move(compartment))
 { }
 
 void TCGAggregateInstance::RunInit(const TRowBufferPtr& buffer, TValue* state)
 {
-    Callbacks_.Init(buffer, state);
+    Callbacks_.Init(buffer, state, Compartment_.get());
 }
 
 void TCGAggregateInstance::RunUpdate(const TRowBufferPtr& buffer, TValue* state, TRange<TValue> arguments)
 {
-    Callbacks_.Update(buffer, state, arguments);
+    Callbacks_.Update(buffer, state, arguments, Compartment_.get());
 }
 
 void TCGAggregateInstance::RunMerge(const TRowBufferPtr& buffer, TValue* firstState, const TValue* secondState)
 {
-    Callbacks_.Merge(buffer, firstState, secondState);
+    Callbacks_.Merge(buffer, firstState, secondState, Compartment_.get());
 }
 
 void TCGAggregateInstance::RunFinalize(const TRowBufferPtr& buffer, TValue* firstState, const TValue* secondState)
 {
-    Callbacks_.Finalize(buffer, firstState, secondState);
+    Callbacks_.Finalize(buffer, firstState, secondState, Compartment_.get());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCGAggregateImage::TCGAggregateImage(TCGAggregateCallbacks callbacks)
+TCGAggregateImage::TCGAggregateImage(
+    TCGAggregateCallbacks callbacks,
+    std::unique_ptr<IWebAssemblyCompartment> compartment)
     : Callbacks_(std::move(callbacks))
+    , Compartment_(std::move(compartment))
 { }
 
 TCGAggregateInstance TCGAggregateImage::Instantiate() const
 {
-    return TCGAggregateInstance(Callbacks_);
+    return TCGAggregateInstance(
+        Callbacks_,
+        Compartment_ ? Compartment_->Clone() : std::unique_ptr<IWebAssemblyCompartment>());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -414,9 +452,15 @@ TRange<void*> TCGVariables::GetOpaqueData() const
     return OpaquePointers_;
 }
 
+TRange<size_t> TCGVariables::GetOpaqueDataSizes() const
+{
+    return OpaquePointeeSizes_;
+}
+
 void TCGVariables::Clear()
 {
     OpaquePointers_.clear();
+    OpaquePointeeSizes_.clear();
     Holder_.Clear();
     OwningLiteralValues_.clear();
     LiteralValues_.reset();

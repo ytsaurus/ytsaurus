@@ -20,13 +20,32 @@ SRCS(
     GLOBAL range_inferrer.cpp
     position_independent_value_caller.cpp
     GLOBAL new_range_inferrer.cpp
+    web_assembly_caller.cpp
+    web_assembly_data_transfer.cpp
     web_assembly_type_builder.cpp
 )
+
+IF (OPENSOURCE)
+    SRCS(
+        disable_system_libraries.cpp
+    )
+ELSE()
+    SRCS(
+        enable_system_libraries.cpp
+    )
+ENDIF()
 
 ADDINCL(
     contrib/libs/sparsehash/src
     contrib/libs/re2
     contrib/libs/xdelta3
+
+    contrib/restricted/wavm/Include
+)
+
+CFLAGS(
+    -DWASM_C_API=WAVM_API
+    -DWAVM_API=
 )
 
 PEERDIR(

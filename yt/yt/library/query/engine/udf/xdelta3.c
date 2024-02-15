@@ -1,7 +1,5 @@
 #include <yt/yt/library/query/misc/udf_c_abi.h>
 
-#include <library/cpp/xdelta3/state/merge.h>
-
 int XdeltaMerge(
     void* context,
     const uint8_t* lhsData,

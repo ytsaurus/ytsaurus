@@ -20,12 +20,12 @@ struct IFunctionCodegen
         std::vector<EValueType> argumentTypes,
         EValueType type,
         const TString& name,
+        bool useWebAssembly,
         llvm::FoldingSetNodeID* id = nullptr) const = 0;
 
     virtual bool IsNullable(const std::vector<bool>& /*nullableArgs*/) const {
         return true;
     }
-
 };
 
 DEFINE_REFCOUNTED_TYPE(IFunctionCodegen)
@@ -38,10 +38,10 @@ struct IAggregateCodegen
         EValueType stateType,
         EValueType resultType,
         const TString& name,
+        bool useWebAssembly,
         llvm::FoldingSetNodeID* id = nullptr) const = 0;
 
     virtual bool IsFirst() const = 0;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(IAggregateCodegen)
@@ -64,7 +64,6 @@ struct ICallingConvention
         std::vector<EValueType> argumentTypes,
         EValueType resultType,
         bool useFunctionContext) const = 0;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(ICallingConvention)
@@ -165,6 +164,7 @@ public:
         std::vector<EValueType> argumentTypes,
         EValueType type,
         const TString& name,
+        bool useWebAssembly,
         llvm::FoldingSetNodeID* id) const override;
 
 private:
@@ -174,7 +174,6 @@ private:
     const ICallingConventionPtr CallingConvention_;
     const TSharedRef Fingerprint_;
     const bool UseFunctionContext_;
-
 };
 
 struct TExternalAggregateCodegen
@@ -199,6 +198,7 @@ public:
         EValueType stateType,
         EValueType resultType,
         const TString& name,
+        bool useWebAssembly,
         llvm::FoldingSetNodeID* id) const override;
 
     bool IsFirst() const override;
@@ -209,7 +209,6 @@ private:
     const ICallingConventionPtr CallingConvention_;
     const bool IsFirst_;
     const TSharedRef Fingerprint_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -23,4 +23,24 @@ CFLAGS(
     -DWAVM_API=
 )
 
+IF (NOT OPENSOURCE)
+    FROM_SANDBOX(
+        FILE 4987655926 OUT_NOAUTO lib.so.wasm
+    )
+
+    FROM_SANDBOX(
+        FILE 5750993567 OUT_NOAUTO all-udfs.so.wasm
+    )
+
+    FROM_SANDBOX(
+        FILE 5040591399 OUT_NOAUTO compiled-libc
+    )
+
+    RESOURCE(
+        lib.so.wasm libc.so.wasm
+        all-udfs.so.wasm all-udfs.so.wasm
+        compiled-libc compiled-libc
+    )
+ENDIF()
+
 END()

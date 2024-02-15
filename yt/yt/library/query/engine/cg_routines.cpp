@@ -1,8 +1,13 @@
 #include "cg_routines.h"
 #include "cg_types.h"
+#include "web_assembly_data_transfer.h"
 
 #include <yt/yt/library/web_assembly/api/compartment.h>
 #include <yt/yt/library/web_assembly/api/function.h>
+#include <yt/yt/library/web_assembly/api/pointer.h>
+
+#include <yt/yt/library/web_assembly/engine/intrinsics.h>
+#include <yt/yt/library/web_assembly/engine/wavm_private_imports.h>
 
 #include <yt/yt/library/query/base/private.h>
 
@@ -50,6 +55,7 @@
 #include <library/cpp/xdelta3/state/merge.h>
 
 #include <util/charset/utf8.h>
+#include <util/digest/multi.h>
 
 #include <mutex>
 
@@ -70,9 +76,25 @@ struct TTypeBuilder<re2::RE2*>
 
 namespace NYT::NQueryClient {
 
+using namespace NWebAssembly;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = QueryClientLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+// NB: Since pointer to current compartment is stored inside of a thread local,
+// calls to context-switching functions should be guarded via this function.
+template <typename TFunction>
+void SaveAndRestoreCurrentCompartment(const TFunction& function)
+{
+    auto* compartment = NWebAssembly::GetCurrentCompartment();
+    auto finally = Finally([&] {
+        SetCurrentCompartment(compartment);
+    });
+    function();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -113,7 +135,9 @@ public:
             YT_LOG_DEBUG("Yielding fiber (ProcessedRows: %v, SyncTime: %v)",
                 processedRows,
                 GetElapsedTime());
-            Yield();
+            SaveAndRestoreCurrentCompartment([&] {
+                Yield();
+            });
         }
     }
 };
@@ -141,7 +165,11 @@ bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TPIValue* va
 
     YT_ASSERT(batch.size() < WriteRowsetSize);
 
-    batch.push_back(CopyAndConvertFromPI(&outputContext, MakeRange(values, closure->RowSize)));
+    batch.push_back(
+        CopyAndConvertFromPI(
+            &outputContext,
+            MakeRange(values, closure->RowSize),
+            EAddressSpace::WebAssembly));
 
     // NB: Flags are neither set from TCG value nor cleared during row allocation.
     // XXX(babenko): fix this
@@ -160,13 +188,17 @@ bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TPIValue* va
         bool shouldNotWait;
         {
             TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&statistics->WriteTime);
-            shouldNotWait = writer->Write(batch);
+            SaveAndRestoreCurrentCompartment([&] {
+                shouldNotWait = writer->Write(batch);
+            });
         }
 
         if (!shouldNotWait) {
             TValueIncrementingTimingGuard<TWallTimer> timingGuard(&statistics->WaitOnReadyEventTime);
-            WaitForFast(writer->GetReadyEvent())
-                .ThrowOnError();
+            SaveAndRestoreCurrentCompartment([&] {
+                WaitForFast(writer->GetReadyEvent())
+                    .ThrowOnError();
+            });
         }
         batch.clear();
         outputContext.Clear();
@@ -210,13 +242,16 @@ void ScanOpHelper(
         TIntermediateBufferTag(),
         context->MemoryChunkProvider);
     std::vector<TUnversionedRow> rows;
+    i64 rowLength = 0;
 
     bool interrupt = false;
     while (!interrupt) {
         IUnversionedRowBatchPtr batch;
         {
             TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&statistics->ReadTime);
-            batch = reader->Read(readOptions);
+            SaveAndRestoreCurrentCompartment([&] {
+                batch = reader->Read(readOptions);
+            });
             if (!batch) {
                 break;
             }
@@ -228,14 +263,17 @@ void ScanOpHelper(
             for (auto row : batchRows) {
                 if (row) {
                     rows.push_back(row);
+                    rowLength = row.GetCount();
                 }
             }
         }
 
         if (batch->IsEmpty()) {
             TValueIncrementingTimingGuard<TWallTimer> timingGuard(&statistics->WaitOnReadyEventTime);
-            WaitForFast(reader->GetReadyEvent())
-                .ThrowOnError();
+            SaveAndRestoreCurrentCompartment([&] {
+                WaitForFast(reader->GetReadyEvent())
+                    .ThrowOnError();
+            });
             continue;
         }
 
@@ -247,19 +285,32 @@ void ScanOpHelper(
         }
 
         statistics->RowsRead += rows.size();
+
         statistics->DataWeightRead += rowSchemaInformation->RowWeightWithNoStrings * rows.size();
+        i64 stringLikeColumnsDataWeight = 0;
 
         for (auto row : rows) {
             values.push_back(row.Begin());
 
             for (int index : rowSchemaInformation->StringLikeIndices) {
-                statistics->DataWeightRead += row[index].Type == EValueType::Null
+                stringLikeColumnsDataWeight += row[index].Type == EValueType::Null
                     ? 0
                     : row[index].Length;
             }
         }
 
-        interrupt |= consumeRows(consumeRowsClosure, &scanContext, values.data(), values.size());
+        statistics->DataWeightRead += stringLikeColumnsDataWeight;
+
+        if (auto* compartment = GetCurrentCompartment()) {
+            auto copiedRangesGuard = CopyRowRangeIntoCompartment(values, stringLikeColumnsDataWeight, rowLength, *rowSchemaInformation, compartment);
+            auto copiedRangesPointersGuard = CopyIntoCompartment(
+                MakeRange(std::bit_cast<uintptr_t*>(copiedRangesGuard.second.data()), copiedRangesGuard.second.size()),
+                compartment);
+            auto** valuesOffset = std::bit_cast<const TValue**>(copiedRangesPointersGuard.GetCopiedOffset());
+            interrupt |= consumeRows(consumeRowsClosure, &scanContext, valuesOffset, values.size());
+        } else {
+            interrupt |= consumeRows(consumeRowsClosure, &scanContext, values.data(), values.size());
+        }
 
         yielder.Checkpoint(statistics->RowsRead);
 
@@ -274,7 +325,7 @@ void ScanOpHelper(
 
 char* AllocateAlignedBytes(TExpressionContext* context, size_t byteCount)
 {
-    return context->AllocateAligned(byteCount);
+    return context->AllocateAligned(byteCount, EAddressSpace::WebAssembly);
 }
 
 struct TSlot
@@ -289,12 +340,13 @@ TPIValue* AllocateJoinKeys(
     TPIValue** keyPtrs)
 {
     for (size_t joinId = 0; joinId < closure->Items.size(); ++joinId) {
-        auto& item = closure->Items[joinId];
-        char* data = AllocateAlignedBytes(
-            &item.Context,
-            GetUnversionedRowByteSize(item.KeySize) + sizeof(TSlot));
-        auto row = TMutableRow::Create(data, item.KeySize);
-        keyPtrs[joinId] = reinterpret_cast<TPIValue*>(row.Begin());
+        auto& joinItem = closure->Items[joinId];
+        i64 length = GetUnversionedRowByteSize(joinItem.KeySize) + sizeof(TSlot);
+        auto* offset = AllocateAlignedBytes(&joinItem.Context, length);
+        auto* data = ConvertPointerFromWasmToHost(offset, length);
+        auto row = TMutableRow::Create(data, joinItem.KeySize);
+        auto* rowBeginOffset = ConvertPointerFromHostToWasm(row.Begin(), row.GetCount());
+        ConvertPointerFromWasmToHost(keyPtrs)[joinId] = std::bit_cast<TPIValue*>(rowBeginOffset);
     }
 
     size_t primaryRowSize = closure->PrimaryRowSize * sizeof(TPIValue) + sizeof(TSlot*) * closure->Items.size();
@@ -312,16 +364,19 @@ bool StorePrimaryRow(
         throw TInterruptedIncompleteException();
     }
 
-    closure->PrimaryRows.emplace_back(*primaryValues);
+    closure->PrimaryRows.emplace_back(*ConvertPointerFromWasmToHost(primaryValues));
 
     for (size_t columnIndex = 0; columnIndex < closure->PrimaryRowSize; ++columnIndex) {
-        CapturePIValue(&closure->Context, *primaryValues + columnIndex);
+        CapturePIValue(
+            &closure->Context,
+            *ConvertPointerFromWasmToHost(primaryValues) + columnIndex,
+            EAddressSpace::WebAssembly,
+            EAddressSpace::WebAssembly);
     }
 
     for (size_t joinId = 0; joinId < closure->Items.size(); ++joinId) {
-        auto keyPtr = keysPtr + joinId;
         auto& item = closure->Items[joinId];
-        TPIValue* key = *keyPtr;
+        auto* key = ConvertPointerFromWasmToHost(keysPtr, closure->Items.size())[joinId];
 
         if (!item.LastKey || !item.PrefixEqComparer(key, item.LastKey)) {
             closure->ProcessSegment(joinId);
@@ -330,23 +385,30 @@ bool StorePrimaryRow(
             // Key will be reallocated further.
         }
 
-        *reinterpret_cast<TSlot*>(key + item.KeySize) = TSlot{0, 0};
+        *std::bit_cast<TSlot*>(ConvertPointerFromWasmToHost(key) + item.KeySize) = TSlot{0, 0};
 
         auto inserted = item.Lookup.insert(key);
         if (inserted.second) {
             for (size_t columnIndex = 0; columnIndex < item.KeySize; ++columnIndex) {
-                CapturePIValue(&closure->Items[joinId].Context, &key[columnIndex]);
+                CapturePIValue(
+                    &closure->Items[joinId].Context,
+                    &key[columnIndex],
+                    EAddressSpace::WebAssembly,
+                    EAddressSpace::WebAssembly);
             }
 
-            char* data = AllocateAlignedBytes(
-                &item.Context,
-                GetUnversionedRowByteSize(item.KeySize) + sizeof(TSlot));
+            i64 length = GetUnversionedRowByteSize(item.KeySize) + sizeof(TSlot);
+            auto* offset = AllocateAlignedBytes(&item.Context, length);
+            auto* data = ConvertPointerFromWasmToHost(offset, length);
             auto row = TMutableRow::Create(data, item.KeySize);
-            *keyPtr = reinterpret_cast<TPIValue*>(row.Begin());
+            auto* rowBeginOffset = ConvertPointerFromHostToWasm(row.Begin(), row.GetCount());
+            ConvertPointerFromWasmToHost(keysPtr, closure->Items.size())[joinId] = std::bit_cast<TPIValue*>(rowBeginOffset);
         }
 
-        reinterpret_cast<TSlot**>(*primaryValues + closure->PrimaryRowSize)[joinId] = reinterpret_cast<TSlot*>(
-            *inserted.first + item.KeySize);
+        auto* insertedOffset = std::bit_cast<TSlot*>(*inserted.first + item.KeySize);
+        auto** arrayOffset = std::bit_cast<TSlot**>(*ConvertPointerFromWasmToHost(primaryValues) + closure->PrimaryRowSize);
+        auto** array = ConvertPointerFromWasmToHost(arrayOffset, closure->Items.size());
+        array[joinId] = insertedOffset;
     }
 
     if (closure->PrimaryRows.size() >= closure->BatchSize) {
@@ -362,14 +424,16 @@ bool StorePrimaryRow(
             char* data = AllocateAlignedBytes(
                 &item.Context,
                 GetUnversionedRowByteSize(item.KeySize) + sizeof(TSlot));
-            auto row = TMutableRow::Create(data, item.KeySize);
-            keysPtr[joinId] = reinterpret_cast<TPIValue*>(row.Begin());
+            auto* dataAtHost = ConvertPointerFromWasmToHost(data, GetUnversionedRowByteSize(item.KeySize) + sizeof(TSlot));
+            auto row = TMutableRow::Create(dataAtHost, item.KeySize);
+            auto* rowBeginOffset = ConvertPointerFromHostToWasm(row.Begin(), row.GetCount());
+            ConvertPointerFromWasmToHost(keysPtr)[joinId] = std::bit_cast<TPIValue*>(rowBeginOffset);
         }
     }
 
     size_t primaryRowSize = closure->PrimaryRowSize * sizeof(TValue) + sizeof(TSlot*) * closure->Items.size();
 
-    *primaryValues = reinterpret_cast<TPIValue*>(AllocateAlignedBytes(&closure->Context, primaryRowSize));
+    *ConvertPointerFromWasmToHost(primaryValues) = std::bit_cast<TPIValue*>(AllocateAlignedBytes(&closure->Context, primaryRowSize));
 
     return false;
 }
@@ -420,7 +484,10 @@ void MultiJoinOpHelper(
     void** consumeRowsClosure,
     TRowsConsumer consumeRowsFunction)
 {
-    auto comparers = NDetail::MakeJoinComparersCallbacks(MakeRange(comparersOffsets, parameters->Items.size()));
+    auto comparers = NDetail::MakeJoinComparersCallbacks(
+        MakeRange(
+            ConvertPointerFromWasmToHost(comparersOffsets, parameters->Items.size()),
+            parameters->Items.size()));
     auto collectRows = PrepareFunction(collectRowsFunction);
     auto consumeRows = PrepareFunction(consumeRowsFunction);
 
@@ -479,19 +546,23 @@ void MultiJoinOpHelper(
             for (auto* key : closure.Items[joinId].OrderedKeys) {
                 // NB: Flags are neither set from TCG value nor cleared during row allocation.
                 size_t id = 0;
-                for (auto* value = key; value < key + closure.Items[joinId].KeySize; ++value) {
-                    value->Flags = {};
-                    value->Id = id++;
+                auto* items = ConvertPointerFromWasmToHost(key, closure.Items[joinId].KeySize);
+                for (size_t index = 0; index < closure.Items[joinId].KeySize; ++index) {
+                    auto& value = items[index];
+                    value.Flags = {};
+                    value.Id = id++;
                 }
-                auto row = TRow(reinterpret_cast<const TUnversionedRowHeader*>(key) - 1);
+                auto row = TRow(ConvertPointerFromWasmToHost(std::bit_cast<const TUnversionedRowHeader*>(key) - 1));
                 orderedKeys.emplace_back(key, row.GetCount());
             }
 
-            auto foreignExecutorCopy = CopyAndConvertFromPI(&foreignContext, orderedKeys);
-            auto reader = parameters->Items[joinId].ExecuteForeign(
-                foreignExecutorCopy,
-                foreignContext.GetRowBuffer());
-            readers.push_back(reader);
+            auto foreignExecutorCopy = CopyAndConvertFromPI(&foreignContext, orderedKeys, EAddressSpace::WebAssembly);
+            SaveAndRestoreCurrentCompartment([&] {
+                auto reader = parameters->Items[joinId].ExecuteForeign(
+                    foreignExecutorCopy,
+                    foreignContext.GetRowBuffer());
+                readers.push_back(reader);
+            });
 
             closure.Items[joinId].Lookup.clear();
             closure.Items[joinId].LastKey = nullptr;
@@ -539,7 +610,7 @@ void MultiJoinOpHelper(
                 while (index != sortedForeignSequence.size() && currentKey != orderedKeys.end()) {
                     int cmpResult = fullTernaryComparer(*currentKey, sortedForeignSequence[index]);
                     if (cmpResult == 0) {
-                        TSlot* slot = reinterpret_cast<TSlot*>(*currentKey + keySize);
+                        auto* slot = std::bit_cast<TSlot*>(ConvertPointerFromWasmToHost(*currentKey + keySize));
                         if (slot->Count == 0) {
                             slot->Offset = index;
                         }
@@ -576,7 +647,9 @@ void MultiJoinOpHelper(
                 TRange<TUnversionedRow> foreignRows;
                 {
                     TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&context->Statistics->ReadTime);
-                    foreignBatch = reader->Read(readOptions);
+                    SaveAndRestoreCurrentCompartment([&] {
+                        foreignBatch = reader->Read(readOptions);
+                    });
                     if (!foreignBatch) {
                         break;
                     }
@@ -586,15 +659,22 @@ void MultiJoinOpHelper(
 
                 if (foreignBatch->IsEmpty()) {
                     TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
-                    WaitFor(reader->GetReadyEvent())
-                        .ThrowOnError();
+                    SaveAndRestoreCurrentCompartment([&] {
+                        WaitFor(reader->GetReadyEvent())
+                            .ThrowOnError();
+                    });
                     continue;
                 }
 
                 for (auto row : foreignRows) {
-                    auto captured = closure.Context.CaptureRow(row);
-                    auto asPositionIndependent = InplaceConvertToPI(captured);
-                    foreignValues.push_back(asPositionIndependent.Begin());
+                    auto asPositionIndependent = InplaceConvertToPI(row);
+                    auto captured = CapturePIValueRange(
+                        &closure.Context,
+                        MakeRange(asPositionIndependent.Begin(), asPositionIndependent.Size()),
+                        NWebAssembly::EAddressSpace::Host,
+                        NWebAssembly::EAddressSpace::WebAssembly,
+                        /*captureValues*/ true);
+                    foreignValues.push_back(captured.Begin());
                 }
 
                 {
@@ -642,11 +722,18 @@ void MultiJoinOpHelper(
         auto consumeJoinedRows = [&] () -> bool {
             // Consume joined rows.
             processedRows += joinedRows.size();
-            bool finished = consumeRows(
-                consumeRowsClosure,
-                &intermediateContext,
-                joinedRows.data(),
-                joinedRows.size());
+
+            bool finished = false;
+            if (auto* compartment = GetCurrentCompartment()) {
+                auto guard = CopyIntoCompartment(
+                    MakeRange(std::bit_cast<uintptr_t*>(joinedRows.begin()), joinedRows.size()),
+                    compartment);
+                auto** offset = std::bit_cast<const TPIValue**>(guard.GetCopiedOffset());
+                finished = consumeRows(consumeRowsClosure, &intermediateContext, offset, joinedRows.size());
+            } else {
+                finished = consumeRows(consumeRowsClosure, &intermediateContext, joinedRows.data(), joinedRows.size());
+            }
+
             joinedRows.clear();
             intermediateContext.Clear();
             yielder.Checkpoint(processedRows);
@@ -668,14 +755,22 @@ void MultiJoinOpHelper(
         auto joinRow = [&] (TPIValue* rowValues) -> bool {
             size_t incrementIndex = 0;
             while (incrementIndex < closure.Items.size()) {
-                auto joinedRow = AllocatePIValueRange(&intermediateContext, resultRowSize);
+                auto joinedRow = AllocatePIValueRange(&intermediateContext, resultRowSize, EAddressSpace::WebAssembly);
+
                 for (size_t index = 0; index < closure.PrimaryRowSize; ++index) {
-                    CopyPositionIndependent(&joinedRow[index], rowValues[index]);
+                    CopyPositionIndependent(
+                        &ConvertPointerFromWasmToHost(joinedRow.Begin())[index],
+                        ConvertPointerFromWasmToHost(rowValues)[index]);
                 }
 
                 size_t offset = closure.PrimaryRowSize;
                 for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
-                    TSlot slot = *(reinterpret_cast<TSlot**>(rowValues + closure.PrimaryRowSize)[joinId]);
+                    auto** arrayAtHost = ConvertPointerFromWasmToHost(
+                        std::bit_cast<TSlot**>(rowValues + closure.PrimaryRowSize),
+                        closure.Items.size());
+                    auto* slotPointer = ConvertPointerFromWasmToHost(arrayAtHost[joinId]);
+                    auto slot = *slotPointer;
+
                     const auto& foreignIndexes = parameters->Items[joinId].ForeignColumns;
 
                     if (slot.Count != 0) {
@@ -693,7 +788,9 @@ void MultiJoinOpHelper(
                         }
 
                         for (size_t columnIndex : foreignIndexes) {
-                            CopyPositionIndependent(&joinedRow[offset++], foreignRow[columnIndex]);
+                            CopyPositionIndependent(
+                                &ConvertPointerFromWasmToHost(joinedRow.Begin())[offset++],
+                                *ConvertPointerFromWasmToHost(&foreignRow[columnIndex]));
                         }
                     } else {
                         if (incrementIndex == joinId) {
@@ -706,7 +803,9 @@ void MultiJoinOpHelper(
                             return false;
                         }
                         for (size_t count = foreignIndexes.size(); count > 0; --count) {
-                            MakePositionIndependentSentinelValue(&joinedRow[offset++], EValueType::Null);
+                            MakePositionIndependentSentinelValue(
+                                &ConvertPointerFromWasmToHost(joinedRow.Begin())[offset++],
+                                EValueType::Null);
                         }
                     }
                 }
@@ -767,23 +866,34 @@ bool ArrayJoinOpHelper(
     TArrayJoinPredicate predicateFunction)
 {
     auto consumeRows = PrepareFunction(consumeRowsFunction);
+    auto predicate = PrepareFunction(predicateFunction);
 
     int arrayCount = parameters->FlattenedTypes.size();
     std::vector<TPIValue*> nestedRows;
-    std::vector<const TPIValue*> filteredRows;
 
     for (int index = 0; index < arrayCount; ++index) {
-        if (arrays[index].Type == EValueType::Null) {
+        auto* arrayAtHost = ConvertPointerFromWasmToHost(&arrays[index]);
+
+        if (arrayAtHost->Type == EValueType::Null) {
             continue;
         }
 
-        TMemoryInput memoryInput(FromPositionIndependentValue<NYson::TYsonStringBuf>(arrays[index]).AsStringBuf());
-        TYsonPullParser parser(&memoryInput, EYsonType::Node);
-        TYsonPullParserCursor cursor(&parser);
+        TMemoryInput memoryInput;
+        TString buffer;
+        if (HasCurrentCompartment()) {
+            buffer = arrayAtHost->AsStringBuf();
+            memoryInput = TMemoryInput(TStringBuf(buffer));
+        } else {
+            memoryInput = TMemoryInput(FromPositionIndependentValue<NYson::TYsonStringBuf>(*arrayAtHost).AsStringBuf());
+        }
+
+        auto parser = TYsonPullParser(&memoryInput, EYsonType::Node);
+        auto cursor = TYsonPullParserCursor(&parser);
 
         auto listItemType = parameters->FlattenedTypes[index];
         TPIValue parsedValue;
         int currentArrayIndex = 0;
+
         cursor.ParseList([&] (TYsonPullParserCursor* cursor) {
             auto currentType = cursor->GetCurrent().GetType();
             switch (currentType) {
@@ -832,51 +942,73 @@ bool ArrayJoinOpHelper(
             }
 
             if (currentArrayIndex >= std::ssize(nestedRows)) {
-                auto mutableRange = AllocatePIValueRange(context, arrayCount);
+                auto mutableRange = AllocatePIValueRange(context, arrayCount, EAddressSpace::WebAssembly);
                 for (int leadingRowIndex = 0; leadingRowIndex < index; ++leadingRowIndex) {
-                    MakePositionIndependentNullValue(&mutableRange[leadingRowIndex]);
+                    MakePositionIndependentNullValue(ConvertPointerFromWasmToHost(&mutableRange[leadingRowIndex]));
                 }
                 nestedRows.push_back(mutableRange.Begin());
             }
-            CopyPositionIndependent(&nestedRows[currentArrayIndex][index], parsedValue);
+
+            CopyPositionIndependent(
+                ConvertPointerFromWasmToHost(&nestedRows[currentArrayIndex][index]),
+                parsedValue);
             currentArrayIndex++;
             cursor->Next();
         });
 
         for (int trailingIndex = currentArrayIndex; trailingIndex < std::ssize(nestedRows); ++trailingIndex) {
-            MakePositionIndependentNullValue(&nestedRows[trailingIndex][index]);
+            MakePositionIndependentNullValue(ConvertPointerFromWasmToHost(&nestedRows[trailingIndex][index]));
         }
     }
 
     int valueCount = parameters->SelfJoinedColumns.size() + parameters->ArrayJoinedColumns.size();
+    auto filteredRows = std::vector<const TPIValue*>();
 
     for (const auto* nestedRow : nestedRows) {
-        if (predicateFunction(predicateClosure, context, nestedRow)) {
+        if (predicate(predicateClosure, context, nestedRow)) {
             int joinedRowIndex = 0;
-            auto joinedRow = AllocatePIValueRange(context, valueCount);
+            auto joinedRow = AllocatePIValueRange(context, valueCount, EAddressSpace::WebAssembly);
+
             for (int index : parameters->SelfJoinedColumns) {
-                CopyPositionIndependent(&joinedRow[joinedRowIndex++], row[index]);
+                CopyPositionIndependent(
+                    ConvertPointerFromWasmToHost(&joinedRow[joinedRowIndex++]),
+                    *ConvertPointerFromWasmToHost(&row[index]));
             }
+
             for (int index : parameters->ArrayJoinedColumns) {
-                CopyPositionIndependent(&joinedRow[joinedRowIndex++], nestedRow[index]);
+                CopyPositionIndependent(
+                    ConvertPointerFromWasmToHost(&joinedRow[joinedRowIndex++]),
+                    *ConvertPointerFromWasmToHost(&nestedRow[index]));
             }
+
             filteredRows.push_back(joinedRow.Begin());
         }
     }
 
     if (parameters->IsLeft && filteredRows.empty()) {
         int joinedRowIndex = 0;
-        auto joinedRow = AllocatePIValueRange(context, valueCount);
+        auto joinedRow = AllocatePIValueRange(context, valueCount, EAddressSpace::WebAssembly);
 
         for (int index : parameters->SelfJoinedColumns) {
-            CopyPositionIndependent(&joinedRow[joinedRowIndex++], row[index]);
+            CopyPositionIndependent(
+                ConvertPointerFromWasmToHost(&joinedRow[joinedRowIndex++]),
+                *ConvertPointerFromWasmToHost(&row[index]));
         }
+
         for (int index : parameters->ArrayJoinedColumns) {
             Y_UNUSED(index);
-            MakePositionIndependentNullValue(&joinedRow[joinedRowIndex++]);
+            MakePositionIndependentNullValue(ConvertPointerFromWasmToHost(&joinedRow[joinedRowIndex++]));
         }
 
         filteredRows.push_back(joinedRow.Begin());
+    }
+
+    if (auto* compartment = GetCurrentCompartment()) {
+        auto guard = CopyIntoCompartment(
+            MakeRange(std::bit_cast<uintptr_t*>(filteredRows.data()), std::ssize(filteredRows)),
+            compartment);
+        auto** begin = std::bit_cast<const TPIValue**>(guard.GetCopiedOffset());
+        return consumeRows(consumeRowsClosure, context, begin, filteredRows.size());
     }
 
     return consumeRows(consumeRowsClosure, context, filteredRows.data(), filteredRows.size());
@@ -1084,6 +1216,8 @@ void TGroupByClosure::ValidateGroupKeyIsNotNull(TPIValue* row) const
         return;
     }
 
+    row = ConvertPointerFromWasmToHost(row, KeySize_);
+
     if (std::all_of(
         &row[0],
         &row[KeySize_],
@@ -1150,7 +1284,7 @@ const TPIValue* TGroupByClosure::InsertIntermediate(const TExecutionContext* con
         YT_VERIFY(std::ssize(Intermediate_) <= context->GroupRowLimit);
 
         for (int index = 0; index < KeySize_; ++index) {
-            CapturePIValue(&Context_, &row[index]);
+            CapturePIValue(&Context_, &row[index], EAddressSpace::WebAssembly, EAddressSpace::WebAssembly);
         }
     }
 
@@ -1165,7 +1299,7 @@ const TPIValue* TGroupByClosure::InsertFinal(const TExecutionContext* /*context*
     ++GroupedRowCount_;
 
     for (int index = 0; index < KeySize_; ++index) {
-        CapturePIValue(&FinalContext_, &row[index]);
+        CapturePIValue(&FinalContext_, &row[index], EAddressSpace::WebAssembly, EAddressSpace::WebAssembly);
     }
 
     return row;
@@ -1178,7 +1312,7 @@ const TPIValue* TGroupByClosure::InsertTotals(const TExecutionContext* /*context
     Totals_.push_back(row);
 
     for (int index = 0; index < KeySize_; ++index) {
-        CapturePIValue(&TotalsContext_, &row[index]);
+        CapturePIValue(&TotalsContext_, &row[index], EAddressSpace::WebAssembly, EAddressSpace::WebAssembly);
     }
 
     return row;
@@ -1283,6 +1417,14 @@ void TGroupByClosure::FlushWithBatching(
     const TPIValue** end,
     const TFlushFunction& flush)
 {
+    auto guard = TCopyGuard();
+    if (auto* compartment = GetCurrentCompartment()) {
+        i64 length = end - begin;
+        guard = CopyIntoCompartment(MakeRange(std::bit_cast<uintptr_t*>(begin), length), compartment);
+        begin = std::bit_cast<const TPIValue**>(guard.GetCopiedOffset());
+        end = begin + length;
+    }
+
     bool finished = false;
 
     // FIXME(dtorilov): We cannot skip intermediate rows for ordered queries
@@ -1489,7 +1631,9 @@ void AllocatePermanentRow(
 {
     CHECK_STACK();
 
-    *row = expressionContext->AllocateUnversioned(valueCount).Begin();
+    // TODO(dtorilov): Use AllocateUnversioned.
+    auto* offset = expressionContext->AllocateAligned(valueCount * sizeof(TPIValue), EAddressSpace::WebAssembly);
+    *ConvertPointerFromWasmToHost(row) = std::bit_cast<TValue*>(offset);
 }
 
 void AddRowToCollector(TTopCollector* topCollector, TPIValue* row)
@@ -1525,12 +1669,19 @@ void OrderOpHelper(
     TYielder yielder;
     size_t processedRows = 0;
 
+    auto guard = TCopyGuard();
+    auto** begin = rows.data();
+    if (auto* compartment = GetCurrentCompartment()) {
+        guard = CopyIntoCompartment(MakeRange(std::bit_cast<uintptr_t*>(rows.data()), std::ssize(rows)), compartment);
+        begin = std::bit_cast<const TPIValue**>(guard.GetCopiedOffset());
+    }
+
     auto rowCount = static_cast<i64>(rows.size());
     for (i64 index = context->Offset; index < rowCount; index += RowsetProcessingBatchSize) {
         auto size = std::min(RowsetProcessingBatchSize, rowCount - index);
         processedRows += size;
 
-        bool finished = consumeRows(consumeRowsClosure, &consumerContext, rows.data() + index, size);
+        bool finished = consumeRows(consumeRowsClosure, &consumerContext, begin + index, size);
         YT_VERIFY(!finished);
 
         consumerContext.Clear();
@@ -1565,27 +1716,33 @@ void WriteOpHelper(
         bool shouldNotWait;
         {
             TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&context->Statistics->WriteTime);
-            shouldNotWait = writer->Write(batch);
+            SaveAndRestoreCurrentCompartment([&] {
+                shouldNotWait = writer->Write(batch);
+            });
         }
 
         if (!shouldNotWait) {
             TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
-            WaitForFast(writer->GetReadyEvent())
-                .ThrowOnError();
+            SaveAndRestoreCurrentCompartment([&] {
+                WaitForFast(writer->GetReadyEvent())
+                    .ThrowOnError();
+            });
         }
     }
 
     YT_LOG_DEBUG("Closing writer");
     {
         TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
-        WaitForFast(context->Writer->Close())
-            .ThrowOnError();
+        SaveAndRestoreCurrentCompartment([&] {
+            WaitForFast(context->Writer->Close())
+                .ThrowOnError();
+        });
     }
 }
 
 char* AllocateBytes(TExpressionContext* context, size_t byteCount)
 {
-    return context->AllocateUnaligned(byteCount);
+    return context->AllocateUnaligned(byteCount, EAddressSpace::WebAssembly);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1596,40 +1753,76 @@ TPIValue* LookupInRowset(
     TComparerFunction* eqComparerFunction,
     TPIValue* key,
     TSharedRange<TRange<TPIValue>>* rowset,
-    std::unique_ptr<TLookupRows>* lookupTable)
+    std::unique_ptr<TLookupRowInRowsetWebAssemblyContext>* lookupContext)
 {
     auto comparer = PrepareFunction(comparerFunction);
     auto hasher = PrepareFunction(hasherFunction);
     auto eqComparer = PrepareFunction(eqComparerFunction);
 
+    if (*lookupContext == nullptr) {
+        *lookupContext = std::make_unique<TLookupRowInRowsetWebAssemblyContext>();
+
+        if (auto* compartment = GetCurrentCompartment()) {
+            // TODO(dtorilov): Change signature to return TSharedRange<TRange<TPIValue>>.
+            auto [guard, rows] = CopyRowRangeIntoCompartment(*rowset, compartment);
+            (*lookupContext)->RowsInsideCompartmentGuard = std::move(guard);
+            (*lookupContext)->RowsInsideCompartment = rows;
+        }
+    }
+
     if (rowset->Size() < 32) {
-        auto found = std::lower_bound(
-            rowset->Begin(),
-            rowset->End(),
-            key,
-            [&] (TRange<TPIValue> row, TPIValue* values) {
-                return comparer(row.Begin(), values);
-            });
+        if (HasCurrentCompartment()) {
+            auto& searchRange = (*lookupContext)->RowsInsideCompartment;
+            auto it = std::lower_bound(
+                searchRange.begin(),
+                searchRange.end(),
+                key,
+                [&] (TPIValue* rowOffsetInsideCompartment, TPIValue* target) {
+                    return comparer(rowOffsetInsideCompartment, target);
+                });
 
-        if (found != rowset->End() && !comparer(key, found->Begin())) {
-            return const_cast<TPIValue*>(found->Begin());
+            if (it != searchRange.end() && !comparer(key, *it)) {
+                return const_cast<TPIValue*>(*it);
+            }
+
+            return nullptr;
+        } else {
+            auto it = std::lower_bound(
+                rowset->Begin(),
+                rowset->End(),
+                key,
+                [&] (TRange<TPIValue> row, TPIValue* values) {
+                    return comparer(row.Begin(), values);
+                });
+
+            if (it != rowset->End() && !comparer(key, it->Begin())) {
+                return const_cast<TPIValue*>(it->Begin());
+            }
+
+            return nullptr;
         }
-
-        return nullptr;
     }
 
-    if (!*lookupTable) {
-        *lookupTable = std::make_unique<TLookupRows>(rowset->Size(), hasher, eqComparer);
-        (*lookupTable)->set_empty_key(nullptr);
+    auto& lookupTable = (*lookupContext)->LookupTable;
+    if (lookupTable == nullptr) {
+        lookupTable = std::make_unique<TLookupRows>(rowset->Size(), hasher, eqComparer);
+        lookupTable->set_empty_key(nullptr);
 
-        for (auto& row: *rowset) {
-            (*lookupTable)->insert(row.Begin());
+        if (HasCurrentCompartment()) {
+            auto& searchRange = (*lookupContext)->RowsInsideCompartment;
+            for (auto* row : searchRange) {
+                lookupTable->insert(row);
+            }
+        } else {
+            for (auto& row: *rowset) {
+                lookupTable->insert(row.Begin());
+            }
         }
     }
 
-    auto found = (*lookupTable)->find(key);
-    if (found != (*lookupTable)->end()) {
-        return const_cast<TPIValue*>(*found);
+    auto it = lookupTable->find(key);
+    if (it != lookupTable->end()) {
+        return const_cast<TPIValue*>(*it);
     }
 
     return nullptr;
@@ -1641,7 +1834,7 @@ char IsRowInRowset(
     TComparerFunction* eqComparer,
     TPIValue* values,
     TSharedRange<TRange<TPIValue>>* rows,
-    std::unique_ptr<TLookupRows>* lookupRows)
+    std::unique_ptr<TLookupRowInRowsetWebAssemblyContext>* lookupRows)
 {
     return LookupInRowset(comparer, hasher, eqComparer, values, rows, lookupRows) != nullptr;
 }
@@ -1651,6 +1844,8 @@ char IsRowInRanges(
     TPIValue* values,
     TSharedRange<TPIRowRange>* ranges)
 {
+    values = ConvertPointerFromWasmToHost(values);
+
     auto it = std::lower_bound(
         ranges->Begin(),
         ranges->End(),
@@ -1678,7 +1873,7 @@ const TPIValue* TransformTuple(
     TComparerFunction* eqComparer,
     TPIValue* values,
     TSharedRange<TRange<TPIValue>>* rows,
-    std::unique_ptr<TLookupRows>* lookupRows)
+    std::unique_ptr<TLookupRowInRowsetWebAssemblyContext>* lookupRows)
 {
     return LookupInRowset(comparer, hasher, eqComparer, values, rows, lookupRows);
 }
@@ -1687,7 +1882,7 @@ size_t StringHash(
     const char* data,
     ui32 length)
 {
-    return FarmFingerprint(data, length);
+    return FarmFingerprint(ConvertPointerFromWasmToHost(data, length), length);
 }
 
 // FarmHash and MurmurHash hybrid to hash TRow.
@@ -1779,26 +1974,81 @@ ui64 FarmHashUint64(ui64 value)
 
 void ThrowException(const char* error)
 {
+    // TODO(dtorilov): Infer length of error description.
     THROW_ERROR_EXCEPTION("Error while executing UDF")
-        << TError(error);
+        << TError(ConvertPointerFromWasmToHost(error));
 }
 
 void ThrowQueryException(const char* error)
 {
     THROW_ERROR_EXCEPTION("Error while executing query")
-        << TError(error);
+        << TError(ConvertPointerFromWasmToHost(error));
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+template <typename TStringType>
+void CopyString(TExpressionContext* context, TValue* result, const TStringType& str)
+{
+    auto* offset = AllocateBytes(context, str.size());
+    ::memcpy(ConvertPointerFromWasmToHost(offset, str.size()), str.data(), str.size());
+    *ConvertPointerFromWasmToHost(result) = MakeUnversionedStringValue(TStringBuf(offset, str.size()));
+}
+
+template <typename TStringType>
+void CopyString(TExpressionContext* context, TPIValue* result, const TStringType& str)
+{
+    auto* offset = AllocateBytes(context, str.size());
+    ::memcpy(ConvertPointerFromWasmToHost(offset, str.size()), str.data(), str.size());
+    MakePositionIndependentStringValue(
+        ConvertPointerFromWasmToHost(result),
+        TStringBuf(
+            ConvertPointerFromWasmToHost(offset, str.size()),
+            str.size()));
+}
+
+template <typename TStringType>
+void CopyAny(TExpressionContext* context, TValue* result, const TStringType& str)
+{
+    auto* offset = AllocateBytes(context, str.size());
+    ::memcpy(ConvertPointerFromWasmToHost(offset, str.size()), str.data(), str.size());
+    *ConvertPointerFromWasmToHost(result) = MakeUnversionedAnyValue(TStringBuf(offset, str.size()));
+}
+
+template <typename TStringType>
+void CopyAny(TExpressionContext* context, TPIValue* result, const TStringType& str)
+{
+    auto* offset = AllocateBytes(context, str.size());
+    ::memcpy(ConvertPointerFromWasmToHost(offset, str.size()), str.data(), str.size());
+    MakePositionIndependentAnyValue(
+        ConvertPointerFromWasmToHost(result),
+        TStringBuf(
+            ConvertPointerFromWasmToHost(offset, str.size()),
+            str.size()));
+}
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
 
 re2::RE2* RegexCreate(TValue* regexp)
 {
-    auto piRegexp = BorrowFromNonPI(regexp);
+    auto* regexAtHost = ConvertPointerFromWasmToHost(regexp);
+    auto regexString = TStringBuf(
+        ConvertPointerFromWasmToHost(regexAtHost->Data.String),
+        regexAtHost->Length);
+
     re2::RE2::Options options;
     options.set_log_errors(false);
-    auto re2 = std::make_unique<re2::RE2>(re2::StringPiece(piRegexp.GetPIValue()->AsStringBuf().Data(), piRegexp.GetPIValue()->AsStringBuf().Size()), options);
+    auto re2 = std::make_unique<re2::RE2>(
+        re2::StringPiece(regexString.data(), regexString.Size()),
+        options);
     if (!re2->ok()) {
         THROW_ERROR_EXCEPTION(
             "Error parsing regular expression %Qv",
-            piRegexp.GetPIValue()->AsStringBuf())
+            regexString)
             << TError(re2->error().c_str());
     }
     return re2.release();
@@ -1809,42 +2059,31 @@ void RegexDestroy(re2::RE2* re2)
     delete re2;
 }
 
-ui8 RegexFullMatch(re2::RE2* re2, TValue* string)
+bool RegexFullMatch(re2::RE2* re2, TValue* string)
 {
-    auto piString = BorrowFromNonPI(string);
+    auto* stringAtHost = ConvertPointerFromWasmToHost(string);
+    YT_VERIFY(stringAtHost->Type == EValueType::String);
 
-    YT_VERIFY(piString.GetPIValue()->Type == EValueType::String);
+    auto stringBuf = TStringBuf(
+        ConvertPointerFromWasmToHost(stringAtHost->Data.String),
+        stringAtHost->Length);
 
     return re2::RE2::FullMatch(
-        re2::StringPiece(piString.GetPIValue()->AsStringBuf().Data(), piString.GetPIValue()->AsStringBuf().Size()),
+        re2::StringPiece(stringBuf.data(), stringBuf.size()),
         *re2);
 }
 
-ui8 RegexPartialMatch(re2::RE2* re2, TValue* string)
+bool RegexPartialMatch(re2::RE2* re2, TValue* string)
 {
-    auto piString = BorrowFromNonPI(string);
-
-    YT_VERIFY(piString.GetPIValue()->Type == EValueType::String);
+    auto* stringAtHost = ConvertPointerFromWasmToHost(string);
+    YT_VERIFY(stringAtHost->Type == EValueType::String);
+    auto stringBuf = TStringBuf(
+        ConvertPointerFromWasmToHost(stringAtHost->Data.String),
+        stringAtHost->Length);
 
     return re2::RE2::PartialMatch(
-        re2::StringPiece(piString.GetPIValue()->AsStringBuf().Data(), piString.GetPIValue()->AsStringBuf().size()),
+        re2::StringPiece(stringBuf.data(), stringBuf.size()),
         *re2);
-}
-
-template <typename TStringType>
-void CopyString(TExpressionContext* context, TPIValue* result, const TStringType& str)
-{
-    char* data = AllocateBytes(context, str.size());
-    ::memcpy(data, str.data(), str.size());
-    MakePositionIndependentStringValue(result, TStringBuf(data, str.size()));
-}
-
-template <typename TStringType>
-void CopyAny(TExpressionContext* context, TPIValue* result, const TStringType& str)
-{
-    char* data = AllocateBytes(context, str.size());
-    ::memcpy(data, str.data(), str.size());
-    MakePositionIndependentAnyValue(result, TStringBuf(data, str.size()));
 }
 
 void RegexReplaceFirst(
@@ -1854,20 +2093,25 @@ void RegexReplaceFirst(
     TValue* rewrite,
     TValue* result)
 {
-    auto piString = BorrowFromNonPI(string);
-    auto piRewrite = BorrowFromNonPI(rewrite);
-    auto piResult = BorrowFromNonPI(result);
+    auto* stringAtHost = ConvertPointerFromWasmToHost(string);
+    YT_VERIFY(stringAtHost->Type == EValueType::String);
+    auto stringBuf = TStringBuf(
+        ConvertPointerFromWasmToHost(stringAtHost->Data.String),
+        stringAtHost->Length);
 
-    YT_VERIFY(piString.GetPIValue()->Type == EValueType::String);
-    YT_VERIFY(piRewrite.GetPIValue()->Type == EValueType::String);
+    auto* rewriteAtHost = ConvertPointerFromWasmToHost(rewrite);
+    YT_VERIFY(rewriteAtHost->Type == EValueType::String);
+    auto rewriteAtHostStringBuf = TStringBuf(
+        ConvertPointerFromWasmToHost(rewriteAtHost->Data.String),
+        rewriteAtHost->Length);
 
-    std::string str(piString.GetPIValue()->AsStringBuf().Data(), piString.GetPIValue()->AsStringBuf().Size());
+    auto rewritten = std::string(stringBuf);
     re2::RE2::Replace(
-        &str,
+        &rewritten,
         *re2,
-        re2::StringPiece(piRewrite.GetPIValue()->AsStringBuf().Data(), piRewrite.GetPIValue()->AsStringBuf().Size()));
+        re2::StringPiece(rewriteAtHostStringBuf.data(), rewriteAtHostStringBuf.size()));
 
-    CopyString(context, piResult.GetPIValue(), str);
+    NDetail::CopyString(context, result, rewritten);
 }
 
 void RegexReplaceAll(
@@ -1877,20 +2121,25 @@ void RegexReplaceAll(
     TValue* rewrite,
     TValue* result)
 {
-    auto piString = BorrowFromNonPI(string);
-    auto piRewrite = BorrowFromNonPI(rewrite);
-    auto piResult = BorrowFromNonPI(result);
+    auto* stringAtHost = ConvertPointerFromWasmToHost(string);
+    YT_VERIFY(stringAtHost->Type == EValueType::String);
+    auto stringBuf = TStringBuf(
+        ConvertPointerFromWasmToHost(stringAtHost->Data.String),
+        stringAtHost->Length);
 
-    YT_VERIFY(piString.GetPIValue()->Type == EValueType::String);
-    YT_VERIFY(piRewrite.GetPIValue()->Type == EValueType::String);
+    auto* rewriteAtHost = ConvertPointerFromWasmToHost(rewrite);
+    YT_VERIFY(rewriteAtHost->Type == EValueType::String);
+    auto rewriteAtHostStringBuf = TStringBuf(
+        ConvertPointerFromWasmToHost(rewriteAtHost->Data.String),
+        rewriteAtHost->Length);
 
-    std::string str(piString.GetPIValue()->AsStringBuf().Data(), piString.GetPIValue()->AsStringBuf().Size());
+    auto rewritten = std::string(stringBuf);
     re2::RE2::GlobalReplace(
-        &str,
+        &rewritten,
         *re2,
-        re2::StringPiece(piRewrite.GetPIValue()->AsStringBuf().Data(), piRewrite.GetPIValue()->AsStringBuf().Size()));
+        re2::StringPiece(rewriteAtHostStringBuf.data(), rewriteAtHostStringBuf.size()));
 
-    CopyString(context, piResult.GetPIValue(), str);
+    NDetail::CopyString(context, result, rewritten);
 }
 
 void RegexExtract(
@@ -1900,21 +2149,26 @@ void RegexExtract(
     TValue* rewrite,
     TValue* result)
 {
-    auto piString = BorrowFromNonPI(string);
-    auto piRewrite = BorrowFromNonPI(rewrite);
-    auto piResult = BorrowFromNonPI(result);
+    auto* stringAtHost = ConvertPointerFromWasmToHost(string);
+    YT_VERIFY(stringAtHost->Type == EValueType::String);
+    auto stringBuf = TStringBuf(
+        ConvertPointerFromWasmToHost(stringAtHost->Data.String),
+        stringAtHost->Length);
 
-    YT_VERIFY(piString.GetPIValue()->Type == EValueType::String);
-    YT_VERIFY(piRewrite.GetPIValue()->Type == EValueType::String);
+    auto* rewriteAtHost = ConvertPointerFromWasmToHost(rewrite);
+    YT_VERIFY(rewriteAtHost->Type == EValueType::String);
+    auto rewriteAtHostStringBuf = TStringBuf(
+        ConvertPointerFromWasmToHost(rewriteAtHost->Data.String),
+        rewriteAtHost->Length);
 
-    std::string str;
+    auto extracted = std::string(stringBuf);
     re2::RE2::Extract(
-        re2::StringPiece(piString.GetPIValue()->AsStringBuf().Data(), piString.GetPIValue()->AsStringBuf().Size()),
+        re2::StringPiece(stringBuf.data(), stringBuf.size()),
         *re2,
-        re2::StringPiece(piRewrite.GetPIValue()->AsStringBuf().Data(), piRewrite.GetPIValue()->AsStringBuf().Size()),
-        &str);
+        re2::StringPiece(rewriteAtHostStringBuf.data(), rewriteAtHostStringBuf.size()),
+        &extracted);
 
-    CopyString(context, piResult.GetPIValue(), str);
+    NDetail::CopyString(context, result, extracted);
 }
 
 void RegexEscape(
@@ -1922,21 +2176,28 @@ void RegexEscape(
     TValue* string,
     TValue* result)
 {
-    auto piString = BorrowFromNonPI(string);
-    auto piResult = BorrowFromNonPI(result);
+    auto* stringAtHost = ConvertPointerFromWasmToHost(string);
+    YT_VERIFY(stringAtHost->Type == EValueType::String);
+    auto stringBuf = TStringBuf(
+        ConvertPointerFromWasmToHost(stringAtHost->Data.String),
+        stringAtHost->Length);
 
-    auto str = re2::RE2::QuoteMeta(
-        re2::StringPiece(piString.GetPIValue()->AsStringBuf().Data(), piString.GetPIValue()->AsStringBuf().Size()));
+    auto escaped = re2::RE2::QuoteMeta(
+        re2::StringPiece(stringBuf.data(), stringBuf.size()));
 
-    CopyString(context, piResult.GetPIValue(), str);
+    NDetail::CopyString(context, result, escaped);
 }
 
 static void* XdeltaAllocate(void* opaque, size_t size)
 {
     if (opaque) {
-        return reinterpret_cast<uint8_t*>(NRoutines::AllocateBytes(static_cast<NYT::NCodegen::TExpressionContext*>(opaque), size));
+        return std::bit_cast<uint8_t*>(
+            ConvertPointerFromWasmToHost(
+                AllocateBytes(static_cast<TExpressionContext*>(opaque), size),
+                size));
     }
-    return reinterpret_cast<uint8_t*>(malloc(size));
+
+    return static_cast<uint8_t*>(malloc(size));
 }
 
 static void XdeltaFree(void* opaque, void* ptr)
@@ -1947,7 +2208,7 @@ static void XdeltaFree(void* opaque, void* ptr)
 }
 
 int XdeltaMerge(
-    void* context,
+    TExpressionContext* context,
     const uint8_t* lhsData,
     size_t lhsSize,
     const uint8_t* rhsData,
@@ -1956,6 +2217,9 @@ int XdeltaMerge(
     size_t* resultOffset,
     size_t* resultSize)
 {
+    lhsData = ConvertPointerFromWasmToHost(lhsData);
+    rhsData = ConvertPointerFromWasmToHost(rhsData);
+
     NXdeltaAggregateColumn::TSpan result;
     XDeltaContext ctx{
         .opaque = context,
@@ -1966,12 +2230,14 @@ int XdeltaMerge(
     if (code == 0) {
         ThrowException("Failed to merge xdelta states");
     }
-    *resultData = result.Data;
-    *resultOffset = result.Offset;
-    *resultSize = result.Size;
+    *ConvertPointerFromWasmToHost(resultData) = ConvertPointerFromHostToWasm(result.Data);
+    *ConvertPointerFromWasmToHost(resultOffset) = result.Offset;
+    *ConvertPointerFromWasmToHost(resultSize) = result.Size;
 
     return code;
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 #define DEFINE_YPATH_GET_IMPL2(PREFIX, TYPE, STATEMENT_OK, STATEMENT_FAIL) \
     void PREFIX ## Get ## TYPE( \
@@ -1980,12 +2246,17 @@ int XdeltaMerge(
         TValue* anyValue, \
         TValue* ypath) \
     { \
-        auto piResult = BorrowFromNonPI(result); \
-        auto piAnyValue = BorrowFromNonPI(anyValue); \
-        auto piYpath = BorrowFromNonPI(ypath); \
+        TValue* anyValueAtHost = ConvertPointerFromWasmToHost(anyValue); \
+        const char* anyValueDataOffset = anyValueAtHost->Data.String; \
+        const char* anyValueDataAtHost = ConvertPointerFromWasmToHost(anyValueDataOffset, anyValueAtHost->Length); \
+        \
+        TValue* ypathAtHost = ConvertPointerFromWasmToHost(ypath); \
+        const char* ypathDataOffset = ypathAtHost->Data.String; \
+        const char* ypathDataAtHost = ConvertPointerFromWasmToHost(ypathDataOffset, ypathAtHost->Length); \
+        \
         auto value = NYTree::TryGet ## TYPE( \
-            piAnyValue.GetPIValue()->AsStringBuf(), \
-            TString(piYpath.GetPIValue()->AsStringBuf())); \
+            TStringBuf(anyValueDataAtHost, anyValueAtHost->Length), \
+            TString(ypathDataAtHost, ypathAtHost->Length)); \
         if (value) { \
             STATEMENT_OK \
         } else { \
@@ -1995,23 +2266,25 @@ int XdeltaMerge(
 
 #define DEFINE_YPATH_GET_IMPL(TYPE, STATEMENT_OK) \
     DEFINE_YPATH_GET_IMPL2(Try, TYPE, STATEMENT_OK, \
-        MakePositionIndependentNullValue(piResult.GetPIValue());) \
+        TValue* resultAtHost = ConvertPointerFromWasmToHost(result); \
+        *resultAtHost = MakeUnversionedNullValue();) \
     DEFINE_YPATH_GET_IMPL2(, TYPE, STATEMENT_OK, \
         THROW_ERROR_EXCEPTION("Value of type %Qlv is not found at YPath %v", \
             EValueType::TYPE, \
-            piYpath.GetPIValue()->AsStringBuf());)
+            ypathDataAtHost);)
 
 #define DEFINE_YPATH_GET(TYPE) \
     DEFINE_YPATH_GET_IMPL(TYPE, \
-        MakePositionIndependent ## TYPE ## Value(piResult.GetPIValue(), *value);)
+        TValue* resultAtHost = ConvertPointerFromWasmToHost(result); \
+        *resultAtHost = MakeUnversioned ## TYPE ## Value(*value);)
 
 #define DEFINE_YPATH_GET_STRING \
     DEFINE_YPATH_GET_IMPL(String, \
-        CopyString(context, piResult.GetPIValue(), *value);)
+        NDetail::CopyString(context, result, *value);)
 
 #define DEFINE_YPATH_GET_ANY \
     DEFINE_YPATH_GET_IMPL(Any, \
-        CopyAny(context, piResult.GetPIValue(), *value);)
+        NDetail::CopyAny(context, result, *value);)
 
 DEFINE_YPATH_GET(Int64)
 DEFINE_YPATH_GET(Uint64)
@@ -2025,8 +2298,9 @@ DEFINE_YPATH_GET_ANY
 #define DEFINE_CONVERT_ANY(TYPE, STATEMENT_OK) \
     void AnyTo ## TYPE([[maybe_unused]] TExpressionContext* context, TPIValue* result, TPIValue* anyValue) \
     { \
+        anyValue = ConvertPointerFromWasmToHost(anyValue); \
         if (anyValue->Type == EValueType::Null) { \
-            MakePositionIndependentNullValue(result); \
+            MakePositionIndependentNullValue(ConvertPointerFromWasmToHost(result)); \
             return; \
         } \
         NYson::TToken token; \
@@ -2044,19 +2318,20 @@ DEFINE_YPATH_GET_ANY
 #define DEFINE_CONVERT_ANY_NUMERIC_IMPL(TYPE) \
     void AnyTo ## TYPE(TExpressionContext* /*context*/, TPIValue* result, TPIValue* anyValue) \
     { \
+        anyValue = ConvertPointerFromWasmToHost(anyValue); \
         if (anyValue->Type == EValueType::Null) { \
-            MakePositionIndependentNullValue(result); \
+            MakePositionIndependentNullValue(ConvertPointerFromWasmToHost(result)); \
             return; \
         } \
         NYson::TToken token; \
         auto anyString = anyValue->AsStringBuf(); \
         NYson::ParseToken(anyString, &token); \
         if (token.GetType() == NYson::ETokenType::Int64) { \
-            MakePositionIndependent ## TYPE ## Value(result, token.GetInt64Value()); \
+            MakePositionIndependent ## TYPE ## Value(ConvertPointerFromWasmToHost(result), token.GetInt64Value()); \
         } else if (token.GetType() == NYson::ETokenType::Uint64) { \
-            MakePositionIndependent ## TYPE ## Value(result, token.GetUint64Value()); \
+            MakePositionIndependent ## TYPE ## Value(ConvertPointerFromWasmToHost(result), token.GetUint64Value()); \
         } else if (token.GetType() == NYson::ETokenType::Double) { \
-            MakePositionIndependent ## TYPE ## Value(result, token.GetDoubleValue()); \
+            MakePositionIndependent ## TYPE ## Value(ConvertPointerFromWasmToHost(result), token.GetDoubleValue()); \
         } else { \
             THROW_ERROR_EXCEPTION("Cannot convert value %Qv of type \"any\" to %Qlv", \
                 anyString, \
@@ -2067,8 +2342,11 @@ DEFINE_YPATH_GET_ANY
 DEFINE_CONVERT_ANY_NUMERIC_IMPL(Int64)
 DEFINE_CONVERT_ANY_NUMERIC_IMPL(Uint64)
 DEFINE_CONVERT_ANY_NUMERIC_IMPL(Double)
-DEFINE_CONVERT_ANY(Boolean, MakePositionIndependentBooleanValue(result, token.GetBooleanValue());)
-DEFINE_CONVERT_ANY(String, CopyString(context, result, token.GetStringValue());)
+DEFINE_CONVERT_ANY(
+    Boolean,
+    MakePositionIndependentBooleanValue(ConvertPointerFromWasmToHost(result),
+    token.GetBooleanValue());)
+DEFINE_CONVERT_ANY(String, NDetail::CopyString(context, result, token.GetStringValue());)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2081,6 +2359,9 @@ void ThrowCannotCompareTypes(NYson::ETokenType lhsType, NYson::ETokenType rhsTyp
 
 int CompareAny(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
 {
+    lhsData = ConvertPointerFromWasmToHost(lhsData);
+    rhsData = ConvertPointerFromWasmToHost(rhsData);
+
     TStringBuf lhsInput(lhsData, lhsLength);
     TStringBuf rhsInput(rhsData, rhsLength);
 
@@ -2170,6 +2451,7 @@ int CompareAny(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
 #define DEFINE_COMPARE_ANY(TYPE, TOKEN_TYPE) \
 int CompareAny##TOKEN_TYPE(char* lhsData, i32 lhsLength, TYPE rhsValue) \
 { \
+    lhsData = ConvertPointerFromWasmToHost(lhsData); \
     TStringBuf lhsInput(lhsData, lhsLength); \
     NYson::TStatelessLexer lexer; \
     NYson::TToken lhsToken; \
@@ -2194,6 +2476,9 @@ DEFINE_COMPARE_ANY(double, Double)
 
 int CompareAnyString(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
 {
+    lhsData = ConvertPointerFromWasmToHost(lhsData);
+    rhsData = ConvertPointerFromWasmToHost(rhsData);
+
     TStringBuf lhsInput(lhsData, lhsLength);
     NYson::TStatelessLexer lexer;
     NYson::TToken lhsToken;
@@ -2214,29 +2499,61 @@ int CompareAnyString(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
 
 void ToAny(TExpressionContext* context, TValue* result, TValue* value)
 {
-    auto piResult = BorrowFromNonPI(result);
-    auto piValue = BorrowFromNonPI(value);
+    auto* valueAtHost = ConvertPointerFromWasmToHost(value);
+
+    auto valueCopy = *valueAtHost;
+    if (IsStringLikeType(valueAtHost->Type)) {
+        valueCopy.Data.String = ConvertPointerFromWasmToHost(valueAtHost->Data.String);
+    }
+
     // TODO(babenko): for some reason, flags are garbage here.
-    value->Flags = {};
-    ToAny(piResult.GetPIValue(), piValue.GetPIValue(), context);
+    valueCopy.Flags = {};
+
+    // NB: TRowBuffer should be used with caution while executing via WebAssembly engine.
+    TValue buffer = EncodeUnversionedAnyValue(valueCopy, context->GetRowBuffer().Get()->GetPool());
+
+    *(ConvertPointerFromWasmToHost(result)) = buffer;
+    if (HasCurrentCompartment()) {
+        auto* data = AllocateBytes(context, buffer.Length);
+        ::memcpy(ConvertPointerFromWasmToHost(data, buffer.Length), buffer.Data.String, buffer.Length);
+        (ConvertPointerFromWasmToHost(result))->Data.String = data;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToLowerUTF8(TExpressionContext* context, char** result, int* resultLength, char* source, int sourceLength)
 {
-    auto lowered = ToLowerUTF8(TStringBuf(source, sourceLength));
-    *result = AllocateBytes(context, lowered.size());
-    for (int i = 0; i < std::ssize(lowered); i++) {
-        (*result)[i] = lowered[i];
-    }
-    *resultLength = lowered.size();
+    auto lowered = ToLowerUTF8(TStringBuf(ConvertPointerFromWasmToHost(source), sourceLength));
+    auto* offset = AllocateBytes(context, lowered.size());
+    *ConvertPointerFromWasmToHost(result) = offset;
+    *ConvertPointerFromWasmToHost(resultLength) = lowered.size();
+    ::memcpy(ConvertPointerFromWasmToHost(offset, lowered.size()), lowered.data(), lowered.size());
 }
 
 TFingerprint GetFarmFingerprint(const TValue* begin, const TValue* end)
 {
-    auto asRange = TRange<TValue>(begin, static_cast<size_t>(end - begin));
-    auto asPIRange = BorrowFromNonPI(asRange);
+    auto asRange = TMutableRange<TValue>(
+        ConvertPointerFromWasmToHost(begin, end - begin),
+        static_cast<size_t>(end - begin));
+
+    for (auto& item : asRange) {
+        if (IsStringLikeType(item.Type)) {
+            item.Data.String = ConvertPointerFromWasmToHost(item.Data.String);
+        }
+    }
+
+    auto finally = Finally([&] {
+        for (auto& item : asRange) {
+            if (IsStringLikeType(item.Type)) {
+                item.Data.String = ConvertPointerFromHostToWasm(item.Data.String);
+            }
+        }
+    });
+
+    // TODO(dtorilov): Do not convert twice.
+    auto asPIRange = BorrowFromNonPI(MakeRange(asRange.Begin(), asRange.End()));
+
     return GetFarmFingerprint(asPIRange.Begin(), asPIRange.Begin() + asPIRange.Size());
 }
 
@@ -2248,13 +2565,11 @@ extern "C" void MakeMap(
     TValue* args,
     int argCount)
 {
-    auto piResult = BorrowFromNonPI(result);
-
-    auto argumentRange = TRange<TValue>(args, static_cast<size_t>(argCount));
-    auto piArgs = BorrowFromNonPI(argumentRange);
     if (argCount % 2 != 0) {
         THROW_ERROR_EXCEPTION("\"make_map\" takes a even number of arguments");
     }
+
+    auto arguments = MakeRange(ConvertPointerFromWasmToHost(args, argCount), argCount);
 
     TString resultYson;
     TStringOutput output(resultYson);
@@ -2262,8 +2577,8 @@ extern "C" void MakeMap(
 
     writer.OnBeginMap();
     for (int index = 0; index < argCount / 2; ++index) {
-        const auto& nameArg = piArgs[index * 2];
-        const auto& valueArg = piArgs[index * 2 + 1];
+        const auto& nameArg = arguments[index * 2];
+        const auto& valueArg = arguments[index * 2 + 1];
 
         if (nameArg.Type != EValueType::String) {
             THROW_ERROR_EXCEPTION("Invalid type of key in key-value pair #%v: expected %Qlv, got %Qlv",
@@ -2271,7 +2586,10 @@ extern "C" void MakeMap(
                 EValueType::String,
                 nameArg.Type);
         }
-        writer.OnKeyedItem(nameArg.AsStringBuf());
+
+        writer.OnKeyedItem(TStringBuf(
+            ConvertPointerFromWasmToHost(nameArg.Data.String, nameArg.Length),
+            nameArg.Length));
 
         switch (valueArg.Type) {
             case EValueType::Int64:
@@ -2287,10 +2605,14 @@ extern "C" void MakeMap(
                 writer.OnBooleanScalar(valueArg.Data.Boolean);
                 break;
             case EValueType::String:
-                writer.OnStringScalar(valueArg.AsStringBuf());
+                writer.OnStringScalar(TStringBuf(
+                    ConvertPointerFromWasmToHost(valueArg.Data.String, valueArg.Length),
+                    valueArg.Length));
                 break;
             case EValueType::Any:
-                writer.OnRaw(valueArg.AsStringBuf());
+                writer.OnRaw(TStringBuf(
+                    ConvertPointerFromWasmToHost(valueArg.Data.String, valueArg.Length),
+                    valueArg.Length));
                 break;
             case EValueType::Null:
                 writer.OnEntity();
@@ -2303,8 +2625,7 @@ extern "C" void MakeMap(
     }
     writer.OnEndMap();
 
-    MakePositionIndependentAnyValue(piResult.GetPIValue(), resultYson);
-    CapturePIValue(context, piResult.GetPIValue());
+    NDetail::CopyAny(context, result, resultYson);
 }
 
 extern "C" void MakeList(
@@ -2313,10 +2634,7 @@ extern "C" void MakeList(
     TValue* args,
     int argCount)
 {
-    auto piResult = BorrowFromNonPI(result);
-
-    auto argumentRange = TRange<TValue>(args, static_cast<size_t>(argCount));
-    auto piArgs = BorrowFromNonPI(argumentRange);
+    auto arguments = MakeRange(ConvertPointerFromWasmToHost(args, argCount), argCount);
 
     TString resultYson;
     TStringOutput output(resultYson);
@@ -2324,7 +2642,7 @@ extern "C" void MakeList(
 
     writer.OnBeginList();
     for (int index = 0; index < argCount; ++index) {
-        const auto& valueArg = piArgs[index];
+        const auto& valueArg = arguments[index];
 
         writer.OnListItem();
 
@@ -2342,10 +2660,14 @@ extern "C" void MakeList(
                 writer.OnBooleanScalar(valueArg.Data.Boolean);
                 break;
             case EValueType::String:
-                writer.OnStringScalar(valueArg.AsStringBuf());
+                writer.OnStringScalar(TStringBuf(
+                    ConvertPointerFromWasmToHost(valueArg.Data.String, valueArg.Length),
+                    valueArg.Length));
                 break;
             case EValueType::Any:
-                writer.OnRaw(valueArg.AsStringBuf());
+                writer.OnRaw(TStringBuf(
+                    ConvertPointerFromWasmToHost(valueArg.Data.String, valueArg.Length),
+                    valueArg.Length));
                 break;
             case EValueType::Null:
                 writer.OnEntity();
@@ -2358,8 +2680,7 @@ extern "C" void MakeList(
     }
     writer.OnEndList();
 
-    MakePositionIndependentAnyValue(piResult.GetPIValue(), resultYson);
-    CapturePIValue(context, piResult.GetPIValue());
+    NDetail::CopyAny(context, result, resultYson);
 }
 
 template <ENodeType NodeType, typename TElement, typename TValue>
@@ -2379,36 +2700,41 @@ void ListContains(
     TValue* ysonList,
     TValue* what)
 {
-    auto piResult = BorrowFromNonPI(result);
-    auto piYsonList = BorrowFromNonPI(ysonList);
-    auto piWhat = BorrowFromNonPI(what);
+    auto whatAtHost = *ConvertPointerFromWasmToHost(what);
+    if (IsStringLikeType(whatAtHost.Type)) {
+        whatAtHost.Data.String = ConvertPointerFromWasmToHost(whatAtHost.Data.String, whatAtHost.Length);
+    }
 
-    const auto node = NYTree::ConvertToNode(
-        FromPositionIndependentValue<NYson::TYsonStringBuf>(*piYsonList.GetPIValue()));
+    auto ysonListAtHost = *ConvertPointerFromWasmToHost(ysonList);
+    YT_VERIFY(IsStringLikeType(ysonListAtHost.Type));
+    ysonListAtHost.Data.String = ConvertPointerFromWasmToHost(ysonListAtHost.Data.String, ysonListAtHost.Length);
 
-    bool found;
-    switch (piWhat.GetPIValue()->Type) {
+    auto node = NYTree::ConvertToNode(
+        FromUnversionedValue<NYson::TYsonStringBuf>(ysonListAtHost));
+
+    bool found = false;
+    switch (whatAtHost.Type) {
         case EValueType::String:
-            found = ListContainsImpl<ENodeType::String, TString>(node, piWhat.GetPIValue()->AsStringBuf());
+            found = ListContainsImpl<ENodeType::String, TString>(node, TStringBuf(whatAtHost.Data.String, whatAtHost.Length));
             break;
         case EValueType::Int64:
-            found = ListContainsImpl<ENodeType::Int64, i64>(node, piWhat.GetPIValue()->Data.Int64);
+            found = ListContainsImpl<ENodeType::Int64, i64>(node, whatAtHost.Data.Int64);
             break;
         case EValueType::Uint64:
-            found = ListContainsImpl<ENodeType::Uint64, ui64>(node, piWhat.GetPIValue()->Data.Uint64);
+            found = ListContainsImpl<ENodeType::Uint64, ui64>(node, whatAtHost.Data.Uint64);
             break;
         case EValueType::Boolean:
-            found = ListContainsImpl<ENodeType::Boolean, bool>(node, piWhat.GetPIValue()->Data.Boolean);
+            found = ListContainsImpl<ENodeType::Boolean, bool>(node, whatAtHost.Data.Boolean);
             break;
         case EValueType::Double:
-            found = ListContainsImpl<ENodeType::Double, double>(node, piWhat.GetPIValue()->Data.Double);
+            found = ListContainsImpl<ENodeType::Double, double>(node, whatAtHost.Data.Double);
             break;
         default:
             THROW_ERROR_EXCEPTION("ListContains is not implemented for %Qlv values",
-                piWhat.GetPIValue()->Type);
+                whatAtHost.Type);
     }
 
-    MakePositionIndependentBooleanValue(piResult.GetPIValue(), found);
+    *ConvertPointerFromWasmToHost(result) = MakeUnversionedBooleanValue(found);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2427,21 +2753,21 @@ void AnyToYsonString(
     auto output = TChunkedMemoryPoolOutput(context->GetRowBuffer()->GetPool(), textYsonLengthEstimate);
     {
         TYsonWriter writer(&output, EYsonFormat::Text);
-        TMemoryInput input(any, anyLength);
+        TMemoryInput input(ConvertPointerFromWasmToHost(any), anyLength);
         TYsonPullParser parser(&input, EYsonType::Node);
         TYsonPullParserCursor cursor(&parser);
         cursor.TransferComplexValue(&writer);
     }
     auto refs = output.Finish();
-    if (refs.size() == 1) {
-        *result = refs.front().Begin();
-        *resultLength = refs.front().Size();
+    if (!HasCurrentCompartment() && refs.size() == 1) {
+        *ConvertPointerFromWasmToHost(result) = refs.front().Begin();
+        *ConvertPointerFromWasmToHost(resultLength) = refs.front().Size();
     } else {
-        *resultLength = GetByteSize(refs);
-        *result = AllocateBytes(context, *resultLength);
+        *ConvertPointerFromWasmToHost(resultLength) = GetByteSize(refs);
+        *ConvertPointerFromWasmToHost(result) = AllocateBytes(context, *ConvertPointerFromWasmToHost(resultLength));
         size_t offset = 0;
         for (const auto& ref : refs) {
-            ::memcpy(*result + offset, ref.Begin(), ref.Size());
+            ::memcpy(ConvertPointerFromWasmToHost(*ConvertPointerFromWasmToHost(result) + offset, ref.Size()), ref.Begin(), ref.Size());
             offset += ref.Size();
         }
     }
@@ -2452,37 +2778,34 @@ void AnyToYsonString(
 extern "C" void NumericToString(
     TExpressionContext* context,
     TValue* result,
-    TValue* value
-)
+    TValue* value)
 {
-    if (value->Type == EValueType::Null) {
-        result->Type = EValueType::Null;
+    auto* valueAtHost = ConvertPointerFromWasmToHost(value);
+
+    if (valueAtHost->Type == EValueType::Null) {
+        ConvertPointerFromWasmToHost(result)->Type = EValueType::Null;
         return;
     }
 
-    auto piResult = BorrowFromNonPI(result);
-    auto piValue = BorrowFromNonPI(value);
+    auto resultYson = TString();
+    auto output = TStringOutput(resultYson);
+    auto writer = TYsonWriter(&output, EYsonFormat::Text);
 
-    TString resultYson;
-    TStringOutput output(resultYson);
-    TYsonWriter writer(&output, EYsonFormat::Text);
-
-    switch (piValue.GetPIValue()->Type) {
+    switch (valueAtHost->Type) {
         case EValueType::Int64:
-            writer.OnInt64Scalar(piValue.GetPIValue()->Data.Int64);
+            writer.OnInt64Scalar(valueAtHost->Data.Int64);
             break;
         case EValueType::Uint64:
-            writer.OnUint64Scalar(piValue.GetPIValue()->Data.Uint64);
+            writer.OnUint64Scalar(valueAtHost->Data.Uint64);
             break;
         case EValueType::Double:
-            writer.OnDoubleScalar(piValue.GetPIValue()->Data.Double);
+            writer.OnDoubleScalar(valueAtHost->Data.Double);
             break;
         default:
             YT_ABORT();
     }
 
-    MakePositionIndependentStringValue(piResult.GetPIValue(), resultYson);
-    CapturePIValue(context, piResult.GetPIValue());
+    NDetail::CopyString(context, result, resultYson);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2490,21 +2813,21 @@ extern "C" void NumericToString(
 #define DEFINE_CONVERT_STRING(TYPE) \
     extern "C" void StringTo ## TYPE(TExpressionContext* /*context*/, TValue* result, TValue* value) \
     { \
-        auto piResult = BorrowFromNonPI(result); \
-        auto piValue = BorrowFromNonPI(value); \
-        if (piValue.GetPIValue()->Type == EValueType::Null) { \
-            MakePositionIndependentNullValue(piResult.GetPIValue()); \
+        auto* resultAtHost = ConvertPointerFromWasmToHost(result); \
+        auto* valueAtHost = ConvertPointerFromWasmToHost(value); \
+        if (valueAtHost->Type == EValueType::Null) { \
+            *resultAtHost = MakeUnversionedNullValue(); \
             return; \
         } \
         NYson::TToken token; \
-        auto valueString = piValue.GetPIValue()->AsStringBuf(); \
+        auto valueString = TStringBuf(ConvertPointerFromWasmToHost(valueAtHost->Data.String, valueAtHost->Length), valueAtHost->Length); \
         NYson::ParseToken(valueString, &token); \
         if (token.GetType() == NYson::ETokenType::Int64) { \
-            MakePositionIndependent ## TYPE ## Value(piResult.GetPIValue(), token.GetInt64Value()); \
+            *resultAtHost = MakeUnversioned ## TYPE ## Value(token.GetInt64Value()); \
         } else if (token.GetType() == NYson::ETokenType::Uint64) { \
-            MakePositionIndependent ## TYPE ## Value(piResult.GetPIValue(), token.GetUint64Value()); \
+            *resultAtHost = MakeUnversioned ## TYPE ## Value(token.GetUint64Value()); \
         } else if (token.GetType() == NYson::ETokenType::Double) { \
-            MakePositionIndependent ## TYPE ## Value(piResult.GetPIValue(), token.GetDoubleValue()); \
+            *resultAtHost = MakeUnversioned ## TYPE ## Value(token.GetDoubleValue()); \
         } else { \
             THROW_ERROR_EXCEPTION("Cannot convert value %Qv of type %Qlv to \"string\"", \
                 valueString, \
@@ -2520,26 +2843,31 @@ DEFINE_CONVERT_STRING(Double)
 
 void HyperLogLogAllocate(TExpressionContext* context, TValue* result)
 {
-    auto piResult = BorrowFromNonPI(result);
-
-    auto* hll = AllocateBytes(context, sizeof(THLL));
+    auto* hllOffset = AllocateBytes(context, sizeof(THLL));
+    auto* hll = ConvertPointerFromWasmToHost(hllOffset, sizeof(THLL));
     new (hll) THLL();
-    MakePositionIndependentStringValue(piResult.GetPIValue(), TStringBuf(hll, sizeof(THLL)));
+
+    auto* resultAtHost = ConvertPointerFromWasmToHost(result);
+    *resultAtHost = MakeUnversionedStringValue(TStringBuf(hllOffset, sizeof(THLL)));
 }
 
 void HyperLogLogAdd(void* hll, uint64_t value)
 {
-    static_cast<THLL*>(hll)->Add(value);
+    auto* hllAtHost = ConvertPointerFromWasmToHost(static_cast<THLL*>(hll));
+    hllAtHost->Add(value);
 }
 
 void HyperLogLogMerge(void* hll1, void* hll2)
 {
-    static_cast<THLL*>(hll1)->Merge(*static_cast<THLL*>(hll2));
+    auto* hll1AtHost = ConvertPointerFromWasmToHost(static_cast<THLL*>(hll1));
+    auto* hll2AtHost = ConvertPointerFromWasmToHost(static_cast<THLL*>(hll2));
+    hll1AtHost->Merge(*hll2AtHost);
 }
 
 ui64 HyperLogLogEstimateCardinality(void* hll)
 {
-    return static_cast<THLL*>(hll)->EstimateCardinality();
+    auto* hllAtHost = ConvertPointerFromWasmToHost(static_cast<THLL*>(hll));
+    return hllAtHost->EstimateCardinality();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2976,6 +3304,8 @@ private:
 
 i64 YsonLength(char* data, int length)
 {
+    data = ConvertPointerFromWasmToHost(data, length);
+
     TMemoryInput input(data, length);
     TYsonPullParser ysonParser(&input, EYsonType::Node);
     TYsonPullParserCursor ysonCursor(&ysonParser);
@@ -2997,6 +3327,11 @@ void LikeOpHelper(
     TPIValue* escapeCharacter,
     TLikeExpressionContext* context)
 {
+    result = ConvertPointerFromWasmToHost(result);
+    text = ConvertPointerFromWasmToHost(text);
+    pattern = ConvertPointerFromWasmToHost(pattern);
+    escapeCharacter = ConvertPointerFromWasmToHost(escapeCharacter);
+
     if (text->Type == EValueType::Null ||
         pattern->Type == EValueType::Null ||
         (useEscapeCharacter && escapeCharacter->Type == EValueType::Null))
@@ -3051,7 +3386,10 @@ void CompositeMemberAccessorHelper(
     using NYTree::ParseListUntilIndex;
     using NYTree::ParseAnyValue;
 
-    MakePositionIndependentNullValue(result);
+    MakePositionIndependentNullValue(ConvertPointerFromWasmToHost(result));
+
+    composite = ConvertPointerFromWasmToHost(composite);
+    dictOrListItemAccessor = ConvertPointerFromWasmToHost(dictOrListItemAccessor);
 
     if (composite->Type == EValueType::Null || composite->Length == 0) {
         return;
@@ -3109,39 +3447,39 @@ void CompositeMemberAccessorHelper(
 
         case EValueType::Int64:
             if (auto parsed = TryParseValue<i64>(&cursor)) {
-                MakePositionIndependentInt64Value(result, *parsed);
+                MakePositionIndependentInt64Value(ConvertPointerFromWasmToHost(result), *parsed);
             }
             break;
 
         case EValueType::Uint64:
             if (auto parsed = TryParseValue<ui64>(&cursor)) {
-                MakePositionIndependentUint64Value(result, *parsed);
+                MakePositionIndependentUint64Value(ConvertPointerFromWasmToHost(result), *parsed);
             }
             break;
 
         case EValueType::Double:
             if (auto parsed = TryParseValue<double>(&cursor)) {
-                MakePositionIndependentDoubleValue(result, *parsed);
+                MakePositionIndependentDoubleValue(ConvertPointerFromWasmToHost(result), *parsed);
             }
             break;
 
         case EValueType::Boolean:
             if (auto parsed = TryParseValue<bool>(&cursor)) {
-                MakePositionIndependentBooleanValue(result, *parsed);
+                MakePositionIndependentBooleanValue(ConvertPointerFromWasmToHost(result), *parsed);
             }
             break;
 
         case EValueType::String:
             if (auto parsed = TryParseValue<TString>(&cursor)) {
-                CopyString(context, result, *parsed);
+                NDetail::CopyString(context, result, *parsed);
             }
             break;
 
         case EValueType::Any:
         case EValueType::Composite: {
             auto parsed = ParseAnyValue(&cursor);
-            CopyAny(context, result, parsed);
-            result->Type = resultType;
+            NDetail::CopyAny(context, result, parsed);
+            ConvertPointerFromWasmToHost(result)->Type = resultType;
             break;
         }
 
@@ -3152,103 +3490,530 @@ void CompositeMemberAccessorHelper(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using f64 = double;
+using f32 = float;
+
+#define DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(name, result, ...) \
+    result name(__VA_ARGS__) \
+    { \
+        THROW_ERROR_EXCEPTION("WebAssembly call to forbidden system call: %Qv", \
+            #name); \
+    }
+
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(socket, i32, i32, i32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(fd_close, i32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(send, i64, i32, i64, i64, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(recv, i64, i32, i64, i64, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(connect, i32, i32, i64, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(bind, i32, i32, i64, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(setsockopt, i32, i32, i32, i32, i64, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(sendto, i64, i32, i64, i64, i32, i64, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(recvfrom, i64, i32, i64, i64, i32, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_recvmmsg, i32, i32, i64, i64, i32, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(sendmsg, i64, i32, i64, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(getnameinfo, i32, i64, i32, i64, i32, i64, i32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(environ_sizes_get, i32, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(environ_get, i32, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_umask, i32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_mkdirat, i32, i32, i64, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_chmod, i32, i64, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_fchmodat, i32, i32, i64, i32, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_newfstatat, i32, i32, i64, i64, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_utimensat, i32, i32, i64, i64, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_mknodat, i32, i32, i64, i32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_fchmod, i32, i32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_statfs64, i32, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_fstatfs64, i32, i32, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_stat64, i32, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_lstat64, i32, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(fd_sync, i32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_fchownat, i32, i32, i64, i32, i32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_setsid, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_renameat, i32, i32, i64, i32, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getsid, i32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_symlinkat, i32, i64, i32, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getpgid, i32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_pause, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_dup3, i32, i32, i32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_pipe, i32, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getgroups32, i32, i32, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_setpgid, i32, i32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(fd_pwrite, i32, i32, i64, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_geteuid32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_readlinkat, i32, i32, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getuid32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(fd_read, i32, i32, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getgid32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_rmdir, i32, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_acct, i32, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_fdatasync, i32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(fd_write, i32, i32, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_faccessat, i32, i32, i64, i32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(fd_fdstat_get, i32, i32, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getcwd, i32, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_chdir, i32, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getegid32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_truncate64, i32, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_unlinkat, i32, i32, i64, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_pipe2, i32, i64, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_link, i32, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_dup, i32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_sync, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(fd_pread, i32, i32, i64, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_linkat, i32, i32, i64, i32, i64, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(fd_seek, i32, i32, i64, i32, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_ftruncate64, i32, i32, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_symlink, i32, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getppid, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_fchown32, i32, i32, i32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_fchdir, i32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__subtf3, void, i64, i64, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__divtf3, void, i64, i64, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_fadvise64, i32, i32, i64, i64, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_fallocate, i32, i32, i32, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getdents64, i32, i32, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__eqtf2, i32, i64, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__multf3, void, i64, i64, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__letf2, i32, i64, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__netf2, i32, i64, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_mincore, i32, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_mremap, i32, i64, i64, i64, i32, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_mprotect, i32, i64, i64, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_munlockall, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_munlock, i32, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_madvise, i32, i64, i64, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_mlock, i32, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_mlockall, i32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall__newselect, i32, i32, i64, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_poll, i32, i64, i32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_pselect6, i32, i32, i64, i64, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__mulsc3, void, i64, f32, f32, f32, f32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__lttf2, i32, i64, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__trunctfdf2, f64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__extenddftf2, void, i64, f64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__muldc3, void, i64, f64, f64, f64, f64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__addtf3, void, i64, i64, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__unordtf2, i32, i64, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__multc3, void, i64, i64, i64, i64, i64, i64, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__trunctfsf2, f32, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__extendsftf2, void, i64, f32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__getf2, i32, i64, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__fixtfdi, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__floatditf, void, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__multi3, void, i64, i64, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(getpwnam_r, i32, i64, i64, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(getpwuid_r, i32, i32, i64, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(execve, i32, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_wait4, i32, i32, i64, i32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__floatsitf, void, i64, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__gttf2, i32, i64, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__fixtfsi, i32, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(emscripten_stack_get_base, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(emscripten_stack_get_current, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_prlimit64, i32, i32, i32, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_ugetrlimit, i32, i32, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_setdomainname, i32, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_setrlimit, i32, i32, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(fork, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getresuid32, i32, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getpriority, i32, i32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_setpriority, i32, i32, i32, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_uname, i32, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getresgid32, i32, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getrusage, i32, i32, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(_emscripten_get_progname, void, i64, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__floatunsitf, void, i64, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(proc_exit, void, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(_setitimer_js, i32, i32, f64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(_dlopen_js, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(_emscripten_dlopen_js, void, i64, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(_dlsym_js, i64, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(_dlinit, void, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(emscripten_stack_get_end, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(_msync_js, i32, i64, i64, i32, i32, i32, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(_tzset_js, void, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(_localtime_js, void, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(_gmtime_js, void, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(emscripten_date_now, f64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(_emscripten_get_now_is_monotonic, i32)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(emscripten_get_now_res, f64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(args_sizes_get, i32, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(args_get, i32, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__main_argc_argv, i32, i32, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(clock_res_get, i32, i32, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(clock_time_get, i32, i32, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__divti3, void, i64, i64, i64, i64, i64)
+    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__lshrti3, void, i64, i64, i64, i32)
+
+#undef DEFINE_WEB_ASSEMBLY_SYSCALL_STUB
+
+int memcmp(const void* firstOffset, const void* secondOffset, std::size_t count) // NOLINT
+{
+    auto* first = ConvertPointerFromWasmToHost(std::bit_cast<char*>(firstOffset), count);
+    auto* second = ConvertPointerFromWasmToHost(std::bit_cast<char*>(secondOffset), count);
+    return ::memcmp(first, second, count);
+}
+
+struct tm* gmtime_r(const time_t* time, struct tm* result) // NOLINT
+{
+    auto* gmtime = ::gmtime_r(ConvertPointerFromWasmToHost(time), ConvertPointerFromWasmToHost(result));
+    return ConvertPointerFromHostToWasm(gmtime);
+}
+
+// This code is borrowed from bigb_hash.cpp.
+// It will be removed after full cross-compilation support.
+uint64_t BigBHashImpl(char* s, int len)
+{
+    s = ConvertPointerFromWasmToHost(s);
+
+    TStringBuf uid{s, static_cast<size_t>(len)};
+    if (uid.length() == 0) {
+        return 0;
+    }
+    ui64 ans;
+    if (uid[0] == 'y' && TryFromString(uid.SubStr(1), ans)) {
+        return ans;
+    }
+    return MultiHash(TStringBuf{"shard"}, uid);
+}
+
+void AddRegexToFunctionContext(TFunctionContext* context, re2::RE2* regex) // NOLINT
+{
+    auto* ptr = context->CreateUntypedObject(regex, [](void* re) {
+        delete static_cast<re2::RE2*>(re);
+    });
+    context->SetPrivateData(ptr);
+}
+
+// bool TFunctionContext::IsLiteralArg(int) const
+bool _ZNK3NYT12NQueryClient16TFunctionContext12IsLiteralArgEi(TFunctionContext* context, int index) // NOLINT
+{
+    return context->IsLiteralArg(index);
+}
+
+// void* TFunctionContext::GetPrivateData() const
+void* _ZNK3NYT12NQueryClient16TFunctionContext14GetPrivateDataEv(TFunctionContext* context) // NOLINT
+{
+    return context->GetPrivateData();
+}
+
+void emscripten_notify_memory_growth(i64) // NOLINT
+{
+    // Do nothing.
+}
+
 } // namespace NRoutines
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NCodegen::TRoutineRegistry;
+NCodegen::TRoutineRegistry NativeRegistry;
+NCodegen::TRoutineRegistry WebAssemblyRegistry;
 
-void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TSignature>
+struct TMakeRoutineWithWebAssemblyContext;
+
+template <class TResult, class... TArgs>
+struct TMakeRoutineWithWebAssemblyContext<TResult(TArgs...)>
 {
+    template <TResult(*FunctionPtr)(TArgs...)>
+    static TResult Wrapper(WAVM::Runtime::ContextRuntimeData*, TArgs... args)
+    {
+        auto* compartmentBeforeCall = NWebAssembly::GetCurrentCompartment();
+        auto finally = Finally([&] {
+            auto* compartmentAfterCall = NWebAssembly::GetCurrentCompartment();
+            YT_VERIFY(compartmentBeforeCall == compartmentAfterCall);
+        });
+        return FunctionPtr(args...);
+    }
+};
+
+#define REGISTER_WEBASSEMBLY_INTRINSIC(routine) \
+    constexpr auto RoutineWithWebAssemblyContext##routine = &TMakeRoutineWithWebAssemblyContext< \
+    decltype(NRoutines::routine)>::Wrapper<&NRoutines::routine>; \
+    static WAVM::Intrinsics::Function IntrinsicFunction##routine( \
+        NWebAssembly::getIntrinsicModule_env(), \
+        #routine, \
+        (void*)RoutineWithWebAssemblyContext##routine, \
+        WAVM::IR::FunctionType(WAVM::IR::FunctionType::Encoding{ \
+            std::bit_cast<WAVM::Uptr>(NWebAssembly::TFunctionTypeBuilder< \
+                true, \
+                decltype(NRoutines::routine) >::Get()) \
+            }) \
+    );
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TResult, class... TArgs>
+struct RegisterLLVMRoutine
+{
+    RegisterLLVMRoutine(const char *symbol, bool onlyWebAssembly, TResult(*functionPointer)(TArgs...))
+    {
+        if (!onlyWebAssembly) {
+            NativeRegistry.RegisterRoutine(symbol, functionPointer);
+        }
+
+        WebAssemblyRegistry.RegisterRoutine(symbol, functionPointer);
+    }
+};
+
+#define REGISTER_LLVM_ROUTINE(routine, onlyWebAssembly) \
+    static RegisterLLVMRoutine RegisteredLLVM##routine(#routine, onlyWebAssembly, NRoutines::routine);
+
+////////////////////////////////////////////////////////////////////////////////
+
 #define REGISTER_ROUTINE(routine) \
-    registry->RegisterRoutine(#routine, NRoutines::routine)
+    REGISTER_LLVM_ROUTINE(routine, /*onlyWebAssembly*/ false) \
+    REGISTER_WEBASSEMBLY_INTRINSIC(routine)
+
 #define REGISTER_YPATH_GET_ROUTINE(TYPE) \
     REGISTER_ROUTINE(TryGet ## TYPE); \
     REGISTER_ROUTINE(Get ## TYPE)
 
-    REGISTER_ROUTINE(WriteRow);
-    REGISTER_ROUTINE(InsertGroupRow);
-    REGISTER_ROUTINE(ScanOpHelper);
-    REGISTER_ROUTINE(WriteOpHelper);
-    REGISTER_ROUTINE(AllocateJoinKeys);
-    REGISTER_ROUTINE(AllocateAlignedBytes);
-    REGISTER_ROUTINE(StorePrimaryRow);
-    REGISTER_ROUTINE(MultiJoinOpHelper);
-    REGISTER_ROUTINE(ArrayJoinOpHelper);
-    REGISTER_ROUTINE(GroupOpHelper);
-    REGISTER_ROUTINE(GroupTotalsOpHelper);
-    REGISTER_ROUTINE(StringHash);
-    REGISTER_ROUTINE(AllocatePermanentRow);
-    REGISTER_ROUTINE(AllocateBytes);
-    REGISTER_ROUTINE(IsRowInRowset);
-    REGISTER_ROUTINE(IsRowInRanges);
-    REGISTER_ROUTINE(TransformTuple);
-    REGISTER_ROUTINE(SimpleHash);
-    REGISTER_ROUTINE(FarmHashUint64);
-    REGISTER_ROUTINE(AddRowToCollector);
-    REGISTER_ROUTINE(OrderOpHelper);
-    REGISTER_ROUTINE(ThrowException);
-    REGISTER_ROUTINE(ThrowQueryException);
-    REGISTER_ROUTINE(RegexCreate);
-    REGISTER_ROUTINE(RegexDestroy);
-    REGISTER_ROUTINE(RegexFullMatch);
-    REGISTER_ROUTINE(RegexPartialMatch);
-    REGISTER_ROUTINE(RegexReplaceFirst);
-    REGISTER_ROUTINE(RegexReplaceAll);
-    REGISTER_ROUTINE(RegexExtract);
-    REGISTER_ROUTINE(RegexEscape);
-    REGISTER_ROUTINE(XdeltaMerge);
-    REGISTER_ROUTINE(ToLowerUTF8);
-    REGISTER_ROUTINE(GetFarmFingerprint);
-    REGISTER_ROUTINE(CompareAny);
-    REGISTER_ROUTINE(CompareAnyBoolean);
-    REGISTER_ROUTINE(CompareAnyInt64);
-    REGISTER_ROUTINE(CompareAnyUint64);
-    REGISTER_ROUTINE(CompareAnyDouble);
-    REGISTER_ROUTINE(CompareAnyString);
-    REGISTER_ROUTINE(ToAny);
-    REGISTER_YPATH_GET_ROUTINE(Int64);
-    REGISTER_YPATH_GET_ROUTINE(Uint64);
-    REGISTER_YPATH_GET_ROUTINE(Double);
-    REGISTER_YPATH_GET_ROUTINE(Boolean);
-    REGISTER_YPATH_GET_ROUTINE(String);
-    REGISTER_YPATH_GET_ROUTINE(Any);
-    REGISTER_ROUTINE(AnyToInt64);
-    REGISTER_ROUTINE(AnyToUint64);
-    REGISTER_ROUTINE(AnyToDouble);
-    REGISTER_ROUTINE(AnyToBoolean);
-    REGISTER_ROUTINE(AnyToString);
-    REGISTER_ROUTINE(MakeMap);
-    REGISTER_ROUTINE(MakeList);
-    REGISTER_ROUTINE(ListContains);
-    REGISTER_ROUTINE(AnyToYsonString);
-    REGISTER_ROUTINE(NumericToString);
-    REGISTER_ROUTINE(StringToInt64);
-    REGISTER_ROUTINE(StringToUint64);
-    REGISTER_ROUTINE(StringToDouble);
-    REGISTER_ROUTINE(HyperLogLogAllocate);
-    REGISTER_ROUTINE(HyperLogLogAdd);
-    REGISTER_ROUTINE(HyperLogLogMerge);
-    REGISTER_ROUTINE(HyperLogLogEstimateCardinality);
-    REGISTER_ROUTINE(StoredReplicaSetMerge);
-    REGISTER_ROUTINE(StoredReplicaSetFinalize);
-    REGISTER_ROUTINE(LastSeenReplicaSetMerge);
-    REGISTER_ROUTINE(HasPermissions);
-    REGISTER_ROUTINE(YsonLength);
-    REGISTER_ROUTINE(LikeOpHelper);
-    REGISTER_ROUTINE(CompositeMemberAccessorHelper);
-#undef REGISTER_TRY_GET_ROUTINE
-#undef REGISTER_ROUTINE
+#define REGISTER_WEBASSEMBLY_ROUTINE(routine) \
+    REGISTER_LLVM_ROUTINE(routine, /*onlyWebAssembly*/ true) \
+    REGISTER_WEBASSEMBLY_INTRINSIC(routine)
 
-    registry->RegisterRoutine("memcmp", std::memcmp);
-}
+////////////////////////////////////////////////////////////////////////////////
 
-TRoutineRegistry* GetQueryRoutineRegistry()
+REGISTER_ROUTINE(WriteRow);
+REGISTER_ROUTINE(InsertGroupRow);
+REGISTER_ROUTINE(ScanOpHelper);
+REGISTER_ROUTINE(WriteOpHelper);
+REGISTER_ROUTINE(AllocateJoinKeys);
+REGISTER_ROUTINE(AllocateAlignedBytes);
+REGISTER_ROUTINE(StorePrimaryRow);
+REGISTER_ROUTINE(MultiJoinOpHelper);
+REGISTER_ROUTINE(ArrayJoinOpHelper);
+REGISTER_ROUTINE(GroupOpHelper);
+REGISTER_ROUTINE(GroupTotalsOpHelper);
+REGISTER_ROUTINE(StringHash);
+REGISTER_ROUTINE(AllocatePermanentRow);
+REGISTER_ROUTINE(AllocateBytes);
+REGISTER_ROUTINE(IsRowInRowset);
+REGISTER_ROUTINE(IsRowInRanges);
+REGISTER_ROUTINE(TransformTuple);
+// REGISTER_ROUTINE(SimpleHash);
+// REGISTER_ROUTINE(FarmHashUint64);
+REGISTER_ROUTINE(AddRowToCollector);
+REGISTER_ROUTINE(OrderOpHelper);
+REGISTER_ROUTINE(ThrowException);
+REGISTER_ROUTINE(ThrowQueryException);
+REGISTER_ROUTINE(RegexCreate);
+REGISTER_ROUTINE(RegexDestroy);
+REGISTER_ROUTINE(RegexFullMatch);
+REGISTER_ROUTINE(RegexPartialMatch);
+REGISTER_ROUTINE(RegexReplaceFirst);
+REGISTER_ROUTINE(RegexReplaceAll);
+REGISTER_ROUTINE(RegexExtract);
+REGISTER_ROUTINE(RegexEscape);
+REGISTER_ROUTINE(XdeltaMerge);
+REGISTER_ROUTINE(ToLowerUTF8);
+REGISTER_ROUTINE(GetFarmFingerprint);
+REGISTER_ROUTINE(CompareAny);
+REGISTER_ROUTINE(CompareAnyBoolean);
+REGISTER_ROUTINE(CompareAnyInt64);
+REGISTER_ROUTINE(CompareAnyUint64);
+REGISTER_ROUTINE(CompareAnyDouble);
+REGISTER_ROUTINE(CompareAnyString);
+REGISTER_ROUTINE(ToAny);
+REGISTER_YPATH_GET_ROUTINE(Int64);
+REGISTER_YPATH_GET_ROUTINE(Uint64);
+REGISTER_YPATH_GET_ROUTINE(Double);
+REGISTER_YPATH_GET_ROUTINE(Boolean);
+REGISTER_YPATH_GET_ROUTINE(String);
+REGISTER_YPATH_GET_ROUTINE(Any);
+REGISTER_ROUTINE(AnyToInt64);
+REGISTER_ROUTINE(AnyToUint64);
+REGISTER_ROUTINE(AnyToDouble);
+REGISTER_ROUTINE(AnyToBoolean);
+REGISTER_ROUTINE(AnyToString);
+REGISTER_ROUTINE(MakeMap);
+REGISTER_ROUTINE(MakeList);
+REGISTER_ROUTINE(ListContains);
+REGISTER_ROUTINE(AnyToYsonString);
+REGISTER_ROUTINE(NumericToString);
+REGISTER_ROUTINE(StringToInt64);
+REGISTER_ROUTINE(StringToUint64);
+REGISTER_ROUTINE(StringToDouble);
+REGISTER_ROUTINE(HyperLogLogAllocate);
+REGISTER_ROUTINE(HyperLogLogAdd);
+REGISTER_ROUTINE(HyperLogLogMerge);
+REGISTER_ROUTINE(HyperLogLogEstimateCardinality);
+REGISTER_ROUTINE(StoredReplicaSetMerge);
+REGISTER_ROUTINE(StoredReplicaSetFinalize);
+REGISTER_ROUTINE(LastSeenReplicaSetMerge);
+REGISTER_ROUTINE(HasPermissions);
+REGISTER_ROUTINE(YsonLength);
+REGISTER_ROUTINE(LikeOpHelper);
+REGISTER_ROUTINE(CompositeMemberAccessorHelper);
+
+REGISTER_ROUTINE(memcmp);
+REGISTER_ROUTINE(gmtime_r);
+REGISTER_ROUTINE(BigBHashImpl)
+REGISTER_ROUTINE(AddRegexToFunctionContext)
+REGISTER_ROUTINE(_ZNK3NYT12NQueryClient16TFunctionContext12IsLiteralArgEi)
+REGISTER_ROUTINE(_ZNK3NYT12NQueryClient16TFunctionContext14GetPrivateDataEv)
+REGISTER_WEBASSEMBLY_ROUTINE(emscripten_notify_memory_growth);
+
+REGISTER_WEBASSEMBLY_ROUTINE(socket);
+REGISTER_WEBASSEMBLY_ROUTINE(fd_close);
+REGISTER_WEBASSEMBLY_ROUTINE(send);
+REGISTER_WEBASSEMBLY_ROUTINE(recv);
+REGISTER_WEBASSEMBLY_ROUTINE(connect);
+REGISTER_WEBASSEMBLY_ROUTINE(bind);
+REGISTER_WEBASSEMBLY_ROUTINE(setsockopt);
+REGISTER_WEBASSEMBLY_ROUTINE(sendto);
+REGISTER_WEBASSEMBLY_ROUTINE(recvfrom);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_recvmmsg);
+REGISTER_WEBASSEMBLY_ROUTINE(sendmsg);
+REGISTER_WEBASSEMBLY_ROUTINE(getnameinfo);
+REGISTER_WEBASSEMBLY_ROUTINE(environ_sizes_get);
+REGISTER_WEBASSEMBLY_ROUTINE(environ_get);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_umask);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_mkdirat);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_chmod);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_fchmodat);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_newfstatat);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_utimensat);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_mknodat);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_fchmod);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_statfs64);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_fstatfs64);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_stat64);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_lstat64);
+REGISTER_WEBASSEMBLY_ROUTINE(fd_sync);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_fchownat);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_setsid);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_renameat);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getsid);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_symlinkat);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getpgid);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_pause);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_dup3);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_pipe);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getgroups32);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_setpgid);
+REGISTER_WEBASSEMBLY_ROUTINE(fd_pwrite);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_geteuid32);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_readlinkat);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getuid32);
+REGISTER_WEBASSEMBLY_ROUTINE(fd_read);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getgid32);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_rmdir);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_acct);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_fdatasync);
+REGISTER_WEBASSEMBLY_ROUTINE(fd_write);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_faccessat);
+REGISTER_WEBASSEMBLY_ROUTINE(fd_fdstat_get);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getcwd);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_chdir);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getegid32);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_truncate64);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_unlinkat);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_pipe2);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_link);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_dup);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_sync);
+REGISTER_WEBASSEMBLY_ROUTINE(fd_pread);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_linkat);
+REGISTER_WEBASSEMBLY_ROUTINE(fd_seek);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_ftruncate64);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_symlink);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getppid);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_fchown32);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_fchdir);
+REGISTER_WEBASSEMBLY_ROUTINE(__subtf3);
+REGISTER_WEBASSEMBLY_ROUTINE(__divtf3);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_fadvise64);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_fallocate);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getdents64);
+REGISTER_WEBASSEMBLY_ROUTINE(__eqtf2);
+REGISTER_WEBASSEMBLY_ROUTINE(__multf3);
+REGISTER_WEBASSEMBLY_ROUTINE(__letf2);
+REGISTER_WEBASSEMBLY_ROUTINE(__netf2);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_mincore);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_mremap);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_mprotect);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_munlockall);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_munlock);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_madvise);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_mlock);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_mlockall);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall__newselect);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_poll);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_pselect6);
+REGISTER_WEBASSEMBLY_ROUTINE(__mulsc3);
+REGISTER_WEBASSEMBLY_ROUTINE(__lttf2);
+REGISTER_WEBASSEMBLY_ROUTINE(__trunctfdf2);
+REGISTER_WEBASSEMBLY_ROUTINE(__extenddftf2);
+REGISTER_WEBASSEMBLY_ROUTINE(__muldc3);
+REGISTER_WEBASSEMBLY_ROUTINE(__addtf3);
+REGISTER_WEBASSEMBLY_ROUTINE(__unordtf2);
+REGISTER_WEBASSEMBLY_ROUTINE(__multc3);
+REGISTER_WEBASSEMBLY_ROUTINE(__trunctfsf2);
+REGISTER_WEBASSEMBLY_ROUTINE(__extendsftf2);
+REGISTER_WEBASSEMBLY_ROUTINE(__getf2);
+REGISTER_WEBASSEMBLY_ROUTINE(__fixtfdi);
+REGISTER_WEBASSEMBLY_ROUTINE(__floatditf);
+REGISTER_WEBASSEMBLY_ROUTINE(__multi3);
+REGISTER_WEBASSEMBLY_ROUTINE(getpwnam_r);
+REGISTER_WEBASSEMBLY_ROUTINE(getpwuid_r);
+REGISTER_WEBASSEMBLY_ROUTINE(execve);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_wait4);
+REGISTER_WEBASSEMBLY_ROUTINE(__floatsitf);
+REGISTER_WEBASSEMBLY_ROUTINE(__gttf2);
+REGISTER_WEBASSEMBLY_ROUTINE(__fixtfsi);
+REGISTER_WEBASSEMBLY_ROUTINE(emscripten_stack_get_base);
+REGISTER_WEBASSEMBLY_ROUTINE(emscripten_stack_get_current);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_prlimit64);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_ugetrlimit);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_setdomainname);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_setrlimit);
+REGISTER_WEBASSEMBLY_ROUTINE(fork);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getresuid32);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getpriority);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_setpriority);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_uname);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getresgid32);
+REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getrusage);
+REGISTER_WEBASSEMBLY_ROUTINE(_emscripten_get_progname);
+REGISTER_WEBASSEMBLY_ROUTINE(__floatunsitf);
+REGISTER_WEBASSEMBLY_ROUTINE(proc_exit);
+REGISTER_WEBASSEMBLY_ROUTINE(_setitimer_js);
+REGISTER_WEBASSEMBLY_ROUTINE(_dlopen_js);
+REGISTER_WEBASSEMBLY_ROUTINE(_emscripten_dlopen_js);
+REGISTER_WEBASSEMBLY_ROUTINE(_dlsym_js);
+REGISTER_WEBASSEMBLY_ROUTINE(_dlinit);
+REGISTER_WEBASSEMBLY_ROUTINE(emscripten_stack_get_end);
+REGISTER_WEBASSEMBLY_ROUTINE(_msync_js);
+REGISTER_WEBASSEMBLY_ROUTINE(_tzset_js);
+REGISTER_WEBASSEMBLY_ROUTINE(_localtime_js);
+REGISTER_WEBASSEMBLY_ROUTINE(_gmtime_js);
+REGISTER_WEBASSEMBLY_ROUTINE(emscripten_date_now);
+REGISTER_WEBASSEMBLY_ROUTINE(_emscripten_get_now_is_monotonic);
+REGISTER_WEBASSEMBLY_ROUTINE(emscripten_get_now_res);
+REGISTER_WEBASSEMBLY_ROUTINE(args_sizes_get);
+REGISTER_WEBASSEMBLY_ROUTINE(args_get);
+REGISTER_WEBASSEMBLY_ROUTINE(__main_argc_argv);
+REGISTER_WEBASSEMBLY_ROUTINE(clock_res_get);
+REGISTER_WEBASSEMBLY_ROUTINE(clock_time_get);
+REGISTER_WEBASSEMBLY_ROUTINE(__divti3);
+REGISTER_WEBASSEMBLY_ROUTINE(__lshrti3);
+
+////////////////////////////////////////////////////////////////////////////////
+
+NCodegen::TRoutineRegistry* GetQueryRoutineRegistry(NCodegen::EExecutionBackend backend)
 {
-    static TRoutineRegistry registry;
-    static std::once_flag onceFlag;
-    std::call_once(onceFlag, &RegisterQueryRoutinesImpl, &registry);
-    return &registry;
+    switch (backend) {
+        case NCodegen::EExecutionBackend::Native:
+            return &NativeRegistry;
+        case NCodegen::EExecutionBackend::WebAssembly:
+            return &WebAssemblyRegistry;
+        default:
+            YT_ABORT();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

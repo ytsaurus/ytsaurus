@@ -83,6 +83,7 @@ public:
         std::vector<EValueType> /*argumentTypes*/,
         EValueType type,
         const TString& name,
+        bool /*useWebAssembly*/,
         llvm::FoldingSetNodeID* /*id*/) const override
     {
         return [
@@ -200,6 +201,7 @@ public:
         std::vector<EValueType> /*argumentTypes*/,
         EValueType type,
         const TString& /*name*/,
+        bool /*useWebAssembly*/,
         llvm::FoldingSetNodeID* /*id*/) const override
     {
         YT_VERIFY(argIds.size() == 1);
@@ -245,6 +247,7 @@ public:
         std::vector<EValueType> /*argumentTypes*/,
         EValueType type,
         const TString& /*name*/,
+        bool /*useWebAssembly*/,
         llvm::FoldingSetNodeID* /*id*/) const override
     {
         YT_VERIFY(argIds.size() == 2);
@@ -302,6 +305,7 @@ public:
         std::vector<EValueType> /*argumentTypes*/,
         EValueType type,
         const TString& /*name*/,
+        bool /*useWebAssembly*/,
         llvm::FoldingSetNodeID* /*id*/) const override
     {
         YT_VERIFY(argIds.size() == 1);
@@ -350,6 +354,7 @@ public:
         std::vector<EValueType> /*argumentTypes*/,
         EValueType type,
         const TString& /*name*/,
+        bool /*useWebAssembly*/,
         llvm::FoldingSetNodeID* /*id*/) const override
     {
         return [
@@ -410,6 +415,7 @@ public:
         std::vector<EValueType> argumentTypes,
         EValueType type,
         const TString& /*name*/,
+        bool /*useWebAssembly*/,
         llvm::FoldingSetNodeID* /*id*/) const override
     {
         YT_VERIFY(argIds.size() == 1);
@@ -551,6 +557,7 @@ public:
         EValueType stateType,
         EValueType /*resultType*/,
         const TString& name,
+        bool /*useWebAssembly*/,
         llvm::FoldingSetNodeID* id) const override
     {
         YT_VERIFY(argumentTypes.size() == 1);
@@ -758,6 +765,7 @@ public:
         EValueType stateType,
         EValueType /*resultType*/,
         const TString& name,
+        bool /*useWebAssembly*/,
         llvm::FoldingSetNodeID* id) const override
     {
         YT_VERIFY(argumentTypes.size() == 2 && stateType == EValueType::String);

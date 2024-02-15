@@ -17,6 +17,8 @@ TQueryEvaluationContext::~TQueryEvaluationContext()
     Variables.Clear();
 }
 
+// TODO(dtorilov): Consider enabling WebAssembly for ORM.
+
 std::unique_ptr<TQueryEvaluationContext> CreateQueryEvaluationContext(
     const NAst::TExpressionPtr& astExpression,
     const TTableSchemaPtr& schema)
@@ -44,6 +46,7 @@ std::unique_ptr<TQueryEvaluationContext> CreateQueryEvaluationContext(
         /*id*/ nullptr,
         &context->Variables,
         /*useCanonicalNullRelations*/ false,
+        /*useWebAssembly*/ false,
         GetBuiltinFunctionProfilers())();
 
     context->Instance = context->Image.Instantiate();
@@ -66,6 +69,7 @@ TValue EvaluateQuery(
     evaluationContext.Instance.Run(
         evaluationContext.Variables.GetLiteralValues(),
         evaluationContext.Variables.GetOpaqueData(),
+        evaluationContext.Variables.GetOpaqueDataSizes(),
         &outputValue,
         inputValues,
         rowBuffer);

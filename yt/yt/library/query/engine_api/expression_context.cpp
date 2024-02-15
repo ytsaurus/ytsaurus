@@ -1,78 +1,76 @@
 #include "expression_context.h"
 
+#include <yt/yt/client/table_client/unversioned_row.h>
+
 using namespace NYT::NWebAssembly;
 
 namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TExpressionContext::TExpressionContext()
+    : HostPool_(New<TRowBuffer>())
+    , WebAssemblyPool_(GetCurrentCompartment())
+{ }
+
 TExpressionContext::TExpressionContext(TRowBufferPtr rowBuffer)
-    : RowBuffer_(std::move(rowBuffer))
+    : HostPool_(std::move(rowBuffer))
+    , WebAssemblyPool_(GetCurrentCompartment())
 { }
 
 TExpressionContext::TExpressionContext(TExpressionContext&& other)
 {
-    std::swap(RowBuffer_, other.RowBuffer_);
+    std::swap(HostPool_, other.HostPool_);
+    std::swap(WebAssemblyPool_, other.WebAssemblyPool_);
 }
 
 TExpressionContext& TExpressionContext::operator=(TExpressionContext&& other)
 {
-    std::swap(RowBuffer_, other.RowBuffer_);
+    std::swap(HostPool_, other.HostPool_);
+    std::swap(WebAssemblyPool_, other.WebAssemblyPool_);
     return *this;
 }
 
 void TExpressionContext::Clear()
 {
-    RowBuffer_->Clear();
+    HostPool_->Clear();
+    WebAssemblyPool_.Clear();
+}
+
+void TExpressionContext::ClearWebAssemblyPool()
+{
+    WebAssemblyPool_.Clear();
 }
 
 i64 TExpressionContext::GetSize() const
 {
-    return RowBuffer_->GetSize();
+    return HostPool_->GetSize() + WebAssemblyPool_.GetSize();
 }
 
 i64 TExpressionContext::GetCapacity() const
 {
-    return RowBuffer_->GetCapacity();
+    return HostPool_->GetCapacity() + WebAssemblyPool_.GetCapacity();
 }
 
-char* TExpressionContext::AllocateUnaligned(size_t byteCount)
+char* TExpressionContext::AllocateUnaligned(size_t byteCount, NWebAssembly::EAddressSpace where)
 {
-    return RowBuffer_->GetPool()->AllocateUnaligned(byteCount);
+    if (where == EAddressSpace::WebAssembly && WebAssemblyPool_.HasCompartment()) {
+        return WebAssemblyPool_.AllocateUnaligned(byteCount);
+    }
+    return HostPool_->GetPool()->AllocateUnaligned(byteCount);
 }
 
-char* TExpressionContext::AllocateAligned(size_t byteCount)
+char* TExpressionContext::AllocateAligned(size_t byteCount, NWebAssembly::EAddressSpace where)
 {
-    return RowBuffer_->GetPool()->AllocateAligned(byteCount);
-}
-
-NTableClient::TMutableUnversionedRow TExpressionContext::AllocateUnversioned(int valueCount)
-{
-    return RowBuffer_->AllocateUnversioned(valueCount);
+    if (where == EAddressSpace::WebAssembly && WebAssemblyPool_.HasCompartment()) {
+        return WebAssemblyPool_.AllocateAligned(byteCount);
+    }
+    return HostPool_->GetPool()->AllocateAligned(byteCount);
 }
 
 TRowBufferPtr TExpressionContext::GetRowBuffer() const
 {
-    return RowBuffer_;
-}
-
-NTableClient::TMutableUnversionedRow TExpressionContext::CaptureRow(
-    NTableClient::TUnversionedRow row,
-    bool captureValues)
-{
-    return RowBuffer_->CaptureRow(row, captureValues);
-}
-
-NTableClient::TMutableUnversionedRow TExpressionContext::CaptureRow(
-    NTableClient::TUnversionedValueRange values,
-    bool captureValues)
-{
-    return RowBuffer_->CaptureRow(values, captureValues);
-}
-
-void TExpressionContext::CaptureValues(NTableClient::TMutableUnversionedRow row)
-{
-    return RowBuffer_->CaptureValues(row);
+    return HostPool_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
