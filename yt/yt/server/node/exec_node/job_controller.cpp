@@ -935,11 +935,6 @@ private:
 
         i64 finishedJobsStatisticsSize = 0;
 
-        YT_LOG_DEBUG_IF(
-            context->NeedTotalConfirmation,
-            "Sending all finished jobs due to total confirmation (ControllerAgentDescriptor: %v)",
-            agentDescriptor);
-
         auto sendFinishedJob = [&request, &finishedJobsStatisticsSize, &getJobStatistics] (const TJobPtr& job) {
             YT_LOG_DEBUG(
                 "Adding finished job info to heartbeat to agent (JobId: %v, JobState: %v, AgentDescriptor: %v, OperationId: %v)",
@@ -994,13 +989,11 @@ private:
                 continue;
             }
 
-            bool forcefullySend = jobConfirmationRequested || context->NeedTotalConfirmation;
-
-            if (job->GetStored() && !forcefullySend) {
-                continue;
-            }
-
             if (job->GetStored()) {
+                if (!jobConfirmationRequested && !job->IsGrowingStale(context->JobStalenessDelay)) {
+                    continue;
+                }
+
                 YT_LOG_DEBUG(
                     "Confirming job (JobId: %v, OperationId: %v, Stored: %v, State: %v, ControllerAgentDescriptor: %v)",
                     jobId,

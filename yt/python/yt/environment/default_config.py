@@ -695,6 +695,7 @@ def get_dynamic_node_config():
                     backoff = 5000;
                 };
                 total_confirmation_period = 5000;
+                job_staleness_delay = 5000;
                 running_job_statistics_sending_backoff = 0;
                 send_waiting_jobs = %true;
                 heartbeat_period = 100;

@@ -75,8 +75,6 @@ public:
 
         NConcurrency::IReconfigurableThroughputThrottlerPtr StatisticsThrottler_;
 
-        TRelativeConstantBackoffStrategy TotalConfirmationRequestBackoffStrategy_;
-
         THashSet<TJobPtr> EnqueuedFinishedJobs_;
         std::vector<TJobId> UnconfirmedJobIds_;
         bool ShouldSendOutOfBand_ = false;
@@ -185,7 +183,7 @@ struct TAgentHeartbeatContext
     TControllerAgentConnectorPool::TControllerAgentConnectorPtr ControllerAgentConnector;
     NConcurrency::IThroughputThrottlerPtr StatisticsThrottler;
     TDuration RunningJobStatisticsSendingBackoff;
-    bool NeedTotalConfirmation;
+    TDuration JobStalenessDelay;
 
     THashSet<TJobPtr> JobsToForcefullySend;
     std::vector<TJobId> UnconfirmedJobIds;

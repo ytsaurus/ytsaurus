@@ -1509,6 +1509,16 @@ void TJob::SetStored()
     VERIFY_THREAD_AFFINITY(JobThread);
 
     Stored_ = true;
+    LastStoredTime_ = TInstant::Now();
+}
+
+bool TJob::IsGrowingStale(TDuration maxDelay) const
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    YT_VERIFY(Stored_);
+
+    return LastStoredTime_ + maxDelay <= TInstant::Now();
 }
 
 bool TJob::IsJobProxyCompleted() const noexcept
