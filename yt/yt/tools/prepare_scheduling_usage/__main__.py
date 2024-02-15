@@ -306,6 +306,15 @@ def merge_info(info_base, info_update):
     info_base.cumulative_max_memory += info_update.cumulative_max_memory
     info_base.cumulative_used_cpu += info_update.cumulative_used_cpu
     info_base.cumulative_gpu_utilization += info_update.cumulative_gpu_utilization
+    info_base.tmpfs_max_usage += info_update.tmpfs_max_usage
+    info_base.tmpfs_limit += info_update.tmpfs_limit
+    info_base.cumulative_sm_utilization += info_update.cumulative_sm_utilization
+    info_base.time_total += info_update.time_total
+    info_base.time_prepare += info_update.time_prepare
+    info_base.data_input_chunk_count += info_update.data_input_chunk_count
+    info_base.data_input_data_weight += info_update.data_input_data_weight
+    info_base.data_output_chunk_count += info_update.data_output_chunk_count
+    info_base.data_output_data_weight += info_update.data_output_data_weight
 
     if not OperationState(info_base.operation_state).is_finished():
         info_base.operation_state = info_update.operation_state
