@@ -2476,12 +2476,12 @@ public:
 
         const auto& volumeId = GetId();
         const auto& volumePath = GetPath();
-        YT_LOG_DEBUG("Removing SquashFS volume (VolumeId: %v, VolumePath: %v)",
+        YT_LOG_DEBUG("Removing squashfs volume (VolumeId: %v, VolumePath: %v)",
             volumeId,
             volumePath);
 
         RemoveFuture_ = Location_->RemoveVolume(TagSet_, volumeId).Apply(BIND([volumeId = volumeId, volumePath = volumePath, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)]() {
-            YT_LOG_DEBUG("Removed SquashFS volume (VolumeId: %v, VolumePath: %v)",
+            YT_LOG_DEBUG("Removed squashfs volume (VolumeId: %v, VolumePath: %v)",
                 volumeId,
                 volumePath);
         }));
@@ -2589,11 +2589,11 @@ public:
                     CreatePortoExecutor(
                         Config_->VolumeManager->PortoExecutor,
                         Format("volume%v", index),
-                        ExecNodeProfiler.WithPrefix("/location_volumes/porto")),
+                        ExecNodeProfiler.WithPrefix("/location_volumes/porto").WithTag("location_id", id)),
                     CreatePortoExecutor(
                         Config_->VolumeManager->PortoExecutor,
                         Format("layer%v", index),
-                        ExecNodeProfiler.WithPrefix("/location_layers/porto")),
+                        ExecNodeProfiler.WithPrefix("/location_layers/porto").WithTag("location_id", id)),
                     id);
                 locations.push_back(location);
                 initLocationResults.push_back(location->Initialize());
@@ -2733,7 +2733,6 @@ public:
         // ToDo(psushin): choose proper invoker.
         // Avoid sync calls to WaitFor, to respect job preparation context switch guards.
         return AllSucceeded(std::move(overlayDataFutures))
-            .ToImmediatelyCancelable()
             .Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TOverlayData>& overlayDataArray) {
                 auto tagSet = TVolumeProfilerCounters::MakeTagSet(/* volumeType */ "overlay", /* volumeFilePath */ "n/a");
                 TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
@@ -2898,7 +2897,12 @@ private:
                 tag,
                 std::move(tagSet),
                 Passed(std::move(volumeCreateTimeGuard)),
-                artifactKey).AsyncVia(GetCurrentInvoker())).As<TOverlayData>();
+                artifactKey)
+            .AsyncVia(GetCurrentInvoker()))
+            // This uncancelable future ensures that TOverlayData object owning the volume will be created
+            // and protects from porto volume leak.
+            .ToUncancelable()
+            .As<TOverlayData>();
 
             futures.push_back(std::move(volumeFuture));
         }
@@ -2914,7 +2918,7 @@ private:
     {
         YT_VERIFY(!artifactKeys.empty());
 
-        YT_LOG_DEBUG("Prepare SquashFS volumes (Tag: %v, Artifacts: %v)",
+        YT_LOG_DEBUG("Prepare squashfs volumes (Tag: %v, Artifacts: %v)",
             tag,
             artifactKeys.size());
 
@@ -3006,7 +3010,7 @@ private:
             tag,
             overlayDataArray.size());
 
-        YT_LOG_DEBUG("Creating Overlay volume (Tag: %v, OverlayDataArraySize: %v)",
+        YT_LOG_DEBUG("Creating overlay volume (Tag: %v, OverlayDataArraySize: %v)",
             tag,
             overlayDataArray.size());
 
@@ -3014,27 +3018,37 @@ private:
             if (volumeOrLayer.IsLayer()) {
                 LayerCache_->Touch(volumeOrLayer.GetLayer());
 
-                YT_LOG_DEBUG("Using layer to create new Overlay volume (Tag: %v, LayerId: %v)",
+                YT_LOG_DEBUG("Using layer to create new overlay volume (Tag: %v, LayerId: %v)",
                     tag,
                     volumeOrLayer.GetLayer()->GetMeta().Id);
             } else {
-                YT_LOG_DEBUG("Using volume to create new Overlay volume (Tag: %v, VolumeId: %v)",
+                YT_LOG_DEBUG("Using volume to create new overlay volume (Tag: %v, VolumeId: %v)",
                     tag,
                     volumeOrLayer.GetVolume()->GetId());
             }
         }
 
         auto location = PickLocation();
-        auto volumeMeta = WaitFor(location->CreateOverlayVolume(tag, tagSet, std::move(volumeCreateTimeGuard), options, overlayDataArray))
+        auto volumeMetaFuture = location->CreateOverlayVolume(tag, tagSet, std::move(volumeCreateTimeGuard), options, overlayDataArray);
+        // This future is intentionally uncancellable: we don't want to interrupt invoked volume creation,
+        // until it is completed and the OverlayVolume object is fully created.
+        auto volumeFuture = volumeMetaFuture.ApplyUnique(BIND(
+            [
+                location = std::move(location),
+                tagSet = std::move(tagSet),
+                overlayDataArray = std::move(overlayDataArray)
+            ] (TVolumeMeta&& volumeMeta) {
+                return New<TOverlayVolume>(
+                    std::move(tagSet),
+                    std::move(volumeMeta),
+                    std::move(location),
+                    std::move(overlayDataArray));
+            })).ToUncancelable();
+
+        auto volume = WaitFor(volumeFuture)
             .ValueOrThrow();
 
-        auto volume = New<TOverlayVolume>(
-            std::move(tagSet),
-            std::move(volumeMeta),
-            std::move(location),
-            std::move(overlayDataArray));
-
-        YT_LOG_DEBUG("Created Overlay volume (Tag: %v, VolumeId: %v)",
+        YT_LOG_DEBUG("Created overlay volume (Tag: %v, VolumeId: %v)",
             tag,
             volume->GetId());
 
@@ -3050,22 +3064,33 @@ private:
     {
         auto squashFSFilePath = chunkCacheArtifact->GetFileName();
 
-        YT_LOG_DEBUG("Creating SquashFS volume (Tag: %v, SquashFSFilePath: %v)",
+        YT_LOG_DEBUG("Creating squashfs volume (Tag: %v, SquashFSFilePath: %v)",
             tag,
             squashFSFilePath);
 
         auto location = PickLocation();
-        auto volumeMeta = WaitFor(location->CreateSquashFSVolume(tag, tagSet, std::move(volumeCreateTimeGuard), artifactKey, squashFSFilePath))
+                auto volumeMetaFuture = location->CreateSquashFSVolume(tag, tagSet, std::move(volumeCreateTimeGuard), artifactKey, squashFSFilePath);
+        auto volumeFuture = volumeMetaFuture.ApplyUnique(BIND(
+            [
+                tagSet = std::move(tagSet),
+                artifactKey,
+                chunkCacheArtifact = std::move(chunkCacheArtifact),
+                location = std::move(location)
+            ] (TVolumeMeta&& volumeMeta) {
+            return New<TSquashFSVolume>(
+                std::move(tagSet),
+                std::move(volumeMeta),
+                artifactKey,
+                std::move(chunkCacheArtifact),
+                std::move(location));
+        })).ToUncancelable();
+        // This uncancelable future ensures that TSquashFSVolume object owning the volume will be created
+        // and protects from porto volume leak.
+
+        auto volume = WaitFor(volumeFuture)
             .ValueOrThrow();
 
-        auto volume = New<TSquashFSVolume>(
-            std::move(tagSet),
-            std::move(volumeMeta),
-            artifactKey,
-            std::move(chunkCacheArtifact),
-            std::move(location));
-
-        YT_LOG_INFO("Created SquashFS volume (Tag: %v, VolumeId: %v, SquashFSFilePath: %v)",
+        YT_LOG_INFO("Created squashfs volume (Tag: %v, VolumeId: %v, SquashFSFilePath: %v)",
             tag,
             volume->GetId(),
             squashFSFilePath);
