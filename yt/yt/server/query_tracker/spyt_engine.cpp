@@ -333,6 +333,8 @@ private:
         if (!pyFilesInsert) {
             THROW_ERROR_EXCEPTION("Configuration of 'spark.yt.pyFiles' is forbidden");
         }
+        // Dirty hack for absent scheme.
+        sparkConf.emplace("spark.hadoop.fs.null.impl", "tech.ytsaurus.spyt.fs.YtTableFileSystem");
         YT_LOG_DEBUG("Session spark conf prepared (Data: %v)", sparkConf);
         // Token insertion after data logging.
         if (Token_) {
