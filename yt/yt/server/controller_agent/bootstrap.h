@@ -44,6 +44,8 @@ public:
     const NCoreDump::ICoreDumperPtr& GetCoreDumper() const;
     const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const;
 
+    void OnDynamicConfigChanged(const TControllerAgentConfigPtr& config);
+
     void Run();
 
 private:

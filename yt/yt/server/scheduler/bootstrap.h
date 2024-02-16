@@ -42,6 +42,8 @@ public:
     const TControllerAgentTrackerPtr& GetControllerAgentTracker() const;
     const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const;
 
+    void OnDynamicConfigChanged(const TSchedulerConfigPtr& config);
+
     void Run();
 
 private:

@@ -38,8 +38,6 @@
 #include <yt/yt/ytlib/scheduler/config.h>
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
-#include <yt/yt/ytlib/program/helpers.h>
-
 #include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -469,7 +467,7 @@ public:
 
         Config_ = config;
 
-        ReconfigureNativeSingletons(Bootstrap_->GetConfig(), Config_);
+        Bootstrap_->OnDynamicConfigChanged(Config_);
 
         ControllerThreadPool_->Configure(Config_->ControllerThreadCount);
 

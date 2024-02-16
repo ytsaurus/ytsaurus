@@ -1116,6 +1116,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("commit_operation_cypress_node_changes_via_system_transaction", &TThis::CommitOperationCypressNodeChangesViaSystemTransaction)
         .Default(false);
 
+    registrar.Parameter("rpc_server", &TThis::RpcServer)
+        .DefaultNew();
+
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->EventLog->MaxRowWeight = 128_MB;
         if (!config->EventLog->Path) {
