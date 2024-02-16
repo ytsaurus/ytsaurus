@@ -359,6 +359,13 @@ public:
             "ListVolumePaths");
     }
 
+    TFuture<std::vector<TVolumeSpec>> GetVolumes() override
+    {
+        return ExecutePortoApiAction(
+            &TPortoExecutor::DoGetVolumes,
+            "GetVolume");
+    }
+
     // This method allocates Porto "resources", so it should be uncancellable.
     TFuture<void> ImportLayer(const TString& archivePath, const TString& layerId, const TString& place) override
     {
@@ -900,6 +907,33 @@ private:
             "ListVolume",
             /*idempotent*/ true);
         return {volumes.begin(), volumes.end()};
+    }
+
+    std::vector<TVolumeSpec> DoGetVolumes()
+    {
+        const Porto::TGetVolumeResponse* getResponse;
+
+        ExecuteApiCall(
+            [&] {
+                getResponse = Api_->GetVolumes();
+                return getResponse ? EError::Success : EError::Unknown;
+            },
+            "GetVolume",
+            /*idempotent*/ true);
+
+        YT_VERIFY(getResponse);
+
+        std::vector<TVolumeSpec> specs;
+        specs.reserve(getResponse->volume_size());
+
+        for (auto& spec : getResponse->volume()) {
+            specs.emplace_back(TVolumeSpec{
+                .Path = spec.path(),
+                .Backend = spec.backend()
+            });
+        }
+
+        return specs;
     }
 
     void DoImportLayer(const TString& archivePath, const TString& layerId, const TString& place)
