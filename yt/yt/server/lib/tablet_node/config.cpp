@@ -655,6 +655,10 @@ TInMemoryManagerConfigPtr TInMemoryManagerConfig::ApplyDynamic(
     UpdateYsonStructField(config->ControlRpcTimeout, dynamicConfig->ControlRpcTimeout);
     UpdateYsonStructField(config->HeavyRpcTimeout, dynamicConfig->HeavyRpcTimeout);
     UpdateYsonStructField(config->RemoteSendBatchSize, dynamicConfig->RemoteSendBatchSize);
+    UpdateYsonStructField(
+        config->EnablePreliminaryNetworkThrottling,
+        dynamicConfig->EnablePreliminaryNetworkThrottling);
+
     return config;
 }
 
@@ -677,6 +681,8 @@ void TInMemoryManagerConfig::Register(TRegistrar registrar)
         .Default(TWorkloadDescriptor(EWorkloadCategory::UserBatch));
     registrar.Parameter("preload_throttler", &TThis::PreloadThrottler)
         .Optional();
+    registrar.Parameter("enable_preliminary_network_throttling", &TThis::EnablePreliminaryNetworkThrottling)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -695,6 +701,8 @@ void TInMemoryManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("heavy_rpc_timeout", &TThis::HeavyRpcTimeout)
         .Optional();
     registrar.Parameter("remote_send_batch_size", &TThis::RemoteSendBatchSize)
+        .Optional();
+    registrar.Parameter("enable_preliminary_network_throttling", &TThis::EnablePreliminaryNetworkThrottling)
         .Optional();
 }
 

@@ -19,6 +19,7 @@ struct IChunkReader
         //! Estimation for (compressed) size of the requested blocks.
         std::optional<i64> EstimatedSize;
         IInvokerPtr SessionInvoker;
+        bool DisableBandwidthThrottler = false;
     };
 
     //! Asynchronously reads a given set of blocks.

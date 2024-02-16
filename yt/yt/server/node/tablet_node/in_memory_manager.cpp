@@ -401,7 +401,9 @@ private:
                 Bootstrap_->GetMemoryUsageTracker(),
                 CompressionInvoker_,
                 readerProfiler,
-                Bootstrap_->GetNodeMemoryReferenceTracker());
+                Bootstrap_->GetNodeMemoryReferenceTracker(),
+                GetConfig()->EnablePreliminaryNetworkThrottling,
+                Bootstrap_->GetInThrottler(EWorkloadCategory::SystemTabletPreload));
 
             VERIFY_INVOKERS_AFFINITY(std::vector{
                 tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Default),
@@ -451,6 +453,33 @@ IInMemoryManagerPtr CreateInMemoryManager(IBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::optional<i64> GetEstimatedBlockRangeSize(
+    bool enablePreliminaryNetworkThrottling,
+    const TCachedVersionedChunkMetaPtr& meta,
+    int startBlockIndex,
+    int blocksCount)
+{
+    if (!enablePreliminaryNetworkThrottling) {
+        return {};
+    }
+
+    const auto& metaMisc = meta->Misc();
+    if (metaMisc.compressed_data_size() == 0 || metaMisc.uncompressed_data_size() == 0) {
+        return {};
+    }
+
+    i64 uncompressedSize = 0;
+    const auto& dataBlockMeta = meta->DataBlockMeta();
+    for (int index = startBlockIndex; index < startBlockIndex + blocksCount; ++index) {
+        uncompressedSize += dataBlockMeta->data_blocks(index).uncompressed_size();
+    }
+
+    auto compressionRatio = static_cast<double>(metaMisc.compressed_data_size()) / metaMisc.uncompressed_data_size();
+    return uncompressedSize * compressionRatio;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TInMemoryChunkDataPtr PreloadInMemoryStore(
     const TTabletSnapshotPtr& tabletSnapshot,
     const IChunkStorePtr& store,
@@ -458,7 +487,9 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const INodeMemoryTrackerPtr& memoryTracker,
     const IInvokerPtr& compressionInvoker,
     const TReaderProfilerPtr& readerProfiler,
-    const INodeMemoryReferenceTrackerPtr& memoryReferenceTracker)
+    const INodeMemoryReferenceTrackerPtr& memoryReferenceTracker,
+    bool enablePreliminaryNetworkThrottling,
+    const IThroughputThrottlerPtr& networkThrottler)
 {
     const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
     auto mode = mountConfig->InMemoryMode;
@@ -477,6 +508,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
             .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPreload),
             .ReadSessionId = readSessionId,
         },
+        .DisableBandwidthThrottler = enablePreliminaryNetworkThrottling,
     };
 
     readerProfiler->SetChunkReaderStatistics(readBlocksOptions.ClientOptions.ChunkReaderStatistics);
@@ -603,6 +635,22 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     std::vector<NChunkClient::TBlock> blocks;
     blocks.reserve(endBlockIndex - startBlockIndex);
 
+    auto preThrottledBytes = GetEstimatedBlockRangeSize(
+        enablePreliminaryNetworkThrottling,
+        versionedChunkMeta,
+        startBlockIndex,
+        endBlockIndex - startBlockIndex);
+
+    if (preThrottledBytes) {
+        YT_LOG_DEBUG("Preliminary throttling of network bandwidth for preload  (Blocks: %v-%v, Bytes: %v)",
+            startBlockIndex,
+            endBlockIndex,
+            preThrottledBytes);
+
+        WaitFor(networkThrottler->Throttle(*preThrottledBytes))
+            .ThrowOnError();
+    }
+
     for (int blockIndex = startBlockIndex; blockIndex < endBlockIndex;) {
         YT_LOG_DEBUG("Started reading chunk blocks (FirstBlock: %v)",
             blockIndex);
@@ -669,6 +717,16 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         }
 
         blockIndex += readBlockCount;
+    }
+
+    if (enablePreliminaryNetworkThrottling) {
+        auto difference = compressedDataSize - preThrottledBytes.value_or(0);
+        YT_LOG_DEBUG("Throttling the difference between received and estimated data size (Estimated: %v, Received %v)",
+            preThrottledBytes,
+            compressedDataSize);
+
+        WaitFor(networkThrottler->Throttle(std::max(0l, difference)))
+            .ThrowOnError();
     }
 
     TCodecStatistics decompressionStatistics;
