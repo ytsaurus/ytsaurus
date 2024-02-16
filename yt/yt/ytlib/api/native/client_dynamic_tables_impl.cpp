@@ -82,6 +82,7 @@
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/concurrency/action_queue.h>
 
