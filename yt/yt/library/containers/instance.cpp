@@ -428,6 +428,8 @@ public:
 
         bool userTimeRequested = false;
         bool contextSwitchesRequested = false;
+        bool volumeCountRequested = false;
+
         for (auto field : fields) {
             if (auto it = NDetail::PortoStatRules.find(field)) {
                 const auto& rule = it->second;
@@ -436,6 +438,8 @@ public:
                 contextSwitchesRequested = true;
             } else if (field == EStatField::CpuUserUsage) {
                 userTimeRequested = true;
+            } else if (field == EStatField::VolumeCounts) {
+                volumeCountRequested = true;
             } else {
                 THROW_ERROR_EXCEPTION("Unknown resource field %Qlv requested", field)
                     << TErrorAttribute("container", Name_);
@@ -454,7 +458,7 @@ public:
             }
 
             const auto& [property, callback] = ruleIt->second;
-            auto& record = result[field];
+            auto& record = result.ContainerStats[field];
             if (auto responseIt = propertyMap.find(property); responseIt != propertyMap.end()) {
                 const auto& valueOrError = responseIt->second;
                 if (valueOrError.IsOK()) {
@@ -498,8 +502,28 @@ public:
             }
 
             if (contextSwitchesRequested) {
-                result[EStatField::ContextSwitchesDelta] = TotalContextSwitches_;
+                result.ContainerStats[EStatField::ContextSwitchesDelta] = TotalContextSwitches_;
             }
+        }
+
+        if (volumeCountRequested) {
+            auto volumeList = WaitFor(Executor_->GetVolumes());
+
+            THashMap<TString, i64> volumeCounts;
+
+            if (volumeList.IsOK()) {
+                for (const auto& volume : volumeList.Value()) {
+                    auto it = volumeCounts.find(volume.Backend);
+
+                    if (it.IsEnd()) {
+                        volumeCounts.insert({volume.Backend, 1});
+                    } else {
+                        it->second = it->second + 1;
+                    }
+                }
+            }
+
+            result.VolumeCounts = volumeCounts;
         }
 
         if (contextSwitchesRequested) {
@@ -509,13 +533,13 @@ public:
                 totalContextSwitches += std::max<ui64>(0UL, newValue);
             }
 
-            result[EStatField::ContextSwitches] = totalContextSwitches;
+            result.ContainerStats[EStatField::ContextSwitches] = totalContextSwitches;
         }
 
         if (userTimeRequested) {
-            result[EStatField::CpuUserUsage] = CalculateCpuUserUsage(
-                result[EStatField::CpuUsage],
-                result[EStatField::CpuSystemUsage]);
+            result.ContainerStats[EStatField::CpuUserUsage] = CalculateCpuUserUsage(
+                result.ContainerStats[EStatField::CpuUsage],
+                result.ContainerStats[EStatField::CpuSystemUsage]);
         }
 
         return result;

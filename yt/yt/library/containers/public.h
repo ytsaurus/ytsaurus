@@ -58,6 +58,22 @@ DEFINE_ENUM(EPortoErrorCode,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EVolumeBackend,
+    (Dir)
+    (Plain)
+    (Bind)
+    (Rbind)
+    (Tmpfs)
+    (Hugetmpfs)
+    (Quota)
+    (Native)
+    (Overlay)
+    (Squash)
+    (Loop)
+    (Rbd)
+    (Lvm)
+);
+
 YT_DEFINE_ERROR_ENUM(
     ((FailedToStartContainer)  (14000))
 );
@@ -110,6 +126,9 @@ DEFINE_ENUM(EStatField,
     (NetRxPackets)
     (NetRxDrops)
     (NetRxLimit)
+
+    // Volumes
+    (VolumeCounts)
 );
 
 DEFINE_ENUM(EEnablePorto,

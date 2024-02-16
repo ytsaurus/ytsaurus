@@ -49,8 +49,8 @@ static TErrorOr<ui64> GetFieldOrError(
     const TResourceUsage& usage,
     EStatField field)
 {
-    auto it = usage.find(field);
-    if (it == usage.end()) {
+    auto it = usage.ContainerStats.find(field);
+    if (it == usage.ContainerStats.end()) {
         return TError("Resource usage is missing %Qlv field", field);
     }
     const auto& errorOrValue = it->second;
@@ -72,7 +72,7 @@ TPortoResourceTracker::TPortoResourceTracker(
     , IsDeltaTracker_(isDeltaTracker)
     , IsForceUpdate_(isForceUpdate)
 {
-    ResourceUsage_ = {
+    ResourceUsage_.ContainerStats = {
         {EStatField::IOReadByte, 0},
         {EStatField::IOWriteByte, 0},
         {EStatField::IOBytesLimit, 0},
@@ -182,6 +182,13 @@ TNetworkStatistics TPortoResourceTracker::ExtractNetworkStatistics(const TResour
     };
 }
 
+TVolumeStatistics TPortoResourceTracker::ExtractVolumeStatistics(const TResourceUsage& resourceUsage) const
+{
+    return TVolumeStatistics{
+        .VolumeCounts = resourceUsage.VolumeCounts
+    };
+}
+
 TTotalStatistics TPortoResourceTracker::ExtractTotalStatistics(const TResourceUsage& resourceUsage) const
 {
     return TTotalStatistics{
@@ -189,6 +196,7 @@ TTotalStatistics TPortoResourceTracker::ExtractTotalStatistics(const TResourceUs
         .MemoryStatistics = ExtractMemoryStatistics(resourceUsage),
         .BlockIOStatistics = ExtractBlockIOStatistics(resourceUsage),
         .NetworkStatistics = ExtractNetworkStatistics(resourceUsage),
+        .VolumeStatistics = ExtractVolumeStatistics(resourceUsage)
     };
 }
 
@@ -337,35 +345,38 @@ void TPortoResourceTracker::ReCalculateResourceUsage(const TResourceUsage& newRe
         TErrorOr<ui64> oldValue;
         TErrorOr<ui64> newValue;
 
-        if (auto newValueIt = newResourceUsage.find(stat); newValueIt.IsEnd()) {
+        if (auto newValueIt = newResourceUsage.ContainerStats.find(stat); newValueIt.IsEnd()) {
             newValue = TError("Missing property %Qlv in Porto response", stat)
                 << TErrorAttribute("container", Instance_->GetName());
         } else {
             newValue = newValueIt->second;
         }
 
-        if (auto oldValueIt = ResourceUsage_.find(stat); oldValueIt.IsEnd()) {
+        if (auto oldValueIt = ResourceUsage_.ContainerStats.find(stat); oldValueIt.IsEnd()) {
             oldValue = newValue;
         } else {
             oldValue = oldValueIt->second;
         }
 
         if (newValue.IsOK()) {
-            resourceUsage[stat] = newValue;
+            resourceUsage.ContainerStats[stat] = newValue;
         } else {
-            resourceUsage[stat] = oldValue;
+            resourceUsage.ContainerStats[stat] = oldValue;
         }
 
         if (IsCumulativeStatistics(stat)) {
-            resourceUsageDelta[stat] = CalculateCounterDelta(oldValue, newValue);
+            resourceUsageDelta.ContainerStats[stat] = CalculateCounterDelta(oldValue, newValue);
         } else {
             if (newValue.IsOK()) {
-                resourceUsageDelta[stat] = newValue;
+                resourceUsageDelta.ContainerStats[stat] = newValue;
             } else {
-                resourceUsageDelta[stat] = oldValue;
+                resourceUsageDelta.ContainerStats[stat] = oldValue;
             }
         }
     }
+
+    resourceUsage.VolumeCounts = newResourceUsage.VolumeCounts;
+    resourceUsageDelta.VolumeCounts = newResourceUsage.VolumeCounts;
 
     ResourceUsage_ = resourceUsage;
     ResourceUsageDelta_ = resourceUsageDelta;
@@ -551,6 +562,17 @@ void TPortoResourceProfiler::WriteMemoryMetrics(
     WriteGaugeIfOk(writer, "/memory/memory_limit", totalStatistics.MemoryStatistics.MemoryLimit);
 }
 
+void TPortoResourceProfiler::WriteVolumeMetrics(
+    ISensorWriter* writer,
+    TTotalStatistics& totalStatistics,
+    i64 /*timeDeltaUsec*/)
+{
+    for (const auto& [key, count] : totalStatistics.VolumeStatistics.VolumeCounts) {
+        auto guard = TWithTagGuard(writer, "backend", key);
+        writer->AddGauge("/volume/count", count);
+    }
+}
+
 void TPortoResourceProfiler::WriteBlockingIOMetrics(
     ISensorWriter* writer,
     TTotalStatistics& totalStatistics,
@@ -654,6 +676,7 @@ void TPortoResourceProfiler::CollectSensors(ISensorWriter* writer)
     WriteMemoryMetrics(writer, totalStatistics, timeDeltaUsec);
     WriteBlockingIOMetrics(writer, totalStatistics, timeDeltaUsec);
     WriteNetworkMetrics(writer, totalStatistics, timeDeltaUsec);
+    WriteVolumeMetrics(writer, totalStatistics, timeDeltaUsec);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
