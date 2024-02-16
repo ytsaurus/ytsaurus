@@ -10,8 +10,6 @@ namespace NYT::NContainers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TResourceUsage = THashMap<EStatField, TErrorOr<ui64>>;
-
 const std::vector<EStatField> InstanceStatFields{
     EStatField::CpuUsage,
     EStatField::CpuUserUsage,
@@ -56,7 +54,19 @@ const std::vector<EStatField> InstanceStatFields{
     EStatField::NetRxPackets,
     EStatField::NetRxDrops,
     EStatField::NetRxLimit,
+
+    EStatField::VolumeCounts
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TResourceUsage
+{
+    THashMap<EStatField, TErrorOr<ui64>> ContainerStats;
+    THashMap<TString, i64> VolumeCounts;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TResourceLimits
 {

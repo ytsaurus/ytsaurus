@@ -27,13 +27,22 @@ using TBlockIOStatistics = TBlockIO::TStatistics;
 using TMemoryStatistics = TMemory::TStatistics;
 using TNetworkStatistics = TNetwork::TStatistics;
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TVolumeStatistics
+{
+    THashMap<TString, i64> VolumeCounts;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTotalStatistics
 {
-public:
     TCpuStatistics CpuStatistics;
     TMemoryStatistics MemoryStatistics;
     TBlockIOStatistics BlockIOStatistics;
     TNetworkStatistics NetworkStatistics;
+    TVolumeStatistics VolumeStatistics;
 };
 
 #ifdef _linux_
@@ -93,6 +102,7 @@ private:
     TMemoryStatistics ExtractMemoryStatistics(const TResourceUsage& resourceUsage) const;
     TBlockIOStatistics ExtractBlockIOStatistics(const TResourceUsage& resourceUsage) const;
     TNetworkStatistics ExtractNetworkStatistics(const TResourceUsage& resourceUsage) const;
+    TVolumeStatistics ExtractVolumeStatistics(const TResourceUsage& resourceUsage) const;
     TTotalStatistics ExtractTotalStatistics(const TResourceUsage& resourceUsage) const;
 
     TErrorOr<ui64> CalculateCounterDelta(
@@ -141,6 +151,11 @@ private:
         i64 timeDeltaUsec);
 
     void WriteNetworkMetrics(
+        ISensorWriter* writer,
+        TTotalStatistics& totalStatistics,
+        i64 timeDeltaUsec);
+
+    void WriteVolumeMetrics(
         ISensorWriter* writer,
         TTotalStatistics& totalStatistics,
         i64 timeDeltaUsec);
