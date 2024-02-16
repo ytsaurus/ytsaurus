@@ -70,7 +70,6 @@ struct TCrossCellMessage
 struct IMulticellManager
     : public virtual TRefCounted
 {
-public:
     virtual void Initialize() = 0;
 
     virtual bool IsPrimaryMaster() const = 0;

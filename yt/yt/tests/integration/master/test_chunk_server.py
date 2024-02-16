@@ -634,11 +634,11 @@ class TestChunkServerMulticell(TestChunkServer):
 
         set("//sys/@config/multicell_manager/cell_descriptors",
             {"11": {"roles": ["chunk_host", "dedicated_chunk_host"]}})
-        wait(lambda: has_alert("Cell received conflicting chunk_host and dedicated_chunk_host roles") is True)
+        wait(lambda: has_alert('Cell received conflicting "chunk_host" and "dedicated_chunk_host" roles'))
 
         set("//sys/@config/multicell_manager/cell_descriptors",
             {"11": {"roles": ["chunk_host"]}})
-        wait(lambda: has_alert("Cell received conflicting chunk_host and dedicated_chunk_host roles") is False)
+        wait(lambda: not has_alert('Cell received conflicting "chunk_host" and "dedicated_chunk_host" roles'))
 
     @authors("h0pless")
     def test_dedicated_chunk_host_roles_only(self):
