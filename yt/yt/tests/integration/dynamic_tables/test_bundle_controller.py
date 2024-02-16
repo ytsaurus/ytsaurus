@@ -480,7 +480,7 @@ class TestBundleController(YTEnvSetup):
             ]
         }
         expected_config["resource_quota"] = {
-            "cpu": 100.0,
+            "vcpu": 100000,
             "memory": 750323855360
         }
 

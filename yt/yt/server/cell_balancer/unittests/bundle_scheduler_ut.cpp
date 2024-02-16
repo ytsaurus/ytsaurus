@@ -693,7 +693,7 @@ TEST_P(TBundleSchedulerTest, AllocationQuotaExceeded)
 
     {
         auto& bundleInfo = input.Bundles["bigd"];
-        bundleInfo->ResourceQuota = New<NBundleControllerClient::TResourceQuota>();
+        bundleInfo->ResourceQuota = New<TResourceQuota>();
         bundleInfo->ResourceQuota->Cpu = 0.1;
         bundleInfo->ResourceQuota->Memory = 10_TB;
 

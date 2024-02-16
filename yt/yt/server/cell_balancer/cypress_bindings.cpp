@@ -16,11 +16,28 @@ void TSysConfig::Register(TRegistrar registrar)
         .Default(false);
 }
 
+void TResourceQuota::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cpu", &TThis::Cpu)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+
+    registrar.Parameter("memory", &TThis::Memory)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+}
+
 void TResourceLimits::Register(TRegistrar registrar)
 {
     registrar.Parameter("tablet_static_memory", &TThis::TabletStaticMemory)
         .GreaterThanOrEqual(0)
         .Default(0);
+}
+
+int TResourceQuota::Vcpu() const
+{
+    constexpr int VFactor = 1000;
+    return static_cast<int>(Cpu * VFactor);
 }
 
 void THulkInstanceResources::Register(TRegistrar registrar)

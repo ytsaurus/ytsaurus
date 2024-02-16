@@ -106,7 +106,7 @@ private:
         return result;
     }
 
-    NBundleControllerClient::TResourceQuotaPtr GetResourceQuota(const TString& bundleName, std::optional<TDuration> timeout)
+    NBundleControllerClient::TBundleResourceQuotaPtr GetResourceQuota(const TString& bundleName, std::optional<TDuration> timeout)
     {
         NApi::TGetNodeOptions getOptions;
         getOptions.Timeout = timeout;
@@ -116,7 +116,12 @@ private:
             ->GetClient()
             ->GetNode(path, getOptions))
             .ValueOrThrow();
-        return NYTree::ConvertTo<NBundleControllerClient::TResourceQuotaPtr>(yson);
+
+        auto cypressResourceQuota = NYTree::ConvertTo<NCellBalancer::TResourceQuotaPtr>(yson);
+        auto result = New<NBundleControllerClient::TBundleResourceQuota>();
+        result->Vcpu = cypressResourceQuota->Vcpu();
+        result->Memory = cypressResourceQuota->Memory;
+        return result;
     }
 
     void SetBundleConfig(const TString& bundleName, NBundleControllerClient::TBundleTargetConfigPtr& config, std::optional<TDuration> timeout)
