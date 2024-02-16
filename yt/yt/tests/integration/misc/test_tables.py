@@ -1,12 +1,12 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, print_debug, wait, create, ls, get, set,
+    authors, print_debug, wait, create, get, set,
     copy, remove,
     exists, concatenate, create_user, start_transaction, abort_transaction, commit_transaction, lock, alter_table, write_file, read_table,
     write_table, read_blob_table, map, map_reduce, merge,
     sort, remote_copy, get_first_chunk_id,
-    get_singular_chunk_id, get_chunk_replication_factor, set_banned_flag,
+    get_singular_chunk_id, get_chunk_replication_factor, set_all_nodes_banned,
     get_recursive_disk_space, get_chunk_owner_disk_space, raises_yt_error, sorted_dicts,
 )
 
@@ -94,13 +94,12 @@ class TestTables(YTEnvSetup):
 
         write_table("//tmp/table", [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 3}])
 
-        nodes = ls("//sys/cluster_nodes")
-        set_banned_flag(True, nodes)
+        set_all_nodes_banned(True)
 
         with pytest.raises(YtError):
             read_table("//tmp/table")
 
-        set_banned_flag(False, nodes)
+        set_all_nodes_banned(False)
 
     @authors("ignat")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])

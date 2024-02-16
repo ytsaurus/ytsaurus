@@ -3,7 +3,7 @@ from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 from yt_helpers import profiler_factory
 
 from yt_commands import (
-    authors, wait, create, exists, get, set, ls, set_banned_flag, insert_rows, remove, select_rows,
+    authors, wait, create, exists, get, set, ls, set_nodes_banned, insert_rows, remove, select_rows,
     lookup_rows, delete_rows, remount_table, build_snapshot,
     write_table, alter_table, read_table, map, sync_reshard_table, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect,
@@ -243,7 +243,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
                 nodes = list(str(r) for r in chunk_replicas if r.attributes["index"] == part_index)
                 nodes_to_ban += nodes
 
-            set_banned_flag(banned_flag, nodes_to_ban)
+            set_nodes_banned(nodes_to_ban, banned_flag)
 
         set_ban_for_parts([0, 1, 4], True)
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
@@ -286,7 +286,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
                 nodes = list(str(r) for r in chunk_replicas if r.attributes["index"] == part_index)
                 nodes_to_ban += nodes
 
-            set_banned_flag(banned_flag, nodes_to_ban)
+            set_nodes_banned(nodes_to_ban, banned_flag)
 
         if available:
             set_ban_for_parts([0, 1, 4], True)

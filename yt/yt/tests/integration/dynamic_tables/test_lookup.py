@@ -7,9 +7,9 @@ from yt_commands import (
     lookup_rows, delete_rows, create_dynamic_table, generate_uuid,
     alter_table, read_table, write_table, remount_table, generate_timestamp,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_reshard_table,
-    sync_flush_table, sync_compact_table, update_nodes_dynamic_config, set_banned_flag,
+    sync_flush_table, sync_compact_table, update_nodes_dynamic_config, set_node_banned,
     get_cell_leader_address, get_tablet_leader_address, WaitFailed, raises_yt_error,
-    set_node_banned, wait_for_cells, build_snapshot, sort, merge)
+    wait_for_cells, build_snapshot, sort, merge)
 
 from yt_type_helpers import make_schema
 
@@ -728,14 +728,14 @@ class TestLookup(TestSortedDynamicTablesBase):
 
         assert lookup_rows("//tmp/t", [{"key": 1}]) == row
 
-        set_banned_flag(True, self._nodes[1:2])
+        set_node_banned(self._nodes[1], True)
 
         # Banned node is marked as suspicious and will be avoided within next lookup.
         assert lookup_rows("//tmp/t", [{"key": 1}]) == row
 
         assert lookup_rows("//tmp/t", [{"key": 1}]) == row
 
-        set_banned_flag(False, self._nodes[1:2])
+        set_node_banned(self._nodes[1], False)
 
         # Node shall not be suspicious anymore.
         assert lookup_rows("//tmp/t", [{"key": 1}]) == row

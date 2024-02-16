@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, print_debug, wait, create, ls, get, set,
     remove, create_pool,
-    read_table, write_table, map, map_reduce, run_test_vanilla, abort_job, get_singular_chunk_id, update_controller_agent_config, set_banned_flag,
+    read_table, write_table, map, map_reduce, run_test_vanilla, abort_job, get_singular_chunk_id, update_controller_agent_config, set_nodes_banned,
     create_test_tables)
 
 import yt.yson as yson
@@ -342,7 +342,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         chunk_id = get_singular_chunk_id("//tmp/t_in")
         replicas = get("#{0}/@stored_replicas".format(chunk_id))
-        set_banned_flag(True, replicas)
+        set_nodes_banned(replicas, True)
 
         op = map(
             command="sleep 1.5; cat",
@@ -358,7 +358,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         wait(lambda: op.get_state() == "running")
         wait(lambda: "lost_input_chunks" in op.get_alerts())
 
-        set_banned_flag(False, replicas)
+        set_nodes_banned(replicas, False)
 
         wait(lambda: "lost_input_chunks" not in op.get_alerts())
 

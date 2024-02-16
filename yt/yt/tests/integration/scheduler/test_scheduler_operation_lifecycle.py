@@ -15,7 +15,7 @@ from yt_commands import (
     run_test_vanilla, run_sleeping_vanilla,
     abort_job, get_job, get_job_fail_context, list_jobs, list_operations, get_operation, clean_operations,
     abandon_job, sync_create_cells, update_controller_agent_config, update_scheduler_config,
-    set_banned_flag, PrepareTables, sorted_dicts)
+    set_all_nodes_banned, PrepareTables, sorted_dicts)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_operation_path,
@@ -480,7 +480,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     def test_preparing_operation_transactions(self):
         self._prepare_tables()
 
-        set_banned_flag(True)
+        set_all_nodes_banned(True)
         op = sort(track=False, in_="//tmp/t_in", out="//tmp/t_in", sort_by=["foo"])
         time.sleep(2)
 
@@ -498,7 +498,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         with pytest.raises(YtError):
             op.track()
 
-        set_banned_flag(False)
+        set_all_nodes_banned(False)
 
     @authors("ignat")
     def test_abort_custom_error_message(self):

@@ -2624,39 +2624,6 @@ def check_all_stderrs(op, expected_content, expected_count, substring=False):
 ##################################################################
 
 
-# TODO(babenko): eliminate in favor of set_node_banned
-def set_banned_flag(value, nodes=None, driver=None, wait_for_scheduler=False):
-    if not nodes:
-        nodes = ls("//sys/cluster_nodes", driver=driver)
-
-    if not nodes:
-        return
-
-    for node in nodes:
-        (_ban_node if value else _unban_node)(node, driver=driver)
-
-    target_state = "offline" if value else "online"
-
-    def check():
-        return all(
-            get("//sys/cluster_nodes/{0}/@state".format(address), driver=driver) == target_state for address in nodes
-        )
-
-    print_debug(f"waiting for nodes {nodes} to become {target_state}...")
-    wait(check)
-
-    if wait_for_scheduler:
-        def check():
-            return all(
-                get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(address)) == target_state for address in nodes
-            )
-
-        wait(check)
-
-
-##################################################################
-
-
 class PrepareTables(object):
     def _create_table(self, table):
         create("table", table)
@@ -2710,16 +2677,29 @@ def _unban_node(address, driver=None):
     clear_node_maintenance_flag(address, "ban", driver=driver)
 
 
-def set_node_banned(address, value, wait_for_master=True, driver=None):
+def set_nodes_banned(nodes, value, wait_for_master=True, wait_for_scheduler=False, driver=None):
     if value:
-        _ban_node(address, reason="set_node_banned(True)", driver=driver)
+        for node in nodes:
+            _ban_node(node, reason="set_nodes_banned", driver=driver)
         state = "offline"
     else:
-        _unban_node(address, driver=driver)
+        for node in nodes:
+            _unban_node(node, driver=driver)
         state = "online"
     if wait_for_master:
-        print_debug(f"Waiting for node {address} to become {state} at master...")
-        wait(lambda: get(f"//sys/cluster_nodes/{address}/@state", driver=driver) == state)
+        print_debug(f"Waiting for nodes {nodes} to become {state} at master...")
+        wait(lambda: all(get(f"//sys/cluster_nodes/{node}/@state", driver=driver) == state for node in nodes))
+    if wait_for_scheduler:
+        wait(lambda: all(get(f"//sys/scheduler/orchid/scheduler/nodes/{node}/master_state") == state for node in nodes))
+
+
+def set_all_nodes_banned(value, wait_for_master=True, wait_for_scheduler=False, driver=None):
+    nodes = ls("//sys/cluster_nodes", driver=driver)
+    set_nodes_banned(nodes, value, wait_for_master=wait_for_master, wait_for_scheduler=wait_for_scheduler, driver=driver)
+
+
+def set_node_banned(node, value, wait_for_master=True, wait_for_scheduler=False, driver=None):
+    set_nodes_banned([node], value, wait_for_master=wait_for_master, wait_for_scheduler=wait_for_scheduler, driver=driver)
 
 
 def decommission_node(address, reason="", driver=None):

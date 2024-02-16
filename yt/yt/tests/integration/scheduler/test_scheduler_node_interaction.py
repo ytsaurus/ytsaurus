@@ -7,7 +7,7 @@ from yt_commands import (
     create_pool, create_pool_tree, read_table, write_table,
     map, run_test_vanilla,
     abort_job, get_job, list_jobs,
-    get_operation_cypress_path, set_banned_flag)
+    get_operation_cypress_path, set_node_banned)
 
 import yt_error_codes
 
@@ -591,7 +591,7 @@ class TestNodeDoubleRegistration(YTEnvSetup):
         assert len(nodes) == 1
         node = nodes[0]
 
-        set_banned_flag(True, [node])
+        set_node_banned(node, True)
         wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
         wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")
 

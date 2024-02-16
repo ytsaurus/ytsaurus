@@ -5,7 +5,7 @@ from yt_commands import (
     remove, update_nodes_dynamic_config, get_applied_node_dynamic_config,
     insert_rows, lookup_rows, write_file, read_table, write_table, map, sort,
     sync_create_cells, sync_mount_table, sync_flush_table, sync_unmount_table,
-    get_singular_chunk_id, set_node_banned, set_banned_flag, create_dynamic_table, raises_yt_error,
+    get_singular_chunk_id, set_node_banned, set_nodes_banned, create_dynamic_table, raises_yt_error,
     disable_tablet_cells_on_node, disable_write_sessions_on_node)
 
 from yt_driver_bindings import BufferedStream
@@ -525,7 +525,7 @@ class TestErasure(TestErasureBase):
     def test_part_loss_time(self):
         # Ban 4 nodes so that banning any more would result in an inability to repair.
         nodes = ls("//sys/cluster_nodes")
-        set_banned_flag(True, nodes[:4])
+        set_nodes_banned(nodes[:4], True)
 
         create("table", "//tmp/t1", attributes={"erasure_codec": "lrc_12_2_2"})
         write_table("//tmp/t1", {"a": "b"})
@@ -561,7 +561,7 @@ class TestErasure(TestErasureBase):
         chunk_id = get_singular_chunk_id("//tmp/table")
 
         def _test(policy, banned_replicas, should_repair):
-            set_banned_flag(True, banned_replicas)
+            set_nodes_banned(banned_replicas, True)
 
             def _check_refresh():
                 return chunk_id in get("//sys/data_missing_chunks") or chunk_id in get("//sys/parity_missing_chunks")
@@ -579,11 +579,11 @@ class TestErasure(TestErasureBase):
 
             if should_repair:
                 op.track()
-                set_banned_flag(False, banned_replicas)
+                set_nodes_banned(banned_replicas, False)
             else:
                 op.ensure_running()
                 wait(lambda: get("{}/controller_orchid/unavailable_input_chunks".format(op.get_path())) == [chunk_id])
-                set_banned_flag(False, banned_replicas)
+                set_nodes_banned(banned_replicas, False)
                 op.track()
 
             assert read_table("//tmp/t_out") == content
@@ -687,13 +687,13 @@ class TestDynamicTablesErasure(TestErasureBase):
         chunk_id = get_singular_chunk_id("//tmp/table")
         replicas = get("#{0}/@stored_replicas".format(chunk_id))
         banned_nodes = replicas[:4]
-        set_banned_flag(True, banned_nodes)
+        set_nodes_banned(banned_nodes, True)
         time.sleep(1)
 
         # Banned replicas' replication readers are marked as failed.
         _failing_read()
 
-        set_banned_flag(False, banned_nodes[:-2])
+        set_nodes_banned(banned_nodes[:-2], False)
         time.sleep(1)
 
         # Failure timeout will expire later.
@@ -709,7 +709,7 @@ class TestDynamicTablesErasure(TestErasureBase):
         _, content = self._prepare_table("isa_lrc_12_2_2", dynamic=True)
         chunk_id = get_singular_chunk_id("//tmp/table")
         replicas = get("#{0}/@stored_replicas".format(chunk_id))
-        set_banned_flag(True, replicas[:3])
+        set_nodes_banned(replicas[:3], True)
         time.sleep(1)
 
         sync_unmount_table("//tmp/table")

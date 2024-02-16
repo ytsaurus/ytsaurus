@@ -11,7 +11,7 @@ from yt_commands import (
     make_ace, insert_rows, select_rows, lookup_rows, delete_rows, alter_table, read_table, write_table, merge,
     remote_copy, sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table,
     sync_reshard_table, sync_flush_table, sync_compact_table,
-    multicell_sleep, set_banned_flag, sorted_dicts,
+    multicell_sleep, set_node_banned, set_nodes_banned, set_all_nodes_banned, sorted_dicts,
     raises_yt_error, get_driver,
     create_pool, update_pool_tree_config_option,
     update_controller_agent_config,
@@ -372,7 +372,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             )
             multicell_sleep()
 
-            set_banned_flag(True, [node], driver=self.remote_driver)
+            set_node_banned(node, True, driver=self.remote_driver)
 
             wait(lambda: not get("#{}/@available".format(chunk_id), driver=self.remote_driver))
 
@@ -388,7 +388,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
                 },
             )
 
-            set_banned_flag(False, [node], driver=self.remote_driver)
+            set_node_banned(node, False, driver=self.remote_driver)
 
             wait(lambda: get("#{}/@available".format(chunk_id), driver=self.remote_driver))
 
@@ -689,19 +689,18 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
                     assert len(replicas) == 9 and len({r for r in replicas}) == 9
                 assert read_table("//tmp/t2") == content
 
-            def set_banned_flag_for_part_nodes(part_indices, banned_flag):
-                chunk_replicas = get("#{}/@stored_replicas".format(chunk_id), driver=self.remote_driver)
+            chunk_replicas = get("#{}/@stored_replicas".format(chunk_id), driver=self.remote_driver)
 
+            def set_banned_flag_for_part_nodes(part_indices, banned_flag):
                 nodes_to_ban = []
                 for part_index in part_indices:
                     nodes = list(str(r) for r in chunk_replicas if r.attributes["index"] == part_index)
                     nodes_to_ban += nodes
 
-                set_banned_flag(banned_flag, nodes_to_ban, driver=self.remote_driver)
+                set_nodes_banned(nodes_to_ban, banned_flag, driver=self.remote_driver)
 
             def unban_all_nodes():
-                nodes = list(get("//sys/cluster_nodes", driver=self.remote_driver).keys())
-                set_banned_flag(False, nodes, driver=self.remote_driver)
+                set_all_nodes_banned(False, driver=self.remote_driver)
                 wait(lambda: get("#{}/@available".format(chunk_id), driver=self.remote_driver))
 
             op = run_operation()

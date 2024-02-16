@@ -5,7 +5,7 @@ from yt_commands import (
     exists, create_domestic_medium, raises_yt_error,
     abort_transaction, commit_transaction, build_master_snapshots, update_nodes_dynamic_config,
     read_journal, write_journal, truncate_journal, wait_until_sealed, get_singular_chunk_id,
-    set_node_banned, set_banned_flag, start_transaction,
+    set_node_banned, set_nodes_banned, start_transaction,
     get_account_disk_space, get_account_committed_disk_space, get_chunk_owner_disk_space,
     externalize)
 
@@ -842,13 +842,13 @@ class TestErasureJournals(TestJournalsBase):
             random.shuffle(replicas)
             nodes_to_ban = [str(x) for x in replicas[:3]]
 
-            set_banned_flag(True, nodes_to_ban)
+            set_nodes_banned(nodes_to_ban, True)
 
             wait(_check_all_replicas_ok)
 
             assert read_journal("//tmp/j") == rows
 
-            set_banned_flag(False, nodes_to_ban)
+            set_nodes_banned(nodes_to_ban, False)
 
     @pytest.mark.parametrize(
         "erasure_codec",
@@ -889,9 +889,9 @@ class TestErasureJournals(TestJournalsBase):
 
         assert not exists(check_path)
         replicas = get("#{}/@stored_replicas".format(chunk_id))
-        set_banned_flag(True, replicas[:n])
+        set_nodes_banned(replicas[:n], True)
         wait(lambda: exists(check_path))
-        set_banned_flag(False, replicas[:n])
+        set_nodes_banned(replicas[:n], False)
         wait(lambda: not exists(check_path))
 
     @authors("babenko")

@@ -1,7 +1,7 @@
 from helpers import get_object_attribute_cache_config, get_schema_from_description
 
 from yt_commands import (authors, raises_yt_error, create, create_user, make_ace, exists, abort_job, write_table, get,
-                         get_table_columnar_statistics, set_banned_flag, ls, abort_transaction, remove, read_table,
+                         get_table_columnar_statistics, set_node_banned, ls, abort_transaction, remove, read_table,
                          sync_create_cells, sync_mount_table, sync_unmount_table, insert_rows, print_debug, merge,
                          set, remove_user)
 
@@ -299,7 +299,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 node_to_ban = clique.op.get_node(job_to_abort)
 
                 abort_job(job_to_abort)
-                set_banned_flag(True, [node_to_ban])
+                set_node_banned(node_to_ban, True)
 
                 def instances_relocated():
                     active_instances = [str(instance) for instance in clique.get_active_instances()]
@@ -313,7 +313,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                     assert "monitoring" in clique.get_orchid(clique.get_active_instances()[i], "/")
         finally:
             if node_to_ban is not None:
-                set_banned_flag(False, [node_to_ban])
+                set_node_banned(node_to_ban, False)
 
     @authors("evgenstf")
     def test_subquery_data_weight_limit_exceeded(self):

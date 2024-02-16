@@ -15,7 +15,7 @@ from yt_commands import (
     run_sleeping_vanilla, abort_op,
     get_first_chunk_id, get_singular_chunk_id, update_op_parameters,
     update_pool_tree_config, update_user_to_default_pool_map,
-    enable_op_detailed_logs, set_banned_flag,
+    enable_op_detailed_logs, set_node_banned, set_all_nodes_banned,
     create_test_tables, PrepareTables,
     update_pool_tree_config_option, update_scheduler_config)
 
@@ -642,7 +642,7 @@ class TestUnavailableChunkStrategies(YTEnvSetup):
         set("//tmp/t_out/@replication_factor", 1)
 
         node = self._get_table_chunk_node("//tmp/t_in")
-        set_banned_flag(True, [node])
+        set_node_banned(node, True)
 
         print_debug("Fail strategy")
         with pytest.raises(YtError):
@@ -671,7 +671,7 @@ class TestUnavailableChunkStrategies(YTEnvSetup):
             spec={"unavailable_chunk_strategy": "wait"},
         )
 
-        set_banned_flag(False, [node])
+        set_node_banned(node, False)
         op.track()
 
         assert read_table("//tmp/t_out") == [{"key2": val} for val in ("hello", "darkness", "my", "old", "friend")]
@@ -681,7 +681,7 @@ class TestUnavailableChunkStrategies(YTEnvSetup):
         self._prepare_tables()
 
         node = self._get_table_chunk_node("//tmp/t_in")
-        set_banned_flag(True, [node])
+        set_node_banned(node, True)
 
         op = map(
             track=False,
@@ -695,7 +695,7 @@ class TestUnavailableChunkStrategies(YTEnvSetup):
         wait(lambda: exists(orchid_path))
         wait(lambda: get(orchid_path + "/unavailable_input_chunks") == [get_first_chunk_id("//tmp/t_in")])
 
-        set_banned_flag(False, [node])
+        set_node_banned(node, False)
         wait(lambda: get(orchid_path + "/unavailable_input_chunks") == [])
 
         op.track()
@@ -715,7 +715,7 @@ class TestUnavailableChunkStrategies(YTEnvSetup):
         create("table", "//tmp/t_out")
         set("//tmp/t_out/@replication_factor", 1)
 
-        set_banned_flag(True)
+        set_all_nodes_banned(True)
 
         print_debug("Fail strategy")
         with pytest.raises(YtError):
@@ -746,7 +746,7 @@ class TestUnavailableChunkStrategies(YTEnvSetup):
 
         # Give a chance to scraper to work
         time.sleep(1.0)
-        set_banned_flag(False)
+        set_all_nodes_banned(False)
         op.track()
 
         assert read_table("//tmp/t_out") == [v1, v2, v3, v4, v5]
@@ -768,7 +768,7 @@ class TestUnavailableChunkStrategies(YTEnvSetup):
         create("table", "//tmp/t_out")
         set("//tmp/t_out/@replication_factor", 1)
 
-        set_banned_flag(True)
+        set_all_nodes_banned(True)
 
         print_debug("Fail strategy")
         with pytest.raises(YtError):
@@ -799,7 +799,7 @@ class TestUnavailableChunkStrategies(YTEnvSetup):
 
         # Give a chance for scraper to work
         time.sleep(1.0)
-        set_banned_flag(False)
+        set_all_nodes_banned(False)
         op.track()
 
         assert read_table("//tmp/t_out") == [{"a": i} for i in range(8)]

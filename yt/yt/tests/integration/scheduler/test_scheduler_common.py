@@ -16,7 +16,7 @@ from yt_commands import (
     get_singular_chunk_id, PrepareTables,
     raises_yt_error, update_scheduler_config, update_controller_agent_config,
     assert_statistics, sorted_dicts,
-    set_banned_flag, disable_scheduler_jobs_on_node, enable_scheduler_jobs_on_node,
+    set_node_banned, disable_scheduler_jobs_on_node, enable_scheduler_jobs_on_node,
     update_nodes_dynamic_config)
 
 import yt_error_codes
@@ -1846,7 +1846,7 @@ class TestDelayInNodeHeartbeat(YTEnvSetup):
             lambda: get("//sys/cluster_nodes/{}/orchid/exec_node/job_resource_manager/resource_limits/user_slots".format(first_node)) == 0
         )
 
-        set_banned_flag(True, nodes=[second_node], wait_for_scheduler=True)
+        set_node_banned(second_node, True, wait_for_scheduler=True)
 
         update_scheduler_config("testing_options/node_heartbeat_processing_delay", {
             "duration": 3000,
@@ -1869,7 +1869,7 @@ class TestDelayInNodeHeartbeat(YTEnvSetup):
         update_controller_agent_config("exec_nodes_update_period", 5000)
 
         print_debug("Ban node", first_node)
-        set_banned_flag(True, nodes=[first_node], wait_for_scheduler=True)
+        set_node_banned(first_node, True, wait_for_scheduler=True)
 
         # We want to unban nodes only when heartbeat processing of the banned node is finished.
         wait(lambda: get_ongoing_heartbeats_count() == 0)
@@ -1881,6 +1881,6 @@ class TestDelayInNodeHeartbeat(YTEnvSetup):
             "type": "sync",
         })
 
-        set_banned_flag(False, nodes=[second_node], wait_for_scheduler=True)
+        set_node_banned(second_node, False, wait_for_scheduler=True)
 
         op.track()

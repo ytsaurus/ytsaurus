@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, wait, get, complete_op,
     lookup_rows, with_breakpoint, release_breakpoint,
-    map, vanilla, get_singular_chunk_id, update_scheduler_config, set_banned_flag,
+    map, vanilla, get_singular_chunk_id, update_scheduler_config, set_nodes_banned,
     create_test_tables, sync_create_cells,
     list_operations, get_operation, update_op_parameters, make_ace)
 
@@ -43,7 +43,7 @@ def _run_op_with_input_chunks_alert(return_events=True, wait_until_set_event_sen
 
     chunk_id = get_singular_chunk_id("//tmp/t_in")
     replicas = get("#{0}/@stored_replicas".format(chunk_id))
-    set_banned_flag(True, replicas)
+    set_nodes_banned(replicas, True)
 
     op = map(
         command="cat",
@@ -61,7 +61,7 @@ def _run_op_with_input_chunks_alert(return_events=True, wait_until_set_event_sen
     if wait_until_set_event_sent:
         _wait_for_alert_events(op, 1)
 
-    set_banned_flag(False, replicas)
+    set_nodes_banned(replicas, False)
 
     op.track()
     if return_events:
