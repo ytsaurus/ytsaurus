@@ -43,8 +43,12 @@ NBundleControllerClient::TBundleConfigDescriptorPtr TClient::DoGetBundleConfig(
     auto bundleConfigConstraints = New<NBundleControllerClient::TBundleConfigConstraints>();
     NBundleControllerClient::NProto::FromProto(bundleConfigConstraints, rsp->mutable_bundle_constraints());
 
+    auto resourceQuota = New<NBundleControllerClient::TResourceQuota>();
+    NBundleControllerClient::NProto::FromProto(resourceQuota, rsp->mutable_resource_quota());
+
     result->Config = bundleConfig;
     result->ConfigConstraints = bundleConfigConstraints;
+    result->ResourceQuota = resourceQuota;
 
     return result;
 }

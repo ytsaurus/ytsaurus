@@ -55,6 +55,7 @@ private:
 
     inline static const TString BundleAttributeTargetConfig = "bundle_controller_target_config";
     inline static const TString BundleAttributeZone = "zone";
+    inline static const TString BundleAttributeResourceQuota = "resource_quota";
 
     NBundleControllerClient::TBundleTargetConfigPtr GetBundleConfig(const TString& bundleName, std::optional<TDuration> timeout)
     {
@@ -105,6 +106,19 @@ private:
         return result;
     }
 
+    NBundleControllerClient::TResourceQuotaPtr GetResourceQuota(const TString& bundleName, std::optional<TDuration> timeout)
+    {
+        NApi::TGetNodeOptions getOptions;
+        getOptions.Timeout = timeout;
+
+        auto path = Format("%v/%v/@%v", TabletCellBundlesPath, NYPath::ToYPathLiteral(bundleName), BundleAttributeResourceQuota);
+        auto yson = NConcurrency::WaitFor(Bootstrap_
+            ->GetClient()
+            ->GetNode(path, getOptions))
+            .ValueOrThrow();
+        return NYTree::ConvertTo<NBundleControllerClient::TResourceQuotaPtr>(yson);
+    }
+
     void SetBundleConfig(const TString& bundleName, NBundleControllerClient::TBundleTargetConfigPtr& config, std::optional<TDuration> timeout)
     {
         auto path = Format("%v/%v/@%v", TabletCellBundlesPath, NYPath::ToYPathLiteral(bundleName), BundleAttributeTargetConfig);
@@ -128,11 +142,13 @@ private:
 
         auto bundleConfig = GetBundleConfig(bundleName, timeout);
         auto bundleConfigConstraints = GetBundleConstraints(bundleName, timeout);
+        auto resourceQuota = GetResourceQuota(bundleName, timeout);
 
         response->set_bundle_name(bundleName);
 
-        NBundleControllerClient::NProto::ToProto(response->mutable_bundle_constraints(), bundleConfigConstraints);
         NBundleControllerClient::NProto::ToProto(response->mutable_bundle_config(), bundleConfig);
+        NBundleControllerClient::NProto::ToProto(response->mutable_bundle_constraints(), bundleConfigConstraints);
+        NBundleControllerClient::NProto::ToProto(response->mutable_resource_quota(), resourceQuota);
 
         context->Reply();
     }

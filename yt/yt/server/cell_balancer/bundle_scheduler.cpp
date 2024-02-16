@@ -189,7 +189,7 @@ public:
 private:
     NLogging::TLogger Logger;
 
-    static bool IsResourceUsageExceeded(const NBundleControllerClient::TInstanceResourcesPtr& usage, const TResourceQuotaPtr& quota)
+    static bool IsResourceUsageExceeded(const NBundleControllerClient::TInstanceResourcesPtr& usage, const NBundleControllerClient::TResourceQuotaPtr& quota)
     {
         if (!quota) {
             return false;

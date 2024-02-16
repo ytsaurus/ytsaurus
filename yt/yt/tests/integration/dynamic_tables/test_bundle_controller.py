@@ -196,6 +196,10 @@ class TestBundleController(YTEnvSetup):
             "type": "cpu_intensive",
             "vcpu": 28000})
 
+        set("//sys/tablet_cell_bundles/default/@resource_quota", {
+            "cpu": 100,
+            "memory": 750323855360})
+
     def _get_cypress_config(self, bundle_name):
         config = {}
         config["bundle_config"] = {}
@@ -475,9 +479,14 @@ class TestBundleController(YTEnvSetup):
                 }
             ]
         }
+        expected_config["resource_quota"] = {
+            "cpu": 100.0,
+            "memory": 750323855360
+        }
 
         # check get query
         config = self._get_bundle_config("default")
         self._check_configs(expected_config, config)
         assert expected_config["bundle_constraints"]["rpc_proxy_sizes"] == config["bundle_constraints"]["rpc_proxy_sizes"]
         assert expected_config["bundle_constraints"]["tablet_node_sizes"] == config["bundle_constraints"]["tablet_node_sizes"]
+        assert expected_config["resource_quota"] == config["resource_quota"]
