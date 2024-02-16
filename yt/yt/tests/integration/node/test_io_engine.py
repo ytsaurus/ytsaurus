@@ -126,7 +126,7 @@ class TestIoEngine(YTEnvSetup):
         wait(lambda: any(self.get_pending_read_memory(node) > 1024 for node in nodes))
 
     @authors("don-dron")
-    def test_rpc_server_queue_limit(self):
+    def test_rpc_server_queue_size_limit(self):
         REPLICATION_FACTOR = 1
 
         update_nodes_dynamic_config({
@@ -155,12 +155,50 @@ class TestIoEngine(YTEnvSetup):
         with pytest.raises(YtError, match="Request queue size limit exceeded"):
             write_table("//tmp/test", ys)
 
+        # Reset nodes dynamic config to defaults.
         set("//sys/cluster_nodes/@config", {})
 
         for node in ls("//sys/cluster_nodes"):
             wait(lambda: get_applied_node_dynamic_config(node) == {})
 
+        write_table("//tmp/test", ys)
+
+    @authors("yuryalekseev")
+    def test_rpc_server_queue_bytes_size_limit(self):
+        REPLICATION_FACTOR = 1
+
+        update_nodes_dynamic_config({
+            "rpc_server": {
+                "services": {
+                    "DataNodeService": {
+                        "methods": {
+                            "PutBlocks": {
+                                "max_queue_bytes_size": -1
+                            }
+                        }
+                    }
+                }
+            }
+        })
+
+        create(
+            "table",
+            "//tmp/test",
+            attributes={
+                "replication_factor": REPLICATION_FACTOR,
+            })
+
         ys = [{"key": "x"}]
+
+        with pytest.raises(YtError, match="Request queue bytes size limit exceeded"):
+            write_table("//tmp/test", ys)
+
+        # Reset nodes dynamic config to defaults.
+        set("//sys/cluster_nodes/@config", {})
+
+        for node in ls("//sys/cluster_nodes"):
+            wait(lambda: get_applied_node_dynamic_config(node) == {})
+
         write_table("//tmp/test", ys)
 
     @authors("don-dron")
