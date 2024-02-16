@@ -78,5 +78,3 @@ h3 {
 * [Stack Overflow](https://stackoverflow.com/tags/ytsaurus)
 * [Рассылка для вопросов](mailto:community_ru@ytsaurus.tech)
 {% endif %}
-
-
