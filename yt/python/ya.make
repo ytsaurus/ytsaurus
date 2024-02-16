@@ -18,6 +18,10 @@ RECURSE(
     yt/wrapper/bin
 
     yt/cli
+
+    client
+    client_lite
+    client_with_rpc
 )
 
 RECURSE_FOR_TESTS(
@@ -39,10 +43,6 @@ IF (NOT OPENSOURCE)
         # TODO: RECURSE uncoditionally after improving examples/ for opensource.
         examples
         yandex_examples
-
-        client
-        client_lite
-        client_with_rpc
 
         yt/infra_api
 
