@@ -253,7 +253,7 @@ private:
 
         const auto& resourceUsage = GetOrCrash(input.BundleResourceTarget, bundleName);
         if (instanceCountToAllocate > 0 && IsResourceUsageExceeded(resourceUsage, bundleInfo->ResourceQuota)) {
-            YT_LOG_WARNING("Bundle resource usage exceeded quota (Bundle: %v, ResourceQuota: {\"vcpu\": %v; \"memory\": %v}, ResourceUsage: {\"vcpu\": %v; \"memory\": %v})",
+            YT_LOG_WARNING("Bundle resource usage exceeded quota (Bundle: %v, ResourceQuota: {Vcpu: %v, Memory: %v}, ResourceUsage: {Vcpu: %v, Memory: %v})",
                 bundleName,
                 bundleInfo->ResourceQuota->Vcpu(),
                 bundleInfo->ResourceQuota->Memory,
@@ -263,7 +263,7 @@ private:
             mutations->AlertsToFire.push_back(TAlert{
                 .Id = "bundle_resource_quota_exceeded",
                 .BundleName = bundleName,
-                .Description = Format("Cannot allocate new %v instance for bundle %v. ResourceQuota: {\"vcpu\": %v; \"memory\": %v}, ResourceUsage: {\"vcpu\": %v; \"memory\": %v}",
+                .Description = Format("Cannot allocate new %v instance for bundle %v. ResourceQuota: {Vcpu: %v, Memory: %v}, ResourceUsage: {Vcpu: %v, Memory: %v}",
                     adapter->GetInstanceType(),
                     bundleName,
                     bundleInfo->ResourceQuota->Vcpu(),
