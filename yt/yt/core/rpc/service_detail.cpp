@@ -163,6 +163,13 @@ auto TServiceBase::TMethodDescriptor::SetQueueSizeLimit(int value) const -> TMet
     return result;
 }
 
+auto TServiceBase::TMethodDescriptor::SetQueueBytesSizeLimit(i64 value) const -> TMethodDescriptor
+{
+    auto result = *this;
+    result.QueueBytesSizeLimit = value;
+    return result;
+}
+
 auto TServiceBase::TMethodDescriptor::SetConcurrencyLimit(int value) const -> TMethodDescriptor
 {
     auto result = *this;
@@ -268,6 +275,7 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     , ResponseLoggingAnchor(NLogging::TLogManager::Get()->RegisterDynamicAnchor(
         Format("%v.%v ->", ServiceId.ServiceName, Descriptor.Method)))
     , RequestQueueSizeLimitErrorCounter(Profiler.Counter("/request_queue_size_errors"))
+    , RequestQueueBytesSizeLimitErrorCounter(Profiler.Counter("/request_queue_bytes_size_errors"))
     , UnauthenticatedRequestsCounter(Profiler.Counter("/unauthenticated_requests"))
     , LoggingSuppressionFailedRequestThrottler(
         CreateReconfigurableThroughputThrottler(
@@ -1323,11 +1331,16 @@ void TRequestQueue::ConfigureWeightThrottler(const TThroughputThrottlerConfigPtr
     WeightThrottler_.Reconfigure(config);
 }
 
-bool TRequestQueue::IsQueueLimitSizeExceeded() const
+bool TRequestQueue::IsQueueSizeLimitExceeded() const
 {
-    return
-        QueueSize_.load(std::memory_order::relaxed) >=
+    return QueueSize_.load(std::memory_order::relaxed) >=
         RuntimeInfo_->QueueSizeLimit.load(std::memory_order::relaxed);
+}
+
+bool TRequestQueue::IsQueueBytesSizeLimitExceeded() const
+{
+    return QueueBytesSize_.load(std::memory_order::relaxed) >=
+        RuntimeInfo_->QueueBytesSizeLimit.load(std::memory_order::relaxed);
 }
 
 int TRequestQueue::GetQueueSize() const
@@ -1353,7 +1366,7 @@ void TRequestQueue::OnRequestArrived(TServiceBase::TServiceContextPtr context)
 
     // Slow path.
     DecrementConcurrency();
-    IncrementQueueSize();
+    IncrementQueueSize(context);
 
     context->BeforeEnqueued();
     YT_VERIFY(Queue_.enqueue(std::move(context)));
@@ -1411,7 +1424,7 @@ void TRequestQueue::ScheduleRequestsFromQueue()
                 return;
             }
 
-            DecrementQueueSize();
+            DecrementQueueSize(context);
             context->AfterDequeued();
             if (context->IsCanceled()) {
                 context.Reset();
@@ -1442,15 +1455,26 @@ void TRequestQueue::RunRequest(TServiceBase::TServiceContextPtr context)
     }
 }
 
-int TRequestQueue::IncrementQueueSize()
+void TRequestQueue::IncrementQueueSize(const TServiceBase::TServiceContextPtr& context)
 {
-    return ++QueueSize_;
+    ++QueueSize_;
+
+    auto requestSize =
+        GetMessageBodySize(context->GetRequestMessage()) +
+        GetTotalMessageAttachmentSize(context->GetRequestMessage());
+    QueueBytesSize_ += requestSize;
 }
 
-void  TRequestQueue::DecrementQueueSize()
+void  TRequestQueue::DecrementQueueSize(const TServiceBase::TServiceContextPtr& context)
 {
     auto newQueueSize = --QueueSize_;
     YT_ASSERT(newQueueSize >= 0);
+
+    auto requestSize =
+        GetMessageBodySize(context->GetRequestMessage()) +
+        GetTotalMessageAttachmentSize(context->GetRequestMessage());
+    auto oldQueueBytesSize = QueueBytesSize_.fetch_sub(requestSize);
+    YT_ASSERT(oldQueueBytesSize >= requestSize);
 }
 
 int TRequestQueue::IncrementConcurrency()
@@ -1620,12 +1644,23 @@ void TServiceBase::HandleRequest(
 
     auto maybeThrottled = GetThrottledError(*header);
 
-    if (requestQueue->IsQueueLimitSizeExceeded()) {
+    if (requestQueue->IsQueueSizeLimitExceeded()) {
         runtimeInfo->RequestQueueSizeLimitErrorCounter.Increment();
         replyError(TError(
             NRpc::EErrorCode::RequestQueueSizeLimitExceeded,
             "Request queue size limit exceeded")
             << TErrorAttribute("limit", runtimeInfo->QueueSizeLimit.load())
+            << TErrorAttribute("queue", requestQueue->GetName())
+            << maybeThrottled);
+        return;
+    }
+
+    if (requestQueue->IsQueueBytesSizeLimitExceeded()) {
+        runtimeInfo->RequestQueueBytesSizeLimitErrorCounter.Increment();
+        replyError(TError(
+            NRpc::EErrorCode::RequestQueueSizeLimitExceeded,
+            "Request queue bytes size limit exceeded")
+            << TErrorAttribute("limit", runtimeInfo->QueueBytesSizeLimit.load())
             << TErrorAttribute("queue", requestQueue->GetName())
             << maybeThrottled);
         return;
@@ -2374,6 +2409,7 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDe
 
     runtimeInfo->Heavy.store(descriptor.Options.Heavy);
     runtimeInfo->QueueSizeLimit.store(descriptor.QueueSizeLimit);
+    runtimeInfo->QueueBytesSizeLimit.store(descriptor.QueueBytesSizeLimit);
     runtimeInfo->ConcurrencyLimit.Reconfigure(descriptor.ConcurrencyLimit);
     runtimeInfo->LogLevel.store(descriptor.LogLevel);
     runtimeInfo->LoggingSuppressionTimeout.store(descriptor.LoggingSuppressionTimeout);
@@ -2384,6 +2420,9 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDe
     auto& profiler = runtimeInfo->Profiler;
     profiler.AddFuncGauge("/request_queue_size_limit", MakeStrong(this), [=] {
         return runtimeInfo->QueueSizeLimit.load(std::memory_order::relaxed);
+    });
+    profiler.AddFuncGauge("/request_queue_bytes_size_limit", MakeStrong(this), [=] {
+        return runtimeInfo->QueueBytesSizeLimit.load(std::memory_order::relaxed);
     });
     profiler.AddFuncGauge("/concurrency_limit", MakeStrong(this), [=] {
         return runtimeInfo->ConcurrencyLimit.GetDynamicLimit();
@@ -2448,6 +2487,7 @@ void TServiceBase::DoConfigure(
 
             runtimeInfo->Heavy.store(methodConfig->Heavy.value_or(descriptor.Options.Heavy));
             runtimeInfo->QueueSizeLimit.store(methodConfig->QueueSizeLimit.value_or(descriptor.QueueSizeLimit));
+            runtimeInfo->QueueBytesSizeLimit.store(methodConfig->QueueBytesSizeLimit.value_or(descriptor.QueueBytesSizeLimit));
             runtimeInfo->ConcurrencyLimit.Reconfigure(methodConfig->ConcurrencyLimit.value_or(descriptor.ConcurrencyLimit));
             runtimeInfo->LogLevel.store(methodConfig->LogLevel.value_or(descriptor.LogLevel));
             runtimeInfo->LoggingSuppressionTimeout.store(methodConfig->LoggingSuppressionTimeout.value_or(descriptor.LoggingSuppressionTimeout));
