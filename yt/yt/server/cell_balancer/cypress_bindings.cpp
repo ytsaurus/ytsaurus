@@ -517,7 +517,7 @@ void TRpcProxyInfo::Register(TRegistrar registrar)
         .Default();
     RegisterAttribute(registrar, "bundle_controller_annotations", &TThis::Annotations)
         .DefaultNew();
-    RegisterAttribute(registrar, "maintenance_requests", &TThis::CmsMaintenanceRequests)
+    RegisterAttribute(registrar, "cms_maintenance_requests", &TThis::CmsMaintenanceRequests)
         .Default();
     RegisterAttribute(registrar, "modification_time", &TThis::ModificationTime)
         .Default();
