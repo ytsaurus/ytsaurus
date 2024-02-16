@@ -6,6 +6,8 @@ PEERDIR(
     yt/python/yt/wrapper
     yt/python/yt/testlib
     yt/python/yt/yson
+
+    library/python/resource
 )
 
 RESOURCE(

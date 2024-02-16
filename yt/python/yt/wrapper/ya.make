@@ -36,7 +36,6 @@ IF (OPENSOURCE)
 ELSE()
     PEERDIR(
         yt/python/contrib/python-chardet
-        library/python/resource
         library/python/svn_version
         library/python/oauth
     )
