@@ -204,6 +204,8 @@ protected:
                 nativeAuthenticationManager->TvmService = nullptr;
             }
 
+            config->TabletNode->ResourceLimits->Slots = std::max(config->TabletNode->ResourceLimits->Slots, 1);
+
             config->DryRun->EnableDryRun = true;
             config->DryRun->TabletCellId = CellId_
                 ? TGuid::FromString(CellId_)
