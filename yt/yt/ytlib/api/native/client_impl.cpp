@@ -163,6 +163,7 @@ TClient::TClient(
         MakeWeak(this),
         Connection_->GetInvoker()))
     , LookupMemoryTracker_(WithCategory(memoryTracker, EMemoryCategory::Lookup))
+    , QueryMemoryTracker_(WithCategory(memoryTracker, EMemoryCategory::Query))
 {
     if (!Options_.User) {
         THROW_ERROR_EXCEPTION("Native connection requires non-null \"user\" parameter");

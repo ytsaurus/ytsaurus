@@ -555,6 +555,7 @@ private:
             ->CreateNativeClient(clientOptions);
 
         auto remoteExecutor = CreateQueryExecutor(
+            MemoryChunkProvider_,
             client->GetNativeConnection(),
             Invoker_,
             ColumnEvaluatorCache_,

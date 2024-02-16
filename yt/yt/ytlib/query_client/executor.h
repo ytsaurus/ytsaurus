@@ -23,6 +23,7 @@ std::vector<std::pair<TDataSource, TString>> InferRanges(
     const NLogging::TLogger& Logger);
 
 IExecutorPtr CreateQueryExecutor(
+    IMemoryChunkProviderPtr memoryChunkProvider,
     NApi::NNative::IConnectionPtr connection,
     IInvokerPtr invoker,
     IColumnEvaluatorCachePtr columnEvaluatorCache,

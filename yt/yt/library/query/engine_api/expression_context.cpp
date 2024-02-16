@@ -6,10 +6,6 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExpressionContext::TExpressionContext()
-    : RowBuffer_(New<TRowBuffer>())
-{ }
-
 TExpressionContext::TExpressionContext(TRowBufferPtr rowBuffer)
     : RowBuffer_(std::move(rowBuffer))
 { }

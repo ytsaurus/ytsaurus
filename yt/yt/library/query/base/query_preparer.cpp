@@ -3370,18 +3370,21 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     const TString& source,
     const TFunctionsFetcher& functionsFetcher,
     TYsonStringBuf placeholderValues,
-    int syntaxVersion)
+    int syntaxVersion,
+    IMemoryUsageTrackerPtr memoryTracker)
 {
     return PreparePlanFragment(
         callbacks,
         *ParseSource(source, EParseMode::Query, placeholderValues, syntaxVersion),
-        functionsFetcher);
+        functionsFetcher,
+        memoryTracker);
 }
 
 std::unique_ptr<TPlanFragment> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const TParsedSource& parsedSource,
-    const TFunctionsFetcher& functionsFetcher)
+    const TFunctionsFetcher& functionsFetcher,
+    IMemoryUsageTrackerPtr memoryTracker)
 {
     auto query = New<TQuery>(TGuid::Create());
 
@@ -3522,11 +3525,19 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         *query->GetReadSchema(),
         *query->GetTableSchema());
 
+    auto rowBuffer = New<TRowBuffer>(
+        TQueryPreparerBufferTag(),
+        TChunkedMemoryPool::DefaultStartChunkSize,
+        memoryTracker);
+
     auto fragment = std::make_unique<TPlanFragment>();
     fragment->Query = query;
     fragment->DataSource.ObjectId = selfDataSplit.ObjectId;
     fragment->DataSource.CellId = selfDataSplit.CellId;
-    fragment->DataSource.Ranges = MakeSingletonRowRange(selfDataSplit.LowerBound, selfDataSplit.UpperBound);
+    fragment->DataSource.Ranges = MakeSingletonRowRange(
+        selfDataSplit.LowerBound,
+        selfDataSplit.UpperBound,
+        std::move(rowBuffer));
 
     return fragment;
 }

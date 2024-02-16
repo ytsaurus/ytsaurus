@@ -206,7 +206,9 @@ void ScanOpHelper(
 
     TYielder yielder;
 
-    auto scanContext = MakeExpressionContext(TIntermediateBufferTag());
+    auto scanContext = MakeExpressionContext(
+        TIntermediateBufferTag(),
+        context->MemoryChunkProvider);
     std::vector<TUnversionedRow> rows;
 
     bool interrupt = false;
@@ -426,8 +428,10 @@ void MultiJoinOpHelper(
         YT_LOG_DEBUG("Finalizing multijoin helper");
     });
 
-    TMultiJoinClosure closure;
-    closure.Context = MakeExpressionContext(TPermanentBufferTag(), context->MemoryChunkProvider);
+    TMultiJoinClosure closure{
+        .Context = MakeExpressionContext(TPermanentBufferTag(), context->MemoryChunkProvider),
+    };
+
     closure.PrimaryRowSize = parameters->PrimaryRowSize;
     closure.BatchSize = parameters->BatchSize;
 
@@ -462,7 +466,9 @@ void MultiJoinOpHelper(
             YT_LOG_DEBUG("Joining finished");
         });
 
-        auto foreignContext = MakeExpressionContext(TForeignExecutorBufferTag());
+        auto foreignContext = MakeExpressionContext(
+            TForeignExecutorBufferTag(),
+            context->MemoryChunkProvider);
 
         std::vector<ISchemafulUnversionedReaderPtr> readers;
         for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
@@ -626,7 +632,9 @@ void MultiJoinOpHelper(
             YT_LOG_DEBUG("Finished precessing foreign rowset (SortingTime: %v)", sortingForeignTime);
         }
 
-        auto intermediateContext = MakeExpressionContext(TIntermediateBufferTag());
+        auto intermediateContext = MakeExpressionContext(
+            TIntermediateBufferTag(),
+            context->MemoryChunkProvider);
         std::vector<const TPIValue*> joinedRows;
 
         i64 processedRows = 0;
@@ -1005,7 +1013,7 @@ private:
     // We perform flushes (and yields) during grouping.
     NRoutines::TYielder Yielder_{};
     i64 ProcessedRows_ = 0;
-    TExpressionContext FlushContext_ = MakeExpressionContext(TIntermediateBufferTag());
+    TExpressionContext FlushContext_;
 
     template <typename TFlushFunction>
     Y_FORCE_INLINE void FlushWithBatching(
@@ -1055,6 +1063,7 @@ TGroupByClosure::TGroupByClosure(
     , ConsumeDeltaFinal_(consumeDeltaFinal)
     , ConsumeTotalsClosure_(consumeTotalsClosure)
     , ConsumeTotals_(consumeTotals)
+    , FlushContext_(MakeExpressionContext(TIntermediateBufferTag(), chunkProvider))
 {
     GroupedIntermediateRows_.set_empty_key(nullptr);
 }
@@ -1463,13 +1472,13 @@ void GroupOpHelper(
 using TGroupTotalsCollector = void(*)(void** closure, TExpressionContext* context);
 
 void GroupTotalsOpHelper(
-    TExecutionContext* /*context*/,
+    TExecutionContext* context,
     void** collectRowsClosure,
     TGroupTotalsCollector collectRowsFunction)
 {
-    auto context = MakeExpressionContext(TIntermediateBufferTag());
+    auto expressionContext = MakeExpressionContext(TIntermediateBufferTag(), context->MemoryChunkProvider);
     auto collectRows = PrepareFunction(collectRowsFunction);
-    collectRows(collectRowsClosure, &context);
+    collectRows(collectRowsClosure, &expressionContext);
 }
 
 void AllocatePermanentRow(
@@ -1511,7 +1520,7 @@ void OrderOpHelper(
     collectRows(collectRowsClosure, &topCollector);
     auto rows = topCollector.GetRows();
 
-    auto consumerContext = MakeExpressionContext(TIntermediateBufferTag());
+    auto consumerContext = MakeExpressionContext(TIntermediateBufferTag(), context->MemoryChunkProvider);
 
     TYielder yielder;
     size_t processedRows = 0;

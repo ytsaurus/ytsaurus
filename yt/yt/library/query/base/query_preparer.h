@@ -4,6 +4,8 @@
 #include "ast.h"
 #include "callbacks.h"
 
+#include <yt/yt/core/misc/memory_usage_tracker.h>
+
 namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,12 +55,14 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     const TString& source,
     const TFunctionsFetcher& functionsFetcher = DefaultFetchFunctions,
     NYson::TYsonStringBuf placeholderValues = {},
-    int syntaxVersion = 1);
+    int syntaxVersion = 1,
+    IMemoryUsageTrackerPtr memoryTracker = nullptr);
 
 std::unique_ptr<TPlanFragment> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const TParsedSource& parsedSource,
-    const TFunctionsFetcher& functionsFetcher = DefaultFetchFunctions);
+    const TFunctionsFetcher& functionsFetcher = DefaultFetchFunctions,
+    IMemoryUsageTrackerPtr memoryTracker = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

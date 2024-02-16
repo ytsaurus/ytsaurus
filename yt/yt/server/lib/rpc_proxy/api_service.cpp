@@ -839,7 +839,6 @@ private:
     TCounter SelectOutputRowCount_;
 
     const ITypedNodeMemoryTrackerPtr LookupMemoryTracker_;
-    const ITypedNodeMemoryTrackerPtr QueryMemoryTracker_;
 
     struct TDetailedProfilingCountersKey
     {

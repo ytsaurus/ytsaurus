@@ -9,9 +9,9 @@ namespace NYT::NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TTag>
-TExpressionContext MakeExpressionContext(TTag, size_t startChunkSize)
+TExpressionContext MakeExpressionContext(TTag, IMemoryUsageTrackerPtr memoryTracker, size_t startChunkSize)
 {
-    return TExpressionContext(New<TRowBuffer>(TTag(), startChunkSize));
+    return TExpressionContext(New<TRowBuffer>(TTag(), startChunkSize, std::move(memoryTracker)));
 }
 
 template <class TTag>
