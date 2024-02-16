@@ -199,32 +199,6 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
 
     TABLE_MEDIUM_1 = "table_medium_1"
     TABLE_MEDIUM_2 = "table_medium_2"
-    NUM_NODES = 15
-
-    @classmethod
-    def modify_node_config(cls, config, cluster_index):
-        node_flavors = [
-            ["data", "exec"],
-            ["data", "exec"],
-            ["data", "exec"],
-            ["data", "exec"],
-            ["data", "exec"],
-            ["data", "exec"],
-            ["data", "exec"],
-            ["data", "exec"],
-            ["data", "exec"],
-            ["tablet"],
-            ["tablet"],
-            ["tablet"],
-            ["tablet"],
-            ["tablet"],
-            ["tablet"],
-        ]
-
-        if not hasattr(cls, "node_counter"):
-            cls.node_counter = 0
-        config["flavors"] = node_flavors[cls.node_counter]
-        cls.node_counter = (cls.node_counter + 1) % cls.NUM_NODES
 
     @authors("kivedernikov")
     def test_empty_sequoia_handler(self):
@@ -251,6 +225,10 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
 
         set(f"//sys/chunk_locations/{loc1}/@medium_override", self.TABLE_MEDIUM_1)
         set(f"//sys/chunk_locations/{loc2}/@medium_override", self.TABLE_MEDIUM_2)
+
+        wait(lambda: get(f"//sys/chunk_locations/{loc1}/@statistics/medium_name") == self.TABLE_MEDIUM_1)
+        wait(lambda: get(f"//sys/chunk_locations/{loc2}/@statistics/medium_name") == self.TABLE_MEDIUM_2)
+
         table = "//tmp/t"
         create("table", table, attributes={
             "media": {
