@@ -130,6 +130,14 @@ public:
         Api_->SetTimeout(Config_->ApiTimeout.Seconds());
         Api_->SetDiskTimeout(Config_->ApiDiskTimeout.Seconds());
 
+        Profiler_.AddFuncGauge("/volume_surplus", MakeStrong(this), [this] () {
+            return VolumeSurplus_;
+        });
+
+        Profiler_.AddFuncGauge("/layer_surplus", MakeStrong(this), [this] () {
+            return LayerSurplus_;
+        });
+
         PollExecutor_->Start();
     }
 
@@ -399,6 +407,11 @@ private:
     std::vector<TString> Containers_;
     THashMap<TString, TPromise<int>> ContainerMap_;
     TSingleShotCallbackList<void(const TError&)> Failed_;
+
+    //! Gauge counting actual difference between the number of created and unlinked volumes.
+    i64 VolumeSurplus_ = 0;
+    //! Gauge counting actual difference between the number of imported and removed layers.
+    i64 LayerSurplus_ = 0;
 
     struct TCommandEntry
     {
@@ -858,6 +871,7 @@ private:
             [&] { return Api_->CreateVolume(volume, propertyMap); },
             "CreateVolume",
             /*idempotent*/ false);
+        VolumeSurplus_ += 1;
         return volume;
     }
 
@@ -875,6 +889,7 @@ private:
             [&] { return Api_->UnlinkVolume(path, container); },
             "UnlinkVolume",
             /*idempotent*/ false);
+        VolumeSurplus_ -= 1;
     }
 
     std::vector<TString> DoListVolumePaths()
@@ -893,6 +908,7 @@ private:
             [&] { return Api_->ImportLayer(layerId, archivePath, false, place); },
             "ImportLayer",
             /*idempotent*/ false);
+        LayerSurplus_ += 1;
     }
 
     void DoRemoveLayer(const TString& layerId, const TString& place, bool async)
@@ -901,6 +917,7 @@ private:
             [&] { return Api_->RemoveLayer(layerId, place, async); },
             "RemoveLayer",
             /*idempotent*/ false);
+        LayerSurplus_ -= 1;
     }
 
     std::vector<TString> DoListLayers(const TString& place)
