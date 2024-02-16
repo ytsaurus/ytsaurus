@@ -234,7 +234,8 @@ private:
 
         std::vector<TActiveQuery> orphanedQueries;
         for (const auto& record : queryRecords) {
-            if (!activeLeaseTransactionIds.contains(record.LeaseTransactionId)) {
+            if (!activeLeaseTransactionIds.contains(record.LeaseTransactionId)
+                || record.LeaseTransactionId == LeaseTransaction_->GetId() && !AcquiredQueries_.contains(record.Key.QueryId)) {
                 orphanedQueries.push_back(record);
             }
         }
