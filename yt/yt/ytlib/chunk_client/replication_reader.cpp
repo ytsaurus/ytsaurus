@@ -1574,7 +1574,9 @@ public:
         : TSessionBase(
             reader,
             options.ClientOptions,
-            std::move(bandwidthThrottler),
+            std::move(options.DisableBandwidthThrottler
+                ? GetUnlimitedThrottler()
+                : std::move(bandwidthThrottler)),
             std::move(rpsThrottler),
             options.SessionInvoker)
         , BlockIndexes_(blockIndexes)
@@ -2213,7 +2215,9 @@ public:
         : TSessionBase(
             reader,
             options.ClientOptions,
-            std::move(bandwidthThrottler),
+            options.DisableBandwidthThrottler
+                ? GetUnlimitedThrottler()
+                : std::move(bandwidthThrottler),
             std::move(rpsThrottler))
         , FirstBlockIndex_(firstBlockIndex)
         , BlockCount_(blockCount)

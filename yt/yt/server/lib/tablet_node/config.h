@@ -575,6 +575,8 @@ public:
     // COMPAT(babenko): use /tablet_node/throttlers/static_store_preload_in instead.
     NConcurrency::TRelativeThroughputThrottlerConfigPtr PreloadThrottler;
 
+    bool EnablePreliminaryNetworkThrottling;
+
     TInMemoryManagerConfigPtr ApplyDynamic(const TInMemoryManagerDynamicConfigPtr& dynamicConfig) const;
 
     REGISTER_YSON_STRUCT(TInMemoryManagerConfig);
@@ -596,6 +598,7 @@ public:
     std::optional<TDuration> ControlRpcTimeout;
     std::optional<TDuration> HeavyRpcTimeout;
     std::optional<i64> RemoteSendBatchSize;
+    std::optional<bool> EnablePreliminaryNetworkThrottling;
 
     REGISTER_YSON_STRUCT(TInMemoryManagerDynamicConfig);
 
