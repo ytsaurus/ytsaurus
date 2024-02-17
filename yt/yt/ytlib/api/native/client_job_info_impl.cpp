@@ -1816,7 +1816,7 @@ static TJobComparator GetJobsComparator(
 
 static void MergeJobs(TJob&& controllerAgentJob, TJob* archiveJob)
 {
-    if (auto archiveState = archiveJob->GetState(); archiveState && IsJobFinished(*archiveState)) {
+    if (auto archiveState = archiveJob->ArchiveState; archiveState && IsJobFinished(*archiveState)) {
         // Archive job is most recent, it will not change anymore.
         return;
     }
