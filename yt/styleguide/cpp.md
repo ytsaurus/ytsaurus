@@ -182,7 +182,7 @@ public:
 };
 ```
 
-See more complex property macros in [property.h](library/cpp/yt/misc/property.h).
+See more complex property macros in [property.h](/library/cpp/yt/misc/property.h).
 
 <!------------------------------------------------------------------------------------>
 
