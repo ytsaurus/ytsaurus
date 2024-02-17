@@ -827,7 +827,7 @@ def _build_node_configs(node_dirs,
             start_uid = 10000 + config["rpc_port"]
             set_at(config, "exec_node/slot_manager/job_environment/start_uid", start_uid)
         else:
-            set_at(config, "exec_node/slot_manager/do_not_set_user_id", True)
+            set_at(config, "exec_node/do_not_set_user_id", True)
 
         set_at(config, "exec_node/slot_manager/locations", [
             {"path": os.path.join(node_dirs[index], "slots"), "disk_usage_watermark": 0}
