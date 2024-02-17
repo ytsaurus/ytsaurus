@@ -2267,9 +2267,11 @@ void TJob::Cleanup()
             "Volume remove failed (VolumePath: %v)",
             RootVolume_->GetPath());
         RootVolume_.Reset();
-    }
 
-    CleanupNbdExports();
+        // Clean up NBD exports only if root volume has been created.
+        // In this case there is no race between volume destruction and clean up.
+        CleanupNbdExports();
+    }
 
     if (const auto& slot = GetUserSlot()) {
         if (ShouldCleanSandboxes()) {

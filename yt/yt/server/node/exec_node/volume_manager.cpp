@@ -2398,7 +2398,7 @@ public:
             for (auto& overlayData : overlayDataArray) {
                 futures.push_back(overlayData.Remove());
             }
-            return AllSucceeded(futures);
+            return AllSucceeded(std::move(futures));
         }));
 
         return RemoveFuture_;
@@ -2804,14 +2804,12 @@ private:
 
             auto nbdServer = Bootstrap_->GetNbdServer();
             if (!nbdServer) {
-                TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/create_errors").Increment(1);
-
                 auto error = TError("NBD server is not present")
                     << TErrorAttribute("export_id", layer.nbd_export_id())
                     << TErrorAttribute("path", layer.data_source().path())
                     << TErrorAttribute("filesystem", FromProto<ELayerFilesystem>(layer.filesystem()));
-                YT_LOG_ERROR(error, "Failed to prepare NBD export");
-                return MakeFuture<void>(error);
+
+                THROW_ERROR(error);
             }
 
             // TODO(yuryalekseev): user
@@ -2827,13 +2825,21 @@ private:
                 nbdServer->GetInvoker(),
                 nbdServer->GetLogger());
 
-            future = device->Initialize();
+            auto initializeFuture = device->Initialize();
             nbdServer->RegisterDevice(layer.nbd_export_id(), std::move(device));
+
+            future = initializeFuture.Apply(BIND([tag = tag, layer = layer, Logger = Logger] () {
+                YT_LOG_DEBUG("Prepared NBD export (Tag: %v, ExportId: %v, Path: %v, Filesystem: %v)",
+                    tag,
+                    layer.nbd_export_id(),
+                    layer.data_source().path(),
+                    FromProto<ELayerFilesystem>(layer.filesystem()));
+            }));
         } catch (const std::exception& ex) {
             TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/create_errors").Increment(1);
 
             auto error = TError(ex);
-            YT_LOG_ERROR(error, "Failed to create and register NBD export");
+            YT_LOG_ERROR(error, "Failed to prepare NBD export");
             future = MakeFuture<void>(error);
         }
 
@@ -2964,39 +2970,63 @@ private:
             artifactKey.data_source().path(),
             FromProto<ELayerFilesystem>(artifactKey.filesystem()));
 
-        auto nbdConfig = DynamicConfigManager_->GetConfig()->ExecNode->Nbd;
         auto nbdServer = Bootstrap_->GetNbdServer();
 
-        if (!nbdConfig || !nbdConfig->Enabled || !nbdServer) {
-            TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/create_errors").Increment(1);
+        try {
+            auto nbdConfig = DynamicConfigManager_->GetConfig()->ExecNode->Nbd;
 
-            auto error = TError("NBD is not configured")
-                << TErrorAttribute("export_id", artifactKey.nbd_export_id())
-                << TErrorAttribute("path", artifactKey.data_source().path())
-                << TErrorAttribute("filesystem", FromProto<ELayerFilesystem>(artifactKey.filesystem()));
-            YT_LOG_ERROR(error, "Failed to create NBD volume");
-            THROW_ERROR_EXCEPTION(error);
+            if (!nbdConfig || !nbdConfig->Enabled || !nbdServer) {
+                TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/create_errors").Increment(1);
+
+                auto error = TError("NBD is not configured")
+                    << TErrorAttribute("export_id", artifactKey.nbd_export_id())
+                    << TErrorAttribute("path", artifactKey.data_source().path())
+                    << TErrorAttribute("filesystem", FromProto<ELayerFilesystem>(artifactKey.filesystem()));
+
+                THROW_ERROR(error);
+            }
+
+            auto location = PickLocation();
+            auto volumeMetaFuture = location->CreateNbdVolume(tag, tagSet, std::move(volumeCreateTimeGuard), artifactKey, nbdConfig);
+            auto volumeFuture = volumeMetaFuture.ApplyUnique(BIND(
+                [
+                    tagSet = std::move(tagSet),
+                    artifactKey = artifactKey,
+                    location = std::move(location),
+                    nbdServer = nbdServer
+                ] (TVolumeMeta&& volumeMeta) {
+                return New<TNbdVolume>(
+                    std::move(tagSet),
+                    std::move(volumeMeta),
+                    artifactKey,
+                    std::move(location),
+                    std::move(nbdServer));
+            })).ToUncancelable();
+            // This uncancelable future ensures that TNbdVolume object owning the volume will be created
+            // and protects from porto volume leak.
+
+            auto volume = WaitFor(volumeFuture)
+                .ValueOrThrow();
+
+            YT_LOG_DEBUG("Created NBD volume (Tag: %v, VolumeId: %v, ExportId: %v, Path: %v, Filesytem: %v)",
+                tag,
+                volume->GetId(),
+                artifactKey.nbd_export_id(),
+                artifactKey.data_source().path(),
+                FromProto<ELayerFilesystem>(artifactKey.filesystem()));
+
+            return volume;
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Failed to create NBD volume (Tag: %v, ExportId: %v, Path: %v, Filesytem: %v)",
+                tag,
+                artifactKey.nbd_export_id(),
+                artifactKey.data_source().path(),
+                FromProto<ELayerFilesystem>(artifactKey.filesystem()));
+
+                nbdServer->TryUnregisterDevice(artifactKey.nbd_export_id());
+
+            throw;
         }
-
-        auto location = PickLocation();
-        auto volumeMeta = WaitFor(location->CreateNbdVolume(tag, tagSet, std::move(volumeCreateTimeGuard), artifactKey, nbdConfig))
-            .ValueOrThrow();
-
-        auto volume = New<TNbdVolume>(
-            std::move(tagSet),
-            std::move(volumeMeta),
-            artifactKey,
-            std::move(location),
-            std::move(nbdServer));
-
-        YT_LOG_INFO("Created NBD volume (Tag: %v, VolumeId: %v, ExportId: %v, Path: %v, Filesytem: %v)",
-            tag,
-            volume->GetId(),
-            artifactKey.nbd_export_id(),
-            artifactKey.data_source().path(),
-            FromProto<ELayerFilesystem>(artifactKey.filesystem()));
-
-        return volume;
     }
 
     TOverlayVolumePtr CreateOverlayVolume(
@@ -3069,7 +3099,7 @@ private:
             squashFSFilePath);
 
         auto location = PickLocation();
-                auto volumeMetaFuture = location->CreateSquashFSVolume(tag, tagSet, std::move(volumeCreateTimeGuard), artifactKey, squashFSFilePath);
+        auto volumeMetaFuture = location->CreateSquashFSVolume(tag, tagSet, std::move(volumeCreateTimeGuard), artifactKey, squashFSFilePath);
         auto volumeFuture = volumeMetaFuture.ApplyUnique(BIND(
             [
                 tagSet = std::move(tagSet),
