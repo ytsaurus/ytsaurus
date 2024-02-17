@@ -167,6 +167,26 @@ def build_bundle_controller():
     return (Rowset()
             .aggr(MonitoringTag("host"))
             .row()
+                .cell("Node restarts", MonitoringExpr(TabNode("yt.server.restarted")
+                        .all(MonitoringTag("host"), "container")
+                        .top()
+                        .stack(True)
+                        .value("window", "5min")).alias("{{container}}"))
+                .cell("Node OOMs", MonitoringExpr(TabNodePorto("yt.porto.memory.oom_kills")
+                        .value("container_category", "pod")
+                        .all(MonitoringTag("host"), "container")
+                        .top()
+                        .stack(True))
+                        .alias("{{container}}"))
+            .row()
+                .cell("Overload Controller", MonitoringExpr(NodeTablet("yt.tablet_node.overload_controller.overloaded.rate")
+                    .all("tracker")
+                    .stack(True)).alias("{{tracker}}"))
+                .cell("Bundle Controller Alerts", MultiSensor(
+                    MonitoringExpr(BundleController("yt.bundle_controller.scan_bundles_alarms_count.rate")
+                        .all("alarm_id")).alias("{{alarm_id}}"))
+                        .stack(True))
+            .row()
                 .cell("Target tablet node count", MonitoringExpr(bc("target_tablet_node_count")
                     .all("instance_size")).alias("target node count of size '{{instance_size}}'"))
                 .cell("Alive tablet node count", MultiSensor(
@@ -196,15 +216,6 @@ def build_bundle_controller():
                         MonitoringExpr(bc("node_deallocation_request_age")).alias("node deallocation age max"),
                         MonitoringExpr(bc("removing_cells_age")).alias("cell removal age max")
                     ).stack(False))
-            .row()
-                .cell("Node restarts", MonitoringExpr(Node("yt.server.restarted")
-                        .all(MonitoringTag("host"), "container")
-                        .stack(True)
-                        .value("window", "5min")).alias("{{container}}"))
-                .cell("Bundle Controller Alerts", MultiSensor(
-                        MonitoringExpr(BundleController("yt.bundle_controller.scan_bundles_alarms_count.rate")
-                            .all("alarm_id")).alias("{{alarm_id}}"))
-                    .stack(True))
             ).owner
 
 
@@ -275,13 +286,30 @@ def build_tablet_network():
 def build_user_network():
     return (Rowset()
             .top()
-            .all("network")
+            .aggr("network", "band", "encrypted")
             .row()
                 .cell("Network received bytes (bus)", NodeInternal("yt.bus.in_bytes.rate"))
                 .cell("Network transmitted bytes (bus)", NodeInternal("yt.bus.out_bytes.rate"))
             .row()
                 .cell("Pending out bytes", NodeInternal("yt.bus.pending_out_bytes"))
                 .cell("TCP retransmits rate", NodeInternal("yt.bus.retransmits.rate"))
+            ).owner
+
+def build_throttling():
+    return (Rowset()
+            .top()
+            .row()
+                .cell("Receive network throttled", TabNode("yt.cluster_node.in_throttler.throttled").all("bucket"))
+                .cell("Receive network throttler bytes rate", MultiSensor(
+                    TabNode("yt.cluster_node.in_throttler.value.rate"),
+                    TabNode("yt.cluster_node.in_throttler.total_limit"))
+                    .aggr("bucket"))
+            .row()
+                .cell("Transmit network throttled", TabNode("yt.cluster_node.out_throttler.throttled").all("bucket"))
+                .cell("Transmit network throttler bytes rate", MultiSensor(
+                    TabNode("yt.cluster_node.out_throttler.value.rate"),
+                    TabNode("yt.cluster_node.out_throttler.total_limit"))
+                    .aggr("bucket"))
             ).owner
 
 
@@ -294,6 +322,7 @@ def build_rpc_request_rate():
     return (Rowset()
             .row()
                 .cell("RPC request rate", request_rate("request_count"))
+                .cell("RPC rejected due to queue overflow", request_rate("request_queue_size_errors"))
             .row()
                 .cell("RPC failed request rate", request_rate("failed_request_count"))
                 .cell("RPC timed out request rate", request_rate("timed_out_request_count"))
@@ -378,16 +407,16 @@ def build_block_cache_planning():
 
 
 def build_user_disk():
-    reader_stats = NodeTablet(
-        "yt.tablet_node.{}.chunk_reader_statistics.{}.rate")
+    reader_stats = MultiSensor(
+        NodeTablet("yt.tablet_node.{}.chunk_reader_statistics.{}.rate"),
+        NodeTablet("yt.tablet_node.{}.hunks.chunk_reader_statistics.{}.rate"))
 
     return (Rowset()
-            .aggr("table_tag", "table_path")
-            .all("#UB")
+            .aggr("table_tag", "table_path", "user")
             .top()
             .row()
-                .cell("Table lookup data bytes read from disk", reader_stats("lookup", "data_bytes_read_from_disk"))
-                .cell("Table select data bytes read from disk", reader_stats("select", "data_bytes_read_from_disk"))
+                .cell("Table lookup data bytes read from disk", reader_stats("lookup", "data_bytes_transmitted"))
+                .cell("Table select data bytes read from disk", reader_stats("select", "data_bytes_transmitted"))
             .row()
                 .cell("Table lookup chunk meta bytes read from disk", reader_stats("lookup", "meta_bytes_read_from_disk"))
                 .cell("Table select chunk meta bytes read from disk", reader_stats("select", "meta_bytes_read_from_disk"))
@@ -684,13 +713,13 @@ def build_efficiency_rowset():
             .row()
                 .cell("Lookup CPU cores per user lookup gigabyte", MultiSensor(
                                     (
-                                        MonitoringExpr(NodeTablet("yt.tablet_node.lookup.decompression_cpu_time.rate")
+                                        MonitoringExpr(NodeTablet("yt.tablet_node.multiread.cumulative_cpu_time.rate")
                                                 .aggr(MonitoringTag("host"), "table_path", "table_path", "table_tag", "user")) * 1073741824 /
                                         MonitoringExpr(NodeTablet("yt.tablet_node.lookup.data_weight.rate")
                                                 .aggr(MonitoringTag("host"), "table_path", "table_tag", "user"))
                                     ).alias("{{tablet_cell_bundle}}"),
                                     (
-                                        MonitoringExpr(NodeTablet("yt.tablet_node.lookup.decompression_cpu_time.rate")
+                                        MonitoringExpr(NodeTablet("yt.tablet_node.multiread.cumulative_cpu_time.rate")
                                                 .aggr(MonitoringTag("host"), "table_path", "table_path", "table_tag", "user", "tablet_cell_bundle")) * 1073741824  /
                                         MonitoringExpr(NodeTablet("yt.tablet_node.lookup.data_weight.rate")
                                                 .aggr(MonitoringTag("host"), "table_path", "table_tag", "user", "tablet_cell_bundle"))
@@ -967,6 +996,7 @@ def build_bundle_ui_network():
     rowsets = [
         build_tablet_network(),
         build_user_network(),
+        build_throttling(),
         build_rpc_request_rate(),
         #build_user_bus_cpu(),
         build_lookup_select_ack_time(),
