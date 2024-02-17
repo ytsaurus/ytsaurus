@@ -30,7 +30,7 @@ public:
     using TCopyDataFunction = void (*)(void*, const void*);
     using TRawCoderFactoryFunction = IRawCoderPtr (*)();
     using TRowVtableFactoryFunction = TRowVtable (*)();
-    using TRawToUniquePtr = TUniquePtr (*)(const void*);
+    using TCopyToUniquePtrFunction = TUniquePtr (*)(const void*);
 
 public:
     static constexpr ssize_t NotKv = -1;
@@ -42,7 +42,7 @@ public:
     TUniDataFunction DefaultConstructor = nullptr;
     TUniDataFunction Destructor = nullptr;
     TCopyDataFunction CopyConstructor = nullptr;
-    TRawToUniquePtr CopyToUniquePtr = nullptr;
+    TCopyToUniquePtrFunction CopyToUniquePtr = nullptr;
     TRawCoderFactoryFunction RawCoderFactory = &CrashingCoderFactory;
     ssize_t KeyOffset = NotKv;
     ssize_t ValueOffset = NotKv;
