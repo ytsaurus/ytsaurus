@@ -27,7 +27,7 @@ target_sources(abseil-cpp-tstring-y_absl-strings PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/crc/internal/crc.cc
   ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/crc/internal/crc_cord_state.cc
   ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/crc/internal/crc_memcpy_fallback.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/crc/internal/crc_memcpy_x86_64.cc
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/crc/internal/crc_memcpy_x86_arm_combined.cc
   ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/crc/internal/crc_non_temporal_memcpy.cc
   ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/crc/internal/crc_x86_arm_combined.cc
   ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/status/statusor.cc
@@ -45,7 +45,6 @@ target_sources(abseil-cpp-tstring-y_absl-strings PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/strings/internal/cord_rep_btree_reader.cc
   ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/strings/internal/cord_rep_consume.cc
   ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/strings/internal/cord_rep_crc.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/strings/internal/cord_rep_ring.cc
   ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/strings/internal/cordz_functions.cc
   ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/strings/internal/cordz_handle.cc
   ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/strings/internal/cordz_info.cc

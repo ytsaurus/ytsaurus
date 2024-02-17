@@ -32,7 +32,6 @@ target_link_libraries(abseil-cpp-tstring-y_absl-flags PUBLIC
 )
 target_sources(abseil-cpp-tstring-y_absl-flags PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/flags/commandlineflag.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/flags/flag.cc
   ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/flags/internal/commandlineflag.cc
   ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/flags/internal/flag.cc
   ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/flags/internal/private_handle_accessor.cc
