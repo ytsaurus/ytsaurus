@@ -210,6 +210,7 @@ void TWorkerSet::UpdateWorkers(const std::vector<TString>& current)
     TPromise<TToken> waiter;
     TToken token;
     auto timeNow = TInstant::Now();
+    int numWaiters = -1;
 
     {
         auto guard = Guard(Lock_);
@@ -236,10 +237,11 @@ void TWorkerSet::UpdateWorkers(const std::vector<TString>& current)
             Workers_[index]->InUse = true;
             token = TToken(this, Workers_[index].get());
         }
+        numWaiters = std::ssize(Waiters_);
     }
 
     YT_LOG_INFO("Finished worker set update (NumPresent: %v, NumAvailable: %v, NumWaiting: %v)",
-        std::ssize(indexPresent), std::ssize(available), std::ssize(Waiters_));
+        std::ssize(indexPresent), std::ssize(available), numWaiters);
 
     if (waiter) {
         waiter.Set(token);
