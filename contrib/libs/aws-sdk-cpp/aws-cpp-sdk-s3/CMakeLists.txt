@@ -48,10 +48,10 @@ target_compile_options(libs-aws-sdk-cpp-aws-cpp-sdk-s3 PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(libs-aws-sdk-cpp-aws-cpp-sdk-s3 PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/aws-sdk-cpp/aws-cpp-sdk-s3/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/aws-sdk-cpp/aws-cpp-sdk-s3/include
 )
 target_include_directories(libs-aws-sdk-cpp-aws-cpp-sdk-s3 PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/aws-sdk-cpp/aws-cpp-sdk-core/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/aws-sdk-cpp/aws-cpp-sdk-core/include
 )
 target_link_libraries(libs-aws-sdk-cpp-aws-cpp-sdk-s3 PUBLIC
   contrib-libs-linux-headers

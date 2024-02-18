@@ -12,7 +12,7 @@ target_compile_options(lib-Transforms-Scalar PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-Transforms-Scalar PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Scalar
+  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Scalar
 )
 target_link_libraries(lib-Transforms-Scalar PUBLIC
   contrib-libs-linux-headers

@@ -14,8 +14,8 @@ target_compile_options(libs-libevent-event_core PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(libs-libevent-event_core PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/libevent
-  ${PROJECT_SOURCE_DIR}/contrib/libs/libevent/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/libevent
+  ${CMAKE_SOURCE_DIR}/contrib/libs/libevent/include
 )
 target_link_libraries(libs-libevent-event_core PUBLIC
   contrib-libs-linux-headers

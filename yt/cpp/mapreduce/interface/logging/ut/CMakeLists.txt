@@ -9,7 +9,7 @@
 
 add_executable(yt-cpp-mapreduce-interface-logging-ut)
 target_include_directories(yt-cpp-mapreduce-interface-logging-ut PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/logging
+  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/logging
 )
 target_link_libraries(yt-cpp-mapreduce-interface-logging-ut PUBLIC
   contrib-libs-linux-headers

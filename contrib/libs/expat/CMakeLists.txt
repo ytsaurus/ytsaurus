@@ -13,8 +13,8 @@ target_compile_options(contrib-libs-expat PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(contrib-libs-expat PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/expat
-  ${PROJECT_SOURCE_DIR}/contrib/libs/expat/lib
+  ${CMAKE_SOURCE_DIR}/contrib/libs/expat
+  ${CMAKE_SOURCE_DIR}/contrib/libs/expat/lib
 )
 target_link_libraries(contrib-libs-expat PUBLIC
   contrib-libs-linux-headers

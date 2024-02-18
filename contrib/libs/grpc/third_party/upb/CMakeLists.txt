@@ -13,11 +13,11 @@ target_compile_options(grpc-third_party-upb PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(grpc-third_party-upb PRIVATE
-  ${PROJECT_BINARY_DIR}/contrib/libs/grpc
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb
+  ${CMAKE_BINARY_DIR}/contrib/libs/grpc
+  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc
+  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated
+  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated
+  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/upb
 )
 target_link_libraries(grpc-third_party-upb PUBLIC
   contrib-libs-linux-headers

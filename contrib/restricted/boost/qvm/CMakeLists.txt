@@ -9,7 +9,7 @@
 
 add_library(restricted-boost-qvm INTERFACE)
 target_include_directories(restricted-boost-qvm INTERFACE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/qvm/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/qvm/include
 )
 target_link_libraries(restricted-boost-qvm INTERFACE
   contrib-libs-linux-headers

@@ -43,8 +43,8 @@ target_proto_messages(yt_proto-yt-formats PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/formats/yamr.proto
 )
 target_sources(yt_proto-yt-formats PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/formats/extension.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/formats/yamr.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/formats/extension.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/formats/yamr.pb.h
 )
 target_proto_addincls(yt_proto-yt-formats
   ./

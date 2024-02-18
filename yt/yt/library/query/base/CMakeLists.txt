@@ -12,8 +12,8 @@ target_compile_options(library-query-base PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(library-query-base PUBLIC
-  ${PROJECT_BINARY_DIR}/yt
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/base
+  ${CMAKE_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/base
 )
 target_link_libraries(library-query-base PUBLIC
   contrib-libs-linux-headers
@@ -26,7 +26,7 @@ target_link_libraries(library-query-base PUBLIC
   bison-bison-induced
 )
 target_sources(library-query-base PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/base/parser.h
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/base/parser.h
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/ast.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/ast_visitors.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/constraints.cpp

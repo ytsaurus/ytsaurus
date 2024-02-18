@@ -12,7 +12,7 @@ target_compile_options(server-lib-job_agent PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-job_agent PUBLIC
-  ${PROJECT_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-job_agent PUBLIC
   contrib-libs-linux-headers

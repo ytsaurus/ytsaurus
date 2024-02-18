@@ -14,7 +14,7 @@ target_compile_options(restricted-boost-regex PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-boost-regex PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/regex/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/regex/include
 )
 target_link_libraries(restricted-boost-regex PUBLIC
   contrib-libs-linux-headers

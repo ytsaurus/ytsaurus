@@ -18,11 +18,11 @@ target_compile_options(libs-poco-Crypto PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(libs-poco-Crypto PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Crypto/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Crypto/include
 )
 target_include_directories(libs-poco-Crypto PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Crypto/src
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Crypto/src
+  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Foundation/include
 )
 target_link_libraries(libs-poco-Crypto PUBLIC
   contrib-libs-linux-headers

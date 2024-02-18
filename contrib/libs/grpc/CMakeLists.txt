@@ -15,16 +15,16 @@ target_compile_options(contrib-libs-grpc PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(contrib-libs-grpc PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/include
 )
 target_include_directories(contrib-libs-grpc PRIVATE
-  ${PROJECT_BINARY_DIR}/contrib/libs/grpc
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/address_sorting/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb
-  ${PROJECT_SOURCE_DIR}/contrib/libs/xxhash
+  ${CMAKE_BINARY_DIR}/contrib/libs/grpc
+  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc
+  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated
+  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated
+  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/address_sorting/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/third_party/upb
+  ${CMAKE_SOURCE_DIR}/contrib/libs/xxhash
 )
 target_link_libraries(contrib-libs-grpc PUBLIC
   contrib-libs-linux-headers

@@ -12,9 +12,9 @@ target_compile_options(Target-ARM-MCTargetDesc PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(Target-ARM-MCTargetDesc PRIVATE
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM
+  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
+  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc
 )
 target_link_libraries(Target-ARM-MCTargetDesc PUBLIC
   contrib-libs-linux-headers

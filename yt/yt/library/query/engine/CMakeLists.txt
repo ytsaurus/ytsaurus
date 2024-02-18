@@ -200,13 +200,13 @@ target_compile_options(library-query-engine PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(library-query-engine PUBLIC
-  ${PROJECT_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/yt
 )
 target_include_directories(library-query-engine PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
-  ${PROJECT_SOURCE_DIR}/contrib/libs/re2
-  ${PROJECT_SOURCE_DIR}/contrib/libs/xdelta3
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
+  ${CMAKE_SOURCE_DIR}/contrib/libs/re2
+  ${CMAKE_SOURCE_DIR}/contrib/libs/xdelta3
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/wavm/Include
 )
 target_link_libraries(library-query-engine PUBLIC
   contrib-libs-linux-headers
@@ -248,13 +248,13 @@ target_compile_options(library-query-engine.global PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(library-query-engine.global PUBLIC
-  ${PROJECT_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/yt
 )
 target_include_directories(library-query-engine.global PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
-  ${PROJECT_SOURCE_DIR}/contrib/libs/re2
-  ${PROJECT_SOURCE_DIR}/contrib/libs/xdelta3
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
+  ${CMAKE_SOURCE_DIR}/contrib/libs/re2
+  ${CMAKE_SOURCE_DIR}/contrib/libs/xdelta3
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/wavm/Include
 )
 target_link_libraries(library-query-engine.global PUBLIC
   contrib-libs-linux-headers

@@ -18,14 +18,14 @@ target_compile_options(libs-poco-Util PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(libs-poco-Util PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Util/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Util/include
 )
 target_include_directories(libs-poco-Util PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/expat
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/JSON/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Util/src
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/XML/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/expat
+  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Foundation/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/JSON/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Util/src
+  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/XML/include
 )
 target_link_libraries(libs-poco-Util PUBLIC
   contrib-libs-linux-headers

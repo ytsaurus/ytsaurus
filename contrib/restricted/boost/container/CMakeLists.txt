@@ -12,7 +12,7 @@ target_compile_options(restricted-boost-container PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-boost-container PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/container/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/container/include
 )
 target_link_libraries(restricted-boost-container PUBLIC
   contrib-libs-linux-headers

@@ -24,7 +24,7 @@ target_compile_options(server-lib-tablet_node PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-tablet_node PUBLIC
-  ${PROJECT_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-tablet_node PUBLIC
   contrib-libs-linux-headers
@@ -41,7 +41,7 @@ target_proto_messages(server-lib-tablet_node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_node/proto/tablet_manager.proto
 )
 target_sources(server-lib-tablet_node PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_node/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_node/performance_counters.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_node/table_settings.cpp

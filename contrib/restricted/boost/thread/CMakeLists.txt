@@ -18,7 +18,7 @@ target_compile_options(restricted-boost-thread PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-boost-thread PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/thread/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/thread/include
 )
 target_link_libraries(restricted-boost-thread PUBLIC
   contrib-libs-linux-headers

@@ -13,7 +13,7 @@ add_subdirectory(event_thread)
 
 add_library(contrib-libs-libevent INTERFACE)
 target_include_directories(contrib-libs-libevent INTERFACE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/libevent/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/libevent/include
 )
 target_link_libraries(contrib-libs-libevent INTERFACE
   contrib-libs-linux-headers

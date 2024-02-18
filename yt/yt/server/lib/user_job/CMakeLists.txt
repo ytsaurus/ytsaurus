@@ -24,7 +24,7 @@ target_compile_options(server-lib-user_job PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-user_job PUBLIC
-  ${PROJECT_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-user_job PUBLIC
   contrib-libs-linux-headers
@@ -37,7 +37,7 @@ target_proto_messages(server-lib-user_job PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/user_job/proto/user_job_synchronizer_service.proto
 )
 target_sources(server-lib-user_job PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/user_job/proto/user_job_synchronizer_service.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/user_job/proto/user_job_synchronizer_service.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/user_job/config.cpp
 )
 target_proto_addincls(server-lib-user_job

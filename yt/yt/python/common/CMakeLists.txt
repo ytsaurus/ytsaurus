@@ -16,7 +16,7 @@ target_compile_options(yt-python-common PRIVATE
   -Wno-register
 )
 target_include_directories(yt-python-common PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
+  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx
 )
 target_link_libraries(yt-python-common PUBLIC
   contrib-libs-linux-headers

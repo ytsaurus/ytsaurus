@@ -14,7 +14,7 @@ target_compile_options(library-web_assembly-engine PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(library-web_assembly-engine PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/wavm/Include
 )
 target_link_libraries(library-web_assembly-engine PUBLIC
   contrib-libs-linux-headers
@@ -34,7 +34,7 @@ target_compile_options(library-web_assembly-engine.global PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(library-web_assembly-engine.global PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/wavm/Include
 )
 target_link_libraries(library-web_assembly-engine.global PUBLIC
   contrib-libs-linux-headers

@@ -13,7 +13,7 @@ target_compile_options(contrib-libs-h3 PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(contrib-libs-h3 PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/h3/h3lib/include
 )
 target_link_libraries(contrib-libs-h3 PUBLIC
   contrib-libs-linux-headers

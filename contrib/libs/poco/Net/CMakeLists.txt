@@ -18,11 +18,11 @@ target_compile_options(libs-poco-Net PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(libs-poco-Net PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Net/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Net/include
 )
 target_include_directories(libs-poco-Net PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Net/src
+  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Foundation/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Net/src
 )
 target_link_libraries(libs-poco-Net PUBLIC
   contrib-libs-linux-headers

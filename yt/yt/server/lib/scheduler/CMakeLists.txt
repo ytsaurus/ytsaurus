@@ -36,7 +36,7 @@ target_compile_options(server-lib-scheduler PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-scheduler PUBLIC
-  ${PROJECT_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-scheduler PUBLIC
   contrib-libs-linux-headers
@@ -53,8 +53,8 @@ target_proto_messages(server-lib-scheduler PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.proto
 )
 target_sources(server-lib-scheduler PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/scheduler/proto/allocation_tracker_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/scheduler/proto/allocation_tracker_service.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/scheduler/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/scheduler/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/scheduler/exec_node_descriptor.cpp

@@ -12,7 +12,7 @@ target_compile_options(offline_read_fmt_write PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(offline_read_fmt_write PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
+  ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
 )
 target_link_libraries(offline_read_fmt_write PUBLIC
   contrib-libs-linux-headers

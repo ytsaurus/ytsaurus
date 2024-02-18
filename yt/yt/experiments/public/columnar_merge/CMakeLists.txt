@@ -12,8 +12,8 @@ target_compile_options(columnar_merge PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(columnar_merge PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
-  ${PROJECT_SOURCE_DIR}/contrib/libs/re2
+  ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
+  ${CMAKE_SOURCE_DIR}/contrib/libs/re2
 )
 target_link_libraries(columnar_merge PUBLIC
   contrib-libs-linux-headers

@@ -21,12 +21,12 @@ target_compile_options(libs-poco-XML PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(libs-poco-XML PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/expat
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/XML/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/expat
+  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/XML/include
 )
 target_include_directories(libs-poco-XML PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/XML/src
+  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Foundation/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/XML/src
 )
 target_link_libraries(libs-poco-XML PUBLIC
   contrib-libs-linux-headers

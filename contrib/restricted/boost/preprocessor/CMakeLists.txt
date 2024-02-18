@@ -9,7 +9,7 @@
 
 add_library(restricted-boost-preprocessor INTERFACE)
 target_include_directories(restricted-boost-preprocessor INTERFACE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/preprocessor/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/preprocessor/include
 )
 target_link_libraries(restricted-boost-preprocessor INTERFACE
   contrib-libs-linux-headers

@@ -14,10 +14,10 @@ target_compile_options(restricted-boost-atomic PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-boost-atomic PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/atomic/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/atomic/include
 )
 target_include_directories(restricted-boost-atomic PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/atomic/src
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/atomic/src
 )
 target_link_libraries(restricted-boost-atomic PUBLIC
   contrib-libs-linux-headers

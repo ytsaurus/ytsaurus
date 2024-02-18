@@ -12,8 +12,8 @@ target_compile_options(llvm16-lib-Support PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(llvm16-lib-Support PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Support
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Support/BLAKE3
+  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Support
+  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Support/BLAKE3
 )
 target_link_libraries(llvm16-lib-Support PUBLIC
   contrib-libs-linux-headers

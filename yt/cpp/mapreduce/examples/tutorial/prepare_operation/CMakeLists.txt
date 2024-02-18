@@ -46,7 +46,7 @@ target_proto_messages(prepare_operation PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/prepare_operation/grepper.proto
 )
 target_sources(prepare_operation PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/examples/tutorial/prepare_operation/grepper.pb.h
+  ${CMAKE_BINARY_DIR}/yt/cpp/mapreduce/examples/tutorial/prepare_operation/grepper.pb.h
   ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/prepare_operation/main.cpp
 )
 target_allocator(prepare_operation

@@ -37,7 +37,7 @@ target_proto_messages(server-lib-job_proxy PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_proxy/proto/job_prober_service.proto
 )
 target_sources(server-lib-job_proxy PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/job_proxy/proto/job_prober_service.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/job_proxy/proto/job_prober_service.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_proxy/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_proxy/job_probe.cpp
 )

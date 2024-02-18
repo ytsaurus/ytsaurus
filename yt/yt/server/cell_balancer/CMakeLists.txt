@@ -13,7 +13,7 @@ target_compile_options(yt-server-cell_balancer PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(yt-server-cell_balancer PUBLIC
-  ${PROJECT_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(yt-server-cell_balancer PUBLIC
   contrib-libs-linux-headers

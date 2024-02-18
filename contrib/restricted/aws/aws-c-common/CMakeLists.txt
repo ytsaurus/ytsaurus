@@ -21,8 +21,8 @@ target_compile_options(restricted-aws-aws-c-common PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-aws-aws-c-common PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/generated/include
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/generated/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/include
 )
 target_link_libraries(restricted-aws-aws-c-common PUBLIC
   contrib-libs-linux-headers

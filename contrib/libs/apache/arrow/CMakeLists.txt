@@ -66,18 +66,18 @@ target_compile_options(libs-apache-arrow PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(libs-apache-arrow PUBLIC
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src
-  ${PROJECT_SOURCE_DIR}/contrib/libs/apache/arrow/cpp/src
-  ${PROJECT_SOURCE_DIR}/contrib/libs/apache/arrow/src
+  ${CMAKE_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src
+  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/arrow/cpp/src
+  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/arrow/src
 )
 target_include_directories(libs-apache-arrow PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/apache/arrow/cpp/src/generated
-  ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc/c++/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/flatbuffers/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/lz4
-  ${PROJECT_SOURCE_DIR}/contrib/libs/rapidjson/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/utf8proc
-  ${PROJECT_SOURCE_DIR}/contrib/libs/zstd/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/arrow/cpp/src/generated
+  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/flatbuffers/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/lz4
+  ${CMAKE_SOURCE_DIR}/contrib/libs/rapidjson/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/utf8proc
+  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/include
 )
 target_link_libraries(libs-apache-arrow PUBLIC
   contrib-libs-linux-headers
@@ -100,24 +100,24 @@ target_link_libraries(libs-apache-arrow PUBLIC
   contrib-libs-flatbuffers
 )
 target_sources(libs-apache-arrow PRIVATE
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/File.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/File.iter.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Message.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Message.iter.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Schema.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Schema.iter.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/SparseTensor.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/SparseTensor.iter.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Tensor.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Tensor.iter.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/feather.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/feather.iter.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/File.bfbs
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Message.bfbs
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Schema.bfbs
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/SparseTensor.bfbs
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Tensor.bfbs
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/feather.bfbs
+  ${CMAKE_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/File.fbs.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/File.iter.fbs.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Message.fbs.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Message.iter.fbs.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Schema.fbs.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Schema.iter.fbs.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/SparseTensor.fbs.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/SparseTensor.iter.fbs.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Tensor.fbs.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Tensor.iter.fbs.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/feather.fbs.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/feather.iter.fbs.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/File.bfbs
+  ${CMAKE_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Message.bfbs
+  ${CMAKE_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Schema.bfbs
+  ${CMAKE_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/SparseTensor.bfbs
+  ${CMAKE_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Tensor.bfbs
+  ${CMAKE_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/feather.bfbs
   ${CMAKE_SOURCE_DIR}/contrib/libs/apache/arrow/cpp/src/arrow/adapters/orc/adapter.cc
   ${CMAKE_SOURCE_DIR}/contrib/libs/apache/arrow/cpp/src/arrow/adapters/orc/adapter_util.cc
   ${CMAKE_SOURCE_DIR}/contrib/libs/apache/arrow/cpp/src/arrow/array/array_base.cc

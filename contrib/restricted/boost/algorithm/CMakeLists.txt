@@ -9,7 +9,7 @@
 
 add_library(restricted-boost-algorithm INTERFACE)
 target_include_directories(restricted-boost-algorithm INTERFACE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/algorithm/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/algorithm/include
 )
 target_link_libraries(restricted-boost-algorithm INTERFACE
   contrib-libs-linux-headers

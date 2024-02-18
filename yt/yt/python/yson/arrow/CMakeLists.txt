@@ -10,7 +10,7 @@ find_package(Python3 REQUIRED COMPONENTS Development)
 
 add_library(python-yson-arrow INTERFACE)
 target_include_directories(python-yson-arrow INTERFACE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
+  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx
 )
 target_link_libraries(python-yson-arrow INTERFACE
   contrib-libs-linux-headers
@@ -30,7 +30,7 @@ target_compile_options(python-yson-arrow.global PRIVATE
   -Wno-register
 )
 target_include_directories(python-yson-arrow.global PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
+  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx
 )
 target_link_libraries(python-yson-arrow.global PUBLIC
   contrib-libs-linux-headers

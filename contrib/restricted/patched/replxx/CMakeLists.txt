@@ -15,10 +15,10 @@ target_compile_options(restricted-patched-replxx PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-patched-replxx PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/patched/replxx/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/patched/replxx/include
 )
 target_include_directories(restricted-patched-replxx PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/patched/replxx/src
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/patched/replxx/src
 )
 target_link_libraries(restricted-patched-replxx PUBLIC
   contrib-libs-linux-headers

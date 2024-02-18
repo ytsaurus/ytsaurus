@@ -869,290 +869,290 @@ target_link_libraries(libs-llvm16-include PUBLIC
   contrib-libs-llvm16
 )
 target_sources(libs-llvm16-include PRIVATE
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenACC/ACC.h.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenACC/ACC.h.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenACC/ACC.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenACC/ACC.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenMP/OMP.h.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenMP/OMP.h.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenMP/OMP.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenMP/OMP.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/Attributes.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/Attributes.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicEnums.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicEnums.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicImpl.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicImpl.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsAArch64.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsAArch64.h.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsAMDGPU.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsAMDGPU.h.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsARM.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsARM.h.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsBPF.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsBPF.h.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsDirectX.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsDirectX.h.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsHexagon.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsHexagon.h.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsLoongArch.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsLoongArch.h.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsMips.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsMips.h.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsNVPTX.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsNVPTX.h.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsPowerPC.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsPowerPC.h.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsR600.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsR600.h.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsRISCV.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsRISCV.h.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsS390.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsS390.h.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsVE.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsVE.h.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsWebAssembly.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsWebAssembly.h.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsX86.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsX86.h.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsXCore.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsXCore.h.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/TargetParser/RISCVTargetParserDef.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include/llvm/TargetParser/RISCVTargetParserDef.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/COFFOptions.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/COFFOptions.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenAsmMatcher.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenAsmMatcher.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenAsmWriter.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenAsmWriter.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenAsmWriter1.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenAsmWriter1.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenCallingConv.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenCallingConv.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenDAGISel.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenDAGISel.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenDisassemblerTables.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenDisassemblerTables.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenExegesis.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenExegesis.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenFastISel.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenFastISel.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenGlobalISel.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenGlobalISel.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenInstrInfo.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenInstrInfo.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenMCCodeEmitter.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenMCCodeEmitter.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenMCPseudoLowering.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenMCPseudoLowering.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenO0PreLegalizeGICombiner.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenO0PreLegalizeGICombiner.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenPostLegalizeGICombiner.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenPostLegalizeGICombiner.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenPostLegalizeGILowering.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenPostLegalizeGILowering.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenPreLegalizeGICombiner.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenPreLegalizeGICombiner.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenRegisterBank.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenRegisterBank.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenRegisterInfo.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenRegisterInfo.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenSubtargetInfo.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenSubtargetInfo.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenSystemOperands.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenSystemOperands.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenAsmMatcher.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenAsmMatcher.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenAsmWriter.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenAsmWriter.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenCallingConv.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenCallingConv.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenDAGISel.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenDAGISel.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenDisassemblerTables.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenDisassemblerTables.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenFastISel.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenFastISel.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenGlobalISel.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenGlobalISel.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenInstrInfo.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenInstrInfo.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenMCCodeEmitter.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenMCCodeEmitter.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenMCPseudoLowering.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenMCPseudoLowering.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenRegisterBank.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenRegisterBank.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenRegisterInfo.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenRegisterInfo.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenSubtargetInfo.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenSubtargetInfo.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenSystemRegister.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenSystemRegister.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenAsmMatcher.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenAsmMatcher.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenAsmWriter.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenAsmWriter.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenCallingConv.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenCallingConv.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenDAGISel.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenDAGISel.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenDisassemblerTables.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenDisassemblerTables.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenInstrInfo.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenInstrInfo.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenMCCodeEmitter.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenMCCodeEmitter.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenRegisterInfo.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenRegisterInfo.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenSubtargetInfo.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenSubtargetInfo.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenAsmMatcher.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenAsmMatcher.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenAsmWriter.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenAsmWriter.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenDAGISel.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenDAGISel.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenDisassemblerTables.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenDisassemblerTables.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenInstrInfo.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenInstrInfo.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenMCCodeEmitter.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenMCCodeEmitter.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenMCPseudoLowering.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenMCPseudoLowering.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenRegisterInfo.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenRegisterInfo.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenSubtargetInfo.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenSubtargetInfo.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXGenAsmWriter.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXGenAsmWriter.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXGenDAGISel.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXGenDAGISel.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXGenInstrInfo.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXGenInstrInfo.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXGenRegisterInfo.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXGenRegisterInfo.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXGenSubtargetInfo.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXGenSubtargetInfo.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenAsmMatcher.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenAsmMatcher.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenAsmWriter.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenAsmWriter.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenCallingConv.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenCallingConv.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenDAGISel.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenDAGISel.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenDisassemblerTables.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenDisassemblerTables.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenExegesis.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenExegesis.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenFastISel.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenFastISel.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenGlobalISel.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenGlobalISel.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenInstrInfo.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenInstrInfo.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenMCCodeEmitter.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenMCCodeEmitter.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenRegisterBank.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenRegisterBank.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenRegisterInfo.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenRegisterInfo.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenSubtargetInfo.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenSubtargetInfo.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenAsmMatcher.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenAsmMatcher.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenAsmWriter.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenAsmWriter.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenDAGISel.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenDAGISel.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenDisassemblerTables.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenDisassemblerTables.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenFastISel.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenFastISel.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenInstrInfo.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenInstrInfo.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenMCCodeEmitter.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenMCCodeEmitter.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenRegisterInfo.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenRegisterInfo.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenSubtargetInfo.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenSubtargetInfo.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenAsmMatcher.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenAsmMatcher.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenAsmWriter.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenAsmWriter.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenAsmWriter1.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenAsmWriter1.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenCallingConv.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenCallingConv.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenDAGISel.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenDAGISel.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenDisassemblerTables.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenDisassemblerTables.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenEVEX2VEXTables.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenEVEX2VEXTables.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenExegesis.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenExegesis.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenFastISel.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenFastISel.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenGlobalISel.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenGlobalISel.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenInstrInfo.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenInstrInfo.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenMnemonicTables.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenMnemonicTables.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenRegisterBank.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenRegisterBank.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenRegisterInfo.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenRegisterInfo.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenSubtargetInfo.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenSubtargetInfo.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/ToolDrivers/llvm-dlltool/Options.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/ToolDrivers/llvm-dlltool/Options.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/ToolDrivers/llvm-lib/Options.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/ToolDrivers/llvm-lib/Options.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/dsymutil/Options.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/dsymutil/Options.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-cvtres/Opts.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-cvtres/Opts.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-cxxfilt/Opts.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-cxxfilt/Opts.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-ifs/Opts.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-ifs/Opts.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-lipo/LipoOpts.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-lipo/LipoOpts.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-ml/Opts.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-ml/Opts.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-mt/Opts.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-mt/Opts.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-nm/Opts.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-nm/Opts.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-objcopy/BitcodeStripOpts.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-objcopy/BitcodeStripOpts.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-objcopy/InstallNameToolOpts.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-objcopy/InstallNameToolOpts.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-objcopy/ObjcopyOpts.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-objcopy/ObjcopyOpts.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-objcopy/StripOpts.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-objcopy/StripOpts.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-objdump/ObjdumpOpts.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-objdump/ObjdumpOpts.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-objdump/OtoolOpts.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-objdump/OtoolOpts.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-rc/Opts.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-rc/Opts.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-rc/WindresOpts.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-rc/WindresOpts.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-readobj/Opts.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-readobj/Opts.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-size/Opts.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-size/Opts.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-strings/Opts.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-strings/Opts.inc.d
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-symbolizer/Opts.inc
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-symbolizer/Opts.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenACC/ACC.h.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenACC/ACC.h.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenACC/ACC.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenACC/ACC.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenMP/OMP.h.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenMP/OMP.h.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenMP/OMP.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenMP/OMP.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/Attributes.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/Attributes.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicEnums.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicEnums.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicImpl.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicImpl.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsAArch64.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsAArch64.h.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsAMDGPU.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsAMDGPU.h.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsARM.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsARM.h.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsBPF.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsBPF.h.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsDirectX.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsDirectX.h.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsHexagon.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsHexagon.h.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsLoongArch.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsLoongArch.h.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsMips.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsMips.h.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsNVPTX.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsNVPTX.h.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsPowerPC.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsPowerPC.h.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsR600.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsR600.h.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsRISCV.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsRISCV.h.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsS390.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsS390.h.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsVE.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsVE.h.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsWebAssembly.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsWebAssembly.h.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsX86.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsX86.h.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsXCore.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsXCore.h.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/TargetParser/RISCVTargetParserDef.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/TargetParser/RISCVTargetParserDef.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/COFFOptions.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/COFFOptions.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenAsmMatcher.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenAsmMatcher.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenAsmWriter.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenAsmWriter.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenAsmWriter1.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenAsmWriter1.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenCallingConv.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenCallingConv.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenDAGISel.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenDAGISel.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenDisassemblerTables.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenDisassemblerTables.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenExegesis.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenExegesis.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenFastISel.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenFastISel.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenGlobalISel.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenGlobalISel.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenInstrInfo.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenInstrInfo.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenMCCodeEmitter.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenMCCodeEmitter.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenMCPseudoLowering.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenMCPseudoLowering.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenO0PreLegalizeGICombiner.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenO0PreLegalizeGICombiner.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenPostLegalizeGICombiner.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenPostLegalizeGICombiner.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenPostLegalizeGILowering.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenPostLegalizeGILowering.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenPreLegalizeGICombiner.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenPreLegalizeGICombiner.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenRegisterBank.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenRegisterBank.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenRegisterInfo.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenRegisterInfo.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenSubtargetInfo.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenSubtargetInfo.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenSystemOperands.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64GenSystemOperands.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenAsmMatcher.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenAsmMatcher.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenAsmWriter.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenAsmWriter.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenCallingConv.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenCallingConv.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenDAGISel.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenDAGISel.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenDisassemblerTables.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenDisassemblerTables.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenFastISel.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenFastISel.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenGlobalISel.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenGlobalISel.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenInstrInfo.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenInstrInfo.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenMCCodeEmitter.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenMCCodeEmitter.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenMCPseudoLowering.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenMCPseudoLowering.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenRegisterBank.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenRegisterBank.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenRegisterInfo.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenRegisterInfo.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenSubtargetInfo.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenSubtargetInfo.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenSystemRegister.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM/ARMGenSystemRegister.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenAsmMatcher.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenAsmMatcher.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenAsmWriter.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenAsmWriter.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenCallingConv.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenCallingConv.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenDAGISel.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenDAGISel.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenDisassemblerTables.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenDisassemblerTables.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenInstrInfo.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenInstrInfo.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenMCCodeEmitter.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenMCCodeEmitter.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenRegisterInfo.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenRegisterInfo.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenSubtargetInfo.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFGenSubtargetInfo.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenAsmMatcher.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenAsmMatcher.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenAsmWriter.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenAsmWriter.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenDAGISel.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenDAGISel.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenDisassemblerTables.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenDisassemblerTables.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenInstrInfo.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenInstrInfo.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenMCCodeEmitter.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenMCCodeEmitter.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenMCPseudoLowering.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenMCPseudoLowering.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenRegisterInfo.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenRegisterInfo.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenSubtargetInfo.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/LoongArch/LoongArchGenSubtargetInfo.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXGenAsmWriter.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXGenAsmWriter.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXGenDAGISel.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXGenDAGISel.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXGenInstrInfo.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXGenInstrInfo.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXGenRegisterInfo.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXGenRegisterInfo.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXGenSubtargetInfo.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXGenSubtargetInfo.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenAsmMatcher.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenAsmMatcher.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenAsmWriter.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenAsmWriter.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenCallingConv.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenCallingConv.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenDAGISel.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenDAGISel.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenDisassemblerTables.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenDisassemblerTables.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenExegesis.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenExegesis.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenFastISel.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenFastISel.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenGlobalISel.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenGlobalISel.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenInstrInfo.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenInstrInfo.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenMCCodeEmitter.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenMCCodeEmitter.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenRegisterBank.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenRegisterBank.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenRegisterInfo.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenRegisterInfo.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenSubtargetInfo.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenSubtargetInfo.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenAsmMatcher.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenAsmMatcher.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenAsmWriter.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenAsmWriter.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenDAGISel.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenDAGISel.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenDisassemblerTables.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenDisassemblerTables.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenFastISel.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenFastISel.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenInstrInfo.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenInstrInfo.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenMCCodeEmitter.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenMCCodeEmitter.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenRegisterInfo.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenRegisterInfo.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenSubtargetInfo.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyGenSubtargetInfo.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenAsmMatcher.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenAsmMatcher.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenAsmWriter.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenAsmWriter.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenAsmWriter1.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenAsmWriter1.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenCallingConv.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenCallingConv.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenDAGISel.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenDAGISel.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenDisassemblerTables.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenDisassemblerTables.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenEVEX2VEXTables.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenEVEX2VEXTables.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenExegesis.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenExegesis.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenFastISel.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenFastISel.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenGlobalISel.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenGlobalISel.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenInstrInfo.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenInstrInfo.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenMnemonicTables.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenMnemonicTables.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenRegisterBank.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenRegisterBank.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenRegisterInfo.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenRegisterInfo.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenSubtargetInfo.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86/X86GenSubtargetInfo.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/ToolDrivers/llvm-dlltool/Options.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/ToolDrivers/llvm-dlltool/Options.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/ToolDrivers/llvm-lib/Options.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/ToolDrivers/llvm-lib/Options.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/dsymutil/Options.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/dsymutil/Options.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-cvtres/Opts.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-cvtres/Opts.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-cxxfilt/Opts.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-cxxfilt/Opts.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-ifs/Opts.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-ifs/Opts.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-lipo/LipoOpts.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-lipo/LipoOpts.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-ml/Opts.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-ml/Opts.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-mt/Opts.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-mt/Opts.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-nm/Opts.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-nm/Opts.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-objcopy/BitcodeStripOpts.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-objcopy/BitcodeStripOpts.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-objcopy/InstallNameToolOpts.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-objcopy/InstallNameToolOpts.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-objcopy/ObjcopyOpts.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-objcopy/ObjcopyOpts.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-objcopy/StripOpts.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-objcopy/StripOpts.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-objdump/ObjdumpOpts.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-objdump/ObjdumpOpts.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-objdump/OtoolOpts.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-objdump/OtoolOpts.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-rc/Opts.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-rc/Opts.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-rc/WindresOpts.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-rc/WindresOpts.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-readobj/Opts.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-readobj/Opts.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-size/Opts.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-size/Opts.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-strings/Opts.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-strings/Opts.inc.d
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-symbolizer/Opts.inc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-symbolizer/Opts.inc.d
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenACC/ACC.h.inc
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenACC/ACC.inc
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenMP/OMP.h.inc
@@ -1303,11 +1303,11 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Frontend/Directive/DirectiveBase.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenACC/ACC.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   --gen-directive-decl
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenACC
@@ -1327,11 +1327,11 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Frontend/Directive/DirectiveBase.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenACC/ACC.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   --gen-directive-impl
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenACC
@@ -1351,11 +1351,11 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Frontend/Directive/DirectiveBase.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenMP/OMP.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   --gen-directive-decl
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenMP
@@ -1375,11 +1375,11 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Frontend/Directive/DirectiveBase.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenMP/OMP.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   --gen-directive-impl
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Frontend/OpenMP
@@ -1398,11 +1398,11 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include/llvm/IR/Attributes.inc.d
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/Attributes.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-attrs
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR
@@ -1443,11 +1443,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsWebAssembly.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsX86.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsXCore.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-intrinsic-enums
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR
@@ -1488,11 +1488,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsWebAssembly.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsX86.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsXCore.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-intrinsic-impl
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR
@@ -1533,11 +1533,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsWebAssembly.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsX86.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsXCore.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-intrinsic-enums
   -intrinsic-prefix=aarch64
   -I
@@ -1579,11 +1579,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsWebAssembly.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsX86.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsXCore.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-intrinsic-enums
   -intrinsic-prefix=amdgcn
   -I
@@ -1625,11 +1625,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsWebAssembly.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsX86.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsXCore.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-intrinsic-enums
   -intrinsic-prefix=arm
   -I
@@ -1671,11 +1671,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsWebAssembly.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsX86.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsXCore.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-intrinsic-enums
   -intrinsic-prefix=bpf
   -I
@@ -1717,11 +1717,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsWebAssembly.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsX86.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsXCore.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-intrinsic-enums
   -intrinsic-prefix=dx
   -I
@@ -1763,11 +1763,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsWebAssembly.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsX86.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsXCore.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-intrinsic-enums
   -intrinsic-prefix=hexagon
   -I
@@ -1809,11 +1809,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsWebAssembly.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsX86.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsXCore.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-intrinsic-enums
   -intrinsic-prefix=loongarch
   -I
@@ -1855,11 +1855,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsWebAssembly.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsX86.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsXCore.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-intrinsic-enums
   -intrinsic-prefix=mips
   -I
@@ -1901,11 +1901,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsWebAssembly.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsX86.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsXCore.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-intrinsic-enums
   -intrinsic-prefix=nvvm
   -I
@@ -1947,11 +1947,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsWebAssembly.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsX86.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsXCore.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-intrinsic-enums
   -intrinsic-prefix=ppc
   -I
@@ -1993,11 +1993,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsWebAssembly.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsX86.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsXCore.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-intrinsic-enums
   -intrinsic-prefix=r600
   -I
@@ -2039,11 +2039,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsWebAssembly.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsX86.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsXCore.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-intrinsic-enums
   -intrinsic-prefix=riscv
   -I
@@ -2085,11 +2085,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsWebAssembly.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsX86.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsXCore.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-intrinsic-enums
   -intrinsic-prefix=s390
   -I
@@ -2131,11 +2131,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsWebAssembly.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsX86.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsXCore.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-intrinsic-enums
   -intrinsic-prefix=ve
   -I
@@ -2177,11 +2177,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsWebAssembly.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsX86.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsXCore.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-intrinsic-enums
   -intrinsic-prefix=wasm
   -I
@@ -2223,11 +2223,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsWebAssembly.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsX86.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsXCore.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-intrinsic-enums
   -intrinsic-prefix=x86
   -I
@@ -2269,11 +2269,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsWebAssembly.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsX86.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/IR/IntrinsicsXCore.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-intrinsic-enums
   -intrinsic-prefix=xcore
   -I
@@ -2359,11 +2359,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-riscv-target-def
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/RISCV/
@@ -2385,11 +2385,11 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/COFFOptions.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Option/OptParser.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-opt-parser-defs
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink
@@ -2481,11 +2481,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-asm-matcher
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64
@@ -2579,11 +2579,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-asm-writer
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64
@@ -2677,11 +2677,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-asm-writer
   -asmwriternum=1
   -I
@@ -2776,11 +2776,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-callingconv
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64
@@ -2874,11 +2874,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-dag-isel
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64
@@ -2973,11 +2973,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-disassembler
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64
@@ -3071,11 +3071,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-exegesis
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64
@@ -3169,11 +3169,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-fast-isel
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64
@@ -3267,11 +3267,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-global-isel
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64
@@ -3365,11 +3365,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-instr-info
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64
@@ -3463,11 +3463,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-emitter
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64
@@ -3561,11 +3561,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-pseudo-lowering
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64
@@ -3659,11 +3659,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-global-isel-combiner
   -combiners=AArch64O0PreLegalizerCombinerHelper
   -I
@@ -3758,11 +3758,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-global-isel-combiner
   -combiners=AArch64PostLegalizerCombinerHelper
   -I
@@ -3857,11 +3857,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-global-isel-combiner
   -combiners=AArch64PostLegalizerLoweringHelper
   -I
@@ -3956,11 +3956,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-global-isel-combiner
   -combiners=AArch64PreLegalizerCombinerHelper
   -I
@@ -4055,11 +4055,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-register-bank
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64
@@ -4153,11 +4153,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-register-info
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64
@@ -4251,11 +4251,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-subtarget
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64
@@ -4349,11 +4349,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-searchable-tables
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64
@@ -4433,11 +4433,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-asm-matcher
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
@@ -4517,11 +4517,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-asm-writer
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
@@ -4601,11 +4601,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-callingconv
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
@@ -4685,11 +4685,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-dag-isel
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
@@ -4770,11 +4770,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-disassembler
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
@@ -4854,11 +4854,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-fast-isel
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
@@ -4938,11 +4938,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-global-isel
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
@@ -5022,11 +5022,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-instr-info
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
@@ -5106,11 +5106,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-emitter
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
@@ -5190,11 +5190,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-pseudo-lowering
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
@@ -5274,11 +5274,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-register-bank
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
@@ -5358,11 +5358,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-register-info
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
@@ -5442,11 +5442,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-subtarget
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
@@ -5526,11 +5526,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-searchable-tables
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
@@ -5589,11 +5589,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-asm-matcher
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
@@ -5652,11 +5652,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-asm-writer
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
@@ -5715,11 +5715,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-callingconv
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
@@ -5778,11 +5778,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-dag-isel
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
@@ -5842,11 +5842,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-disassembler
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
@@ -5905,11 +5905,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-instr-info
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
@@ -5968,11 +5968,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-emitter
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
@@ -6031,11 +6031,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-register-info
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
@@ -6094,11 +6094,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-subtarget
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
@@ -6160,11 +6160,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-asm-matcher
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/LoongArch
@@ -6226,11 +6226,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-asm-writer
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/LoongArch
@@ -6292,11 +6292,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-dag-isel
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/LoongArch
@@ -6359,11 +6359,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-disassembler
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/LoongArch
@@ -6425,11 +6425,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-instr-info
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/LoongArch
@@ -6491,11 +6491,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-emitter
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/LoongArch
@@ -6557,11 +6557,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-pseudo-lowering
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/LoongArch
@@ -6623,11 +6623,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-register-info
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/LoongArch
@@ -6689,11 +6689,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-subtarget
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/LoongArch
@@ -6752,11 +6752,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-asm-writer
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX
@@ -6815,11 +6815,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-dag-isel
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX
@@ -6879,11 +6879,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-instr-info
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX
@@ -6942,11 +6942,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-register-info
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX
@@ -7005,11 +7005,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-subtarget
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX
@@ -7098,11 +7098,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-asm-matcher
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
@@ -7191,11 +7191,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-asm-writer
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
@@ -7284,11 +7284,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-callingconv
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
@@ -7377,11 +7377,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-dag-isel
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
@@ -7471,11 +7471,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-disassembler
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
@@ -7564,11 +7564,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-exegesis
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
@@ -7657,11 +7657,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-fast-isel
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
@@ -7750,11 +7750,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-global-isel
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
@@ -7843,11 +7843,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-instr-info
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
@@ -7936,11 +7936,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-emitter
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
@@ -8029,11 +8029,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-register-bank
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
@@ -8122,11 +8122,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-register-info
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
@@ -8215,11 +8215,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-subtarget
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
@@ -8288,11 +8288,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-asm-matcher
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
@@ -8361,11 +8361,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-asm-writer
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
@@ -8434,11 +8434,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-dag-isel
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
@@ -8508,11 +8508,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-disassembler
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
@@ -8581,11 +8581,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-fast-isel
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
@@ -8654,11 +8654,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-instr-info
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
@@ -8727,11 +8727,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-emitter
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
@@ -8800,11 +8800,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-register-info
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
@@ -8873,11 +8873,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-subtarget
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
@@ -8979,11 +8979,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-asm-matcher
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86
@@ -9085,11 +9085,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-asm-writer
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86
@@ -9191,11 +9191,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-asm-writer
   -asmwriternum=1
   -I
@@ -9298,11 +9298,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-callingconv
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86
@@ -9404,11 +9404,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-dag-isel
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86
@@ -9511,11 +9511,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-disassembler
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86
@@ -9617,11 +9617,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-x86-EVEX2VEX-tables
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86
@@ -9723,11 +9723,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-exegesis
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86
@@ -9829,11 +9829,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-fast-isel
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86
@@ -9935,11 +9935,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-global-isel
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86
@@ -10041,11 +10041,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-instr-info
   -instr-info-expand-mi-operand-info=0
   -I
@@ -10148,11 +10148,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-x86-mnemonic-tables
   -asmwriternum=1
   -I
@@ -10255,11 +10255,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-register-bank
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86
@@ -10361,11 +10361,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-register-info
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86
@@ -10467,11 +10467,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetPfmCounters.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSchedule.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Target/TargetSelectionDAG.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-subtarget
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86
@@ -10493,11 +10493,11 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ToolDrivers/llvm-dlltool/Options.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Option/OptParser.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-opt-parser-defs
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ToolDrivers/llvm-dlltool
@@ -10517,11 +10517,11 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ToolDrivers/llvm-lib/Options.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Option/OptParser.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-opt-parser-defs
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ToolDrivers/llvm-lib
@@ -10541,11 +10541,11 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/dsymutil/Options.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Option/OptParser.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-opt-parser-defs
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/dsymutil
@@ -10565,11 +10565,11 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-cvtres/Opts.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Option/OptParser.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-opt-parser-defs
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-cvtres
@@ -10589,11 +10589,11 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-cxxfilt/Opts.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Option/OptParser.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-opt-parser-defs
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-cxxfilt
@@ -10613,11 +10613,11 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-ifs/Opts.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Option/OptParser.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-opt-parser-defs
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-ifs
@@ -10637,11 +10637,11 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-lipo/LipoOpts.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Option/OptParser.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-opt-parser-defs
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-lipo
@@ -10661,11 +10661,11 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-ml/Opts.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Option/OptParser.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-opt-parser-defs
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-ml
@@ -10685,11 +10685,11 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-mt/Opts.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Option/OptParser.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-opt-parser-defs
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-mt
@@ -10709,11 +10709,11 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-nm/Opts.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Option/OptParser.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-opt-parser-defs
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-nm
@@ -10733,11 +10733,11 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-objcopy/BitcodeStripOpts.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Option/OptParser.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-opt-parser-defs
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-objcopy
@@ -10757,11 +10757,11 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-objcopy/InstallNameToolOpts.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Option/OptParser.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-opt-parser-defs
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-objcopy
@@ -10782,11 +10782,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-objcopy/CommonOpts.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-objcopy/ObjcopyOpts.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Option/OptParser.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-opt-parser-defs
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-objcopy
@@ -10807,11 +10807,11 @@ add_custom_command(
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-objcopy/CommonOpts.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-objcopy/StripOpts.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Option/OptParser.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-opt-parser-defs
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-objcopy
@@ -10831,11 +10831,11 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-objdump/ObjdumpOpts.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Option/OptParser.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-opt-parser-defs
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-objdump
@@ -10855,11 +10855,11 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-objdump/OtoolOpts.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Option/OptParser.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-opt-parser-defs
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-objdump
@@ -10879,11 +10879,11 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-rc/Opts.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Option/OptParser.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-opt-parser-defs
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-rc
@@ -10903,11 +10903,11 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-rc/WindresOpts.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Option/OptParser.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-opt-parser-defs
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-rc
@@ -10927,11 +10927,11 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-readobj/Opts.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Option/OptParser.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-opt-parser-defs
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-readobj
@@ -10951,11 +10951,11 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-size/Opts.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Option/OptParser.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-opt-parser-defs
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-size
@@ -10975,11 +10975,11 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-strings/Opts.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Option/OptParser.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-opt-parser-defs
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-strings
@@ -10999,11 +10999,11 @@ add_custom_command(
   DEPENDS
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-symbolizer/Opts.td
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include/llvm/Option/OptParser.td
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16
   COMMAND
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/utils/TableGen/llvm-tblgen
+  ${TOOL_llvm-tblgen_bin}
   -gen-opt-parser-defs
   -I
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/tools/llvm-symbolizer
@@ -11016,3 +11016,8 @@ add_custom_command(
   -d
   ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/tools/llvm-symbolizer/Opts.inc.d
 )
+if(NOT CMAKE_CROSSCOMPILING)
+  add_dependencies(libs-llvm16-include
+    llvm-tblgen
+)
+endif()

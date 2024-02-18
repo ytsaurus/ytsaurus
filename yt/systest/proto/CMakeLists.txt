@@ -83,11 +83,11 @@ target_proto_messages(yt-systest-proto PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/systest/proto/validator.proto
 )
 target_sources(yt-systest-proto PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/systest/proto/operation.pb.h
-  ${PROJECT_BINARY_DIR}/yt/systest/proto/run_spec.pb.h
-  ${PROJECT_BINARY_DIR}/yt/systest/proto/test_spec.pb.h
-  ${PROJECT_BINARY_DIR}/yt/systest/proto/table.pb.h
-  ${PROJECT_BINARY_DIR}/yt/systest/proto/validator.pb.h
+  ${CMAKE_BINARY_DIR}/yt/systest/proto/operation.pb.h
+  ${CMAKE_BINARY_DIR}/yt/systest/proto/run_spec.pb.h
+  ${CMAKE_BINARY_DIR}/yt/systest/proto/test_spec.pb.h
+  ${CMAKE_BINARY_DIR}/yt/systest/proto/table.pb.h
+  ${CMAKE_BINARY_DIR}/yt/systest/proto/validator.pb.h
 )
 target_proto_addincls(yt-systest-proto
   ./

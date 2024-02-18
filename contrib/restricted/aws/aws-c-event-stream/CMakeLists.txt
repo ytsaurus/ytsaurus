@@ -31,7 +31,7 @@ target_compile_options(restricted-aws-aws-c-event-stream PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-aws-aws-c-event-stream PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-event-stream/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/aws/aws-c-event-stream/include
 )
 target_link_libraries(restricted-aws-aws-c-event-stream PUBLIC
   contrib-libs-linux-headers

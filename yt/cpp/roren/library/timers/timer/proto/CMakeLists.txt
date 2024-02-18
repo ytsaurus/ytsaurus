@@ -30,7 +30,7 @@ target_proto_messages(timers-timer-proto PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/library/timers/timer/proto/timers.proto
 )
 target_sources(timers-timer-proto PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/cpp/roren/library/timers/timer/proto/timers.pb.h
+  ${CMAKE_BINARY_DIR}/yt/cpp/roren/library/timers/timer/proto/timers.pb.h
 )
 target_proto_addincls(timers-timer-proto
   ./

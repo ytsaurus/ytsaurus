@@ -14,10 +14,10 @@ target_compile_options(restricted-boost-locale PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-boost-locale PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/locale/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/locale/include
 )
 target_include_directories(restricted-boost-locale PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/locale/src
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/locale/src
 )
 target_link_libraries(restricted-boost-locale PUBLIC
   contrib-libs-linux-headers

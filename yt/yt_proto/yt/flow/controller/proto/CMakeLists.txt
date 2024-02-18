@@ -33,7 +33,7 @@ get_built_tool_path(
 
 add_library(flow-controller-proto)
 target_include_directories(flow-controller-proto PUBLIC
-  ${PROJECT_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(flow-controller-proto PUBLIC
   contrib-libs-linux-headers
@@ -47,8 +47,8 @@ target_proto_messages(flow-controller-proto PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/flow/controller/proto/worker_tracker_service.proto
 )
 target_sources(flow-controller-proto PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/flow/controller/proto/controller_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/flow/controller/proto/worker_tracker_service.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/flow/controller/proto/controller_service.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/flow/controller/proto/worker_tracker_service.pb.h
 )
 target_proto_addincls(flow-controller-proto
   ./yt

@@ -35,10 +35,10 @@ target_compile_options(contrib-libs-openssl PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(contrib-libs-openssl PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/openssl/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/openssl/include
 )
 target_include_directories(contrib-libs-openssl PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/openssl
+  ${CMAKE_SOURCE_DIR}/contrib/libs/openssl
 )
 target_link_libraries(contrib-libs-openssl PUBLIC
   contrib-libs-linux-headers

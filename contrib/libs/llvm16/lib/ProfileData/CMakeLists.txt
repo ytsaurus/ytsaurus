@@ -12,7 +12,7 @@ target_compile_options(llvm16-lib-ProfileData PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(llvm16-lib-ProfileData PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ProfileData
+  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ProfileData
 )
 target_link_libraries(llvm16-lib-ProfileData PUBLIC
   contrib-libs-linux-headers

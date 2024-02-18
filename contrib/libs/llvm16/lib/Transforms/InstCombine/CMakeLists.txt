@@ -12,7 +12,7 @@ target_compile_options(lib-Transforms-InstCombine PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-Transforms-InstCombine PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/InstCombine
+  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/InstCombine
 )
 target_link_libraries(lib-Transforms-InstCombine PUBLIC
   contrib-libs-linux-headers

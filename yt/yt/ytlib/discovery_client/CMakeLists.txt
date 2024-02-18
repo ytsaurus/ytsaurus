@@ -12,7 +12,7 @@ target_compile_options(yt-ytlib-discovery_client PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(yt-ytlib-discovery_client PUBLIC
-  ${PROJECT_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(yt-ytlib-discovery_client PUBLIC
   contrib-libs-linux-headers

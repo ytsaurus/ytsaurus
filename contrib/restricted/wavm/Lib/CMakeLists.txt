@@ -16,10 +16,10 @@ target_compile_options(restricted-wavm-Lib PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-wavm-Lib PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/libunwind/include
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/include
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/libunwind/include
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/wavm/Include
 )
 target_link_libraries(restricted-wavm-Lib PUBLIC
   contrib-libs-linux-headers

@@ -15,7 +15,7 @@ target_compile_options(restricted-aws-aws-c-compression PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-aws-aws-c-compression PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-compression/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/aws/aws-c-compression/include
 )
 target_link_libraries(restricted-aws-aws-c-compression PUBLIC
   contrib-libs-linux-headers

@@ -9,7 +9,7 @@
 
 add_library(restricted-boost-dynamic_bitset INTERFACE)
 target_include_directories(restricted-boost-dynamic_bitset INTERFACE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/dynamic_bitset/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/dynamic_bitset/include
 )
 target_link_libraries(restricted-boost-dynamic_bitset INTERFACE
   contrib-libs-linux-headers

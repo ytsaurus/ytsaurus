@@ -9,7 +9,7 @@
 
 add_executable(scheduler_simulator)
 target_include_directories(scheduler_simulator PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator
+  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator
 )
 target_link_libraries(scheduler_simulator PUBLIC
   contrib-libs-linux-headers

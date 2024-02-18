@@ -9,7 +9,7 @@
 
 add_library(restricted-boost-unordered INTERFACE)
 target_include_directories(restricted-boost-unordered INTERFACE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/unordered/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/unordered/include
 )
 target_link_libraries(restricted-boost-unordered INTERFACE
   contrib-libs-linux-headers

@@ -14,7 +14,7 @@ target_compile_options(unittester-web-assembly PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(unittester-web-assembly PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/wavm/Include
 )
 target_link_libraries(unittester-web-assembly PUBLIC
   contrib-libs-linux-headers

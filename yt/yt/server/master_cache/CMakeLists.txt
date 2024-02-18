@@ -12,7 +12,7 @@ target_compile_options(yt-server-master_cache PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(yt-server-master_cache PUBLIC
-  ${PROJECT_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(yt-server-master_cache PUBLIC
   contrib-libs-linux-headers

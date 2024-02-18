@@ -12,10 +12,10 @@ target_compile_options(library-query-engine_api PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(library-query-engine_api PUBLIC
-  ${PROJECT_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/yt
 )
 target_include_directories(library-query-engine_api PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
+  ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
 )
 target_link_libraries(library-query-engine_api PUBLIC
   contrib-libs-linux-headers

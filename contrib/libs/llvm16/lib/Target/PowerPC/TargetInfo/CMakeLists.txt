@@ -12,8 +12,8 @@ target_compile_options(Target-PowerPC-TargetInfo PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(Target-PowerPC-TargetInfo PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/TargetInfo
+  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
+  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/TargetInfo
 )
 target_link_libraries(Target-PowerPC-TargetInfo PUBLIC
   contrib-libs-linux-headers

@@ -9,7 +9,7 @@
 
 add_executable(yt-cpp-mapreduce-common-ut)
 target_include_directories(yt-cpp-mapreduce-common-ut PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/common
+  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/common
 )
 target_link_libraries(yt-cpp-mapreduce-common-ut PUBLIC
   contrib-libs-linux-headers

@@ -12,7 +12,7 @@ target_compile_options(restricted-boost-exception PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-boost-exception PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/exception/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/exception/include
 )
 target_link_libraries(restricted-boost-exception PUBLIC
   contrib-libs-linux-headers

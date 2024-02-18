@@ -13,7 +13,7 @@ target_compile_options(unittester-query PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(unittester-query PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
+  ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
 )
 target_link_libraries(unittester-query PUBLIC
   contrib-libs-linux-headers

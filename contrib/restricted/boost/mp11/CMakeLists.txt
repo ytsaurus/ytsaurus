@@ -9,7 +9,7 @@
 
 add_library(restricted-boost-mp11 INTERFACE)
 target_include_directories(restricted-boost-mp11 INTERFACE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/mp11/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/mp11/include
 )
 target_link_libraries(restricted-boost-mp11 INTERFACE
   contrib-libs-linux-headers

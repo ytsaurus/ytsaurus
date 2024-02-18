@@ -9,7 +9,7 @@
 
 add_library(restricted-boost-variant2 INTERFACE)
 target_include_directories(restricted-boost-variant2 INTERFACE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/variant2/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/variant2/include
 )
 target_link_libraries(restricted-boost-variant2 INTERFACE
   contrib-libs-linux-headers

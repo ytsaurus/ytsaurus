@@ -16,12 +16,12 @@ target_compile_options(contrib-libs-icu PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(contrib-libs-icu PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/icu/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/icu/include
 )
 target_include_directories(contrib-libs-icu PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/icu/common
-  ${PROJECT_SOURCE_DIR}/contrib/libs/icu/i18n
-  ${PROJECT_SOURCE_DIR}/contrib/libs/icu/io
+  ${CMAKE_SOURCE_DIR}/contrib/libs/icu/common
+  ${CMAKE_SOURCE_DIR}/contrib/libs/icu/i18n
+  ${CMAKE_SOURCE_DIR}/contrib/libs/icu/io
 )
 target_link_libraries(contrib-libs-icu PUBLIC
   contrib-libs-linux-headers

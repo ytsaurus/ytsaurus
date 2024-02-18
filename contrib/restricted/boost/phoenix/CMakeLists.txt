@@ -9,7 +9,7 @@
 
 add_library(restricted-boost-phoenix INTERFACE)
 target_include_directories(restricted-boost-phoenix INTERFACE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/phoenix/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/phoenix/include
 )
 target_link_libraries(restricted-boost-phoenix INTERFACE
   contrib-libs-linux-headers

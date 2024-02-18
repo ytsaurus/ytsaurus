@@ -9,7 +9,7 @@
 
 add_library(restricted-boost-array INTERFACE)
 target_include_directories(restricted-boost-array INTERFACE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/array/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/array/include
 )
 target_link_libraries(restricted-boost-array INTERFACE
   contrib-libs-linux-headers

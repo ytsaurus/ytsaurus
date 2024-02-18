@@ -13,7 +13,7 @@ target_compile_options(contrib-libs-liburing PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(contrib-libs-liburing PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/liburing/src/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/liburing/src/include
 )
 target_link_libraries(contrib-libs-liburing PUBLIC
   contrib-libs-linux-headers

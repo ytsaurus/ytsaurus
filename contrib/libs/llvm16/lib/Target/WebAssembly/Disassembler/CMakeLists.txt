@@ -12,9 +12,9 @@ target_compile_options(Target-WebAssembly-Disassembler PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(Target-WebAssembly-Disassembler PRIVATE
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/Disassembler
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
+  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
+  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/Disassembler
 )
 target_link_libraries(Target-WebAssembly-Disassembler PUBLIC
   contrib-libs-linux-headers

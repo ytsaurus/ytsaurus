@@ -241,7 +241,7 @@ target_compile_options(yt-server-master PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(yt-server-master PUBLIC
-  ${PROJECT_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(yt-server-master PUBLIC
   contrib-libs-linux-headers
@@ -293,25 +293,25 @@ target_proto_messages(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/transaction_server/proto/transaction_manager.proto
 )
 target_sources(yt-server-master PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/alert_manager.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/epoch_history_manager.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/multicell_manager.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/response_keeper_manager.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/chaos_server/proto/alien_cell.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/chaos_server/proto/chaos_manager.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/chunk_autotomizer.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/chunk_merger.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/chunk_reincarnator.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/master_cell_chunk_statistics_collector.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/cypress_server/proto/cypress_manager.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/cypress_server/proto/grafting_manager.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/cypress_server/proto/portal_manager.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/maintenance_tracker_server/proto/maintenance_tracker.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/node_tracker_server/proto/node_tracker.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/object_server/proto/object_manager.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/security_server/proto/security_manager.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/master/cell_master/proto/alert_manager.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/master/cell_master/proto/epoch_history_manager.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/master/cell_master/proto/multicell_manager.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/master/cell_master/proto/response_keeper_manager.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/master/chaos_server/proto/alien_cell.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/master/chaos_server/proto/chaos_manager.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/chunk_autotomizer.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/chunk_merger.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/chunk_reincarnator.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/master_cell_chunk_statistics_collector.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/master/cypress_server/proto/cypress_manager.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/master/cypress_server/proto/grafting_manager.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/master/cypress_server/proto/portal_manager.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/master/maintenance_tracker_server/proto/maintenance_tracker.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/master/node_tracker_server/proto/node_tracker.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/master/object_server/proto/object_manager.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/master/security_server/proto/security_manager.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/cell_master/alert_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/cell_master/automaton.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/cell_master/bootstrap.cpp

@@ -13,11 +13,11 @@ target_compile_options(src-compiler-grpc_plugin_support PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(src-compiler-grpc_plugin_support PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc/include
 )
 target_include_directories(src-compiler-grpc_plugin_support PRIVATE
-  ${PROJECT_BINARY_DIR}/contrib/libs/grpc
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc
+  ${CMAKE_BINARY_DIR}/contrib/libs/grpc
+  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc
 )
 target_link_libraries(src-compiler-grpc_plugin_support PUBLIC
   contrib-libs-linux-headers

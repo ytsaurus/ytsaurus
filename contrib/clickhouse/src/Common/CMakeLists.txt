@@ -37,22 +37,22 @@ target_compile_options(clickhouse-src-Common PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(clickhouse-src-Common PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/pcg-random
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/includes/configs
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base/pcg-random
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/includes/configs
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src
 )
 target_include_directories(clickhouse-src-Common PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/widechar_width
-  ${PROJECT_SOURCE_DIR}/contrib/libs/double-conversion
-  ${PROJECT_SOURCE_DIR}/contrib/libs/libunwind/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/lz4
-  ${PROJECT_SOURCE_DIR}/contrib/libs/miniselect/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/pdqsort
-  ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
-  ${PROJECT_SOURCE_DIR}/contrib/libs/zstd/include
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/fast_float/include
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base/widechar_width
+  ${CMAKE_SOURCE_DIR}/contrib/libs/double-conversion
+  ${CMAKE_SOURCE_DIR}/contrib/libs/libunwind/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/lz4
+  ${CMAKE_SOURCE_DIR}/contrib/libs/miniselect/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/pdqsort
+  ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
+  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/fast_float/include
 )
 target_link_libraries(clickhouse-src-Common PUBLIC
   contrib-libs-linux-headers

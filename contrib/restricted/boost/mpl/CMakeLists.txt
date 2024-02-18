@@ -9,7 +9,7 @@
 
 add_library(restricted-boost-mpl INTERFACE)
 target_include_directories(restricted-boost-mpl INTERFACE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/mpl/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/mpl/include
 )
 target_link_libraries(restricted-boost-mpl INTERFACE
   contrib-libs-linux-headers

@@ -12,7 +12,7 @@ target_compile_options(yt-server-tcp_proxy PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(yt-server-tcp_proxy PUBLIC
-  ${PROJECT_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(yt-server-tcp_proxy PUBLIC
   contrib-libs-linux-headers

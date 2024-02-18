@@ -12,7 +12,7 @@ target_compile_options(lib-DebugInfo-CodeView PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-DebugInfo-CodeView PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/DebugInfo/CodeView
+  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/DebugInfo/CodeView
 )
 target_link_libraries(lib-DebugInfo-CodeView PUBLIC
   contrib-libs-linux-headers

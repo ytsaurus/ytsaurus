@@ -12,7 +12,7 @@ target_compile_options(lib-Transforms-AggressiveInstCombine PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-Transforms-AggressiveInstCombine PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/AggressiveInstCombine
+  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/AggressiveInstCombine
 )
 target_link_libraries(lib-Transforms-AggressiveInstCombine PUBLIC
   contrib-libs-linux-headers

@@ -12,7 +12,7 @@ target_compile_options(llvm16-lib-IR PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(llvm16-lib-IR PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/IR
+  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/IR
 )
 target_link_libraries(llvm16-lib-IR PUBLIC
   contrib-libs-linux-headers

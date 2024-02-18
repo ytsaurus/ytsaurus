@@ -24,13 +24,13 @@ target_compile_options(libs-apache-orc PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(libs-apache-orc PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc/c++/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/include
 )
 target_include_directories(libs-apache-orc PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc/c++/src
-  ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc/proto
-  ${PROJECT_SOURCE_DIR}/contrib/libs/lz4
-  ${PROJECT_SOURCE_DIR}/contrib/libs/zstd/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src
+  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/proto
+  ${CMAKE_SOURCE_DIR}/contrib/libs/lz4
+  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/include
 )
 target_link_libraries(libs-apache-orc PUBLIC
   contrib-libs-linux-headers
@@ -45,7 +45,7 @@ target_proto_messages(libs-apache-orc PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/proto/orc_proto.proto
 )
 target_sources(libs-apache-orc PRIVATE
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/orc/proto/orc_proto.pb.h
+  ${CMAKE_BINARY_DIR}/contrib/libs/apache/orc/proto/orc_proto.pb.h
   ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/Adaptor.cc
   ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/BloomFilter.cc
   ${CMAKE_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/ByteRLE.cc

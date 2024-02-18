@@ -12,7 +12,7 @@ target_compile_options(lib-MC-MCParser PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-MC-MCParser PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCParser
+  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCParser
 )
 target_link_libraries(lib-MC-MCParser PUBLIC
   contrib-libs-linux-headers

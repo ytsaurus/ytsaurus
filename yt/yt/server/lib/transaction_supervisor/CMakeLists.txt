@@ -24,7 +24,7 @@ target_compile_options(server-lib-transaction_supervisor PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-transaction_supervisor PUBLIC
-  ${PROJECT_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-transaction_supervisor PUBLIC
   contrib-libs-linux-headers
@@ -39,7 +39,7 @@ target_proto_messages(server-lib-transaction_supervisor PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/proto/transaction_supervisor.proto
 )
 target_sources(server-lib-transaction_supervisor PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/transaction_supervisor/proto/transaction_supervisor.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/transaction_supervisor/proto/transaction_supervisor.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/abort.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/commit.cpp

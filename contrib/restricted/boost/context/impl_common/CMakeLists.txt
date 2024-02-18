@@ -13,7 +13,7 @@ target_compile_options(boost-context-impl_common PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(boost-context-impl_common PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/context/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/context/include
 )
 target_link_libraries(boost-context-impl_common PUBLIC
   contrib-libs-linux-headers

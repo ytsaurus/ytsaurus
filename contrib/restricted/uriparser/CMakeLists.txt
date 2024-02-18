@@ -14,10 +14,10 @@ target_compile_options(contrib-restricted-uriparser PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(contrib-restricted-uriparser PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/uriparser/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/uriparser/include
 )
 target_include_directories(contrib-restricted-uriparser PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/uriparser
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/uriparser
 )
 target_link_libraries(contrib-restricted-uriparser PUBLIC
   contrib-libs-linux-headers

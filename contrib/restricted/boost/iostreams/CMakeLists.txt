@@ -13,11 +13,11 @@ target_compile_options(restricted-boost-iostreams PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-boost-iostreams PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/iostreams/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/iostreams/include
 )
 target_include_directories(restricted-boost-iostreams PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/libbz2
-  ${PROJECT_SOURCE_DIR}/contrib/libs/zstd/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/libbz2
+  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/include
 )
 target_link_libraries(restricted-boost-iostreams PUBLIC
   contrib-libs-linux-headers

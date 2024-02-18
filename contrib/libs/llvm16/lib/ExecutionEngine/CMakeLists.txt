@@ -16,7 +16,7 @@ target_compile_options(llvm16-lib-ExecutionEngine PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(llvm16-lib-ExecutionEngine PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine
+  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine
 )
 target_link_libraries(llvm16-lib-ExecutionEngine PUBLIC
   contrib-libs-linux-headers

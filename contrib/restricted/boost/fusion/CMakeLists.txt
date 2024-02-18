@@ -9,7 +9,7 @@
 
 add_library(restricted-boost-fusion INTERFACE)
 target_include_directories(restricted-boost-fusion INTERFACE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/fusion/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/fusion/include
 )
 target_link_libraries(restricted-boost-fusion INTERFACE
   contrib-libs-linux-headers

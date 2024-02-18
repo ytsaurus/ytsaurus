@@ -32,7 +32,7 @@ target_proto_messages(yt-client-hedging-proto PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/client/hedging/proto/config.proto
 )
 target_sources(yt-client-hedging-proto PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/client/hedging/proto/config.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/hedging/proto/config.pb.h
 )
 target_proto_addincls(yt-client-hedging-proto
   ./

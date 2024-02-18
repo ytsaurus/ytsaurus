@@ -12,7 +12,7 @@ target_compile_options(llvm16-lib-Demangle PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(llvm16-lib-Demangle PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Demangle
+  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Demangle
 )
 target_link_libraries(llvm16-lib-Demangle PUBLIC
   contrib-libs-linux-headers

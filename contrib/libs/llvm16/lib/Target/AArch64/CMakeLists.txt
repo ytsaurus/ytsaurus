@@ -17,8 +17,8 @@ target_compile_options(lib-Target-AArch64 PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-Target-AArch64 PRIVATE
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64
+  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64
 )
 target_link_libraries(lib-Target-AArch64 PUBLIC
   contrib-libs-linux-headers

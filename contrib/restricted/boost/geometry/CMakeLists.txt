@@ -9,7 +9,7 @@
 
 add_library(restricted-boost-geometry INTERFACE)
 target_include_directories(restricted-boost-geometry INTERFACE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/geometry/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/geometry/include
 )
 target_link_libraries(restricted-boost-geometry INTERFACE
   contrib-libs-linux-headers

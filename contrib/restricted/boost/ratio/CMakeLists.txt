@@ -9,7 +9,7 @@
 
 add_library(restricted-boost-ratio INTERFACE)
 target_include_directories(restricted-boost-ratio INTERFACE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/ratio/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/ratio/include
 )
 target_link_libraries(restricted-boost-ratio INTERFACE
   contrib-libs-linux-headers

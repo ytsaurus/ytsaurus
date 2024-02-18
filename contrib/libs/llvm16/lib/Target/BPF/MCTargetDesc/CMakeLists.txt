@@ -12,9 +12,9 @@ target_compile_options(Target-BPF-MCTargetDesc PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(Target-BPF-MCTargetDesc PRIVATE
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/MCTargetDesc
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF
+  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
+  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/MCTargetDesc
 )
 target_link_libraries(Target-BPF-MCTargetDesc PUBLIC
   contrib-libs-linux-headers

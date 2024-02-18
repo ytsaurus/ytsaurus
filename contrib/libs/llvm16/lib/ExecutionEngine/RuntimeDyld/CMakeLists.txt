@@ -12,7 +12,7 @@ target_compile_options(lib-ExecutionEngine-RuntimeDyld PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-ExecutionEngine-RuntimeDyld PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/RuntimeDyld
+  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/RuntimeDyld
 )
 target_link_libraries(lib-ExecutionEngine-RuntimeDyld PUBLIC
   contrib-libs-linux-headers

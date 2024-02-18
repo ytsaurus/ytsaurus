@@ -16,7 +16,7 @@ target_compile_options(python-driver-lib PRIVATE
   -Wno-register
 )
 target_include_directories(python-driver-lib PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
+  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx
 )
 target_link_libraries(python-driver-lib PUBLIC
   contrib-libs-linux-headers

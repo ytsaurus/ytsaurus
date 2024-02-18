@@ -9,7 +9,7 @@
 
 add_library(restricted-boost-math INTERFACE)
 target_include_directories(restricted-boost-math INTERFACE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/math/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/math/include
 )
 target_link_libraries(restricted-boost-math INTERFACE
   contrib-libs-linux-headers

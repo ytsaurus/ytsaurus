@@ -9,7 +9,7 @@
 
 add_executable(convert_operations_to_binary_format)
 target_include_directories(convert_operations_to_binary_format PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator
+  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator
 )
 target_link_libraries(convert_operations_to_binary_format PUBLIC
   contrib-libs-linux-headers

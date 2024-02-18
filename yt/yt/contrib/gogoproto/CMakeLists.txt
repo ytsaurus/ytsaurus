@@ -21,7 +21,7 @@ get_built_tool_path(
 
 add_library(yt-contrib-gogoproto)
 target_include_directories(yt-contrib-gogoproto PUBLIC
-  ${PROJECT_BINARY_DIR}/yt/yt/contrib/gogoproto
+  ${CMAKE_BINARY_DIR}/yt/yt/contrib/gogoproto
 )
 target_link_libraries(yt-contrib-gogoproto PUBLIC
   contrib-libs-linux-headers
@@ -33,7 +33,7 @@ target_proto_messages(yt-contrib-gogoproto PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/contrib/gogoproto/github.com/gogo/protobuf/gogoproto/gogo.proto
 )
 target_sources(yt-contrib-gogoproto PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/contrib/gogoproto/github.com/gogo/protobuf/gogoproto/gogo.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/contrib/gogoproto/github.com/gogo/protobuf/gogoproto/gogo.pb.h
 )
 target_proto_addincls(yt-contrib-gogoproto
   ./yt/yt/contrib/gogoproto

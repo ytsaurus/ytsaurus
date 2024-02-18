@@ -12,9 +12,9 @@ target_compile_options(Target-ARM-AsmParser PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(Target-ARM-AsmParser PRIVATE
-  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/AsmParser
+  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM
+  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
+  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/AsmParser
 )
 target_link_libraries(Target-ARM-AsmParser PUBLIC
   contrib-libs-linux-headers

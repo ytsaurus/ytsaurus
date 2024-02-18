@@ -9,7 +9,7 @@
 
 add_library(restricted-boost-rational INTERFACE)
 target_include_directories(restricted-boost-rational INTERFACE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/rational/include
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/rational/include
 )
 target_link_libraries(restricted-boost-rational INTERFACE
   contrib-libs-linux-headers

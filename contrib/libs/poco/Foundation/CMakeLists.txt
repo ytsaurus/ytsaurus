@@ -21,12 +21,12 @@ target_compile_options(libs-poco-Foundation PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(libs-poco-Foundation PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/include
+  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Foundation/include
 )
 target_include_directories(libs-poco-Foundation PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/double-conversion
-  ${PROJECT_SOURCE_DIR}/contrib/libs/pcre
-  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/src
+  ${CMAKE_SOURCE_DIR}/contrib/libs/double-conversion
+  ${CMAKE_SOURCE_DIR}/contrib/libs/pcre
+  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Foundation/src
 )
 target_link_libraries(libs-poco-Foundation PUBLIC
   contrib-libs-linux-headers
