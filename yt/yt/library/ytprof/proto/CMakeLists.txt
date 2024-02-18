@@ -21,7 +21,7 @@ get_built_tool_path(
 
 add_library(library-ytprof-proto)
 target_include_directories(library-ytprof-proto PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(library-ytprof-proto PUBLIC
   contrib-libs-linux-headers
@@ -33,7 +33,7 @@ target_proto_messages(library-ytprof-proto PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/ytprof/proto/profile.proto
 )
 target_sources(library-ytprof-proto PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/library/ytprof/proto/profile.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/library/ytprof/proto/profile.pb.h
 )
 target_proto_addincls(library-ytprof-proto
   ./yt

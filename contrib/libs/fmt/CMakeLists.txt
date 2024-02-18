@@ -15,7 +15,7 @@ target_compile_options(contrib-libs-fmt PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(contrib-libs-fmt PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/fmt/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/fmt/include
 )
 target_link_libraries(contrib-libs-fmt PUBLIC
   contrib-libs-linux-headers

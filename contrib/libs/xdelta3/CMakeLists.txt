@@ -17,7 +17,7 @@ target_compile_options(contrib-libs-xdelta3 PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(contrib-libs-xdelta3 PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/xdelta3
+  ${PROJECT_SOURCE_DIR}/contrib/libs/xdelta3
 )
 target_link_libraries(contrib-libs-xdelta3 PUBLIC
   contrib-libs-linux-headers

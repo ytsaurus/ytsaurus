@@ -46,7 +46,7 @@ target_proto_messages(multiple_input_multiple_output_reduce_protobuf PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/multiple_input_multiple_output_reduce_protobuf/data.proto
 )
 target_sources(multiple_input_multiple_output_reduce_protobuf PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/cpp/mapreduce/examples/tutorial/multiple_input_multiple_output_reduce_protobuf/data.pb.h
+  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/examples/tutorial/multiple_input_multiple_output_reduce_protobuf/data.pb.h
   ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/multiple_input_multiple_output_reduce_protobuf/main.cpp
 )
 target_allocator(multiple_input_multiple_output_reduce_protobuf

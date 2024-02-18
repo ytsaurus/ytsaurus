@@ -18,11 +18,11 @@ target_compile_options(contrib-libs-curl PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(contrib-libs-curl PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/curl/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/curl/include
 )
 target_include_directories(contrib-libs-curl PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/c-ares/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/curl/lib
+  ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib
 )
 target_link_libraries(contrib-libs-curl PUBLIC
   contrib-libs-linux-headers

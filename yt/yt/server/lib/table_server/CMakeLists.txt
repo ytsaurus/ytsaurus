@@ -24,7 +24,7 @@ target_compile_options(server-lib-table_server PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-table_server PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-table_server PUBLIC
   contrib-libs-linux-headers
@@ -38,7 +38,7 @@ target_proto_messages(server-lib-table_server PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/table_server/proto/table_manager.proto
 )
 target_sources(server-lib-table_server PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/table_server/proto/table_manager.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/table_server/proto/table_manager.pb.h
 )
 target_proto_addincls(server-lib-table_server
   ./yt

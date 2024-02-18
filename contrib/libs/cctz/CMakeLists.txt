@@ -13,7 +13,7 @@ target_compile_options(contrib-libs-cctz PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(contrib-libs-cctz PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/cctz/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/cctz/include
 )
 target_link_libraries(contrib-libs-cctz PUBLIC
   contrib-libs-linux-headers

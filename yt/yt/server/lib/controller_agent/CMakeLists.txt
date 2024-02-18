@@ -24,7 +24,7 @@ target_compile_options(server-lib-controller_agent PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-controller_agent PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-controller_agent PUBLIC
   contrib-libs-linux-headers
@@ -39,7 +39,7 @@ target_proto_messages(server-lib-controller_agent PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/controller_agent/proto/job_tracker_service.proto
 )
 target_sources(server-lib-controller_agent PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/controller_agent/proto/job_tracker_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/controller_agent/proto/job_tracker_service.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/controller_agent/serialize.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/controller_agent/statistics.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/controller_agent/structs.cpp

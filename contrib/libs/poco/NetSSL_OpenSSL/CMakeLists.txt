@@ -18,14 +18,14 @@ target_compile_options(libs-poco-NetSSL_OpenSSL PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(libs-poco-NetSSL_OpenSSL PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/NetSSL_OpenSSL/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/NetSSL_OpenSSL/include
 )
 target_include_directories(libs-poco-NetSSL_OpenSSL PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Crypto/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Foundation/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Net/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/NetSSL_OpenSSL/src
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Util/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Crypto/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Net/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/NetSSL_OpenSSL/src
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Util/include
 )
 target_link_libraries(libs-poco-NetSSL_OpenSSL PUBLIC
   contrib-libs-linux-headers

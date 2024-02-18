@@ -47,7 +47,7 @@ target_proto_messages(mapreduce_lambda PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/mapreduce_lambda/data.proto
 )
 target_sources(mapreduce_lambda PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/cpp/mapreduce/examples/tutorial/mapreduce_lambda/data.pb.h
+  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/examples/tutorial/mapreduce_lambda/data.pb.h
   ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/mapreduce_lambda/main.cpp
 )
 target_allocator(mapreduce_lambda

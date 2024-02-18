@@ -36,7 +36,7 @@ target_compile_options(chyt-server-protos PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(chyt-server-protos PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(chyt-server-protos PUBLIC
   contrib-libs-linux-headers
@@ -51,8 +51,8 @@ target_proto_messages(chyt-server-protos PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/protos/subquery_spec.proto
 )
 target_sources(chyt-server-protos PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/chyt/server/protos/clickhouse_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/chyt/server/protos/subquery_spec.pb.h
+  ${PROJECT_BINARY_DIR}/yt/chyt/server/protos/clickhouse_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/chyt/server/protos/subquery_spec.pb.h
 )
 target_proto_addincls(chyt-server-protos
   ./yt

@@ -12,14 +12,14 @@ target_compile_options(yt-library-clickhouse_functions PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(yt-library-clickhouse_functions PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src
-  ${CMAKE_SOURCE_DIR}/contrib/libs/double-conversion
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Foundation/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Net/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Util/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/XML/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/re2
-  ${CMAKE_SOURCE_DIR}/contrib/libs/rapidjson/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src
+  ${PROJECT_SOURCE_DIR}/contrib/libs/double-conversion
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Net/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Util/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/XML/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/re2
+  ${PROJECT_SOURCE_DIR}/contrib/libs/rapidjson/include
 )
 target_link_libraries(yt-library-clickhouse_functions PUBLIC
   contrib-libs-linux-headers
@@ -38,14 +38,14 @@ target_compile_options(yt-library-clickhouse_functions.global PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(yt-library-clickhouse_functions.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src
-  ${CMAKE_SOURCE_DIR}/contrib/libs/double-conversion
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Foundation/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Net/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Util/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/XML/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/re2
-  ${CMAKE_SOURCE_DIR}/contrib/libs/rapidjson/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src
+  ${PROJECT_SOURCE_DIR}/contrib/libs/double-conversion
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Net/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Util/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/XML/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/re2
+  ${PROJECT_SOURCE_DIR}/contrib/libs/rapidjson/include
 )
 target_link_libraries(yt-library-clickhouse_functions.global PUBLIC
   contrib-libs-linux-headers

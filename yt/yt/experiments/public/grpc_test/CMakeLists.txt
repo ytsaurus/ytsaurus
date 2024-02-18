@@ -45,7 +45,7 @@ target_proto_messages(grpc_test PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/grpc_test/main.proto
 )
 target_sources(grpc_test PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/experiments/public/grpc_test/main.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/experiments/public/grpc_test/main.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/grpc_test/main.cpp
 )
 target_allocator(grpc_test

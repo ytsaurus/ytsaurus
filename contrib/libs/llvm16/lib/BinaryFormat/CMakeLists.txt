@@ -12,7 +12,7 @@ target_compile_options(llvm16-lib-BinaryFormat PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(llvm16-lib-BinaryFormat PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/BinaryFormat
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/BinaryFormat
 )
 target_link_libraries(llvm16-lib-BinaryFormat PUBLIC
   contrib-libs-linux-headers

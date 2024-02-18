@@ -12,7 +12,7 @@ target_compile_options(unittester-library-numeric PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(unittester-library-numeric PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/numeric
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/numeric
 )
 target_link_libraries(unittester-library-numeric PUBLIC
   contrib-libs-linux-headers

@@ -39,7 +39,7 @@ target_compile_options(restricted-aws-aws-crt-cpp PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-aws-aws-crt-cpp PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/aws/aws-crt-cpp/include
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-crt-cpp/include
 )
 target_link_libraries(restricted-aws-aws-crt-cpp PUBLIC
   contrib-libs-linux-headers

@@ -19,11 +19,11 @@ target_compile_options(libs-poco-Data PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(libs-poco-Data PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/include
 )
 target_include_directories(libs-poco-Data PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Foundation/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/include
 )
 target_link_libraries(libs-poco-Data PUBLIC
   contrib-libs-linux-headers

@@ -12,7 +12,7 @@ target_compile_options(lib-Transforms-Vectorize PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-Transforms-Vectorize PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Vectorize
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Vectorize
 )
 target_link_libraries(lib-Transforms-Vectorize PUBLIC
   contrib-libs-linux-headers

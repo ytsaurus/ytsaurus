@@ -67,9 +67,9 @@ target_proto_messages(proto PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/proto/test_part.proto
 )
 target_sources(proto PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/benchmarks/proto/test_base.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/benchmarks/proto/test_full.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/benchmarks/proto/test_part.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/benchmarks/proto/test_base.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/benchmarks/proto/test_full.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/benchmarks/proto/test_part.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/proto/main.cpp
 )
 target_allocator(proto

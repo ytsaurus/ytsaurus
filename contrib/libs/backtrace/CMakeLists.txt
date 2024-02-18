@@ -13,7 +13,7 @@ target_compile_options(contrib-libs-backtrace PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(contrib-libs-backtrace PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/backtrace
+  ${PROJECT_SOURCE_DIR}/contrib/libs/backtrace
 )
 target_link_libraries(contrib-libs-backtrace PUBLIC
   contrib-libs-linux-headers

@@ -24,7 +24,7 @@ target_compile_options(server-lib-security_server PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-security_server PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-security_server PUBLIC
   contrib-libs-linux-headers
@@ -37,7 +37,7 @@ target_proto_messages(server-lib-security_server PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/security_server/proto/security_manager.proto
 )
 target_sources(server-lib-security_server PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/security_server/proto/security_manager.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/security_server/proto/security_manager.pb.h
 )
 target_proto_addincls(server-lib-security_server
   ./yt

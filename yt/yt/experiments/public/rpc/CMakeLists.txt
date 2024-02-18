@@ -51,7 +51,7 @@ target_proto_messages(rpc PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/rpc/main.proto
 )
 target_sources(rpc PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/experiments/public/rpc/main.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/experiments/public/rpc/main.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/rpc/main.cpp
 )
 target_allocator(rpc

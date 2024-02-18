@@ -51,7 +51,7 @@ target_proto_messages(unittester-tablet-node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/proto/simple_transaction_supervisor.proto
 )
 target_sources(unittester-tablet-node PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/server/node/tablet_node/unittests/proto/simple_transaction_supervisor.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/node/tablet_node/unittests/proto/simple_transaction_supervisor.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/lookup_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/ordered_dynamic_store_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/ordered_store_manager_ut.cpp

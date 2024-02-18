@@ -35,12 +35,12 @@ target_compile_options(libs-openssl-crypto PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(libs-openssl-crypto PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/openssl
-  ${CMAKE_SOURCE_DIR}/contrib/libs/openssl/crypto
-  ${CMAKE_SOURCE_DIR}/contrib/libs/openssl/crypto/ec/curve448
-  ${CMAKE_SOURCE_DIR}/contrib/libs/openssl/crypto/ec/curve448/arch_32
-  ${CMAKE_SOURCE_DIR}/contrib/libs/openssl/crypto/modes
-  ${CMAKE_SOURCE_DIR}/contrib/libs/openssl/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/openssl
+  ${PROJECT_SOURCE_DIR}/contrib/libs/openssl/crypto
+  ${PROJECT_SOURCE_DIR}/contrib/libs/openssl/crypto/ec/curve448
+  ${PROJECT_SOURCE_DIR}/contrib/libs/openssl/crypto/ec/curve448/arch_32
+  ${PROJECT_SOURCE_DIR}/contrib/libs/openssl/crypto/modes
+  ${PROJECT_SOURCE_DIR}/contrib/libs/openssl/include
 )
 target_link_libraries(libs-openssl-crypto PUBLIC
   contrib-libs-linux-headers

@@ -12,7 +12,7 @@ target_compile_options(library-query-misc PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(library-query-misc PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(library-query-misc PUBLIC
   contrib-libs-linux-headers

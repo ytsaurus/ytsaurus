@@ -48,7 +48,7 @@ target_proto_messages(hydra_stress PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/peer_service.proto
 )
 target_sources(hydra_stress PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/experiments/public/hydra_stress_test/peer_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/experiments/public/hydra_stress_test/peer_service.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/automaton.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/channel.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/checkers.cpp

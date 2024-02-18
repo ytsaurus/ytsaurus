@@ -24,7 +24,7 @@ target_compile_options(server-lib-cell_server PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-cell_server PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-cell_server PUBLIC
   contrib-libs-linux-headers
@@ -37,7 +37,7 @@ target_proto_messages(server-lib-cell_server PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/cell_server/proto/cell_manager.proto
 )
 target_sources(server-lib-cell_server PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/cell_server/proto/cell_manager.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/cell_server/proto/cell_manager.pb.h
 )
 target_proto_addincls(server-lib-cell_server
   ./yt

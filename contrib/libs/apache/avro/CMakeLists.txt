@@ -15,7 +15,7 @@ target_compile_options(libs-apache-avro PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(libs-apache-avro PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/apache/avro/api
+  ${PROJECT_SOURCE_DIR}/contrib/libs/apache/avro/api
 )
 target_link_libraries(libs-apache-avro PUBLIC
   contrib-libs-linux-headers

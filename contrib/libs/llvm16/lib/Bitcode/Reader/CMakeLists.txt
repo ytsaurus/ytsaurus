@@ -12,7 +12,7 @@ target_compile_options(lib-Bitcode-Reader PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-Bitcode-Reader PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Bitcode/Reader
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Bitcode/Reader
 )
 target_link_libraries(lib-Bitcode-Reader PUBLIC
   contrib-libs-linux-headers

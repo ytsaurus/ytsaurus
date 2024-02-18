@@ -24,7 +24,7 @@ target_compile_options(server-lib-hive PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-hive PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-hive PUBLIC
   contrib-libs-linux-headers
@@ -38,7 +38,7 @@ target_proto_messages(server-lib-hive PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/proto/hive_manager.proto
 )
 target_sources(server-lib-hive PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/hive/proto/hive_manager.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/hive/proto/hive_manager.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/avenue_directory.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/helpers.cpp

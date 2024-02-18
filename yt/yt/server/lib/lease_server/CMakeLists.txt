@@ -24,7 +24,7 @@ target_compile_options(server-lib-lease_server PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-lease_server PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-lease_server PUBLIC
   contrib-libs-linux-headers
@@ -39,7 +39,7 @@ target_proto_messages(server-lib-lease_server PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/lease_server/proto/lease_manager.proto
 )
 target_sources(server-lib-lease_server PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/lease_server/proto/lease_manager.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/lease_server/proto/lease_manager.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/lease_server/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/lease_server/lease_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/lease_server/serialize.cpp

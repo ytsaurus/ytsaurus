@@ -21,7 +21,7 @@ get_built_tool_path(
 
 add_library(chyt-client-protos)
 target_include_directories(chyt-client-protos PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(chyt-client-protos PUBLIC
   contrib-libs-linux-headers
@@ -34,7 +34,7 @@ target_proto_messages(chyt-client-protos PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/chyt/client/protos/query_service.proto
 )
 target_sources(chyt-client-protos PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/chyt/client/protos/query_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/chyt/client/protos/query_service.pb.h
 )
 target_proto_addincls(chyt-client-protos
   ./yt

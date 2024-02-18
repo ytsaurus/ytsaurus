@@ -12,7 +12,7 @@ target_compile_options(lib-Transforms-Instrumentation PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-Transforms-Instrumentation PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Instrumentation
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Instrumentation
 )
 target_link_libraries(lib-Transforms-Instrumentation PUBLIC
   contrib-libs-linux-headers

@@ -12,7 +12,7 @@ target_compile_options(unittester-http-proxy PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(unittester-http-proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
+  ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
 )
 target_link_libraries(unittester-http-proxy PUBLIC
   contrib-libs-linux-headers

@@ -17,7 +17,7 @@ target_compile_options(contrib-libs-pycxx PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(contrib-libs-pycxx PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
 )
 target_link_libraries(contrib-libs-pycxx PUBLIC
   contrib-libs-linux-headers

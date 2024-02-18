@@ -12,7 +12,7 @@ target_compile_options(server-lib-cellar_agent PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-cellar_agent PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-cellar_agent PUBLIC
   contrib-libs-linux-headers

@@ -50,7 +50,7 @@ target_compile_options(query-unittests-udf.global PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(query-unittests-udf.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/yt
 )
 target_link_libraries(query-unittests-udf.global PUBLIC
   contrib-libs-linux-headers

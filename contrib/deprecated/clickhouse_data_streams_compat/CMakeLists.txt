@@ -9,7 +9,7 @@
 
 add_library(contrib-deprecated-clickhouse_data_streams_compat)
 target_include_directories(contrib-deprecated-clickhouse_data_streams_compat PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat
+  ${PROJECT_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat
 )
 target_link_libraries(contrib-deprecated-clickhouse_data_streams_compat PUBLIC
   contrib-libs-linux-headers

@@ -12,7 +12,7 @@ target_compile_options(utils-TableGen-GlobalISel PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(utils-TableGen-GlobalISel PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/GlobalISel
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/GlobalISel
 )
 target_link_libraries(utils-TableGen-GlobalISel PUBLIC
   contrib-libs-linux-headers

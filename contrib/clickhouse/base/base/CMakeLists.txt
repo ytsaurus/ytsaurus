@@ -25,12 +25,12 @@ target_compile_options(clickhouse-base-base PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(clickhouse-base-base PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base
-  ${CMAKE_SOURCE_DIR}/contrib/libs/miniselect/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/pdqsort
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base
+  ${PROJECT_SOURCE_DIR}/contrib/libs/miniselect/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pdqsort
 )
 target_include_directories(clickhouse-base-base PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2
 )
 target_link_libraries(clickhouse-base-base PUBLIC
   contrib-libs-linux-headers

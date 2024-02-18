@@ -34,8 +34,8 @@ target_compile_options(restricted-aws-s2n PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-aws-s2n PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/aws/s2n
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/aws/s2n/api
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/s2n
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/s2n/api
 )
 target_link_libraries(restricted-aws-s2n PUBLIC
   contrib-libs-linux-headers

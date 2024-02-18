@@ -45,7 +45,7 @@ get_built_tool_path(
 
 add_executable(yt-cpp-mapreduce-interface-ut)
 target_include_directories(yt-cpp-mapreduce-interface-ut PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface
 )
 target_link_libraries(yt-cpp-mapreduce-interface-ut PUBLIC
   contrib-libs-linux-headers
@@ -74,9 +74,9 @@ target_proto_messages(yt-cpp-mapreduce-interface-ut PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_file_options_ut.proto
 )
 target_sources(yt-cpp-mapreduce-interface-ut PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/cpp/mapreduce/interface/proto3_ut.pb.h
-  ${CMAKE_BINARY_DIR}/yt/cpp/mapreduce/interface/protobuf_table_schema_ut.pb.h
-  ${CMAKE_BINARY_DIR}/yt/cpp/mapreduce/interface/protobuf_file_options_ut.pb.h
+  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/interface/proto3_ut.pb.h
+  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/interface/protobuf_table_schema_ut.pb.h
+  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/interface/protobuf_file_options_ut.pb.h
   ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/common_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/config_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/error_ut.cpp

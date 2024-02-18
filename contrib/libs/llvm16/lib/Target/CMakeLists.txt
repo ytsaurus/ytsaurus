@@ -19,7 +19,7 @@ target_compile_options(llvm16-lib-Target PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(llvm16-lib-Target PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target
 )
 target_link_libraries(llvm16-lib-Target PUBLIC
   contrib-libs-linux-headers

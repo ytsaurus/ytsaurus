@@ -17,7 +17,7 @@ target_compile_options(yt-python-yson PRIVATE
   -Wno-register
 )
 target_include_directories(yt-python-yson PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
 )
 target_link_libraries(yt-python-yson PUBLIC
   contrib-libs-linux-headers
@@ -64,7 +64,7 @@ target_compile_options(yt-python-yson.global PRIVATE
   -Wno-register
 )
 target_include_directories(yt-python-yson.global PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
 )
 target_link_libraries(yt-python-yson.global PUBLIC
   contrib-libs-linux-headers

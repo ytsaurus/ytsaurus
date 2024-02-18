@@ -14,11 +14,11 @@ target_compile_options(contrib-libs-nghttp2 PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(contrib-libs-nghttp2 PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/nghttp2/lib/includes
+  ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp2/lib/includes
 )
 target_include_directories(contrib-libs-nghttp2 PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/nghttp2
-  ${CMAKE_SOURCE_DIR}/contrib/libs/nghttp2/lib
+  ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp2
+  ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp2/lib
 )
 target_link_libraries(contrib-libs-nghttp2 PUBLIC
   contrib-libs-linux-headers

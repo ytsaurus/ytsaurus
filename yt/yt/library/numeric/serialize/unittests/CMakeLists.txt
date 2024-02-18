@@ -12,7 +12,7 @@ target_compile_options(unittester-yt-library-numeric PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(unittester-yt-library-numeric PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/numeric/serialize
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/numeric/serialize
 )
 target_link_libraries(unittester-yt-library-numeric PUBLIC
   contrib-libs-linux-headers

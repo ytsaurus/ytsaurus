@@ -12,7 +12,7 @@ target_compile_options(server-lib-zookeeper_master PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-zookeeper_master PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-zookeeper_master PUBLIC
   contrib-libs-linux-headers

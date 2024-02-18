@@ -9,7 +9,7 @@
 
 add_library(contrib-restricted-cityhash-1.0.2)
 target_include_directories(contrib-restricted-cityhash-1.0.2 PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2
 )
 target_link_libraries(contrib-restricted-cityhash-1.0.2 PUBLIC
   contrib-libs-linux-headers

@@ -12,7 +12,7 @@ target_compile_options(lib-MC-MCDisassembler PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-MC-MCDisassembler PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCDisassembler
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCDisassembler
 )
 target_link_libraries(lib-MC-MCDisassembler PUBLIC
   contrib-libs-linux-headers

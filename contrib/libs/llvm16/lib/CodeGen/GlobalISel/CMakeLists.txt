@@ -12,7 +12,7 @@ target_compile_options(lib-CodeGen-GlobalISel PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-CodeGen-GlobalISel PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel
 )
 target_link_libraries(lib-CodeGen-GlobalISel PUBLIC
   contrib-libs-linux-headers

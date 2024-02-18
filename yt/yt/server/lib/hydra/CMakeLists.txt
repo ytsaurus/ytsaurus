@@ -27,7 +27,7 @@ target_compile_options(server-lib-hydra PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-hydra PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-hydra PUBLIC
   contrib-libs-linux-headers
@@ -47,7 +47,7 @@ target_proto_messages(server-lib-hydra PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/proto/hydra_service.proto
 )
 target_sources(server-lib-hydra PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/hydra/proto/hydra_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/hydra/proto/hydra_service.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog_acquisition.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog_discovery.cpp

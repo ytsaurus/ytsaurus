@@ -12,7 +12,7 @@ target_compile_options(lib-CodeGen-MIRParser PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-CodeGen-MIRParser PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/MIRParser
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/MIRParser
 )
 target_link_libraries(lib-CodeGen-MIRParser PUBLIC
   contrib-libs-linux-headers

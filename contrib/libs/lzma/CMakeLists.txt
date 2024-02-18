@@ -17,18 +17,18 @@ target_compile_options(contrib-libs-lzma PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(contrib-libs-lzma PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lzma/liblzma/api
+  ${PROJECT_SOURCE_DIR}/contrib/libs/lzma/liblzma/api
 )
 target_include_directories(contrib-libs-lzma PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lzma/common
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lzma/liblzma
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lzma/liblzma/check
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lzma/liblzma/common
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lzma/liblzma/delta
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lzma/liblzma/lz
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lzma/liblzma/lzma
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lzma/liblzma/rangecoder
-  ${CMAKE_SOURCE_DIR}/contrib/libs/lzma/liblzma/simple
+  ${PROJECT_SOURCE_DIR}/contrib/libs/lzma/common
+  ${PROJECT_SOURCE_DIR}/contrib/libs/lzma/liblzma
+  ${PROJECT_SOURCE_DIR}/contrib/libs/lzma/liblzma/check
+  ${PROJECT_SOURCE_DIR}/contrib/libs/lzma/liblzma/common
+  ${PROJECT_SOURCE_DIR}/contrib/libs/lzma/liblzma/delta
+  ${PROJECT_SOURCE_DIR}/contrib/libs/lzma/liblzma/lz
+  ${PROJECT_SOURCE_DIR}/contrib/libs/lzma/liblzma/lzma
+  ${PROJECT_SOURCE_DIR}/contrib/libs/lzma/liblzma/rangecoder
+  ${PROJECT_SOURCE_DIR}/contrib/libs/lzma/liblzma/simple
 )
 target_link_libraries(contrib-libs-lzma PUBLIC
   contrib-libs-linux-headers

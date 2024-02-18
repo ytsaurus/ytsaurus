@@ -12,7 +12,7 @@ target_compile_options(lib-CodeGen-SelectionDAG PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-CodeGen-SelectionDAG PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG
 )
 target_link_libraries(lib-CodeGen-SelectionDAG PUBLIC
   contrib-libs-linux-headers

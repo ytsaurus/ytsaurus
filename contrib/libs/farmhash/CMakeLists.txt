@@ -13,7 +13,7 @@ target_compile_options(contrib-libs-farmhash PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(contrib-libs-farmhash PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/farmhash/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/farmhash/include
 )
 target_link_libraries(contrib-libs-farmhash PUBLIC
   contrib-libs-linux-headers

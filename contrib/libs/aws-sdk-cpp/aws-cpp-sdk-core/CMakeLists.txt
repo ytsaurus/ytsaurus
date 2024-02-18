@@ -51,7 +51,7 @@ target_compile_options(libs-aws-sdk-cpp-aws-cpp-sdk-core PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(libs-aws-sdk-cpp-aws-cpp-sdk-core PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/aws-sdk-cpp/aws-cpp-sdk-core/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/aws-sdk-cpp/aws-cpp-sdk-core/include
 )
 target_link_libraries(libs-aws-sdk-cpp-aws-cpp-sdk-core PUBLIC
   contrib-libs-linux-headers

@@ -12,7 +12,7 @@ target_compile_options(library-containers-cri PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(library-containers-cri PUBLIC
-  ${CMAKE_SOURCE_DIR}/yt/yt/contrib/cri-api
+  ${PROJECT_SOURCE_DIR}/yt/yt/contrib/cri-api
 )
 target_link_libraries(library-containers-cri PUBLIC
   contrib-libs-linux-headers

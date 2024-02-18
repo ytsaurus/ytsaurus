@@ -13,7 +13,7 @@ target_compile_options(server-lib-io PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-io PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-io PUBLIC
   contrib-libs-linux-headers

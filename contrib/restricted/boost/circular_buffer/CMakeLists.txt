@@ -9,7 +9,7 @@
 
 add_library(restricted-boost-circular_buffer INTERFACE)
 target_include_directories(restricted-boost-circular_buffer INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/circular_buffer/include
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/circular_buffer/include
 )
 target_link_libraries(restricted-boost-circular_buffer INTERFACE
   contrib-libs-linux-headers

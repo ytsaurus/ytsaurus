@@ -17,7 +17,7 @@ target_compile_options(contrib-restricted-thrift PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(contrib-restricted-thrift PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/thrift
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/thrift
 )
 target_link_libraries(contrib-restricted-thrift PUBLIC
   contrib-libs-linux-headers

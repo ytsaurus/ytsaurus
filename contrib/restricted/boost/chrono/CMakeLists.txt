@@ -12,7 +12,7 @@ target_compile_options(restricted-boost-chrono PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-boost-chrono PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/chrono/include
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/chrono/include
 )
 target_link_libraries(restricted-boost-chrono PUBLIC
   contrib-libs-linux-headers

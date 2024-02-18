@@ -16,7 +16,7 @@ target_compile_options(restricted-boost-filesystem PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-boost-filesystem PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/filesystem/include
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/filesystem/include
 )
 target_link_libraries(restricted-boost-filesystem PUBLIC
   contrib-libs-linux-headers

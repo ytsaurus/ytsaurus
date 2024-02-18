@@ -12,7 +12,7 @@ target_compile_options(yt-server-discovery_server PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(yt-server-discovery_server PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(yt-server-discovery_server PUBLIC
   contrib-libs-linux-headers

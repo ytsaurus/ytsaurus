@@ -12,9 +12,9 @@ target_compile_options(Target-X86-MCTargetDesc PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(Target-X86-MCTargetDesc PRIVATE
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc
+  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc
 )
 target_link_libraries(Target-X86-MCTargetDesc PUBLIC
   contrib-libs-linux-headers

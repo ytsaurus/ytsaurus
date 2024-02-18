@@ -46,7 +46,7 @@ target_proto_messages(mapreduce_protobuf PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/mapreduce_protobuf/data.proto
 )
 target_sources(mapreduce_protobuf PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/cpp/mapreduce/examples/tutorial/mapreduce_protobuf/data.pb.h
+  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/examples/tutorial/mapreduce_protobuf/data.pb.h
   ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/mapreduce_protobuf/main.cpp
 )
 target_allocator(mapreduce_protobuf

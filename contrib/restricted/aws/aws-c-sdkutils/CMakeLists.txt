@@ -15,7 +15,7 @@ target_compile_options(restricted-aws-aws-c-sdkutils PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-aws-aws-c-sdkutils PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/aws/aws-c-sdkutils/include
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-sdkutils/include
 )
 target_link_libraries(restricted-aws-aws-c-sdkutils PUBLIC
   contrib-libs-linux-headers

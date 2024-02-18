@@ -37,8 +37,8 @@ target_compile_options(yt-yt-client PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(yt-yt-client PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
-  ${CMAKE_BINARY_DIR}/yt/yt/client/_/api/rpc_proxy
+  ${PROJECT_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt/yt/client/_/api/rpc_proxy
 )
 target_link_libraries(yt-yt-client PUBLIC
   contrib-libs-linux-headers
@@ -59,7 +59,7 @@ target_link_libraries(yt-yt-client PUBLIC
   contrib-libs-pfr
 )
 target_sources(yt-yt-client PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/client/_/api/rpc_proxy/protocol_version_variables.h
+  ${PROJECT_BINARY_DIR}/yt/yt/client/_/api/rpc_proxy/protocol_version_variables.h
   ${CMAKE_SOURCE_DIR}/yt/yt/client/api/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/api/client.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/api/client_common.cpp
@@ -211,6 +211,6 @@ target_sources(yt-yt-client PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/client/zookeeper/requests.cpp
 )
 configure_file(
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/protocol_version_variables.h.in
-  ${CMAKE_BINARY_DIR}/yt/yt/client/_/api/rpc_proxy/protocol_version_variables.h
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/protocol_version_variables.h.in
+  ${PROJECT_BINARY_DIR}/yt/yt/client/_/api/rpc_proxy/protocol_version_variables.h
 )

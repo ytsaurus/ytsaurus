@@ -12,9 +12,9 @@ target_compile_options(Target-ARM-Disassembler PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(Target-ARM-Disassembler PRIVATE
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/Disassembler
+  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/Disassembler
 )
 target_link_libraries(Target-ARM-Disassembler PUBLIC
   contrib-libs-linux-headers

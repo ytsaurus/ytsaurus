@@ -61,9 +61,9 @@ target_proto_messages(server-lib-chunk_server PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_server/proto/job.proto
 )
 target_sources(server-lib-chunk_server PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/chunk_server/proto/job_common.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/chunk_server/proto/job_tracker_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/chunk_server/proto/job.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/chunk_server/proto/job_common.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/chunk_server/proto/job_tracker_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/chunk_server/proto/job.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_server/immutable_chunk_meta.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_server/helpers.cpp
 )

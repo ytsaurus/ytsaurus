@@ -18,12 +18,12 @@ target_compile_options(libs-poco-MongoDB PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(libs-poco-MongoDB PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/MongoDB/include
 )
 target_include_directories(libs-poco-MongoDB PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Foundation/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Net/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/MongoDB/src
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Net/include
 )
 target_link_libraries(libs-poco-MongoDB PUBLIC
   contrib-libs-linux-headers

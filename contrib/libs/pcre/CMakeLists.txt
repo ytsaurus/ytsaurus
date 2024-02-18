@@ -19,7 +19,7 @@ target_compile_options(contrib-libs-pcre PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(contrib-libs-pcre PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/pcre
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pcre
 )
 target_link_libraries(contrib-libs-pcre PUBLIC
   contrib-libs-linux-headers

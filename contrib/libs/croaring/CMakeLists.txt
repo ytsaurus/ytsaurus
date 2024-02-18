@@ -12,10 +12,10 @@ target_compile_options(contrib-libs-croaring PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(contrib-libs-croaring PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/include
 )
 target_include_directories(contrib-libs-croaring PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/croaring/include/roaring
+  ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/include/roaring
 )
 target_link_libraries(contrib-libs-croaring PUBLIC
   contrib-libs-linux-headers

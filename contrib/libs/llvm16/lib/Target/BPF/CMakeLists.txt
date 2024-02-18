@@ -16,8 +16,8 @@ target_compile_options(lib-Target-BPF PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-Target-BPF PRIVATE
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
+  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
 )
 target_link_libraries(lib-Target-BPF PUBLIC
   contrib-libs-linux-headers

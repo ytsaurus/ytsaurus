@@ -48,7 +48,7 @@ target_compile_options(library-query-proto PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(library-query-proto PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(library-query-proto PUBLIC
   contrib-libs-linux-headers
@@ -63,9 +63,9 @@ target_proto_messages(library-query-proto PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/proto/functions_cache.proto
 )
 target_sources(library-query-proto PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/proto/query.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/proto/query_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/proto/functions_cache.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/proto/query.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/proto/query_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/proto/functions_cache.pb.h
 )
 target_proto_addincls(library-query-proto
   ./yt

@@ -36,7 +36,7 @@ target_compile_options(restricted-aws-aws-c-s3 PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-aws-aws-c-s3 PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/aws/aws-c-s3/include
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-s3/include
 )
 target_link_libraries(restricted-aws-aws-c-s3 PUBLIC
   contrib-libs-linux-headers

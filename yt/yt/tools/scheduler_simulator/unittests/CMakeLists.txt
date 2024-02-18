@@ -12,7 +12,7 @@ target_compile_options(unittester-scheduler-simulator PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(unittester-scheduler-simulator PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator
 )
 target_link_libraries(unittester-scheduler-simulator PUBLIC
   contrib-libs-linux-headers

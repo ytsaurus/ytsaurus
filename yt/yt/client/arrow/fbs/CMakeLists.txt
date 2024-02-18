@@ -39,18 +39,18 @@ target_link_libraries(client-arrow-fbs PUBLIC
   contrib-libs-flatbuffers
 )
 target_sources(client-arrow-fbs PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/client/arrow/fbs/Message.fbs.h
-  ${CMAKE_BINARY_DIR}/yt/yt/client/arrow/fbs/Message.iter.fbs.h
-  ${CMAKE_BINARY_DIR}/yt/yt/client/arrow/fbs/Schema.fbs.h
-  ${CMAKE_BINARY_DIR}/yt/yt/client/arrow/fbs/Schema.iter.fbs.h
-  ${CMAKE_BINARY_DIR}/yt/yt/client/arrow/fbs/Tensor.fbs.h
-  ${CMAKE_BINARY_DIR}/yt/yt/client/arrow/fbs/Tensor.iter.fbs.h
-  ${CMAKE_BINARY_DIR}/yt/yt/client/arrow/fbs/SparseTensor.fbs.h
-  ${CMAKE_BINARY_DIR}/yt/yt/client/arrow/fbs/SparseTensor.iter.fbs.h
-  ${CMAKE_BINARY_DIR}/yt/yt/client/arrow/fbs/Message.bfbs
-  ${CMAKE_BINARY_DIR}/yt/yt/client/arrow/fbs/Schema.bfbs
-  ${CMAKE_BINARY_DIR}/yt/yt/client/arrow/fbs/Tensor.bfbs
-  ${CMAKE_BINARY_DIR}/yt/yt/client/arrow/fbs/SparseTensor.bfbs
+  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Message.fbs.h
+  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Message.iter.fbs.h
+  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Schema.fbs.h
+  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Schema.iter.fbs.h
+  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Tensor.fbs.h
+  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Tensor.iter.fbs.h
+  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/SparseTensor.fbs.h
+  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/SparseTensor.iter.fbs.h
+  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Message.bfbs
+  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Schema.bfbs
+  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/Tensor.bfbs
+  ${PROJECT_BINARY_DIR}/yt/yt/client/arrow/fbs/SparseTensor.bfbs
   ${CMAKE_BINARY_DIR}/yt/yt/client/arrow/fbs/Message.fbs.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/client/arrow/fbs/Schema.fbs.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/client/arrow/fbs/Tensor.fbs.cpp

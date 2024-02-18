@@ -14,8 +14,8 @@ target_compile_options(lib-Target-NVPTX PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-Target-NVPTX PRIVATE
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX
+  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX
 )
 target_link_libraries(lib-Target-NVPTX PUBLIC
   contrib-libs-linux-headers

@@ -44,8 +44,8 @@ target_proto_messages(roren-yt-proto PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/proto/kv.proto
 )
 target_sources(roren-yt-proto PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/cpp/roren/yt/proto/config.pb.h
-  ${CMAKE_BINARY_DIR}/yt/cpp/roren/yt/proto/kv.pb.h
+  ${PROJECT_BINARY_DIR}/yt/cpp/roren/yt/proto/config.pb.h
+  ${PROJECT_BINARY_DIR}/yt/cpp/roren/yt/proto/kv.pb.h
 )
 target_proto_addincls(roren-yt-proto
   ./

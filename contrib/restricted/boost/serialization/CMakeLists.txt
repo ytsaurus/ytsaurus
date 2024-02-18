@@ -12,7 +12,7 @@ target_compile_options(restricted-boost-serialization PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-boost-serialization PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/serialization/include
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/serialization/include
 )
 target_link_libraries(restricted-boost-serialization PUBLIC
   contrib-libs-linux-headers

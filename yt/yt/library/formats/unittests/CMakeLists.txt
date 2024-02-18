@@ -63,7 +63,7 @@ target_proto_messages(unittester-formats PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/protobuf_format_ut.proto
 )
 target_sources(unittester-formats PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/library/formats/unittests/protobuf_format_ut.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/library/formats/unittests/protobuf_format_ut.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/arrow_parser_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/arrow_writer_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/dsv_parser_ut.cpp

@@ -12,9 +12,9 @@ target_compile_options(Target-WebAssembly-AsmParser PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(Target-WebAssembly-AsmParser PRIVATE
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/AsmParser
+  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/AsmParser
 )
 target_link_libraries(Target-WebAssembly-AsmParser PUBLIC
   contrib-libs-linux-headers

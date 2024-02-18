@@ -12,7 +12,7 @@ target_compile_options(ExecutionEngine-Orc-Shared PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(ExecutionEngine-Orc-Shared PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/Shared
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/Shared
 )
 target_link_libraries(ExecutionEngine-Orc-Shared PUBLIC
   contrib-libs-linux-headers

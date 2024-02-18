@@ -12,7 +12,7 @@ target_compile_options(unittester-ytlib PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(unittester-ytlib PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
+  ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
 )
 target_link_libraries(unittester-ytlib PUBLIC
   contrib-libs-linux-headers

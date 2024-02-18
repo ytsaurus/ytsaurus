@@ -12,7 +12,7 @@ target_compile_options(isa-l_ec PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(isa-l_ec PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/isa-l/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/include
 )
 target_link_libraries(isa-l_ec PUBLIC
   contrib-libs-linux-headers

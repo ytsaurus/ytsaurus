@@ -12,7 +12,7 @@ target_compile_options(lib-DebugInfo-MSF PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-DebugInfo-MSF PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/DebugInfo/MSF
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/DebugInfo/MSF
 )
 target_link_libraries(lib-DebugInfo-MSF PUBLIC
   contrib-libs-linux-headers

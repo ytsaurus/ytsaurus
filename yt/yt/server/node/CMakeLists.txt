@@ -65,10 +65,10 @@ target_compile_options(yt-server-node PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(yt-server-node PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_include_directories(yt-server-node PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
+  ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
 )
 target_link_libraries(yt-server-node PUBLIC
   contrib-libs-linux-headers
@@ -111,10 +111,10 @@ target_proto_messages(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/transaction_manager.proto
 )
 target_sources(yt-server-node PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/server/node/data_node/artifact.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/server/node/exec_node/volume.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/server/node/tablet_node/in_memory_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/server/node/tablet_node/transaction_manager.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/node/data_node/artifact.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/node/exec_node/volume.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/node/tablet_node/in_memory_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/node/tablet_node/transaction_manager.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/cluster_node/proxying_chunk_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/cluster_node/dynamic_config_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/cluster_node/node_resource_manager.cpp

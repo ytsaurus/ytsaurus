@@ -29,7 +29,7 @@ target_compile_options(restricted-aws-aws-c-io PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-aws-aws-c-io PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/aws/aws-c-io/include
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-io/include
 )
 target_link_libraries(restricted-aws-aws-c-io PUBLIC
   contrib-libs-linux-headers

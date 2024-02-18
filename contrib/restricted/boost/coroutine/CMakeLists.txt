@@ -16,7 +16,7 @@ target_compile_options(restricted-boost-coroutine PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-boost-coroutine PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/coroutine/include
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/coroutine/include
 )
 target_link_libraries(restricted-boost-coroutine PUBLIC
   contrib-libs-linux-headers

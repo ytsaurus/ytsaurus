@@ -9,7 +9,7 @@
 
 add_library(restricted-boost-heap INTERFACE)
 target_include_directories(restricted-boost-heap INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/heap/include
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/heap/include
 )
 target_link_libraries(restricted-boost-heap INTERFACE
   contrib-libs-linux-headers

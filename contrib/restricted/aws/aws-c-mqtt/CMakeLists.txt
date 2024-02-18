@@ -33,7 +33,7 @@ target_compile_options(restricted-aws-aws-c-mqtt PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-aws-aws-c-mqtt PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/aws/aws-c-mqtt/include
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-mqtt/include
 )
 target_link_libraries(restricted-aws-aws-c-mqtt PUBLIC
   contrib-libs-linux-headers
