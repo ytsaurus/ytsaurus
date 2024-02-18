@@ -1651,7 +1651,7 @@ private:
         return descriptorList;
     }
 
-    void UpdateExecNodeDescriptors(NScheduler::NProto::TExecNodeDescriptorList descriptorList)
+    void UpdateExecNodeDescriptors(const NScheduler::NProto::TExecNodeDescriptorList& descriptorList)
     {
         int onlineExecNodeCount = 0;
         auto execNodeDescriptors = New<TRefCountedExecNodeDescriptorMap>();
