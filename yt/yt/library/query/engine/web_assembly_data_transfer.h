@@ -22,7 +22,6 @@ TCopyGuard CopyOpaqueDataIntoCompartment(
 std::pair<TCopyGuard, std::vector<NQueryClient::TPIValue*>> CopyRowRangeIntoCompartment(
     std::vector<const NQueryClient::TValue*>& rows,
     i64 stringLikeColumnsDataWeight,
-    i64 rowLength,
     const NQueryClient::TRowSchemaInformation& rowSchemaInformation,
     IWebAssemblyCompartment* compartment);
 

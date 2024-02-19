@@ -1628,10 +1628,12 @@ void TQueryProfiler::Profile(
     TSchemaProfiler::Profile(schema);
 
     auto stringLikeColumnIndices = GetStringLikeColumnIndices(query->GetReadSchema());
+
     int rowSchemaInformationIndex = Variables_->AddOpaque<TRowSchemaInformation>(
-        TRowSchemaInformation{
+        TRowSchemaInformation(
             InferRowWeightWithNoStrings(query->GetReadSchema()),
-            stringLikeColumnIndices});
+            stringLikeColumnIndices,
+            query->GetReadSchema()->GetColumnCount() + 0)); // NB: This query has no incoming stream tag.
 
     size_t currentSlot = MakeCodegenScanOp(
         codegenSource,
@@ -1912,16 +1914,18 @@ void TQueryProfiler::Profile(
     auto schema = query->GetRenamedSchema();
     TSchemaProfiler::Profile(schema);
 
-    auto stringLikeIndices = GetStringLikeColumnIndices(query->GetReadSchema());
+    auto stringLikeColumnIndices = GetStringLikeColumnIndices(query->GetReadSchema());
+
     int rowSchemaInformationIndex = Variables_->AddOpaque<TRowSchemaInformation>(
-        TRowSchemaInformation{
+        TRowSchemaInformation(
             InferRowWeightWithNoStrings(query->GetReadSchema()),
-            stringLikeIndices});
+            stringLikeColumnIndices,
+            query->GetReadSchema()->GetColumnCount() + 1)); // NB: We use +1 for stream tag.
 
     size_t currentSlot = MakeCodegenScanOp(
         codegenSource,
         slotCount,
-        stringLikeIndices,
+        stringLikeColumnIndices,
         rowSchemaInformationIndex,
         UseWebAssembly_);
 

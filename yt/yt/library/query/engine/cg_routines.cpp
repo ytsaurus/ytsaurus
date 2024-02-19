@@ -242,7 +242,6 @@ void ScanOpHelper(
         TIntermediateBufferTag(),
         context->MemoryChunkProvider);
     std::vector<TUnversionedRow> rows;
-    i64 rowLength = 0;
 
     bool interrupt = false;
     while (!interrupt) {
@@ -263,7 +262,6 @@ void ScanOpHelper(
             for (auto row : batchRows) {
                 if (row) {
                     rows.push_back(row);
-                    rowLength = row.GetCount();
                 }
             }
         }
@@ -302,7 +300,11 @@ void ScanOpHelper(
         statistics->DataWeightRead += stringLikeColumnsDataWeight;
 
         if (auto* compartment = GetCurrentCompartment()) {
-            auto copiedRangesGuard = CopyRowRangeIntoCompartment(values, stringLikeColumnsDataWeight, rowLength, *rowSchemaInformation, compartment);
+            auto copiedRangesGuard = CopyRowRangeIntoCompartment(
+                values,
+                stringLikeColumnsDataWeight,
+                *rowSchemaInformation,
+                compartment);
             auto copiedRangesPointersGuard = CopyIntoCompartment(
                 MakeRange(std::bit_cast<uintptr_t*>(copiedRangesGuard.second.data()), copiedRangesGuard.second.size()),
                 compartment);
