@@ -34,6 +34,17 @@ struct TChunkReaderStatistics
     std::atomic<NProfiling::TValue> MetaWaitTime = 0;
     std::atomic<NProfiling::TValue> MetaReadFromDiskTime = 0;
     std::atomic<NProfiling::TValue> PickPeerWaitTime = 0;
+
+    static constexpr TDuration MinTrackedLatency = TDuration::MicroSeconds(1);
+    static constexpr TDuration MaxTrackedLatency = TDuration::Seconds(125);
+
+    NProfiling::IHistogramImplPtr DataWaitTimeHistogram = CreateRequestTimeHistogram();
+    NProfiling::IHistogramImplPtr MetaWaitTimeHistogram = CreateRequestTimeHistogram();
+
+    static NProfiling::IHistogramImplPtr CreateRequestTimeHistogram();
+
+    void RecordDataWaitTime(TDuration duration);
+    void RecordMetaWaitTime(TDuration duration);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderStatistics)
@@ -66,7 +77,9 @@ class TChunkReaderStatisticsCounters
 public:
     TChunkReaderStatisticsCounters() = default;
 
-    explicit TChunkReaderStatisticsCounters(const NProfiling::TProfiler& profiler);
+    explicit TChunkReaderStatisticsCounters(
+        const NProfiling::TProfiler& defaultProfiler,
+        const NProfiling::TProfiler& histogramProfiler = {});
 
     void Increment(
         const TChunkReaderStatisticsPtr& chunkReaderStatistics,
@@ -94,6 +107,9 @@ private:
     NProfiling::TTimeCounter MetaWaitTime_;
     NProfiling::TTimeCounter MetaReadFromDiskTime_;
     NProfiling::TTimeCounter PickPeerWaitTime_;
+
+    NProfiling::TGaugeHistogram DataWaitTimeHistogram_;
+    NProfiling::TGaugeHistogram MetaWaitTimeHistogram_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

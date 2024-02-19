@@ -212,9 +212,8 @@ private:
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetStorageLookupInvoker());
 
         if (timer) {
-            Options_.ChunkReaderStatistics->MetaWaitTime.fetch_add(
-                timer->GetElapsedValue(),
-                std::memory_order::relaxed);
+            Options_.ChunkReaderStatistics->RecordMetaWaitTime(
+                timer->GetElapsedTime());
         }
 
         auto chunkMeta = entry->Meta();

@@ -1931,9 +1931,8 @@ private:
         auto rspFuture = req->Invoke();
         SetSessionFuture(rspFuture.As<void>());
         auto rspOrError = WaitFor(rspFuture);
-        SessionOptions_.ChunkReaderStatistics->DataWaitTime.fetch_add(
-            dataWaitTimer.GetElapsedValue(),
-            std::memory_order::relaxed);
+        SessionOptions_.ChunkReaderStatistics->RecordDataWaitTime(
+            dataWaitTimer.GetElapsedTime());
 
         bool backup = IsBackup(rspOrError);
         const auto& respondedPeer = backup ? peers[1] : peers[0];
@@ -2328,9 +2327,8 @@ private:
         auto rspFuture = req->Invoke();
         SetSessionFuture(rspFuture.As<void>());
         auto rspOrError = WaitFor(rspFuture);
-        SessionOptions_.ChunkReaderStatistics->DataWaitTime.fetch_add(
-            dataWaitTimer.GetElapsedValue(),
-            std::memory_order::relaxed);
+        SessionOptions_.ChunkReaderStatistics->RecordDataWaitTime(
+            dataWaitTimer.GetElapsedTime());
 
         if (!rspOrError.IsOK()) {
             ProcessError(
@@ -2604,9 +2602,8 @@ private:
         auto rspFuture = req->Invoke();
         SetSessionFuture(rspFuture.As<void>());
         auto rspOrError = WaitFor(rspFuture);
-        SessionOptions_.ChunkReaderStatistics->DataWaitTime.fetch_add(
-            dataWaitTimer.GetElapsedValue(),
-            std::memory_order::relaxed);
+        SessionOptions_.ChunkReaderStatistics->RecordMetaWaitTime(
+            dataWaitTimer.GetElapsedTime());
 
         bool backup = IsBackup(rspOrError);
         const auto& respondedPeer = backup ? peers[1] : peers[0];
@@ -3007,9 +3004,8 @@ private:
             response->GetTotalSize(),
             std::memory_order::relaxed);
 
-        SessionOptions_.ChunkReaderStatistics->DataWaitTime.fetch_add(
-            dataWaitTimer.GetElapsedValue(),
-            std::memory_order::relaxed);
+        SessionOptions_.ChunkReaderStatistics->RecordDataWaitTime(
+            dataWaitTimer.GetElapsedTime());
 
         reader->AccountTraffic(response->GetTotalSize(), *respondedPeer.NodeDescriptor);
 
