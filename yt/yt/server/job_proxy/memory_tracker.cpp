@@ -53,6 +53,7 @@ void TMemoryTracker::DumpMemoryUsageStatistics(TStatistics* statistics, const TS
     statistics->AddSample(Format("%v/current_memory", path), GetMemoryStatistics()->Total);
     statistics->AddSample(Format("%v/max_memory", path), MaxMemoryUsage_);
     statistics->AddSample(Format("%v/cumulative_memory_mb_sec", path), CumulativeMemoryUsageMBSec_);
+    statistics->AddSample(Format("%v/peak_resident_anon", path), PeakResidentAnon_);
 }
 
 i64 TMemoryTracker::GetMemoryUsage()
@@ -187,6 +188,8 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
             }
         }
     }
+
+    PeakResidentAnon_ = std::max<i64>(PeakResidentAnon_, jobMemoryStatistics->Total.ResidentAnon);
 
     auto memoryUsage = jobMemoryStatistics->Total.ResidentAnon + jobMemoryStatistics->Total.MappedFile;
     MaxMemoryUsage_ = std::max<i64>(MaxMemoryUsage_, memoryUsage);

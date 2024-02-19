@@ -1032,10 +1032,8 @@ private:
     std::optional<TJobEnvironmentMemoryStatistics> DoGetJobMemoryStatistics() const
     {
         auto statistics = StatisticsFetcher_.GetMemoryStatistics();
-        // NB: PeakResidentAnon usage is intentional here, to make statistics more sane.
-        // FIXME(khlebnikov): move PeakResidentAnon logic into memory-tracker.
         return TJobEnvironmentMemoryStatistics{
-            .ResidentAnon = statistics.PeakResidentAnon,
+            .ResidentAnon = statistics.ResidentAnon,
             .MappedFile = statistics.MappedFile,
             .MajorPageFaults = statistics.MajorPageFaults,
         };

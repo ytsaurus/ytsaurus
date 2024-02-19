@@ -66,6 +66,7 @@ private:
 
     std::atomic<i64> CumulativeMemoryUsageMBSec_ = 0;
     std::atomic<i64> MaxMemoryUsage_ = 0;
+    std::atomic<i64> PeakResidentAnon_ = 0;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, MemoryStatisticsLock_);
 

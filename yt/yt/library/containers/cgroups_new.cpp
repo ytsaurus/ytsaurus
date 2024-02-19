@@ -198,15 +198,7 @@ TSelfCGroupsStatisticsFetcher::TSelfCGroupsStatisticsFetcher()
 
 TMemoryStatistics TSelfCGroupsStatisticsFetcher::GetMemoryStatistics() const
 {
-    auto statistics = IsV2_ ? GetMemoryStatisticsV2(CGroup_) : GetMemoryStatisticsV1(CGroup_);
-
-    {
-        auto guard = Guard(SpinLock_);
-        PeakResidentAnon_ = std::max(PeakResidentAnon_, statistics.ResidentAnon);
-        statistics.PeakResidentAnon = PeakResidentAnon_;
-    }
-
-    return statistics;
+    return IsV2_ ? GetMemoryStatisticsV2(CGroup_) : GetMemoryStatisticsV1(CGroup_);
 }
 
 TCpuStatistics TSelfCGroupsStatisticsFetcher::GetCpuStatistics() const
