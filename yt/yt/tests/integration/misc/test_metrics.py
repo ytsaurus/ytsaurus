@@ -151,7 +151,9 @@ class TestPortoMetrics(MetricsTestBase):
             "porto/network/tx_packets",
             "porto/network/tx_limit",
 
-            "porto/volume/count"
+            "porto/volume/count",
+
+            "porto/layer/count",
         ]
 
         may_be_empty = [
@@ -174,7 +176,9 @@ class TestPortoMetrics(MetricsTestBase):
             "porto/network/tx_packets",
             "porto/network/tx_limit",
 
-            "porto/volume/count"
+            "porto/volume/count",
+
+            "porto/layer/count",
         ]
 
         def check_node_sensors(node, container_category, node_sensors):
