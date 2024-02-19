@@ -35,7 +35,6 @@ struct TJobMemoryStatistics
 {
     TJobEnvironmentMemoryStatistics Total;
     std::vector<TProcessMemoryStatisticsPtr> ProcessesStatistics;
-    i64 TmpfsUsage = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobMemoryStatistics)

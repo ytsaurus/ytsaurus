@@ -125,6 +125,7 @@ const THashMap<EStatField, TPortoStatRule> PortoStatRules = {
     {EStatField::CpuLimit, {"cpu_limit_bound", CoreNsPerSecondExtractor}},
     {EStatField::CpuGuarantee, {"cpu_guarantee_bound", CoreNsPerSecondExtractor}},
     {EStatField::ResidentAnon, {"memory.stat", GetStatByKeyExtractor("total_rss")}},
+    {EStatField::TmpfsUsage, {"memory.stat", GetStatByKeyExtractor("total_shmem")}},
     {EStatField::MappedFile, {"memory.stat", GetStatByKeyExtractor("total_mapped_file")}},
     {EStatField::MinorPageFaults, {"minor_faults", LongExtractor}},
     {EStatField::MajorPageFaults, {"major_faults", LongExtractor}},

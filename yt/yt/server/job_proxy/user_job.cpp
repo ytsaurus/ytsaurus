@@ -1616,7 +1616,7 @@ private:
                 "Memory limit exceeded")
                 << TErrorAttribute("usage", memoryUsage)
                 << TErrorAttribute("limit", memoryLimit)
-                << TErrorAttribute("tmpfs_usage", memoryStatistics->TmpfsUsage)
+                << TErrorAttribute("tmpfs_usage", memoryStatistics->Total.TmpfsUsage)
                 << TErrorAttribute("processes", processesStatistics);
             JobErrorPromise_.TrySet(error);
             CleanupUserProcesses();

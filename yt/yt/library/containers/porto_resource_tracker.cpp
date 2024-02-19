@@ -134,6 +134,7 @@ TMemoryStatistics TPortoResourceTracker::ExtractMemoryStatistics(const TResource
 {
     return TMemoryStatistics{
         .ResidentAnon = GetFieldOrError(resourceUsage, EStatField::ResidentAnon),
+        .TmpfsUsage = GetFieldOrError(resourceUsage, EStatField::TmpfsUsage),
         .MappedFile = GetFieldOrError(resourceUsage, EStatField::MappedFile),
         .MinorPageFaults = GetFieldOrError(resourceUsage, EStatField::MinorPageFaults),
         .MajorPageFaults = GetFieldOrError(resourceUsage, EStatField::MajorPageFaults),

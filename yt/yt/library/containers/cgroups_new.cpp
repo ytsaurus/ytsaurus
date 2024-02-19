@@ -50,6 +50,7 @@ TMemoryStatistics GetMemoryStatisticsV1(const TString& cgroup)
     // NB: Statistics name "rss" isn't correct - it accounts only anonymous pages.
     return TMemoryStatistics{
         .ResidentAnon = statistics["total_rss"],
+        .TmpfsUsage = statistics["total_shmem"],
         .MappedFile = statistics["total_mapped_file"],
         .MajorPageFaults = statistics["total_pgmajfault"],
     };
@@ -63,6 +64,7 @@ TMemoryStatistics GetMemoryStatisticsV2(const TString& cgroup)
     // Swap and swap-cache are are not accounted. In kernel it is called "NR_ANON_MAPPED".
     return TMemoryStatistics{
         .ResidentAnon = statistics["anon"],
+        .TmpfsUsage = statistics["shmem"],
         .MappedFile = statistics["mapped_file"],
         .MajorPageFaults = statistics["pgmajfault"],
     };

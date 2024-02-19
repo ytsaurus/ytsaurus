@@ -9,6 +9,7 @@ namespace NYT::NContainers::NCGroups {
 struct TMemoryStatistics
 {
     i64 ResidentAnon = 0;
+    i64 TmpfsUsage = 0;
     i64 MappedFile = 0;
     i64 MajorPageFaults = 0;
 };

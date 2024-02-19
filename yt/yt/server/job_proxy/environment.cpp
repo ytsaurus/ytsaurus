@@ -1034,6 +1034,7 @@ private:
         auto statistics = StatisticsFetcher_.GetMemoryStatistics();
         return TJobEnvironmentMemoryStatistics{
             .ResidentAnon = statistics.ResidentAnon,
+            .TmpfsUsage = statistics.TmpfsUsage,
             .MappedFile = statistics.MappedFile,
             .MajorPageFaults = statistics.MajorPageFaults,
         };

@@ -60,12 +60,10 @@ i64 TMemoryTracker::GetMemoryUsage()
 {
     auto memoryStatistics = GetMemoryStatistics();
 
-    i64 memoryUsage = 0;
-    memoryUsage += memoryStatistics->Total.ResidentAnon;
+    auto memoryUsage = memoryStatistics->Total.ResidentAnon + memoryStatistics->Total.TmpfsUsage;
     if (Config_->IncludeMemoryMappedFiles) {
         memoryUsage += memoryStatistics->Total.MappedFile;
     }
-    memoryUsage += TmpfsManager_->GetAggregatedTmpfsUsage();
     return memoryUsage;
 }
 
@@ -187,22 +185,24 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
                 }
             }
         }
+
+        jobMemoryStatistics->Total.TmpfsUsage = TmpfsManager_->GetAggregatedTmpfsUsage();
     }
 
     PeakResidentAnon_ = std::max<i64>(PeakResidentAnon_, jobMemoryStatistics->Total.ResidentAnon);
 
+    // NB: TmpfsUsage is not accounted into "max_memory" for historical reasons.
     auto memoryUsage = jobMemoryStatistics->Total.ResidentAnon + jobMemoryStatistics->Total.MappedFile;
     MaxMemoryUsage_ = std::max<i64>(MaxMemoryUsage_, memoryUsage);
-
-    jobMemoryStatistics->TmpfsUsage = TmpfsManager_->GetAggregatedTmpfsUsage();
 
     if (now > LastMemoryMeasureTime_) {
         CumulativeMemoryUsageMBSec_ += memoryUsage * (now - LastMemoryMeasureTime_).SecondsFloat() / 1_MB;
     }
 
-    YT_LOG_DEBUG("Job memory statistics updated (ResidentAnon: %v, MappedFile: %v)",
+    YT_LOG_DEBUG("Job memory statistics updated (ResidentAnon: %v, MappedFile: %v, TmpfsUsage: %v)",
         jobMemoryStatistics->Total.ResidentAnon,
-        jobMemoryStatistics->Total.MappedFile);
+        jobMemoryStatistics->Total.MappedFile,
+        jobMemoryStatistics->Total.TmpfsUsage);
 
     LastMemoryMeasureTime_ = now;
     CachedMemoryStatistics_ = jobMemoryStatistics;

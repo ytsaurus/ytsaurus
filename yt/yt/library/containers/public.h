@@ -93,6 +93,7 @@ DEFINE_ENUM(EStatField,
 
     // Memory
     (ResidentAnon)
+    (TmpfsUsage)
     (MappedFile)
     (MajorPageFaults)
     (MinorPageFaults)
