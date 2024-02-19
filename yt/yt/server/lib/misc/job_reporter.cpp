@@ -13,6 +13,7 @@
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
+#include <yt/yt/ytlib/scheduler/records/job.record.h>
 #include <yt/yt/ytlib/scheduler/records/job_fail_context.record.h>
 #include <yt/yt/ytlib/scheduler/records/operation_id.record.h>
 #include <yt/yt/ytlib/scheduler/records/job_profile.record.h>
@@ -78,110 +79,77 @@ public:
 
     TUnversionedOwningRow ToRow(int archiveVersion) const override
     {
-        const auto& index = TJobTableDescriptor::Get().Index;
-
-        TYsonString coreInfosYsonString;
-        TString jobCompetitionIdString;
-        TString probingJobCompetitionIdString;
-        TString statisticsLz4;
-        TYsonString briefStatisticsYsonString;
-
-        TUnversionedOwningRowBuilder builder;
-
         auto operationIdAsGuid = Report_.OperationId().Underlying();
         auto jobIdAsGuid = Report_.JobId().Underlying();
-        builder.AddValue(MakeUnversionedUint64Value(operationIdAsGuid.Parts64[0], index.OperationIdHi));
-        builder.AddValue(MakeUnversionedUint64Value(operationIdAsGuid.Parts64[1], index.OperationIdLo));
-        builder.AddValue(MakeUnversionedUint64Value(jobIdAsGuid.Parts64[0], index.JobIdHi));
-        builder.AddValue(MakeUnversionedUint64Value(jobIdAsGuid.Parts64[1], index.JobIdLo));
+        NRecords::TJobPartial record{
+            .Key = {
+                .OperationIdHi = operationIdAsGuid.Parts64[0],
+                .OperationIdLo = operationIdAsGuid.Parts64[1],
+                .JobIdHi = jobIdAsGuid.Parts64[0],
+                .JobIdLo = jobIdAsGuid.Parts64[1],
+            },
+            .TransientState = Report_.State(),
+            .StartTime = Report_.StartTime(),
+            .FinishTime = Report_.FinishTime(),
+            .UpdateTime = TInstant::Now().MicroSeconds(),
+            .Address = Report_.Address(),
+            .StderrSize = Report_.StderrSize(),
+            .HasCompetitors = Report_.HasCompetitors(),
+            .HasProbingCompetitors = Report_.HasProbingCompetitors(),
+            .TaskName = Report_.TaskName(),
+            .PoolTree = Report_.TreeId(),
+            .MonitoringDescriptor = Report_.MonitoringDescriptor(),
+        };
+
         if (Report_.Type()) {
-            builder.AddValue(MakeUnversionedStringValue(FormatEnum(*Report_.Type()), index.Type));
-        }
-        if (Report_.State()) {
-            builder.AddValue(MakeUnversionedStringValue(
-                *Report_.State(),
-                index.TransientState));
-        }
-        if (Report_.StartTime()) {
-            builder.AddValue(MakeUnversionedInt64Value(*Report_.StartTime(), index.StartTime));
-        }
-        if (Report_.FinishTime()) {
-            builder.AddValue(MakeUnversionedInt64Value(*Report_.FinishTime(), index.FinishTime));
-        }
-        if (Report_.Address()) {
-            builder.AddValue(MakeUnversionedStringValue(*Report_.Address(), index.Address));
+            record.Type = FormatEnum(*Report_.Type());
         }
         if (Report_.Error()) {
-            builder.AddValue(MakeUnversionedAnyValue(*Report_.Error(), index.Error));
+            record.Error = TYsonString(*Report_.Error());
         }
-        // COMPAT(arkady-e1ppa)
-        if (archiveVersion >= 50 && Report_.InterruptionInfo()) {
-            builder.AddValue(MakeUnversionedAnyValue(*Report_.InterruptionInfo(), index.InterruptionInfo));
+        if (Report_.InterruptionInfo()) {
+            record.InterruptionInfo = TYsonString(*Report_.InterruptionInfo());
         }
         if (Report_.Statistics()) {
             if (ReportStatisticsLz4_) {
                 auto codec = NCompression::GetCodec(NCompression::ECodec::Lz4);
-                statisticsLz4 = ToString(codec->Compress(TSharedRef::FromString(*Report_.Statistics())));
-                builder.AddValue(MakeUnversionedStringValue(statisticsLz4, index.StatisticsLz4));
+                record.StatisticsLz4 = ToString(codec->Compress(TSharedRef::FromString(*Report_.Statistics())));
             } else {
-                builder.AddValue(MakeUnversionedAnyValue(*Report_.Statistics(), index.Statistics));
+                record.Statistics = TYsonString(*Report_.Statistics());
             }
-            briefStatisticsYsonString = BuildBriefStatistics(ConvertToNode(TYsonStringBuf(*Report_.Statistics())));
-            builder.AddValue(MakeUnversionedAnyValue(briefStatisticsYsonString.AsStringBuf(), index.BriefStatistics));
+            record.BriefStatistics = BuildBriefStatistics(ConvertToNode(TYsonStringBuf(*Report_.Statistics())));
         }
         if (Report_.Events()) {
-            builder.AddValue(MakeUnversionedAnyValue(*Report_.Events(), index.Events));
+            record.Events = TYsonString(*Report_.Events());
         }
-        if (Report_.StderrSize()) {
-            builder.AddValue(MakeUnversionedUint64Value(*Report_.StderrSize(), index.StderrSize));
-        }
-        if (Report_.CoreInfos()) {
-            coreInfosYsonString = ConvertToYsonString(*Report_.CoreInfos());
-            builder.AddValue(MakeUnversionedAnyValue(coreInfosYsonString.AsStringBuf(), index.CoreInfos));
-        }
-        builder.AddValue(MakeUnversionedInt64Value(TInstant::Now().MicroSeconds(), index.UpdateTime));
         if (Report_.Spec()) {
-            builder.AddValue(MakeUnversionedBooleanValue(Report_.Spec().operator bool(), index.HasSpec));
+            record.HasSpec = Report_.Spec().has_value();
         }
         if (Report_.FailContext()) {
-            builder.AddValue(MakeUnversionedUint64Value(Report_.FailContext()->size(), index.FailContextSize));
+            record.FailContextSize = Report_.FailContext()->size();
+        }
+        if (Report_.CoreInfos()) {
+            record.CoreInfos = ConvertToYsonString(*Report_.CoreInfos());
         }
         if (Report_.JobCompetitionId()) {
-            jobCompetitionIdString = ToString(Report_.JobCompetitionId());
-            builder.AddValue(MakeUnversionedStringValue(jobCompetitionIdString, index.JobCompetitionId));
+            record.JobCompetitionId = ToString(Report_.JobCompetitionId());
         }
         if (Report_.ProbingJobCompetitionId()) {
-            probingJobCompetitionIdString = ToString(Report_.ProbingJobCompetitionId());
-            builder.AddValue(MakeUnversionedStringValue(probingJobCompetitionIdString, index.ProbingJobCompetitionId));
-        }
-        if (Report_.HasCompetitors().has_value()) {
-            builder.AddValue(MakeUnversionedBooleanValue(Report_.HasCompetitors().value(), index.HasCompetitors));
-        }
-        if (Report_.HasProbingCompetitors().has_value()) {
-            builder.AddValue(MakeUnversionedBooleanValue(Report_.HasProbingCompetitors().value(), index.HasProbingCompetitors));
+            record.ProbingJobCompetitionId = ToString(Report_.ProbingJobCompetitionId());
         }
         if (Report_.ExecAttributes()) {
-            builder.AddValue(MakeUnversionedAnyValue(*Report_.ExecAttributes(), index.ExecAttributes));
-        }
-        if (Report_.TaskName()) {
-            builder.AddValue(MakeUnversionedStringValue(*Report_.TaskName(), index.TaskName));
-        }
-        if (Report_.TreeId()) {
-            builder.AddValue(MakeUnversionedStringValue(*Report_.TreeId(), index.PoolTree));
-        }
-        if (Report_.MonitoringDescriptor()) {
-            builder.AddValue(MakeUnversionedStringValue(*Report_.MonitoringDescriptor(), index.MonitoringDescriptor));
+            record.ExecAttributes = TYsonString(*Report_.ExecAttributes());
         }
         // COMPAT(renadeen)
-        if (archiveVersion >= 47 && Report_.JobCookie()) {
-            builder.AddValue(MakeUnversionedInt64Value(*Report_.JobCookie(), index.JobCookie));
+        if (archiveVersion >= 47) {
+            record.JobCookie = Report_.JobCookie();
         }
         // COMPAT(omgronny)
-        if (archiveVersion >= 48 && Report_.ControllerState()) {
-            builder.AddValue(MakeUnversionedStringValue(*Report_.ControllerState(), index.ControllerState));
+        if (archiveVersion >= 48) {
+            record.ControllerState = Report_.ControllerState();
         }
 
-        return builder.FinishRow();
+        return FromRecord(record);
     }
 
 private:
@@ -401,7 +369,7 @@ public:
                 Version_,
                 Config_,
                 Config_->JobHandler,
-                TJobTableDescriptor::Get().NameTable,
+                NRecords::TJobDescriptor::Get()->GetNameTable(),
                 "jobs",
                 Client_,
                 Reporter_->GetInvoker(),

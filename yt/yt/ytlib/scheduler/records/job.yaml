@@ -1,0 +1,178 @@
+namespace: NYT::NScheduler::NRecords
+
+types:
+  - type_name: TJob
+    fields:
+      - cpp_name: OperationIdHi
+        cpp_type: ui64
+        column_name: operation_id_hi
+        column_type: Uint64
+        sort_order: Ascending
+
+      - cpp_name: OperationIdLo
+        cpp_type: ui64
+        column_name: operation_id_lo
+        column_type: Uint64
+        sort_order: Ascending
+
+      - cpp_name: JobIdHi
+        cpp_type: ui64
+        column_name: job_id_hi
+        column_type: Uint64
+        sort_order: Ascending
+
+      - cpp_name: JobIdLo
+        cpp_type: ui64
+        column_name: job_id_lo
+        column_type: Uint64
+        sort_order: Ascending
+
+      - cpp_name: Type
+        cpp_type: TString
+        column_name: type
+        column_type: String
+
+      - cpp_name: State
+        cpp_type: TString
+        column_name: state
+        column_type: String
+
+      - cpp_name: TransientState
+        cpp_type: TString
+        column_name: transient_state
+        column_type: String
+
+      - cpp_name: StartTime
+        cpp_type: i64
+        column_name: start_time
+        column_type: Int64
+
+      - cpp_name: FinishTime
+        cpp_type: i64
+        column_name: finish_time
+        column_type: Int64
+
+      - cpp_name: UpdateTime
+        cpp_type: i64
+        column_name: update_time
+        column_type: Int64
+
+      - cpp_name: Address
+        cpp_type: TString
+        column_name: address
+        column_type: String
+
+      - cpp_name: Error
+        cpp_type: NYson::TYsonString
+        column_name: error
+        column_type: Any
+
+      - cpp_name: InterruptionInfo
+        cpp_type: NYson::TYsonString
+        column_name: interruption_info
+        column_type: Any
+
+      - cpp_name: Statistics
+        cpp_type: NYson::TYsonString
+        column_name: statistics
+        column_type: Any
+
+      - cpp_name: BriefStatistics
+        cpp_type: NYson::TYsonString
+        column_name: brief_statistics
+        column_type: Any
+
+      - cpp_name: StatisticsLz4
+        cpp_type: TString
+        column_name: statistics_lz4
+        column_type: String
+
+      - cpp_name: Events
+        cpp_type: NYson::TYsonString
+        column_name: events
+        column_type: Any
+
+      - cpp_name: StderrSize
+        cpp_type: ui64
+        column_name: stderr_size
+        column_type: Uint64
+
+      - cpp_name: HasSpec
+        cpp_type: bool
+        column_name: has_spec
+        column_type: Boolean
+
+      - cpp_name: HasFailContext
+        cpp_type: bool
+        column_name: has_fail_context
+        column_type: Boolean
+
+      - cpp_name: FailContextSize
+        cpp_type: ui64
+        column_name: fail_context_size
+        column_type: Uint64
+
+      - cpp_name: CoreInfos
+        cpp_type: NYson::TYsonString
+        column_name: core_infos
+        column_type: Any
+
+      - cpp_name: JobCompetitionId
+        cpp_type: TString
+        column_name: job_competition_id
+        column_type: String
+
+      - cpp_name: ProbingJobCompetitionId
+        cpp_type: TString
+        column_name: probing_job_competition_id
+        column_type: String
+
+      - cpp_name: HasCompetitors
+        cpp_type: bool
+        column_name: has_competitors
+        column_type: Boolean
+
+      - cpp_name: HasProbingCompetitors
+        cpp_type: bool
+        column_name: has_probing_competitors
+        column_type: Boolean
+
+      - cpp_name: ExecAttributes
+        cpp_type: NYson::TYsonString
+        column_name: exec_attributes
+        column_type: Any
+
+      - cpp_name: TaskName
+        cpp_type: TString
+        column_name: task_name
+        column_type: String
+
+      - cpp_name: PoolTree
+        cpp_type: TString
+        column_name: pool_tree
+        column_type: String
+
+      - cpp_name: MonitoringDescriptor
+        cpp_type: TString
+        column_name: monitoring_descriptor
+        column_type: String
+
+      - cpp_name: JobCookie
+        cpp_type: i64
+        column_name: job_cookie
+        column_type: Int64
+
+      - cpp_name: ControllerState
+        cpp_type: TString
+        column_name: controller_state
+        column_type: String
+
+      - cpp_name: NodeState
+        cpp_type: TString
+        column_name: node_state
+        column_type: String
+
+      - cpp_name: JobType
+        cpp_type: TString
+        column_name: job_type
+        column_type: String
