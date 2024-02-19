@@ -129,6 +129,9 @@ DEFINE_ENUM(EStatField,
 
     // Volumes
     (VolumeCounts)
+
+    // Layers
+    (LayerCounts)
 );
 
 DEFINE_ENUM(EEnablePorto,

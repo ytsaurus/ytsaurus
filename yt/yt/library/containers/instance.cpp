@@ -405,9 +405,9 @@ public:
             .ThrowOnError();
     }
 
-    TErrorOr<ui64> CalculateCpuUserUsage(
-        TErrorOr<ui64>& cpuUsage,
-        TErrorOr<ui64>& cpuSystemUsage) const
+    TErrorOr<i64> CalculateCpuUserUsage(
+        TErrorOr<i64>& cpuUsage,
+        TErrorOr<i64>& cpuSystemUsage) const
     {
         if (cpuUsage.IsOK() && cpuSystemUsage.IsOK()) {
             return cpuUsage.Value() > cpuSystemUsage.Value() ? cpuUsage.Value() - cpuSystemUsage.Value() : 0;
@@ -429,6 +429,7 @@ public:
         bool userTimeRequested = false;
         bool contextSwitchesRequested = false;
         bool volumeCountRequested = false;
+        bool layerCountRequested = false;
 
         for (auto field : fields) {
             if (auto it = NDetail::PortoStatRules.find(field)) {
@@ -440,6 +441,8 @@ public:
                 userTimeRequested = true;
             } else if (field == EStatField::VolumeCounts) {
                 volumeCountRequested = true;
+            } else if (field == EStatField::LayerCounts) {
+                layerCountRequested = true;
             } else {
                 THROW_ERROR_EXCEPTION("Unknown resource field %Qlv requested", field)
                     << TErrorAttribute("container", Name_);
@@ -526,11 +529,21 @@ public:
             result.VolumeCounts = volumeCounts;
         }
 
+        if (layerCountRequested) {
+            auto layerList = WaitFor(Executor_->ListLayers(""));
+
+            if (layerList.IsOK()) {
+                result.ContainerStats[EStatField::LayerCounts] = layerList.Value().size();
+            } else {
+                result.ContainerStats[EStatField::LayerCounts] = layerList.Wrap();
+            }
+        }
+
         if (contextSwitchesRequested) {
-            ui64 totalContextSwitches = 0;
+            i64 totalContextSwitches = 0;
 
             for (const auto& [container, newValue] : metricMap) {
-                totalContextSwitches += std::max<ui64>(0UL, newValue);
+                totalContextSwitches += std::max<i64>(0UL, newValue);
             }
 
             result.ContainerStats[EStatField::ContextSwitches] = totalContextSwitches;

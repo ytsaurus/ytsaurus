@@ -45,7 +45,7 @@ DEFINE_REFCOUNTED_TYPE(TPortoProfilers)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TErrorOr<ui64> GetFieldOrError(
+static TErrorOr<i64> GetFieldOrError(
     const TResourceUsage& usage,
     EStatField field)
 {
@@ -86,7 +86,7 @@ TPortoResourceTracker::TPortoResourceTracker(
     ResourceUsageDelta_ = ResourceUsage_;
 }
 
-static TErrorOr<TDuration> ExtractDuration(TErrorOr<ui64> timeNs)
+static TErrorOr<TDuration> ExtractDuration(TErrorOr<i64> timeNs)
 {
     if (timeNs.IsOK()) {
         return TErrorOr<TDuration>(TDuration::MicroSeconds(timeNs.Value() / 1000));
@@ -102,7 +102,7 @@ TCpuStatistics TPortoResourceTracker::ExtractCpuStatistics(const TResourceUsage&
     auto currentThreadCountPeak = GetFieldOrError(resourceUsage, EStatField::ThreadCount);
 
     PeakThreadCount_ = currentThreadCountPeak.IsOK() && PeakThreadCount_.IsOK()
-        ? std::max<ui64>(
+        ? std::max<i64>(
             PeakThreadCount_.Value(),
             currentThreadCountPeak.Value())
         : currentThreadCountPeak.IsOK() ? currentThreadCountPeak : PeakThreadCount_;
@@ -185,7 +185,14 @@ TNetworkStatistics TPortoResourceTracker::ExtractNetworkStatistics(const TResour
 TVolumeStatistics TPortoResourceTracker::ExtractVolumeStatistics(const TResourceUsage& resourceUsage) const
 {
     return TVolumeStatistics{
-        .VolumeCounts = resourceUsage.VolumeCounts
+        .VolumeCounts = resourceUsage.VolumeCounts,
+    };
+}
+
+TLayerStatistics TPortoResourceTracker::ExtractLayerStatistics(const TResourceUsage& resourceUsage) const
+{
+    return TLayerStatistics{
+        .LayerCounts = GetFieldOrError(resourceUsage, EStatField::LayerCounts),
     };
 }
 
@@ -196,7 +203,8 @@ TTotalStatistics TPortoResourceTracker::ExtractTotalStatistics(const TResourceUs
         .MemoryStatistics = ExtractMemoryStatistics(resourceUsage),
         .BlockIOStatistics = ExtractBlockIOStatistics(resourceUsage),
         .NetworkStatistics = ExtractNetworkStatistics(resourceUsage),
-        .VolumeStatistics = ExtractVolumeStatistics(resourceUsage)
+        .VolumeStatistics = ExtractVolumeStatistics(resourceUsage),
+        .LayerStatistics = ExtractLayerStatistics(resourceUsage),
     };
 }
 
@@ -290,9 +298,9 @@ void TPortoResourceTracker::UpdateResourceUsageStatisticsIfExpired() const
     }
 }
 
-TErrorOr<ui64> TPortoResourceTracker::CalculateCounterDelta(
-    const TErrorOr<ui64>& oldValue,
-    const TErrorOr<ui64>& newValue) const
+TErrorOr<i64> TPortoResourceTracker::CalculateCounterDelta(
+    const TErrorOr<i64>& oldValue,
+    const TErrorOr<i64>& newValue) const
 {
     if (oldValue.IsOK() && newValue.IsOK()) {
         return newValue.Value() - oldValue.Value();
@@ -342,8 +350,8 @@ void TPortoResourceTracker::ReCalculateResourceUsage(const TResourceUsage& newRe
     TResourceUsage resourceUsageDelta;
 
     for (const auto& stat : InstanceStatFields) {
-        TErrorOr<ui64> oldValue;
-        TErrorOr<ui64> newValue;
+        TErrorOr<i64> oldValue;
+        TErrorOr<i64> newValue;
 
         if (auto newValueIt = newResourceUsage.ContainerStats.find(stat); newValueIt.IsEnd()) {
             newValue = TError("Missing property %Qlv in Porto response", stat)
@@ -409,7 +417,7 @@ TPortoResourceProfiler::TPortoResourceProfiler(
 static void WriteGaugeIfOk(
     ISensorWriter* writer,
     const TString& path,
-    TErrorOr<ui64> valueOrError)
+    TErrorOr<i64> valueOrError)
 {
     if (valueOrError.IsOK()) {
         i64 value = static_cast<i64>(valueOrError.Value());
@@ -423,7 +431,7 @@ static void WriteGaugeIfOk(
 static void WriteCumulativeGaugeIfOk(
     ISensorWriter* writer,
     const TString& path,
-    TErrorOr<ui64> valueOrError,
+    TErrorOr<i64> valueOrError,
     i64 timeDeltaUsec)
 {
     if (valueOrError.IsOK()) {
@@ -619,6 +627,16 @@ void TPortoResourceProfiler::WriteBlockingIOMetrics(
     }
 }
 
+void TPortoResourceProfiler::WriteLayerMetrics(
+    ISensorWriter* writer,
+    TTotalStatistics& totalStatistics,
+    i64 /*timeDeltaUsec*/)
+{
+    if (totalStatistics.LayerStatistics.LayerCounts.IsOK()) {
+        writer->AddGauge("/layer/count", totalStatistics.LayerStatistics.LayerCounts.Value());
+    }
+}
+
 void TPortoResourceProfiler::WriteNetworkMetrics(
     ISensorWriter* writer,
     TTotalStatistics& totalStatistics,
@@ -677,6 +695,7 @@ void TPortoResourceProfiler::CollectSensors(ISensorWriter* writer)
     WriteBlockingIOMetrics(writer, totalStatistics, timeDeltaUsec);
     WriteNetworkMetrics(writer, totalStatistics, timeDeltaUsec);
     WriteVolumeMetrics(writer, totalStatistics, timeDeltaUsec);
+    WriteLayerMetrics(writer, totalStatistics, timeDeltaUsec);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -929,7 +929,7 @@ private:
         for (auto& spec : getResponse->volume()) {
             specs.emplace_back(TVolumeSpec{
                 .Path = spec.path(),
-                .Backend = spec.backend()
+                .Backend = spec.backend(),
             });
         }
 

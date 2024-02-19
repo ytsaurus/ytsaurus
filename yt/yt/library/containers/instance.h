@@ -55,14 +55,16 @@ const std::vector<EStatField> InstanceStatFields{
     EStatField::NetRxDrops,
     EStatField::NetRxLimit,
 
-    EStatField::VolumeCounts
+    EStatField::VolumeCounts,
+
+    EStatField::LayerCounts
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TResourceUsage
 {
-    THashMap<EStatField, TErrorOr<ui64>> ContainerStats;
+    THashMap<EStatField, TErrorOr<i64>> ContainerStats;
     THashMap<TString, i64> VolumeCounts;
 };
 

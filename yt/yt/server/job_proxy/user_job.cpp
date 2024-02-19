@@ -1663,7 +1663,7 @@ private:
 
         if (blockIOStats) {
             if (UserJobSpec_.has_iops_threshold() &&
-                blockIOStats->IOOps > static_cast<ui64>(UserJobSpec_.iops_threshold()) &&
+                blockIOStats->IOOps > static_cast<i64>(UserJobSpec_.iops_threshold()) &&
                 !Woodpecker_)
             {
                 YT_LOG_INFO("Woodpecker detected (IORead: %v, IOTotal: %v, Threshold: %v)",

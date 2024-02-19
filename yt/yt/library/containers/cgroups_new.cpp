@@ -17,9 +17,9 @@ static const NLogging::TLogger Logger("CGroups");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<TString, ui64> ReadAndParseStatFile(const TString& fileName)
+THashMap<TString, i64> ReadAndParseStatFile(const TString& fileName)
 {
-    THashMap<TString, ui64> statistics;
+    THashMap<TString, i64> statistics;
 
     auto rawStatFile = TFileInput(fileName).ReadAll();
     for (auto line : SplitString(rawStatFile, "\n")) {
@@ -28,16 +28,16 @@ THashMap<TString, ui64> ReadAndParseStatFile(const TString& fileName)
             continue;
         }
 
-        EmplaceOrCrash(statistics, fields[0], FromString<ui64>(fields[1]));
+        EmplaceOrCrash(statistics, fields[0], FromString<i64>(fields[1]));
     }
 
     return statistics;
 }
 
-ui64 ReadAndParseValueFile(const TString& fileName)
+i64 ReadAndParseValueFile(const TString& fileName)
 {
     auto rawValueFile = TFileInput(fileName).ReadLine();
-    return FromString<ui64>(rawValueFile);
+    return FromString<i64>(rawValueFile);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -79,14 +79,14 @@ TCpuStatistics GetCpuStatisticsV1(const TString& cgroup)
     auto cpuAcctStatPath = Format("/sys/fs/cgroup/cpuacct/%v/cpuacct.stat", cgroup);
     auto cpuAcctStatistics = ReadAndParseStatFile(cpuAcctStatPath);
 
-    ui64 ticksPerSecond;
+    i64 ticksPerSecond;
 #if defined(__linux__)
     ticksPerSecond = sysconf(_SC_CLK_TCK);
 #else
     ticksPerSecond = 1'000'000'000;
 #endif
 
-    auto fromJiffies = [&] (ui64 jiffies) {
+    auto fromJiffies = [&] (i64 jiffies) {
         return TDuration::MicroSeconds(1'000'000 * jiffies / ticksPerSecond);
     };
 
@@ -109,9 +109,9 @@ TCpuStatistics GetCpuStatisticsV2(const TString& cgroup)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<TString, ui64> ReadAndParseBlkIOStatFile(const TString& fileName)
+THashMap<TString, i64> ReadAndParseBlkIOStatFile(const TString& fileName)
 {
-    THashMap<TString, ui64> statistics;
+    THashMap<TString, i64> statistics;
 
     auto rawStatFile = TFileInput(fileName).ReadAll();
     for (const auto& line : SplitString(rawStatFile, "\n")) {
@@ -120,15 +120,15 @@ THashMap<TString, ui64> ReadAndParseBlkIOStatFile(const TString& fileName)
             continue;
         }
 
-        statistics[fields[1]] += FromString<ui64>(fields[2]);
+        statistics[fields[1]] += FromString<i64>(fields[2]);
     }
 
     return statistics;
 }
 
-THashMap<TString, ui64> ReadAndParseIOStatFile(const TString& fileName)
+THashMap<TString, i64> ReadAndParseIOStatFile(const TString& fileName)
 {
-    THashMap<TString, ui64> statistics;
+    THashMap<TString, i64> statistics;
 
     auto rawStatFile = TFileInput(fileName).ReadAll();
     for (auto line : SplitString(rawStatFile, "\n")) {
@@ -138,7 +138,7 @@ THashMap<TString, ui64> ReadAndParseIOStatFile(const TString& fileName)
             if (tokens.size() != 2) {
                 continue;
             }
-            statistics[tokens[0]] += FromString<ui64>(tokens[1]);
+            statistics[tokens[0]] += FromString<i64>(tokens[1]);
         }
     }
 

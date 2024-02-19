@@ -8,10 +8,10 @@ namespace NYT::NContainers::NCGroups {
 
 struct TMemoryStatistics
 {
-    ui64 Rss = 0;
-    ui64 PeakRss = 0;
-    ui64 MappedFile = 0;
-    ui64 MajorPageFaults = 0;
+    i64 Rss = 0;
+    i64 PeakRss = 0;
+    i64 MappedFile = 0;
+    i64 MajorPageFaults = 0;
 };
 
 struct TCpuStatistics
@@ -22,11 +22,11 @@ struct TCpuStatistics
 
 struct TBlockIOStatistics
 {
-    ui64 IOReadByte = 0;
-    ui64 IOWriteByte = 0;
+    i64 IOReadByte = 0;
+    i64 IOWriteByte = 0;
 
-    ui64 IOReadOps = 0;
-    ui64 IOWriteOps = 0;
+    i64 IOReadOps = 0;
+    i64 IOWriteOps = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,7 +44,7 @@ private:
     TString CGroup_;
     bool IsV2_;
 
-    mutable ui64 PeakRss_ = 0;
+    mutable i64 PeakRss_ = 0;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
 
