@@ -1224,7 +1224,7 @@ private:
 
             std::vector<TNameTableToSchemaIdMapping> writeIdMappings(indexTableCount);
             std::vector<TNameTableToSchemaIdMapping> deleteIdMappings(indexTableCount);
-            std::vector<const TColumnSchema*> unfoldedColumns(indexTableCount, nullptr);
+            std::vector<const TColumnSchema*> unfoldedColumns(indexTableCount);
 
             for (int index = 0; index < indexTableCount; ++index) {
                 if (tableInfo->Indices[index].Kind == ESecondaryIndexKind::Unfolding) {
@@ -1317,9 +1317,8 @@ private:
                             unfoldedKeyPosition);
                         break;
                     }
-                    default: {
+                    default:
                         THROW_ERROR_EXCEPTION("Unsupported secondary index kind %Qlv", kind);
-                    }
                 }
 
                 transaction->EnqueueModificationRequest(std::make_unique<TModificationRequest>(

@@ -26,7 +26,7 @@ TExpressionPtr TListContainsTrasformer::OnFunction(TFunctionExpressionPtr functi
         return TBase::OnFunction(function);
     }
 
-    TReferenceExpression* newReference = Head->New<TReferenceExpression>(
+    auto* newReference = Head->New<TReferenceExpression>(
         NullSourceLocation,
         UnfoldedIndexerColumn);
 
