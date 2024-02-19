@@ -613,9 +613,9 @@ class YTInstance(object):
                             self.yt_config.meta_files_suffix,
                             client)
 
-            self._wait_for_nodes_dynamic_config(patched_node_config, client)
+            self._wait_for_dynamic_config_update(patched_node_config, client)
             if queue_agent_dynamic_config is not None:
-                self._wait_for_queue_agent_dynamic_config(queue_agent_dynamic_config, client)
+                self._wait_for_dynamic_config_update(queue_agent_dynamic_config, client, instance_type="queue_agents/instances")
             self._write_environment_info_to_file()
             logger.info("Environment started")
         except (YtError, KeyboardInterrupt) as err:
@@ -2118,16 +2118,31 @@ class YTInstance(object):
 
         patched_config = self._apply_nodes_dynamic_config(client)
 
-        self._wait_for_nodes_dynamic_config(patched_config, client)
+        self._wait_for_dynamic_config_update(patched_config, client)
 
-    def _wait_for_nodes_dynamic_config(self, expected_config, client):
-        nodes = client.list("//sys/cluster_nodes")
+    def restore_default_dynamic_bundle_config(self):
+        client = self._create_cluster_client()
+
+        client.set("//sys/tablet_cell_bundles/@config", {})
+
+        self._wait_for_dynamic_config_update({}, client, config_node_name="dynamic_bundle_config_manager")
+
+    def _wait_for_dynamic_config_update(self, expected_config, client, instance_type="cluster_nodes", config_node_name="dynamic_config_manager"):
+        nodes = client.list("//sys/{0}".format(instance_type))
+
+        if not nodes:
+            return
 
         def check():
             batch_processor = BatchProcessor(client)
 
+            # COMPAT(gryzlov-ad): Remove this when dynamic_bundle_config_manager is in cluster_node orchid
+            if instance_type == "cluster_nodes" and config_node_name == "dynamic_bundle_config_manager":
+                if not client.exists("//sys/{0}/{1}/orchid/{2}".format(instance_type, nodes[0], config_node_name)):
+                    return True
+
             responses = [
-                batch_processor.get("//sys/cluster_nodes/{0}/orchid/dynamic_config_manager".format(node))
+                batch_processor.get("//sys/{0}/{1}/orchid/{2}".format(instance_type, node, config_node_name))
                 for node in nodes
             ]
 
@@ -2146,29 +2161,3 @@ class YTInstance(object):
             return True
 
         wait(check, error_message="Dynamic config from master didn't reach nodes in time", ignore_exceptions=True)
-
-    def _wait_for_queue_agent_dynamic_config(self, expected_config, client):
-        instances = client.list("//sys/queue_agents/instances")
-
-        def config_updated_on_all_instances():
-            batch_processor = BatchProcessor(client)
-
-            responses = [
-                batch_processor.get("//sys/queue_agents/instances/{0}/orchid/dynamic_config_manager".format(instance))
-                for instance in instances
-            ]
-
-            while batch_processor.has_requests():
-                batch_processor.execute()
-
-            for response in responses:
-                if not response.is_ok():
-                    raise YtResponseError(response.get_error())
-
-                output = response.get_result()
-
-                if expected_config != output.get("applied_config"):
-                    return False
-            return True
-
-        wait(config_updated_on_all_instances)

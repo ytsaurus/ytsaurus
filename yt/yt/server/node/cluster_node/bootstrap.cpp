@@ -1148,6 +1148,10 @@ private:
             CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
         SetNodeByYPath(
             OrchidRoot_,
+            "/dynamic_bundle_config_manager",
+            CreateVirtualNode(BundleDynamicConfigManager_->GetOrchidService()));
+        SetNodeByYPath(
+            OrchidRoot_,
             "/object_service_cache",
             CreateVirtualNode(ObjectServiceCache_->GetOrchidService()));
         SetNodeByYPath(
