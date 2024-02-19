@@ -60,7 +60,7 @@ i64 TMemoryTracker::GetMemoryUsage()
     auto memoryStatistics = GetMemoryStatistics();
 
     i64 memoryUsage = 0;
-    memoryUsage += memoryStatistics->Total.Rss;
+    memoryUsage += memoryStatistics->Total.ResidentAnon;
     if (Config_->IncludeMemoryMappedFiles) {
         memoryUsage += memoryStatistics->Total.MappedFile;
     }
@@ -126,11 +126,11 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
                 }
             }
 
-            jobMemoryStatistics->Total.Rss = memoryMappingStatistics.PrivateClean + memoryMappingStatistics.PrivateDirty;
+            jobMemoryStatistics->Total.ResidentAnon = memoryMappingStatistics.PrivateClean + memoryMappingStatistics.PrivateDirty;
             jobMemoryStatistics->Total.MappedFile = memoryMappingStatistics.SharedClean + memoryMappingStatistics.SharedDirty;
 
-            YT_LOG_DEBUG("Job memory statistics updated (Rss: %v, Shared: %v, SkippedBecauseOfTmpfs: %v)",
-                jobMemoryStatistics->Total.Rss,
+            YT_LOG_DEBUG("Job memory statistics updated (ResidentAnon: %v, MappedFile: %v, SkippedBecauseOfTmpfs: %v)",
+                jobMemoryStatistics->Total.ResidentAnon,
                 jobMemoryStatistics->Total.MappedFile,
                 skippedBecauseOfTmpfs);
         } else {
@@ -176,7 +176,7 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
                     // RSS from /proc/pid/statm includes all pages resident to current process,
                     // including memory-mapped files and shared memory.
                     // Since we want to account shared memory separately, let's subtract it here.
-                    jobMemoryStatistics->Total.Rss += (memoryUsage.Rss - memoryUsage.Shared);
+                    jobMemoryStatistics->Total.ResidentAnon += (memoryUsage.Rss - memoryUsage.Shared);
                     jobMemoryStatistics->Total.MappedFile += memoryUsage.Shared;
 
                     jobMemoryStatistics->Total.MajorPageFaults += majorPageFaults;
@@ -186,13 +186,9 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
                 }
             }
         }
-
-        YT_LOG_DEBUG("Job memory statistics updated (Private: %v, Shared: %v)",
-            jobMemoryStatistics->Total.Rss,
-            jobMemoryStatistics->Total.MappedFile);
     }
 
-    auto memoryUsage = jobMemoryStatistics->Total.Rss + jobMemoryStatistics->Total.MappedFile;
+    auto memoryUsage = jobMemoryStatistics->Total.ResidentAnon + jobMemoryStatistics->Total.MappedFile;
     MaxMemoryUsage_ = std::max<i64>(MaxMemoryUsage_, memoryUsage);
 
     jobMemoryStatistics->TmpfsUsage = TmpfsManager_->GetAggregatedTmpfsUsage();
@@ -200,6 +196,11 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
     if (now > LastMemoryMeasureTime_) {
         CumulativeMemoryUsageMBSec_ += memoryUsage * (now - LastMemoryMeasureTime_).SecondsFloat() / 1_MB;
     }
+
+    YT_LOG_DEBUG("Job memory statistics updated (ResidentAnon: %v, MappedFile: %v)",
+        jobMemoryStatistics->Total.ResidentAnon,
+        jobMemoryStatistics->Total.MappedFile);
+
     LastMemoryMeasureTime_ = now;
     CachedMemoryStatistics_ = jobMemoryStatistics;
 

@@ -89,9 +89,10 @@ TErrorOr<TJobEnvironmentCpuStatistics> ExtractJobEnvironmentCpuStatistics(const 
 
 void Serialize(const TJobEnvironmentMemoryStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
+    //FIXME(khlebnikov): Give "rss" proper name.
     NYTree::BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("rss").Value(statistics.Rss)
+            .Item("rss").Value(statistics.ResidentAnon)
             .Item("mapped_file").Value(statistics.MappedFile)
             .Item("major_page_faults").Value(statistics.MajorPageFaults)
         .EndMap();
@@ -101,7 +102,7 @@ TErrorOr<TJobEnvironmentMemoryStatistics> ExtractJobEnvironmentMemoryStatistics(
 {
     try {
         return TJobEnvironmentMemoryStatistics {
-            .Rss = statistics.Rss.ValueOrThrow(),
+            .ResidentAnon = statistics.ResidentAnon.ValueOrThrow(),
             .MappedFile = statistics.MappedFile.ValueOrThrow(),
             .MajorPageFaults = statistics.MajorPageFaults.ValueOrThrow()
         };
@@ -1031,9 +1032,10 @@ private:
     std::optional<TJobEnvironmentMemoryStatistics> DoGetJobMemoryStatistics() const
     {
         auto statistics = StatisticsFetcher_.GetMemoryStatistics();
-        // NB: PeakRss usage is intentional here, to make statistics more sane.
+        // NB: PeakResidentAnon usage is intentional here, to make statistics more sane.
+        // FIXME(khlebnikov): move PeakResidentAnon logic into memory-tracker.
         return TJobEnvironmentMemoryStatistics{
-            .Rss = statistics.PeakRss,
+            .ResidentAnon = statistics.PeakResidentAnon,
             .MappedFile = statistics.MappedFile,
             .MajorPageFaults = statistics.MajorPageFaults,
         };

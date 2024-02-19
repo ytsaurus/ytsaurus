@@ -214,7 +214,7 @@ public:
 
     struct TStatistics
     {
-        TErrorOr<i64> Rss;
+        TErrorOr<i64> ResidentAnon;
         TErrorOr<i64> MappedFile;
         TErrorOr<i64> MinorPageFaults;
         TErrorOr<i64> MajorPageFaults;

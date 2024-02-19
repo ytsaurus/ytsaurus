@@ -42,34 +42,30 @@ i64 ReadAndParseValueFile(const TString& fileName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMemoryStatistics GetMemoryStatisticsFromMemoryStat(const TString& path)
-{
-    auto statistics = ReadAndParseStatFile(Format("%/%", path, "memory.stat"));
-
-    return TMemoryStatistics{
-        .Rss = statistics["rss"],
-        .MappedFile = statistics["mapped_file"],
-        .MajorPageFaults = statistics["pgmajfault"],
-    };
-}
-
 TMemoryStatistics GetMemoryStatisticsV1(const TString& cgroup)
 {
-    auto memoryStatPath = Format("/sys/fs/cgroup/memory/%v/memory.stat", cgroup);
-    return GetMemoryStatisticsFromMemoryStat(memoryStatPath);
+    auto statistics = ReadAndParseStatFile(Format("/sys/fs/cgroup/memory/%v/memory.stat", cgroup));
+
+    // NB: Use hierarchical "total_*" counter to be in sync with sane v2 behaviour.
+    // NB: Statistics name "rss" isn't correct - it accounts only anonymous pages.
+    return TMemoryStatistics{
+        .ResidentAnon = statistics["total_rss"],
+        .MappedFile = statistics["total_mapped_file"],
+        .MajorPageFaults = statistics["total_pgmajfault"],
+    };
 }
 
 TMemoryStatistics GetMemoryStatisticsV2(const TString& cgroup)
 {
-    auto memoryStatPath = Format("/sys/fs/cgroup/%v/memory.stat", cgroup);
-    auto statistics = GetMemoryStatisticsFromMemoryStat(memoryStatPath);
+    auto statistics = ReadAndParseStatFile(Format("/sys/fs/cgroup/%v/memory.stat", cgroup));
 
-    // NB: In cgroups v2, rss is not in memory.stat, but in memory.current.
-    // See https://stackoverflow.com/questions/74796436/rss-memory-equivalent-in-cgroup-v2.
-    auto memoryCurrentPath = Format("/sys/fs/cgroup/%v/memory.current", cgroup);
-    statistics.Rss = ReadAndParseValueFile(memoryCurrentPath);
-
-    return statistics;
+    // NB: Statistics name "anon" isn't accurate, it counts resident and mapped anonymous pages.
+    // Swap and swap-cache are are not accounted. In kernel it is called "NR_ANON_MAPPED".
+    return TMemoryStatistics{
+        .ResidentAnon = statistics["anon"],
+        .MappedFile = statistics["mapped_file"],
+        .MajorPageFaults = statistics["pgmajfault"],
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -206,8 +202,8 @@ TMemoryStatistics TSelfCGroupsStatisticsFetcher::GetMemoryStatistics() const
 
     {
         auto guard = Guard(SpinLock_);
-        PeakRss_ = std::max(PeakRss_, statistics.Rss);
-        statistics.PeakRss = PeakRss_;
+        PeakResidentAnon_ = std::max(PeakResidentAnon_, statistics.ResidentAnon);
+        statistics.PeakResidentAnon = PeakResidentAnon_;
     }
 
     return statistics;

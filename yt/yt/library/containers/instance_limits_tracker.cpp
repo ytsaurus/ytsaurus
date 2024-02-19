@@ -81,7 +81,7 @@ void TInstanceLimitsTracker::DoUpdateLimits()
         auto netStatistics = RootTracker_->GetNetworkStatistics();
         auto cpuStatistics = SelfTracker_->GetCpuStatistics();
 
-        setIfOk(&MemoryUsage_, memoryStatistics.Rss, "MemoryRss");
+        setIfOk(&MemoryUsage_, memoryStatistics.ResidentAnon, "ResidentAnon");
 
         TDuration cpuGuarantee;
         TDuration cpuLimit;
