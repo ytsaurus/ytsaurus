@@ -86,6 +86,8 @@ def create_response_error(underlying_error):
         error = YtNoSuchCell(underlying_error)
     elif sample_error.is_chunk_not_preloaded():
         error = YtChunkNotPreloaded(underlying_error)
+    elif sample_error.is_no_in_sync_replicas():
+        error = YtNoInSyncReplicas(underlying_error)
     else:
         error = sample_error
     return error
@@ -277,4 +279,9 @@ class YtBlockedRowWaitTimeout(YtResponseError):
 
 class YtChunkNotPreloaded(YtResponseError):
     """Chunk data is not preloaded yet"""
+    pass
+
+
+class YtNoInSyncReplicas(YtResponseError):
+    """No in-sync replicas found"""
     pass

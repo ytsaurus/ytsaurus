@@ -9,7 +9,7 @@ from .default_config import DEFAULT_WRITE_CHUNK_SIZE
 from .errors import (
     YtNoSuchService, YtTabletIsInIntermediateState, YtTabletTransactionLockConflict,
     YtNoSuchTablet, YtTabletNotMounted, YtResponseError, YtRowIsBlocked, YtBlockedRowWaitTimeout,
-    YtNoSuchCell, YtChunkNotPreloaded)
+    YtNoSuchCell, YtChunkNotPreloaded, YtNoInSyncReplicas)
 from .ypath import TablePath
 from .http_helpers import get_retriable_errors
 from .transaction import null_transaction_id
@@ -135,6 +135,7 @@ def get_dynamic_table_retriable_errors():
             YtBlockedRowWaitTimeout,
             YtNoSuchCell,
             YtChunkNotPreloaded,
+            YtNoInSyncReplicas,
         ])
 
 
