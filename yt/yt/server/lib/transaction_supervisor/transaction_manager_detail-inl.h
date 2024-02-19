@@ -32,7 +32,7 @@ void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
     TTransactionActionGuard transactionActionGuard;
     // |PreparedActionCount| should never be |nullopt| after update to current
     // version until |requireLegacyBehavior| is |true|.
-    if (!rememberPreparedTransactionActionCount) {
+    if (rememberPreparedTransactionActionCount) {
         transaction->SetPreparedActionCount(0);
     }
 
@@ -51,7 +51,7 @@ void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
             throw;
         }
 
-        if (!rememberPreparedTransactionActionCount) {
+        if (rememberPreparedTransactionActionCount) {
             transaction->SetPreparedActionCount(*transaction->GetPreparedActionCount() + 1);
         }
     }
