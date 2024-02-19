@@ -21,10 +21,10 @@ target_link_libraries(yt-library-vector_hdrf PUBLIC
   yt-yt-core
 )
 target_sources(yt-library-vector_hdrf PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/vector_hdrf/job_resources.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/vector_hdrf/piecewise_linear_function_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/vector_hdrf/resource_vector.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/vector_hdrf/resource_volume.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/vector_hdrf/resource_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/vector_hdrf/fair_share_update.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/vector_hdrf/job_resources.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/vector_hdrf/piecewise_linear_function_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/vector_hdrf/resource_vector.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/vector_hdrf/resource_volume.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/vector_hdrf/resource_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/vector_hdrf/fair_share_update.cpp
 )

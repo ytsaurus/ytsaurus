@@ -33,8 +33,8 @@ target_link_options(unittester-core-profiling PRIVATE
   -lutil
 )
 target_sources(unittester-core-profiling PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/profiling/unittests/timer_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/profiling/unittests/timing_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/profiling/unittests/timer_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/profiling/unittests/timing_ut.cpp
 )
 add_test(
   NAME

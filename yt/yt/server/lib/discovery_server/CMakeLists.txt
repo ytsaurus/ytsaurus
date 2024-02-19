@@ -34,30 +34,30 @@ target_link_libraries(server-lib-discovery_server PUBLIC
   contrib-libs-protobuf
 )
 target_proto_messages(server-lib-discovery_server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/discovery_server/proto/discovery_server_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/discovery_server/proto/discovery_server_service.proto
 )
 target_sources(server-lib-discovery_server PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/discovery_server/proto/discovery_server_service.pb.h
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/discovery_server/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/discovery_server/cypress_integration.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/discovery_server/discovery_server.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/discovery_server/group.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/discovery_server/group_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/discovery_server/group_tree.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/discovery_server/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/discovery_server/member.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/discovery_server/proto/discovery_server_service.pb.h
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/discovery_server/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/discovery_server/cypress_integration.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/discovery_server/discovery_server.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/discovery_server/group.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/discovery_server/group_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/discovery_server/group_tree.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/discovery_server/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/discovery_server/member.cpp
 )
 target_proto_addincls(server-lib-discovery_server
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 target_proto_outs(server-lib-discovery_server
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )

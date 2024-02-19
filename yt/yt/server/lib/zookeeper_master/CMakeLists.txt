@@ -12,7 +12,7 @@ target_compile_options(server-lib-zookeeper_master PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-zookeeper_master PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-zookeeper_master PUBLIC
   contrib-libs-linux-headers
@@ -22,7 +22,7 @@ target_link_libraries(server-lib-zookeeper_master PUBLIC
   server-lib-hydra
 )
 target_sources(server-lib-zookeeper_master PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/zookeeper_master/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/zookeeper_master/zookeeper_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/zookeeper_master/zookeeper_shard.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/zookeeper_master/bootstrap.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/zookeeper_master/zookeeper_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/zookeeper_master/zookeeper_shard.cpp
 )

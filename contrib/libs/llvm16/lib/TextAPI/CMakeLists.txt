@@ -12,7 +12,7 @@ target_compile_options(llvm16-lib-TextAPI PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(llvm16-lib-TextAPI PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI
 )
 target_link_libraries(llvm16-lib-TextAPI PUBLIC
   contrib-libs-linux-headers
@@ -23,13 +23,13 @@ target_link_libraries(llvm16-lib-TextAPI PUBLIC
   llvm16-lib-TargetParser
 )
 target_sources(llvm16-lib-TextAPI PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/Architecture.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/ArchitectureSet.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/InterfaceFile.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/PackedVersion.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/Platform.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/Symbol.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/Target.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/TextStub.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/TextStubCommon.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/Architecture.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/ArchitectureSet.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/InterfaceFile.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/PackedVersion.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/Platform.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/Symbol.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/Target.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/TextStub.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/TextStubCommon.cpp
 )

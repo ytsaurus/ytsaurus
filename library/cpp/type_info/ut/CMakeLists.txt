@@ -36,21 +36,21 @@ target_link_options(library-cpp-type_info-ut PRIVATE
   -ldl
 )
 target_sources(library-cpp-type_info-ut PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/ut/builder.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/ut/type_basics.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/ut/type_complexity_ut.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/ut/type_constraints.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/ut/type_deserialize.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/ut/type_equivalence.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/ut/type_factory.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/ut/type_factory_raw.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/ut/type_io.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/ut/type_list.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/ut/type_serialize.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/ut/type_show.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/ut/type_strip_tags.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/ut/test_data.cpp
-  ${CMAKE_BINARY_DIR}/library/cpp/type_info/ut/5e5361e0329be49ce689f46dafdeeab6.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/builder.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/type_basics.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/type_complexity_ut.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/type_constraints.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/type_deserialize.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/type_equivalence.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/type_factory.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/type_factory_raw.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/type_io.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/type_list.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/type_serialize.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/type_show.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/type_strip_tags.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/test_data.cpp
+  ${PROJECT_BINARY_DIR}/library/cpp/type_info/ut/5e5361e0329be49ce689f46dafdeeab6.cpp
 )
 set_property(
   TARGET
@@ -92,10 +92,10 @@ set_yunittest_property(
   ENVIRONMENT
 )
 resources(library-cpp-type_info-ut
-  ${CMAKE_BINARY_DIR}/library/cpp/type_info/ut/5e5361e0329be49ce689f46dafdeeab6.cpp
+  ${PROJECT_BINARY_DIR}/library/cpp/type_info/ut/5e5361e0329be49ce689f46dafdeeab6.cpp
   INPUTS
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/ut/test-data/good-types.txt
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/ut/test-data/bad-types.txt
+  ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/test-data/good-types.txt
+  ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/test-data/bad-types.txt
   KEYS
   /good
   /bad

@@ -31,7 +31,7 @@ target_link_options(value_dictionary_compression PRIVATE
   -lutil
 )
 target_sources(value_dictionary_compression PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/value_dictionary_compression/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/value_dictionary_compression/main.cpp
 )
 target_allocator(value_dictionary_compression
   cpp-malloc-tcmalloc

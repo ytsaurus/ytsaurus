@@ -33,7 +33,7 @@ target_link_options(unittester-core-tracing PRIVATE
   -lutil
 )
 target_sources(unittester-core-tracing PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/tracing/unittests/allocation_tags_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/tracing/unittests/allocation_tags_ut.cpp
 )
 add_test(
   NAME

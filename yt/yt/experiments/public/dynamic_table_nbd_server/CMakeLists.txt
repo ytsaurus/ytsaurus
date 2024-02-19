@@ -31,7 +31,7 @@ target_link_options(dynamic_table_nbd_server PRIVATE
   -lutil
 )
 target_sources(dynamic_table_nbd_server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/dynamic_table_nbd_server/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/dynamic_table_nbd_server/main.cpp
 )
 target_allocator(dynamic_table_nbd_server
   cpp-malloc-tcmalloc

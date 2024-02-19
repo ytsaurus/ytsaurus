@@ -28,7 +28,7 @@ target_link_options(01_par_do PRIVATE
   -lutil
 )
 target_sources(01_par_do PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/examples/01_par_do/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/examples/01_par_do/main.cpp
 )
 target_allocator(01_par_do
   cpp-malloc-tcmalloc

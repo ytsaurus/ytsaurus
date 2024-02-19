@@ -18,5 +18,5 @@ target_link_libraries(server-lib-node_tracker_server PUBLIC
   yt-yt-core
 )
 target_sources(server-lib-node_tracker_server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/node_tracker_server/name_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/node_tracker_server/name_helpers.cpp
 )

@@ -19,5 +19,5 @@ target_link_libraries(client-unittests-mock PUBLIC
   yt-yt-client
 )
 target_sources(client-unittests-mock PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/mock/client.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/mock/client.cpp
 )

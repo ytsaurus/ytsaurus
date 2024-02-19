@@ -34,8 +34,8 @@ target_link_options(unittester-data-node PRIVATE
   -lutil
 )
 target_sources(unittester-data-node PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/data_node/unittests/p2p_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/data_node/unittests/journal_manager_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/unittests/p2p_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/unittests/journal_manager_ut.cpp
 )
 add_test(
   NAME

@@ -37,7 +37,7 @@ target_link_options(unittester-core-http PRIVATE
   -lutil
 )
 target_sources(unittester-core-http PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/http/unittests/http_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/http/unittests/http_ut.cpp
 )
 add_test(
   NAME

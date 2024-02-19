@@ -19,5 +19,5 @@ target_link_libraries(library-dns_over_rpc-server PUBLIC
   library-dns_over_rpc-client
 )
 target_sources(library-dns_over_rpc-server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/dns_over_rpc/server/dns_over_rpc_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/dns_over_rpc/server/dns_over_rpc_service.cpp
 )

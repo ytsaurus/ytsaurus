@@ -19,24 +19,24 @@ target_link_libraries(yt-client-driver PUBLIC
   yt-library-formats
 )
 target_sources(yt-client-driver PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/admin_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/authentication_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/bundle_controller_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/chaos_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/command.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/cypress_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/driver.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/etc_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/file_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/journal_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/proxy_discovery_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/query_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/queue_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/scheduler_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/table_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/transaction_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/internal_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/flow_commands.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/admin_commands.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/authentication_commands.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/bundle_controller_commands.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/chaos_commands.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/command.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/cypress_commands.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/driver.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/etc_commands.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/file_commands.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/journal_commands.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/proxy_discovery_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/query_commands.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/queue_commands.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/scheduler_commands.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/table_commands.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/transaction_commands.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/internal_commands.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/flow_commands.cpp
 )

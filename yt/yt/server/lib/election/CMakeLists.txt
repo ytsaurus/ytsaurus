@@ -19,10 +19,10 @@ target_link_libraries(server-lib-election PUBLIC
   yt-yt-ytlib
 )
 target_sources(server-lib-election PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/election/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/election/distributed_election_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/election/election_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/election/election_manager_thunk.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/election/alien_cell_peer_channel_factory.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/election/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/election/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/election/distributed_election_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/election/election_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/election/election_manager_thunk.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/election/alien_cell_peer_channel_factory.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/election/public.cpp
 )

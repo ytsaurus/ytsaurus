@@ -38,10 +38,10 @@ target_link_options(yt-yt-client-hedging-unittests PRIVATE
   -lutil
 )
 target_sources(yt-yt-client-hedging-unittests PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/unittests/counters_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/unittests/hedging_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/unittests/penalty_provider_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/unittests/hook.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/unittests/counters_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/unittests/hedging_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/unittests/penalty_provider_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/unittests/hook.cpp
 )
 add_test(
   NAME

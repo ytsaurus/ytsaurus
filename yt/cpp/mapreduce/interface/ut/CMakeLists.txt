@@ -45,7 +45,7 @@ get_built_tool_path(
 
 add_executable(yt-cpp-mapreduce-interface-ut)
 target_include_directories(yt-cpp-mapreduce-interface-ut PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface
 )
 target_link_libraries(yt-cpp-mapreduce-interface-ut PUBLIC
   contrib-libs-linux-headers
@@ -69,24 +69,24 @@ target_link_options(yt-cpp-mapreduce-interface-ut PRIVATE
   -ldl
 )
 target_proto_messages(yt-cpp-mapreduce-interface-ut PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/proto3_ut.proto
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_table_schema_ut.proto
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_file_options_ut.proto
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/proto3_ut.proto
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_table_schema_ut.proto
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_file_options_ut.proto
 )
 target_sources(yt-cpp-mapreduce-interface-ut PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/cpp/mapreduce/interface/proto3_ut.pb.h
-  ${CMAKE_BINARY_DIR}/yt/cpp/mapreduce/interface/protobuf_table_schema_ut.pb.h
-  ${CMAKE_BINARY_DIR}/yt/cpp/mapreduce/interface/protobuf_file_options_ut.pb.h
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/common_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/config_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/error_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/format_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/job_counters_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/job_statistics_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/operation_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_table_schema_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_file_options_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/serialize_ut.cpp
+  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/interface/proto3_ut.pb.h
+  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/interface/protobuf_table_schema_ut.pb.h
+  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/interface/protobuf_file_options_ut.pb.h
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/common_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/config_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/error_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/format_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/job_counters_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/job_statistics_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/operation_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_table_schema_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_file_options_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/serialize_ut.cpp
 )
 set_property(
   TARGET
@@ -133,15 +133,15 @@ target_allocator(yt-cpp-mapreduce-interface-ut
 )
 target_proto_addincls(yt-cpp-mapreduce-interface-ut
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 target_proto_outs(yt-cpp-mapreduce-interface-ut
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 vcs_info(yt-cpp-mapreduce-interface-ut)

@@ -18,5 +18,5 @@ target_link_libraries(yt-library-named_value PUBLIC
   yt-yt-client
 )
 target_sources(yt-library-named_value PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/named_value/named_value.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/named_value/named_value.cpp
 )

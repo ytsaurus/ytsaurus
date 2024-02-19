@@ -30,7 +30,7 @@ target_link_options(print_column_statistics PRIVATE
   -lutil
 )
 target_sources(print_column_statistics PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/print_column_statistics/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/print_column_statistics/main.cpp
 )
 target_allocator(print_column_statistics
   cpp-malloc-tcmalloc

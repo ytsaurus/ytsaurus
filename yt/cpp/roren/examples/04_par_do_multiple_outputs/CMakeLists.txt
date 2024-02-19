@@ -28,7 +28,7 @@ target_link_options(04_par_do_multiple_outputs PRIVATE
   -lutil
 )
 target_sources(04_par_do_multiple_outputs PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/examples/04_par_do_multiple_outputs/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/examples/04_par_do_multiple_outputs/main.cpp
 )
 target_allocator(04_par_do_multiple_outputs
   cpp-malloc-tcmalloc

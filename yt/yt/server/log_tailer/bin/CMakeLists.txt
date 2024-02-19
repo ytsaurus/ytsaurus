@@ -30,7 +30,7 @@ target_link_options(ytserver-log-tailer PRIVATE
   -lutil
 )
 target_sources(ytserver-log-tailer PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/log_tailer/bin/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/log_tailer/bin/main.cpp
 )
 target_allocator(ytserver-log-tailer
   cpp-malloc-tcmalloc

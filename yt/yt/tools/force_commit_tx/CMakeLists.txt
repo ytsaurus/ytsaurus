@@ -27,7 +27,7 @@ target_link_options(force_commit_tx PRIVATE
   -lutil
 )
 target_sources(force_commit_tx PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/force_commit_tx/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/force_commit_tx/main.cpp
 )
 target_allocator(force_commit_tx
   cpp-malloc-tcmalloc

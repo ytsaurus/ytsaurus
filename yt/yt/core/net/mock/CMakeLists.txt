@@ -19,5 +19,5 @@ target_link_libraries(core-net-mock PUBLIC
   yt-yt-core
 )
 target_sources(core-net-mock PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/net/mock/dialer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/net/mock/dialer.cpp
 )

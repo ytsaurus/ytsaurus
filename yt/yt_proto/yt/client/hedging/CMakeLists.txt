@@ -29,22 +29,22 @@ target_link_libraries(yt-client-hedging-proto PUBLIC
   contrib-libs-protobuf
 )
 target_proto_messages(yt-client-hedging-proto PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/client/hedging/proto/config.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/client/hedging/proto/config.proto
 )
 target_sources(yt-client-hedging-proto PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/client/hedging/proto/config.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/client/hedging/proto/config.pb.h
 )
 target_proto_addincls(yt-client-hedging-proto
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 target_proto_outs(yt-client-hedging-proto
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )

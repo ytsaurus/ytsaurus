@@ -18,11 +18,11 @@ target_link_libraries(yt-library-column_converters PUBLIC
   yt-yt-core
 )
 target_sources(yt-library-column_converters PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/column_converters/boolean_column_converter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/column_converters/column_converter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/column_converters/floating_point_column_converter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/column_converters/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/column_converters/integer_column_converter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/column_converters/null_column_converter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/column_converters/string_column_converter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/column_converters/boolean_column_converter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/column_converters/column_converter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/column_converters/floating_point_column_converter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/column_converters/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/column_converters/integer_column_converter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/column_converters/null_column_converter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/column_converters/string_column_converter.cpp
 )

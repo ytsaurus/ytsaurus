@@ -37,23 +37,23 @@ target_link_libraries(yt-server-http_proxy PUBLIC
   cpp-yt-phdr_cache
 )
 target_sources(yt-server-http_proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/access_checker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/api.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/context.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/coordinator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/dynamic_config_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/formats.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/framing.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/http_authenticator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/private.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/profilers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/zookeeper_bootstrap_proxy.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/discovery_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/handler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/access_checker.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/api.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/bootstrap.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/context.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/coordinator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/dynamic_config_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/formats.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/framing.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/http_authenticator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/private.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/profilers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/zookeeper_bootstrap_proxy.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/discovery_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/handler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/public.cpp
 )

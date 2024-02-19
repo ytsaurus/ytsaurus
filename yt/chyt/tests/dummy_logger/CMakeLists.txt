@@ -28,7 +28,7 @@ target_link_options(dummy-logger PRIVATE
   -ldl
 )
 target_sources(dummy-logger PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/chyt/tests/dummy_logger/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/tests/dummy_logger/main.cpp
 )
 target_allocator(dummy-logger
   cpp-ytalloc-impl

@@ -19,6 +19,6 @@ target_link_libraries(yt-library-skiff_ext PUBLIC
   library-cpp-skiff
 )
 target_sources(yt-library-skiff_ext PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/skiff_ext/serialize.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/skiff_ext/schema_match.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/skiff_ext/serialize.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/skiff_ext/schema_match.cpp
 )

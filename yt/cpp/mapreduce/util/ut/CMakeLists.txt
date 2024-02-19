@@ -9,7 +9,7 @@
 
 add_executable(yt-cpp-mapreduce-util-ut)
 target_include_directories(yt-cpp-mapreduce-util-ut PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/util
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/util
 )
 target_link_libraries(yt-cpp-mapreduce-util-ut PUBLIC
   contrib-libs-linux-headers
@@ -31,8 +31,8 @@ target_link_options(yt-cpp-mapreduce-util-ut PRIVATE
   -ldl
 )
 target_sources(yt-cpp-mapreduce-util-ut PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/util/temp_table_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/util/ypath_join_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/util/temp_table_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/util/ypath_join_ut.cpp
 )
 set_property(
   TARGET

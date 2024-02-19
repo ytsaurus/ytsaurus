@@ -19,5 +19,5 @@ target_link_libraries(tvm-service-mock PUBLIC
   library-tvm-service
 )
 target_sources(tvm-service-mock PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/tvm/service/mock/mock_tvm_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/tvm/service/mock/mock_tvm_service.cpp
 )

@@ -12,7 +12,7 @@ target_compile_options(yt-ytlib-discovery_client PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(yt-ytlib-discovery_client PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(yt-ytlib-discovery_client PUBLIC
   contrib-libs-linux-headers
@@ -23,10 +23,10 @@ target_link_libraries(yt-ytlib-discovery_client PUBLIC
   yt-yt-client
 )
 target_sources(yt-ytlib-discovery_client PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/discovery_client/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/discovery_client/discovery_client.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/discovery_client/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/discovery_client/member_client.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/discovery_client/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/discovery_client/request_session.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/discovery_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/discovery_client/discovery_client.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/discovery_client/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/discovery_client/member_client.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/discovery_client/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/discovery_client/request_session.cpp
 )

@@ -18,5 +18,5 @@ target_link_libraries(mapreduce-library-operation_tracker PUBLIC
   cpp-mapreduce-interface
 )
 target_sources(mapreduce-library-operation_tracker PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/library/operation_tracker/operation_tracker.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/operation_tracker/operation_tracker.cpp
 )

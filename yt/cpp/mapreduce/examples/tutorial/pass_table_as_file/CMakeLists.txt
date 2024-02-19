@@ -30,7 +30,7 @@ target_link_options(pass_table_as_file PRIVATE
   -lutil
 )
 target_sources(pass_table_as_file PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/pass_table_as_file/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/pass_table_as_file/main.cpp
 )
 target_allocator(pass_table_as_file
   cpp-malloc-tcmalloc

@@ -22,6 +22,6 @@ target_link_libraries(server-lib-logging PUBLIC
   yt-library-program
 )
 target_sources(server-lib-logging PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/logging/category_registry.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/logging/program_describe_structured_logs_mixin.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/logging/category_registry.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/logging/program_describe_structured_logs_mixin.cpp
 )

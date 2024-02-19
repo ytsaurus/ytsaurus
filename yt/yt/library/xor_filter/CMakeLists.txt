@@ -16,5 +16,5 @@ target_link_libraries(yt-library-xor_filter PUBLIC
   yt-yt-core
 )
 target_sources(yt-library-xor_filter PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/xor_filter/xor_filter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/xor_filter/xor_filter.cpp
 )

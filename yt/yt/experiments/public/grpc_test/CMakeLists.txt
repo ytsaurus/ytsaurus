@@ -42,11 +42,11 @@ target_link_options(grpc_test PRIVATE
   -lutil
 )
 target_proto_messages(grpc_test PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/grpc_test/main.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/grpc_test/main.proto
 )
 target_sources(grpc_test PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/experiments/public/grpc_test/main.pb.h
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/grpc_test/main.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/experiments/public/grpc_test/main.pb.h
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/grpc_test/main.cpp
 )
 target_allocator(grpc_test
   cpp-malloc-tcmalloc
@@ -54,16 +54,16 @@ target_allocator(grpc_test
 )
 target_proto_addincls(grpc_test
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 target_proto_outs(grpc_test
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 vcs_info(grpc_test)

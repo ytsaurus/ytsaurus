@@ -32,7 +32,7 @@ target_link_options(profiling-example PRIVATE
   -lutil
 )
 target_sources(profiling-example PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/example/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/example/main.cpp
 )
 target_allocator(profiling-example
   cpp-malloc-tcmalloc

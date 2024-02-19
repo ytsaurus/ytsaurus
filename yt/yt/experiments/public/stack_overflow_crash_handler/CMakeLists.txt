@@ -31,7 +31,7 @@ target_link_options(stack_overflow_crash_handler PRIVATE
   -lutil
 )
 target_sources(stack_overflow_crash_handler PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/stack_overflow_crash_handler/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/stack_overflow_crash_handler/main.cpp
 )
 target_allocator(stack_overflow_crash_handler
   cpp-malloc-tcmalloc

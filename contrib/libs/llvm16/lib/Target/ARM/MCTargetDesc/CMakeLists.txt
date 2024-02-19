@@ -12,9 +12,9 @@ target_compile_options(Target-ARM-MCTargetDesc PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(Target-ARM-MCTargetDesc PRIVATE
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc
+  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc
 )
 target_link_libraries(Target-ARM-MCTargetDesc PUBLIC
   contrib-libs-linux-headers
@@ -30,18 +30,18 @@ target_link_libraries(Target-ARM-MCTargetDesc PUBLIC
   llvm16-lib-TargetParser
 )
 target_sources(Target-ARM-MCTargetDesc PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMAsmBackend.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMELFObjectWriter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMELFStreamer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMInstPrinter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMMCAsmInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMMCCodeEmitter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMMCExpr.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMMCTargetDesc.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMMachORelocationInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMMachObjectWriter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMTargetStreamer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMUnwindOpAsm.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMWinCOFFObjectWriter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMWinCOFFStreamer.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMAsmBackend.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMELFObjectWriter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMELFStreamer.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMInstPrinter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMMCAsmInfo.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMMCCodeEmitter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMMCExpr.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMMCTargetDesc.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMMachORelocationInfo.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMMachObjectWriter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMTargetStreamer.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMUnwindOpAsm.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMWinCOFFObjectWriter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMWinCOFFStreamer.cpp
 )

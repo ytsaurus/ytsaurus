@@ -18,6 +18,6 @@ target_link_libraries(lib-hydra-dry_run PUBLIC
   yt-yt-ytlib
 )
 target_sources(lib-hydra-dry_run PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/dry_run/journal_as_local_file_read_only_changelog.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/dry_run/utils.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/dry_run/journal_as_local_file_read_only_changelog.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/dry_run/utils.cpp
 )

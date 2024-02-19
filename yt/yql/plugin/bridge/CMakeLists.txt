@@ -25,5 +25,5 @@ target_link_libraries(yql-plugin-bridge.global PUBLIC
   yt-yt-core
 )
 target_sources(yql-plugin-bridge.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yql/plugin/bridge/plugin.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yql/plugin/bridge/plugin.cpp
 )

@@ -35,7 +35,7 @@ target_link_options(unittester-library-auth PRIVATE
   -lutil
 )
 target_sources(unittester-library-auth PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth/unittests/auth_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/auth/unittests/auth_ut.cpp
 )
 add_test(
   NAME

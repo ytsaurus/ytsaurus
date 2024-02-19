@@ -16,7 +16,7 @@ target_compile_options(python-driver-lib PRIVATE
   -Wno-register
 )
 target_include_directories(python-driver-lib PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
 )
 target_link_libraries(python-driver-lib PUBLIC
   contrib-libs-linux-headers
@@ -31,8 +31,8 @@ target_link_libraries(python-driver-lib PUBLIC
   Python3::Module
 )
 target_sources(python-driver-lib PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/driver/lib/descriptor.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/driver/lib/driver.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/driver/lib/error.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/driver/lib/response.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/driver/lib/descriptor.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/driver/lib/driver.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/driver/lib/error.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/driver/lib/response.cpp
 )

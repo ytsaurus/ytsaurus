@@ -31,7 +31,7 @@ target_link_options(gwp_asan_test PRIVATE
   -lutil
 )
 target_sources(gwp_asan_test PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/gwp_asan_test/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/gwp_asan_test/main.cpp
 )
 target_allocator(gwp_asan_test
   cpp-malloc-tcmalloc

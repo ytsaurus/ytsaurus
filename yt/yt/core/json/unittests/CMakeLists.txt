@@ -33,8 +33,8 @@ target_link_options(unittester-core-json PRIVATE
   -lutil
 )
 target_sources(unittester-core-json PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/json/unittests/parser_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/json/unittests/writer_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/json/unittests/parser_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/json/unittests/writer_ut.cpp
 )
 add_test(
   NAME

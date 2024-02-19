@@ -33,7 +33,7 @@ target_link_options(tablet-balancer-dry-mode PRIVATE
   -lutil
 )
 target_sources(tablet-balancer-dry-mode PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/dry_run/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/dry_run/main.cpp
 )
 target_allocator(tablet-balancer-dry-mode
   cpp-malloc-tcmalloc

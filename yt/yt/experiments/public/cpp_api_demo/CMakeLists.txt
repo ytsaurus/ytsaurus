@@ -33,7 +33,7 @@ target_link_options(cpp_api_demo PRIVATE
   -lutil
 )
 target_sources(cpp_api_demo PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/cpp_api_demo/demo.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/cpp_api_demo/demo.cpp
 )
 target_allocator(cpp_api_demo
   cpp-ytalloc-impl

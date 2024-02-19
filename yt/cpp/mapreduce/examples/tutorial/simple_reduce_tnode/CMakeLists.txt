@@ -30,7 +30,7 @@ target_link_options(simple_reduce_tnode PRIVATE
   -lutil
 )
 target_sources(simple_reduce_tnode PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/simple_reduce_tnode/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/simple_reduce_tnode/main.cpp
 )
 target_allocator(simple_reduce_tnode
   cpp-malloc-tcmalloc

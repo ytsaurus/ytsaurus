@@ -12,9 +12,9 @@ target_compile_options(Target-AArch64-MCTargetDesc PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(Target-AArch64-MCTargetDesc PRIVATE
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc
+  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc
 )
 target_link_libraries(Target-AArch64-MCTargetDesc PUBLIC
   contrib-libs-linux-headers
@@ -29,16 +29,16 @@ target_link_libraries(Target-AArch64-MCTargetDesc PUBLIC
   llvm16-lib-TargetParser
 )
 target_sources(Target-AArch64-MCTargetDesc PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc/AArch64AsmBackend.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc/AArch64ELFObjectWriter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc/AArch64ELFStreamer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc/AArch64InstPrinter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc/AArch64MCAsmInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc/AArch64MCCodeEmitter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc/AArch64MCExpr.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc/AArch64MCTargetDesc.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc/AArch64MachObjectWriter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc/AArch64TargetStreamer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc/AArch64WinCOFFObjectWriter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc/AArch64WinCOFFStreamer.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc/AArch64AsmBackend.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc/AArch64ELFObjectWriter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc/AArch64ELFStreamer.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc/AArch64InstPrinter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc/AArch64MCAsmInfo.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc/AArch64MCCodeEmitter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc/AArch64MCExpr.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc/AArch64MCTargetDesc.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc/AArch64MachObjectWriter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc/AArch64TargetStreamer.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc/AArch64WinCOFFObjectWriter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/MCTargetDesc/AArch64WinCOFFStreamer.cpp
 )

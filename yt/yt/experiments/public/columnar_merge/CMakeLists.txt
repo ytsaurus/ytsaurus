@@ -12,8 +12,8 @@ target_compile_options(columnar_merge PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(columnar_merge PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
-  ${CMAKE_SOURCE_DIR}/contrib/libs/re2
+  ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
+  ${PROJECT_SOURCE_DIR}/contrib/libs/re2
 )
 target_link_libraries(columnar_merge PUBLIC
   contrib-libs-linux-headers
@@ -40,8 +40,8 @@ target_link_options(columnar_merge PRIVATE
   -lutil
 )
 target_sources(columnar_merge PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/columnar_merge/main.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/columnar_merge/routines.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/columnar_merge/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/columnar_merge/routines.cpp
 )
 target_allocator(columnar_merge
   cpp-ytalloc-impl

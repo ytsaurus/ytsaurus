@@ -33,7 +33,7 @@ get_built_tool_path(
 
 add_library(flow-controller-proto)
 target_include_directories(flow-controller-proto PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(flow-controller-proto PUBLIC
   contrib-libs-linux-headers
@@ -43,25 +43,25 @@ target_link_libraries(flow-controller-proto PUBLIC
   contrib-libs-protobuf
 )
 target_proto_messages(flow-controller-proto PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/flow/controller/proto/controller_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/flow/controller/proto/worker_tracker_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/flow/controller/proto/controller_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/flow/controller/proto/worker_tracker_service.proto
 )
 target_sources(flow-controller-proto PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/flow/controller/proto/controller_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt_proto/yt/flow/controller/proto/worker_tracker_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/flow/controller/proto/controller_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/flow/controller/proto/worker_tracker_service.pb.h
 )
 target_proto_addincls(flow-controller-proto
   ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 target_proto_outs(flow-controller-proto
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )

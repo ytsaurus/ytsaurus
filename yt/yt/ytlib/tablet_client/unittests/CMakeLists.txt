@@ -35,7 +35,7 @@ target_link_options(unittester-ytlib-tablet-client PRIVATE
   -lutil
 )
 target_sources(unittester-ytlib-tablet-client PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/unittests/build_reshard_pivots_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/unittests/build_reshard_pivots_ut.cpp
 )
 add_test(
   NAME

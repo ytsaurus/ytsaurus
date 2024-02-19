@@ -30,7 +30,7 @@ target_link_options(check_schema_compatibility PRIVATE
   -lutil
 )
 target_sources(check_schema_compatibility PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/check_schema_compatibility/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/check_schema_compatibility/main.cpp
 )
 target_allocator(check_schema_compatibility
   cpp-malloc-tcmalloc

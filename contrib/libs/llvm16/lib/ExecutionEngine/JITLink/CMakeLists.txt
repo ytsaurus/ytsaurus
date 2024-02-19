@@ -12,8 +12,8 @@ target_compile_options(lib-ExecutionEngine-JITLink PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-ExecutionEngine-JITLink PRIVATE
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink
+  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink
 )
 target_link_libraries(lib-ExecutionEngine-JITLink PUBLIC
   contrib-libs-linux-headers
@@ -29,29 +29,29 @@ target_link_libraries(lib-ExecutionEngine-JITLink PUBLIC
   llvm16-lib-TargetParser
 )
 target_sources(lib-ExecutionEngine-JITLink PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/COFF.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/COFFDirectiveParser.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/COFFLinkGraphBuilder.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/COFF_x86_64.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/DWARFRecordSectionSplitter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/EHFrameSupport.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/ELF.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/ELFLinkGraphBuilder.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/ELF_aarch64.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/ELF_i386.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/ELF_loongarch.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/ELF_riscv.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/ELF_x86_64.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/JITLink.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/JITLinkGeneric.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/JITLinkMemoryManager.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/MachO.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/MachOLinkGraphBuilder.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/MachO_arm64.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/MachO_x86_64.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/aarch64.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/i386.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/loongarch.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/riscv.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/x86_64.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/COFF.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/COFFDirectiveParser.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/COFFLinkGraphBuilder.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/COFF_x86_64.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/DWARFRecordSectionSplitter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/EHFrameSupport.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/ELF.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/ELFLinkGraphBuilder.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/ELF_aarch64.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/ELF_i386.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/ELF_loongarch.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/ELF_riscv.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/ELF_x86_64.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/JITLink.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/JITLinkGeneric.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/JITLinkMemoryManager.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/MachO.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/MachOLinkGraphBuilder.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/MachO_arm64.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/MachO_x86_64.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/aarch64.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/i386.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/loongarch.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/riscv.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/x86_64.cpp
 )

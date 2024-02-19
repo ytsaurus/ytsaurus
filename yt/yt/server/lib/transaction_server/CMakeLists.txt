@@ -18,6 +18,6 @@ target_link_libraries(server-lib-transaction_server PUBLIC
   yt-yt-ytlib
 )
 target_sources(server-lib-transaction_server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_server/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_server/timestamp_proxy_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_server/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_server/timestamp_proxy_service.cpp
 )

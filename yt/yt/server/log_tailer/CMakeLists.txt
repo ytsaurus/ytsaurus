@@ -23,9 +23,9 @@ target_link_libraries(yt-server-log_tailer PUBLIC
   cpp-getopt-small
 )
 target_sources(yt-server-log_tailer PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/log_tailer/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/log_tailer/log_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/log_tailer/log_rotator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/log_tailer/log_tailer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/log_tailer/log_writer_liveness_checker.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/log_tailer/bootstrap.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/log_tailer/log_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/log_tailer/log_rotator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/log_tailer/log_tailer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/log_tailer/log_writer_liveness_checker.cpp
 )

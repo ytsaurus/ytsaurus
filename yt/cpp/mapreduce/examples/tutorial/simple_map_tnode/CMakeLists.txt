@@ -31,7 +31,7 @@ target_link_options(simple_map_tnode PRIVATE
   -lutil
 )
 target_sources(simple_map_tnode PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/simple_map_tnode/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/simple_map_tnode/main.cpp
 )
 target_allocator(simple_map_tnode
   cpp-malloc-tcmalloc

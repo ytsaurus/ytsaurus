@@ -32,7 +32,7 @@ target_link_options(cell-balancer-unittests PRIVATE
   -lutil
 )
 target_sources(cell-balancer-unittests PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cell_balancer/unittests/bundle_scheduler_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/unittests/bundle_scheduler_ut.cpp
 )
 add_test(
   NAME

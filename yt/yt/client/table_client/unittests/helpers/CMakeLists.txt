@@ -19,5 +19,5 @@ target_link_libraries(table_client-unittests-helpers PUBLIC
   yt-core-test_framework
 )
 target_sources(table_client-unittests-helpers PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/unittests/helpers/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/unittests/helpers/helpers.cpp
 )

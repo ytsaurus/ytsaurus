@@ -34,7 +34,7 @@ target_link_options(insert PRIVATE
   -lutil
 )
 target_sources(insert PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/insert/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/insert/main.cpp
 )
 target_allocator(insert
   cpp-malloc-tcmalloc

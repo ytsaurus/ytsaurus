@@ -21,5 +21,5 @@ target_link_libraries(logging-backends-stream PUBLIC
   cpp-yt-threading
 )
 target_sources(logging-backends-stream PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/logging/backends/stream/stream_log_manager.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/yt/logging/backends/stream/stream_log_manager.cpp
 )

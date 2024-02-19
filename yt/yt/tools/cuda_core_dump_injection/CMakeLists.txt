@@ -25,6 +25,6 @@ target_link_options(cuda_core_dump_injection PRIVATE
   -ldl
 )
 target_sources(cuda_core_dump_injection PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/cuda_core_dump_injection/cuda_core_dump_injection.c
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/cuda_core_dump_injection/cuda_core_dump_injection.c
 )
 vcs_info(cuda_core_dump_injection)

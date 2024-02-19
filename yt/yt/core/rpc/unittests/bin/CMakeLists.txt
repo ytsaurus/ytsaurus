@@ -30,7 +30,7 @@ target_link_options(bin PRIVATE
   -lutil
 )
 target_sources(bin PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/bin/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/bin/main.cpp
 )
 target_allocator(bin
   cpp-malloc-tcmalloc

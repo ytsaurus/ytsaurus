@@ -15,7 +15,7 @@ target_link_libraries(contrib-restricted-murmurhash PUBLIC
   contrib-libs-linux-headers
 )
 target_sources(contrib-restricted-murmurhash PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/murmurhash/MurmurHash1.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/murmurhash/MurmurHash2.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/murmurhash/MurmurHash3.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/murmurhash/MurmurHash1.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/murmurhash/MurmurHash2.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/murmurhash/MurmurHash3.cpp
 )

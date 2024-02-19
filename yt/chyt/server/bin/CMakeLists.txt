@@ -33,7 +33,7 @@ target_link_options(ytserver-clickhouse PRIVATE
   -lutil
 )
 target_sources(ytserver-clickhouse PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/chyt/server/bin/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/bin/main.cpp
 )
 target_allocator(ytserver-clickhouse
   cpp-malloc-tcmalloc

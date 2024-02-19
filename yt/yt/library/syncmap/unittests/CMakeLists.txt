@@ -33,7 +33,7 @@ target_link_options(yt-yt-library-syncmap-unittests PRIVATE
   -lutil
 )
 target_sources(yt-yt-library-syncmap-unittests PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/syncmap/unittests/map_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/syncmap/unittests/map_ut.cpp
 )
 add_test(
   NAME

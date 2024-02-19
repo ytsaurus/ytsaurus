@@ -16,9 +16,9 @@ target_link_libraries(cpp-xdelta3-state PUBLIC
   cpp-xdelta3-xdelta_codec
 )
 target_sources(cpp-xdelta3-state PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/xdelta3/state/create_proto.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/xdelta3/state/data_ptr.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/xdelta3/state/hash.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/xdelta3/state/state.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/xdelta3/state/merge.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/xdelta3/state/create_proto.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/xdelta3/state/data_ptr.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/xdelta3/state/hash.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/xdelta3/state/state.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/xdelta3/state/merge.cpp
 )

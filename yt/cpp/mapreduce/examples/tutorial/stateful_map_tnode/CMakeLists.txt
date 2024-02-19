@@ -31,7 +31,7 @@ target_link_options(stateful_map_tnode PRIVATE
   -lutil
 )
 target_sources(stateful_map_tnode PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/stateful_map_tnode/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/stateful_map_tnode/main.cpp
 )
 target_allocator(stateful_map_tnode
   cpp-malloc-tcmalloc

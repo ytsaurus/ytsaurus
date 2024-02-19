@@ -28,7 +28,7 @@ target_link_options(cuda_core_dump_simulator PRIVATE
   -ldl
 )
 target_sources(cuda_core_dump_simulator PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tests/cuda_core_dump_simulator/main.c
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cuda_core_dump_simulator/main.c
 )
 target_allocator(cuda_core_dump_simulator
   cpp-malloc-tcmalloc

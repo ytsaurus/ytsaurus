@@ -34,7 +34,7 @@ target_link_options(versioned_block_format PRIVATE
   -lutil
 )
 target_sources(versioned_block_format PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/versioned_block_format/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/versioned_block_format/main.cpp
 )
 add_test(
   NAME

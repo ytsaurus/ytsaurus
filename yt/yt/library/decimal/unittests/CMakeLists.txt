@@ -33,7 +33,7 @@ target_link_options(unittester-library-decimal PRIVATE
   -lutil
 )
 target_sources(unittester-library-decimal PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/decimal/unittests/decimal_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/decimal/unittests/decimal_ut.cpp
 )
 add_test(
   NAME

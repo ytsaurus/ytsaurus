@@ -30,7 +30,7 @@ target_link_options(job_statistics PRIVATE
   -lutil
 )
 target_sources(job_statistics PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/job_statistics/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/job_statistics/main.cpp
 )
 target_allocator(job_statistics
   cpp-malloc-tcmalloc

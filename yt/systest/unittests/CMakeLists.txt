@@ -32,11 +32,11 @@ target_link_options(unittester-yt-systest PRIVATE
   -lutil
 )
 target_sources(unittester-yt-systest PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/systest/unittests/stub_dataset.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/unittests/sort_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/unittests/reduce_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/unittests/worker_set_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/unittests/util.cpp
+  ${PROJECT_SOURCE_DIR}/yt/systest/unittests/stub_dataset.cpp
+  ${PROJECT_SOURCE_DIR}/yt/systest/unittests/sort_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/systest/unittests/reduce_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/systest/unittests/worker_set_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/systest/unittests/util.cpp
 )
 add_test(
   NAME

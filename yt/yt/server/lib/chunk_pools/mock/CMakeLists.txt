@@ -19,6 +19,6 @@ target_link_libraries(lib-chunk_pools-mock PUBLIC
   server-lib-chunk_pools
 )
 target_sources(lib-chunk_pools-mock PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/mock/chunk_pool.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/mock/chunk_slice_fetcher.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/mock/chunk_pool.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/mock/chunk_slice_fetcher.cpp
 )

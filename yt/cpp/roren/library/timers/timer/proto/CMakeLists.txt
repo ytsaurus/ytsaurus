@@ -27,21 +27,21 @@ target_link_libraries(timers-timer-proto PUBLIC
   contrib-libs-protobuf
 )
 target_proto_messages(timers-timer-proto PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/library/timers/timer/proto/timers.proto
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/library/timers/timer/proto/timers.proto
 )
 target_sources(timers-timer-proto PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/cpp/roren/library/timers/timer/proto/timers.pb.h
+  ${PROJECT_BINARY_DIR}/yt/cpp/roren/library/timers/timer/proto/timers.pb.h
 )
 target_proto_addincls(timers-timer-proto
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 target_proto_outs(timers-timer-proto
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )

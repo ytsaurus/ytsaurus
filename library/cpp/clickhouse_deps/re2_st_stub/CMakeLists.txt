@@ -9,7 +9,7 @@
 
 add_library(cpp-clickhouse_deps-re2_st_stub INTERFACE)
 target_include_directories(cpp-clickhouse_deps-re2_st_stub INTERFACE
-  ${CMAKE_SOURCE_DIR}/library/cpp/clickhouse_deps/re2_st_stub/include
+  ${PROJECT_SOURCE_DIR}/library/cpp/clickhouse_deps/re2_st_stub/include
 )
 target_link_libraries(cpp-clickhouse_deps-re2_st_stub INTERFACE
   contrib-libs-linux-headers

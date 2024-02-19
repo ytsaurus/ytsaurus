@@ -27,13 +27,13 @@ target_link_libraries(cpp-mapreduce-util PUBLIC
   cpp-mapreduce-interface
 )
 target_sources(cpp-mapreduce-util PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/util/batch.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/util/temp_table.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/util/ypath_join.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/util/wait_for_tablets_state.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/util/batch.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/util/temp_table.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/util/ypath_join.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/util/wait_for_tablets_state.cpp
 )
 generate_enum_serilization(cpp-mapreduce-util
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/util/wait_for_tablets_state.h
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/util/wait_for_tablets_state.h
   INCLUDE_HEADERS
   yt/cpp/mapreduce/util/wait_for_tablets_state.h
 )

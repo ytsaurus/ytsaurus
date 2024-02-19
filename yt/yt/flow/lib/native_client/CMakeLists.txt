@@ -16,5 +16,5 @@ target_link_libraries(flow-lib-native_client PUBLIC
   yt-yt-client
 )
 target_sources(flow-lib-native_client PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/flow/lib/native_client/pipeline_init.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/lib/native_client/pipeline_init.cpp
 )

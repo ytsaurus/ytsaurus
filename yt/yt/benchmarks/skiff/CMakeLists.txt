@@ -34,8 +34,8 @@ target_link_options(skiff PRIVATE
   -lutil
 )
 target_sources(skiff PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/skiff/main.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/skiff/experimental_yson_pull_format.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/skiff/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/skiff/experimental_yson_pull_format.cpp
 )
 target_allocator(skiff
   cpp-malloc-tcmalloc

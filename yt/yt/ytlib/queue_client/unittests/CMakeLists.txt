@@ -33,7 +33,7 @@ target_link_options(unittester-queue-client PRIVATE
   -lutil
 )
 target_sources(unittester-queue-client PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/unittests/dynamic_state_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/unittests/dynamic_state_ut.cpp
 )
 add_test(
   NAME

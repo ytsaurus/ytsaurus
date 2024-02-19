@@ -29,7 +29,7 @@ target_link_options(unittester-tools PRIVATE
   -lutil
 )
 target_sources(unittester-tools PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tools/unittests/tools_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/tools/unittests/tools_ut.cpp
 )
 add_test(
   NAME

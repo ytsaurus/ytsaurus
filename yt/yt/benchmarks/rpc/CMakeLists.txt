@@ -44,28 +44,28 @@ target_link_options(rpc_benchmark PRIVATE
   -lutil
 )
 target_proto_messages(rpc_benchmark PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/rpc/main.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/rpc/main.proto
 )
 target_sources(rpc_benchmark PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/benchmarks/rpc/main.pb.h
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/rpc/main.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/benchmarks/rpc/main.pb.h
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/rpc/main.cpp
 )
 target_allocator(rpc_benchmark
   cpp-ytalloc-impl
 )
 target_proto_addincls(rpc_benchmark
   ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 target_proto_outs(rpc_benchmark
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
 vcs_info(rpc_benchmark)

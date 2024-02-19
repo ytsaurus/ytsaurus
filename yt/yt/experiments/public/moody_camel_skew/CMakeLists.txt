@@ -30,7 +30,7 @@ target_link_options(moody_camel_skew PRIVATE
   -lutil
 )
 target_sources(moody_camel_skew PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/moody_camel_skew/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/moody_camel_skew/main.cpp
 )
 target_allocator(moody_camel_skew
   cpp-malloc-tcmalloc

@@ -12,14 +12,14 @@ target_compile_options(yt-library-clickhouse_functions PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(yt-library-clickhouse_functions PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src
-  ${CMAKE_SOURCE_DIR}/contrib/libs/double-conversion
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Foundation/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Net/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Util/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/XML/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/re2
-  ${CMAKE_SOURCE_DIR}/contrib/libs/rapidjson/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src
+  ${PROJECT_SOURCE_DIR}/contrib/libs/double-conversion
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Net/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Util/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/XML/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/re2
+  ${PROJECT_SOURCE_DIR}/contrib/libs/rapidjson/include
 )
 target_link_libraries(yt-library-clickhouse_functions PUBLIC
   contrib-libs-linux-headers
@@ -29,8 +29,8 @@ target_link_libraries(yt-library-clickhouse_functions PUBLIC
   contrib-clickhouse-src
 )
 target_sources(yt-library-clickhouse_functions PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/clickhouse_functions/unescaped_yson.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/clickhouse_functions/yson_parser_adapter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_functions/unescaped_yson.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_functions/yson_parser_adapter.cpp
 )
 
 add_global_library_for(yt-library-clickhouse_functions.global yt-library-clickhouse_functions)
@@ -38,14 +38,14 @@ target_compile_options(yt-library-clickhouse_functions.global PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(yt-library-clickhouse_functions.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src
-  ${CMAKE_SOURCE_DIR}/contrib/libs/double-conversion
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Foundation/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Net/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Util/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/XML/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/re2
-  ${CMAKE_SOURCE_DIR}/contrib/libs/rapidjson/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src
+  ${PROJECT_SOURCE_DIR}/contrib/libs/double-conversion
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Net/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Util/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/XML/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/re2
+  ${PROJECT_SOURCE_DIR}/contrib/libs/rapidjson/include
 )
 target_link_libraries(yt-library-clickhouse_functions.global PUBLIC
   contrib-libs-linux-headers
@@ -55,7 +55,7 @@ target_link_libraries(yt-library-clickhouse_functions.global PUBLIC
   contrib-clickhouse-src
 )
 target_sources(yt-library-clickhouse_functions.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/clickhouse_functions/convert_yson.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/clickhouse_functions/ypath.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/clickhouse_functions/yson_extract.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_functions/convert_yson.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_functions/ypath.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_functions/yson_extract.cpp
 )

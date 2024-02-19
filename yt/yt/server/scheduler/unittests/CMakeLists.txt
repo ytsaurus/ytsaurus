@@ -32,12 +32,12 @@ target_link_options(unittester-scheduler PRIVATE
   -lutil
 )
 target_sources(unittester-scheduler PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/unittests/fair_share_packing_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/unittests/fair_share_strategy_operation_controller_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/unittests/fair_share_tree_element_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/unittests/fair_share_tree_job_scheduler_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/unittests/job_metrics_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/unittests/scheduler_helpers_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/fair_share_packing_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/fair_share_strategy_operation_controller_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/fair_share_tree_element_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/fair_share_tree_job_scheduler_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/job_metrics_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/scheduler_helpers_ut.cpp
 )
 add_test(
   NAME

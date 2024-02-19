@@ -21,5 +21,5 @@ target_link_libraries(yt-library-oom PUBLIC
   cpp-yt-logging
 )
 target_sources(yt-library-oom PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/oom/oom.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/oom/oom.cpp
 )

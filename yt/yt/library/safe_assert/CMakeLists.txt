@@ -26,5 +26,5 @@ target_link_libraries(yt-library-safe_assert.global PUBLIC
   yt-library-coredumper
 )
 target_sources(yt-library-safe_assert.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/safe_assert/safe_assert.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/safe_assert/safe_assert.cpp
 )

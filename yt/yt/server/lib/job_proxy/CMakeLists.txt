@@ -34,24 +34,24 @@ target_link_libraries(server-lib-job_proxy PUBLIC
   contrib-libs-protobuf
 )
 target_proto_messages(server-lib-job_proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_proxy/proto/job_prober_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/job_proxy/proto/job_prober_service.proto
 )
 target_sources(server-lib-job_proxy PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/job_proxy/proto/job_prober_service.pb.h
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_proxy/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_proxy/job_probe.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/job_proxy/proto/job_prober_service.pb.h
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/job_proxy/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/job_proxy/job_probe.cpp
 )
 target_proto_addincls(server-lib-job_proxy
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 target_proto_outs(server-lib-job_proxy
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )

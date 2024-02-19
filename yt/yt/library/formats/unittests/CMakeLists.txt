@@ -60,27 +60,27 @@ target_link_options(unittester-formats PRIVATE
   -lutil
 )
 target_proto_messages(unittester-formats PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/protobuf_format_ut.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/protobuf_format_ut.proto
 )
 target_sources(unittester-formats PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/library/formats/unittests/protobuf_format_ut.pb.h
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/arrow_parser_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/arrow_writer_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/dsv_parser_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/dsv_writer_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/row_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/schemaful_dsv_parser_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/schemaful_dsv_writer_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/skiff_format_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/skiff_yson_converter_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/value_examples.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/web_json_writer_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/yamred_dsv_parser_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/yamred_dsv_writer_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/yamr_parser_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/yamr_writer_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/unittests/yson_helpers.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/library/formats/unittests/5e5361e0329be49ce689f46dafdeeab6.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/formats/unittests/protobuf_format_ut.pb.h
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/arrow_parser_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/arrow_writer_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/dsv_parser_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/dsv_writer_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/row_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/schemaful_dsv_parser_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/schemaful_dsv_writer_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/skiff_format_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/skiff_yson_converter_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/value_examples.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/web_json_writer_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/yamred_dsv_parser_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/yamred_dsv_writer_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/yamr_parser_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/yamr_writer_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/yson_helpers.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/formats/unittests/5e5361e0329be49ce689f46dafdeeab6.cpp
 )
 add_test(
   NAME
@@ -109,10 +109,10 @@ set_property(
   ENVIRONMENT
 )
 resources(unittester-formats
-  ${CMAKE_BINARY_DIR}/yt/yt/library/formats/unittests/5e5361e0329be49ce689f46dafdeeab6.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/formats/unittests/5e5361e0329be49ce689f46dafdeeab6.cpp
   INPUTS
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/ut/test-data/good-types.txt
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/ut/test-data/bad-types.txt
+  ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/test-data/good-types.txt
+  ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/test-data/bad-types.txt
   KEYS
   /types/good
   /types/bad
@@ -122,17 +122,17 @@ target_allocator(unittester-formats
 )
 target_proto_addincls(unittester-formats
   ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 target_proto_outs(unittester-formats
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
 vcs_info(unittester-formats)

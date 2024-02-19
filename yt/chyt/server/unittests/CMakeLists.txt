@@ -35,10 +35,10 @@ target_link_options(unittester-clickhouse-server PRIVATE
   -lutil
 )
 target_sources(unittester-clickhouse-server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/chyt/server/unittests/computed_columns_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/chyt/server/unittests/ch_yt_converter_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/chyt/server/unittests/yt_ch_converter_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/chyt/server/unittests/framework.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/unittests/computed_columns_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/unittests/ch_yt_converter_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/unittests/yt_ch_converter_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/unittests/framework.cpp
 )
 add_test(
   NAME

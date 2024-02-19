@@ -32,8 +32,8 @@ target_link_options(unittester-server-lib-misc PRIVATE
   -lutil
 )
 target_sources(unittester-server-lib-misc PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/unittests/max_min_balancer_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/unittests/release_queue_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/unittests/max_min_balancer_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/unittests/release_queue_ut.cpp
 )
 add_test(
   NAME

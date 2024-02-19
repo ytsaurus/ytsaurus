@@ -62,15 +62,15 @@ target_link_options(proto PRIVATE
   -ldl
 )
 target_proto_messages(proto PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/proto/test_base.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/proto/test_full.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/proto/test_part.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/proto/test_base.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/proto/test_full.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/proto/test_part.proto
 )
 target_sources(proto PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/benchmarks/proto/test_base.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/benchmarks/proto/test_full.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/benchmarks/proto/test_part.pb.h
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/proto/main.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/benchmarks/proto/test_base.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/benchmarks/proto/test_full.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/benchmarks/proto/test_part.pb.h
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/proto/main.cpp
 )
 target_allocator(proto
   cpp-malloc-tcmalloc
@@ -78,15 +78,15 @@ target_allocator(proto
 )
 target_proto_addincls(proto
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 target_proto_outs(proto
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 vcs_info(proto)

@@ -34,9 +34,9 @@ target_link_options(unittester-core-net PRIVATE
   -lutil
 )
 target_sources(unittester-core-net PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/net/unittests/local_address_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/net/unittests/net_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/net/unittests/network_address_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/net/unittests/local_address_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/net/unittests/net_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/net/unittests/network_address_ut.cpp
 )
 add_test(
   NAME

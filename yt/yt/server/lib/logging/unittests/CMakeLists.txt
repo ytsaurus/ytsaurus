@@ -34,7 +34,7 @@ target_link_options(unittester-library-logging PRIVATE
   -lutil
 )
 target_sources(unittester-library-logging PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/logging/unittests/category_registry_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/logging/unittests/category_registry_ut.cpp
 )
 add_test(
   NAME

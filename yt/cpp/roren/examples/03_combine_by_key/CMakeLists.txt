@@ -28,7 +28,7 @@ target_link_options(03_combine_by_key PRIVATE
   -lutil
 )
 target_sources(03_combine_by_key PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/examples/03_combine_by_key/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/examples/03_combine_by_key/main.cpp
 )
 target_allocator(03_combine_by_key
   cpp-malloc-tcmalloc

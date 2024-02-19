@@ -29,7 +29,7 @@ target_link_options(chyt_query PRIVATE
   -lutil
 )
 target_sources(chyt_query PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/chyt_query/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/chyt_query/main.cpp
 )
 target_allocator(chyt_query
   cpp-malloc-tcmalloc

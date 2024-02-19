@@ -36,7 +36,7 @@ target_link_options(cpp-integration-test-hydra PRIVATE
   -lutil
 )
 target_sources(cpp-integration-test-hydra PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tests/cpp/test_hydra/test_remote_changelog_store.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_hydra/test_remote_changelog_store.cpp
 )
 add_test(
   NAME

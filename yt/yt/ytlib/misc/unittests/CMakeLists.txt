@@ -33,7 +33,7 @@ target_link_options(unittester-ytlib-memory-trackers PRIVATE
   -lutil
 )
 target_sources(unittester-ytlib-memory-trackers PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/misc/unittests/memory_reference_tracker_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/misc/unittests/memory_reference_tracker_ut.cpp
 )
 add_test(
   NAME

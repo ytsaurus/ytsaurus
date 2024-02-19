@@ -17,7 +17,7 @@ target_compile_options(yt-python-yson PRIVATE
   -Wno-register
 )
 target_include_directories(yt-python-yson PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
 )
 target_link_libraries(yt-python-yson PUBLIC
   contrib-libs-linux-headers
@@ -31,29 +31,29 @@ target_link_libraries(yt-python-yson PUBLIC
   Python3::Module
 )
 target_sources(yt-python-yson PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/arrow.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/error.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/lazy_dict.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/limited_yson_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/list_fragment_parser.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/pull_object_builder.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/serialize.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/yson_lazy_map.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/consumer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/converter_common.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/converter_skiff_to_python.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/converter_python_to_skiff.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/error.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/other_columns.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/parser.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/raw_consumer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/raw_iterator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/record.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/schema.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/serialize.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/structured_iterator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/skiff/switch.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/arrow.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/error.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/lazy_dict.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/limited_yson_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/list_fragment_parser.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/pull_object_builder.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/serialize.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/yson_lazy_map.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/consumer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/converter_common.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/converter_skiff_to_python.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/converter_python_to_skiff.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/error.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/other_columns.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/parser.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/raw_consumer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/raw_iterator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/record.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/schema.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/serialize.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/structured_iterator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/switch.cpp
 )
 
 add_global_library_for(yt-python-yson.global yt-python-yson)
@@ -64,7 +64,7 @@ target_compile_options(yt-python-yson.global PRIVATE
   -Wno-register
 )
 target_include_directories(yt-python-yson.global PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
 )
 target_link_libraries(yt-python-yson.global PUBLIC
   contrib-libs-linux-headers
@@ -78,5 +78,5 @@ target_link_libraries(yt-python-yson.global PUBLIC
   Python3::Module
 )
 target_sources(yt-python-yson.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/yson.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/yson.cpp
 )

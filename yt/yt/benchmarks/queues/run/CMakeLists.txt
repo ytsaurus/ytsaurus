@@ -30,7 +30,7 @@ target_link_options(benchmark_queues PRIVATE
   -lutil
 )
 target_sources(benchmark_queues PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/queues/run/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/queues/run/main.cpp
 )
 target_allocator(benchmark_queues
   cpp-ytalloc-impl

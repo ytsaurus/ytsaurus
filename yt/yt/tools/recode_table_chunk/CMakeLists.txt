@@ -34,7 +34,7 @@ target_link_options(recode-table-chunk PRIVATE
   -lutil
 )
 target_sources(recode-table-chunk PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/recode_table_chunk/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/recode_table_chunk/main.cpp
 )
 target_allocator(recode-table-chunk
   cpp-malloc-tcmalloc

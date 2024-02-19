@@ -26,7 +26,7 @@ target_link_options(crc64_reference_test PRIVATE
   -lpthread
 )
 target_sources(crc64_reference_test PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/isa_crc64/unittests/crc64_reference_test/crc64_reference_test.c
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/isa_crc64/unittests/crc64_reference_test/crc64_reference_test.c
 )
 target_allocator(crc64_reference_test
   cpp-malloc-tcmalloc

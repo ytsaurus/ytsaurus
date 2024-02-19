@@ -19,5 +19,5 @@ target_link_libraries(yt-library-heavy_schema_validation PUBLIC
   library-query-engine_api
 )
 target_sources(yt-library-heavy_schema_validation PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/heavy_schema_validation/schema_validation.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/heavy_schema_validation/schema_validation.cpp
 )

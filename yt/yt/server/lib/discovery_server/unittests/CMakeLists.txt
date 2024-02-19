@@ -36,8 +36,8 @@ target_link_options(unittester-discovery-server PRIVATE
   -lutil
 )
 target_sources(unittester-discovery-server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/discovery_server/unittests/discovery_service_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/discovery_server/unittests/distributed_throttler_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/discovery_server/unittests/discovery_service_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/discovery_server/unittests/distributed_throttler_ut.cpp
 )
 add_test(
   NAME

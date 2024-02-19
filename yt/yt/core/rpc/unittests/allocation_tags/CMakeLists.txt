@@ -38,7 +38,7 @@ target_link_options(core-rpc-allocation-tags PRIVATE
   -lutil
 )
 target_sources(core-rpc-allocation-tags PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/rpc_allocation_tags_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/rpc_allocation_tags_ut.cpp
 )
 add_test(
   NAME

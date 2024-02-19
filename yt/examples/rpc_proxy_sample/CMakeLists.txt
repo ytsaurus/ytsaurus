@@ -30,7 +30,7 @@ target_link_options(rpc_proxy_example PRIVATE
   -lutil
 )
 target_sources(rpc_proxy_example PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/examples/rpc_proxy_sample/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/examples/rpc_proxy_sample/main.cpp
 )
 target_allocator(rpc_proxy_example
   cpp-ytalloc-impl

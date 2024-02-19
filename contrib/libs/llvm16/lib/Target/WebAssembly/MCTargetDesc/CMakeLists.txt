@@ -12,9 +12,9 @@ target_compile_options(Target-WebAssembly-MCTargetDesc PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(Target-WebAssembly-MCTargetDesc PRIVATE
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/MCTargetDesc
+  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/MCTargetDesc
 )
 target_link_libraries(Target-WebAssembly-MCTargetDesc PUBLIC
   contrib-libs-linux-headers
@@ -28,11 +28,11 @@ target_link_libraries(Target-WebAssembly-MCTargetDesc PUBLIC
   llvm16-lib-TargetParser
 )
 target_sources(Target-WebAssembly-MCTargetDesc PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/MCTargetDesc/WebAssemblyAsmBackend.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/MCTargetDesc/WebAssemblyInstPrinter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/MCTargetDesc/WebAssemblyMCAsmInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/MCTargetDesc/WebAssemblyMCCodeEmitter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/MCTargetDesc/WebAssemblyMCTargetDesc.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/MCTargetDesc/WebAssemblyTargetStreamer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/MCTargetDesc/WebAssemblyWasmObjectWriter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/MCTargetDesc/WebAssemblyAsmBackend.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/MCTargetDesc/WebAssemblyInstPrinter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/MCTargetDesc/WebAssemblyMCAsmInfo.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/MCTargetDesc/WebAssemblyMCCodeEmitter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/MCTargetDesc/WebAssemblyMCTargetDesc.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/MCTargetDesc/WebAssemblyTargetStreamer.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/MCTargetDesc/WebAssemblyWasmObjectWriter.cpp
 )

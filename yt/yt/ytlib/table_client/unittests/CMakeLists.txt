@@ -35,24 +35,24 @@ target_link_options(unittester-ytlib-table-client PRIVATE
   -lutil
 )
 target_sources(unittester-ytlib-table-client PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/table_schema_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/value_consumer_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/schemaless_blocks_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/schemaless_chunks_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/schemaless_column_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/versioned_blocks_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/versioned_chunks_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/any_column_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/boolean_column_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/column_format_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/complex_column_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/floating_point_column_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/integer_column_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/meta_aggregating_writer_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/null_column_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/string_column_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/timestamp_column_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/chunk_index_read_controller_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/table_schema_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/value_consumer_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/schemaless_blocks_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/schemaless_chunks_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/schemaless_column_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/versioned_blocks_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/versioned_chunks_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/any_column_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/boolean_column_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/column_format_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/complex_column_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/floating_point_column_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/integer_column_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/meta_aggregating_writer_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/null_column_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/string_column_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/timestamp_column_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/chunk_index_read_controller_ut.cpp
 )
 add_test(
   NAME

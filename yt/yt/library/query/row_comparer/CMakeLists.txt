@@ -30,5 +30,5 @@ target_link_libraries(library-query-row_comparer.global PUBLIC
   yt-library-codegen
 )
 target_sources(library-query-row_comparer.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/row_comparer/row_comparer_generator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/row_comparer/row_comparer_generator.cpp
 )

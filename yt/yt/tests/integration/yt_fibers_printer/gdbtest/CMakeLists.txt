@@ -31,9 +31,9 @@ target_link_options(gdbtest PRIVATE
   -lutil
 )
 target_sources(gdbtest PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tests/integration/yt_fibers_printer/gdbtest/main.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tests/integration/yt_fibers_printer/gdbtest/foo.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tests/integration/yt_fibers_printer/gdbtest/bar.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/integration/yt_fibers_printer/gdbtest/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/integration/yt_fibers_printer/gdbtest/foo.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/integration/yt_fibers_printer/gdbtest/bar.cpp
 )
 target_allocator(gdbtest
   cpp-malloc-tcmalloc

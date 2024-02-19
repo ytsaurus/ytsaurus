@@ -21,7 +21,7 @@ target_link_libraries(tablet_balancer-dry_run-lib PUBLIC
   yt-yt-ytlib
 )
 target_sources(tablet_balancer-dry_run-lib PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/dry_run/lib/executor.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/dry_run/lib/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/dry_run/lib/holders.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/dry_run/lib/executor.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/dry_run/lib/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/dry_run/lib/holders.cpp
 )

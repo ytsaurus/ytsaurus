@@ -30,7 +30,7 @@ target_link_options(yt-yt-library-backtrace_introspector-unittests PRIVATE
   -lutil
 )
 target_sources(yt-yt-library-backtrace_introspector-unittests PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/backtrace_introspector/unittests/introspect_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/backtrace_introspector/unittests/introspect_ut.cpp
 )
 add_test(
   NAME

@@ -15,8 +15,8 @@ target_link_libraries(threading-future-subscription PUBLIC
   cpp-threading-future
 )
 target_sources(threading-future-subscription PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/threading/future/subscription/subscription.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/threading/future/subscription/wait_all.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/threading/future/subscription/wait_all_or_exception.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/threading/future/subscription/wait_any.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/threading/future/subscription/subscription.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/threading/future/subscription/wait_all.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/threading/future/subscription/wait_all_or_exception.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/threading/future/subscription/wait_any.cpp
 )

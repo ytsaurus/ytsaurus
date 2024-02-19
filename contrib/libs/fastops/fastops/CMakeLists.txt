@@ -20,6 +20,6 @@ target_link_libraries(libs-fastops-fastops PUBLIC
   fastops-fastops-plain
 )
 target_sources(libs-fastops-fastops PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/fastops/fastops/fastops.h
-  ${CMAKE_SOURCE_DIR}/contrib/libs/fastops/fastops/fastops.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/fastops.h
+  ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/fastops.cpp
 )

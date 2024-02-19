@@ -28,7 +28,7 @@ target_link_options(sendfile PRIVATE
   -ldl
 )
 target_sources(sendfile PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/sendfile/main.c
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/sendfile/main.c
 )
 target_allocator(sendfile
   cpp-malloc-tcmalloc

@@ -19,6 +19,6 @@ target_link_libraries(server-lib-cypress_election PUBLIC
   yt-yt-client
 )
 target_sources(server-lib-cypress_election PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/cypress_election/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/cypress_election/election_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/cypress_election/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/cypress_election/election_manager.cpp
 )

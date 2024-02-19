@@ -14,7 +14,7 @@ target_compile_options(unittester-web-assembly PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(unittester-web-assembly PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/wavm/Include
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Include
 )
 target_link_libraries(unittester-web-assembly PUBLIC
   contrib-libs-linux-headers
@@ -41,8 +41,8 @@ target_link_options(unittester-web-assembly PRIVATE
   -lutil
 )
 target_sources(unittester-web-assembly PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/web_assembly/unittests/disable_system_libraries.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/web_assembly/unittests/wasm_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/unittests/disable_system_libraries.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/unittests/wasm_ut.cpp
 )
 add_test(
   NAME

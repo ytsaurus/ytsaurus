@@ -31,7 +31,7 @@ target_link_options(operation_tracker PRIVATE
   -lutil
 )
 target_sources(operation_tracker PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/operation_tracker/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/operation_tracker/main.cpp
 )
 target_allocator(operation_tracker
   cpp-malloc-tcmalloc

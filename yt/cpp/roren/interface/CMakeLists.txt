@@ -23,34 +23,34 @@ target_link_libraries(cpp-roren-interface PUBLIC
   library-timers-timer
 )
 target_sources(cpp-roren-interface PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/attributes.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/co_group_by_key.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/combine.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/dummy_pipeline.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/fn_attributes_ops.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/group_by_key.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/merge_par_dos.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/raw_transform.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/raw_coder.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/raw_multi_write.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/raw_data_flow.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/raw_par_do.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/raw_pipeline.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/row_vtable.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/stateful_par_do.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/stateful_timer_par_do.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/par_do_tree.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/coder.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/fns.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/input.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/output.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/roren.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/transforms.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/type_tag.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/execution_context.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/attributes.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/co_group_by_key.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/combine.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/dummy_pipeline.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/fn_attributes_ops.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/group_by_key.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/merge_par_dos.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/raw_transform.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/raw_coder.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/raw_multi_write.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/raw_data_flow.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/raw_par_do.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/raw_pipeline.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/row_vtable.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/stateful_par_do.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/stateful_timer_par_do.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/par_do_tree.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/coder.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/fns.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/input.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/output.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/roren.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/transforms.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/type_tag.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/execution_context.cpp
 )
 generate_enum_serilization(cpp-roren-interface
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/raw_transform.h
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/raw_transform.h
   INCLUDE_HEADERS
   yt/cpp/roren/interface/private/raw_transform.h
 )

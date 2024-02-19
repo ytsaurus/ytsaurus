@@ -30,7 +30,7 @@ target_link_options(periodic PRIVATE
   -lutil
 )
 target_sources(periodic PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/periodic/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/periodic/main.cpp
 )
 target_allocator(periodic
   cpp-malloc-tcmalloc

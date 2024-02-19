@@ -21,19 +21,19 @@ target_link_libraries(public-lsm_simulator-lib PUBLIC
   library-cpp-json
 )
 target_sources(public-lsm_simulator-lib PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/action_queue.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/compaction.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/partition.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/row.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/simulator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/statistics.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/store.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/store_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/structured_logger.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/tablet.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/optimizer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/mount_config_optimizer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/tabular_formatter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/action_queue.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/compaction.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/partition.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/row.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/simulator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/statistics.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/store.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/store_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/structured_logger.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/tablet.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/optimizer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/mount_config_optimizer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/tabular_formatter.cpp
 )

@@ -12,7 +12,7 @@ target_compile_options(lib-Transforms-CFGuard PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-Transforms-CFGuard PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/CFGuard
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/CFGuard
 )
 target_link_libraries(lib-Transforms-CFGuard PUBLIC
   contrib-libs-linux-headers
@@ -24,5 +24,5 @@ target_link_libraries(lib-Transforms-CFGuard PUBLIC
   llvm16-lib-TargetParser
 )
 target_sources(lib-Transforms-CFGuard PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/CFGuard/CFGuard.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/CFGuard/CFGuard.cpp
 )

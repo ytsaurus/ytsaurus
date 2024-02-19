@@ -33,14 +33,14 @@ target_link_options(unittester-server-lib-io PRIVATE
   -lutil
 )
 target_sources(unittester-server-lib-io PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/io/unittests/erasure_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/io/unittests/gentle_loader_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/io/unittests/chunk_file_writer_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/io/unittests/io_engine_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/io/unittests/io_tracker_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/io/unittests/read_request_combiner_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/io/unittests/io_request_slicer_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/io/unittests/io_workload_model_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/unittests/erasure_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/unittests/gentle_loader_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/unittests/chunk_file_writer_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/unittests/io_engine_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/unittests/io_tracker_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/unittests/read_request_combiner_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/unittests/io_request_slicer_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/unittests/io_workload_model_ut.cpp
 )
 add_test(
   NAME

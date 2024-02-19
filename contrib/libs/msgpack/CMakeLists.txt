@@ -12,7 +12,7 @@ target_compile_options(contrib-libs-msgpack PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(contrib-libs-msgpack PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/msgpack/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/msgpack/include
 )
 target_link_libraries(contrib-libs-msgpack PUBLIC
   contrib-libs-linux-headers
@@ -20,9 +20,9 @@ target_link_libraries(contrib-libs-msgpack PUBLIC
   contrib-libs-libc_compat
 )
 target_sources(contrib-libs-msgpack PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/msgpack/src/objectc.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/msgpack/src/unpack.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/msgpack/src/version.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/msgpack/src/vrefbuffer.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/msgpack/src/zone.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/msgpack/src/objectc.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/msgpack/src/unpack.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/msgpack/src/version.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/msgpack/src/vrefbuffer.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/msgpack/src/zone.c
 )

@@ -32,7 +32,7 @@ target_link_options(unittester-job-proxy PRIVATE
   -lutil
 )
 target_sources(unittester-job-proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/unittests/asan_warning_filter_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/unittests/asan_warning_filter_ut.cpp
 )
 add_test(
   NAME

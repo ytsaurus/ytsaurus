@@ -12,7 +12,7 @@ target_compile_options(server-lib-cellar_agent PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-cellar_agent PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-cellar_agent PUBLIC
   contrib-libs-linux-headers
@@ -24,10 +24,10 @@ target_link_libraries(server-lib-cellar_agent PUBLIC
   server-lib-transaction_supervisor
 )
 target_sources(server-lib-cellar_agent PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/cellar_agent/cellar.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/cellar_agent/cellar_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/cellar_agent/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/cellar_agent/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/cellar_agent/master_connector_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/cellar_agent/occupant.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/cellar_agent/cellar.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/cellar_agent/cellar_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/cellar_agent/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/cellar_agent/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/cellar_agent/master_connector_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/cellar_agent/occupant.cpp
 )

@@ -32,7 +32,7 @@ target_link_options(unittester-election PRIVATE
   -lutil
 )
 target_sources(unittester-election PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/election/unittests/election_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/election/unittests/election_ut.cpp
 )
 add_test(
   NAME

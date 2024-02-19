@@ -27,7 +27,7 @@ target_compile_options(server-lib-hydra PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-hydra PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-hydra PUBLIC
   contrib-libs-linux-headers
@@ -44,62 +44,62 @@ target_link_libraries(server-lib-hydra PUBLIC
   contrib-libs-protobuf
 )
 target_proto_messages(server-lib-hydra PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/proto/hydra_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/proto/hydra_service.proto
 )
 target_sources(server-lib-hydra PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/hydra/proto/hydra_service.pb.h
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog_acquisition.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog_discovery.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog_download.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog_store_factory_thunk.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog_store_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/checkpointable_stream.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/composite_automaton.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/decorated_automaton.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/distributed_hydra_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/dry_run_hydra_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/file_changelog_dispatcher.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/file_changelog_index.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/file_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/hydra_context.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/hydra_janitor_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/hydra_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/hydra_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/lazy_changelog.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/lease_tracker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/local_changelog_store.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/local_hydra_janitor.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/local_snapshot_store.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/mutation.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/mutation_committer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/mutation_context.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/persistent_response_keeper.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/private.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/recovery.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/remote_changelog_store.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/remote_snapshot_store.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/serialize.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/snapshot_discovery.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/snapshot_download.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/snapshot_store_thunk.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/state_hash_checker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/unbuffered_file_changelog.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/hydra/proto/hydra_service.pb.h
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog_acquisition.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog_discovery.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog_download.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog_store_factory_thunk.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog_store_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/checkpointable_stream.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/composite_automaton.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/decorated_automaton.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/distributed_hydra_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/dry_run_hydra_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/file_changelog_dispatcher.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/file_changelog_index.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/file_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/hydra_context.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/hydra_janitor_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/hydra_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/hydra_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/lazy_changelog.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/lease_tracker.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/local_changelog_store.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/local_hydra_janitor.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/local_snapshot_store.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/mutation.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/mutation_committer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/mutation_context.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/persistent_response_keeper.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/private.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/recovery.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/remote_changelog_store.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/remote_snapshot_store.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/serialize.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/snapshot_discovery.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/snapshot_download.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/snapshot_store_thunk.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/state_hash_checker.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/unbuffered_file_changelog.cpp
 )
 target_proto_addincls(server-lib-hydra
   ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 target_proto_outs(server-lib-hydra
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )

@@ -12,7 +12,7 @@ target_compile_options(lib-Transforms-Coroutines PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-Transforms-Coroutines PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Coroutines
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Coroutines
 )
 target_link_libraries(lib-Transforms-Coroutines PUBLIC
   contrib-libs-linux-headers
@@ -27,11 +27,11 @@ target_link_libraries(lib-Transforms-Coroutines PUBLIC
   lib-Transforms-Utils
 )
 target_sources(lib-Transforms-Coroutines PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Coroutines/CoroCleanup.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Coroutines/CoroConditionalWrapper.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Coroutines/CoroEarly.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Coroutines/CoroElide.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Coroutines/CoroFrame.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Coroutines/CoroSplit.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Coroutines/Coroutines.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Coroutines/CoroCleanup.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Coroutines/CoroConditionalWrapper.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Coroutines/CoroEarly.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Coroutines/CoroElide.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Coroutines/CoroFrame.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Coroutines/CoroSplit.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Coroutines/Coroutines.cpp
 )

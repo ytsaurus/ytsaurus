@@ -34,7 +34,7 @@ target_link_options(upload_chunk PRIVATE
   -lutil
 )
 target_sources(upload_chunk PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/upload_chunk/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/upload_chunk/main.cpp
 )
 target_allocator(upload_chunk
   cpp-malloc-tcmalloc

@@ -18,5 +18,5 @@ target_link_libraries(cpp-yt-phdr_cache PUBLIC
   cpp-yt-assert
 )
 target_sources(cpp-yt-phdr_cache PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/phdr_cache/phdr_cache.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/yt/phdr_cache/phdr_cache.cpp
 )

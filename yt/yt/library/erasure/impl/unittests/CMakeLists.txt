@@ -34,7 +34,7 @@ target_link_options(unittester-library-erasure PRIVATE
   -lutil
 )
 target_sources(unittester-library-erasure PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/erasure/impl/unittests/erasure_stability_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/erasure/impl/unittests/erasure_stability_ut.cpp
 )
 add_test(
   NAME

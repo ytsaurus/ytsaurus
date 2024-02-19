@@ -27,7 +27,7 @@ target_link_options(footprint PRIVATE
   -lutil
 )
 target_sources(footprint PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/footprint/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/footprint/main.cpp
 )
 target_allocator(footprint
   cpp-malloc-tcmalloc

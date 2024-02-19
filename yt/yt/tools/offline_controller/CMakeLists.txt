@@ -35,7 +35,7 @@ target_link_options(offline_controller PRIVATE
   -lutil
 )
 target_sources(offline_controller PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/offline_controller/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/offline_controller/main.cpp
 )
 target_allocator(offline_controller
   cpp-ytalloc-impl

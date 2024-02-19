@@ -14,7 +14,7 @@ target_compile_options(lib-ExecutionEngine-Orc PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-ExecutionEngine-Orc PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc
 )
 target_link_libraries(lib-ExecutionEngine-Orc PUBLIC
   contrib-libs-linux-headers
@@ -41,45 +41,45 @@ target_link_libraries(lib-ExecutionEngine-Orc PUBLIC
   llvm16-lib-WindowsDriver
 )
 target_sources(lib-ExecutionEngine-Orc PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/COFFPlatform.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/COFFVCRuntimeSupport.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/CompileOnDemandLayer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/CompileUtils.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/Core.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/DebugObjectManagerPlugin.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/DebugUtils.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/DebuggerSupportPlugin.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/ELFNixPlatform.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/EPCDebugObjectRegistrar.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/EPCDynamicLibrarySearchGenerator.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/EPCEHFrameRegistrar.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/EPCGenericDylibManager.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/EPCGenericJITLinkMemoryManager.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/EPCGenericRTDyldMemoryManager.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/EPCIndirectionUtils.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/ExecutionUtils.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/ExecutorProcessControl.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/IRCompileLayer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/IRTransformLayer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/IndirectionUtils.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/JITTargetMachineBuilder.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/LLJIT.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/Layer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/LazyReexports.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/LookupAndRecordAddrs.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/MachOPlatform.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/Mangling.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/MapperJITLinkMemoryManager.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/MemoryMapper.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/ObjectFileInterface.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/ObjectLinkingLayer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/ObjectTransformLayer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/OrcABISupport.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/OrcV2CBindings.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/SimpleRemoteEPC.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/SpeculateAnalyses.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/Speculation.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/TaskDispatch.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/ThreadSafeModule.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/COFFPlatform.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/COFFVCRuntimeSupport.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/CompileOnDemandLayer.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/CompileUtils.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/Core.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/DebugObjectManagerPlugin.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/DebugUtils.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/DebuggerSupportPlugin.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/ELFNixPlatform.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/EPCDebugObjectRegistrar.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/EPCDynamicLibrarySearchGenerator.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/EPCEHFrameRegistrar.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/EPCGenericDylibManager.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/EPCGenericJITLinkMemoryManager.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/EPCGenericRTDyldMemoryManager.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/EPCIndirectionUtils.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/ExecutionUtils.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/ExecutorProcessControl.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/IRCompileLayer.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/IRTransformLayer.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/IndirectionUtils.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/JITTargetMachineBuilder.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/LLJIT.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/Layer.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/LazyReexports.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/LookupAndRecordAddrs.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/MachOPlatform.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/Mangling.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/MapperJITLinkMemoryManager.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/MemoryMapper.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/ObjectFileInterface.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/ObjectLinkingLayer.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/ObjectTransformLayer.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/OrcABISupport.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/OrcV2CBindings.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/SimpleRemoteEPC.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/SpeculateAnalyses.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/Speculation.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/TaskDispatch.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/ThreadSafeModule.cpp
 )

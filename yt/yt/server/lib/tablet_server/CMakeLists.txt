@@ -37,7 +37,7 @@ target_compile_options(server-lib-tablet_server PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-tablet_server PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-tablet_server PUBLIC
   contrib-libs-linux-headers
@@ -48,27 +48,27 @@ target_link_libraries(server-lib-tablet_server PUBLIC
   contrib-libs-protobuf
 )
 target_proto_messages(server-lib-tablet_server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_server/proto/backup_manager.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_server/proto/tablet_manager.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_server/proto/backup_manager.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_server/proto/tablet_manager.proto
 )
 target_sources(server-lib-tablet_server PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/tablet_server/proto/backup_manager.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_server/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_server/replicated_table_tracker.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/tablet_server/proto/backup_manager.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_server/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_server/replicated_table_tracker.cpp
 )
 target_proto_addincls(server-lib-tablet_server
   ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 target_proto_outs(server-lib-tablet_server
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )

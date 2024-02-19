@@ -30,7 +30,7 @@ target_link_options(lsm-sim PRIVATE
   -lutil
 )
 target_sources(lsm-sim PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/bin/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/bin/main.cpp
 )
 target_allocator(lsm-sim
   cpp-ytalloc-impl

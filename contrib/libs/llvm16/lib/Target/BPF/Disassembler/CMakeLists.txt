@@ -12,9 +12,9 @@ target_compile_options(Target-BPF-Disassembler PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(Target-BPF-Disassembler PRIVATE
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/Disassembler
+  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/Disassembler
 )
 target_link_libraries(Target-BPF-Disassembler PUBLIC
   contrib-libs-linux-headers
@@ -27,5 +27,5 @@ target_link_libraries(Target-BPF-Disassembler PUBLIC
   Target-BPF-TargetInfo
 )
 target_sources(Target-BPF-Disassembler PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/Disassembler/BPFDisassembler.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/Disassembler/BPFDisassembler.cpp
 )

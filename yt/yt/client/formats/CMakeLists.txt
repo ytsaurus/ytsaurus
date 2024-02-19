@@ -21,9 +21,9 @@ target_link_libraries(yt-client-formats PUBLIC
   cpp-string_utils-base64
 )
 target_sources(yt-client-formats PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/format.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/parser.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/schemaful_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/versioned_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/formats/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/formats/format.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/formats/parser.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/formats/schemaful_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/formats/versioned_writer.cpp
 )

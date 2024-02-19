@@ -29,7 +29,7 @@ target_link_options(yt-yt-library-xor_filter-unittests PRIVATE
   -lutil
 )
 target_sources(yt-yt-library-xor_filter-unittests PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/xor_filter/unittests/xor_filter_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/xor_filter/unittests/xor_filter_ut.cpp
 )
 add_test(
   NAME

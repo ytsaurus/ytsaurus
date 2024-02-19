@@ -40,23 +40,23 @@ target_link_libraries(roren-yt-proto PUBLIC
   contrib-libs-protobuf
 )
 target_proto_messages(roren-yt-proto PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/proto/config.proto
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/proto/kv.proto
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/proto/config.proto
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/proto/kv.proto
 )
 target_sources(roren-yt-proto PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/cpp/roren/yt/proto/config.pb.h
-  ${CMAKE_BINARY_DIR}/yt/cpp/roren/yt/proto/kv.pb.h
+  ${PROJECT_BINARY_DIR}/yt/cpp/roren/yt/proto/config.pb.h
+  ${PROJECT_BINARY_DIR}/yt/cpp/roren/yt/proto/kv.pb.h
 )
 target_proto_addincls(roren-yt-proto
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 target_proto_outs(roren-yt-proto
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )

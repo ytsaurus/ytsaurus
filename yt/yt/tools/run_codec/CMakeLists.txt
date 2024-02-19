@@ -27,7 +27,7 @@ target_link_options(run_codec PRIVATE
   -lutil
 )
 target_sources(run_codec PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/run_codec/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/run_codec/main.cpp
 )
 target_allocator(run_codec
   cpp-lfalloc-yt

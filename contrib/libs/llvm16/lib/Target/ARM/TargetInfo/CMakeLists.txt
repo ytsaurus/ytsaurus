@@ -12,8 +12,8 @@ target_compile_options(Target-ARM-TargetInfo PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(Target-ARM-TargetInfo PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/TargetInfo
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/TargetInfo
 )
 target_link_libraries(Target-ARM-TargetInfo PUBLIC
   contrib-libs-linux-headers
@@ -23,5 +23,5 @@ target_link_libraries(Target-ARM-TargetInfo PUBLIC
   llvm16-lib-Support
 )
 target_sources(Target-ARM-TargetInfo PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/TargetInfo/ARMTargetInfo.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/TargetInfo/ARMTargetInfo.cpp
 )

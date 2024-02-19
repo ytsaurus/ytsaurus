@@ -16,7 +16,7 @@ target_compile_options(yt-python-common PRIVATE
   -Wno-register
 )
 target_include_directories(yt-python-common PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
 )
 target_link_libraries(yt-python-common PUBLIC
   contrib-libs-linux-headers
@@ -27,12 +27,12 @@ target_link_libraries(yt-python-common PUBLIC
   Python3::Module
 )
 target_sources(yt-python-common PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/common/buffered_stream.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/common/cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/common/dynamic_ring_buffer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/common/error.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/common/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/common/shutdown.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/common/stream.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/common/tee_input_stream.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/common/buffered_stream.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/common/cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/common/dynamic_ring_buffer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/common/error.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/common/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/common/shutdown.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/common/stream.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/common/tee_input_stream.cpp
 )

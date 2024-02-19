@@ -15,5 +15,5 @@ target_link_libraries(consistent-hashing PUBLIC
   library-cpp-pop_count
 )
 target_sources(consistent-hashing PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/consistent_hashing/consistent_hashing.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/consistent_hashing/consistent_hashing.cpp
 )

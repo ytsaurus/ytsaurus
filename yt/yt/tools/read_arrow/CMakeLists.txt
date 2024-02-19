@@ -32,7 +32,7 @@ target_link_options(read_arrow PRIVATE
   -lutil
 )
 target_sources(read_arrow PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/read_arrow/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/read_arrow/main.cpp
 )
 target_allocator(read_arrow
   cpp-malloc-tcmalloc

@@ -18,6 +18,6 @@ target_link_libraries(server-lib-cypress_registrar PUBLIC
   yt-yt-ytlib
 )
 target_sources(server-lib-cypress_registrar PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/cypress_registrar/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/cypress_registrar/cypress_registrar.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/cypress_registrar/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/cypress_registrar/cypress_registrar.cpp
 )

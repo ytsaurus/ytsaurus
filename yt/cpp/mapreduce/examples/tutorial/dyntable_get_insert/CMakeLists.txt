@@ -31,7 +31,7 @@ target_link_options(dyntable_get_insert PRIVATE
   -lutil
 )
 target_sources(dyntable_get_insert PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/dyntable_get_insert/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/dyntable_get_insert/main.cpp
 )
 target_allocator(dyntable_get_insert
   cpp-malloc-tcmalloc

@@ -30,7 +30,7 @@ target_link_options(table_read_write_tnode PRIVATE
   -lutil
 )
 target_sources(table_read_write_tnode PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/table_read_write_tnode/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/table_read_write_tnode/main.cpp
 )
 target_allocator(table_read_write_tnode
   cpp-malloc-tcmalloc

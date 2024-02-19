@@ -34,7 +34,7 @@ target_link_options(data_node_rpc_request PRIVATE
   -lutil
 )
 target_sources(data_node_rpc_request PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/data_node_rpc_request/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/data_node_rpc_request/main.cpp
 )
 target_allocator(data_node_rpc_request
   cpp-malloc-tcmalloc

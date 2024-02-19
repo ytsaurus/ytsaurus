@@ -31,7 +31,7 @@ target_link_options(yt-yt-library-undumpable-unittests PRIVATE
   -ldl
 )
 target_sources(yt-yt-library-undumpable-unittests PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/undumpable/unittests/undumpable_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/undumpable/unittests/undumpable_ut.cpp
 )
 add_test(
   NAME

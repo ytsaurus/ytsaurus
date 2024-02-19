@@ -14,6 +14,6 @@ target_link_libraries(fastops-fastops-plain PUBLIC
   contrib-libs-fmath
 )
 target_sources(fastops-fastops-plain PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/fastops/fastops/plain/ops_plain.h
-  ${CMAKE_SOURCE_DIR}/contrib/libs/fastops/fastops/plain/ops_plain.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/plain/ops_plain.h
+  ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/plain/ops_plain.cpp
 )

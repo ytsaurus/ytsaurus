@@ -30,7 +30,7 @@ target_link_options(batch_request PRIVATE
   -lutil
 )
 target_sources(batch_request PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/batch_request/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/batch_request/main.cpp
 )
 target_allocator(batch_request
   cpp-malloc-tcmalloc

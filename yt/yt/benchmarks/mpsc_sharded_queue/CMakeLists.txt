@@ -31,7 +31,7 @@ target_link_options(mpsc_sharded_queue PRIVATE
   -lutil
 )
 target_sources(mpsc_sharded_queue PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/mpsc_sharded_queue/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/mpsc_sharded_queue/main.cpp
 )
 target_allocator(mpsc_sharded_queue
   cpp-ytalloc-impl

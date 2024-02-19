@@ -24,7 +24,7 @@ target_compile_options(server-lib-hive PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-hive PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-hive PUBLIC
   contrib-libs-linux-headers
@@ -35,29 +35,29 @@ target_link_libraries(server-lib-hive PUBLIC
   contrib-libs-protobuf
 )
 target_proto_messages(server-lib-hive PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/proto/hive_manager.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hive/proto/hive_manager.proto
 )
 target_sources(server-lib-hive PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/hive/proto/hive_manager.pb.h
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/avenue_directory.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/hive_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/mailbox.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/public.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/hive/proto/hive_manager.pb.h
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hive/avenue_directory.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hive/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hive/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hive/hive_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hive/mailbox.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hive/public.cpp
 )
 target_proto_addincls(server-lib-hive
   ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 target_proto_outs(server-lib-hive
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )

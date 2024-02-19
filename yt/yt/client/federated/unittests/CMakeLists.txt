@@ -35,9 +35,9 @@ target_link_options(unittester-federated-client PRIVATE
   -lutil
 )
 target_sources(unittester-federated-client PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/federated/unittests/client_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/federated/unittests/connection_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/federated/unittests/cache_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/federated/unittests/client_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/federated/unittests/connection_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/federated/unittests/cache_ut.cpp
 )
 add_test(
   NAME

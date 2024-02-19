@@ -32,7 +32,7 @@ target_link_options(unittester-rpc-proxy PRIVATE
   -lutil
 )
 target_sources(unittester-rpc-proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/rpc_proxy/unittests/rpc_proxy_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/rpc_proxy/unittests/rpc_proxy_ut.cpp
 )
 add_test(
   NAME

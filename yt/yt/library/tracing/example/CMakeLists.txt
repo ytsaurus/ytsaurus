@@ -30,7 +30,7 @@ target_link_options(tracing-example PRIVATE
   -lutil
 )
 target_sources(tracing-example PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/tracing/example/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/tracing/example/main.cpp
 )
 target_allocator(tracing-example
   cpp-malloc-tcmalloc

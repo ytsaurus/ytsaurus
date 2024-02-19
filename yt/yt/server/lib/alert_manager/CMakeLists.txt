@@ -19,6 +19,6 @@ target_link_libraries(server-lib-alert_manager PUBLIC
   yt-yt-core
 )
 target_sources(server-lib-alert_manager PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/alert_manager/alert_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/alert_manager/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/alert_manager/alert_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/alert_manager/config.cpp
 )

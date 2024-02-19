@@ -32,5 +32,5 @@ target_link_libraries(python-driver-rpc.global PUBLIC
   Python3::Module
 )
 target_sources(python-driver-rpc.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/driver/rpc/driver_rpc.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/driver/rpc/driver_rpc.cpp
 )

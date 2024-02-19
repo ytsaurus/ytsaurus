@@ -11,7 +11,7 @@ add_subdirectory(impl_common)
 
 add_library(restricted-boost-context INTERFACE)
 target_include_directories(restricted-boost-context INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/context/include
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/context/include
 )
 target_link_libraries(restricted-boost-context INTERFACE
   contrib-libs-linux-headers

@@ -48,24 +48,24 @@ target_link_options(unittester-tablet-node PRIVATE
   -lutil
 )
 target_proto_messages(unittester-tablet-node PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/proto/simple_transaction_supervisor.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/proto/simple_transaction_supervisor.proto
 )
 target_sources(unittester-tablet-node PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/server/node/tablet_node/unittests/proto/simple_transaction_supervisor.pb.h
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/lookup_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/ordered_dynamic_store_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/ordered_store_manager_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/overload_controller_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/replication_log_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/simple_tablet_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/simple_transaction_supervisor.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/sorted_chunk_store_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/sorted_dynamic_store_pt.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/sorted_dynamic_store_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/sorted_store_manager_stress.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/sorted_store_manager_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/tablet_cell_write_manager_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/tablet_context_mock.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/node/tablet_node/unittests/proto/simple_transaction_supervisor.pb.h
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/lookup_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/ordered_dynamic_store_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/ordered_store_manager_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/overload_controller_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/replication_log_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/simple_tablet_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/simple_transaction_supervisor.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/sorted_chunk_store_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/sorted_dynamic_store_pt.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/sorted_dynamic_store_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/sorted_store_manager_stress.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/sorted_store_manager_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/tablet_cell_write_manager_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/tablet_context_mock.cpp
 )
 add_test(
   NAME
@@ -99,18 +99,18 @@ target_allocator(unittester-tablet-node
 )
 target_proto_addincls(unittester-tablet-node
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_SOURCE_DIR}/yt/yt/contrib/cri-api
-  ${CMAKE_SOURCE_DIR}/yt/yt/contrib/gogoproto
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/yt/yt/contrib/cri-api
+  ${PROJECT_SOURCE_DIR}/yt/yt/contrib/gogoproto
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 target_proto_outs(unittester-tablet-node
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 vcs_info(unittester-tablet-node)

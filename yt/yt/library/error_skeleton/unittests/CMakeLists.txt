@@ -33,7 +33,7 @@ target_link_options(unittester-library-error-skeleton PRIVATE
   -lutil
 )
 target_sources(unittester-library-error-skeleton PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/error_skeleton/unittests/skeleton_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/error_skeleton/unittests/skeleton_ut.cpp
 )
 add_test(
   NAME

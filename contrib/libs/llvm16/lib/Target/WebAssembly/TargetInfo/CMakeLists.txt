@@ -12,9 +12,9 @@ target_compile_options(Target-WebAssembly-TargetInfo PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(Target-WebAssembly-TargetInfo PRIVATE
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/TargetInfo
+  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/TargetInfo
 )
 target_link_libraries(Target-WebAssembly-TargetInfo PUBLIC
   contrib-libs-linux-headers
@@ -25,5 +25,5 @@ target_link_libraries(Target-WebAssembly-TargetInfo PUBLIC
   llvm16-lib-Support
 )
 target_sources(Target-WebAssembly-TargetInfo PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/TargetInfo/WebAssemblyTargetInfo.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/TargetInfo/WebAssemblyTargetInfo.cpp
 )

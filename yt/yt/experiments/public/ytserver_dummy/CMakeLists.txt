@@ -28,7 +28,7 @@ target_link_options(ytserver-dummy PRIVATE
   -ldl
 )
 target_sources(ytserver-dummy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/ytserver_dummy/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/ytserver_dummy/main.cpp
 )
 target_allocator(ytserver-dummy
   cpp-ytalloc-impl

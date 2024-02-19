@@ -10,7 +10,7 @@ find_package(Python3 REQUIRED COMPONENTS Development)
 
 add_library(python-yson-arrow INTERFACE)
 target_include_directories(python-yson-arrow INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
 )
 target_link_libraries(python-yson-arrow INTERFACE
   contrib-libs-linux-headers
@@ -30,7 +30,7 @@ target_compile_options(python-yson-arrow.global PRIVATE
   -Wno-register
 )
 target_include_directories(python-yson-arrow.global PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
 )
 target_link_libraries(python-yson-arrow.global PUBLIC
   contrib-libs-linux-headers
@@ -42,5 +42,5 @@ target_link_libraries(python-yson-arrow.global PUBLIC
   Python3::Module
 )
 target_sources(python-yson-arrow.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson/arrow/parquet.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/arrow/parquet.cpp
 )

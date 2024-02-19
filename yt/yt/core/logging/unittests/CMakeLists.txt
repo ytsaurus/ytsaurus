@@ -34,7 +34,7 @@ target_link_options(unittester-core-logging PRIVATE
   -lutil
 )
 target_sources(unittester-core-logging PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/unittests/logging_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/logging/unittests/logging_ut.cpp
 )
 add_test(
   NAME

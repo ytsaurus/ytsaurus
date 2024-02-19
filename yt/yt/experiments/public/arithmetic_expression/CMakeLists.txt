@@ -27,7 +27,7 @@ target_link_options(arithmetic_expression PRIVATE
   -lutil
 )
 target_sources(arithmetic_expression PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/arithmetic_expression/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/arithmetic_expression/main.cpp
 )
 target_allocator(arithmetic_expression
   cpp-malloc-tcmalloc

@@ -33,7 +33,7 @@ target_link_options(cypress_nbd_server PRIVATE
   -lutil
 )
 target_sources(cypress_nbd_server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/cypress_nbd_server/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/cypress_nbd_server/main.cpp
 )
 target_allocator(cypress_nbd_server
   cpp-malloc-tcmalloc

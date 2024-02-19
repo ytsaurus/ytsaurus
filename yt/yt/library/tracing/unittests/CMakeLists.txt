@@ -32,7 +32,7 @@ target_link_options(yt-yt-library-tracing-unittests PRIVATE
   -lutil
 )
 target_sources(yt-yt-library-tracing-unittests PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/tracing/unittests/sampler_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/tracing/unittests/sampler_ut.cpp
 )
 add_test(
   NAME

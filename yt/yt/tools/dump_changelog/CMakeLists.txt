@@ -35,7 +35,7 @@ target_link_options(dump-changelog PRIVATE
   -lutil
 )
 target_sources(dump-changelog PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/dump_changelog/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/dump_changelog/main.cpp
 )
 target_allocator(dump-changelog
   cpp-malloc-tcmalloc

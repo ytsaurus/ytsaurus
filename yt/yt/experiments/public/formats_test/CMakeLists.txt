@@ -30,7 +30,7 @@ target_link_options(formats_test PRIVATE
   -lutil
 )
 target_sources(formats_test PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/formats_test/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/formats_test/main.cpp
 )
 target_allocator(formats_test
   cpp-malloc-tcmalloc

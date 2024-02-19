@@ -33,7 +33,7 @@ target_link_options(unittester-core-ypath PRIVATE
   -lutil
 )
 target_sources(unittester-core-ypath PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ypath/unittests/tokenizer_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/ypath/unittests/tokenizer_ut.cpp
 )
 add_test(
   NAME

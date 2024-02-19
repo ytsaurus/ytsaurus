@@ -12,7 +12,7 @@ target_compile_options(server-lib-zookeeper_proxy PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-zookeeper_proxy PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-zookeeper_proxy PUBLIC
   contrib-libs-linux-headers
@@ -21,8 +21,8 @@ target_link_libraries(server-lib-zookeeper_proxy PUBLIC
   yt-yt-core
 )
 target_sources(server-lib-zookeeper_proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/zookeeper_proxy/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/zookeeper_proxy/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/zookeeper_proxy/connection.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/zookeeper_proxy/server.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/zookeeper_proxy/bootstrap.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/zookeeper_proxy/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/zookeeper_proxy/connection.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/zookeeper_proxy/server.cpp
 )

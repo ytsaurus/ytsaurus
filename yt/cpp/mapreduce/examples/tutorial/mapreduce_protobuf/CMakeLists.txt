@@ -43,11 +43,11 @@ target_link_options(mapreduce_protobuf PRIVATE
   -lutil
 )
 target_proto_messages(mapreduce_protobuf PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/mapreduce_protobuf/data.proto
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/mapreduce_protobuf/data.proto
 )
 target_sources(mapreduce_protobuf PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/cpp/mapreduce/examples/tutorial/mapreduce_protobuf/data.pb.h
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/mapreduce_protobuf/main.cpp
+  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/examples/tutorial/mapreduce_protobuf/data.pb.h
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/mapreduce_protobuf/main.cpp
 )
 target_allocator(mapreduce_protobuf
   cpp-malloc-tcmalloc
@@ -55,16 +55,16 @@ target_allocator(mapreduce_protobuf
 )
 target_proto_addincls(mapreduce_protobuf
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 target_proto_outs(mapreduce_protobuf
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 vcs_info(mapreduce_protobuf)

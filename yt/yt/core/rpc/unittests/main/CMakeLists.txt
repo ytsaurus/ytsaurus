@@ -36,10 +36,10 @@ target_link_options(unittester-core-rpc PRIVATE
   -lutil
 )
 target_sources(unittester-core-rpc PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/handle_channel_failure_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/roaming_channel_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/rpc_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/viable_peer_registry_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/handle_channel_failure_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/roaming_channel_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/rpc_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/viable_peer_registry_ut.cpp
 )
 add_test(
   NAME

@@ -24,7 +24,7 @@ target_link_options(yt-sudo-fixup PRIVATE
   -lpthread
 )
 target_sources(yt-sudo-fixup PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/yt_sudo_fixup/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/yt_sudo_fixup/main.cpp
 )
 target_allocator(yt-sudo-fixup
   cpp-malloc-tcmalloc

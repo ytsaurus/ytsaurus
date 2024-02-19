@@ -36,7 +36,7 @@ target_link_options(io_engine PRIVATE
   -lutil
 )
 target_sources(io_engine PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/io_engine/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/io_engine/main.cpp
 )
 target_allocator(io_engine
   cpp-malloc-tcmalloc

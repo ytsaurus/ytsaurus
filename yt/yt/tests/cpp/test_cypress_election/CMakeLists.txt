@@ -36,7 +36,7 @@ target_link_options(cpp-integration-test-cypress-election PRIVATE
   -lutil
 )
 target_sources(cpp-integration-test-cypress-election PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tests/cpp/test_cypress_election/test_cypress_election.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_cypress_election/test_cypress_election.cpp
 )
 add_test(
   NAME

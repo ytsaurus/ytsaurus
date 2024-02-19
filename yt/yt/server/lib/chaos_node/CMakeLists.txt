@@ -18,5 +18,5 @@ target_link_libraries(server-lib-chaos_node PUBLIC
   yt_proto-yt-client
 )
 target_sources(server-lib-chaos_node PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chaos_node/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chaos_node/config.cpp
 )

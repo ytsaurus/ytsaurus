@@ -28,7 +28,7 @@ target_link_options(benchmark_exception PRIVATE
   -lutil
 )
 target_sources(benchmark_exception PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/exceptions/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/exceptions/main.cpp
 )
 target_allocator(benchmark_exception
   cpp-malloc-tcmalloc

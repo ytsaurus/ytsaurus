@@ -28,7 +28,7 @@ target_link_options(05_co_group_by_key PRIVATE
   -lutil
 )
 target_sources(05_co_group_by_key PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/examples/05_co_group_by_key/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/examples/05_co_group_by_key/main.cpp
 )
 target_allocator(05_co_group_by_key
   cpp-malloc-tcmalloc

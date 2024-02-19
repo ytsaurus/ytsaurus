@@ -12,9 +12,9 @@ target_compile_options(Target-AArch64-Disassembler PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(Target-AArch64-Disassembler PRIVATE
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/Disassembler
+  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/Disassembler
 )
 target_link_libraries(Target-AArch64-Disassembler PUBLIC
   contrib-libs-linux-headers
@@ -29,6 +29,6 @@ target_link_libraries(Target-AArch64-Disassembler PUBLIC
   Target-AArch64-Utils
 )
 target_sources(Target-AArch64-Disassembler PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/Disassembler/AArch64Disassembler.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/Disassembler/AArch64ExternalSymbolizer.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/Disassembler/AArch64Disassembler.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/Disassembler/AArch64ExternalSymbolizer.cpp
 )

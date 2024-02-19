@@ -16,7 +16,7 @@ target_compile_options(restricted-boost-filesystem PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-boost-filesystem PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/filesystem/include
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/filesystem/include
 )
 target_link_libraries(restricted-boost-filesystem PUBLIC
   contrib-libs-linux-headers
@@ -36,14 +36,14 @@ target_link_libraries(restricted-boost-filesystem PUBLIC
   restricted-boost-winapi
 )
 target_sources(restricted-boost-filesystem PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/filesystem/src/codecvt_error_category.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/filesystem/src/directory.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/filesystem/src/exception.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/filesystem/src/operations.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/filesystem/src/path.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/filesystem/src/path_traits.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/filesystem/src/portability.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/filesystem/src/unique_path.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/filesystem/src/utf8_codecvt_facet.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/filesystem/src/windows_file_codecvt.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/filesystem/src/codecvt_error_category.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/filesystem/src/directory.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/filesystem/src/exception.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/filesystem/src/operations.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/filesystem/src/path.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/filesystem/src/path_traits.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/filesystem/src/portability.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/filesystem/src/unique_path.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/filesystem/src/utf8_codecvt_facet.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/filesystem/src/windows_file_codecvt.cpp
 )

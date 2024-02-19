@@ -14,7 +14,7 @@ target_compile_options(library-web_assembly-engine PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(library-web_assembly-engine PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/wavm/Include
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Include
 )
 target_link_libraries(library-web_assembly-engine PUBLIC
   contrib-libs-linux-headers
@@ -24,7 +24,7 @@ target_link_libraries(library-web_assembly-engine PUBLIC
   restricted-wavm-Lib
 )
 target_sources(library-web_assembly-engine PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/web_assembly/engine/intrinsics.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/engine/intrinsics.cpp
 )
 
 add_global_library_for(library-web_assembly-engine.global library-web_assembly-engine)
@@ -34,7 +34,7 @@ target_compile_options(library-web_assembly-engine.global PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(library-web_assembly-engine.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/wavm/Include
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Include
 )
 target_link_libraries(library-web_assembly-engine.global PUBLIC
   contrib-libs-linux-headers
@@ -44,7 +44,7 @@ target_link_libraries(library-web_assembly-engine.global PUBLIC
   restricted-wavm-Lib
 )
 target_sources(library-web_assembly-engine.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/web_assembly/engine/compartment.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/web_assembly/engine/function.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/web_assembly/engine/type_builder.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/engine/compartment.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/engine/function.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/engine/type_builder.cpp
 )

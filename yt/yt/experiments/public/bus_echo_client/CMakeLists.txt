@@ -29,7 +29,7 @@ target_link_options(bus_echo_client PRIVATE
   -lutil
 )
 target_sources(bus_echo_client PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/bus_echo_client/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/bus_echo_client/main.cpp
 )
 target_allocator(bus_echo_client
   cpp-malloc-tcmalloc

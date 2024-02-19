@@ -20,5 +20,5 @@ target_link_libraries(yt-server-exec PUBLIC
   yt-yt-core
 )
 target_sources(yt-server-exec PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/exec/user_job_synchronizer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/exec/user_job_synchronizer.cpp
 )

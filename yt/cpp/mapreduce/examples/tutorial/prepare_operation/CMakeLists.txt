@@ -43,11 +43,11 @@ target_link_options(prepare_operation PRIVATE
   -lutil
 )
 target_proto_messages(prepare_operation PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/prepare_operation/grepper.proto
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/prepare_operation/grepper.proto
 )
 target_sources(prepare_operation PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/cpp/mapreduce/examples/tutorial/prepare_operation/grepper.pb.h
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/prepare_operation/main.cpp
+  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/examples/tutorial/prepare_operation/grepper.pb.h
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/prepare_operation/main.cpp
 )
 target_allocator(prepare_operation
   cpp-malloc-tcmalloc
@@ -55,16 +55,16 @@ target_allocator(prepare_operation
 )
 target_proto_addincls(prepare_operation
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 target_proto_outs(prepare_operation
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 vcs_info(prepare_operation)

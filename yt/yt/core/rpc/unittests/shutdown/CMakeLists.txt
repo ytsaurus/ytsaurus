@@ -36,7 +36,7 @@ target_link_options(unittester-core-rpc-shutdown PRIVATE
   -lutil
 )
 target_sources(unittester-core-rpc-shutdown PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/rpc_shutdown_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/rpc_shutdown_ut.cpp
 )
 add_test(
   NAME

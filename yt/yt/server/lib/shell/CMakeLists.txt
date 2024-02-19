@@ -20,8 +20,8 @@ target_link_libraries(server-lib-shell PUBLIC
   yt-library-process
 )
 target_sources(server-lib-shell PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/shell/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/shell/private.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/shell/shell.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/shell/shell_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/shell/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/shell/private.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/shell/shell.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/shell/shell_manager.cpp
 )

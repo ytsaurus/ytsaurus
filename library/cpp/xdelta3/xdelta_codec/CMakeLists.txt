@@ -15,6 +15,6 @@ target_link_libraries(cpp-xdelta3-xdelta_codec PUBLIC
   contrib-libs-xdelta3
 )
 target_sources(cpp-xdelta3-xdelta_codec PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/xdelta3/xdelta_codec/codec.c
-  ${CMAKE_SOURCE_DIR}/library/cpp/xdelta3/xdelta_codec/merge_patches.c
+  ${PROJECT_SOURCE_DIR}/library/cpp/xdelta3/xdelta_codec/codec.c
+  ${PROJECT_SOURCE_DIR}/library/cpp/xdelta3/xdelta_codec/merge_patches.c
 )

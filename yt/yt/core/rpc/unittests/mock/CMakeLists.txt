@@ -19,5 +19,5 @@ target_link_libraries(rpc-unittests-mock PUBLIC
   cpp-testing-gtest
 )
 target_sources(rpc-unittests-mock PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/mock/service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/mock/service.cpp
 )

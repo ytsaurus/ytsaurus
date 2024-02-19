@@ -38,29 +38,29 @@ target_link_libraries(server-lib-exec_node PUBLIC
   contrib-libs-protobuf
 )
 target_proto_messages(server-lib-exec_node PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/exec_node/proto/supervisor_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/exec_node/proto/supervisor_service.proto
 )
 target_sources(server-lib-exec_node PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/exec_node/proto/supervisor_service.pb.h
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/exec_node/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/exec_node/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/exec_node/job_report.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/exec_node/gpu_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/exec_node/helpers.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/exec_node/proto/supervisor_service.pb.h
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/exec_node/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/exec_node/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/exec_node/job_report.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/exec_node/gpu_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/exec_node/helpers.cpp
 )
 target_proto_addincls(server-lib-exec_node
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_SOURCE_DIR}/yt/yt/contrib/cri-api
-  ${CMAKE_SOURCE_DIR}/yt/yt/contrib/gogoproto
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/yt/yt/contrib/cri-api
+  ${PROJECT_SOURCE_DIR}/yt/yt/contrib/gogoproto
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 target_proto_outs(server-lib-exec_node
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )

@@ -16,8 +16,8 @@ target_compile_options(lib-Target-BPF PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-Target-BPF PRIVATE
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
+  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
 )
 target_link_libraries(lib-Target-BPF PUBLIC
   contrib-libs-linux-headers
@@ -40,23 +40,23 @@ target_link_libraries(lib-Target-BPF PUBLIC
   lib-Transforms-Utils
 )
 target_sources(lib-Target-BPF PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFAbstractMemberAccess.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFAdjustOpt.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFAsmPrinter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFCheckAndAdjustIR.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFFrameLowering.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFIRPeephole.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFISelDAGToDAG.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFISelLowering.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFInstrInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFMCInstLower.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFMIChecking.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFMIPeephole.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFMISimplifyPatchable.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFPreserveDIType.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFRegisterInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFSelectionDAGInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFSubtarget.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFTargetMachine.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BTFDebug.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFAbstractMemberAccess.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFAdjustOpt.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFAsmPrinter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFCheckAndAdjustIR.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFFrameLowering.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFIRPeephole.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFISelDAGToDAG.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFISelLowering.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFInstrInfo.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFMCInstLower.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFMIChecking.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFMIPeephole.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFMISimplifyPatchable.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFPreserveDIType.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFRegisterInfo.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFSelectionDAGInfo.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFSubtarget.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFTargetMachine.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BTFDebug.cpp
 )

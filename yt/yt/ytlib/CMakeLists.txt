@@ -909,10 +909,10 @@ target_compile_options(yt-yt-ytlib PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(yt-yt-ytlib PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_include_directories(yt-yt-ytlib PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
+  ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
 )
 target_link_libraries(yt-yt-ytlib PUBLIC
   contrib-libs-linux-headers
@@ -951,546 +951,546 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   flow-lib-native_client
 )
 target_proto_messages(yt-yt-ytlib PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/admin/proto/admin_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/admin/proto/restart_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/proto/transaction_actions.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/auth/proto/tvm_bridge_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cell_balancer/proto/cell_tracker_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cellar_client/proto/tablet_cell_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/cellar_node_tracker_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/heartbeat.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/proto/alien_cell.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/proto/chaos_master_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/proto/chaos_node_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/proto/coordinator_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/block_id.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_info.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_owner_ypath.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_reader_statistics.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_slice.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/data_node_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/data_sink.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/data_source.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/heartbeat.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/medium_directory.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/session_id.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/controller_agent_descriptor.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/controller_agent_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/job_prober_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/job.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/output_result.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_client/proto/cypress_ypath.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_client/proto/rpc.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_server/proto/sequoia_actions.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/election/proto/election_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/exec_node_admin/proto/exec_node_admin_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/file_client/proto/file_chunk_meta.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hive/proto/cell_directory.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hive/proto/hive_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hydra/proto/hydra_manager.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hydra/proto/hydra_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_prober_client/proto/job_prober_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/proto/format.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/proto/journal_ypath.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/lease_client/proto/lease_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/master_ypath.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/object_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/object_ypath.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/orchid/proto/orchid_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/replicated_table_tracker_client/proto/replicated_table_tracker_client.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/allocation.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/resources.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/pool_ypath.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/scheduler_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/security_client/proto/account_ypath.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/security_client/proto/group_ypath.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/security_client/proto/user_ypath.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/proto/transaction_client.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/proto/table_ypath.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/proto/virtual_value_directory.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/backup.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/heartbeat.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/master_tablet_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/table_replica_ypath.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/tablet_cell_bundle_ypath.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/tablet_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_node_tracker_client/proto/tablet_node_tracker_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_client/proto/action.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_client/proto/transaction_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_participant_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_supervisor_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/yql_client/proto/yql_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/admin/proto/admin_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/admin/proto/restart_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/proto/transaction_actions.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/auth/proto/tvm_bridge_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cell_balancer/proto/cell_tracker_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cellar_client/proto/tablet_cell_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/cellar_node_tracker_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/heartbeat.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/proto/alien_cell.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/proto/chaos_master_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/proto/chaos_node_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/proto/coordinator_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/block_id.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_info.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_owner_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_reader_statistics.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_slice.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/data_node_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/data_sink.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/data_source.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/heartbeat.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/medium_directory.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/session_id.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/controller_agent_descriptor.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/controller_agent_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/job_prober_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/job.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/output_result.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_client/proto/cypress_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_client/proto/rpc.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_server/proto/sequoia_actions.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/election/proto/election_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/exec_node_admin/proto/exec_node_admin_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/file_client/proto/file_chunk_meta.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/proto/cell_directory.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/proto/hive_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hydra/proto/hydra_manager.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hydra/proto/hydra_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_prober_client/proto/job_prober_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/journal_client/proto/format.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/journal_client/proto/journal_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/lease_client/proto/lease_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/master_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/object_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/object_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/orchid/proto/orchid_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/replicated_table_tracker_client/proto/replicated_table_tracker_client.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/allocation.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/resources.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/pool_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/scheduler_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/proto/account_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/proto/group_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/proto/user_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/proto/transaction_client.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/proto/table_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/proto/virtual_value_directory.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/backup.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/heartbeat.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/master_tablet_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/table_replica_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/tablet_cell_bundle_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/tablet_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_node_tracker_client/proto/tablet_node_tracker_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_client/proto/action.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_client/proto/transaction_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_participant_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_supervisor_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/yql_client/proto/yql_service.proto
 )
 target_sources(yt-yt-ytlib PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.record.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.record.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.record.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_id.record.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job.record.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_profile.record.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.record.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_spec.record.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/admin/proto/admin_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/admin/proto/restart_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/api/native/proto/transaction_actions.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/auth/proto/tvm_bridge_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/cell_balancer/proto/cell_tracker_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/cellar_client/proto/tablet_cell_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/cellar_node_tracker_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/heartbeat.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/chaos_client/proto/alien_cell.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/chaos_client/proto/chaos_master_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/chaos_client/proto/chaos_node_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/chaos_client/proto/coordinator_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/block_id.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_owner_ypath.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_reader_statistics.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_slice.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/data_sink.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/data_source.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/heartbeat.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/medium_directory.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/session_id.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/controller_agent/proto/controller_agent_descriptor.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/controller_agent/proto/job_prober_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/controller_agent/proto/job.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/controller_agent/proto/output_result.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/cypress_client/proto/rpc.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/election/proto/election_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/exec_node_admin/proto/exec_node_admin_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/file_client/proto/file_chunk_meta.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/hive/proto/cell_directory.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/hive/proto/hive_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/hydra/proto/hydra_manager.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/hydra/proto/hydra_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/job_prober_client/proto/job_prober_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/journal_client/proto/format.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/journal_client/proto/journal_ypath.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/lease_client/proto/lease_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/object_client/proto/master_ypath.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/object_client/proto/object_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/object_client/proto/object_ypath.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/orchid/proto/orchid_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/replicated_table_tracker_client/proto/replicated_table_tracker_client.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/allocation.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/resources.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/pool_ypath.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/scheduler_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/security_client/proto/account_ypath.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/security_client/proto/group_ypath.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/security_client/proto/user_ypath.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/proto/transaction_client.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/table_client/proto/table_ypath.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/table_client/proto/virtual_value_directory.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/backup.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/heartbeat.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/master_tablet_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/table_replica_ypath.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/tablet_cell_bundle_ypath.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/tablet_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/tablet_node_tracker_client/proto/tablet_node_tracker_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/transaction_client/proto/action.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/transaction_client/proto/transaction_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_participant_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_supervisor_service.pb.h
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/yql_client/proto/yql_service.pb.h
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/connection.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/backup_session.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/bundle_controller_client_impl.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/cell_commit_session.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/chaos_replicated_table_type_handler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/chaos_table_replica_type_handler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_admin_impl.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_authentication_impl.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_cypress_impl.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_dynamic_tables_impl.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_file_cache_impl.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_files_impl.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_impl.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_internal_impl.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_flow_impl.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_job_info_impl.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_jobs_impl.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_journals_impl.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_operation_info_impl.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_operations_impl.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_pools_impl.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_queries_impl.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_replicated_tables_impl.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_security_impl.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_static_tables_impl.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_transactions_impl.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/connection.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/default_type_handler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/file_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/file_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/journal_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/journal_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/list_operations.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/partition_tables.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/pipeline_type_handler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/replicated_table_replica_type_handler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/replication_card_collocation_type_handler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/replication_card_type_handler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/rpc_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/skynet.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/secondary_index_type_handler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/secondary_index_modification.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/sync_replica_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/table_collocation_type_handler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/table_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/table_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/tablet_action_type_handler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/tablet_commit_session.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/tablet_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/tablet_request_batcher.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/tablet_sync_replica_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/transaction_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/transaction_participant.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/transaction.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/type_handler_detail.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/ypath_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/auth/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/auth/native_authenticating_channel.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/auth/native_authentication_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/auth/native_authenticator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/auth/tvm_bridge_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/auth/tvm_bridge.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/bundle_controller/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/bundle_controller/bundle_controller_channel.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/cell_directory.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/alien_cell.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/banned_replica_tracker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/chaos_cell_channel_factory.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/chaos_cell_directory_synchronizer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_card_channel_factory.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_card_residency_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block_fetcher.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block_id.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block_reorderer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block_tracking_chunk_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/cache_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_fragment_read_controller.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_fragment_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_meta_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_meta_fetcher.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_reader_host.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_reader_memory_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_reader_statistics.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_replica_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_scraper.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_spec_fetcher.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_spec.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_teleporter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/client_block_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/combine_data_slices.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/confirming_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/data_sink.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/data_slice_descriptor.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/data_source.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/deferred_chunk_meta.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/dispatcher.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/encoding_chunk_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/encoding_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/erasure_adaptive_repair.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/erasure_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/erasure_part_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/erasure_part_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/erasure_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/erasure_repair.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/erasure_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/fetcher.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/format.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/input_chunk_slice.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/input_chunk.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/legacy_data_slice.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/medium_directory_synchronizer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/medium_directory.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/memory_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/memory_tracked_deferred_chunk_meta.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/memory_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/meta_aggregating_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/multi_chunk_writer_base.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/multi_reader_manager_base.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/parallel_multi_reader_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/preloaded_block_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/reader_factory.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/replication_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/replication_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/sequential_multi_reader_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/session_id.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/striped_erasure_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/striped_erasure_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/throttler_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/traffic_meter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_pools/chunk_pool_factory.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_pools/chunk_stripe_key.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_pools/chunk_stripe.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_pools/output_order.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/controller_agent/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/controller_agent/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_client/batch_attribute_fetcher.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_client/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_client/rpc_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/data_node_tracker_client/location_directory.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/driver/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/election/cell_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/election/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/election/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/event_log/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/event_log/event_log.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/file_client/file_chunk_output.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/file_client/file_chunk_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/file_client/file_chunk_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hive/cell_directory_synchronizer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hive/cell_directory.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hive/cell_tracker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hive/cluster_directory_synchronizer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hive/cluster_directory.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hive/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hive/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hydra/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hydra/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hydra/peer_channel.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/incumbent_client/incumbent_descriptor.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/incumbent_client/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_proxy/any_to_composite_converter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_proxy/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_proxy/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_proxy/job_spec_helper.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_proxy/private.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_proxy/user_job_io_factory.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_proxy/user_job_read_controller.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/chunk_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/erasure_parts_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/erasure_repair.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/journal_chunk_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/journal_hunk_chunk_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/journal_client/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/misc/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/misc/memory_reference_tracker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/misc/memory_usage_tracker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/misc/synchronizer_detail.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/column_block_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/memory_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/prepared_meta.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/rowset_builder.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/segment_readers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/versioned_chunk_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/channel.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/node_addresses_provider.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/node_directory_builder.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/node_statistics.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/node_status_directory.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/object_client/caching_object_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/object_client/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/object_client/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/object_client/object_attribute_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/object_client/object_service_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/object_client/object_service_proxy.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/object_client/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/orchid/orchid_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/orchid/orchid_ypath_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/program/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/program/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_client/executor.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_client/explain.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_client/functions_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_client/session_coordinator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_client/tracked_memory_chunk_provider.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_client/shuffle.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/dynamic_state.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/registration_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/disk_resources.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/job_resources_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/job_resources_with_quota.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/scheduler_channel.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/security_client/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/security_client/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/security_client/permission_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/security_client/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/client.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/lazy_client.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/table_descriptor.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/transaction.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/write_set.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/ypath_detail.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/boolean_column_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/boolean_column_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/column_reader_detail.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/column_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/column_writer_detail.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/column_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/data_block_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/floating_point_column_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/floating_point_column_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/integer_column_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/integer_column_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/null_column_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/null_column_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/reader_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/schemaless_column_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/schemaless_column_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/slim_versioned_block_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/slim_versioned_block_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/string_column_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/string_column_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/timestamp_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/timestamp_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/blob_table_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/cache_based_versioned_chunk_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/cached_versioned_chunk_meta.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_column_mapping.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_index_builder.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_index_read_controller.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_index.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_lookup_hash_table.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_reader_base.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_slice_fetcher.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_slice_size_fetcher.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_slice.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/column_filter_dictionary.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/columnar_chunk_meta.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/columnar_chunk_reader_base.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/columnar_statistics_fetcher.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/hunks.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/indexed_versioned_chunk_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/key_filter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/key_set.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/overlapping_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/partition_chunk_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/partition_sort_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/partitioner.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/performance_counters.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/remote_dynamic_store_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/row_merger.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/samples_fetcher.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schema_dictionary.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schema_inferer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schema.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaful_chunk_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaful_concatenating_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaful_reader_adapter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaless_block_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaless_block_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaless_buffered_table_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaless_chunk_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaless_chunk_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/skynet_column_evaluator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/slice_boundary_key.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/sorted_merging_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/sorting_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/table_columnar_statistics_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/table_read_spec.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/table_upload_options.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/timing_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/timing_statistics.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_block_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_block_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_chunk_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_chunk_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_offloading_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_reader_adapter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_row_digest.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_row_merger.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/virtual_value_directory.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/backup.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/native_table_mount_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/pivot_keys_builder.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/pivot_keys_picker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_client/action.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_client/clock_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_client/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_client/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_client/remote_cluster_timestamp_provider.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_client/transaction_listener.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/transaction_client/transaction_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/yql_client/config.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_id.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_profile.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_spec.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_id.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_profile.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_spec.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/admin/proto/admin_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/admin/proto/restart_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/api/native/proto/transaction_actions.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/auth/proto/tvm_bridge_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cell_balancer/proto/cell_tracker_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cellar_client/proto/tablet_cell_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/cellar_node_tracker_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/heartbeat.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chaos_client/proto/alien_cell.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chaos_client/proto/chaos_master_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chaos_client/proto/chaos_node_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chaos_client/proto/coordinator_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/block_id.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_owner_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_reader_statistics.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_slice.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/data_sink.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/data_source.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/heartbeat.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/medium_directory.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/session_id.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/controller_agent/proto/controller_agent_descriptor.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/controller_agent/proto/job_prober_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/controller_agent/proto/job.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/controller_agent/proto/output_result.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cypress_client/proto/rpc.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/election/proto/election_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/exec_node_admin/proto/exec_node_admin_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/file_client/proto/file_chunk_meta.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/hive/proto/cell_directory.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/hive/proto/hive_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/hydra/proto/hydra_manager.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/hydra/proto/hydra_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/job_prober_client/proto/job_prober_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/journal_client/proto/format.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/journal_client/proto/journal_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/lease_client/proto/lease_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/object_client/proto/master_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/object_client/proto/object_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/object_client/proto/object_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/orchid/proto/orchid_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/replicated_table_tracker_client/proto/replicated_table_tracker_client.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/allocation.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/resources.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/pool_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/scheduler_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/security_client/proto/account_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/security_client/proto/group_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/security_client/proto/user_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/proto/transaction_client.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/table_client/proto/table_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/table_client/proto/virtual_value_directory.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/backup.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/heartbeat.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/master_tablet_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/table_replica_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/tablet_cell_bundle_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/tablet_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_node_tracker_client/proto/tablet_node_tracker_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/transaction_client/proto/action.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/transaction_client/proto/transaction_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_participant_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/transaction_supervisor/proto/transaction_supervisor_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/yql_client/proto/yql_service.pb.h
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/connection.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/backup_session.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/bundle_controller_client_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/cell_commit_session.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/chaos_replicated_table_type_handler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/chaos_table_replica_type_handler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_admin_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_authentication_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_cypress_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_dynamic_tables_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_file_cache_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_files_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_internal_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_flow_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_job_info_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_jobs_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_journals_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_operation_info_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_operations_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_pools_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_queries_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_replicated_tables_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_security_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_static_tables_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_transactions_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/connection.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/default_type_handler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/file_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/file_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/journal_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/journal_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/list_operations.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/partition_tables.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/pipeline_type_handler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/replicated_table_replica_type_handler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/replication_card_collocation_type_handler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/replication_card_type_handler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/rpc_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/skynet.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/secondary_index_type_handler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/secondary_index_modification.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/sync_replica_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/table_collocation_type_handler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/table_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/table_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/tablet_action_type_handler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/tablet_commit_session.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/tablet_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/tablet_request_batcher.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/tablet_sync_replica_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/transaction_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/transaction_participant.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/transaction.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/type_handler_detail.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/ypath_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/auth/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/auth/native_authenticating_channel.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/auth/native_authentication_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/auth/native_authenticator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/auth/tvm_bridge_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/auth/tvm_bridge.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/bundle_controller/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/bundle_controller/bundle_controller_channel.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/cell_directory.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/alien_cell.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/banned_replica_tracker.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/chaos_cell_channel_factory.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/chaos_cell_directory_synchronizer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_card_channel_factory.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/replication_card_residency_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block_fetcher.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block_id.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block_reorderer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block_tracking_chunk_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/block.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/cache_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_fragment_read_controller.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_fragment_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_meta_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_meta_fetcher.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_reader_host.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_reader_memory_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_reader_statistics.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_replica_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_scraper.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_spec_fetcher.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_spec.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_teleporter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/client_block_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/combine_data_slices.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/confirming_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/data_sink.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/data_slice_descriptor.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/data_source.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/deferred_chunk_meta.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/dispatcher.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/encoding_chunk_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/encoding_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/erasure_adaptive_repair.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/erasure_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/erasure_part_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/erasure_part_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/erasure_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/erasure_repair.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/erasure_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/fetcher.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/format.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/input_chunk_slice.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/input_chunk.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/legacy_data_slice.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/medium_directory_synchronizer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/medium_directory.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/memory_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/memory_tracked_deferred_chunk_meta.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/memory_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/meta_aggregating_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/multi_chunk_writer_base.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/multi_reader_manager_base.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/parallel_multi_reader_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/preloaded_block_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/reader_factory.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/replication_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/replication_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/sequential_multi_reader_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/session_id.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/striped_erasure_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/striped_erasure_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/throttler_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/traffic_meter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_pools/chunk_pool_factory.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_pools/chunk_stripe_key.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_pools/chunk_stripe.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_pools/output_order.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_client/batch_attribute_fetcher.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_client/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_client/rpc_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/data_node_tracker_client/location_directory.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/driver/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/election/cell_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/election/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/election/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/event_log/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/event_log/event_log.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/file_client/file_chunk_output.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/file_client/file_chunk_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/file_client/file_chunk_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/cell_directory_synchronizer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/cell_directory.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/cell_tracker.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/cluster_directory_synchronizer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/cluster_directory.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hydra/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hydra/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hydra/peer_channel.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/incumbent_client/incumbent_descriptor.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/incumbent_client/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_proxy/any_to_composite_converter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_proxy/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_proxy/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_proxy/job_spec_helper.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_proxy/private.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_proxy/user_job_io_factory.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_proxy/user_job_read_controller.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/journal_client/chunk_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/journal_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/journal_client/erasure_parts_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/journal_client/erasure_repair.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/journal_client/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/journal_client/journal_chunk_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/journal_client/journal_hunk_chunk_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/journal_client/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/misc/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/misc/memory_reference_tracker.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/misc/memory_usage_tracker.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/misc/synchronizer_detail.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/column_block_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/memory_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/prepared_meta.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/rowset_builder.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/segment_readers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/versioned_chunk_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/channel.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/node_addresses_provider.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/node_directory_builder.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/node_statistics.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/node_status_directory.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/node_tracker_client/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/caching_object_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/object_attribute_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/object_service_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/object_service_proxy.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/orchid/orchid_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/orchid/orchid_ypath_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/program/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/program/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/executor.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/explain.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/functions_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/session_coordinator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/tracked_memory_chunk_provider.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/shuffle.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/dynamic_state.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/registration_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/disk_resources.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/job_resources_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/job_resources_with_quota.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/scheduler_channel.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/permission_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/client.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/lazy_client.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/table_descriptor.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/transaction.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/write_set.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/ypath_detail.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/boolean_column_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/boolean_column_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/column_reader_detail.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/column_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/column_writer_detail.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/column_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/data_block_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/floating_point_column_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/floating_point_column_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/integer_column_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/integer_column_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/null_column_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/null_column_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/reader_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/schemaless_column_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/schemaless_column_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/slim_versioned_block_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/slim_versioned_block_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/string_column_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/string_column_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/timestamp_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/timestamp_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/blob_table_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/cache_based_versioned_chunk_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/cached_versioned_chunk_meta.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_column_mapping.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_index_builder.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_index_read_controller.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_index.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_lookup_hash_table.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_reader_base.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_slice_fetcher.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_slice_size_fetcher.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_slice.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/column_filter_dictionary.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/columnar_chunk_meta.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/columnar_chunk_reader_base.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/columnar_statistics_fetcher.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/hunks.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/indexed_versioned_chunk_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/key_filter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/key_set.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/overlapping_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/partition_chunk_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/partition_sort_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/partitioner.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/performance_counters.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/remote_dynamic_store_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/row_merger.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/samples_fetcher.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/schema_dictionary.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/schema_inferer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/schema.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaful_chunk_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaful_concatenating_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaful_reader_adapter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaless_block_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaless_block_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaless_buffered_table_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaless_chunk_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaless_chunk_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/skynet_column_evaluator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/slice_boundary_key.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/sorted_merging_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/sorting_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/table_columnar_statistics_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/table_read_spec.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/table_upload_options.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/timing_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/timing_statistics.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_block_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_block_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_chunk_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_chunk_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_offloading_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_reader_adapter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_row_digest.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_row_merger.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/virtual_value_directory.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/backup.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/native_table_mount_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/pivot_keys_builder.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/pivot_keys_picker.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_client/action.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_client/clock_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_client/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_client/remote_cluster_timestamp_provider.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_client/transaction_listener.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_client/transaction_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/yql_client/config.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_id.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_profile.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_spec.record.cpp
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.h
   DEPENDS
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.yaml
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
   COMMAND
   ${CMAKE_COMMAND}
   -E
   env
-  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.yaml
   --output-root
-  ${CMAKE_BINARY_DIR}
+  ${PROJECT_BINARY_DIR}
   --output-cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.cpp
   --output-include
   yt/yt/ytlib/sequoia_client/public.h
   --output-include
@@ -1500,25 +1500,25 @@ add_custom_command(
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.record.h
   DEPENDS
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.yaml
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
   COMMAND
   ${CMAKE_COMMAND}
   -E
   env
-  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.yaml
   --output-root
-  ${CMAKE_BINARY_DIR}
+  ${PROJECT_BINARY_DIR}
   --output-cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.record.cpp
   --output-include
   yt/yt/ytlib/sequoia_client/public.h
   --output-include
@@ -1528,246 +1528,246 @@ add_custom_command(
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.h
   DEPENDS
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.yaml
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
   COMMAND
   ${CMAKE_COMMAND}
   -E
   env
-  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.yaml
   --output-root
-  ${CMAKE_BINARY_DIR}
+  ${PROJECT_BINARY_DIR}
   --output-cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.cpp
   --output-include
   yt/yt/ytlib/sequoia_client/public.h
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h
   DEPENDS
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.yaml
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
   COMMAND
   ${CMAKE_COMMAND}
   -E
   env
-  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.yaml
   --output-root
-  ${CMAKE_BINARY_DIR}
+  ${PROJECT_BINARY_DIR}
   --output-cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.cpp
   --output-include
   yt/yt/ytlib/sequoia_client/public.h
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h
   DEPENDS
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.yaml
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
   COMMAND
   ${CMAKE_COMMAND}
   -E
   env
-  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.yaml
   --output-root
-  ${CMAKE_BINARY_DIR}
+  ${PROJECT_BINARY_DIR}
   --output-cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.cpp
   --output-include
   yt/yt/ytlib/sequoia_client/public.h
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.record.h
   DEPENDS
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.yaml
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
   COMMAND
   ${CMAKE_COMMAND}
   -E
   env
-  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.yaml
   --output-root
-  ${CMAKE_BINARY_DIR}
+  ${PROJECT_BINARY_DIR}
   --output-cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.record.cpp
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.record.h
   DEPENDS
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.yaml
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
   COMMAND
   ${CMAKE_COMMAND}
   -E
   env
-  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.yaml
   --output-root
-  ${CMAKE_BINARY_DIR}
+  ${PROJECT_BINARY_DIR}
   --output-cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.record.cpp
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_id.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_id.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_id.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_id.record.h
   DEPENDS
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/operation_id.yaml
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/operation_id.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
   COMMAND
   ${CMAKE_COMMAND}
   -E
   env
-  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/operation_id.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/operation_id.yaml
   --output-root
-  ${CMAKE_BINARY_DIR}
+  ${PROJECT_BINARY_DIR}
   --output-cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_id.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_id.record.cpp
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job.record.h
   DEPENDS
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job.yaml
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
   COMMAND
   ${CMAKE_COMMAND}
   -E
   env
-  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job.yaml
   --output-root
-  ${CMAKE_BINARY_DIR}
+  ${PROJECT_BINARY_DIR}
   --output-cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job.record.cpp
   --output-include
   yt/yt/core/yson/string.h
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_profile.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_profile.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_profile.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_profile.record.h
   DEPENDS
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_profile.yaml
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_profile.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
   COMMAND
   ${CMAKE_COMMAND}
   -E
   env
-  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_profile.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_profile.yaml
   --output-root
-  ${CMAKE_BINARY_DIR}
+  ${PROJECT_BINARY_DIR}
   --output-cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_profile.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_profile.record.cpp
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.record.h
   DEPENDS
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.yaml
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
   COMMAND
   ${CMAKE_COMMAND}
   -E
   env
-  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.yaml
   --output-root
-  ${CMAKE_BINARY_DIR}
+  ${PROJECT_BINARY_DIR}
   --output-cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.record.cpp
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_spec.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_spec.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_spec.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_spec.record.h
   DEPENDS
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_spec.yaml
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_spec.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
   COMMAND
   ${CMAKE_COMMAND}
   -E
   env
-  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_spec.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_spec.yaml
   --output-root
-  ${CMAKE_BINARY_DIR}
+  ${PROJECT_BINARY_DIR}
   --output-cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_spec.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_spec.record.cpp
 )
 target_proto_addincls(yt-yt-ytlib
   ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 target_proto_outs(yt-yt-ytlib
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
 
 add_global_library_for(yt-yt-ytlib.global yt-yt-ytlib)
@@ -1775,10 +1775,10 @@ target_compile_options(yt-yt-ytlib.global PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(yt-yt-ytlib.global PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_include_directories(yt-yt-ytlib.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
+  ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
 )
 target_link_libraries(yt-yt-ytlib.global PUBLIC
   contrib-libs-linux-headers
@@ -1817,7 +1817,7 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   flow-lib-native_client
 )
 target_sources(yt-yt-ytlib.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_meta_extensions.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/job_spec_extensions.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_meta_extensions.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_meta_extensions.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/job_spec_extensions.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_meta_extensions.cpp
 )

@@ -33,7 +33,7 @@ target_link_options(unittester-yql-agent PRIVATE
   -lutil
 )
 target_sources(unittester-yql-agent PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yql/agent/unittests/yql_agent_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yql/agent/unittests/yql_agent_ut.cpp
 )
 add_test(
   NAME

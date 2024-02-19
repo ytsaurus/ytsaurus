@@ -34,7 +34,7 @@ target_link_options(dump-chunk-meta PRIVATE
   -lutil
 )
 target_sources(dump-chunk-meta PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/dump_chunk_meta/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/dump_chunk_meta/main.cpp
 )
 target_allocator(dump-chunk-meta
   cpp-malloc-tcmalloc

@@ -33,7 +33,7 @@ target_link_options(unittester-library-lsm PRIVATE
   -lutil
 )
 target_sources(unittester-library-lsm PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/lsm/unittests/upcoming_compaction_info_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/lsm/unittests/upcoming_compaction_info_ut.cpp
 )
 add_test(
   NAME

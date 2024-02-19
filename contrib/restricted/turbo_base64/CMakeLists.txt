@@ -15,21 +15,21 @@ target_link_libraries(contrib-restricted-turbo_base64 PUBLIC
   contrib-libs-linux-headers
 )
 target_sources(contrib-restricted-turbo_base64 PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/turbo_base64/turbob64c.c
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/turbo_base64/turbob64d.c
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/turbo_base64/turbob64sse.c
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/turbo_base64/turbob64c.c
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/turbo_base64/turbob64d.c
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/turbo_base64/turbob64sse.c
 )
 target_sources_custom(contrib-restricted-turbo_base64
   .avx
   SRCS
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/turbo_base64/turbob64sse.c
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/turbo_base64/turbob64sse.c
   CUSTOM_FLAGS
   -mavx
 )
 target_sources_custom(contrib-restricted-turbo_base64
   .avx2
   SRCS
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/turbo_base64/turbob64avx2.c
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/turbo_base64/turbob64avx2.c
   CUSTOM_FLAGS
   -mavx2
   -mfma

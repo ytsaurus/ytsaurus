@@ -31,7 +31,7 @@ target_link_options(changelog_surgeon PRIVATE
   -lutil
 )
 target_sources(changelog_surgeon PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/changelog_surgeon/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/changelog_surgeon/main.cpp
 )
 target_allocator(changelog_surgeon
   cpp-ytalloc-impl

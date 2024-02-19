@@ -19,8 +19,8 @@ target_link_libraries(yt-client-federated PUBLIC
   yt-client-cache
 )
 target_sources(yt-client-federated PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/federated/client.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/federated/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/federated/connection.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/federated/cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/federated/client.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/federated/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/federated/connection.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/federated/cache.cpp
 )

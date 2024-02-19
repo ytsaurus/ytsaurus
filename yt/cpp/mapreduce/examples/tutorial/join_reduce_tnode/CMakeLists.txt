@@ -31,7 +31,7 @@ target_link_options(join_reduce_tnode PRIVATE
   -lutil
 )
 target_sources(join_reduce_tnode PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/join_reduce_tnode/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/join_reduce_tnode/main.cpp
 )
 target_allocator(join_reduce_tnode
   cpp-malloc-tcmalloc

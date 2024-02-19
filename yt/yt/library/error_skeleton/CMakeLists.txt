@@ -29,5 +29,5 @@ target_link_libraries(yt-library-error_skeleton.global PUBLIC
   contrib-libs-re2
 )
 target_sources(yt-library-error_skeleton.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/error_skeleton/skeleton.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/error_skeleton/skeleton.cpp
 )

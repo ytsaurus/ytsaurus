@@ -19,11 +19,11 @@ target_compile_options(libs-poco-Data PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(libs-poco-Data PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/include
 )
 target_include_directories(libs-poco-Data PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Foundation/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/include
 )
 target_link_libraries(libs-poco-Data PUBLIC
   contrib-libs-linux-headers
@@ -31,39 +31,39 @@ target_link_libraries(libs-poco-Data PUBLIC
   libs-poco-Foundation
 )
 target_sources(libs-poco-Data PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/AbstractBinder.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/AbstractBinding.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/AbstractExtraction.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/AbstractExtractor.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/AbstractPreparation.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/AbstractPreparator.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/ArchiveStrategy.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/Bulk.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/Connector.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/DataException.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/Date.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/DynamicLOB.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/Limit.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/MetaColumn.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/PooledSessionHolder.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/PooledSessionImpl.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/Position.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/Range.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/RecordSet.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/Row.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/RowFilter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/RowFormatter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/RowIterator.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/SQLChannel.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/Session.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/SessionFactory.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/SessionImpl.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/SessionPool.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/SessionPoolContainer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/SimpleRowFormatter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/Statement.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/StatementCreator.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/StatementImpl.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/Time.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Data/src/Transaction.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/AbstractBinder.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/AbstractBinding.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/AbstractExtraction.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/AbstractExtractor.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/AbstractPreparation.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/AbstractPreparator.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/ArchiveStrategy.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/Bulk.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/Connector.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/DataException.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/Date.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/DynamicLOB.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/Limit.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/MetaColumn.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/PooledSessionHolder.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/PooledSessionImpl.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/Position.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/Range.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/RecordSet.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/Row.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/RowFilter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/RowFormatter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/RowIterator.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/SQLChannel.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/Session.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/SessionFactory.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/SessionImpl.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/SessionPool.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/SessionPoolContainer.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/SimpleRowFormatter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/Statement.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/StatementCreator.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/StatementImpl.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/Time.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/Transaction.cpp
 )

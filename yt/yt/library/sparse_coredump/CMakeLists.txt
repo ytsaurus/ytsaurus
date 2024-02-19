@@ -19,5 +19,5 @@ target_link_libraries(yt-library-sparse_coredump PUBLIC
   yt-yt-core
 )
 target_sources(yt-library-sparse_coredump PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/sparse_coredump/sparse_coredump.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/sparse_coredump/sparse_coredump.cpp
 )

@@ -12,7 +12,7 @@ target_compile_options(offline_read PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(offline_read PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
+  ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
 )
 target_link_libraries(offline_read PUBLIC
   contrib-libs-linux-headers
@@ -39,7 +39,7 @@ target_link_options(offline_read PRIVATE
   -lutil
 )
 target_sources(offline_read PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/offline_read/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/offline_read/main.cpp
 )
 target_allocator(offline_read
   cpp-ytalloc-impl

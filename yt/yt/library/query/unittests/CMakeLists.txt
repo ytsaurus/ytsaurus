@@ -13,7 +13,7 @@ target_compile_options(unittester-query PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(unittester-query PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
+  ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
 )
 target_link_libraries(unittester-query PUBLIC
   contrib-libs-linux-headers
@@ -42,15 +42,15 @@ target_link_options(unittester-query PRIVATE
   -lutil
 )
 target_sources(unittester-query PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ast_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_computed_columns_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_expressions_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_misc_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_query_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_range_inference_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/ql_range_coordination_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/disable_web_assembly.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ast_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_computed_columns_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_expressions_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_misc_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_query_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_range_inference_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_range_coordination_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/disable_web_assembly.cpp
 )
 add_test(
   NAME

@@ -21,5 +21,5 @@ target_link_libraries(tests-cpp-test_base PUBLIC
   yt-core-test_framework
 )
 target_sources(tests-cpp-test_base PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tests/cpp/test_base/api_test_base.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_base/api_test_base.cpp
 )

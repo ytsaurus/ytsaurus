@@ -15,5 +15,5 @@ target_link_libraries(streams-lz-snappy PUBLIC
   contrib-libs-snappy
 )
 target_sources(streams-lz-snappy PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/streams/lz/snappy/snappy.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/streams/lz/snappy/snappy.cpp
 )

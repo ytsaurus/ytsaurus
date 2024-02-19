@@ -19,7 +19,7 @@ target_link_libraries(mapreduce-library-lambda PUBLIC
   mapreduce-library-table_schema
 )
 target_sources(mapreduce-library-lambda PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/library/lambda/yt_lambda.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/library/lambda/field_copier.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/library/lambda/wrappers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/lambda/yt_lambda.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/lambda/field_copier.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/lambda/wrappers.cpp
 )

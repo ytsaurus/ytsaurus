@@ -16,7 +16,7 @@ target_compile_options(llvm16-lib-ExecutionEngine PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(llvm16-lib-ExecutionEngine PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine
 )
 target_link_libraries(llvm16-lib-ExecutionEngine PUBLIC
   contrib-libs-linux-headers
@@ -33,9 +33,9 @@ target_link_libraries(llvm16-lib-ExecutionEngine PUBLIC
   llvm16-lib-TargetParser
 )
 target_sources(llvm16-lib-ExecutionEngine PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/ExecutionEngine.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/ExecutionEngineBindings.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/GDBRegistrationListener.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/SectionMemoryManager.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/TargetSelect.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/ExecutionEngine.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/ExecutionEngineBindings.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/GDBRegistrationListener.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/SectionMemoryManager.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/TargetSelect.cpp
 )

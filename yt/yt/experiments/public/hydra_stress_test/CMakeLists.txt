@@ -45,18 +45,18 @@ target_link_options(hydra_stress PRIVATE
   -lutil
 )
 target_proto_messages(hydra_stress PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/peer_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/peer_service.proto
 )
 target_sources(hydra_stress PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/experiments/public/hydra_stress_test/peer_service.pb.h
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/automaton.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/channel.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/checkers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/client.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/disruptors.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/main.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/peer.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/experiments/public/hydra_stress_test/peer_service.pb.h
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/automaton.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/channel.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/checkers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/client.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/disruptors.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/peer.cpp
 )
 target_allocator(hydra_stress
   cpp-malloc-tcmalloc
@@ -64,17 +64,17 @@ target_allocator(hydra_stress
 )
 target_proto_addincls(hydra_stress
   ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 target_proto_outs(hydra_stress
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
 vcs_info(hydra_stress)

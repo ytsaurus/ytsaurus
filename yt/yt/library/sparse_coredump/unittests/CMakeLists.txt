@@ -32,7 +32,7 @@ target_link_options(unittester-core-dump PRIVATE
   -lutil
 )
 target_sources(unittester-core-dump PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/sparse_coredump/unittests/core_dump_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/sparse_coredump/unittests/core_dump_ut.cpp
 )
 add_test(
   NAME

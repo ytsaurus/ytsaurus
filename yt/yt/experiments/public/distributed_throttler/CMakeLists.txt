@@ -31,7 +31,7 @@ target_link_options(distributed_throttler PRIVATE
   -lutil
 )
 target_sources(distributed_throttler PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/distributed_throttler/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/distributed_throttler/main.cpp
 )
 target_allocator(distributed_throttler
   cpp-malloc-tcmalloc

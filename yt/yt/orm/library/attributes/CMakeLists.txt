@@ -19,9 +19,9 @@ target_link_libraries(orm-library-attributes PUBLIC
   yt-yt-client
 )
 target_sources(orm-library-attributes PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/orm/library/attributes/attribute_path.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/orm/library/attributes/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/orm/library/attributes/merge_attributes.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/orm/library/attributes/scalar_attribute.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/orm/library/attributes/ytree.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/attributes/attribute_path.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/attributes/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/attributes/merge_attributes.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/attributes/scalar_attribute.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/attributes/ytree.cpp
 )

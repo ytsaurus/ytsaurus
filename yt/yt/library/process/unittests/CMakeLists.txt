@@ -35,9 +35,9 @@ target_link_options(unittester-library-process PRIVATE
   -lutil
 )
 target_sources(unittester-library-process PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/process/unittests/pipes_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/process/unittests/process_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/process/unittests/subprocess_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/process/unittests/pipes_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/process/unittests/process_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/process/unittests/subprocess_ut.cpp
 )
 add_test(
   NAME

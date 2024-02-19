@@ -18,5 +18,5 @@ target_link_libraries(cpp-ytalloc-impl PUBLIC
   cpp-yt-threading
 )
 target_sources(cpp-ytalloc-impl PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/ytalloc/impl/bridge.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/ytalloc/impl/bridge.cpp
 )

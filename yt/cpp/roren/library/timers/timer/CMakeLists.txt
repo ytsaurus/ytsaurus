@@ -16,5 +16,5 @@ target_link_libraries(library-timers-timer PUBLIC
   timers-timer-proto
 )
 target_sources(library-timers-timer PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/library/timers/timer/timer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/library/timers/timer/timer.cpp
 )

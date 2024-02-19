@@ -25,5 +25,5 @@ target_link_libraries(backtrace-symbolizers-dwarf.global PUBLIC
   cpp-yt-backtrace
 )
 target_sources(backtrace-symbolizers-dwarf.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/backtrace/symbolizers/dwarf/dwarf_symbolizer.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/yt/backtrace/symbolizers/dwarf/dwarf_symbolizer.cpp
 )

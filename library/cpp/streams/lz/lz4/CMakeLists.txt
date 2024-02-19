@@ -15,5 +15,5 @@ target_link_libraries(streams-lz-lz4 PUBLIC
   contrib-libs-lz4
 )
 target_sources(streams-lz-lz4 PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/streams/lz/lz4/lz4.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/streams/lz/lz4/lz4.cpp
 )

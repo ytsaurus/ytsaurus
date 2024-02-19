@@ -19,5 +19,5 @@ target_link_libraries(mapreduce-library-mock_client PUBLIC
   cpp-testing-gmock_in_unittest
 )
 target_sources(mapreduce-library-mock_client PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/library/mock_client/yt_mock.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/mock_client/yt_mock.cpp
 )

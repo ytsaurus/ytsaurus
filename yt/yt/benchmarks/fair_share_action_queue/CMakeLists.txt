@@ -31,7 +31,7 @@ target_link_options(fair_share_action_queue PRIVATE
   -lutil
 )
 target_sources(fair_share_action_queue PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/fair_share_action_queue/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/fair_share_action_queue/main.cpp
 )
 target_allocator(fair_share_action_queue
   cpp-ytalloc-impl

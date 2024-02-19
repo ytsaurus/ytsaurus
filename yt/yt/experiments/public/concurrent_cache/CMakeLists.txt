@@ -27,7 +27,7 @@ target_link_options(concurrent_cache PRIVATE
   -lutil
 )
 target_sources(concurrent_cache PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/concurrent_cache/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/concurrent_cache/main.cpp
 )
 target_allocator(concurrent_cache
   cpp-malloc-tcmalloc

@@ -33,9 +33,9 @@ target_link_options(unittester-library-auth_server PRIVATE
   -lutil
 )
 target_sources(unittester-library-auth_server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/unittests/blackbox_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/unittests/mock_http_server.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/unittests/secret_vault_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/unittests/blackbox_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/unittests/mock_http_server.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/unittests/secret_vault_ut.cpp
 )
 add_test(
   NAME

@@ -9,7 +9,7 @@
 
 add_library(contrib-deprecated-clickhouse_data_streams_compat)
 target_include_directories(contrib-deprecated-clickhouse_data_streams_compat PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat
+  ${PROJECT_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat
 )
 target_link_libraries(contrib-deprecated-clickhouse_data_streams_compat PUBLIC
   contrib-libs-linux-headers
@@ -18,11 +18,11 @@ target_link_libraries(contrib-deprecated-clickhouse_data_streams_compat PUBLIC
   contrib-clickhouse-src
 )
 target_sources(contrib-deprecated-clickhouse_data_streams_compat PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat/DataStreams/IBlockInputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat/DataStreams/RemoteBlockOutputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat/DataStreams/RemoteBlockInputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat/DataStreams/NativeBlockOutputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat/DataStreams/NativeBlockInputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat/Processors/Sources/SourceFromInputStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat/Processors/Sources/SinkToOutputStream.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat/DataStreams/IBlockInputStream.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat/DataStreams/RemoteBlockOutputStream.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat/DataStreams/RemoteBlockInputStream.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat/DataStreams/NativeBlockOutputStream.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat/DataStreams/NativeBlockInputStream.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat/Processors/Sources/SourceFromInputStream.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat/Processors/Sources/SinkToOutputStream.cpp
 )

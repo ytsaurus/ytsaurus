@@ -12,8 +12,8 @@ target_compile_options(library-query-base PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(library-query-base PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/base
+  ${PROJECT_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/base
 )
 target_link_libraries(library-query-base PUBLIC
   contrib-libs-linux-headers
@@ -26,29 +26,29 @@ target_link_libraries(library-query-base PUBLIC
   bison-bison-induced
 )
 target_sources(library-query-base PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/base/parser.h
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/ast.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/ast_visitors.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/constraints.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/coordination_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/functions.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/builtin_function_registry.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/builtin_function_types.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/functions_common.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/key_trie.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/query.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/query_common.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/query_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/query_preparer.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/base/parser.h
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/ast.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/ast_visitors.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/constraints.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/coordination_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/functions.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/builtin_function_registry.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/builtin_function_types.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/functions_common.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/key_trie.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/query.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/query_common.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/query_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/query_preparer.cpp
 )
 target_bison_parser(library-query-base
   PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/parser.ypp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/parser.ypp
 )
 target_ragel_lexers(library-query-base
   PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/lexer.rl6
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/lexer.rl6
   -CG2
 )

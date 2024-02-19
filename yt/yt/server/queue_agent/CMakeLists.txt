@@ -28,17 +28,17 @@ target_link_libraries(yt-server-queue_agent PUBLIC
   server-lib-misc
 )
 target_sources(yt-server-queue_agent PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/consumer_controller.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/cypress_synchronizer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/dynamic_config_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/performance_counters.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/profile_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/queue_agent.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/queue_agent_sharding_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/queue_controller.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/snapshot_representation.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/queue_static_table_exporter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/bootstrap.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/consumer_controller.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/cypress_synchronizer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/dynamic_config_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/performance_counters.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/profile_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/queue_agent.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/queue_agent_sharding_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/queue_controller.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/snapshot_representation.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/queue_static_table_exporter.cpp
 )

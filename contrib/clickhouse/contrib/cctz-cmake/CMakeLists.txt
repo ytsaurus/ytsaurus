@@ -18,7 +18,7 @@ target_compile_options(clickhouse-contrib-cctz-cmake PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(clickhouse-contrib-cctz-cmake PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/clickhouse_deps/incbin_stub
+  ${PROJECT_SOURCE_DIR}/library/cpp/clickhouse_deps/incbin_stub
 )
 target_link_libraries(clickhouse-contrib-cctz-cmake PUBLIC
   contrib-libs-linux-headers
@@ -26,5 +26,5 @@ target_link_libraries(clickhouse-contrib-cctz-cmake PUBLIC
   cpp-clickhouse_deps-incbin_stub
 )
 target_sources(clickhouse-contrib-cctz-cmake PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/contrib/cctz-cmake/TimeZones.generated.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/contrib/cctz-cmake/TimeZones.generated.cpp
 )

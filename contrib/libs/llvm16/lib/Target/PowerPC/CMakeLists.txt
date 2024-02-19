@@ -16,8 +16,8 @@ target_compile_options(lib-Target-PowerPC PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-Target-PowerPC PRIVATE
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
+  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
 )
 target_link_libraries(lib-Target-PowerPC PUBLIC
   contrib-libs-linux-headers
@@ -41,45 +41,45 @@ target_link_libraries(lib-Target-PowerPC PUBLIC
   lib-Transforms-Utils
 )
 target_sources(lib-Target-PowerPC PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/GISel/PPCCallLowering.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/GISel/PPCInstructionSelector.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/GISel/PPCLegalizerInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/GISel/PPCRegisterBankInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCAsmPrinter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCBoolRetToInt.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCBranchCoalescing.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCBranchSelector.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCCCState.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCCTRLoops.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCCTRLoopsVerify.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCCallingConv.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCEarlyReturn.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCExpandAtomicPseudoInsts.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCExpandISEL.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCFastISel.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCFrameLowering.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenScalarMASSEntries.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCHazardRecognizers.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCISelDAGToDAG.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCISelLowering.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCInstrInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCLoopInstrFormPrep.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCLowerMASSVEntries.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCMCInstLower.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCMIPeephole.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCMachineFunctionInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCMachineScheduler.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCMacroFusion.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCPreEmitPeephole.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCReduceCRLogicals.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCRegisterInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCSubtarget.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCTLSDynamicCall.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCTOCRegDeps.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCTargetMachine.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCTargetObjectFile.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCTargetTransformInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCVSXCopy.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCVSXFMAMutate.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCVSXSwapRemoval.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/GISel/PPCCallLowering.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/GISel/PPCInstructionSelector.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/GISel/PPCLegalizerInfo.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/GISel/PPCRegisterBankInfo.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCAsmPrinter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCBoolRetToInt.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCBranchCoalescing.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCBranchSelector.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCCCState.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCCTRLoops.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCCTRLoopsVerify.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCCallingConv.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCEarlyReturn.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCExpandAtomicPseudoInsts.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCExpandISEL.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCFastISel.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCFrameLowering.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCGenScalarMASSEntries.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCHazardRecognizers.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCISelDAGToDAG.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCISelLowering.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCInstrInfo.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCLoopInstrFormPrep.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCLowerMASSVEntries.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCMCInstLower.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCMIPeephole.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCMachineFunctionInfo.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCMachineScheduler.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCMacroFusion.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCPreEmitPeephole.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCReduceCRLogicals.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCRegisterInfo.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCSubtarget.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCTLSDynamicCall.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCTOCRegDeps.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCTargetMachine.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCTargetObjectFile.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCTargetTransformInfo.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCVSXCopy.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCVSXFMAMutate.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCVSXSwapRemoval.cpp
 )

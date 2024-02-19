@@ -33,7 +33,7 @@ target_link_options(joining_reader PRIVATE
   -lutil
 )
 target_sources(joining_reader PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/joining_reader/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/joining_reader/main.cpp
 )
 add_test(
   NAME

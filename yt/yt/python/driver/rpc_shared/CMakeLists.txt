@@ -36,6 +36,6 @@ target_link_options(driver_rpc_lib PRIVATE
   -lutil
 )
 use_export_script(driver_rpc_lib
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/driver/rpc_shared/driver_rpc3.exports
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/driver/rpc_shared/driver_rpc3.exports
 )
 vcs_info(driver_rpc_lib)

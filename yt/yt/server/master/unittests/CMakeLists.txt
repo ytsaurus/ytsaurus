@@ -32,18 +32,18 @@ target_link_options(unittester-master PRIVATE
   -lutil
 )
 target_sources(unittester-master PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_list_statistics_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_replacer_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_requisition_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_tree_balancer_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_tree_traversing_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_view_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/unittests/cumulative_statistics_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/unittests/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/unittests/incumbent_scheduler_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/unittests/interned_pool_attributes_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/unittests/tablet_cell_balancer_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_list_statistics_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_replacer_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_requisition_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_tree_balancer_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_tree_traversing_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_view_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/cumulative_statistics_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/incumbent_scheduler_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/interned_pool_attributes_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/tablet_cell_balancer_ut.cpp
 )
 add_test(
   NAME

@@ -24,7 +24,7 @@ target_compile_options(server-lib-incumbent_client PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-incumbent_client PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-incumbent_client PUBLIC
   contrib-libs-linux-headers
@@ -34,23 +34,23 @@ target_link_libraries(server-lib-incumbent_client PUBLIC
   contrib-libs-protobuf
 )
 target_proto_messages(server-lib-incumbent_client PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/incumbent_client/proto/incumbent_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/incumbent_client/proto/incumbent_service.proto
 )
 target_sources(server-lib-incumbent_client PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/server/lib/incumbent_client/proto/incumbent_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/incumbent_client/proto/incumbent_service.pb.h
 )
 target_proto_addincls(server-lib-incumbent_client
   ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 target_proto_outs(server-lib-incumbent_client
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )

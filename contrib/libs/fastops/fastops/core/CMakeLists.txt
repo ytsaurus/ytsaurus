@@ -9,15 +9,15 @@
 
 add_library(fastops-fastops-core)
 target_include_directories(fastops-fastops-core PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/fastops
+  ${PROJECT_SOURCE_DIR}/contrib/libs/fastops
 )
 target_link_libraries(fastops-fastops-core PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
 )
 target_sources(fastops-fastops-core PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/fastops/fastops/core/FastIntrinsics.h
-  ${CMAKE_SOURCE_DIR}/contrib/libs/fastops/fastops/core/SIMDFunctions.h
-  ${CMAKE_SOURCE_DIR}/contrib/libs/fastops/fastops/core/avx_id.h
-  ${CMAKE_SOURCE_DIR}/contrib/libs/fastops/fastops/core/avx_id.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/core/FastIntrinsics.h
+  ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/core/SIMDFunctions.h
+  ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/core/avx_id.h
+  ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/core/avx_id.cpp
 )

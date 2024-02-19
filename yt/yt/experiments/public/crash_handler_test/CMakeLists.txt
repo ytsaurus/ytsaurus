@@ -27,7 +27,7 @@ target_link_options(crash_handler_tests PRIVATE
   -lutil
 )
 target_sources(crash_handler_tests PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/crash_handler_test/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/crash_handler_test/main.cpp
 )
 target_allocator(crash_handler_tests
   cpp-malloc-tcmalloc

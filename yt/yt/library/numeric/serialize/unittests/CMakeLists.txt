@@ -12,7 +12,7 @@ target_compile_options(unittester-yt-library-numeric PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(unittester-yt-library-numeric PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/numeric/serialize
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/numeric/serialize
 )
 target_link_libraries(unittester-yt-library-numeric PUBLIC
   contrib-libs-linux-headers
@@ -35,7 +35,7 @@ target_link_options(unittester-yt-library-numeric PRIVATE
   -lutil
 )
 target_sources(unittester-yt-library-numeric PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/numeric/serialize/unittests/double_array_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/numeric/serialize/unittests/double_array_ut.cpp
 )
 add_test(
   NAME

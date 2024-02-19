@@ -30,7 +30,7 @@ target_link_options(map_tnode_with_file PRIVATE
   -lutil
 )
 target_sources(map_tnode_with_file PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/map_tnode_with_file/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/map_tnode_with_file/main.cpp
 )
 target_allocator(map_tnode_with_file
   cpp-malloc-tcmalloc

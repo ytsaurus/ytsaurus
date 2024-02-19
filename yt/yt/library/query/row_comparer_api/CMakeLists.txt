@@ -19,5 +19,5 @@ target_link_libraries(library-query-row_comparer_api PUBLIC
   yt-yt-client
 )
 target_sources(library-query-row_comparer_api PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/row_comparer_api/row_comparer_generator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/row_comparer_api/row_comparer_generator.cpp
 )

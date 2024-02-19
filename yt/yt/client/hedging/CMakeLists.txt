@@ -24,10 +24,10 @@ target_link_libraries(yt-client-hedging PUBLIC
   library-cpp-iterator
 )
 target_sources(yt-client-hedging PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/counter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/hedging.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/hedging_executor.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/logger.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/penalty_provider.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/counter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/hedging.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/hedging_executor.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/logger.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/penalty_provider.cpp
 )

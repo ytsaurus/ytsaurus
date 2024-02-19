@@ -31,7 +31,7 @@ target_link_options(profile_memory PRIVATE
   -lutil
 )
 target_sources(profile_memory PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/profile_memory/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/profile_memory/main.cpp
 )
 target_allocator(profile_memory
   cpp-malloc-tcmalloc

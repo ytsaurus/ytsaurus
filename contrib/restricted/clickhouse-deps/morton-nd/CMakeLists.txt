@@ -9,7 +9,7 @@
 
 add_library(restricted-clickhouse-deps-morton-nd INTERFACE)
 target_include_directories(restricted-clickhouse-deps-morton-nd INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/clickhouse-deps/morton-nd/include
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/clickhouse-deps/morton-nd/include
 )
 target_link_libraries(restricted-clickhouse-deps-morton-nd INTERFACE
   contrib-libs-linux-headers

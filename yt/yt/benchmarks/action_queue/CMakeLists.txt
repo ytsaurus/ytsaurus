@@ -27,7 +27,7 @@ target_link_options(action_queue PRIVATE
   -lutil
 )
 target_sources(action_queue PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/action_queue/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/action_queue/main.cpp
 )
 target_allocator(action_queue
   cpp-malloc-tcmalloc

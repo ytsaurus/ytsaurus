@@ -33,7 +33,7 @@ target_link_options(unpack-local-snapshot PRIVATE
   -lutil
 )
 target_sources(unpack-local-snapshot PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/unpack_local_snapshot/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/unpack_local_snapshot/main.cpp
 )
 target_allocator(unpack-local-snapshot
   cpp-malloc-tcmalloc

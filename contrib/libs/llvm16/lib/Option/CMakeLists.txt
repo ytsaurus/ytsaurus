@@ -12,7 +12,7 @@ target_compile_options(llvm16-lib-Option PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(llvm16-lib-Option PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Option
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Option
 )
 target_link_libraries(llvm16-lib-Option PUBLIC
   contrib-libs-linux-headers
@@ -21,8 +21,8 @@ target_link_libraries(llvm16-lib-Option PUBLIC
   llvm16-lib-Support
 )
 target_sources(llvm16-lib-Option PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Option/Arg.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Option/ArgList.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Option/OptTable.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Option/Option.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Option/Arg.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Option/ArgList.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Option/OptTable.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Option/Option.cpp
 )

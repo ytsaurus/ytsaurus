@@ -30,7 +30,7 @@ target_link_options(logging PRIVATE
   -lutil
 )
 target_sources(logging PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/logging/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/logging/main.cpp
 )
 target_allocator(logging
   cpp-malloc-tcmalloc

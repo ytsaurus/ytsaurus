@@ -12,9 +12,9 @@ target_compile_options(Target-BPF-MCTargetDesc PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(Target-BPF-MCTargetDesc PRIVATE
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/MCTargetDesc
+  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/MCTargetDesc
 )
 target_link_libraries(Target-BPF-MCTargetDesc PUBLIC
   contrib-libs-linux-headers
@@ -27,9 +27,9 @@ target_link_libraries(Target-BPF-MCTargetDesc PUBLIC
   llvm16-lib-TargetParser
 )
 target_sources(Target-BPF-MCTargetDesc PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/MCTargetDesc/BPFAsmBackend.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/MCTargetDesc/BPFELFObjectWriter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/MCTargetDesc/BPFInstPrinter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/MCTargetDesc/BPFMCCodeEmitter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/MCTargetDesc/BPFMCTargetDesc.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/MCTargetDesc/BPFAsmBackend.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/MCTargetDesc/BPFELFObjectWriter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/MCTargetDesc/BPFInstPrinter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/MCTargetDesc/BPFMCCodeEmitter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/MCTargetDesc/BPFMCTargetDesc.cpp
 )

@@ -29,9 +29,9 @@ target_link_libraries(yt-server-replicated_table_tracker PUBLIC
   library-cpp-getopt
 )
 target_sources(yt-server-replicated_table_tracker PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/replicated_table_tracker/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/replicated_table_tracker/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/replicated_table_tracker/dynamic_config_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/replicated_table_tracker/program.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/replicated_table_tracker/replicated_table_tracker_host.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/replicated_table_tracker/bootstrap.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/replicated_table_tracker/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/replicated_table_tracker/dynamic_config_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/replicated_table_tracker/program.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/replicated_table_tracker/replicated_table_tracker_host.cpp
 )

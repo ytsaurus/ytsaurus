@@ -17,6 +17,6 @@ target_link_libraries(library-cpp-porto PUBLIC
   contrib-libs-protobuf
 )
 target_sources(library-cpp-porto PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/porto/libporto.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/porto/metrics.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/porto/libporto.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/porto/metrics.cpp
 )

@@ -18,7 +18,7 @@ target_link_libraries(library-containers-disk_manager PUBLIC
   yt-yt-core
 )
 target_sources(library-containers-disk_manager PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/disk_manager/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/disk_manager/disk_info_provider.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/disk_manager/disk_manager_proxy.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/disk_manager/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/disk_manager/disk_info_provider.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/disk_manager/disk_manager_proxy.cpp
 )

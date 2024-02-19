@@ -30,7 +30,7 @@ target_link_options(multiple_input_multiple_output_reduce_tnode PRIVATE
   -lutil
 )
 target_sources(multiple_input_multiple_output_reduce_tnode PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/multiple_input_multiple_output_reduce_tnode/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/multiple_input_multiple_output_reduce_tnode/main.cpp
 )
 target_allocator(multiple_input_multiple_output_reduce_tnode
   cpp-malloc-tcmalloc

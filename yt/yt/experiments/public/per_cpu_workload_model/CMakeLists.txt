@@ -32,7 +32,7 @@ target_link_options(per_cpu_workload_model PRIVATE
   -lutil
 )
 target_sources(per_cpu_workload_model PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/per_cpu_workload_model/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/per_cpu_workload_model/main.cpp
 )
 target_allocator(per_cpu_workload_model
   cpp-ytalloc-impl

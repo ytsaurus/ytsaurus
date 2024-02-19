@@ -29,7 +29,7 @@ target_link_options(benchmark_bus PRIVATE
   -lutil
 )
 target_sources(benchmark_bus PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/bus/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/bus/main.cpp
 )
 target_allocator(benchmark_bus
   cpp-ytalloc-impl

@@ -36,9 +36,9 @@ target_link_options(journal_reader PRIVATE
   -lutil
 )
 target_sources(journal_reader PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/journal_reader/main.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/journal_reader/journal_dumper.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/journal_reader/mutation_dumper.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/journal_reader/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/journal_reader/journal_dumper.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/journal_reader/mutation_dumper.cpp
 )
 target_allocator(journal_reader
   cpp-ytalloc-impl

@@ -18,8 +18,8 @@ target_link_libraries(server-node-cellar_node PUBLIC
   yt-yt-ytlib
 )
 target_sources(server-node-cellar_node PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/cellar_node/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/cellar_node/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/cellar_node/dynamic_bundle_config_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/cellar_node/master_connector.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cellar_node/bootstrap.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cellar_node/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cellar_node/dynamic_bundle_config_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cellar_node/master_connector.cpp
 )

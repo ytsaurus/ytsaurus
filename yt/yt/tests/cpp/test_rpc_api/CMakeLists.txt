@@ -36,11 +36,11 @@ target_link_options(cpp-integration-test-rpc-api PRIVATE
   -lutil
 )
 target_sources(cpp-integration-test-rpc-api PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tests/cpp/test_rpc_api/test_rpc_api.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tests/cpp/test_type_v3.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tests/cpp/test_api.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tests/cpp/test_queues.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tests/cpp/modify_rows_test.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_rpc_api/test_rpc_api.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_type_v3.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_api.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_queues.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/modify_rows_test.cpp
 )
 add_test(
   NAME

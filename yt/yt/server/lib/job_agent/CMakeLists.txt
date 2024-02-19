@@ -12,7 +12,7 @@ target_compile_options(server-lib-job_agent PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-job_agent PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(server-lib-job_agent PUBLIC
   contrib-libs-linux-headers
@@ -24,7 +24,7 @@ target_link_libraries(server-lib-job_agent PUBLIC
   server-lib-misc
 )
 target_sources(server-lib-job_agent PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_agent/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_agent/estimate_size_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_agent/structs.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/job_agent/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/job_agent/estimate_size_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/job_agent/structs.cpp
 )

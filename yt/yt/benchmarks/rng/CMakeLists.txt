@@ -30,7 +30,7 @@ target_link_options(rng PRIVATE
   -lutil
 )
 target_sources(rng PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/rng/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/rng/main.cpp
 )
 target_allocator(rng
   cpp-ytalloc-impl

@@ -12,9 +12,9 @@ target_compile_options(Target-PowerPC-Disassembler PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(Target-PowerPC-Disassembler PRIVATE
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/Disassembler
+  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/Disassembler
 )
 target_link_libraries(Target-PowerPC-Disassembler PUBLIC
   contrib-libs-linux-headers
@@ -27,5 +27,5 @@ target_link_libraries(Target-PowerPC-Disassembler PUBLIC
   Target-PowerPC-TargetInfo
 )
 target_sources(Target-PowerPC-Disassembler PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/Disassembler/PPCDisassembler.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/Disassembler/PPCDisassembler.cpp
 )

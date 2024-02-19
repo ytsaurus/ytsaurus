@@ -24,7 +24,7 @@ target_compile_options(yt-ytlib-distributed_throttler PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(yt-ytlib-distributed_throttler PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(yt-ytlib-distributed_throttler PUBLIC
   contrib-libs-linux-headers
@@ -35,25 +35,25 @@ target_link_libraries(yt-ytlib-distributed_throttler PUBLIC
   contrib-libs-protobuf
 )
 target_proto_messages(yt-ytlib-distributed_throttler PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/distributed_throttler/proto/distributed_throttler.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/distributed_throttler/proto/distributed_throttler.proto
 )
 target_sources(yt-ytlib-distributed_throttler PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/distributed_throttler/proto/distributed_throttler.pb.h
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/distributed_throttler/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/distributed_throttler/distributed_throttler.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/distributed_throttler/proto/distributed_throttler.pb.h
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/distributed_throttler/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/distributed_throttler/distributed_throttler.cpp
 )
 target_proto_addincls(yt-ytlib-distributed_throttler
   ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 target_proto_outs(yt-ytlib-distributed_throttler
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
+  --cpp_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )

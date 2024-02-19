@@ -20,5 +20,5 @@ target_link_libraries(logging-backends-arcadia PUBLIC
   library-cpp-logger
 )
 target_sources(logging-backends-arcadia PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/logging/backends/arcadia/backend.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/yt/logging/backends/arcadia/backend.cpp
 )

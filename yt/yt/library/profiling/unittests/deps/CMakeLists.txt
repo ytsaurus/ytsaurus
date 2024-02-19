@@ -29,7 +29,7 @@ target_link_options(deps PRIVATE
   -ldl
 )
 target_sources(deps PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/unittests/deps/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/deps/main.cpp
 )
 target_allocator(deps
   cpp-malloc-tcmalloc

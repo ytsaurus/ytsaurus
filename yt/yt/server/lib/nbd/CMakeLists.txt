@@ -21,10 +21,10 @@ target_link_libraries(server-lib-nbd PUBLIC
   yt_proto-yt-client
 )
 target_sources(server-lib-nbd PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/nbd/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/nbd/cypress_file_block_device.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/nbd/dynamic_table_block_device.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/nbd/memory_block_device.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/nbd/profiler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/nbd/server.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/cypress_file_block_device.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/dynamic_table_block_device.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/memory_block_device.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/profiler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/server.cpp
 )

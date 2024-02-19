@@ -31,7 +31,7 @@ target_link_options(writer PRIVATE
   -lutil
 )
 target_sources(writer PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/log_compression/writer/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/log_compression/writer/main.cpp
 )
 target_allocator(writer
   cpp-malloc-tcmalloc

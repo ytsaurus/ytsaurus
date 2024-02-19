@@ -33,7 +33,7 @@ target_link_options(unittester-fair-share-update PRIVATE
   -lutil
 )
 target_sources(unittester-fair-share-update PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/vector_hdrf/unittests/fair_share_update_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/vector_hdrf/unittests/fair_share_update_ut.cpp
 )
 add_test(
   NAME

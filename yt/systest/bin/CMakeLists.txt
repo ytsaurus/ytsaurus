@@ -32,7 +32,7 @@ target_link_options(systest PRIVATE
   -lutil
 )
 target_sources(systest PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/systest/bin/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/systest/bin/main.cpp
 )
 target_allocator(systest
   cpp-malloc-tcmalloc

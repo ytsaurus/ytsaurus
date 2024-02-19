@@ -35,15 +35,15 @@ target_link_options(unittester-chunk-pools PRIVATE
   -lutil
 )
 target_sources(unittester-chunk-pools PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/chunk_pools_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/input_chunk_mapping_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/job_size_adjuster_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/job_splitting_base_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/multi_chunk_pool_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/ordered_chunk_pool_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/sorted_chunk_pool_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/sorted_chunk_pool_new_keys_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/unordered_chunk_pool_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/chunk_pools_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/input_chunk_mapping_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/job_size_adjuster_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/job_splitting_base_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/multi_chunk_pool_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/ordered_chunk_pool_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/sorted_chunk_pool_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/sorted_chunk_pool_new_keys_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/unordered_chunk_pool_ut.cpp
 )
 add_test(
   NAME

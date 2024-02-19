@@ -33,7 +33,7 @@ target_link_options(unpack-local-changelog PRIVATE
   -lutil
 )
 target_sources(unpack-local-changelog PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/unpack_local_changelog/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/unpack_local_changelog/main.cpp
 )
 target_allocator(unpack-local-changelog
   cpp-malloc-tcmalloc

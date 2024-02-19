@@ -12,14 +12,14 @@ target_compile_options(contrib-libs-metrohash PRIVATE
   -msse4.2
 )
 target_include_directories(contrib-libs-metrohash PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/metrohash/src
+  ${PROJECT_SOURCE_DIR}/contrib/libs/metrohash/src
 )
 target_link_libraries(contrib-libs-metrohash PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
 )
 target_sources(contrib-libs-metrohash PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/metrohash/src/metrohash128.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/metrohash/src/metrohash128crc.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/metrohash/src/metrohash64.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/metrohash/src/metrohash128.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/metrohash/src/metrohash128crc.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/metrohash/src/metrohash64.cpp
 )

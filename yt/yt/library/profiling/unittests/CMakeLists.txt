@@ -38,14 +38,14 @@ target_link_options(yt-yt-library-profiling-unittests PRIVATE
   -lutil
 )
 target_sources(yt-yt-library-profiling-unittests PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/unittests/sensor_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/unittests/name_conflicts_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/unittests/profiler_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/unittests/solomon_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/unittests/tag_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/unittests/cube_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/unittests/exporter_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/unittests/perf_counter_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/sensor_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/name_conflicts_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/profiler_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/solomon_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/tag_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/cube_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/exporter_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/perf_counter_ut.cpp
 )
 add_test(
   NAME

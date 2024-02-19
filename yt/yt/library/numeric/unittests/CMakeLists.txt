@@ -12,7 +12,7 @@ target_compile_options(unittester-library-numeric PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(unittester-library-numeric PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/numeric
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/numeric
 )
 target_link_libraries(unittester-library-numeric PUBLIC
   contrib-libs-linux-headers
@@ -34,10 +34,10 @@ target_link_options(unittester-library-numeric PRIVATE
   -ldl
 )
 target_sources(unittester-library-numeric PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/numeric/unittests/binary_search_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/numeric/unittests/double_array_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/numeric/unittests/piecewise_linear_function_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/numeric/unittests/util_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/numeric/unittests/binary_search_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/numeric/unittests/double_array_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/numeric/unittests/piecewise_linear_function_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/numeric/unittests/util_ut.cpp
 )
 add_test(
   NAME

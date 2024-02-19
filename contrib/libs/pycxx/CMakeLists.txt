@@ -17,7 +17,7 @@ target_compile_options(contrib-libs-pycxx PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(contrib-libs-pycxx PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
 )
 target_link_libraries(contrib-libs-pycxx PUBLIC
   contrib-libs-linux-headers
@@ -25,9 +25,9 @@ target_link_libraries(contrib-libs-pycxx PUBLIC
   Python3::Module
 )
 target_sources(contrib-libs-pycxx PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx/Src/IndirectPythonInterface.cxx
-  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx/Src/cxx_exceptions.cxx
-  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx/Src/cxx_extensions.cxx
-  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx/Src/cxxextensions.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx/Src/cxxsupport.cxx
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx/Src/IndirectPythonInterface.cxx
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx/Src/cxx_exceptions.cxx
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx/Src/cxx_extensions.cxx
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx/Src/cxxextensions.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx/Src/cxxsupport.cxx
 )

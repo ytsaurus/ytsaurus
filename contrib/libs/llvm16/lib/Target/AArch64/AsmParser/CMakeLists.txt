@@ -12,9 +12,9 @@ target_compile_options(Target-AArch64-AsmParser PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(Target-AArch64-AsmParser PRIVATE
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AsmParser
+  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AsmParser
 )
 target_link_libraries(Target-AArch64-AsmParser PUBLIC
   contrib-libs-linux-headers
@@ -30,5 +30,5 @@ target_link_libraries(Target-AArch64-AsmParser PUBLIC
   llvm16-lib-TargetParser
 )
 target_sources(Target-AArch64-AsmParser PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AsmParser/AArch64AsmParser.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AsmParser/AArch64AsmParser.cpp
 )

@@ -38,5 +38,5 @@ target_link_libraries(python-driver-native.global PUBLIC
   Python3::Module
 )
 target_sources(python-driver-native.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/driver/native/driver.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/driver/native/driver.cpp
 )

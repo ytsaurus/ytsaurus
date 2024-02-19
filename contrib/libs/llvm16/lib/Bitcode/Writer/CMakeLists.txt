@@ -12,7 +12,7 @@ target_compile_options(lib-Bitcode-Writer PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-Bitcode-Writer PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Bitcode/Writer
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Bitcode/Writer
 )
 target_link_libraries(lib-Bitcode-Writer PUBLIC
   contrib-libs-linux-headers
@@ -27,8 +27,8 @@ target_link_libraries(lib-Bitcode-Writer PUBLIC
   llvm16-lib-TargetParser
 )
 target_sources(lib-Bitcode-Writer PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Bitcode/Writer/BitWriter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Bitcode/Writer/BitcodeWriter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Bitcode/Writer/BitcodeWriterPass.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Bitcode/Writer/ValueEnumerator.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Bitcode/Writer/BitWriter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Bitcode/Writer/BitcodeWriter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Bitcode/Writer/BitcodeWriterPass.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Bitcode/Writer/ValueEnumerator.cpp
 )

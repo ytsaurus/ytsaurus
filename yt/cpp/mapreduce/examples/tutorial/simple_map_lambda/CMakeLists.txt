@@ -44,11 +44,11 @@ target_link_options(simple_map_lambda PRIVATE
   -lutil
 )
 target_proto_messages(simple_map_lambda PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/simple_map_lambda/data.proto
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/simple_map_lambda/data.proto
 )
 target_sources(simple_map_lambda PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/cpp/mapreduce/examples/tutorial/simple_map_lambda/data.pb.h
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/simple_map_lambda/main.cpp
+  ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/examples/tutorial/simple_map_lambda/data.pb.h
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/simple_map_lambda/main.cpp
 )
 target_allocator(simple_map_lambda
   cpp-malloc-tcmalloc
@@ -56,16 +56,16 @@ target_allocator(simple_map_lambda
 )
 target_proto_addincls(simple_map_lambda
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 target_proto_outs(simple_map_lambda
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 vcs_info(simple_map_lambda)

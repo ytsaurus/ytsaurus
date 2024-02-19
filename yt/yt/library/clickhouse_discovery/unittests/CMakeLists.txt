@@ -36,8 +36,8 @@ target_link_options(unittester-library-clickhouse-discovery PRIVATE
   -lutil
 )
 target_sources(unittester-library-clickhouse-discovery PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/clickhouse_discovery/unittests/discovery_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/clickhouse_discovery/unittests/helpers_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_discovery/unittests/discovery_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_discovery/unittests/helpers_ut.cpp
 )
 add_test(
   NAME

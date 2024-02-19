@@ -30,7 +30,7 @@ target_link_options(ytserver-yql-agent PRIVATE
   -lutil
 )
 target_sources(ytserver-yql-agent PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yql/agent/bin/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yql/agent/bin/main.cpp
 )
 target_allocator(ytserver-yql-agent
   cpp-malloc-tcmalloc

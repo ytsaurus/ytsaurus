@@ -21,9 +21,9 @@ target_link_libraries(yt-library-gpu PUBLIC
   cpp-protobuf-interop
 )
 target_sources(yt-library-gpu PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/gpu/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/gpu/gpu_info_provider.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/gpu/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/gpu/nv_manager_gpu_info_provider.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/gpu/nvidia_smi_gpu_info_provider.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/gpu_info_provider.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/nv_manager_gpu_info_provider.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/nvidia_smi_gpu_info_provider.cpp
 )

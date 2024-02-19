@@ -29,7 +29,7 @@ target_link_options(benchmark_formats PRIVATE
   -lutil
 )
 target_sources(benchmark_formats PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/formats/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/formats/main.cpp
 )
 target_allocator(benchmark_formats
   cpp-malloc-tcmalloc

@@ -32,7 +32,7 @@ target_link_options(yt-yt-library-oom-unittests PRIVATE
   -lutil
 )
 target_sources(yt-yt-library-oom-unittests PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/oom/unittests/oom_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/oom/unittests/oom_ut.cpp
 )
 add_test(
   NAME

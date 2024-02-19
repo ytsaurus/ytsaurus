@@ -12,7 +12,7 @@ target_compile_options(yt-server-tcp_proxy PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(yt-server-tcp_proxy PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${PROJECT_BINARY_DIR}/yt
 )
 target_link_libraries(yt-server-tcp_proxy PUBLIC
   contrib-libs-linux-headers
@@ -26,10 +26,10 @@ target_link_libraries(yt-server-tcp_proxy PUBLIC
   cpp-yt-phdr_cache
 )
 target_sources(yt-server-tcp_proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tcp_proxy/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tcp_proxy/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tcp_proxy/connection.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tcp_proxy/dynamic_config_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tcp_proxy/program.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tcp_proxy/router.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/tcp_proxy/bootstrap.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/tcp_proxy/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/tcp_proxy/connection.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/tcp_proxy/dynamic_config_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/tcp_proxy/program.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/tcp_proxy/router.cpp
 )

@@ -23,6 +23,6 @@ target_link_libraries(fastops-fastops-avx PUBLIC
   fastops-fastops-core
 )
 target_sources(fastops-fastops-avx PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/fastops/fastops/avx/ops_avx.h
-  ${CMAKE_SOURCE_DIR}/contrib/libs/fastops/fastops/avx/ops_avx.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/avx/ops_avx.h
+  ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/avx/ops_avx.cpp
 )

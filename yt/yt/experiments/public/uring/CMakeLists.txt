@@ -29,7 +29,7 @@ target_link_options(uring PRIVATE
   -ldl
 )
 target_sources(uring PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/uring/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/uring/main.cpp
 )
 target_allocator(uring
   cpp-ytalloc-impl

@@ -18,5 +18,5 @@ target_link_libraries(yt-library-dynamic_config PUBLIC
   yt-yt-client
 )
 target_sources(yt-library-dynamic_config PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/dynamic_config/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/dynamic_config/config.cpp
 )

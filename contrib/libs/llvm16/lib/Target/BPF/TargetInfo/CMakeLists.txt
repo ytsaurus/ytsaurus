@@ -12,8 +12,8 @@ target_compile_options(Target-BPF-TargetInfo PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(Target-BPF-TargetInfo PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/TargetInfo
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/TargetInfo
 )
 target_link_libraries(Target-BPF-TargetInfo PUBLIC
   contrib-libs-linux-headers
@@ -23,5 +23,5 @@ target_link_libraries(Target-BPF-TargetInfo PUBLIC
   llvm16-lib-Support
 )
 target_sources(Target-BPF-TargetInfo PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/TargetInfo/BPFTargetInfo.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/TargetInfo/BPFTargetInfo.cpp
 )

@@ -18,5 +18,5 @@ target_link_libraries(server-lib-rpc PUBLIC
   ytserver
 )
 target_sources(server-lib-rpc PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/rpc/per_workload_category_request_queue_provider.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc/per_workload_category_request_queue_provider.cpp
 )

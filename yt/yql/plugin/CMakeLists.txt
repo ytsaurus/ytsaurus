@@ -15,5 +15,5 @@ target_link_libraries(yt-yql-plugin PUBLIC
   yutil
 )
 target_sources(yt-yql-plugin PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yql/plugin/plugin.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yql/plugin/plugin.cpp
 )

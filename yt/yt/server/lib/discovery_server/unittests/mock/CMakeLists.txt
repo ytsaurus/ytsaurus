@@ -18,5 +18,5 @@ target_link_libraries(discovery_server-unittests-mock PUBLIC
   yt-yt-ytlib
 )
 target_sources(discovery_server-unittests-mock PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/discovery_server/unittests/mock/connection.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/discovery_server/unittests/mock/connection.cpp
 )

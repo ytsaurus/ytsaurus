@@ -34,7 +34,7 @@ target_link_options(unittester-server-lib-chunk-server PRIVATE
   -lutil
 )
 target_sources(unittester-server-lib-chunk-server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_server/unittests/immutable_chunk_meta_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_server/unittests/immutable_chunk_meta_ut.cpp
 )
 add_test(
   NAME

@@ -14,8 +14,8 @@ target_compile_options(lib-Target-NVPTX PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-Target-NVPTX PRIVATE
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX
+  ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX
 )
 target_link_libraries(lib-Target-NVPTX PUBLIC
   contrib-libs-linux-headers
@@ -39,29 +39,29 @@ target_link_libraries(lib-Target-NVPTX PUBLIC
   lib-Transforms-Vectorize
 )
 target_sources(lib-Target-NVPTX PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXAllocaHoisting.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXAsmPrinter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXAssignValidGlobalNames.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXAtomicLower.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXFrameLowering.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXGenericToNVVM.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXISelDAGToDAG.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXISelLowering.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXImageOptimizer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXInstrInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXLowerAggrCopies.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXLowerAlloca.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXLowerArgs.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXMCExpr.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXPeephole.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXPrologEpilogPass.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXProxyRegErasure.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXRegisterInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXReplaceImageHandles.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXSubtarget.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXTargetMachine.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXTargetTransformInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXUtilities.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVVMIntrRange.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVVMReflect.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXAllocaHoisting.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXAsmPrinter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXAssignValidGlobalNames.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXAtomicLower.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXFrameLowering.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXGenericToNVVM.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXISelDAGToDAG.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXISelLowering.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXImageOptimizer.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXInstrInfo.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXLowerAggrCopies.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXLowerAlloca.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXLowerArgs.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXMCExpr.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXPeephole.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXPrologEpilogPass.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXProxyRegErasure.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXRegisterInfo.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXReplaceImageHandles.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXSubtarget.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXTargetMachine.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXTargetTransformInfo.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXUtilities.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVVMIntrRange.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVVMReflect.cpp
 )

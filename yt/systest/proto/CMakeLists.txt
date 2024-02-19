@@ -76,30 +76,30 @@ target_link_libraries(yt-systest-proto PUBLIC
   contrib-libs-protobuf
 )
 target_proto_messages(yt-systest-proto PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/systest/proto/operation.proto
-  ${CMAKE_SOURCE_DIR}/yt/systest/proto/run_spec.proto
-  ${CMAKE_SOURCE_DIR}/yt/systest/proto/test_spec.proto
-  ${CMAKE_SOURCE_DIR}/yt/systest/proto/table.proto
-  ${CMAKE_SOURCE_DIR}/yt/systest/proto/validator.proto
+  ${PROJECT_SOURCE_DIR}/yt/systest/proto/operation.proto
+  ${PROJECT_SOURCE_DIR}/yt/systest/proto/run_spec.proto
+  ${PROJECT_SOURCE_DIR}/yt/systest/proto/test_spec.proto
+  ${PROJECT_SOURCE_DIR}/yt/systest/proto/table.proto
+  ${PROJECT_SOURCE_DIR}/yt/systest/proto/validator.proto
 )
 target_sources(yt-systest-proto PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/systest/proto/operation.pb.h
-  ${CMAKE_BINARY_DIR}/yt/systest/proto/run_spec.pb.h
-  ${CMAKE_BINARY_DIR}/yt/systest/proto/test_spec.pb.h
-  ${CMAKE_BINARY_DIR}/yt/systest/proto/table.pb.h
-  ${CMAKE_BINARY_DIR}/yt/systest/proto/validator.pb.h
+  ${PROJECT_BINARY_DIR}/yt/systest/proto/operation.pb.h
+  ${PROJECT_BINARY_DIR}/yt/systest/proto/run_spec.pb.h
+  ${PROJECT_BINARY_DIR}/yt/systest/proto/test_spec.pb.h
+  ${PROJECT_BINARY_DIR}/yt/systest/proto/table.pb.h
+  ${PROJECT_BINARY_DIR}/yt/systest/proto/validator.pb.h
 )
 target_proto_addincls(yt-systest-proto
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 target_proto_outs(yt-systest-proto
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )

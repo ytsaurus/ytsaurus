@@ -19,9 +19,9 @@ target_link_libraries(mapreduce-library-parallel_io PUBLIC
   cpp-yt-memory
 )
 target_sources(mapreduce-library-parallel_io PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/parallel_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/parallel_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/parallel_file_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/parallel_file_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/resource_limiter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/parallel_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/parallel_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/parallel_file_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/parallel_file_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/resource_limiter.cpp
 )

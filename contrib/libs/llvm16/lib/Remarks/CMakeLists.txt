@@ -12,7 +12,7 @@ target_compile_options(llvm16-lib-Remarks PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(llvm16-lib-Remarks PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks
 )
 target_link_libraries(llvm16-lib-Remarks PUBLIC
   contrib-libs-linux-headers
@@ -22,15 +22,15 @@ target_link_libraries(llvm16-lib-Remarks PUBLIC
   llvm16-lib-Support
 )
 target_sources(llvm16-lib-Remarks PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/BitstreamRemarkParser.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/BitstreamRemarkSerializer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/Remark.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/RemarkFormat.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/RemarkLinker.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/RemarkParser.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/RemarkSerializer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/RemarkStreamer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/RemarkStringTable.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/YAMLRemarkParser.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/YAMLRemarkSerializer.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/BitstreamRemarkParser.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/BitstreamRemarkSerializer.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/Remark.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/RemarkFormat.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/RemarkLinker.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/RemarkParser.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/RemarkSerializer.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/RemarkStreamer.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/RemarkStringTable.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/YAMLRemarkParser.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Remarks/YAMLRemarkSerializer.cpp
 )

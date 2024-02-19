@@ -30,7 +30,7 @@ target_link_options(collect_chunk_statistics PRIVATE
   -lutil
 )
 target_sources(collect_chunk_statistics PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/collect_chunk_statistics/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/collect_chunk_statistics/main.cpp
 )
 target_allocator(collect_chunk_statistics
   cpp-malloc-tcmalloc

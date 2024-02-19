@@ -30,7 +30,7 @@ target_link_options(context_switch PRIVATE
   -lutil
 )
 target_sources(context_switch PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/context_switch/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/context_switch/main.cpp
 )
 target_allocator(context_switch
   cpp-ytalloc-impl

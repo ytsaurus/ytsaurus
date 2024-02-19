@@ -32,7 +32,7 @@ target_link_options(dns_test PRIVATE
   -lutil
 )
 target_sources(dns_test PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/experiments/public/dns_test/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/dns_test/main.cpp
 )
 target_allocator(dns_test
   cpp-ytalloc-impl

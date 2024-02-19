@@ -19,32 +19,32 @@ target_link_libraries(yt-ytlib-query_tracker_client PUBLIC
   yt-yt-client
 )
 target_sources(yt-ytlib-query_tracker_client PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/records/query.record.h
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_tracker_client/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_tracker_client/helpers.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/records/query.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/records/query.record.h
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_tracker_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_tracker_client/helpers.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/records/query.record.cpp
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/records/query.record.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/records/query.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/records/query.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/records/query.record.h
   DEPENDS
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_tracker_client/records/query.yaml
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
-  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_tracker_client/records/query.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
   COMMAND
   ${CMAKE_COMMAND}
   -E
   env
-  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
   ${Python3_EXECUTABLE}
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_tracker_client/records/query.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_tracker_client/records/query.yaml
   --output-root
-  ${CMAKE_BINARY_DIR}
+  ${PROJECT_BINARY_DIR}
   --output-cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/records/query.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/records/query.record.cpp
   --output-include
   yt/yt/ytlib/query_tracker_client/public.h
   --output-include

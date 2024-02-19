@@ -33,22 +33,22 @@ target_link_options(iotest PRIVATE
   -lutil
 )
 target_sources(iotest PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/io/configuration.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/io/driver.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/io/driver_factory.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/io/linuxaio.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/io/main.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/io/meters.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/io/operation.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/io/output.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/io/pread.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/io/pstat.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/io/rusage.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/io/statistics.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/io/throttler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/io/uname.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/io/uring.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/benchmarks/io/worker.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/io/configuration.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/io/driver.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/io/driver_factory.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/io/linuxaio.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/io/main.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/io/meters.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/io/operation.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/io/output.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/io/pread.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/io/pstat.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/io/rusage.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/io/statistics.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/io/throttler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/io/uname.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/io/uring.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/io/worker.cpp
 )
 target_allocator(iotest
   cpp-malloc-tcmalloc

@@ -33,10 +33,10 @@ target_link_libraries(yt-yql-agent PUBLIC
   yql-plugin-bridge
 )
 target_sources(yt-yql-agent PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yql/agent/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yql/agent/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yql/agent/dynamic_config_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yql/agent/yql_agent.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yql/agent/yql_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yql/agent/interop.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yql/agent/bootstrap.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yql/agent/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yql/agent/dynamic_config_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yql/agent/yql_agent.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yql/agent/yql_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yql/agent/interop.cpp
 )

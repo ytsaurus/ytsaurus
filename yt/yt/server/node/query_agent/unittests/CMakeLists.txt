@@ -32,7 +32,7 @@ target_link_options(unittester-query-agent PRIVATE
   -lutil
 )
 target_sources(unittester-query-agent PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/query_agent/unittests/replication_log_batch_reader_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/query_agent/unittests/replication_log_batch_reader_ut.cpp
 )
 add_test(
   NAME
