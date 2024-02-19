@@ -16,6 +16,7 @@ from yt_commands import (
 from yt_type_helpers import make_schema
 import yt_error_codes
 
+from yt.ypath import parse_ypath
 from yt.test_helpers import assert_items_equal, are_items_equal
 from yt.common import YtError
 import yt.yson as yson
@@ -63,12 +64,14 @@ class TestBulkInsert(DynamicTablesBase):
         create_dynamic_table(path, **attributes)
 
     def _ypath_with_update_mode(self, path, update_mode):
+        ypath = parse_ypath(path)
         if update_mode == "append":
-            return "<append=%true>" + path
+            ypath.attributes["append"] = True
         elif update_mode == "overwrite":
-            return path
+            pass
         else:
             assert False
+        return ypath
 
     @parametrize_external
     @pytest.mark.parametrize("freeze", [True, False])
@@ -219,39 +222,39 @@ class TestBulkInsert(DynamicTablesBase):
     @parametrize_external
     @pytest.mark.parametrize("update_mode", ["append", "overwrite"])
     def test_multiple_output_tables_get_same_timestamp(self, external, update_mode):
-        cells = sync_create_cells(2)
+        cells = sync_create_cells(3)
         create("table", "//tmp/t_input")
-        if external:
-            self._create_simple_dynamic_table("//tmp/t1", external_cell_tag=11)
-            self._create_simple_dynamic_table("//tmp/t2", external_cell_tag=12)
-        else:
-            self._create_simple_dynamic_table("//tmp/t1", external=False)
-            self._create_simple_dynamic_table("//tmp/t2", external=False)
-        set("//tmp/t1/@enable_compaction_and_partitioning", False)
-        set("//tmp/t2/@enable_compaction_and_partitioning", False)
-        sync_mount_table("//tmp/t1", target_cell_ids=[cells[0]])
-        sync_mount_table("//tmp/t2", target_cell_ids=[cells[1]])
+        for i in range(1, 4):
+            if external:
+                self._create_simple_dynamic_table(f"//tmp/t{i}", external_cell_tag=11 + i % 2)
+            else:
+                self._create_simple_dynamic_table(f"//tmp/t{i}", external=False)
+            set(f"//tmp/t{i}/@enable_compaction_and_partitioning", False)
+            sync_mount_table(f"//tmp/t{i}", target_cell_ids=[cells[i - 1]])
 
         write_table("//tmp/t_input", [{"a": 1}])
+
+        output_timestamp = 12
 
         map(
             in_="//tmp/t_input",
             out=[
                 self._ypath_with_update_mode("//tmp/t1", update_mode),
                 self._ypath_with_update_mode("//tmp/t2", update_mode),
+                self._ypath_with_update_mode(f"<output_timestamp={output_timestamp}>//tmp/t3", update_mode),
             ],
-            command="echo '{key=1;value=\"1\"}'; echo '{key=2;value=\"2\"}' >&4",
+            command="echo '{key=1;value=\"1\"}'; echo '{key=2;value=\"2\"}' >&4; echo '{key=3;value=\"3\"}' >&7",
         )
 
         def _get_chunk_view(table):
-            chunk_list_id = get("{}/@chunk_list_id".format(table))
-            tree = get("#{}/@tree".format(chunk_list_id))
+            chunk_list_id = get(f"{table}/@chunk_list_id")
+            tree = get(f"#{chunk_list_id}/@tree")
             if update_mode == "append":
                 tree = tree[0]
             for child in tree:
                 if child.attributes["type"] == "chunk_list":
                     chunk_view_id = child[0].attributes["id"]
-                    return get("#{}/@".format(chunk_view_id))
+                    return get(f"#{chunk_view_id}/@")
             assert False
 
         def _read_row_timestamp(table, key, expected_value):
@@ -265,14 +268,18 @@ class TestBulkInsert(DynamicTablesBase):
 
         assert expected_ts == _read_row_timestamp("//tmp/t1", 1, "1")
         assert expected_ts == _read_row_timestamp("//tmp/t2", 2, "2")
+        assert output_timestamp == _read_row_timestamp("//tmp/t3", 3, "3")
 
         sync_unmount_table("//tmp/t1")
         sync_unmount_table("//tmp/t2")
+        sync_unmount_table("//tmp/t3")
         sync_mount_table("//tmp/t1")
         sync_mount_table("//tmp/t2")
+        sync_mount_table("//tmp/t3")
 
         assert expected_ts == _read_row_timestamp("//tmp/t1", 1, "1")
         assert expected_ts == _read_row_timestamp("//tmp/t2", 2, "2")
+        assert output_timestamp == _read_row_timestamp("//tmp/t3", 3, "3")
 
     @parametrize_external
     def test_table_unlocked(self, external):
@@ -2114,6 +2121,19 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
         expected = [{"key": 2, "value": "bar"}]
         assert_items_equal(select_rows("* from [//tmp/t]"), expected)
         assert expected == read_table("//tmp/t")
+
+    def test_delete_with_output_timestamp_fails(self):
+        sync_create_cells(1)
+        self._create_simple_dynamic_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        with raises_yt_error("Cannot set \"output_timestamp\" attribute to the dynamic table with nontrivial schema modification"):
+            merge(
+                in_="//tmp/t",
+                out="<schema_modification=unversioned_update;output_timestamp=123>//tmp/t",
+                mode="ordered",
+                spec={"input_query": "1u as [$change_type], key"})
+
 
 ##################################################################
 
