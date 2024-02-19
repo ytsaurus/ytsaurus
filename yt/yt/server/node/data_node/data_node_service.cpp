@@ -183,8 +183,8 @@ public:
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CancelChunk));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks)
-            .SetQueueSizeLimit(5'000)
-            .SetConcurrencyLimit(5'000)
+            .SetQueueSizeLimit(100)
+            .SetConcurrencyLimit(100)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks)
             .SetQueueSizeLimit(5'000)
@@ -207,13 +207,13 @@ public:
             .SetConcurrencyLimit(5'000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockSet)
             .SetCancelable(true)
-            .SetQueueSizeLimit(5'000)
-            .SetConcurrencyLimit(5'000)
+            .SetQueueSizeLimit(1'000)
+            .SetConcurrencyLimit(1'000)
             .SetRequestQueueProvider(GetBlockSetQueue_));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockRange)
             .SetCancelable(true)
-            .SetQueueSizeLimit(5'000)
-            .SetConcurrencyLimit(5'000)
+            .SetQueueSizeLimit(1'000)
+            .SetConcurrencyLimit(1'000)
             .SetRequestQueueProvider(GetBlockRangeQueue_));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkFragmentSet)
             .SetInvoker(Bootstrap_->GetStorageLookupInvoker())
