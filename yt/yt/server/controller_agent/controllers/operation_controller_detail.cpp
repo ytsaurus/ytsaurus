@@ -2479,7 +2479,7 @@ void TOperationControllerBase::LockOutputDynamicTables()
 
     THashMap<TCellTag, std::vector<TOutputTablePtr>> externalCellTagToTables;
     for (const auto& table : UpdatingTables_) {
-        if (table->Dynamic) {
+        if (table->Dynamic && !table->Path.GetOutputTimestamp()) {
             externalCellTagToTables[table->ExternalCellTag].push_back(table);
         }
     }
@@ -2845,7 +2845,7 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                 }
                 req = batchReq->add_attach_chunk_trees_subrequests();
                 ToProto(req->mutable_parent_id(), table->OutputChunkListId);
-                if (table->Dynamic && OperationType != EOperationType::RemoteCopy) {
+                if (table->Dynamic && OperationType != EOperationType::RemoteCopy && !table->Path.GetOutputTimestamp()) {
                     ToProto(req->mutable_transaction_id(), table->ExternalTransactionId);
                 }
             }
@@ -6573,11 +6573,6 @@ void TOperationControllerBase::GetOutputTablesSchema()
                     << TErrorAttribute("table_path", path);
             }
 
-            if (path.GetOutputTimestamp()) {
-                THROW_ERROR_EXCEPTION("Cannot set \"output_timestamp\" attribute to the dynamic table")
-                    << TErrorAttribute("table_path", path);
-            }
-
             // Check if bulk insert is enabled for a certain user.
             if (!Config->EnableBulkInsertForEveryone && OperationType != EOperationType::RemoteCopy) {
                 TGetNodeOptions options;
@@ -6597,6 +6592,9 @@ void TOperationControllerBase::GetOutputTablesSchema()
         }
 
         if (path.GetOutputTimestamp()) {
+            if (table->Dynamic && table->TableUploadOptions.SchemaModification != ETableSchemaModification::None) {
+                THROW_ERROR_EXCEPTION("Cannot set \"output_timestamp\" attribute to the dynamic table with nontrivial schema modification");
+            }
             auto outputTimestamp = *path.GetOutputTimestamp();
             if (outputTimestamp < MinTimestamp || outputTimestamp > MaxTimestamp) {
                 THROW_ERROR_EXCEPTION("Attribute \"output_timestamp\" value is out of range [%v, %v]",

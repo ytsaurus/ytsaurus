@@ -4903,8 +4903,7 @@ private:
                         TChunkViewModifier().WithTransactionId(transactionId));
                     children.push_back(chunkView);
                 } else {
-                    // Remote copy. Inserted chunks preserve original timestamps.
-                    YT_VERIFY(parent->GetKind() == EChunkListKind::SortedDynamicTablet);
+                    // Remote copy or bulk insert with output_timestamp. Inserted chunks preserve original timestamps.
                     children.push_back(child);
                 }
             } else {
