@@ -18,21 +18,21 @@ template <class TUnderlying>
 TYPathBase<TUnderlying>::TYPathBase(TStringBuf path)
     : Path_(path)
 {
-    ValidatePath();
+    Validate();
 }
 
 template <class TUnderlying>
 TYPathBase<TUnderlying>::TYPathBase(const char* path)
     : Path_(path)
 {
-    ValidatePath();
+    Validate();
 }
 
 template <class TUnderlying>
 TYPathBase<TUnderlying>::TYPathBase(const TString& path)
     : Path_(path)
 {
-    ValidatePath();
+    Validate();
 }
 
 template <class TUnderlying>
@@ -52,14 +52,14 @@ template <class TUnderlying>
 std::variant<std::monostate, TGuid, TSlashRootDesignatorTag>
 TYPathBase<TUnderlying>::GetRootDesignator() const
 {
-    TTokenizer tokenizer(Path_);
+    NYPath::TTokenizer tokenizer(Path_);
     tokenizer.Advance();
     switch (tokenizer.GetType()) {
         case NYPath::ETokenType::Slash:
             return TSlashRootDesignatorTag{};
         case NYPath::ETokenType::Literal: {
             auto token = tokenizer.GetToken();
-            if (!token.StartsWith("#")) {
+            if (!token.StartsWith(NObjectClient::ObjectIdPathPrefix)) {
                 return {};
             }
 
@@ -80,7 +80,7 @@ TYPathBase<TUnderlying>::GetRootDesignator() const
 }
 
 template <class TUnderlying>
-bool TYPathBase<TUnderlying>::empty() const
+bool TYPathBase<TUnderlying>::Empty() const
 {
     return Path_.empty();
 }
@@ -101,8 +101,8 @@ template <class TUnderlying>
 TString TYPathBase<TUnderlying>::ToStringLiteral() const
 {
     TStringBuilder builder;
-    for (TTokenizer tokenizer(Path_); tokenizer.GetType() != ETokenType::EndOfStream; tokenizer.Advance()) {
-        builder.AppendString(tokenizer.GetType() == ETokenType::Literal
+    for (NYPath::TTokenizer tokenizer(Path_); tokenizer.GetType() != NYPath::ETokenType::EndOfStream; tokenizer.Advance()) {
+        builder.AppendString(tokenizer.GetType() == NYPath::ETokenType::Literal
             ? tokenizer.GetLiteralValue()
             : TString(tokenizer.GetToken()));
     }
@@ -135,19 +135,19 @@ const TUnderlying& TYPathBase<TUnderlying>::Underlying() const
     return Path_;
 }
 
-inline bool IsForbiddenPathSymbol(char ch)
+inline bool IsForbiddenYPathSymbol(char ch)
 {
     return ch == '\0';
 }
 
 template <class TUnderlying>
-void TYPathBase<TUnderlying>::ValidatePath() const
+void TYPathBase<TUnderlying>::Validate() const
 {
     if (Path_.StartsWith("/") && !Path_.StartsWith("//")) {
-        THROW_ERROR_EXCEPTION("A path begins with \"/\" but not with \"//\"");
+        THROW_ERROR_EXCEPTION("Path begins with \"/\" but not with \"//\"");
     }
     for (auto ch : Path_) {
-        if (IsForbiddenPathSymbol(ch)) {
+        if (IsForbiddenYPathSymbol(ch)) {
             THROW_ERROR_EXCEPTION("Path contains forbidden symbol %Qv",
                 ch);
         }
@@ -235,7 +235,7 @@ template <class TUnderlying>
 void TYPathBase<TUnderlying>::TSegmentView::TIterator::Increment()
 {
     Offset_ += Current_.Underlying().Size();
-    if (Tokenizer_.Skip(ETokenType::Slash)) {
+    if (Tokenizer_.Skip(NYPath::ETokenType::Slash)) {
         ++Offset_;
     }
 }
@@ -245,8 +245,8 @@ void TYPathBase<TUnderlying>::TSegmentView::TIterator::UpdateCurrent()
 {
     size_t currentSize = 0;
     bool consumeRootDesignator = Offset_ == 0;
-    while ((Tokenizer_.GetType() != ETokenType::Slash || consumeRootDesignator) &&
-        Tokenizer_.GetType() != ETokenType::EndOfStream)
+    while ((Tokenizer_.GetType() != NYPath::ETokenType::Slash || consumeRootDesignator) &&
+        Tokenizer_.GetType() != NYPath::ETokenType::EndOfStream)
     {
         consumeRootDesignator = false;
         currentSize += Tokenizer_.GetToken().Size();
@@ -355,3 +355,9 @@ TYPath operator+(const TYPathBase<T>& lhs, const TYPathBase<U>& rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSequoiaClient
+
+template <class TUnderlying>
+size_t THash<NYT::NSequoiaClient::TYPathBase<TUnderlying>>::operator()(const NYT::NSequoiaClient::TYPathBase<TUnderlying>& path) const
+{
+    return ComputeHash(path.Underlying());
+}

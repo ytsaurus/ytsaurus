@@ -21,8 +21,3 @@ TString ToString(const TYPathBuf path)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSequoiaClient
-
-size_t THash<NYT::NSequoiaClient::TYPath>::operator()(const NYT::NSequoiaClient::TYPath& path) const
-{
-    return ComputeHash(path.ToString());
-}

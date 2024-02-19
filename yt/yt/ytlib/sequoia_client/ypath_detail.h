@@ -10,9 +10,6 @@ namespace NYT::NSequoiaClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TTokenizer = NYPath::TTokenizer;
-using ETokenType = NYPath::ETokenType;
-
 struct TSlashRootDesignatorTag
 { };
 
@@ -31,10 +28,10 @@ public:
     TYPathBuf GetDirPath() const;
 
     //! Returns the root designator, or 'std::monostate' if path does not contain any.
-    //! Validates guid in case of object root designator.
+    //! Validates GUID in case of object root designator.
     std::variant<std::monostate, TGuid, TSlashRootDesignatorTag> GetRootDesignator() const;
 
-    [[nodiscard]] bool empty() const;
+    [[nodiscard]] bool Empty() const;
 
     //! Returns formatted path with escaping of special characters.
     TString ToString() const;
@@ -48,7 +45,7 @@ public:
     template <class T>
     bool operator==(const TYPathBase<T>& rhs) const noexcept;
 
-    //! Allows iteration over path segments, ommiting directory separators.
+    //! Allows iteration over path segments, omitting directory separators.
     class TSegmentView;
     TSegmentView AsSegments() const;
 
@@ -60,7 +57,7 @@ public:
 protected:
     TUnderlying Path_;
 
-    void ValidatePath() const;
+    void Validate() const;
     ptrdiff_t FindLastSegment() const;
 };
 
@@ -131,7 +128,7 @@ public:
     const_iterator end() const;
 
 private:
-    const TYPathBase& Owner_;
+    const TYPathBase* Owner_;
 
     friend class TYPathBase;
 
@@ -153,7 +150,7 @@ public:
 private:
     const TYPathBase* Owner_ = nullptr;
     ptrdiff_t Offset_ = 0;
-    TTokenizer Tokenizer_;
+    NYPath::TTokenizer Tokenizer_;
     TYPathBuf Current_;
 
     friend class TSegmentView;
@@ -185,16 +182,16 @@ TYPath operator+(const TYPathBase<T>& lhs, const TYPathBase<U>& rhs);
 ////////////////////////////////////////////////////////////////////////////////
 
 TString ToString(const TYPath& path);
-TString ToString(const TYPathBuf path);
+TString ToString(TYPathBuf path);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSequoiaClient
 
-template <>
-struct THash<NYT::NSequoiaClient::TYPath>
+template <class TUnderlying>
+struct THash<NYT::NSequoiaClient::TYPathBase<TUnderlying>>
 {
-    size_t operator()(const NYT::NSequoiaClient::TYPath& path) const;
+    size_t operator()(const NYT::NSequoiaClient::TYPathBase<TUnderlying>& path) const;
 };
 
 #define YPATH_DETAIL_INL_H_
