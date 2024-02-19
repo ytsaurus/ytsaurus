@@ -1217,7 +1217,6 @@ def get_checks_config():
                 enable_discovery,
                 enable_remote_copy,
                 bundle_controller,
-                enable_query_tracker_alerts,
                 system_quotas_only_per_account_tablet_resources,
                 enable_tablet_cell_snapshot_convergence,
                 tablet_stress_test,
@@ -1327,7 +1326,6 @@ def get_checks_config():
                 clock_quorum_health,
                 bundle_controller,
                 dynamic_table_replication_stable,
-                enable_query_tracker_with_chyt_alerts,
             ),
             "nash": deep_merge(
                 snapshot_validation,
