@@ -4,6 +4,8 @@
 #include "transaction_manager_detail.h"
 #endif
 
+#include "transaction_manager.h"
+
 #include <yt/yt/core/misc/collection_helpers.h>
 
 namespace NYT::NTransactionSupervisor {
@@ -24,10 +26,13 @@ void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
     const TTransactionPrepareOptions& options,
     bool requireLegacyBehavior)
 {
+    // We don't need to run abort tx actions for transient prepare.
+    auto rememberPreparedTransactionActionCount = !requireLegacyBehavior && options.Persistent;
+
     TTransactionActionGuard transactionActionGuard;
     // |PreparedActionCount| should never be |nullopt| after update to current
     // version until |requireLegacyBehavior| is |true|.
-    if (!requireLegacyBehavior) {
+    if (!rememberPreparedTransactionActionCount) {
         transaction->SetPreparedActionCount(0);
     }
 
@@ -46,7 +51,7 @@ void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
             throw;
         }
 
-        if (!requireLegacyBehavior) {
+        if (!rememberPreparedTransactionActionCount) {
             transaction->SetPreparedActionCount(*transaction->GetPreparedActionCount() + 1);
         }
     }
