@@ -72,19 +72,6 @@ void TDiskChangeChecker::OnDiskChangeCheck()
 {
     VERIFY_INVOKER_AFFINITY(Invoker_);
 
-    auto hotSwapEnabled = WaitFor(DiskInfoProvider_->GetHotSwapEnabledFuture());
-
-    // Fast path.
-    if (!hotSwapEnabled.IsOK()) {
-        YT_LOG_DEBUG(hotSwapEnabled, "Failed to get hotswap creds");
-        return;
-    }
-
-    if (!hotSwapEnabled.Value()) {
-        YT_LOG_DEBUG(hotSwapEnabled, "Hot swap disabled");
-        return;
-    }
-
     auto diskInfosOrError = WaitFor(DiskInfoProvider_->GetYTDiskInfos());
 
     // Fast path.
