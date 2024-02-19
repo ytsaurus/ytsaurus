@@ -376,13 +376,14 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
 void BuildSupportedFeatures(TFluentMap fluent)
 {
     const auto& descriptions = GetOperationStatisticsDescriptions();
-    fluent.
-        Item("operation_statistics_descriptions").DoMapFor(descriptions, [] (TFluentMap fluent, const TStatisticsDescription& description) {
+    fluent
+        .Item("operation_statistics_descriptions").DoMapFor(descriptions, [] (TFluentMap fluent, const TStatisticsDescription& description) {
             fluent.Item(description.Name).BeginMap()
                 .Item("description").Value(description.Description)
                 .Item("unit").Value(description.Unit)
             .EndMap();
-        });
+        })
+        .Item("scheduler_estimated_guarantee_attribute_name").Value("estimated_guarantee_resources");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
