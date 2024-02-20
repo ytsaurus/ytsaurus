@@ -26,6 +26,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   less \
   gdb \
   lsof \
+  zstd \
   strace \
   telnet \
   dnsutils \
