@@ -256,6 +256,8 @@ items:
               href: user-guide/data-processing/chyt/reference/data-types.md
             - name: Функции
               href: user-guide/data-processing/chyt/reference/functions.md
+            - name: Пользовательские функции (UDF)
+              href: user-guide/data-processing/chyt/reference/user_defined_functions.md
           - name: Контроллер
             href: user-guide/data-processing/chyt/cliques/controller.md
           - name: Производительность и рекомендации
