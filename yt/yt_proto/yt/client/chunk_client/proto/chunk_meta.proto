@@ -1,5 +1,6 @@
 package NYT.NChunkClient.NProto;
 
+import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt_proto/yt/core/misc/proto/protobuf_helpers.proto";
 
 option go_package = "go.ytsaurus.tech/yt/go/proto/client/chunk_client";

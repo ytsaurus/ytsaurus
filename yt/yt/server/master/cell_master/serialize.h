@@ -195,11 +195,8 @@ DEFINE_ENUM(EMasterReign,
     ((FixChunkMergerCopy)                                           (2457))  // aleksandra-zh
     ((ChaosReplicatedConsumersFix)                                  (2458))  // cherepashka
     ((FixListNodeDeprecation_23_2)                                  (2459))  // kvk1920
-<<<<<<< releases/yt/stable/23.2: Revert "Fix build"
     ((ValueDictionaryCompression_23_2)                              (2460))  // akozhikhov
     ((CheckChunkCountPerTabletBeforeMount_23_2)                     (2461))  // alexelexa
-=======
->>>>>>> revert: YT-20593: Compression dictionary building background activity of tablet node
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

@@ -214,6 +214,18 @@ DEFINE_ENUM(EMisconfiguredPartitionTactics,
     ((Skip)     (1))
 );
 
+//! NB: This enum is part of the persistent state.
+DEFINE_ENUM(EDictionaryCompressionPolicy,
+    // Placeholder representing null dictionary.
+    ((None)                  (0))
+
+    // Sample chunks according to weight.
+    ((LargeChunkFirst)       (1))
+
+    // Sample chunks according to creation time.
+    ((FreshChunkFirst)       (2))
+);
+
 using TTableId = NCypressClient::TNodeId;
 using TTableCollocationId = NObjectClient::TObjectId;
 using TMasterTableSchemaId = NObjectClient::TObjectId;
