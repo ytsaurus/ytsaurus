@@ -74,7 +74,7 @@ lazy val `spark-submit` = (project in file("spark-submit"))
 
 lazy val `spark-patch` = (project in file("spark-patch"))
   .settings(
-    libraryDependencies ++= spark,
+    libraryDependencies ++= spark ++ livy,
     Compile / packageBin / packageOptions +=
       Package.ManifestAttributes(new java.util.jar.Attributes.Name("PreMain-Class") -> "tech.ytsaurus.spyt.patch.SparkPatchAgent")
   )

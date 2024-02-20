@@ -66,7 +66,7 @@ trait VanillaLauncher {
 
     val path = Files.copy(
       Path.of(spytHome, "conf", log4jProperties),
-      Path.of(spytHome, "conf", "log4j.properties"),
+      Path.of(sparkHome, "conf", "log4j.properties"),
       StandardCopyOption.REPLACE_EXISTING
     )
 

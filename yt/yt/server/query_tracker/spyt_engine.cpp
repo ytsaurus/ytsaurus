@@ -43,6 +43,8 @@ public:
 
     std::optional<TString> SparkConf;
 
+    bool SessionReuse;
+
     REGISTER_YSON_STRUCT(TSpytSettings);
 
     static void Register(TRegistrar registrar)
@@ -53,6 +55,8 @@ public:
             .Default();
         registrar.Parameter("spark_conf", &TThis::SparkConf)
             .Default();
+        registrar.Parameter("session_reuse", &TThis::SessionReuse)
+            .Default(true);
     }
 };
 
@@ -100,9 +104,8 @@ public:
         , DiscoveryPath_(std::move(discoveryPath))
     { }
 
-    std::vector<TString> GetModuleValues(const TString& moduleName) const
+    std::vector<TString> GetModuleValues(const TString& modulePath) const
     {
-        auto modulePath = Format("%v/discovery/%v", DiscoveryPath_, ToYPathLiteral(moduleName));
         auto rawResult = WaitFor(QueryClient_->ListNode(modulePath))
             .ValueOrThrow();
         return ConvertTo<std::vector<TString>>(rawResult);
@@ -110,7 +113,13 @@ public:
 
     std::optional<TString> GetModuleValue(const TString& moduleName) const
     {
-        auto listResult = GetModuleValues(moduleName);
+        auto modulePath = Format("%v/discovery/%v", DiscoveryPath_, ToYPathLiteral(moduleName));
+        auto moduleExists = WaitFor(QueryClient_->NodeExists(modulePath))
+            .ValueOrThrow();
+        if (!moduleExists) {
+            return std::nullopt;
+        }
+        auto listResult = GetModuleValues(modulePath);
         if (listResult.size() > 1) {
             THROW_ERROR_EXCEPTION(
                 "Invalid discovery directory for %v: at most 1 value expected, found %v",
@@ -118,17 +127,6 @@ public:
                 listResult.size());
         }
         return listResult.size() == 1 ? std::optional(listResult[0]) : std::nullopt;
-    }
-
-    TString GetModuleValueOrThrow(const TString& moduleName) const
-    {
-        auto listResult = GetModuleValue(moduleName);
-        if (!listResult) {
-            THROW_ERROR_EXCEPTION(
-                "Invalid discovery directory for %v: 1 value expected, found 0",
-                moduleName);
-        }
-        return *listResult;
     }
 
 private:
@@ -161,6 +159,7 @@ public:
         , HttpClient_(CreateClient(Config_->HttpClient, NBus::TTcpDispatcher::Get()->GetXferPoller()))
         , Headers_(New<NHttp::THeaders>())
         , RefreshTokenExecutor_(New<TPeriodicExecutor>(GetCurrentInvoker(), BIND(&TSpytQueryHandler::RefreshToken, MakeWeak(this)), Config_->RefreshTokenPeriod))
+        , SessionReuse_(Settings_->SessionReuse)
     {
         if (Cluster_.Empty()) {
             THROW_ERROR_EXCEPTION("'cluster' setting is not specified");
@@ -171,16 +170,17 @@ public:
         }
         Headers_->Add("Content-Type", "application/json");
         Discovery_ = New<TSpytDiscovery>(QueryClient_, discoveryPath);
-        ClusterVersion_ = Discovery_->GetModuleValueOrThrow("version");
+        auto clientVersionOptional = Discovery_->GetModuleValue("version");
+        if (!clientVersionOptional) {
+            THROW_ERROR_EXCEPTION(
+                "Cluster version was not found in discovery path. Make sure that SPYT cluster is running");
+        }
+        ClusterVersion_ = *clientVersionOptional;
     }
 
     void Start() override
     {
         YT_LOG_DEBUG("Starting SPYT query");
-        Token_ = IssueToken();
-        if (Token_) {
-            RefreshTokenExecutor_->Start();
-        }
         AsyncQueryResult_ = BIND(&TSpytQueryHandler::Execute, MakeStrong(this))
             .AsyncVia(GetCurrentInvoker())
             .Run();
@@ -192,18 +192,14 @@ public:
         YT_LOG_DEBUG("Aborting SPYT query (SessionUrl: %v)", SessionUrl_);
         AsyncQueryResult_.Cancel(TError("Query aborted"));
         // After Abort() call there is Detach() call always. But double closing request is not the error.
-        if (!SessionUrl_.Empty()) {
-            CloseSession();
-        }
+        FreeResources();
     }
 
     void Detach() override
     {
         YT_LOG_DEBUG("Detaching SPYT query (SessionUrl: %v)", SessionUrl_);
         AsyncQueryResult_.Cancel(TError("Query detached"));
-        if (!SessionUrl_.Empty()) {
-            CloseSession();
-        }
+        FreeResources();
     }
 
 private:
@@ -215,10 +211,12 @@ private:
     const NHttp::IClientPtr HttpClient_;
     const NHttp::THeadersPtr Headers_;
     const TPeriodicExecutorPtr RefreshTokenExecutor_;
+    const bool SessionReuse_;
     TSpytDiscoveryPtr Discovery_;
     TString ClusterVersion_;
     TFuture<TSharedRef> AsyncQueryResult_;
     TString SessionUrl_;
+    TString StatementUrl_;
     std::optional<TString> Token_;
     // Not exists for YT scheduled jobs
     std::optional<TString> MasterWebUI_;
@@ -245,7 +243,8 @@ private:
             THROW_ERROR_EXCEPTION(
                 "Unexpected Livy status code: expected %Qv, actual %Qv",
                 expected,
-                response->GetStatusCode());
+                response->GetStatusCode())
+                    << TErrorAttribute("response_body", response->ReadAll().ToStringBuf());
         }
     }
 
@@ -340,6 +339,7 @@ private:
         if (Token_) {
             sparkConf.emplace("spark.hadoop.yt.user", User_);
             sparkConf.emplace("spark.hadoop.yt.token", *Token_);
+            YT_LOG_DEBUG("Authetication information for user was inserted (User: %v)", User_);
         }
         return sparkConf;
     }
@@ -349,6 +349,7 @@ private:
         auto dataNode = BuildYsonNodeFluently()
             .BeginMap()
                 .Item("kind").Value("spark")
+                .Item("proxyUser").Value(User_)
                 .Item("conf").Value(GetSparkConf())
             .EndMap();
         return SerializeYsonToJson(dataNode);
@@ -369,19 +370,32 @@ private:
     void WaitSessionReady()
     {
         auto state = WaitStatusChange(SessionUrl_, "starting", /*reportProgress*/ false);
-        if (state != "idle") {
+        if (!(state == "idle" || (state == "busy" && SessionReuse_))) {
             THROW_ERROR_EXCEPTION(
-                "Unexpected Livy session state: expected \"idle\", found %Qv",
+                "Unexpected Livy session state: expected \"idle\" or \"busy\", found %Qv",
                 state);
+        }
+    }
+
+    void CancelStatement() const
+    {
+        if (!StatementUrl_.Empty()) {
+            YT_LOG_DEBUG("Canceling statement");
+            auto data = TSharedRef::FromString("{}");
+            auto rsp = WaitFor(HttpClient_->Post(StatementUrl_ + "/cancel", data, Headers_))
+                .ValueOrThrow();
+            YT_LOG_DEBUG("Statement cancelation response received (Code: %v)", rsp->GetStatusCode());
         }
     }
 
     void CloseSession() const
     {
-        YT_LOG_DEBUG("Closing session");
-        auto rsp = WaitFor(HttpClient_->Delete(SessionUrl_, Headers_))
-            .ValueOrThrow();
-        YT_LOG_DEBUG("Session closing response received (Code: %v)", rsp->GetStatusCode());
+        if (!SessionUrl_.Empty()) {
+            YT_LOG_DEBUG("Closing session");
+            auto rsp = WaitFor(HttpClient_->Delete(SessionUrl_, Headers_))
+                .ValueOrThrow();
+            YT_LOG_DEBUG("Session closing response received (Code: %v)", rsp->GetStatusCode());
+        }
     }
 
     TString ConcatChunks(const std::vector<TString>& chunks) const
@@ -404,7 +418,7 @@ private:
         YT_LOG_DEBUG("Raw result received (LineCount: %v)", encodedChunks.size());
 
         std::vector<TString> tableChunks;
-        for (size_t i = 0; i + 4 < encodedChunks.size(); i++) { // We must ignore last 4 lines, they don't contain result info
+        for (size_t i = 0; i + 3 < encodedChunks.size(); i++) { // We must ignore last 3 lines, they don't contain result info
             tableChunks.push_back(Base64StrictDecode(encodedChunks[i]));
         }
 
@@ -432,8 +446,7 @@ private:
         auto code = Format(
             "import tech.ytsaurus.spyt.serializers.GenericRowSerializer;"
             "val df = spark.sql(\"%v\").limit(%v);"
-            "val rows = GenericRowSerializer.dfToYTFormatWithBase64(df);"
-            "println(rows.mkString(\"\\n\"))",
+            "println(GenericRowSerializer.dfToYTFormatWithBase64(df).mkString(\"\\n\"))",
             EscapeC(sqlQuery),
             Config_->RowCountLimit);
         auto dataNode = BuildYsonNodeFluently()
@@ -443,7 +456,7 @@ private:
         return SerializeYsonToJson(dataNode);
     }
 
-    TString SubmitStatement(const TString& rootUrl, const TString& sqlQuery) const
+    void SubmitStatement(const TString& rootUrl, const TString& sqlQuery)
     {
         auto data = MakeStatementSubmitQueryData(sqlQuery);
         YT_LOG_DEBUG("Statement data prepared (Data: %v)", data);
@@ -452,20 +465,21 @@ private:
             .ValueOrThrow();
         ValidateStatusCode(rsp, NHttp::EStatusCode::Created);
         YT_LOG_DEBUG("Statement submission response received (Headers: %v)", rsp->GetHeaders()->Dump());
-        auto statementUrl = rootUrl + GetLocation(rsp);
-        YT_LOG_DEBUG("Statement submission response parsed (Url: %v)", statementUrl);
-        return statementUrl;
+        StatementUrl_ = rootUrl + GetLocation(rsp);
+        YT_LOG_DEBUG("Statement submission response parsed (Url: %v)", StatementUrl_);
     }
 
-    TString WaitStatementFinished(const TString& statementUrl)
+    TString WaitStatementFinished()
     {
-        auto state = WaitStatusChange(statementUrl, "running", /*reportProgress*/ true);
+        // Query may be in queue.
+        auto state = WaitStatusChange(StatementUrl_, "waiting", /*reportProgress*/ true);
+        state = WaitStatusChange(StatementUrl_, "running", /*reportProgress*/ true);
         if (state != "available") {
             THROW_ERROR_EXCEPTION(
                 "Unexpected Livy result state: expected \"available\", found %Qv",
                 state);
         }
-        auto queryResult = ExecuteGetQuery(statementUrl);
+        auto queryResult = ExecuteGetQuery(StatementUrl_);
         auto outputNode = queryResult->AsMap()->GetChildOrThrow("output")->AsMap();
         return ParseQueryOutput(outputNode);
     }
@@ -473,9 +487,14 @@ private:
     TString GetLivyServerUrl() const
     {
         YT_LOG_DEBUG("Listing livy discovery path");
-        auto url = "http://" + Discovery_->GetModuleValueOrThrow("livy");
-        YT_LOG_DEBUG("Livy server url received (Url: %v)", url);
-        return url;
+        auto livyUrlOptional = Discovery_->GetModuleValue("livy");
+        if (!livyUrlOptional) {
+            THROW_ERROR_EXCEPTION(
+                "Livy address was not found in discovery path. SPYT cluster must be started with '--enable-livy' option");
+        }
+        auto livyUrl = "http://" + *livyUrlOptional;
+        YT_LOG_DEBUG("Livy server url received (Url: %v)", livyUrl);
+        return livyUrl;
     }
 
     std::optional<TString> IssueToken() const
@@ -517,24 +536,83 @@ private:
         }
     }
 
+    // Try to initialize SessionUrl_ and Token_ by existing session.
+    bool TryConnectToExistingSession(const TString& rootUrl)
+    {
+        auto dataNode = BuildYsonNodeFluently().BeginMap().Item("proxyUser").Value(User_).EndMap();
+        auto body = TSharedRef::FromString(SerializeYsonToJson(dataNode));
+        auto rsp = WaitFor(HttpClient_->Post(rootUrl + "/sessions/find-by-user", body, Headers_))
+            .ValueOrThrow();
+        YT_LOG_DEBUG("Session search response received (Headers: %v)", rsp->GetHeaders()->Dump());
+        if (rsp->GetStatusCode() == NHttp::EStatusCode::OK) {
+            auto sessionUrl = rootUrl + GetLocation(rsp);
+            // NB(alex-shishkin): Session data contains sensetive data.
+            auto jsonRoot = ParseJson(rsp->ReadAll())->AsMap();
+            auto token = jsonRoot->GetChildOrThrow("conf")->AsMap()->FindChildValue<TString>("spark.hadoop.yt.token");
+            SessionUrl_ = sessionUrl;
+            Token_ = token;
+            YT_LOG_DEBUG("Existing session parsed (Url: %v)", SessionUrl_);
+            return true;
+        } else if (rsp->GetStatusCode() == NHttp::EStatusCode::NotFound) {
+            YT_LOG_DEBUG("Existing session was not found");
+            return false;
+        } else if (rsp->GetStatusCode() == NHttp::EStatusCode::MethodNotAllowed) {
+            YT_LOG_DEBUG("Livy server doesn't support 'find-by-user' endpoint");
+            return false;
+        } else {
+            THROW_ERROR_EXCEPTION(
+                "Unexpected session search status code: %Qv",
+                rsp->GetStatusCode())
+                    << TErrorAttribute("response_body", rsp->ReadAll().ToStringBuf());
+        }
+    }
+
+    void PrepareSession(const TString& rootUrl)
+    {
+        if (SessionReuse_ && TryConnectToExistingSession(rootUrl)) {
+            YT_LOG_DEBUG("Reusing old session");
+        } else {
+            try {
+                YT_LOG_DEBUG("Starting session");
+                Token_ = IssueToken();
+                StartSession(rootUrl);  // Session URL stores to the class field
+                WaitSessionReady();
+            } catch (const std::exception& ex) {
+                YT_LOG_DEBUG(ex, "Caught error while preparing session");
+                CloseSession();
+                throw;
+            }
+        }
+        if (Token_) {
+            RefreshTokenExecutor_->Start();
+        }
+    }
+
+    void FreeResources()
+    {
+        if (SessionReuse_) {
+            CancelStatement();
+        } else {
+            CloseSession();
+        }
+    }
+
     TSharedRef Execute()
     {
-        SetProgress(0.0);
         UpdateMasterWebUIUrl();
+        SetProgress(0.0);
         auto rootUrl = GetLivyServerUrl();
-        YT_LOG_DEBUG("Starting session");
-        StartSession(rootUrl);  // Session URL stores to the class field
         try {
-            WaitSessionReady();
-            YT_LOG_DEBUG("Sesison is ready, submitting statement (SessionUrl: %v)", SessionUrl_);
-            auto statementUrl = SubmitStatement(rootUrl, Query_);
-            auto queryResult = WaitStatementFinished(statementUrl);
-            YT_LOG_DEBUG("Query finished, closing session");
-            CloseSession();
+            PrepareSession(rootUrl);
+            YT_LOG_DEBUG("Session is ready, submitting statement (SessionUrl: %v)", SessionUrl_);
+            SubmitStatement(rootUrl, Query_);
+            auto queryResult = WaitStatementFinished();
+            YT_LOG_DEBUG("Query finished");
+            FreeResources();
             return ExtractTableBytes(queryResult);
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Caught error while executing query; closing session");
-            CloseSession();
+            YT_LOG_DEBUG(ex, "Caught error while executing query");
+            FreeResources();
             throw;
         }
     }

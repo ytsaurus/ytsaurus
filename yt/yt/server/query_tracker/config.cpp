@@ -63,7 +63,7 @@ void TSpytEngineConfig::Register(TRegistrar registrar)
     registrar.Parameter("http_client", &TThis::HttpClient)
         .DefaultNew();
     registrar.Parameter("status_poll_period", &TThis::StatusPollPeriod)
-        .Default(TDuration::Seconds(3));
+        .Default(TDuration::Seconds(1));
     registrar.Parameter("token_expiration_timeout", &TThis::TokenExpirationTimeout)
         .Default(TDuration::Minutes(20));
     registrar.Parameter("refresh_token_period", &TThis::RefreshTokenPeriod)

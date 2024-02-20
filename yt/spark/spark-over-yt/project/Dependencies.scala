@@ -85,4 +85,12 @@ object Dependencies {
   lazy val sttp = Seq(
     "com.softwaremill.sttp.client" %% "core" % "2.1.4"
   )
+
+  lazy val livy = Seq(
+    "org.apache.livy" % "livy-server" % "0.8.0-incubating" % Provided excludeAll(
+      ExclusionRule(organization = "org.json4s"),
+      ExclusionRule(organization = "org.scala-lang.modules"),
+      ExclusionRule(organization = "com.fasterxml.jackson.module"),
+    )
+  )
 }

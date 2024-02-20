@@ -31,6 +31,9 @@
             "verify_checksums" = %false;
         };
     };
+    "cypress_token_authenticator" = {
+        "secure" = %true;
+    };
     "discovery_service" = {
         "enable" = %false;
     };
