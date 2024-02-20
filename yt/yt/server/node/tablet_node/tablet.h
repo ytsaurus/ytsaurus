@@ -274,6 +274,8 @@ struct TTabletSnapshot
 
     TCompressionDictionaryInfos CompressionDictionaryInfos;
 
+    TString TabletCellBundle;
+
     std::atomic<bool> Unregistered = false;
 
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.

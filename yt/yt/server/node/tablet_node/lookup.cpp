@@ -1,5 +1,5 @@
 #include "lookup.h"
-
+#include "error_manager.h"
 #include "hedging_manager_registry.h"
 #include "private.h"
 #include "store.h"
@@ -948,6 +948,7 @@ private:
     TFuture<TSharedRef> OnTabletLookupAttemptFailed(
         int requestIndex,
         const TError& error);
+    TFuture<TSharedRef> OnTabletLookupFailed(TTabletId tabletId, TError error);
 
     std::vector<TSharedRef> ProcessResults(std::vector<TErrorOr<TSharedRef>>&& resultOrErrors);
 };
@@ -1224,24 +1225,29 @@ TFuture<TSharedRef> TLookupSession::OnTabletLookupAttemptFailed(
 
             return RunTabletRequest(requestIndex);
         } else {
-            if (auto tabletSnapshot = SnapshotStore_->FindLatestTabletSnapshot(request.TabletId)) {
-                tabletSnapshot->PerformanceCounters->LookupError.Counter.fetch_add(1, std::memory_order::relaxed);
-            }
-
-            return MakeFuture<TSharedRef>(TError("Request failed after %v retries",
-                MaxRetryCount_)
-                << request.InnerErrors);
+            return OnTabletLookupFailed(
+                request.TabletId,
+                TError("Request failed after %v retries",
+                    MaxRetryCount_)
+                    << request.InnerErrors);
         }
     } else {
         YT_LOG_DEBUG(error, "Tablet lookup request failed (TabletId: %v)",
             request.TabletId);
 
-        if (auto tabletSnapshot = SnapshotStore_->FindLatestTabletSnapshot(request.TabletId)) {
-            tabletSnapshot->PerformanceCounters->LookupError.Counter.fetch_add(1, std::memory_order::relaxed);
-        }
-
-        return MakeFuture<TSharedRef>(error);
+        return OnTabletLookupFailed(request.TabletId, error);
     }
+}
+
+TFuture<TSharedRef> TLookupSession::OnTabletLookupFailed(TTabletId tabletId, TError error)
+{
+    if (auto tabletSnapshot = SnapshotStore_->FindLatestTabletSnapshot(tabletId)) {
+        tabletSnapshot->PerformanceCounters->LookupError.Counter.fetch_add(1, std::memory_order::relaxed);
+
+        return MakeFuture<TSharedRef>(EnrichErrorForErrorManager(std::move(error),tabletSnapshot));
+    }
+
+    return MakeFuture<TSharedRef>(std::move(error));
 }
 
 std::vector<TSharedRef> TLookupSession::ProcessResults(

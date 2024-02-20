@@ -860,7 +860,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TOverloadControllerConfig);
+DEFINE_REFCOUNTED_TYPE(TOverloadControllerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -876,11 +876,26 @@ public:
     NConcurrency::TPeriodicExecutorOptions PeriodicOptions;
 
     REGISTER_YSON_STRUCT(TStatisticsReporterConfig);
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TStatisticsReporterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TErrorManagerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TDuration DeduplicationCacheTimeout;
+    TDuration ErrorExpirationTimeout;
+
+    REGISTER_YSON_STRUCT(TErrorManagerConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TStatisticsReporterConfig);
+DEFINE_REFCOUNTED_TYPE(TErrorManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -978,6 +993,8 @@ public:
     TOverloadControllerConfigPtr OverloadController;
 
     TStatisticsReporterConfigPtr StatisticsReporter;
+
+    TErrorManagerConfigPtr ErrorManager;
 
     bool EnableChunkFragmentReaderThrottling;
 

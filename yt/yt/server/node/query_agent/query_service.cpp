@@ -15,18 +15,20 @@
 #include <yt/yt/server/node/query_agent/config.h>
 
 #include <yt/yt/server/node/tablet_node/bootstrap.h>
+#include <yt/yt/server/node/tablet_node/error_manager.h>
+#include <yt/yt/server/node/tablet_node/error_reporting_service_base.h>
 #include <yt/yt/server/node/tablet_node/lookup.h>
 #include <yt/yt/server/node/tablet_node/master_connector.h>
+#include <yt/yt/server/node/tablet_node/overload_controlling_service_base.h>
 #include <yt/yt/server/node/tablet_node/security_manager.h>
 #include <yt/yt/server/node/tablet_node/store.h>
 #include <yt/yt/server/node/tablet_node/replication_log.h>
 #include <yt/yt/server/node/tablet_node/tablet.h>
+#include <yt/yt/server/node/tablet_node/tablet_manager.h>
 #include <yt/yt/server/node/tablet_node/tablet_reader.h>
 #include <yt/yt/server/node/tablet_node/tablet_slot.h>
 #include <yt/yt/server/node/tablet_node/tablet_snapshot_store.h>
-#include <yt/yt/server/node/tablet_node/tablet_manager.h>
 #include <yt/yt/server/node/tablet_node/transaction_manager.h>
-#include <yt/yt/server/node/tablet_node/overload_controlling_service_base.h>
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
@@ -189,13 +191,14 @@ TTypeErasedRow ReadVersionedReplicationRow(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryService
-    : public TOverloadControllingServiceBase<TServiceBase>
+    : public TErrorReportingServiceBase<TOverloadControllingServiceBase<TServiceBase>>
 {
 public:
     TQueryService(
         TQueryAgentConfigPtr config,
         NTabletNode::IBootstrap* bootstrap)
-        : TOverloadControllingServiceBase(
+        : TErrorReportingServiceBase(
+            bootstrap,
             bootstrap,
             bootstrap->GetQueryPoolInvoker(
                 DefaultQLExecutionPoolName,
@@ -222,26 +225,34 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetCancelable(true)
-            .SetInvokerProvider(BIND(&TQueryService::GetExecuteInvoker, Unretained(this))));
+            .SetInvokerProvider(BIND(&TQueryService::GetExecuteInvoker, Unretained(this)))
+            .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Multiread)
             .SetCancelable(true)
             .SetInvoker(Bootstrap_->GetTabletLookupPoolInvoker())
-            .SetRequestQueueProvider(MultireadRequestQueueProvider));
+            .SetRequestQueueProvider(MultireadRequestQueueProvider_)
+            .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PullRows)
             .SetCancelable(true)
-            .SetInvoker(Bootstrap_->GetTabletLookupPoolInvoker()));
+            .SetInvoker(Bootstrap_->GetTabletLookupPoolInvoker())
+            .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfo)
-            .SetInvoker(Bootstrap_->GetTabletLookupPoolInvoker()));
+            .SetInvoker(Bootstrap_->GetTabletLookupPoolInvoker())
+            .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadDynamicStore)
             .SetCancelable(true)
             .SetStreamingEnabled(true)
-            .SetResponseCodec(NCompression::ECodec::Lz4));
+            .SetResponseCodec(NCompression::ECodec::Lz4)
+            .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FetchTabletStores)
-            .SetInvoker(Bootstrap_->GetTabletFetchPoolInvoker()));
+            .SetInvoker(Bootstrap_->GetTabletFetchPoolInvoker())
+            .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FetchTableRows)
-            .SetInvoker(Bootstrap_->GetTableRowFetchPoolInvoker()));
+            .SetInvoker(Bootstrap_->GetTableRowFetchPoolInvoker())
+            .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetOrderedTabletSafeTrimRowCount)
-            .SetInvoker(Bootstrap_->GetTableRowFetchPoolInvoker()));
+            .SetInvoker(Bootstrap_->GetTableRowFetchPoolInvoker())
+            .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateDistributedSession)
             .SetInvoker(bootstrap->GetQueryPoolInvoker(DefaultQLExecutionPoolName, DefaultQLExecutionTag)));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingDistributedSession)
@@ -266,7 +277,7 @@ private:
     const IEvaluatorPtr Evaluator_;
     const IMemoryUsageTrackerPtr MemoryTracker_;
     const TMemoryProviderMapByTagPtr MemoryProvider_ = New<TMemoryProviderMapByTag>();
-    const IRequestQueueProviderPtr MultireadRequestQueueProvider = CreateMultireadRequestQueueProvider();
+    const IRequestQueueProviderPtr MultireadRequestQueueProvider_ = CreateMultireadRequestQueueProvider();
     const IDistributedSessionManagerPtr DistributedSessionManager_;
 
     std::atomic<bool> RejectUponThrottlerOverdraft_;
@@ -534,7 +545,7 @@ private:
         };
 
         TRowBatchReadOptions rowBatchReadOptions{
-            .MaxRowsPerRead = request->max_rows_per_read()
+            .MaxRowsPerRead = request->max_rows_per_read(),
         };
 
         context->SetRequestInfo("TabletId: %v, StartReplicationRowIndex: %v, Progress: %v, UpperTimestamp: %v, ResponseCodec: %v, ReadSessionId: %v)",
@@ -558,6 +569,9 @@ private:
             Logger,
             [&] {
                 auto tabletSnapshot = snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, mountRevision);
+
+                SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+
                 if (tabletSnapshot->UpstreamReplicaId != upstreamReplicaId) {
                     THROW_ERROR_EXCEPTION(
                         NTabletClient::EErrorCode::UpstreamReplicaMismatch,
@@ -704,6 +718,8 @@ private:
 
             auto tabletSnapshot = snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
 
+            SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+
             auto* protoTabletInfo = response->add_tablets();
             ToProto(protoTabletInfo->mutable_tablet_id(), tabletId);
             // NB: Read barrier timestamp first to ensure a certain degree of consistency with TotalRowCount.
@@ -768,6 +784,8 @@ private:
 
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
         auto tabletSnapshot = snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
+
+        SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
 
         if (tabletSnapshot->IsPreallocatedDynamicStoreId(storeId)) {
             YT_LOG_DEBUG("Dynamic store is not created yet, sending nothing (TabletId: %v, StoreId: %v, "
@@ -1153,6 +1171,8 @@ private:
                     continue;
                 }
 
+                SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+
                 if (!tabletSnapshot->PhysicalSchema->IsSorted()) {
                     THROW_ERROR_EXCEPTION("Fetching tablet stores for ordered tablets is not implemented");
                 }
@@ -1310,6 +1330,9 @@ private:
         auto tabletSnapshot = request->has_mount_revision()
             ? snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, request->mount_revision())
             : snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
+
+        SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+
         snapshotStore->ValidateTabletAccess(tabletSnapshot, SyncLastCommittedTimestamp);
         snapshotStore->ValidateBundleNotBanned(tabletSnapshot);
 
@@ -1558,6 +1581,9 @@ private:
         auto tabletSnapshot = mountRevision
             ? snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, *mountRevision)
             : snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
+
+        SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+
         snapshotStore->ValidateTabletAccess(tabletSnapshot, SyncLastCommittedTimestamp);
         snapshotStore->ValidateBundleNotBanned(tabletSnapshot);
 
@@ -1623,11 +1649,9 @@ private:
         // The list of ordered stores is produced from a mapping of the form [startingRowIndex -> store],
         // so only the last store can potentially be empty. This is perfectly fine for us.
 
-        if (desiredStoreIt != storeSnapshots.end()) {
-            return desiredStoreIt->StartRowIndex;
-        } else {
-            return lastStore.FinishRowIndex;
-        }
+        return desiredStoreIt != storeSnapshots.end()
+            ? desiredStoreIt->StartRowIndex
+            : lastStore.FinishRowIndex;
     }
 
     class TTabletBatchFetcher

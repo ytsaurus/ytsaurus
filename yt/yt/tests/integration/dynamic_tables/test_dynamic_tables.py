@@ -716,6 +716,30 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     NUM_TEST_PARTITIONS = 16
 
+    @staticmethod
+    def _setup_flush_error(table_path):
+        sync_reshard_table(table_path, [[], [33], [66]])
+        sync_mount_table(table_path)
+
+        # Decommission all unused nodes to make flush fail due to
+        # high replication factor.
+        cell = get(f"{table_path}/@tablets/0/cell_id")
+        nodes_to_save = builtins.set()
+        for peer in get("#" + cell + "/@peers"):
+            nodes_to_save.add(peer["address"])
+
+        for node in ls("//sys/cluster_nodes"):
+            if node not in nodes_to_save:
+                set_node_decommissioned(node, True)
+
+        sync_unmount_table(table_path)
+        set(f"{table_path}/@replication_factor", 10)
+
+        sync_mount_table(table_path)
+        rows = [{"key": i * 40, "value": str(i)} for i in range(3)]
+        insert_rows(table_path, rows)
+        unmount_table(table_path)
+
     @authors("babenko")
     def test_force_unmount_on_remove(self):
         sync_create_cells(1)
@@ -1643,28 +1667,8 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     def test_tablet_error_attributes(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
-        sync_reshard_table("//tmp/t", [[], [33], [66]])
-        sync_mount_table("//tmp/t")
-
-        # Decommission all unused nodes to make flush fail due to
-        # high replication factor.
-        cell = get("//tmp/t/@tablets/0/cell_id")
-        nodes_to_save = builtins.set()
-        for peer in get("#" + cell + "/@peers"):
-            nodes_to_save.add(peer["address"])
-
-        for node in ls("//sys/cluster_nodes"):
-            if node not in nodes_to_save:
-                set_node_decommissioned(node, True)
-
-        sync_unmount_table("//tmp/t")
-        set("//tmp/t/@replication_factor", 10)
-
+        self._setup_flush_error("//tmp/t")
         tablet_count = 3
-        sync_mount_table("//tmp/t")
-        rows = [{"key": i * 40, "value": str(i)} for i in range(tablet_count)]
-        insert_rows("//tmp/t", rows)
-        unmount_table("//tmp/t")
 
         def check_orchid(tablet_index):
             if get("//tmp/t/@tablet_error_count") == 0:
@@ -3272,6 +3276,34 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert chunk_count < 5
 
         sync_mount_table("//tmp/t")
+
+    @authors("dave11ar")
+    def test_errors_expiration(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        self._setup_flush_error("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        address = get_tablet_leader_address(tablet_id)
+
+        def _get_errors():
+            orchid = self._find_tablet_orchid(address, tablet_id)
+            return orchid["errors"]
+
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        remount_table("//tmp/t")
+
+        wait(lambda: bool(_get_errors()))
+
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "error_manager": {
+                    "error_expiration_timeout": 1,
+                },
+            },
+        })
+
+        wait(lambda: not bool(_get_errors()))
 
 
 ##################################################################

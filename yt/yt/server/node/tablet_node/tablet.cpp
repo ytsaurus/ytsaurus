@@ -1966,6 +1966,8 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
 
     snapshot->ChunkFragmentReader = GetChunkFragmentReader();
 
+    snapshot->TabletCellBundle = Context_->GetTabletCellBundleName();
+
     return snapshot;
 }
 

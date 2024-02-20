@@ -916,6 +916,16 @@ void TCompressionDictionaryBuilderDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TErrorManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("deduplication_cache_timeout", &TThis::DeduplicationCacheTimeout)
+        .Default(TDuration::Minutes(1));
+    registrar.Parameter("error_expiration_timeout", &TThis::ErrorExpirationTimeout)
+        .Default(TDuration::Minutes(30));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("slots", &TThis::Slots)
@@ -974,6 +984,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("statistics_reporter", &TThis::StatisticsReporter)
+        .DefaultNew();
+
+    registrar.Parameter("error_manager", &TThis::ErrorManager)
         .DefaultNew();
 
     registrar.Parameter("enable_chunk_fragment_reader_throttling", &TThis::EnableChunkFragmentReaderThrottling)

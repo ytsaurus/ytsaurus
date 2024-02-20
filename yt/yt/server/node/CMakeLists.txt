@@ -205,6 +205,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/compression_dictionary_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/distributed_throttler_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/dynamic_store_bits.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/error_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/hedging_manager_registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/hint_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/hunk_chunk.cpp
