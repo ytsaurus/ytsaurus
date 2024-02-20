@@ -22,7 +22,7 @@ using NYT::NYson::TYsonStringBuf;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(FilterMatcher, OneEmptyAttributePath)
+TEST(TFilterMatcherTest, OneEmptyAttributePath)
 {
     auto matcher = CreateFilterMatcher("[/some/attribute/abc] = 456");
     EXPECT_THROW(matcher->Match(TYsonStringBuf("{some={attribute={abc=\"xyz\"}}}")).ValueOrThrow(), TErrorException);
@@ -32,7 +32,7 @@ TEST(FilterMatcher, OneEmptyAttributePath)
     EXPECT_FALSE(matcher->Match(TYsonStringBuf("\"123\"")).ValueOrThrow());
 }
 
-TEST(FilterMatcher, InvalidAttributePath)
+TEST(TFilterMatcherTest, InvalidAttributePath)
 {
     EXPECT_THROW(CreateFilterMatcher("%true", {"/labels/"}), TErrorException);
     EXPECT_THROW(CreateFilterMatcher("%true", {"//"}), TErrorException);
@@ -43,28 +43,28 @@ TEST(FilterMatcher, InvalidAttributePath)
     Y_UNUSED(matcher);
 }
 
-TEST(FilterMatcher, InvalidQuery)
+TEST(TFilterMatcherTest, InvalidQuery)
 {
     EXPECT_THROW(CreateFilterMatcher("a/b"), TErrorException);
     EXPECT_THROW(CreateFilterMatcher("[/a] = AND"), TErrorException);
     EXPECT_THROW(CreateFilterMatcher("[/a] = 123 AND"), TErrorException);
 }
 
-TEST(FilterMatcher, BrokenAttributes)
+TEST(TFilterMatcherTest, BrokenAttributes)
 {
     auto matcher = CreateFilterMatcher("[/labels/b] = 1", {"/labels"});
     EXPECT_THROW(matcher->Match(TYsonStringBuf("{;")).ValueOrThrow(), TErrorException);
     EXPECT_TRUE(matcher->Match(TYsonStringBuf("{b=1}")).ValueOrThrow());
 }
 
-TEST(FilterMatcher, IncompatiblyTypes)
+TEST(TFilterMatcherTest, IncompatiblyTypes)
 {
     auto matcher = CreateFilterMatcher("[/labels/b] = 1", {"/labels"});
     EXPECT_THROW(matcher->Match(TYsonStringBuf("{b=\"abca\"}")).ValueOrThrow(), TErrorException);
     EXPECT_TRUE(matcher->Match(TYsonStringBuf("{b=1}")).ValueOrThrow());
 }
 
-TEST(FilterMatcher, SuccessfulMatch)
+TEST(TFilterMatcherTest, SuccessfulMatch)
 {
     auto matcher = CreateFilterMatcher("[/labels/b/c] = 1", {"/labels"});
     EXPECT_TRUE(matcher->Match(TYsonStringBuf("{b={c=1}}")).ValueOrThrow());
@@ -74,7 +74,7 @@ TEST(FilterMatcher, SuccessfulMatch)
     EXPECT_FALSE(matcher->Match(TYsonStringBuf("{b={c=5}}")).ValueOrThrow());
 }
 
-TEST(FilterMatcher, SeveralAttributes)
+TEST(TFilterMatcherTest, SeveralAttributes)
 {
     auto matcher = CreateFilterMatcher("[/meta/id] = 15 AND [/labels/a] = 1", {"/labels", "/meta"});
 
@@ -86,7 +86,7 @@ TEST(FilterMatcher, SeveralAttributes)
     EXPECT_FALSE(matcher->Match({TYsonStringBuf("{a=1}"), TYsonStringBuf("{id=16}")}).ValueOrThrow());
 }
 
-TEST(FilterMatcher, BinaryYson)
+TEST(TFilterMatcherTest, BinaryYson)
 {
     auto matcher = CreateFilterMatcher("[/labels/b] = 1", {"/labels"});
     EXPECT_TRUE(matcher->Match(BuildYsonStringFluently(NYson::EYsonFormat::Binary)
@@ -101,7 +101,7 @@ TEST(FilterMatcher, BinaryYson)
         .EndMap()).ValueOrThrow());
 }
 
-TEST(FilterMatcher, ScalarAttributes)
+TEST(TFilterMatcherTest, ScalarAttributes)
 {
     auto matcher = CreateFilterMatcher("[/labels/a] = 1 and [/meta/id] > \"a\" and [/meta/creation_time] > 10", {"/meta/id", "/meta/creation_time", "/labels"});
     EXPECT_TRUE(matcher->Match({
@@ -128,7 +128,7 @@ TEST(FilterMatcher, ScalarAttributes)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(ConstantFilterMatcher, Simple)
+TEST(TConstantFilterMatcherTest, Simple)
 {
     auto matcher = CreateConstantFilterMatcher(true);
     EXPECT_TRUE(matcher->Match(TYsonStringBuf("")).ValueOrThrow());
@@ -139,7 +139,7 @@ TEST(ConstantFilterMatcher, Simple)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(FilterMatcher, ExtraNumberOfAttributes)
+TEST(TFilterMatcherTest, ExtraNumberOfAttributes)
 {
     auto matcher = CreateFilterMatcher("[/meta/pod_set_id] = \"123\"", {"/meta/id", "/meta/pod_set_id", "/labels"});
     EXPECT_TRUE(matcher->Match({
@@ -151,7 +151,7 @@ TEST(FilterMatcher, ExtraNumberOfAttributes)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(FilterMatcher, HashInFilter)
+TEST(TFilterMatcherTest, HashInFilter)
 {
     auto matcher = CreateFilterMatcher("[/labels/a] != #", {"/labels"});
     EXPECT_TRUE(matcher->Match(TYsonStringBuf("{a=1}")).ValueOrThrow());
@@ -211,7 +211,7 @@ TEST(FilterMatcher, HashInFilter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(FilterMatcher, FilterWithIn)
+TEST(TFilterMatcherTest, FilterWithIn)
 {
     auto matcher = CreateFilterMatcher("try_get_int64([/meta/id], \"\") IN (1, 2)", {"/meta/id"});
     EXPECT_TRUE(matcher->Match(TYsonStringBuf("1")).ValueOrThrow());
@@ -221,7 +221,7 @@ TEST(FilterMatcher, FilterWithIn)
     EXPECT_FALSE(matcherSameTypes->Match(TYsonStringBuf("{b=1}")).ValueOrThrow());
 }
 
-TEST(FilterMatcher, ExceptionSafety)
+TEST(TFilterMatcherTest, ExceptionSafety)
 {
     auto matcher = CreateFilterMatcher("[/labels/deploy_engine] = 'YP_LITE'", {"/labels"});
     EXPECT_FALSE(matcher->Match(TYsonStringBuf("{deploy_engine=\"QYP\"}")).ValueOrThrow());
@@ -231,7 +231,7 @@ TEST(FilterMatcher, ExceptionSafety)
     EXPECT_FALSE(matcher->Match(TYsonStringBuf("{deploy_engine=\"QYP\"}")).ValueOrThrow());
 }
 
-TEST(FilterMatcher, ThreadSafety)
+TEST(TFilterMatcherTest, ThreadSafety)
 {
     auto matcher = CreateFilterMatcher("[/labels/deploy_engine] = 'YP_LITE'", {"/labels"});
     const size_t iterationCount = 10'000;
@@ -262,14 +262,14 @@ TEST(FilterMatcher, ThreadSafety)
     threadPool->Shutdown();
 }
 
-TEST(FilterMatcher, FarmHash)
+TEST(TFilterMatcherTest, FarmHash)
 {
     auto matcher = CreateFilterMatcher("farm_hash(string([/labels/zone])) % 1 = 0", {"/labels"});
     EXPECT_TRUE(matcher->Match(TYsonStringBuf("{zone=\"some_zone\"}")).ValueOrThrow());
     EXPECT_TRUE(matcher->Match(TYsonStringBuf("{not_zone_label=1}")).ValueOrThrow());
 }
 
-TEST(FilterMatcher, TypedAttributePaths)
+TEST(TFilterMatcherTest, TypedAttributePaths)
 {
     auto matcher = CreateFilterMatcher(
         "([/labels/shard_id] = \"53\" AND NOT [/meta/id] IN (\"pod_1\", "
@@ -313,7 +313,7 @@ TEST(FilterMatcher, TypedAttributePaths)
         "Cannot compare values of types");
 }
 
-TEST(FilterMatcher, FullAttributePaths)
+TEST(TFilterMatcherTest, FullAttributePaths)
 {
     {
         auto matcher = CreateFilterMatcher("[/meta/id] = 15 AND [/labels/a] = \"1\"", {"/meta/id", "/labels/a"});
@@ -345,7 +345,7 @@ TEST(FilterMatcher, FullAttributePaths)
     }
 }
 
-TEST(FilterMatcher, Regex)
+TEST(TFilterMatcherTest, Regex)
 {
     {
         auto matcher = CreateFilterMatcher("regex_full_match('aaa', 'aaa')", {"/labels"});

@@ -7,7 +7,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(AttributePath, IsAttributesRelated)
+TEST(TAttributePathTest, IsAttributesRelated)
 {
     EXPECT_TRUE(AreAttributesRelated("", "/a/b"));
     EXPECT_TRUE(AreAttributesRelated("/a", "/a/b"));

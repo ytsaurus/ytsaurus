@@ -10,7 +10,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(MergeAttributes, ListForwardSimple)
+TEST(TMergeAttributesTest, ListForwardSimple)
 {
     using namespace std::literals;
     NYson::TYsonString element0YsonStringBuf{R"(["a"; "b"; "c"])"sv};
@@ -22,7 +22,7 @@ TEST(MergeAttributes, ListForwardSimple)
     EXPECT_EQ(mergedYsonString, expectedYsonString);
 }
 
-TEST(MergeAttributes, ListForwardRoot)
+TEST(TMergeAttributesTest, ListForwardRoot)
 {
     using namespace std::literals;
     NYson::TYsonString element0YsonStringBuf{R"(["a"; "b"; "c"])"sv};
@@ -34,7 +34,7 @@ TEST(MergeAttributes, ListForwardRoot)
     EXPECT_EQ(mergedYsonString, expectedYsonString);
 }
 
-TEST(MergeAttributes, ListForwardNested)
+TEST(TMergeAttributesTest, ListForwardNested)
 {
     using namespace std::literals;
     NYson::TYsonString element0YsonStringBuf{R"([["a"; "b";]; ["c"; "d"]; ["e"; "f"];])"sv};
@@ -46,7 +46,7 @@ TEST(MergeAttributes, ListForwardNested)
     EXPECT_EQ(mergedYsonString, expectedYsonString);
 }
 
-TEST(MergeAttributes, ListForwardNestedLists)
+TEST(TMergeAttributesTest, ListForwardNestedLists)
 {
     using namespace std::literals;
     NYson::TYsonString element0YsonStringBuf{R"([["a"; "b";]; ["c"; "d"]; ["e"; "f"];])"sv};
@@ -58,7 +58,7 @@ TEST(MergeAttributes, ListForwardNestedLists)
     EXPECT_EQ(mergedYsonString, expectedYsonString);
 }
 
-TEST(MergeAttributes, EtcWithParent)
+TEST(TMergeAttributesTest, EtcWithParent)
 {
     using namespace std::literals;
     NYson::TYsonString etc0YsonStringBuf{R"({"a"="c";})"sv};
@@ -76,7 +76,7 @@ TEST(MergeAttributes, EtcWithParent)
     EXPECT_EQ(mergedYsonString.AsStringBuf(), expectedYsonString.AsStringBuf());
 }
 
-TEST(MergeAttributes, Etc)
+TEST(TMergeAttributesTest, Etc)
 {
     using namespace std::literals;
     NYson::TYsonString etc0YsonStringBuf{R"({"a"="c";})"sv};

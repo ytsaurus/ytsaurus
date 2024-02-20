@@ -14,7 +14,7 @@ using namespace NYT::NQueryClient::NAst;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(FilterIntrospection, DefinedAttributeValue)
+TEST(TFilterIntrospectionTest, DefinedAttributeValue)
 {
     // Invalid attribute path.
     EXPECT_THROW(IntrospectFilterForDefinedAttributeValue("1=1", "//"), TErrorException);
@@ -77,7 +77,7 @@ bool RunIntrospectFilterForDefinedReference(
     return IntrospectFilterForDefinedReference(expression, referenceName, tableName, allowValueRange);
 }
 
-TEST(FilterIntrospection, DefinedReference)
+TEST(TFilterIntrospectionTest, DefinedReference)
 {
     // Defined simple.
     EXPECT_TRUE(RunIntrospectFilterForDefinedReference(
@@ -162,7 +162,7 @@ TEST(FilterIntrospection, DefinedReference)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(FilterIntrospection, ExtractAllReferences)
+TEST(TFilterIntrospectionTest, ExtractAllReferences)
 {
     // Check constant node filters.
     for (const auto& nodeFilter : {

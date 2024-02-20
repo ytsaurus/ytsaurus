@@ -9,7 +9,7 @@ using namespace NYT::NQueryClient::NAst;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TQueryOptimizer, OptimizeJoin)
+TEST(TQueryOptimizerTest, OptimizeJoin)
 {
     TObjectsHolder objectsHolder;
     TQuery query;
@@ -75,7 +75,7 @@ TEST(TQueryOptimizer, OptimizeJoin)
     EXPECT_EQ(optimizedSql, FormatQuery(query));
 }
 
-TEST(TQueryOptimizer, DoesNotOptimizeJoin)
+TEST(TQueryOptimizerTest, DoesNotOptimizeJoin)
 {
     TObjectsHolder objectsHolder;
     TQuery query;
@@ -106,7 +106,7 @@ TEST(TQueryOptimizer, DoesNotOptimizeJoin)
     EXPECT_EQ(expectedSql, FormatQuery(query));
 }
 
-TEST(TQueryOptimizer, OptimizeWhenUsingSelectExpressionInOrderBy)
+TEST(TQueryOptimizerTest, OptimizeWhenUsingSelectExpressionInOrderBy)
 {
     TObjectsHolder objectsHolder;
     TQuery query;
@@ -144,7 +144,7 @@ TEST(TQueryOptimizer, OptimizeWhenUsingSelectExpressionInOrderBy)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TQueryOptimizer, OptimizeGroupBy)
+TEST(TQueryOptimizerTest, OptimizeGroupBy)
 {
     TObjectsHolder objectsHolder;
     std::vector<TString> references{"permalink_ids"};
@@ -184,7 +184,7 @@ TEST(TQueryOptimizer, OptimizeGroupBy)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TQueryOptimizer, OptimizeStringTryGetString)
+TEST(TQueryOptimizerTest, OptimizeStringTryGetString)
 {
     TObjectsHolder objectsHolder;
     TQuery query;

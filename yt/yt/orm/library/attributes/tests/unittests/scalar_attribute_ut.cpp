@@ -30,7 +30,7 @@ NYTree::INodePtr MessageToNode(const TProtoMessage& message)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(ClearAttribute, EmptyPath)
+TEST(TClearAttributesTest, EmptyPath)
 {
     NProto::TMessage message;
     message.set_int64_field(1);
@@ -39,7 +39,7 @@ TEST(ClearAttribute, EmptyPath)
     EXPECT_EQ(0u, message.ByteSizeLong());
 }
 
-TEST(ClearAttribute, SimpleField)
+TEST(TClearAttributesTest, SimpleField)
 {
     NProto::TMessage message;
     message.set_int64_field(1);
@@ -65,7 +65,7 @@ TEST(ClearAttribute, SimpleField)
     EXPECT_EQ(2, message.nested_message().int32_field());
 }
 
-TEST(ClearAttribute, MapFieldItem)
+TEST(TClearAttributesTest, MapFieldItem)
 {
     NProto::TMessage message;
     {
@@ -87,7 +87,7 @@ TEST(ClearAttribute, MapFieldItem)
     EXPECT_EQ(2, message.string_to_int32_map().at("b"));
 }
 
-TEST(ClearAttribute, MapItemNestedField)
+TEST(TClearAttributesTest, MapItemNestedField)
 {
     NProto::TMessage message;
     {
@@ -110,7 +110,7 @@ TEST(ClearAttribute, MapItemNestedField)
     EXPECT_EQ(2, message.nested_message().nested_message_map().at("b").nested_message().int32_field());
 }
 
-TEST(ClearAttribute, ListItem)
+TEST(TClearAttributesTest, ListItem)
 {
     NProto::TMessage message;
     message.add_repeated_int32_field(1);
@@ -132,7 +132,7 @@ TEST(ClearAttribute, ListItem)
     EXPECT_EQ(0, message.repeated_nested_message().at(0).repeated_int32_field().size());
 }
 
-TEST(ClearAttribute, ListItemNestedField)
+TEST(TClearAttributesTest, ListItemNestedField)
 {
     NProto::TMessage message;
     message.add_repeated_nested_message()->set_int32_field(1);
@@ -149,7 +149,7 @@ TEST(ClearAttribute, ListItemNestedField)
     EXPECT_FALSE(message.repeated_nested_message().at(1).has_int32_field());
 }
 
-TEST(ClearAttribute, UnknownYsonField)
+TEST(TClearAttributesTest, UnknownYsonField)
 {
     auto ysonString = NYTree::BuildYsonStringFluently()
         .BeginMap()
@@ -196,7 +196,7 @@ TEST(ClearAttribute, UnknownYsonField)
     EXPECT_FALSE(nested->AsMap()->FindChild("unknown_string"));
 }
 
-TEST(ClearAttribute, UnknownYsonNestedField)
+TEST(TClearAttributesTest, UnknownYsonNestedField)
 {
     auto ysonString = NYTree::BuildYsonStringFluently()
         .BeginMap()
@@ -249,7 +249,7 @@ TEST(ClearAttribute, UnknownYsonNestedField)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(SetAttribute, EmptyPath)
+TEST(TSetAttributeTest, EmptyPath)
 {
     auto node = NYTree::BuildYsonNodeFluently()
         .BeginMap()
@@ -260,7 +260,7 @@ TEST(SetAttribute, EmptyPath)
     EXPECT_EQ(1, message.int64_field());
 }
 
-TEST(SetAttribute, Scalar)
+TEST(TSetAttributeTest, Scalar)
 {
 #define TESTCASE(path, value)                                                           \
     do {                                                                                \
@@ -285,7 +285,7 @@ TEST(SetAttribute, Scalar)
 #undef TESTCASE
 }
 
-TEST(SetAttribute, Message)
+TEST(TSetAttributeTest, Message)
 {
     auto node = NYTree::BuildYsonNodeFluently()
         .BeginMap()
@@ -296,7 +296,7 @@ TEST(SetAttribute, Message)
     EXPECT_EQ(4, message.nested_message().int32_field());
 }
 
-TEST(SetAttribute, NestedMessageField)
+TEST(TSetAttributeTest, NestedMessageField)
 {
     auto node = NYTree::ConvertToNode(4);
     NProto::TMessage message;
@@ -307,7 +307,7 @@ TEST(SetAttribute, NestedMessageField)
     EXPECT_EQ(4, message.nested_message().int32_field());
 }
 
-TEST(SetAttribute, MapValueNestedField)
+TEST(TSetAttributeTest, MapValueNestedField)
 {
     auto node = NYTree::ConvertToNode(4);
     NProto::TMessage message;
@@ -322,7 +322,7 @@ TEST(SetAttribute, MapValueNestedField)
     EXPECT_EQ(3, message.nested_message_map().at("a").int32_field());
 }
 
-TEST(SetAttribute, MapValueScalar)
+TEST(TSetAttributeTest, MapValueScalar)
 {
     auto node = NYTree::ConvertToNode(4);
     NProto::TMessage message;
@@ -333,7 +333,7 @@ TEST(SetAttribute, MapValueScalar)
     EXPECT_EQ(3, message.string_to_int32_map().at("a"));
 }
 
-TEST(SetAttribute, RepeatedNestedField)
+TEST(TSetAttributeTest, RepeatedNestedField)
 {
     auto node = NYTree::ConvertToNode(4);
     NProto::TMessage message;
@@ -345,7 +345,7 @@ TEST(SetAttribute, RepeatedNestedField)
     EXPECT_EQ(4, message.repeated_nested_message().at(0).int32_field());
 }
 
-TEST(SetAttribute, RepeatedScalar)
+TEST(TSetAttributeTest, RepeatedScalar)
 {
 #define TESTCASE(field, value)                                                                            \
     do {                                                                                                  \
@@ -366,7 +366,7 @@ TEST(SetAttribute, RepeatedScalar)
 #undef TESTCASE
 }
 
-TEST(SetAttribute, MapField)
+TEST(TSetAttributeTest, MapField)
 {
     auto node = NYTree::BuildYsonNodeFluently()
         .BeginMap()
@@ -384,7 +384,7 @@ TEST(SetAttribute, MapField)
     EXPECT_TRUE(message.string_to_int32_map().empty());
 }
 
-TEST(SetAttribute, RepeatedField)
+TEST(TSetAttributeTest, RepeatedField)
 {
 #define TESTCASE(field, value1, value2)                                                                   \
     do {                                                                                                  \
@@ -412,7 +412,7 @@ TEST(SetAttribute, RepeatedField)
 #undef TESTCASE
 }
 
-TEST(SetAttribute, ListModification)
+TEST(TSetAttributeTest, ListModification)
 {
     NProto::TMessage message;
 #define SET(field, ...)                                                                                   \
@@ -497,7 +497,7 @@ TEST(SetAttribute, ListModification)
 #undef RESET
 }
 
-TEST(SetAttribute, RepeatedStringField)
+TEST(TSetAttributeTest, RepeatedStringField)
 {
     auto node = NYTree::BuildYsonNodeFluently()
         .BeginList()
@@ -517,7 +517,7 @@ TEST(SetAttribute, RepeatedStringField)
     EXPECT_THAT(message.repeated_string_field(), testing::ElementsAreArray({"zero", "one", "two", "three"}));
 }
 
-TEST(SetAttribute, EnumField)
+TEST(TSetAttributeTest, EnumField)
 {
     NProto::TMessage message;
     EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/enum_field", NYTree::ConvertToNode("blue")));
@@ -537,7 +537,7 @@ TEST(SetAttribute, EnumField)
         "100500");
 }
 
-TEST(SetAttribute, RepeatedEnumField)
+TEST(TSetAttributeTest, RepeatedEnumField)
 {
     auto node = NYTree::BuildYsonNodeFluently()
         .BeginList()
@@ -560,7 +560,7 @@ TEST(SetAttribute, RepeatedEnumField)
         testing::ElementsAreArray({NProto::EColor::C_GREEN, NProto::EColor::C_BLUE}));
 }
 
-TEST(SetAttribute, UnknownYsonFields)
+TEST(TSetAttributeTest, UnknownYsonFields)
 {
     NProto::TMessage message;
     NYson::TProtobufWriterOptions options;
@@ -584,7 +584,7 @@ TEST(SetAttribute, UnknownYsonFields)
     EXPECT_FALSE(node->AsMap()->FindChild("unknown_int2"));
 }
 
-TEST(SetAttribute, UnknownYsonFieldsByPath)
+TEST(TSetAttributeTest, UnknownYsonFieldsByPath)
 {
     NYson::TProtobufWriterOptions options;
     options.UnknownYsonFieldModeResolver = [] (const NYPath::TYPath& path) {
@@ -621,7 +621,7 @@ TEST(SetAttribute, UnknownYsonFieldsByPath)
     EXPECT_FALSE(nested->AsMap()->FindChild("unknown_int"));
 }
 
-TEST(SetAttribute, UnknownYsonNestedFieldsByPath)
+TEST(TSetAttributeTest, UnknownYsonNestedFieldsByPath)
 {
     NYson::TProtobufWriterOptions options;
     options.UnknownYsonFieldModeResolver = [] (const NYPath::TYPath&) {
@@ -654,7 +654,7 @@ TEST(SetAttribute, UnknownYsonNestedFieldsByPath)
     ASSERT_EQ(1, list->AsList()->FindChild(0)->AsInt64()->GetValue());
 }
 
-TEST(SetAttribute, MapWithNonStringKey)
+TEST(TSetAttributeTest, MapWithNonStringKey)
 {
     NProto::TMessage message;
     auto node = NYTree::BuildYsonNodeFluently()
@@ -674,7 +674,7 @@ TEST(SetAttribute, MapWithNonStringKey)
     ASSERT_TRUE(e3);
 }
 
-TEST(SetAttribute, ResetWithEntity)
+TEST(TSetAttributeTest, ResetWithEntity)
 {
     NProto::TMessage message;
     message.set_string_field("42");

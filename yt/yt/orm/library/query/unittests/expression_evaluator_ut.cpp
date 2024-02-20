@@ -16,7 +16,7 @@ using NTableClient::EValueType;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(ExpressionEvaluator, Simple)
+TEST(TExpressionEvaluatorTest, Simple)
 {
     auto evaluator = CreateExpressionEvaluator("double([/meta/x]) + 5 * double([/meta/y])", {"/meta"});
     auto value = evaluator->Evaluate(
@@ -29,7 +29,7 @@ TEST(ExpressionEvaluator, Simple)
     EXPECT_EQ(value.Data.Double, 501);
 }
 
-TEST(ExpressionEvaluator, ManyArguments)
+TEST(TExpressionEvaluatorTest, ManyArguments)
 {
     auto evaluator = CreateExpressionEvaluator(
         "int64([/meta/x]) + int64([/lambda/y/z]) + 16 + int64([/theta])",
@@ -48,7 +48,7 @@ TEST(ExpressionEvaluator, ManyArguments)
     EXPECT_EQ(value.Data.Int64, 1 + 10 + 16 + 1000);
 }
 
-TEST(ExpressionEvaluator, TypedAttributePaths)
+TEST(TExpressionEvaluatorTest, TypedAttributePaths)
 {
     for (auto type : {EValueType::Max, EValueType::Min, EValueType::Null, EValueType::Composite}) {
         EXPECT_THROW_WITH_SUBSTRING(
