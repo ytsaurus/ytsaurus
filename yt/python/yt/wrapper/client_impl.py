@@ -988,6 +988,26 @@ class YtClient(ClientState):
             client=self,
             attributes=attributes, stage=stage, format=format)
 
+    def get_query_result(
+            self,
+            query_id,
+            result_index=None, stage=None, format=None):
+        """
+        Get query result.
+
+        :param query_id: id of a query to get result
+        :type query_id: str
+        :param result_index: index of a result to get, defaults to 0
+        :type result_index: int
+        :param stage: query tracker stage, defaults to "production"
+        :type stage: str
+
+        """
+        return client_api.get_query_result(
+            query_id,
+            client=self,
+            result_index=result_index, stage=stage, format=format)
+
     def get_supported_features(
             self,
             format=None):

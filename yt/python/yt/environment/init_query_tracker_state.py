@@ -289,6 +289,30 @@ TRANSFORMS[3] = [
     ),
 ]
 
+TRANSFORMS[4] = [
+    Conversion(
+        "finished_query_results",
+        table_info=TableInfo(
+            [
+                ("query_id", "string"),
+                ("result_index", "int64"),
+            ],
+            [
+                ("error", "any"),
+                ("schema", "any"),
+                ("data_statistics", "any"),
+                ("rowset", "string"),
+                ("is_truncated", "boolean"),
+            ],
+            optimize_for="lookup",
+            attributes={
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
+            },
+        )
+    ),
+]
+
+# NB(mpereskokova): don't forget to update min_required_state_version at yt/yt/server/query_tracker/config.cpp and state at yt/yt/ytlib/query_tracker_client/records/query.yaml
 
 MIGRATION = Migration(
     initial_table_infos=INITIAL_TABLE_INFOS,

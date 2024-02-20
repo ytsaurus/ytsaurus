@@ -18,6 +18,20 @@ using namespace NYson;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+struct TWireRowset
+{
+    TSharedRef Rowset;
+    bool IsTruncated = false;
+};
+
+struct TRowset
+{
+    NApi::IUnversionedRowsetPtr Rowset;
+    bool IsTruncated = false;
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
 class TQueryHandlerBase
     : public IQueryHandler
 {
@@ -60,11 +74,11 @@ protected:
     void OnProgress(TYsonString progress);
 
     void OnQueryFailed(const TError& error);
-    void OnQueryCompleted(const std::vector<TErrorOr<NApi::IUnversionedRowsetPtr>>& rowsetOrErrors);
-    void OnQueryCompletedWire(const std::vector<TErrorOr<TSharedRef>>& wireRowsetOrErrors);
+    void OnQueryCompleted(const std::vector<TErrorOr<TRowset>>& rowsetOrErrors);
+    void OnQueryCompletedWire(const std::vector<TErrorOr<TWireRowset>>& wireRowsetOrErrors);
 
     void TryWriteProgress();
-    bool TryWriteQueryState(EQueryState state, const TError& error, const std::vector<TErrorOr<TSharedRef>>& wireRowsetOrErrors);
+    bool TryWriteQueryState(EQueryState state, const TError& error, const std::vector<TErrorOr<TWireRowset>>& wireRowsetOrErrors);
 };
 
 ///////////////////////////////////////////////////////////////////////////////

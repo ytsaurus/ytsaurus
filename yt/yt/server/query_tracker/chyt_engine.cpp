@@ -287,11 +287,11 @@ private:
             return;
         }
 
-        std::vector<TErrorOr<TSharedRef>> wireRowsetOrErrors;
+        std::vector<TErrorOr<TWireRowset>> wireRowsetOrErrors;
         wireRowsetOrErrors.reserve(rsp->Attachments().size());
         for (const auto& ref : rsp->Attachments()) {
             if (!ref.Empty()) {
-                wireRowsetOrErrors.emplace_back(ref);
+                wireRowsetOrErrors.emplace_back(TWireRowset{ .Rowset = ref });
             }
         }
         OnQueryCompletedWire(wireRowsetOrErrors);

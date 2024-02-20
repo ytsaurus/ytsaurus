@@ -176,3 +176,18 @@ class TestQueriesMock(YTEnvSetup):
 
         q.alter(annotations={"qwe": "asd"})
         assert len(list_queries(filter="asd")["queries"]) > 0
+
+    @authors("mpereskokova")
+    def test_rows_limit(self, query_tracker):
+        schema = [{"name": "a", "type": "int64"}]
+        rows = [{"a": 42}, {"a": 43}, {"a": 44}]
+        q = start_query("mock", "complete_after", settings={
+            "results": [
+                {"schema": schema, "rows": rows, "is_truncated": True},
+                {"schema": schema, "rows": rows, "is_truncated": False},
+            ]
+        })
+
+        q.track()
+        assert q.get_result(0)["is_truncated"]
+        assert not q.get_result(1)["is_truncated"]
