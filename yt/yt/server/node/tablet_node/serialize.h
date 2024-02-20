@@ -45,7 +45,6 @@ DEFINE_ENUM(ETabletReign,
     ((InMemoryModeAndBundleInExperimentDescriptor) (100803)) // dave11ar
     ((RegisterTxActionsShouldPersistTx)            (100804)) // ifsmirnov
     ((PersistLastExclusiveLockTimestamp)           (100805)) // ponasenko-rs
-    ((ValueDictionaryCompression_23_2)             (100806)) // akozhikhov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

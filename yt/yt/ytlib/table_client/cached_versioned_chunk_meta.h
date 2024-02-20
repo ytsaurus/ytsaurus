@@ -19,6 +19,8 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
+#include <memory>
+
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////

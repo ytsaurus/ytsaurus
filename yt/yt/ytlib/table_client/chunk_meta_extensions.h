@@ -30,7 +30,6 @@ DECLARE_PROTO_EXTENSION(NTableClient::NProto::THunkChunkMetasExt, 64)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TSystemBlockMetaExt, 65)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TVersionedRowDigestExt, 66)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TColumnGroupInfosExt, 67)
-DECLARE_PROTO_EXTENSION(NTableClient::NProto::TCompressionDictionaryExt, 68)
 
 ////////////////////////////////////////////////////////////////////////////////
 

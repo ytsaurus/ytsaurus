@@ -2169,6 +2169,9 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
         auto cachedMeta = WaitFor(cachedMetaFuture)
             .ValueOrThrow();
 
+        TChunkSpec chunkSpec;
+        ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
+
         auto chunkState = New<TChunkState>(TChunkState{
             .BlockCache = GetNullBlockCache(),
             .TableSchema = Schema_,

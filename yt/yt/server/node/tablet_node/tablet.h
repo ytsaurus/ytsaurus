@@ -175,24 +175,6 @@ struct TPreloadStatistics
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCompressionDictionaryInfo
-{
-    NChunkClient::TChunkId ChunkId = NChunkClient::NullChunkId;
-
-    // NB: These are not persisted.
-    TInstant RebuildBackoffTime;
-    bool BuildingInProgress = false;
-
-    void Save(TSaveContext& context) const;
-    void Load(TLoadContext& context);
-};
-
-using TCompressionDictionaryInfos = TEnumIndexedVector<
-    NTableClient::EDictionaryCompressionPolicy,
-    TCompressionDictionaryInfo>;
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TTabletSnapshot
     : public NTableClient::TTabletSnapshot
 {
@@ -271,8 +253,6 @@ struct TTabletSnapshot
     NChunkClient::IChunkFragmentReaderPtr ChunkFragmentReader;
 
     ITabletHedgingManagerRegistryPtr HedgingManagerRegistry;
-
-    TCompressionDictionaryInfos CompressionDictionaryInfos;
 
     std::atomic<bool> Unregistered = false;
 
@@ -657,8 +637,6 @@ public:
     THunkChunkPtr GetHunkChunk(NChunkClient::TChunkId id);
     THunkChunkPtr GetHunkChunkOrThrow(NChunkClient::TChunkId id);
 
-    void AttachCompressionDictionary(NTableClient::EDictionaryCompressionPolicy policy, NChunkClient::TChunkId id);
-
     void UpdatePreparedStoreRefCount(const THunkChunkPtr& hunkChunk, int delta);
     void UpdateHunkChunkRef(const THunkChunkRef& ref, int delta);
     const THashSet<THunkChunkPtr>& DanglingHunkChunks() const;
@@ -783,16 +761,6 @@ public:
 
     const IHunkLockManagerPtr& GetHunkLockManager() const;
 
-    bool IsDictionaryBuildingInProgress(
-        NTableClient::EDictionaryCompressionPolicy policy) const;
-    void SetDictionaryBuildingInProgress(
-        NTableClient::EDictionaryCompressionPolicy policy, bool flag);
-    TInstant GetCompressionDictionaryRebuildBackoffTime(
-        NTableClient::EDictionaryCompressionPolicy policy) const;
-    void SetCompressionDictionaryRebuildBackoffTime(
-        NTableClient::EDictionaryCompressionPolicy policy,
-        TInstant backoffTime);
-
 private:
     ITabletContext* const Context_;
     TIdGenerator IdGenerator_;
@@ -821,8 +789,6 @@ private:
     THashSet<THunkChunkPtr> DanglingHunkChunks_;
 
     TSortedDynamicRowKeyComparer RowKeyComparer_;
-
-    TCompressionDictionaryInfos CompressionDictionaryInfos_;
 
     NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
 
@@ -862,7 +828,6 @@ private:
     void ReconfigureHedgingManagerRegistry();
     void ResetRowDigestRequestTime();
     void ReconfigureChangelogWriteThrottler(const ITabletSlotPtr& slot);
-    void ReconfigureCompressionDictionaries();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -97,7 +97,6 @@ SRCS(
     tablet_node/cached_row.cpp
     tablet_node/chaos_agent.cpp
     tablet_node/chunk_view_size_fetcher.cpp
-    tablet_node/compression_dictionary_builder.cpp
     tablet_node/distributed_throttler_manager.cpp
     tablet_node/dynamic_store_bits.cpp
     tablet_node/hedging_manager_registry.cpp

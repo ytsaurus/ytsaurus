@@ -77,7 +77,7 @@ struct IChunkMetaManager
     //! Returns the block meta cache.
     virtual const NTableClient::TBlockMetaCachePtr& GetBlockMetaCache() = 0;
 
-    //! Returns cached chunk meta if present in the cache; if not then returns null.
+    //! Returns cached chunk meta if prevent in the cache; if not then returns null.
     virtual NChunkClient::TRefCountedChunkMetaPtr FindCachedMeta(TChunkId chunkId) = 0;
 
     //! Puts chunk meta into the cache.

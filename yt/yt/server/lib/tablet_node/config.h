@@ -265,8 +265,6 @@ public:
     TDuration SimulatedTabletSnapshotDelay;
     TDuration SimulatedStorePreloadDelay;
 
-    NTableClient::TDictionaryCompressionConfigPtr ValueDictionaryCompression;
-
     REGISTER_YSON_STRUCT(TCustomTableMountConfig);
 
     static void Register(TRegistrar registrar);
@@ -877,40 +875,6 @@ DEFINE_REFCOUNTED_TYPE(TMediumThrottlersConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCompressionDictionaryBuilderConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    int ThreadPoolSize;
-    int MaxConcurrentBuildTasks;
-
-    REGISTER_YSON_STRUCT(TCompressionDictionaryBuilderConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TCompressionDictionaryBuilderConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCompressionDictionaryBuilderDynamicConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    bool Enable;
-
-    std::optional<int> ThreadPoolSize;
-    std::optional<int> MaxConcurrentBuildTasks;
-
-    REGISTER_YSON_STRUCT(TCompressionDictionaryBuilderDynamicConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TCompressionDictionaryBuilderDynamicConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTabletNodeDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -934,7 +898,6 @@ public:
     THunkChunkSweeperDynamicConfigPtr HunkChunkSweeper;
     TPartitionBalancerDynamicConfigPtr PartitionBalancer;
     TInMemoryManagerDynamicConfigPtr InMemoryManager;
-    TCompressionDictionaryBuilderDynamicConfigPtr CompressionDictionaryBuilder;
 
     TSlruCacheDynamicConfigPtr VersionedChunkMetaCache;
 
@@ -1015,7 +978,6 @@ public:
     TSecurityManagerConfigPtr SecurityManager;
     THintManagerConfigPtr HintManager;
     NDynamicConfig::TDynamicConfigManagerConfigPtr TableConfigManager;
-    TCompressionDictionaryBuilderConfigPtr CompressionDictionaryBuilder;
 
     //! Cache for versioned chunk metas.
     TSlruCacheConfigPtr VersionedChunkMetaCache;

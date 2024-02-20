@@ -180,7 +180,6 @@ DEFINE_ENUM(EChunkReadProfilingMethod,
     (Preload)
     (Partitioning)
     (Compaction)
-    (DictionaryBuilding)
 );
 
 struct TChunkReadCounters
@@ -203,7 +202,6 @@ DEFINE_ENUM(EChunkWriteProfilingMethod,
     (StoreFlush)
     (Partitioning)
     (Compaction)
-    (DictionaryBuilding)
 );
 
 struct TChunkWriteCounters

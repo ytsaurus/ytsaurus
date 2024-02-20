@@ -8,8 +8,6 @@
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
-#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
-
 namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
@@ -30,12 +28,9 @@ THunkChunk::THunkChunk(
 
 void THunkChunk::Initialize()
 {
-    if (auto hunkChunkMiscExt = FindProtoExtension<NTableClient::NProto::THunkChunkMiscExt>(ChunkMeta_.extensions())) {
-        HunkCount_ = hunkChunkMiscExt->hunk_count();
-        TotalHunkLength_ = hunkChunkMiscExt->total_hunk_length();
-    }
-    if (auto miscExt = FindProtoExtension<NChunkClient::NProto::TMiscExt>(ChunkMeta_.extensions())) {
-        CreationTime_ = TInstant::MicroSeconds(miscExt->creation_time());
+    if (auto miscExt = FindProtoExtension<NTableClient::NProto::THunkChunkMiscExt>(ChunkMeta_.extensions())) {
+        HunkCount_ = miscExt->hunk_count();
+        TotalHunkLength_ = miscExt->total_hunk_length();
     }
 }
 
@@ -85,8 +80,7 @@ bool THunkChunk::IsDangling() const
 {
     return StoreRefCount_ == 0 &&
         PreparedStoreRefCount_ <= 0 &&
-        !LockingState_.IsLocked() &&
-        !AttachedCompressionDictionary_;
+        !LockingState_.IsLocked();
 }
 
 int THunkChunk::GetLockCount() const

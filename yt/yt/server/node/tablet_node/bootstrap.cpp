@@ -1,7 +1,6 @@
 #include "bootstrap.h"
 
 #include "backing_store_cleaner.h"
-#include "compression_dictionary_builder.h"
 #include "hedging_manager_registry.h"
 #include "hint_manager.h"
 #include "hunk_chunk_sweeper.h"
@@ -9,7 +8,6 @@
 #include "in_memory_service.h"
 #include "lsm_interop.h"
 #include "master_connector.h"
-#include "overload_controller.h"
 #include "partition_balancer.h"
 #include "security_manager.h"
 #include "slot_manager.h"
@@ -23,6 +21,7 @@
 #include "table_config_manager.h"
 #include "tablet_cell_service.h"
 #include "tablet_snapshot_store.h"
+#include "overload_controller.h"
 
 #include <yt/yt/server/node/cellar_node/bootstrap.h>
 #include <yt/yt/server/node/cellar_node/dynamic_bundle_config_manager.h>
@@ -300,7 +299,6 @@ public:
         PartitionBalancer_ = CreatePartitionBalancer(this);
         BackingStoreCleaner_ = CreateBackingStoreCleaner(this);
         LsmInterop_ = CreateLsmInterop(this, StoreCompactor_, PartitionBalancer_, StoreRotator_);
-        CompressionDictionaryBuilder_ = CreateCompressionDictionaryBuilder(this);
 
         InitializeOverloadController();
 
@@ -368,7 +366,6 @@ public:
         HintManager_->Start();
         TableDynamicConfigManager_->Start();
         SlotManager_->Start();
-        CompressionDictionaryBuilder_->Start();
         OverloadController_->Start();
         DiskChangeChecker_->Start();
     }
@@ -575,7 +572,6 @@ private:
     TStatisticsReporterPtr StatisticsReporter_;
     IBackingStoreCleanerPtr BackingStoreCleaner_;
     ILsmInteropPtr LsmInterop_;
-    ICompressionDictionaryBuilderPtr CompressionDictionaryBuilder_;
     TOverloadControllerPtr OverloadController_;
 
     NContainers::IDiskManagerProxyPtr DiskManagerProxy_;

@@ -30,10 +30,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, PreparedStoreRefCount);
     DEFINE_BYVAL_RW_PROPERTY(EHunkChunkSweepState, SweepState, EHunkChunkSweepState::None);
     DEFINE_BYVAL_RW_PROPERTY(bool, Committed);
-    DEFINE_BYVAL_RO_PROPERTY(TInstant, CreationTime);
-    // Set to |true| for compression dictionaries that reside in tablet list of fresh dictionaries.
-    // Such hunk chunks will not be sweeped. Transient.
-    DEFINE_BYVAL_RW_PROPERTY(bool, AttachedCompressionDictionary);
 
 public:
     THunkChunk(
@@ -51,7 +47,7 @@ public:
     void Unlock(TTransactionId transactionId, EObjectLockMode lockMode);
 
     //! Returns |true| iff store ref count and prepared store ref count are both zero
-    //! and there are no locks and this is not an attached compression dictionary.
+    //! and there are no locks.
     bool IsDangling() const;
 
 private:
