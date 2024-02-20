@@ -27,7 +27,7 @@ class TBackgroundActivityOrchid final
 public:
     using TTaskMap = THashMap<TGuid, TTaskInfo>;
 
-    TBackgroundActivityOrchid(const TStoreBackgroundActivityOrchidConfigPtr& config);
+    explicit TBackgroundActivityOrchid(const TStoreBackgroundActivityOrchidConfigPtr& config);
 
     void Reconfigure(const TStoreBackgroundActivityOrchidConfigPtr& config);
 

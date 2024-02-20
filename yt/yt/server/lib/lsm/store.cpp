@@ -15,10 +15,11 @@ void Serialize(
     const TRowDigestUpcomingCompactionInfo& info,
     IYsonConsumer* consumer)
 {
-    BuildYsonFluently(consumer).BeginMap()
-        .Item("reason").Value(info.Reason)
-        .Item("timestamp").Value(info.Timestamp)
-    .EndMap();
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("reason").Value(info.Reason)
+            .Item("timestamp").Value(info.Timestamp)
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

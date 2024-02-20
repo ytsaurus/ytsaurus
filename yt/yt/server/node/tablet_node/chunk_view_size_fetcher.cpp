@@ -104,7 +104,7 @@ private:
         static constexpr int RequestStep = 1;
 
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_ASSERT(!stores.empty());
+        YT_VERIFY(!stores.empty());
 
         std::vector<TChunkId> chunkIds;
         for (const auto& store : stores) {
