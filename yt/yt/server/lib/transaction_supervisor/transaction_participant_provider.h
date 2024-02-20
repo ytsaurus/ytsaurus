@@ -28,6 +28,7 @@ DEFINE_REFCOUNTED_TYPE(ITransactionParticipantProvider)
 
 ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
     NHiveClient::ICellDirectoryPtr cellDirectory,
+    NHiveClient::ICellDirectorySynchronizerPtr cellDirectorySynchronizer,
     NTransactionClient::ITimestampProviderPtr timestampProvider,
     const NObjectClient::TCellTagList& cellTags);
 

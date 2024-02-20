@@ -31,9 +31,11 @@ class TCellDirectoryTransactionParticipantProvider
 public:
     TCellDirectoryTransactionParticipantProvider(
         ICellDirectoryPtr cellDirectory,
+        ICellDirectorySynchronizerPtr cellDirectorySynchronizer,
         ITimestampProviderPtr timestampProvider,
         const TCellTagList& cellTags)
         : CellDirectory_(std::move(cellDirectory))
+        , CellDirectorySynchronizer_(std::move(cellDirectorySynchronizer))
         , TimestampProvider_(std::move(timestampProvider))
         , CellTags_(cellTags)
     { }
@@ -55,7 +57,7 @@ public:
 
         return NNative::CreateTransactionParticipant(
             CellDirectory_,
-            nullptr,
+            CellDirectorySynchronizer_,
             TimestampProvider_,
             nullptr,
             cellId,
@@ -64,17 +66,20 @@ public:
 
 private:
     const ICellDirectoryPtr CellDirectory_;
+    const ICellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     const ITimestampProviderPtr TimestampProvider_;
     const TCellTagList CellTags_;
 };
 
 ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
     ICellDirectoryPtr cellDirectory,
+    ICellDirectorySynchronizerPtr cellDirectorySynchronizer,
     ITimestampProviderPtr timestampProvider,
     const TCellTagList& cellTags)
 {
     return New<TCellDirectoryTransactionParticipantProvider>(
         std::move(cellDirectory),
+        std::move(cellDirectorySynchronizer),
         std::move(timestampProvider),
         cellTags);
 }
@@ -86,6 +91,7 @@ ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
     connection->GetCellDirectorySynchronizer()->Start();
     return CreateTransactionParticipantProvider(
         connection->GetCellDirectory(),
+        connection->GetCellDirectorySynchronizer(),
         connection->GetTimestampProvider(),
         {connection->GetPrimaryMasterCellTag()});
 }

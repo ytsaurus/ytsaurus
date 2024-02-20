@@ -937,6 +937,7 @@ void TBootstrap::DoInitialize()
 
     auto localTransactionParticipantProvider = CreateTransactionParticipantProvider(
         CellDirectory_,
+        /*cellDirectorySynchronizer*/ nullptr,
         TimestampProvider_,
         GetKnownParticipantCellTags());
 
