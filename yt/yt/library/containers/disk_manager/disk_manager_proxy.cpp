@@ -9,27 +9,27 @@ struct TDiskManagerProxyMock
 {
     virtual TFuture<THashSet<TString>> GetYtDiskDevicePaths()
     {
-        THROW_ERROR_EXCEPTION("Disk manager library is not available under this build configuration");
+        return MakeFuture<THashSet<TString>>(TError("Disk manager library is not available under this build configuration"));
     }
 
     virtual TFuture<std::vector<TDiskInfo>> GetDisks()
     {
-        THROW_ERROR_EXCEPTION("Disk manager library is not available under this build configuration");
+        return MakeFuture<std::vector<TDiskInfo>>(TError("Disk manager library is not available under this build configuration"));
     }
 
     virtual TFuture<void> RecoverDiskById(const TString& /*diskId*/, ERecoverPolicy /*recoverPolicy*/)
     {
-        THROW_ERROR_EXCEPTION("Disk manager library is not available under this build configuration");
+        return MakeFuture(TError("Disk manager library is not available under this build configuration"));
     }
 
     virtual TFuture<void> FailDiskById(const TString& /*diskId*/, const TString& /*reason*/)
     {
-        THROW_ERROR_EXCEPTION("Disk manager library is not available under this build configuration");
+        return MakeFuture(TError("Disk manager library is not available under this build configuration"));
     }
 
     virtual TFuture<bool> GetHotSwapEnabledFuture()
     {
-        return MakeFuture(false);
+        return MakeFuture<bool>(TError("Disk manager library is not available under this build configuration"));
     }
 
     virtual void OnDynamicConfigChanged(const TDiskManagerProxyDynamicConfigPtr& /*newConfig*/)
