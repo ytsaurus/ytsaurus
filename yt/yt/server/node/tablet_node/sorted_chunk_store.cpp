@@ -92,10 +92,11 @@ void Serialize(
     const TCompactionHints& compactionHints,
     NYson::IYsonConsumer* consumer)
 {
-    BuildYsonFluently(consumer).BeginMap()
-        .Item("chunk_view_size").Value(compactionHints.ChunkViewSize)
-        .Item("row_digest").Value(compactionHints.RowDigest)
-    .EndMap();
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("chunk_view_size").Value(compactionHints.ChunkViewSize)
+            .Item("row_digest").Value(compactionHints.RowDigest)
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

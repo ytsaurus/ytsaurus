@@ -567,14 +567,14 @@ DEFINE_REFCOUNTED_TYPE(TReaderProfiler)
 class TBulkInsertProfiler
 {
 public:
-    TBulkInsertProfiler(TTablet* tablet);
-
-    void Update(const IStorePtr& store);
+    explicit TBulkInsertProfiler(TTablet* tablet);
 
     ~TBulkInsertProfiler();
 
+    void Update(const IStorePtr& store);
+
 private:
-    TWriteCounters* Counters_;
+    const TWriteCounters* const Counters_;
     i64 RowCount_ = 0;
     i64 DataWeight_ = 0;
 };

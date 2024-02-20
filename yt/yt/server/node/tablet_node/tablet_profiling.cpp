@@ -434,16 +434,16 @@ TBulkInsertProfiler::TBulkInsertProfiler(TTablet* tablet)
     : Counters_(tablet->GetTableProfiler()->GetWriteCounters(GetCurrentProfilingUser()))
 { }
 
-void TBulkInsertProfiler::Update(const IStorePtr& store)
-{
-    RowCount_ += store->GetRowCount();
-    DataWeight_ += store->GetDataWeight();
-}
-
 TBulkInsertProfiler::~TBulkInsertProfiler()
 {
     Counters_->BulkInsertRowCount.Increment(RowCount_);
     Counters_->BulkInsertDataWeight.Increment(DataWeight_);
+}
+
+void TBulkInsertProfiler::Update(const IStorePtr& store)
+{
+    RowCount_ += store->GetRowCount();
+    DataWeight_ += store->GetDataWeight();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

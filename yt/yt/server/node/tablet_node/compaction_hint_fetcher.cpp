@@ -20,7 +20,7 @@ bool TCompactionHintFetchStatus::ShouldAddToQueue()
 
 bool TCompactionHintFetchStatus::ShouldMakeFirstRequest()
 {
-    YT_ASSERT(!InQueue);
+    YT_VERIFY(!InQueue);
     // We could consume request result from previos epoch.
     return IsFetchNeeded && RequestStep == 0;
 }
@@ -34,11 +34,12 @@ void Serialize(
     const TCompactionHintFetchStatus& compactionHintFetchStatus,
     NYson::IYsonConsumer* consumer)
 {
-    BuildYsonFluently(consumer).BeginMap()
-        .Item("is_fetch_needed").Value(compactionHintFetchStatus.IsFetchNeeded)
-        .Item("in_queue").Value(compactionHintFetchStatus.InQueue)
-        .Item("request_step").Value(compactionHintFetchStatus.RequestStep)
-    .EndMap();
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("is_fetch_needed").Value(compactionHintFetchStatus.IsFetchNeeded)
+            .Item("in_queue").Value(compactionHintFetchStatus.InQueue)
+            .Item("request_step").Value(compactionHintFetchStatus.RequestStep)
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,7 +92,7 @@ void TFetchCandidateQueue::ChangeInQueueStatus(const IStorePtr& store, bool stat
 {
     if (store) {
         bool& inQueue = Fetcher_->GetFetchStatus(store).InQueue;
-        YT_ASSERT(inQueue != status);
+        YT_VERIFY(inQueue != status);
         inQueue = status;
     }
 }
