@@ -319,6 +319,9 @@ TRef WriteHunkValue(TChunkedMemoryPool* pool, const TGlobalRefHunkValue& value)
     if (IsErasureChunkId(value.ChunkId)) {
         currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(*value.BlockSize));  // blockSize
     }
+    if (IsBlobChunkId(value.ChunkId)) {
+        WritePod(currentPtr, value.CompressionDictionaryId);                            // compressionDictionaryId
+    }
     pool->Free(currentPtr, endPtr);
     return TRef(beginPtr, currentPtr);
 }
@@ -386,6 +389,9 @@ THunkValue ReadHunkValue(TRef input)
             currentPtr += ReadVarUint64(currentPtr, &blockOffset);
             if (isErasure) {
                 currentPtr += ReadVarUint64(currentPtr, &blockSize);
+            }
+            if (IsBlobChunkId(chunkId)) {
+                ReadPod(currentPtr, compressionDictionaryId);
             }
             // TODO(babenko): better out-of-bounds check.
             if (currentPtr > input.End()) {
