@@ -153,6 +153,8 @@ public:
         chunkStore->SubscribeChunkMediumChanged(
             BIND(&TMasterConnector::OnChunkMediumChanged, MakeWeak(this))
                 .Via(controlInvoker));
+
+        Initialized_ = true;
     }
 
     TDataNodeTrackerServiceProxy::TReqFullHeartbeatPtr BuildFullHeartbeatRequest(
@@ -577,6 +579,8 @@ private:
 
     std::atomic<int> OnlineCellCount_ = 0;
 
+    bool Initialized_ = false;
+
     struct TIncrementalHeartbeatCounters
     {
         struct TChunkCounters
@@ -731,6 +735,11 @@ private:
     void DoScheduleHeartbeat(TCellTag cellTag, bool immediately, bool outOfOrder)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (!Initialized_) {
+            YT_LOG_WARNING("Master connector is not initialized");
+            return;
+        }
 
         auto* cellTagData = GetCellTagData(cellTag);
         ++cellTagData->ScheduledDataNodeHeartbeatCount;
