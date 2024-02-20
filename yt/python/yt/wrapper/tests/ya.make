@@ -80,6 +80,8 @@ DEPENDS(
     yt/python/yt/wrapper/tests/files/cpp_bin
 )
 
+EXPLICIT_DATA()
+    
 IF (NOT OPENSOURCE)
     DEPENDS(
         # These python used for various tests
@@ -87,18 +89,16 @@ IF (NOT OPENSOURCE)
         yt/python/yt/wrapper/tests/yt_python3
         yt/python/yt/wrapper/tests/yt_ipython
     )
+
+    DATA(
+        # Used for tests with gdb.
+        # Directory with cpp_bin_core_crash binary, create it locally and upload with:
+        # ya upload ... --ttl=inf
+        # cpp_bin_core_crash/
+        #     cpp_bin_core_crash
+        sbr://4804987727
+    )
 ENDIF()
-
-EXPLICIT_DATA()
-
-DATA(
-    # Used for tests with gdb.
-    # Directory with cpp_bin_core_crash binary, create it locally and upload with:
-    # ya upload ... --ttl=inf
-    # cpp_bin_core_crash/
-    #     cpp_bin_core_crash
-    sbr://4804987727
-)
 
 RESOURCE(
     ${CURDIR}/files/accumulate_c.py /yt_python_test/accumulate_c.py
