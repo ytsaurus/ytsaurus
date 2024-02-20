@@ -12,6 +12,7 @@
 
 namespace NYT::NScheduler {
 
+using namespace NConcurrency;
 using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,7 +23,7 @@ class TControllerAgentTrackerService
 public:
     TControllerAgentTrackerService(TBootstrap* bootstrap, const IResponseKeeperPtr& responseKeeper)
         : NRpc::TServiceBase(
-            bootstrap->GetControlInvoker(EControlQueue::AgentTracker),
+            NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             TControllerAgentTrackerServiceProxy::GetDescriptor(),
             SchedulerLogger,
             NullRealmId,
@@ -47,43 +48,77 @@ private:
     TBootstrap* const Bootstrap_;
     IResponseKeeperPtr ResponseKeeper_;
 
-    DECLARE_RPC_SERVICE_METHOD(NScheduler::NProto, Handshake)
+    // Returns |true| if we no further action is required.
+    bool TryReplyingWithResponseKeeper(const IServiceContextPtr& context)
     {
-        const auto& scheduler = Bootstrap_->GetScheduler();
-        scheduler->ValidateConnected();
+        Bootstrap_->GetScheduler()->ValidateConnected();
 
         const auto& controllerAgentTracker = Bootstrap_->GetControllerAgentTracker();
-        if (controllerAgentTracker->GetConfig()->EnableResponseKeeper && ResponseKeeper_->TryReplyFrom(context)) {
+        return
+            controllerAgentTracker->GetConfig()->EnableResponseKeeper &&
+            ResponseKeeper_->TryReplyFrom(context);
+    }
+
+    auto ProcessRequest(auto method, const auto& context)
+    {
+        const auto& controllerAgentTracker = Bootstrap_->GetControllerAgentTracker();
+        return WaitFor(BIND([method, &context, &controllerAgentTracker, scheduler = Bootstrap_->GetScheduler()] {
+            scheduler->ValidateConnected();
+
+            return std::invoke(method, controllerAgentTracker, context);
+        })
+            .AsyncVia(controllerAgentTracker->GetInvoker())
+            .Run());
+    }
+
+    void DoReply(const auto& context, auto&& result)
+    {
+        if (!result.IsOK()) {
+            context->Reply(std::move(result));
             return;
         }
 
-        controllerAgentTracker->ProcessAgentHandshake(context);
+        context->SetResponseInfo("IncarnationId: %v", result.Value());
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NScheduler::NProto, Handshake)
+    {
+        if (TryReplyingWithResponseKeeper(context)) {
+            return;
+        }
+
+        auto incarnationIdOrError = ProcessRequest(
+            &TControllerAgentTracker::ProcessAgentHandshake,
+            context);
+
+        DoReply(context, std::move(incarnationIdOrError));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NScheduler::NProto, Heartbeat)
     {
-        const auto& scheduler = Bootstrap_->GetScheduler();
-        scheduler->ValidateConnected();
-
-        const auto& controllerAgentTracker = Bootstrap_->GetControllerAgentTracker();
-        if (controllerAgentTracker->GetConfig()->EnableResponseKeeper && ResponseKeeper_->TryReplyFrom(context)) {
+        if (TryReplyingWithResponseKeeper(context)) {
             return;
         }
 
-        controllerAgentTracker->ProcessAgentHeartbeat(context);
+        auto incarnationIdOrError = ProcessRequest(
+            &TControllerAgentTracker::ProcessAgentHeartbeat,
+            context);
+
+        DoReply(context, std::move(incarnationIdOrError));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NScheduler::NProto, ScheduleAllocationHeartbeat)
     {
-        const auto& scheduler = Bootstrap_->GetScheduler();
-        scheduler->ValidateConnected();
-
-        const auto& controllerAgentTracker = Bootstrap_->GetControllerAgentTracker();
-        if (controllerAgentTracker->GetConfig()->EnableResponseKeeper && ResponseKeeper_->TryReplyFrom(context)) {
+        if (TryReplyingWithResponseKeeper(context)) {
             return;
         }
 
-        controllerAgentTracker->ProcessAgentScheduleAllocationHeartbeat(context);
+        auto incarnationIdOrError = ProcessRequest(
+            &TControllerAgentTracker::ProcessAgentScheduleAllocationHeartbeat,
+            context);
+
+        DoReply(context, std::move(incarnationIdOrError));
     }
 };
 

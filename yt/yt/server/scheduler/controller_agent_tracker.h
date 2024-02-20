@@ -35,11 +35,13 @@ public:
 
     void UnregisterOperationFromAgent(const TOperationPtr& operation);
 
-    const TControllerAgentTrackerConfigPtr& GetConfig() const;
+    TControllerAgentTrackerConfigPtr GetConfig() const;
 
     void UpdateConfig(TSchedulerConfigPtr config);
 
     const NRpc::IResponseKeeperPtr& GetResponseKeeper() const;
+
+    IInvokerPtr GetInvoker() const;
 
     /*!
      *  Thread affinity: any
@@ -50,19 +52,19 @@ public:
         NScheduler::NProto::TReqHandshake,
         NScheduler::NProto::TRspHandshake>;
     using TCtxAgentHandshakePtr = TIntrusivePtr<TCtxAgentHandshake>;
-    void ProcessAgentHandshake(const TCtxAgentHandshakePtr& context);
+    TIncarnationId ProcessAgentHandshake(const TCtxAgentHandshakePtr& context);
 
     using TCtxAgentHeartbeat = NRpc::TTypedServiceContext<
         NScheduler::NProto::TReqHeartbeat,
         NScheduler::NProto::TRspHeartbeat>;
     using TCtxAgentHeartbeatPtr = TIntrusivePtr<TCtxAgentHeartbeat>;
-    void ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context);
+    TIncarnationId ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context);
 
     using TCtxAgentScheduleAllocationHeartbeat = NRpc::TTypedServiceContext<
         NScheduler::NProto::TReqScheduleAllocationHeartbeat,
         NScheduler::NProto::TRspScheduleAllocationHeartbeat>;
     using TCtxAgentScheduleAllocationHeartbeatPtr = TIntrusivePtr<TCtxAgentScheduleAllocationHeartbeat>;
-    void ProcessAgentScheduleAllocationHeartbeat(const TCtxAgentScheduleAllocationHeartbeatPtr& context);
+    TIncarnationId ProcessAgentScheduleAllocationHeartbeat(const TCtxAgentScheduleAllocationHeartbeatPtr& context);
 
 private:
     class TImpl;
