@@ -3146,6 +3146,43 @@ TEST_F(TQueryEvaluateTest, GroupByNoLimitCoordinated)
     }
 }
 
+TEST_F(TQueryEvaluateTest, GroupByWithNoKeyColumnsInTableSchema)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64},
+    });
+
+    auto sources = std::vector<std::vector<TString>>{
+        {"a=0;b=0", "a=1;b=1", "a=2;b=1"},
+        {"a=2;b=1", "a=3;b=1", "a=3;b=1"},
+        {"a=3;b=1", "a=4;b=1", "a=4;b=1"},
+        {"a=4;b=1", "a=4;b=1"},
+    };
+
+    {
+        auto resultSplit = MakeSplit({{"a", EValueType::Int64}, {"b", EValueType::Int64}});
+        auto result = YsonToRows({"a=0;b=0", "a=1;b=1", "a=2;b=2", "a=3;b=3", "a=4;b=4"}, resultSplit);
+        EvaluateCoordinatedGroupBy("a, sum(b) as b from [//t] group by a", split, sources, [] (TRange<TRow> result, const TTableSchema& /*tableSchema*/) {
+            for (int i = 0; i < 5; ++i) {
+                bool found = false;
+                for (const auto& row : result) {
+                    if (row[0].Data.Int64 == i && row[1].Data.Int64 == i) {
+                        found = true;
+                    }
+                }
+                ASSERT_TRUE(found);
+            }
+        });
+    }
+
+    {
+        auto resultSplit = MakeSplit({{"a", EValueType::Int64}, {"b", EValueType::Int64}});
+        auto result = YsonToRows({"a=0;b=0", "a=1;b=1", "a=2;b=2", "a=3;b=3", "a=4;b=4"}, resultSplit);
+        EvaluateCoordinatedGroupBy("a, sum(b) as b from [//t] group by a limit 1000", split, sources, ResultMatcher(result));
+    }
+}
+
 // TODO(dtorilov): Coordinated tests for totals.
 
 TEST_F(TQueryEvaluateTest, GroupByAny)
