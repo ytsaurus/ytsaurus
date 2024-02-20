@@ -1657,16 +1657,18 @@ class TestClientConfigFromCluster(object):
 
         ret_default = 0
         ret_experiment_20 = 0
-        for i in range(20):
-            yt.default_config.RemotePatchableValueBase._REMOTE_CACHE = {}
-            client = yt.YtClient(config={"proxy": {"url": client.config["proxy"]["url"]}, "config_remote_patch_path": client.config["config_remote_patch_path"]})
-            if str(client.config["proxy"]["operation_link_pattern"]) == "zzz":
-                ret_default += 1
-            elif str(client.config["proxy"]["operation_link_pattern"]) == "mmm":
-                ret_experiment_20 += 1
-        assert ret_default + ret_experiment_20 == 20
-        assert ret_experiment_20 > 0
-        assert ret_experiment_20 < 10
+        randoms = [19, 19, 21, 21, 21, 50]
+
+        while len(randoms):
+            with mock.patch('random.randrange', lambda size: randoms.pop()):
+                yt.default_config.RemotePatchableValueBase._REMOTE_CACHE = {}
+                client = yt.YtClient(config={"proxy": {"url": client.config["proxy"]["url"]}, "config_remote_patch_path": client.config["config_remote_patch_path"]})
+                if str(client.config["proxy"]["operation_link_pattern"]) == "zzz":
+                    ret_default += 1
+                elif str(client.config["proxy"]["operation_link_pattern"]) == "mmm":
+                    ret_experiment_20 += 1
+        assert ret_default + ret_experiment_20 == 6
+        assert ret_experiment_20 == 2
         del client
 
     @authors("denvr")
