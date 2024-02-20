@@ -25,6 +25,12 @@ class SortColumn(object):
         self.name = name
         self.sort_order = sort_order
 
+    def to_yson_type(self):
+        return {
+            "name": self.name,
+            "sort_order": self.sort_order,
+        }
+
 
 class ColumnSchema(object):
     """ Class representing table column schema.
