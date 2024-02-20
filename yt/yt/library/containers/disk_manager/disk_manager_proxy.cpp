@@ -32,6 +32,11 @@ struct TDiskManagerProxyMock
         return MakeFuture<bool>(TError("Disk manager library is not available under this build configuration"));
     }
 
+    virtual TFuture<void> UpdateDiskCache()
+    {
+        return MakeFuture(TError("Disk manager library is not available under this build configuration"));
+    }
+
     virtual void OnDynamicConfigChanged(const TDiskManagerProxyDynamicConfigPtr& /*newConfig*/)
     {
         // Do nothing
