@@ -4,7 +4,7 @@ There are several ways to try CHYT.
 
 The simplest way is to run a query via the YQL web interface. You can take a public clique with the `*ch_public` alias as a clique. This is the main public clique found on every cluster of CHYT's presence.
 
-{% note warning "Attention!" %}
+{% note warning "Attention" %}
 
 All {{product-name}} users have access to the public clique, so there is a risk that it may not be available due to queries from other users or be occupied by other people's computations. In this regard, important processes and dashboards must not be based on a public clique. A public clique is essentially a demo version of CHYT. We highly recommend creating a separate click for your team.
 
