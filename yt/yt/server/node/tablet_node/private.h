@@ -48,6 +48,8 @@ inline const TErrorAttribute HardErrorAttribute("hard", true);
 
 inline const auto LsmLogger = NLogging::TLogger("Lsm").WithEssential();
 
+inline const auto TabletErrorsLogger = NLogging::TLogger("TabletErrors").WithEssential();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode

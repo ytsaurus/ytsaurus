@@ -310,6 +310,7 @@ DECLARE_REFCOUNTED_CLASS(TOverloadTrackerConfig)
 DECLARE_REFCOUNTED_CLASS(TOverloadControllerConfig)
 DECLARE_REFCOUNTED_CLASS(TStatisticsReporterConfig)
 DECLARE_REFCOUNTED_CLASS(TMediumThrottlersConfig)
+DECLARE_REFCOUNTED_CLASS(TErrorManagerConfig)
 
 using TTabletStoreWriterConfig = NTableClient::TTableWriterConfig;
 using TTabletStoreWriterConfigPtr = NTableClient::TTableWriterConfigPtr;

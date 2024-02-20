@@ -14,6 +14,7 @@
 #include "transaction_manager.h"
 #include "tablet_snapshot_store.h"
 #include "overload_controlling_service_base.h"
+#include "error_reporting_service_base.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -66,13 +67,14 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletService
-    : public TOverloadControllingServiceBase<THydraServiceBase>
+    : public TErrorReportingServiceBase<TOverloadControllingServiceBase<THydraServiceBase>>
 {
 public:
     TTabletService(
         ITabletSlotPtr slot,
         IBootstrap* bootstrap)
-        : TOverloadControllingServiceBase(
+        : TErrorReportingServiceBase(
+            bootstrap,
             bootstrap,
             slot->GetHydraManager(),
             slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Write),
@@ -88,9 +90,11 @@ public:
         YT_VERIFY(Bootstrap_);
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Write)
-            .SetCancelable(true));
+            .SetCancelable(true)
+            .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterTransactionActions));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Trim));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Trim)
+            .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendTabletCell));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeTabletCell));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteHunks)
@@ -208,6 +212,9 @@ private:
         TCurrentInvokerGuard invokerGuard(epochInvoker.Get());
 
         auto tabletSnapshot = GetTabletSnapshotOrThrow(tabletId, mountRevision);
+
+        SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+
         Bootstrap_
             ->GetTabletSnapshotStore()
             ->ValidateBundleNotBanned(tabletSnapshot, Slot_);
@@ -383,6 +390,9 @@ private:
             trimmedRowCount);
 
         auto tabletSnapshot = GetTabletSnapshotOrThrow(tabletId, mountRevision);
+
+        SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+
         Bootstrap_
             ->GetTabletSnapshotStore()
             ->ValidateBundleNotBanned(tabletSnapshot, Slot_);

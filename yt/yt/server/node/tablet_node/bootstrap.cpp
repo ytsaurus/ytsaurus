@@ -2,6 +2,7 @@
 
 #include "backing_store_cleaner.h"
 #include "compression_dictionary_builder.h"
+#include "error_manager.h"
 #include "hedging_manager_registry.h"
 #include "hint_manager.h"
 #include "hunk_chunk_sweeper.h"
@@ -301,6 +302,7 @@ public:
         BackingStoreCleaner_ = CreateBackingStoreCleaner(this);
         LsmInterop_ = CreateLsmInterop(this, StoreCompactor_, PartitionBalancer_, StoreRotator_);
         CompressionDictionaryBuilder_ = CreateCompressionDictionaryBuilder(this);
+        ErrorManager_ = New<TErrorManager>(this);
 
         InitializeOverloadController();
 
@@ -375,6 +377,7 @@ public:
         CompressionDictionaryBuilder_->Start();
         OverloadController_->Start();
         DiskChangeChecker_->Start();
+        ErrorManager_->Start();
     }
 
     NYTree::IYPathServicePtr CreateThreadPoolsOrchidService()
@@ -432,6 +435,11 @@ public:
     const TTableDynamicConfigManagerPtr& GetTableDynamicConfigManager() const override
     {
         return TableDynamicConfigManager_;
+    }
+
+    const TErrorManagerPtr& GetErrorManager() const override
+    {
+        return ErrorManager_;
     }
 
     const ISlotManagerPtr& GetSlotManager() const override
@@ -580,6 +588,7 @@ private:
     IBackingStoreCleanerPtr BackingStoreCleaner_;
     ILsmInteropPtr LsmInterop_;
     ICompressionDictionaryBuilderPtr CompressionDictionaryBuilder_;
+    TErrorManagerPtr ErrorManager_;
     TOverloadControllerPtr OverloadController_;
 
     NContainers::IDiskManagerProxyPtr DiskManagerProxy_;
@@ -613,6 +622,7 @@ private:
         StatisticsReporter_->Reconfigure(newConfig);
 
         DiskManagerProxy_->OnDynamicConfigChanged(newConfig->DiskManagerProxy);
+        ErrorManager_->Reconfigure(newConfig);
     }
 
     void OnBundleDynamicConfigChanged(

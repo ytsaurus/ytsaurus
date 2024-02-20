@@ -33,6 +33,8 @@ struct IBootstrap
 
     virtual const TTableDynamicConfigManagerPtr& GetTableDynamicConfigManager() const = 0;
 
+    virtual const TErrorManagerPtr& GetErrorManager() const = 0;
+
     // Tablet cell stuff.
     virtual const ISlotManagerPtr& GetSlotManager() const = 0;
 

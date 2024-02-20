@@ -53,7 +53,7 @@ public:
         , OrchidService_(TOrchidService::Create(MakeWeak(this)))
     { }
 
-    std::vector<TTabletSnapshotPtr> GetTabletSnapshots() override
+    std::vector<TTabletSnapshotPtr> GetTabletSnapshots() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -66,7 +66,7 @@ public:
         return snapshots;
     }
 
-    TTabletSnapshotPtr FindLatestTabletSnapshot(TTabletId tabletId) override
+    TTabletSnapshotPtr FindLatestTabletSnapshot(TTabletId tabletId) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -75,7 +75,7 @@ public:
 
     TTabletSnapshotPtr GetLatestTabletSnapshotOrThrow(
         TTabletId tabletId,
-        TCellId cellId) override
+        TCellId cellId) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -84,7 +84,7 @@ public:
         return snapshot;
     }
 
-    TTabletSnapshotPtr FindTabletSnapshot(TTabletId tabletId, TRevision mountRevision) override
+    TTabletSnapshotPtr FindTabletSnapshot(TTabletId tabletId, TRevision mountRevision) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -97,7 +97,7 @@ public:
     TTabletSnapshotPtr GetTabletSnapshotOrThrow(
         TTabletId tabletId,
         TCellId cellId,
-        TRevision mountRevision) override
+        TRevision mountRevision) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -109,7 +109,7 @@ public:
 
     void ValidateTabletAccess(
         const TTabletSnapshotPtr& tabletSnapshot,
-        TTimestamp timestamp) override
+        TTimestamp timestamp) const override
     {
         if (timestamp != AsyncLastCommittedTimestamp) {
             const auto& hydraManager = tabletSnapshot->HydraManager;
@@ -131,7 +131,7 @@ public:
 
     void ValidateBundleNotBanned(
         const TTabletSnapshotPtr& tabletSnapshot,
-        const ITabletSlotPtr& slot) override
+        const ITabletSlotPtr& slot) const override
     {
         TDynamicTabletCellOptionsPtr dynamicOptions;
         TString bundleName;
@@ -340,7 +340,7 @@ private:
         }
     }
 
-    TTabletSnapshotPtr DoFindTabletSnapshot(TTabletId tabletId, std::optional<TRevision> mountRevision)
+    TTabletSnapshotPtr DoFindTabletSnapshot(TTabletId tabletId, std::optional<TRevision> mountRevision) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -376,7 +376,7 @@ private:
     void ThrowOnMissingTabletSnapshot(
         TTabletId tabletId,
         TCellId cellId,
-        const TTabletSnapshotPtr& snapshot)
+        const TTabletSnapshotPtr& snapshot) const
     {
         if (snapshot) {
             return;
@@ -588,26 +588,26 @@ public:
         : TabletSnapshot_(std::move(tabletSnapshot))
     { }
 
-    std::vector<TTabletSnapshotPtr> GetTabletSnapshots() override
+    std::vector<TTabletSnapshotPtr> GetTabletSnapshots() const override
     {
         return {TabletSnapshot_};
     }
 
-    TTabletSnapshotPtr FindLatestTabletSnapshot(TTabletId /*tabletId*/) override
+    TTabletSnapshotPtr FindLatestTabletSnapshot(TTabletId /*tabletId*/) const override
     {
         return TabletSnapshot_;
     }
 
     TTabletSnapshotPtr GetLatestTabletSnapshotOrThrow(
         TTabletId /*tabletId*/,
-        TCellId /*cellId*/) override
+        TCellId /*cellId*/) const override
     {
         return TabletSnapshot_;
     }
 
     TTabletSnapshotPtr FindTabletSnapshot(
         TTabletId /*tabletId*/,
-        NHydra::TRevision /*mountRevision*/) override
+        NHydra::TRevision /*mountRevision*/) const override
     {
         return TabletSnapshot_;
     }
@@ -615,21 +615,21 @@ public:
     TTabletSnapshotPtr GetTabletSnapshotOrThrow(
         TTabletId /*tabletId*/,
         TCellId /*cellId*/,
-        NHydra::TRevision /*mountRevision*/) override
+        NHydra::TRevision /*mountRevision*/) const override
     {
         return TabletSnapshot_;
     }
 
     void ValidateTabletAccess(
         const TTabletSnapshotPtr& /*tabletSnapshot*/,
-        NTransactionClient::TTimestamp /*timestamp*/) override
+        NTransactionClient::TTimestamp /*timestamp*/) const override
     {
         return;
     }
 
     void ValidateBundleNotBanned(
         const TTabletSnapshotPtr& /*tabletSnapshot*/,
-        const ITabletSlotPtr& /*slot*/) override
+        const ITabletSlotPtr& /*slot*/) const override
     {
         return;
     }
