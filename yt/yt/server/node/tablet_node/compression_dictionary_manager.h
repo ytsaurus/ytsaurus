@@ -20,7 +20,7 @@ struct TRowDictionaryCompressor
     THashMap<int, TColumnDictionaryCompressor> ColumnCompressors;
 };
 
-using TRowDictionaryCompressors = TEnumIndexedVector<
+using TRowDictionaryCompressors = TEnumIndexedArray<
     NTableClient::EDictionaryCompressionPolicy,
     TRowDictionaryCompressor>;
 

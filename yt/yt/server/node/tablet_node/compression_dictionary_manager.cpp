@@ -138,7 +138,7 @@ private:
     {
         YT_VERIFY(!ElectedPolicy_);
 
-        TEnumIndexedVector<EDictionaryCompressionPolicy, i64> policyToCompressedSize;
+        TEnumIndexedArray<EDictionaryCompressionPolicy, i64> policyToCompressedSize;
         for (auto policy : TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()) {
             for (const auto& [_, columnCompressors] : RowDictionaryCompressors_[policy].ColumnCompressors) {
                 policyToCompressedSize[policy] += columnCompressors.CompressedSamplesSize;
