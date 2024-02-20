@@ -74,8 +74,8 @@ def _compute_items_difference(actual_seq, expected_seq):
 # A simplified version of the same method of unittest.TestCase
 def assert_items_equal(actual_seq, expected_seq):
     missing, unexpected = _compute_items_difference(actual_seq, expected_seq)
-    assert not missing, "Expected, but missing:\n    %s" % repr(missing)
-    assert not unexpected, "Unexpected, but present:\n    %s" % repr(unexpected)
+    assert not missing and not unexpected, \
+        "Expected, but missing:\n    %s\nUnexpected, but present:\n    %s" % (repr(missing), repr(unexpected))
 
 
 # A checking counterpart of assert_items_equal.
