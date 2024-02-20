@@ -213,6 +213,7 @@ public:
         TBootstrap* bootstrap)
         : SchedulerConfig_(std::move(config))
         , Config_(SchedulerConfig_->ControllerAgentTracker)
+        , CachedConfig_(Config_)
         , Bootstrap_(bootstrap)
         , MessageOffloadThreadPool_(CreateThreadPool(Config_->MessageOffloadThreadCount, "MsgOffload"))
         , ResponseKeeper_(CreateResponseKeeper(
@@ -413,11 +414,11 @@ public:
             operation->GetId());
     }
 
-    const TControllerAgentTrackerConfigPtr& GetConfig() const
+    TControllerAgentTrackerConfigPtr GetConfig() const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        return Config_;
+        return CachedConfig_.Acquire();
     }
 
     void UpdateConfig(TSchedulerConfigPtr config)
@@ -426,6 +427,7 @@ public:
 
         SchedulerConfig_ = std::move(config);
         Config_ = SchedulerConfig_->ControllerAgentTracker;
+        CachedConfig_.Store(Config_);
 
         MessageOffloadThreadPool_->Configure(Config_->MessageOffloadThreadCount);
     }
@@ -433,6 +435,11 @@ public:
     const IResponseKeeperPtr& GetResponseKeeper() const
     {
         return ResponseKeeper_;
+    }
+
+    IInvokerPtr GetInvoker() const
+    {
+        return Bootstrap_->GetControlInvoker(EControlQueue::AgentTracker);
     }
 
     TControllerAgentPtr FindAgent(const TAgentId& id)
@@ -445,13 +452,14 @@ public:
     {
         auto agent = FindAgent(id);
         if (!agent) {
-            THROW_ERROR_EXCEPTION("Agent %v is not registered",
+            THROW_ERROR_EXCEPTION(
+                "Agent %v is not registered",
                 id);
         }
         return agent;
     }
 
-    void ProcessAgentHandshake(const TCtxAgentHandshakePtr& context)
+    TIncarnationId ProcessAgentHandshake(const TCtxAgentHandshakePtr& context)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -472,10 +480,10 @@ public:
                 UnregisterAgent(existingAgent);
             }
 
-            context->Reply(TError("Agent %Qv is in %Qlv state; please retry",
+            THROW_ERROR_EXCEPTION(
+                "Agent %Qv is in %Qlv state; please retry",
                 agentId,
-                state));
-            return;
+                state);
         }
 
         auto agent = [&] {
@@ -518,16 +526,16 @@ public:
                 .Run())
             .ThrowOnError();
 
-        context->SetResponseInfo(
-            "IncarnationId: %v",
-            agent->GetIncarnationId());
-        ToProto(response->mutable_incarnation_id(), agent->GetIncarnationId());
+        auto incarnationId = agent->GetIncarnationId();
+
+        ToProto(response->mutable_incarnation_id(), incarnationId);
         response->set_config(ConvertToYsonString(SchedulerConfig_).ToString());
         response->set_scheduler_version(GetVersion());
-        context->Reply();
+
+        return incarnationId;
     }
 
-    void ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)
+    TIncarnationId ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -548,16 +556,16 @@ public:
 
         auto agent = GetAgentOrThrow(agentId);
         if (agent->GetState() != EControllerAgentState::Registered && agent->GetState() != EControllerAgentState::WaitingForInitialHeartbeat) {
-            context->Reply(TError("Agent %Qv is in %Qlv state",
+            THROW_ERROR_EXCEPTION(
+                "Agent %Qv is in %Qlv state",
                 agentId,
-                agent->GetState()));
-            return;
+                agent->GetState());
         }
         if (incarnationId != agent->GetIncarnationId()) {
-            context->Reply(TError("Wrong agent incarnation id: expected %v, got %v",
+            THROW_ERROR_EXCEPTION(
+                "Wrong agent incarnation id: expected %v, got %v",
                 agent->GetIncarnationId(),
-                incarnationId));
-            return;
+                incarnationId);
         }
         if (agent->GetState() == EControllerAgentState::WaitingForInitialHeartbeat) {
             YT_LOG_INFO("Agent registration confirmed by heartbeat (AgentId: %v)", agentId);
@@ -867,12 +875,10 @@ public:
 
         response->set_operation_archive_version(Bootstrap_->GetScheduler()->GetOperationArchiveVersion());
 
-        context->SetResponseInfo("IncarnationId: %v", incarnationId);
-
-        context->Reply();
+        return incarnationId;
     }
 
-    void ProcessAgentScheduleJobHeartbeat(const TCtxAgentScheduleJobHeartbeatPtr& context)
+    TIncarnationId ProcessAgentScheduleJobHeartbeat(const TCtxAgentScheduleJobHeartbeatPtr& context)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -886,16 +892,16 @@ public:
 
         auto agent = GetAgentOrThrow(agentId);
         if (agent->GetState() != EControllerAgentState::Registered && agent->GetState() != EControllerAgentState::WaitingForInitialHeartbeat) {
-            context->Reply(TError("Agent %Qv is in %Qlv state",
+            THROW_ERROR_EXCEPTION(
+                "Agent %Qv is in %Qlv state",
                 agentId,
-                agent->GetState()));
-            return;
+                agent->GetState());
         }
         if (incarnationId != agent->GetIncarnationId()) {
-            context->Reply(TError("Wrong agent incarnation id: expected %v, got %v",
+            THROW_ERROR_EXCEPTION(
+                "Wrong agent incarnation id: expected %v, got %v",
                 agent->GetIncarnationId(),
-                incarnationId));
-            return;
+                incarnationId);
         }
         if (agent->GetState() == EControllerAgentState::WaitingForInitialHeartbeat) {
             YT_LOG_INFO("Agent registration confirmed by heartbeat");
@@ -926,14 +932,13 @@ public:
             })
             .ThrowOnError();
 
-        context->SetResponseInfo("IncarnationId: %v", incarnationId);
-
-        context->Reply();
+        return incarnationId;
     }
 
 private:
     TSchedulerConfigPtr SchedulerConfig_;
     TControllerAgentTrackerConfigPtr Config_;
+    TAtomicIntrusivePtr<TControllerAgentTrackerConfig> CachedConfig_;
     TBootstrap* const Bootstrap_;
     const IThreadPoolPtr MessageOffloadThreadPool_;
 
@@ -971,11 +976,13 @@ private:
 
         if (!transactionOrError.IsOK()) {
             Bootstrap_->GetScheduler()->Disconnect(transactionOrError);
-            THROW_ERROR TError{"Failed to start incarnation transaction"} << transactionOrError;
+            THROW_ERROR_EXCEPTION("Failed to start incarnation transaction") << transactionOrError;
         }
 
         if (agent->GetState() != EControllerAgentState::Registering) {
-            THROW_ERROR_EXCEPTION("Failed to complete agent registration (AgentState: %Qlv)", agent->GetState());
+            THROW_ERROR_EXCEPTION(
+                "Failed to complete agent registration (AgentState: %Qlv)",
+                agent->GetState());
         }
 
         auto transaction = std::move(transactionOrError.Value());
@@ -1112,9 +1119,10 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_agent_list");
-        if (!rspOrError.IsOK()) {
-            THROW_ERROR_EXCEPTION(rspOrError.Wrap(EErrorCode::WatcherHandlerFailed, "Error getting controller agent list"));
-        }
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            rspOrError,
+            EErrorCode::WatcherHandlerFailed,
+            "Error getting controller agent list");
 
         const auto& rsp = rspOrError.Value();
 
@@ -1280,7 +1288,7 @@ void TControllerAgentTracker::UnregisterOperationFromAgent(const TOperationPtr& 
     Impl_->UnregisterOperationFromAgent(operation);
 }
 
-const TControllerAgentTrackerConfigPtr& TControllerAgentTracker::GetConfig() const
+TControllerAgentTrackerConfigPtr TControllerAgentTracker::GetConfig() const
 {
     return Impl_->GetConfig();
 }
@@ -1295,19 +1303,24 @@ const IResponseKeeperPtr& TControllerAgentTracker::GetResponseKeeper() const
     return Impl_->GetResponseKeeper();
 }
 
-void TControllerAgentTracker::ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)
+IInvokerPtr TControllerAgentTracker::GetInvoker() const
 {
-    Impl_->ProcessAgentHeartbeat(context);
+    return Impl_->GetInvoker();
 }
 
-void TControllerAgentTracker::ProcessAgentScheduleJobHeartbeat(const TCtxAgentScheduleJobHeartbeatPtr& context)
+TIncarnationId TControllerAgentTracker::ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)
 {
-    Impl_->ProcessAgentScheduleJobHeartbeat(context);
+    return Impl_->ProcessAgentHeartbeat(context);
 }
 
-void TControllerAgentTracker::ProcessAgentHandshake(const TCtxAgentHandshakePtr& context)
+TIncarnationId TControllerAgentTracker::ProcessAgentScheduleJobHeartbeat(const TCtxAgentScheduleJobHeartbeatPtr& context)
 {
-    Impl_->ProcessAgentHandshake(context);
+    return Impl_->ProcessAgentScheduleJobHeartbeat(context);
+}
+
+TIncarnationId TControllerAgentTracker::ProcessAgentHandshake(const TCtxAgentHandshakePtr& context)
+{
+    return Impl_->ProcessAgentHandshake(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
