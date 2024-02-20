@@ -25,6 +25,8 @@ struct IDiskManagerProxy
 
     virtual TFuture<bool> GetHotSwapEnabledFuture() = 0;
 
+    virtual TFuture<void> UpdateDiskCache() = 0;
+
     virtual void OnDynamicConfigChanged(const TDiskManagerProxyDynamicConfigPtr& newConfig) = 0;
 };
 
