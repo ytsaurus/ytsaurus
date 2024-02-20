@@ -129,10 +129,9 @@ constexpr int TypicalHunkColumnCount = 8;
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM_WITH_UNDERLYING_TYPE(EHunkValueTag, ui8,
-    ((Inline)            (0))
-    ((LocalRef)          (1))
-    ((GlobalRef)         (2))
-    ((CompressedInline)  (3))
+    ((Inline)   (0))
+    ((LocalRef) (1))
+    ((GlobalRef)(2))
 );
 
 // Do not change these values since they are stored in the master snapshot.

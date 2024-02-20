@@ -216,8 +216,6 @@ DEFINE_ENUM(EObjectLockMode,
     ((Shared)                 (2))
 );
 
-DECLARE_REFCOUNTED_STRUCT(ICompressionDictionaryManager)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENTITY_TYPE(THunkTablet, TTabletId, NObjectClient::TDirectObjectIdHash)

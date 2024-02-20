@@ -3,7 +3,6 @@
 #include "cached_versioned_chunk_meta.h"
 #include "chunk_meta_extensions.h"
 #include "config.h"
-#include "dictionary_compression_session.h"
 #include "private.h"
 #include "schemaless_chunk_reader.h"
 #include "schemaless_multi_chunk_reader.h"
@@ -32,8 +31,6 @@
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
-
-#include <yt/yt/core/compression/dictionary_codec.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
@@ -180,9 +177,6 @@ void ToProto(NTableClient::NProto::THunkChunkRef* protoRef, const THunkChunkRef&
     }
     protoRef->set_hunk_count(ref.HunkCount);
     protoRef->set_total_hunk_length(ref.TotalHunkLength);
-    if (ref.CompressionDictionaryId != NullChunkId) {
-        ToProto(protoRef->mutable_compression_dictionary_id(), ref.CompressionDictionaryId);
-    }
 }
 
 void FromProto(THunkChunkRef* ref, const NTableClient::NProto::THunkChunkRef& protoRef)
@@ -191,9 +185,6 @@ void FromProto(THunkChunkRef* ref, const NTableClient::NProto::THunkChunkRef& pr
     ref->ErasureCodec = FromProto<NErasure::ECodec>(protoRef.erasure_codec());
     ref->HunkCount = protoRef.hunk_count();
     ref->TotalHunkLength = protoRef.total_hunk_length();
-    if (protoRef.has_compression_dictionary_id()) {
-        ref->CompressionDictionaryId = FromProto<TChunkId>(protoRef.compression_dictionary_id());
-    }
 }
 
 void Serialize(const THunkChunkRef& ref, IYsonConsumer* consumer)
@@ -204,9 +195,6 @@ void Serialize(const THunkChunkRef& ref, IYsonConsumer* consumer)
             .Item("erasure_codec").Value(ref.ErasureCodec)
             .Item("hunk_count").Value(ref.HunkCount)
             .Item("total_hunk_length").Value(ref.TotalHunkLength)
-            .DoIf(ref.CompressionDictionaryId != NullChunkId, [&] (TFluentMap fluentMap) {
-                fluentMap.Item("compression_dictionary_id").Value(ref.CompressionDictionaryId);
-            })
         .EndMap();
 }
 
@@ -218,10 +206,6 @@ void FormatValue(TStringBuilderBase* builder, const THunkChunkRef& ref, TStringB
         builder->AppendFormat("ErasureCodec: %v, ",
             ref.ErasureCodec);
     }
-    if (ref.CompressionDictionaryId != NullChunkId) {
-        builder->AppendFormat("CompressionDictionaryId: %v, ",
-            ref.CompressionDictionaryId);
-    }
     builder->AppendFormat("HunkCount: %v, TotalHunkLength: %v}",
         ref.HunkCount,
         ref.TotalHunkLength);
@@ -232,7 +216,47 @@ TString ToString(const THunkChunkRef& ref)
     return ToStringViaBuilder(ref);
 }
 
+void THunkChunkRef::Save(TStreamSaveContext& context) const
+{
+    using NYT::Save;
+
+    Save(context, ChunkId);
+    Save(context, ErasureCodec);
+    Save(context, HunkCount);
+    Save(context, TotalHunkLength);
+}
+
+void THunkChunkRef::Load(TStreamLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, ChunkId);
+    Load(context, ErasureCodec);
+    Load(context, HunkCount);
+    Load(context, TotalHunkLength);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
+
+void THunkChunksInfo::Save(TStreamSaveContext& context) const
+{
+    using NYT::Save;
+
+    Save(context, CellId);
+    Save(context, HunkTabletId);
+    Save(context, MountRevision);
+    Save(context, HunkChunkRefs);
+}
+
+void THunkChunksInfo::Load(TStreamLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, CellId);
+    Load(context, HunkTabletId);
+    Load(context, MountRevision);
+    Load(context, HunkChunkRefs);
+}
 
 void ToProto(
     NTabletClient::NProto::THunkChunksInfo* protoHunkChunkInfo,
@@ -275,18 +299,16 @@ void FromProto(THunkChunkMeta* meta, const NProto::THunkChunkMeta& protoMeta)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRef WriteHunkValue(TChunkedMemoryPool* pool, const TCompressedInlineRefHunkValue& value)
+TRef WriteHunkValue(TChunkedMemoryPool* pool, const TInlineHunkValue& value)
 {
-    YT_VERIFY(value.Payload.Size() != 0);
+    if (value.Payload.Size() == 0) {
+        return TRef::MakeEmpty();
+    }
 
-    auto size = sizeof(ui8) + sizeof(TChunkId) + value.Payload.Size();
-    auto* beginPtr =  pool->AllocateUnaligned(size);
-    auto* currentPtr = beginPtr;
-    WritePod(currentPtr, static_cast<char>(EHunkValueTag::CompressedInline)); // tag
-    WritePod(currentPtr, value.CompressionDictionaryId);                      // chunkId
-    WritePod(currentPtr, value.Payload.Begin());
-    WritePod(currentPtr, value.Payload.Size());
-    return TRef(beginPtr, currentPtr);
+    auto size =
+        sizeof(ui8) +         // tag
+        value.Payload.Size(); // payload
+    return WriteHunkValue(pool->AllocateUnaligned(size), value);
 }
 
 TRef WriteHunkValue(TChunkedMemoryPool* pool, const TLocalRefHunkValue& value)
@@ -294,7 +316,7 @@ TRef WriteHunkValue(TChunkedMemoryPool* pool, const TLocalRefHunkValue& value)
     char* beginPtr =  pool->AllocateUnaligned(MaxLocalHunkRefSize);
     char* endPtr =  beginPtr + MaxLocalHunkRefSize;
     auto* currentPtr = beginPtr;
-    WritePod(currentPtr, static_cast<char>(EHunkValueTag::LocalRef));               // tag
+    WritePod(currentPtr, static_cast<char>(EHunkValueTag::LocalRef)); // tag
     currentPtr += WriteVarUint32(currentPtr, static_cast<ui32>(value.ChunkIndex));  // chunkIndex
     currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.Length));      // length
     currentPtr += WriteVarUint32(currentPtr, static_cast<ui32>(value.BlockIndex));  // blockIndex
@@ -308,21 +330,32 @@ TRef WriteHunkValue(TChunkedMemoryPool* pool, const TGlobalRefHunkValue& value)
     char* beginPtr =  pool->AllocateUnaligned(MaxGlobalHunkRefSize);
     char* endPtr =  beginPtr + MaxGlobalHunkRefSize;
     auto* currentPtr = beginPtr;
-    WritePod(currentPtr, static_cast<char>(EHunkValueTag::GlobalRef));                  // tag
-    WritePod(currentPtr, value.ChunkId);                                                // chunkId
+    WritePod(currentPtr, static_cast<char>(EHunkValueTag::GlobalRef));   // tag
+    WritePod(currentPtr, value.ChunkId);                                 // chunkId
     if (IsErasureChunkId(value.ChunkId)) {
-        currentPtr += WriteVarInt32(currentPtr, static_cast<i32>(value.ErasureCodec));  // erasureCodec
+        currentPtr += WriteVarInt32(currentPtr, static_cast<i32>(value.ErasureCodec)); // erasureCodec
     }
-    currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.Length));          // length
-    currentPtr += WriteVarUint32(currentPtr, static_cast<ui32>(value.BlockIndex));      // blockIndex
-    currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.BlockOffset));     // blockOffset
+    currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.Length));         // length
+    currentPtr += WriteVarUint32(currentPtr, static_cast<ui32>(value.BlockIndex));     // blockIndex
+    currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.BlockOffset));    // blockOffset
     if (IsErasureChunkId(value.ChunkId)) {
         currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(*value.BlockSize));  // blockSize
     }
-    if (IsBlobChunkId(value.ChunkId)) {
-        WritePod(currentPtr, value.CompressionDictionaryId);                            // compressionDictionaryId
-    }
     pool->Free(currentPtr, endPtr);
+    return TRef(beginPtr, currentPtr);
+}
+
+size_t GetInlineHunkValueSize(const TInlineHunkValue& value)
+{
+    return InlineHunkHeaderSize + value.Payload.Size();
+}
+
+TRef WriteHunkValue(char* ptr, const TInlineHunkValue& value)
+{
+    auto* beginPtr = ptr;
+    auto* currentPtr = ptr;
+    WritePod(currentPtr, static_cast<char>(EHunkValueTag::Inline)); // tag
+    WriteRef(currentPtr, value.Payload);                            // payload
     return TRef(beginPtr, currentPtr);
 }
 
@@ -336,19 +369,6 @@ THunkValue ReadHunkValue(TRef input)
     switch (auto tag = *currentPtr++) {
         case static_cast<char>(EHunkValueTag::Inline):
             return TInlineHunkValue{TRef(currentPtr, input.End())};
-
-        case static_cast<char>(EHunkValueTag::CompressedInline): {
-            TChunkId dictionaryId;
-            char* payloadBegin;
-            i64 payloadSize;
-            ReadPod(currentPtr, dictionaryId);
-            ReadPod(currentPtr, payloadBegin);
-            ReadPod(currentPtr, payloadSize);
-            return TCompressedInlineRefHunkValue{
-                .CompressionDictionaryId = dictionaryId,
-                .Payload = TRef(payloadBegin, payloadSize),
-            };
-        }
 
         case static_cast<char>(EHunkValueTag::LocalRef): {
             ui32 chunkIndex;
@@ -378,7 +398,6 @@ THunkValue ReadHunkValue(TRef input)
             ui32 blockIndex;
             ui64 blockOffset;
             ui64 blockSize = 0;
-            TChunkId compressionDictionaryId = NullChunkId;
             ReadPod(currentPtr, chunkId);
             bool isErasure = IsErasureChunkId(chunkId);
             if (isErasure) {
@@ -389,9 +408,6 @@ THunkValue ReadHunkValue(TRef input)
             currentPtr += ReadVarUint64(currentPtr, &blockOffset);
             if (isErasure) {
                 currentPtr += ReadVarUint64(currentPtr, &blockSize);
-            }
-            if (IsBlobChunkId(chunkId)) {
-                ReadPod(currentPtr, compressionDictionaryId);
             }
             // TODO(babenko): better out-of-bounds check.
             if (currentPtr > input.End()) {
@@ -404,7 +420,6 @@ THunkValue ReadHunkValue(TRef input)
                 .BlockOffset = static_cast<i64>(blockOffset),
                 .BlockSize = isErasure ? std::make_optional<i64>(static_cast<i64>(blockSize)) : std::nullopt,
                 .Length = static_cast<i64>(length),
-                .CompressionDictionaryId = compressionDictionaryId,
             };
         }
 
@@ -417,7 +432,6 @@ THunkValue ReadHunkValue(TRef input)
 bool TryDecodeInlineHunkValue(TUnversionedValue* value)
 {
     auto hunkValue = ReadHunkValue(GetValueRef(*value));
-    YT_VERIFY(!std::holds_alternative<TCompressedInlineRefHunkValue>(hunkValue));
     const auto* inlineHunkValue = std::get_if<TInlineHunkValue>(&hunkValue);
     if (!inlineHunkValue) {
         return false;
@@ -433,53 +447,31 @@ void DoGlobalizeHunkValue(
     TChunkedMemoryPool* pool,
     const NTableClient::NProto::THunkChunkRefsExt& hunkChunkRefsExt,
     const NTableClient::NProto::THunkChunkMetasExt& hunkChunkMetasExt,
-    TUnversionedValue* value,
-    NChunkClient::TChunkId compressionDictionaryId)
+    TUnversionedValue* value)
 {
-    Visit(
-        ReadHunkValue(TRef(value->Data.String, value->Length)),
-        [&] (const TInlineHunkValue& inlineHunkValue) {
-            if (compressionDictionaryId != NullChunkId) {
-                TCompressedInlineRefHunkValue compressedInlineRefHunkValue{
-                    .CompressionDictionaryId = compressionDictionaryId,
-                    .Payload = inlineHunkValue.Payload,
-                };
-                auto hunkValuePayload = WriteHunkValue(pool, compressedInlineRefHunkValue);
-                SetValueRef(value, hunkValuePayload);
-            }
-        },
-        [&] (const TCompressedInlineRefHunkValue& /*compressedInlineRefHunkValue*/) {
-            THROW_ERROR_EXCEPTION("Unexpected compressed inline hunk value");
-        },
-        [&] (const TLocalRefHunkValue& localRefHunkValue) {
-            const auto& hunkChunkRef = hunkChunkRefsExt.refs(localRefHunkValue.ChunkIndex);
-            auto chunkId = FromProto<TChunkId>(hunkChunkRef.chunk_id());
+    auto hunkValue = ReadHunkValue(TRef(value->Data.String, value->Length));
+    if (const auto* localRefHunkValue = std::get_if<TLocalRefHunkValue>(&hunkValue)) {
+        const auto& hunkChunkRef = hunkChunkRefsExt.refs(localRefHunkValue->ChunkIndex);
+        auto chunkId = FromProto<TChunkId>(hunkChunkRef.chunk_id());
 
-            std::optional<i64> blockSize;
-            if (IsErasureChunkId(chunkId)) {
-                const auto& hunkChunkMeta = hunkChunkMetasExt.metas(localRefHunkValue.ChunkIndex);
-                YT_VERIFY(FromProto<TChunkId>(hunkChunkMeta.chunk_id()) == chunkId);
-                blockSize = hunkChunkMeta.block_sizes(localRefHunkValue.BlockIndex);
-            }
+        std::optional<i64> blockSize;
+        if (IsErasureChunkId(chunkId)) {
+            const auto& hunkChunkMeta = hunkChunkMetasExt.metas(localRefHunkValue->ChunkIndex);
+            YT_VERIFY(FromProto<TChunkId>(hunkChunkMeta.chunk_id()) == chunkId);
+            blockSize = hunkChunkMeta.block_sizes(localRefHunkValue->BlockIndex);
+        }
 
-            TGlobalRefHunkValue globalRefHunkValue{
-                .ChunkId = chunkId,
-                .ErasureCodec = FromProto<NErasure::ECodec>(hunkChunkRef.erasure_codec()),
-                .BlockIndex = localRefHunkValue.BlockIndex,
-                .BlockOffset = localRefHunkValue.BlockOffset,
-                .BlockSize = blockSize,
-                .Length = localRefHunkValue.Length,
-                .CompressionDictionaryId = FromProto<TChunkId>(hunkChunkRef.compression_dictionary_id()),
-            };
-
-            auto globalRefPayload = WriteHunkValue(pool, globalRefHunkValue);
-            SetValueRef(value, globalRefPayload);
-        },
-        [&] (const TGlobalRefHunkValue& globalRefHunkValue) {
-            if (IsBlobChunkId(globalRefHunkValue.ChunkId)) {
-                THROW_ERROR_EXCEPTION("Unexpected global hunk reference to blob hunk chunk");
-            };
-        });
+        auto globalRefHunkValue = TGlobalRefHunkValue{
+            .ChunkId = chunkId,
+            .ErasureCodec = FromProto<NErasure::ECodec>(hunkChunkRef.erasure_codec()),
+            .BlockIndex = localRefHunkValue->BlockIndex,
+            .BlockOffset = localRefHunkValue->BlockOffset,
+            .BlockSize = blockSize,
+            .Length = localRefHunkValue->Length,
+        };
+        auto globalRefPayload = WriteHunkValue(pool, globalRefHunkValue);
+        SetValueRef(value, globalRefPayload);
+    }
 }
 
 } // namespace
@@ -495,10 +487,6 @@ void GlobalizeHunkValues(
 
     const auto& hunkChunkRefsExt = chunkMeta->HunkChunkRefsExt();
     const auto& hunkChunkMetasExt = chunkMeta->HunkChunkMetasExt();
-    auto compressionDictionaryId = chunkMeta->Misc().has_compression_dictionary_id()
-        ? FromProto<TChunkId>(chunkMeta->Misc().compression_dictionary_id())
-        : NullChunkId;
-
     for (auto& value : row.Values()) {
         if (None(value.Flags & EValueFlags::Hunk)) {
             continue;
@@ -508,8 +496,33 @@ void GlobalizeHunkValues(
             pool,
             hunkChunkRefsExt,
             hunkChunkMetasExt,
-            &value,
-            compressionDictionaryId);
+            &value);
+    }
+}
+
+void GlobalizeHunkValues(
+    TChunkedMemoryPool* pool,
+    const TColumnarChunkMetaPtr& chunkMeta,
+    TMutableUnversionedRow row)
+{
+    if (!row) {
+        return;
+    }
+
+    const auto& hunkChunkRefsExt = chunkMeta->HunkChunkRefsExt();
+    const auto& hunkChunkMetasExt = chunkMeta->HunkChunkMetasExt();
+
+    for (int index = 0; index < static_cast<int>(row.GetCount()); ++index) {
+        auto& value = row.Begin()[index];
+        if (None(value.Flags & EValueFlags::Hunk)) {
+            continue;
+        }
+
+        DoGlobalizeHunkValue(
+            pool,
+            hunkChunkRefsExt,
+            hunkChunkMetasExt,
+            &value);
     }
 }
 
@@ -524,8 +537,7 @@ void GlobalizeHunkValueAndSetHunkFlag(
         pool,
         hunkChunkRefsExt,
         hunkChunkMetasExt,
-        value,
-        /*compressionDictionaryId*/ NullChunkId);
+        value);
 }
 
 void GlobalizeHunkValuesAndSetHunkFlag(
@@ -540,9 +552,6 @@ void GlobalizeHunkValuesAndSetHunkFlag(
 
     const auto& hunkChunkRefsExt = chunkMeta->HunkChunkRefsExt();
     const auto& hunkChunkMetasExt = chunkMeta->HunkChunkMetasExt();
-    auto compressionDictionaryId = chunkMeta->Misc().has_compression_dictionary_id()
-        ? FromProto<TChunkId>(chunkMeta->Misc().compression_dictionary_id())
-        : NullChunkId;
 
     for (auto& value : row.Values()) {
         if (!columnHunkFlags[value.Id]) {
@@ -559,8 +568,7 @@ void GlobalizeHunkValuesAndSetHunkFlag(
             pool,
             hunkChunkRefsExt,
             hunkChunkMetasExt,
-            &value,
-            compressionDictionaryId);
+            &value);
     }
 }
 
@@ -643,16 +651,6 @@ public:
 
         ++statistics->InlineValueCount;
         statistics->InlineValueWeight += hunkValue.Payload.Size();
-    }
-
-    void UpdateStatistics(int columnId, const TCompressedInlineRefHunkValue& hunkValue)
-    {
-        auto* statistics = GetOrCreateStatistics(columnId);
-
-        ++statistics->InlineValueCount;
-
-        auto* codec = NCompression::GetDictionaryCompressionCodec();
-        statistics->InlineValueWeight += codec->GetFrameInfo(hunkValue.Payload).ContentSize;
     }
 
     void UpdateStatistics(int columnId, const TLocalRefHunkValue& hunkValue)
@@ -926,37 +924,111 @@ public:
             columnarStatisticsThunk.emplace();
         }
 
-        if (CompressionContext_) {
-            if (CompressionContext_->NeedsSamples) {
-                CompressionContext_->FeedSamples(rows);
-                rows = {};
-
-                if (CompressionContext_->NeedsSamples) {
-                    return true;
-                }
-            } else {
-                CompressionContext_->SampledRowBuffer->Clear();
-                CompressionContext_->SampledRows.clear();
-            }
-        }
-
         ScratchRowBuffer_->Clear();
         ScratchRows_.clear();
         ScratchRows_.reserve(rows.Size());
 
+        auto* pool = ScratchRowBuffer_->GetPool();
+
         bool ready = true;
 
-        if (CompressionContext_) {
-            for (auto row : CompressionContext_->SampledRows) {
-                ScratchRows_.push_back(row);
-                ProcessScratchRow(row, &ready, columnarStatisticsThunk);
-            }
-        }
-
         for (auto row : rows) {
-            auto scratchRow = ScratchRowBuffer_->CaptureRow(row, /*captureValues*/ false);
+            auto scratchRow = ScratchRowBuffer_->CaptureRow(row, false);
             ScratchRows_.push_back(scratchRow);
-            ProcessScratchRow(scratchRow, &ready, columnarStatisticsThunk);
+
+            for (auto& value : scratchRow.Values()) {
+                if (value.Type == EValueType::Null) {
+                    continue;
+                }
+
+                auto maxInlineHunkSize = Schema_->Columns()[value.Id].MaxInlineHunkSize();
+                if (!maxInlineHunkSize) {
+                    continue;
+                }
+
+                auto handleInlineHunkValue =
+                    [&](const TInlineHunkValue &inlineHunkValue) {
+                        auto payloadLength =
+                            static_cast<i64>(inlineHunkValue.Payload.Size());
+                        if (payloadLength < *maxInlineHunkSize) {
+                            // Leave as is.
+                            if (columnarStatisticsThunk) {
+                                columnarStatisticsThunk->UpdateStatistics(
+                                    value.Id, inlineHunkValue);
+                            }
+                            return;
+                        }
+
+                        HunkCount_ += 1;
+                        TotalHunkLength_ += payloadLength;
+
+                        auto [blockIndex, blockOffset, hunkWriterReady] =
+                            HunkChunkPayloadWriter_->WriteHunk(inlineHunkValue.Payload);
+                        ready &= hunkWriterReady;
+
+                        TLocalRefHunkValue localRefHunkValue{
+                            .ChunkIndex = GetHunkChunkPayloadWriterChunkIndex(),
+                            .BlockIndex = blockIndex,
+                            .BlockOffset = blockOffset,
+                            .Length = payloadLength,
+                        };
+                        if (columnarStatisticsThunk) {
+                          columnarStatisticsThunk->UpdateStatistics(
+                              value.Id, inlineHunkValue);
+                        }
+                        return;
+                      }
+
+                      HunkCount_ += 1;
+                      TotalHunkLength_ += payloadLength;
+
+                      auto [blockIndex, blockOffset, hunkWriterReady] =
+                          HunkChunkPayloadWriter_->WriteHunk(
+                              inlineHunkValue.Payload);
+                      ready &= hunkWriterReady;
+
+                      TLocalRefHunkValue localRefHunkValue{
+                          .ChunkIndex = GetHunkChunkPayloadWriterChunkIndex(),
+                          .BlockIndex = blockIndex,
+                          .BlockOffset = blockOffset,
+                          .Length = payloadLength,
+                      };
+                      if (columnarStatisticsThunk) {
+                        columnarStatisticsThunk->UpdateStatistics(value.Id, localRefHunkValue);
+                      }
+                      auto localizedPayload =
+                          WriteHunkValue(pool, localRefHunkValue);
+                      SetValueRef(&value, localizedPayload);
+                      value.Flags |= EValueFlags::Hunk;
+                    };
+
+                auto valueRef = GetValueRef(value);
+                if (Any(value.Flags & EValueFlags::Hunk)) {
+                    Visit(
+                        ReadHunkValue(valueRef),
+                        handleInlineHunkValue,
+                        [&] (const TLocalRefHunkValue& /*localRefHunkValue*/) {
+                            THROW_ERROR_EXCEPTION("Unexpected local hunk reference");
+                        },
+                        [&] (const TGlobalRefHunkValue& globalRefHunkValue) {
+                            TLocalRefHunkValue localRefHunkValue{
+                                .ChunkIndex = RegisterHunkRef(globalRefHunkValue),
+                                .BlockIndex = globalRefHunkValue.BlockIndex,
+                                .BlockOffset = globalRefHunkValue.BlockOffset,
+                                .Length = globalRefHunkValue.Length,
+                            };
+                            if (columnarStatisticsThunk) {
+                                columnarStatisticsThunk->UpdateStatistics(value.Id, localRefHunkValue);
+                            }
+                            auto localizedPayload = WriteHunkValue(pool, localRefHunkValue);
+                            SetValueRef(&value, localizedPayload);
+                            // NB: Strictly speaking, this is redundant.
+                            value.Flags |= EValueFlags::Hunk;
+                        });
+                } else {
+                    handleInlineHunkValue(TInlineHunkValue{valueRef});
+                }
+            }
         }
 
         if (columnarStatisticsThunk) {
@@ -979,74 +1051,26 @@ public:
 
     TFuture<void> Close() override
     {
-        if (CompressionContext_ && CompressionContext_->NeedsSamples) {
-            YT_VERIFY(ScratchRows_.empty());
-
-            CompressionContext_->NeedsSamples = false;
-
-            auto sampledRowBuffer = std::move(CompressionContext_->SampledRowBuffer);
-            std::vector<TVersionedRow> sampledRows;
-            sampledRows.reserve(CompressionContext_->SampledRows.size());
-            for (auto row : CompressionContext_->SampledRows) {
-                sampledRows.push_back(row);
-            }
-
-            Write(MakeRange(sampledRows));
-        }
-
-        TChunkId newDictionaryId = CompressionContext_
-            ? CompressionContext_->Session->GetCompressionDictionaryId()
-            : NullChunkId;
-
         if (HunkChunkPayloadWriterChunkIndex_) {
-            HunkChunkPayloadWriter_->OnParentReaderFinished(newDictionaryId);
+            HunkChunkPayloadWriter_->OnParentReaderFinished();
 
             HunkChunkRefs_[*HunkChunkPayloadWriterChunkIndex_] = THunkChunkRef{
                 .ChunkId = HunkChunkPayloadWriter_->GetChunkId(),
                 .ErasureCodec = HunkChunkPayloadWriter_->GetErasureCodecId(),
                 .HunkCount = HunkCount_,
-                .TotalHunkLength = TotalHunkLength_,
+                .TotalHunkLength = TotalHunkLength_
             };
-
-            if (newDictionaryId != NullChunkId) {
-                HunkChunkRefs_[*HunkChunkPayloadWriterChunkIndex_].CompressionDictionaryId = newDictionaryId;
-            }
 
             HunkChunkMetas_[*HunkChunkPayloadWriterChunkIndex_] = HunkChunkPayloadWriter_->GetHunkChunkMeta();
         }
 
-        std::vector<TChunkId> dictionaryIds;
-        for (const auto& ref : HunkChunkRefs_) {
-            if (ref.CompressionDictionaryId != NullChunkId) {
-                dictionaryIds.push_back(ref.CompressionDictionaryId);
-            }
-        }
-
-        if (!dictionaryIds.empty()) {
-            SortUnique(dictionaryIds);
-            for (auto dictionaryId : dictionaryIds) {
-                HunkChunkRefs_.push_back(THunkChunkRef{
-                    .ChunkId = dictionaryId,
-                });
-            }
-        }
-
         Underlying_->GetMeta()->RegisterFinalizer(
             [
-                newDictionaryId,
                 weakUnderlying = MakeWeak(Underlying_),
                 hunkChunkPayloadWriter = HunkChunkPayloadWriter_,
                 hunkChunkRefs = std::move(HunkChunkRefs_),
-                hunkChunkMetas = std::move(HunkChunkMetas_),
-                dictionaryIds = std::move(dictionaryIds)
+                hunkChunkMetas = std::move(HunkChunkMetas_)
             ] (TDeferredChunkMeta* meta) mutable {
-                if (newDictionaryId != NullChunkId) {
-                    // NB: This value reflects compression dictionary id of inline hunk values.
-                    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
-                    ToProto(miscExt.mutable_compression_dictionary_id(), newDictionaryId);
-                    SetProtoExtension(meta->mutable_extensions(), miscExt);
-                }
-
                 if (hunkChunkRefs.empty()) {
                     return;
                 }
@@ -1056,12 +1080,9 @@ public:
                     return;
                 }
 
-                YT_LOG_DEBUG("Hunk chunk references written (StoreId: %v, HunkChunkRefs: %v, "
-                    "NewDictionaryId: %v, DictionaryIds: %v)",
+                YT_LOG_DEBUG("Hunk chunk references written (StoreId: %v, HunkChunkRefs: %v)",
                     underlying->GetChunkId(),
-                    hunkChunkRefs,
-                    newDictionaryId,
-                    dictionaryIds);
+                    hunkChunkRefs);
 
                 NTableClient::NProto::THunkChunkRefsExt hunkChunkRefsExt;
                 ToProto(hunkChunkRefsExt.mutable_refs(), hunkChunkRefs);
@@ -1077,8 +1098,7 @@ public:
 
     i64 GetRowCount() const override
     {
-        return Underlying_->GetRowCount() +
-            (CompressionContext_ ? std::ssize(CompressionContext_->SampledRows) : 0);
+        return Underlying_->GetRowCount();
     }
 
     i64 GetMetaSize() const override
@@ -1093,7 +1113,7 @@ public:
 
     i64 GetDataWeight() const override
     {
-        return Underlying_->GetDataWeight();
+        return Underlying_->IsCloseDemanded();
     }
 
     bool IsCloseDemanded() const override
@@ -1118,11 +1138,7 @@ public:
 
     TCodecStatistics GetCompressionStatistics() const override
     {
-        auto statistics = Underlying_->GetCompressionStatistics();
-        if (CompressionContext_) {
-            statistics.AppendToValueDictionaryCompression(CompressionContext_->Session->GetCompressionTime());
-        }
-        return statistics;
+        return Underlying_->GetCompressionStatistics();
     }
 
 private:
@@ -1130,33 +1146,6 @@ private:
     const TTableSchemaPtr Schema_;
     const IHunkChunkPayloadWriterPtr HunkChunkPayloadWriter_;
     const IHunkChunkWriterStatisticsPtr HunkChunkWriterStatistics_;
-
-    struct TCompressionContext
-    {
-        struct TCompressionSamplesRowBufferTag
-        { };
-
-        IDictionaryCompressionSessionPtr Session;
-        bool NeedsSamples = true;
-
-        std::vector<TMutableVersionedRow> SampledRows;
-        TRowBufferPtr SampledRowBuffer = New<TRowBuffer>(TCompressionSamplesRowBufferTag());
-
-
-        void FeedSamples(TRange<TVersionedRow> rows)
-        {
-            for (auto row : rows) {
-                // NB: Capture values so these rows might stay for multiple Write calls.
-                auto sampledRow = SampledRowBuffer->CaptureRow(row, /*captureValues*/ true);
-                SampledRows.push_back(sampledRow);
-                if (NeedsSamples && !Session->FeedSample(sampledRow, SampledRowBuffer->GetPool())) {
-                    NeedsSamples = false;
-                }
-            }
-        }
-    };
-
-    std::optional<TCompressionContext> CompressionContext_;
 
     struct TScratchRowBufferTag
     { };
@@ -1207,11 +1196,6 @@ private:
             blockSizes[blockIndex] = *globalRefHunkValue.BlockSize;
         }
 
-        if (ref.CompressionDictionaryId == NullChunkId) {
-            ref.CompressionDictionaryId = globalRefHunkValue.CompressionDictionaryId;
-        }
-        YT_VERIFY(ref.CompressionDictionaryId == globalRefHunkValue.CompressionDictionaryId);
-
         return chunkIndex;
     }
 
@@ -1223,90 +1207,6 @@ private:
             HunkChunkMetas_.emplace_back(); // to be filled on close
         }
         return *HunkChunkPayloadWriterChunkIndex_;
-    }
-
-    void ProcessScratchRow(
-        TMutableVersionedRow scratchRow,
-        bool* ready,
-        std::optional<TColumnarStatisticsThunk>& columnarStatisticsThunk)
-    {
-        auto* pool = ScratchRowBuffer_->GetPool();
-
-        if (CompressionContext_) {
-            CompressionContext_->Session->CompressValuesInRow(&scratchRow, pool);
-        }
-
-        for (auto& value : scratchRow.Values()) {
-            if (value.Type == EValueType::Null) {
-                continue;
-            }
-
-            auto maxInlineHunkSize = Schema_->Columns()[value.Id].MaxInlineHunkSize();
-            if (!maxInlineHunkSize) {
-                continue;
-            }
-
-            auto handleInlineHunkValue = [&] (const TInlineHunkValue& inlineHunkValue) {
-                auto payloadLength = static_cast<i64>(inlineHunkValue.Payload.Size());
-                if (payloadLength < *maxInlineHunkSize) {
-                    // Leave as is.
-                    if (columnarStatisticsThunk) {
-                        columnarStatisticsThunk->UpdateStatistics(value.Id, inlineHunkValue);
-                    }
-                    return;
-                }
-
-                HunkCount_ += 1;
-                TotalHunkLength_ += payloadLength;
-
-                auto [blockIndex, blockOffset, hunkWriterReady] = HunkChunkPayloadWriter_->WriteHunk(
-                    inlineHunkValue.Payload);
-                *ready &= hunkWriterReady;
-
-                TLocalRefHunkValue localRefHunkValue{
-                    .ChunkIndex = GetHunkChunkPayloadWriterChunkIndex(),
-                    .BlockIndex = blockIndex,
-                    .BlockOffset = blockOffset,
-                    .Length = payloadLength,
-                };
-                if (columnarStatisticsThunk) {
-                    columnarStatisticsThunk->UpdateStatistics(value.Id, localRefHunkValue);
-                }
-                auto localizedPayload = WriteHunkValue(pool, localRefHunkValue);
-                SetValueRef(&value, localizedPayload);
-                value.Flags |= EValueFlags::Hunk;
-            };
-
-            auto valueRef = GetValueRef(value);
-            if (Any(value.Flags & EValueFlags::Hunk)) {
-                Visit(
-                    ReadHunkValue(valueRef),
-                    handleInlineHunkValue,
-                    [&] (const TCompressedInlineRefHunkValue& /*compressedInlineRefHunkValue*/) {
-                        THROW_ERROR_EXCEPTION("Unexpected compressed inline hunk value");
-                    },
-                    [&] (const TLocalRefHunkValue& /*localRefHunkValue*/) {
-                        THROW_ERROR_EXCEPTION("Unexpected local hunk reference");
-                    },
-                    [&] (const TGlobalRefHunkValue& globalRefHunkValue) {
-                        TLocalRefHunkValue localRefHunkValue{
-                            .ChunkIndex = RegisterHunkRef(globalRefHunkValue),
-                            .BlockIndex = globalRefHunkValue.BlockIndex,
-                            .BlockOffset = globalRefHunkValue.BlockOffset,
-                            .Length = globalRefHunkValue.Length,
-                        };
-                        if (columnarStatisticsThunk) {
-                            columnarStatisticsThunk->UpdateStatistics(value.Id, localRefHunkValue);
-                        }
-                        auto localizedPayload = WriteHunkValue(pool, localRefHunkValue);
-                        SetValueRef(&value, localizedPayload);
-                        // NB: Strictly speaking, this is redundant.
-                        value.Flags |= EValueFlags::Hunk;
-                    });
-            } else {
-                handleInlineHunkValue(TInlineHunkValue{valueRef});
-            }
-        }
     }
 };
 
@@ -1353,7 +1253,6 @@ namespace {
 
 TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
     IChunkFragmentReaderPtr chunkFragmentReader,
-    IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TClientChunkReadOptions options,
     TSharedRange<TUnversionedValue*> values)
 {
@@ -1372,10 +1271,6 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
     int inlineHunkValueCount = 0;
     std::vector<IChunkFragmentReader::TChunkFragmentRequest> requests;
     std::vector<TUnversionedValue*> requestedValues;
-
-    std::vector<TUnversionedValue*> compressedValues;
-    std::vector<TChunkId> compressionDictionaryIds;
-
     for (auto* value : values) {
         Visit(
             ReadHunkValue(GetValueRef(*value)),
@@ -1384,16 +1279,6 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
                     columnarStatisticsThunk->UpdateStatistics(value->Id, inlineHunkValue);
                 }
                 setValuePayload(value, inlineHunkValue.Payload);
-                ++inlineHunkValueCount;
-            },
-            [&] (const TCompressedInlineRefHunkValue& compressedInlineRefHunkValue) {
-                if (columnarStatisticsThunk) {
-                    columnarStatisticsThunk->UpdateStatistics(value->Id, compressedInlineRefHunkValue);
-                }
-                YT_VERIFY(compressedInlineRefHunkValue.CompressionDictionaryId != NullChunkId);
-                setValuePayload(value, compressedInlineRefHunkValue.Payload);
-                compressedValues.push_back(value);
-                compressionDictionaryIds.push_back(compressedInlineRefHunkValue.CompressionDictionaryId);
                 ++inlineHunkValueCount;
             },
             [&] (const TLocalRefHunkValue& /*localRefHunkValue*/) {
@@ -1409,14 +1294,9 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
                     .Length = static_cast<i64>(sizeof(THunkPayloadHeader)) + globalRefHunkValue.Length,
                     .BlockIndex = globalRefHunkValue.BlockIndex,
                     .BlockOffset = globalRefHunkValue.BlockOffset,
-                    .BlockSize = globalRefHunkValue.BlockSize,
+                    .BlockSize = globalRefHunkValue.BlockSize
                 });
                 requestedValues.push_back(value);
-
-                if (globalRefHunkValue.CompressionDictionaryId != NullChunkId) {
-                    compressedValues.push_back(value);
-                    compressionDictionaryIds.push_back(globalRefHunkValue.CompressionDictionaryId);
-                }
             });
     }
 
@@ -1428,17 +1308,14 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
         columnarStatisticsThunk->MergeTo(hunkChunkReaderStatistics);
     }
 
-    auto fragmentsFuture = chunkFragmentReader->ReadFragments(options, requests);
+    auto fragmentsFuture = chunkFragmentReader->ReadFragments(std::move(options), requests);
     return fragmentsFuture.ApplyUnique(BIND([
             =,
             requests = std::move(requests),
             values = std::move(values),
             requestedValues = std::move(requestedValues),
-            compressedValues = std::move(compressedValues),
-            compressionDictionaryIds = std::move(compressionDictionaryIds),
-            hunkChunkReaderStatistics = std::move(hunkChunkReaderStatistics),
-            options = std::move(options)
-        ] (IChunkFragmentReader::TReadFragmentsResponse&& response) mutable {
+            hunkChunkReaderStatistics = std::move(hunkChunkReaderStatistics)
+        ] (IChunkFragmentReader::TReadFragmentsResponse&& response) {
             YT_VERIFY(response.Fragments.size() == requestedValues.size());
 
             i64 dataWeight = 0;
@@ -1459,22 +1336,7 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
                 hunkChunkReaderStatistics->BackendProbingRequestCount() += response.BackendProbingRequestCount;
             }
 
-            auto result = MakeSharedRange(values, values, std::move(response.Fragments));
-
-            if (!compressedValues.empty()) {
-                YT_VERIFY(dictionaryCompressionFactory);
-                return dictionaryCompressionFactory->CreateDictionaryDecompressionSession()->DecompressValues(
-                    std::move(compressedValues),
-                    std::move(compressionDictionaryIds),
-                    std::move(options))
-                    .ApplyUnique(BIND([
-                        result = std::move(result)
-                    ] (std::vector<TSharedRef>&& decompressionResults) mutable {
-                        return MakeSharedRange(std::move(result), std::move(decompressionResults));
-                    }));
-            }
-
-            return MakeFuture(std::move(result));
+            return MakeSharedRange(values, values, std::move(response.Fragments));
         }));
 }
 
@@ -1502,9 +1364,6 @@ std::optional<i64> UniversalHunkValueChecker(const TUnversionedValue& value)
         [&] (const TInlineHunkValue& /*inlineHunkValue*/) -> std::optional<i64> {
             return 0;
         },
-        [&] (const TCompressedInlineRefHunkValue& /*compressedInlineRefHunkValue*/) -> std::optional<i64> {
-            return 0;
-        },
         [&] (const TLocalRefHunkValue& /*localRefHunkValue*/) -> std::optional<i64> {
             THROW_ERROR_EXCEPTION("Unexpected local hunk reference");
         },
@@ -1518,7 +1377,6 @@ std::optional<i64> UniversalHunkValueChecker(const TUnversionedValue& value)
 template <class TRow, class TRowVisitor>
 TFuture<TSharedRange<TRow>> DecodeHunksInRows(
     IChunkFragmentReaderPtr chunkFragmentReader,
-    IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TClientChunkReadOptions options,
     TSharedRange<TRow> rows,
     const TRowVisitor& rowVisitor)
@@ -1526,7 +1384,6 @@ TFuture<TSharedRange<TRow>> DecodeHunksInRows(
     return
         DecodeHunks(
             std::move(chunkFragmentReader),
-            std::move(dictionaryCompressionFactory),
             std::move(options),
             CollectHunkValues(rows, rowVisitor))
         .ApplyUnique(BIND(
@@ -1541,13 +1398,11 @@ TFuture<TSharedRange<TMutableUnversionedRow>> DecodeHunksInSchemafulUnversionedR
     const TTableSchemaPtr& schema,
     const TColumnFilter& columnFilter,
     IChunkFragmentReaderPtr chunkFragmentReader,
-    IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TClientChunkReadOptions options,
     TSharedRange<TMutableUnversionedRow> rows)
 {
     return DecodeHunksInRows(
         std::move(chunkFragmentReader),
-        std::move(dictionaryCompressionFactory),
         std::move(options),
         std::move(rows),
         TSchemafulUnversionedRowVisitor(schema, columnFilter));
@@ -1555,13 +1410,11 @@ TFuture<TSharedRange<TMutableUnversionedRow>> DecodeHunksInSchemafulUnversionedR
 
 TFuture<TSharedRange<TMutableVersionedRow>> DecodeHunksInVersionedRows(
     IChunkFragmentReaderPtr chunkFragmentReader,
-    IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TClientChunkReadOptions options,
     TSharedRange<TMutableVersionedRow> rows)
 {
     return DecodeHunksInRows(
         std::move(chunkFragmentReader),
-        std::move(dictionaryCompressionFactory),
         std::move(options),
         std::move(rows),
         TVersionedRowVisitor());
@@ -1598,7 +1451,6 @@ public:
 
     TCodecStatistics GetDecompressionStatistics() const override
     {
-        // TODO(akozhikhov): Account hunk values decompression here.
         return Underlying_->GetDecompressionStatistics();
     }
 
@@ -1621,7 +1473,6 @@ protected:
     const TBatchHunkReaderConfigPtr Config_;
     const TIntrusivePtr<IReader> Underlying_;
     const IChunkFragmentReaderPtr ChunkFragmentReader_;
-    const IDictionaryCompressionFactoryPtr DictionaryCompressionFactory_;
     const TClientChunkReadOptions Options_;
 
     const NLogging::TLogger Logger;
@@ -1705,8 +1556,7 @@ protected:
             return MakeBatch(MakeSharedRange(std::move(DecodableRows_), MakeStrong(this)));
         }
 
-        YT_LOG_DEBUG("Fetching hunks in row slice "
-            "(StartRowIndex: %v, EndRowIndex: %v, HunkCount: %v, TotalHunkLength: %v)",
+        YT_LOG_DEBUG("Fetching hunks in row slice (StartRowIndex: %v, EndRowIndex: %v, HunkCount: %v, TotalHunkLength: %v)",
             startRowIndex,
             endRowIndex,
             hunkCount,
@@ -1715,7 +1565,6 @@ protected:
         ReadyEvent_ =
             DecodeHunks(
                 ChunkFragmentReader_,
-                DictionaryCompressionFactory_,
                 Options_,
                 MakeSharedRange(std::move(values), DecodableRows_))
             .ApplyUnique(
@@ -1831,9 +1680,6 @@ public:
                 return Visit(
                     ReadHunkValue(GetValueRef(value)),
                     [&] (const TInlineHunkValue& /*inlineHunkValue*/) -> std::optional<i64> {
-                        return 0;
-                    },
-                    [&] (const TCompressedInlineRefHunkValue& /*compressedInlineRefHunkValue*/) -> std::optional<i64> {
                         return 0;
                     },
                     [&] (const TLocalRefHunkValue& /*localRefHunkValue*/) -> std::optional<i64> {
@@ -2095,9 +1941,7 @@ public:
 
         HunkCount_ += 1;
         TotalHunkLength_ += std::ssize(payload);
-        // TODO(akozhikhov): Proper statistics accounting.
-        UncompressedDataSize_ += dataSize;
-        CompressedDataSize_ += dataSize;
+        TotalDataSize_ += dataSize;
         HasHunks_ = true;
 
         return {blockIndex, blockOffset, ready};
@@ -2130,11 +1974,8 @@ public:
             NChunkClient::NProto::TMiscExt ext;
             ext.set_compression_codec(ToProto<int>(NCompression::ECodec::None));
             ext.set_data_weight(TotalHunkLength_);
-            ext.set_uncompressed_data_size(UncompressedDataSize_);
-            ext.set_compressed_data_size(CompressedDataSize_);
-            if (CompressionDictionaryId_ != NullChunkId) {
-                ToProto(ext.mutable_compression_dictionary_id(), CompressionDictionaryId_);
-            }
+            ext.set_uncompressed_data_size(TotalDataSize_);
+            ext.set_compressed_data_size(TotalDataSize_);
             SetProtoExtension(Meta_->mutable_extensions(), ext);
         }
 
@@ -2168,11 +2009,9 @@ public:
         return Underlying_->GetDataStatistics();
     }
 
-    void OnParentReaderFinished(TChunkId compressionDictionaryId) override
+    void OnParentReaderFinished() override
     {
         auto guard = Guard(Lock_);
-
-        CompressionDictionaryId_ = compressionDictionaryId;
 
         FlushBuffer();
     }
@@ -2201,9 +2040,7 @@ private:
     i64 MaxHunkSizeInBlock_ = 0;
     i64 HunkCount_ = 0;
     i64 TotalHunkLength_ = 0;
-
-    i64 UncompressedDataSize_ = 0;
-    i64 CompressedDataSize_ = 0;
+    i64 TotalDataSize_ = 0;
 
     bool HasHunks_ = false;
 
@@ -2219,8 +2056,6 @@ private:
 
     static constexpr auto BufferReserveFactor = 1.2;
     TBlob Buffer_{GetRefCountedTypeCookie<TBufferTag>()};
-
-    TChunkId CompressionDictionaryId_ = NullChunkId;
 
 
     char* BeginWriteToBuffer(i64 writeSize)
@@ -2365,14 +2200,13 @@ void ReplaceHunks(
         YT_VERIFY(descriptor.ErasureCodec == NErasure::ECodec::None);
 
         auto payloadSize = static_cast<i64>(descriptor.Length - sizeof(THunkPayloadHeader));
-        // TODO(akozhikhov): Support compressed hunk values here?
-        TGlobalRefHunkValue globalRefHunkValue{
+        auto globalRefHunkValue = TGlobalRefHunkValue{
             .ChunkId = descriptor.ChunkId,
             .ErasureCodec = descriptor.ErasureCodec,
             .BlockIndex = descriptor.BlockIndex,
             .BlockOffset = descriptor.BlockOffset,
             .BlockSize = descriptor.BlockSize,
-            .Length = payloadSize,
+            .Length = payloadSize
         };
         auto globalRefPayload = WriteHunkValue(pool, globalRefHunkValue);
         SetValueRef(&value, globalRefPayload);

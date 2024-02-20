@@ -37,7 +37,9 @@ struct THunkChunkRef
     NErasure::ECodec ErasureCodec = NErasure::ECodec::None;
     i64 HunkCount = 0;
     i64 TotalHunkLength = 0;
-    NChunkClient::TChunkId CompressionDictionaryId = NChunkClient::NullChunkId;
+
+    void Save(TStreamSaveContext& context) const;
+    void Load(TStreamLoadContext& context);
 };
 
 void ToProto(NProto::THunkChunkRef* protoRef, const THunkChunkRef& ref);
@@ -57,6 +59,9 @@ struct THunkChunksInfo
     NHydra::TRevision MountRevision;
 
     THashMap<NChunkClient::TChunkId, THunkChunkRef> HunkChunkRefs;
+
+    void Save(TStreamSaveContext& context) const;
+    void Load(TStreamLoadContext& context);
 };
 
 void ToProto(NTabletClient::NProto::THunkChunksInfo* protoRef, const THunkChunksInfo& ref);
@@ -257,23 +262,10 @@ private:
  *  * blockOffset: varuint64
  *  * blockSize: varuint64 if chunkId is erasure
  *  * length: varuint64
- *
- *  4) tag == EHunkValueTag::CompressedInline
- *  Compressed value payload is being stored inline.
- * * compressionDictionaryId: TChunkId
- * * payload: char[N]
  */
 
 struct TInlineHunkValue
 {
-    TRef Payload;
-};
-
-// NB: This is a transient ref to inline hunk value, i.e.
-// its memory layout does not include the value payload itself, only a pointer to this payload.
-struct TCompressedInlineRefHunkValue
-{
-    NChunkClient::TChunkId CompressionDictionaryId = NChunkClient::NullChunkId;
     TRef Payload;
 };
 
@@ -293,17 +285,18 @@ struct TGlobalRefHunkValue
     i64 BlockOffset;
     std::optional<i64> BlockSize;
     i64 Length;
-    NChunkClient::TChunkId CompressionDictionaryId = NChunkClient::NullChunkId;
 };
 
 using THunkValue = std::variant<
     TInlineHunkValue,
     TLocalRefHunkValue,
-    TGlobalRefHunkValue,
-    TCompressedInlineRefHunkValue
+    TGlobalRefHunkValue
 >;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+constexpr auto InlineHunkHeaderSize =
+    sizeof(ui8);       // tag
 
 constexpr auto MaxLocalHunkRefSize =
     sizeof(ui8) +      // tag
@@ -319,14 +312,16 @@ constexpr auto MaxGlobalHunkRefSize =
     MaxVarUint64Size +               // length
     MaxVarUint32Size +               // blockIndex
     MaxVarUint64Size +               // blockOffset
-    MaxVarUint64Size +               // blockSize
-    sizeof(NChunkClient::TChunkId);  // compressionDictionaryId
+    MaxVarUint64Size;                // blockSize
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRef WriteHunkValue(TChunkedMemoryPool* pool, const TCompressedInlineRefHunkValue& value);
+TRef WriteHunkValue(TChunkedMemoryPool* pool, const TInlineHunkValue& value);
 TRef WriteHunkValue(TChunkedMemoryPool* pool, const TLocalRefHunkValue& value);
 TRef WriteHunkValue(TChunkedMemoryPool* pool, const TGlobalRefHunkValue& value);
+
+size_t GetInlineHunkValueSize(const TInlineHunkValue& value);
+TRef WriteHunkValue(char* ptr, const TInlineHunkValue& value);
 
 THunkValue ReadHunkValue(TRef input);
 
@@ -336,6 +331,10 @@ void GlobalizeHunkValues(
     TChunkedMemoryPool* pool,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
     TMutableVersionedRow row);
+void GlobalizeHunkValues(
+    TChunkedMemoryPool* pool,
+    const TColumnarChunkMetaPtr& chunkMeta,
+    TMutableUnversionedRow row);
 
 void GlobalizeHunkValueAndSetHunkFlag(
     TChunkedMemoryPool* pool,
@@ -353,14 +352,12 @@ TFuture<TSharedRange<TMutableUnversionedRow>> DecodeHunksInSchemafulUnversionedR
     const TTableSchemaPtr& schema,
     const TColumnFilter& columnFilter,
     NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
-    IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     NChunkClient::TClientChunkReadOptions options,
     TSharedRange<TMutableUnversionedRow> rows);
 
 //! A versioned counterpart of #ReadAndDecodeHunksInSchemafulRows.
 TFuture<TSharedRange<TMutableVersionedRow>> DecodeHunksInVersionedRows(
     NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
-    IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     NChunkClient::TClientChunkReadOptions options,
     TSharedRange<TMutableVersionedRow> rows);
 
@@ -440,7 +437,7 @@ struct IHunkChunkPayloadWriter
     //! If no hunks were added via #WriteHunk, underlying writer is cancelled.
     virtual TFuture<void> Close() = 0;
 
-    //! Returns the chunk meta.
+    //! Returns the chunk meta. The chunk must be already closed, see #Close.
     virtual NChunkClient::TDeferredChunkMetaPtr GetMeta() const = 0;
 
     //! Returns the chunk id. The chunk must be already open, see #GetOpenFuture.
@@ -453,7 +450,7 @@ struct IHunkChunkPayloadWriter
     virtual const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const = 0;
 
     //! Called when chunk store writer closes.
-    virtual void OnParentReaderFinished(NChunkClient::TChunkId compressionDictionaryId) = 0;
+    virtual void OnParentReaderFinished() = 0;
 
     //! Returns the hunk chunk meta.
     virtual THunkChunkMeta GetHunkChunkMeta() const = 0;

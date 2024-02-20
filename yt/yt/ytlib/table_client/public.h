@@ -37,7 +37,6 @@ using TStableColumnNameFilterDictionary = TGenericColumnFilterDictionary<TStable
 
 class THorizontalBlockReader;
 
-struct THunkChunkRef;
 struct THunkChunksInfo;
 
 struct TTableReadSpec;
@@ -151,10 +150,6 @@ DECLARE_REFCOUNTED_STRUCT(IChunkIndexReadController)
 DECLARE_REFCOUNTED_STRUCT(TTabletPerformanceCounters)
 
 DECLARE_REFCOUNTED_STRUCT(IGranuleFilter)
-
-DECLARE_REFCOUNTED_STRUCT(IDictionaryCompressionSession)
-DECLARE_REFCOUNTED_STRUCT(IDictionaryDecompressionSession)
-DECLARE_REFCOUNTED_STRUCT(IDictionaryCompressionFactory)
 
 ////////////////////////////////////////////////////////////////////////////////
 

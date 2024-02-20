@@ -46,7 +46,6 @@ DEFINE_ENUM(ETabletReign,
     ((RegisterTxActionsShouldPersistTx)            (100804)) // ifsmirnov
     ((PersistLastExclusiveLockTimestamp)           (100805)) // ponasenko-rs
     ((ValueDictionaryCompression_23_2)             (100806)) // akozhikhov
-    ((HunkValueDictionaryCompression_23_2)         (100807)) // akozhikhov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
