@@ -941,6 +941,7 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   yt-library-formats
   library-query-engine_api
   library-query-row_comparer_api
+  library-web_assembly-api
   yt-library-program
   yt-library-vector_hdrf
   yt-ytlib-discovery_client
@@ -1780,6 +1781,7 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   yt-library-formats
   library-query-engine_api
   library-query-row_comparer_api
+  library-web_assembly-api
   yt-library-program
   yt-library-vector_hdrf
   yt-ytlib-discovery_client

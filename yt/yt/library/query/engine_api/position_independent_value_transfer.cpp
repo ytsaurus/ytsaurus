@@ -6,22 +6,31 @@
 
 namespace NYT::NQueryClient {
 
+using namespace NWebAssembly;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TMutablePIValueRange AllocatePIValueRange(TExpressionContext* context, int valueCount)
+TMutablePIValueRange AllocatePIValueRange(TExpressionContext* context, int valueCount, NWebAssembly::EAddressSpace where)
 {
-    auto* data = context->AllocateAligned(sizeof(TPIValue) * valueCount);
+    auto* data = context->AllocateAligned(sizeof(TPIValue) * valueCount, where);
     return TMutablePIValueRange(
         reinterpret_cast<TPIValue*>(data),
         static_cast<size_t>(valueCount));
 }
 
-void CapturePIValue(TExpressionContext* context, TPIValue* value)
+void CapturePIValue(
+    TExpressionContext* context,
+    TPIValue* value,
+    NWebAssembly::EAddressSpace sourceAddressSpace,
+    NWebAssembly::EAddressSpace destinationAddressSpace)
 {
-    if (IsStringLikeType(value->Type)) {
-        auto copy = context->AllocateUnaligned(value->Length);
-        ::memcpy(copy, value->AsStringBuf().Data(), value->AsStringBuf().Size());
-        value->SetStringPosition(copy);
+    auto* valueAtHost = ConvertPointer(value, sourceAddressSpace, EAddressSpace::Host);
+    if (IsStringLikeType(valueAtHost->Type)) {
+        auto* dataCopy = context->AllocateUnaligned(valueAtHost->Length, destinationAddressSpace);
+        valueAtHost = ConvertPointer(value, sourceAddressSpace, EAddressSpace::Host); // NB: Possible reallocation.
+        auto* dataCopyAtHost = ConvertPointer(dataCopy, destinationAddressSpace, EAddressSpace::Host, valueAtHost->Length);
+        ::memcpy(dataCopyAtHost, valueAtHost->AsStringBuf().Data(), valueAtHost->Length);
+        valueAtHost->SetStringPosition(dataCopyAtHost);
     }
 }
 
@@ -30,35 +39,31 @@ void CapturePIValue(TExpressionContext* context, TPIValue* value)
 TMutablePIValueRange CapturePIValueRange(
     TExpressionContext* context,
     TPIValueRange values,
+    EAddressSpace sourceAddressSpace,
+    EAddressSpace destinationAddressSpace,
     bool captureValues)
 {
-    int count = static_cast<int>(values.Size());
+    YT_ASSERT(destinationAddressSpace == EAddressSpace::WebAssembly);
+    YT_ASSERT(captureValues);
 
-    auto capturedRange = AllocatePIValueRange(context, values.Size());
+    int length = static_cast<int>(values.Size());
+
+    auto* captured = std::bit_cast<TPIValue*>(context->AllocateAligned(values.Size() * sizeof(TPIValue), destinationAddressSpace));
+
+    auto* valuesAtHost = ConvertPointer(values.Begin(), sourceAddressSpace, EAddressSpace::Host, values.Size());
+    auto* capturedAtHost = ConvertPointer(captured, destinationAddressSpace, EAddressSpace::Host, values.Size());
 
     for (size_t index = 0; index < values.Size(); ++index) {
-        CopyPositionIndependent(&capturedRange[index], values[index]);
+        CopyPositionIndependent(&capturedAtHost[index], valuesAtHost[index]);
     }
 
     if (captureValues) {
-        for (int index = 0; index < count; ++index) {
-            CapturePIValue(context, &capturedRange[index]);
+        for (int index = 0; index < length; ++index) {
+            CapturePIValue(context, &captured[index], EAddressSpace::WebAssembly, destinationAddressSpace);
         }
     }
 
-    return capturedRange;
-}
-
-TMutablePIValueRange CapturePIValueRange(
-    TExpressionContext* context,
-    TUnversionedValueRange values,
-    bool captureValues)
-{
-    auto captured = context->CaptureRow(values, captureValues);
-    InplaceConvertToPI(captured);
-    return TMutablePIValueRange(
-        reinterpret_cast<TPIValue*>(captured.Begin()),
-        static_cast<size_t>(captured.GetCount()));
+    return MakeMutableRange(captured, length);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -188,17 +193,20 @@ TSharedRange<TPIRowRange> CopyAndConvertToPI(
 TMutableUnversionedRow CopyAndConvertFromPI(
     TExpressionContext* context,
     TPIValueRange values,
+    NWebAssembly::EAddressSpace sourceAddressSpace,
     bool captureValues)
 {
-    auto bytes = context->AllocateAligned(GetUnversionedRowByteSize(values.Size()));
+    auto* bytes = context->AllocateAligned(GetUnversionedRowByteSize(values.Size()), EAddressSpace::Host);
     auto capturedRow = TMutableUnversionedRow::Create(bytes, values.Size());
 
+    auto* valuesAtHost = ConvertPointer(values.Begin(), sourceAddressSpace, EAddressSpace::Host, values.Size());
+
     for (size_t index = 0; index < values.Size(); ++index) {
-        MakeUnversionedFromPositionIndependent(&capturedRow[index], values[index]);
+        MakeUnversionedFromPositionIndependent(&capturedRow[index], valuesAtHost[index]);
     }
 
     if (captureValues) {
-        context->CaptureValues(capturedRow);
+        context->GetRowBuffer()->CaptureValues(capturedRow);
     }
 
     return capturedRow;
@@ -207,16 +215,46 @@ TMutableUnversionedRow CopyAndConvertFromPI(
 std::vector<TUnversionedRow> CopyAndConvertFromPI(
     TExpressionContext* context,
     const std::vector<TPIValueRange>& rows,
+    EAddressSpace sourceAddressSpace,
     bool captureValues)
 {
     std::vector<TUnversionedRow> result;
     result.reserve(rows.size());
 
     for (auto& row : rows) {
-        result.push_back(CopyAndConvertFromPI(context, row, captureValues));
+        result.push_back(CopyAndConvertFromPI(context, row, sourceAddressSpace, captureValues));
     }
 
     return result;
+}
+
+TPIValueRange CaptureUnversionedValueRange(TExpressionContext* context, TRange<TValue> range)
+{
+    i64 rangeByteLength = range.size() * sizeof(TPIValue);
+    i64 byteLength = rangeByteLength;
+    for (auto& value : range) {
+        if (IsStringLikeType(value.Type)) {
+            byteLength += value.Length;
+        }
+    }
+
+    auto* copyOffset = context->AllocateAligned(byteLength, EAddressSpace::WebAssembly);
+
+    auto* destination = ConvertPointerFromWasmToHost(std::bit_cast<char*>(copyOffset), byteLength);
+    auto* copiedRangeAtHost = std::bit_cast<TPIValue*>(destination);
+
+    ::memcpy(destination, range.Begin(), rangeByteLength);
+    destination += rangeByteLength;
+
+    for (size_t index = 0; index < range.size(); ++index) {
+        if (IsStringLikeType(range[index].Type)) {
+            ::memcpy(destination, range[index].AsStringBuf().data(), range[index].Length);
+            copiedRangeAtHost[index].SetStringPosition(destination);
+            destination += range[index].Length;
+        }
+    }
+
+    return MakeRange(std::bit_cast<TPIValue*>(copyOffset), range.Size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

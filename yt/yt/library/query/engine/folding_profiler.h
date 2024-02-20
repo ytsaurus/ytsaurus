@@ -26,6 +26,7 @@ TCGExpressionGenerator Profile(
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
     bool useCanonicalNullRelations = false,
+    bool useWebAssembly = false,
     const TConstFunctionProfilerMapPtr& functionProfilers = GetBuiltinFunctionProfilers().Get());
 
 TCGQueryGenerator Profile(
@@ -34,6 +35,7 @@ TCGQueryGenerator Profile(
     TCGVariables* variables,
     TJoinSubqueryProfiler joinProfiler,
     bool useCanonicalNullRelations = false,
+    bool useWebAssembly = false,
     const TConstFunctionProfilerMapPtr& functionProfilers = GetBuiltinFunctionProfilers().Get(),
     const TConstAggregateProfilerMapPtr& aggregateProfilers = GetBuiltinAggregateProfilers().Get());
 

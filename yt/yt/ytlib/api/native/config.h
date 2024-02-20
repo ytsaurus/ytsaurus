@@ -342,6 +342,8 @@ public:
 
     bool DisableNewRangeInference;
 
+    bool UseWebAssembly;
+
     TDuration FlowPipelineControllerRpcTimeout;
 
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);

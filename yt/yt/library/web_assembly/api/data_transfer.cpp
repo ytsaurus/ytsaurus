@@ -41,7 +41,7 @@ uintptr_t TCopyGuard::GetCopiedOffset() const
 template <>
 TCopyGuard CopyIntoCompartment(TStringBuf data, IWebAssemblyCompartment* compartment)
 {
-    auto offset = compartment->AllocateBytes(data.size());
+    uintptr_t offset = compartment->AllocateBytes(data.size());
     auto* destination = ConvertPointerFromWasmToHost(std::bit_cast<char*>(offset), data.size());
     ::memcpy(destination, data.data(), data.size());
     return {compartment, offset};
@@ -50,10 +50,20 @@ TCopyGuard CopyIntoCompartment(TStringBuf data, IWebAssemblyCompartment* compart
 template <>
 TCopyGuard CopyIntoCompartment(const std::vector<i64>& data, IWebAssemblyCompartment* compartment)
 {
-    auto byteLength = data.size() * sizeof(i64);
-    auto offset = compartment->AllocateBytes(byteLength);
-    auto* destination = ConvertPointerFromWasmToHost(std::bit_cast<char*>(offset), byteLength);
+    i64 byteLength = std::ssize(data) * sizeof(i64);
+    uintptr_t offset = compartment->AllocateBytes(byteLength);
+    auto* destination = ConvertPointerFromWasmToHost(std::bit_cast<i64*>(offset), byteLength);
     ::memcpy(destination, data.data(), byteLength);
+    return {compartment, offset};
+}
+
+template <>
+TCopyGuard CopyIntoCompartment(TRange<uintptr_t> data, IWebAssemblyCompartment* compartment)
+{
+    i64 byteLength = std::ssize(data) * sizeof(uintptr_t);
+    uintptr_t offset = compartment->AllocateBytes(byteLength);
+    auto* destination = ConvertPointerFromWasmToHost(std::bit_cast<uintptr_t*>(offset), std::ssize(data));
+    ::memcpy(destination, data.begin(), byteLength);
     return {compartment, offset};
 }
 

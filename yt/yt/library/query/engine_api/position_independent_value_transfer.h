@@ -3,23 +3,30 @@
 #include "expression_context.h"
 #include "position_independent_value.h"
 
+#include <yt/yt/library/web_assembly/api/pointer.h>
+
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMutablePIValueRange AllocatePIValueRange(TExpressionContext* context, int valueCount);
+TMutablePIValueRange AllocatePIValueRange(
+    TExpressionContext* context,
+    int valueCount,
+    NWebAssembly::EAddressSpace where);
 
-void CapturePIValue(TExpressionContext* context, TPIValue* value);
+void CapturePIValue(
+    TExpressionContext* context,
+    TPIValue* value,
+    NWebAssembly::EAddressSpace sourceAddressSpace,
+    NWebAssembly::EAddressSpace destinationAddressSpace);
 
 TMutablePIValueRange CapturePIValueRange(
     TExpressionContext* context,
     TPIValueRange values,
-    bool captureValues = true);
-TMutablePIValueRange CapturePIValueRange(
-    TExpressionContext* context,
-    TUnversionedValueRange Values,
+    NWebAssembly::EAddressSpace sourceAddressSpace,
+    NWebAssembly::EAddressSpace destinationAddressSpace,
     bool captureValues = true);
 
 TSharedRange<TRange<TPIValue>> CopyAndConvertToPI(
@@ -32,11 +39,17 @@ TSharedRange<TPIRowRange> CopyAndConvertToPI(
 TMutableUnversionedRow CopyAndConvertFromPI(
     TExpressionContext* context,
     TPIValueRange values,
+    NWebAssembly::EAddressSpace sourceAddressSpace,
     bool captureValues = true);
 std::vector<TUnversionedRow> CopyAndConvertFromPI(
     TExpressionContext* context,
     const std::vector<TPIValueRange>& rows,
+    NWebAssembly::EAddressSpace sourceAddressSpace,
     bool captureValues = true);
+
+TPIValueRange CaptureUnversionedValueRange(
+    TExpressionContext* context,
+    TRange<TValue> range);
 
 TMutablePIValueRange InplaceConvertToPI(TMutableUnversionedValueRange range);
 TMutablePIValueRange InplaceConvertToPI(const TUnversionedRow& row);

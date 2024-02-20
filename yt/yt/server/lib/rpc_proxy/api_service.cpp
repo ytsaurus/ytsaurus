@@ -3749,9 +3749,12 @@ private:
         if (request->has_syntax_version()) {
             options.SyntaxVersion = request->syntax_version();
         }
+        if (request->has_use_web_assembly()) {
+            options.UseWebAssembly = request->use_web_assembly();
+        }
+
         auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
         options.DetailedProfilingInfo = detailedProfilingInfo;
-
         if (options.PlaceholderValues) {
             context->SetRequestInfo("Query: %v, Timestamp: %v, PlaceholderValues: %v",
                 query,

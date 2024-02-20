@@ -35,6 +35,9 @@ TCopyGuard CopyIntoCompartment(TStringBuf data, IWebAssemblyCompartment* compart
 template <>
 TCopyGuard CopyIntoCompartment(const std::vector<i64>& data, IWebAssemblyCompartment* compartment);
 
+template <>
+TCopyGuard CopyIntoCompartment(TRange<uintptr_t> data, IWebAssemblyCompartment* compartment);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NWebAssembly

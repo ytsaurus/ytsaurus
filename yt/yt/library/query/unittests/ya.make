@@ -15,6 +15,16 @@ SRCS(
     ql_range_coordination_ut.cpp
 )
 
+IF (OPENSOURCE)
+    SRCS(
+        disable_web_assembly.cpp
+    )
+ELSE()
+    SRCS(
+        enable_web_assembly.cpp
+    )
+ENDIF()
+
 ADDINCL(
     contrib/libs/sparsehash/src
 )

@@ -650,6 +650,15 @@ void LoadLlvmFunctions(
     }
 }
 
+void BuildPrototypesForFunctions(
+    TCGBaseContext& builder,
+    const std::vector<std::pair<TString, llvm::FunctionType*>>& functions)
+{
+    for (auto& [name, type] : functions) {
+        builder.Module->GetModule()->getOrInsertFunction(ToStringRef(name), type);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TCodegenExpression TExternalFunctionCodegen::Profile(
@@ -659,6 +668,7 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
     std::vector<EValueType> argumentTypes,
     EValueType type,
     const TString& name,
+    bool useWebAssembly,
     llvm::FoldingSetNodeID* id) const
 {
     YT_VERIFY(!ImplementationFile_.Empty());
@@ -702,11 +712,17 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
                 type,
                 this_->UseFunctionContext_);
 
-            LoadLlvmFunctions(
-                innerBuilder,
-                this_->FunctionName_,
-                { std::pair(this_->SymbolName_, functionType) },
-                this_->ImplementationFile_);
+            if (useWebAssembly) {
+                BuildPrototypesForFunctions(
+                    innerBuilder,
+                    {std::make_pair(this_->SymbolName_, functionType)});
+            } else {
+                LoadLlvmFunctions(
+                    innerBuilder,
+                    this_->FunctionName_,
+                    { std::pair(this_->SymbolName_, functionType) },
+                    this_->ImplementationFile_);
+            }
 
             auto callee = innerBuilder.Module->GetModule()->getFunction(
                 ToStringRef(this_->SymbolName_));
@@ -733,6 +749,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
     EValueType stateType,
     EValueType resultType,
     const TString& name,
+    bool useWebAssembly,
     llvm::FoldingSetNodeID* id) const
 {
     YT_VERIFY(!ImplementationFile_.Empty());
@@ -751,6 +768,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         argumentTypes = std::move(argumentTypes),
         stateType,
         resultType,
+        useWebAssembly,
         initName,
         updateName,
         mergeName,
@@ -762,6 +780,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             argumentTypes = std::move(argumentTypes),
             stateType,
             resultType,
+            useWebAssembly,
             functionName,
             initName,
             updateName,
@@ -811,11 +830,15 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             aggregateFunctions.push_back(merge);
             aggregateFunctions.push_back(finalize);
 
-            LoadLlvmFunctions(
-                builder,
-                this_->AggregateName_,
-                aggregateFunctions,
-                this_->ImplementationFile_);
+            if (useWebAssembly) {
+                BuildPrototypesForFunctions(builder, aggregateFunctions);
+            } else {
+                LoadLlvmFunctions(
+                    builder,
+                    this_->AggregateName_,
+                    aggregateFunctions,
+                    this_->ImplementationFile_);
+            }
 
             auto callee = builder.Module->GetModule()->getFunction(ToStringRef(functionName));
             YT_VERIFY(callee);

@@ -34,8 +34,8 @@ Y_FORCE_INLINE T* ConvertPointerFromHostToWasm(const T* data, size_t length = 1)
 template <typename T>
 Y_FORCE_INLINE T* ConvertPointer(
     T* offset,
-    EAddressSpace from,
-    EAddressSpace to,
+    EAddressSpace sourceAddressSpace,
+    EAddressSpace destinationAddressSpace,
     size_t length = 1);
 
 ////////////////////////////////////////////////////////////////////////////////

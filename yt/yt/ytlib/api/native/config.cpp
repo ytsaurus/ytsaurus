@@ -418,6 +418,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("disable_new_range_inference", &TThis::DisableNewRangeInference)
         .Default(true);
 
+    registrar.Parameter("use_web_assembly", &TThis::UseWebAssembly)
+        .Default(false);
+
     registrar.Parameter("flow_pipeline_controller_rpc_timeout", &TThis::FlowPipelineControllerRpcTimeout)
         .Default(TDuration::Seconds(10));
 }

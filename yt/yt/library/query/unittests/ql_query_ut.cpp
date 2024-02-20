@@ -87,15 +87,15 @@ static void SumCodegenExecute(
     }
 }
 
-static void DumpTime(const TQueryStatistics& statistics)
+static void DumpTime(const TQueryStatistics& statistics, bool useWebAssembly)
 {
     auto codegen = TDuration();
     auto execute = TDuration();
 
     SumCodegenExecute(statistics, &codegen, &execute);
 
-    Cerr << "Codegen: " << codegen << Endl;
-    Cerr << "Execute: " << execute << Endl;
+    Cerr << (useWebAssembly ? "WebAssembly" : "Native") << " Codegen: " << codegen << Endl;
+    Cerr << (useWebAssembly ? "WebAssembly" : "Native") << " Execute: " << execute << Endl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -752,7 +752,7 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
-        Profile(query, &id1, &variables, [] (TQueryPtr, TConstJoinClausePtr) -> TJoinSubqueryEvaluator {
+        ProfileForBothExecutionBackends(query, &id1, &variables, [] (TQueryPtr, TConstJoinClausePtr) -> TJoinSubqueryEvaluator {
             return {};
         });
     }
@@ -772,7 +772,7 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
-        Profile(query, &id2, &variables, [] (TQueryPtr, TConstJoinClausePtr) -> TJoinSubqueryEvaluator {
+        ProfileForBothExecutionBackends(query, &id2, &variables, [] (TQueryPtr, TConstJoinClausePtr) -> TJoinSubqueryEvaluator {
             return {};
         });
     }
@@ -828,7 +828,7 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
-        Profile(query, &id1, &variables, [] (TQueryPtr, TConstJoinClausePtr) -> TJoinSubqueryEvaluator {
+        ProfileForBothExecutionBackends(query, &id1, &variables, [] (TQueryPtr, TConstJoinClausePtr) -> TJoinSubqueryEvaluator {
             return {};
         });
     }
@@ -845,7 +845,7 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
-        Profile(query, &id2, &variables, [] (TQueryPtr, TConstJoinClausePtr) -> TJoinSubqueryEvaluator {
+        ProfileForBothExecutionBackends(query, &id2, &variables, [] (TQueryPtr, TConstJoinClausePtr) -> TJoinSubqueryEvaluator {
             return {};
         });
     }
@@ -1026,7 +1026,14 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
         TCGVariables variables;
 
         EXPECT_THROW_THAT({
-            auto codegen = Profile(expr, schema, nullptr, &variables, false, FunctionProfilers_);
+            auto codegen = Profile(
+                expr,
+                schema,
+                nullptr,
+                &variables,
+                /*useCanonicalNullRelations*/ false,
+                /*useWebAssembly*/ false,
+                FunctionProfilers_);
             auto callback = codegen();
         }, HasSubstr("LLVM bitcode"));
     }
@@ -1037,7 +1044,14 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
         TCGVariables variables;
 
         EXPECT_THROW_THAT({
-            auto codegen = Profile(expr, schema, nullptr, &variables, false, FunctionProfilers_);
+            auto codegen = Profile(
+                expr,
+                schema,
+                nullptr,
+                &variables,
+                /*useCanonicalNullRelations*/ false,
+                /*useWebAssembly*/ false,
+                FunctionProfilers_);
             auto callback = codegen();
         }, HasSubstr("LLVM bitcode"));
     }
@@ -1048,7 +1062,14 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
         TCGVariables variables;
 
         EXPECT_THROW_THAT({
-            auto codegen = Profile(expr, schema, nullptr, &variables, false, FunctionProfilers_);
+            auto codegen = Profile(
+                expr,
+                schema,
+                nullptr,
+                &variables,
+                /*useCanonicalNullRelations*/ false,
+                /*useWebAssembly*/ false,
+                FunctionProfilers_);
             auto callback = codegen();
         }, HasSubstr("LLVM bitcode"));
     }
@@ -1503,6 +1524,7 @@ protected:
         const std::map<TString, TDataSplit>& dataSplits,
         const std::vector<std::vector<TString>>& owningSources,
         const TResultMatcher& resultMatcher,
+        bool useWebAssembly,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max(),
         NYson::TYsonStringBuf placeholderValues = {},
@@ -1516,6 +1538,7 @@ protected:
                 dataSplits,
                 owningSources,
                 resultMatcher,
+                useWebAssembly,
                 inputRowLimit,
                 outputRowLimit,
                 false,
@@ -1537,11 +1560,22 @@ protected:
         bool useCanonicalNullRelations = false,
         int syntaxVersion = 1)
     {
+        EvaluateWithQueryStatistics(
+            query,
+            dataSplits,
+            owningSources,
+            resultMatcher,
+            /*useWebAssembly*/ true,
+            inputRowLimit,
+            outputRowLimit,
+            placeholderValues);
+
         return EvaluateWithQueryStatistics(
             query,
             dataSplits,
             owningSources,
             resultMatcher,
+            /*useWebAssembly*/ false,
             inputRowLimit,
             outputRowLimit,
             placeholderValues,
@@ -1567,11 +1601,24 @@ protected:
             {"//t", dataSplit}
         };
 
+        EvaluateWithQueryStatistics(
+            query,
+            dataSplits,
+            owningSources,
+            resultMatcher,
+            /*useWebAssembly*/ true,
+            inputRowLimit,
+            outputRowLimit,
+            placeholderValues,
+            useCanonicalNullRelations,
+            syntaxVersion);
+
         return EvaluateWithQueryStatistics(
             query,
             dataSplits,
             owningSources,
             resultMatcher,
+            /*useWebAssembly*/ false,
             inputRowLimit,
             outputRowLimit,
             placeholderValues,
@@ -1643,6 +1690,23 @@ protected:
 
         auto resultMatcher = [] (TRange<TRow>, const TTableSchema&) { };
 
+        BIND(&TQueryEvaluateTest::DoEvaluate, this)
+            .AsyncVia(ActionQueue_->GetInvoker())
+            .Run(
+                query,
+                dataSplits,
+                owningSources,
+                resultMatcher,
+                /*useWebAssembly*/ true,
+                inputRowLimit,
+                outputRowLimit,
+                true,
+                placeholderValues,
+                useCanonicalNullRelations,
+                syntaxVersion)
+            .Get()
+            .ValueOrThrow();
+
         return BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
@@ -1650,6 +1714,7 @@ protected:
                 dataSplits,
                 owningSources,
                 resultMatcher,
+                /*useWebAssembly*/ false,
                 inputRowLimit,
                 outputRowLimit,
                 true,
@@ -1691,6 +1756,7 @@ protected:
         const std::map<TString, TDataSplit>& dataSplits,
         const std::vector<std::vector<TString>>& owningSources,
         const TResultMatcher& resultMatcher,
+        bool useWebAssembly,
         i64 inputRowLimit,
         i64 outputRowLimit,
         bool failure,
@@ -1698,12 +1764,17 @@ protected:
         bool useCanonicalNullRelations,
         int syntaxVersion)
     {
+        if (useWebAssembly && !EnableWebAssemblyInUnitTests()) {
+            return {};
+        }
+
         auto primaryQuery = Prepare(query, dataSplits, placeholderValues, syntaxVersion);
 
         TQueryBaseOptions options;
         options.InputRowLimit = inputRowLimit;
         options.OutputRowLimit = outputRowLimit;
         options.UseCanonicalNullRelations = useCanonicalNullRelations;
+        options.UseWebAssembly = useWebAssembly;
 
         size_t sourceIndex = 1;
 
@@ -1764,7 +1835,7 @@ protected:
             resultStatistics.AddInnerStatistics(std::move(aggregatedStatistics));
 
             if (IsTimeDumpEnabled()) {
-                DumpTime(resultStatistics);
+                DumpTime(resultStatistics, useWebAssembly);
             }
 
             auto resultRowset = WaitFor(asyncResultRowset)
@@ -1783,13 +1854,18 @@ protected:
         }
     }
 
-    TQueryStatistics EvaluateCoordinatedGroupBy(
+    TQueryStatistics EvaluateCoordinatedGroupByImpl(
         const TString& query,
         const TDataSplit& dataSplit,
         const std::vector<std::vector<TString>>& owningSources,
-        const TResultMatcher& resultMatcher)
+        const TResultMatcher& resultMatcher,
+        bool useWebAssembly)
     {
-        auto primaryQuery = Prepare(query, std::map<TString, TDataSplit>{{"//t", dataSplit}}, {}, 1);
+        if (useWebAssembly && !EnableWebAssemblyInUnitTests()) {
+            return {};
+        }
+
+        auto primaryQuery = Prepare(query, std::map<TString, TDataSplit>{{"//t", dataSplit}}, {}, /*syntaxVersion*/ 1);
         YT_VERIFY(primaryQuery->GroupClause);
 
         int tablets = owningSources.size();
@@ -1857,7 +1933,7 @@ protected:
                 FunctionProfilers_,
                 AggregateProfilers_,
                 GetDefaultMemoryChunkProvider(),
-                TQueryBaseOptions());
+                TQueryBaseOptions{.UseWebAssembly = useWebAssembly});
 
             return pipe->GetReader();
         };
@@ -1878,19 +1954,29 @@ protected:
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),
-            TQueryBaseOptions());
+            TQueryBaseOptions{.UseWebAssembly = useWebAssembly});
 
         auto rows = WaitFor(asyncResultRowset).ValueOrThrow()->GetRows();
         resultMatcher(rows, *frontQuery->GetTableSchema());
 
         if (IsTimeDumpEnabled()) {
-            DumpTime(frontStatistics);
+            DumpTime(frontStatistics, false);
         }
         for (auto& stat : resultStatistics) {
             frontStatistics.AddInnerStatistics(std::move(stat));
         }
 
         return frontStatistics;
+    }
+
+    TQueryStatistics EvaluateCoordinatedGroupBy(
+        const TString& query,
+        const TDataSplit& dataSplit,
+        const std::vector<std::vector<TString>>& owningSources,
+        const TResultMatcher& resultMatcher)
+    {
+        EvaluateCoordinatedGroupByImpl(query, dataSplit, owningSources, resultMatcher, /*useWebAssembly*/ true);
+        return EvaluateCoordinatedGroupByImpl(query, dataSplit, owningSources, resultMatcher, /*useWebAssembly*/ false);
     }
 
     const IEvaluatorPtr Evaluator_ = CreateEvaluator(New<TExecutorConfig>());

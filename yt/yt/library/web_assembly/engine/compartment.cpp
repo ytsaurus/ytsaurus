@@ -1,5 +1,6 @@
 #include "wavm_private_imports.h"
 #include "intrinsics.h"
+#include "system_libraries.h"
 
 #include <yt/yt/library/web_assembly/api/compartment.h>
 
@@ -286,19 +287,18 @@ public:
         Runtime::invokeFunction(Context_, freeFunction, signature, arguments.data(), {});
     }
 
-    virtual uintptr_t GetHostPointer(uintptr_t offset, size_t length) override
+    virtual void* GetHostPointer(uintptr_t offset, size_t length) override
     {
-        auto integerOffset = std::bit_cast<ui64>(offset);
-        auto* bytes = Runtime::memoryArrayPtr<char>(MemoryLayoutData_.LinearMemory, integerOffset, length);
-        return std::bit_cast<uintptr_t>(bytes);
+        char* bytes = Runtime::memoryArrayPtr<char>(MemoryLayoutData_.LinearMemory, std::bit_cast<ui64>(offset), length);
+        return static_cast<void*>(bytes);
     }
 
-    virtual uintptr_t GetCompartmentOffset(uintptr_t hostAddress) override
+    virtual uintptr_t GetCompartmentOffset(void* hostAddress) override
     {
-        auto hostAddressAsUint = std::bit_cast<ui64>(hostAddress);
-        auto baseAddress = std::bit_cast<ui64>(Runtime::getMemoryBaseAddress(MemoryLayoutData_.LinearMemory));
-        auto offset = hostAddressAsUint - baseAddress;
-        return std::bit_cast<uintptr_t>(offset);
+        ui64 hostAddressAsUint = std::bit_cast<ui64>(hostAddress);
+        ui64 baseAddress = std::bit_cast<ui64>(Runtime::getMemoryBaseAddress(MemoryLayoutData_.LinearMemory));
+        uintptr_t offset = hostAddressAsUint - baseAddress;
+        return offset;
     }
 
     virtual std::unique_ptr<IWebAssemblyCompartment> Clone() const override
@@ -637,11 +637,32 @@ void TWebAssemblyCompartment::Clone(const TWebAssemblyCompartment& source, TWebA
 
 Runtime::ModuleRef LoadSystemLibraries()
 {
-    // TODO(dtorilov): Load libc, libcxx.
-
-    IR::FeatureSpec featureSpec;
+    auto featureSpec = IR::FeatureSpec();
     featureSpec.memory64 = true;
 
+    if (EnableSystemLibraries()) {
+        auto bytecode = NResource::Find("libc.so.wasm");
+        auto irModule = IR::Module(std::move(featureSpec));
+
+        auto loadError = WASM::LoadError();
+        bool succeeded = WASM::loadBinaryModule(
+            std::bit_cast<U8*>(bytecode.begin()),
+            bytecode.size(),
+            irModule,
+            &loadError);
+
+        if (!succeeded) {
+            THROW_ERROR_EXCEPTION("Could not load WebAssembly system libraries: %v", loadError.message);
+        }
+
+        auto resource = NResource::Find("compiled-libc");
+        auto objectCode = std::vector<U8>(resource.size());
+        ::memcpy(objectCode.data(), resource.data(), resource.size());
+
+        return std::make_shared<Runtime::Module>(std::move(irModule), std::move(objectCode));
+    }
+
+    // Fallback to stub.
     static const TString code = R"(
         (module
             (type (;0;) (func))
@@ -669,6 +690,13 @@ Runtime::ModuleRef LoadSystemLibraries()
     return wavmModule;
 }
 
+Runtime::ModuleRef LoadLocalUDFs()
+{
+    auto bytecode = NResource::Find("all-udfs.so.wasm");
+    auto asRef = TRef(bytecode.begin(), bytecode.size());
+    return LoadModuleFromBytecode(asRef);
+}
+
 std::unique_ptr<TWebAssemblyCompartment> BuildBaseImageOnce()
 {
     auto compartment = std::make_unique<TWebAssemblyCompartment>();
@@ -682,12 +710,23 @@ std::unique_ptr<TWebAssemblyCompartment> BuildBaseImageOnce()
         {WAVM_INTRINSIC_MODULE_REF(env)},
         "env");
 
-    auto wasmModule = LoadSystemLibraries();
-    const auto& irModule = Runtime::getModuleIR(wasmModule);
-    auto linkResult = compartment->LinkModule(irModule);
-    compartment->AddExportsToGlobalOffsetTable(irModule);
-    compartment->InstantiateModule(wasmModule, linkResult, "env");
-    compartment->RuntimeLibraryInstance_ = compartment->Instances_.back();
+    {
+        auto wasmModule = LoadSystemLibraries();
+        const auto& irModule = Runtime::getModuleIR(wasmModule);
+        auto linkResult = compartment->LinkModule(irModule);
+        compartment->AddExportsToGlobalOffsetTable(irModule);
+        compartment->InstantiateModule(wasmModule, linkResult, "env");
+        compartment->RuntimeLibraryInstance_ = compartment->Instances_.back();
+    }
+
+    if (EnableSystemLibraries()) {
+        auto wasmModule = LoadLocalUDFs();
+        const auto& irModule = Runtime::getModuleIR(wasmModule);
+        auto linkResult = compartment->LinkModule(irModule);
+        compartment->AddExportsToGlobalOffsetTable(irModule);
+        compartment->InstantiateModule(wasmModule, linkResult, "env");
+        compartment->RuntimeLibraryInstance_ = compartment->Instances_.back();
+    }
 
     return std::move(compartment);
 }

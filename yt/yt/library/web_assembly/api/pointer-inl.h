@@ -13,9 +13,8 @@ namespace NYT::NWebAssembly {
 template <>
 Y_FORCE_INLINE char* ConvertPointerFromWasmToHost(char* data, size_t length)
 {
-    if (HasCurrentCompartment()) {
-        auto* compartment = GetCurrentCompartment();
-        return std::bit_cast<char*>(
+    if (auto* compartment = GetCurrentCompartment()) {
+        return static_cast<char*>(
             compartment->GetHostPointer(
                 std::bit_cast<uintptr_t>(data),
                 length));
@@ -47,10 +46,9 @@ T* ConvertPointerFromWasmToHost(const T* data, size_t length)
 template <>
 Y_FORCE_INLINE char* ConvertPointerFromHostToWasm(char* data, size_t length)
 {
-    if (HasCurrentCompartment()) {
-        auto* compartment = GetCurrentCompartment();
-        Y_UNUSED(length); // TODO(dtorilov): check bounds.
-        return std::bit_cast<char*>(compartment->GetCompartmentOffset(std::bit_cast<uintptr_t>(data)));
+    if (auto* compartment = GetCurrentCompartment()) {
+        Y_UNUSED(length); // TODO(dtorilov): Check bounds.
+        return std::bit_cast<char*>(compartment->GetCompartmentOffset(static_cast<void*>(data)));
     }
 
     return data;
@@ -79,23 +77,23 @@ T* ConvertPointerFromHostToWasm(const T* data, size_t length)
 template <typename T>
 Y_FORCE_INLINE T* ConvertPointer(
     T* offset,
-    EAddressSpace from,
-    EAddressSpace to,
+    EAddressSpace sourceAddressSpace,
+    EAddressSpace destinationAddressSpace,
     size_t length)
 {
     if (!HasCurrentCompartment()) {
         return offset;
     }
 
-    if (from == EAddressSpace::WebAssembly && to == EAddressSpace::Host) {
+    if (sourceAddressSpace == EAddressSpace::WebAssembly && destinationAddressSpace == EAddressSpace::Host) {
         return ConvertPointerFromWasmToHost(offset, length);
     }
 
-    if (from == EAddressSpace::Host && to == EAddressSpace::WebAssembly) {
+    if (sourceAddressSpace == EAddressSpace::Host && destinationAddressSpace == EAddressSpace::WebAssembly) {
         return ConvertPointerFromHostToWasm(offset, length);
     }
 
-    if (from == EAddressSpace::Host && to == EAddressSpace::Host) {
+    if (sourceAddressSpace == EAddressSpace::Host && destinationAddressSpace == EAddressSpace::Host) {
         return offset;
     }
 

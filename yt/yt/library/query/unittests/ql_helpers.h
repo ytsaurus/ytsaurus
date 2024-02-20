@@ -4,6 +4,7 @@
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 
+#include <yt/yt/library/query/engine/folding_profiler.h>
 #include <yt/yt/library/query/engine/functions_builder.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -75,6 +76,24 @@ TDataSplit MakeSimpleSplit(const TYPath& path, ui64 counter = 0);
 TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns, ui64 counter = 0);
 
 TFuture<TDataSplit> RaiseTableNotFound(const TYPath& path);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ProfileForBothExecutionBackends(
+    const TConstBaseQueryPtr& query,
+    llvm::FoldingSetNodeID* id,
+    TCGVariables* variables,
+    TJoinSubqueryProfiler joinProfiler);
+
+void ProfileForBothExecutionBackends(
+    const TConstExpressionPtr& expr,
+    const TTableSchemaPtr& schema,
+    llvm::FoldingSetNodeID* id,
+    TCGVariables* variables);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool EnableWebAssemblyInUnitTests();
 
 ////////////////////////////////////////////////////////////////////////////////
 

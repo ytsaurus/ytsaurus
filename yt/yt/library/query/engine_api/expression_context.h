@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/yt/library/web_assembly/api/memory_pool.h>
+#include <yt/yt/library/web_assembly/api/pointer.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
@@ -14,6 +15,7 @@ class TExpressionContext
     : public TNonCopyable
 {
 public:
+    TExpressionContext();
     explicit TExpressionContext(TRowBufferPtr rowBuffer);
 
     ~TExpressionContext() = default;
@@ -21,26 +23,18 @@ public:
     TExpressionContext& operator=(TExpressionContext&& other);
 
     void Clear();
+    void ClearWebAssemblyPool();
     i64 GetSize() const;
     i64 GetCapacity() const;
 
-    char* AllocateUnaligned(size_t byteCount);
-    char* AllocateAligned(size_t byteCount);
-    NTableClient::TMutableUnversionedRow AllocateUnversioned(int valueCount);
+    char* AllocateUnaligned(size_t byteCount, NWebAssembly::EAddressSpace where);
+    char* AllocateAligned(size_t byteCount, NWebAssembly::EAddressSpace where);
 
     TRowBufferPtr GetRowBuffer() const;
 
-    NTableClient::TMutableUnversionedRow CaptureRow(
-        NTableClient::TUnversionedRow row,
-        bool captureValues = true);
-    NTableClient::TMutableUnversionedRow CaptureRow(
-        NTableClient::TUnversionedValueRange values,
-        bool captureValues = true);
-
-    void CaptureValues(NTableClient::TMutableUnversionedRow row);
-
 private:
-    NTableClient::TRowBufferPtr RowBuffer_;
+    NTableClient::TRowBufferPtr HostPool_;
+    NWebAssembly::TWebAssemblyMemoryPool WebAssemblyPool_;
 };
 
 template <class TTag = NTableClient::TDefaultRowBufferPoolTag>

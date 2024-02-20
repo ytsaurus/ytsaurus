@@ -45,6 +45,12 @@ TEST_SRCS(
     test_tablet_transactions.py
 )
 
+IF (NOT OPENSOURCE)
+    SRCS(
+        test_query_webassembly.py
+    )
+ENDIF()
+
 END()
 
 RECURSE_FOR_TESTS(

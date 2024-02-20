@@ -32,6 +32,8 @@ public:
     size_t GetSize() const;
     size_t GetCapacity() const;
 
+    bool HasCompartment() const;
+
 private:
     IWebAssemblyCompartment* const Compartment_ = nullptr;
     size_t Size_ = 0;

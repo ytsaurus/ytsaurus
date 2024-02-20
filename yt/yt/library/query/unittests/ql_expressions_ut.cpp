@@ -40,6 +40,67 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename TResultMatcher>
+void Evaluate(
+    const TConstExpressionPtr& expr,
+    const TTableSchemaPtr& schema,
+    const TRowBufferPtr& buffer,
+    const TUnversionedOwningRow& row,
+    const TResultMatcher& resultMatcher)
+{
+    if (EnableWebAssemblyInUnitTests()) {
+        auto result = TUnversionedValue{};
+        auto variables = TCGVariables();
+
+        auto image = Profile(
+            expr,
+            schema,
+            nullptr,
+            &variables,
+            /*useCanonicalNullRelations*/ false,
+            /*useWebAssembly*/ true)();
+
+        auto instance = image.Instantiate();
+
+        instance.Run(
+            variables.GetLiteralValues(),
+            variables.GetOpaqueData(),
+            variables.GetOpaqueDataSizes(),
+            &result,
+            row.Elements(),
+            buffer.Get());
+
+        resultMatcher(result);
+    }
+
+    {
+        auto result = TUnversionedValue{};
+        auto variables = TCGVariables();
+
+        auto image = Profile(
+            expr,
+            schema,
+            nullptr,
+            &variables,
+            /*useCanonicalNullRelations*/ false,
+            /*useWebAssembly*/ false)();
+
+        auto instance = image.Instantiate();
+
+        instance.Run(
+            variables.GetLiteralValues(),
+            variables.GetOpaqueData(),
+            variables.GetOpaqueDataSizes(),
+            &result,
+            row.Elements(),
+            buffer.Get());
+
+        resultMatcher(result);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCompareExpressionTest
 {
 protected:
@@ -641,7 +702,7 @@ TEST_F(TPrepareExpressionTest, CompareTuple)
     auto expr = PrepareExpression("(a, b, c, d, e, f, g, h, i, j, k, l, m, n) < (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)", *schema);
 
     TCGVariables variables;
-    Profile(expr, schema, nullptr, &variables)();
+    ProfileForBothExecutionBackends(expr, schema, nullptr, &variables);
 }
 
 TEST_P(TPrepareExpressionTest, Simple)
@@ -994,14 +1055,9 @@ TEST_F(TExpressionTest, FunctionNullArgument)
 
         EXPECT_EQ(*expr->LogicalType, *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)));
 
-        TUnversionedValue result{};
-        TCGVariables variables;
-
-        auto image = Profile(expr, schema, nullptr, &variables)();
-        auto instance = image.Instantiate();
-        instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer);
-
-        EXPECT_EQ(result, MakeNull());
+        Evaluate(expr, schema, buffer, row, [&] (const TUnversionedValue& result) {
+            EXPECT_EQ(result, MakeNull());
+        });
     }
 
     EXPECT_THROW_THAT(
@@ -1020,28 +1076,18 @@ TEST_F(TExpressionTest, FunctionNullArgument)
         auto expr = PrepareExpression("if(null, 1, 2)", *schema);
         EXPECT_EQ(*expr->LogicalType, *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)));
 
-        TUnversionedValue result{};
-        TCGVariables variables;
-
-        auto image = Profile(expr, schema, nullptr, &variables)();
-        auto instance = image.Instantiate();
-        instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer);
-
-        EXPECT_EQ(result, MakeNull());
+        Evaluate(expr, schema, buffer, row, [&] (const TUnversionedValue& result) {
+            EXPECT_EQ(result, MakeNull());
+        });
     }
 
     {
         auto expr = PrepareExpression("if(false, 1, null)", *schema);
         EXPECT_EQ(*expr->LogicalType, *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)));
 
-        TUnversionedValue result{};
-        TCGVariables variables;
-
-        auto image = Profile(expr, schema, nullptr, &variables)();
-        auto instance = image.Instantiate();
-        instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer);
-
-        EXPECT_EQ(result, MakeNull());
+        Evaluate(expr, schema, buffer, row, [&] (const TUnversionedValue& result) {
+            EXPECT_EQ(result, MakeNull());
+        });
     }
 }
 
@@ -1054,15 +1100,55 @@ TEST_F(TExpressionTest, Aliasing)
     auto buffer = New<TRowBuffer>();
     auto expr = PrepareExpression("lower(s)", *schema);
 
-    TCGVariables variables;
+    {
+        auto variables = TCGVariables();
+        auto value = MakeUnversionedStringValue("ABCD");
 
-    auto value = MakeUnversionedStringValue("ABCD");
+        auto image = Profile(
+            expr,
+            schema,
+            /*id*/ nullptr,
+            &variables,
+            /*useCanonicalNullRelations*/ false,
+            /*useWebAssembly*/ false)();
 
-    auto image = Profile(expr, schema, nullptr, &variables)();
-    auto instance = image.Instantiate();
-    instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &value, TRange<TValue>(&value, 1), buffer);
+        auto instance = image.Instantiate();
 
-    EXPECT_EQ(value.AsStringBuf(), "abcd");
+        instance.Run(
+            variables.GetLiteralValues(),
+            variables.GetOpaqueData(),
+            variables.GetOpaqueDataSizes(),
+            &value,
+            TRange<TValue>(&value, 1),
+            buffer);
+
+        EXPECT_EQ(value.AsStringBuf(), "abcd");
+    }
+
+    if (EnableWebAssemblyInUnitTests()) {
+        auto variables = TCGVariables();
+        auto value = MakeUnversionedStringValue("ABCD");
+
+        auto image = Profile(
+            expr,
+            schema,
+            /*id*/ nullptr,
+            &variables,
+            /*useCanonicalNullRelations*/ false,
+            /*useWebAssembly*/ true)();
+
+        auto instance = image.Instantiate();
+
+        instance.Run(
+            variables.GetLiteralValues(),
+            variables.GetOpaqueData(),
+            variables.GetOpaqueDataSizes(),
+            &value,
+            TRange<TValue>(&value, 1),
+            buffer);
+
+        EXPECT_EQ(value.AsStringBuf(), "abcd");
+    }
 }
 
 TUnversionedValue YsonToUnversionedValue(TStringBuf str)
@@ -1102,27 +1188,19 @@ TEST_P(TExpressionTest, Evaluate)
     auto lhsType = lhsValue.Type != EValueType::Null ? lhsValue.Type : type;
     auto rhsType = rhsValue.Type != EValueType::Null ? rhsValue.Type : type;
 
-    TUnversionedValue result{};
-    TCGVariables variables;
-
     auto columns = GetSampleTableSchema()->Columns();
     columns[0].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(lhsType))));
     columns[1].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(rhsType))));
     auto schema = New<TTableSchema>(std::move(columns));
 
     auto expr = PrepareExpression(TString("k") + " " + op + " " + "l", *schema);
-
-    auto image = Profile(expr, schema, nullptr, &variables)();
-    auto instance = image.Instantiate();
-
+    auto buffer = New<TRowBuffer>();
     auto row = YsonToSchemafulRow(TString("k=") + lhs + ";l=" + rhs, *schema, true);
 
-    auto buffer = New<TRowBuffer>();
-
-    instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer);
-
-    EXPECT_EQ(result, expected)
-        << "row: " << ::testing::PrintToString(row);
+    Evaluate(expr, schema, buffer, row, [&] (const TUnversionedValue& result) {
+        EXPECT_EQ(result, expected)
+            << "row: " << ::testing::PrintToString(row);
+    });
 }
 
 TEST_P(TExpressionTest, EvaluateLhsValueRhsLiteral)
@@ -1140,27 +1218,19 @@ TEST_P(TExpressionTest, EvaluateLhsValueRhsLiteral)
     auto lhsType = lhsValue.Type != EValueType::Null ? lhsValue.Type : type;
     auto rhsType = rhsValue.Type != EValueType::Null ? rhsValue.Type : type;
 
-    TUnversionedValue result{};
-    TCGVariables variables;
-
     auto columns = GetSampleTableSchema()->Columns();
     columns[0].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(lhsType))));
     columns[1].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(rhsType))));
     auto schema = New<TTableSchema>(std::move(columns));
 
     auto expr = PrepareExpression(TString("k") + " " + op + " " + rhs, *schema);
-
-    auto image = Profile(expr, schema, nullptr, &variables)();
-    auto instance = image.Instantiate();
-
     auto row = YsonToSchemafulRow(TString("k=") + lhs, *schema, true);
-
     auto buffer = New<TRowBuffer>();
 
-    instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer);
-
-    EXPECT_EQ(result, expected)
-        << "row: " << ::testing::PrintToString(row);
+    Evaluate(expr, schema, buffer, row, [&] (const TUnversionedValue& result) {
+        EXPECT_EQ(result, expected)
+            << "row: " << ::testing::PrintToString(row);
+    });
 }
 
 TEST_P(TExpressionTest, EvaluateLhsLiteralRhsValue)
@@ -1178,27 +1248,19 @@ TEST_P(TExpressionTest, EvaluateLhsLiteralRhsValue)
     auto lhsType = lhsValue.Type != EValueType::Null ? lhsValue.Type : type;
     auto rhsType = rhsValue.Type != EValueType::Null ? rhsValue.Type : type;
 
-    TUnversionedValue result{};
-    TCGVariables variables;
-
     auto columns = GetSampleTableSchema()->Columns();
     columns[0].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(lhsType))));
     columns[1].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(rhsType))));
     auto schema = New<TTableSchema>(std::move(columns));
 
     auto expr = PrepareExpression(TString(lhs) + " " + op + " " + "l", *schema);
-
-    auto image = Profile(expr, schema, nullptr, &variables)();
-    auto instance = image.Instantiate();
-
     auto row = YsonToSchemafulRow(TString("l=") + rhs, *schema, true);
-
     auto buffer = New<TRowBuffer>();
 
-    instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer);
-
-    EXPECT_EQ(result, expected)
-        << "row: " << ::testing::PrintToString(row);
+    Evaluate(expr, schema, buffer, row, [&] (const TUnversionedValue& result) {
+        EXPECT_EQ(result, expected)
+            << "row: " << ::testing::PrintToString(row);
+    });
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -1493,11 +1555,17 @@ TEST_F(TArithmeticExpressionTest, Test)
     THashMap<llvm::FoldingSetNodeID, TCGExpressionInstance> compiledExpressionsCache;
     auto getInstance = [&] (TConstExpressionPtr expr, TTableSchemaPtr schema, TCGVariables* variables) -> TCGExpressionInstance* {
         llvm::FoldingSetNodeID id;
-        auto makeImageCallback = Profile(expr, schema, &id, variables, false);
+        auto image = Profile(
+            expr,
+            schema,
+            &id,
+            variables,
+            /*useCanonicalNullRelations*/ false,
+            EnableWebAssemblyInUnitTests());
 
         auto [it, inserted] = compiledExpressionsCache.emplace(id, TCGExpressionInstance{});
         if (inserted) {
-            it->second = makeImageCallback().Instantiate();
+            it->second = image().Instantiate();
         }
         return &it->second;
     };
@@ -1572,9 +1640,11 @@ TEST_F(TArithmeticExpressionTest, Test)
 
                                 auto instance = getInstance(expr, schema, &variables);
 
+                                // TODO(dtorilov): Test both execution backends.
                                 instance->Run(
                                     variables.GetLiteralValues(),
                                     variables.GetOpaqueData(),
+                                    variables.GetOpaqueDataSizes(),
                                     &result,
                                     row.Elements(),
                                     buffer);
@@ -1611,30 +1681,28 @@ TEST_P(TTernaryLogicTest, Evaluate)
     auto rhs = std::get<2>(param);
     auto expected = std::get<3>(param);
 
-    TUnversionedValue result{};
-    TCGVariables variables;
     auto buffer = New<TRowBuffer>();
     auto row = YsonToSchemafulRow("", TTableSchema(), true);
 
-    auto expr1 = New<TBinaryOpExpression>(EValueType::Boolean, op,
-        New<TLiteralExpression>(EValueType::Boolean, lhs),
-        New<TLiteralExpression>(EValueType::Boolean, rhs));
+    {
+        auto firstExpression = New<TBinaryOpExpression>(EValueType::Boolean, op,
+            New<TLiteralExpression>(EValueType::Boolean, lhs),
+            New<TLiteralExpression>(EValueType::Boolean, rhs));
 
-    auto expr2 = New<TBinaryOpExpression>(EValueType::Boolean, op,
-        New<TLiteralExpression>(EValueType::Boolean, rhs),
-        New<TLiteralExpression>(EValueType::Boolean, lhs));
+        Evaluate(firstExpression, New<TTableSchema>(), buffer, row, [&] (const TUnversionedValue& result) {
+            EXPECT_TRUE(CompareRowValues(result, expected) == 0);
+        });
+    }
 
-    TCGVariables variables1;
-    auto image1 = Profile(expr1, New<TTableSchema>(), nullptr, &variables1)();
-    auto instance1 = image1.Instantiate();
-    instance1.Run(variables1.GetLiteralValues(), variables1.GetOpaqueData(), &result, row.Elements(), buffer);
-    EXPECT_TRUE(CompareRowValues(result, expected) == 0);
+    {
+        auto secondExpression = New<TBinaryOpExpression>(EValueType::Boolean, op,
+            New<TLiteralExpression>(EValueType::Boolean, rhs),
+            New<TLiteralExpression>(EValueType::Boolean, lhs));
 
-    TCGVariables variables2;
-    auto image2 = Profile(expr2, New<TTableSchema>(), nullptr, &variables2)();
-    auto instance2 = image2.Instantiate();
-    instance2.Run(variables2.GetLiteralValues(), variables2.GetOpaqueData(), &result, row.Elements(), buffer);
-    EXPECT_TRUE(CompareRowValues(result, expected) == 0);
+        Evaluate(secondExpression, New<TTableSchema>(), buffer, row, [&] (const TUnversionedValue& result) {
+            EXPECT_TRUE(CompareRowValues(result, expected) == 0);
+        });
+    }
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -1739,17 +1807,43 @@ TEST_P(TCompareWithNullTest, Simple)
     llvm::FoldingSetNodeID nonCanonId, canonId;
 
     {
-        auto image = Profile(expr, schema, &nonCanonId, &variables, /*useCanonicalNullRelations*/ false)();
+        auto image = Profile(
+            expr,
+            schema,
+            &nonCanonId,
+            &variables,
+            /*useCanonicalNullRelations*/ false,
+            EnableWebAssemblyInUnitTests())();
+
         auto instance = image.Instantiate();
 
-        instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &nonCanonResult, row.Elements(), buffer);
+        instance.Run(
+            variables.GetLiteralValues(),
+            variables.GetOpaqueData(),
+            variables.GetOpaqueDataSizes(),
+            &nonCanonResult,
+            row.Elements(),
+            buffer);
     }
 
     {
-        auto image = Profile(expr, schema, &canonId, &variables, /*useCanonicalNullRelations*/ true)();
+        auto image = Profile(
+            expr,
+            schema,
+            &canonId,
+            &variables,
+            /*useCanonicalNullRelations*/ true,
+            EnableWebAssemblyInUnitTests())();
+
         auto instance = image.Instantiate();
 
-        instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), &canonResult, row.Elements(), buffer);
+        instance.Run(
+            variables.GetLiteralValues(),
+            variables.GetOpaqueData(),
+            variables.GetOpaqueDataSizes(),
+            &canonResult,
+            row.Elements(),
+            buffer);
     }
 
     EXPECT_NE(nonCanonId, canonId);
@@ -1816,10 +1910,11 @@ TEST_F(TEvaluateAggregationTest, AggregateFlag)
         "xor_aggregate",
         ECallingConvention::UnversionedValue);
 
+    // TODO(dtorilov): Test both execution backends.
     auto image = CodegenAggregate(
         aggregateProfilers->GetAggregate("xor_aggregate")->Profile(
-            {EValueType::Int64}, EValueType::Int64, EValueType::Int64, "xor_aggregate"),
-        {EValueType::Int64}, EValueType::Int64);
+            {EValueType::Int64}, EValueType::Int64, EValueType::Int64, "xor_aggregate", EnableWebAssemblyInUnitTests()),
+        {EValueType::Int64}, EValueType::Int64, EnableWebAssemblyInUnitTests());
     auto instance = image.Instantiate();
 
     auto buffer = New<TRowBuffer>();
@@ -1883,9 +1978,11 @@ TEST_F(TEvaluateAggregationTest, Aliasing)
             /* argumentTypes */ {EValueType::String},
             /* stateType */ EValueType::String,
             /* resultType */ EValueType::String,
-            /* name */ "concat_all"),
+            /* name */ "concat_all",
+            EnableWebAssemblyInUnitTests()),
         /* argumentTypes */ {EValueType::String},
-        /* stateType */ EValueType::String);
+        /* stateType */ EValueType::String,
+        EnableWebAssemblyInUnitTests());
     auto instance = image.Instantiate();
 
     {
@@ -1959,8 +2056,15 @@ TEST_P(TEvaluateAggregationTest, Basic)
     auto registry = GetBuiltinAggregateProfilers();
     auto aggregate = registry->GetAggregate(aggregateName);
     auto image = CodegenAggregate(
-        aggregate->Profile({type}, type, type, aggregateName),
-        {type}, type);
+        aggregate->Profile(
+            {type},
+            type,
+            type,
+            aggregateName,
+            EnableWebAssemblyInUnitTests()),
+        {type},
+        type,
+        EnableWebAssemblyInUnitTests());
     auto instance = image.Instantiate();
 
     auto buffer = New<TRowBuffer>();
@@ -2080,9 +2184,15 @@ TEST_P(TEvaluateAggregationWithStringStateTest, Basic)
     auto registry = GetBuiltinAggregateProfilers();
     auto aggregate = registry->GetAggregate(aggregateName);
     auto image = CodegenAggregate(
-        aggregate->Profile(argumentTypes, stateType, resultType, aggregateName),
+        aggregate->Profile(
+            argumentTypes,
+            stateType,
+            resultType,
+            aggregateName,
+            EnableWebAssemblyInUnitTests()),
         argumentTypes,
-        stateType);
+        stateType,
+        EnableWebAssemblyInUnitTests());
     auto instance = image.Instantiate();
 
     auto buffer = New<TRowBuffer>();
@@ -2130,7 +2240,8 @@ INSTANTIATE_TEST_SUITE_P(
             {
                 {MakeString("ophelia"), MakeInt64(027)},
                 {MakeString("tyodor"), MakeInt64(036)},
-                {MakeString("fiona"), MakeInt64(020)}},
+                {MakeString("fiona"), MakeInt64(020)}
+            },
             {
                 TStringBuf("\6\0\0\0ingrid\22\0\0\0\0\0\0\0", 18),
                 TStringBuf("\6\0\0\0ingrid\22\0\0\0\0\0\0\0", 18),
@@ -2229,12 +2340,24 @@ void EvaluateExpression(
 {
     TCGVariables variables;
 
-    auto image = Profile(expr, schema, nullptr, &variables)();
+    auto image = Profile(
+        expr,
+        schema,
+        /*id*/ nullptr,
+        &variables,
+        /*useCanonicalNullRelations*/ false,
+        EnableWebAssemblyInUnitTests())();
     auto instance = image.Instantiate();
 
     auto row = YsonToSchemafulRow(rowString, *schema, true);
 
-    instance.Run(variables.GetLiteralValues(), variables.GetOpaqueData(), result, row.Elements(), buffer);
+    instance.Run(
+        variables.GetLiteralValues(),
+        variables.GetOpaqueData(),
+        variables.GetOpaqueDataSizes(),
+        result,
+        row.Elements(),
+        buffer);
 }
 
 class TEvaluateExpressionTest

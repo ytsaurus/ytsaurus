@@ -156,6 +156,7 @@ struct TQueryBaseOptions
 
     bool EnableCodeCache = true;
     bool UseCanonicalNullRelations = false;
+    bool UseWebAssembly = false;
     TReadSessionId ReadSessionId;
     size_t MemoryLimitPerNode = std::numeric_limits<size_t>::max();
     bool MergeVersionedRows = true;

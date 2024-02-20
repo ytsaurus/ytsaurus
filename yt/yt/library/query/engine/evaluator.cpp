@@ -82,10 +82,11 @@ public:
 
         auto Logger = MakeQueryLogger(query);
 
-        YT_LOG_DEBUG("Executing query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v)",
+        YT_LOG_DEBUG("Executing query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v, UseWebAssembly: %v)",
             queryFingerprint,
             *query->GetReadSchema(),
-            *query->GetTableSchema());
+            *query->GetTableSchema(),
+            options.UseWebAssembly);
 
         TQueryStatistics statistics;
         NProfiling::TWallTimer wallTime;
@@ -105,7 +106,8 @@ public:
                 aggregateProfilers,
                 statistics,
                 options.EnableCodeCache,
-                options.UseCanonicalNullRelations);
+                options.UseCanonicalNullRelations,
+                options.UseWebAssembly);
 
             // NB: Function contexts need to be destroyed before queryInstance since it hosts destructors.
             auto finalizer = Finally([&] () {
@@ -131,6 +133,7 @@ public:
             queryInstance.Run(
                 fragmentParams.GetLiteralValues(),
                 fragmentParams.GetOpaqueData(),
+                fragmentParams.GetOpaqueDataSizes(),
                 &executionContext);
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Query evaluation failed");
@@ -168,7 +171,8 @@ private:
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         TQueryStatistics& statistics,
         bool enableCodeCache,
-        bool useCanonicalNullRelations)
+        bool useCanonicalNullRelations,
+        bool useWebAssembly)
     {
         llvm::FoldingSetNodeID id;
 
@@ -178,6 +182,7 @@ private:
             &variables,
             joinProfiler,
             useCanonicalNullRelations,
+            useWebAssembly,
             functionProfilers,
             aggregateProfilers);
 

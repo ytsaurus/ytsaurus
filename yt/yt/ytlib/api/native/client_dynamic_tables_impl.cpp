@@ -1661,6 +1661,9 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     queryOptions.NewRangeInference = GetNativeConnection()->GetConfig()->DisableNewRangeInference
         ? false
         : options.NewRangeInference;
+    queryOptions.UseWebAssembly = GetNativeConnection()->GetConfig()->UseWebAssembly
+        ? options.UseWebAssembly.value_or(true)
+        : false;
     queryOptions.EnableCodeCache = options.EnableCodeCache;
     queryOptions.MaxSubqueries = options.MaxSubqueries;
     queryOptions.WorkloadDescriptor = options.WorkloadDescriptor;

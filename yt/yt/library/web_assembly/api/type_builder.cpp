@@ -15,9 +15,14 @@ namespace NYT::NWebAssembly {
     XX(char, EWebAssemblyValueType::Int32)
     XX(int, EWebAssemblyValueType::Int32)
     XX(unsigned int, EWebAssemblyValueType::Int32)
+    XX(unsigned char, EWebAssemblyValueType::Int32)
 
     XX(long, EWebAssemblyValueType::Int64)
     XX(unsigned long, EWebAssemblyValueType::Int64)
+
+#   if defined (__APPLE__)
+        XX(unsigned long long, EWebAssemblyValueType::Int64)
+#   endif
 
     XX(float, EWebAssemblyValueType::Float32)
     XX(double, EWebAssemblyValueType::Float64)

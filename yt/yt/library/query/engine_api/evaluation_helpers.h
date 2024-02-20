@@ -5,6 +5,7 @@
 
 #include "public.h"
 
+#include <yt/yt/library/web_assembly/api/data_transfer.h>
 #include <yt/yt/library/web_assembly/api/function.h>
 
 #include <yt/yt/library/query/base/callbacks.h>
@@ -112,6 +113,13 @@ using TJoinLookupRows = std::unordered_multiset<
     const TPIValue*,
     NDetail::TGroupHasher,
     NDetail::TRowComparer>;
+
+struct TLookupRowInRowsetWebAssemblyContext
+{
+    std::unique_ptr<TLookupRows> LookupTable;
+    std::vector<TPIValue*> RowsInsideCompartment;
+    NWebAssembly::TCopyGuard RowsInsideCompartmentGuard;
+};
 
 struct TLikeExpressionContext
 {
@@ -303,6 +311,7 @@ public:
     int AddOpaque(TArgs&&... args);
 
     TRange<void*> GetOpaqueData() const;
+    TRange<size_t> GetOpaqueDataSizes() const;
 
     void Clear();
 
@@ -313,6 +322,7 @@ public:
 private:
     TObjectsHolder Holder_;
     std::vector<void*> OpaquePointers_;
+    std::vector<size_t> OpaquePointeeSizes_;
     std::vector<TOwningValue> OwningLiteralValues_;
     mutable std::unique_ptr<TPIValue[]> LiteralValues_;
 
@@ -326,12 +336,12 @@ using TCGPIAggregateUpdateSignature = void(TExpressionContext*, TPIValue*, const
 using TCGPIAggregateMergeSignature = void(TExpressionContext*, TPIValue*, const TPIValue*);
 using TCGPIAggregateFinalizeSignature = void(TExpressionContext*, TPIValue*, const TPIValue*);
 
-using TCGQuerySignature = void(TRange<TPIValue>, TRange<void*>, TExecutionContext*);
-using TCGExpressionSignature = void(TRange<TPIValue>, TRange<void*>, TValue*, TRange<TValue>, const TRowBufferPtr&);
-using TCGAggregateInitSignature = void(const TRowBufferPtr&, TValue*);
-using TCGAggregateUpdateSignature = void(const TRowBufferPtr&, TValue*, TRange<TValue>);
-using TCGAggregateMergeSignature = void(const TRowBufferPtr&, TValue*, const TValue*);
-using TCGAggregateFinalizeSignature = void(const TRowBufferPtr&, TValue*, const TValue*);
+using TCGQuerySignature = void(TRange<TPIValue>, TRange<void*>, TRange<size_t>, TExecutionContext*, NWebAssembly::IWebAssemblyCompartment*);
+using TCGExpressionSignature = void(TRange<TPIValue>, TRange<void*>, TRange<size_t>, TValue*, TRange<TValue>, const TRowBufferPtr&, NWebAssembly::IWebAssemblyCompartment*);
+using TCGAggregateInitSignature = void(const TRowBufferPtr&, TValue*, NWebAssembly::IWebAssemblyCompartment*);
+using TCGAggregateUpdateSignature = void(const TRowBufferPtr&, TValue*, TRange<TValue>, NWebAssembly::IWebAssemblyCompartment*);
+using TCGAggregateMergeSignature = void(const TRowBufferPtr&, TValue*, const TValue*, NWebAssembly::IWebAssemblyCompartment*);
+using TCGAggregateFinalizeSignature = void(const TRowBufferPtr&, TValue*, const TValue*, NWebAssembly::IWebAssemblyCompartment*);
 
 using TCGQueryCallback = TCallback<TCGQuerySignature>;
 using TCGExpressionCallback = TCallback<TCGExpressionSignature>;
@@ -355,26 +365,34 @@ class TCGQueryInstance
 {
 public:
     TCGQueryInstance() = default;
-    explicit TCGQueryInstance(TCGQueryCallback callback);
+
+    explicit TCGQueryInstance(
+        TCGQueryCallback callback,
+        std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> compartment);
 
     void Run(
         TRange<TPIValue> literalValues,
         TRange<void*> opaqueData,
+        TRange<size_t> opaqueDataSizes,
         TExecutionContext* context);
 
 private:
     const TCGQueryCallback Callback_;
+    std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> Compartment_;
 };
 
 class TCGQueryImage
 {
 public:
-    explicit TCGQueryImage(TCGQueryCallback callback);
+    TCGQueryImage(
+        TCGQueryCallback callback,
+        std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> compartment);
 
     TCGQueryInstance Instantiate() const;
 
 private:
     const TCGQueryCallback Callback_;
+    std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> Compartment_;
 };
 
 //! NB: TCGExpressionInstance is NOT thread-safe.
@@ -382,11 +400,15 @@ class TCGExpressionInstance
 {
 public:
     TCGExpressionInstance() = default;
-    explicit TCGExpressionInstance(TCGExpressionCallback callback);
+
+    TCGExpressionInstance(
+        TCGExpressionCallback callback,
+        std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> compartment);
 
     void Run(
         TRange<TPIValue> literalValues,
         TRange<void*> opaqueData,
+        TRange<size_t> opaqueDataSizes,
         TValue* result,
         TRange<TValue> inputRow,
         const TRowBufferPtr& buffer);
@@ -395,13 +417,17 @@ public:
 
 private:
     TCGExpressionCallback Callback_;
+    std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> Compartment_;
 };
 
 class TCGExpressionImage
 {
 public:
     TCGExpressionImage() = default;
-    explicit TCGExpressionImage(TCGExpressionCallback callback);
+
+    TCGExpressionImage(
+        TCGExpressionCallback callback,
+        std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> compartment);
 
     TCGExpressionInstance Instantiate() const;
 
@@ -409,6 +435,7 @@ public:
 
 private:
     TCGExpressionCallback Callback_;
+    std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> Compartment_;
 };
 
 //! NB: TCGAggregateInstance is NOT thread-safe.
@@ -416,7 +443,10 @@ class TCGAggregateInstance
 {
 public:
     TCGAggregateInstance() = default;
-    explicit TCGAggregateInstance(TCGAggregateCallbacks callbacks);
+
+    TCGAggregateInstance(
+        TCGAggregateCallbacks callbacks,
+        std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> compartment);
 
     void RunInit(const TRowBufferPtr& buffer, TValue* state);
     void RunUpdate(const TRowBufferPtr& buffer, TValue* state, TRange<TValue> arguments);
@@ -425,18 +455,23 @@ public:
 
 private:
     TCGAggregateCallbacks Callbacks_;
+    std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> Compartment_;
 };
 
 class TCGAggregateImage
 {
 public:
     TCGAggregateImage() = default;
-    explicit TCGAggregateImage(TCGAggregateCallbacks callbacks);
+
+    TCGAggregateImage(
+        TCGAggregateCallbacks callbacks,
+        std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> compartment);
 
     TCGAggregateInstance Instantiate() const;
 
 private:
     TCGAggregateCallbacks Callbacks_;
+    std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> Compartment_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

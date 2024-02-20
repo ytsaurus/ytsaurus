@@ -27,6 +27,7 @@ using NYT::NQueryClient::TPIValue;
 using NYT::NQueryClient::TValueData;
 using NYT::NQueryClient::TPIValueData;
 using NYT::NQueryClient::TLookupRows;
+using NYT::NQueryClient::TLookupRowInRowsetWebAssemblyContext;
 using NYT::NQueryClient::TJoinLookup;
 using NYT::NQueryClient::TJoinLookupRows;
 using NYT::NQueryClient::TTopCollector;
@@ -78,11 +79,13 @@ struct TTypeBuilder<bool>
     OPAQUE_TYPE(TArrayJoinParameters*)
     OPAQUE_TYPE(TMultiJoinParameters*)
     OPAQUE_TYPE(TMultiJoinClosure*)
-    OPAQUE_TYPE(std::unique_ptr<TLookupRows>*)
+    OPAQUE_TYPE(std::unique_ptr<TLookupRowInRowsetWebAssemblyContext>*)
     OPAQUE_TYPE(TSharedRange<TRange<TPIValue>>*)
     OPAQUE_TYPE(TLikeExpressionContext*)
     OPAQUE_TYPE(TRowSchemaInformation*)
     OPAQUE_TYPE(TCompositeMemberAccessorPath*)
+
+    OPAQUE_TYPE(struct tm*)
 
 #undef OPAQUE_TYPE
 

@@ -195,6 +195,8 @@ get_built_tool_path(
 
 add_library(library-query-engine)
 target_compile_options(library-query-engine PRIVATE
+  -DWASM_C_API=WAVM_API
+  -DWAVM_API=
   -Wdeprecated-this-capture
 )
 target_include_directories(library-query-engine PUBLIC
@@ -204,6 +206,7 @@ target_include_directories(library-query-engine PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
   ${CMAKE_SOURCE_DIR}/contrib/libs/re2
   ${CMAKE_SOURCE_DIR}/contrib/libs/xdelta3
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/wavm/Include
 )
 target_link_libraries(library-query-engine PUBLIC
   contrib-libs-linux-headers
@@ -232,11 +235,16 @@ target_sources(library-query-engine PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/functions_cg.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/functions_builder.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/position_independent_value_caller.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/web_assembly_caller.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/web_assembly_data_transfer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/web_assembly_type_builder.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/disable_system_libraries.cpp
 )
 
 add_global_library_for(library-query-engine.global library-query-engine)
 target_compile_options(library-query-engine.global PRIVATE
+  -DWASM_C_API=WAVM_API
+  -DWAVM_API=
   -Wdeprecated-this-capture
 )
 target_include_directories(library-query-engine.global PUBLIC
@@ -246,6 +254,7 @@ target_include_directories(library-query-engine.global PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
   ${CMAKE_SOURCE_DIR}/contrib/libs/re2
   ${CMAKE_SOURCE_DIR}/contrib/libs/xdelta3
+  ${CMAKE_SOURCE_DIR}/contrib/restricted/wavm/Include
 )
 target_link_libraries(library-query-engine.global PUBLIC
   contrib-libs-linux-headers
