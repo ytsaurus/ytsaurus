@@ -124,7 +124,7 @@ static void ValidateColumnRemoval(
     for (const auto& oldDeletedColumn : oldSchema.DeletedColumns()) {
         if (!newSchema.FindDeletedColumn(oldDeletedColumn.StableName())) {
             THROW_ERROR_EXCEPTION("Deleted column %v must remain in the deleted column list",
-                oldDeletedColumn.StableName().Get());
+                oldDeletedColumn.StableName());
         }
     }
 }

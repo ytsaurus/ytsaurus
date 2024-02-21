@@ -117,11 +117,11 @@ void CheckUnavailableChunks(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ui32 GetHeavyColumnStatisticsHash(ui32 salt, const TStableName& stableName);
+ui32 GetHeavyColumnStatisticsHash(ui32 salt, const TColumnStableName& stableName);
 
 TColumnarStatistics GetColumnarStatistics(
     const NProto::THeavyColumnStatisticsExt& statistics,
-    const std::vector<TStableName>& columnNames,
+    const std::vector<TColumnStableName>& columnNames,
     i64 chunkRowCount);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -171,7 +171,7 @@ private:
 
 NProto::THeavyColumnStatisticsExt GetHeavyColumnStatisticsExt(
     const TColumnarStatistics& columnarStatistics,
-    const std::function<TStableName(int index)>& getStableNameByIndex,
+    const std::function<TColumnStableName(int index)>& geTColumnStableNameByIndex,
     int columnCount,
     int maxHeavyColumns);
 

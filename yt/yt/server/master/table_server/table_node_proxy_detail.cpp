@@ -2104,12 +2104,15 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             dynamic,
             table->IsEmpty() && !table->IsDynamic());
 
-        if (!config->EnableDescendingSortOrder || (dynamic && !config->EnableDescendingSortOrderDynamic)) {
+        if (!config->EnableDescendingSortOrder ||
+            dynamic && !config->EnableDescendingSortOrderDynamic)
+        {
             ValidateNoDescendingSortOrder(*schema);
         }
 
         if (!config->EnableTableColumnRenaming ||
-            dynamic && !config->EnableDynamicTableColumnRenaming) {
+            dynamic && !config->EnableDynamicTableColumnRenaming)
+        {
             ValidateNoRenamedColumns(*schema);
         }
 

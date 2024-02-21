@@ -10299,7 +10299,7 @@ void TOperationControllerBase::InferSchemaFromInput(const TSortColumns& sortColu
     auto replaceStableNamesWithNames = [] (const TTableSchemaPtr& schema) {
         auto newColumns = schema->Columns();
         for (auto& newColumn : newColumns) {
-            newColumn.SetStableName(TStableName(newColumn.Name()));
+            newColumn.SetStableName(TColumnStableName(newColumn.Name()));
         }
         return New<TTableSchema>(std::move(newColumns), schema->GetStrict(), schema->IsUniqueKeys());
     };

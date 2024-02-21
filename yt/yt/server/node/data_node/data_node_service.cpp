@@ -1993,7 +1993,7 @@ private:
             }
 
             auto columnIds = FromProto<std::vector<int>>(subrequest.column_ids());
-            std::vector<TStableName> columnStableNames;
+            std::vector<TColumnStableName> columnStableNames;
             columnStableNames.reserve(columnIds.size());
             for (auto id : columnIds) {
                 columnStableNames.emplace_back(TString(nameTable->GetNameOrThrow(id)));
@@ -2126,7 +2126,7 @@ private:
     }
 
     TRefCountedColumnarStatisticsSubresponsePtr ExtractColumnarStatisticsFromChunkMeta(
-        const std::vector<TStableName>& columnStableNames,
+        const std::vector<TColumnStableName>& columnStableNames,
         TChunkId chunkId,
         const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
@@ -2173,7 +2173,7 @@ private:
 
             subresponse->mutable_column_data_weights()->Reserve(columnStableNames.size());
             for (const auto& columnName : columnStableNames) {
-                auto id = nameTable->FindId(columnName.Get());
+                auto id = nameTable->FindId(columnName.Underlying());
                 if (id && *id < columnarStatisticsExt.column_data_weights().size()) {
                     subresponse->add_column_data_weights(columnarStatisticsExt.column_data_weights(*id));
                 } else {

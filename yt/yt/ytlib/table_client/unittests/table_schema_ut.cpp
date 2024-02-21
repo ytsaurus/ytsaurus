@@ -375,7 +375,7 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
                     .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("Value1", EValueType::String)
             }, true /*strict*/, true /*uniqueKeys*/, ETableSchemaModification::None, {
-                TDeletedColumn(TStableName("Value")),
+                TDeletedColumn(TColumnStableName("Value")),
             })
         },
         {
@@ -385,7 +385,7 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
                     .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("Value1", EValueType::String)
             }, true /*strict*/, true /*uniqueKeys*/, ETableSchemaModification::None, {
-                TDeletedColumn(TStableName("Value")),
+                TDeletedColumn(TColumnStableName("Value")),
             }),
             TTableSchema({
                 TColumnSchema("KeyName1", EValueType::String)
@@ -561,7 +561,7 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
                     .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("Value1", EValueType::String)
             }, true /*strict*/, true /*uniqueKeys*/, ETableSchemaModification::None, {
-                TDeletedColumn(TStableName("Value")),
+                TDeletedColumn(TColumnStableName("Value")),
             }),
         },
         {
@@ -576,7 +576,7 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
                     .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("Value1", EValueType::String)
             }, false /*strict*/, true /*uniqueKeys*/, ETableSchemaModification::None, {
-                TDeletedColumn(TStableName("Value")),
+                TDeletedColumn(TColumnStableName("Value")),
             }),
         }
     };

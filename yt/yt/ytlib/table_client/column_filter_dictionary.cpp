@@ -74,13 +74,13 @@ void ToProto(NProto::TColumnFilterDictionary* protoDictionary, const TGenericCol
 template
 void FromProto(TGenericColumnFilterDictionary<TString>* dictionary, const NProto::TColumnFilterDictionary& protoDictionary);
 
-template class TGenericColumnFilterDictionary<TStableName>;
+template class TGenericColumnFilterDictionary<TColumnStableName>;
 
 template
-void ToProto(NProto::TColumnFilterDictionary* protoDictionary, const TGenericColumnFilterDictionary<TStableName>& dictionary);
+void ToProto(NProto::TColumnFilterDictionary* protoDictionary, const TGenericColumnFilterDictionary<TColumnStableName>& dictionary);
 
 template
-void FromProto(TGenericColumnFilterDictionary<TStableName>* dictionary, const NProto::TColumnFilterDictionary& protoDictionary);
+void FromProto(TGenericColumnFilterDictionary<TColumnStableName>* dictionary, const NProto::TColumnFilterDictionary& protoDictionary);
 
 ////////////////////////////////////////////////////////////////////////////////
 

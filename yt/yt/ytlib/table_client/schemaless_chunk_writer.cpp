@@ -392,7 +392,7 @@ protected:
             auto heavyColumnStatisticsExt = GetHeavyColumnStatisticsExt(
                 ColumnarStatistics_,
                 [&] (int columnIndex) {
-                    return TStableName(TString{GetNameTable()->GetName(columnIndex)});
+                    return TColumnStableName(TString{GetNameTable()->GetName(columnIndex)});
                 },
                 columnCount,
                 Options_->MaxHeavyColumns);
@@ -1112,7 +1112,7 @@ protected:
                 if (IdMapping_[valueIt->Id] == -1) {
                     const auto& name = NameTable_->GetNameOrThrow(valueIt->Id);
                     auto stableName = Schema_->GetNameMapping().NameToStableName(name);
-                    IdMapping_[valueIt->Id] = GetChunkNameTable()->GetIdOrRegisterName(stableName.Get());
+                    IdMapping_[valueIt->Id] = GetChunkNameTable()->GetIdOrRegisterName(stableName.Underlying());
                 }
 
                 int id = IdMapping_[valueIt->Id];

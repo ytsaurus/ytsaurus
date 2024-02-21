@@ -370,7 +370,7 @@ static NTableClient::TTableSchemaPtr SetStableNames(
         auto& column = columns.emplace_back(originalColumn);
         YT_VERIFY(!column.IsRenamed());
         if (auto it = nameToStableName.find(column.Name())) {
-            column.SetStableName(NTableClient::TStableName(it->second));
+            column.SetStableName(NTableClient::TColumnStableName(it->second));
         }
     }
     return New<NTableClient::TTableSchema>(

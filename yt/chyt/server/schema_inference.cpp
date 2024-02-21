@@ -242,7 +242,7 @@ TTableSchemaPtr InferCommonTableSchema(
 
         int foundInAllSchemas = true;
 
-        std::optional<TStableName> stableName;
+        std::optional<TColumnStableName> stableName;
         for (const auto& table : uniqueTables) {
             if (auto* column = table->Schema->FindColumn(columnName)) {
                 if (stableName) {
@@ -251,8 +251,8 @@ TTableSchemaPtr InferCommonTableSchema(
                             "Input table schemas have column with same name %Qv "
                             "but different stable names %Qv and %Qv",
                             columnName,
-                            stableName->Get(),
-                            column->StableName().Get());
+                            *stableName,
+                            column->StableName());
                     }
                 } else {
                     stableName = column->StableName();

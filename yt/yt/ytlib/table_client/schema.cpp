@@ -40,7 +40,7 @@ TTableSchemaPtr InferInputSchema(const std::vector<TTableSchemaPtr>& schemas, bo
     }
 
     std::vector<TColumnSchema> columns;
-    THashMap<TStableName, int> stableNameToColumnIndex;
+    THashMap<TColumnStableName, int> stableNameToColumnIndex;
     THashMap<TString, int> nameToColumnIndex;
     for (const auto& schema : schemas) {
         for (int columnIndex = 0; columnIndex < schema->GetColumnCount(); ++columnIndex) {
@@ -61,7 +61,7 @@ TTableSchemaPtr InferInputSchema(const std::vector<TTableSchemaPtr>& schemas, bo
                 if (auto [it, inserted] = stableNameToColumnIndex.emplace(column.StableName(), index); !inserted) {
                     THROW_ERROR_EXCEPTION(
                         "Conflict while merging schemas: duplicate stable name %Qv for columns with differing names",
-                        column.StableName().Get())
+                        column.StableName())
                         << TErrorAttribute("first_column_schema", columns[it->second])
                         << TErrorAttribute("second_column_schema", columns[index]);
                 }

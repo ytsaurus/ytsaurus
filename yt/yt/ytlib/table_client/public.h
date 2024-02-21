@@ -33,7 +33,7 @@ template <typename TColumnName>
 class TGenericColumnFilterDictionary;
 
 using TColumnFilterDictionary = TGenericColumnFilterDictionary<TString>;
-using TStableColumnNameFilterDictionary = TGenericColumnFilterDictionary<TStableName>;
+using TColumnStableNameFilterDictionary = TGenericColumnFilterDictionary<TColumnStableName>;
 
 class THorizontalBlockReader;
 
