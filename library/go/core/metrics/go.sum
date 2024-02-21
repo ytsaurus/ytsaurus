@@ -50,6 +50,8 @@ go.ytsaurus.tech/library/go/x/xreflect v0.0.2 h1:S+lfg3G+WrfiBfTYz8droZeyiYYvT4m
 go.ytsaurus.tech/library/go/x/xreflect v0.0.2/go.mod h1:FJB6bzAVFQxi99CZjUqDSAMu5puEjswFW9Qwj41Yyy8=
 go.ytsaurus.tech/library/go/x/xruntime v0.0.3 h1:/km3v+CPSuID5FsPKvE2LcwmYJPS8TcxeBMGH1MjtVs=
 go.ytsaurus.tech/library/go/x/xruntime v0.0.3/go.mod h1:b+ypj9bGoFpoupNQW2rLJRSrT8rLA0NcUfyBYQwHc68=
+go.ytsaurus.tech/library/go/x/xsync v0.0.1 h1:QHcrwiWAbEBcsk7CvKNPfncfbAKABkVptDwGmT8Lab4=
+go.ytsaurus.tech/library/go/x/xsync v0.0.1/go.mod h1:P6bWgT1FQXGXzXOlUWBGIU8SSfpwEbtY9v+7psSFVQA=
 golang.org/x/exp v0.0.0-20230905200255-921286631fa9 h1:GoHiUyI/Tp2nVkLI2mCxVkOjsbSXD66ic0XW0js0R9g=
 golang.org/x/exp v0.0.0-20230905200255-921286631fa9/go.mod h1:S2oDrQGGwySpoQPVqRShND87VCbxmc6bL1Yd2oYrm6k=
 golang.org/x/sys v0.16.0 h1:xWw16ngr6ZMtmxDyKyIgsE93KNKz5HKmMa3b8ALHidU=
