@@ -322,6 +322,11 @@ MIGRATION = Migration(
 )
 
 
+def get_latest_version():
+    """ Get latest version of the query tracker state migration """
+    return MIGRATION.get_latest_version()
+
+
 def build_arguments_parser():
     parser = argparse.ArgumentParser(description="Transform query tracker state")
     parser.add_argument("--force", action="store_true", default=False)

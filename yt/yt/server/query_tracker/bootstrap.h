@@ -59,6 +59,8 @@ private:
 
     TDynamicConfigManagerPtr DynamicConfigManager_;
 
+    TAlertManagerPtr AlertManager_;
+
     IQueryTrackerPtr QueryTracker_;
 
     void DoRun();
