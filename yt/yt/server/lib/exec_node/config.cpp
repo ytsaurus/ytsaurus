@@ -443,6 +443,16 @@ const THashMap<TString, TUserJobSensorPtr>& TUserJobMonitoringDynamicConfig::Get
                 .Item("source").Value("gpu")
                 .Item("profiling_name").Value("/user_job/gpu/stuck")
             .EndMap()
+            .Item("gpu/rdma/rx_bytes").BeginMap()
+                .Item("type").Value("gauge")
+                .Item("source").Value("gpu")
+                .Item("profiling_name").Value("/user_job/gpu/rdma/rx_bytes/rate")
+            .EndMap()
+            .Item("gpu/rdma/tx_bytes").BeginMap()
+                .Item("type").Value("gauge")
+                .Item("source").Value("gpu")
+                .Item("profiling_name").Value("/user_job/gpu/rdma/tx_bytes/rate")
+            .EndMap()
         .EndMap());
 
     return DefaultSensors;
@@ -589,6 +599,11 @@ void TGpuManagerDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("health_check_failure_backoff", &TThis::HealthCheckFailureBackoff)
         .Default(TDuration::Minutes(10));
+
+    registrar.Parameter("rdma_device_info_update_timeout", &TThis::RdmaDeviceInfoUpdateTimeout)
+        .Default(TDuration::Minutes(5));
+    registrar.Parameter("rdma_device_info_update_period", &TThis::RdmaDeviceInfoUpdatePeriod)
+        .Default(TDuration::Seconds(10));
 
     registrar.Parameter("job_setup_command", &TThis::JobSetupCommand)
         .Default();

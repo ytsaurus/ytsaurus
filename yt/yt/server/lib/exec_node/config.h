@@ -498,6 +498,9 @@ public:
     TDuration HealthCheckPeriod;
     TDuration HealthCheckFailureBackoff;
 
+    TDuration RdmaDeviceInfoUpdateTimeout;
+    TDuration RdmaDeviceInfoUpdatePeriod;
+
     std::optional<TShellCommandConfigPtr> JobSetupCommand;
 
     NConcurrency::TPeriodicExecutorOptions DriverLayerFetching;

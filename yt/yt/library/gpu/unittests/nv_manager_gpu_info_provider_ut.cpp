@@ -37,6 +37,9 @@ static const TString ServiceName = "NvGpuManager";
 using TReqListGpuDevices = nvgpu::ListDevicesRequest;
 using TRspListGpuDevices = nvgpu::ListResponse;
 
+using TReqListRdmaDevices = nvgpu::Empty;
+using TRspListRdmaDevices = nvgpu::RdmaDevicesListResponse;
+
 class TMockNvGpuManagerService
     : public NRpc::TServiceBase
 {
@@ -49,6 +52,7 @@ public:
             NRpc::NullRealmId)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ListGpuDevices));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ListRdmaDevices));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NYT::NGpu, ListGpuDevices)
@@ -101,6 +105,31 @@ public:
 
         context->Reply();
     }
+
+    DECLARE_RPC_SERVICE_METHOD(NYT::NGpu, ListRdmaDevices)
+    {
+        {
+            auto* dev = response->add_devices();
+            auto* spec = dev->mutable_spec();
+            spec->set_name("dev1");
+            auto* status = dev->mutable_status();
+            status->set_portrcvbytespersecond(50);
+            status->set_portxmitbytespersecond(100);
+        }
+
+        response->add_devices();
+
+        {
+            auto* dev = response->add_devices();
+            auto* spec = dev->mutable_spec();
+            spec->set_name("dev2");
+            auto* status = dev->mutable_status();
+            status->set_portrcvbytespersecond(150);
+            status->set_portxmitbytespersecond(200);
+        }
+
+        context->Reply();
+    }
 };
 
 class TTestNvManagerGpuInfoProvider
@@ -144,7 +173,7 @@ protected:
     IServerPtr Server_;
 };
 
-TEST_F(TTestNvManagerGpuInfoProvider, Simple)
+TEST_F(TTestNvManagerGpuInfoProvider, SimpleGpuInfo)
 {
     auto config = New<TGpuInfoSourceConfig>();
     config->NvGpuManagerServiceAddress = Address_;
@@ -191,6 +220,32 @@ TEST_F(TTestNvManagerGpuInfoProvider, Simple)
         EXPECT_EQ(gpuInfo.PcieRxByteRate, 0.0);
         EXPECT_EQ(gpuInfo.PcieTxByteRate, 300.0);
         EXPECT_TRUE(gpuInfo.Stuck.Status);
+    }
+}
+
+TEST_F(TTestNvManagerGpuInfoProvider, SimpleRdmaDeviceInfo)
+{
+    auto config = New<TGpuInfoSourceConfig>();
+    config->NvGpuManagerServiceAddress = Address_;
+    config->NvGpuManagerServiceName = ServiceName;
+    config->Type = EGpuInfoSourceType::NvGpuManager;
+    config->GpuIndexesFromNvidiaSmi = false;
+
+    auto provider = CreateGpuInfoProvider(config);
+    auto rdmaDeviceInfos = provider->GetRdmaDeviceInfos(TDuration::Max());
+
+    {
+        const auto& rdmaDeviceInfo = rdmaDeviceInfos[0];
+        EXPECT_EQ(rdmaDeviceInfo.Name, "dev1");
+        EXPECT_EQ(rdmaDeviceInfo.RxByteRate, 50);
+        EXPECT_EQ(rdmaDeviceInfo.TxByteRate, 100);
+    }
+
+    {
+        const auto& rdmaDeviceInfo = rdmaDeviceInfos[1];
+        EXPECT_EQ(rdmaDeviceInfo.Name, "dev2");
+        EXPECT_EQ(rdmaDeviceInfo.RxByteRate, 150);
+        EXPECT_EQ(rdmaDeviceInfo.TxByteRate, 200);
     }
 }
 

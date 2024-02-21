@@ -122,6 +122,10 @@ TGpuManager::TGpuManager(IBootstrap* bootstrap)
         Bootstrap_->GetJobInvoker(),
         BIND(&TGpuManager::OnFetchDriverLayerInfo, MakeWeak(this)),
         DynamicConfig_.Acquire()->DriverLayerFetching))
+    , RdmaDeviceInfoUpdateExecutor_(New<TPeriodicExecutor>(
+        Bootstrap_->GetJobInvoker(),
+        BIND(&TGpuManager::OnRdmaDeviceInfoUpdate, MakeWeak(this)),
+        DynamicConfig_.Acquire()->RdmaDeviceInfoUpdatePeriod))
     , TestGpuInfoUpdateExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetJobInvoker(),
         BIND(&TGpuManager::OnTestGpuInfoUpdate, MakeWeak(this)),
@@ -215,6 +219,7 @@ void TGpuManager::OnDynamicConfigChanged(
     YT_ASSERT(newConfig);
 
     HealthCheckExecutor_->SetPeriod(newConfig->HealthCheckPeriod);
+    RdmaDeviceInfoUpdateExecutor_->SetPeriod(newConfig->RdmaDeviceInfoUpdatePeriod);
     FetchDriverLayerExecutor_->SetOptions(newConfig->DriverLayerFetching);
     if (newConfig->GpuInfoSource) {
         // XXX(ignat): avoid this hack.
@@ -396,6 +401,21 @@ void TGpuManager::OnFetchDriverLayerInfo()
     }
 }
 
+void TGpuManager::OnRdmaDeviceInfoUpdate()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    try {
+        auto timeout = DynamicConfig_.Acquire()->RdmaDeviceInfoUpdateTimeout;
+        auto rdmaDevices = GpuInfoProvider_.Acquire()->GetRdmaDeviceInfos(timeout);
+
+        auto guard = Guard(SpinLock_);
+        RdmaDevices_ = std::move(rdmaDevices);
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Failed to fetch RDMA device infos");
+    }
+}
+
 void TGpuManager::OnTestGpuInfoUpdate()
 {
     auto now = TInstant::Now();
@@ -459,6 +479,14 @@ const std::vector<TString>& TGpuManager::GetGpuDevices() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return GpuDevices_;
+}
+
+std::vector<TRdmaDeviceInfo> TGpuManager::GetRdmaDevices() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto guard = Guard(SpinLock_);
+    return RdmaDevices_;
 }
 
 void TGpuManager::ReleaseGpuSlot(int deviceIndex)

@@ -42,10 +42,20 @@ void Serialize(const TGpuInfo& gpuInfo, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TRdmaDeviceInfo
+{
+    TString Name;
+    double RxByteRate = 0.0;
+    double TxByteRate = 0.0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IGpuInfoProvider
     : public TRefCounted
 {
     virtual std::vector<TGpuInfo> GetGpuInfos(TDuration timeout) const = 0;
+    virtual std::vector<TRdmaDeviceInfo> GetRdmaDeviceInfos(TDuration timeout) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IGpuInfoProvider)

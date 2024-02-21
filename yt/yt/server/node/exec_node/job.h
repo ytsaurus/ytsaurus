@@ -422,6 +422,8 @@ private:
 
     std::vector<NContainers::TDevice> GetGpuDevices();
 
+    bool IsFullHostGpuJob() const;
+
     void RunWithWorkspaceBuilder();
 
     IUserSlotPtr GetUserSlot() const;
@@ -487,6 +489,7 @@ private:
     bool IsFatalError(const TError& error);
 
     void EnrichStatisticsWithGpuInfo(TStatistics* statistics);
+    void EnrichStatisticsWithRdmaDeviceInfo(TStatistics* statistics);
     void EnrichStatisticsWithDiskInfo(TStatistics* statistics);
     void EnrichStatisticsWithArtifactsInfo(TStatistics* statistics);
 
@@ -516,7 +519,7 @@ private:
     void ProfileSensor(const TString& sensorName, NProfiling::ISensorWriter* writer, double value);
 
     void CollectSensorsFromStatistics(NProfiling::ISensorWriter* writer);
-    void CollectSensorsFromGpuInfo(NProfiling::ISensorWriter* writer);
+    void CollectSensorsFromGpuAndRdmaDeviceInfo(NProfiling::ISensorWriter* writer);
 
     TFuture<TSharedRef> DumpSensors();
 
