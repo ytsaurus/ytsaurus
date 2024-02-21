@@ -116,21 +116,22 @@ using NHydra::EPeerState;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const TString TabletCellHydraTracker = "TabletCellHydra";
+static const TString WriteDirectionName = "write";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TThroughputThrottlerConfigPtr GetChangelogThrottlerConfig(
-    const NTabletClient::TTabletCellOptionsPtr& tabletCellOptions,
+static TThroughputThrottlerConfigPtr GetMediumThrottlerConfig(
+    const TString& mediumName,
     const TBundleDynamicConfigPtr& bundleConfig)
 {
     auto result = New<TThroughputThrottlerConfig>();
-    if (!tabletCellOptions || !bundleConfig) {
+    if (!bundleConfig) {
         return result;
     }
 
     const auto& mediumThrottlerConfig = bundleConfig->MediumThroughputLimits;
 
-    auto it = mediumThrottlerConfig.find(tabletCellOptions->ChangelogPrimaryMedium);
+    auto it = mediumThrottlerConfig.find(mediumName);
     if (it != mediumThrottlerConfig.end()) {
         result->Limit = it->second->WriteByteRate;
     } else {
@@ -143,33 +144,98 @@ static TThroughputThrottlerConfigPtr GetChangelogThrottlerConfig(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSubscriptionGuard final
+class TMediumThrottlerManager
+    : public virtual TRefCounted
 {
 public:
+    TMediumThrottlerManager(
+        TString bundleName,
+        TCellId cellId,
+        IInvokerPtr automationInvoker,
+        TBundleDynamicConfigManagerPtr dynamicConfigManager,
+        IDistributedThrottlerManagerPtr distributedThrottlerManager)
+        : BundleName_(std::move(bundleName))
+        , BundlePath_(Format("//sys/tablet_cell_bundles/%v", BundleName_))
+        , AutomationInvoker_(std::move(automationInvoker))
+        , DynamicConfigManager_(std::move(dynamicConfigManager))
+        , DistributedThrottlerManager_(std::move(distributedThrottlerManager))
+        , Profiler_(TabletNodeProfiler.WithPrefix("/distributed_throttlers")
+            .WithRequiredTag("tablet_cell_bundle", BundleName_)
+            .WithTag("cell_id", ToString(cellId), -1))
+    {
+        DynamicConfigCallback_ = BIND(&TMediumThrottlerManager::OnDynamicConfigChanged, MakeWeak(this))
+            .Via(AutomationInvoker_);
+
+        DynamicConfigManager_->SubscribeConfigChanged(DynamicConfigCallback_);
+    }
+
+    ~TMediumThrottlerManager()
+    {
+        DynamicConfigManager_->UnsubscribeConfigChanged(DynamicConfigCallback_);
+    }
+
+    IReconfigurableThroughputThrottlerPtr GetMediumWriteThrottler(const TString& mediumName)
+    {
+        RegisteredWriteThrottlers_.insert(mediumName);
+
+        return GetOrCreateThrottler(
+            WriteDirectionName,
+            mediumName,
+            DynamicConfigManager_->GetConfig());
+    }
+
+private:
     using TDynamicConfigCallback = TCallback<void(
         const TBundleDynamicConfigPtr& oldConfig,
         const TBundleDynamicConfigPtr& newConfig)>;
 
-    TSubscriptionGuard(
-        TBundleDynamicConfigManagerPtr manager,
-        TDynamicConfigCallback callback)
-        : Manager_(std::move(manager))
-        , Callback_(std::move(callback))
+    const TString BundleName_;
+    const TString BundlePath_;
+    const IInvokerPtr AutomationInvoker_;
+    const TBundleDynamicConfigManagerPtr DynamicConfigManager_;
+    const IDistributedThrottlerManagerPtr DistributedThrottlerManager_;
+    const NProfiling::TProfiler Profiler_;
+
+    THashSet<TString> RegisteredWriteThrottlers_;
+    TDynamicConfigCallback DynamicConfigCallback_;
+
+    IReconfigurableThroughputThrottlerPtr GetOrCreateThrottler(
+        const TString& direction,
+        const TString& mediumName,
+        const TBundleDynamicConfigPtr& bundleConfig)
     {
-        Manager_->SubscribeConfigChanged(Callback_);
+        if (!DistributedThrottlerManager_) {
+            return GetUnlimitedThrottler();
+        }
+
+        auto throttlerName = Format("%v_medium_%v", mediumName, direction);
+
+        return DistributedThrottlerManager_->GetOrCreateThrottler(
+            BundlePath_,
+            /*cellTag*/ {},
+            GetMediumThrottlerConfig(mediumName, bundleConfig),
+            throttlerName,
+            EDistributedThrottlerMode::Adaptive,
+            WriteThrottlerRpcTimeout,
+            /*admitUnlimitedThrottler*/ true,
+            Profiler_);
     }
 
-    ~TSubscriptionGuard()
+    void OnDynamicConfigChanged(
+        const TBundleDynamicConfigPtr& /*oldConfig*/,
+        const TBundleDynamicConfigPtr& newConfig)
     {
-        Manager_->UnsubscribeConfigChanged(Callback_);
-    }
+        VERIFY_INVOKER_AFFINITY(AutomationInvoker_);
 
-private:
-    TBundleDynamicConfigManagerPtr Manager_;
-    TDynamicConfigCallback Callback_;
+        // In order to apply new parameters we have to just call GetOrCreateThrottler with a new config.
+
+        for (const auto& medium : RegisteredWriteThrottlers_) {
+            GetOrCreateThrottler(WriteDirectionName, medium, newConfig);
+        }
+    }
 };
 
-DEFINE_REFCOUNTED_TYPE(TSubscriptionGuard);
+DEFINE_REFCOUNTED_TYPE(TMediumThrottlerManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -567,7 +633,12 @@ public:
             GetAutomaton(),
             GetAutomatonInvoker());
 
-        ReconfigureChangelogWriteThrottler();
+        MediumThrottlerManager_ = New<TMediumThrottlerManager>(
+            GetTabletCellBundleName(),
+            GetCellId(),
+            GetAutomatonInvoker(),
+            Bootstrap_->GetBundleDynamicConfigManager(),
+            DistributedThrottlerManager_);
     }
 
     void Initialize() override
@@ -663,7 +734,7 @@ public:
         return Occupant_->GetDynamicOptions();
     }
 
-    TTabletCellOptionsPtr GetOptions() override
+    TTabletCellOptionsPtr GetOptions() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -735,8 +806,7 @@ private:
     NRpc::IServicePtr TabletService_;
 
     const int SlotIndex_;
-    IReconfigurableThroughputThrottlerPtr ChangelogMediumWriteThrottler_;
-    TSubscriptionGuardPtr BundleDynamicConfigSubscription_;
+    TMediumThrottlerManagerPtr MediumThrottlerManager_;
 
 
     void OnStartEpoch()
@@ -780,48 +850,23 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    void ReconfigureChangelogWriteThrottler()
-    {
-        auto throttlerManager = GetDistributedThrottlerManager();
-        auto tabletCellOptions = GetOptions();
-        auto bundlePath = Format("//sys/tablet_cell_bundles/%v", GetTabletCellBundleName());
-        auto profiler = TabletNodeProfiler.WithPrefix("/distributed_throttlers")
-            .WithRequiredTag("tablet_cell_bundle", GetTabletCellBundleName())
-            .WithTag("cell_id", ToString(GetCellId()), -1);
-
-        auto getOrCreateThrottler = [=] (const TBundleDynamicConfigPtr& bundleConfig) {
-            return throttlerManager->GetOrCreateThrottler(
-                bundlePath,
-                /*cellTag*/ {},
-                GetChangelogThrottlerConfig(tabletCellOptions, bundleConfig),
-                "changelog_medium_write",
-                EDistributedThrottlerMode::Adaptive,
-                WriteThrottlerRpcTimeout,
-                /*admitUnlimitedThrottler*/ true,
-                profiler);
-        };
-
-        const auto& dynamicConfigManager = Bootstrap_->GetBundleDynamicConfigManager();
-        ChangelogMediumWriteThrottler_ = getOrCreateThrottler(dynamicConfigManager->GetConfig());
-
-        auto configChangeHandler = BIND([reconfigureThrottler = getOrCreateThrottler] (
-            const TBundleDynamicConfigPtr& /*oldConfig*/,
-            const TBundleDynamicConfigPtr& newConfig) {
-                // TODO(capone212): do we really need to reconfigure like this here?
-                reconfigureThrottler(newConfig);
-            })
-            .Via(GetAutomatonInvoker());
-
-        BundleDynamicConfigSubscription_ = New<TSubscriptionGuard>(
-            Bootstrap_->GetBundleDynamicConfigManager(),
-            std::move(configChangeHandler));
-    }
-
     IReconfigurableThroughputThrottlerPtr GetChangelogMediumWriteThrottler() const override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(MediumThrottlerManager_);
 
-        return ChangelogMediumWriteThrottler_;
+        auto options = GetOptions();
+        YT_VERIFY(options);
+
+        return MediumThrottlerManager_->GetMediumWriteThrottler(options->ChangelogPrimaryMedium);
+    }
+
+    IReconfigurableThroughputThrottlerPtr GetMediumWriteThrottler(const TString& mediumName) const override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(MediumThrottlerManager_);
+
+        return MediumThrottlerManager_->GetMediumWriteThrottler(mediumName);
     }
 };
 

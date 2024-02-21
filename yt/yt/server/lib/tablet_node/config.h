@@ -904,6 +904,7 @@ class TMediumThrottlersConfig
 {
 public:
     bool EnableChangelogThrottling;
+    bool EnableBlobThrottling;
 
     // Defines throttling time as a fraction of the request timeout.
     double ThrottleTimeoutFraction;

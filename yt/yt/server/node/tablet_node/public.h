@@ -32,6 +32,7 @@ DEFINE_ENUM(ETabletDistributedThrottlerKind,
 
     // Disk IO.
     (ChangelogMediumWrite)
+    (BlobMediumWrite)
 );
 
 DEFINE_ENUM(EHunkCompactionReason,
@@ -209,6 +210,7 @@ DECLARE_REFCOUNTED_CLASS(TCongestionController)
 DECLARE_REFCOUNTED_CLASS(TCompactionHintFetcher)
 
 DECLARE_REFCOUNTED_CLASS(TErrorManager)
+DECLARE_REFCOUNTED_CLASS(TMediumThrottlerManager);
 
 struct TSortedDynamicRowHeader;
 class TSortedDynamicRow;
