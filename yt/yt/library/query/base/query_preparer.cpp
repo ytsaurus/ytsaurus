@@ -2779,7 +2779,7 @@ void PrepareQuery(
         // not prefix, because of equal prefixes near borders
         bool containsPrimaryKey = keyPrefix == query->GetKeyColumns().size();
         // COMPAT(lukyan)
-        query->UseDisjointGroupBy = containsPrimaryKey;
+        query->UseDisjointGroupBy = containsPrimaryKey && !keyColumns.empty();
     }
 
     if (ast.HavingPredicate) {
