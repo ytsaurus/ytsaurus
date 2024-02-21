@@ -15,6 +15,7 @@
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/config.h>
 
+#include <yt/yt/client/transaction_client/config.h>
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
 
 #include <yt/yt/library/coredumper/public.h>
@@ -39,6 +40,7 @@ using namespace NAdmin;
 using namespace NConcurrency;
 using namespace NCoreDump;
 using namespace NMonitoring;
+using namespace NObjectClient;
 using namespace NOrchid;
 using namespace NTransactionClient;
 using namespace NTransactionServer;
@@ -130,12 +132,21 @@ private:
             OrchidRoot_,
             "timestamp_provider");
 
-        auto channelFactory = NRpc::CreateCachingChannelFactory(NRpc::NBus::CreateTcpBusChannelFactory(Config_->BusClient));
+        auto channelFactory = NRpc::CreateCachingChannelFactory(
+            NRpc::NBus::CreateTcpBusChannelFactory(Config_->BusClient));
         auto timestampProvider = CreateBatchingRemoteTimestampProvider(
             Config_->TimestampProvider,
-            CreateTimestampProviderChannel(Config_->TimestampProvider, channelFactory));
-        RpcServer_->RegisterService(CreateTimestampProxyService(
+            channelFactory);
+
+        auto alienProviders = CreateAlienTimestampProvidersMap(
+            Config_->AlienProviders,
             timestampProvider,
+            Config_->ClockClusterTag,
+            channelFactory);
+
+        RpcServer_->RegisterService(CreateTimestampProxyService(
+            std::move(timestampProvider),
+            std::move(alienProviders),
             /*authenticator*/ nullptr));
 
         RpcServer_->RegisterService(CreateOrchidService(

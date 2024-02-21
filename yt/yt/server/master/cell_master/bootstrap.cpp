@@ -1065,13 +1065,15 @@ void TBootstrap::DoInitialize()
 
 void TBootstrap::InitializeTimestampProvider()
 {
-    auto timestampProviderChannel = CreateTimestampProviderChannel(Config_->TimestampProvider, ChannelFactory_);
     if (MulticellManager_->IsPrimaryMaster() && !Config_->EnableTimestampManager) {
-        TimestampProvider_ = CreateBatchingRemoteTimestampProvider(
-            Config_->TimestampProvider,
-            std::move(timestampProviderChannel));
-        RpcServer_->RegisterService(CreateTimestampProxyService(TimestampProvider_, /*authenticator*/ nullptr));
+        TimestampProvider_ = CreateBatchingRemoteTimestampProvider(Config_->TimestampProvider, ChannelFactory_);
+
+        RpcServer_->RegisterService(CreateTimestampProxyService(
+            TimestampProvider_,
+            /*alienProviders*/ {},
+            /*authenticator*/ nullptr));
     } else {
+        auto timestampProviderChannel = CreateTimestampProviderChannel(Config_->TimestampProvider, ChannelFactory_);
         TimestampProvider_ = CreateRemoteTimestampProvider(
             Config_->TimestampProvider,
             std::move(timestampProviderChannel));
