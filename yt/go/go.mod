@@ -1,11 +1,14 @@
 module go.ytsaurus.tech/yt/go
 
-go 1.20
+go 1.21
+
+toolchain go1.21.6
 
 require (
 	github.com/andybalholm/brotli v1.0.4
 	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/davecgh/go-spew v1.1.1
+	github.com/go-resty/resty/v2 v2.11.0
 	github.com/gofrs/uuid v4.2.0+incompatible
 	github.com/golang/protobuf v1.5.3
 	github.com/golang/snappy v0.0.4
@@ -21,26 +24,30 @@ require (
 	go.ytsaurus.tech/library/go/blockcodecs v0.0.2
 	go.ytsaurus.tech/library/go/core/log v0.0.3
 	go.ytsaurus.tech/library/go/core/xerrors v0.0.3
+	go.ytsaurus.tech/library/go/httputil/middleware/httpmetrics v0.0.0-00010101000000-000000000000
 	go.ytsaurus.tech/library/go/ptr v0.0.1
-	golang.org/x/exp v0.0.0-20230725093048-515e97ebf090
+	golang.org/x/exp v0.0.0-20230905200255-921286631fa9
 	golang.org/x/sync v0.3.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
-	google.golang.org/protobuf v1.31.0
+	google.golang.org/protobuf v1.32.0
 )
 
 require (
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2 // indirect
-	github.com/frankban/quicktest v1.14.5 // indirect
+	github.com/OneOfOne/xxhash v1.2.8 // indirect
+	github.com/go-chi/chi/v5 v5.0.8 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/rogpeppe/go-internal v1.10.0 // indirect
+	github.com/prometheus/client_model v0.5.0 // indirect
 	github.com/uber/jaeger-lib v2.4.1+incompatible // indirect
 	go.uber.org/goleak v1.2.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
+	go.ytsaurus.tech/library/go/core/metrics v0.0.0-00010101000000-000000000000 // indirect
 	go.ytsaurus.tech/library/go/x/xreflect v0.0.2 // indirect
 	go.ytsaurus.tech/library/go/x/xruntime v0.0.3 // indirect
-	golang.org/x/crypto v0.13.0 // indirect
-	golang.org/x/sys v0.12.0 // indirect
+	golang.org/x/crypto v0.14.0 // indirect
+	golang.org/x/net v0.17.0 // indirect
+	golang.org/x/sys v0.16.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

@@ -18,6 +18,7 @@ RECURSE(
     bus
     compression
     crc64
+    deps
     examples
     # genproto
     guid
