@@ -12,6 +12,7 @@ user@host:~$ sudo mount -t ext4 /tmp/1gb_ext4.img ~/mnt
 user@host:~$ # fill in ~/mnt directory
 user@host:~$ # ...
 user@host:~$ sudo umount ~/mnt
+user@host:~$ yt --proxy [cluster] create --type file --attributes '{replication_factor=10;primary_medium=ssd_blobs;account=sys;}' --path //tmp/1gb_ext4.img # optional optimization step
 user@host:~$ yt --proxy [cluster] write-file //tmp/1gb_ext4.img < /tmp/1gb_ext4.img
 user@host:~$ yt --proxy [cluster] set //tmp/1gb_ext4.img/@filesystem ext4
 ```
