@@ -3978,7 +3978,7 @@ void TOperationControllerBase::SafeOnInputChunkLocated(
     YT_VERIFY(!descriptor.InputChunks.empty());
 
     const auto& chunkSpec = descriptor.InputChunks.front();
-    auto codecId = NErasure::ECodec(chunkSpec->GetErasureCodec());
+    auto codecId = chunkSpec->GetErasureCodec();
 
     if (IsUnavailable(replicas, codecId, GetChunkAvailabilityPolicy())) {
         OnInputChunkUnavailable(chunkId, &descriptor);

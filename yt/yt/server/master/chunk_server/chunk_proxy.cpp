@@ -1193,7 +1193,7 @@ private:
         ToProto(chunkSpec->mutable_legacy_replicas(), replicas);
         ToProto(chunkSpec->mutable_replicas(), replicas);
         ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
-        chunkSpec->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
+        chunkSpec->set_erasure_codec(ToProto<int>(chunk->GetErasureCodec()));
         chunkSpec->set_striped_erasure(chunk->GetStripedErasure());
         ToProto(chunkSpec->mutable_chunk_meta(), chunk->ChunkMeta());
 

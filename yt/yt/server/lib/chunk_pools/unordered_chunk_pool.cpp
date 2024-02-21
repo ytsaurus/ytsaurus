@@ -513,7 +513,7 @@ private:
 
             bool hasNontrivialLimits = !chunk->IsCompleteChunk();
 
-            auto codecId = NErasure::ECodec(chunk->GetErasureCodec());
+            auto codecId = chunk->GetErasureCodec();
             if (hasNontrivialLimits || codecId == NErasure::ECodec::None || !SliceErasureChunksByParts_) {
                 // TODO(max42): rewrite slicing, SliceEvenly is a weird approach.
                 auto slices = dataSlice->ChunkSlices[0]->SliceEvenly(

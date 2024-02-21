@@ -48,6 +48,8 @@ using namespace NProfiling;
 using namespace NTransactionServer;
 using namespace NYTree;
 
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////test
 
 static const TLogger Logger("ChunkAutotomizer");
@@ -157,7 +159,7 @@ public:
         jobSpecExt->set_read_quorum(bodyChunk->GetReadQuorum());
         jobSpecExt->set_write_quorum(bodyChunk->GetWriteQuorum());
         jobSpecExt->set_medium_index(replication.GetMediumIndex());
-        jobSpecExt->set_erasure_codec(ToUnderlying(bodyChunk->GetErasureCodec()));
+        jobSpecExt->set_erasure_codec(ToProto<int>(bodyChunk->GetErasureCodec()));
         jobSpecExt->set_replication_factor(replication.Policy().GetReplicationFactor());
         jobSpecExt->set_overlayed(bodyChunk->GetOverlayed());
 
