@@ -675,6 +675,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
                         "delay_in_copy_chunk": 5000,
                         "erasure_chunk_repair_delay": 2000,
                         "repair_erasure_chunks": True,
+                        "chunk_availability_policy": "repairable",
                     },
                 )
                 wait(lambda: len(op.get_running_jobs()) == 1)
@@ -717,9 +718,11 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             # Some 4 parts are unavailable, repair is impossible.
             set_banned_flag_for_part_nodes([0, 1, 3, 8], True)
             time.sleep(8)
+            get("#{}/@stored_replicas".format(chunk_id), driver=self.remote_driver)
             assert op.get_state() not in ("failed", "aborted", "completed")
             # Unban one part, job should complete.
             set_banned_flag_for_part_nodes([1], False)
+            get("#{}/@stored_replicas".format(chunk_id), driver=self.remote_driver)
             op.track()
             check_everything()
             unban_all_nodes()
