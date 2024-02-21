@@ -1,5 +1,6 @@
 from yt_commands import (
-    create, create_user, remove_user, remove, add_member, sync_create_cells, sync_remove_tablet_cells, ls,
+    create, create_access_control_object_namespace, create_access_control_object, create_user,
+    remove_user, remove, add_member, sync_create_cells, sync_remove_tablet_cells, ls,
     set, get_connection_config, wait, get)
 from yt.environment import ExternalComponent
 
@@ -47,9 +48,13 @@ def query_tracker_environment():
     }
     set("//sys/clusters/primary/query_tracker", query_tracker_config)
     create("document", "//sys/query_tracker/config", recursive=True, force=True, attributes={"value": {}})
+    create_access_control_object_namespace("queries")
+    create_access_control_object("nobody", "queries")
     wait(lambda: get_connection_config(verbose=False)
          .get("query_tracker", {}).get("stages", {}).get("production") is not None)
     yield
+    remove("//sys/access_control_object_namespaces/queries/nobody")
+    remove("//sys/access_control_object_namespaces/queries")
     remove("//sys/clusters/primary/query_tracker")
     sync_remove_tablet_cells(ls("//sys/tablet_cells"))
     remove_user("query_tracker")

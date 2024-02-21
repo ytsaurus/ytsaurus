@@ -2056,6 +2056,12 @@ TFuture<void> TClient::AlterQuery(
     ThrowUnimplemented("AlterQuery");
 }
 
+TFuture<TGetQueryTrackerInfoResult> TClient::GetQueryTrackerInfo(
+    const TGetQueryTrackerInfoOptions& /*options*/)
+{
+    ThrowUnimplemented("GetQueryTrackerInfo");
+}
+
 TFuture<void> TClient::SetUserPassword(
     const TString& /*user*/,
     const TString& /*currentPasswordSha256*/,

@@ -109,4 +109,16 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////
 
+class TGetQueryTrackerInfoCommand
+    : public TTypedCommand<NApi::TGetQueryTrackerInfoOptions>
+{
+public:
+    TGetQueryTrackerInfoCommand();
+
+private:
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

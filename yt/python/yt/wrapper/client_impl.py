@@ -222,7 +222,8 @@ class YtClient(ClientState):
 
     def advance_consumer(
             self,
-            consumer_path, queue_path, partition_index, old_offset, new_offset, client_side=True):
+            consumer_path, queue_path, partition_index, old_offset, new_offset,
+            client_side=True):
         """
         Advances consumer offset for the given queue.
         If the old offset is specified, the command fails if it is not equal to the current stored offset.
@@ -237,11 +238,14 @@ class YtClient(ClientState):
         :type old_offset: None or int
         :param new_offset: new offset to set
         :type new_offset: int
+        :param client_side: use client-side implementation
+        :type client_side: bool
 
         """
         return client_api.advance_consumer(
-            consumer_path, queue_path, partition_index, old_offset, new_offset, client_side,
-            client=self)
+            consumer_path, queue_path, partition_index, old_offset, new_offset,
+            client=self,
+            client_side=client_side)
 
     def alter_replication_card(
             self,
@@ -2409,7 +2413,7 @@ class YtClient(ClientState):
     def start_query(
             self,
             engine, query,
-            settings=None, files=None, stage=None):
+            settings=None, files=None, stage=None, annotations=None, access_control_object=None):
         """
         Start query.
 
@@ -2423,12 +2427,16 @@ class YtClient(ClientState):
         :type files: list or None
         :param stage: query tracker stage, defaults to "production"
         :type stage: str
+        :param annotations: a dictionary of annotations
+        :type stage: dict or None
+        :param access_control_object: access control object name
+        :type access_control_object: str or None
 
         """
         return client_api.start_query(
             engine, query,
             client=self,
-            settings=settings, files=files, stage=stage)
+            settings=settings, files=files, stage=stage, annotations=annotations, access_control_object=access_control_object)
 
     def start_spark_cluster(
             self,

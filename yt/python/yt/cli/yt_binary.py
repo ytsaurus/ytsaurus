@@ -1189,6 +1189,7 @@ def add_start_query_parser(add_parser):
     add_structured_argument(parser, "--settings", help="additional settings of a query in structured form")
     add_structured_argument(parser, "--files", help='query files, a YSON list of files, each of which is represented by a map with keys "name", "content", "type".'
                                                     'Field "type" is one of "raw_inline_data", "url"')
+    parser.add_argument("--access-control-object", type=str, help='optional access control object name')
     parser.add_argument("--stage", type=str, help='query tracker stage, defaults to "production"')
 
 

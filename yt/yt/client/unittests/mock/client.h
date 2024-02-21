@@ -620,6 +620,9 @@ public:
 
     MOCK_METHOD(TFuture<void>, AlterQuery, (
         NQueryTrackerClient::TQueryId queryId, const TAlterQueryOptions& options), (override));
+
+    MOCK_METHOD(TFuture<TGetQueryTrackerInfoResult>, GetQueryTrackerInfo, (
+        const TGetQueryTrackerInfoOptions& options), (override));
 };
 
 DEFINE_REFCOUNTED_TYPE(TMockClient)
