@@ -23,6 +23,11 @@ const std::vector<TString>& TDiskInfoProvider::GetConfigDiskIds() const
     return Config_->DiskIds;
 }
 
+TFuture<void> TDiskInfoProvider::UpdateDiskCache()
+{
+    return DiskManagerProxy_->UpdateDiskCache();
+}
+
 TFuture<std::vector<TDiskInfo>> TDiskInfoProvider::GetYTDiskInfos()
 {
     auto diskInfosFuture = DiskManagerProxy_->GetDisks();
