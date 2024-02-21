@@ -9,6 +9,7 @@
 add_subdirectory(example)
 add_subdirectory(perf)
 add_subdirectory(resource_tracker)
+add_subdirectory(sensors_owner)
 add_subdirectory(solomon)
 add_subdirectory(tcmalloc)
 add_subdirectory(unittests)

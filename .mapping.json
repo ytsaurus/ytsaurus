@@ -941,6 +941,8 @@
   "yt/yt/library/profiling/example/CMakeLists.txt":"",
   "yt/yt/library/profiling/perf/CMakeLists.txt":"",
   "yt/yt/library/profiling/resource_tracker/CMakeLists.txt":"",
+  "yt/yt/library/profiling/sensors_owner/CMakeLists.txt":"",
+  "yt/yt/library/profiling/sensors_owner/unittests/CMakeLists.txt":"",
   "yt/yt/library/profiling/solomon/CMakeLists.txt":"",
   "yt/yt/library/profiling/tcmalloc/CMakeLists.txt":"",
   "yt/yt/library/profiling/unittests/CMakeLists.txt":"",
