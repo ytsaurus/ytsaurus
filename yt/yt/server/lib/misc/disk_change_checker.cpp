@@ -106,9 +106,10 @@ void TDiskChangeChecker::CheckDiskChange(const std::vector<TDiskInfo>& diskInfos
     THashSet<TString> configDiskIds;
 
     for (const auto& diskInfo : diskInfos) {
-        if (diskInfo.State == NContainers::EDiskState::OK) {
+        diskIds.insert(diskInfo.DiskId);
+
+        if (diskInfo.State == NContainers::EDiskState::Ok) {
             aliveDiskIds.insert(diskInfo.DiskId);
-            diskIds.insert(diskInfo.DiskId);
         }
     }
 
