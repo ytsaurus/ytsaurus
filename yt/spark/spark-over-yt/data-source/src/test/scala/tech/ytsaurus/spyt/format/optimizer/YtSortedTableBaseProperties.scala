@@ -3,7 +3,7 @@ package tech.ytsaurus.spyt.format.optimizer
 import org.apache.spark.sql.catalyst.expressions.{Alias, AttributeReference, CodegenObjectFactoryMode, Expression, KnownFloatingPointNormalized, NamedExpression}
 import org.apache.spark.sql.catalyst.optimizer.NormalizeNaNAndZero
 import org.apache.spark.sql.internal.SQLConf.{CODEGEN_FACTORY_MODE, WHOLESTAGE_CODEGEN_ENABLED}
-import org.apache.spark.sql.types.{DataType, DoubleType, LongType, StringType}
+import org.apache.spark.sql.types.{BooleanType, DataType, DoubleType, LongType, StringType}
 import org.scalacheck.Gen
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
@@ -54,6 +54,7 @@ private class YtSortedTableBaseProperties extends FlatSpec with Matchers with Be
 object YtSortedTableBaseProperties {
   private val genLong = Gen.choose(1L, 100L)
   private val genDouble = Gen.choose(1, 100).map(v => v.toDouble / 1000)
+  private val genBoolean = Gen.choose(1, 2).map(_ == 2)
   private val genString = for {
     size <- Gen.choose(1, 3)
     chars <- Gen.listOfN(size, Gen.alphaLowerChar)
@@ -63,12 +64,12 @@ object YtSortedTableBaseProperties {
     size <- Gen.choose(1, 5)
     chars <- Gen.listOfN(size, Gen.alphaLowerChar)
   } yield chars.mkString("")
-  private val genDataType = Gen.oneOf(StringType, LongType, DoubleType)
+  private val genDataType = Gen.oneOf(StringType, LongType, BooleanType)
 
   private def getDatatypeGen(dt: DataType): Gen[Any] = dt match {
     case StringType => genString
     case LongType => genLong
-    case DoubleType => genDouble
+    case BooleanType => genBoolean
   }
 
   def compareRows(l: Seq[Any], r: Seq[Any]): Boolean = {
@@ -78,6 +79,7 @@ object YtSortedTableBaseProperties {
       case (a: String, b: String) => a < b
       case (a: Long, b: Long) => a < b
       case (a: Double, b: Double) => a < b
+      case (a: Boolean, b: Boolean) => a < b
     }
   }
 
@@ -85,6 +87,7 @@ object YtSortedTableBaseProperties {
     case StringType => TiType.string()
     case LongType => TiType.int64()
     case DoubleType => TiType.doubleType()
+    case BooleanType => TiType.bool()
   }
 
   private def getUnversionedValue(i: Int, dt: DataType, value: Any): UnversionedValue = dt match {
@@ -94,6 +97,8 @@ object YtSortedTableBaseProperties {
       new UnversionedValue(i, ColumnValueType.INT64, false, value.asInstanceOf[Long])
     case DoubleType =>
       new UnversionedValue(i, ColumnValueType.DOUBLE, false, value.asInstanceOf[Double])
+    case BooleanType =>
+      new UnversionedValue(i, ColumnValueType.BOOLEAN, false, value.asInstanceOf[Boolean])
   }
 
   def getUnversionedRow(schema: Schema, row: Seq[Any]): UnversionedRow = {

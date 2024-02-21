@@ -85,7 +85,7 @@ private class YtSortedTableJoinProperties extends YtSortedTableBaseProperties {
           val table2 = s"$tmpPath/2"
           val sortedData1 = writeSortedData(source1, table1)
           val sortedData2 = writeSortedData(source2, table2)
-          val expected = simulateJoin(sortedData1, sortedData2, joinColumns.length)
+          val expected = YtSortedTableJoinProperties.simulateJoin(sortedData1, sortedData2, joinColumns.length)
           val query = spark.read.yt(table1).join(spark.read.yt(table2), joinColumns)
           val res = query.collect()
 //          isCorrectPlan(test, query.queryExecution.executedPlan) shouldBe true
@@ -93,15 +93,6 @@ private class YtSortedTableJoinProperties extends YtSortedTableBaseProperties {
           res should contain theSameElementsAs expected.map(Row.fromSeq)
           afterEach()
       }
-    }
-  }
-
-  private def simulateJoin(data1: Seq[Seq[Any]], data2: Seq[Seq[Any]], joinColumnsNumber: Int): Seq[Seq[Any]] = {
-    data1.flatMap{
-      v1 =>
-        val key = v1.take(joinColumnsNumber)
-        val sameKey = data2.filter(_.take(joinColumnsNumber) == key)
-        sameKey.map(v2 => v1 ++ v2.drop(joinColumnsNumber))
     }
   }
 }
@@ -141,6 +132,15 @@ object YtSortedTableJoinProperties {
         Source(schema2, keysSchema2, data2),
         joinedSchema.getColumnNames(commonColumnsNumber)
       )
+    }
+  }
+
+  def simulateJoin(data1: Seq[Seq[Any]], data2: Seq[Seq[Any]], joinColumnsNumber: Int): Seq[Seq[Any]] = {
+    data1.flatMap {
+      v1 =>
+        val key = v1.take(joinColumnsNumber)
+        val sameKey = data2.filter(_.take(joinColumnsNumber) == key)
+        sameKey.map(v2 => v1 ++ v2.drop(joinColumnsNumber))
     }
   }
 }

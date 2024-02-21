@@ -5,7 +5,7 @@ import org.apache.spark.sql.catalyst.expressions.CodegenObjectFactoryMode
 import org.apache.spark.sql.execution.exchange.{ReusedExchangeExec, ShuffleExchangeExec}
 import org.apache.spark.sql.execution.joins.SortMergeJoinExec
 import org.apache.spark.sql.execution.{DependentHashShuffleExchangeExec, FakeHashShuffleExchangeExec, FakeSortShuffleExchangeExec, SortExec, SparkPlan}
-import org.apache.spark.sql.functions.col
+import org.apache.spark.sql.functions.{col, floor}
 import org.apache.spark.sql.internal.SQLConf.{CODEGEN_FACTORY_MODE, WHOLESTAGE_CODEGEN_ENABLED}
 import org.mockito.scalatest.MockitoSugar
 import org.scalatest.{FlatSpec, Matchers}
@@ -135,6 +135,29 @@ class YtSortedTableJoinTest extends FlatSpec with Matchers with LocalSpark with 
     }
   }
 
+  it should "work with filter" in {
+    withConfs(conf) {
+      val tmpPath2 = s"$tmpPath-${UUID.randomUUID()}"
+
+      val data = (0L to 99L).map(x => (x / 10, x / 10, x))
+
+      data.toDF("a", "b", "c").write.sortedBy("a", "b").yt(tmpPath)
+      data.toDF("a", "b", "c").write.sortedBy("a", "b").yt(tmpPath2)
+
+      val left = spark.read.yt(tmpPath)
+      val right = spark.read.yt(tmpPath2)
+      val query = left.join(right, Seq("a", "b")).filter(floor(left("c") / 10) - floor(right("c") / 10) === 0)
+        .select(left("a"), left("b"), left("c"))
+      val res = query.collect()
+
+      val expected = (0L to 99L).flatMap(x => (0L to 9L).map(x2 => Seq(x / 10, x / 10, x / 10 * 10 + x2)))
+      res should contain theSameElementsAs expected.map(Row.fromSeq)
+
+      findNotProcessedJoin(query).length shouldBe 0
+      findProcessedOneSideJoin(query).length shouldBe 0
+      findProcessedBothSideJoin(query).length shouldBe 1
+    }
+  }
 
   it should "be disabled when config is disabled" in {
     withConfs(conf) {
@@ -215,22 +238,22 @@ class YtSortedTableJoinTest extends FlatSpec with Matchers with LocalSpark with 
     }
   }
 
-  it should "work when tables have reordered columns" in {
+  it should "work when second table has reordered columns" in {
     withConfs(conf) {
       val tmpPath2 = s"$tmpPath-${UUID.randomUUID()}"
 
-      (1L to 2000L).map(x => (x, x))
-        .toDF("c", "a")
-        .write.sortedBy("c", "a").yt(tmpPath2)
+      val data = (1L to 2000L)
+      data.map(x => (x, x)).toDF("c", "a").write.sortedBy("c", "a").yt(tmpPath2)
 
       val in1 = spark.read.yt(commonTable)
       val in2 = spark.read.yt(tmpPath2)
-      val res = in1.join(in2, Seq("a"))
-      res.collect()
+      val query = in1.join(in2, Seq("a")).select(in2("a"))
+      val res = query.collect()
+      res should contain theSameElementsAs data.map(Row(_))
 
-      findNotProcessedJoin(res).length shouldBe 0
-      findProcessedOneSideJoin(res).length shouldBe 1
-      findProcessedBothSideJoin(res).length shouldBe 0
+      findNotProcessedJoin(query).length shouldBe 0
+      findProcessedOneSideJoin(query).length shouldBe 1
+      findProcessedBothSideJoin(query).length shouldBe 0
     }
   }
 
