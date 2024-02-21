@@ -302,6 +302,7 @@ struct TRowSchemaInformation
 {
     i64 RowWeightWithNoStrings;
     std::vector<int> StringLikeIndices;
+    i64 Length;
 };
 
 class TCGVariables

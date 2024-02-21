@@ -83,7 +83,6 @@ TCopyGuard CopyOpaqueDataIntoCompartment(
 std::pair<TCopyGuard, std::vector<TPIValue*>> CopyRowRangeIntoCompartment(
     std::vector<const TValue*>& rows,
     i64 stringLikeColumnsDataWeight,
-    i64 rowLength,
     const TRowSchemaInformation& rowSchemaInformation,
     IWebAssemblyCompartment* compartment)
 {
@@ -91,7 +90,7 @@ std::pair<TCopyGuard, std::vector<TPIValue*>> CopyRowRangeIntoCompartment(
         return {TCopyGuard{compartment, 0}, std::vector<TPIValue*>{}};
     }
 
-    i64 singleRowByteLength = rowLength * sizeof(TPIValue);
+    i64 singleRowByteLength = rowSchemaInformation.Length * sizeof(TPIValue);
     i64 allRowsByteLength = singleRowByteLength * rows.size();
 
     i64 batchByteLength = allRowsByteLength + stringLikeColumnsDataWeight;
@@ -121,7 +120,7 @@ std::pair<TCopyGuard, std::vector<TPIValue*>> CopyRowRangeIntoCompartment(
         resultOffsets.push_back(std::bit_cast<TPIValue*>(rowOffset));
         rowOffset += singleRowByteLength;
 
-        destinationRow += rowLength;
+        destinationRow += rowSchemaInformation.Length;
     }
 
     return {TCopyGuard{compartment, copyOffset}, std::move(resultOffsets)};
