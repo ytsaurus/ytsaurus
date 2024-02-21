@@ -20,6 +20,8 @@ public:
 
     TFuture<std::vector<TDiskInfo>> GetYTDiskInfos();
 
+    TFuture<void> UpdateDiskCache();
+
     TFuture<void> RecoverDisk(const TString& diskId);
 
     TFuture<void> FailDisk(

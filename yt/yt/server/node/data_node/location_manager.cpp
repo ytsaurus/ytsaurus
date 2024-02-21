@@ -153,6 +153,11 @@ TFuture<std::vector<TDiskInfo>> TLocationManager::GetDiskInfos()
     return DiskInfoProvider_->GetYTDiskInfos();
 }
 
+TFuture<void> TLocationManager::UpdateDiskCache()
+{
+    return DiskInfoProvider_->UpdateDiskCache();
+}
+
 std::vector<TGuid> TLocationManager::DoDisableLocations(const THashSet<TGuid>& locationUuids)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -337,6 +342,12 @@ void TLocationHealthChecker::OnLocationsHealthCheck()
     if (!hotSwapEnabled.Value()) {
         YT_LOG_DEBUG(hotSwapEnabled, "Hot swap disabled");
         return;
+    }
+
+    auto result = WaitFor(LocationManager_->UpdateDiskCache());
+
+    if (!result.IsOK()) {
+        YT_LOG_WARNING(result, "Failed to update disk cache");
     }
 
     auto diskInfosOrError = WaitFor(LocationManager_->GetDiskInfos());

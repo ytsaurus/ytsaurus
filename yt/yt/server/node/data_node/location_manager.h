@@ -58,6 +58,8 @@ public:
         const TString& diskName,
         const TError& error);
 
+    TFuture<void> UpdateDiskCache();
+
     TFuture<void> RecoverDisk(const TString& diskId);
 
     NYTree::IYPathServicePtr GetOrchidService();
