@@ -2,10 +2,11 @@
     cluster=arnold;
     pool="yt-integration-tests";
     pool_trees=[
-        "yt_tests";
+        "physical";
     ];
     cypress_root="//home/yt-integration-tests";
     operation_spec={
+        scheduling_tag_filter="!cpu_vendor_amd";
     };
     task_spec={
         monitoring={
