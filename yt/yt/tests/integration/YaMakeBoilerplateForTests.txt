@@ -86,5 +86,5 @@ IF (CLANG_COVERAGE)
         ram:32
     )
 ELSE()
-    REQUIREMENTS(ram_disk:4)
+    REQUIREMENTS(ram_disk:6)
 ENDIF()
