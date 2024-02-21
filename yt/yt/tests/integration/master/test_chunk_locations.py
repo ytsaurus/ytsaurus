@@ -263,7 +263,6 @@ class TestMediumOverrideSafety(YTEnvSetup):
     def setup_class(cls):
         super(TestMediumOverrideSafety, cls).setup_class()
         create_domestic_medium(cls.NON_DEFAULT_MEDIUM)
-        set("//sys/@config/cell_master/alert_update_period", 100)
 
     @authors("kvk1920")
     def test_set_medium_override(self):

@@ -111,7 +111,9 @@ public:
 
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND(&TMulticellManager::OnDynamicConfigChanged, MakeWeak(this)));
-        Bootstrap_->GetAlertManager()->RegisterAlertSource(BIND(&TMulticellManager::GetAlerts, MakeStrong(this)));
+
+        const auto& alertManager = Bootstrap_->GetAlertManager();
+        alertManager->RegisterAlertSource(BIND(&TMulticellManager::GetAlerts, MakeWeak(this)));
     }
 
 
@@ -1254,7 +1256,16 @@ private:
         RecomputeMasterCellNames();
     }
 
-    std::vector<TError> GetAlerts() const
+    static std::vector<TError> GetAlerts(const TWeakPtr<TMulticellManager>& weakThis)
+    {
+        if (auto strongThis = weakThis.Lock()) {
+            return strongThis->DoGetAlerts();
+        } else {
+            return {};
+        }
+    }
+
+    std::vector<TError> DoGetAlerts()
     {
         std::vector<TError> alerts;
         alerts.reserve(ConflictingCellRolesAlerts_.size());
@@ -1322,7 +1333,7 @@ private:
         }
 
         for (auto role : TEnumTraits<EMasterCellRole>::GetDomainValues()) {
-            RoleMasterCellCounts_[role] = static_cast<int>(RoleMasterCells_[role].size());
+            RoleMasterCellCounts_[role] = std::ssize(RoleMasterCells_[role]);
         }
     }
 
@@ -1369,12 +1380,12 @@ private:
         auto it = config->CellDescriptors.find(cellTag);
         if (it != config->CellDescriptors.end() && it->second->Roles) {
             auto roles = *it->second->Roles;
-            if (Any(roles & (EMasterCellRoles::ChunkHost | EMasterCellRoles::DedicatedChunkHost))) {
+            if (Any(roles & EMasterCellRoles::ChunkHost) && Any(roles & EMasterCellRoles::DedicatedChunkHost)) {
                 auto alert = TError("Cell received conflicting \"chunk_host\" and \"dedicated_chunk_host\" roles")
                     << TErrorAttribute("cell_tag", cellTag);
                 ConflictingCellRolesAlerts_.emplace(cellTag, std::move(alert));
             }
-            if (Any(roles & (EMasterCellRoles::ChunkHost | EMasterCellRoles::SequoiaNodeHost))) {
+            if (Any(roles & EMasterCellRoles::ChunkHost) && Any(roles & EMasterCellRoles::SequoiaNodeHost)) {
                 auto alert = TError("Cell received conflicting \"chunk_host\" and \"sequoia_node_host\" roles")
                     << TErrorAttribute("cell_tag", cellTag);
                 ConflictingCellRolesAlerts_.emplace(cellTag, std::move(alert));

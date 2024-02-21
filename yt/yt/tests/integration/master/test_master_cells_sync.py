@@ -274,8 +274,6 @@ class TestMasterCellsSync(YTEnvSetup):
             self._check_true_for_secondary(
                 lambda driver: len(get("//sys/@master_alerts", driver=driver)) == 0)
 
-        set("//sys/@config/cell_master/alert_update_period", 100)
-
         check(0)
         set("//sys/@config/foo", "bar")
         check(1)

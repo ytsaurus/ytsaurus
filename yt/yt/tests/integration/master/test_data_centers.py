@@ -411,7 +411,6 @@ class TestDataCenters(YTEnvSetup):
     @authors("gritukan")
     def test_invalid_data_center_sets(self):
         self._init_data_center_aware_replicator()
-        set("//sys/@config/cell_master/alert_update_period", 100)
 
         def has_alert(msg):
             for alert in get("//sys/@master_alerts"):
