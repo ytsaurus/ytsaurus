@@ -185,8 +185,8 @@ class TestOperations(object):
 
         assert yt.is_sorted(table)
 
-        yt.run_sort(table, sort_by=[SortColumn("x", sort_order="descending")])
-        assert list(reversed([{"x": x, "y": y} for x, y in sorted(columns, key=lambda c: c[0])])) == list(yt.read_table(table))
+        yt.run_sort(table, sort_by=[SortColumn("x", sort_order=SortColumn.DESCENDING)])
+        assert [{"x": x, "y": y} for x, y in sorted(columns, key=lambda c: c[0], reverse=True)] == list(yt.read_table(table))
 
         assert yt.is_sorted(table)
 
