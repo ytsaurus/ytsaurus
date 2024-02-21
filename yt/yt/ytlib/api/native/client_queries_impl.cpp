@@ -118,7 +118,7 @@ TFuture<typename TRecordDescriptor::TRecordPartial> LookupQueryTrackerRecord(
         lookupOptions.ColumnFilter = TColumnFilter(columnIds);
     }
     lookupOptions.Timestamp = timestamp;
-    lookupOptions.EnablePartialResult = true;
+    lookupOptions.KeepMissingRows = true;
     std::vector keys{
         TActiveQueryKey{.QueryId = queryId}.ToKey(rowBuffer),
     };
@@ -507,7 +507,7 @@ void TClient::DoAbortQuery(TQueryId queryId, const TAbortQueryOptions& options)
         TLookupRowsOptions options;
         options.Timestamp = transaction->GetStartTimestamp();
         options.ColumnFilter = {*idMapping.State};
-        options.EnablePartialResult = true;
+        options.KeepMissingRows = true;
         TActiveQueryKey key{.QueryId = queryId};
         std::vector keys{
             key.ToKey(rowBuffer),
@@ -565,7 +565,7 @@ TQueryResult TClient::DoGetQueryResult(TQueryId queryId, i64 resultIndex, const 
     {
         auto rowBuffer = New<TRowBuffer>();
         TLookupRowsOptions options;
-        options.EnablePartialResult = true;
+        options.KeepMissingRows = true;
 
         ValidateQueryPermissions(queryId, root, timestamp, *Options_.User, client, EPermission::Read, Logger);
 
@@ -657,7 +657,7 @@ IUnversionedRowsetPtr TClient::DoReadQueryResult(TQueryId queryId, i64 resultInd
     {
         auto rowBuffer = New<TRowBuffer>();
         TLookupRowsOptions options;
-        options.EnablePartialResult = true;
+        options.KeepMissingRows = true;
 
         ValidateQueryPermissions(queryId, root, timestamp, *Options_.User, client, EPermission::Read, Logger);
 
