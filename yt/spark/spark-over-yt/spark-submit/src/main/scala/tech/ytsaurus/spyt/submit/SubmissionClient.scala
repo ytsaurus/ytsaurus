@@ -47,7 +47,7 @@ class SubmissionClient(proxy: String,
   }
 
   private def addConf(launcher: InProcessLauncher, config: Map[String, String]): Unit = {
-    config.foldLeft(launcher) { case (res, (key, value)) => res.setConf(key, value) }
+    config.foreach { case (key, value) => launcher.setConf(key, value) }
   }
 
   def submit(launcher: InProcessLauncher,
@@ -66,6 +66,7 @@ class SubmissionClient(proxy: String,
     addConf(launcher, remoteConfig)
 
     if (ipv6Enabled) {
+      log.debug("preferIPv6Addresses was added to extraJavaOptions")
       launcher.setConf("spark.driver.extraJavaOptions", "-Djava.net.preferIPv6Addresses=true")
       launcher.setConf("spark.executor.extraJavaOptions", "-Djava.net.preferIPv6Addresses=true")
     }
@@ -223,7 +224,7 @@ class SubmissionClient(proxy: String,
     val submissionId = Try {
       configureCluster(launcher)
       launcher.startApplication()
-      getSubmissionId(submissionFiles)
+      getSubmissionId(submissionFiles, retryConfig.waitSubmissionIdRetryLimit)
     }
     submissionFiles.delete()
 
@@ -246,20 +247,20 @@ class SubmissionClient(proxy: String,
   }
 
   @tailrec
-  private def waitSubmissionResultFile(submissionFiles: SubmissionFiles, retryCount: Int = 4): Unit = {
+  private def waitSubmissionResultFile(submissionFiles: SubmissionFiles, retryLimit: Int): Unit = {
     if (!submissionFiles.id.exists() && !submissionFiles.error.exists()) {
-      if (retryCount <= 0) {
+      if (retryLimit <= 0) {
         throw new RuntimeException(s"Files with submission result were not created")
       } else {
         log.warn(s"Waiting for submission id in file: ${submissionFiles.id}")
         Thread.sleep((5 seconds).toMillis)
-        waitSubmissionResultFile(submissionFiles, retryCount - 1)
+        waitSubmissionResultFile(submissionFiles, retryLimit - 1)
       }
     }
   }
 
-  private def getSubmissionId(submissionFiles: SubmissionFiles): String = {
-    waitSubmissionResultFile(submissionFiles)
+  private def getSubmissionId(submissionFiles: SubmissionFiles, waitSubmissionIdRetryLimit: Int): String = {
+    waitSubmissionResultFile(submissionFiles, waitSubmissionIdRetryLimit)
     if (submissionFiles.error.exists()) {
       val message = FileUtils.readFileToString(submissionFiles.error)
       throw new RuntimeException(s"Spark submission finished with error: $message")

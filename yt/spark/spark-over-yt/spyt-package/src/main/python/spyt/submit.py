@@ -120,13 +120,16 @@ class RetryConfig(object):
         self.enable_retry = enable_retry
         self.retry_limit = retry_limit
         self.retry_interval = retry_interval
+        self.wait_submission_id_retry_limit = None  # Every retry will be 5 seconds
 
     def _to_java(self, gateway):
         jduration = gateway.jvm.tech.ytsaurus.spyt.submit.RetryConfig.durationFromSeconds(
             int(self.retry_interval.total_seconds()))
-        return gateway.jvm.tech.ytsaurus.spyt.submit.RetryConfig(self.enable_retry,
-                                                                 self.retry_limit,
-                                                                 jduration)
+        if self.wait_submission_id_retry_limit:  # COMPAT(alex-shishkin)
+            args = [self.enable_retry, self.retry_limit, jduration, self.wait_submission_id_retry_limit]
+        else:
+            args = [self.enable_retry, self.retry_limit, jduration]
+        return gateway.jvm.tech.ytsaurus.spyt.submit.RetryConfig(*args)
 
 
 class SparkSubmissionClient(object):
