@@ -164,6 +164,12 @@ public:
             YT_LOG_ALERT("Trying to register hunk lock that is already registered (HunkStoreId: %v)",
                 hunkStoreId);
         }
+        if (Context_->GetAutomatonState() == EPeerState::Leading &&
+            !HunkStoreIdsBeingLockedToPromise_.contains(hunkStoreId))
+        {
+            YT_LOG_ALERT("Hunk store locking promise is lost during commit (HunkStoreId: %v)",
+                hunkStoreId);
+        }
         SetHunkStoreLockingFuture(hunkStoreId, {});
     }
 
@@ -286,17 +292,17 @@ public:
                 hunkStoreId,
                 hunkChunksInfo.CellId,
                 hunkChunksInfo.HunkTabletId);
+
+            auto promise = NewPromise<void>();
+            EmplaceOrCrash(HunkStoreIdsBeingLockedToPromise_, hunkStoreId, promise);
+            futures.push_back(promise.ToFuture().ToUncancelable());
+
             ToggleLock(
                 hunkChunksInfo.CellId,
                 hunkChunksInfo.HunkTabletId,
                 hunkStoreId,
                 hunkChunksInfo.MountRevision,
                 /*lock*/ true);
-
-            // FIXME(akozhikhov): Should we emplace it before ToggleLock?
-            auto promise = NewPromise<void>();
-            EmplaceOrCrash(HunkStoreIdsBeingLockedToPromise_, hunkStoreId, promise);
-            futures.push_back(promise.ToFuture().ToUncancelable());
         }
 
         return AllSucceeded(std::move(futures));
@@ -306,16 +312,29 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        if (Context_->GetAutomatonState() == EPeerState::Leading) {
+            if (lock) {
+                if (HunkStoreIdsBeingLockedToPromise_.contains(hunkStoreId)) {
+                    return;
+                }
+                YT_LOG_ALERT("Hunk store is not marked as being locked (HunkStoreId: %v)",
+                    hunkStoreId);
+            } else {
+                auto& lockingState = GetOrCrash(HunkStoreIdToLockingState_, hunkStoreId);
+                if (lockingState.IsBeingUnlocked) {
+                    return;
+                }
+                YT_LOG_ALERT("Hunk store is not marked as being unlocked (HunkStoreId: %v)",
+                    hunkStoreId);
+            }
+        }
+
         if (lock) {
             if (!HunkStoreIdsBeingLockedToPromise_.find(hunkStoreId)) {
                 HunkStoreIdsBeingLockedToPromise_.emplace(hunkStoreId, NewPromise<void>());
             }
         } else {
             auto& lockingState = GetOrCrash(HunkStoreIdToLockingState_, hunkStoreId);
-            YT_LOG_ALERT_IF(
-                Context_->GetAutomatonState() == EPeerState::Leading && !lockingState.IsBeingUnlocked,
-                "Hunk store is not marked as being unlocked (HunkStoreId: %v)",
-                hunkStoreId);
             lockingState.IsBeingUnlocked = true;
         }
     }
@@ -324,27 +343,27 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (lock) {
-            auto error = TError("Hunk store lock aborted")
-                << TErrorAttribute("hunk_store_id", hunkStoreId);
-            SetHunkStoreLockingFuture(hunkStoreId, std::move(error));
-        } else {
-            auto it = HunkStoreIdToLockingState_.find(hunkStoreId);
-            if (it == HunkStoreIdToLockingState_.end()) {
-                YT_LOG_ALERT(
-                    "Hunk store is lost during abort (HunkStoreId: %v)",
-                    hunkStoreId);
-                return;
+        if (Context_->GetAutomatonState() == EPeerState::Leading) {
+            if (lock) {
+                if (!HunkStoreIdsBeingLockedToPromise_.contains(hunkStoreId)) {
+                    YT_LOG_ALERT("Hunk store locking promise is lost during abort (HunkStoreId: %v)",
+                        hunkStoreId);
+                }
+            } else {
+                if (auto it = HunkStoreIdToLockingState_.find(hunkStoreId);
+                    it != HunkStoreIdToLockingState_.end() &&
+                    !it->second.IsBeingUnlocked)
+                {
+                    YT_LOG_ALERT("Hunk store was not marked as being unlocked during abort "
+                        "(HunkStoreId: %v)",
+                        hunkStoreId);
+                }
             }
 
-            if (Context_->GetAutomatonState() == EPeerState::Leading) {
-                YT_LOG_ALERT_IF(
-                    !it->second.IsBeingUnlocked,
-                    "Hunk store was not marked as being unlocked during abort (HunkStoreId: %v)",
-                    hunkStoreId);
-                it->second.IsBeingUnlocked = false;
-            }
+            return;
         }
+
+        OnBoggleLockFailed(hunkStoreId, lock, {});
     }
 
     void BuildOrchid(TFluentAny fluent) const override
@@ -433,11 +452,26 @@ private:
         if (auto it = HunkStoreIdsBeingLockedToPromise_.find(hunkStoreId); it != HunkStoreIdsBeingLockedToPromise_.end()) {
             it->second.TrySet(result);
             HunkStoreIdsBeingLockedToPromise_.erase(it);
+        }
+    }
+
+    void OnBoggleLockFailed(THunkStoreId hunkStoreId, bool lock, TError innerError)
+    {
+        if (lock) {
+            auto error = TError("Hunk store lock aborted")
+                << TErrorAttribute("hunk_store_id", hunkStoreId)
+                << innerError;
+            SetHunkStoreLockingFuture(hunkStoreId, std::move(error));
         } else {
-            if (Context_->GetAutomatonState() == EPeerState::Leading) {
-                YT_LOG_ALERT("Hunk store locking future is lost (HunkStoreId: %v)",
+            auto it = HunkStoreIdToLockingState_.find(hunkStoreId);
+            if (it == HunkStoreIdToLockingState_.end()) {
+                YT_LOG_ALERT(
+                    "Hunk store is lost during abort (HunkStoreId: %v)",
                     hunkStoreId);
+                return;
             }
+
+            it->second.IsBeingUnlocked = false;
         }
     }
 
@@ -464,13 +498,7 @@ private:
             /*options*/ {});
 
         transactionFuture
-            .Subscribe(BIND([=, this] (const TErrorOr<NNative::ITransactionPtr>& transactionOrError) {
-                if (!transactionOrError.IsOK()) {
-                    return;
-                }
-
-                const auto& transaction = transactionOrError.Value();
-
+            .Apply(BIND([=, this] (const NNative::ITransactionPtr& transaction) {
                 NTabletClient::NProto::TReqToggleHunkTabletStoreLock hunkRequest;
                 ToProto(hunkRequest.mutable_tablet_id(), hunkTabletId);
                 ToProto(hunkRequest.mutable_store_id(), hunkStoreId);
@@ -494,8 +522,14 @@ private:
                     .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late
                 };
 
-                YT_UNUSED_FUTURE(transaction->Commit(commitOptions));
-            }));
+                return transaction->Commit(commitOptions);
+            }))
+            .Subscribe(BIND([=, this] (const TErrorOr<NApi::TTransactionCommitResult>& resultOrError) {
+                if (!resultOrError.IsOK()) {
+                    OnBoggleLockFailed(hunkStoreId, lock, resultOrError);
+                }
+            })
+                .Via(GetCurrentInvoker()));
     }
 
     void UnlockStaleHunkStores()
