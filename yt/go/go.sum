@@ -87,8 +87,12 @@ go.ytsaurus.tech/library/go/blockcodecs v0.0.2 h1:i5rnrhhMBtBZZk0jEa/Urh+n7dBTaL
 go.ytsaurus.tech/library/go/blockcodecs v0.0.2/go.mod h1:foVTVRMNgz8S5Hzibrs8zzVfC8J0WXl9fElJOgdbSgU=
 go.ytsaurus.tech/library/go/core/log v0.0.3 h1:GHVTfUkJlUTomz1rMdWWQ68VyWgqGUKrvz9UjCA1f1A=
 go.ytsaurus.tech/library/go/core/log v0.0.3/go.mod h1:42VUSaeJyAHqHsENQJDI9+tDGhBrVvsCVNojsrorCSQ=
+go.ytsaurus.tech/library/go/core/metrics v0.0.1 h1:w7j0L3Bc7rfwMT0+gpLbA0xdoGt2Toou+SQuPEc3niY=
+go.ytsaurus.tech/library/go/core/metrics v0.0.1/go.mod h1:e0BgcL8C/Gqfd26VipVf2WiVMB5Q2u2vfOnYkzzmfOo=
 go.ytsaurus.tech/library/go/core/xerrors v0.0.3 h1:RLr4bByQ4V4n77eeCdgqM4tBUNe4QDGDSTMqTj/nZn0=
 go.ytsaurus.tech/library/go/core/xerrors v0.0.3/go.mod h1:8u4Vm+WwEJceSGO3+D1m70vdQBc6E+q8cTfXMxKHAPs=
+go.ytsaurus.tech/library/go/httputil/middleware/httpmetrics v0.0.1 h1:fn6r1evlrfNQP3HAC1zs0xTo/rBDjkiTV+3tIWrPvVs=
+go.ytsaurus.tech/library/go/httputil/middleware/httpmetrics v0.0.1/go.mod h1:Kgqx+OG20CBqTPC9dlVyg3q8vKBb2YXul9cc7d8FjKY=
 go.ytsaurus.tech/library/go/ptr v0.0.1 h1:TXR35NUQREmcifYt4qic7eYGIFgdc0cn+KNqkwpnsBU=
 go.ytsaurus.tech/library/go/ptr v0.0.1/go.mod h1:3HhS2x1phVP+4agBp7QZ7ywdOL7Jo1aYRYEyrxFbKSA=
 go.ytsaurus.tech/library/go/test/testhelpers v0.0.1 h1:X2y+zhLgd2y0DxF4V6HJyZwIp7rpewFKXlb+XZWGjio=

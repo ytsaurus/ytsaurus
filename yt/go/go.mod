@@ -2,8 +2,6 @@ module go.ytsaurus.tech/yt/go
 
 go 1.21
 
-toolchain go1.21.6
-
 require (
 	github.com/andybalholm/brotli v1.0.4
 	github.com/cenkalti/backoff/v4 v4.2.1
@@ -24,7 +22,7 @@ require (
 	go.ytsaurus.tech/library/go/blockcodecs v0.0.2
 	go.ytsaurus.tech/library/go/core/log v0.0.3
 	go.ytsaurus.tech/library/go/core/xerrors v0.0.3
-	go.ytsaurus.tech/library/go/httputil/middleware/httpmetrics v0.0.0-00010101000000-000000000000
+	go.ytsaurus.tech/library/go/httputil/middleware/httpmetrics v0.0.1
 	go.ytsaurus.tech/library/go/ptr v0.0.1
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9
 	golang.org/x/sync v0.3.0
@@ -43,7 +41,7 @@ require (
 	github.com/uber/jaeger-lib v2.4.1+incompatible // indirect
 	go.uber.org/goleak v1.2.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.ytsaurus.tech/library/go/core/metrics v0.0.0-00010101000000-000000000000 // indirect
+	go.ytsaurus.tech/library/go/core/metrics v0.0.1 // indirect
 	go.ytsaurus.tech/library/go/x/xreflect v0.0.2 // indirect
 	go.ytsaurus.tech/library/go/x/xruntime v0.0.3 // indirect
 	golang.org/x/crypto v0.14.0 // indirect
