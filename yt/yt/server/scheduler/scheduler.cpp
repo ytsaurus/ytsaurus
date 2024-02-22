@@ -1058,7 +1058,7 @@ public:
         // We recalculate params, since original runtime params may change during asynchronous validation.
         auto newParams = UpdateRuntimeParameters(operation->GetRuntimeParameters(), update, operation->GetAuthenticatedUser());
         if (update->ContainsPool()) {
-            Strategy_->ValidatePoolLimits(operation.Get(), newParams);
+            Strategy_->ValidatePoolLimitsOnPoolChange(operation.Get(), newParams);
         }
         operation->SetRuntimeParameters(newParams);
         Strategy_->ApplyOperationRuntimeParameters(operation.Get());

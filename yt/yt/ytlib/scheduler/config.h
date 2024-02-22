@@ -304,6 +304,8 @@ public:
 
     std::optional<bool> EnablePrioritySchedulingSegmentModuleAssignment;
 
+    bool EnableLightweightOperations;
+
     void Validate(const TString& poolName);
 
     REGISTER_YSON_STRUCT(TPoolConfig);

@@ -1238,6 +1238,288 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         time.sleep(1)
 
 
+class TestLightweightOperations(YTEnvSetup, PrepareTables):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "static_orchid_cache_update_period": 100,
+            "pending_by_pool_operation_scan_period": 1000,
+        },
+    }
+
+    def _create_pools(self):
+        create_pool("root", attributes={"max_operation_count": 5, "max_running_operation_count": 2})
+        create_pool("pool", parent_name="root")
+        create_pool("lightweight_pool", parent_name="root", attributes={"mode": "fifo", "enable_lightweight_operations": True})
+
+    def _run_operations(self, count, pool):
+        ops = []
+        for _ in range(count):
+            op = run_sleeping_vanilla(spec={"pool": pool})
+            ops.append(op)
+        return ops
+
+    def _check_operation_counts(
+            self,
+            expected_pool_total_count,
+            expected_pool_running_count,
+            expected_pool_lightweight_count,
+            expected_lightweight_pool_total_count,
+            expected_lightweight_pool_running_count,
+            expected_lightweight_pool_lightweight_count,
+            check_root=True):
+        wait(lambda: get(scheduler_orchid_pool_path("pool") + "/operation_count") == expected_pool_total_count)
+        wait(lambda: get(scheduler_orchid_pool_path("pool") + "/running_operation_count") == expected_pool_running_count)
+        wait(lambda: get(scheduler_orchid_pool_path("pool") + "/lightweight_running_operation_count") == expected_pool_lightweight_count)
+        wait(lambda: get(scheduler_orchid_pool_path("lightweight_pool") + "/operation_count") == expected_lightweight_pool_total_count)
+        wait(lambda: get(scheduler_orchid_pool_path("lightweight_pool") + "/running_operation_count") == expected_lightweight_pool_running_count)
+        wait(lambda: get(scheduler_orchid_pool_path("lightweight_pool") + "/lightweight_running_operation_count") == expected_lightweight_pool_lightweight_count)
+        if check_root:
+            wait(lambda: get(scheduler_orchid_pool_path("root") + "/operation_count") ==
+                 expected_pool_total_count + expected_lightweight_pool_total_count)
+            wait(lambda: get(scheduler_orchid_pool_path("root") + "/running_operation_count") ==
+                 expected_pool_running_count + expected_lightweight_pool_running_count)
+            wait(lambda: get(scheduler_orchid_pool_path("root") + "/lightweight_running_operation_count") ==
+                 expected_pool_lightweight_count + expected_lightweight_pool_lightweight_count)
+
+    @authors("eshcherbin")
+    def test_simple(self):
+        self._create_pools()
+
+        wait(lambda: not get(scheduler_orchid_pool_path("pool") + "/lightweight_operations_enabled"))
+        wait(lambda: not get(scheduler_orchid_pool_path("pool") + "/effective_lightweight_operations_enabled"))
+        wait(lambda: get(scheduler_orchid_pool_path("lightweight_pool") + "/lightweight_operations_enabled"))
+        wait(lambda: get(scheduler_orchid_pool_path("lightweight_pool") + "/effective_lightweight_operations_enabled"))
+
+        blocking_op = run_sleeping_vanilla(spec={"pool": "pool"})
+        blocking_op.wait_for_state("running")
+
+        ops = self._run_operations(4, "lightweight_pool")
+
+        for op in ops:
+            op.wait_for_state("running")
+
+        with pytest.raises(YtError):
+            run_sleeping_vanilla(spec={"pool": "lightweight_pool"})
+
+        self._check_operation_counts(1, 1, 0, 4, 0, 4)
+
+        wait(lambda: not get(scheduler_orchid_operation_path(blocking_op.id) + "/lightweight"))
+        for op in ops:
+            wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/lightweight"))
+
+    @authors("eshcherbin")
+    def test_change_operation_pool(self):
+        self._create_pools()
+
+        ops = self._run_operations(3, "lightweight_pool")
+
+        for op in ops:
+            op.wait_for_state("running")
+
+        for op in ops[:2]:
+            update_op_parameters(op.id, parameters={"pool": "pool"})
+
+        for op in ops[:2]:
+            wait(lambda: not get(scheduler_orchid_operation_path(op.id) + "/lightweight"))
+
+        self._check_operation_counts(2, 2, 0, 1, 0, 1)
+
+        with pytest.raises(YtError):
+            update_op_parameters(ops[2].id, parameters={"pool": "pool"})
+
+        for op in ops:
+            update_op_parameters(op.id, parameters={"pool": "lightweight_pool"})
+
+        for op in ops:
+            wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/lightweight"))
+
+        self._run_operations(2, "pool")
+
+        self._check_operation_counts(2, 2, 0, 3, 0, 3)
+
+    @authors("eshcherbin")
+    def test_change_pool_config(self):
+        self._create_pools()
+
+        ops = self._run_operations(3, "lightweight_pool")
+        ops += self._run_operations(2, "pool")
+
+        for op in ops:
+            op.wait_for_state("running")
+
+        self._check_operation_counts(2, 2, 0, 3, 0, 3)
+
+        set("//sys/pool_trees/default/root/lightweight_pool/@enable_lightweight_operations", False)
+
+        wait(lambda: not get(scheduler_orchid_pool_path("lightweight_pool") + "/lightweight_operations_enabled"))
+        wait(lambda: not get(scheduler_orchid_pool_path("lightweight_pool") + "/effective_lightweight_operations_enabled"))
+        self._check_operation_counts(2, 2, 0, 3, 3, 0)
+
+        set("//sys/pool_trees/default/root/lightweight_pool/@mode", "fair_share")
+
+        wait(lambda: not get(scheduler_orchid_pool_path("lightweight_pool") + "/lightweight_operations_enabled"))
+        wait(lambda: not get(scheduler_orchid_pool_path("lightweight_pool") + "/effective_lightweight_operations_enabled"))
+        self._check_operation_counts(2, 2, 0, 3, 3, 0)
+
+        set("//sys/pool_trees/default/root/lightweight_pool/@enable_lightweight_operations", True)
+
+        wait(lambda: get(scheduler_orchid_pool_path("lightweight_pool") + "/lightweight_operations_enabled"))
+        wait(lambda: not get(scheduler_orchid_pool_path("lightweight_pool") + "/effective_lightweight_operations_enabled"))
+        self._check_operation_counts(2, 2, 0, 3, 3, 0)
+
+        set("//sys/pool_trees/default/root/lightweight_pool/@mode", "fifo")
+
+        wait(lambda: get(scheduler_orchid_pool_path("lightweight_pool") + "/lightweight_operations_enabled"))
+        wait(lambda: get(scheduler_orchid_pool_path("lightweight_pool") + "/effective_lightweight_operations_enabled"))
+        self._check_operation_counts(2, 2, 0, 3, 0, 3)
+
+    @authors("eshcherbin")
+    def test_move_pool(self):
+        self._create_pools()
+
+        ops = self._run_operations(3, "lightweight_pool")
+        ops += self._run_operations(2, "pool")
+
+        for op in ops:
+            op.wait_for_state("running")
+
+        self._check_operation_counts(2, 2, 0, 3, 0, 3)
+
+        move("//sys/pool_trees/default/root/lightweight_pool", "//sys/pool_trees/default/root/pool/lightweight_pool")
+
+        self._check_operation_counts(5, 2, 3, 3, 0, 3, check_root=False)
+
+    @authors("eshcherbin")
+    def test_pending_operation_becomes_lightweight(self):
+        self._create_pools()
+
+        running_ops = self._run_operations(2, "pool")
+        time.sleep(0.1)
+
+        pending_ops = self._run_operations(2, "pool")
+
+        for op in running_ops:
+            op.wait_for_state("running")
+            wait(lambda: not get(scheduler_orchid_operation_path(op.id) + "/lightweight"))
+        for op in pending_ops:
+            op.wait_for_state("pending")
+            wait(lambda: not get(scheduler_orchid_operation_path(op.id) + "/lightweight"))
+
+        self._check_operation_counts(4, 2, 0, 0, 0, 0)
+
+        update_op_parameters(pending_ops[0].id, parameters={"pool": "lightweight_pool"})
+
+        wait(lambda: get(scheduler_orchid_operation_path(pending_ops[0].id) + "/lightweight"))
+        self._check_operation_counts(3, 2, 0, 1, 0, 1)
+        pending_ops[0].wait_for_state("running")
+
+        set("//sys/pool_trees/default/root/pool/@mode", "fifo")
+        set("//sys/pool_trees/default/root/pool/@enable_lightweight_operations", True)
+
+        wait(lambda: get(scheduler_orchid_operation_path(pending_ops[1].id) + "/lightweight"))
+        self._check_operation_counts(3, 0, 3, 1, 0, 1)
+        pending_ops[1].wait_for_state("running")
+
+    @authors("eshcherbin")
+    def test_pending_operation_becomes_running_after_other_running_operation_becomes_lightweight(self):
+        self._create_pools()
+        set("//sys/pool_trees/default/root/lightweight_pool/@enable_lightweight_operations", False)
+        wait(lambda: not get(scheduler_orchid_pool_path("lightweight_pool") + "/effective_lightweight_operations_enabled"))
+
+        blocking_op = run_sleeping_vanilla(spec={"pool": "lightweight_pool"})
+        blocking_op.wait_for_state("running")
+
+        ops = []
+        for _ in range(2):
+            op = run_sleeping_vanilla(spec={"pool": "pool"})
+            ops.append(op)
+            time.sleep(0.1)
+
+        ops[0].wait_for_state("running")
+        ops[1].wait_for_state("pending")
+
+        set("//sys/pool_trees/default/root/lightweight_pool/@enable_lightweight_operations", True)
+        wait(lambda: get(scheduler_orchid_pool_path("lightweight_pool") + "/effective_lightweight_operations_enabled"))
+
+        wait(lambda: get(scheduler_orchid_operation_path(blocking_op.id) + "/lightweight"))
+        for op in ops:
+            wait(lambda: not get(scheduler_orchid_operation_path(op.id) + "/lightweight"))
+        ops[1].wait_for_state("running")
+
+    @authors("eshcherbin")
+    def test_operation_eligibility(self):
+        self._create_pools()
+
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out_1")
+        self._create_table("//tmp/t_out_2")
+        data = [{"foo": i} for i in range(3)]
+        write_table("//tmp/t_in", data)
+
+        blocking_op = run_sleeping_vanilla(spec={"pool": "pool"})
+        blocking_op.wait_for_state("running")
+
+        map_ops = []
+        for i in range(2):
+            op = map(
+                track=False,
+                command="cat; sleep 1000",
+                in_="//tmp/t_in",
+                out="//tmp/t_out_{}".format(i + 1),
+                spec={"job_count": 1, "pool": "lightweight_pool"},
+            )
+            map_ops.append(op)
+
+        map_ops[0].wait_for_state("running")
+        map_ops[1].wait_for_state("pending")
+        for op in map_ops:
+            wait(lambda: not get(scheduler_orchid_operation_path(op.id) + "/lightweight"))
+        self._check_operation_counts(1, 1, 0, 2, 1, 0)
+
+        vanilla_op = run_sleeping_vanilla(spec={"pool": "lightweight_pool"})
+
+        vanilla_op.wait_for_state("running")
+        wait(lambda: get(scheduler_orchid_operation_path(vanilla_op.id) + "/lightweight"))
+        self._check_operation_counts(1, 1, 0, 3, 1, 1)
+
+    @authors("eshcherbin")
+    def test_only_eligible_pending_operation_becomes_running(self):
+        self._create_pools()
+
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out")
+        data = [{"foo": i} for i in range(3)]
+        write_table("//tmp/t_in", data)
+
+        blocking_ops = self._run_operations(2, "pool")
+        for op in blocking_ops:
+            op.wait_for_state("running")
+
+        set("//sys/pool_trees/default/root/lightweight_pool/@enable_lightweight_operations", False)
+        wait(lambda: not get(scheduler_orchid_pool_path("lightweight_pool") + "/effective_lightweight_operations_enabled"))
+
+        vanilla_op = run_sleeping_vanilla(spec={"pool": "lightweight_pool"})
+        map_op = map(
+            track=False,
+            command="cat; sleep 1000",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"job_count": 1, "pool": "lightweight_pool"},
+        )
+
+        vanilla_op.wait_for_state("pending")
+        map_op.wait_for_state("pending")
+
+        set("//sys/pool_trees/default/root/lightweight_pool/@enable_lightweight_operations", True)
+
+        vanilla_op.wait_for_state("running")
+        map_op.wait_for_state("pending")
+
+
 ##################################################################
 
 

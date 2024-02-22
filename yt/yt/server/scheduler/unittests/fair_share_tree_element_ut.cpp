@@ -1087,12 +1087,15 @@ TEST_F(TFairShareTreeElementTest, TestOperationCountLimits)
 
     pools[2]->IncreaseOperationCount(1);
     pools[2]->IncreaseRunningOperationCount(1);
+    pools[2]->IncreaseLightweightRunningOperationCount(1);
 
     EXPECT_EQ(1, rootElement->OperationCount());
     EXPECT_EQ(1, rootElement->RunningOperationCount());
+    EXPECT_EQ(1, rootElement->LightweightRunningOperationCount());
 
     EXPECT_EQ(1, pools[1]->OperationCount());
     EXPECT_EQ(1, pools[1]->RunningOperationCount());
+    EXPECT_EQ(1, pools[1]->LightweightRunningOperationCount());
 
     pools[1]->IncreaseOperationCount(5);
     EXPECT_EQ(6, rootElement->OperationCount());
@@ -1103,9 +1106,11 @@ TEST_F(TFairShareTreeElementTest, TestOperationCountLimits)
 
     pools[2]->IncreaseOperationCount(-1);
     pools[2]->IncreaseRunningOperationCount(-1);
+    pools[2]->IncreaseLightweightRunningOperationCount(-1);
 
     EXPECT_EQ(0, rootElement->OperationCount());
     EXPECT_EQ(0, rootElement->RunningOperationCount());
+    EXPECT_EQ(0, rootElement->LightweightRunningOperationCount());
 }
 
 TEST_F(TFairShareTreeElementTest, TestIncorrectStatusDueToPrecisionError)
