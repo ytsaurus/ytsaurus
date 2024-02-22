@@ -18,18 +18,6 @@ get_built_tool_path(
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
 
 add_library(flow-controller-proto)
 target_include_directories(flow-controller-proto PUBLIC
@@ -44,11 +32,9 @@ target_link_libraries(flow-controller-proto PUBLIC
 )
 target_proto_messages(flow-controller-proto PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/flow/controller/proto/controller_service.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/flow/controller/proto/worker_tracker_service.proto
 )
 target_sources(flow-controller-proto PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/flow/controller/proto/controller_service.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/flow/controller/proto/worker_tracker_service.pb.h
 )
 target_proto_addincls(flow-controller-proto
   ./yt

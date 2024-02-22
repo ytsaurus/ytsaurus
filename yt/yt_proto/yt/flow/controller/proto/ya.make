@@ -4,7 +4,6 @@ INCLUDE(${ARCADIA_ROOT}/yt/gradle.inc)
 
 SRCS(
     controller_service.proto
-    worker_tracker_service.proto
 )
 
 PROTO_NAMESPACE(yt)
