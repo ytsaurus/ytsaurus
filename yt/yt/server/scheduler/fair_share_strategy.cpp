@@ -737,15 +737,16 @@ public:
         }
     }
 
-    void ValidatePoolLimits(
+    void ValidatePoolLimitsOnPoolChange(
         IOperationStrategyHost* operation,
         const TOperationRuntimeParametersPtr& runtimeParameters) override
     {
-        ValidateMaxRunningOperationsCountOnPoolChange(operation, runtimeParameters);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        auto poolLimitViolations = GetPoolLimitViolations(operation, runtimeParameters);
-        if (!poolLimitViolations.empty()) {
-            THROW_ERROR poolLimitViolations.begin()->second;
+        auto pools = GetOperationPools(runtimeParameters);
+        for (const auto& [treeId, pool] : pools) {
+            auto tree = GetTree(treeId);
+            tree->ValidatePoolLimitsOnPoolChange(operation, pool);
         }
     }
 
@@ -848,20 +849,6 @@ public:
         }
 
         return result;
-    }
-
-    virtual void ValidateMaxRunningOperationsCountOnPoolChange(
-        const IOperationStrategyHost* operation,
-        const TOperationRuntimeParametersPtr& runtimeParameters)
-    {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
-
-        auto pools = GetOperationPools(runtimeParameters);
-
-        for (const auto& [treeId, pool] : pools) {
-            auto tree = GetTree(treeId);
-            tree->ValidatePoolLimitsOnPoolChange(operation, pool);
-        }
     }
 
     void OnFairShareProfilingAt(TInstant /*now*/) override

@@ -390,8 +390,9 @@ class TSchedulerCompositeElementFixedState
 {
 public:
     // Used only in trunk version and profiling.
-    DEFINE_BYREF_RW_PROPERTY(int, RunningOperationCount);
     DEFINE_BYREF_RW_PROPERTY(int, OperationCount);
+    DEFINE_BYREF_RW_PROPERTY(int, RunningOperationCount);
+    DEFINE_BYREF_RW_PROPERTY(int, LightweightRunningOperationCount);
     DEFINE_BYREF_RW_PROPERTY(std::list<TOperationId>, PendingOperationIds);
 
     // Computed in fair share update and used in schedule jobs.
@@ -443,10 +444,15 @@ public:
     virtual int GetMaxRunningOperationCount() const = 0;
     int GetAvailableRunningOperationCount() const;
 
+    virtual bool AreLightweightOperationsEnabled() const = 0;
+    // NB(eshcherbin): This name was chosen for consistency with other "effective" attributes.
+    bool GetEffectiveLightweightOperationsEnabled() const;
+
     virtual TPoolIntegralGuaranteesConfigPtr GetIntegralGuaranteesConfig() const = 0;
 
     void IncreaseOperationCount(int delta);
     void IncreaseRunningOperationCount(int delta);
+    void IncreaseLightweightRunningOperationCount(int delta);
 
     virtual bool IsExplicit() const;
     virtual bool IsDefaultConfigured() const = 0;
@@ -541,6 +547,8 @@ private:
     friend class TSchedulerElement;
     friend class TSchedulerOperationElement;
     friend class TSchedulerRootElement;
+
+    void DoIncreaseOperationCount(int delta, int TSchedulerCompositeElement::* operationCounter);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerCompositeElement)
@@ -613,6 +621,8 @@ public:
 
     int GetMaxOperationCount() const override;
     int GetMaxRunningOperationCount() const override;
+
+    bool AreLightweightOperationsEnabled() const override;
 
     TPoolIntegralGuaranteesConfigPtr GetIntegralGuaranteesConfig() const override;
 
@@ -805,6 +815,9 @@ public:
     void MarkOperationRunningInPool();
     bool IsOperationRunningInPool() const;
 
+    bool IsLightweightEligible() const;
+    bool IsLightweight() const;
+
     void MarkPendingBy(TSchedulerCompositeElement* violatedPool);
 
     void AttachParent(TSchedulerCompositeElement* newParent, int slotIndex);
@@ -958,6 +971,8 @@ public:
     //! Trunk node interface.
     int GetMaxRunningOperationCount() const override;
     int GetMaxOperationCount() const override;
+
+    bool AreLightweightOperationsEnabled() const override;
 
     TPoolIntegralGuaranteesConfigPtr GetIntegralGuaranteesConfig() const override;
 

@@ -487,6 +487,7 @@ void TFairShareTreeProfileManager::ProfilePool(
     buffer.AddGauge("/max_operation_count", element->GetMaxOperationCount());
     buffer.AddGauge("/max_running_operation_count", element->GetMaxRunningOperationCount());
     buffer.AddGauge("/running_operation_count", element->RunningOperationCount());
+    buffer.AddGauge("/lightweight_running_operation_count", element->LightweightRunningOperationCount());
     buffer.AddGauge("/total_operation_count", element->OperationCount());
     buffer.AddGauge("/schedulable_element_count", element->SchedulableElementCount());
     buffer.AddGauge("/schedulable_pool_count", element->SchedulablePoolCount());
