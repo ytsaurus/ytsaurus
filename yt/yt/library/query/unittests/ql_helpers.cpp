@@ -9,6 +9,10 @@
 
 namespace NYT::NQueryClient {
 
+using NCodegen::EExecutionBackend;
+
+////////////////////////////////////////////////////////////////////////////////
+
 void PrintTo(TConstExpressionPtr expr, ::std::ostream* os)
 {
     *os << InferName(expr);
@@ -109,9 +113,9 @@ void ProfileForBothExecutionBackends(
     TCGVariables* variables,
     TJoinSubqueryProfiler joinProfiler)
 {
-    Profile(query, id, variables, joinProfiler, /*useCanonicalNullRelations*/ false, /*useWebAssembly*/ false)();
+    Profile(query, id, variables, joinProfiler, /*useCanonicalNullRelations*/ false, /*executionBackend*/ EExecutionBackend::Native)();
     if (EnableWebAssemblyInUnitTests()) {
-        Profile(query, id, variables, joinProfiler, /*useCanonicalNullRelations*/ false, /*useWebAssembly*/ true)();
+        Profile(query, id, variables, joinProfiler, /*useCanonicalNullRelations*/ false, /*executionBackend*/ EExecutionBackend::WebAssembly)();
     }
 }
 
@@ -121,9 +125,9 @@ void ProfileForBothExecutionBackends(
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables)
 {
-    Profile(expr, schema, id, variables, /*useCanonicalNullRelations*/ false, /*useWebAssembly*/ false)();
+    Profile(expr, schema, id, variables, /*useCanonicalNullRelations*/ false, /*executionBackend*/ EExecutionBackend::Native)();
     if (EnableWebAssemblyInUnitTests()) {
-        Profile(expr, schema, id, variables, /*useCanonicalNullRelations*/ false, /*useWebAssembly*/ true)();
+        Profile(expr, schema, id, variables, /*useCanonicalNullRelations*/ false, /*executionBackend*/ EExecutionBackend::WebAssembly)();
     }
 }
 

@@ -11,6 +11,8 @@
 
 #include <yt/yt/client/misc/workload.h>
 
+#include <yt/yt/library/codegen/execution_backend.h>
+
 namespace NYT::NQueryClient {
 
 using NTransactionClient::TReadTimestampRange;
@@ -156,7 +158,7 @@ struct TQueryBaseOptions
 
     bool EnableCodeCache = true;
     bool UseCanonicalNullRelations = false;
-    bool UseWebAssembly = false;
+    NCodegen::EExecutionBackend ExecutionBackend = NCodegen::EExecutionBackend::Native;
     TReadSessionId ReadSessionId;
     size_t MemoryLimitPerNode = std::numeric_limits<size_t>::max();
     bool MergeVersionedRows = true;

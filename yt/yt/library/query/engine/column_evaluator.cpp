@@ -20,6 +20,8 @@ namespace NYT::NQueryClient {
 using namespace NTableClient;
 using namespace NYTree;
 
+using NCodegen::EExecutionBackend;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = QueryClientLogger;
@@ -54,7 +56,7 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
                 /*id*/ nullptr,
                 &column.Variables,
                 /*useCanonicalNullRelations*/ false,
-                /*useWebAssembly*/ false,
+                /*executionBackend*/ EExecutionBackend::Native,
                 profilers)();
 
             column.EvaluatorInstance = column.EvaluatorImage.Instantiate();
@@ -74,10 +76,10 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
                     type,
                     type,
                     aggregateName,
-                    /*useWebAssembly*/ false),
+                    /*executionBackend*/ EExecutionBackend::Native),
                 {type},
                 type,
-                /*useWebAssembly*/ false);
+                /*executionBackend*/ EExecutionBackend::Native);
             column.AggregateInstance = column.AggregateImage.Instantiate();
             isAggregate[index] = true;
         }

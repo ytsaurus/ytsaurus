@@ -15,6 +15,8 @@
 namespace NYT::NQueryClient {
 namespace {
 
+using NCodegen::EExecutionBackend;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EFoldingObjectType,
@@ -407,13 +409,13 @@ public:
         TCGVariables* variables,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         bool useCanonicalNullRelations,
-        bool useWebAssembly)
+        EExecutionBackend executionBackend)
         : TSchemaProfiler(id)
         , Variables_(variables)
         , FunctionProfilers_(functionProfilers)
         , ComparerManager_(MakeComparerManager())
         , UseCanonicalNullRelations_(useCanonicalNullRelations)
-        , UseWebAssembly_(useWebAssembly)
+        , ExecutionBackend_(executionBackend)
     {
         YT_VERIFY(Variables_);
     }
@@ -496,7 +498,7 @@ protected:
     const TConstFunctionProfilerMapPtr FunctionProfilers_;
     const TComparerManagerPtr ComparerManager_;
     const bool UseCanonicalNullRelations_;
-    const bool UseWebAssembly_;
+    const EExecutionBackend ExecutionBackend_;
 };
 
 size_t* TryGetSubexpressionRef(
@@ -521,7 +523,7 @@ size_t TExpressionProfiler::Profile(
     bool isolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<int>(UseWebAssembly_));
+    id.AddInteger(static_cast<int>(ExecutionBackend_));
     id.AddInteger(static_cast<int>(EFoldingObjectType::LiteralExpr));
     id.AddInteger(static_cast<ui8>(literalExpr->GetWireType()));
 
@@ -556,7 +558,7 @@ size_t TExpressionProfiler::Profile(
     bool isolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<int>(UseWebAssembly_));
+    id.AddInteger(static_cast<int>(ExecutionBackend_));
     id.AddInteger(static_cast<int>(EFoldingObjectType::ReferenceExpr));
     id.AddInteger(static_cast<ui8>(referenceExpr->GetWireType()));
 
@@ -587,7 +589,7 @@ size_t TExpressionProfiler::Profile(
     bool isolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<int>(UseWebAssembly_));
+    id.AddInteger(static_cast<int>(ExecutionBackend_));
     id.AddInteger(static_cast<int>(EFoldingObjectType::FunctionExpr));
     id.AddInteger(static_cast<ui8>(functionExpr->GetWireType()));
     id.AddString(functionExpr->FunctionName.c_str());
@@ -628,7 +630,7 @@ size_t TExpressionProfiler::Profile(
             std::move(argumentTypes),
             functionExpr->GetWireType(),
             "{" + InferName(functionExpr, true) + "}",
-            UseWebAssembly_,
+            ExecutionBackend_,
             Id_),
         functionExpr->GetWireType(),
         function->IsNullable(nullableArgs));
@@ -642,7 +644,7 @@ size_t TExpressionProfiler::Profile(
     bool isolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<int>(UseWebAssembly_));
+    id.AddInteger(static_cast<int>(ExecutionBackend_));
     id.AddInteger(static_cast<int>(EFoldingObjectType::UnaryOpExpr));
     id.AddInteger(static_cast<ui8>(unaryOp->GetWireType()));
     id.AddInteger(static_cast<int>(unaryOp->Opcode));
@@ -674,7 +676,7 @@ size_t TExpressionProfiler::Profile(
     bool isolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<int>(UseWebAssembly_));
+    id.AddInteger(static_cast<int>(ExecutionBackend_));
     id.AddInteger(static_cast<int>(EFoldingObjectType::BinaryOpExpr));
     id.AddInteger(static_cast<ui8>(binaryOp->GetWireType()));
     id.AddInteger(static_cast<int>(binaryOp->Opcode));
@@ -717,7 +719,7 @@ size_t TExpressionProfiler::Profile(
     bool isolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<int>(UseWebAssembly_));
+    id.AddInteger(static_cast<int>(ExecutionBackend_));
     id.AddInteger(static_cast<int>(EFoldingObjectType::InExpr));
     id.AddInteger(static_cast<ui8>(inExpr->GetWireType()));
 
@@ -761,7 +763,7 @@ size_t TExpressionProfiler::Profile(
     bool isolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<int>(UseWebAssembly_));
+    id.AddInteger(static_cast<int>(ExecutionBackend_));
     id.AddInteger(static_cast<int>(EFoldingObjectType::BetweenExpr));
     id.AddInteger(static_cast<ui8>(betweenExpr->GetWireType()));
 
@@ -805,7 +807,7 @@ size_t TExpressionProfiler::Profile(
     bool isolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<int>(UseWebAssembly_));
+    id.AddInteger(static_cast<int>(ExecutionBackend_));
     id.AddInteger(static_cast<int>(EFoldingObjectType::TransformExpr));
     id.AddInteger(static_cast<ui8>(transformExpr->GetWireType()));
 
@@ -871,7 +873,7 @@ size_t TExpressionProfiler::Profile(
     bool isolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<int>(UseWebAssembly_));
+    id.AddInteger(static_cast<int>(ExecutionBackend_));
     id.AddInteger(static_cast<int>(EFoldingObjectType::CaseExpr));
     id.AddInteger(static_cast<ui8>(caseExpr->GetWireType()));
     id.AddBoolean(static_cast<bool>(caseExpr->OptionalOperand));
@@ -968,7 +970,7 @@ size_t TExpressionProfiler::Profile(
     bool isolated)
 {
     llvm::FoldingSetNodeID id;
-    id.AddInteger(static_cast<int>(UseWebAssembly_));
+    id.AddInteger(static_cast<int>(ExecutionBackend_));
     id.AddInteger(static_cast<int>(EFoldingObjectType::LikeExpr));
 
     YT_VERIFY(likeExpr->GetWireType() == EValueType::Boolean);
@@ -1173,8 +1175,8 @@ public:
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         bool useCanonicalNullRelations,
-        bool useWebAssembly)
-        : TExpressionProfiler(id, variables, functionProfilers, useCanonicalNullRelations, useWebAssembly)
+        EExecutionBackend executionBackend)
+        : TExpressionProfiler(id, variables, functionProfilers, useCanonicalNullRelations, executionBackend)
         , AggregateProfilers_(aggregateProfilers)
     { }
 
@@ -1216,7 +1218,7 @@ void TQueryProfiler::Profile(
     TTableSchemaPtr schema,
     bool mergeMode)
 {
-    Fold(static_cast<int>(UseWebAssembly_));
+    Fold(static_cast<int>(ExecutionBackend_));
     size_t dummySlot = (*slotCount)++;
 
     size_t finalSlot = dummySlot;
@@ -1292,7 +1294,7 @@ void TQueryProfiler::Profile(
                 aggregateItem.StateType,
                 aggregateItem.ResultType,
                 aggregateItem.Name,
-                UseWebAssembly_,
+                ExecutionBackend_,
                 Id_));
             stateTypes.push_back(aggregateItem.StateType);
         }
@@ -1621,7 +1623,7 @@ void TQueryProfiler::Profile(
     size_t* slotCount,
     TJoinSubqueryProfiler joinProfiler)
 {
-    Fold(static_cast<int>(UseWebAssembly_));
+    Fold(static_cast<int>(ExecutionBackend_));
     Fold(static_cast<int>(EFoldingObjectType::ScanOp));
 
     auto schema = query->GetRenamedSchema();
@@ -1640,7 +1642,7 @@ void TQueryProfiler::Profile(
         slotCount,
         stringLikeColumnIndices,
         rowSchemaInformationIndex,
-        UseWebAssembly_);
+        ExecutionBackend_);
 
     auto whereClause = query->WhereClause;
 
@@ -1908,7 +1910,7 @@ void TQueryProfiler::Profile(
     const TConstFrontQueryPtr& query,
     size_t* slotCount)
 {
-    Fold(static_cast<int>(UseWebAssembly_));
+    Fold(static_cast<int>(ExecutionBackend_));
     Fold(static_cast<int>(EFoldingObjectType::ScanOp));
 
     auto schema = query->GetRenamedSchema();
@@ -1927,7 +1929,7 @@ void TQueryProfiler::Profile(
         slotCount,
         stringLikeColumnIndices,
         rowSchemaInformationIndex,
-        UseWebAssembly_);
+        ExecutionBackend_);
 
     // Front query always perform merge.
     Profile(codegenSource, query, slotCount, currentSlot, schema, /*mergeMode*/ true);
@@ -1938,7 +1940,7 @@ size_t TQueryProfiler::Profile(
     const TTableSchemaPtr& schema,
     TExpressionFragments* fragments)
 {
-    Fold(static_cast<int>(UseWebAssembly_));
+    Fold(static_cast<int>(ExecutionBackend_));
     Fold(static_cast<int>(EFoldingObjectType::NamedExpression));
 
     size_t resultId = TExpressionProfiler::Profile(namedExpression.Expression, schema, fragments);
@@ -1966,7 +1968,7 @@ TCGExpressionGenerator Profile(
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
     bool useCanonicalNullRelations,
-    bool useWebAssembly,
+    EExecutionBackend executionBackend,
     const TConstFunctionProfilerMapPtr& functionProfilers)
 {
     auto profiler = TExpressionProfiler(
@@ -1974,7 +1976,7 @@ TCGExpressionGenerator Profile(
         variables,
         functionProfilers,
         useCanonicalNullRelations,
-        useWebAssembly);
+        executionBackend);
     auto fragments = TExpressionFragments();
     auto exprId = profiler.Profile(expr, schema, &fragments);
 
@@ -1983,7 +1985,7 @@ TCGExpressionGenerator Profile(
             fragmentInfos = fragments.ToFragmentInfos("fragment"),
             exprId = std::move(exprId)
         ] () {
-            return CodegenStandaloneExpression(fragmentInfos, exprId, useWebAssembly);
+            return CodegenStandaloneExpression(fragmentInfos, exprId, executionBackend);
         };
 }
 
@@ -1993,7 +1995,7 @@ TCGQueryGenerator Profile(
     TCGVariables* variables,
     TJoinSubqueryProfiler joinProfiler,
     bool useCanonicalNullRelations,
-    bool useWebAssembly,
+    EExecutionBackend executionBackend,
     const TConstFunctionProfilerMapPtr& functionProfilers,
     const TConstAggregateProfilerMapPtr& aggregateProfilers)
 {
@@ -2003,7 +2005,7 @@ TCGQueryGenerator Profile(
         functionProfilers,
         aggregateProfilers,
         useCanonicalNullRelations,
-        useWebAssembly);
+        executionBackend);
 
     size_t slotCount = 0;
     TCodegenSource codegenSource = &CodegenEmptyOp;
@@ -2020,7 +2022,7 @@ TCGQueryGenerator Profile(
             =,
             codegenSource = std::move(codegenSource)
         ] {
-            return CodegenQuery(&codegenSource, slotCount, useWebAssembly);
+            return CodegenQuery(&codegenSource, slotCount, executionBackend);
         };
 }
 

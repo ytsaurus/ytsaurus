@@ -31,6 +31,8 @@ namespace NYT::NQueryClient {
 using namespace NConcurrency;
 using namespace NProfiling;
 
+using NCodegen::EExecutionBackend;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCachedCGQueryImage
@@ -82,11 +84,11 @@ public:
 
         auto Logger = MakeQueryLogger(query);
 
-        YT_LOG_DEBUG("Executing query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v, UseWebAssembly: %v)",
+        YT_LOG_DEBUG("Executing query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v, ExecutionBackend: %v)",
             queryFingerprint,
             *query->GetReadSchema(),
             *query->GetTableSchema(),
-            options.UseWebAssembly);
+            options.ExecutionBackend);
 
         TQueryStatistics statistics;
         NProfiling::TWallTimer wallTime;
@@ -107,7 +109,7 @@ public:
                 statistics,
                 options.EnableCodeCache,
                 options.UseCanonicalNullRelations,
-                options.UseWebAssembly);
+                options.ExecutionBackend);
 
             // NB: Function contexts need to be destroyed before queryInstance since it hosts destructors.
             auto finalizer = Finally([&] () {
@@ -172,7 +174,7 @@ private:
         TQueryStatistics& statistics,
         bool enableCodeCache,
         bool useCanonicalNullRelations,
-        bool useWebAssembly)
+        EExecutionBackend executionBackend)
     {
         llvm::FoldingSetNodeID id;
 
@@ -182,7 +184,7 @@ private:
             &variables,
             joinProfiler,
             useCanonicalNullRelations,
-            useWebAssembly,
+            executionBackend,
             functionProfilers,
             aggregateProfilers);
 
