@@ -1,10 +1,12 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, print_debug, wait, create, ls, get, set,
+    alter_table, authors, print_debug, wait, create, ls, get, set, sync_create_cells,
     remove, create_pool,
     read_table, write_table, map, map_reduce, run_test_vanilla, abort_job, get_singular_chunk_id, update_controller_agent_config, set_nodes_banned,
     create_test_tables)
+
+from yt_type_helpers import make_schema
 
 import yt.yson as yson
 
@@ -191,6 +193,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_NODES = 3
+    USE_DYNAMIC_TABLES = True
     USE_PORTO = True
 
     DELTA_DYNAMIC_NODE_CONFIG = {
@@ -337,8 +340,17 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         assert "unused_memory" not in op.get_alerts()
 
     @authors("ignat")
-    def test_missing_input_chunks_alert(self):
-        create_test_tables(attributes={"replication_factor": 1})
+    @pytest.mark.parametrize("dynamic", [False, True])
+    def test_missing_input_chunks_alert(self, dynamic):
+        sync_create_cells(1)
+
+        create_test_tables(attributes={
+            "replication_factor": 1,
+            "schema": make_schema([{"name": "x", "type": "string", "sort_order": "ascending"}, {"name": "y", "type": "string"}], unique_keys=True),
+        })
+
+        if dynamic:
+            alter_table("//tmp/t_in", dynamic=True)
 
         chunk_id = get_singular_chunk_id("//tmp/t_in")
         replicas = get("#{0}/@stored_replicas".format(chunk_id))
@@ -355,11 +367,13 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             track=False,
         )
 
-        wait(lambda: op.get_state() == "running")
+        expected_operation_state = "materializing" if dynamic else "running"
+        wait(lambda: op.get_state() == expected_operation_state)
         wait(lambda: "lost_input_chunks" in op.get_alerts())
 
         set_nodes_banned(replicas, False)
 
+        wait(lambda: op.get_state() == "running")
         wait(lambda: "lost_input_chunks" not in op.get_alerts())
 
     @authors("ignat")

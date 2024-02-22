@@ -1243,6 +1243,8 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
 
         InitializeJobExperiment();
 
+        AlertManager_->StartPeriodicActivity();
+
         CustomMaterialize();
 
         InitializeHistograms();
@@ -1277,6 +1279,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
             snapshot.Version = ToUnderlying(GetCurrentSnapshotVersion());
             snapshot.Blocks = {TSharedRef::FromString(stringStream.Str())};
             DoLoadSnapshot(snapshot);
+            AlertManager_->StartPeriodicActivity();
         }
 
         // Input chunk scraper initialization should be the last step to avoid races,
@@ -1292,7 +1295,6 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         ProgressBuildExecutor_->Start();
         ExecNodesCheckExecutor->Start();
         SuspiciousJobsYsonUpdater_->Start();
-        AlertManager_->StartPeriodicActivity();
         MinNeededResourcesSanityCheckExecutor->Start();
         ExecNodesUpdateExecutor->Start();
         CheckTentativeTreeEligibilityExecutor_->Start();
