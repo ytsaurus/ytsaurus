@@ -596,6 +596,7 @@ private:
                 ] (const TQueryPtr& subquery, const TConstJoinClausePtr& joinClause) -> TJoinSubqueryEvaluator {
                     auto remoteOptions = QueryOptions_;
                     remoteOptions.MaxSubqueries = 1;
+                    remoteOptions.MergeVersionedRows = true;
 
                     size_t minKeyWidth = std::numeric_limits<size_t>::max();
                     for (const auto& split : dataSplits) {
