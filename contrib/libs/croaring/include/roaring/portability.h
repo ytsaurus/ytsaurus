@@ -382,7 +382,7 @@ static inline int roaring_hamming(uint64_t x) {
  #if defined(__APPLE__) || defined(__FreeBSD__) // defined __BYTE_ORDER__ && defined __ORDER_BIG_ENDIAN__
  #include <machine/endian.h>
  #elif defined(sun) || defined(__sun) // defined(__APPLE__) || defined(__FreeBSD__)
- #include <sys/byteorder.h>
+ #error #include <sys/byteorder.h>
  #else  // defined(__APPLE__) || defined(__FreeBSD__)
 
  #ifdef __has_include
