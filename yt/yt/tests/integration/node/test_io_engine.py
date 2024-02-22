@@ -173,7 +173,7 @@ class TestIoEngine(YTEnvSetup):
                     "DataNodeService": {
                         "methods": {
                             "PutBlocks": {
-                                "max_queue_bytes_size": -1
+                                "max_queue_byte_size": -1
                             }
                         }
                     }
