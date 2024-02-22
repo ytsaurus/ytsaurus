@@ -1,4 +1,4 @@
-GO_TEST_FOR(yt/go/ytlock)
+GO_TEST_FOR(yt/go/ytsys)
 
 IF (NOT OPENSOURCE)
     SIZE(MEDIUM)

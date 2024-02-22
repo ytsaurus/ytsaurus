@@ -36,6 +36,7 @@ RECURSE(
     yterrors
     ytlock
     ytlog
+    ytsys
     yttest
     ytwalk
 )
