@@ -2138,6 +2138,9 @@ void TPoolConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_priority_scheduling_segment_module_assignment", &TThis::EnablePrioritySchedulingSegmentModuleAssignment)
         .Default();
 
+    registrar.Parameter("enable_lightweight_operations", &TThis::EnableLightweightOperations)
+        .Default(false);
+
     // COMPAT(arkady-e1ppa)
     registrar.Postprocessor([] (TThis* config) {
         if (config->InferChildrenWeightsFromHistoricUsage) {

@@ -872,23 +872,25 @@ void TSchedulerCompositeElement::BuildElementMapping(TFairSharePostUpdateContext
 
 void TSchedulerCompositeElement::IncreaseOperationCount(int delta)
 {
-    OperationCount_ += delta;
-
-    auto parent = GetMutableParent();
-    while (parent) {
-        parent->OperationCount() += delta;
-        parent = parent->GetMutableParent();
-    }
+    DoIncreaseOperationCount(delta, &TSchedulerCompositeElement::OperationCount_);
 }
 
 void TSchedulerCompositeElement::IncreaseRunningOperationCount(int delta)
 {
-    RunningOperationCount_ += delta;
+    DoIncreaseOperationCount(delta, &TSchedulerCompositeElement::RunningOperationCount_);
+}
 
-    auto parent = GetMutableParent();
-    while (parent) {
-        parent->RunningOperationCount() += delta;
-        parent = parent->GetMutableParent();
+void TSchedulerCompositeElement::IncreaseLightweightRunningOperationCount(int delta)
+{
+    DoIncreaseOperationCount(delta, &TSchedulerCompositeElement::LightweightRunningOperationCount_);
+}
+
+void TSchedulerCompositeElement::DoIncreaseOperationCount(int delta, int TSchedulerCompositeElement::* operationCounter)
+{
+    auto* current = this;
+    while (current) {
+        current->*operationCounter += delta;
+        current = current->GetMutableParent();
     }
 }
 
@@ -1124,6 +1126,11 @@ bool TSchedulerCompositeElement::HasHigherPriorityInFifoMode(const TSchedulerEle
 int TSchedulerCompositeElement::GetAvailableRunningOperationCount() const
 {
     return std::max(GetMaxRunningOperationCount() - RunningOperationCount_, 0);
+}
+
+bool TSchedulerCompositeElement::GetEffectiveLightweightOperationsEnabled() const
+{
+    return AreLightweightOperationsEnabled() && Mode_ == ESchedulingMode::Fifo;
 }
 
 TResourceVolume TSchedulerCompositeElement::GetIntegralPoolCapacity() const
@@ -1397,6 +1404,11 @@ int TSchedulerPoolElement::GetMaxRunningOperationCount() const
     return Config_->MaxRunningOperationCount.value_or(TreeConfig_->MaxRunningOperationCountPerPool);
 }
 
+bool TSchedulerPoolElement::AreLightweightOperationsEnabled() const
+{
+    return Config_->EnableLightweightOperations;
+}
+
 int TSchedulerPoolElement::GetMaxOperationCount() const
 {
     return Config_->MaxOperationCount.value_or(TreeConfig_->MaxOperationCountPerPool);
@@ -1550,6 +1562,7 @@ void TSchedulerPoolElement::ChangeParent(TSchedulerCompositeElement* newParent)
 
     Parent_->IncreaseOperationCount(-OperationCount());
     Parent_->IncreaseRunningOperationCount(-RunningOperationCount());
+    Parent_->IncreaseLightweightRunningOperationCount(-LightweightRunningOperationCount());
     Parent_->RemoveChild(this);
 
     Parent_ = newParent;
@@ -1578,6 +1591,7 @@ void TSchedulerPoolElement::ChangeParent(TSchedulerCompositeElement* newParent)
     Parent_->AddChild(this, enabled);
     Parent_->IncreaseOperationCount(OperationCount());
     Parent_->IncreaseRunningOperationCount(RunningOperationCount());
+    Parent_->IncreaseLightweightRunningOperationCount(LightweightRunningOperationCount());
 
     YT_LOG_INFO("Parent pool is changed ("
         "NewParent: %v, "
@@ -2207,7 +2221,11 @@ void TSchedulerOperationElement::ChangeParent(TSchedulerCompositeElement* parent
 
     auto oldParentId = Parent_->GetId();
     if (RunningInThisPoolTree_) {
-        Parent_->IncreaseRunningOperationCount(-1);
+        if (IsLightweight()) {
+            Parent_->IncreaseLightweightRunningOperationCount(-1);
+        } else {
+            Parent_->IncreaseRunningOperationCount(-1);
+        }
     }
     Parent_->IncreaseOperationCount(-1);
     bool enabled = Parent_->IsEnabledChild(this);
@@ -2235,7 +2253,11 @@ void TSchedulerOperationElement::DetachParent()
 
     auto parentId = Parent_->GetId();
     if (RunningInThisPoolTree_) {
-        Parent_->IncreaseRunningOperationCount(-1);
+        if (IsLightweight()) {
+            Parent_->IncreaseLightweightRunningOperationCount(-1);
+        } else {
+            Parent_->IncreaseRunningOperationCount(-1);
+        }
     }
     Parent_->IncreaseOperationCount(-1);
     Parent_->RemoveChild(this);
@@ -2248,16 +2270,39 @@ void TSchedulerOperationElement::DetachParent()
 
 void TSchedulerOperationElement::MarkOperationRunningInPool()
 {
-    Parent_->IncreaseRunningOperationCount(1);
+    bool lightweight = IsLightweight();
+    if (lightweight) {
+        Parent_->IncreaseLightweightRunningOperationCount(1);
+    } else {
+        Parent_->IncreaseRunningOperationCount(1);
+    }
     RunningInThisPoolTree_ = true;
     PendingByPool_.reset();
 
-    YT_LOG_INFO("Operation is running in pool (Pool: %v)", Parent_->GetId());
+    YT_LOG_INFO("Operation is running in pool (Pool: %v, Lightweight: %v)",
+        Parent_->GetId(),
+        lightweight);
 }
 
 bool TSchedulerOperationElement::IsOperationRunningInPool() const
 {
     return RunningInThisPoolTree_;
+}
+
+// NB(eshcherbin): Lightweight operations are a special kind of operations which aren't counted in pool's running operation count,
+// therefore their count is not as limited as for regular operations. From strategy's point of view, there operations should be
+// quick to be fully scheduled and not consume much precious time during scheduling heartbeat.
+// Operation is lightweight iff it is eligible and it's running in a pool where lightweight operations are enabled.
+// Currently, only vanilla operations are considered eligible.
+bool TSchedulerOperationElement::IsLightweightEligible() const
+{
+    // TODO(eshcherbin): Do we want to restrict this to only vanilla operations with a single job?
+    return Type_ == EOperationType::Vanilla;
+}
+
+bool TSchedulerOperationElement::IsLightweight() const
+{
+    return IsLightweightEligible() && Parent_->AreLightweightOperationsEnabled();
 }
 
 void TSchedulerOperationElement::MarkPendingBy(TSchedulerCompositeElement* violatedPool)
@@ -2449,6 +2494,11 @@ int TSchedulerRootElement::GetMaxRunningOperationCount() const
 int TSchedulerRootElement::GetMaxOperationCount() const
 {
     return TreeConfig_->MaxOperationCount;
+}
+
+bool TSchedulerRootElement::AreLightweightOperationsEnabled() const
+{
+    return false;
 }
 
 TPoolIntegralGuaranteesConfigPtr TSchedulerRootElement::GetIntegralGuaranteesConfig() const

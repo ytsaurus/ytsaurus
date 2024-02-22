@@ -883,7 +883,7 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         ValidateEphemeralPoolLimit(operation, newPoolName);
-        ValidateAllOperationsCountsOnPoolChange(operation->GetId(), newPoolName);
+        ValidateAllOperationCountsOnPoolChange(operation->GetId(), newPoolName);
     }
 
     TFuture<void> ValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolName) const override
@@ -1731,6 +1731,8 @@ private:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
+        bool lightweightOperationsEnabledBefore = pool->GetEffectiveLightweightOperationsEnabled();
+
         pool->SetConfig(config);
         pool->SetObjectId(objectId);
 
@@ -1742,6 +1744,53 @@ private:
                     ApplyEphemeralSubpoolConfig(pool, childPool->GetConfig());
                 }
             }
+        }
+
+        if (lightweightOperationsEnabledBefore != pool->GetEffectiveLightweightOperationsEnabled()) {
+            ReaccountLightweightRunningOperationsInPool(pool);
+        }
+    }
+
+    void ReaccountLightweightRunningOperationsInPool(const TSchedulerPoolElementPtr& pool)
+    {
+        if (!pool->GetEffectiveLightweightOperationsEnabled()) {
+            // We just increase the regular running operation count allowing overcommit.
+            pool->IncreaseRunningOperationCount(pool->LightweightRunningOperationCount());
+            pool->IncreaseLightweightRunningOperationCount(-pool->LightweightRunningOperationCount());
+
+            return;
+        }
+
+        YT_VERIFY(pool->GetChildPoolCount() == 0);
+
+        int lightweightRunningOperationCount = 0;
+        std::vector<TSchedulerOperationElement*> pendingLightweightOperations;
+        for (auto* operation : pool->GetChildOperations()) {
+            if (!operation->IsLightweightEligible()) {
+                continue;
+            }
+
+            if (operation->IsOperationRunningInPool()) {
+                ++lightweightRunningOperationCount;
+            } else {
+                pendingLightweightOperations.push_back(operation);
+            }
+        }
+
+        // NB(eshcherbin): Pending operations that can become running after this change will be processed in |TryRunAllPendingOperations|.
+        pool->IncreaseRunningOperationCount(-lightweightRunningOperationCount);
+        pool->IncreaseLightweightRunningOperationCount(lightweightRunningOperationCount);
+
+        for (auto* operation : pendingLightweightOperations) {
+            auto operationId = operation->GetOperationId();
+            if (auto blockedPoolName = operation->PendingByPool()) {
+                if (auto blockedPool = FindPool(*blockedPoolName)) {
+                    blockedPool->PendingOperationIds().remove(operationId);
+                }
+            }
+
+            operation->MarkOperationRunningInPool();
+            OperationRunning_.Fire(operationId);
         }
     }
 
@@ -1950,7 +1999,7 @@ private:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto violatedPool = FindPoolViolatingMaxRunningOperationCount(operationElement->GetMutableParent());
-        if (!violatedPool) {
+        if (operationElement->IsLightweight() || !violatedPool) {
             operationElement->MarkOperationRunningInPool();
             return true;
         }
@@ -2144,39 +2193,43 @@ private:
         return pool;
     }
 
-    void ValidateAllOperationsCountsOnPoolChange(TOperationId operationId, const TPoolName& newPoolName) const
+    void ValidateAllOperationCountsOnPoolChange(TOperationId operationId, const TPoolName& newPoolName) const
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        for (const auto* currentPool : GetPoolsToValidateOperationCountsOnPoolChange(operationId, newPoolName)) {
+        auto operationElement = GetOperationElement(operationId);
+        auto newPoolElement = GetPoolOrParent(newPoolName, operationElement->GetUserName());
+        bool lightweightInNewPool = operationElement->IsLightweightEligible() && newPoolElement->GetEffectiveLightweightOperationsEnabled();
+        for (const auto* currentPool : GetPoolsToValidateOperationCountsOnPoolChange(operationElement, newPoolElement)) {
             if (currentPool->OperationCount() >= currentPool->GetMaxOperationCount()) {
                 THROW_ERROR_EXCEPTION("Max operation count of pool %Qv violated", currentPool->GetId());
             }
-            if (currentPool->RunningOperationCount() >= currentPool->GetMaxRunningOperationCount()) {
+
+            if (!lightweightInNewPool && currentPool->RunningOperationCount() >= currentPool->GetMaxRunningOperationCount()) {
                 THROW_ERROR_EXCEPTION("Max running operation count of pool %Qv violated", currentPool->GetId());
             }
         }
     }
 
-    std::vector<const TSchedulerCompositeElement*> GetPoolsToValidateOperationCountsOnPoolChange(TOperationId operationId, const TPoolName& newPoolName) const
+    std::vector<const TSchedulerCompositeElement*> GetPoolsToValidateOperationCountsOnPoolChange(
+        const TSchedulerOperationElementPtr& operationElement,
+        const TSchedulerCompositeElementPtr& newPoolElement) const
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        auto operationElement = GetOperationElement(operationId);
-
         std::vector<const TSchedulerCompositeElement*> poolsToValidate;
-        const auto* pool = GetPoolOrParent(newPoolName, operationElement->GetUserName()).Get();
+        const auto* pool = newPoolElement.Get();
         while (pool) {
             poolsToValidate.push_back(pool);
             pool = pool->GetParent();
         }
 
-        if (!operationElement->IsOperationRunningInPool()) {
-            // Operation is pending, we must validate all pools.
+        if (!operationElement->IsOperationRunningInPool() || operationElement->IsLightweight()) {
+            // If operation is pending or lightweight, it isn't counted as running in any pool, so we must check all new ancestors.
             return poolsToValidate;
         }
 
-        // Operation is running, we can validate only tail of new pools.
+        // Otherwise, the operation is already counted as running in the common ancestors, so we can skip those pools validation.
         std::vector<const TSchedulerCompositeElement*> oldPools;
         pool = operationElement->GetParent();
         while (pool) {
@@ -2877,6 +2930,7 @@ private:
         const auto& attributes = element->Attributes();
         fluent
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "running_operation_count", element->RunningOperationCount())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "lightweight_running_operation_count", element->LightweightRunningOperationCount())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "pool_operation_count", element->GetChildOperationCount())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "operation_count", element->OperationCount())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "max_running_operation_count", element->GetMaxRunningOperationCount())
@@ -2896,6 +2950,8 @@ private:
                 filter,
                 "effective_use_pool_satisfaction_for_scheduling",
                 element->GetEffectiveUsePoolSatisfactionForScheduling())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "lightweight_operations_enabled", element->AreLightweightOperationsEnabled())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "effective_lightweight_operations_enabled", element->GetEffectiveLightweightOperationsEnabled())
             .Do(std::bind(&TFairShareTree::DoBuildElementYson, std::cref(treeSnapshot), element, std::cref(filter), std::placeholders::_1));
     }
 
@@ -3107,6 +3163,7 @@ private:
             .Item("starving_since").Value(element->GetStarvationStatus() != EStarvationStatus::NonStarving
                 ? std::optional(element->GetLastNonStarvingTime())
                 : std::nullopt)
+            .Item("lightweight").Value(element->IsLightweight())
             .Item("disk_request_media").DoListFor(element->DiskRequestMedia(), [&] (TFluentList fluent, int mediumIndex) {
                 fluent.Item().Value(strategyHost->GetMediumNameByIndex(mediumIndex));
             })
