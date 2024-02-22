@@ -131,7 +131,7 @@ public:
 
     virtual TString DebugString() const override
     {
-        return Format("{Cypress Path, %v}", GetProfileSensorTag());
+        return Format("{CypressPath: %v}", Config_->Path);
     }
 
     virtual TString GetProfileSensorTag() const override

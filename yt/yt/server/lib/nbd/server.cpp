@@ -220,7 +220,7 @@ private:
         const TNbdServerPtr Server_;
         const IConnectionPtr Connection_;
 
-        const NLogging::TLogger Logger;
+        NLogging::TLogger Logger;
         const IInvokerPtr ResponseInvoker_;
 
         IBlockDevicePtr Device_;
@@ -379,6 +379,8 @@ private:
                 name);
 
             Device_ = Server_->GetDeviceOrThrow(name);
+
+            Logger = Logger.WithTag("DeviceName: %v", name);
 
             auto flags =
                 ETransmissionFlags::NBD_FLAG_HAS_FLAGS |
