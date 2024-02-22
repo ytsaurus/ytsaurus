@@ -607,6 +607,7 @@ def get_checks_config():
             },
 
             "broken_gpu_nodes": {
+                "enable": False,
                 "alerts": {
                     "simple": {
                         "period": 120,
