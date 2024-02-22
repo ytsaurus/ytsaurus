@@ -134,7 +134,12 @@ jobs:
           cd ../ya_build
           rm -rf *
 
+          # Check build.
           ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=../ya_build ../ytsaurus/ytsaurus/yt/yt
+          # Check python tests.
+          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=../ya_build ../ytsaurus/ytsaurus/yt/python/yt/wrapper/tests --run-all-tests -F "*test_get_set_exists*"
+          # Check integration tests.
+          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=../ya_build ../ytsaurus/ytsaurus/yt/yt/tests/integration/scheduler --run-all-tests -F "*TestMultipleSchedulers*"
 
       - name: Build chyt
         if: ${{ inputs.build-chyt }}
@@ -153,7 +158,7 @@ jobs:
           export CCACHE_REMOTE_ONLY=true
           export CCACHE_REMOTE_STORAGE="${{ vars.CCACHE_REMOTE_STORAGE }}"
 
-          for dir in build_qt build_qt_relwithdebinfo ; do 
+          for dir in build_qt build_qt_relwithdebinfo ; do
               cd ../${dir}
               ninja libcompress_udf.so
               ninja libdatetime2_udf.so
