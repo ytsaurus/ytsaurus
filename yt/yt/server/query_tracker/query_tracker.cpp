@@ -494,7 +494,7 @@ private:
         TLookupRowsOptions options;
         options.Timestamp = timestamp;
         options.ColumnFilter = columnFilter;
-        options.EnablePartialResult = true;
+        options.KeepMissingRows = true;
         TActiveQueryKey key{.QueryId = queryId};
         auto rowBuffer = New<TRowBuffer>();
         std::vector keys{

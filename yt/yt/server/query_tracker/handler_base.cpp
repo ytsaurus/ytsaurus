@@ -117,7 +117,7 @@ ITransactionPtr TQueryHandlerBase::StartIncarnationTransaction() const
         *idMapping.Incarnation,
         *idMapping.State,
     };
-    options.EnablePartialResult = true;
+    options.KeepMissingRows = true;
     TActiveQueryKey key{.QueryId = QueryId_};
     auto rowBuffer = New<TRowBuffer>();
     std::vector keys{
