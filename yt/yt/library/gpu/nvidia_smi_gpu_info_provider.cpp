@@ -2,6 +2,7 @@
 
 #include "gpu_info_provider.h"
 #include "helpers.h"
+#include "private.h"
 
 #include <yt/yt/library/process/subprocess.h>
 
@@ -144,6 +145,12 @@ class TNvidiaSmiGpuInfoProvider
         }
 
         return result;
+    }
+
+    std::vector<TRdmaDeviceInfo> GetRdmaDeviceInfos(TDuration /*timeout*/) const override
+    {
+        // NB(omgronny): RDMA info is not supported in this build.
+        return {};
     }
 };
 

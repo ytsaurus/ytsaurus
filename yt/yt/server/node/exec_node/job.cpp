@@ -1105,6 +1105,10 @@ void TJob::SetStatistics(const TYsonString& statisticsYson)
 
         if (!GpuSlots_.empty()) {
             EnrichStatisticsWithGpuInfo(&statistics);
+
+            if (IsFullHostGpuJob()) {
+                EnrichStatisticsWithRdmaDeviceInfo(&statistics);
+            }
         }
 
         EnrichStatisticsWithDiskInfo(&statistics);
@@ -1121,7 +1125,7 @@ void TJob::SetStatistics(const TYsonString& statisticsYson)
         if (UserJobSensorProducer_) {
             TSensorBuffer userJobSensors;
             CollectSensorsFromStatistics(&userJobSensors);
-            CollectSensorsFromGpuInfo(&userJobSensors);
+            CollectSensorsFromGpuAndRdmaDeviceInfo(&userJobSensors);
             UserJobSensorProducer_->Update(std::move(userJobSensors));
         }
     }
@@ -1841,6 +1845,11 @@ std::vector<TDevice> TJob::GetGpuDevices()
     }
 
     return devices;
+}
+
+bool TJob::IsFullHostGpuJob() const
+{
+    return !GpuSlots_.empty() && GpuSlots_.size() == Bootstrap_->GetGpuManager()->GetGpuDevices().size();
 }
 
 void TJob::OnArtifactsDownloaded(const TErrorOr<std::vector<NDataNode::IChunkPtr>>& errorOrArtifacts)
@@ -3110,6 +3119,21 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
     statistics->AddSample("/user_job/gpu/memory_total", totalGpuMemory);
 }
 
+void TJob::EnrichStatisticsWithRdmaDeviceInfo(TStatistics* statistics)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    TRdmaStatistics aggregatedRdmaStatistics;
+    auto rdmaDevices = Bootstrap_->GetGpuManager()->GetRdmaDevices();
+    for (const auto& rdmaDevice : rdmaDevices) {
+        aggregatedRdmaStatistics.RxByteRate += rdmaDevice.RxByteRate;
+        aggregatedRdmaStatistics.TxByteRate += rdmaDevice.TxByteRate;
+    }
+
+    statistics->AddSample("/user_job/gpu/rdma/rx_bytes", aggregatedRdmaStatistics.RxByteRate);
+    statistics->AddSample("/user_job/gpu/rdma/tx_bytes", aggregatedRdmaStatistics.TxByteRate);
+}
+
 void TJob::EnrichStatisticsWithDiskInfo(TStatistics* statistics)
 {
     auto diskStatistics = GetUserSlot()->GetDiskStatistics();
@@ -3384,7 +3408,7 @@ void TJob::CollectSensorsFromStatistics(ISensorWriter* writer)
     }
 }
 
-void TJob::CollectSensorsFromGpuInfo(ISensorWriter* writer)
+void TJob::CollectSensorsFromGpuAndRdmaDeviceInfo(ISensorWriter* writer)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -3414,6 +3438,15 @@ void TJob::CollectSensorsFromGpuInfo(ISensorWriter* writer)
 
     static const TString StuckName = "gpu/stuck";
 
+    static const TString RxBytesName = "gpu/rdma/rx_bytes";
+    static const TString TxBytesName = "gpu/rdma/tx_bytes";
+
+    auto profileSensorIfNeeded = [&] (const TString& name, double value) {
+        if (sensorNames.contains(name)) {
+            ProfileSensor(name, writer, value);
+        }
+    };
+
     auto gpuInfoMap = Bootstrap_->GetGpuManager()->GetGpuInfoMap();
     for (int index = 0; index < std::ssize(GpuSlots_); ++index) {
         const auto& gpuSlot = GpuSlots_[index];
@@ -3427,12 +3460,6 @@ void TJob::CollectSensorsFromGpuInfo(ISensorWriter* writer)
         const auto& gpuInfo = it->second;
 
         TWithTagGuard tagGuard(writer, "gpu_slot", ToString(index));
-
-        auto profileSensorIfNeeded = [&] (const TString& name, double value) {
-            if (sensorNames.contains(name)) {
-                ProfileSensor(name, writer, value);
-            }
-        };
 
         profileSensorIfNeeded(UtilizationGpuName, gpuInfo.UtilizationGpuRate);
         profileSensorIfNeeded(UtilizationMemoryName, gpuInfo.UtilizationMemoryRate);
@@ -3450,6 +3477,16 @@ void TJob::CollectSensorsFromGpuInfo(ISensorWriter* writer)
         profileSensorIfNeeded(PcieRxBytesName, gpuInfo.PcieRxByteRate);
         profileSensorIfNeeded(PcieTxBytesName, gpuInfo.PcieTxByteRate);
         profileSensorIfNeeded(StuckName, static_cast<double>(gpuInfo.Stuck.Status));
+    }
+
+    if (IsFullHostGpuJob()) {
+        auto rdmaDevices = Bootstrap_->GetGpuManager()->GetRdmaDevices();
+        for (const auto& rdmaDevice : rdmaDevices) {
+            TWithTagGuard tagGuard(writer, "rdma_device", rdmaDevice.Name);
+
+            profileSensorIfNeeded(RxBytesName, rdmaDevice.RxByteRate);
+            profileSensorIfNeeded(TxBytesName, rdmaDevice.TxByteRate);
+        }
     }
 }
 

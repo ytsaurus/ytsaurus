@@ -37,6 +37,9 @@ static const TString ServiceName = "NvGpuManager";
 using TReqListGpuDevices = nvgpu::ListDevicesRequest;
 using TRspListGpuDevices = nvgpu::ListResponse;
 
+using TReqListRdmaDevices = nvgpu::Empty;
+using TRspListRdmaDevices = nvgpu::RdmaDevicesListResponse;
+
 class TMockNvGpuManagerService
     : public NRpc::TServiceBase
 {
@@ -49,10 +52,18 @@ public:
             NRpc::NullRealmId)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ListGpuDevices));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ListRdmaDevices));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NYT::NGpu, ListGpuDevices)
     {
+        static std::atomic<int> callCount;
+
+        if (++callCount % 2 == 0) {
+            context->Reply(TError(NRpc::EErrorCode::TransportError, "Flaky channel"));
+            return;
+        }
+
         {
             auto* dev = response->add_devices();
             auto* spec = dev->mutable_spec()->mutable_nvidia();
@@ -101,6 +112,31 @@ public:
 
         context->Reply();
     }
+
+    DECLARE_RPC_SERVICE_METHOD(NYT::NGpu, ListRdmaDevices)
+    {
+        {
+            auto* dev = response->add_devices();
+            auto* spec = dev->mutable_spec();
+            spec->set_name("dev1");
+            auto* status = dev->mutable_status();
+            status->set_portrcvbytespersecond(50);
+            status->set_portxmitbytespersecond(100);
+        }
+
+        response->add_devices();
+
+        {
+            auto* dev = response->add_devices();
+            auto* spec = dev->mutable_spec();
+            spec->set_name("dev2");
+            auto* status = dev->mutable_status();
+            status->set_portrcvbytespersecond(150);
+            status->set_portxmitbytespersecond(200);
+        }
+
+        context->Reply();
+    }
 };
 
 class TTestNvManagerGpuInfoProvider
@@ -144,7 +180,62 @@ protected:
     IServerPtr Server_;
 };
 
-TEST_F(TTestNvManagerGpuInfoProvider, Simple)
+TEST_F(TTestNvManagerGpuInfoProvider, SimpleGpuInfo)
+{
+    auto config = New<TGpuInfoSourceConfig>();
+    config->NvGpuManagerServiceAddress = Address_;
+    config->NvGpuManagerServiceName = ServiceName;
+    config->NvGpuManagerChannel->RetryBackoffTime = TDuration::MilliSeconds(500);
+    config->Type = EGpuInfoSourceType::NvGpuManager;
+    config->GpuIndexesFromNvidiaSmi = false;
+
+    auto provider = CreateGpuInfoProvider(config);
+
+    // Two iterations to test retries.
+    for (int iteration = 0; iteration < 2; ++iteration) {
+        auto gpuInfos = provider->GetGpuInfos(TDuration::Max());
+
+        {
+            const auto& gpuInfo = gpuInfos[0];
+            EXPECT_EQ(gpuInfo.Index, 117);
+            EXPECT_EQ(gpuInfo.Name, "dev1");
+            EXPECT_EQ(gpuInfo.UtilizationGpuRate, 0.50);
+            EXPECT_EQ(gpuInfo.UtilizationMemoryRate, 0.25);
+            EXPECT_EQ(gpuInfo.MemoryUsed, static_cast<i64>(100_MB));
+            EXPECT_EQ(gpuInfo.MemoryTotal, static_cast<i64>(123_MB));
+            EXPECT_EQ(gpuInfo.PowerDraw, 100);
+            EXPECT_EQ(gpuInfo.PowerLimit, 123);
+            EXPECT_EQ(gpuInfo.SMUtilizationRate, 0.2);
+            EXPECT_EQ(gpuInfo.SMOccupancyRate, 0.1);
+            EXPECT_EQ(gpuInfo.NvlinkRxByteRate, 1000.0);
+            EXPECT_EQ(gpuInfo.NvlinkTxByteRate, 5000.0);
+            EXPECT_EQ(gpuInfo.PcieRxByteRate, 100.0);
+            EXPECT_EQ(gpuInfo.PcieTxByteRate, 500.0);
+            EXPECT_FALSE(gpuInfo.Stuck.Status);
+        }
+
+        {
+            const auto& gpuInfo = gpuInfos[1];
+            EXPECT_EQ(gpuInfo.Index, 225);
+            EXPECT_EQ(gpuInfo.Name, "dev2");
+            EXPECT_EQ(gpuInfo.UtilizationGpuRate, 0.75);
+            EXPECT_EQ(gpuInfo.UtilizationMemoryRate, 0.50);
+            EXPECT_EQ(gpuInfo.MemoryUsed, static_cast<i64>(200_MB));
+            EXPECT_EQ(gpuInfo.MemoryTotal, static_cast<i64>(234_MB));
+            EXPECT_EQ(gpuInfo.PowerDraw, 200);
+            EXPECT_EQ(gpuInfo.PowerLimit, 234);
+            EXPECT_EQ(gpuInfo.SMUtilizationRate, 0.25);
+            EXPECT_EQ(gpuInfo.SMOccupancyRate, 0.1);
+            EXPECT_EQ(gpuInfo.NvlinkRxByteRate, 4000.0);
+            EXPECT_EQ(gpuInfo.NvlinkTxByteRate, 2000.0);
+            EXPECT_EQ(gpuInfo.PcieRxByteRate, 0.0);
+            EXPECT_EQ(gpuInfo.PcieTxByteRate, 300.0);
+            EXPECT_TRUE(gpuInfo.Stuck.Status);
+        }
+    }
+}
+
+TEST_F(TTestNvManagerGpuInfoProvider, SimpleRdmaDeviceInfo)
 {
     auto config = New<TGpuInfoSourceConfig>();
     config->NvGpuManagerServiceAddress = Address_;
@@ -153,44 +244,20 @@ TEST_F(TTestNvManagerGpuInfoProvider, Simple)
     config->GpuIndexesFromNvidiaSmi = false;
 
     auto provider = CreateGpuInfoProvider(config);
-    auto gpuInfos = provider->GetGpuInfos(TDuration::Max());
+    auto rdmaDeviceInfos = provider->GetRdmaDeviceInfos(TDuration::Max());
 
     {
-        const auto& gpuInfo = gpuInfos[0];
-        EXPECT_EQ(gpuInfo.Index, 117);
-        EXPECT_EQ(gpuInfo.Name, "dev1");
-        EXPECT_EQ(gpuInfo.UtilizationGpuRate, 0.50);
-        EXPECT_EQ(gpuInfo.UtilizationMemoryRate, 0.25);
-        EXPECT_EQ(gpuInfo.MemoryUsed, static_cast<i64>(100_MB));
-        EXPECT_EQ(gpuInfo.MemoryTotal, static_cast<i64>(123_MB));
-        EXPECT_EQ(gpuInfo.PowerDraw, 100);
-        EXPECT_EQ(gpuInfo.PowerLimit, 123);
-        EXPECT_EQ(gpuInfo.SMUtilizationRate, 0.2);
-        EXPECT_EQ(gpuInfo.SMOccupancyRate, 0.1);
-        EXPECT_EQ(gpuInfo.NvlinkRxByteRate, 1000.0);
-        EXPECT_EQ(gpuInfo.NvlinkTxByteRate, 5000.0);
-        EXPECT_EQ(gpuInfo.PcieRxByteRate, 100.0);
-        EXPECT_EQ(gpuInfo.PcieTxByteRate, 500.0);
-        EXPECT_FALSE(gpuInfo.Stuck.Status);
+        const auto& rdmaDeviceInfo = rdmaDeviceInfos[0];
+        EXPECT_EQ(rdmaDeviceInfo.Name, "dev1");
+        EXPECT_EQ(rdmaDeviceInfo.RxByteRate, 50);
+        EXPECT_EQ(rdmaDeviceInfo.TxByteRate, 100);
     }
 
     {
-        const auto& gpuInfo = gpuInfos[1];
-        EXPECT_EQ(gpuInfo.Index, 225);
-        EXPECT_EQ(gpuInfo.Name, "dev2");
-        EXPECT_EQ(gpuInfo.UtilizationGpuRate, 0.75);
-        EXPECT_EQ(gpuInfo.UtilizationMemoryRate, 0.50);
-        EXPECT_EQ(gpuInfo.MemoryUsed, static_cast<i64>(200_MB));
-        EXPECT_EQ(gpuInfo.MemoryTotal, static_cast<i64>(234_MB));
-        EXPECT_EQ(gpuInfo.PowerDraw, 200);
-        EXPECT_EQ(gpuInfo.PowerLimit, 234);
-        EXPECT_EQ(gpuInfo.SMUtilizationRate, 0.25);
-        EXPECT_EQ(gpuInfo.SMOccupancyRate, 0.1);
-        EXPECT_EQ(gpuInfo.NvlinkRxByteRate, 4000.0);
-        EXPECT_EQ(gpuInfo.NvlinkTxByteRate, 2000.0);
-        EXPECT_EQ(gpuInfo.PcieRxByteRate, 0.0);
-        EXPECT_EQ(gpuInfo.PcieTxByteRate, 300.0);
-        EXPECT_TRUE(gpuInfo.Stuck.Status);
+        const auto& rdmaDeviceInfo = rdmaDeviceInfos[1];
+        EXPECT_EQ(rdmaDeviceInfo.Name, "dev2");
+        EXPECT_EQ(rdmaDeviceInfo.RxByteRate, 150);
+        EXPECT_EQ(rdmaDeviceInfo.TxByteRate, 200);
     }
 }
 
