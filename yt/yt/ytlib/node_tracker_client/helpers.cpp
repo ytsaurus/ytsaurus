@@ -57,7 +57,7 @@ TString FormatResources(
         "RepairSlots: %v/%v, RepairDataSize: %v/%v, "
         "SealSlots: %v/%v, "
         "MergeSlots: %v/%v, MergeDataSize: %v/%v, "
-        "AutotomySlots: %v/%v, ReincarnationSlots %v/%v",
+        "AutotomySlots: %v/%v, ReincarnationSlots: %v/%v",
         // User slots
         usage.user_slots(),
         limits.user_slots(),
