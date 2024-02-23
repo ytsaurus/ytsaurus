@@ -2003,6 +2003,36 @@ class TestEphemeralPools(YTEnvSetup):
         assert pool["is_ephemeral"]
 
     @authors("renadeen")
+    def test_crash_on_disabling_ephemeral_hub(self):
+        # Scenario:
+        # 1. there is main pool which is ephemeral hub and has max_running_operation_count=1
+        # 2. launch first operation in the main pool - it runs in the ephemeral subpool
+        # 3. launch second operation in the main pool - it will be attached to the ephemeral subpool as well
+        #    but will become pending as parent reached its max_running_operation_count
+        # 4. remove `"create_ephemeral_subpools": True` from the main pool
+        # 5. scheduler tries to move all operations from the ephemeral subpool to the main pool in order to remove ephemeral subpool
+        #    but it won't pay attention to pending state of operations and will run all operations in main pool
+        # 7. running operation count breaks the limit and scheduler crashes
+
+        create_pool(
+            "ephemeral_hub",
+            attributes={
+                "create_ephemeral_subpools": True,
+                "max_running_operation_count": 1,
+            })
+
+        op = run_sleeping_vanilla(spec={"pool": "ephemeral_hub"})
+        wait(lambda: len(list(op.get_running_jobs())) == 1)
+        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/ephemeral_hub$root"))
+
+        op = run_sleeping_vanilla(spec={"pool": "ephemeral_hub"})
+        wait(lambda: op.get_state() == "pending")
+
+        remove("//sys/pools/ephemeral_hub/@create_ephemeral_subpools")
+        # crash
+        wait(lambda: not exists(scheduler_orchid_default_pool_tree_path() + "/pools/ephemeral_hub$root"))
+
+    @authors("renadeen")
     def test_custom_ephemeral_pool_persists_after_pool_update(self):
         create_pool(
             "custom_pool",

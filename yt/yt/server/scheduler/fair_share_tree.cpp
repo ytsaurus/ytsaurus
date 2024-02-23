@@ -497,19 +497,21 @@ public:
 
     void ChangeOperationPool(
         TOperationId operationId,
-        const TPoolName& newPool) override
+        const TPoolName& newPool,
+        bool ensureRunning) override
     {
         auto element = FindOperationElement(operationId);
         if (!element) {
             THROW_ERROR_EXCEPTION("Operation element for operation %Qv not found", operationId);
         }
 
-        ChangeOperationPool(element, newPool);
+        ChangeOperationPool(element, newPool, ensureRunning);
     }
 
     void ChangeOperationPool(
         const TSchedulerOperationElementPtr& element,
-        const TPoolName& newPool)
+        const TPoolName& newPool,
+        bool ensureRunning)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -527,9 +529,12 @@ public:
         state->GetHost()->SetSlotIndex(TreeId_, newSlotIndex);
 
         OnOperationRemovedFromPool(state, element, oldParent);
-        YT_VERIFY(OnOperationAddedToPool(state, element));
+        bool isRunningInNewPool = OnOperationAddedToPool(state, element);
+        if (ensureRunning) {
+            YT_VERIFY(isRunningInNewPool);
+        }
 
-        if (!operationWasRunning) {
+        if (!operationWasRunning && isRunningInNewPool) {
             OperationRunning_.Fire(element->GetOperationId());
         }
     }
@@ -837,7 +842,8 @@ public:
             for (const auto& operation : pool->GetChildOperations()) {
                 ChangeOperationPool(
                     operation->GetOperationId(),
-                    TPoolName(pool->GetParent()->GetId(), /*parent*/ std::nullopt));
+                    TPoolName(pool->GetParent()->GetId(), /*parent*/ std::nullopt),
+                    /*ensureRunning*/ false);
             }
         }
 
