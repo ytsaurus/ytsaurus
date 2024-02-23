@@ -1110,6 +1110,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_network_in_operation_demand", &TThis::EnableNetworkInOperationDemand)
         .Default(true);
 
+    registrar.Parameter("rpc_server", &TThis::RpcServer)
+        .DefaultNew();
+
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->EventLog->MaxRowWeight = 128_MB;
         if (!config->EventLog->Path) {

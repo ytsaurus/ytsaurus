@@ -979,6 +979,8 @@ public:
 
     int MinRequiredArchiveVersion;
 
+    NRpc::TServerDynamicConfigPtr RpcServer;
+
     REGISTER_YSON_STRUCT(TSchedulerConfig);
 
     static void Register(TRegistrar registrar);
