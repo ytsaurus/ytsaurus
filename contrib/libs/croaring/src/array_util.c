@@ -991,7 +991,7 @@ int32_t intersect_uint16(const uint16_t *A, const size_t lenA,
             goto SKIP_FIRST_COMPARE;
         }
     }
-    return (int32_t)(out - initout);  // NOTREACHED
+    // return (int32_t)(out - initout);  // NOTREACHED
 }
 
 int32_t intersect_uint16_cardinality(const uint16_t *A, const size_t lenA,
@@ -1016,7 +1016,7 @@ int32_t intersect_uint16_cardinality(const uint16_t *A, const size_t lenA,
             goto SKIP_FIRST_COMPARE;
         }
     }
-    return answer;  // NOTREACHED
+    // return answer;  // NOTREACHED
 }
 
 
@@ -1071,7 +1071,7 @@ size_t intersection_uint32(const uint32_t *A, const size_t lenA,
             goto SKIP_FIRST_COMPARE;
         }
     }
-    return (out - initout);  // NOTREACHED
+    // return (out - initout);  // NOTREACHED
 }
 
 size_t intersection_uint32_card(const uint32_t *A, const size_t lenA,
@@ -1096,7 +1096,7 @@ size_t intersection_uint32_card(const uint32_t *A, const size_t lenA,
             goto SKIP_FIRST_COMPARE;
         }
     }
-    return card;  // NOTREACHED
+    // return card;  // NOTREACHED
 }
 
 // can one vectorize the computation of the union? (Update: Yes! See
@@ -1842,8 +1842,8 @@ uint32_t xor_vector16(const uint16_t *__restrict__ array1, uint32_t length1,
     // last value of vecMax,
     // we store to "buffer"
     int leftoversize = store_unique_xor(laststore, vecMax, buffer);
-    uint16_t vec7 = _mm_extract_epi16(vecMax, 7);
-    uint16_t vec6 = _mm_extract_epi16(vecMax, 6);
+    uint16_t vec7 = (uint16_t)_mm_extract_epi16(vecMax, 7);
+    uint16_t vec6 = (uint16_t)_mm_extract_epi16(vecMax, 6);
     if (vec7 != vec6) buffer[leftoversize++] = vec7;
     if (pos1 == len1) {
         memcpy(buffer + leftoversize, array1 + 8 * pos1,

@@ -10,9 +10,9 @@ LICENSE(
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(2.0.4)
+VERSION(2.1.2)
 
-ORIGINAL_SOURCE(https://github.com/RoaringBitmap/CRoaring/archive/v2.0.4.tar.gz)
+ORIGINAL_SOURCE(https://github.com/RoaringBitmap/CRoaring/archive/v2.1.2.tar.gz)
 
 ADDINCL(
     GLOBAL contrib/libs/croaring/include

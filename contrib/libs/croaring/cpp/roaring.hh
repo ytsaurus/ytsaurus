@@ -546,6 +546,14 @@ public:
     }
 
     /**
+     * Get `rank()` values in bulk. The values in `[begin .. end)` must be in Ascending order.
+     * possible implementation: for(auto* iter = begin; iter != end; ++iter) *(ans++) = rank(*iter);
+     */
+    void rank_many(const uint32_t* begin, const uint32_t* end, uint64_t* ans) const noexcept {
+        return api::roaring_bitmap_rank_many(&roaring, begin, end, ans);
+    }
+
+    /**
      * Returns the index of x in the set, index start from 0.
      * If the set doesn't contain x , this function will return -1.
      * The difference with rank function is that this function will return -1

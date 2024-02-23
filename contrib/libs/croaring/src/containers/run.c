@@ -883,6 +883,39 @@ int run_container_rank(const run_container_t *container, uint16_t x) {
     }
     return sum;
 }
+uint32_t run_container_rank_many(const run_container_t *container, uint64_t start_rank, const uint32_t* begin, const uint32_t* end, uint64_t* ans){
+    const uint16_t high = (uint16_t)((*begin) >> 16);
+    const uint32_t* iter = begin;
+    int sum = 0;
+    int i = 0;
+    for(;iter != end; iter++) {
+        uint32_t x = *iter;
+        uint16_t xhigh = (uint16_t)(x >> 16);
+        if(xhigh != high) return iter - begin; // stop at next container
+
+        uint32_t x32 = x & 0xFFFF;
+        while(i < container->n_runs) {
+            uint32_t startpoint = container->runs[i].value;
+            uint32_t length = container->runs[i].length;
+            uint32_t endpoint = length + startpoint;
+            if (x32 <= endpoint) {
+                if (x32 < startpoint) {
+                    *(ans++) = start_rank + sum;
+                } else {
+                    *(ans++) = start_rank + sum + (x32 - startpoint) + 1;
+                }
+                break;
+            } else {
+                sum += length + 1;
+                i++;
+            }
+        }
+        if (i >= container->n_runs) *(ans++) = start_rank + sum;
+   }
+
+  return iter - begin;
+}
+
 
 int run_container_get_index(const run_container_t *container, uint16_t x) {
     if (run_container_contains(container, x)) {

@@ -816,6 +816,17 @@ bool roaring_bitmap_select(const roaring_bitmap_t *r, uint32_t rank,
 uint64_t roaring_bitmap_rank(const roaring_bitmap_t *r, uint32_t x);
 
 /**
+ * roaring_bitmap_rank_many is an `Bulk` version of `roaring_bitmap_rank`
+ * it puts rank value of each element in `[begin .. end)` to `ans[]`
+ *
+ * the values in `[begin .. end)` must be sorted in Ascending order;
+ * Caller is responsible to ensure that there is enough memory allocated, e.g.
+ *
+ *     ans = malloc((end-begin) * sizeof(uint64_t));
+ */
+void roaring_bitmap_rank_many(const roaring_bitmap_t *r, const uint32_t* begin, const uint32_t* end, uint64_t* ans);
+
+/**
  * Returns the index of x in the given roaring bitmap.
  * If the roaring bitmap doesn't contain x , this function will return -1.
  * The difference with rank function is that this function will return -1 when x

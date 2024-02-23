@@ -577,9 +577,9 @@ size_t bitset_extract_setbits_avx512(const uint64_t *words, size_t length, uint3
         uint64_t v = words[i];		
         __m512i vec = _mm512_maskz_compress_epi8(v, index_table);	
         	    
-        uint8_t advance = roaring_hamming(v);
+        uint8_t advance = (uint8_t)roaring_hamming(v);
         
-        __m512i vbase = _mm512_add_epi32(base_v, _mm512_set1_epi32(i * 64));
+        __m512i vbase = _mm512_add_epi32(base_v, _mm512_set1_epi32((int)(i * 64)));
         __m512i r1 = _mm512_cvtepi8_epi32(_mm512_extracti32x4_epi32(vec,0));
         __m512i r2 = _mm512_cvtepi8_epi32(_mm512_extracti32x4_epi32(vec,1));
         __m512i r3 = _mm512_cvtepi8_epi32(_mm512_extracti32x4_epi32(vec,2));
@@ -635,9 +635,9 @@ size_t bitset_extract_setbits_avx512_uint16(const uint64_t *array, size_t length
         uint64_t v = array[i];
         __m512i vec = _mm512_maskz_compress_epi8(v, index_table);
 
-        uint8_t advance = roaring_hamming(v);
+        uint8_t advance = (uint8_t)roaring_hamming(v);
 
-        __m512i vbase = _mm512_add_epi16(base_v, _mm512_set1_epi16(i * 64));
+        __m512i vbase = _mm512_add_epi16(base_v, _mm512_set1_epi16((short)(i * 64)));
         __m512i r1 = _mm512_cvtepi8_epi16(_mm512_extracti32x8_epi32(vec,0));
         __m512i r2 = _mm512_cvtepi8_epi16(_mm512_extracti32x8_epi32(vec,1));
 
@@ -755,7 +755,7 @@ size_t bitset_extract_intersection_setbits_uint16(const uint64_t * __restrict__ 
         while (w != 0) {
             uint64_t t = w & (~w + 1);
             int r = roaring_trailing_zeroes(w);
-            out[outpos++] = r + base;
+            out[outpos++] = (uint16_t)(r + base);
             w ^= t;
         }
         base += 64;
@@ -819,7 +819,7 @@ size_t bitset_extract_setbits_sse_uint16(const uint64_t *words, size_t length,
         while ((w != 0) && (out < safeout)) {
             uint64_t t = w & (~w + 1);
             int r = roaring_trailing_zeroes(w);
-            *out = r + base;
+            *out = (uint16_t)(r + base);
             out++;
             w ^= t;
         }
@@ -847,7 +847,7 @@ size_t bitset_extract_setbits_uint16(const uint64_t *words, size_t length,
         while (w != 0) {
             uint64_t t = w & (~w + 1);
             int r = roaring_trailing_zeroes(w);
-            out[outpos++] = r + base;
+            out[outpos++] = (uint16_t)(r + base);
             w ^= t;
         }
         base += 64;

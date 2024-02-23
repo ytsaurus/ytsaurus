@@ -25,6 +25,9 @@ extern inline int array_container_index_equalorlarger(const array_container_t *a
 
 extern inline int array_container_rank(const array_container_t *arr,
                                        uint16_t x);
+extern inline uint32_t array_container_rank_many(const array_container_t *arr,
+                                       uint64_t start_rank, const uint32_t* begin,
+                                       const uint32_t* end, uint64_t* ans);
 extern inline int array_container_get_index(const array_container_t *arr,
                                           uint16_t x);
 extern inline bool array_container_contains(const array_container_t *arr,

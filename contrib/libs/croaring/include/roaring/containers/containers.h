@@ -1532,7 +1532,7 @@ static inline container_t* container_xor(
 
         case CONTAINER_PAIR(RUN,RUN):
             *result_type =
-                run_run_container_xor(const_CAST_run(c1),
+                (uint8_t)run_run_container_xor(const_CAST_run(c1),
                                       const_CAST_run(c2), &result);
             return result;
 
@@ -1570,13 +1570,13 @@ static inline container_t* container_xor(
 
         case CONTAINER_PAIR(ARRAY,RUN):
             *result_type =
-                array_run_container_xor(const_CAST_array(c1),
+                (uint8_t)array_run_container_xor(const_CAST_array(c1),
                                         const_CAST_run(c2), &result);
             return result;
 
         case CONTAINER_PAIR(RUN,ARRAY):
             *result_type =
-                array_run_container_xor(const_CAST_array(c2),
+                (uint8_t)array_run_container_xor(const_CAST_array(c2),
                                         const_CAST_run(c1), &result);
             return result;
 
@@ -1660,7 +1660,7 @@ static inline container_t *container_lazy_xor(
         case CONTAINER_PAIR(RUN,RUN):
             // nothing special done yet.
             *result_type =
-                run_run_container_xor(const_CAST_run(c1),
+                (uint8_t)run_run_container_xor(const_CAST_run(c1),
                                       const_CAST_run(c2), &result);
             return result;
 
@@ -1756,7 +1756,7 @@ static inline container_t *container_ixor(
             return result;
 
         case CONTAINER_PAIR(RUN,RUN):
-            *result_type = run_run_container_ixor(
+            *result_type = (uint8_t)run_run_container_ixor(
                 CAST_run(c1), const_CAST_run(c2), &result);
             return result;
 
@@ -1791,12 +1791,12 @@ static inline container_t *container_ixor(
             return result;
 
         case CONTAINER_PAIR(ARRAY,RUN):
-            *result_type = array_run_container_ixor(
+            *result_type = (uint8_t)array_run_container_ixor(
                                 CAST_array(c1), const_CAST_run(c2), &result);
             return result;
 
         case CONTAINER_PAIR(RUN,ARRAY):
-            *result_type = run_array_container_ixor(
+            *result_type = (uint8_t)run_array_container_ixor(
                                 CAST_run(c1), const_CAST_array(c2), &result);
             return result;
 
@@ -1887,7 +1887,7 @@ static inline container_t *container_andnot(
                 return result;
             }
             *result_type =
-                run_run_container_andnot(const_CAST_run(c1),
+                (uint8_t)run_run_container_andnot(const_CAST_run(c1),
                                          const_CAST_run(c2), &result);
             return result;
 
@@ -1942,7 +1942,7 @@ static inline container_t *container_andnot(
             return result;
 
         case CONTAINER_PAIR(RUN,ARRAY):
-            *result_type = run_array_container_andnot(
+            *result_type = (uint8_t)run_array_container_andnot(
                 const_CAST_run(c1), const_CAST_array(c2),
                 &result);
             return result;
@@ -1988,7 +1988,7 @@ static inline container_t *container_iandnot(
             return c1;
 
         case CONTAINER_PAIR(RUN,RUN):
-            *result_type = run_run_container_iandnot(
+            *result_type = (uint8_t)run_run_container_iandnot(
                 CAST_run(c1), const_CAST_run(c2), &result);
             return result;
 
@@ -2029,7 +2029,7 @@ static inline container_t *container_iandnot(
             return c1;
 
         case CONTAINER_PAIR(RUN,ARRAY):
-            *result_type = run_array_container_iandnot(
+            *result_type = (uint8_t)run_array_container_iandnot(
                 CAST_run(c1), const_CAST_array(c2), &result);
             return result;
 
@@ -2117,7 +2117,7 @@ static inline container_t *container_not(
             return result;
         case RUN_CONTAINER_TYPE:
             *result_type =
-                run_container_negation(const_CAST_run(c), &result);
+                (uint8_t)run_container_negation(const_CAST_run(c), &result);
             return result;
 
         default:
@@ -2152,7 +2152,7 @@ static inline container_t *container_not_range(
                         : ARRAY_CONTAINER_TYPE;
             return result;
         case RUN_CONTAINER_TYPE:
-            *result_type = run_container_negation_range(
+            *result_type = (uint8_t)run_container_negation_range(
                             const_CAST_run(c), range_start, range_end, &result);
             return result;
 
@@ -2188,7 +2188,7 @@ static inline container_t *container_inot(
             return result;
         case RUN_CONTAINER_TYPE:
             *result_type =
-                run_container_negation_inplace(CAST_run(c), &result);
+                (uint8_t)run_container_negation_inplace(CAST_run(c), &result);
             return result;
 
         default:
@@ -2223,7 +2223,7 @@ static inline container_t *container_inot_range(
                         : ARRAY_CONTAINER_TYPE;
             return result;
         case RUN_CONTAINER_TYPE:
-            *result_type = run_container_negation_range_inplace(
+            *result_type = (uint8_t)run_container_negation_range_inplace(
                                 CAST_run(c), range_start, range_end, &result);
             return result;
 
@@ -2331,6 +2331,28 @@ static inline int container_rank(
     return false;
 }
 
+// bulk version of container_rank(); return number of consumed elements
+static inline uint32_t container_rank_many(
+    const container_t *c, uint8_t type,
+    uint64_t start_rank, const uint32_t* begin, const uint32_t* end, uint64_t* ans
+){
+    c = container_unwrap_shared(c, &type);
+    switch (type) {
+        case BITSET_CONTAINER_TYPE:
+            return bitset_container_rank_many(const_CAST_bitset(c), start_rank, begin, end, ans);
+        case ARRAY_CONTAINER_TYPE:
+            return array_container_rank_many(const_CAST_array(c), start_rank, begin, end, ans);
+        case RUN_CONTAINER_TYPE:
+            return run_container_rank_many(const_CAST_run(c), start_rank, begin, end, ans);
+        default:
+            assert(false);
+            roaring_unreachable;
+    }
+    assert(false);
+    roaring_unreachable;
+    return 0;
+}
+
 // return the index of x, if not exsist return -1
 static inline int container_get_index(const container_t *c, uint8_t type,
                                     uint16_t x) {
@@ -2388,8 +2410,8 @@ static inline container_t *container_add_range(
         case ARRAY_CONTAINER_TYPE: {
             array_container_t *array = CAST_array(c);
 
-            int32_t nvals_greater = count_greater(array->array, array->cardinality, max);
-            int32_t nvals_less = count_less(array->array, array->cardinality - nvals_greater, min);
+            int32_t nvals_greater = count_greater(array->array, array->cardinality, (uint16_t)max);
+            int32_t nvals_less = count_less(array->array, array->cardinality - nvals_greater, (uint16_t)min);
             int32_t union_cardinality = nvals_less + (max - min + 1) + nvals_greater;
 
             if (union_cardinality == INT32_C(0x10000)) {
@@ -2410,8 +2432,8 @@ static inline container_t *container_add_range(
         case RUN_CONTAINER_TYPE: {
             run_container_t *run = CAST_run(c);
 
-            int32_t nruns_greater = rle16_count_greater(run->runs, run->n_runs, max);
-            int32_t nruns_less = rle16_count_less(run->runs, run->n_runs - nruns_greater, min);
+            int32_t nruns_greater = rle16_count_greater(run->runs, run->n_runs, (uint16_t)max);
+            int32_t nruns_less = rle16_count_less(run->runs, run->n_runs - nruns_greater, (uint16_t)min);
 
             int32_t run_size_bytes = (nruns_less + 1 + nruns_greater) * sizeof(rle16_t);
             int32_t bitset_size_bytes = BITSET_CONTAINER_SIZE_IN_WORDS * sizeof(uint64_t);
@@ -2468,8 +2490,8 @@ static inline container_t *container_remove_range(
         case ARRAY_CONTAINER_TYPE: {
             array_container_t *array = CAST_array(c);
 
-            int32_t nvals_greater = count_greater(array->array, array->cardinality, max);
-            int32_t nvals_less = count_less(array->array, array->cardinality - nvals_greater, min);
+            int32_t nvals_greater = count_greater(array->array, array->cardinality, (uint16_t)max);
+            int32_t nvals_less = count_less(array->array, array->cardinality - nvals_greater, (uint16_t)min);
             int32_t result_cardinality = nvals_less + nvals_greater;
 
             if (result_cardinality == 0) {

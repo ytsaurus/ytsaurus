@@ -113,22 +113,22 @@ static roaring_bitmap_t *lazy_or_from_lazy_inputs(roaring_bitmap_t *x1,
     roaring_bitmap_t *answer = roaring_bitmap_create_with_capacity(neededcap);
     int pos1 = 0, pos2 = 0;
     uint8_t type1, type2;
-    uint16_t s1 = ra_get_key_at_index(&x1->high_low_container, pos1);
-    uint16_t s2 = ra_get_key_at_index(&x2->high_low_container, pos2);
+    uint16_t s1 = ra_get_key_at_index(&x1->high_low_container, (uint16_t)pos1);
+    uint16_t s2 = ra_get_key_at_index(&x2->high_low_container, (uint16_t)pos2);
     while (true) {
         if (s1 == s2) {
             // todo: unsharing can be inefficient as it may create a clone where
             // none
             // is needed, but it has the benefit of being easy to reason about.
 
-            ra_unshare_container_at_index(&x1->high_low_container, pos1);
+            ra_unshare_container_at_index(&x1->high_low_container, (uint16_t)pos1);
             container_t *c1 = ra_get_container_at_index(
-                                    &x1->high_low_container, pos1, &type1);
+                                    &x1->high_low_container, (uint16_t)pos1, &type1);
             assert(type1 != SHARED_CONTAINER_TYPE);
 
-            ra_unshare_container_at_index(&x2->high_low_container, pos2);
+            ra_unshare_container_at_index(&x2->high_low_container, (uint16_t)pos2);
             container_t *c2 = ra_get_container_at_index(
-                                    &x2->high_low_container, pos2, &type2);
+                                    &x2->high_low_container, (uint16_t)pos2, &type2);
             assert(type2 != SHARED_CONTAINER_TYPE);
 
             container_t *c;
@@ -156,24 +156,24 @@ static roaring_bitmap_t *lazy_or_from_lazy_inputs(roaring_bitmap_t *x1,
             ++pos2;
             if (pos1 == length1) break;
             if (pos2 == length2) break;
-            s1 = ra_get_key_at_index(&x1->high_low_container, pos1);
-            s2 = ra_get_key_at_index(&x2->high_low_container, pos2);
+            s1 = ra_get_key_at_index(&x1->high_low_container, (uint16_t)pos1);
+            s2 = ra_get_key_at_index(&x2->high_low_container, (uint16_t)pos2);
 
         } else if (s1 < s2) {  // s1 < s2
             container_t *c1 = ra_get_container_at_index(
-                                    &x1->high_low_container, pos1, &type1);
+                                    &x1->high_low_container, (uint16_t)pos1, &type1);
             ra_append(&answer->high_low_container, s1, c1, type1);
             pos1++;
             if (pos1 == length1) break;
-            s1 = ra_get_key_at_index(&x1->high_low_container, pos1);
+            s1 = ra_get_key_at_index(&x1->high_low_container, (uint16_t)pos1);
 
         } else {  // s1 > s2
             container_t *c2 = ra_get_container_at_index(
-                                    &x2->high_low_container, pos2, &type2);
+                                    &x2->high_low_container, (uint16_t)pos2, &type2);
             ra_append(&answer->high_low_container, s2, c2, type2);
             pos2++;
             if (pos2 == length2) break;
-            s2 = ra_get_key_at_index(&x2->high_low_container, pos2);
+            s2 = ra_get_key_at_index(&x2->high_low_container, (uint16_t)pos2);
         }
     }
     if (pos1 == length1) {

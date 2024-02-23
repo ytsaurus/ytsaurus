@@ -1232,6 +1232,29 @@ int bitset_container_rank(const bitset_container_t *container, uint16_t x) {
   return sum;
 }
 
+uint32_t bitset_container_rank_many(const bitset_container_t *container, uint64_t start_rank, const uint32_t* begin, const uint32_t* end, uint64_t* ans){
+  const uint16_t high = (uint16_t)((*begin) >> 16);
+  int i = 0;
+  int sum = 0;
+  const uint32_t* iter = begin;
+  for(; iter != end; iter++) {
+      uint32_t x = *iter;
+      uint16_t xhigh = (uint16_t)(x >> 16);
+      if(xhigh != high) return iter - begin; // stop at next container
+
+      uint16_t xlow = (uint16_t)x;
+      for(int count = xlow / 64; i < count; i++){
+        sum += roaring_hamming(container->words[i]);
+      }
+      uint64_t lastword = container->words[i];
+      uint64_t lastpos = UINT64_C(1) << (xlow % 64);
+      uint64_t mask = lastpos + lastpos - 1; // smear right
+      *(ans++) = start_rank + sum + roaring_hamming(lastword & mask);
+  }
+  return iter - begin;
+}
+
+
 /* Returns the index of x , if not exsist return -1 */
 int bitset_container_get_index(const bitset_container_t *container, uint16_t x) {
   if (bitset_container_get(container, x)) {

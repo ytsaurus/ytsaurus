@@ -59,6 +59,7 @@ of the latest hardware. Roaring bitmaps are already available on a variety of pl
 - We test the library with ARM, x64/x86 and POWER processors. We only support little endian systems (big endian systems are vanishingly rare).
 - Recent C compiler supporting the C11 standard (GCC 7 or better, LLVM 7.0 or better, Xcode 11 or better, Microsoft Visual Studio 2022 or better, Intel oneAPI Compiler 2023.2 or better), there is also an optional C++ class that requires a C++ compiler supporting the C++11 standard.
 - CMake (to contribute to the project, users can rely on amalgamation/unity builds if they do not wish to use CMake).
+- The CMake system assumes that git is available.
 - Under x64 systems, the library provides runtime dispatch so that optimized functions are called based on the detected CPU features. It works with GCC, clang (version 9 and up) and Visual Studio (2017 and up). Other systems (e.g., ARM) do not need runtime dispatch.
 
 Hardly anyone has access to an actual big-endian system. Nevertheless,
@@ -82,9 +83,9 @@ Linux or macOS users might follow the following instructions if they have a rece
 
  1. Pull the library in a directory
     ```
-    wget https://github.com/RoaringBitmap/CRoaring/releases/download/v2.0.3/roaring.c
-    wget https://github.com/RoaringBitmap/CRoaring/releases/download/v2.0.3/roaring.h
-    wget https://github.com/RoaringBitmap/CRoaring/releases/download/v2.0.3/roaring.hh
+    wget https://github.com/RoaringBitmap/CRoaring/releases/download/v2.1.0/roaring.c
+    wget https://github.com/RoaringBitmap/CRoaring/releases/download/v2.1.0/roaring.h
+    wget https://github.com/RoaringBitmap/CRoaring/releases/download/v2.1.0/roaring.hh
     ```
  2. Create a new file named `demo.c` with this content:
     ```C

@@ -370,8 +370,8 @@ void array_container_offset(const array_container_t *c,
 static inline bool array_container_contains_range(const array_container_t *arr,
                                                     uint32_t range_start, uint32_t range_end) {
     const int32_t range_count = range_end - range_start;
-    const uint16_t rs_included = range_start;
-    const uint16_t re_included = range_end - 1;
+    const uint16_t rs_included = (uint16_t)range_start;
+    const uint16_t re_included = (uint16_t)(range_end - 1);
 
     // Empty range is always included
     if (range_count <= 0) {
@@ -411,6 +411,30 @@ inline int array_container_rank(const array_container_t *arr, uint16_t x) {
         return -idx - 1;
     }
 }
+
+/*  bulk version of array_container_rank(); return number of consumed elements */
+inline uint32_t array_container_rank_many(const array_container_t *arr, uint64_t start_rank,
+                                          const uint32_t* begin, const uint32_t* end, uint64_t* ans) {
+    const uint16_t high = (uint16_t)((*begin) >> 16);
+    uint32_t pos = 0;
+    const uint32_t* iter = begin;
+    for(; iter != end; iter++) {
+        uint32_t x = *iter;
+        uint16_t xhigh = (uint16_t)(x >> 16);
+        if(xhigh != high) return iter - begin;// stop at next container
+
+        const int32_t idx = binarySearch(arr->array+pos, arr->cardinality-pos, (uint16_t)x);
+        const bool is_present = idx >= 0;
+        if (is_present) {
+            *(ans++) = start_rank + pos + (idx + 1);
+            pos = idx+1;
+        } else {
+            *(ans++) = start_rank + pos + (-idx - 1);
+        }
+    }
+    return iter - begin;
+}
+
 
 /* Returns the index of x , if not exsist return -1 */
 inline int array_container_get_index(const array_container_t *arr, uint16_t x) {
@@ -453,7 +477,7 @@ static inline void array_container_add_range_nvals(array_container_t *array,
             &(array->array[array->cardinality - nvals_greater]),
             nvals_greater * sizeof(uint16_t));
     for (uint32_t i = 0; i <= max - min; i++) {
-        array->array[nvals_less + i] = min + i;
+        array->array[nvals_less + i] = (uint16_t)(min + i);
     }
     array->cardinality = union_cardinality;
 }

@@ -265,7 +265,7 @@ inline bool run_container_contains(const run_container_t *run, uint16_t pos) {
 static inline bool run_container_contains_range(const run_container_t *run,
                                                 uint32_t pos_start, uint32_t pos_end) {
     uint32_t count = 0;
-    int32_t index = interleavedBinarySearch(run->runs, run->n_runs, pos_start);
+    int32_t index = interleavedBinarySearch(run->runs, run->n_runs, (uint16_t)pos_start);
     if (index < 0) {
         index = -index - 2;
         if ((index == -1) || ((pos_start - run->runs[index].value) > run->runs[index].length)){
@@ -561,6 +561,10 @@ inline uint16_t run_container_maximum(const run_container_t *run) {
 /* Returns the number of values equal or smaller than x */
 int run_container_rank(const run_container_t *arr, uint16_t x);
 
+/* bulk version of run_container_rank(); return number of consumed elements */
+uint32_t run_container_rank_many(const run_container_t *arr, uint64_t start_rank,
+                                 const uint32_t* begin, const uint32_t* end, uint64_t* ans);
+
 /* Returns the index of x, if not exsist return -1 */
 int run_container_get_index(const run_container_t *arr, uint16_t x);
 
@@ -590,9 +594,9 @@ static inline void run_container_add_range_nruns(run_container_t* run,
                                                  int32_t nruns_greater) {
     int32_t nruns_common = run->n_runs - nruns_less - nruns_greater;
     if (nruns_common == 0) {
-        makeRoomAtIndex(run, nruns_less);
-        run->runs[nruns_less].value = min;
-        run->runs[nruns_less].length = max - min;
+        makeRoomAtIndex(run, (uint16_t)nruns_less);
+        run->runs[nruns_less].value = (uint16_t)min;
+        run->runs[nruns_less].length = (uint16_t)(max - min);
     } else {
         uint32_t common_min = run->runs[nruns_less].value;
         uint32_t common_max = run->runs[nruns_less + nruns_common - 1].value +
@@ -600,8 +604,8 @@ static inline void run_container_add_range_nruns(run_container_t* run,
         uint32_t result_min = (common_min < min) ? common_min : min;
         uint32_t result_max = (common_max > max) ? common_max : max;
 
-        run->runs[nruns_less].value = result_min;
-        run->runs[nruns_less].length = result_max - result_min;
+        run->runs[nruns_less].value = (uint16_t)result_min;
+        run->runs[nruns_less].length = (uint16_t)(result_max - result_min);
 
         memmove(&(run->runs[nruns_less + 1]),
                 &(run->runs[run->n_runs - nruns_greater]),
@@ -641,20 +645,20 @@ static inline void run_container_shift_tail(run_container_t* run,
  * Remove all elements in range [min, max]
  */
 static inline void run_container_remove_range(run_container_t *run, uint32_t min, uint32_t max) {
-    int32_t first = rle16_find_run(run->runs, run->n_runs, min);
-    int32_t last = rle16_find_run(run->runs, run->n_runs, max);
+    int32_t first = rle16_find_run(run->runs, run->n_runs, (uint16_t)min);
+    int32_t last = rle16_find_run(run->runs, run->n_runs, (uint16_t)max);
 
     if (first >= 0 && min > run->runs[first].value &&
         max < ((uint32_t)run->runs[first].value + (uint32_t)run->runs[first].length)) {
         // split this run into two adjacent runs
 
         // right subinterval
-        makeRoomAtIndex(run, first+1);
-        run->runs[first+1].value = max + 1;
-        run->runs[first+1].length = (run->runs[first].value + run->runs[first].length) - (max + 1);
+        makeRoomAtIndex(run, (uint16_t)(first+1));
+        run->runs[first+1].value = (uint16_t)(max + 1);
+        run->runs[first+1].length = (uint16_t)((run->runs[first].value + run->runs[first].length) - (max + 1));
 
         // left subinterval
-        run->runs[first].length = (min - 1) - run->runs[first].value;
+        run->runs[first].length = (uint16_t)((min - 1) - run->runs[first].value);
 
         return;
     }
@@ -662,7 +666,7 @@ static inline void run_container_remove_range(run_container_t *run, uint32_t min
     // update left-most partial run
     if (first >= 0) {
         if (min > run->runs[first].value) {
-            run->runs[first].length = (min - 1) - run->runs[first].value;
+            run->runs[first].length = (uint16_t)((min - 1) - run->runs[first].value);
             first++;
         }
     } else {
@@ -673,8 +677,8 @@ static inline void run_container_remove_range(run_container_t *run, uint32_t min
     if (last >= 0) {
         uint16_t run_max = run->runs[last].value + run->runs[last].length;
         if (run_max > max) {
-            run->runs[last].value = max + 1;
-            run->runs[last].length = run_max - (max + 1);
+            run->runs[last].value = (uint16_t)(max + 1);
+            run->runs[last].length = (uint16_t)(run_max - (max + 1));
             last--;
         }
     } else {
