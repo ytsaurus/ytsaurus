@@ -208,8 +208,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             FromProto(&readRange.UpperLimit(), chunkSpec.upper_limit(), /*isUpper*/ true, keyColumnCount);
                         }
 
-                        if (chunkReadOptions.GranuleFilter) {
-                            auto allColumnStatistics = FromProto<TColumnarStatistics>(chunkMeta->ColumnarStatisticsExt(), chunkMeta->Misc().row_count());
+                        if (chunkReadOptions.GranuleFilter && chunkMeta->ColumnarStatisticsExt()) {
+                            auto allColumnStatistics = FromProto<TColumnarStatistics>(*chunkMeta->ColumnarStatisticsExt(), chunkMeta->Misc().row_count());
 
                             if (chunkReadOptions.GranuleFilter->CanSkip(allColumnStatistics, chunkMeta->ChunkNameTable())) {
                                 readRange = TReadRange::MakeEmpty();

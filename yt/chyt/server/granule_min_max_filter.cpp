@@ -48,7 +48,7 @@ public:
         for (const auto& columnSchema : QueryRealColumnsSchema_->Columns()) {
             auto columnId = granuleNameTable->FindId(columnSchema.Name());
 
-            if (!columnId || statistics.ColumnNonNullValueCounts[*columnId] == 0) {
+            if (!columnId || *columnId >= statistics.GetColumnCount() || statistics.ColumnNonNullValueCounts[*columnId] == 0) {
                 // All column values are null.
                 columnRanges.emplace_back(DB::NEGATIVE_INFINITY);
             } else {
