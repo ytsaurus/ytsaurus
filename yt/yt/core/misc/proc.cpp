@@ -1535,21 +1535,29 @@ TTaskDiskStatistics GetSelfThreadTaskDiskStatistics()
 
     TTaskDiskStatistics stat;
 
-    TIFStream ioFile(path);
-    for (TString line; ioFile.ReadLine(line); ) {
-        if (line.empty()) {
-            continue;
-        }
+    try {
+        TIFStream ioFile(path);
+        for (TString line; ioFile.ReadLine(line); ) {
+            if (line.empty()) {
+                continue;
+            }
 
-        auto fields = SplitString(line, " ", 2);
-        if (fields.size() != 2) {
-            continue;
-        }
+            auto fields = SplitString(line, " ", 2);
+            if (fields.size() != 2) {
+                continue;
+            }
 
-        if (fields[0] == "read_bytes:") {
-            TryFromString(fields[1], stat.ReadBytes);
-        } else if (fields[0] == "write_bytes:") {
-            TryFromString(fields[1], stat.ReadBytes);
+            if (fields[0] == "read_bytes:") {
+                TryFromString(fields[1], stat.ReadBytes);
+            } else if (fields[0] == "write_bytes:") {
+                TryFromString(fields[1], stat.ReadBytes);
+            }
+        }
+    } catch (const TSystemError& ex) {
+        if (ex.Status() == ENOENT) {
+            // Do nothing
+        } else {
+            throw;
         }
     }
 
