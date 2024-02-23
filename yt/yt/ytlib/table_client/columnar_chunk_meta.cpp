@@ -113,9 +113,7 @@ TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta)
         HunkChunkMetasExt_ = std::move(*optionalHunkChunkMetasExt);
     }
 
-    if (auto optionalColumnarStatisticsExt = FindProtoExtension<TColumnarStatisticsExt>(chunkMeta.extensions())) {
-        ColumnarStatisticsExt_ = std::move(*optionalColumnarStatisticsExt);
-    }
+    ColumnarStatisticsExt_ = FindProtoExtension<TColumnarStatisticsExt>(chunkMeta.extensions());
 }
 
 i64 TColumnarChunkMeta::GetMemoryUsage() const
