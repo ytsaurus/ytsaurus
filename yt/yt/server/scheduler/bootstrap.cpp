@@ -31,6 +31,8 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
+#include <yt/yt/ytlib/program/helpers.h>
+
 #include <yt/yt/ytlib/scheduler/config.h>
 
 #include <yt/yt/ytlib/security_client/public.h>
@@ -239,6 +241,13 @@ const TControllerAgentTrackerPtr& TBootstrap::GetControllerAgentTracker() const
 const NRpc::IAuthenticatorPtr& TBootstrap::GetNativeAuthenticator() const
 {
     return NativeAuthenticator_;
+}
+
+void TBootstrap::OnDynamicConfigChanged(const TSchedulerConfigPtr& config)
+{
+    ReconfigureNativeSingletons(Config_, config);
+
+    RpcServer_->OnDynamicConfigChanged(config->RpcServer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

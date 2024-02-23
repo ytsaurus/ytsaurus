@@ -23,8 +23,6 @@
 #include <yt/yt/ytlib/scheduler/helpers.h>
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
-#include <yt/yt/ytlib/program/helpers.h>
-
 #include <yt/yt/client/security_client/acl.h>
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
@@ -2336,7 +2334,7 @@ private:
 
             NodeManager_->UpdateConfig(Config_);
 
-            ReconfigureNativeSingletons(Bootstrap_->GetConfig(), Config_);
+            Bootstrap_->OnDynamicConfigChanged(Config_);
 
             Strategy_->UpdateConfig(Config_);
             MasterConnector_->UpdateConfig(Config_);

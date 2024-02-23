@@ -1181,6 +1181,8 @@ public:
     // COMPAT(kvk1920): Remove after all masters will be >= 23.3.
     bool CommitOperationCypressNodeChangesViaSystemTransaction;
 
+    NRpc::TServerDynamicConfigPtr RpcServer;
+
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
 
     static void Register(TRegistrar registrar);

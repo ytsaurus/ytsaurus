@@ -21,13 +21,15 @@
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
+#include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
 
 #include <yt/yt/ytlib/security_client/public.h>
 
-#include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
+#include <yt/yt/ytlib/program/helpers.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
@@ -252,6 +254,13 @@ const ICoreDumperPtr& TBootstrap::GetCoreDumper() const
 const IAuthenticatorPtr& TBootstrap::GetNativeAuthenticator() const
 {
     return NativeAuthenticator_;
+}
+
+void TBootstrap::OnDynamicConfigChanged(const TControllerAgentConfigPtr& config)
+{
+    ReconfigureNativeSingletons(Config_, config);
+
+    RpcServer_->OnDynamicConfigChanged(config->RpcServer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
