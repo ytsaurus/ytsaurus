@@ -59,6 +59,9 @@ public:
 
     TDuration HealthCheckFailureBackoff;
 
+    TDuration RdmaDeviceInfoUpdateTimeout;
+    TDuration RdmaDeviceInfoUpdatePeriod;
+
     std::optional<TShellCommandConfigPtr> JobSetupCommand;
 
     std::optional<NYPath::TYPath> DriverLayerDirectoryPath;
@@ -98,6 +101,9 @@ public:
     std::optional<TDuration> HealthCheckTimeout;
     std::optional<TDuration> HealthCheckPeriod;
     std::optional<TDuration> HealthCheckFailureBackoff;
+
+    std::optional<TDuration> RdmaDeviceInfoUpdateTimeout;
+    std::optional<TDuration> RdmaDeviceInfoUpdatePeriod;
 
     std::optional<TShellCommandConfigPtr> JobSetupCommand;
 

@@ -70,6 +70,14 @@ void FormatValue(TStringBuilderBase* builder, const TGpuStatistics& gpuStatistic
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TRdmaStatistics
+{
+    i64 RxByteRate = 0.0;
+    i64 TxByteRate = 0.0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 /*
  * \note
  * Thread affinity: any
@@ -90,6 +98,8 @@ public:
     const std::vector<TString>& GetGpuDevices() const;
     THashMap<int, NGpu::TGpuInfo> GetGpuInfoMap() const;
 
+    std::vector<NGpu::TRdmaDeviceInfo> GetRdmaDevices() const;
+
     TErrorOr<TGpuSlotPtr> AcquireGpuSlot();
 
     TErrorOr<std::vector<TGpuSlotPtr>> AcquireGpuSlots(int slotCount);
@@ -109,6 +119,7 @@ private:
 
     const NConcurrency::TPeriodicExecutorPtr HealthCheckExecutor_;
     const NConcurrency::TPeriodicExecutorPtr FetchDriverLayerExecutor_;
+    const NConcurrency::TPeriodicExecutorPtr RdmaDeviceInfoUpdateExecutor_;
     const NConcurrency::TPeriodicExecutorPtr TestGpuInfoUpdateExecutor_;
 
     std::vector<TString> GpuDevices_;
@@ -116,6 +127,8 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     THashMap<int, NGpu::TGpuInfo> HealthyGpuInfoMap_;
     THashSet<int> LostGpuDeviceIndices_;
+
+    std::vector<NGpu::TRdmaDeviceInfo> RdmaDevices_;
 
     bool HasGpuDevices_ = false;
 
@@ -146,12 +159,15 @@ private:
 
     TDuration GetHealthCheckTimeout() const;
     TDuration GetHealthCheckFailureBackoff() const;
+    TDuration GetRdmaDeviceInfoUpdateTimeout() const;
     THashMap<TString, TString> GetCudaToolkitMinDriverVersion() const;
 
     void OnHealthCheck();
     void OnFetchDriverLayerInfo();
     bool IsDriverLayerMissing() const;
     void PopulateAlerts(std::vector<TError>* alerts) const;
+
+    void OnRdmaDeviceInfoUpdate();
 
     void OnTestGpuInfoUpdate();
 

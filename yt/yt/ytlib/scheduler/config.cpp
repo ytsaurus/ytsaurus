@@ -503,6 +503,8 @@ const std::vector<TString>& TUserJobMonitoringConfig::GetDefaultSensorNames()
         "gpu/pcie/rx_bytes",
         "gpu/pcie/tx_bytes",
         "gpu/stuck",
+        "gpu/rdma/rx_bytes",
+        "gpu/rdma/tx_bytes",
     };
     return DefaultSensorNames;
 }

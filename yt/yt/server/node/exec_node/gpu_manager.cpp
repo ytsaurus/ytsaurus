@@ -124,6 +124,10 @@ TGpuManager::TGpuManager(
             .Period = Config_->DriverLayerFetchPeriod,
             .Splay = Config_->DriverLayerFetchPeriodSplay
         }))
+    , RdmaDeviceInfoUpdateExecutor_(New<TPeriodicExecutor>(
+        Bootstrap_->GetJobInvoker(),
+        BIND(&TGpuManager::OnRdmaDeviceInfoUpdate, MakeWeak(this)),
+        Config_->RdmaDeviceInfoUpdatePeriod))
     , TestGpuInfoUpdateExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetJobInvoker(),
         BIND(&TGpuManager::OnTestGpuInfoUpdate, MakeWeak(this)),
@@ -229,6 +233,11 @@ void TGpuManager::OnDynamicConfigChanged(
     } else {
         FetchDriverLayerExecutor_->SetPeriod(Config_->DriverLayerFetchPeriod);
     }
+    if (gpuManagerConfig && gpuManagerConfig->RdmaDeviceInfoUpdatePeriod) {
+        RdmaDeviceInfoUpdateExecutor_->SetPeriod(*gpuManagerConfig->RdmaDeviceInfoUpdatePeriod);
+    } else {
+        RdmaDeviceInfoUpdateExecutor_->SetPeriod(Config_->RdmaDeviceInfoUpdatePeriod);
+    }
     if (gpuManagerConfig && gpuManagerConfig->GpuInfoSource) {
         // XXX(ignat): avoid this hack.
         if (!gpuManagerConfig->GpuInfoSource->NvGpuManagerDevicesCgroupPath) {
@@ -254,6 +263,14 @@ TDuration TGpuManager::GetHealthCheckFailureBackoff() const
     return dynamicConfig
         ? dynamicConfig->HealthCheckFailureBackoff.value_or(Config_->HealthCheckFailureBackoff)
         : Config_->HealthCheckFailureBackoff;
+}
+
+TDuration TGpuManager::GetRdmaDeviceInfoUpdateTimeout() const
+{
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    return dynamicConfig
+        ? dynamicConfig->RdmaDeviceInfoUpdateTimeout.value_or(Config_->RdmaDeviceInfoUpdateTimeout)
+        : Config_->RdmaDeviceInfoUpdateTimeout;
 }
 
 THashMap<TString, TString> TGpuManager::GetCudaToolkitMinDriverVersion() const
@@ -388,6 +405,20 @@ void TGpuManager::OnFetchDriverLayerInfo()
     }
 }
 
+void TGpuManager::OnRdmaDeviceInfoUpdate()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    try {
+        auto rdmaDevices = GpuInfoProvider_.Acquire()->GetRdmaDeviceInfos(GetRdmaDeviceInfoUpdateTimeout());
+
+        auto guard = Guard(SpinLock_);
+        RdmaDevices_ = std::move(rdmaDevices);
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Failed to fetch RDMA device infos");
+    }
+}
+
 void TGpuManager::OnTestGpuInfoUpdate()
 {
     auto now = TInstant::Now();
@@ -451,6 +482,14 @@ const std::vector<TString>& TGpuManager::GetGpuDevices() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return GpuDevices_;
+}
+
+std::vector<TRdmaDeviceInfo> TGpuManager::GetRdmaDevices() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto guard = Guard(SpinLock_);
+    return RdmaDevices_;
 }
 
 void TGpuManager::ReleaseGpuSlot(int deviceIndex)

@@ -516,6 +516,16 @@ const THashMap<TString, TUserJobSensorPtr>& TUserJobMonitoringConfig::GetDefault
                 .Item("source").Value("gpu")
                 .Item("profiling_name").Value("/user_job/gpu/stuck")
             .EndMap()
+            .Item("gpu/rdma/rx_bytes").BeginMap()
+                .Item("type").Value("gauge")
+                .Item("source").Value("gpu")
+                .Item("profiling_name").Value("/user_job/gpu/rdma/rx_bytes/rate")
+            .EndMap()
+            .Item("gpu/rdma/tx_bytes").BeginMap()
+                .Item("type").Value("gauge")
+                .Item("source").Value("gpu")
+                .Item("profiling_name").Value("/user_job/gpu/rdma/tx_bytes/rate")
+            .EndMap()
         .EndMap());
 
     return DefaultSensors;
