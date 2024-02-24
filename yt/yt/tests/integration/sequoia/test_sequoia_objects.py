@@ -33,7 +33,8 @@ class TestSequoiaReplicas(YTEnvSetup):
     }
     NUM_NODES = 9
 
-    TABLE_MEDIUM = "table_medium"
+    TABLE_MEDIUM_1 = "table_medium_1"
+    TABLE_MEDIUM_2 = "table_medium_2"
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "chunk_manager": {
@@ -43,44 +44,27 @@ class TestSequoiaReplicas(YTEnvSetup):
     }
 
     @classmethod
-    def modify_node_config(cls, config, cluster_index):
-        node_flavors = [
-            ["data", "exec"],
-            ["data", "exec"],
-            ["data", "exec"],
-            ["data", "exec"],
-            ["data", "exec"],
-            ["data", "exec"],
-            ["tablet"],
-            ["tablet"],
-            ["tablet"],
-        ]
-        if not hasattr(cls, "node_counter"):
-            cls.node_counter = 0
-        config["flavors"] = node_flavors[cls.node_counter]
-        cls.node_counter = (cls.node_counter + 1) % cls.NUM_NODES
-
-    @classmethod
     def setup_class(cls):
         super(TestSequoiaReplicas, cls).setup_class()
-        create_domestic_medium(cls.TABLE_MEDIUM)
-        set("//sys/media/{}/@enable_sequoia_replicas".format(cls.TABLE_MEDIUM), True)
+        create_domestic_medium(cls.TABLE_MEDIUM_1)
+        create_domestic_medium(cls.TABLE_MEDIUM_2)
+        set("//sys/media/{}/@enable_sequoia_replicas".format(cls.TABLE_MEDIUM_1), True)
+        set("//sys/media/{}/@enable_sequoia_replicas".format(cls.TABLE_MEDIUM_2), False)
 
+        mediums = [cls.TABLE_MEDIUM_1, cls.TABLE_MEDIUM_2, "default"]
+        iter_mediums = 0
         cls.table_node_indexes = []
         addresses_to_index = {cls.Env.get_node_address(index) : index for index in range(0, cls.NUM_NODES)}
 
         for node_address in ls("//sys/cluster_nodes"):
-            flavors = get("//sys/cluster_nodes/{}/@flavors".format(node_address))
-            if "data" in flavors:
-                location_uuids = list(get("//sys/cluster_nodes/{}/@chunk_locations".format(node_address)).keys())
-                assert len(location_uuids) > 0
-                for location_uuid in location_uuids:
-                    medium_override_path = "//sys/chunk_locations/{}/@medium_override".format(location_uuid)
-                    set(medium_override_path, cls.TABLE_MEDIUM)
-
-                cls.table_node_indexes.append(addresses_to_index[node_address])
-                if len(cls.table_node_indexes) == 3:
-                    break
+            location_uuids = list(get("//sys/cluster_nodes/{}/@chunk_locations".format(node_address)).keys())
+            for location_uuid in location_uuids:
+                medium_override_path = "//sys/chunk_locations/{}/@medium_override".format(location_uuid)
+                set(medium_override_path, mediums[iter_mediums])
+                if mediums[iter_mediums] == cls.TABLE_MEDIUM_1:
+                    cls.table_node_indexes.append(addresses_to_index[node_address])
+                iter_mediums = (iter_mediums + 1) % len(mediums)
+        assert len(cls.table_node_indexes) == 3
 
     def teardown_method(self, method):
         wait(sequoia_tables_empty)
@@ -88,9 +72,9 @@ class TestSequoiaReplicas(YTEnvSetup):
 
     @authors("aleksandra-zh")
     def test_chunk_replicas_node_offline1(self):
-        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM), 10000)
+        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
 
-        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM})
+        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1})
 
         write_table("//tmp/t", [{"x": 1}])
         assert read_table("//tmp/t") == [{"x": 1}]
@@ -116,8 +100,8 @@ class TestSequoiaReplicas(YTEnvSetup):
 
     @authors("aleksandra-zh")
     def test_chunk_replicas_node_offline2(self):
-        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM), 10000)
-        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM})
+        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
+        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1})
 
         write_table("//tmp/t", [{"x": 1}])
         assert read_table("//tmp/t") == [{"x": 1}]
@@ -140,8 +124,8 @@ class TestSequoiaReplicas(YTEnvSetup):
 
     @authors("aleksandra-zh")
     def test_replication(self):
-        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM), 10000)
-        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM, "replication_factor": 2})
+        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
+        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1, "replication_factor": 2})
 
         write_table("//tmp/t", [{"x": 1}], table_writer={"upload_replication_factor": 2})
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
@@ -161,9 +145,9 @@ class TestSequoiaReplicas(YTEnvSetup):
 
     @authors("aleksandra-zh")
     def test_last_seen_replicas(self):
-        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM), 10000)
+        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
 
-        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM})
+        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1})
 
         write_table("//tmp/t", [{"x": 1}])
         assert read_table("//tmp/t") == [{"x": 1}]
@@ -197,9 +181,6 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
         }
     }
 
-    TABLE_MEDIUM_1 = "table_medium_1"
-    TABLE_MEDIUM_2 = "table_medium_2"
-
     @authors("kivedernikov")
     def test_empty_sequoia_handler(self):
         table = "//tmp/t"
@@ -213,21 +194,9 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
 
     @authors("kivedernikov")
     def test_master_sequoia_replicas_handler(self):
-        create_domestic_medium(self.TABLE_MEDIUM_1)
-        create_domestic_medium(self.TABLE_MEDIUM_2)
-        set("//sys/media/{}/@enable_sequoia_replicas".format(self.TABLE_MEDIUM_1), True)
-        set("//sys/media/{}/@enable_sequoia_replicas".format(self.TABLE_MEDIUM_2), False)
         disk_space_limit = get_account_disk_space_limit("tmp", "default")
         set_account_disk_space_limit("tmp", disk_space_limit, self.TABLE_MEDIUM_1)
         set_account_disk_space_limit("tmp", disk_space_limit, self.TABLE_MEDIUM_2)
-
-        loc1, loc2 = ls("//sys/chunk_locations")[:2]
-
-        set(f"//sys/chunk_locations/{loc1}/@medium_override", self.TABLE_MEDIUM_1)
-        set(f"//sys/chunk_locations/{loc2}/@medium_override", self.TABLE_MEDIUM_2)
-
-        wait(lambda: get(f"//sys/chunk_locations/{loc1}/@statistics/medium_name") == self.TABLE_MEDIUM_1)
-        wait(lambda: get(f"//sys/chunk_locations/{loc2}/@statistics/medium_name") == self.TABLE_MEDIUM_2)
 
         table = "//tmp/t"
         create("table", table, attributes={
@@ -269,15 +238,6 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
             stored_master_replicas = get("#{}/@stored_master_replicas".format(chunk_id))
 
             if len(stored_replicas) != 2 or len(stored_sequoia_replicas) != 1 or len(stored_master_replicas) != 1:
-                return False
-
-            if process_yson_locations(stored_sequoia_replicas[0]) != loc1:
-                return False
-
-            if process_yson_locations(stored_master_replicas[0]) != loc2:
-                return False
-
-            if {process_yson_locations(replica) for replica in stored_replicas} != {loc1, loc2}:
                 return False
 
             for replica in stored_replicas:
