@@ -73,6 +73,8 @@ void TCellarOccupantConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("enable_dry_run", &TThis::EnableDryRun)
         .Default(false);
+    registrar.Parameter("enable_local_host_sanitizer", &TThis::EnableLocalHostSanitizer)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

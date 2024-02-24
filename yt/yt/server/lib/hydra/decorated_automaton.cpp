@@ -1202,7 +1202,7 @@ void TDecoratedAutomaton::PublishMutationApplicationResults(std::vector<TMutatio
 TSharedRef TDecoratedAutomaton::SanitizeLocalHostName() const
 {
     auto localHost = ReadLocalHostName();
-    if (Config_->Get()->EnableHostSanitizing) {
+    if (Options_.EnableLocalHostSanitizing) {
         THashSet<TString> hosts;
         for (const auto& peer : GetEpochContext()->CellManager->GetClusterPeersAddresses()) {
             TStringBuf host;
