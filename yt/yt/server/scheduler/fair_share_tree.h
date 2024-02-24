@@ -140,7 +140,8 @@ struct IFairShareTree
 
     virtual void ChangeOperationPool(
         TOperationId operationId,
-        const TPoolName& newPool) = 0;
+        const TPoolName& newPool,
+        bool ensureRunning) = 0;
 
     virtual void UpdateOperationRuntimeParameters(
         TOperationId operationId,
