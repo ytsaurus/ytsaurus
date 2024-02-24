@@ -506,7 +506,7 @@ void TTabletChunkSpecFetcher::DoFetchFromNode(const TString& address)
         } else {
             for (auto& chunkSpec : *subresponse.mutable_stores()) {
                 YT_LOG_TRACE("Received chunk spec from tablet (ChunkSpec: %v)",
-                    chunkSpec.DebugString());
+                    chunkSpec.ShortDebugString());
                 state.ChunkSpecs.push_back(std::move(chunkSpec));
             }
         }

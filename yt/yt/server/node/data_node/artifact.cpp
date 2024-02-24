@@ -216,7 +216,7 @@ bool TArtifactKey::operator == (const TArtifactKey& other) const
 
 TString ToString(const TArtifactKey& key)
 {
-    return Format("{%v}", key.DebugString());
+    return Format("{%v}", key.ShortDebugString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

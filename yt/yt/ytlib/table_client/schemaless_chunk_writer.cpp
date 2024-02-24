@@ -966,7 +966,7 @@ private:
     {
         TUnversionedChunkWriterBase::PrepareChunkMeta();
 
-        YT_LOG_DEBUG("Partition totals: %v", PartitionsExt_.DebugString());
+        YT_LOG_DEBUG("Partition totals: %v", PartitionsExt_.ShortDebugString());
 
         auto meta = EncodingChunkWriter_->GetMeta();
         SetProtoExtension(meta->mutable_extensions(), PartitionsExt_);

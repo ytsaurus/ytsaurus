@@ -337,7 +337,7 @@ void TJobProxy::LogJobSpec(TJobSpec jobSpec)
         {
             TStringBuilder builder;
             for (const auto& tableSpec : *inputTableSpecs) {
-                builder.AppendString(tableSpec.DebugString());
+                builder.AppendString(tableSpec.ShortDebugString());
                 builder.AppendChar('\n');
             }
             YT_LOG_DEBUG("Job spec %v input table specs:\n%v",
