@@ -503,7 +503,8 @@ public:
             TDistributedHydraManagerOptions hydraManagerOptions{
                 .UseFork = false,
                 .EnableObserverPersistence = independent,
-                .ResponseKeeper = ResponseKeeper_
+                .ResponseKeeper = ResponseKeeper_,
+                .EnableLocalHostSanitizing = Config_->EnableLocalHostSanitizer,
             };
 
             IDistributedHydraManagerPtr hydraManager;

@@ -106,6 +106,8 @@ public:
 
     bool EnableDryRun;
 
+    bool EnableLocalHostSanitizer;
+
     REGISTER_YSON_STRUCT(TCellarOccupantConfig);
 
     static void Register(TRegistrar registrar);

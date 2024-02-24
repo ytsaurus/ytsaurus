@@ -335,6 +335,8 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
         .Default(0.1);
     registrar.Parameter("enable_fair_throttler", &TThis::EnableFairThrottler)
         .Default(false);
+    registrar.Parameter("enable_local_host_sanitizer", &TThis::EnableLocalHostSanitizer)
+        .Default(false);
     registrar.Parameter("in_throttler", &TThis::InThrottler)
         .DefaultNew();
     registrar.Parameter("out_throttler", &TThis::OutThrottler)

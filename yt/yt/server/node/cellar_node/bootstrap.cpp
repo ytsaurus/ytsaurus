@@ -160,6 +160,7 @@ public:
             cellarConfig->Occupant->TransactionSupervisor = GetConfig()->TabletNode->TransactionSupervisor;
             cellarConfig->Occupant->ResponseKeeper = GetConfig()->TabletNode->HydraManager->ResponseKeeper;
             cellarConfig->Occupant->EnableDryRun = GetConfig()->DryRun->EnableDryRun;
+            cellarConfig->Occupant->EnableLocalHostSanitizer = GetConfig()->EnableLocalHostSanitizer;
 
             auto cellarManagerConfig = CloneYsonStruct(config);
             cellarManagerConfig->Cellars.insert({ECellarType::Tablet, std::move(cellarConfig)});
