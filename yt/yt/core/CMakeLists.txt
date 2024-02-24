@@ -319,7 +319,6 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/ypath_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/ypath_resolver.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/ypath_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/yson_serializable.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/yson_struct.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/yson_struct_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/json/config.cpp

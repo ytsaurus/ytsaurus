@@ -65,7 +65,6 @@ target_sources(unittester-core-ytree PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/tree_builder_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/lazy_ypath_service_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/yson_schema_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/yson_serializable_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/yson_struct_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/ytree_fluent_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/ytree_ut.cpp
