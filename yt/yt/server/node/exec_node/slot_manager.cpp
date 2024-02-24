@@ -761,7 +761,7 @@ void TSlotManager::OnJobProxyBuildInfoUpdated(const TError& error)
         if (alert.IsOK() && !error.IsOK()) {
             YT_LOG_INFO(error, "Disabling scheduler jobs due to job proxy unavailability");
         } else if (!alert.IsOK() && error.IsOK()) {
-            YT_LOG_INFO(error, "Enable scheduler jobs as job proxy became available");
+            YT_LOG_INFO("Enable scheduler jobs as job proxy became available");
         }
 
         alert = error;
