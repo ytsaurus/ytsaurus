@@ -899,9 +899,8 @@ private:
                 .Run())
             .ValueOrThrow();
 
-        YT_LOG_INFO("Sending full data node heartbeat to master (CellTag: %v, %v)",
-            cellTag,
-            req->statistics());
+        YT_LOG_INFO("Sending full data node heartbeat to master (CellTag: %v)",
+            cellTag);
 
         auto rspOrError = WaitFor(req->Invoke());
         if (rspOrError.IsOK()) {
