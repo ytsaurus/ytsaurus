@@ -129,42 +129,6 @@ INodeTypeHandlerPtr CreateClusterNodeNodeTypeHandler(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// COMPAT(gritukan)
-class TLegacyClusterNodeMapTypeHandler
-    : public TCypressMapNodeTypeHandler
-{
-public:
-    explicit TLegacyClusterNodeMapTypeHandler(TBootstrap* bootstrap)
-        : TCypressMapNodeTypeHandler(bootstrap)
-    { }
-
-    EObjectType GetObjectType() const override
-    {
-        return EObjectType::LegacyClusterNodeMap;
-    }
-
-private:
-    ICypressNodeProxyPtr DoGetProxy(
-        TCypressMapNode* trunkNode,
-        TTransaction* transaction) override
-    {
-        return New<TCypressMapNodeProxy>(
-            GetBootstrap(),
-            &Metadata_,
-            transaction,
-            trunkNode);
-    }
-};
-
-INodeTypeHandlerPtr CreateLegacyClusterNodeMapTypeHandler(TBootstrap* bootstrap)
-{
-    YT_VERIFY(bootstrap);
-
-    return New<TLegacyClusterNodeMapTypeHandler>(bootstrap);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TVirtualNodeMapBase
     : public TVirtualMapBase
 {

@@ -201,6 +201,7 @@ DEFINE_ENUM(EMasterReign,
     ((TablesInSequoia)                                              (2533))  // h0pless
     ((CheckChunkCountPerTabletBeforeMount)                          (2534))  // alexelexa
     // 24.2 starts here.
+    ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

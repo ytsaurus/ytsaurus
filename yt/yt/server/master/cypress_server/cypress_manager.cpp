@@ -1141,7 +1141,6 @@ public:
         RegisterHandler(CreateLockMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateOrchidTypeHandler(Bootstrap_));
         RegisterHandler(CreateClusterNodeNodeTypeHandler(Bootstrap_));
-        RegisterHandler(CreateLegacyClusterNodeMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateHostMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateRackMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateClusterNodeMapTypeHandler(Bootstrap_));
