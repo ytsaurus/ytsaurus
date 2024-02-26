@@ -787,6 +787,9 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             rowCache->SetFlushIndex(storeFlushIndex);
         }
 
+        auto rowsInStore = 0;
+        TUpdateCacheStatistics cacheUpdateStatistics;
+
         THazardPtrReclaimOnContextSwitchGuard reclaimGuard;
 
         TRowBatchReadOptions readOptions{
@@ -815,8 +818,14 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                 rows.resize(std::distance(rows.begin(), outputIt));
             }
 
+            rowsInStore += std::ssize(rows);
+
             if (rowCache && storeFlushIndex > 0) {
-                rowCache->UpdateItems(rows, newRetainedTimestamp, &compactionRowMerger, storeFlushIndex, Logger);
+                auto statistics = rowCache->UpdateItems(rows, newRetainedTimestamp, &compactionRowMerger, storeFlushIndex, Logger);
+
+                cacheUpdateStatistics.FoundRows += statistics.FoundRows;
+                cacheUpdateStatistics.DiscardedRows += statistics.DiscardedRows;
+                cacheUpdateStatistics.FailedByMemoryRows += statistics.FailedByMemoryRows;
             }
 
             if (!storeWriter->Write(rows)) {
@@ -865,7 +874,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                 dataStatistics.erasure_disk_space());
         };
 
-        YT_LOG_DEBUG("Sorted store flushed (StoreId: %v, StoreChunkId: %v, StoreChunkDiskSpace: %v%v)",
+        YT_LOG_DEBUG("Sorted store flushed (StoreId: %v, StoreChunkId: %v, StoreChunkDiskSpace: %v%v, RowsInStore %v, FoundCacheRows: %v, DiscardedCacheRows: %v, FailedByMemoryCacheRows: %v)",
             store->GetId(),
             storeChunkWriter->GetChunkId(),
             getDiskSpace(storeWriter, tabletSnapshot->Settings.StoreWriterOptions),
@@ -875,7 +884,11 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                         hunkChunkPayloadWriter->GetChunkId(),
                         getDiskSpace(hunkChunkWriter, tabletSnapshot->Settings.HunkWriterOptions));
                 }
-            }));
+            }),
+            rowsInStore,
+            cacheUpdateStatistics.FoundRows,
+            cacheUpdateStatistics.DiscardedRows,
+            cacheUpdateStatistics.FailedByMemoryRows);
 
         TStoreFlushResult result;
 
