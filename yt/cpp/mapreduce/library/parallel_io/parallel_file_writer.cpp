@@ -53,9 +53,10 @@ public:
 private:
     struct IWriteTask;
 
-    NThreading::TFuture<void> StartWriteTask(
-        std::unique_ptr<IWriteTask> task,
-        TRichYPath filePath
+    void DoWriteTask(
+        std::unique_ptr<IWriteTask>&& task,
+        const TRichYPath& filePath,
+        std::optional<TResourceGuard> &&preallocatedGuard
     );
 
     TRichYPath CreateFilePath(const std::pair<size_t, size_t>& taskId);
@@ -65,6 +66,8 @@ private:
     void ThreadWrite(int index, i64 start, i64 length);
 
     void ThrowIfDead();
+
+    TResourceGuard LockRamForTask(const std::unique_ptr<IWriteTask>& task);
 
 private:
     struct IWriteTask
@@ -188,43 +191,53 @@ TParallelFileWriter::~TParallelFileWriter()
     NDetail::FinishOrDie(this, /*autoFinish*/ true, "TParallelFileWriter");
 }
 
-NThreading::TFuture<void> TParallelFileWriter::StartWriteTask(
-    std::unique_ptr<IWriteTask> task,
-    TRichYPath filePath
-) {
-    TResourceGuard memoryGuard(RamLimiter_, task->GetDataSize());
+TResourceGuard TParallelFileWriter::LockRamForTask(const std::unique_ptr<IWriteTask>& task) {
+    size_t lockAmount = task->GetDataSize();
+    if (AcquireRamForBuffers_) {
+        // fixme cannot properly do it without heuristic
+        // exact lock amount for inner buffer will require us to create writer
+        // AFTER locking
+        lockAmount *= 2;
+    }
+    return TResourceGuard(RamLimiter_, lockAmount);
+}
 
-    return NThreading::Async([
-        this,
-        task=std::move(task),
-        filePath=std::move(filePath),
-        memoryGuard=std::move(memoryGuard)
-    ] () mutable {
+void TParallelFileWriter::DoWriteTask(
+    std::unique_ptr<IWriteTask>&& task,
+    const TRichYPath& filePath,
+    std::optional<TResourceGuard> &&guard
+) {
+    if (HasException_) {
+        return;
+    }
+
+    try {
+        auto currentGuard = [&]() -> TResourceGuard {
+            if (guard.has_value()) {
+                return std::move(*guard);
+            }
+            return LockRamForTask(task);
+        }();
         if (HasException_) {
+            // fail-fast after unlocking
             return;
         }
-
+        IFileWriterPtr writer = Transaction_->CreateFileWriter(filePath, TFileWriterOptions().WriterOptions(Options_.WriterOptions_.GetOrElse({})));
+        // DO NOT take additional softLimiter lock here for difference betweeh heuristic and exact buffer size!
+        // It's deadlockable scheme!
+        task->Write(writer, HasException_);
+        writer->Finish();
+    } catch (const std::exception& e) {
+        auto guard = Guard(MutexForException_);
+        HasException_ = true;
+        Exception_ = std::current_exception();
         try {
-            IFileWriterPtr writer = Transaction_->CreateFileWriter(filePath, TFileWriterOptions().WriterOptions(Options_.WriterOptions_.GetOrElse({})));
-            size_t lockSize = AcquireRamForBuffers_ ? writer->GetBufferMemoryUsage() : 0;
-            // Hard lock since it's acquired inside thread => may deadlock if not enough memory.
-            TResourceGuard writerGuard(RamLimiter_, lockSize, EResourceLimiterLockType::HARD);
-            task->Write(writer, HasException_);
-            writer->Finish();
-        } catch (const std::exception& e) {
-            auto guard = Guard(MutexForException_);
-            HasException_ = true;
-            Exception_ = std::current_exception();
-            try {
-                Transaction_->Abort();
-            } catch (...) {
-                // Never mind if tx is already dead - we won't commit it anyway => no data will be written.
-            }
-            Finished_ = true;
+            Transaction_->Abort();
+        } catch (...) {
+            // Never mind if tx is already dead - we won't commit it anyway => no data will be written.
         }
-
-        return;
-    }, *ThreadPool_);
+        Finished_ = true;
+    }
 }
 
 TRichYPath TParallelFileWriter::CreateFilePath(const std::pair<size_t, size_t>& taskId)
@@ -246,7 +259,13 @@ void TParallelFileWriter::Write(TSharedRef blob)
         auto taskId = std::pair(blobId, subBlobId);
         auto filePath = CreateFilePath(taskId);
 
-        auto future = StartWriteTask(std::make_unique<TBlobWriteTask>(std::move(subBlob)), filePath);
+        std::unique_ptr<IWriteTask> task = std::make_unique<TBlobWriteTask>(std::move(subBlob));
+        // Lock memory before scheduling future since our writer already "owns" blob
+        // It already consumes memory
+        auto ramGuard = LockRamForTask(task);
+        auto future = NThreading::Async([this, task=std::move(task), ramGuard=std::move(ramGuard), filePath]() mutable {
+            DoWriteTask(std::move(task), filePath, std::move(ramGuard));
+        }, *ThreadPool_);
 
         Tasks_.emplace_back(TTaskDescription{
             .Path = std::move(filePath),
@@ -272,7 +291,14 @@ void TParallelFileWriter::WriteFile(const TString& fileName)
         i64 begin = pos;
         i64 end = std::min(begin + static_cast<i64>(Options_.MaxBlobSize_), length);
 
-        auto future = StartWriteTask(std::make_unique<TFileWriteTask>(fileName, begin, end - begin), filePath);
+        // Unlike in Write, we do not lock resource limiter inside this "job scheduler" function
+        // since our TFileWriteTask will be materialized in memory only inside thread,
+        // where we read chunk of data
+
+        auto task = std::make_unique<TFileWriteTask>(fileName, begin, end - begin);
+        auto future = NThreading::Async([this, task=std::move(task), filePath]() mutable {
+            DoWriteTask(std::move(task), filePath, std::nullopt);
+        }, *ThreadPool_);
 
         Tasks_.emplace_back(TTaskDescription{
             .Path = std::move(filePath),
