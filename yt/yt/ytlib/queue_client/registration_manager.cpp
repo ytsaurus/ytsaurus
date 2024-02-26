@@ -274,13 +274,17 @@ std::vector<TConsumerRegistrationTableRow> TQueueConsumerRegistrationManager::Li
 
     auto guard = ReaderGuard(CacheSpinLock_);
 
+    auto comparePaths = [](const TRichYPath& lhs, const TRichYPath& rhs) {
+        return lhs.GetPath() == rhs.GetPath() && lhs.GetCluster() == rhs.GetCluster();
+    };
+
     std::vector<TConsumerRegistrationTableRow> result;
     for (const auto& [key, registration] : Registrations_) {
         const auto& [keyQueue, keyConsumer] = key;
-        if (queue && *queue != keyQueue) {
+        if (queue && !comparePaths(*queue, keyQueue)) {
             continue;
         }
-        if (consumer && *consumer != keyConsumer) {
+        if (consumer && !comparePaths(*consumer, keyConsumer)) {
             continue;
         }
 
