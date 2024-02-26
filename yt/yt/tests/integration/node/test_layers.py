@@ -277,6 +277,7 @@ class TestProbingLayer(TestLayers):
         return op
 
     @authors("galtsev")
+    @pytest.mark.skip(reason="YT-21152, probing is tested in TestJobExperiment")
     @pytest.mark.flaky(max_runs=5)
     @pytest.mark.timeout(600)
     def test_probing_layer_success(self):
@@ -307,6 +308,7 @@ class TestProbingLayer(TestLayers):
         assert try_count < max_tries
 
     @authors("galtsev")
+    @pytest.mark.skip(reason="YT-21152, probing is tested in TestJobExperiment")
     @pytest.mark.flaky(max_runs=5)
     @pytest.mark.timeout(600)
     def test_probing_layer_failure(self):
@@ -347,6 +349,7 @@ class TestProbingLayer(TestLayers):
         assert alert_count >= 1
 
     @authors("galtsev")
+    @pytest.mark.skip(reason="YT-21152, probing is tested in TestJobExperiment")
     @pytest.mark.flaky(max_runs=5)
     @pytest.mark.parametrize("options", [
         {"fail_on_job_restart": True},
@@ -380,6 +383,7 @@ class TestProbingLayer(TestLayers):
         assert op.get_job_count("aborted") == 0
 
     @authors("galtsev")
+    @pytest.mark.skip(reason="YT-21152, probing is tested in TestJobExperiment")
     @pytest.mark.flaky(max_runs=5)
     @pytest.mark.timeout(600)
     def test_probing_layer_races(self):
@@ -408,6 +412,7 @@ class TestProbingLayer(TestLayers):
             assert try_count < self.MAX_TRIES
 
     @authors("galtsev")
+    @pytest.mark.skip(reason="YT-21152, probing is tested in TestJobExperiment")
     @pytest.mark.flaky(max_runs=5)
     @pytest.mark.timeout(600)
     def test_probing_layer_alert(self):
