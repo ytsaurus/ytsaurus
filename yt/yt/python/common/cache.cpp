@@ -48,7 +48,6 @@ PyObjectPtr TPythonStringCache::GetPythonString(TStringBuf string)
     if (!item.OriginalKey.get()) {
         throw Py::Exception();
     }
-    weight += sizeof(PyObject) + Py_SIZE(item.OriginalKey.get());
 
     if (Encoding_) {
         item.EncodedKey = PyObjectPtr(PyUnicode_FromEncodedObject(item.OriginalKey.get(), Encoding_->data(), "strict"));
@@ -65,7 +64,6 @@ PyObjectPtr TPythonStringCache::GetPythonString(TStringBuf string)
             }
             PyObject_SetAttrString(item.EncodedKey.get(), "_bytes", item.OriginalKey.get());
         }
-        weight += sizeof(PyObject) + Py_SIZE(item.EncodedKey.get());
     }
 
     if (CacheEnabled_) {

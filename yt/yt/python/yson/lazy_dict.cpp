@@ -1,5 +1,4 @@
 #include "lazy_dict.h"
-#include "yson_lazy_map.h"
 
 #include <yt/yt/core/yson/pull_parser.h>
 
