@@ -8,6 +8,7 @@
 #include "tablet_reader.h"
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
+#include "sorted_dynamic_store.h"
 
 #include <yt/yt/server/node/query_agent/helpers.h>
 
@@ -280,6 +281,29 @@ protected:
 
     ~TRowCachePipeline()
     {
+        auto flushIndex = RowCache_->GetFlushIndex();
+
+        YT_LOG_DEBUG("Lookup in row cache finished "
+            "(CacheHits: %v, CacheMisses: %v, CacheOutdated: %v, CacheInserts: %v, FailedInserts: %v, SuccessfulInserts: %v, "
+            "FailedSealAttemptsByRevision: %v, NotSealedRows: %v, "
+            "FailedFlushIndex: %v, MaxInsertedTimestamp: %v, FailedUpdates: %v, SuccessfulReinserts: %v, FailedReinserts: %v, "
+            "StoreFlushIndex: %v, CacheFlushIndex: %v)",
+            CacheHits_,
+            CacheMisses_,
+            CacheOutdated_,
+            CacheInserts_,
+            FailedInserts_,
+            SuccessfulInserts_,
+            FailedSealAttemptsByRevision_,
+            NotSealedRows_,
+            FailedFlushIndex_,
+            MaxInsertedTimestamp_,
+            FailedUpdates_,
+            SuccessfulReinserts_,
+            FailedReinserts_,
+            StoreFlushIndex_,
+            flushIndex);
+
         auto* counters = TableProfiler_->GetLookupCounters(ProfilingUser_);
 
         counters->CacheHits.Increment(CacheHits_);
@@ -292,25 +316,59 @@ protected:
     {
         std::vector<TUnversionedRow> chunkLookupKeys;
 
-        YT_LOG_DEBUG("Lookup in row cache started");
-
         auto flushIndex = RowCache_->GetFlushIndex();
 
-        CacheLookuper_ = RowCache_->GetCache()->GetLookuper();
+        YT_LOG_DEBUG("Lookup in row cache started (StoreFlushIndex: %v, RowCacheFlushIndex: %v)",
+            StoreFlushIndex_,
+            flushIndex);
+
+        auto lookuper = RowCache_->GetCache()->GetLookuper();
         CacheInserter_ = RowCache_->GetCache()->GetInserter();
         for (auto key : lookupKeys) {
-            auto foundItemRef = CacheLookuper_(key);
-            auto foundItem = foundItemRef.Get();
+            auto foundItemRef = lookuper(key);
 
-            if (foundItem) {
-                // If table is frozen both revisions are zero.
-                if (foundItem->Revision.load(std::memory_order::acquire) >= flushIndex) {
+            if (auto foundItem = foundItemRef.Get()) {
+                auto latestItem = GetLatestRow(foundItem);
+
+                auto outdated = latestItem->Outdated.load(std::memory_order::acquire);
+
+                YT_LOG_DEBUG_IF(lookupKeys.size() == 1, "FoundLookupRow (Key: %v, Outdated: %v, UpdatedInFlush: %v, Reallocated: %v, InsertTime: %v, UpdateTime: %v)",
+                    key,
+                    outdated,
+                    latestItem->UpdatedInFlush,
+                    latestItem->Reallocated,
+                    latestItem->InsertTime,
+                    latestItem->UpdateTime);
+
+                if (!foundItemRef.IsSealed()) {
+                    ++NotSealedRows_;
+                } else if (outdated) {
+                    ++CacheOutdated_;
+                } else {
                     ++CacheHits_;
                     YT_LOG_TRACE("Row found (Key: %v)", key);
-                    RowsFromCache_.push_back(std::move(foundItemRef));
+
+                    auto insertTable = CacheInserter_.GetTable();
+                    if (insertTable == foundItemRef.Origin) {
+                        YT_LOG_TRACE("Updating row");
+                        if (!foundItemRef.Replace(latestItem, foundItem.Get(), true)) {
+                            ++FailedUpdates_;
+                        }
+                    } else if (insertTable->Next == foundItemRef.Origin) {
+                        YT_LOG_TRACE("Reinserting row");
+                        if (auto insertedRef = insertTable->Insert(latestItem)) {
+                            if (RowCache_->GetCache()->IsHead(insertTable)) {
+                                insertedRef.SealItem();
+                            }
+
+                            ++SuccessfulReinserts_;
+                        } else {
+                            ++FailedReinserts_;
+                        }
+                    }
+
+                    RowsFromCache_.push_back(std::move(latestItem));
                     continue;
-                } else {
-                    ++CacheOutdated_;
                 }
             } else {
                 ++CacheMisses_;
@@ -320,12 +378,6 @@ protected:
             chunkLookupKeys.push_back(key);
             RowsFromCache_.emplace_back();
         }
-
-        YT_LOG_DEBUG("Lookup in row cache finished"
-            "(CacheHits: %v, CacheOutdated: %v, CacheMisses: %v)",
-            CacheHits_,
-            CacheOutdated_,
-            CacheMisses_);
 
         RowsFromActiveStore_.resize(RowsFromCache_.size());
         return MakeSharedRange(std::move(chunkLookupKeys), lookupKeys);
@@ -408,11 +460,7 @@ protected:
 
         Merger_->AddPartialRow(lookupedRow, Timestamp_ + 1);
 
-        auto cachedItemRef = std::move(RowsFromCache_[WriteRowIndex_]);
-
-        if (auto cachedItemHead = cachedItemRef.Get()) {
-            auto cachedItem = GetLatestRow(cachedItemHead);
-
+        if (auto cachedItem = std::move(RowsFromCache_[WriteRowIndex_])) {
             if (Timestamp_ < cachedItem->RetainedTimestamp) {
                 THROW_ERROR_EXCEPTION("Timestamp %v is less than retained timestamp %v of cached row in tablet %v",
                     Timestamp_,
@@ -420,50 +468,50 @@ protected:
                     TabletId_);
             }
 
-            YT_LOG_TRACE("Using row from cache (CacheRow: %v, Revision: %v, ReadTimestamp: %v)",
+            YT_LOG_TRACE("Using row from cache (CacheRow: %v, Outdated: %v, ReadTimestamp: %v)",
                 cachedItem->GetVersionedRow(),
-                cachedItem->Revision.load(),
+                cachedItem->Outdated.load(),
                 Timestamp_);
 
             Merger_->AddPartialRow(cachedItem->GetVersionedRow(), Timestamp_ + 1);
-
-            // Reinsert row here.
-            // TODO(lukyan): Move into function UpdateRow(cachedItemRef, inserter, cachedItem)
-            auto lookupTable = CacheInserter_.GetTable();
-            if (lookupTable == cachedItemRef.Origin) {
-                YT_LOG_TRACE("Updating row");
-                cachedItemRef.Update(std::move(cachedItem), cachedItemHead.Get());
-            } else {
-                YT_LOG_TRACE("Reinserting row");
-                lookupTable->Insert(std::move(cachedItem));
-            }
         } else {
             Merger_->AddPartialRow(RowsFromActiveStore_[WriteRowIndex_], Timestamp_ + 1);
 
-            auto cachedItem = CachedRowFromVersionedRow(
+            auto newItem = CachedRowFromVersionedRow(
                 RowCache_->GetAllocator(),
                 lookupedRow,
                 RetainedTimestamp_);
 
-            if (cachedItem) {
-                YT_VERIFY(cachedItem->GetVersionedRow().GetKeyCount() > 0);
+            if (newItem) {
+                YT_VERIFY(newItem->GetVersionedRow().GetKeyCount() > 0);
 
-                auto revision = StoreFlushIndex_;
-                cachedItem->Revision.store(revision, std::memory_order::release);
+                newItem->InsertTime = GetInstant();
 
-                YT_LOG_TRACE("Populating cache (Row: %v, Revision: %v)",
-                    cachedItem->GetVersionedRow(),
-                    revision);
-                CacheInserter_.GetTable()->Insert(cachedItem);
-
-                auto flushIndex = RowCache_->GetFlushIndex();
-
-                // Row revision is equal to flushRevision if the last passive dynamic store has started flushing.
-                if (revision >= flushIndex) {
-                    cachedItem->Revision.compare_exchange_strong(revision, std::numeric_limits<ui32>::max());
+                if (newItem->GetVersionedRow().GetWriteTimestampCount() > 0) {
+                    MaxInsertedTimestamp_ = std::max(MaxInsertedTimestamp_, newItem->GetVersionedRow().BeginWriteTimestamps()[0]);
                 }
 
+                YT_LOG_TRACE("Populating cache (Row: %v, Revision: %v)",
+                    newItem->GetVersionedRow(),
+                    StoreFlushIndex_);
+
                 ++CacheInserts_;
+
+                auto insertTable = CacheInserter_.GetTable();
+                if (auto insertedRef = insertTable->Insert(newItem)) {
+                    auto flushIndex = RowCache_->GetFlushIndex();
+
+                    // Row revision is equal to flushRevision if the last passive dynamic store has started flushing.
+                    if (flushIndex <= StoreFlushIndex_) {
+                        insertedRef.SealItem();
+                        ++SuccessfulInserts_;
+                    } else {
+                        FailedFlushIndex_ = flushIndex;
+                        ++FailedSealAttemptsByRevision_;
+                    }
+                } else {
+                    ++FailedInserts_;
+                }
             }
         }
 
@@ -604,9 +652,8 @@ private:
     TSimpleRowMerger SimpleRowMerger_;
 
     // Holds references to lookup tables.
-    TConcurrentCache<TCachedRow>::TLookuper CacheLookuper_;
     TConcurrentCache<TCachedRow>::TInserter CacheInserter_;
-    std::vector<TConcurrentCache<TCachedRow>::TCachedItemRef> RowsFromCache_;
+    std::vector<TCachedRowPtr> RowsFromCache_;
     std::vector<TVersionedRow> RowsFromActiveStore_;
 
     // Assume that rows are finished and written in order.
@@ -617,6 +664,18 @@ private:
     int CacheMisses_ = 0;
     int CacheOutdated_ = 0;
     int CacheInserts_ = 0;
+
+    int FailedUpdates_ = 0;
+    int FailedReinserts_ = 0;
+    int SuccessfulReinserts_ = 0;
+
+    int FailedInserts_ = 0;
+    int SuccessfulInserts_ = 0;
+    int FailedSealAttemptsByRevision_ = 0;
+    int NotSealedRows_ = 0;
+    ui32 FailedFlushIndex_ = 0;
+
+    TTimestamp MaxInsertedTimestamp_ = 0;
 
     static TTimestamp GetCompactionTimestamp(
         const TTableMountConfigPtr& mountConfig,
@@ -1524,7 +1583,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
     , ColumnFilter_(std::move(columnFilter))
     , LookupKeys_(std::move(lookupKeys))
     , ChunkLookupKeys_(TPipeline::Initialize(LookupKeys_))
-    , Logger(LookupSession_->Logger)
+    , Logger(LookupSession_->Logger.WithTag("TabletId: %v", TabletSnapshot_->TabletId))
 { }
 
 template <class TPipeline>
@@ -1552,6 +1611,8 @@ TFuture<TSharedRef> TTabletLookupSession<TPipeline>::Run()
             chunkEdenStores.push_back(std::move(store));
         }
     }
+
+    YT_LOG_DEBUG("Creating store sessions (ActiveStoreIndex: %v)", ActiveStoreIndex_);
 
     DynamicEdenSessions_ = CreateStoreSessions(
         dynamicEdenStores,
@@ -1615,9 +1676,16 @@ TStoreSessionList TTabletLookupSession<TPipeline>::CreateStoreSessions(
     sessions.reserve(stores.size());
 
     for (const auto& store : stores) {
-        YT_LOG_DEBUG("Creating reader (Store: %v, KeyCount: %v)",
+        ui32 storeFlushIndex = 0;
+
+        if (store->IsSorted() && store->IsDynamic()) {
+            storeFlushIndex = store->AsSortedDynamic()->GetFlushIndex();
+        }
+
+        YT_LOG_DEBUG("Creating reader (Store: %v, KeyCount: %v, StoreFlushIndex: %v)",
             store->GetId(),
-            keys.Size());
+            keys.Size(),
+            storeFlushIndex);
 
         RequestedUnmergedRowCount_ += keys.Size();
 

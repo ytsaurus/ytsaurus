@@ -107,7 +107,7 @@ int main(int argc, char** argv)
                     if (!foundRef) {
                         auto value = NewWithExtraSpace<TElement>(&allocator, keyColumnCount);
                         memcpy(value.Get(), key, sizeof(TElement) + keyColumnCount);
-                        bool inserted = inserter.GetTable()->Insert(std::move(value));
+                        auto inserted = static_cast<bool>(inserter.GetTable()->Insert(std::move(value)));
 
                         insertCount += inserted;
 

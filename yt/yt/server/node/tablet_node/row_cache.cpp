@@ -97,10 +97,10 @@ void TRowCache::SetFlushIndex(ui32 storeFlushIndex)
     // Check that stores are flushed in proper order.
     // Revisions are equal if retrying flush.
     YT_VERIFY(currentFlushIndex <= storeFlushIndex);
-    FlushIndex_.store(storeFlushIndex, std::memory_order::release);
+    FlushIndex_.store(storeFlushIndex);
 }
 
-void TRowCache::UpdateItems(
+TUpdateCacheStatistics TRowCache::UpdateItems(
     TRange<NTableClient::TVersionedRow> rows,
     NTableClient::TTimestamp retainedTimestamp,
     NTableClient::IVersionedRowMerger* compactionRowMerger,
@@ -110,37 +110,22 @@ void TRowCache::UpdateItems(
     auto lookuper = Cache_.GetLookuper();
     auto secondaryLookuper = Cache_.GetSecondaryLookuper();
 
+    TUpdateCacheStatistics statistics;
+
+    auto currentTime = GetInstant();
+
     for (auto row : rows) {
         auto foundItemRef = lookuper(row);
 
         if (auto foundItem = foundItemRef.Get()) {
             foundItem = GetLatestRow(std::move(foundItem));
 
+            ++statistics.FoundRows;
             YT_VERIFY(foundItem->GetVersionedRow().GetKeyCount() > 0);
 
-            // Row is inserted in lookup thread in two steps.
-            // Initially it is inserted with last known flush revision of passive dynamic stores.
-            //
-            // Cached row revision is updated to maximum value after insertion
-            // if RowCache->FlushIndex is still not greater than cached row initial revision.
-            // Otherwise the second step of insertion is failed and inserted row becomes outdated.
-            // Its revision is also checked when reading it in lookup thread.
-            //
-            // If updating revision to maximum value takes too long time it can be canceled by
-            // the following logic.
+            bool sealed = foundItemRef.IsSealed();
 
-            // Normally this condition is rare.
-            if (foundItem->Revision.load(std::memory_order::acquire) < storeFlushIndex) {
-                // No way to update row and preserve revision.
-                // Discard its revision.
-                // In lookup use CAS to update revision to Max.
-
-                YT_LOG_TRACE("Discarding row (Row: %v, Revision: %v, StoreFlushIndex: %v)",
-                    foundItem->GetVersionedRow(),
-                    foundItem->Revision.load(),
-                    storeFlushIndex);
-
-                foundItem->Revision.store(std::numeric_limits<ui32>::min(), std::memory_order::release);
+            if (foundItem->Outdated) {
                 continue;
             }
 
@@ -159,28 +144,36 @@ void TRowCache::UpdateItems(
             if (!updatedItem) {
                 // Not enough memory to allocate new item.
                 // Make current item outdated.
-                foundItem->Revision.store(std::numeric_limits<ui32>::min(), std::memory_order::release);
+                foundItem->Outdated.store(true);
+                ++statistics.FailedByMemoryRows;
                 continue;
             }
 
-            YT_LOG_TRACE("Updating cache (Row: %v, Revision: %v, StoreFlushIndex: %v)",
-                updatedItem->GetVersionedRow(),
-                foundItem->Revision.load(),
-                storeFlushIndex);
+            updatedItem->UpdatedInFlush = foundItem->UpdatedInFlush + 1;
+            updatedItem->InsertTime = foundItem->InsertTime;
+            updatedItem->UpdateTime = currentTime;
 
-            updatedItem->Revision.store(std::numeric_limits<ui32>::max(), std::memory_order::release);
+            YT_LOG_TRACE("Updating cache (Row: %v, Outdated: %v, StoreFlushIndex: %v)",
+                updatedItem->GetVersionedRow(),
+                foundItem->Outdated.load(),
+                storeFlushIndex);
 
             YT_VERIFY(!foundItem->Updated.Exchange(updatedItem));
 
-            foundItemRef.Update(updatedItem);
+            // Otherwise will be updated after seal.
+            if (sealed) {
+                foundItemRef.Replace(updatedItem, true);
 
-            if (secondaryLookuper.GetPrimary() && secondaryLookuper.GetPrimary() != foundItemRef.Origin) {
-                if (auto foundItemRef = secondaryLookuper(row)) {
-                    foundItemRef.Update(updatedItem);
+                if (secondaryLookuper.GetPrimary() && secondaryLookuper.GetPrimary() != foundItemRef.Origin) {
+                    if (auto foundItemRef = secondaryLookuper(row)) {
+                        foundItemRef.Replace(updatedItem);
+                    }
                 }
             }
         }
     }
+
+    return statistics;
 }
 
 void TRowCache::ReallocateItems(const NLogging::TLogger& Logger)
@@ -201,12 +194,12 @@ void TRowCache::ReallocateItems(const NLogging::TLogger& Logger)
             if (TSlabAllocator::IsReallocationNeeded(memoryBegin)) {
                 ++reallocatedRows;
                 if (auto newItem = CopyCachedRow(&Allocator_, item.Get())) {
-                    newItem->Revision.store(item->Revision.load(std::memory_order::acquire), std::memory_order::release);
                     YT_VERIFY(!item->Updated.Exchange(newItem));
-                    itemRef.Update(newItem);
+                    ++newItem->Reallocated;
+                    itemRef.Replace(newItem, itemRef.IsSealed());
                 }
             } else {
-                itemRef.Update(std::move(item), head.Get());
+                itemRef.Replace(std::move(item), head.Get(), itemRef.IsSealed());
             }
         };
 
