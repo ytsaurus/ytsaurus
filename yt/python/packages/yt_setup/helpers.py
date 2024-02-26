@@ -42,7 +42,7 @@ def get_version_branch(version):
     branch = "stable"
     if os.path.exists("stable_versions"):
         with open("stable_versions") as fin:
-            stable_versions = fin.readlines()
+            stable_versions = fin.read().splitlines()
 
         if version in stable_versions:
             branch = "stable"
