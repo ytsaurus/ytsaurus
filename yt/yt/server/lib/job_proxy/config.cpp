@@ -228,6 +228,8 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Preprocessor([] (TThis* config) {
         config->SolomonExporter->EnableSelfProfiling = false;
         config->SolomonExporter->WindowSize = 1;
+
+        config->Stockpile->ThreadCount = 0;
     });
 }
 
