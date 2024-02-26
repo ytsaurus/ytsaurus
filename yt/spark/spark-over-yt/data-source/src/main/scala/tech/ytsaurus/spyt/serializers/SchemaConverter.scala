@@ -20,6 +20,7 @@ object SchemaConverter {
     val KEY_ID = "key_id"
     val TAG = "tag"
     val OPTIONAL = "optional"
+    val ARROW_SUPPORTED = "arrow_supported"
   }
 
   sealed trait SortOption {
@@ -59,8 +60,9 @@ object SchemaConverter {
       val metadata = new MetadataBuilder()
       metadata.putString(MetadataFields.ORIGINAL_NAME, originalName)
       metadata.putLong(MetadataFields.KEY_ID, if (fieldMap.containsKey("sort_order")) index else -1)
-
-      structField(fieldName, getAvailableType(fieldMap, parsingTypeV3), schemaHint, metadata.build())
+      val ytType = getAvailableType(fieldMap, parsingTypeV3)
+      metadata.putBoolean(MetadataFields.ARROW_SUPPORTED, ytType.arrowSupported)
+      structField(fieldName, ytType, schemaHint, metadata.build())
     })
   }
 

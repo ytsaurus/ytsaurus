@@ -3,10 +3,9 @@ package org.apache.spark.sql.v2
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types._
 import tech.ytsaurus.spyt.format.conf.{SparkYtConfiguration, YtTableSparkSettings}
+import tech.ytsaurus.spyt.serializers.SchemaConverter.MetadataFields
 
 object YtReaderOptions {
-  private val unsupportedTypes: Set[DataType] = Set(DateType, TimestampType, FloatType)
-
   def optimizedForScan(options: Map[String, String]): Boolean = {
     import tech.ytsaurus.spyt.fs.conf._
     options.getYtConf(YtTableSparkSettings.OptimizedForScan).exists(identity)
@@ -37,6 +36,6 @@ object YtReaderOptions {
   }
 
   private def arrowSchemaSupported(dataSchema: StructType): Boolean = {
-    dataSchema.fields.forall(f => !unsupportedTypes.contains(f.dataType))
+    dataSchema.fields.forall(_.metadata.getBoolean(MetadataFields.ARROW_SUPPORTED))
   }
 }

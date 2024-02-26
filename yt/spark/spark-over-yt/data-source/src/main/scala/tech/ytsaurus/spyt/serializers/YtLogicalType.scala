@@ -41,6 +41,8 @@ sealed trait YtLogicalType {
   def dataTypeHolder: DataTypeHolder = DataTypeHolder(sparkType, nullable)
 
   def alias: YtLogicalTypeAlias
+
+  def arrowSupported: Boolean = true
 }
 
 sealed trait YtLogicalTypeAlias {
@@ -53,7 +55,8 @@ sealed abstract class AtomicYtLogicalType(name: String,
                                           val columnValueType: ColumnValueType,
                                           val tiType: TiType,
                                           val sparkType: DataType,
-                                          otherAliases: Seq[String] = Seq.empty)
+                                          otherAliases: Seq[String] = Seq.empty,
+                                          override val arrowSupported: Boolean = true)
   extends YtLogicalType with YtLogicalTypeAlias {
 
   override def alias: YtLogicalTypeAlias = this
@@ -76,7 +79,7 @@ object YtLogicalType {
 
   case object Int64 extends AtomicYtLogicalType("int64", 0x03, ColumnValueType.INT64, TiType.int64(), LongType)
   case object Uint64 extends AtomicYtLogicalType("uint64", 0x04, ColumnValueType.UINT64, TiType.uint64(), UInt64Type)
-  case object Float extends AtomicYtLogicalType("float", 0x05, ColumnValueType.DOUBLE, TiType.floatType(), FloatType)
+  case object Float extends AtomicYtLogicalType("float", 0x05, ColumnValueType.DOUBLE, TiType.floatType(), FloatType, arrowSupported = false)
   case object Double extends AtomicYtLogicalType("double", 0x05, ColumnValueType.DOUBLE, TiType.doubleType(), DoubleType)
   case object Boolean extends AtomicYtLogicalType("boolean", 0x06, ColumnValueType.BOOLEAN, TiType.bool(), BooleanType, Seq("bool"))
 
@@ -103,10 +106,11 @@ object YtLogicalType {
 
   case object Utf8 extends AtomicYtLogicalType("utf8", 0x1007, ColumnValueType.STRING, TiType.utf8(), StringType)
 
-  case object Date extends AtomicYtLogicalType("date", 0x1008, ColumnValueType.UINT64, TiType.date(), DateType)
-  case object Datetime extends AtomicYtLogicalType("datetime", 0x1009, ColumnValueType.UINT64, TiType.datetime(), TimestampType)
-  case object Timestamp extends AtomicYtLogicalType("timestamp", 0x100a, ColumnValueType.UINT64, TiType.timestamp(), LongType)
-  case object Interval extends AtomicYtLogicalType("interval", 0x100b, ColumnValueType.INT64, TiType.interval(), LongType)
+  // Unsupported types are listed here: yt/yt/client/arrow/arrow_row_stream_encoder.cpp
+  case object Date extends AtomicYtLogicalType("date", 0x1008, ColumnValueType.UINT64, TiType.date(), DateType, arrowSupported = false)
+  case object Datetime extends AtomicYtLogicalType("datetime", 0x1009, ColumnValueType.UINT64, TiType.datetime(), TimestampType, arrowSupported = false)
+  case object Timestamp extends AtomicYtLogicalType("timestamp", 0x100a, ColumnValueType.UINT64, TiType.timestamp(), LongType, arrowSupported = false)
+  case object Interval extends AtomicYtLogicalType("interval", 0x100b, ColumnValueType.INT64, TiType.interval(), LongType, arrowSupported = false)
 
   case object Void extends AtomicYtLogicalType("void", 0x100c, ColumnValueType.NULL, TiType.voidType(), NullType) //?
 
@@ -134,6 +138,8 @@ object YtLogicalType {
     override def getName(isColumnType: Boolean): String = inner.getName(isColumnType)
 
     override def alias: CompositeYtLogicalTypeAlias = Optional
+
+    override def arrowSupported: Boolean = inner.arrowSupported
   }
 
   case object Optional extends CompositeYtLogicalTypeAlias(TypeName.Optional.getWireName)

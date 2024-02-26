@@ -8,11 +8,13 @@ trait SchemaTestUtils {
                   originalName: Option[String] = None,
                   keyId: Long = -1,
                   metadata: MetadataBuilder = new MetadataBuilder,
-                  nullable: Boolean = true): StructField = {
+                  nullable: Boolean = true,
+                  arrowSupported: Boolean = true): StructField = {
     StructField(name, dataType, nullable = nullable,
       metadata
         .putString(MetadataFields.ORIGINAL_NAME, originalName.getOrElse(name))
         .putLong(MetadataFields.KEY_ID, keyId)
+        .putBoolean(MetadataFields.ARROW_SUPPORTED, arrowSupported)
         .build())
   }
 }

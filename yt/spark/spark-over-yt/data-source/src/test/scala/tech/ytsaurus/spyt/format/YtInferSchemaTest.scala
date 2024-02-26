@@ -203,6 +203,7 @@ class YtInferSchemaTest extends FlatSpec with Matchers with LocalSpark
       new MetadataBuilder()
         .putLong(MetadataFields.KEY_ID, keyId)
         .putString(MetadataFields.ORIGINAL_NAME, name)
+        .putBoolean(MetadataFields.ARROW_SUPPORTED, true)
         .build()
     }
 

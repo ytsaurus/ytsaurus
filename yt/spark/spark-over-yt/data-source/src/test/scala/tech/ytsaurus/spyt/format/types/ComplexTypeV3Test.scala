@@ -222,6 +222,13 @@ class ComplexTypeV3Test extends AnyFlatSpec with Matchers with LocalSpark with T
     res.collect() should contain theSameElementsAs data.map(x => Row(Row(x: _*)))
   }
 
+  private def getMetadataBuilder(name: String, keyId: Int = -1): MetadataBuilder = {
+    new MetadataBuilder()
+      .putString(MetadataFields.ORIGINAL_NAME, name)
+      .putLong(MetadataFields.KEY_ID, keyId)
+      .putBoolean(MetadataFields.ARROW_SUPPORTED, true)
+  }
+
   it should "read tagged from yt" in {
     writeTableFromYson(
       Seq("{ tagged = 1 }", "{ tagged = 2 }"), tmpPath,
@@ -238,9 +245,7 @@ class ComplexTypeV3Test extends AnyFlatSpec with Matchers with LocalSpark with T
     val res = spark.read.option(YtUtils.Options.PARSING_TYPE_V3, value = true).yt(tmpPath)
     res.schema shouldBe StructType(Seq(
       StructField("tagged", LongType, nullable = false,
-        new MetadataBuilder()
-          .putString(MetadataFields.TAG, "main").putString(MetadataFields.ORIGINAL_NAME, "tagged")
-          .putLong(MetadataFields.KEY_ID, -1).build())
+        getMetadataBuilder("tagged").putString(MetadataFields.TAG, "main").build())
     ))
     res.collect() should contain theSameElementsAs Seq(Row(1L), Row(2L))
   }
@@ -379,9 +384,7 @@ class ComplexTypeV3Test extends AnyFlatSpec with Matchers with LocalSpark with T
     val res = spark.read.option(YtUtils.Options.PARSING_TYPE_V3, value = true).yt(tmpPath)
     res.schema shouldBe StructType(Seq(
       StructField("tagged", LongType, nullable = false,
-        new MetadataBuilder()
-          .putString(MetadataFields.TAG, "main").putString(MetadataFields.ORIGINAL_NAME, "tagged")
-          .putLong(MetadataFields.KEY_ID, -1).build())
+        getMetadataBuilder("tagged").putString(MetadataFields.TAG, "main").build())
     ))
     res.collect() should contain theSameElementsAs Seq(Row(1L), Row(2L))
   }
@@ -462,7 +465,7 @@ class ComplexTypeV3Test extends AnyFlatSpec with Matchers with LocalSpark with T
         StructField("_vs", StringType, nullable = true,
           metadata = new MetadataBuilder().putBoolean("optional", false).build())
       )), nullable = false,
-        metadata = new MetadataBuilder().putLong("key_id", -1).putString("original_name", "a").build())
+        metadata = getMetadataBuilder("a").build())
     ))
   }
 
@@ -510,7 +513,7 @@ class ComplexTypeV3Test extends AnyFlatSpec with Matchers with LocalSpark with T
               valueContainsNull = true), nullable = true),
             StructField("_2", StringType, nullable = true))),
           nullable = true,
-          metadata = new MetadataBuilder().putString("original_name", "a").putLong("key_id", -1).build())))
+          metadata = getMetadataBuilder("a").build())))
     }
   }
 }

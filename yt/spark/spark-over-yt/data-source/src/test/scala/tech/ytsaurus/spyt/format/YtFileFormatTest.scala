@@ -123,28 +123,44 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     )
   }
 
-  it should "read date, datetime, timestamp, interval datatypes" in {
+  it should "read date, datetime datatypes" in {
     writeTableFromYson(Seq(
-      """{date = 1; datetime = 1; timestamp = 1; interval = 1}""",
-      """{date = 9999; datetime = 1611733954; timestamp = 4; interval = 5}"""
+      """{date = 1; datetime = 1;}""",
+      """{date = 9999; datetime = 1611733954}"""
     ), tmpPath, TableSchema.builder()
       .setUniqueKeys(false)
       .addValue("date", TiType.date())
       .addValue("datetime", TiType.datetime())
+      .build()
+    )
+
+    val cols = Seq("date", "datetime").map(col)
+    val res = spark.read.yt(tmpPath)
+    res.collect() should contain theSameElementsAs Seq(
+      Row(Date.valueOf(LocalDate.ofEpochDay(1)), new Timestamp(1000)),
+      Row(Date.valueOf(LocalDate.ofEpochDay(9999)), new Timestamp(1611733954000L))
+    )
+    res.select(cols.map(_.cast(StringType)): _*).collect() should contain theSameElementsAs Seq(
+      Row("1970-01-02", "1970-01-01 03:00:01"),
+      Row("1997-05-18", "2021-01-27 10:52:34")
+    )
+  }
+
+  it should "read timestamp, interval datatypes" in {
+    writeTableFromYson(Seq(
+      """{timestamp = 1; interval = 1}""",
+      """{timestamp = 4; interval = 5}"""
+    ), tmpPath, TableSchema.builder()
+      .setUniqueKeys(false)
       .addValue("timestamp", TiType.timestamp())
       .addValue("interval", TiType.interval())
       .build()
     )
 
-    val cols = Seq("date", "datetime", "timestamp", "interval").map(col)
     val res = spark.read.yt(tmpPath)
-    res.select(cols: _*).collect() should contain theSameElementsAs Seq(
-      Row(Date.valueOf(LocalDate.ofEpochDay(1)), new Timestamp(1000), 1, 1),
-      Row(Date.valueOf(LocalDate.ofEpochDay(9999)), new Timestamp(1611733954000L), 4, 5)
-    )
-    res.select(cols.map(_.cast(StringType)): _*).collect() should contain theSameElementsAs Seq(
-      Row("1970-01-02", "1970-01-01 03:00:01", "1", "1"),
-      Row("1997-05-18", "2021-01-27 10:52:34", "4", "5")
+    res.collect() should contain theSameElementsAs Seq(
+      Row(1, 1),
+      Row(4, 5)
     )
   }
 
