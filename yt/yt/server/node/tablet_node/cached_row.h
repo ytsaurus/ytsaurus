@@ -15,8 +15,13 @@ struct TCachedRow final
 {
     ui64 Hash;
 
-    // Row contains all versions of data from passive dynamic stores with flush index not greater than revision.
-    std::atomic<ui32> Revision = 0;
+    int UpdatedInFlush = 0;
+    int Reallocated = 0;
+
+    TInstant InsertTime;
+    TInstant UpdateTime;
+
+    std::atomic<bool> Outdated = false;
 
     // Updated row constructed from current.
     // Supports case when row concurrently reinserted in lookup thread and updated in flush.
@@ -186,6 +191,12 @@ TCachedRowPtr CopyCachedRow(TAlloc* allocator, const TCachedRow* source)
 
     cachedRow->Hash = source->Hash;
     cachedRow->RetainedTimestamp = source->RetainedTimestamp;
+
+    cachedRow->UpdatedInFlush = source->UpdatedInFlush;
+    cachedRow->Reallocated = source->Reallocated;
+    cachedRow->InsertTime = source->InsertTime;
+    cachedRow->UpdateTime = source->UpdateTime;
+    cachedRow->Outdated.store(source->Outdated.load(std::memory_order_acquire), std::memory_order_release);
 
     return cachedRow;
 }

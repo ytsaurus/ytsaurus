@@ -13,6 +13,13 @@ namespace NYT::NTabletNode {
 
 DECLARE_REFCOUNTED_CLASS(TRowCacheMemoryTracker)
 
+struct TUpdateCacheStatistics
+{
+    int FoundRows = 0;
+    int DiscardedRows = 0;
+    int FailedByMemoryRows = 0;
+};
+
 class TRowCache
     : public TRefCounted
 {
@@ -29,7 +36,7 @@ public:
     ui32 GetFlushIndex() const;
     void SetFlushIndex(ui32 storeFlushIndex);
 
-    void UpdateItems(
+    TUpdateCacheStatistics UpdateItems(
         TRange<NTableClient::TVersionedRow> rows,
         NTableClient::TTimestamp retainedTimestamp,
         NTableClient::IVersionedRowMerger* compactionRowMerger,
