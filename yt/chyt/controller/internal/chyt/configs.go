@@ -366,32 +366,41 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 					"rotation_policy": logRotationPolicy,
 				},
 			},
-			"suppressed_messages": [2]string{
+			"suppressed_messages": []string{
 				"Reinstall peer",
 				"Pass started",
 			},
-			"rules": [3](map[string]any){
+			"rules": [](map[string]any){
 				{
 					"min_level": "trace",
-					"writers": [1]string{
+					"writers": []string{
 						"debug",
 					},
-					"exclude_categories": [2]string{
+					"exclude_categories": []string{
 						"Concurrency",
 						"Bus",
+						"ReaderMemoryManager",
+						"RpcClient",
+						"ChunkClient",
 					},
 				},
 				{
 					"min_level": "info",
-					"writers": [1]string{
+					"writers": []string{
 						"info",
+					},
+					"exclude_categories": []string{
+						"ChunkClient",
 					},
 				},
 				{
 					"min_level": "error",
-					"writers": [2]string{
+					"writers": []string{
 						"stderr",
 						"error",
+					},
+					"exclude_categories": []string{
+						"ChunkClient",
 					},
 				},
 			},
