@@ -1,0 +1,39 @@
+[
+    {
+        "description": "$ref must be resolved against the current base",
+        "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$ref": "#/$defs/foo/$defs/b",
+            "$defs": {
+                "foo":{
+                    "$id": "http://localhost:1234/draft2020-12/ref/foo",
+                    "$defs": {
+                        "a": {
+                            "type": "string"
+                        },
+                        "b": {
+                            "$defs": {
+                                "a": {
+                                    "type": "number"
+                                }
+                            },
+                            "$ref": "#/$defs/a"
+                        }
+                    }
+                }
+            }
+        },
+        "tests": [
+            {
+                "description": "$ref resolving against current base",
+                "data": "foo",
+                "valid": true
+            },
+            {
+                "description": "$ref resolving against current schema",
+                "data": 1,
+                "valid": false
+            }
+        ]
+    }
+]

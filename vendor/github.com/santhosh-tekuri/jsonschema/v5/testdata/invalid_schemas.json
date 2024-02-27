@@ -1,0 +1,312 @@
+[
+  {
+    "description": "must be object",
+    "schema": 1
+  },
+  {
+    "description": "format must be string",
+    "schema": {
+      "format": 1
+    }
+  },
+  {
+    "description": "pattern must be string",
+    "schema": {
+      "pattern": 1
+    }
+  },
+  {
+    "description": "pattern must be regex",
+    "schema": {
+      "pattern": "("
+    }
+  },
+  {
+    "description": "$ref must be string",
+    "schema": {
+      "$ref": 1
+    }
+  },
+  {
+    "description": "patternProperties keys must be regex",
+    "schema": {
+      "patternProperties": {
+        "(": {}
+      }
+    }
+  },
+  {
+    "description": "patternProperties keys must be regex",
+    "schema": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "patternProperties": {
+        "(": {}
+      }
+    }
+  },
+  {
+    "description": "invalid $ref json-pointer",
+    "schema": {
+      "$ref": "#/definition/employee%1"
+    }
+  },
+  {
+    "description": "invalid $ref url",
+    "schema": {
+      "$ref": "http:/localhost/test.json"
+    }
+  },
+  {
+    "description": "invalid $ref ptr-1",
+    "schema": {
+      "$ref": "#/definition/employee"
+    }
+  },
+  {
+    "description": "invalid $ref ptr-2",
+    "schema": {
+      "$ref": "#/abcd/employee",
+      "abcd": true
+    }
+  },
+  {
+    "description": "$ref to invalid schema",
+    "schema": {
+      "$ref": "#/definition/employee",
+      "definitions": {
+        "employee": {
+          "type": 1
+        }
+      }
+    }
+  },
+  {
+    "description": "draft3 is not supported",
+    "schema": {
+      "$schema": "http://json-schema.org/draft-03/schema#"
+    }
+  },
+  {
+    "description": "does not validate with latest draft",
+    "schema": {
+      "$schema": "http://json-schema.org/schema#",
+      "contains": 1
+    }
+  },
+  {
+    "description": "$ref schema with syntax error",
+    "schema": {
+      "$ref": "testdata/syntax_error.json#"
+    }
+  },
+  {
+    "description": "multipleOf must be greater than zero",
+    "schema": {
+      "multipleOf": 0
+    }
+  },
+  {
+    "description": "not compile fail",
+    "schema": {
+      "not": {
+        "$ref": "#/unknown"
+      }
+    }
+  },
+  {
+    "description": "allOf compile fail",
+    "schema": {
+      "allOf": [
+        {
+          "$ref": "#/unknown"
+        }
+      ]
+    }
+  },
+  {
+    "description": "anyOf compile fail",
+    "schema": {
+      "anyOf": [
+        {
+          "$ref": "#/unknown"
+        }
+      ]
+    }
+  },
+  {
+    "description": "oneOf compile fail",
+    "schema": {
+      "oneOf": [
+        {
+          "$ref": "#/unknown"
+        }
+      ]
+    }
+  },
+  {
+    "description": "properties compile fail",
+    "schema": {
+      "properties": {
+        "p1": {
+          "$ref": "#/unknown"
+        }
+      }
+    }
+  },
+  {
+    "description": "patternProperties compile fail",
+    "schema": {
+      "patternProperties": {
+        "p1": {
+          "$ref": "#/unknown"
+        }
+      }
+    }
+  },
+  {
+    "description": "additionalProperties compile fail",
+    "schema": {
+      "additionalProperties": {
+        "$ref": "#/unknown"
+      }
+    }
+  },
+  {
+    "description": "items compile fail",
+    "schema": {
+      "items": {
+        "$ref": "#/unknown"
+      }
+    }
+  },
+  {
+    "description": "item compile fail",
+    "schema": {
+      "items": [
+        {
+          "$ref": "#/unknown"
+        }
+      ]
+    }
+  },
+  {
+    "description": "additionalItems compile fail",
+    "schema": {
+      "items": [{}],
+      "additionalItems": {
+        "$ref": "#/unknown"
+      }
+    }
+  },
+  {
+    "description": "dependencies compile fail",
+    "schema": {
+      "dependencies": {
+        "p1": {
+          "$ref": "#/unknown"
+        }
+      }
+    }
+  },
+  {
+    "description": "contains compile fail",
+    "schema": {
+      "contains": {
+        "$ref": "#/unknown"
+      }
+    }
+  },
+  {
+    "description": "propertyNames compile fail",
+    "schema": {
+      "propertyNames": {
+        "$ref": "#/unknown"
+      }
+    }
+  },
+  {
+    "description": "a:jsonpointer urlescape",
+    "schema": {
+      "propertyNames": {
+        "$ref": "#/unknown%"
+      }
+    }
+  },
+  {
+    "description": "b:jsonpointer urlescape",
+    "schema": {},
+    "fragment": "#/unknown%"
+  },
+  {
+    "description": "jsonpointer array index",
+    "schema": {
+      "refs": [{}],
+      "propertyNames": {
+        "$ref": "#/refs/unknown"
+      }
+    }
+  },
+  {
+    "description": "jsonpointer array index outofrange",
+    "schema": {
+      "refs": [{}],
+      "propertyNames": {
+        "$ref": "#/refs/5"
+      }
+    }
+  },
+  {
+    "description": "schemaRef with wrong jsonpointer",
+    "schema": [{}],
+    "fragment": "#/1"
+  },
+  {
+    "description": "schemaRef",
+    "schema": [1],
+    "fragment": "#/0"
+  },
+  {
+    "description": "schemaRef wrong jsonpointer",
+    "schema": [{"$ref": "#/5"}],
+    "fragment": "#/0"
+  },
+  {
+    "description": "unrecognized vocab",
+    "schema": {
+      "$vocabulary": {
+        "https://github.com/santhosh-tekuri": true
+      }
+    }
+  },
+  {
+    "description": "$schema must be absolute uri",
+    "schema": {
+        "$schema": "meta.json"
+    }
+  },
+  {
+      "description": "$schema must be string",
+      "schema": {
+          "$schema": 1
+      }
+  },
+  {
+      "description": "$ref  with non existing anchor",
+      "schema": {
+          "$ref": "#abcd"
+      }
+  },
+  {
+      "description": "repeating canonical url",
+      "schema": {
+          "$defs": {
+              "one": {
+                  "$id": "http://localhost/test.json"
+              },
+              "two": {
+                  "$id": "http://localhost/test.json"
+              }
+          }
+      }
+  }
+]

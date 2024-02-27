@@ -1,0 +1,54 @@
+{
+    "$ref": "#/$defs/ref",
+    "$defs": {
+        "ref": {
+            "$ref": "#/$defs/not"
+        },
+        "not": {
+            "not": {
+                "$ref": "#/$defs/allOf"
+            }
+        },
+        "allOf": {
+            "allOf": [{
+                "$ref": "#/$defs/anyOf"
+            }]
+        },
+        "anyOf": {
+            "anyOf": [{
+                "$ref": "#/$defs/oneOf"
+            }]
+        },
+        "oneOf": {
+            "oneOf": [{
+                "$ref": "#/$defs/dependencies"
+            }]
+        },
+        "dependencies": {
+            "dependencies": {
+                "prop": {
+                    "$ref": "#/$defs/dependentSchemas"
+                }
+            }
+        },
+        "dependentSchemas": {
+            "dependentSchemas": {
+                "prop": {
+                    "$ref": "#/$defs/then"
+                }
+            }
+        },
+        "then": {
+            "if": true,
+            "then": {
+                "$ref": "#/$defs/else"
+            }
+        },
+        "else": {
+            "if": true,
+            "else": {
+                "$ref": "#"
+            }
+        }
+    }
+}

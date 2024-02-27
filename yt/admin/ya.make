@@ -1,5 +1,6 @@
        
 RECURSE(
+    cms
     dashboard_generator
     dashboards
 )
@@ -11,7 +12,6 @@ IF (NOT OPENSOURCE)
         acl_dumper
         ytcfgen
         ytdyncfgen
-        cms
         drive_monitor
         luigi
         infra_noc

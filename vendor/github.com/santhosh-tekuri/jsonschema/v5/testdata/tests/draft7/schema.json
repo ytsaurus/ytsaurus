@@ -1,0 +1,30 @@
+[
+  {
+    "description": "http trailing hash",
+    "schema": {
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "tests": []
+  },
+  {
+    "description": "http no trailing hash",
+    "schema": {
+      "$schema": "http://json-schema.org/draft-07/schema"
+    },
+    "tests": []
+  },
+  {
+    "description": "https trailing hash",
+    "schema": {
+      "$schema": "https://json-schema.org/draft-07/schema#"
+    },
+    "tests": []
+  },
+  {
+    "description": "https no trailing hash",
+    "schema": {
+      "$schema": "https://json-schema.org/draft-07/schema"
+    },
+    "tests": []
+  }
+]

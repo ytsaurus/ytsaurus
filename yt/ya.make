@@ -1,4 +1,5 @@
 RECURSE(
+    admin
     yt
     chyt
     yql

@@ -1,0 +1,35 @@
+[
+    {
+        "description": "metaschema without $vocabulary should consider validation vocab",
+        "schema": {
+            "$schema": "http://localhost:1235/metaschema-no-vocabulary.json",
+            "minimum": 10
+        },
+        "tests": [
+            {
+                "description": "minimum must be checked",
+                "data": 5,
+                "valid": false
+            }
+        ]
+    },
+    {
+        "description": "format-assertion vocab must assert format",
+        "schema": {
+            "$schema": "http://localhost:1234/draft2020-12/format-assertion-true.json",
+            "format": "ipv4"
+        },
+        "tests": [
+            {
+                "description": "ipv4 should be valid",
+                "data": "1.1.1.1",
+                "valid": true
+            },
+            {
+                "description": "non-ipv4 should be invalid",
+                "data": "ABCDEFGH",
+                "valid": false
+            }
+        ]
+    }
+]

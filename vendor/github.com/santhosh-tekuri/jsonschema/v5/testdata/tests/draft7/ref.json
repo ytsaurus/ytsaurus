@@ -1,0 +1,54 @@
+[
+  {
+    "description": "absolute ref to $id with fragment",
+    "schema": {
+      "$id": "http://example.com/schema-relative-uri-defs1.json",
+      "properties": {
+        "foo": {
+          "$id": "schema-relative-uri-defs2.json",
+          "definitions": {
+            "inner": {
+              "properties": {
+                "bar": { "type": "string" }
+              }
+            }
+          },
+          "allOf": [ { "$ref": "http://example.com/schema-relative-uri-defs2.json#/definitions/inner" } ]
+        }
+      },
+      "allOf": [ { "$ref": "schema-relative-uri-defs2.json" } ]
+    },
+    "tests": [
+      {
+        "description": "invalid on inner field",
+        "data": {
+          "foo": {
+            "bar": 1
+          },
+          "bar": "a"
+        },
+        "valid": false
+      },
+      {
+        "description": "invalid on outer field",
+        "data": {
+          "foo": {
+            "bar": "a"
+          },
+          "bar": 1
+        },
+        "valid": false
+      },
+      {
+        "description": "valid on both fields",
+        "data": {
+          "foo": {
+            "bar": "a"
+          },
+          "bar": "a"
+        },
+        "valid": true
+      }
+    ]
+  }
+]

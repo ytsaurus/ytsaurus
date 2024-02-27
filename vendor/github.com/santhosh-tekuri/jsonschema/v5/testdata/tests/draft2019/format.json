@@ -1,0 +1,16 @@
+[
+    {
+        "description": "format must not be asserted",
+        "schema": {
+            "type": "string",
+            "format": "time"
+        },
+        "tests": [
+            {
+                "description": "invalid time",
+                "data": "abcdef",
+                "valid": true
+            }
+        ]
+    }
+]

@@ -1,0 +1,37 @@
+[
+    {
+        "description": "same $anchor with different base uri",
+        "schema": {
+            "$id": "http://localhost:1234/root",
+            "$defs": {
+                "A": {
+                    "$id": "child1",
+                    "allOf": [
+                        {
+                            "$id": "child2",
+                            "$anchor": "my_anchor",
+                            "type": "number"
+                        },
+                        {
+                            "$anchor": "my_anchor",
+                            "type": "string"
+                        }
+                    ]
+                }
+            },
+            "$ref": "child1#my_anchor"
+        },
+        "tests": [
+            {
+                "description": "$ref should resolve to /$defs/A/allOf/2",
+                "data": "a",
+                "valid": true
+            },
+            {
+                "description": "$ref should not resolve to /$defs/A/allOf/1",
+                "data": 1,
+                "valid": false
+            }
+        ]
+    }
+]

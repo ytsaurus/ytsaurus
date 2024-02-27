@@ -1,0 +1,16 @@
+[
+    {
+        "description": "format must be asserted",
+        "schema": {
+            "type": "string",
+            "format": "time"
+        },
+        "tests": [
+            {
+                "description": "valid time",
+                "data": "12:00:00Z",
+                "valid": true
+            }
+        ]
+    }
+]
