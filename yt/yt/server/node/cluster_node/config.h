@@ -358,8 +358,6 @@ public:
 
     bool EnableFairThrottler;
 
-    bool EnableLocalHostSanitizer;
-
     NConcurrency::TFairThrottlerConfigPtr InThrottler;
 
     NConcurrency::TFairThrottlerConfigPtr OutThrottler;

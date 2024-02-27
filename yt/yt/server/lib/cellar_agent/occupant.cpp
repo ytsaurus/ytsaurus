@@ -504,7 +504,7 @@ public:
                 .UseFork = false,
                 .EnableObserverPersistence = independent,
                 .ResponseKeeper = ResponseKeeper_,
-                .EnableLocalHostSanitizing = Config_->EnableLocalHostSanitizer,
+                .EnableLocalHostSanitizing = false,
             };
 
             IDistributedHydraManagerPtr hydraManager;
