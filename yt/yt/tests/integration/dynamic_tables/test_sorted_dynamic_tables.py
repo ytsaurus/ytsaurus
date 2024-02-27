@@ -346,6 +346,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         ]
 
         create_dynamic_table("//tmp/t", schema=schema)
+        set("//tmp/t/@enable_shared_write_locks", True)
         sync_mount_table("//tmp/t")
 
         tx = start_transaction(type="tablet")
