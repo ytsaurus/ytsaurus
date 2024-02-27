@@ -2473,30 +2473,28 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     if (RootVolume_ || DockerImage_) {
         proxyConfig->Binds = GetRootFsBinds();
 
-        if (CommonConfig_->UseArtifactBinds) {
-            for (const auto& artifact : Artifacts_) {
-                // Artifact is passed into the job via bind.
-                if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
-                    YT_VERIFY(artifact.Chunk);
+        for (const auto& artifact : Artifacts_) {
+            // Artifact is passed into the job via bind.
+            if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
+                YT_VERIFY(artifact.Chunk);
 
-                    YT_LOG_INFO(
-                        "Make bind for artifact (FileName: %v, Executable: "
-                        "%v, SandboxKind: %v, CompressedDataSize: %v)",
-                        artifact.Name,
-                        artifact.Executable,
-                        artifact.SandboxKind,
-                        artifact.Key.GetCompressedDataSize());
+                YT_LOG_INFO(
+                    "Make bind for artifact (FileName: %v, Executable: "
+                    "%v, SandboxKind: %v, CompressedDataSize: %v)",
+                    artifact.Name,
+                    artifact.Executable,
+                    artifact.SandboxKind,
+                    artifact.Key.GetCompressedDataSize());
 
-                    auto sandboxPath = NFS::CombinePaths("/slot", GetSandboxRelPath(artifact.SandboxKind));
-                    auto targetPath = NFS::CombinePaths(sandboxPath, artifact.Name);
+                auto sandboxPath = NFS::CombinePaths("/slot", GetSandboxRelPath(artifact.SandboxKind));
+                auto targetPath = NFS::CombinePaths(sandboxPath, artifact.Name);
 
-                    auto bind = New<TBindConfig>();
-                    bind->ExternalPath = artifact.Chunk->GetFileName();
-                    bind->InternalPath = targetPath;
-                    bind->ReadOnly = true;
+                auto bind = New<TBindConfig>();
+                bind->ExternalPath = artifact.Chunk->GetFileName();
+                bind->InternalPath = targetPath;
+                bind->ReadOnly = true;
 
-                    proxyConfig->Binds.push_back(std::move(bind));
-                }
+                proxyConfig->Binds.push_back(std::move(bind));
             }
         }
     }
@@ -2642,7 +2640,6 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
     options.DiskOverdraftCallback = BIND(&TJob::Fail, MakeWeak(this))
         .Via(Invoker_);
     options.HasRootFSQuota = false;
-    options.EnableArtifactBinds = CommonConfig_->UseArtifactBinds;
     options.EnableDiskQuota = Bootstrap_->GetConfig()->DataNode->VolumeManager->EnableDiskQuota;
     options.UserId = GetUserSlot()->GetUserId();
 

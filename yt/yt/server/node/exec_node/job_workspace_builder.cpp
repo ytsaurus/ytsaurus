@@ -407,7 +407,7 @@ private:
         ResultHolder_.TmpfsPaths = WaitFor(slot->PrepareSandboxDirectories(Context_.UserSandboxOptions))
             .ValueOrThrow();
 
-        if (Context_.UserSandboxOptions.EnableArtifactBinds && !Context_.LayerArtifactKeys.empty()) {
+        if (!Context_.LayerArtifactKeys.empty()) {
             PrepareArtifactBinds();
         } else {
             MakeArtifactSymlinks();
@@ -627,11 +627,7 @@ private:
         ResultHolder_.TmpfsPaths = WaitFor(slot->PrepareSandboxDirectories(Context_.UserSandboxOptions))
             .ValueOrThrow();
 
-        if (Context_.UserSandboxOptions.EnableArtifactBinds) {
-            PrepareArtifactBinds();
-        } else {
-            MakeArtifactSymlinks();
-        }
+        PrepareArtifactBinds();
 
         YT_LOG_INFO("Finished preparing sandbox directories");
 
