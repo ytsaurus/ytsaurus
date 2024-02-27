@@ -119,6 +119,8 @@ void TCellBase::Save(TSaveContext& context) const
     Save(context, LastLeaderChangeTime_);
     Save(context, Suspended_);
     Save(context, LeaseTransactionIds_);
+    Save(context, RegisteredInCypress_);
+    Save(context, PendingAclsUpdate_);
 }
 
 void TCellBase::Load(TLoadContext& context)
@@ -141,6 +143,12 @@ void TCellBase::Load(TLoadContext& context)
     // COMPAT(gritukan)
     if (context.GetVersion() >= EMasterReign::TabletPrerequisites) {
         Load(context, LeaseTransactionIds_);
+    }
+
+    // COMPAT(danilalexeev)
+    if (context.GetVersion() >= EMasterReign::TabletCellsHydraPersistenceMigration) {
+        Load(context, RegisteredInCypress_);
+        Load(context, PendingAclsUpdate_);
     }
 }
 

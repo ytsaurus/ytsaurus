@@ -187,10 +187,11 @@ class TestChaos(ChaosTestBase):
 
     @authors("savrus")
     def test_chaos_cell_update_acl(self):
-        cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
+        self._create_chaos_cell_bundle(name="chaos_bundle")
         create_user("u")
         set("//sys/chaos_cell_bundles/chaos_bundle/@options/snapshot_acl", [make_ace("allow", "u", "read")])
-        assert check_permission("u", "read", "//sys/chaos_cells/{0}/0/snapshots".format(cell_id))["action"] == "allow"
+        cell_id = self._sync_create_chaos_cell(name="chaos_bundle")
+        assert check_permission("u", "read", f"//sys/hydra_persistence/chaos_cells/{cell_id}/0/snapshots")["action"] == "allow"
 
     @authors("savrus")
     def test_replication_card(self):
@@ -2341,6 +2342,7 @@ class TestChaos(ChaosTestBase):
         assert all(row.attributes["write_timestamps"][0] == ts for row in versioned_rows)
 
     @authors("shakurov")
+    @pytest.mark.timeout(180)
     def test_chaos_cell_peer_snapshot_loss(self):
         cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
 
@@ -2383,7 +2385,7 @@ class TestChaos(ChaosTestBase):
         remove_maintenance("cluster_node", chaos_nodes[0], id=maintenance_id, driver=remote_driver1)
         wait(lambda: get("//sys/chaos_cells/{}/@local_health".format(cell_id), driver=remote_driver1) == "good")
         wait(lambda: get("//sys/chaos_cells/{}/@health".format(cell_id)) == "good")
-        assert len(ls("//sys/chaos_cells/{}/2/snapshots".format(cell_id), driver=remote_driver1)) != 0
+        wait(lambda: len(ls(f"//sys/chaos_cells/{cell_id}/2/snapshots", driver=remote_driver1)) != 0)
 
     @authors("savrus")
     @pytest.mark.parametrize("tablet_count", [1, 2])
@@ -4006,18 +4008,21 @@ class TestChaosMetaCluster(ChaosTestBase):
     def test_alien_cell_health(self):
         [alpha_cell, _] = self._create_dedicated_areas_and_cells()
         _, _, remote_driver1, remote_driver2 = self._get_drivers()
-        for cluster in ("remote_1", "remote_2"):
-            driver = get_driver(cluster=cluster)
 
+        def all_cells_are_healthy(driver=None):
             cells = ls("//sys/chaos_cells", attributes=["health"], driver=driver)
             assert len(cells) == 2
-            assert all(cell.attributes["health"] == "good" for cell in cells)
+            return all(cell.attributes["health"] == "good" for cell in cells)
+
+        for cluster in ("remote_1", "remote_2"):
+            driver = get_driver(cluster=cluster)
+            wait(lambda: all_cells_are_healthy(driver=driver))
 
         cluster_names = self.get_cluster_names()
         area_id = get(f"#{alpha_cell}/@area_id", driver=remote_driver1)
         with self.CellsDisabled(clusters=cluster_names[-2:-1], area_ids=[area_id]):
-            assert get(f"//sys/chaos_cells/{alpha_cell}/@health", driver=remote_driver1) == "failed"
-            assert get(f"//sys/chaos_cells/{alpha_cell}/@health", driver=remote_driver2) == "good"
+            wait(lambda: get(f"//sys/chaos_cells/{alpha_cell}/@health", driver=remote_driver1) == "failed")
+            wait(lambda: get(f"//sys/chaos_cells/{alpha_cell}/@health", driver=remote_driver2) == "good")
 
 ##################################################################
 

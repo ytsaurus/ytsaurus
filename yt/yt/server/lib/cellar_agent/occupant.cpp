@@ -344,7 +344,8 @@ public:
     void ConfigureSnapshotStore(NNative::IConnectionPtr connection)
     {
         auto snapshotClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::TabletCellSnapshotterUserName));
-        auto storesPath = GetStoresPath();
+        auto primaryStoresPath = GetStoresPath(/*primary*/ true);
+        auto secondaryStoresPath = GetStoresPath(/*primary*/ false);
 
         auto snapshotStore = Config_->Snapshots;
         switch (snapshotStore->StoreType) {
@@ -353,7 +354,8 @@ public:
                 auto snapshotStore = CreateRemoteSnapshotStore(
                     remoteSnapshotStore,
                     Options_,
-                    storesPath + "/snapshots",
+                    primaryStoresPath + "/snapshots",
+                    secondaryStoresPath + "/snapshots",
                     snapshotClient,
                     PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId);
                 SnapshotStoreThunk_->SetUnderlying(snapshotStore);
@@ -450,7 +452,8 @@ public:
         };
 
         auto changelogClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::TabletCellChangeloggerUserName));
-        auto storesPath = GetStoresPath();
+        auto primaryStoresPath = GetStoresPath(/*primary*/ true);
+        auto secondaryStoresPath = GetStoresPath(/*primary*/ false);
 
         auto changelogProfiler = addTags(occupier->GetProfiler().WithPrefix("/remote_changelog"));
         TJournalWriterPerformanceCounters performanceCounters{changelogProfiler};
@@ -459,7 +462,8 @@ public:
         auto changelogStoreFactory = CreateRemoteChangelogStoreFactory(
             Config_->Changelogs,
             Options_,
-            storesPath + "/changelogs",
+            primaryStoresPath + "/changelogs",
+            secondaryStoresPath + "/changelogs",
             changelogClient,
             Bootstrap_->GetResourceLimitsManager(),
             PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId,
@@ -811,11 +815,13 @@ private:
 
     const TIntrusivePtr<TChangelogMediumUsageTracker> ChangelogMediumUsageTracker_;
 
-
-    TYPath GetStoresPath()
+    // COMPAT(danilalexeev): 'primary'.
+    TYPath GetStoresPath(bool primary)
     {
         TStringBuilder builder;
-        builder.AppendFormat("%v/%v", GetCellCypressPrefix(GetCellId()), GetCellId());
+        builder.AppendString(primary
+            ? GetCellHydraPersistencePath(GetCellId())
+            : GetCellPath(GetCellId()));
         if (Options_->IndependentPeers) {
             builder.AppendFormat("/%v", PeerId_);
         }

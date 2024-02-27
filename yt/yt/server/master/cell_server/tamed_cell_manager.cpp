@@ -1,17 +1,18 @@
 #include "tamed_cell_manager.h"
 
+#include "area.h"
+#include "area_type_handler.h"
 #include "bundle_node_tracker.h"
-#include "config.h"
-#include "private.h"
 #include "cell_base.h"
 #include "cell_bundle.h"
 #include "cell_bundle_type_handler.h"
+#include "cell_hydra_persistence_synchronizer.h"
+#include "cell_tracker.h"
 #include "cell_type_handler_base.h"
 #include "cellar_node_tracker.h"
+#include "config.h"
+#include "private.h"
 #include "tamed_cell_manager.h"
-#include "cell_tracker.h"
-#include "area.h"
-#include "area_type_handler.h"
 
 #include <yt/yt/server/master/tablet_server/tablet_cell_decommissioner.h>
 #include <yt/yt/server/master/tablet_server/cypress_integration.h>
@@ -155,6 +156,7 @@ public:
         : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::TamedCellManager)
         , CellTracker_(CreateCellTracker(Bootstrap_))
         , BundleNodeTracker_(CreateBundleNodeTracker(Bootstrap_))
+        , CellHydraPersistenceSynchronizer_(CreateCellHydraPersistenceSynchronizer(Bootstrap_))
         , CellBundleMap_(TEntityMapTypeTraits<TCellBundle>(Bootstrap_))
         , CellMap_(TEntityMapTypeTraits<TCellBase>(Bootstrap_))
     {
@@ -191,6 +193,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraSetCellStatus, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraUpdateCellHealth, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraUpdatePeerCount, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraOnCellsHydraPersistenceSynchronized, Unretained(this)));
     }
 
     void Initialize() override
@@ -244,6 +247,8 @@ public:
                 name);
         }
 
+        ValidateTabletCellOptions(options);
+
         auto cellBundleId = holder->GetId();
         auto* cellBundle = CellBundleMap_.Insert(cellBundleId, std::move(holder));
 
@@ -288,6 +293,14 @@ public:
         Y_UNUSED(CellBundleMap_.Release(cellBundle->GetId()).release());
     }
 
+    void ValidateTabletCellOptions(TTabletCellOptionsPtr options)
+    {
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+
+        DeserializeAclOrThrow(options->SnapshotAcl, securityManager);
+        DeserializeAclOrThrow(options->ChangelogAcl, securityManager);
+    }
+
     void SetCellBundleOptions(TCellBundle* cellBundle, TTabletCellOptionsPtr newOptions) override
     {
         Bootstrap_->GetSecurityManager()->ValidatePermission(cellBundle, EPermission::Use);
@@ -324,56 +337,16 @@ public:
             securityManager->ValidatePermission(account, EPermission::Use);
         }
 
-        auto snapshotAcl = ConvertToYsonString(newOptions->SnapshotAcl, EYsonFormat::Binary).ToString();
-        auto changelogAcl = ConvertToYsonString(newOptions->ChangelogAcl, EYsonFormat::Binary).ToString();
-
+        ValidateTabletCellOptions(newOptions);
         cellBundle->SetOptions(std::move(newOptions));
+        ReconfigureCellBundle(cellBundle);
 
-        auto* rootUser = securityManager->GetRootUser();
-
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         for (auto* cell : GetValuesSortedByKey(cellBundle->Cells())) {
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
             if (multicellManager->IsPrimaryMaster()) {
-                if (auto node = FindCellNode(cell->GetId())) {
-                    TAuthenticatedUserGuard userGuard(securityManager, rootUser);
-
-                    auto executeAclChange = [&] (const auto& node) {
-                        auto cellNode = node->AsMap();
-                        try {
-                            {
-                                auto req = TCypressYPathProxy::Set("/snapshots/@acl");
-                                req->set_value(snapshotAcl);
-                                SyncExecuteVerb(cellNode, req);
-                            }
-                            {
-                                auto req = TCypressYPathProxy::Set("/changelogs/@acl");
-                                req->set_value(changelogAcl);
-                                SyncExecuteVerb(cellNode, req);
-                            }
-                        } catch (const std::exception& ex) {
-                            YT_LOG_ALERT(ex,
-                                "Caught exception while changing ACL (CellarType: %v, Bundle: %v, CellId: %v)",
-                                cellBundle->GetCellarType(),
-                                cellBundle->GetName(),
-                                cell->GetId());
-                        }
-                    };
-
-                    if (cell->IsIndependent()) {
-                        for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
-                            if (cell->IsAlienPeer(peerId)) {
-                                continue;
-                            }
-                            executeAclChange(node->FindChild(ToString(peerId)));
-                        }
-                    } else {
-                        executeAclChange(node);
-                    }
-                }
-
                 RestartAllPrerequisiteTransactions(cell);
             }
-
+            cell->SetPendingAclsUpdate(true);
             ReconfigureCell(cell);
         }
     }
@@ -449,6 +422,7 @@ public:
         EraseOrCrash(cellBundle->Areas(), area->GetName());
     }
 
+    // COPMAT(danilalexeev)
     void CreateSnapshotAndChangelogNodes(
         const TString& path,
         const IMapNodePtr& cellMapNodeProxy,
@@ -459,6 +433,7 @@ public:
         {
             auto req = TCypressYPathProxy::Create(path + "/snapshots");
             req->set_type(ToProto<int>(EObjectType::MapNode));
+            req->set_ignore_existing(true);
             ToProto(req->mutable_node_attributes(), *snapshotAttributes);
             SyncExecuteVerb(cellMapNodeProxy, req);
         }
@@ -467,6 +442,7 @@ public:
         {
             auto req = TCypressYPathProxy::Create(path + "/changelogs");
             req->set_type(ToProto<int>(EObjectType::MapNode));
+            req->set_ignore_existing(true);
             ToProto(req->mutable_node_attributes(), *changelogAttributes);
             SyncExecuteVerb(cellMapNodeProxy, req);
         }
@@ -531,8 +507,13 @@ public:
             cellId,
             /*allowResurrection*/ cell->GetCellarType() == ECellarType::Chaos);
 
-        auto cellMapNodeProxy = GetCellMapNode(cellId);
+        auto cellMapNodeProxy = FindLegacyCellMapNode(cellId);
+        if (!cellMapNodeProxy) {
+            CellCreated_.Fire(cell);
+            return cell;
+        }
         auto cellNodePath = "/" + ToString(cellId);
+        auto cellNodeCypressPrefix = GetCellCypressPathPrefix(cellId);
 
         try {
             // NB: Users typically are not allowed to create these types.
@@ -549,6 +530,11 @@ public:
                 ToProto(req->mutable_node_attributes(), *attributes);
 
                 SyncExecuteVerb(cellMapNodeProxy, req);
+            }
+
+            if (GetDynamicConfig()->CellHydraPersistenceSynchronizer->UseHydraPersistenceDirectory) {
+                CellCreated_.Fire(cell);
+                return cell;
             }
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -660,7 +646,7 @@ public:
             }
         }
 
-        if (auto cellNodeProxy = FindCellNode(cellId)) {
+        if (auto cellNodeProxy = FindLegacyCellNode(cellId)) {
             try {
                 // NB: Subtree transactions were already aborted above.
                 cellNodeProxy->GetParent()->RemoveChild(cellNodeProxy);
@@ -1017,6 +1003,36 @@ public:
         cell->SetSuspended(suspended);
     }
 
+    void HydraOnCellsHydraPersistenceSynchronized(TReqOnCellsHydraPersistenceSynchronized* request)
+    {
+        for (const auto& protoCellId : request->cypress_registered_ids()) {
+            auto cellId = FromProto<TCellId>(protoCellId);
+            auto* cell = FindCell(cellId);
+            if (!IsObjectAlive(cell)) {
+                continue;
+            }
+            cell->SetRegisteredInCypress(true);
+
+            YT_LOG_DEBUG("Successfully registered cell in Cypress (CellId: %v)",
+                cellId);
+        }
+
+        for (const auto& updateInfo : request->acls_update_info()) {
+            auto cellId = FromProto<TCellId>(updateInfo.cell_id());
+            auto* cell = FindCell(cellId);
+            if (!IsObjectAlive(cell)) {
+                continue;
+            }
+            const auto& cellBundle = cell->CellBundle();
+            if (cellBundle->GetConfigVersion() == updateInfo.config_version()) {
+                cell->SetPendingAclsUpdate(false);
+
+                YT_LOG_DEBUG("Cell ACLs update completed (CellId: %v)",
+                    cellId);
+            }
+        }
+    }
+
     const THashSet<TCellBundle*>& CellBundles(ECellarType cellarType) override
     {
         return CellBundlesPerTypeMap_[cellarType];
@@ -1189,6 +1205,7 @@ private:
 
     const ICellTrackerPtr CellTracker_;
     const IBundleNodeTrackerPtr BundleNodeTracker_;
+    const ICellHydraPersistenceSynchronizerPtr CellHydraPersistenceSynchronizer_;
 
     TEntityMap<TCellBundle, TEntityMapTypeTraits<TCellBundle>> CellBundleMap_;
     TEntityMap<TCellBase, TEntityMapTypeTraits<TCellBase>> CellMap_;
@@ -1218,6 +1235,8 @@ private:
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         const auto& config = GetDynamicConfig();
         const auto& gossipConfig = config->MulticellGossip;
 
@@ -2199,6 +2218,7 @@ private:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
             CellTracker_->Start();
+            CellHydraPersistenceSynchronizer_->Start();
         }
 
         CellStatusIncrementalGossipExecutor_ = New<TPeriodicExecutor>(
@@ -2218,6 +2238,7 @@ private:
         TMasterAutomatonPart::OnStopLeading();
 
         CellTracker_->Stop();
+        CellHydraPersistenceSynchronizer_->Stop();
 
         if (CellStatusIncrementalGossipExecutor_) {
             YT_UNUSED_FUTURE(CellStatusIncrementalGossipExecutor_->Stop());
@@ -2237,6 +2258,16 @@ private:
             "Cell reconfigured (CellId: %v, Version: %v)",
             cell->GetId(),
             cell->GetConfigVersion());
+    }
+
+    void ReconfigureCellBundle(TCellBundle* cellBundle)
+    {
+        cellBundle->SetConfigVersion(cellBundle->GetConfigVersion() + 1);
+
+        YT_LOG_DEBUG(
+            "Cell bundle reconfigured (CellBundleId: %v, ConfigVersion: %v)",
+            cellBundle->GetId(),
+            cellBundle->GetConfigVersion());
     }
 
     bool CheckHasHealthyCells(TCellBundle* bundle)
@@ -2536,16 +2567,38 @@ private:
         cell->RevokePeer(peerId, reason);
     }
 
-    IMapNodePtr GetCellMapNode(TTamedCellId cellId)
+    // COMPAT(danilalexeev)
+    IMapNodePtr FindLegacyCellMapNode(TTamedCellId cellId)
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        return cypressManager->ResolvePathToNodeProxy(GetCellCypressPrefix(cellId))->AsMap();
+        try {
+            auto cellMapNode = cypressManager->ResolvePathToNodeProxy(GetCellCypressPathPrefix(cellId));
+            return cellMapNode->GetType() == ENodeType::Map
+                ? cellMapNode->AsMap()
+                : nullptr;
+        } catch (const TErrorException& ex) {
+            if (ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
+                YT_LOG_WARNING(ex,
+                    "Cell Cypress map node is missing (CellId: %v)",
+                    cellId);
+                return nullptr;
+            }
+            throw;
+        }
+        Y_UNREACHABLE();
     }
 
-    IMapNodePtr FindCellNode(TTamedCellId cellId)
+    // COMPAT(danilalexeev)
+    IMapNodePtr FindLegacyCellNode(TTamedCellId cellId)
     {
-        auto cellMapNodeProxy = GetCellMapNode(cellId);
-        return cellMapNodeProxy->FindChild(ToString(cellId))->AsMap();
+        auto cellMapNodeProxy = FindLegacyCellMapNode(cellId);
+        if (!cellMapNodeProxy) {
+            return nullptr;
+        }
+        if (auto child = cellMapNodeProxy->FindChild(ToString(cellId))) {
+            return child->AsMap();
+        }
+        return nullptr;
     }
 
     void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)

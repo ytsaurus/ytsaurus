@@ -5,6 +5,8 @@
 #include "private.h"
 #include "tamed_cell_manager.h"
 
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
 #include <yt/yt/server/master/cypress_server/node_detail.h>
@@ -21,6 +23,9 @@
 
 #include <yt/yt/ytlib/tablet_client/config.h>
 
+#include <yt/yt/core/ypath/tokenizer.h>
+#include <yt/yt/core/ypath/token.h>
+
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -30,6 +35,7 @@
 
 namespace NYT::NCellServer {
 
+using namespace NApi;
 using namespace NConcurrency;
 using namespace NCellarAgent;
 using namespace NCypressServer;
@@ -100,6 +106,7 @@ void TCellProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* des
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCellBundle)
         .SetReplicated(true)
         .SetMandatory(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CellBundleId));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Area)
         .SetWritable(true)
         .SetReplicated(true)
@@ -116,12 +123,15 @@ void TCellProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* des
     descriptors->push_back(EInternedAttributeKey::Suspended);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LeaseTransactionIds)
         .SetOpaque(true));
+    descriptors->push_back(EInternedAttributeKey::RegisteredInCypress);
+    descriptors->push_back(EInternedAttributeKey::PendingAclsUpdate);
 }
 
 bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer)
 {
     const auto* cell = GetThisImpl();
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->CellHydraPersistenceSynchronizer;
 
     switch (key) {
         case EInternedAttributeKey::LeadingPeerId:
@@ -130,8 +140,15 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
             return true;
 
         case EInternedAttributeKey::Health:
-            // COMPAT(akozhikhov).
-            if (multicellManager->IsMulticell()) {
+            // COMPAT(danilalexeev)
+            if (config->UseHydraPersistenceDirectory &&
+                multicellManager->IsPrimaryMaster() &&
+                !cell->GetRegisteredInCypress())
+            {
+                 BuildYsonFluently(consumer)
+                    .Value(ECellHealth::Initializing);
+            } else if (multicellManager->IsMulticell()) {
+                // COMPAT(akozhikhov).
                 BuildYsonFluently(consumer)
                     .Value(cell->GetMulticellHealth());
             } else {
@@ -203,6 +220,14 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
                 .Value(cell->CellBundle()->GetName());
             return true;
 
+        case EInternedAttributeKey::CellBundleId:
+            if (!cell->CellBundle()) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(cell->CellBundle()->GetId());
+            return true;
+
         case EInternedAttributeKey::Area:
             if (!cell->GetArea()) {
                 break;
@@ -237,16 +262,18 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
             return true;
 
         case EInternedAttributeKey::MaxChangelogId: {
-            auto changelogPath = Format("%v/%v/changelogs", GetCellCypressPrefix(cell->GetId()), cell->GetId());
-            int maxId = GetMaxHydraFileId(changelogPath);
+            int maxId = GetMaxHydraFileId(
+                GetCellHydraPersistencePath(cell->GetId()) + "/changelogs",
+                GetCellPath(cell->GetId()) + "/changelogs");
             BuildYsonFluently(consumer)
                 .Value(maxId);
             return true;
         }
 
         case EInternedAttributeKey::MaxSnapshotId: {
-            auto snapshotPath = Format("%v/%v/snapshots", GetCellCypressPrefix(cell->GetId()), cell->GetId());
-            int maxId = GetMaxHydraFileId(snapshotPath);
+            int maxId = GetMaxHydraFileId(
+                GetCellHydraPersistencePath(cell->GetId()) + "/snapshots",
+                GetCellPath(cell->GetId()) + "/snapshots");
             BuildYsonFluently(consumer)
                 .Value(maxId);
             return true;
@@ -260,6 +287,16 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
         case EInternedAttributeKey::LeaseTransactionIds:
             BuildYsonFluently(consumer)
                 .Value(cell->LeaseTransactionIds());
+            return true;
+
+        case EInternedAttributeKey::RegisteredInCypress:
+            BuildYsonFluently(consumer)
+                .Value(cell->GetRegisteredInCypress());
+            return true;
+
+        case EInternedAttributeKey::PendingAclsUpdate:
+            BuildYsonFluently(consumer)
+                .Value(cell->GetPendingAclsUpdate());
             return true;
 
         default:
@@ -290,28 +327,84 @@ bool TCellProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonS
     return TBase::SetBuiltinAttribute(key, value, force);
 }
 
-int TCellProxyBase::GetMaxHydraFileId(const TYPath& path) const
+TCellProxyBase::TResolveResult TCellProxyBase::Resolve(const TYPath& path, const IYPathServiceContextPtr& context)
 {
-    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    NYPath::TTokenizer tokenizer(path);
+    tokenizer.Advance();
 
-    auto* node = cypressManager->ResolvePathToTrunkNode(path);
-    if (node->GetType() != EObjectType::MapNode) {
-        THROW_ERROR_EXCEPTION("Unexpected node type: expected %Qlv, got %Qlv",
-            EObjectType::MapNode,
-            node->GetType())
-            << TErrorAttribute("path", path);
+    if (tokenizer.GetType() == NYPath::ETokenType::Ampersand) {
+        return TBase::ResolveSelf(TYPath(tokenizer.GetSuffix()), context);
     }
-    auto* mapNode = node->As<TCypressMapNode>();
 
-    int maxId = -1;
-    for (const auto& [key, child] : mapNode->KeyToChild()) {
-        int id;
-        if (TryFromString<int>(key, id)) {
+    if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
+        return ResolveSelf(TYPath(tokenizer.GetSuffix()), context);
+    }
+
+    tokenizer.Expect(NYPath::ETokenType::Slash);
+
+    if (tokenizer.Advance() == NYPath::ETokenType::At) {
+        return ResolveAttributes(TYPath(tokenizer.GetSuffix()), context);
+    } else {
+        return PropogateToHydraPersistenceStorage("/" + TYPath(tokenizer.GetInput()));
+    }
+}
+
+TCellProxyBase::TResolveResult TCellProxyBase::ResolveSelf(const TYPath& path, const IYPathServiceContextPtr& context)
+{
+    const auto& method = context->GetMethod();
+    if (method == "Remove" ||
+        method == "Get" ||
+        method == "Set" ||
+        method == "Create" ||
+        method == "Copy" ||
+        method == "EndCopy")
+    {
+        return TResolveResultHere{path};
+    } else {
+        return PropogateToHydraPersistenceStorage(path);
+    }
+}
+
+TCellProxyBase::TResolveResult TCellProxyBase::PropogateToHydraPersistenceStorage(const TYPath& pathSuffix) const
+{
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+    auto* cell = GetThisImpl();
+    auto combinedPath = GetCellHydraPersistencePath(cell->GetId()) + pathSuffix;
+    return TResolveResultThere{objectManager->GetRootService(), std::move(combinedPath)};
+}
+
+int TCellProxyBase::GetMaxHydraFileId(const TYPath& primaryPath, const TYPath& secondaryPath) const
+{
+    auto proxy = CreateObjectServiceReadProxy(
+        Bootstrap_->GetRootClient(),
+        EMasterChannelKind::Follower);
+
+    auto getMaxId = [&] (const TYPath& path) {
+        int maxId = -1;
+
+        auto batchReq = proxy.ExecuteBatch();
+        batchReq->AddRequest(TYPathProxy::List(path));
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspList>(0);
+        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            return maxId;
+        }
+
+        auto listNode = ConvertToNode(TYsonString(rspOrError.ValueOrThrow()->value()));
+        auto list = listNode->AsList();
+        for (const auto& item : list->GetChildren()) {
+            auto key = item->GetValue<TString>();
+            int id;
+            if (!TryFromString<int>(key, id)) {
+                continue;
+            }
             maxId = std::max(maxId, id);
         }
-    }
+        return maxId;
+    };
 
-    return maxId;
+    return std::max(getMaxId(primaryPath), getMaxId(secondaryPath));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

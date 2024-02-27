@@ -73,6 +73,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TArea*, DefaultArea);
 
     DEFINE_BYREF_RW_PROPERTY(TCellBundleProfilingCounters, ProfilingCounters);
+    DEFINE_BYVAL_RW_PROPERTY(int, ConfigVersion);
 
 public:
     explicit TCellBundle(TCellBundleId id);

@@ -129,6 +129,7 @@
     XX(CurrentMountTransactionId, current_mount_transaction_id) \
     XX(CustomProfilingTagFilter, custom_profiling_tag_filter) \
     XX(CypressTransaction, cypress_transaction) \
+    XX(RegisteredInCypress, registered_in_cypress) \
     XX(DataCenter, data_center) \
     XX(DataWeight, data_weight) \
     XX(Deadline, deadline) \
@@ -258,6 +259,7 @@
     XX(IOWeights, io_weights) \
     XX(Jobs, jobs) \
     XX(JobProxyVersion, job_proxy_build_version) \
+    XX(PendingAclsUpdate, pending_acls_update) \
     XX(PendingRestart, pending_restart) \
     XX(KeepFinished, keep_finished) \
     XX(Key, key) \

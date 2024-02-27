@@ -106,6 +106,9 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(THashSet<NTransactionServer::TTransactionId>, LeaseTransactionIds);
 
+    DEFINE_BYVAL_RW_PROPERTY(bool, RegisteredInCypress);
+    DEFINE_BYVAL_RW_PROPERTY(bool, PendingAclsUpdate);
+
 public:
     explicit TCellBase(TTamedCellId id);
 

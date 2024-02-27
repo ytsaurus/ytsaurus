@@ -301,4 +301,16 @@ message TReqReportSmoothMovementAborted
     optional NYT.NProto.TError error = 2;
 }
 
+message TReqOnCellsHydraPersistenceSynchronized
+{
+    message TAclsUpdateInfo
+    {
+        required NYT.NProto.TGuid cell_id = 1;
+        required int32 config_version = 2;
+    }
+
+    repeated NYT.NProto.TGuid cypress_registered_ids = 1;
+    repeated TAclsUpdateInfo acls_update_info = 2;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

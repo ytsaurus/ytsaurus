@@ -26,7 +26,7 @@ from yt_commands import (
     sync_unfreeze_table, sync_reshard_table, sync_flush_table, sync_compact_table,
     sync_remove_tablet_cells, set_node_decommissioned, create_dynamic_table, build_snapshot, get_driver,
     AsyncLastCommittedTimestamp, create_domestic_medium, raises_yt_error, get_tablet_errors,
-    suspend_tablet_cells, resume_tablet_cells, update_nodes_dynamic_config,
+    suspend_tablet_cells, resume_tablet_cells, update_nodes_dynamic_config, externalize,
     set_node_banned, decommission_node, recommission_node, disable_tablet_cells_on_node, enable_tablet_cells_on_node)
 
 from yt_type_helpers import make_schema, optional_type
@@ -899,8 +899,8 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             create_tablet_cell(authenticated_user="u")
         set("//sys/schemas/tablet_cell/@acl/end", make_ace("allow", "u", "create"))
         id = create_tablet_cell(authenticated_user="u")
-        assert exists("//sys/tablet_cells/{0}/changelogs".format(id))
-        assert exists("//sys/tablet_cells/{0}/snapshots".format(id))
+        wait(lambda: exists(f"//sys/tablet_cells/{id}/changelogs"))
+        wait(lambda: exists(f"//sys/tablet_cells/{id}/snapshots"))
 
     @authors("savrus")
     def test_tablet_cell_journal_acl(self):
@@ -918,16 +918,12 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     def test_create_tablet_cell_with_broken_acl(self, domain):
         create_user("u")
         acl = [make_ace("allow", "unknown_user", "read")]
+        with pytest.raises(YtError):
+            create_tablet_cell_bundle("b", attributes={"options": {domain: acl}})
+
+        acl = [make_ace("allow", "u", "read")]
         create_tablet_cell_bundle("b", attributes={"options": {domain: acl}})
 
-        with pytest.raises(YtError):
-            sync_create_cells(1, tablet_cell_bundle="b")
-        assert len(ls("//sys/tablet_cells")) == 0
-
-        set(
-            "//sys/tablet_cell_bundles/b/@options/{}".format(domain),
-            [make_ace("allow", "u", "read")],
-        )
         sync_create_cells(1, tablet_cell_bundle="b")
         assert len(ls("//sys/tablet_cells")) == 1
 
@@ -958,7 +954,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             "//sys/tablet_cell_bundles/b/@options/changelog_acl",
             [make_ace("allow", "u", "read")],
         )
-        get("//sys/tablet_cells/{}/changelogs".format(cell_id), authenticated_user="u")
+        wait(lambda: get(f"//sys/tablet_cells/{cell_id}/changelogs/@acl") == [make_ace("allow", "u", "read")])
+
+        get(f"//sys/tablet_cells/{cell_id}/changelogs", authenticated_user="u")
         wait_for_cells([cell_id])
 
     @authors("savrus")
@@ -1620,7 +1618,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         _set_acl()
         for cell_id in cell_ids:
-            assert _get_cell_acl(cell_id) == [make_ace("allow", "user2", ["write"])]
+            wait(lambda: _get_cell_acl(cell_id) == [make_ace("allow", "user2", ["write"])])
 
     @authors("savrus")
     def test_bundle_bad_options(self):
@@ -3740,3 +3738,54 @@ class TestTabletCellJanitor(DynamicTablesBase):
 
         for cell_id in cell_ids:
             wait(lambda: _check(cell_id))
+
+
+##################################################################
+
+
+class TestDynamicTablesHydraPersistenceMigrationPortal(TestDynamicTablesMulticell):
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "13": {"roles": ["transaction_coordinator"]},
+    }
+
+    @classmethod
+    def setup_class(cls):
+        super(TestDynamicTablesHydraPersistenceMigrationPortal, cls).setup_class()
+        externalize("//sys/hydra_persistence", 11)
+
+    @authors("danilalexeev")
+    def test_extenrnalized_hydra_persistence_storage(self):
+        assert get("//sys/hydra_persistence&/@type") == "portal_entrance"
+        assert get("//sys/hydra_persistence/@type") == "portal_exit"
+
+        cell_id = sync_create_cells(1)[0]
+
+        path = f"//sys/hydra_persistence/tablet_cells/{cell_id}"
+        assert len(ls(f"{path}/snapshots")) == 0
+
+        snapshot_id = build_snapshot(cell_id=cell_id)
+        assert [int(x) for x in ls(f"{path}/snapshots")] == [snapshot_id]
+
+        assert get(f"//sys/tablet_cells/{cell_id}/@max_snapshot_id") == snapshot_id
+        get(f"//sys/tablet_cells/{cell_id}/@max_changelog_id")
+
+        remove(f"//sys/tablet_cells/{cell_id}", force=True)
+        wait(lambda: not exists(path))
+
+    @authors("danilalexeev")
+    def test_virtual_tablet_cell_map(self):
+        cell_id = sync_create_cells(1)[0]
+
+        assert ls("//sys/tablet_cells") == [f"{cell_id}"]
+        assert sorted(ls(f"//sys/tablet_cells/{cell_id}")) == ["changelogs", "snapshots"]
+        with pytest.raises(YtError, match="method is not supported"):
+            ls(f"//sys/tablet_cells/{cell_id}&")
+        assert get(f"//sys/tablet_cells/{cell_id}/snapshots/@id") == \
+            get(f"//sys/hydra_persistence/tablet_cells/{cell_id}/snapshots/@id")
+
+        build_snapshot(cell_id=cell_id)
+        assert len(ls(f"//sys/tablet_cells/{cell_id}/snapshots")) == 1
+
+        # Should not fail
+        sync_remove_tablet_cells([cell_id])

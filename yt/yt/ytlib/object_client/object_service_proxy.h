@@ -492,6 +492,10 @@ TError GetCumulativeError(
     const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp,
     const std::optional<TString>& key = {});
 
+//! Constructs and throws cumulative error if any individual response fails.
+void ThrowCumulativeErrorIfFailed(
+    const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TObjectServiceProxy CreateObjectServiceReadProxy(

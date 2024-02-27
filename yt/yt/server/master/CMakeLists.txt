@@ -338,6 +338,7 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_bundle_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_bundle.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_hydra_janitor.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_hydra_persistence_synchronizer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_map_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_map_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_proxy_base.cpp

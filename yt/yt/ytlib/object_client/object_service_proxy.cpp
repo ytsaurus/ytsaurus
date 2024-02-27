@@ -1103,6 +1103,11 @@ TError GetCumulativeError(
     return cumulativeError.InnerErrors().empty() ? TError() : cumulativeError;
 }
 
+void ThrowCumulativeErrorIfFailed(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+    auto cumulativeError = GetCumulativeError(batchRspOrError);
+    THROW_ERROR_EXCEPTION_IF_FAILED(cumulativeError);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TObjectServiceProxy CreateObjectServiceReadProxy(

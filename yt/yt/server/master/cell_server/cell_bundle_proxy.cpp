@@ -72,6 +72,7 @@ void TCellBundleProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* a
         .SetWritable(true)
         .SetReplicated(true)
         .SetMandatory(true));
+    attributes->push_back(EInternedAttributeKey::ConfigVersion);
     attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::DynamicOptions)
         .SetWritable(true)
         .SetReplicated(true)
@@ -119,6 +120,11 @@ bool TCellBundleProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
         case EInternedAttributeKey::Options:
             BuildYsonFluently(consumer)
                 .Value(cellBundle->GetOptions());
+            return true;
+
+        case EInternedAttributeKey::ConfigVersion:
+            BuildYsonFluently(consumer)
+                .Value(cellBundle->GetConfigVersion());
             return true;
 
         case EInternedAttributeKey::DynamicOptions:

@@ -1,9 +1,9 @@
 from yt_chaos_test_base import ChaosTestBase
-from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE, RPC_PROXIES_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE, CHAOS_NODES_SERVICE, RPC_PROXIES_SERVICE
 from yt_commands import (
     authors, create_tablet_cell_bundle, print_debug, build_master_snapshots, sync_create_cells, wait_for_cells,
     ls, get, set, retry, create, wait, write_table, remove, exists, create_dynamic_table, sync_mount_table,
-    start_transaction, commit_transaction, insert_rows, delete_rows, lock_rows, build_snapshot)
+    start_transaction, commit_transaction, insert_rows, delete_rows, lock_rows, build_snapshot, abort_transaction)
 
 from yt_helpers import profiler_factory, master_exit_read_only_sync
 
@@ -30,6 +30,15 @@ class MasterSnapshotsCompatibilityBase(YTEnvSetup):
     NUM_NODES = 5
     USE_DYNAMIC_TABLES = True
     TEST_LOCATION_AWARE_REPLICATOR = True
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "tablet_manager": {
+            "cell_hydra_persistence_synchronizer": {
+                "use_hydra_persistence_directory": False,
+                "migrate_to_virtual_cell_maps": False,
+            },
+        }
+    }
 
     ARTIFACT_COMPONENTS = {
         "23_2": ["master", "node", "exec", "tools"],
@@ -174,6 +183,17 @@ class TestMasterSnapshotsCompatibility(ChaosTestBase, MasterSnapshotsCompatibili
     NUM_HTTP_PROXIES = 2
     ENABLE_HTTP_PROXY = True
 
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "tablet_manager": {
+            "leader_reassignment_timeout": 2000,
+            "peer_revocation_timeout": 3000,
+            "cell_hydra_persistence_synchronizer": {
+                "use_hydra_persistence_directory": False,
+                "migrate_to_virtual_cell_maps": False,
+            },
+        }
+    }
+
     @authors("gritukan", "kvk1920")
     @pytest.mark.timeout(150)
     def test(self):
@@ -293,3 +313,89 @@ class TestBundleControllerAttribute(MasterSnapshotsCompatibilityBase):
         retry(lambda: self.restart_with_update(MASTERS_SERVICE))
 
         assert bundle_controller_config == get(config_path)
+
+
+##################################################################
+
+
+class CellsHydraPersistenceMigrationBase(ChaosTestBase, MasterSnapshotsCompatibilityBase):
+    ARTIFACT_COMPONENTS = {
+        "23_2": ["master"],
+        "trunk": ["node", "job-proxy", "exec", "tools", "scheduler", "controller-agent", "proxy", "http-proxy"],
+    }
+
+    DELTA_MASTER_CONFIG = {
+        "world_initializer": {
+            "update_period": 1000,
+        }
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "tablet_manager": {
+            "leader_reassignment_timeout": 2000,
+            "peer_revocation_timeout": 3000,
+            "max_snapshot_count_to_keep": 3,
+            "tablet_cells_cleanup_period": 1000,
+            "cell_hydra_persistence_synchronizer": {
+                "use_hydra_persistence_directory": False,
+                "migrate_to_virtual_cell_maps": False,
+            },
+        }
+    }
+
+    def execute_cells_hydra_presistence_migration(self, chaos):
+        cell_id = None
+        if chaos:
+            cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
+            set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
+        else:
+            cell_id = sync_create_cells(1)[0]
+
+        map_name = "{0}_cells".format("chaos" if chaos else "tablet")
+        peer_segment = "/0" if chaos else ""
+        prmiary_path = f"//sys/hydra_persistence/{map_name}/{cell_id}{peer_segment}/snapshots"
+        secondary_path = f"//sys/{map_name}/{cell_id}{peer_segment}/snapshots"
+
+        self.restart_with_update(MASTERS_SERVICE)
+
+        snapshot_count = get("//sys/@config/tablet_manager/max_snapshot_count_to_keep")
+        snapshot_id = None
+        for _ in range(snapshot_count):
+            snapshot_id = build_snapshot(cell_id=cell_id)
+        assert len(ls(secondary_path)) == snapshot_count
+
+        # Phase one
+        set("//sys/@config/tablet_manager/cell_hydra_persistence_synchronizer/use_hydra_persistence_directory", True)
+        wait(lambda: get(f"#{cell_id}/@registered_in_cypress"), sleep_backoff=1.0)
+
+        for index in range(1, snapshot_count + 1):
+            assert snapshot_id + index == build_snapshot(cell_id=cell_id)
+            wait(lambda: len(ls(secondary_path)) == snapshot_count - index
+                 and len(ls(prmiary_path)) == index)
+
+        # Phase two
+        set("//sys/@config/tablet_manager/cell_hydra_persistence_synchronizer/migrate_to_virtual_cell_maps", True)
+
+        with Restarter(self.Env, [CHAOS_NODES_SERVICE, NODES_SERVICE]):
+            tx = get(f"#{cell_id}/@peers/0/prerequisite_transaction") if chaos \
+                else get(f"#{cell_id}/@prerequisite_transaction_id")
+            abort_transaction(tx)
+            remove("//sys/tablet_cells", force=True)
+            remove("//sys/chaos_cells", force=True)
+            create("virtual_tablet_cell_map", "//sys/tablet_cells", ignore_existing=True)
+            create("virtual_chaos_cell_map", "//sys/chaos_cells", ignore_existing=True)
+
+        assert ls(f"//sys/{map_name}") == [cell_id]
+        assert len(ls(secondary_path)) == snapshot_count
+
+
+class TestTabletCellsHydraPersistenceMigration(CellsHydraPersistenceMigrationBase):
+    @authors("danilalexeev")
+    def test(self):
+        self.execute_cells_hydra_presistence_migration(False)
+
+
+class TestChaosCellsHydraPersistenceMigration(CellsHydraPersistenceMigrationBase):
+    @authors("danilalexeev")
+    def test(self):
+        self.execute_cells_hydra_presistence_migration(True)

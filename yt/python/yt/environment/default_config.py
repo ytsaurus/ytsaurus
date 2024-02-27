@@ -153,6 +153,13 @@ def get_dynamic_master_config():
         enable_bulk_insert = %true;
         enable_aggressive_tablet_statistics_validation = %true;
         forbid_arbitrary_data_versions_in_retention_config = %true;
+
+        cell_hydra_persistence_synchronizer =  {
+            use_hydra_persistence_directory = %true;
+            migrate_to_virtual_cell_maps = %true;
+            synchronization_period = 1000;
+        };
+
     };
 
     sequoia_manager = {};
@@ -534,7 +541,7 @@ def get_node_config():
         };
 
         changelogs = {
-            lock_transaction_timeout = 10000;
+            lock_transaction_timeout = 5000;
         };
 
         table_config_manager = {
@@ -639,7 +646,7 @@ def get_chaos_node_config():
                     size = 4;
                     occupant = {
                         changelogs = {
-                            lock_transaction_timeout = 10000;
+                            lock_transaction_timeout = 5000;
                         };
                         hive_manager = {
                             ping_period = 1000;

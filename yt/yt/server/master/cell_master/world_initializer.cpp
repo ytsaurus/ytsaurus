@@ -13,9 +13,13 @@
 #include <yt/yt/server/master/security_server/acl.h>
 #include <yt/yt/server/master/security_server/group.h>
 
+#include <yt/yt/server/master/tablet_server/config.h>
+
 #include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 
 #include <yt/yt/server/lib/scheduler/public.h>
+
+#include <yt/yt/server/lib/cellar_agent/public.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
@@ -733,27 +737,34 @@ private:
                 EObjectType::ChaosCellBundleMap);
 
             ScheduleCreateNode(
-                "//sys/chaos_cells",
-                transactionId,
-                EObjectType::ChaosCellMap,
-                BuildYsonStringFluently()
-                    .BeginMap()
-                        .Item("opaque").Value(true)
-                    .EndMap());
-
-            ScheduleCreateNode(
                 "//sys/tablet_cell_bundles",
                 transactionId,
                 EObjectType::TabletCellBundleMap);
 
             ScheduleCreateNode(
+                "//sys/chaos_cells",
+                transactionId,
+                EObjectType::VirtualChaosCellMap);
+
+            ScheduleCreateNode(
                 "//sys/tablet_cells",
                 transactionId,
-                EObjectType::TabletCellMap,
-                BuildYsonStringFluently()
-                    .BeginMap()
-                        .Item("opaque").Value(true)
-                    .EndMap());
+                EObjectType::VirtualTabletCellMap);
+
+            ScheduleCreateNode(
+                NCellarAgent::CellsHydraPersistenceCypressPrefix,
+                transactionId,
+                EObjectType::MapNode);
+
+            ScheduleCreateNode(
+                NCellarAgent::ChaosCellsHydraPersistenceCypressPrefix,
+                transactionId,
+                EObjectType::MapNode);
+
+            ScheduleCreateNode(
+                NCellarAgent::TabletCellsHydraPersistenceCypressPrefix,
+                transactionId,
+                EObjectType::MapNode);
 
             ScheduleCreateNode(
                 "//sys/tablets",
