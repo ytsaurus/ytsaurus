@@ -9,12 +9,12 @@ from yt_commands import (
     insert_rows, select_rows, lookup_rows, delete_rows,
     lock_rows, alter_table, read_table, write_table, remount_table,
     generate_timestamp, wait_for_cells, sync_create_cells,
-    sync_mount_table, sync_unmount_table, sync_freeze_table,
+    sync_mount_table, sync_unmount_table, sync_freeze_table, set_banned_flag,
     sync_unfreeze_table, sorted_dicts, mount_table, update_nodes_dynamic_config,
     sync_reshard_table, sync_flush_table, sync_compact_table,
     get_singular_chunk_id, create_dynamic_table, get_tablet_leader_address,
     raises_yt_error, build_snapshot, AsyncLastCommittedTimestamp, MinTimestamp,
-    disable_write_sessions_on_node, set_node_banned, disable_tablet_cells_on_node)
+    disable_write_sessions_on_node, set_node_banned, set_nodes_banned, disable_tablet_cells_on_node)
 
 import yt_error_codes
 
@@ -200,6 +200,16 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
         disable_write_sessions_on_node(self._nodes[0], "separate tablet and data nodes")
         for node in self._nodes[1:]:
             disable_tablet_cells_on_node(node, "separate tablet and data nodes")
+
+    def _set_ban_for_chunk_parts(self, part_indices, banned_flag, chunk_id):
+        chunk_replicas = get("#{}/@stored_replicas".format(chunk_id))
+
+        nodes_to_ban = []
+        for part_index in part_indices:
+            nodes = list(str(r) for r in chunk_replicas if r.attributes["index"] == part_index)
+            nodes_to_ban += nodes
+
+        set_banned_flag(banned_flag, nodes_to_ban)
 
     def _enable_hash_chunk_index(self, path):
         set("{}/@compression_codec".format(path), "none")

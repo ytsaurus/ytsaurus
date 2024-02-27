@@ -25,7 +25,10 @@ struct TJournalHunkDescriptor
     i64 RecordIndex;
     i64 RecordOffset;
 
-    i64 Size;
+    i64 Length;
+
+    NErasure::ECodec ErasureCodec;
+    std::optional<i64> RecordSize;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,12 +3,12 @@ from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 from yt_helpers import profiler_factory
 
 from yt_commands import (
-    authors, wait, create, exists, get, set, ls, set_banned_flag, insert_rows, remove, select_rows,
+    authors, wait, create, exists, get, set, ls, insert_rows, remove, select_rows,
     lookup_rows, delete_rows, remount_table, build_snapshot,
     write_table, alter_table, read_table, map, sync_reshard_table, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect,
     start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks,
-    write_journal)
+    write_journal, raises_yt_error)
 
 from yt_type_helpers import make_schema
 
@@ -235,24 +235,14 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert len(hunk_chunk_ids) == 1
         hunk_chunk_id = hunk_chunk_ids[0]
 
-        def set_ban_for_parts(part_indices, banned_flag):
-            chunk_replicas = get("#{}/@stored_replicas".format(hunk_chunk_id))
-
-            nodes_to_ban = []
-            for part_index in part_indices:
-                nodes = list(str(r) for r in chunk_replicas if r.attributes["index"] == part_index)
-                nodes_to_ban += nodes
-
-            set_banned_flag(banned_flag, nodes_to_ban)
-
-        set_ban_for_parts([0, 1, 4], True)
+        self._set_ban_for_chunk_parts([0, 1, 4], True, hunk_chunk_id)
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
-        set_ban_for_parts([0, 1, 4], False)
+        self._set_ban_for_chunk_parts([0, 1, 4], False, hunk_chunk_id)
 
-        set_ban_for_parts([0, 1, 2, 4], True)
+        self._set_ban_for_chunk_parts([0, 1, 2, 4], True, hunk_chunk_id)
         with pytest.raises(YtError):
             lookup_rows("//tmp/t", keys)
-        set_ban_for_parts([0, 1, 2, 4], False)
+        self._set_ban_for_chunk_parts([0, 1, 2, 4], False, hunk_chunk_id)
 
     @authors("gritukan")
     @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
@@ -278,24 +268,14 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert len(hunk_chunk_ids) == 1
         hunk_chunk_id = hunk_chunk_ids[0]
 
-        def set_ban_for_parts(part_indices, banned_flag):
-            chunk_replicas = get("#{}/@stored_replicas".format(hunk_chunk_id))
-
-            nodes_to_ban = []
-            for part_index in part_indices:
-                nodes = list(str(r) for r in chunk_replicas if r.attributes["index"] == part_index)
-                nodes_to_ban += nodes
-
-            set_banned_flag(banned_flag, nodes_to_ban)
-
         if available:
-            set_ban_for_parts([0, 1, 4], True)
+            self._set_ban_for_chunk_parts([0, 1, 4], True, hunk_chunk_id)
             time.sleep(1)
             wait(lambda: get("//sys/data_missing_chunks/@count") == 0)
             wait(lambda: get("//sys/parity_missing_chunks/@count") == 0)
             assert_items_equal(lookup_rows("//tmp/t", keys), rows)
         else:
-            set_ban_for_parts([0, 1, 2, 8], True)
+            self._set_ban_for_chunk_parts([0, 1, 2, 8], True, hunk_chunk_id)
             time.sleep(2)
             assert hunk_chunk_id in ls("//sys/data_missing_chunks")
             assert hunk_chunk_id in ls("//sys/parity_missing_chunks")
@@ -1423,7 +1403,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
     NUM_TEST_PARTITIONS = 7
 
-    NUM_NODES = 5
+    # Need some extra nodes for erasure repair.
+    NUM_NODES = 12
 
     NUM_SCHEDULERS = 1
 
@@ -1656,3 +1637,100 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         remove("//tmp/t")
         wait(lambda: not exists("#{}".format(store_chunk_id)))
+
+    @authors("akozhikhov")
+    def test_read_from_erasure_hunk_storage_with_repair(self):
+        self._separate_tablet_and_data_nodes()
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
+
+        sync_create_cells(1)
+        self._create_table()
+        create("hunk_storage", "//tmp/h", attributes={
+            "store_rotation_period": 2000,
+            "store_removal_grace_period": 100,
+            "read_quorum": 4,
+            "write_quorum": 5,
+            "erasure_codec": "reed_solomon_3_3",
+            "replication_factor": 1,
+        })
+        set("//tmp/t/@hunk_storage_node", "//tmp/h")
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        for i in range(len(rows)):
+            rows[i]["$tablet_index"] = 0
+            rows[i]["$row_index"] = i
+
+        hunk_store_id = self._get_active_store_id("//tmp/h")
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        self._set_ban_for_chunk_parts([0, 1, 4], True, hunk_store_id)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+        self._set_ban_for_chunk_parts([0, 1, 4], False, hunk_store_id)
+
+        self._set_ban_for_chunk_parts([0, 1, 2, 4], True, hunk_store_id)
+        with raises_yt_error("exceeded retry count limit"):
+            assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+        self._set_ban_for_chunk_parts([0, 1, 2, 4], False, hunk_store_id)
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("available", [False, True])
+    def test_repair_erasure_hunk_storage_chunk(self, available):
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
+        self._separate_tablet_and_data_nodes()
+
+        sync_create_cells(1)
+        self._create_table()
+        create("hunk_storage", "//tmp/h", attributes={
+            "store_rotation_period": 2000,
+            "store_removal_grace_period": 100,
+            "read_quorum": 4,
+            "write_quorum": 5,
+            "erasure_codec": "reed_solomon_3_3",
+            "replication_factor": 1,
+        })
+        set("//tmp/t/@hunk_storage_node", "//tmp/h")
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        for i in range(len(rows)):
+            rows[i]["$tablet_index"] = 0
+            rows[i]["$row_index"] = i
+
+        hunk_store_id = self._get_active_store_id("//tmp/h")
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        def _check_all_replicas_ok():
+            replicas = get("#{}/@stored_replicas".format(hunk_store_id))
+            if len(replicas) != 6:
+                return False
+            if not all(r.attributes["state"] == "sealed" for r in replicas):
+                return False
+            return True
+
+        wait(_check_all_replicas_ok)
+
+        if available:
+            self._set_ban_for_chunk_parts([0, 1, 4], True, hunk_store_id)
+            set("//sys/@config/chunk_manager/enable_chunk_replicator", True)
+            wait(_check_all_replicas_ok)
+            assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+        else:
+            self._set_ban_for_chunk_parts([0, 1, 2, 4], True, hunk_store_id)
+            set("//sys/@config/chunk_manager/enable_chunk_replicator", True)
+            time.sleep(5)
+            assert not _check_all_replicas_ok()
+            with raises_yt_error("exceeded retry count limit"):
+                assert_items_equal(select_rows("* from [//tmp/t]"), rows)

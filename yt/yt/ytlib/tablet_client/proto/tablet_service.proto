@@ -106,6 +106,8 @@ message TRspWriteHunks
         required int32 record_index = 2;
         required int32 record_offset = 3;
         required int32 length = 4;
+        optional int32 erasure_codec = 5; // ECodec
+        optional int64 record_size = 6;
     }
     repeated TDescriptor descriptors = 1;
 }

@@ -943,9 +943,11 @@ private:
                         auto hunkChunkId = FromProto<TChunkId>(protoDescriptor.chunk_id());
                         HunkDescriptors_.push_back(THunkDescriptor{
                             .ChunkId = hunkChunkId,
+                            .ErasureCodec = FromProto<NErasure::ECodec>(protoDescriptor.erasure_codec()),
                             .BlockIndex = protoDescriptor.record_index(),
                             .BlockOffset = protoDescriptor.record_offset(),
                             .Length = protoDescriptor.length(),
+                            .BlockSize = protoDescriptor.record_size(),
                         });
                     }
             }));

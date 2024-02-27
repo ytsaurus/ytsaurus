@@ -1039,6 +1039,8 @@ public:
 
         if (IsTableType(table->GetType())) {
             PrepareMountTable(table->As<TTableNode>());
+        } else if (table->GetType() == EObjectType::HunkStorage) {
+            PrepareMountHunkStorage(table->As<THunkStorageNode>());
         }
 
         ValidateTabletStaticMemoryUpdate(
@@ -1085,6 +1087,15 @@ public:
             THROW_ERROR_EXCEPTION("Cannot mount table since it has invalid backup state %Qlv",
                 backupState);
         }
+    }
+
+    void PrepareMountHunkStorage(THunkStorageNode* hunkStorage)
+    {
+        GetHunkStorageSettings(
+            hunkStorage,
+            Bootstrap_->GetObjectManager(),
+            Bootstrap_->GetChunkManager(),
+            GetDynamicConfig());
     }
 
     void Mount(

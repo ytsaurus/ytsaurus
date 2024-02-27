@@ -1821,7 +1821,6 @@ private:
             return TSessionId(chunkId, session->Id.MediumIndex);
         }
 
-
         void ScheduleChunkSessionSeal(const TChunkSessionPtr& session)
         {
             if (Config_->DontSeal) {

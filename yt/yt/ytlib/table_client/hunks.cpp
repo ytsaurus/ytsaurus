@@ -2360,10 +2360,6 @@ void ReplaceHunks(
         YT_VERIFY(descriptorIndex < std::ssize(descriptors));
         const auto& descriptor = descriptors[descriptorIndex];
 
-        // TODO(alesandra-zh): support erasure.
-        YT_VERIFY(!IsErasureChunkId(descriptor.ChunkId));
-        YT_VERIFY(descriptor.ErasureCodec == NErasure::ECodec::None);
-
         auto payloadSize = static_cast<i64>(descriptor.Length - sizeof(THunkPayloadHeader));
         // TODO(akozhikhov): Support compressed hunk values here?
         TGlobalRefHunkValue globalRefHunkValue{

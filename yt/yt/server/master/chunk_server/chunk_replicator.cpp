@@ -2137,8 +2137,6 @@ void TChunkReplicator::ScheduleRepairJobs(IJobSchedulingContext* context)
 
     auto* node = context->GetNode();
 
-    TEphemeralObjectPtr<TNode> qqq;
-
     const auto& resourceUsage = context->GetNodeResourceUsage();
     const auto& resourceLimits = context->GetNodeResourceLimits();
 
