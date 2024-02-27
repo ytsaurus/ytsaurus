@@ -24,6 +24,7 @@ using namespace llvm;
 
 namespace NYT::NQueryClient {
 
+using NCodegen::EExecutionBackend;
 using NCodegen::MangleSymbol;
 using NCodegen::DemangleSymbol;
 
@@ -668,7 +669,7 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
     std::vector<EValueType> argumentTypes,
     EValueType type,
     const TString& name,
-    bool useWebAssembly,
+    EExecutionBackend executionBackend,
     llvm::FoldingSetNodeID* id) const
 {
     YT_VERIFY(!ImplementationFile_.Empty());
@@ -712,7 +713,7 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
                 type,
                 this_->UseFunctionContext_);
 
-            if (useWebAssembly) {
+            if (executionBackend == EExecutionBackend::WebAssembly) {
                 BuildPrototypesForFunctions(
                     innerBuilder,
                     {std::make_pair(this_->SymbolName_, functionType)});
@@ -749,7 +750,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
     EValueType stateType,
     EValueType resultType,
     const TString& name,
-    bool useWebAssembly,
+    EExecutionBackend executionBackend,
     llvm::FoldingSetNodeID* id) const
 {
     YT_VERIFY(!ImplementationFile_.Empty());
@@ -768,7 +769,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         argumentTypes = std::move(argumentTypes),
         stateType,
         resultType,
-        useWebAssembly,
+        executionBackend,
         initName,
         updateName,
         mergeName,
@@ -780,7 +781,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             argumentTypes = std::move(argumentTypes),
             stateType,
             resultType,
-            useWebAssembly,
+            executionBackend,
             functionName,
             initName,
             updateName,
@@ -830,7 +831,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             aggregateFunctions.push_back(merge);
             aggregateFunctions.push_back(finalize);
 
-            if (useWebAssembly) {
+            if (executionBackend == EExecutionBackend::WebAssembly) {
                 BuildPrototypesForFunctions(builder, aggregateFunctions);
             } else {
                 LoadLlvmFunctions(

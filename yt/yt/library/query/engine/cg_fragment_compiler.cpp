@@ -2448,7 +2448,7 @@ size_t MakeCodegenScanOp(
     size_t* slotCount,
     const std::vector<int>& stringLikeColumnIndices,
     int rowSchemaInformationIndex,
-    bool useWebAssembly)
+    EExecutionBackend executionBackend)
 {
     size_t consumerSlot = (*slotCount)++;
 
@@ -2457,12 +2457,12 @@ size_t MakeCodegenScanOp(
         codegenSource = std::move(*codegenSource),
         stringLikeColumnIndices,
         rowSchemaInformationIndex,
-        useWebAssembly
+        executionBackend
     ] (TCGOperatorContext& builder) {
         codegenSource(builder);
 
         auto consume = TLlvmClosure();
-        if (useWebAssembly) {
+        if (executionBackend == EExecutionBackend::WebAssembly) {
             consume = MakeConsumer(
                 builder,
                 "ScanOpInner",
@@ -3676,9 +3676,9 @@ void MakeCodegenWriteOp(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TSignature, typename TPISignature>
-TCallback<TSignature> BuildCGEntrypoint(TCGModulePtr module, const TString& entryFunctionName, bool useWebAssembly)
+TCallback<TSignature> BuildCGEntrypoint(TCGModulePtr module, const TString& entryFunctionName, EExecutionBackend executionBackend)
 {
-    if (useWebAssembly) {
+    if (executionBackend == EExecutionBackend::WebAssembly) {
         auto caller = New<TCGWebAssemblyCaller<TSignature, TPISignature>>(
     #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
             FROM_HERE,
@@ -3701,9 +3701,9 @@ TCallback<TSignature> BuildCGEntrypoint(TCGModulePtr module, const TString& entr
     return TCallback<TSignature>(caller, staticInvoke);
 }
 
-std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> BuildImage(const TCGModulePtr& module, bool useWebAssembly)
+std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> BuildImage(const TCGModulePtr& module, EExecutionBackend executionBackend)
 {
-    if (useWebAssembly) {
+    if (executionBackend == EExecutionBackend::WebAssembly) {
         module->BuildWebAssembly();
         auto bytecode = module->GetWebAssemblyBytecode();
         auto compartment = NWebAssembly::CreateBaseImage();
@@ -3718,10 +3718,9 @@ std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> BuildImage(const TCGModul
 TCGQueryImage CodegenQuery(
     const TCodegenSource* codegenSource,
     size_t slotCount,
-    bool useWebAssembly)
+    EExecutionBackend executionBackend)
 {
-    auto backend = useWebAssembly ? EExecutionBackend::WebAssembly : EExecutionBackend::Native;
-    auto cgModule = TCGModule::Create(GetQueryRoutineRegistry(backend), backend);
+    auto cgModule = TCGModule::Create(GetQueryRoutineRegistry(executionBackend), executionBackend);
     const auto entryFunctionName = TString("EvaluateQuery");
 
     auto* queryFunction = MakeFunction<TCGPIQuerySignature>(cgModule, entryFunctionName.c_str(), [&] (
@@ -3744,23 +3743,22 @@ TCGQueryImage CodegenQuery(
 
     cgModule->ExportSymbol(entryFunctionName);
 
-    if (useWebAssembly) {
+    if (executionBackend == EExecutionBackend::WebAssembly) {
         queryFunction->addFnAttr("wasm-export-name", entryFunctionName.c_str());
     }
 
     return {
-        BuildCGEntrypoint<TCGQuerySignature, TCGPIQuerySignature>(cgModule, entryFunctionName, useWebAssembly),
-        BuildImage(cgModule, useWebAssembly),
+        BuildCGEntrypoint<TCGQuerySignature, TCGPIQuerySignature>(cgModule, entryFunctionName, executionBackend),
+        BuildImage(cgModule, executionBackend),
     };
 }
 
 TCGExpressionImage CodegenStandaloneExpression(
     const TCodegenFragmentInfosPtr& fragmentInfos,
     size_t exprId,
-    bool useWebAssembly)
+    EExecutionBackend executionBackend)
 {
-    auto backend = useWebAssembly ? EExecutionBackend::WebAssembly : EExecutionBackend::Native;
-    auto cgModule = TCGModule::Create(GetQueryRoutineRegistry(backend), backend);
+    auto cgModule = TCGModule::Create(GetQueryRoutineRegistry(executionBackend), executionBackend);
     const auto entryFunctionName = TString("EvaluateExpression");
 
     CodegenFragmentBodies(cgModule, *fragmentInfos);
@@ -3786,13 +3784,13 @@ TCGExpressionImage CodegenStandaloneExpression(
 
     cgModule->ExportSymbol(entryFunctionName);
 
-    if (useWebAssembly) {
+    if (executionBackend == EExecutionBackend::WebAssembly) {
         expressionFunction->addFnAttr("wasm-export-name", entryFunctionName.c_str());
     }
 
     return {
-        BuildCGEntrypoint<TCGExpressionSignature, TCGPIExpressionSignature>(cgModule, entryFunctionName, useWebAssembly),
-        BuildImage(cgModule, useWebAssembly),
+        BuildCGEntrypoint<TCGExpressionSignature, TCGPIExpressionSignature>(cgModule, entryFunctionName, executionBackend),
+        BuildImage(cgModule, executionBackend),
     };
 }
 
@@ -3800,10 +3798,9 @@ TCGAggregateImage CodegenAggregate(
     TCodegenAggregate codegenAggregate,
     std::vector<EValueType> argumentTypes,
     EValueType stateType,
-    bool useWebAssembly)
+    EExecutionBackend executionBackend)
 {
-    auto backend = useWebAssembly ? EExecutionBackend::WebAssembly : EExecutionBackend::Native;
-    auto cgModule = TCGModule::Create(GetQueryRoutineRegistry(backend), backend);
+    auto cgModule = TCGModule::Create(GetQueryRoutineRegistry(executionBackend), executionBackend);
 
     static const auto initName = TString("init");
     {
@@ -3819,7 +3816,7 @@ TCGAggregateImage CodegenAggregate(
 
         cgModule->ExportSymbol(initName);
 
-        if (useWebAssembly) {
+        if (executionBackend == EExecutionBackend::WebAssembly) {
             initFunction->addFnAttr("wasm-export-name", initName.c_str());
         }
     }
@@ -3848,7 +3845,7 @@ TCGAggregateImage CodegenAggregate(
 
         cgModule->ExportSymbol(updateName);
 
-        if (useWebAssembly) {
+        if (executionBackend == EExecutionBackend::WebAssembly) {
             updateFunction->addFnAttr("wasm-export-name", updateName.c_str());
         }
     }
@@ -3871,7 +3868,7 @@ TCGAggregateImage CodegenAggregate(
 
         cgModule->ExportSymbol(mergeName);
 
-        if (useWebAssembly) {
+        if (executionBackend == EExecutionBackend::WebAssembly) {
             mergeFunction->addFnAttr("wasm-export-name", mergeName.c_str());
         }
     }
@@ -3894,19 +3891,19 @@ TCGAggregateImage CodegenAggregate(
 
         cgModule->ExportSymbol(finalizeName);
 
-        if (useWebAssembly) {
+        if (executionBackend == EExecutionBackend::WebAssembly) {
             finalizeFunction->addFnAttr("wasm-export-name", finalizeName.c_str());
         }
     }
 
     return {
         TCGAggregateCallbacks{
-            BuildCGEntrypoint<TCGAggregateInitSignature, TCGPIAggregateInitSignature>(cgModule, initName, useWebAssembly),
-            BuildCGEntrypoint<TCGAggregateUpdateSignature, TCGPIAggregateUpdateSignature>(cgModule, updateName, useWebAssembly),
-            BuildCGEntrypoint<TCGAggregateMergeSignature, TCGPIAggregateMergeSignature>(cgModule, mergeName, useWebAssembly),
-            BuildCGEntrypoint<TCGAggregateFinalizeSignature, TCGPIAggregateFinalizeSignature>(cgModule, finalizeName, useWebAssembly),
+            BuildCGEntrypoint<TCGAggregateInitSignature, TCGPIAggregateInitSignature>(cgModule, initName, executionBackend),
+            BuildCGEntrypoint<TCGAggregateUpdateSignature, TCGPIAggregateUpdateSignature>(cgModule, updateName, executionBackend),
+            BuildCGEntrypoint<TCGAggregateMergeSignature, TCGPIAggregateMergeSignature>(cgModule, mergeName, executionBackend),
+            BuildCGEntrypoint<TCGAggregateFinalizeSignature, TCGPIAggregateFinalizeSignature>(cgModule, finalizeName, executionBackend),
         },
-        BuildImage(cgModule, useWebAssembly),
+        BuildImage(cgModule, executionBackend),
     };
 }
 

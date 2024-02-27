@@ -20,7 +20,7 @@ struct IFunctionCodegen
         std::vector<EValueType> argumentTypes,
         EValueType type,
         const TString& name,
-        bool useWebAssembly,
+        NCodegen::EExecutionBackend executionBackend,
         llvm::FoldingSetNodeID* id = nullptr) const = 0;
 
     virtual bool IsNullable(const std::vector<bool>& /*nullableArgs*/) const {
@@ -38,7 +38,7 @@ struct IAggregateCodegen
         EValueType stateType,
         EValueType resultType,
         const TString& name,
-        bool useWebAssembly,
+        NCodegen::EExecutionBackend executionBackend,
         llvm::FoldingSetNodeID* id = nullptr) const = 0;
 
     virtual bool IsFirst() const = 0;
@@ -164,7 +164,7 @@ public:
         std::vector<EValueType> argumentTypes,
         EValueType type,
         const TString& name,
-        bool useWebAssembly,
+        NCodegen::EExecutionBackend executionBackend,
         llvm::FoldingSetNodeID* id) const override;
 
 private:
@@ -198,7 +198,7 @@ public:
         EValueType stateType,
         EValueType resultType,
         const TString& name,
-        bool useWebAssembly,
+        NCodegen::EExecutionBackend executionBackend,
         llvm::FoldingSetNodeID* id) const override;
 
     bool IsFirst() const override;

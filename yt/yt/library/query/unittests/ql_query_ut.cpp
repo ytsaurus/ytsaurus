@@ -62,6 +62,7 @@ using namespace NYTree;
 using namespace NYson;
 
 using NChunkClient::NProto::TDataStatistics;
+using NCodegen::EExecutionBackend;
 
 void SetObjectId(TDataSplit* /*dataSplit*/, NObjectClient::TObjectId /*objectId*/)
 { }
@@ -87,15 +88,15 @@ static void SumCodegenExecute(
     }
 }
 
-static void DumpTime(const TQueryStatistics& statistics, bool useWebAssembly)
+static void DumpTime(const TQueryStatistics& statistics, EExecutionBackend executionBackend)
 {
     auto codegen = TDuration();
     auto execute = TDuration();
 
     SumCodegenExecute(statistics, &codegen, &execute);
 
-    Cerr << (useWebAssembly ? "WebAssembly" : "Native") << " Codegen: " << codegen << Endl;
-    Cerr << (useWebAssembly ? "WebAssembly" : "Native") << " Execute: " << execute << Endl;
+    Cerr << ToString(executionBackend) << " Codegen: " << codegen << Endl;
+    Cerr << ToString(executionBackend) << " Execute: " << execute << Endl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1032,7 +1033,7 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
                 nullptr,
                 &variables,
                 /*useCanonicalNullRelations*/ false,
-                /*useWebAssembly*/ false,
+                /*executionBackend*/ EExecutionBackend::Native,
                 FunctionProfilers_);
             auto callback = codegen();
         }, HasSubstr("LLVM bitcode"));
@@ -1050,7 +1051,7 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
                 nullptr,
                 &variables,
                 /*useCanonicalNullRelations*/ false,
-                /*useWebAssembly*/ false,
+                /*executionBackend*/ EExecutionBackend::Native,
                 FunctionProfilers_);
             auto callback = codegen();
         }, HasSubstr("LLVM bitcode"));
@@ -1068,7 +1069,7 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
                 nullptr,
                 &variables,
                 /*useCanonicalNullRelations*/ false,
-                /*useWebAssembly*/ false,
+                /*executionBackend*/ EExecutionBackend::Native,
                 FunctionProfilers_);
             auto callback = codegen();
         }, HasSubstr("LLVM bitcode"));
@@ -1524,7 +1525,7 @@ protected:
         const std::map<TString, TDataSplit>& dataSplits,
         const std::vector<std::vector<TString>>& owningSources,
         const TResultMatcher& resultMatcher,
-        bool useWebAssembly,
+        EExecutionBackend executionBackend,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max(),
         NYson::TYsonStringBuf placeholderValues = {},
@@ -1538,7 +1539,7 @@ protected:
                 dataSplits,
                 owningSources,
                 resultMatcher,
-                useWebAssembly,
+                executionBackend,
                 inputRowLimit,
                 outputRowLimit,
                 false,
@@ -1565,7 +1566,7 @@ protected:
             dataSplits,
             owningSources,
             resultMatcher,
-            /*useWebAssembly*/ true,
+            /*executionBackend*/ EExecutionBackend::WebAssembly,
             inputRowLimit,
             outputRowLimit,
             placeholderValues);
@@ -1575,7 +1576,7 @@ protected:
             dataSplits,
             owningSources,
             resultMatcher,
-            /*useWebAssembly*/ false,
+            /*executionBackend*/ EExecutionBackend::Native,
             inputRowLimit,
             outputRowLimit,
             placeholderValues,
@@ -1606,7 +1607,7 @@ protected:
             dataSplits,
             owningSources,
             resultMatcher,
-            /*useWebAssembly*/ true,
+            /*executionBackend*/ EExecutionBackend::WebAssembly,
             inputRowLimit,
             outputRowLimit,
             placeholderValues,
@@ -1618,7 +1619,7 @@ protected:
             dataSplits,
             owningSources,
             resultMatcher,
-            /*useWebAssembly*/ false,
+            /*executionBackend*/ EExecutionBackend::Native,
             inputRowLimit,
             outputRowLimit,
             placeholderValues,
@@ -1697,7 +1698,7 @@ protected:
                 dataSplits,
                 owningSources,
                 resultMatcher,
-                /*useWebAssembly*/ true,
+                /*executionBackend*/ EExecutionBackend::WebAssembly,
                 inputRowLimit,
                 outputRowLimit,
                 true,
@@ -1714,7 +1715,7 @@ protected:
                 dataSplits,
                 owningSources,
                 resultMatcher,
-                /*useWebAssembly*/ false,
+                /*executionBackend*/ EExecutionBackend::Native,
                 inputRowLimit,
                 outputRowLimit,
                 true,
@@ -1756,7 +1757,7 @@ protected:
         const std::map<TString, TDataSplit>& dataSplits,
         const std::vector<std::vector<TString>>& owningSources,
         const TResultMatcher& resultMatcher,
-        bool useWebAssembly,
+        EExecutionBackend executionBackend,
         i64 inputRowLimit,
         i64 outputRowLimit,
         bool failure,
@@ -1764,7 +1765,7 @@ protected:
         bool useCanonicalNullRelations,
         int syntaxVersion)
     {
-        if (useWebAssembly && !EnableWebAssemblyInUnitTests()) {
+        if (executionBackend == EExecutionBackend::WebAssembly && !EnableWebAssemblyInUnitTests()) {
             return {};
         }
 
@@ -1774,7 +1775,7 @@ protected:
         options.InputRowLimit = inputRowLimit;
         options.OutputRowLimit = outputRowLimit;
         options.UseCanonicalNullRelations = useCanonicalNullRelations;
-        options.UseWebAssembly = useWebAssembly;
+        options.ExecutionBackend = executionBackend;
 
         size_t sourceIndex = 1;
 
@@ -1835,7 +1836,7 @@ protected:
             resultStatistics.AddInnerStatistics(std::move(aggregatedStatistics));
 
             if (IsTimeDumpEnabled()) {
-                DumpTime(resultStatistics, useWebAssembly);
+                DumpTime(resultStatistics, executionBackend);
             }
 
             auto resultRowset = WaitFor(asyncResultRowset)
@@ -1859,9 +1860,9 @@ protected:
         const TDataSplit& dataSplit,
         const std::vector<std::vector<TString>>& owningSources,
         const TResultMatcher& resultMatcher,
-        bool useWebAssembly)
+        EExecutionBackend executionBackend)
     {
-        if (useWebAssembly && !EnableWebAssemblyInUnitTests()) {
+        if (executionBackend == EExecutionBackend::WebAssembly && !EnableWebAssemblyInUnitTests()) {
             return {};
         }
 
@@ -1933,7 +1934,7 @@ protected:
                 FunctionProfilers_,
                 AggregateProfilers_,
                 GetDefaultMemoryChunkProvider(),
-                TQueryBaseOptions{.UseWebAssembly = useWebAssembly});
+                TQueryBaseOptions{.ExecutionBackend = executionBackend});
 
             return pipe->GetReader();
         };
@@ -1954,13 +1955,13 @@ protected:
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),
-            TQueryBaseOptions{.UseWebAssembly = useWebAssembly});
+            TQueryBaseOptions{.ExecutionBackend = executionBackend});
 
         auto rows = WaitFor(asyncResultRowset).ValueOrThrow()->GetRows();
         resultMatcher(rows, *frontQuery->GetTableSchema());
 
         if (IsTimeDumpEnabled()) {
-            DumpTime(frontStatistics, false);
+            DumpTime(frontStatistics, executionBackend);
         }
         for (auto& stat : resultStatistics) {
             frontStatistics.AddInnerStatistics(std::move(stat));
@@ -1975,8 +1976,8 @@ protected:
         const std::vector<std::vector<TString>>& owningSources,
         const TResultMatcher& resultMatcher)
     {
-        EvaluateCoordinatedGroupByImpl(query, dataSplit, owningSources, resultMatcher, /*useWebAssembly*/ true);
-        return EvaluateCoordinatedGroupByImpl(query, dataSplit, owningSources, resultMatcher, /*useWebAssembly*/ false);
+        EvaluateCoordinatedGroupByImpl(query, dataSplit, owningSources, resultMatcher, /*executionBackend*/ EExecutionBackend::WebAssembly);
+        return EvaluateCoordinatedGroupByImpl(query, dataSplit, owningSources, resultMatcher, /*executionBackend*/ EExecutionBackend::Native);
     }
 
     const IEvaluatorPtr Evaluator_ = CreateEvaluator(New<TExecutorConfig>());

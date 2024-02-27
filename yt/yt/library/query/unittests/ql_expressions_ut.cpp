@@ -38,6 +38,8 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NTableClient;
 
+using NCodegen::EExecutionBackend;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TResultMatcher>
@@ -58,7 +60,7 @@ void Evaluate(
             nullptr,
             &variables,
             /*useCanonicalNullRelations*/ false,
-            /*useWebAssembly*/ true)();
+            /*executionBackend*/ EExecutionBackend::WebAssembly)();
 
         auto instance = image.Instantiate();
 
@@ -83,7 +85,7 @@ void Evaluate(
             nullptr,
             &variables,
             /*useCanonicalNullRelations*/ false,
-            /*useWebAssembly*/ false)();
+            /*executionBackend*/ EExecutionBackend::Native)();
 
         auto instance = image.Instantiate();
 
@@ -1110,7 +1112,7 @@ TEST_F(TExpressionTest, Aliasing)
             /*id*/ nullptr,
             &variables,
             /*useCanonicalNullRelations*/ false,
-            /*useWebAssembly*/ false)();
+            /*executionBackend*/ EExecutionBackend::Native)();
 
         auto instance = image.Instantiate();
 
@@ -1135,7 +1137,7 @@ TEST_F(TExpressionTest, Aliasing)
             /*id*/ nullptr,
             &variables,
             /*useCanonicalNullRelations*/ false,
-            /*useWebAssembly*/ true)();
+            /*executionBackend*/ EExecutionBackend::WebAssembly)();
 
         auto instance = image.Instantiate();
 
@@ -1561,7 +1563,7 @@ TEST_F(TArithmeticExpressionTest, Test)
             &id,
             variables,
             /*useCanonicalNullRelations*/ false,
-            EnableWebAssemblyInUnitTests());
+            EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native);
 
         auto [it, inserted] = compiledExpressionsCache.emplace(id, TCGExpressionInstance{});
         if (inserted) {
@@ -1813,7 +1815,7 @@ TEST_P(TCompareWithNullTest, Simple)
             &nonCanonId,
             &variables,
             /*useCanonicalNullRelations*/ false,
-            EnableWebAssemblyInUnitTests())();
+            EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native)();
 
         auto instance = image.Instantiate();
 
@@ -1833,7 +1835,7 @@ TEST_P(TCompareWithNullTest, Simple)
             &canonId,
             &variables,
             /*useCanonicalNullRelations*/ true,
-            EnableWebAssemblyInUnitTests())();
+            EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native)();
 
         auto instance = image.Instantiate();
 
@@ -1913,8 +1915,14 @@ TEST_F(TEvaluateAggregationTest, AggregateFlag)
     // TODO(dtorilov): Test both execution backends.
     auto image = CodegenAggregate(
         aggregateProfilers->GetAggregate("xor_aggregate")->Profile(
-            {EValueType::Int64}, EValueType::Int64, EValueType::Int64, "xor_aggregate", EnableWebAssemblyInUnitTests()),
-        {EValueType::Int64}, EValueType::Int64, EnableWebAssemblyInUnitTests());
+            {EValueType::Int64},
+            EValueType::Int64,
+            EValueType::Int64,
+            "xor_aggregate",
+            EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native),
+        {EValueType::Int64},
+        EValueType::Int64,
+        EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native);
     auto instance = image.Instantiate();
 
     auto buffer = New<TRowBuffer>();
@@ -1979,10 +1987,10 @@ TEST_F(TEvaluateAggregationTest, Aliasing)
             /* stateType */ EValueType::String,
             /* resultType */ EValueType::String,
             /* name */ "concat_all",
-            EnableWebAssemblyInUnitTests()),
+            EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native),
         /* argumentTypes */ {EValueType::String},
         /* stateType */ EValueType::String,
-        EnableWebAssemblyInUnitTests());
+        EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native);
     auto instance = image.Instantiate();
 
     {
@@ -2061,10 +2069,10 @@ TEST_P(TEvaluateAggregationTest, Basic)
             type,
             type,
             aggregateName,
-            EnableWebAssemblyInUnitTests()),
+            EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native),
         {type},
         type,
-        EnableWebAssemblyInUnitTests());
+        EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native);
     auto instance = image.Instantiate();
 
     auto buffer = New<TRowBuffer>();
@@ -2189,10 +2197,10 @@ TEST_P(TEvaluateAggregationWithStringStateTest, Basic)
             stateType,
             resultType,
             aggregateName,
-            EnableWebAssemblyInUnitTests()),
+            EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native),
         argumentTypes,
         stateType,
-        EnableWebAssemblyInUnitTests());
+        EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native);
     auto instance = image.Instantiate();
 
     auto buffer = New<TRowBuffer>();
@@ -2346,7 +2354,7 @@ void EvaluateExpression(
         /*id*/ nullptr,
         &variables,
         /*useCanonicalNullRelations*/ false,
-        EnableWebAssemblyInUnitTests())();
+        EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native)();
     auto instance = image.Instantiate();
 
     auto row = YsonToSchemafulRow(rowString, *schema, true);

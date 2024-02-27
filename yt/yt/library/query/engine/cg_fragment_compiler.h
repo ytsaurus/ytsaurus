@@ -172,7 +172,7 @@ size_t MakeCodegenScanOp(
     size_t* slotCount,
     const std::vector<int>& stringLikeColumnIndices,
     int rowSchemaInformationIndex,
-    bool useWebAssembly);
+    NCodegen::EExecutionBackend executionBackend);
 
 size_t MakeCodegenFilterOp(
     TCodegenSource* codegenSource,
@@ -301,18 +301,18 @@ void MakeCodegenWriteOp(
 TCGQueryImage CodegenQuery(
     const TCodegenSource* codegenSource,
     size_t slotIndex,
-    bool useWebAssembly);
+    NCodegen::EExecutionBackend executionBackend);
 
 TCGExpressionImage CodegenStandaloneExpression(
     const TCodegenFragmentInfosPtr& fragmentInfos,
     size_t exprId,
-    bool useWebAssembly);
+    NCodegen::EExecutionBackend executionBackend);
 
 TCGAggregateImage CodegenAggregate(
     TCodegenAggregate codegenAggregate,
     std::vector<EValueType> argumentTypes,
     EValueType stateType,
-    bool useWebAssembly);
+    NCodegen::EExecutionBackend executionBackend);
 
 ////////////////////////////////////////////////////////////////////////////////
 

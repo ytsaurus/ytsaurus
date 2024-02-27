@@ -1,5 +1,6 @@
 #pragma once
 
+#include "execution_backend.h"
 #include "public.h"
 #include "routine_registry.h"
 #include "type_builder.h"
@@ -28,13 +29,6 @@
 #endif
 
 namespace NYT::NCodegen {
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EExecutionBackend,
-    (Native)
-    (WebAssembly)
-);
 
 ////////////////////////////////////////////////////////////////////////////////
 

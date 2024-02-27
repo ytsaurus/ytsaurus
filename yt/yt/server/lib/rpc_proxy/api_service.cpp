@@ -3749,8 +3749,8 @@ private:
         if (request->has_syntax_version()) {
             options.SyntaxVersion = request->syntax_version();
         }
-        if (request->has_use_web_assembly()) {
-            options.UseWebAssembly = request->use_web_assembly();
+        if (request->has_execution_backend()) {
+            options.ExecutionBackend = static_cast<NApi::EExecutionBackend>(request->execution_backend());
         }
 
         auto detailedProfilingInfo = New<TDetailedProfilingInfo>();

@@ -46,7 +46,7 @@ std::unique_ptr<TQueryEvaluationContext> CreateQueryEvaluationContext(
         /*id*/ nullptr,
         &context->Variables,
         /*useCanonicalNullRelations*/ false,
-        /*useWebAssembly*/ false,
+        /*executionBackend*/ NCodegen::EExecutionBackend::Native,
         GetBuiltinFunctionProfilers())();
 
     context->Instance = context->Image.Instantiate();
