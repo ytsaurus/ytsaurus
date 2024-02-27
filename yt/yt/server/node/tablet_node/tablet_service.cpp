@@ -449,7 +449,11 @@ private:
                     ToProto(protoDescriptor->mutable_chunk_id(), descriptor.ChunkId);
                     protoDescriptor->set_record_index(descriptor.RecordIndex);
                     protoDescriptor->set_record_offset(descriptor.RecordOffset);
-                    protoDescriptor->set_length(descriptor.Size);
+                    protoDescriptor->set_length(descriptor.Length);
+                    protoDescriptor->set_erasure_codec(ToProto<int>(descriptor.ErasureCodec));
+                    if (descriptor.RecordSize) {
+                        protoDescriptor->set_record_size(*descriptor.RecordSize);
+                    }
                 }
             })));
     }

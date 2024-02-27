@@ -168,6 +168,7 @@ public:
 
     void RegisterRequest(const TFragmentRequest& request) override
     {
+        YT_VERIFY(request.BlockSize);
         Requests_.push_back(TRequest(request, DataPartCount_));
     }
 
@@ -296,7 +297,6 @@ private:
         i64 Length;
         int BlockIndex;
         i64 BlockOffset;
-        i64 BlockSize;
         i64 BlockPartSize;
 
         int FirstPartIndex;
@@ -315,8 +315,7 @@ private:
             , Length(request.Length)
             , BlockIndex(request.BlockIndex)
             , BlockOffset(request.BlockOffset)
-            , BlockSize(*request.BlockSize)
-            , BlockPartSize(DivCeil<i64>(BlockSize, codecDataPartCount))
+            , BlockPartSize(DivCeil<i64>(*request.BlockSize, codecDataPartCount))
             , FirstPartIndex(BlockOffset / BlockPartSize)
             , FirstPartStartOffset(BlockOffset % BlockPartSize)
             , LastPartIndex((BlockOffset + Length - 1) / BlockPartSize)

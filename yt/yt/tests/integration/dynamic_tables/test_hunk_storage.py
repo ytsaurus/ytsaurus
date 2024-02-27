@@ -24,7 +24,7 @@ import time
 
 class TestHunkStorage(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 3
+    NUM_NODES = 6
     USE_DYNAMIC_TABLES = True
 
     def _get_active_store_id(self, hunk_storage, tablet_index=0):
@@ -33,11 +33,13 @@ class TestHunkStorage(YTEnvSetup):
         wait(lambda: exists("//sys/tablets/{}/orchid/active_store_id".format(tablet_id)))
         return get("//sys/tablets/{}/orchid/active_store_id".format(tablet_id))
 
-    def _create_hunk_storage(self, name):
-        create("hunk_storage", name, attributes={
-            "store_rotation_period": 2000,
-            "store_removal_grace_period": 4000,
-        })
+    def _create_hunk_storage(self, name, **attributes):
+        if "store_rotation_period" not in attributes:
+            attributes.update({"store_rotation_period": 2000})
+        if "store_removal_grace_period" not in attributes:
+            attributes.update({"store_removal_grace_period": 4000})
+
+        create("hunk_storage", name, attributes=attributes)
 
     def _create_ordered_table(self, name, attributes={}):
         ordered_schema = make_schema(
@@ -137,17 +139,25 @@ class TestHunkStorage(YTEnvSetup):
         with raises_yt_error("Hunk storage does not support clone mode"):
             move("//tmp/h", "//tmp/g")
 
-    @authors("gritukan")
-    def test_write_simple(self):
+    @authors("gritukan", "akozhikhov")
+    @pytest.mark.parametrize("erasure_codec", ["none", "reed_solomon_3_3"])
+    def test_write_simple(self, erasure_codec):
         sync_create_cells(1)
-        self._create_hunk_storage("//tmp/h")
+        if erasure_codec == "none":
+            self._create_hunk_storage("//tmp/h")
+        else:
+            self._create_hunk_storage("//tmp/h", read_quorum=4, write_quorum=5)
+            set("//tmp/h/@erasure_codec", erasure_codec)
+            set("//tmp/h/@replication_factor", 1)
         sync_mount_table("//tmp/h")
 
         store_id = self._get_active_store_id("//tmp/h")
         hunks = write_hunks("//tmp/h", ["a", "bb"])
         assert hunks == [
-            {"chunk_id": store_id, "block_index": 0, "block_offset": 0, "length": 9, "erasure_codec": "none"},
-            {"chunk_id": store_id, "block_index": 0, "block_offset": 9, "length": 10, "erasure_codec": "none"},
+            {"chunk_id": store_id, "block_index": 0, "block_offset": 0, "length": 9,
+             "erasure_codec": erasure_codec, "block_size": 19},
+            {"chunk_id": store_id, "block_index": 0, "block_offset": 9, "length": 10,
+             "erasure_codec": erasure_codec, "block_size": 19},
         ]
 
         assert read_hunks(hunks) == [
@@ -164,6 +174,33 @@ class TestHunkStorage(YTEnvSetup):
         ]
 
         wait(lambda: not exists("#{}".format(store_id)))
+
+    @authors("akozhikhov")
+    def test_bad_erasure_codec(self):
+        sync_create_cells(1)
+        self._create_hunk_storage("//tmp/h")
+        set("//tmp/h/@erasure_codec", "reed_solomon_6_3")
+        with raises_yt_error("bytewise"):
+            sync_mount_table("//tmp/h")
+
+    @authors("akozhikhov")
+    def test_bad_journal_params(self):
+        sync_create_cells(1)
+        self._create_hunk_storage("//tmp/h", read_quorum=4, write_quorum=5)
+
+        set("//tmp/h/@erasure_codec", "none")
+        set("//tmp/h/@replication_factor", 2)
+        with raises_yt_error("read_quorum"):
+            sync_mount_table("//tmp/h")
+
+        set("//tmp/h/@erasure_codec", "reed_solomon_3_3")
+        set("//tmp/h/@replication_factor", 2)
+        with raises_yt_error("replication_factor"):
+            sync_mount_table("//tmp/h")
+
+        set("//tmp/h/@erasure_codec", "reed_solomon_3_3")
+        set("//tmp/h/@replication_factor", 1)
+        sync_mount_table("//tmp/h")
 
     @authors("gritukan")
     def test_store_rotation_1(self):

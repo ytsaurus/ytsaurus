@@ -14,7 +14,7 @@ from yt_commands import (
     sync_reshard_table, sync_flush_table, sync_compact_table,
     get_singular_chunk_id, create_dynamic_table, get_tablet_leader_address,
     raises_yt_error, build_snapshot, AsyncLastCommittedTimestamp, MinTimestamp,
-    disable_write_sessions_on_node, set_node_banned, disable_tablet_cells_on_node)
+    disable_write_sessions_on_node, set_node_banned, set_nodes_banned, disable_tablet_cells_on_node)
 
 import yt_error_codes
 
@@ -200,6 +200,16 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
         disable_write_sessions_on_node(self._nodes[0], "separate tablet and data nodes")
         for node in self._nodes[1:]:
             disable_tablet_cells_on_node(node, "separate tablet and data nodes")
+
+    def _set_ban_for_chunk_parts(self, part_indices, banned_flag, chunk_id):
+        chunk_replicas = get("#{}/@stored_replicas".format(chunk_id))
+
+        nodes_to_ban = []
+        for part_index in part_indices:
+            nodes = list(str(r) for r in chunk_replicas if r.attributes["index"] == part_index)
+            nodes_to_ban += nodes
+
+        set_nodes_banned(nodes_to_ban, banned_flag)
 
     def _enable_hash_chunk_index(self, path):
         set("{}/@compression_codec".format(path), "none")

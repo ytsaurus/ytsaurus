@@ -200,8 +200,10 @@ DEFINE_ENUM(EMasterReign,
     ((SecondaryIndexUnfolding)                                      (2532))  // sabdenovch
     ((TablesInSequoia)                                              (2533))  // h0pless
     ((CheckChunkCountPerTabletBeforeMount)                          (2534))  // alexelexa
+    ((ErasureHunkStorage_24_1)                                      (2535))  // akozhikhov
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
+    ((ErasureHunkStorage)                                           (2601))  // akozhikhov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

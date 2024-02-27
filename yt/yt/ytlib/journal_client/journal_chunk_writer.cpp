@@ -83,7 +83,25 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return BIND(&TJournalChunkWriter::DoWriteRecord, MakeStrong(this), record)
+        std::vector<TSharedRef> recordParts{std::move(record)};
+        return BIND(&TJournalChunkWriter::DoWriteRecord,
+            MakeStrong(this),
+            Passed(std::move(recordParts)),
+            /*alreadyEncoded*/ false)
+            .AsyncVia(Invoker_)
+            .Run();
+    }
+
+    TFuture<void> WriteEncodedRecordParts(std::vector<TSharedRef> recordParts) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        YT_VERIFY(Options_->ErasureCodec != NErasure::ECodec::None);
+
+        return BIND(&TJournalChunkWriter::DoWriteRecord,
+            MakeStrong(this),
+            Passed(std::move(recordParts)),
+            /*alreadyEncoded*/ true)
             .AsyncVia(Invoker_)
             .Run();
     }
@@ -166,6 +184,8 @@ private:
 
     std::deque<TRecordPtr> PendingRecords_;
     i64 FirstPendingRecordIndex_ = 0;
+
+    TDelayedExecutorCookie CurrentRecordsFlushCookie_;
 
     i64 NextRecordIndex_ = 0;
 
@@ -388,7 +408,7 @@ private:
         }
     }
 
-    TFuture<void> DoWriteRecord(TSharedRef data)
+    TFuture<void> DoWriteRecord(std::vector<TSharedRef> recordParts, bool alreadyEncoded)
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
@@ -401,17 +421,34 @@ private:
             return MakeFuture<void>(error);
         }
 
-        auto record = CreateRecord(std::move(data));
-        PendingRecords_.push_back(record);
+        PendingRecords_.push_back(CreateRecord(std::move(recordParts), alreadyEncoded));
 
         MaybeFlushNodes();
 
-        return record->QuorumFlushedPromise.ToFuture();
+        return PendingRecords_.back()->QuorumFlushedPromise.ToFuture();
     }
 
     void MaybeFlushNodes()
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        if (std::ssize(PendingRecords_) >= Config_->MaxBatchRowCount) {
+            DoFlushNodes();
+        }
+
+        if (Config_->MaxBatchDelay == TDuration::Zero()) {
+            DoFlushNodes();
+        } else if (!CurrentRecordsFlushCookie_) {
+            CurrentRecordsFlushCookie_ = TDelayedExecutor::Submit(
+                BIND(&TJournalChunkWriter::DoFlushNodes, MakeWeak(this))
+                    .Via(Invoker_),
+                Config_->MaxBatchDelay);
+        }
+    }
+
+    void DoFlushNodes()
+    {
+        TDelayedExecutor::CancelAndClear(CurrentRecordsFlushCookie_);
 
         for (const auto& node : Nodes_) {
             MaybeFlushNode(node);
@@ -625,22 +662,34 @@ private:
         YT_LOG_DEBUG("Journal chunk writer finished");
     }
 
-    TRecordPtr CreateRecord(TSharedRef data)
+    TRecordPtr CreateRecord(std::vector<TSharedRef> recordParts, bool alreadyEncoded)
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
         auto record = New<TRecord>();
         record->Index = NextRecordIndex_++;
 
-        auto erasureCodec = Options_->ErasureCodec;
-        if (erasureCodec == NErasure::ECodec::None) {
+        record->ReplicaParts.reserve(ReplicaCount_);
+        if (Options_->ErasureCodec == NErasure::ECodec::None) {
+            YT_VERIFY(recordParts.size() == 1);
             for (int index = 0; index < ReplicaCount_; ++index) {
-                record->ReplicaParts.push_back(data);
+                record->ReplicaParts.push_back(recordParts[0]);
             }
         } else {
-            auto encodedRows = EncodeErasureJournalRows(NErasure::GetCodec(erasureCodec), {data});
-            YT_VERIFY(std::ssize(encodedRows) == 1);
-            record->ReplicaParts = encodedRows.front();
+            std::vector<TSharedRef> encodedParts;
+            if (alreadyEncoded) {
+                YT_VERIFY(ReplicaCount_ == std::ssize(recordParts));
+                encodedParts = std::move(recordParts);
+            } else {
+                YT_VERIFY(recordParts.size() == 1);
+                auto encodingResult = EncodeErasureJournalRows(
+                    NErasure::GetCodec(Options_->ErasureCodec),
+                    recordParts);
+                YT_VERIFY(std::ssize(encodingResult) == 1);
+                encodedParts = std::move(encodingResult[0]);
+            }
+
+            record->ReplicaParts = std::move(encodedParts);
         }
 
         return record;

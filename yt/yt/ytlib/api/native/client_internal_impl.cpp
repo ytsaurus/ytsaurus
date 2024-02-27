@@ -113,9 +113,11 @@ std::vector<THunkDescriptor> TClient::DoWriteHunks(
     for (const auto& protoDescriptor : rsp->descriptors()) {
         descriptors.push_back(THunkDescriptor{
             .ChunkId = FromProto<TChunkId>(protoDescriptor.chunk_id()),
+            .ErasureCodec = FromProto<NErasure::ECodec>(protoDescriptor.erasure_codec()),
             .BlockIndex = protoDescriptor.record_index(),
             .BlockOffset = protoDescriptor.record_offset(),
             .Length = protoDescriptor.length(),
+            .BlockSize = protoDescriptor.record_size(),
         });
     }
 

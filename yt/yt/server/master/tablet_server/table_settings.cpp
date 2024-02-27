@@ -242,21 +242,28 @@ THunkStorageSettings GetHunkStorageSettings(
             << ex;
     }
 
-    const auto& chunkReplication = hunkStorage->Replication();
-    auto primaryMediumIndex = hunkStorage->GetPrimaryMediumIndex();
-    auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
-    auto replicationFactor = chunkReplication.Get(primaryMediumIndex).GetReplicationFactor();
-
     // Prepare store writer options.
-    auto storeWriterOptions = New<NTabletNode::THunkStoreWriterOptions>();
-    storeWriterOptions->MediumName = primaryMedium->GetName();
-    storeWriterOptions->Account = hunkStorage->Account()->GetName();
-    storeWriterOptions->ErasureCodec = hunkStorage->GetErasureCodec();
-    storeWriterOptions->ReplicationFactor = replicationFactor;
-    storeWriterOptions->ReadQuorum = hunkStorage->GetReadQuorum();
-    storeWriterOptions->WriteQuorum = hunkStorage->GetWriteQuorum();
-    storeWriterOptions->EnableMultiplexing = false;
-    result.HunkStoreOptions = std::move(storeWriterOptions);
+    try {
+        const auto& chunkReplication = hunkStorage->Replication();
+        auto primaryMediumIndex = hunkStorage->GetPrimaryMediumIndex();
+        auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
+        auto replicationFactor = chunkReplication.Get(primaryMediumIndex).GetReplicationFactor();
+
+        auto storeWriterOptions = New<NTabletNode::THunkStoreWriterOptions>();
+        storeWriterOptions->MediumName = primaryMedium->GetName();
+        storeWriterOptions->Account = hunkStorage->Account()->GetName();
+        storeWriterOptions->ErasureCodec = hunkStorage->GetErasureCodec();
+        storeWriterOptions->ReplicationFactor = replicationFactor;
+        storeWriterOptions->ReadQuorum = hunkStorage->GetReadQuorum();
+        storeWriterOptions->WriteQuorum = hunkStorage->GetWriteQuorum();
+        storeWriterOptions->EnableMultiplexing = false;
+        storeWriterOptions->Postprocess();
+
+        result.HunkStoreOptions = std::move(storeWriterOptions);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error parsing hunk store writer options")
+            << ex;
+    }
 
     return result;
 }

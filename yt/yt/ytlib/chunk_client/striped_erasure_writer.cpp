@@ -411,14 +411,6 @@ private:
 
         auto partSize = dataSize / dataPartCount;
 
-        for (int index = 0; index < std::ssize(segment); ++index) {
-            if (index + 1 == std::ssize(segment)) {
-                PlacementExt_.add_block_padding_sizes(dataSize - segmentSize);
-            } else {
-                PlacementExt_.add_block_padding_sizes(0);
-            }
-        }
-
         struct TErasureWriterTag { };
         auto data = TSharedMutableRef::Allocate<TErasureWriterTag>(dataSize);
 
