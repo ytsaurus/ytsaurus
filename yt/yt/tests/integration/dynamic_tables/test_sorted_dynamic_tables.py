@@ -14,7 +14,7 @@ from yt_commands import (
     sync_reshard_table, sync_flush_table, sync_compact_table,
     get_singular_chunk_id, create_dynamic_table, get_tablet_leader_address,
     raises_yt_error, build_snapshot, AsyncLastCommittedTimestamp, MinTimestamp,
-    disable_write_sessions_on_node, set_node_banned, set_nodes_banned, disable_tablet_cells_on_node)
+    disable_write_sessions_on_node, set_node_banned, disable_tablet_cells_on_node)
 
 import yt_error_codes
 
