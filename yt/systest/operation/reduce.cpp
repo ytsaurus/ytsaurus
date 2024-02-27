@@ -10,6 +10,7 @@ namespace NYT::NTest {
 
 TSumReducer::TSumReducer(const TTable& input, int columnIndex, TDataColumn outputColumn)
     : IReducer(input)
+    , Result_(0)
 {
     if (outputColumn.Type != NProto::EColumnType::EInt64) {
         THROW_ERROR_EXCEPTION("TSumReducer output column must have type int64");
@@ -20,6 +21,7 @@ TSumReducer::TSumReducer(const TTable& input, int columnIndex, TDataColumn outpu
 
 TSumReducer::TSumReducer(const TTable& input, const NProto::TSumReducer& proto)
     : IReducer(input)
+    , Result_(0)
 {
     InputColumnIndex_[0] = proto.input_column_index();
     FromProto(&OutputColumns_[0], proto.output_column());
@@ -42,14 +44,19 @@ void TSumReducer::ToProto(NProto::TReducer* proto) const
     NTest::ToProto(operationProto->mutable_output_column(), OutputColumns_[0]);
 }
 
-std::vector<std::vector<TNode>> TSumReducer::Run(TCallState* /*state*/, TRange<TRange<TNode>> input) const
+void TSumReducer::StartRange(TCallState* /*state*/, TRange<TNode> /*key*/)
 {
-    int64_t result = 0;
-    for (const auto& nodes : input) {
-        result += nodes[0].AsInt64();
-    }
+    Result_ = 0;
+}
 
-    return {{result}};
+void TSumReducer::ProcessRow(TCallState* /*state*/, TRange<TNode> input)
+{
+    Result_ += input[0].AsInt64();
+}
+
+std::vector<std::vector<TNode>> TSumReducer::FinishRange(TCallState* /*state*/)
+{
+    return {{Result_}};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,15 +64,17 @@ std::vector<std::vector<TNode>> TSumReducer::Run(TCallState* /*state*/, TRange<T
 TSumHashReducer::TSumHashReducer(const TTable& input, std::vector<int> indices, TDataColumn outputColumn)
     : IReducer(input)
     , InputColumns_(indices)
+    , Result_(0)
 {
-    if (outputColumn.Type != NProto::EColumnType::EInt64) {
-        THROW_ERROR_EXCEPTION("TSumHashReducer output column must have type int64");
+    if (outputColumn.Type != NProto::EColumnType::EInt8) {
+        THROW_ERROR_EXCEPTION("TSumHashReducer output column must have type int8");
     }
     OutputColumns_[0] = outputColumn;
 }
 
 TSumHashReducer::TSumHashReducer(const TTable& input, const NProto::TSumHashReducer& proto)
     : IReducer(input)
+    , Result_(0)
 {
     InputColumns_.reserve(proto.input_column_index_size());
     for (int index : proto.input_column_index()) {
@@ -93,13 +102,19 @@ void TSumHashReducer::ToProto(NProto::TReducer* proto) const
     NTest::ToProto(operationProto->mutable_output_column(), OutputColumns_[0]);
 }
 
-std::vector<std::vector<TNode>> TSumHashReducer::Run(TCallState* /*state*/, TRange<TRange<TNode>> input) const
+void TSumHashReducer::StartRange(TCallState* /*state*/, TRange<TNode> /*key*/)
 {
-    int64_t result = 0;
-    for (auto row : input) {
-        result += static_cast<int64_t>(RowHash(row));
-    }
-    return {{result}};
+    Result_ = 0;
+}
+
+void TSumHashReducer::ProcessRow(TCallState* /*state*/, TRange<TNode> input)
+{
+    Result_ += static_cast<int64_t>(RowHash(input));
+}
+
+std::vector<std::vector<TNode>> TSumHashReducer::FinishRange(TCallState* /*state*/)
+{
+    return {{static_cast<int8_t>(Result_ & 0xff)}};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -145,18 +160,27 @@ TRange<TDataColumn> TConcatenateColumnsReducer::OutputColumns() const
     return OutputColumns_;
 }
 
-std::vector<std::vector<TNode>> TConcatenateColumnsReducer::Run(TCallState* state, TRange<TRange<TNode>> input) const
+void TConcatenateColumnsReducer::StartRange(TCallState* state, TRange<TNode> key)
+{
+    for (auto& operation : Operations_) {
+        operation->StartRange(state, key);
+    }
+}
+
+void TConcatenateColumnsReducer::ProcessRow(TCallState* state, TRange<TNode> input)
+{
+    for (const auto& operation : Operations_) {
+        const auto operationInput = PopulateOperationInput(
+                InputColumns_, operation->InputColumns(), input);
+        operation->ProcessRow(state, operationInput);
+    }
+}
+
+std::vector<std::vector<TNode>> TConcatenateColumnsReducer::FinishRange(TCallState* state)
 {
     std::vector<TNode> result;
     for (const auto& operation : Operations_) {
-        const auto reducerInput = PopulateReducerInput(
-                InputColumns_, operation->InputColumns(), input);
-        std::vector<TRange<TNode>> operationInput;
-        operationInput.reserve(std::ssize(reducerInput));
-        for (const auto& row : reducerInput) {
-            operationInput.push_back(TRange<TNode>(row.begin(), row.end()));
-        }
-        auto innerNodes = operation->Run(state, operationInput);
+        auto innerNodes = operation->FinishRange(state);
         if (std::ssize(innerNodes) != 1) {
             // Consider introducing a separate interface for reducers that return exactly one row.
             THROW_ERROR_EXCEPTION("TConcatenateColumnsReducer expects inner reducer to return exactly one row, got %v rows",

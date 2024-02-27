@@ -7,14 +7,6 @@
 
 namespace NYT::NTest {
 
-TTestHome::TTestHome(IClientPtr client, const TString& homeDirectory, TDuration ttl)
-    : HomeDirectory_(homeDirectory)
-    , Ttl_(ttl)
-    , Client_(client)
-    , Engine_(RandDevice_())
-{
-}
-
 static void FillTimeBuf(const char* fmt, int len, char* timebuf)
 {
     time_t currentTime = time(nullptr);
@@ -68,23 +60,23 @@ TString TTestHome::GenerateShortRandomId()
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TTestHome::TTestHome(IClientPtr client, const TString& homeDirectory)
-    : HomeDirectory_(homeDirectory)
+TTestHome::TTestHome(IClientPtr client, const THomeConfig& config)
+    : Config_(config)
     , Client_(client)
     , Engine_(RandDevice_())
+    , UniformShardDistribution_(0, Config_.IntervalShards - 1)
 {
 }
 
 void TTestHome::Init()
 {
-    Dir_ = HomeDirectory_ + "/" + GenerateFullRandomId();
+    Dir_ = Config_.HomeDirectory + "/" + GenerateFullRandomId();
 
     CoreTable_ = Dir_ + "/core";
-    StderrTable_ = Dir_ + "/stderr";
 
     TCreateOptions options;
-    if (Ttl_ != TDuration::Zero()) {
-        TInstant expirationTime = TInstant::Now() + Ttl_;
+    if (Config_.Ttl != TDuration::Zero()) {
+        TInstant expirationTime = TInstant::Now() + Config_.Ttl;
         NYT::TNode::TMapType attributes;
         attributes["expiration_time"] = TNode(expirationTime.MilliSeconds());
         options = options.Attributes(TNode(attributes));
@@ -93,10 +85,17 @@ void TTestHome::Init()
     Client_->Create(Dir_, ENodeType::NT_MAP, options);
     Client_->Create(ValidatorsDir(), ENodeType::NT_MAP);
     Client_->Create(CoreTable_, ENodeType::NT_TABLE);
-    Client_->Create(StderrTable_, ENodeType::NT_TABLE);
+    for (int i = 0; i < Config_.IntervalShards; ++i) {
+        Client_->Create(IntervalsDir(i), ENodeType::NT_MAP);
+    }
 
     NLogging::TLogger Logger("test");
     YT_LOG_INFO("Initialized test home (Directory: %v)", Dir_);
+}
+
+TString TTestHome::StderrTable(const TString& operationName)
+{
+    return Dir_ + "/" + operationName + "_stderr";
 }
 
 TString TTestHome::TablePath(const TString& tableName) const
@@ -104,20 +103,27 @@ TString TTestHome::TablePath(const TString& tableName) const
     return Dir_ + "/" + tableName;
 }
 
-TString TTestHome::CreateIntervalPath(const TString& name, int index, int retryAttempt)
+TString TTestHome::IntervalsDir(int shard) const
 {
-    return Dir_ + "/" + name + "_" + std::to_string(index) + "_" + std::to_string(retryAttempt)
-        + "_" + GenerateShortRandomId();
+    return Dir_ + "/intervals_" + std::to_string(shard);
 }
 
-TString TTestHome::CreateRandomTablePath()
+TString TTestHome::CreateIntervalPath(const TString& name, int index, int retryAttempt)
 {
-    const int BUF_LEN = 64;
-    char buf[BUF_LEN];
-    std::fill(buf, buf + BUF_LEN, 0);
-    std::snprintf(buf, BUF_LEN, "/%04x", UniformIntDistribution_(Engine_));
-
-    return Dir_ + buf;
+    int shardId = 0;
+    {
+        auto guard = Guard(Lock_);
+        shardId = UniformShardDistribution_(Engine_);
+    }
+    return IntervalsDir(shardId)  +
+        "/" +
+        name +
+        "_" +
+        std::to_string(index) +
+        "_" +
+        std::to_string(retryAttempt) +
+        "_" +
+        GenerateShortRandomId();
 }
 
 }  // namespace NYT::NTest

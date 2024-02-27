@@ -122,28 +122,35 @@ void TTestOperationReducer::Start(TWriter* /*writer*/)
 
 void TTestOperationReducer::Do(TTableReader<TNode>* input, TTableWriter<TNode>* output)
 {
+    // It is guaranteed at all records passed into Do() have one reduce key.
+    // https://yt.yandex-team.ru/docs/api/cpp/description
+
+    if (!input->IsValid()) {
+        return;
+    }
+
     const int numInputColumns = std::ssize(Operation_->InputColumns());
-    auto columnPositions = produceColumnPositions(Operation_->InputTable(), Operation_->InputColumns());
-    std::vector<std::vector<TNode>> rows;
+    auto columnPositions = produceColumnPositions(
+        Operation_->InputTable(),
+        Operation_->InputColumns());
 
     std::vector<TNode> prefix;
+    const auto firstRow = input->GetRow();
+    const auto& rowMap = firstRow.AsMap();
+    if (!Prefix_.empty() && prefix.empty()) {
+        prefix = produceInput(PrefixPositions_, rowMap, std::ssize(Prefix_));
+    }
+
+    TCallState callState;
+    Operation_->StartRange(&callState, prefix);
 
     for (; input->IsValid(); input->Next()) {
         const auto row = input->GetRow();
         const auto& rowMap = row.AsMap();
-        if (!Prefix_.empty() && prefix.empty()) {
-            prefix = produceInput(PrefixPositions_, rowMap, std::ssize(Prefix_));
-        }
-        rows.push_back(produceInput(columnPositions, rowMap, numInputColumns));
+        Operation_->ProcessRow(&callState, produceInput(columnPositions, rowMap, numInputColumns));
     }
 
-    std::vector<TRange<TNode>> argument;
-    for (const auto& entry : rows) {
-        argument.push_back(entry);
-    }
-
-    TCallState callState;
-    auto outputRows = Operation_->Run(&callState, TRange<TRange<TNode>>(argument));
+    auto outputRows = Operation_->FinishRange(&callState);
     const auto& outputColumns = Operation_->OutputColumns();
 
     for (const auto& row : outputRows) {
@@ -198,6 +205,12 @@ void TTestOperationMapper::Do(TTableReader<TNode>* input, TTableWriter<TNode>* o
     }
 }
 
+template <typename T>
+static void SetBaseOperationOptions(TOperationSpecBase<T>& base)
+{
+    base.MaxFailedJobCount(10000);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void RunMap(IClientPtr client, const TString& pool,
@@ -208,6 +221,7 @@ void RunMap(IClientPtr client, const TString& pool,
     NYT::NLogging::TLogger Logger("test");
     YT_LOG_INFO("Map (OutputTable: %v)", attributePath);
     TMapOperationSpec spec;
+    SetBaseOperationOptions(spec);
     spec.Pool(pool);
     spec.AddInput<TNode>(inputPath);
     spec.AddOutput<TNode>(attributePath);
@@ -232,6 +246,9 @@ void RunReduce(IClientPtr client, const TString& pool,
     YT_LOG_INFO("Reduce (OutputTable: %v)", attributePath);
 
     TReduceOperationSpec spec;
+    SetBaseOperationOptions(spec);
+    // TODO(orlovorlov) make reducer memory limit a configuration parameter.
+    spec.ReducerSpec(TUserJobSpec().MemoryLimit(16LL << 30));
     spec.Pool(pool);
     spec.AddInput<TNode>(inputPath);
     spec.AddOutput<TNode>(attributePath);

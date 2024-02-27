@@ -94,7 +94,17 @@ static bool isLowCardinality(NProto::EColumnType type)
 static bool TableContainsLowCardinalityColumn(const TTable& table)
 {
     for (int i = 0; i < std::ssize(table.DataColumns); ++i) {
-        if (!isLowCardinality(table.DataColumns[i].Type)) {
+        if (isLowCardinality(table.DataColumns[i].Type)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool TableContainsInt8Column(const TTable& table)
+{
+    for (int i = 0; i < std::ssize(table.DataColumns); ++i) {
+        if (table.DataColumns[i].Type == NProto::EColumnType::EInt8) {
             return true;
         }
     }
@@ -171,6 +181,7 @@ static void PopulateBootstrapTable(NProto::TTableSpec* table, const int NumRecor
 
 static void PopulateSortReduceTables(
     const TTable& base,
+    int depth,
     std::mt19937_64& engine,
     TTable* sortTable,
     NProto::TTableSpec* sortProto,
@@ -190,19 +201,23 @@ static void PopulateSortReduceTables(
 
     std::vector<std::unique_ptr<IReducer>> columnReducers;
 
+    auto nextColumnName = [&]() {
+        return std::string(1, 'S' + depth) + std::to_string(std::ssize(columnReducers));
+    };
+
     std::vector<int> nonNumeric;
     for (const TString& reduceColumn : reduceColumns) {
         int index = GetColumnIndexByName(*sortTable, reduceColumn);
         if (isNumeric(sortTable->DataColumns[index].Type)) {
             columnReducers.push_back(std::make_unique<TSumReducer>(*sortTable, index,
-                    TDataColumn{"S" + std::to_string(std::ssize(columnReducers)), NProto::EColumnType::EInt64, std::nullopt}));
+                    TDataColumn{nextColumnName(), NProto::EColumnType::EInt64, std::nullopt}));
         } else {
             nonNumeric.push_back(index);
         }
     }
     if (!nonNumeric.empty()) {
         columnReducers.push_back(std::make_unique<TSumHashReducer>(*sortTable, nonNumeric,
-            TDataColumn{"S" + std::to_string(std::ssize(columnReducers)), NProto::EColumnType::EInt64, std::nullopt}));
+            TDataColumn{nextColumnName(), NProto::EColumnType::EInt8, std::nullopt}));
     }
     auto reducer = std::make_unique<TConcatenateColumnsReducer>(*sortTable, std::move(columnReducers));
     reducer->ToProto(reduceProto->mutable_reduce()->mutable_operation());
@@ -293,6 +308,29 @@ static std::unique_ptr<IMultiMapper> CreateAlterRenameAndDelete(std::mt19937_64&
         std::make_unique<TConcatenateColumnsRowMapper>(source, std::move(columnOperations)));
 }
 
+static std::unique_ptr<IMultiMapper> CreateFilter(std::mt19937_64& engine, const TTable& source)
+{
+    std::vector<int> indices;
+    for (int i = 0; i < std::ssize(source.DataColumns); ++i) {
+        if (source.DataColumns[i].Type == NProto::EColumnType::EInt8) {
+            indices.push_back(i);
+        }
+    }
+    YT_VERIFY(!indices.empty());
+    int column = indices[std::uniform_int_distribution<int>(0, std::ssize(indices) - 1)(engine)];
+    auto type = source.DataColumns[column].Type;
+
+    switch (type) {
+        case NProto::EColumnType::EInt8: {
+            return std::make_unique<TFilterMultiMapper>(source, column,
+                std::uniform_int_distribution<int8_t>(0, 127)(engine));
+        }
+        default: {
+            YT_VERIFY(false);  // Must be a low cardinality column, one of these two types.
+        }
+    }
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 class TSystestSpecGenerator
@@ -314,8 +352,12 @@ private:
 
     int AddMap(const TString& name, int seed, int parent, int multiplier);
     int AddAlter(const TString& name, int seed, int parent);
-    int AddSortReduce(const TString& sortName, const TString& reduceName, int seed, int parent);
-    void CreateChain(const TString& chainName, int seed, int startIndex, int multiplier, int chainLength);
+    int AddSortReduce(const TString& sortName, const TString& reduceName, int depth, int seed, int parent);
+    int AddFilter(const TString& name, int seed, int parent);
+
+    void CreateBasicChain(const TString& chainName, int seed, int startIndex, int multiplier, int chainLength);
+    int CreateFullChain(const TString& chainName, int seed, int startIndex, int multiplier, int startNameIndex, int chainLength);
+
 };
 
 int TSystestSpecGenerator::AddMap(const TString& name, int seed, int parent, int multiplier)
@@ -355,7 +397,27 @@ int TSystestSpecGenerator::AddAlter(const TString& name, int seed, int parent)
     return std::ssize(Tables_) - 1;
 }
 
-int TSystestSpecGenerator::AddSortReduce(const TString& sortName, const TString& reduceName, int seed, int parent)
+int TSystestSpecGenerator::AddFilter(const TString& name, int seed, int parent)
+{
+    auto* filterTable = Result_.add_table();
+    filterTable->set_name(name);
+    filterTable->set_parent(TableNames_.at(parent));
+
+    std::mt19937_64 engine(seed);
+    std::unique_ptr<IMultiMapper> op = CreateFilter(engine, Tables_.at(parent));
+    op->ToProto(filterTable->mutable_map()->mutable_operation());
+
+    Tables_.push_back(CreateTableFromMapOperation(*op));
+    TableNames_.push_back(filterTable->name());
+    return std::ssize(Tables_) - 1;
+}
+
+int TSystestSpecGenerator::AddSortReduce(
+    const TString& sortName,
+    const TString& reduceName,
+    int depth,
+    int seed,
+    int parent)
 {
     auto* sortProto = Result_.add_table();
     auto* reduceProto = Result_.add_table();
@@ -368,7 +430,7 @@ int TSystestSpecGenerator::AddSortReduce(const TString& sortName, const TString&
 
     std::mt19937_64 engine(seed);
     TTable sortTable, reduceTable;
-    PopulateSortReduceTables(Tables_[parent], engine, &sortTable, sortProto, &reduceTable, reduceProto);
+    PopulateSortReduceTables(Tables_[parent], depth, engine, &sortTable, sortProto, &reduceTable, reduceProto);
 
     Tables_.push_back(sortTable);
     TableNames_.push_back(sortName);
@@ -378,7 +440,7 @@ int TSystestSpecGenerator::AddSortReduce(const TString& sortName, const TString&
     return std::ssize(Tables_) - 1;
 }
 
-void TSystestSpecGenerator::CreateChain(const TString& chainName, int seed, int startIndex, int multiplier, int chainLength)
+void TSystestSpecGenerator::CreateBasicChain(const TString& chainName, int seed, int startIndex, int multiplier, int chainLength)
 {
     int baseIndex = -1;
     int alterIndex = -1;
@@ -399,6 +461,7 @@ void TSystestSpecGenerator::CreateChain(const TString& chainName, int seed, int 
             AddSortReduce(
                 chainName + "_sort_" + std::to_string(phaseIndex),
                 chainName + "_reduce_" + std::to_string(phaseIndex),
+                0,  /*depth*/
                 seed * 1000 + phaseIndex * 10 + 1,
                 baseIndex);
         }
@@ -413,11 +476,83 @@ void TSystestSpecGenerator::CreateChain(const TString& chainName, int seed, int 
                 AddSortReduce(
                     chainName + "_alter_sort_" + std::to_string(phaseIndex),
                     chainName + "_alter_reduce_" + std::to_string(phaseIndex),
+                    0,  /*depth*/
                     seed * 1000 + phaseIndex * 10 + 3,
                     alterIndex);
             }
         }
     }
+}
+
+int TSystestSpecGenerator::CreateFullChain(const TString& chainName, int seed, int startIndex, int multiplier, int startNameIndex, int chainLength)
+{
+    YT_VERIFY(Config_.EnableRenames && Config_.EnableReduce);
+
+    auto phaseName = [&](const char* opName, int phaseIndex) {
+        return chainName + std::to_string(phaseIndex + startNameIndex) + "_" + opName;
+    };
+
+    int alterIndex = -1;
+    for (int phaseIndex = 0; phaseIndex < chainLength; ++phaseIndex) {
+        int parentIndex = phaseIndex == 0 ? startIndex : alterIndex;
+        int baseIndex = AddMap(
+            phaseName("base", phaseIndex),
+            seed * 1000 + phaseIndex * 10,
+            parentIndex,
+            multiplier);
+
+        AddSortReduce(
+            phaseName("sort", phaseIndex),
+            phaseName("reduce", phaseIndex),
+            0,  /*depth*/
+            seed * 1000 + phaseIndex * 10 + 1,
+            baseIndex);
+
+        alterIndex = AddAlter(
+            phaseName("alter", phaseIndex),
+            seed * 1000 + phaseIndex * 10 + 2,
+            baseIndex);
+
+        if (TableContainsLowCardinalityColumn(Tables_[alterIndex])) {
+            int alterReduceIndex = AddSortReduce(
+                phaseName("alter_sort", phaseIndex),
+                phaseName("alter_reduce", phaseIndex),
+                0,  /*depth*/
+                seed * 1000 + phaseIndex * 10 + 3,
+                alterIndex);
+
+            if (TableContainsInt8Column(Tables_[alterIndex])) {
+                AddFilter(
+                    phaseName("alter_filter", phaseIndex),
+                    seed * 1000 + phaseIndex * 10 + 4,
+                    alterIndex);
+            }
+
+            if (TableContainsInt8Column(Tables_[alterReduceIndex])) {
+                int alterReduceFilterIndex = AddFilter(
+                    phaseName("alter_reduce_filter", phaseIndex),
+                    seed * 1000 + phaseIndex * 10 + 5,
+                    alterReduceIndex);
+
+                AddSortReduce(
+                    phaseName("alter_reduce_sort", phaseIndex),
+                    phaseName("alter_reduce_reduce", phaseIndex),
+                    1,  /*depth*/
+                    seed * 1000 + phaseIndex * 10 + 3,
+                    alterReduceIndex);
+
+                if (TableContainsLowCardinalityColumn(Tables_[alterReduceFilterIndex])) {
+                    AddSortReduce(
+                        phaseName("alter_reduce_filter_sort", phaseIndex),
+                        phaseName("alter_reduce_filter_reduce", phaseIndex),
+                        1,  /*depth*/
+                        seed * 1000 + phaseIndex * 10 + 3,
+                        alterReduceFilterIndex);
+                }
+            }
+        }
+    }
+    return alterIndex;
 }
 
 NProto::TSystestSpec TSystestSpecGenerator::Generate()
@@ -429,7 +564,18 @@ NProto::TSystestSpec TSystestSpecGenerator::Generate()
     Tables_.push_back(bootstrap);
     TableNames_.push_back("bootstrap");
 
-    CreateChain("s", Config_.Seed, 0, Config_.Multiplier, Config_.NumPhases);
+    if (Config_.Preset == "short") {
+        CreateBasicChain("s", Config_.Seed, 0, Config_.Multiplier, Config_.N);
+        return SortSpecTopologically(Result_);
+    }
+
+    for (int i = 0; i < Config_.N; ++i) {
+        int e1 = CreateFullChain("s" + std::to_string(i) + "a", Config_.Seed * 100 + 10 * i, 0, Config_.Multiplier, 0, Config_.LengthA);
+        int e2 = CreateFullChain("s" + std::to_string(i) + "b", Config_.Seed * 100 + 10 * i + 1, e1, Config_.Multiplier, Config_.LengthA, Config_.LengthB);
+
+        CreateFullChain("s" + std::to_string(i) + "c", Config_.Seed * 100 + 10 * i + 2, e1, 1, Config_.LengthA, Config_.LengthC);
+        CreateFullChain("s" + std::to_string(i) + "d", Config_.Seed * 100 + 10 * i + 3, e2, 1, Config_.LengthA + Config_.LengthB, Config_.LengthD);
+    }
 
     return SortSpecTopologically(Result_);
 }

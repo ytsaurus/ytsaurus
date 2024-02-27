@@ -31,6 +31,7 @@ private:
             , Missing(false)
             , InUse(false)
             , NumFailures(0)
+            , NumPermanentFailures(0)
             , LastFailure(TInstant::Seconds(0))
         {
         }
@@ -39,6 +40,7 @@ private:
         bool Missing;
         bool InUse;
         int NumFailures;
+        int NumPermanentFailures;
         TInstant LastFailure;
     };
 
@@ -50,6 +52,7 @@ private:
 
         const TString& HostPort() const { return Worker_->HostPort; }
         void MarkFailure();
+        void MarkPermanentFailure();
         void Release();
 
    private:
@@ -58,6 +61,7 @@ private:
         TWorkerSet* Owner_;
         TWorkerSet::TWorker* Worker_;
         bool Failure_;
+        bool PermanentFailure_;
 
         TToken(TWorkerSet* owner, TWorkerSet::TWorker* worker);
     };
@@ -78,6 +82,7 @@ private:
     std::deque<TPromise<TToken>> Waiters_;
 
     TFuture<TToken> PickWorker();
+    bool IsPermanentFailure(const TWorker& worker);
     bool CanUseWorker(const TWorker& worker, TInstant currentTime);
     void UpdateWorkers(const std::vector<TString>& current);
     void PollingLoop();
@@ -96,7 +101,7 @@ public:
         TWorkerGuard& operator=(TWorkerGuard&&) noexcept;
 
         const TString& HostPort() const;
-        void MarkFailure();
+        void MarkFailure(bool permanent);
 
         void Reset();
 

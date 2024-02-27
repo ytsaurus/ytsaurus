@@ -16,4 +16,4 @@ spec:
       value: 'info'
     - name: YT_PROXY
       value: "$(HTTP_PROXIES_LB_SERVICE_HOST):$(HTTP_PROXIES_LB_SERVICE_PORT)"
-    command: ['systest', '-n', '7', '--ipv4', 'true', '--enable-reduce', 'true', '--enable-renames', 'true', '--enable-deletes', 'true', '--validator-jobs', '128']
+    command: ['systest', '-n', '4', '--interval-shards', '8', '--preset', 'full', '--length-a', '4', '--length-b', '3', '--length-c', '4', '--length-d', '4', '--ipv4', 'true', '--enable-reduce', 'true', '--enable-renames', 'true', '--enable-deletes', 'true', '--validator-jobs', '128']

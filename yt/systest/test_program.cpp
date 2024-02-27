@@ -59,6 +59,7 @@ void TProgram::DoRun(const NLastGetopt::TOptsParseResult&)
     NYT::SetLogger(NYT::CreateStdErrLogger(NYT::ILogger::INFO));
     NYT::NLogging::TLogger Logger("test");
 
+    Config_.Validate();
     YT_LOG_INFO("Starting tester");
 
     auto testSpec = GenerateSystestSpec(Config_.TestConfig);
@@ -66,9 +67,11 @@ void TProgram::DoRun(const NLastGetopt::TOptsParseResult&)
     auto client = NYT::CreateClientFromEnv();
     auto rpcClient = CreateRpcClient(Config_.NetworkConfig);
 
+    // TODO(orlovorlov) upload test spec to cypress.
+
     SetSysOptions(Config_.TestConfig, rpcClient);
 
-    TTestHome testHome(client, Config_.HomeDirectory, Config_.Ttl);
+    TTestHome testHome(client, Config_.HomeConfig);
     testHome.Init();
 
     TValidator validator(

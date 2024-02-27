@@ -45,9 +45,12 @@ const TString& TWorkerSet::TWorkerGuard::HostPort() const
     return Token_->HostPort();
 }
 
-void TWorkerSet::TWorkerGuard::MarkFailure()
+void TWorkerSet::TWorkerGuard::MarkFailure(bool permanent)
 {
     Token_->MarkFailure();
+    if (permanent) {
+        Token_->MarkPermanentFailure();
+    }
 }
 
 void TWorkerSet::TWorkerGuard::Reset()
@@ -64,6 +67,7 @@ TWorkerSet::TToken::TToken(TWorkerSet* owner, TWorkerSet::TWorker* worker)
     : Owner_(owner)
     , Worker_(worker)
     , Failure_(false)
+    , PermanentFailure_(false)
 {
 }
 
@@ -71,12 +75,18 @@ TWorkerSet::TToken::TToken()
     : Owner_(nullptr)
     , Worker_(nullptr)
     , Failure_(false)
+    , PermanentFailure_(false)
 {
 }
 
 void TWorkerSet::TToken::MarkFailure()
 {
     Failure_ = true;
+}
+
+void TWorkerSet::TToken::MarkPermanentFailure()
+{
+    PermanentFailure_ = true;
 }
 
 void TWorkerSet::TToken::Release()
@@ -90,6 +100,9 @@ void TWorkerSet::TToken::Release()
             Worker_->LastFailure = failureTime;
         } else {
             Worker_->NumFailures = 0;
+        }
+        if (PermanentFailure_) {
+            ++Worker_->NumPermanentFailures;
         }
         if (Failure_ || Owner_->Waiters_.empty()) {
             Worker_->InUse = false;
@@ -206,6 +219,7 @@ void TWorkerSet::UpdateWorkers(const std::vector<TString>& current)
 
     std::sort(indexPresent.begin(), indexPresent.end());
 
+    int numPermanentFailures = 0;
     std::vector<int> available;
     TPromise<TToken> waiter;
     TToken token;
@@ -222,6 +236,8 @@ void TWorkerSet::UpdateWorkers(const std::vector<TString>& current)
                 Workers_[i]->Missing = false;
                 if (CanUseWorker(*Workers_[i], timeNow)) {
                     available.push_back(i);
+                } else if (IsPermanentFailure(*Workers_[i])) {
+                    ++numPermanentFailures;
                 }
                 ++pos;
             }
@@ -240,19 +256,29 @@ void TWorkerSet::UpdateWorkers(const std::vector<TString>& current)
         numWaiters = std::ssize(Waiters_);
     }
 
-    YT_LOG_INFO("Finished worker set update (NumPresent: %v, NumAvailable: %v, NumWaiting: %v)",
-        std::ssize(indexPresent), std::ssize(available), numWaiters);
+    YT_LOG_INFO("Finished worker set update (NumPresent: %v, "
+        "NumAvailable: %v, NumPermanentFailures: %v, NumWaiting: %v)",
+        std::ssize(indexPresent),
+        std::ssize(available),
+        numPermanentFailures,
+        numWaiters);
 
     if (waiter) {
         waiter.Set(token);
     }
 }
 
+bool TWorkerSet::IsPermanentFailure(const TWorker& worker)
+{
+    return worker.NumPermanentFailures >= 3;
+}
+
 bool TWorkerSet::CanUseWorker(const TWorker& worker, TInstant currentTime)
 {
     return !worker.InUse && !worker.Missing &&
         (worker.NumFailures == 0 ||
-         currentTime > worker.LastFailure + BackoffDuration(FailureBackoff_, worker.NumFailures));
+         currentTime > worker.LastFailure + BackoffDuration(FailureBackoff_, worker.NumFailures)) &&
+        !IsPermanentFailure(worker);
 }
 
 }  // namespace NYT::NTest

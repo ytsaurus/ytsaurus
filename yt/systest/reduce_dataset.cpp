@@ -39,44 +39,33 @@ void TReduceDatasetIterator::ReduceRange()
     Result_.clear();
     ResultIndex_ = 0;
     while (Result_.empty() && !Inner_->Done()) {
-        std::vector<std::vector<TNode>> innerRange;
-        while (innerRange.empty() && !Inner_->Done()) {
-            innerRange.push_back(std::vector<TNode>(Inner_->Values().begin(), Inner_->Values().end()));
+        TCallState callState;
+        std::vector<TNode> start(Inner_->Values().begin(), Inner_->Values().end());
+        std::vector<TNode> prefix;
+
+        for (int index : Dataset_->ReduceByIndices_) {
+            prefix.push_back(start[index]);
+        }
+        Dataset_->Operation_.Reducer->StartRange(&callState, prefix);
+
+        YT_VERIFY(Dataset_->ReduceByEqual(start, Inner_->Values()));
+
+        while (!Inner_->Done() && Dataset_->ReduceByEqual(start, Inner_->Values())) {
+            Dataset_->Operation_.Reducer->ProcessRow(&callState,
+                ExtractInputValues(Inner_->Values(), Dataset_->Operation_.Reducer->InputColumns()));
             Inner_->Next();
-            while (!Inner_->Done() && Dataset_->ReduceByEqual(innerRange.back(), Inner_->Values())) {
-                innerRange.push_back(std::vector<TNode>(Inner_->Values().begin(), Inner_->Values().end()));
-                Inner_->Next();
-            }
         }
 
-        if (!innerRange.empty()) {
-            TCallState callState;
+        auto result = Dataset_->Operation_.Reducer->FinishRange(&callState);
 
-            std::vector<TNode> prefix;
-            for (int index : Dataset_->ReduceByIndices_) {
-                prefix.push_back(innerRange[0][index]);
-            }
-
-            std::vector<std::vector<TNode>> values;
-            std::vector<TRange<TNode>> argument;
-            for (const auto& entry : innerRange) {
-                values.push_back(ExtractInputValues(entry, Dataset_->Operation_.Reducer->InputColumns()));
-            }
-            for (const auto& value : values) {
-                argument.push_back(value);
-            }
-
-            auto result = Dataset_->Operation_.Reducer->Run(&callState, argument);
-
-            Result_.clear();
-            Result_.reserve(result.size());
-            for (auto& entry : result) {
-                std::vector<TNode> item(prefix);
-                std::copy(entry.begin(), entry.end(), std::back_inserter(item));
-                Result_.push_back(item);
-            }
-            ResultIndex_ = 0;
+        Result_.clear();
+        Result_.reserve(result.size());
+        for (auto& entry : result) {
+            std::vector<TNode> item(prefix);
+            std::copy(entry.begin(), entry.end(), std::back_inserter(item));
+            Result_.push_back(item);
         }
+        ResultIndex_ = 0;
     }
 }
 

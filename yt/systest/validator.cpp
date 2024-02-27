@@ -103,6 +103,12 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
+static bool IsPermanentWorkerError(TError& error)
+{
+    // If connection refused, worker died and will not listen on that port again.
+    return error.FindMatching(TErrorCode(4200 + ECONNREFUSED)) != std::nullopt;
+}
+
 static void AnnotateError(
     TError& error,
     const TString& name,
@@ -189,7 +195,7 @@ TFuture<TString> TValidator::StartMapInterval(
                 numIntervals,
                 result);
             if (!result.IsOK()) {
-                token.MarkFailure();
+                token.MarkFailure(IsPermanentWorkerError(result));
                 AnnotateError(
                     result,
                     "MapInterval",
@@ -251,7 +257,7 @@ TFuture<TString> TValidator::StartReduceInterval(
                 numIntervals,
                 result);
             if (!result.IsOK()) {
-                token.MarkFailure();
+                token.MarkFailure(IsPermanentWorkerError(result));
                 AnnotateError(
                     result,
                     "ReduceInterval",
@@ -313,7 +319,7 @@ TFuture<TString> TValidator::StartSortInterval(
                 numIntervals,
                 result);
             if (!result.IsOK()) {
-                token.MarkFailure();
+                token.MarkFailure(IsPermanentWorkerError(result));
                 AnnotateError(
                     result,
                     "SortInterval",
@@ -367,7 +373,7 @@ TValidator::StartCompareInterval(
                 numIntervals,
                 result);
             if (!result.IsOK()) {
-                token.MarkFailure();
+                token.MarkFailure(IsPermanentWorkerError(result));
                 AnnotateError(
                     result,
                     "CompareInterval",
@@ -420,7 +426,7 @@ TValidator::StartMergeSortedAndCompare(
             YT_LOG_INFO("Done MergeSortedAndCompare (Worker: %v, NumIntervals: %v, Status: %v)",
                 hostport, std::ssize(intervalPath), result);
             if (!result.IsOK()) {
-                token.MarkFailure();
+                token.MarkFailure(IsPermanentWorkerError(result));
                 AnnotateError(
                     result,
                     "MergeSortedAndCompare",
@@ -431,44 +437,6 @@ TValidator::StartMergeSortedAndCompare(
             }
             return result.ValueOrThrow();
         }));
-}
-
-///////////////////////////////////////////////////////////////////////////////
-
-void TValidatorConfig::RegisterOptions(NLastGetopt::TOpts* opts)
-{
-    opts->AddLongOption("validator-jobs")
-        .StoreResult(&NumJobs)
-        .DefaultValue(4);
-
-    opts->AddLongOption("validator-job-memory-limit")
-        .StoreResult(&MemoryLimit)
-        .DefaultValue(2LL << 30);
-
-    opts->AddLongOption("validator-interval-bytes")
-        .StoreResult(&IntervalBytes)
-        .DefaultValue(64 << 20);
-
-    opts->AddLongOption("validator-poll-delay")
-        .StoreResult(&PollDelay)
-        .DefaultValue(TDuration::Seconds(5));
-
-    opts->AddLongOption("validator-interval-timeout")
-        .StoreResult(&IntervalTimeout)
-        .DefaultValue(TDuration::Minutes(1));
-
-    opts->AddLongOption("validator-base-timeout")
-        .StoreResult(&BaseTimeout)
-        .DefaultValue(TDuration::Minutes(2));
-
-    opts->AddLongOption("validator-worker-failure-backoff-delay")
-        .StoreResult(&WorkerFailureBackoffDelay)
-        .DefaultValue(TDuration::Seconds(30));
-
-    opts->AddLongOption("validator-limit-sort")
-        .StoreResult(&SortVerificationLimit)
-        .DefaultValue(8LL << 30  /* 8GB */);
-
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -698,6 +666,20 @@ TStoredDataset TValidator::VerifySort(
     const TSortOperation& operation)
 {
     const auto intervalInfo = GetMapIntervalBoundaries(sourcePath, Config_.IntervalBytes);
+    if (intervalInfo.RowCount == 0) {
+        int64_t targetRowCount = GetInt64Node(RpcClient_, targetPath + "/@row_count");
+        if (targetRowCount != 0) {
+            THROW_ERROR_EXCEPTION("Sort source %v is empty, but target %v contains %v rows",
+                sourcePath, targetPath, targetRowCount);
+        }
+        return TStoredDataset{
+            targetPath,
+            0,
+            0
+        };
+    }
+    YT_VERIFY(std::ssize(intervalInfo.Boundaries) > 1);
+
     const int numIntervals = std::ssize(intervalInfo.Boundaries) - 1;
 
     if (intervalInfo.TotalBytes > Config_.SortVerificationLimit) {
@@ -793,7 +775,7 @@ void TValidator::StartValidatorOperation()
         .MemoryLimit(Config_.MemoryLimit);
 
     auto secureEnv = TNode::CreateMap({
-        {"YT_TOKEN", TConfig::Get()->Token}
+        {"YT_TOKEN", NYT::TConfig::Get()->Token}
     });
 
     TOperationOptions options;
@@ -803,6 +785,8 @@ void TValidator::StartValidatorOperation()
     auto spec = TVanillaOperationSpec()
             .Pool(Pool_)
             .CoreTablePath(TestHome_.CoreTable())
+            .StderrTablePath(TestHome_.StderrTable("validator"))
+            .MaxFailedJobCount(10000)
             .AddTask(
                 TVanillaTask()
                     .Name("Validator")
@@ -823,7 +807,7 @@ TValidator::TableIntervalInfo TValidator::GetMapIntervalBoundaries(
     result.RowCount = GetInt64Node(RpcClient_, tablePath + "/@row_count");
 
     if (result.RowCount == 0) {
-        return {};
+        return result;
     }
 
     result.TotalBytes = GetInt64Node(RpcClient_, tablePath + "/@uncompressed_data_size");

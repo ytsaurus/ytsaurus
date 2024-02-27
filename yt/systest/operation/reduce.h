@@ -13,12 +13,15 @@ public:
     virtual TRange<int> InputColumns() const override;
     virtual TRange<TDataColumn> OutputColumns() const override;
 
-    virtual std::vector<std::vector<TNode>> Run(TCallState* state, TRange<TRange<TNode>> input) const override;
+    virtual void StartRange(TCallState* state, TRange<TNode> key) override;
+    virtual void ProcessRow(TCallState* state, TRange<TNode> input) override;
+    virtual std::vector<std::vector<TNode>> FinishRange(TCallState* state) override;
     virtual void ToProto(NProto::TReducer* proto) const override;
 
 private:
     int InputColumnIndex_[1];
     TDataColumn OutputColumns_[1];
+    int64_t Result_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,12 +35,15 @@ public:
     virtual TRange<int> InputColumns() const override;
     virtual TRange<TDataColumn> OutputColumns() const override;
 
-    virtual std::vector<std::vector<TNode>> Run(TCallState* state, TRange<TRange<TNode>> input) const override;
+    virtual void StartRange(TCallState* state, TRange<TNode> key) override;
+    virtual void ProcessRow(TCallState* state, TRange<TNode> input) override;
+    virtual std::vector<std::vector<TNode>> FinishRange(TCallState* state) override;
     virtual void ToProto(NProto::TReducer* proto) const override;
 
 private:
     std::vector<int> InputColumns_;
     TDataColumn OutputColumns_[1];
+    int64_t Result_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,7 +58,9 @@ public:
     virtual TRange<int> InputColumns() const override;
     virtual TRange<TDataColumn> OutputColumns() const override;
 
-    virtual std::vector<std::vector<TNode>> Run(TCallState* state, TRange<TRange<TNode>> input) const override;
+    virtual void StartRange(TCallState* state, TRange<TNode> key) override;
+    virtual void ProcessRow(TCallState* state, TRange<TNode> input) override;
+    virtual std::vector<std::vector<TNode>> FinishRange(TCallState* state) override;
     virtual void ToProto(NProto::TReducer* proto) const override;
 
 private:

@@ -224,6 +224,15 @@ DEFINE_RPC_SERVICE_METHOD(TValidatorService, MergeSortedAndCompare)
     NLogging::TLogger Logger("validator_service");
     YT_LOG_INFO("MergeSortedAndCompare <- %v", request->ShortDebugString());
 
+    if (request->interval_path_size() == 0) {
+        auto rowCount = Client_->Get(request->target_path() + "/@row_count").AsInt64();
+        if (rowCount != 0) {
+            THROW_ERROR_EXCEPTION("List of intervals is empty, but target table %v contains %v rows",
+             request->target_path(), rowCount);
+        }
+        context->Reply();
+    }
+
     std::vector<std::unique_ptr<TTableDataset>> inputDataset;
     std::vector<const IDataset*> inner;
 

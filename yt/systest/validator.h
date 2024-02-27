@@ -10,25 +10,12 @@
 
 #include <yt/systest/proto/validator.pb.h>
 
+#include <yt/systest/config.h>
 #include <yt/systest/dataset.h>
 #include <yt/systest/test_home.h>
 #include <yt/systest/worker_set.h>
 
 namespace NYT::NTest {
-
-struct TValidatorConfig
-{
-    int NumJobs;
-    int64_t IntervalBytes;
-    int64_t MemoryLimit;
-    int64_t SortVerificationLimit;
-    TDuration PollDelay;
-    TDuration WorkerFailureBackoffDelay;
-    TDuration BaseTimeout;
-    TDuration IntervalTimeout;
-
-    void RegisterOptions(NLastGetopt::TOpts* opts);
-};
 
 ///////////////////////////////////////////////////////////////////////////////
 
