@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
 	"go.ytsaurus.tech/library/go/core/log"
 )
 

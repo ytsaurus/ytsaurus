@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/chyt/controller/test/helpers"
 )

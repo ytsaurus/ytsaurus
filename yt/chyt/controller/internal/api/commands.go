@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/hostrouter"
+
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/auth"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/httpserver"

@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/andybalholm/brotli"
+
 	"go.ytsaurus.tech/library/go/core/xerrors"
 )
 

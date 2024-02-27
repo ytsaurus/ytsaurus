@@ -2,6 +2,7 @@ package ypath
 
 import (
 	"github.com/mitchellh/copystructure"
+
 	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/yson"

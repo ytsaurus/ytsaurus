@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/golang/protobuf/proto"
+
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/xerrors"
 	"go.ytsaurus.tech/yt/go/bus"

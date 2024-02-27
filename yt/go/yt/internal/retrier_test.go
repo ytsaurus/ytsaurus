@@ -8,9 +8,10 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/xerrors"
+
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
-	"golang.org/x/xerrors"
 )
 
 type netError struct {

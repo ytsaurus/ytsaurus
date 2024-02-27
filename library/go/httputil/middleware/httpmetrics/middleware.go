@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
+
 	"go.ytsaurus.tech/library/go/core/metrics"
 	"go.ytsaurus.tech/library/go/core/metrics/solomon"
 )

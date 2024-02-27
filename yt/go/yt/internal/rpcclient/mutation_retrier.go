@@ -7,12 +7,13 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/golang/protobuf/proto"
+	"golang.org/x/xerrors"
+
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 	"go.ytsaurus.tech/yt/go/bus"
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/yt"
-	"golang.org/x/xerrors"
 )
 
 type MutationRetrier struct {

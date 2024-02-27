@@ -2,6 +2,7 @@ package mock
 
 import (
 	"go.uber.org/atomic"
+
 	"go.ytsaurus.tech/library/go/core/metrics"
 )
 

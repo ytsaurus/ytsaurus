@@ -5,11 +5,12 @@ import (
 	"io"
 	"reflect"
 
+	"golang.org/x/xerrors"
+
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/internal/smartreader"
-	"golang.org/x/xerrors"
 )
 
 type tableReader struct {

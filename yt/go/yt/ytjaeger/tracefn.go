@@ -5,6 +5,7 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber/jaeger-client-go"
+
 	"go.ytsaurus.tech/yt/go/guid"
 )
 

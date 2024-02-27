@@ -7,6 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"go.ytsaurus.tech/library/go/httputil/headers"
 )
 

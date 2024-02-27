@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
+
 	"go.ytsaurus.tech/library/go/core/log"
 )
 

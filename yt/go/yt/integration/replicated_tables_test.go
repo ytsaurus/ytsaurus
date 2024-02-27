@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
 	"go.ytsaurus.tech/library/go/core/xerrors"
 	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/migrate"

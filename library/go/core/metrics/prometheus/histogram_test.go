@@ -9,9 +9,10 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
+
 	"go.ytsaurus.tech/library/go/core/metrics"
 	"go.ytsaurus.tech/library/go/ptr"
-	"google.golang.org/protobuf/testing/protocmp"
 )
 
 func TestHistogram_RecordValue(t *testing.T) {

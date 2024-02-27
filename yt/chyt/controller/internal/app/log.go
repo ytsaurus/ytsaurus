@@ -5,6 +5,7 @@ import (
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
 	logzap "go.ytsaurus.tech/library/go/core/log/zap"
 	"go.ytsaurus.tech/yt/go/ytlog"
 )

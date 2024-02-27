@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
 	"go.ytsaurus.tech/library/go/httputil/headers"
 )
 

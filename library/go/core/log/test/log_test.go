@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	uzap "go.uber.org/zap"
+
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/nop"
 	"go.ytsaurus.tech/library/go/core/log/zap"

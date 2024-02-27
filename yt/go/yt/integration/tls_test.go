@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yttest"
 )

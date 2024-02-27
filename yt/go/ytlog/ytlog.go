@@ -3,6 +3,7 @@ package ytlog
 import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
 	logzap "go.ytsaurus.tech/library/go/core/log/zap"
 	"go.ytsaurus.tech/library/go/core/log/zap/asynczap"
 	"go.ytsaurus.tech/yt/go/ytlog/selfrotate"

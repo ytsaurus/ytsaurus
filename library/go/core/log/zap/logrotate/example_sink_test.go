@@ -10,6 +10,7 @@ import (
 
 	uberzap "go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/zap"
 	"go.ytsaurus.tech/library/go/core/log/zap/logrotate"

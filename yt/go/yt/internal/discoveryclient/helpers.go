@@ -1,10 +1,11 @@
 package discoveryclient
 
 import (
+	"golang.org/x/xerrors"
+
 	"go.ytsaurus.tech/yt/go/proto/client/discovery_client"
 	"go.ytsaurus.tech/yt/go/proto/core/ytree"
 	"go.ytsaurus.tech/yt/go/yt"
-	"golang.org/x/xerrors"
 )
 
 func convertListMembersOptions(opts *yt.ListMembersOptions) *discovery_client.TListMembersOptions {

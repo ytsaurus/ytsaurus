@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 
 	"github.com/klauspost/compress/zstd"
+
 	"go.ytsaurus.tech/library/go/core/xerrors"
 )
 

@@ -7,6 +7,7 @@ import (
 
 	uberzap "go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 	"go.ytsaurus.tech/library/go/core/log/zap"

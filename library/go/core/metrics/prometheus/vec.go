@@ -2,6 +2,7 @@ package prometheus
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
+
 	"go.ytsaurus.tech/library/go/core/metrics"
 	"go.ytsaurus.tech/library/go/core/metrics/internal/pkg/metricsutil"
 	"go.ytsaurus.tech/library/go/core/xerrors"

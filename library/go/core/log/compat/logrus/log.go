@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/sirupsen/logrus"
+
 	"go.ytsaurus.tech/library/go/core/log"
 )
 

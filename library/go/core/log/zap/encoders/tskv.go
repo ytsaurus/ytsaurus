@@ -11,6 +11,7 @@ import (
 
 	"go.uber.org/zap/buffer"
 	"go.uber.org/zap/zapcore"
+
 	"go.ytsaurus.tech/library/go/core/xerrors"
 )
 

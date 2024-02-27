@@ -5,6 +5,7 @@ package spec
 
 import (
 	"github.com/mitchellh/copystructure"
+
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"

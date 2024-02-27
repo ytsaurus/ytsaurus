@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/proto"
+
 	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/compression"
 	"go.ytsaurus.tech/yt/go/guid"

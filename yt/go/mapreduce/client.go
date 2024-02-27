@@ -11,6 +11,7 @@ import (
 	"github.com/google/tink/go/aead"
 	"github.com/google/tink/go/keyset"
 	"github.com/google/tink/go/tink"
+
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/mapreduce/spec"
 	"go.ytsaurus.tech/yt/go/ypath"

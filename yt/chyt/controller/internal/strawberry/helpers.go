@@ -7,12 +7,13 @@ import (
 	"regexp"
 	"text/template"
 
+	"golang.org/x/xerrors"
+
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yterrors"
-	"golang.org/x/xerrors"
 )
 
 var (

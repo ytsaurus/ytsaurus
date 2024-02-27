@@ -8,8 +8,9 @@ import (
 	"fmt"
 	"time"
 
-	"go.ytsaurus.tech/library/go/core/xerrors"
 	"golang.org/x/exp/slices"
+
+	"go.ytsaurus.tech/library/go/core/xerrors"
 )
 
 // Gather collects all metrics data via snapshots.

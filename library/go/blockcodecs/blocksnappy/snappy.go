@@ -2,6 +2,7 @@ package blocksnappy
 
 import (
 	"github.com/golang/snappy"
+
 	"go.ytsaurus.tech/library/go/blockcodecs"
 )
 

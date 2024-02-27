@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
+
 	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/mapreduce"
@@ -15,7 +17,6 @@ import (
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yttest"
-	"golang.org/x/exp/slices"
 )
 
 func TestOperation(t *testing.T) {

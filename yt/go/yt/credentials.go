@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/golang/protobuf/proto"
+
 	"go.ytsaurus.tech/yt/go/proto/core/rpc"
 )
 

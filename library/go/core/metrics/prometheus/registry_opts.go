@@ -5,6 +5,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/expfmt"
+
 	"go.ytsaurus.tech/library/go/core/metrics"
 	"go.ytsaurus.tech/library/go/core/metrics/collect"
 	"go.ytsaurus.tech/library/go/core/metrics/internal/pkg/registryutil"

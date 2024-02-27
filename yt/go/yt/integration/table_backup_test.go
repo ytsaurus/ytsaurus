@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
 	"go.ytsaurus.tech/yt/go/migrate"
 	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/ypath"

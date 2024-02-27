@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
+
 	"go.ytsaurus.tech/library/go/core/metrics"
 )
 

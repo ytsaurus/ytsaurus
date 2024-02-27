@@ -8,11 +8,12 @@ import (
 	"os"
 	"os/exec"
 
+	"google.golang.org/protobuf/proto"
+
 	"go.ytsaurus.tech/library/go/test/yatest"
 	rpcproxypb "go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
 	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/yson"
-	"google.golang.org/protobuf/proto"
 )
 
 const rowsetFile = "rowset_descriptor.pb"

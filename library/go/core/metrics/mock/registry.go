@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"go.uber.org/atomic"
+
 	"go.ytsaurus.tech/library/go/core/metrics"
 	"go.ytsaurus.tech/library/go/core/metrics/internal/pkg/metricsutil"
 	"go.ytsaurus.tech/library/go/core/metrics/internal/pkg/registryutil"

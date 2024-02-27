@@ -10,11 +10,12 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
+	"golang.org/x/xerrors"
+
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/nop"
 	zaplog "go.ytsaurus.tech/library/go/core/log/zap"
 	"go.ytsaurus.tech/yt/go/guid"
-	"golang.org/x/xerrors"
 )
 
 type Config struct {

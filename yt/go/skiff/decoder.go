@@ -9,8 +9,9 @@ import (
 	"io"
 	"reflect"
 
-	"go.ytsaurus.tech/yt/go/yson"
 	"golang.org/x/xerrors"
+
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 type opCache map[reflect.Type][]fieldOp

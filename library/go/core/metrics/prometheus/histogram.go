@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+
 	"go.ytsaurus.tech/library/go/core/metrics"
 )
 

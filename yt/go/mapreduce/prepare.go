@@ -9,13 +9,14 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/tink/go/keyset"
+	"golang.org/x/xerrors"
+
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/mapreduce/spec"
 	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yterrors"
-	"golang.org/x/xerrors"
 )
 
 type prepareAction func(ctx context.Context, p *prepare) error

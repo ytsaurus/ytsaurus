@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
 	"go.ytsaurus.tech/library/go/x/xreflect"
 )
 

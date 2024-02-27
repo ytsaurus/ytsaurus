@@ -12,6 +12,7 @@ import (
 	"unsafe"
 
 	"go.uber.org/zap"
+
 	"go.ytsaurus.tech/library/go/core/xerrors"
 )
 

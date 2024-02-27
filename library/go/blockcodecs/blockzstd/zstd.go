@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/klauspost/compress/zstd"
+
 	"go.ytsaurus.tech/library/go/blockcodecs"
 )
 

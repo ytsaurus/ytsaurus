@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"

@@ -7,6 +7,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
+
 	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/yson"
 )

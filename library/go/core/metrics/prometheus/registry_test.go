@@ -10,9 +10,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/testing/protocmp"
+
 	"go.ytsaurus.tech/library/go/core/metrics"
 	"go.ytsaurus.tech/library/go/ptr"
-	"google.golang.org/protobuf/testing/protocmp"
 )
 
 func TestNewRegistry(t *testing.T) {

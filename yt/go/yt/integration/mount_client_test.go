@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
 	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/migrate"
 	"go.ytsaurus.tech/yt/go/schema"

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/golang/protobuf/proto"
+
 	"go.ytsaurus.tech/yt/go/bus"
 )
 

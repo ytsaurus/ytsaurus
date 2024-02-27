@@ -4,12 +4,13 @@ import (
 	"context"
 	"time"
 
+	"golang.org/x/exp/slices"
+
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/nop"
 	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yterrors"
-	"golang.org/x/exp/slices"
 )
 
 const (

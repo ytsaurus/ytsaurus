@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
 	"go.ytsaurus.tech/yt/chyt/controller/test/helpers"
 	"go.ytsaurus.tech/yt/go/ypath"
 )

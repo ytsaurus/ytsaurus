@@ -5,9 +5,10 @@ import (
 	"context"
 	"errors"
 
+	"golang.org/x/xerrors"
+
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
-	"golang.org/x/xerrors"
 )
 
 var (

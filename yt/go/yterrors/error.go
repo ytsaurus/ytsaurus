@@ -8,8 +8,9 @@ import (
 	"sort"
 	"strings"
 
-	"go.ytsaurus.tech/yt/go/yson"
 	"golang.org/x/xerrors"
+
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 //go:generate yt-gen-error-code -yt-root ../../yt -out error_code.go

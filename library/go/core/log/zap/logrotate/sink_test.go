@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/zap"
 )

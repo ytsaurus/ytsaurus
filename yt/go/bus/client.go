@@ -10,6 +10,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"go.uber.org/atomic"
+
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/nop"
 	"go.ytsaurus.tech/library/go/core/xerrors"

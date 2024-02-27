@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"go.uber.org/atomic"
+
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 )

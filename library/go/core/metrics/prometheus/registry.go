@@ -6,6 +6,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+
 	"go.ytsaurus.tech/library/go/core/metrics"
 	"go.ytsaurus.tech/library/go/core/metrics/internal/pkg/metricsutil"
 	"go.ytsaurus.tech/library/go/core/metrics/internal/pkg/registryutil"

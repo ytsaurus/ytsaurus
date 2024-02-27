@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/spf13/cobra"
+
 	"go.ytsaurus.tech/yt/chyt/controller/internal/app"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/chyt"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/jupyt"

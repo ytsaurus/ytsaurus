@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-client-go"
 	"github.com/uber/jaeger-client-go/config"
+
 	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"

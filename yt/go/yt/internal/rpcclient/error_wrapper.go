@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/golang/protobuf/proto"
+
 	"go.ytsaurus.tech/yt/go/bus"
 	"go.ytsaurus.tech/yt/go/yterrors"
 )

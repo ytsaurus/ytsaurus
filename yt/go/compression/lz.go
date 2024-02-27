@@ -6,6 +6,7 @@ import (
 	"math"
 
 	"github.com/pierrec/lz4"
+
 	"go.ytsaurus.tech/library/go/core/xerrors"
 )
 

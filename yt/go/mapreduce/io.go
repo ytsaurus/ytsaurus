@@ -5,8 +5,9 @@ import (
 	"os"
 	"strconv"
 
-	"go.ytsaurus.tech/yt/go/yson"
 	"golang.org/x/xerrors"
+
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 type jobContext struct {

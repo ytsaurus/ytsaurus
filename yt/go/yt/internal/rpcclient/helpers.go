@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"time"
 
+	"golang.org/x/xerrors"
+
 	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
@@ -13,7 +15,6 @@ import (
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yterrors"
-	"golang.org/x/xerrors"
 )
 
 // unexpectedStatusCode is last effort attempt to get useful error message from a failed request.

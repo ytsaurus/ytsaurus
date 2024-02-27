@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 	"go.ytsaurus.tech/yt/chyt/controller/test/helpers"

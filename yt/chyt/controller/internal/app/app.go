@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
+
 	"go.ytsaurus.tech/library/go/core/log"
 	logzap "go.ytsaurus.tech/library/go/core/log/zap"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/agent"

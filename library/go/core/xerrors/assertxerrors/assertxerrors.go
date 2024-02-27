@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
 	"go.ytsaurus.tech/library/go/core/xerrors/internal/modes"
 	"go.ytsaurus.tech/library/go/test/testhelpers"
 )

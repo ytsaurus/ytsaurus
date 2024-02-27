@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 
 	"github.com/pierrec/lz4"
+
 	"go.ytsaurus.tech/library/go/blockcodecs"
 )
 

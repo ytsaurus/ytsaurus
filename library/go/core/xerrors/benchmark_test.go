@@ -6,9 +6,10 @@ import (
 	"testing"
 
 	pkgerrors "github.com/pkg/errors"
+	"golang.org/x/xerrors"
+
 	"go.ytsaurus.tech/library/go/core/xerrors/benchxerrors"
 	"go.ytsaurus.tech/library/go/test/testhelpers"
-	"golang.org/x/xerrors"
 )
 
 const (

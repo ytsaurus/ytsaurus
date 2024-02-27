@@ -2,6 +2,7 @@ package monitoring
 
 import (
 	"github.com/go-chi/chi/v5"
+
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/httpserver"
 )

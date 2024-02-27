@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
+
 	"go.ytsaurus.tech/library/go/core/metrics"
 )
 

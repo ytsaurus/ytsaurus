@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
 	"go.ytsaurus.tech/yt/chyt/controller/internal/agent"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/app"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"

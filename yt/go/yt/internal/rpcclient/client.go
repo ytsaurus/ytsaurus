@@ -10,6 +10,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/golang/protobuf/proto"
 	"github.com/opentracing/opentracing-go"
+
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 	"go.ytsaurus.tech/library/go/core/xerrors"

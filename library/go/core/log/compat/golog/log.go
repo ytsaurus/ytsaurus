@@ -2,6 +2,7 @@ package golog
 
 import (
 	canal_log "github.com/siddontang/go-log/log"
+
 	"go.ytsaurus.tech/library/go/core/log"
 )
 
