@@ -1835,6 +1835,7 @@ func (e *Encoder) ListJobs(
 		Address:                     opts.Address,
 		WithStderr:                  opts.WithStderr,
 		WithFailContext:             opts.WithFailContext,
+		WithMonitoringDescriptor:    opts.WithMonitoringDescriptor,
 		WithSpec:                    nil, // todo
 		SortField:                   nil, // todo
 		SortOrder:                   sortOrder,

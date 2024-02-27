@@ -572,6 +572,10 @@ func writeListJobsOptions(w *yson.Writer, o *yt.ListJobsOptions) {
 		w.MapKeyString("with_fail_context")
 		w.Any(o.WithFailContext)
 	}
+	if o.WithMonitoringDescriptor != nil {
+		w.MapKeyString("with_monitoring_descriptor")
+		w.Any(o.WithMonitoringDescriptor)
+	}
 	if o.SortField != nil {
 		w.MapKeyString("sort_field")
 		w.Any(o.SortField)
