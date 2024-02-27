@@ -1314,18 +1314,13 @@ TJobTracker::THeartbeatProcessingResult TJobTracker::DoProcessHeartbeat(
                     operationController,
                     operationId = operationId,
                     jobsToProcessInOperationController = std::move(jobsToProcessInOperationController),
-                    discountGuard = std::move(discountGuard),
-                    jobsToSkip = std::move(jobsToSkip)
+                    discountGuard = std::move(discountGuard)
                 ] () mutable {
                     for (auto& jobSummary : jobsToProcessInOperationController.JobSummaries) {
                         YT_VERIFY(jobSummary);
 
                         auto jobId = jobSummary->Id;
                         auto jobState = jobSummary->State;
-
-                        if (jobsToSkip.contains(jobId)) {
-                            continue;
-                        }
 
                         try {
                             operationController->OnJobInfoReceivedFromNode(std::move(jobSummary));
@@ -1340,7 +1335,6 @@ TJobTracker::THeartbeatProcessingResult TJobTracker::DoProcessHeartbeat(
                     }
 
                     for (const auto& jobToAbort : jobsToProcessInOperationController.JobsToAbort) {
-                        // NB(pogorelov): No need to check if jobId in jobsToSkip because double job abortion is valid.
                         try {
                             operationController->AbortJobByJobTracker(jobToAbort.JobId, jobToAbort.AbortReason);
                         } catch (const std::exception& ex) {
