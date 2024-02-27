@@ -43,6 +43,8 @@ TConstExpressionPtr ExtractPredicateForColumnSubset(
     TConstExpressionPtr expr,
     const TTableSchema& tableSchema);
 
+void CollectOperands(std::vector<TConstExpressionPtr>* operands, TConstExpressionPtr expr);
+
 std::pair<TConstExpressionPtr, TConstExpressionPtr> SplitPredicateByColumnSubset(
     TConstExpressionPtr root,
     const TTableSchema& tableSchema);

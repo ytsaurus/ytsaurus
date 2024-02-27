@@ -1338,6 +1338,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/session_coordinator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/tracked_memory_chunk_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/shuffle.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/join_tree.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/dynamic_state.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/helpers.cpp
