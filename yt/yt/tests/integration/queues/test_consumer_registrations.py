@@ -480,6 +480,37 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
             []
         ))
 
+        # tests for paths with attributes
+        wait(lambda: self.listed_registrations_are_equal(
+            list_queue_consumer_registrations(queue_path="<append=true>//tmp/q1[#10:#100]", consumer_path="<append=true>//tmp/c1[#20:#200]"),
+            [
+                ("primary", "//tmp/q1", "primary", "//tmp/c1", True),
+            ]
+        ))
+
+        wait(lambda: self.listed_registrations_are_equal(
+            list_queue_consumer_registrations(queue_path="<append=true>//tmp/q1[#10:#100]"),
+            [
+                ("primary", "//tmp/q1", "primary", "//tmp/c1", True),
+                ("primary", "//tmp/q1", "primary", "//tmp/c2", False),
+            ]
+        ))
+
+        wait(lambda: self.listed_registrations_are_equal(
+            list_queue_consumer_registrations(consumer_path="<append=true>//tmp/c1[#20:#200]"),
+            [
+                ("primary", "//tmp/q1", "primary", "//tmp/c1", True),
+                ("primary", "//tmp/q2", "primary", "//tmp/c1", True, (1, 5, 4, 3)),
+            ]
+        ))
+
+        wait(lambda: self.listed_registrations_are_equal(
+            list_queue_consumer_registrations(consumer_path="<append=true>primary://tmp/c2[#20:#200]"),
+            [
+                ("primary", "//tmp/q1", "primary", "//tmp/c2", False),
+            ]
+        ))
+
         unregister_queue_consumer("//tmp/q1", "//tmp/c1")
         unregister_queue_consumer("//tmp/q1", "//tmp/c2")
         unregister_queue_consumer("//tmp/q2", "//tmp/c1")
