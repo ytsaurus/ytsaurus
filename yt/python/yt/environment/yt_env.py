@@ -363,32 +363,34 @@ class YTInstance(object):
         return config_paths
 
     def _prepare_certificates(self):
-        def read_content(filename):
-            with open(filename, "rb") as fin:
-                return fin.read()
-
         names = [self.yt_config.fqdn, self.yt_config.cluster_name]
 
         if self.yt_config.ca_cert is None:
-            ca_cert = os.path.join(self.path, "ca.crt")
-            ca_cert_key = os.path.join(self.path, "ca.key")
-            create_ca(ca_cert=ca_cert, ca_cert_key=ca_cert_key)
-            self.yt_config.ca_cert = read_content(ca_cert)
-            self.yt_config.ca_cert_key = read_content(ca_cert_key)
+            self.yt_config.ca_cert = os.path.join(self.path, "ca.crt")
+            self.yt_config.ca_cert_key = os.path.join(self.path, "ca.key")
+            create_ca(ca_cert=self.yt_config.ca_cert, ca_cert_key=self.yt_config.ca_cert_key)
 
         if self.yt_config.rpc_cert is None:
-            rpc_cert = os.path.join(self.path, "rpc.crt")
-            rpc_cert_key = os.path.join(self.path, "rpc.key")
-            create_certificate(ca_cert=ca_cert, ca_cert_key=ca_cert_key, cert=rpc_cert, cert_key=rpc_cert_key, names=names)
-            self.yt_config.rpc_cert = read_content(rpc_cert)
-            self.yt_config.rpc_cert_key = read_content(rpc_cert_key)
+            self.yt_config.rpc_cert = os.path.join(self.path, "rpc.crt")
+            self.yt_config.rpc_cert_key = os.path.join(self.path, "rpc.key")
+            create_certificate(
+                ca_cert=self.yt_config.ca_cert,
+                ca_cert_key=self.yt_config.ca_cert_key,
+                cert=self.yt_config.rpc_cert,
+                cert_key=self.yt_config.rpc_cert_key,
+                names=names
+            )
 
         if self.yt_config.https_cert is None and self.yt_config.http_proxy_count > 0:
-            https_cert = os.path.join(self.path, "https.crt")
-            https_cert_key = os.path.join(self.path, "https.key")
-            create_certificate(ca_cert=ca_cert, ca_cert_key=ca_cert_key, cert=https_cert, cert_key=https_cert_key, names=names)
-            self.yt_config.https_cert = read_content(https_cert)
-            self.yt_config.https_cert_key = read_content(https_cert_key)
+            self.yt_config.https_cert = os.path.join(self.path, "https.crt")
+            self.yt_config.https_cert_key = os.path.join(self.path, "https.key")
+            create_certificate(
+                ca_cert=self.yt_config.ca_cert,
+                ca_cert_key=self.yt_config.ca_cert_key,
+                cert=self.yt_config.https_cert,
+                cert_key=self.yt_config.https_cert_key,
+                names=names
+            )
 
     def _prepare_builtin_environment(self, ports_generator, modify_configs_func):
         service_infos = [
@@ -1833,6 +1835,11 @@ class YTInstance(object):
             else:
                 config = proxy_configs[i]
                 write_config(config, config_path)
+
+            if self.yt_config.https_cert is not None:
+                cred = config["https_server"]["credentials"]
+                shutil.copy(self.yt_config.https_cert, cred["cert_chain"]["file_name"])
+                shutil.copy(self.yt_config.https_cert_key, cred["private_key"]["file_name"])
 
             self.configs["http_proxy"].append(config)
             self.config_paths["http_proxy"].append(config_path)
