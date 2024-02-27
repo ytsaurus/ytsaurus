@@ -2,9 +2,10 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/core/yson/consumer.h>
+
+#include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/public.h>
 
 namespace NYT::NControllerAgent {
 

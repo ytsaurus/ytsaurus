@@ -2,6 +2,8 @@
 
 #include <yt/yt/core/yson/consumer.h>
 
+#include <library/cpp/yt/memory/intrusive_ptr.h>
+
 namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
