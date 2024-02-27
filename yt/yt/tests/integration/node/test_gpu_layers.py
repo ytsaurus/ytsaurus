@@ -778,6 +778,65 @@ class TestForceCudaLayer(YTEnvSetup):
         assert res == b"SETUP-OUTPUT\n"
 
 
+@authors("omgronny")
+class TestCudaProfilerLayer(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+    NUM_SECONDARY_MASTER_CELLS = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "test_root_fs": True,
+            },
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"cuda_profiler_layer_path": "//tmp/cuda-profiler"}}
+
+    USE_PORTO = True
+
+    def setup_files(self):
+        create("file", "//tmp/cuda-profiler", attributes={"replication_factor": 1})
+        file_name = "layers/cupti-injection-libs.tar.gz"
+        write_file(
+            "//tmp/cuda-profiler",
+            open(file_name, "rb").read(),
+            file_writer={"upload_replication_factor": 1},
+        )
+
+    def test_setup_cuda_profiler_layer(self):
+        self.setup_files()
+
+        command = """
+            if [[ ! -f "$YT_ROOT_FS/opt/cupti-lib/libcupti_trace_injection.so" ]];
+            then exit 1;
+            fi
+        """
+
+        task_spec = {
+            "command": command,
+            "profilers": [{
+                "binary": "user_job",
+                "type": "cuda",
+                "profiling_probability": 1,
+            }],
+            "job_count": 1,
+        }
+
+        op = vanilla(spec={
+            "tasks": {
+                "task": task_spec,
+            },
+        })
+        op.wait_for_state("completed")
+
+
 @authors("ignat")
 class TestSetupUser(YTEnvSetup):
     NUM_SCHEDULERS = 1
