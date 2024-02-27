@@ -217,7 +217,8 @@ public:
     void Abort() override
     {
         if (PrerequisiteTransaction_) {
-            YT_UNUSED_FUTURE(PrerequisiteTransaction_->Abort());
+            WaitFor(PrerequisiteTransaction_->Abort())
+                .ThrowOnError();
         }
     }
 
