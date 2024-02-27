@@ -660,6 +660,16 @@ private:
 
             UploadTransaction_->Detach();
 
+            if (AllocatedChunkSessionPromise_) {
+                AllocatedChunkSessionPromise_.ToFuture()
+                    .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TChunkSessionPtr>& sessionOrError) {
+                        if (sessionOrError.IsOK()) {
+                            const auto& session = sessionOrError.Value();
+                            ScheduleChunkSessionSeal(session);
+                        }
+                    }).Via(Invoker_));
+            }
+
             ClosedPromise_.TrySet(TError());
 
             YT_LOG_DEBUG("Journal closed");
