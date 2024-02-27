@@ -338,6 +338,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_bundle_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_bundle.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_hydra_janitor.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_hydra_persistence_synchronizer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_map_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_map_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/cell_proxy_base.cpp

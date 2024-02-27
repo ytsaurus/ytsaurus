@@ -30,9 +30,13 @@ protected:
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
     bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value, bool force) override;
+    TResolveResult Resolve(const NYPath::TYPath& path, const NYTree::IYPathServiceContextPtr& context) override;
+    TResolveResult ResolveSelf(const NYPath::TYPath& path, const NYTree::IYPathServiceContextPtr& context) override;
 
 private:
-    int GetMaxHydraFileId(const NYPath::TYPath& path) const;
+    TResolveResult PropogateToHydraPersistenceStorage(const NYPath::TYPath& path) const;
+    // COMPAT(danilalexeev): secondaryPath.
+    int GetMaxHydraFileId(const NYPath::TYPath& primaryPath, const NYPath::TYPath& secondaryPath) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

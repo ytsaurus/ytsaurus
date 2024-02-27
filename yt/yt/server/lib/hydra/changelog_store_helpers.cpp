@@ -11,8 +11,8 @@ namespace NYT::NHydra {
 
 TChangelogStoreScanResult ScanChangelogStore(
     const std::vector<int>& changelogIds,
-    const std::function<i64(int changelogId)> recordCountGetter,
-    const std::function<TSharedRef(int changelogId, i64 recordId)>& recordReader)
+    const std::function<TChangelogScanInfo(int changelogId)> scanInfoGetter,
+    const std::function<TSharedRef(int changelogId, i64 recordId, bool atPrimaryPath)>& recordReader)
 {
     auto sortedChangelogIds = changelogIds;
     std::sort(sortedChangelogIds.begin(), sortedChangelogIds.end(), std::greater<>());
@@ -27,22 +27,26 @@ TChangelogStoreScanResult ScanChangelogStore(
             break;
         }
 
-        auto recordCount = recordCountGetter(id);
+        auto scanInfo = scanInfoGetter(id);
 
         if (id > result.LatestChangelogId) {
             result.LatestChangelogId = id;
-            result.LatestChangelogRecordCount = recordCount;
+            result.LatestChangelogRecordCount = scanInfo.RecordCount;
         }
 
-        if (recordCount > 0 && id > result.LatestNonemptyChangelogId) {
+        if (scanInfo.RecordCount > 0 && id > result.LatestNonemptyChangelogId) {
             result.LatestNonemptyChangelogId = id;
-            result.LatestNonemptyChangelogRecordCount = recordCount;
+            result.LatestNonemptyChangelogRecordCount = scanInfo.RecordCount;
+            result.IsLatestNonemptyChangelogAtPrimaryPath = scanInfo.AtPrimaryPath;
         }
     }
 
     if (result.LatestNonemptyChangelogId != InvalidSegmentId) {
         YT_VERIFY(result.LatestNonemptyChangelogRecordCount > 0);
-        auto record = recordReader(result.LatestNonemptyChangelogId, result.LatestNonemptyChangelogRecordCount - 1);
+        auto record = recordReader(
+            result.LatestNonemptyChangelogId,
+            result.LatestNonemptyChangelogRecordCount - 1,
+            result.IsLatestNonemptyChangelogAtPrimaryPath);
 
         NHydra::NProto::TMutationHeader header;
         TSharedRef requestData;

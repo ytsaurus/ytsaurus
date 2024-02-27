@@ -20,6 +20,10 @@ NCypressServer::INodeTypeHandlerPtr CreateCellBundleMapTypeHandler(
     NCellMaster::TBootstrap* bootstrap,
     NCellarClient::ECellarType cellType,
     NObjectClient::EObjectType cellBundleMapType);
+NCypressServer::INodeTypeHandlerPtr CreateVirtualCellMapTypeHandler(
+    NCellMaster::TBootstrap* bootstrap,
+    NCellarClient::ECellarType cellType,
+    NObjectClient::EObjectType cellBundleMapType);
 
 ////////////////////////////////////////////////////////////////////////////////
 

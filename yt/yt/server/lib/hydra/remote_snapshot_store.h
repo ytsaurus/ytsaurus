@@ -14,14 +14,15 @@ namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Creates a changelog store factory on top of DFS.
+//! Creates a remote snapshot store.
 /*!
  *  If #prerequisiteTransactionId then the constructed stores are read-only.
  */
 ISnapshotStorePtr CreateRemoteSnapshotStore(
     TRemoteSnapshotStoreConfigPtr storeConfig,
     TRemoteSnapshotStoreOptionsPtr storeOptions,
-    const NYPath::TYPath& path,
+    NYPath::TYPath primaryPath,
+    NYPath::TYPath secondaryPath,
     NApi::IClientPtr client,
     NTransactionClient::TTransactionId prerequisiteTransactionId = {});
 

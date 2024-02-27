@@ -44,6 +44,7 @@ using namespace NTransactionClient;
 
 DECLARE_REFCOUNTED_CLASS(TRemoteSnapshotStore)
 
+// COMPAT(danilalexeev) Purge `SecondaryPath_`.
 class TRemoteSnapshotStore
     : public ISnapshotStore
 {
@@ -51,15 +52,20 @@ public:
     TRemoteSnapshotStore(
         TRemoteSnapshotStoreConfigPtr config,
         TRemoteSnapshotStoreOptionsPtr options,
-        const TYPath& path,
+        TYPath primaryPath,
+        TYPath secondaryPath,
         IClientPtr client,
         TTransactionId prerequisiteTransactionId)
         : Config_(config)
         , Options_(options)
-        , Path_(path)
+        , PrimaryPath_(std::move(primaryPath))
+        , SecondaryPath_(std::move(secondaryPath))
         , Client_(client)
         , PrerequisiteTransactionId_(prerequisiteTransactionId)
-        , Logger(HydraLogger.WithTag("Path: %v", Path_))
+        , Logger(HydraLogger.WithTag(
+            "PrimaryPath: %v, SecondaryPath: %v",
+            PrimaryPath_,
+            SecondaryPath_))
     {
     }
 
@@ -86,7 +92,8 @@ public:
 private:
     const TRemoteSnapshotStoreConfigPtr Config_;
     const TRemoteSnapshotStoreOptionsPtr Options_;
-    const TYPath Path_;
+    const TYPath PrimaryPath_;
+    const TYPath SecondaryPath_;
     const IClientPtr Client_;
     const TTransactionId PrerequisiteTransactionId_;
     const NLogging::TLogger Logger;
@@ -99,8 +106,9 @@ private:
         TReader(TRemoteSnapshotStorePtr store, int snapshotId)
             : Store_(store)
             , SnapshotId_(snapshotId)
-            , Path_(Store_->GetSnapshotPath(SnapshotId_))
-            , Logger(HydraLogger.WithTag("Path: %v", Path_))
+            , Logger(HydraLogger.WithTag("PrimaryPath: %v, SecondaryPath: %v",
+                Store_->PrimaryPath_,
+                Store_->SecondaryPath_))
         { }
 
         TFuture<void> Open() override
@@ -125,9 +133,9 @@ private:
     private:
         const TRemoteSnapshotStorePtr Store_;
         const int SnapshotId_;
-        const TYPath Path_;
         const NLogging::TLogger Logger;
 
+        TYPath Path_;
         TSnapshotParams Params_;
 
         IAsyncZeroCopyInputStreamPtr UnderlyingReader_;
@@ -140,6 +148,7 @@ private:
 
         void DoOpen()
         {
+            Path_ = Store_->GetSnapshotPath(Store_->PrimaryPath_, SnapshotId_);
             try {
                 YT_LOG_DEBUG("Requesting remote snapshot parameters");
                 INodePtr node;
@@ -154,10 +163,17 @@ private:
                         "last_record_id",
                         "last_mutation_term"
                     };
-                    auto asyncResult = Store_->Client_->GetNode(Path_, options);
-                    auto result = WaitFor(asyncResult)
-                        .ValueOrThrow();
-                    node = ConvertToNode(result);
+
+                    auto requestNode = [&] (const TYPath& path) {
+                        return WaitFor(Store_->Client_->GetNode(path, options));
+                    };
+
+                    auto rspOrError = requestNode(Path_);
+                    if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                        Path_ = Store_->GetSnapshotPath(Store_->SecondaryPath_, SnapshotId_);
+                        rspOrError = requestNode(Path_);
+                    }
+                    node = ConvertToNode(rspOrError.ValueOrThrow());
                 }
                 YT_LOG_DEBUG("Remote snapshot parameters received");
 
@@ -179,7 +195,7 @@ private:
                 {
                     TFileReaderOptions options;
                     options.Config = Store_->Config_->Reader;
-                    UnderlyingReader_ = WaitFor(Store_->Client_->CreateFileReader(Store_->GetSnapshotPath(SnapshotId_), options))
+                    UnderlyingReader_ = WaitFor(Store_->Client_->CreateFileReader(Path_, options))
                         .ValueOrThrow();
                 }
                 YT_LOG_DEBUG("Remote snapshot reader opened");
@@ -221,8 +237,9 @@ private:
             : Store_(store)
             , SnapshotId_(snapshotId)
             , Meta_(meta)
-            , Path_(Store_->GetSnapshotPath(SnapshotId_))
-            , Logger(HydraLogger.WithTag("Path: %v", Path_))
+            , Logger(HydraLogger.WithTag("PrimaryPath: %v, SecondaryPath: %v",
+                Store_->PrimaryPath_,
+                Store_->SecondaryPath_))
         { }
 
         TFuture<void> Open() override
@@ -258,9 +275,9 @@ private:
         const TRemoteSnapshotStorePtr Store_;
         const int SnapshotId_;
         const TSnapshotMeta Meta_;
-        const TYPath Path_;
         const NLogging::TLogger Logger;
 
+        TYPath Path_;
         ITransactionPtr Transaction_;
 
         IFileWriterPtr Writer_;
@@ -278,6 +295,8 @@ private:
         void DoOpen()
         {
             try {
+                Path_ = Store_->GetSnapshotPath(Store_->GetCurrentStoragePath(), SnapshotId_);
+
                 YT_VERIFY(!IsOpened_);
 
                 YT_LOG_DEBUG("Starting remote snapshot upload transaction");
@@ -344,7 +363,7 @@ private:
                     options.Config->UploadReplicationFactor = Store_->Options_->SnapshotReplicationFactor;
                     options.Config->MinUploadReplicationFactor = Store_->Options_->SnapshotReplicationFactor;
 
-                    Writer_ = Store_->Client_->CreateFileWriter(Store_->GetSnapshotPath(SnapshotId_), options);
+                    Writer_ = Store_->Client_->CreateFileWriter(Path_, options);
 
                     WaitFor(Writer_->Open())
                         .ThrowOnError();
@@ -396,15 +415,18 @@ private:
 
     int DoGetLatestSnapshotId(int maxSnapshotId)
     {
-        try {
-            YT_LOG_DEBUG("Requesting snapshot list from remote store");
-            auto asyncResult = Client_->ListNode(Path_);
-            auto result = WaitFor(asyncResult)
-                .ValueOrThrow();
-            YT_LOG_DEBUG("Snapshot list received");
+        int latestSnapshotId = InvalidSegmentId;
 
-            auto keys = ConvertTo<std::vector<TString>>(result);
-            int latestSnapshotId = InvalidSegmentId;
+        auto processStore = [&] (const TYPath& path) {
+            YT_LOG_DEBUG("Requesting snapshot list from remote store (Path: %v)", path);
+            auto rspOrError = WaitFor(Client_->ListNode(path));
+            if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                YT_LOG_WARNING("Couldn`t resolve list request (Path: %v)", path);
+                return;
+            }
+            YT_LOG_DEBUG("Snapshot list received");
+            const auto& list = rspOrError.ValueOrThrow();
+            auto keys = ConvertTo<std::vector<TString>>(list);
             for (const auto& key : keys) {
                 int id;
                 try {
@@ -418,18 +440,31 @@ private:
                     latestSnapshotId = id;
                 }
             }
+        };
 
-            return latestSnapshotId;
+        try {
+            processStore(PrimaryPath_);
+            processStore(SecondaryPath_);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error computing the latest snapshot id in remote store")
-                << TErrorAttribute("snapshot_path", Path_)
+                << TErrorAttribute("primary_path", PrimaryPath_)
+                << TErrorAttribute("secondary_path", SecondaryPath_)
                 << ex;
         }
+
+        return latestSnapshotId;
     }
 
-    TYPath GetSnapshotPath(int snapshotId)
+    TYPath GetSnapshotPath(const TYPath& storePath, int snapshotId)
     {
-        return Format("%v/%09v", Path_, snapshotId);
+        return Format("%v/%09v", storePath, snapshotId);
+    }
+
+    const TYPath& GetCurrentStoragePath()
+    {
+        auto exists = WaitFor(Client_->NodeExists(PrimaryPath_))
+            .ValueOrThrow();
+        return exists ? PrimaryPath_ : SecondaryPath_;
     }
 };
 
@@ -438,14 +473,16 @@ DEFINE_REFCOUNTED_TYPE(TRemoteSnapshotStore)
 ISnapshotStorePtr CreateRemoteSnapshotStore(
     TRemoteSnapshotStoreConfigPtr storeConfig,
     TRemoteSnapshotStoreOptionsPtr storeOptions,
-    const TYPath& path,
+    TYPath primaryPath,
+    TYPath secondaryPath,
     IClientPtr client,
     TTransactionId prerequisiteTransactionId)
 {
     return New<TRemoteSnapshotStore>(
         storeConfig,
         storeOptions,
-        path,
+        std::move(primaryPath),
+        std::move(secondaryPath),
         client,
         prerequisiteTransactionId);
 }

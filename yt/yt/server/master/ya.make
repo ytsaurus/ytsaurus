@@ -36,6 +36,7 @@ SRCS(
     cell_server/cell_bundle_type_handler.cpp
     cell_server/cell_bundle.cpp
     cell_server/cell_hydra_janitor.cpp
+    cell_server/cell_hydra_persistence_synchronizer.cpp
     cell_server/cell_map_proxy.cpp
     cell_server/cell_map_type_handler.cpp
     cell_server/cell_proxy_base.cpp

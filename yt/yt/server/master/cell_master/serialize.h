@@ -201,6 +201,7 @@ DEFINE_ENUM(EMasterReign,
     ((TablesInSequoia)                                              (2533))  // h0pless
     ((CheckChunkCountPerTabletBeforeMount)                          (2534))  // alexelexa
     ((ErasureHunkStorage_24_1)                                      (2535))  // akozhikhov
+    ((TabletCellsHydraPersistenceMigration)                         (2536))  // danilalexeev
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov

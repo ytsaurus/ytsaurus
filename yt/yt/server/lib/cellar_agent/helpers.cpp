@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <library/cpp/yt/string/guid.h>
+
 namespace NYT::NCellarAgent {
 
 using namespace NObjectClient;
@@ -39,7 +41,7 @@ ECellarType GetCellarTypeFromCellBundleId(TObjectId id)
     }
 }
 
-const TString& GetCellCypressPrefix(TCellId id)
+const TString& GetCellCypressPathPrefix(TCellId id)
 {
     switch (TypeFromId(id)) {
         case EObjectType::TabletCell:
@@ -51,6 +53,30 @@ const TString& GetCellCypressPrefix(TCellId id)
         default:
             YT_ABORT();
     }
+}
+
+const TString& GetCellHydraPersistenceCypressPathPrefix(TCellId id)
+{
+    switch (TypeFromId(id)) {
+        case EObjectType::TabletCell:
+            return TabletCellsHydraPersistenceCypressPrefix;
+
+        case EObjectType::ChaosCell:
+            return ChaosCellsHydraPersistenceCypressPrefix;
+
+        default:
+            YT_ABORT();
+    }
+}
+
+NYPath::TYPath GetCellPath(NElection::TCellId id)
+{
+    return Format("%v/%v", GetCellCypressPathPrefix(id), id);
+}
+
+NYPath::TYPath GetCellHydraPersistencePath(NElection::TCellId id)
+{
+    return Format("%v/%v", GetCellHydraPersistenceCypressPathPrefix(id), id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

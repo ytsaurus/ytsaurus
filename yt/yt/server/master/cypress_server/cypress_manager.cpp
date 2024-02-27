@@ -1166,8 +1166,10 @@ public:
         RegisterHandler(CreateCellNodeTypeHandler(Bootstrap_));
         RegisterHandler(CreateCellBundleMapTypeHandler(Bootstrap_, ECellarType::Chaos, EObjectType::ChaosCellBundleMap));
         RegisterHandler(CreateCellMapTypeHandler(Bootstrap_, ECellarType::Chaos, EObjectType::ChaosCellMap));
+        RegisterHandler(CreateVirtualCellMapTypeHandler(Bootstrap_, ECellarType::Chaos, EObjectType::VirtualChaosCellMap));
         RegisterHandler(CreateCellBundleMapTypeHandler(Bootstrap_, ECellarType::Tablet, EObjectType::TabletCellBundleMap));
         RegisterHandler(CreateCellMapTypeHandler(Bootstrap_, ECellarType::Tablet, EObjectType::TabletCellMap));
+        RegisterHandler(CreateVirtualCellMapTypeHandler(Bootstrap_, ECellarType::Tablet, EObjectType::VirtualTabletCellMap));
         RegisterHandler(CreateTabletMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateTabletActionMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateAreaMapTypeHandler(Bootstrap_));
