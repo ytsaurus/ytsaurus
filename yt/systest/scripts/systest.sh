@@ -94,7 +94,7 @@ helm install ${nsflags} ${name_tester} --set SystestImagePath=${systest_image} $
 bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --name tester ${tester_flags} || print_pods $nsflags
 
 helm install ${nsflags} ${name_systest} --set SystestImagePath=${systest_image} ${ytsaurus_source_path}/yt/systest/helm/systest
-bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --name systest ${tester_flags} || print_systest_logs $nsflags
+bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --wait-minutes 720 --name systest ${tester_flags} || print_systest_logs $nsflags
 
 helm install ${nsflags} ${name_new_stress_test} --set SystestImagePath=${systest_image} ${ytsaurus_source_path}/yt/systest/helm/new_stress_test
 
