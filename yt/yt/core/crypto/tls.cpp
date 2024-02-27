@@ -167,6 +167,11 @@ public:
         OutputBuffer_ = TSharedMutableRef::Allocate<TTlsBufferTag>(TlsBufferSize);
     }
 
+    void SetHost(const TString& host)
+    {
+        SSL_set_tlsext_host_name(Ssl_, host.c_str());
+    }
+
     ~TTlsConnection()
     {
         SSL_free(Ssl_);
@@ -539,12 +544,16 @@ public:
         , Poller_(std::move(poller))
     { }
 
-    TFuture<IConnectionPtr> Dial(const TNetworkAddress& remote) override
+    TFuture<IConnectionPtr> Dial(const TNetworkAddress& remote, TRemoteContextPtr context) override
     {
-        return Underlying_->Dial(remote).Apply(BIND([ctx = Ctx_, poller = Poller_] (const IConnectionPtr& underlying) -> IConnectionPtr {
-            auto connection = New<TTlsConnection>(ctx, poller, underlying);
-            connection->StartClient();
-            return connection;
+        return Underlying_->Dial(remote)
+            .Apply(BIND([ctx = Ctx_, poller = Poller_, context = std::move(context)](const IConnectionPtr& underlying) -> IConnectionPtr {
+                auto connection = New<TTlsConnection>(ctx, poller, underlying);
+                if (context != nullptr && context->Host != std::nullopt) {
+                    connection->SetHost(*(context->Host));
+                }
+                connection->StartClient();
+                return connection;
         }));
     }
 
