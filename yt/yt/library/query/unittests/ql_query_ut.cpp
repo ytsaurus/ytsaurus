@@ -1672,6 +1672,36 @@ protected:
             /*syntaxVersion*/ 2).first;
     }
 
+    TQueryPtr EvaluateOnlyViaNativeExecutionBackend(
+        const TString& query,
+        const TDataSplit& dataSplit,
+        const std::vector<TString>& owningSourceRows,
+        const TResultMatcher& resultMatcher,
+        i64 inputRowLimit = std::numeric_limits<i64>::max(),
+        i64 outputRowLimit = std::numeric_limits<i64>::max(),
+        NYson::TYsonStringBuf placeholderValues = {},
+        bool useCanonicalNullRelations = false)
+    {
+        std::vector<std::vector<TString>> owningSources = {
+            owningSourceRows
+        };
+
+        std::map<TString, TDataSplit> dataSplits = {
+            {"//t", dataSplit}
+        };
+
+        return EvaluateWithQueryStatistics(
+            query,
+            dataSplits,
+            owningSources,
+            resultMatcher,
+            /*executionBackend*/ EExecutionBackend::Native,
+            inputRowLimit,
+            outputRowLimit,
+            placeholderValues,
+            useCanonicalNullRelations).first;
+    }
+
     TQueryPtr EvaluateExpectingError(
         const TString& query,
         const TDataSplit& dataSplit,
@@ -2020,6 +2050,8 @@ TEST_F(TQueryEvaluateTest, Simple)
     }, split);
 
     Evaluate("a, b FROM [//t]", split, source, ResultMatcher(result));
+
+    EvaluateOnlyViaNativeExecutionBackend("a, b FROM [//t]", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SimpleOffsetLimit)
