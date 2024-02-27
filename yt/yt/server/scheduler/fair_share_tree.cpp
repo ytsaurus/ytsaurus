@@ -2475,7 +2475,7 @@ private:
 
                     if (maybeAbortReason) {
                         EmplaceOrCrash(*allocationsToAbort, allocationUpdate.AllocationId, *maybeAbortReason);
-                        // NB(eshcherbin): We want the node shard to send us a allocation finished update,
+                        // NB(eshcherbin): We want the node shard to send us an allocation finished update,
                         // this is why we have to postpone the allocation here. This is very ad-hoc, but I hope it'll
                         // soon be rewritten as a part of the new GPU scheduler. See: YT-15062.
                         allocationsToPostpone->insert(allocationUpdate.AllocationId);

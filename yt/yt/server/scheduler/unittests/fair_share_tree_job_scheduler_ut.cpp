@@ -2211,7 +2211,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestBuildDynamicAttributesListFrom
             .LocalSatisfactionRatio = 0.0,
         });
 
-    // Second case: one operation has a allocation.
+    // Second case: one operation has an allocation.
     treeScheduler->OnAllocationStartedInTest(operationElementB.Get(), TAllocationId(TGuid::Create()), allocationResources);
 
     checkDynamicAttributes(

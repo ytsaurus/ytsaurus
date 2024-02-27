@@ -1243,7 +1243,7 @@ void TScheduleAllocationsContext::PreemptAllocationsAfterScheduling(
     }
 
     // NB(eshcherbin): Specified resource limits can be violated in two cases:
-    // 1. A allocation has just been scheduled with preemption over the limit.
+    // 1. An allocation has just been scheduled with preemption over the limit.
     // 2. The limit has been reduced in the config.
     // Note that in the second case any allocation, which is considered preemptible at least in some stage,
     // may be preempted (e.g. an aggressively preemptible allocation can be preempted without scheduling any new allocations).
