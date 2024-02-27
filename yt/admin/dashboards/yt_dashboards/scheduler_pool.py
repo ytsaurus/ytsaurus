@@ -53,21 +53,37 @@ def _build_quotas_usage(d, os_documentation):
             .cell("GPU: usage, demand, guarantee", resource_sensors("gpu"), yaxis_label="GPU, cards", display_legend=True)
     )
 
-    def operation_count_sensors(usage_name, limit_name):
-        return MultiSensor(
-            SchedulerPools(f"yt.scheduler.pools.{usage_name}_operation_count")
-                .legend_format("usage"),
-            SchedulerPools(f"yt.scheduler.pools.{limit_name}_operation_count")
-                .legend_format("limit"),
-        )
+    def operation_count_sensors(descriptions):
+        return MultiSensor(*(
+            SchedulerPools(f"yt.scheduler.pools.{name}_operation_count")
+                .legend_format(f"{legend}")
+            for legend, name in descriptions.items()
+        ))
 
     d.add(Rowset()
         .nan_as_zero()
         .row()
             .stack(False)
             .min(0)
-            .cell("Running operation count", operation_count_sensors("running", "max_running"), yaxis_label="Operation count", display_legend=True)
-            .cell("Total operation count", operation_count_sensors("total", "max"), yaxis_label="Operation count", display_legend=True)
+            .cell(
+                "Running operation count",
+                operation_count_sensors({
+                    "usage": "running",
+                    "lightweight usage": "lightweight_running",
+                    "limit": "max_running",
+                }),
+                yaxis_label="Operation count",
+                display_legend=True,
+            )
+            .cell(
+                "Total operation count",
+                operation_count_sensors({
+                    "usage": "total",
+                    "limit": "max",
+                }),
+                yaxis_label="Operation count",
+                display_legend=True,
+            )
     )
 
     DESCRIPTION = """
