@@ -25,7 +25,7 @@
 
 Табличные данные — последовательность строк, в которой каждая строка логически представляет собой пару ключ-значение, где ключ — строка, значение — структурированные данные.
 
-Поддерживаемые форматы: `json`, `yson`, `dsv`,  `schemaful_dsv`, `protobuf`.
+Поддерживаемые форматы: `json`, `yson`, `dsv`,  `schemaful_dsv`, `protobuf`, `arrow`.
 
 Примеры: входные и выходные данные операций, входные данные команды [`write_table`](../../../api/commands.md#write_table), выходные данные команды [`read_table`](../../../api/commands.md#read_table).
 
@@ -390,6 +390,111 @@ Karina	20364947097122776
 - **enable_integral_type_conversion** (`true`) — включить приведение `uint64` к `int64` и наоборот. Обратите внимание, эта опция включена по умолчанию. Если при преобразовании происходит переполнение, то возникает соответствующая ошибка.
 - **enable_integral_to_double_conversion** (`false`) — включить приведение `uint64` и `int64` к `double`. Например, целое число `42` превратится в дробное число `42.0`.
 - **enable_type_conversion** (`false`) — включить все перечисленные выше опции. В большинстве случаев достаточно пользоваться только этой опцией.
+
+## ARROW { #Arrow }
+
+[Arrow](https://arrow.apache.org/overview) (apache arrow) - бинарный формат, разработанный как универсальный стандарт для эффективного представления и обмена поколоночными данными в памяти между различными системами.
+
+Преимущества формата:
+
+- В отличие от строкового представления, где данные каждой строки хранятся вместе, arrow организует данные в столбцы. Это позволяет более эффективно выполнять некоторые аналитические запросы.
+
+- Arrow поддерживает сложные типы данных, такие как структуры, списки, словари и другие.
+
+### Arrow в {{product-name}}
+
+При чтении таблицы в формате arrow возвращается конкатенация нескольких [IPC Streaming Format](https://arrow.apache.org/docs/format/Columnar.html#ipc-streaming-format) потоков. 
+
+```
+<SCHEMA>
+<DICTIONARY 0>
+...
+<DICTIONARY k - 1>
+<RECORD BATCH 0>
+...
+<DICTIONARY x DELTA>
+...
+<DICTIONARY y DELTA>
+...
+<RECORD BATCH n - 1>
+<EOS 0x00000000>
+<SCHEMA>
+...
+<EOS 0x00000000>
+...
+<EOS 0x00000000>
+```
+
+ Возвращается несколько сконкатенированных потоков, а не один общий из-за того, что в {{product-name}} одна и та же колонка может храниться по-разному в разных чанках. Например, данные колонки могут храниться как явно целиком, так и в виде словаря (аналогично [словарю в arrow](https://arrow.apache.org/docs/format/Columnar.html#dictionary-encoded-layout)). При представлении данных в arrow формате мы сохраняем кодировку в виде словаря, и отдаем несколько сконкатенированных потоков, если какая-то колонка в одном чанке закодирована целиком, а в другом как словарь.
+
+Ограничения и особенности:
+
+- Чтение и запись можно производить только со схематизированными таблицами.
+
+- Рекомендуется читать в arrow таблицы с поколоночным форматом хранения чанков `optimize_for = scan`, чтобы чтение было эффективно.
+
+{% note warning "Внимание" %}
+
+Запись в arrow пока не оптимизирована для таблиц с поколоночным форматом хранения чанков, происходит двойная трансформация данных, из поколоночного представления трансформируется в построчное и обратно.
+
+{% endnote %}
+
+### Типы
+
+Для чтения таблиц сейчас поддержаны такие типы:
+
+- `string` отображается в [arrow::binary](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type6BINARYE)
+- `integer` отображается в какой-то из [arrow::integer](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type5UINT8E) в зависимости от 
+битности и знака
+- `boolean` отображается в [arrow::bool](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type4BOOLE)
+- `float` отображается в [arrow::float](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type5FLOATE)
+- `double` отображается в [arrow::double](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type6DOUBLEE)
+- `date` отображается в [arrow::date32](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type6DATE32E)
+- `datetime` отображается в [arrow::date64](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type6DATE64E)
+- `timestamp` отображается в [arrow::timestamp](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type9TIMESTAMPE)
+- `interval` отображается в [arrow::int64](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type5INT64E)
+- `cложные типы` представляются в виде [arrow::binary](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type6BINARYE), где хранится [yson представление](https://yt.yandex-team.ru/docs/user-guide/storage/data-types#yson) этих типов
+
+На запись поддержаны те же типы, что и на чтение, а также дополнительно поддержаны:
+
+- [arrow::list](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type4LISTE) представляется, как `list`
+- [arrow::map](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type3MAPE) представляется, как `dict`
+- [arrow::struct](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type6STRUCTE) представляется, как `struct`
+
+Другие особенности работы с типами:
+
+-  При чтении таблицы почти любой из типов может прийти, как [arrow::dictionary](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type10DICTIONARYE), где элементы словаря будут значениями, которые встречаются в колонке, а индексы указывают на порядок значений, подробнее [тут](https://arrow.apache.org/docs/format/Columnar.html#dictionary-encoded-layout).
+
+- формат arrow поддерживает одну вложенность optional, более глубокая вложенность при чтении будет возвращена бинарным типом, так же как и для остальных сложных типов.
+
+### Пример операций
+
+Чтение таблицы в arrow:
+
+{% list tabs %}
+- Python
+
+   ```python
+   yt.read_table("//path/to/table", format=yt.format.ArrowFormat(), raw=True)
+   ```
+
+- CLI
+
+   ```bash
+    yt read --table "//path/to/table" --format arrow
+   ```
+{% endlist %}
+
+Map операция с arrow:
+
+```bash
+yt map --input-format arrow --output-format arrow  --src "//path/to/input_table" "cat" --dst '<schema=[{name=item_1;type=int64};{name=item_2;type=string}]>//path/to/output_table'
+```
+
+### Операции с несколькими таблицами
+
+Если на вход операции в формате arrow передать несколько таблиц, то внутри операции будет получен поток так же в виде конкатенации нескольких IPC Streaming Format потоков, где каждая часть может принадлежать одной из таблиц. Индекс таблицы передается в виде [метаданных схемы](https://arrow.apache.org/docs/format/Columnar.html#schema-message) с именем `TableId`, подробнее о метаданных в arrow можно почитать [тут](https://arrow.apache.org/docs/format/Columnar.html#custom-application-metadata)
+
 
 ## PROTOBUF { #PROTOBUF }
 
