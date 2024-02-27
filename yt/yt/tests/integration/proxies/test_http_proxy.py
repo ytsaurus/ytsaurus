@@ -4,11 +4,17 @@ from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE, 
 
 from yt_helpers import profiler_factory, read_structured_log, write_log_barrier
 
+from yt.environment.tls_helpers import (
+    create_certificate,
+    get_certificate_fingerprint,
+    get_server_certificate,
+)
+
 from yt_commands import (
     authors, wait, create, ls, get, set, remove, map,
     create_user, create_proxy_role, issue_token, make_ace,
     create_access_control_object_namespace, create_access_control_object,
-    with_breakpoint, wait_breakpoint,
+    with_breakpoint, wait_breakpoint, print_debug,
     read_table, write_table, Operation)
 
 from yt.common import YtResponseError
@@ -76,8 +82,17 @@ class HttpProxyTestBase(YTEnvSetup):
     def _get_https_proxy_url(self):
         return self.Env.get_https_proxy_url()
 
+    def _get_https_proxy_address(self):
+        return self.Env.get_http_proxy_address(https=True)
+
     def _get_ca_cert(self):
         return self.Env.yt_config.ca_cert
+
+    def _get_proxy_cert_path(self, index=0):
+        proxy_config = self.Env.configs["http_proxy"][index]
+        proxy_cert = proxy_config["https_server"]["credentials"]["cert_chain"]["file_name"]
+        proxy_cert_key = proxy_config["https_server"]["credentials"]["private_key"]["file_name"]
+        return proxy_cert, proxy_cert_key
 
     def _get_build_snapshot_url(self):
         return self._get_proxy_address() + "/api/v4/build_snapshot"
@@ -1138,6 +1153,14 @@ class TestHttpProxyNullApiTestingOptions(TestHttpProxyHeapUsageStatisticsBase):
 class TestHttpsProxy(HttpProxyTestBase):
     ENABLE_TLS = True
 
+    DELTA_PROXY_CONFIG = {
+        "https_server": {
+            "credentials": {
+                "update_period": 1000,
+            },
+        },
+    }
+
     @authors("khlebnikov")
     def test_ping_https(self):
         # verification against system ca bundle: /etc/ssl/certs/ca-certificates.crt
@@ -1152,5 +1175,35 @@ class TestHttpsProxy(HttpProxyTestBase):
 
     @authors("khlebnikov")
     def test_ping_verify_ca(self):
+        rsp = requests.get(self._get_https_proxy_url() + "/ping", verify=self._get_ca_cert())
+        rsp.raise_for_status()
+
+    @authors("khlebnikov")
+    def test_certificate_update(self):
+        proxy_cert, proxy_cert_key = self._get_proxy_cert_path()
+
+        old_fingerprint = get_certificate_fingerprint(proxy_cert)
+        print_debug("Old certificate fingerprint: {}", old_fingerprint)
+
+        def current_fingerprint():
+            return get_certificate_fingerprint(cert_content=get_server_certificate(self._get_https_proxy_address()))
+
+        assert current_fingerprint() == old_fingerprint
+
+        create_certificate(
+            ca_cert=self._get_ca_cert(),
+            ca_cert_key=self.Env.yt_config.ca_cert_key,
+            cert=proxy_cert,
+            cert_key=proxy_cert_key,
+            names=[self.Env.yt_config.fqdn, self.Env.yt_config.cluster_name],
+        )
+
+        new_fingerprint = get_certificate_fingerprint(proxy_cert)
+        print_debug("New certificate fingerprint: {}", new_fingerprint)
+
+        assert new_fingerprint != old_fingerprint
+
+        wait(lambda: current_fingerprint() == new_fingerprint)
+
         rsp = requests.get(self._get_https_proxy_url() + "/ping", verify=self._get_ca_cert())
         rsp.raise_for_status()
