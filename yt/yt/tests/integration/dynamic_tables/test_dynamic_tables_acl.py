@@ -4,7 +4,7 @@ from .test_ordered_dynamic_tables import TestOrderedDynamicTablesBase
 from yt_commands import (
     authors, get, set, exists, create_user, make_ace, insert_rows,
     select_rows, lookup_rows,
-    delete_rows, trim_rows, sync_create_cells, sync_mount_table)
+    delete_rows, trim_rows, sync_create_cells, sync_mount_table, create, read_table, sync_flush_table)
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -215,6 +215,51 @@ class TestSortedDynamicTablesAcl(TestSortedDynamicTablesBase):
         self._prepare_denied("write")
         with pytest.raises(YtError):
             delete_rows("//tmp/t", [{"key": 1}], authenticated_user="u")
+
+    @authors("ponasenko-rs")
+    @pytest.mark.parametrize("read_from_dynamic_store", [False, True])
+    @pytest.mark.parametrize("omit_inaccessible_columns", [False, True])
+    def test_inaccessible_columns(self, read_from_dynamic_store, omit_inaccessible_columns):
+        self._prepare_env()
+
+        attributes = {
+            "schema": [
+                {"name": "key", "type": "string", "sort_order": "ascending"},
+                {"name": "public", "type": "string"},
+                {"name": "private", "type": "string"},
+            ],
+            "dynamic": True,
+            "acl": [
+                make_ace("deny", "u", "read", columns=["private"]),
+            ],
+        }
+
+        if read_from_dynamic_store:
+            attributes["enable_dynamic_store_read"] = True
+
+        create(
+            "table",
+            "//tmp/t",
+            attributes=attributes,
+        )
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": "1", "public": "public1", "private": "private1"}])
+        if not read_from_dynamic_store:
+            sync_flush_table("//tmp/t")
+
+        try:
+            rows = read_table(
+                "//tmp/t",
+                omit_inaccessible_columns=omit_inaccessible_columns,
+                authenticated_user="u",
+            )
+            assert rows == [{"key": "1", "public": "public1"}]
+        except YtError as err:
+            assert err.contains_text(
+                'Access denied for user "u": "read" permission for column "private" of node //tmp/t is denied for "u" by ACE at node //tmp/t'
+            )
+            assert not omit_inaccessible_columns
 
 
 class TestSortedDynamicTablesAclMulticell(TestSortedDynamicTablesAcl):

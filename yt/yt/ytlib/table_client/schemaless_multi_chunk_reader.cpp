@@ -1037,6 +1037,10 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     auto retentionTimestamp = dataSource.GetRetentionTimestamp();
     const auto& renameDescriptors = dataSource.ColumnRenameDescriptors();
 
+    THashSet<TStringBuf> omittedInaccessibleColumnSet(
+        dataSource.OmittedInaccessibleColumns().begin(),
+        dataSource.OmittedInaccessibleColumns().end());
+
     if (!columnFilter.IsUniversal()) {
         TColumnFilter::TIndexes transformedIndexes;
         for (auto index : columnFilter.GetIndexes()) {
@@ -1063,7 +1067,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     try {
         for (int columnIndex = 0; columnIndex < std::ssize(versionedReadSchema->Columns()); ++columnIndex) {
             const auto& column = versionedReadSchema->Columns()[columnIndex];
-            if (versionedColumnFilter.ContainsIndex(columnIndex)) {
+            if (versionedColumnFilter.ContainsIndex(columnIndex) && !omittedInaccessibleColumnSet.contains(column.Name())) {
                 idMapping[columnIndex] = nameTable->GetIdOrRegisterName(column.Name());
             } else {
                 // We should skip this column in schemaless reading.
