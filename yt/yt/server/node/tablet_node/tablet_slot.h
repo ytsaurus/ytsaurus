@@ -111,6 +111,7 @@ struct ITabletSlot
     virtual NTabletClient::TTabletCellOptionsPtr GetOptions() = 0;
 
     virtual NChunkClient::IChunkFragmentReaderPtr CreateChunkFragmentReader(TTablet* tablet) = 0;
+    virtual ICompressionDictionaryManagerPtr GetCompressionDictionaryManager() const = 0;
 
     virtual NTransactionClient::TTimestamp GetLatestTimestamp() = 0;
     virtual NObjectClient::TCellTag GetNativeCellTag() = 0;

@@ -164,6 +164,8 @@ private:
             .SetPresent(miscExt && miscExt->has_data_weight()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CompressionCodec)
             .SetPresent(miscExt && miscExt->has_compression_codec()));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CompressionDictionaryId)
+            .SetPresent(miscExt && miscExt->has_compression_dictionary_id()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RowCount)
             .SetPresent(miscExt && miscExt->has_row_count()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::FirstOverlayedRowIndex)
@@ -704,6 +706,14 @@ private:
                 }
                 BuildYsonFluently(consumer)
                     .Value(NCompression::ECodec(miscExt->compression_codec()));
+                return true;
+
+            case EInternedAttributeKey::CompressionDictionaryId:
+                if (!miscExt || !miscExt->has_compression_dictionary_id()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(FromProto<TChunkId>(miscExt->compression_dictionary_id()));
                 return true;
 
             case EInternedAttributeKey::RowCount:

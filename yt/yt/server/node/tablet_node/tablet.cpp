@@ -1,6 +1,7 @@
 #include "tablet.h"
 
 #include "automaton.h"
+#include "compression_dictionary_manager.h"
 #include "distributed_throttler_manager.h"
 #include "partition.h"
 #include "sorted_chunk_store.h"
@@ -1625,10 +1626,10 @@ THunkChunkPtr TTablet::GetHunkChunkOrThrow(TChunkId id)
 
 void TTablet::AttachCompressionDictionary(
     NTableClient::EDictionaryCompressionPolicy policy,
-    NChunkClient::TChunkId id)
+    NChunkClient::TChunkId chunkId)
 {
     auto oldDictionaryId = CompressionDictionaryInfos_[policy].ChunkId;
-    CompressionDictionaryInfos_[policy].ChunkId = id;
+    CompressionDictionaryInfos_[policy].ChunkId = chunkId;
 
     if (oldDictionaryId != NullChunkId) {
         auto oldDictionaryHunkChunk = GetHunkChunk(oldDictionaryId);
@@ -1637,10 +1638,12 @@ void TTablet::AttachCompressionDictionary(
         UpdateDanglingHunkChunks(oldDictionaryHunkChunk);
     }
 
-    auto dictionaryHunkChunk = GetHunkChunk(id);
-    YT_VERIFY(!dictionaryHunkChunk->GetAttachedCompressionDictionary());
-    dictionaryHunkChunk->SetAttachedCompressionDictionary(true);
-    UpdateDanglingHunkChunks(dictionaryHunkChunk);
+    if (chunkId != NullChunkId) {
+        auto dictionaryHunkChunk = GetHunkChunk(chunkId);
+        YT_VERIFY(!dictionaryHunkChunk->GetAttachedCompressionDictionary());
+        dictionaryHunkChunk->SetAttachedCompressionDictionary(true);
+        UpdateDanglingHunkChunks(dictionaryHunkChunk);
+    }
 }
 
 void TTablet::UpdatePreparedStoreRefCount(const THunkChunkPtr& hunkChunk, int delta)
@@ -1848,6 +1851,8 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
         snapshot->CellId = slot->GetCellId();
         snapshot->HydraManager = slot->GetHydraManager();
         snapshot->TabletCellRuntimeData = slot->GetRuntimeData();
+        snapshot->DictionaryCompressionFactory = slot->GetCompressionDictionaryManager()
+            ->CreateTabletDictionaryCompressionFactory(snapshot);
     }
 
     snapshot->TabletId = Id_;
@@ -2068,13 +2073,13 @@ void TTablet::ReconfigureCompressionDictionaries()
             if (CompressionDictionaryInfos_[policy].ChunkId != NullChunkId &&
                 !Settings_.MountConfig->ValueDictionaryCompression->AppliedPolicies.contains(policy))
             {
-                CompressionDictionaryInfos_[policy].ChunkId = NullChunkId;
+                AttachCompressionDictionary(policy, NullChunkId);
                 CompressionDictionaryInfos_[policy].RebuildBackoffTime = TInstant::Zero();
             }
         }
     } else {
         for (auto policy : TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()) {
-            CompressionDictionaryInfos_[policy].ChunkId = NullChunkId;
+            AttachCompressionDictionary(policy, NullChunkId);
             CompressionDictionaryInfos_[policy].RebuildBackoffTime = TInstant::Zero();
         }
     }

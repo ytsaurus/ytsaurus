@@ -695,6 +695,13 @@ public:
             });
     }
 
+    ICompressionDictionaryManagerPtr GetCompressionDictionaryManager() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Bootstrap_->GetCompressionDictionaryManager();
+    }
+
     int EstimateChangelogMediumBytes(int payload) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();

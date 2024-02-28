@@ -425,14 +425,15 @@ private:
         readRanges.reserve(pickedBlockIndexes.size());
 
         for (auto blockIndex : pickedBlockIndexes) {
-            auto blockLastKey = FromProto<TUnversionedOwningRow>(
-                chunkMeta->DataBlockMeta()->data_blocks(blockIndex).last_key());
-            owningBounds.push_back(GetKeySuccessor(blockLastKey));
-            auto prevBlockLastKey = blockIndex == 0
+            auto blockUpperBound = GetKeySuccessor(FromProto<TUnversionedOwningRow>(
+                chunkMeta->DataBlockMeta()->data_blocks(blockIndex).last_key()));
+            owningBounds.push_back(blockUpperBound);
+            auto blockLowerBound = blockIndex == 0
                 ? MinKey()
-                : FromProto<TUnversionedOwningRow>(chunkMeta->DataBlockMeta()->data_blocks(blockIndex - 1).last_key());
-            owningBounds.push_back(GetKeySuccessor(prevBlockLastKey));
-            readRanges.emplace_back(prevBlockLastKey, blockLastKey);
+                : GetKeySuccessor(FromProto<TUnversionedOwningRow>(
+                    chunkMeta->DataBlockMeta()->data_blocks(blockIndex - 1).last_key()));
+            owningBounds.push_back(blockLowerBound);
+            readRanges.emplace_back(blockLowerBound, blockUpperBound);
         }
 
         auto sharedReadRanges = MakeSharedRange(std::move(readRanges), std::move(owningBounds));
@@ -442,6 +443,26 @@ private:
             EmplaceOrCrash(referencedHunkChunkIds, hunkRef.HunkChunk->GetId());
         }
 
+        // NB: As of now we cannot read from unversioned chunks with specified column fitler.
+        bool produceAllVersions;
+        switch (chunkMeta->GetChunkFormat()) {
+            case EChunkFormat::TableVersionedSimple:
+            case EChunkFormat::TableVersionedSlim:
+            case EChunkFormat::TableVersionedIndexed:
+            case EChunkFormat::TableVersionedColumnar:
+                produceAllVersions = true;
+                break;
+
+            case EChunkFormat::TableUnversionedSchemalessHorizontal:
+            case EChunkFormat::TableUnversionedColumnar:
+                produceAllVersions = false;
+                break;
+
+            default:
+                THROW_ERROR_EXCEPTION("Unsupported chunk format %Qlv",
+                    chunkMeta->GetChunkFormat());
+        }
+
         // TODO(akozhikhov): Prevent block cache pollution when reading here.
         auto reader = CreateHunkInliningVersionedReader(
             tabletSnapshot->Settings.HunkReaderConfig,
@@ -449,11 +470,12 @@ private:
                 tabletSnapshot,
                 sharedReadRanges,
                 AsyncLastCommittedTimestamp,
-                /*produceAllVersions*/ true,
+                produceAllVersions,
                 columnFilter,
                 chunkReadOptions,
                 WorkloadCategory_),
             tabletSnapshot->ChunkFragmentReader,
+            tabletSnapshot->DictionaryCompressionFactory,
             tabletSnapshot->PhysicalSchema,
             referencedHunkChunkIds,
             chunkReadOptions);
@@ -615,13 +637,13 @@ private:
             auto dictionaryOrError = NCompression::GetDictionaryCompressionCodec()->TrainCompressionDictionary(
                 Config_->ColumnDictionarySize,
                 columnInfo.Samples);
-            if (!dictionaryOrError.IsOK()) {
+            if (dictionaryOrError.IsOK()) {
+                columnInfo.Dictionary = dictionaryOrError.Value();
+            } else {
                 YT_LOG_DEBUG(dictionaryOrError,
                     "Compression dictionary training error occurred; builder will skip corresponding column ",
                     "(ColumnId: %v)",
                     columnId);
-            } else {
-                columnInfo.Dictionary = dictionaryOrError.Value();
             }
             columnInfo.Samples.clear();
         }
@@ -673,20 +695,12 @@ private:
         THashMap<int, TColumnDictionaryAddress> addresses;
         for (const auto& [columnId, columnInfo] : SamplerInfo_.ColumnIdToInfo) {
             if (!columnInfo.Dictionary) {
-                // NB: This special case of null dictionary will be naturally
-                // processed upon fragment reading due to its zero length.
-                EmplaceOrCrash(
-                    addresses,
-                    columnId,
-                    TColumnDictionaryAddress{
-                        .BlockIndex = 0,
-                        .BlockOffset = 0,
-                        .Length = 0,
-                    });
                 continue;
             }
 
-            auto [blockIndex, blockOffset, ready] = HunkWriter_->WriteHunk(columnInfo.Dictionary);
+            auto [blockIndex, blockOffset, ready] = HunkWriter_->WriteHunk(
+                columnInfo.Dictionary,
+                columnInfo.Dictionary.size());
             EmplaceOrCrash(
                 addresses,
                 columnId,
@@ -712,12 +726,16 @@ private:
 
             NTableClient::NProto::TCompressionDictionaryExt compressionDictionaryExt;
             for (const auto& [columnId, columnInfo] : SamplerInfo_.ColumnIdToInfo) {
+                auto addressIt = addresses.find(columnId);
+                if (addressIt == addresses.end()) {
+                    continue;
+                }
+
                 auto* protoColumnInfo = compressionDictionaryExt.add_column_infos();
                 ToProto(protoColumnInfo->mutable_stable_name(), columnInfo.StableName);
-                const auto& address = GetOrCrash(addresses, columnId);
-                protoColumnInfo->set_length(address.Length);
-                protoColumnInfo->set_block_index(address.BlockIndex);
-                protoColumnInfo->set_block_offset(address.BlockOffset);
+                protoColumnInfo->set_length(addressIt->second.Length);
+                protoColumnInfo->set_block_index(addressIt->second.BlockIndex);
+                protoColumnInfo->set_block_offset(addressIt->second.BlockOffset);
             }
             SetProtoExtension(meta->mutable_extensions(), compressionDictionaryExt);
         });
@@ -746,12 +764,13 @@ private:
             "(ChunkId: %v, DictionarySizes: %v)",
             chunkWriter->GetChunkId(),
             MakeFormattableView(
-                addresses,
-                [&] (auto* builder, const auto& address) {
-                    if (address.second.BlockIndex < 0) {
+                SamplerInfo_.ColumnIdToInfo,
+                [&] (auto* builder, const auto& columnInfoIt) {
+                    if (!columnInfoIt.second.Dictionary) {
                         builder->AppendString("<null>");
                     } else {
-                        builder->AppendFormat("%v", address.second.Length);
+                        builder->AppendFormat("%v",
+                            columnInfoIt.second.Dictionary.size());
                     }
                 }));
     }

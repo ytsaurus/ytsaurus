@@ -292,6 +292,7 @@ ISchemafulUnversionedReaderPtr WrapSchemafulTabletReader(
         tabletSnapshot->Settings.HunkReaderConfig,
         std::move(reader),
         tabletSnapshot->ChunkFragmentReader,
+        tabletSnapshot->DictionaryCompressionFactory,
         chunkReadOptions);
 
     return reader;

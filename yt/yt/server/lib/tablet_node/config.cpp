@@ -993,6 +993,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("medium_throttlers", &TThis::MediumThrottlers)
         .DefaultNew();
+
+    registrar.Parameter("compression_dictionary_cache", &TThis::CompressionDictionaryCache)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1064,6 +1067,9 @@ void TTabletNodeConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("master_connector", &TThis::MasterConnector)
+        .DefaultNew();
+
+    registrar.Parameter("compression_dictionary_cache", &TThis::CompressionDictionaryCache)
         .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {

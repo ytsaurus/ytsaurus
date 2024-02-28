@@ -2,6 +2,7 @@
 
 #include "backing_store_cleaner.h"
 #include "compression_dictionary_builder.h"
+#include "compression_dictionary_manager.h"
 #include "error_manager.h"
 #include "hedging_manager_registry.h"
 #include "hint_manager.h"
@@ -303,6 +304,9 @@ public:
         LsmInterop_ = CreateLsmInterop(this, StoreCompactor_, PartitionBalancer_, StoreRotator_);
         CompressionDictionaryBuilder_ = CreateCompressionDictionaryBuilder(this);
         ErrorManager_ = New<TErrorManager>(this);
+        CompressionDictionaryManager_ = CreateCompressionDictionaryManager(
+            GetConfig()->TabletNode->CompressionDictionaryCache,
+            this);
 
         InitializeOverloadController();
 
@@ -552,6 +556,11 @@ public:
         }
     }
 
+    const ICompressionDictionaryManagerPtr& GetCompressionDictionaryManager() const override
+    {
+        return CompressionDictionaryManager_;
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
@@ -589,6 +598,7 @@ private:
     ILsmInteropPtr LsmInterop_;
     ICompressionDictionaryBuilderPtr CompressionDictionaryBuilder_;
     TErrorManagerPtr ErrorManager_;
+    ICompressionDictionaryManagerPtr CompressionDictionaryManager_;
     TOverloadControllerPtr OverloadController_;
 
     NContainers::IDiskManagerProxyPtr DiskManagerProxy_;
@@ -620,6 +630,8 @@ private:
         OverloadController_->Reconfigure(newConfig->TabletNode->OverloadController);
 
         StatisticsReporter_->Reconfigure(newConfig);
+
+        CompressionDictionaryManager_->OnDynamicConfigChanged(newConfig->TabletNode->CompressionDictionaryCache);
 
         DiskManagerProxy_->OnDynamicConfigChanged(newConfig->DiskManagerProxy);
         ErrorManager_->Reconfigure(newConfig);

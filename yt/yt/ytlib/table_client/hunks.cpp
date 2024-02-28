@@ -69,6 +69,13 @@ static const auto& Logger = TableClientLogger;
 
 namespace {
 
+DEFINE_ENUM(ECompressionSessionStage,
+    ((WaitingOnFuture)          (0))
+    ((FeedingSamples)           (1))
+    ((SessionIsFed)             (2))
+    ((SampledRowsAreWritten)    (3))
+);
+
 TRef GetValueRef(const TUnversionedValue& value)
 {
     YT_ASSERT(IsStringLikeType(value.Type));
@@ -284,8 +291,8 @@ TRef WriteHunkValue(TChunkedMemoryPool* pool, const TCompressedInlineRefHunkValu
     auto* currentPtr = beginPtr;
     WritePod(currentPtr, static_cast<char>(EHunkValueTag::CompressedInline)); // tag
     WritePod(currentPtr, value.CompressionDictionaryId);                      // chunkId
-    WritePod(currentPtr, value.Payload.Begin());
-    WritePod(currentPtr, value.Payload.Size());
+    WriteRef(currentPtr, value.Payload);                                      // payload
+    YT_VERIFY(currentPtr - beginPtr == static_cast<i64>(size));
     return TRef(beginPtr, currentPtr);
 }
 
@@ -339,14 +346,10 @@ THunkValue ReadHunkValue(TRef input)
 
         case static_cast<char>(EHunkValueTag::CompressedInline): {
             TChunkId dictionaryId;
-            char* payloadBegin;
-            i64 payloadSize;
             ReadPod(currentPtr, dictionaryId);
-            ReadPod(currentPtr, payloadBegin);
-            ReadPod(currentPtr, payloadSize);
             return TCompressedInlineRefHunkValue{
                 .CompressionDictionaryId = dictionaryId,
-                .Payload = TRef(payloadBegin, payloadSize),
+                .Payload = TRef(currentPtr, input.End()),
             };
         }
 
@@ -912,11 +915,15 @@ public:
         IVersionedChunkWriterPtr underlying,
         TTableSchemaPtr schema,
         IHunkChunkPayloadWriterPtr hunkChunkPayloadWriter,
-        IHunkChunkWriterStatisticsPtr hunkChunkWriterStatistics)
+        IHunkChunkWriterStatisticsPtr hunkChunkWriterStatistics,
+        TFuture<IDictionaryCompressionSessionPtr> compressionSessionFuture)
         : Underlying_(std::move(underlying))
         , Schema_(std::move(schema))
         , HunkChunkPayloadWriter_(std::move(hunkChunkPayloadWriter))
         , HunkChunkWriterStatistics_(std::move(hunkChunkWriterStatistics))
+        , CompressionContext_(compressionSessionFuture
+            ? std::make_optional<TCompressionContext>(compressionSessionFuture)
+            : std::nullopt)
     { }
 
     bool Write(TRange<TVersionedRow> rows) override
@@ -927,16 +934,38 @@ public:
         }
 
         if (CompressionContext_) {
-            if (CompressionContext_->NeedsSamples) {
-                CompressionContext_->FeedSamples(rows);
-                rows = {};
+            switch (CompressionContext_->SessionStage) {
+                case ECompressionSessionStage::WaitingOnFuture:
+                    if (CompressionContext_->SessionFuture.IsSet()) {
+                        CompressionContext_->OnSessionFutureSet();
+                        if (CompressionContext_->SessionStage == ECompressionSessionStage::WaitingOnFuture) {
+                            // NB: Future is set with error. User will get it from ready event future.
+                            return false;
+                        }
+                    }
+                    // No break intentionally.
 
-                if (CompressionContext_->NeedsSamples) {
-                    return true;
-                }
-            } else {
-                CompressionContext_->SampledRowBuffer->Clear();
-                CompressionContext_->SampledRows.clear();
+                case ECompressionSessionStage::FeedingSamples:
+                    CompressionContext_->FeedSamples(rows);
+                    rows = {};
+                    if (CompressionContext_->SessionStage == ECompressionSessionStage::WaitingOnFuture) {
+                        return false;
+                    }
+                    if (CompressionContext_->SessionStage == ECompressionSessionStage::FeedingSamples) {
+                        return true;
+                    }
+                    break;
+
+                case ECompressionSessionStage::SessionIsFed:
+                    break;
+
+                case ECompressionSessionStage::SampledRowsAreWritten:
+                    CompressionContext_->SampledRowBuffer = {};
+                    CompressionContext_->SampledRows.clear();
+                    break;
+
+                default:
+                    YT_ABORT();
             }
         }
 
@@ -947,15 +976,22 @@ public:
         bool ready = true;
 
         if (CompressionContext_) {
-            for (auto row : CompressionContext_->SampledRows) {
-                ScratchRows_.push_back(row);
-                ProcessScratchRow(row, &ready, columnarStatisticsThunk);
+            if (CompressionContext_->SessionStage == ECompressionSessionStage::SessionIsFed) {
+                for (auto row : CompressionContext_->SampledRows) {
+                    ScratchRows_.push_back(row);
+                    DataWeight_ += NTableClient::GetDataWeight(row);
+                    ProcessScratchRow(row, &ready, columnarStatisticsThunk);
+                }
+                CompressionContext_->SessionStage = ECompressionSessionStage::SampledRowsAreWritten;
+            } else {
+                YT_VERIFY(CompressionContext_->SessionStage == ECompressionSessionStage::SampledRowsAreWritten);
             }
         }
 
         for (auto row : rows) {
             auto scratchRow = ScratchRowBuffer_->CaptureRow(row, /*captureValues*/ false);
             ScratchRows_.push_back(scratchRow);
+            DataWeight_ += NTableClient::GetDataWeight(scratchRow);
             ProcessScratchRow(scratchRow, &ready, columnarStatisticsThunk);
         }
 
@@ -969,6 +1005,12 @@ public:
 
     TFuture<void> GetReadyEvent() override
     {
+        if (CompressionContext_ &&
+            CompressionContext_->SessionStage == ECompressionSessionStage::WaitingOnFuture)
+        {
+            return CompressionContext_->SessionFuture.AsVoid();
+        }
+
         std::vector<TFuture<void>> futures;
         futures.push_back(Underlying_->GetReadyEvent());
         if (HunkChunkPayloadWriter_) {
@@ -979,19 +1021,34 @@ public:
 
     TFuture<void> Close() override
     {
-        if (CompressionContext_ && CompressionContext_->NeedsSamples) {
-            YT_VERIFY(ScratchRows_.empty());
+        if (CompressionContext_) {
+            switch (CompressionContext_->SessionStage) {
+                case ECompressionSessionStage::WaitingOnFuture:
+                    return CompressionContext_->SessionFuture.Apply(BIND([
+                        this,
+                        this_ = MakeStrong(this)
+                    ] (const IDictionaryCompressionSessionPtr& /*compressionSession*/) {
+                        CompressionContext_->OnSessionFutureSet();
+                        YT_VERIFY(CompressionContext_->Session);
+                        YT_VERIFY(CompressionContext_->SessionStage != ECompressionSessionStage::WaitingOnFuture);
+                        return Close();
+                    })
+                        .AsyncVia(GetCurrentInvoker()));
 
-            CompressionContext_->NeedsSamples = false;
+                case ECompressionSessionStage::FeedingSamples:
+                case ECompressionSessionStage::SessionIsFed:
+                    YT_VERIFY(ScratchRows_.empty());
+                    CompressionContext_->SessionStage = ECompressionSessionStage::SessionIsFed;
+                    // NB: Before closing we need to pass CompressionContext_->SampledRows to the underlying writer.
+                    Write(/*rows*/ {});
+                    break;
 
-            auto sampledRowBuffer = std::move(CompressionContext_->SampledRowBuffer);
-            std::vector<TVersionedRow> sampledRows;
-            sampledRows.reserve(CompressionContext_->SampledRows.size());
-            for (auto row : CompressionContext_->SampledRows) {
-                sampledRows.push_back(row);
+                case ECompressionSessionStage::SampledRowsAreWritten:
+                    break;
+
+                default:
+                    YT_ABORT();
             }
-
-            Write(MakeRange(sampledRows));
         }
 
         TChunkId newDictionaryId = CompressionContext_
@@ -1016,6 +1073,10 @@ public:
         }
 
         std::vector<TChunkId> dictionaryIds;
+        if (newDictionaryId != NullChunkId) {
+            // NB: This is for the case when all (compressed) values are inlined and there is no new hunk chunk.
+            dictionaryIds.push_back(newDictionaryId);
+        }
         for (const auto& ref : HunkChunkRefs_) {
             if (ref.CompressionDictionaryId != NullChunkId) {
                 dictionaryIds.push_back(ref.CompressionDictionaryId);
@@ -1033,6 +1094,7 @@ public:
 
         Underlying_->GetMeta()->RegisterFinalizer(
             [
+                dataWeight = DataWeight_,
                 newDictionaryId,
                 weakUnderlying = MakeWeak(Underlying_),
                 hunkChunkPayloadWriter = HunkChunkPayloadWriter_,
@@ -1041,9 +1103,12 @@ public:
                 dictionaryIds = std::move(dictionaryIds)
             ] (TDeferredChunkMeta* meta) mutable {
                 if (newDictionaryId != NullChunkId) {
-                    // NB: This value reflects compression dictionary id of inline hunk values.
                     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
+                    // NB: This value reflects compression dictionary id of inline hunk values.
                     ToProto(miscExt.mutable_compression_dictionary_id(), newDictionaryId);
+                    // NB: Data weight is generally set within underlying chunk writer, however as it is unaware
+                    // of the size of uncompressed inline hunk values we have to perform such override here.
+                    miscExt.set_data_weight(dataWeight);
                     SetProtoExtension(meta->mutable_extensions(), miscExt);
                 }
 
@@ -1077,23 +1142,42 @@ public:
 
     i64 GetRowCount() const override
     {
-        return Underlying_->GetRowCount() +
-            (CompressionContext_ ? std::ssize(CompressionContext_->SampledRows) : 0);
+        auto result = Underlying_->GetRowCount();
+        if (CompressionContext_ &&
+            CompressionContext_->SessionStage != ECompressionSessionStage::SampledRowsAreWritten)
+        {
+            result += std::ssize(CompressionContext_->SampledRows);
+        }
+        return result;
     }
 
     i64 GetMetaSize() const override
     {
+        // NB: This can be called on unclosed writer.
+        // However staging data (i.e. CompressionContext_->SampledRows) is negligible here.
         return Underlying_->GetMetaSize();
     }
 
     i64 GetCompressedDataSize() const override
     {
-        return Underlying_->GetCompressedDataSize();
+        auto result = Underlying_->GetCompressedDataSize();
+        if (CompressionContext_ &&
+            CompressionContext_->SessionStage != ECompressionSessionStage::SampledRowsAreWritten)
+        {
+            result += CompressionContext_->SampledRowBuffer->GetSize();
+        }
+        return result;
     }
 
     i64 GetDataWeight() const override
     {
-        return Underlying_->GetDataWeight();
+        auto result = Underlying_->GetDataWeight();
+        if (CompressionContext_ &&
+            CompressionContext_->SessionStage != ECompressionSessionStage::SampledRowsAreWritten)
+        {
+            result += CompressionContext_->SampledRowBuffer->GetSize();
+        }
+        return result;
     }
 
     bool IsCloseDemanded() const override
@@ -1103,6 +1187,8 @@ public:
 
     TDeferredChunkMetaPtr GetMeta() const override
     {
+        YT_VERIFY(!CompressionContext_ ||
+            CompressionContext_->SessionStage == ECompressionSessionStage::SampledRowsAreWritten);
         return Underlying_->GetMeta();
     }
 
@@ -1119,7 +1205,9 @@ public:
     TCodecStatistics GetCompressionStatistics() const override
     {
         auto statistics = Underlying_->GetCompressionStatistics();
-        if (CompressionContext_) {
+        if (CompressionContext_ &&
+            CompressionContext_->SessionStage != ECompressionSessionStage::WaitingOnFuture)
+        {
             statistics.AppendToValueDictionaryCompression(CompressionContext_->Session->GetCompressionTime());
         }
         return statistics;
@@ -1136,12 +1224,20 @@ private:
         struct TCompressionSamplesRowBufferTag
         { };
 
+        TFuture<IDictionaryCompressionSessionPtr> SessionFuture;
         IDictionaryCompressionSessionPtr Session;
-        bool NeedsSamples = true;
 
         std::vector<TMutableVersionedRow> SampledRows;
         TRowBufferPtr SampledRowBuffer = New<TRowBuffer>(TCompressionSamplesRowBufferTag());
 
+        ECompressionSessionStage SessionStage = ECompressionSessionStage::WaitingOnFuture;
+
+
+        TCompressionContext(TFuture<IDictionaryCompressionSessionPtr> sessionFuture)
+            : SessionFuture(std::move(sessionFuture))
+        {
+            YT_VERIFY(SessionFuture);
+        }
 
         void FeedSamples(TRange<TVersionedRow> rows)
         {
@@ -1149,9 +1245,30 @@ private:
                 // NB: Capture values so these rows might stay for multiple Write calls.
                 auto sampledRow = SampledRowBuffer->CaptureRow(row, /*captureValues*/ true);
                 SampledRows.push_back(sampledRow);
-                if (NeedsSamples && !Session->FeedSample(sampledRow, SampledRowBuffer->GetPool())) {
-                    NeedsSamples = false;
+
+                MaybeFeedSample(sampledRow);
+            }
+        }
+
+        void OnSessionFutureSet()
+        {
+            YT_VERIFY(SessionFuture.IsSet());
+            auto sessionOrError = SessionFuture.Get();
+            if (sessionOrError.IsOK()) {
+                SessionStage = ECompressionSessionStage::FeedingSamples;
+                Session = std::move(sessionOrError.Value());
+                for (auto row : SampledRows) {
+                    MaybeFeedSample(row);
                 }
+            }
+        }
+
+        void MaybeFeedSample(TMutableVersionedRow row)
+        {
+            if (SessionStage == ECompressionSessionStage::FeedingSamples &&
+                !Session->FeedSample(row, SampledRowBuffer->GetPool()))
+            {
+                SessionStage = ECompressionSessionStage::SessionIsFed;
             }
         }
     };
@@ -1165,6 +1282,7 @@ private:
     std::vector<TVersionedRow> ScratchRows_;
 
     i64 HunkCount_ = 0;
+    i64 DataWeight_ = 0;
     i64 TotalHunkLength_ = 0;
 
     using TChunkIdToIndex = THashMap<TChunkId, int>;
@@ -1232,11 +1350,21 @@ private:
     {
         auto* pool = ScratchRowBuffer_->GetPool();
 
+        std::optional<std::vector<int>> valueDataWeights;
         if (CompressionContext_) {
+            YT_VERIFY(CompressionContext_->Session);
+            valueDataWeights.emplace();
+            for (auto& value : scratchRow.Values()) {
+                valueDataWeights->push_back(value.Type != EValueType::Null && IsStringLikeType(value.Type)
+                    ? value.Length
+                    : 0);
+            }
             CompressionContext_->Session->CompressValuesInRow(&scratchRow, pool);
         }
 
-        for (auto& value : scratchRow.Values()) {
+        for (int valueIndex = 0; valueIndex < std::ssize(scratchRow.Values()); ++valueIndex) {
+            auto& value = scratchRow.Values()[valueIndex];
+
             if (value.Type == EValueType::Null) {
                 continue;
             }
@@ -1247,7 +1375,7 @@ private:
             }
 
             auto handleInlineHunkValue = [&] (const TInlineHunkValue& inlineHunkValue) {
-                auto payloadLength = static_cast<i64>(inlineHunkValue.Payload.Size());
+                auto payloadLength = std::ssize(inlineHunkValue.Payload);
                 if (payloadLength < *maxInlineHunkSize) {
                     // Leave as is.
                     if (columnarStatisticsThunk) {
@@ -1260,7 +1388,8 @@ private:
                 TotalHunkLength_ += payloadLength;
 
                 auto [blockIndex, blockOffset, hunkWriterReady] = HunkChunkPayloadWriter_->WriteHunk(
-                    inlineHunkValue.Payload);
+                    inlineHunkValue.Payload,
+                    valueDataWeights ? (*valueDataWeights)[valueIndex] : payloadLength);
                 *ready &= hunkWriterReady;
 
                 TLocalRefHunkValue localRefHunkValue{
@@ -1314,7 +1443,9 @@ IVersionedChunkWriterPtr CreateHunkEncodingVersionedWriter(
     IVersionedChunkWriterPtr underlying,
     TTableSchemaPtr schema,
     IHunkChunkPayloadWriterPtr hunkChunkPayloadWriter,
-    IHunkChunkWriterStatisticsPtr hunkChunkWriterStatistics)
+    IHunkChunkWriterStatisticsPtr hunkChunkWriterStatistics,
+    IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
+    const TClientChunkReadOptions& chunkReadOptions)
 {
     if (!schema->HasHunkColumns()) {
         return underlying;
@@ -1323,7 +1454,8 @@ IVersionedChunkWriterPtr CreateHunkEncodingVersionedWriter(
         std::move(underlying),
         std::move(schema),
         std::move(hunkChunkPayloadWriter),
-        std::move(hunkChunkWriterStatistics));
+        std::move(hunkChunkWriterStatistics),
+        dictionaryCompressionFactory->MaybeCreateDictionaryCompressionSession(chunkReadOptions));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1437,7 +1569,8 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
             compressedValues = std::move(compressedValues),
             compressionDictionaryIds = std::move(compressionDictionaryIds),
             hunkChunkReaderStatistics = std::move(hunkChunkReaderStatistics),
-            options = std::move(options)
+            options = std::move(options),
+            dictionaryCompressionFactory = std::move(dictionaryCompressionFactory)
         ] (IChunkFragmentReader::TReadFragmentsResponse&& response) mutable {
             YT_VERIFY(response.Fragments.size() == requestedValues.size());
 
@@ -1582,10 +1715,12 @@ public:
         TBatchHunkReaderConfigPtr config,
         TIntrusivePtr<IReader> underlying,
         IChunkFragmentReaderPtr chunkFragmentReader,
+        IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
         TClientChunkReadOptions options)
         : Config_(std::move(config))
         , Underlying_(std::move(underlying))
         , ChunkFragmentReader_(std::move(chunkFragmentReader))
+        , DictionaryCompressionFactory_(std::move(dictionaryCompressionFactory))
         , Options_(std::move(options))
         , Logger(TableClientLogger.WithTag("ReadSessionId: %v",
             Options_.ReadSessionId))
@@ -1752,11 +1887,13 @@ public:
         TBatchHunkReaderConfigPtr config,
         ISchemafulUnversionedReaderPtr underlying,
         IChunkFragmentReaderPtr chunkFragmentReader,
+        IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
         TClientChunkReadOptions options)
         : TBatchHunkReader(
             std::move(config),
             std::move(underlying),
             std::move(chunkFragmentReader),
+            std::move(dictionaryCompressionFactory),
             std::move(options))
         , RowVisitor_(schema, columnFilter)
     { }
@@ -1779,6 +1916,7 @@ ISchemafulUnversionedReaderPtr CreateHunkDecodingSchemafulReader(
     TBatchHunkReaderConfigPtr config,
     ISchemafulUnversionedReaderPtr underlying,
     IChunkFragmentReaderPtr chunkFragmentReader,
+    IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TClientChunkReadOptions options)
 {
     if (!schema || !schema->HasHunkColumns()) {
@@ -1791,6 +1929,7 @@ ISchemafulUnversionedReaderPtr CreateHunkDecodingSchemafulReader(
         std::move(config),
         std::move(underlying),
         std::move(chunkFragmentReader),
+        std::move(dictionaryCompressionFactory),
         std::move(options));
 }
 
@@ -1804,6 +1943,7 @@ public:
         TBatchHunkReaderConfigPtr config,
         IVersionedReaderPtr underlying,
         IChunkFragmentReaderPtr chunkFragmentReader,
+        IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
         TTableSchemaPtr schema,
         THashSet<TChunkId> hunkChunkIdsToForceInline,
         TClientChunkReadOptions options)
@@ -1811,6 +1951,7 @@ public:
             std::move(config),
             std::move(underlying),
             std::move(chunkFragmentReader),
+            std::move(dictionaryCompressionFactory),
             std::move(options))
         , Schema_(std::move(schema))
         , HunkChunkIdsToForceInline_(std::move(hunkChunkIdsToForceInline))
@@ -1868,6 +2009,7 @@ IVersionedReaderPtr CreateHunkInliningVersionedReader(
     TBatchHunkReaderConfigPtr config,
     IVersionedReaderPtr underlying,
     IChunkFragmentReaderPtr chunkFragmentReader,
+    IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TTableSchemaPtr schema,
     THashSet<TChunkId> hunkChunkIdsToForceInline,
     TClientChunkReadOptions options)
@@ -1875,10 +2017,12 @@ IVersionedReaderPtr CreateHunkInliningVersionedReader(
     if (!schema->HasHunkColumns()) {
         return underlying;
     }
+
     return New<THunkInliningVersionedReader>(
         std::move(config),
         std::move(underlying),
         std::move(chunkFragmentReader),
+        std::move(dictionaryCompressionFactory),
         std::move(schema),
         std::move(hunkChunkIdsToForceInline),
         std::move(options));
@@ -1906,36 +2050,6 @@ public:
             UniversalHunkValueChecker);
     }
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-class THunkDecodingSchemalessUnversionedReader
-    : public THunkDecodingSchemalessUnversionedReaderBase<ISchemalessUnversionedReader>
-{
-public:
-    using THunkDecodingSchemalessUnversionedReaderBase<ISchemalessUnversionedReader>::
-        THunkDecodingSchemalessUnversionedReaderBase;
-};
-
-ISchemalessUnversionedReaderPtr CreateHunkDecodingSchemalessReader(
-    TBatchHunkReaderConfigPtr config,
-    ISchemalessUnversionedReaderPtr underlying,
-    IChunkFragmentReaderPtr chunkFragmentReader,
-    TTableSchemaPtr schema,
-    TClientChunkReadOptions options)
-{
-    YT_VERIFY(!options.HunkChunkReaderStatistics);
-
-    if (!schema || !schema->HasHunkColumns()) {
-        return underlying;
-    }
-
-    return New<THunkDecodingSchemalessUnversionedReader>(
-        std::move(config),
-        std::move(underlying),
-        std::move(chunkFragmentReader),
-        std::move(options));
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2002,6 +2116,7 @@ ISchemalessChunkReaderPtr CreateHunkDecodingSchemalessChunkReader(
         std::move(config),
         std::move(underlying),
         std::move(chunkFragmentReader),
+        /*dictionaryCompressionFactory*/ nullptr,
         std::move(options));
 }
 
@@ -2053,6 +2168,7 @@ ISchemalessMultiChunkReaderPtr CreateHunkDecodingSchemalessMultiChunkReader(
         std::move(config),
         std::move(underlying),
         std::move(chunkFragmentReader),
+        /*dictionaryCompressionFactory*/ nullptr,
         std::move(options));
 }
 
@@ -2082,7 +2198,7 @@ public:
         return Underlying_->Open();
     }
 
-    std::tuple<int, i64, bool> WriteHunk(TRef payload) override
+    std::tuple<int, i64, bool> WriteHunk(TRef payload, i64 dataWeight) override
     {
         auto guard = Guard(Lock_);
 
@@ -2094,10 +2210,9 @@ public:
         }
 
         HunkCount_ += 1;
+        DataWeight_ += dataWeight;
         TotalHunkLength_ += std::ssize(payload);
-        // TODO(akozhikhov): Proper statistics accounting.
-        UncompressedDataSize_ += dataSize;
-        CompressedDataSize_ += dataSize;
+        DataSize_ += dataSize;
         HasHunks_ = true;
 
         return {blockIndex, blockOffset, ready};
@@ -2129,9 +2244,9 @@ public:
         {
             NChunkClient::NProto::TMiscExt ext;
             ext.set_compression_codec(ToProto<int>(NCompression::ECodec::None));
-            ext.set_data_weight(TotalHunkLength_);
-            ext.set_uncompressed_data_size(UncompressedDataSize_);
-            ext.set_compressed_data_size(CompressedDataSize_);
+            ext.set_data_weight(DataWeight_);
+            ext.set_uncompressed_data_size(DataSize_);
+            ext.set_compressed_data_size(DataSize_);
             if (CompressionDictionaryId_ != NullChunkId) {
                 ToProto(ext.mutable_compression_dictionary_id(), CompressionDictionaryId_);
             }
@@ -2200,10 +2315,13 @@ private:
     i64 BlockOffset_ = 0;
     i64 MaxHunkSizeInBlock_ = 0;
     i64 HunkCount_ = 0;
-    i64 TotalHunkLength_ = 0;
 
-    i64 UncompressedDataSize_ = 0;
-    i64 CompressedDataSize_ = 0;
+    // Accounts uncompressed hunks.
+    i64 DataWeight_ = 0;
+    // Accounts compressed hunks.
+    i64 TotalHunkLength_ = 0;
+    // Accounts compressed hunks with header.
+    i64 DataSize_ = 0;
 
     bool HasHunks_ = false;
 

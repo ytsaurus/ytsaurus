@@ -260,8 +260,8 @@ private:
  *
  *  4) tag == EHunkValueTag::CompressedInline
  *  Compressed value payload is being stored inline.
- * * compressionDictionaryId: TChunkId
- * * payload: char[N]
+ *  * compressionDictionaryId: TChunkId
+ *  * payload: char[N]
  */
 
 struct TInlineHunkValue
@@ -269,8 +269,6 @@ struct TInlineHunkValue
     TRef Payload;
 };
 
-// NB: This is a transient ref to inline hunk value, i.e.
-// its memory layout does not include the value payload itself, only a pointer to this payload.
 struct TCompressedInlineRefHunkValue
 {
     NChunkClient::TChunkId CompressionDictionaryId = NChunkClient::NullChunkId;
@@ -371,7 +369,9 @@ IVersionedChunkWriterPtr CreateHunkEncodingVersionedWriter(
     IVersionedChunkWriterPtr underlying,
     TTableSchemaPtr schema,
     IHunkChunkPayloadWriterPtr hunkChunkPayloadWriter,
-    IHunkChunkWriterStatisticsPtr hunkChunkWriterStatistics);
+    IHunkChunkWriterStatisticsPtr hunkChunkWriterStatistics,
+    IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions);
 
 //! Constructs a schemaful reader replacing hunk refs with their content
 //! (obtained by reading it via #chunkFragmentReader).
@@ -382,15 +382,10 @@ ISchemafulUnversionedReaderPtr CreateHunkDecodingSchemafulReader(
     TBatchHunkReaderConfigPtr config,
     ISchemafulUnversionedReaderPtr underlying,
     NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
+    IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     NChunkClient::TClientChunkReadOptions options);
 
 //! Schemaless counterparts of #CreateHunkDecodingSchemafulReader.
-ISchemalessUnversionedReaderPtr CreateHunkDecodingSchemalessReader(
-    TBatchHunkReaderConfigPtr config,
-    ISchemalessUnversionedReaderPtr underlying,
-    NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
-    TTableSchemaPtr schema,
-    NChunkClient::TClientChunkReadOptions options);
 ISchemalessChunkReaderPtr CreateHunkDecodingSchemalessChunkReader(
     TBatchHunkReaderConfigPtr config,
     ISchemalessChunkReaderPtr underlying,
@@ -413,6 +408,7 @@ IVersionedReaderPtr CreateHunkInliningVersionedReader(
     TBatchHunkReaderConfigPtr config,
     IVersionedReaderPtr underlying,
     NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
+    IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TTableSchemaPtr schema,
     THashSet<NChunkClient::TChunkId> hunkChunkIdsToForceInline,
     NChunkClient::TClientChunkReadOptions options);
@@ -428,7 +424,7 @@ struct IHunkChunkPayloadWriter
     //! Enqueues a given #payload for writing.
     //! Returns |(blockIndex, blockOffset, ready)| where #ready indicates if the caller must wait on
     //! #GetReadyEvent before proceeding any further.
-    virtual std::tuple<int, i64, bool> WriteHunk(TRef payload) = 0;
+    virtual std::tuple<int, i64, bool> WriteHunk(TRef payload, i64 dataWeight) = 0;
 
     //! Returns |true| if some hunks were added via #WriteHunk.
     virtual bool HasHunks() const = 0;

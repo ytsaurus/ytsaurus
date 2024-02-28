@@ -1000,6 +1000,8 @@ public:
 
     TMediumThrottlersConfigPtr MediumThrottlers;
 
+    TSlruCacheDynamicConfigPtr CompressionDictionaryCache;
+
     REGISTER_YSON_STRUCT(TTabletNodeDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -1077,6 +1079,8 @@ public:
     NQueryClient::TColumnEvaluatorCacheConfigPtr ColumnEvaluatorCache;
 
     TMasterConnectorConfigPtr MasterConnector;
+
+    TSlruCacheConfigPtr CompressionDictionaryCache;
 
     REGISTER_YSON_STRUCT(TTabletNodeConfig);
 
