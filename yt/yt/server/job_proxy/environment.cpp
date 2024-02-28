@@ -310,7 +310,7 @@ public:
             if (std::find(Options_.GpuIndexes.begin(), Options_.GpuIndexes.end(), deviceIndex) == Options_.GpuIndexes.end()) {
                 devices.push_back(TDevice{
                     .DeviceName = GetGpuDeviceName(deviceIndex),
-                    .Enabled = false
+                    .Access = "-"
                 });
             }
         }
@@ -319,13 +319,13 @@ public:
             if (NFS::Exists("/dev/kvm")) {
                 devices.push_back(TDevice{
                     .DeviceName = "/dev/kvm",
-                    .Enabled = true,
+                    .Access = "rw",
                 });
             }
             if (Config_->AllowMountFuseDevice && NFS::Exists("/dev/fuse")) {
                 devices.push_back(TDevice{
                     .DeviceName = "/dev/fuse",
-                    .Enabled = true,
+                    .Access = "rw",
                 });
             }
         }

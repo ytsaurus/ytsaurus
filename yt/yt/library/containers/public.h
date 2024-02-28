@@ -157,7 +157,8 @@ struct TRootFS
 struct TDevice
 {
     TString DeviceName;
-    bool Enabled;
+    TString Access;
+    std::optional<TString> Path;
 };
 
 struct TInstanceLimits
