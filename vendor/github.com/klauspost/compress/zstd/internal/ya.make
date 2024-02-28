@@ -1,1 +1,3 @@
-RECURSE(xxhash)
+RECURSE(
+    xxhash
+)

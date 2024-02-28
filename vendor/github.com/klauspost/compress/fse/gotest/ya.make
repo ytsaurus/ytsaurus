@@ -6,7 +6,9 @@ LICENSE(
     MIT
 )
 
-DATA(arcadia/vendor/github.com/klauspost/compress/testdata)
+DATA(
+    arcadia/vendor/github.com/klauspost/compress/testdata
+)
 
 TEST_CWD(vendor/github.com/klauspost/compress/fse)
 

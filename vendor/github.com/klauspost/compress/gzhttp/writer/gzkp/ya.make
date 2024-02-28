@@ -7,7 +7,13 @@ LICENSE(
 )
 
 SRCS(
-    helpers.go
+    gzkp.go
 )
 
+GO_TEST_SRCS(gzkp_test.go)
+
 END()
+
+RECURSE(
+    gotest
+)

@@ -7,13 +7,13 @@ LICENSE(
 )
 
 SRCS(
-    gunzip.go
-    gzip.go
+    reader.go
+    writer.go
 )
 
 GO_TEST_SRCS(
-    gunzip_test.go
-    gzip_test.go
+    reader_test.go
+    writer_test.go
 )
 
 GO_XTEST_SRCS(example_test.go)
@@ -21,5 +21,5 @@ GO_XTEST_SRCS(example_test.go)
 END()
 
 RECURSE(
-    gotest
+    #gotest
 )

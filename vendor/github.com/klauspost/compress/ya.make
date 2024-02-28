@@ -6,7 +6,9 @@ LICENSE(
     MIT
 )
 
-SRCS(compressible.go)
+SRCS(
+    compressible.go
+)
 
 GO_TEST_SRCS(compressible_test.go)
 
@@ -16,11 +18,13 @@ RECURSE(
     flate
     fse
     gotest
+    gzhttp
     gzip
     huff0
     internal
     s2
     snappy
     zip
+    zlib
     zstd
 )

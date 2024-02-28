@@ -8,7 +8,9 @@ LICENSE(
 
 SIZE(MEDIUM)
 
-DATA(arcadia/vendor/github.com/klauspost/compress/s2/testdata)
+DATA(
+    arcadia/vendor/github.com/klauspost/compress/s2/testdata
+)
 
 TEST_CWD(vendor/github.com/klauspost/compress/s2)
 

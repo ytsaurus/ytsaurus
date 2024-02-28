@@ -28,9 +28,13 @@ IF (ARCH_X86_64)
 ENDIF()
 
 IF (ARCH_ARM64)
-    SRCS(decompress_generic.go)
+    SRCS(
+        decompress_generic.go
+    )
 ENDIF()
 
 END()
 
-RECURSE(gotest)
+RECURSE(
+    gotest
+)

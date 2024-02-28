@@ -16,4 +16,6 @@ GO_TEST_SRCS(snappy_test.go)
 
 END()
 
-RECURSE(gotest)
+RECURSE(
+    gotest
+)

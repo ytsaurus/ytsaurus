@@ -19,4 +19,6 @@ GO_TEST_SRCS(fse_test.go)
 
 END()
 
-RECURSE(gotest)
+RECURSE(
+    gotest
+)

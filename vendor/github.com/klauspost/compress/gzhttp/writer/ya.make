@@ -7,7 +7,11 @@ LICENSE(
 )
 
 SRCS(
-    helpers.go
+    interface.go
 )
 
 END()
+
+RECURSE(
+    gzkp
+)

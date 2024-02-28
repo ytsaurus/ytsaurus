@@ -39,13 +39,19 @@ GO_TEST_SRCS(
 )
 
 IF (ARCH_X86_64)
-    SRCS(regmask_amd64.go)
+    SRCS(
+        regmask_amd64.go
+    )
 ENDIF()
 
 IF (ARCH_ARM64)
-    SRCS(regmask_other.go)
+    SRCS(
+        regmask_other.go
+    )
 ENDIF()
 
 END()
 
-RECURSE(gotest)
+RECURSE(
+    gotest
+)
