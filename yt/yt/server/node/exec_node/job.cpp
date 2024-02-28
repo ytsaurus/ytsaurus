@@ -1769,7 +1769,8 @@ std::vector<TDevice> TJob::GetGpuDevices()
             // Exclude device explicitly.
             devices.emplace_back(TDevice{
                 .DeviceName = deviceName,
-                .Enabled = false});
+                .Access = "-"
+            });
         }
     }
 
