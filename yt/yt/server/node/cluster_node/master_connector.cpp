@@ -565,8 +565,6 @@ private:
 
         Bootstrap_->CompleteNodeRegistration();
 
-        YT_VERIFY(rsp->use_new_heartbeats());
-
         if (Bootstrap_->NeedDataNodeBootstrap()) {
             const auto& dataNodeBootstrap = Bootstrap_->GetDataNodeBootstrap();
             const auto& mediumUpdater = dataNodeBootstrap->GetMediumUpdater();
