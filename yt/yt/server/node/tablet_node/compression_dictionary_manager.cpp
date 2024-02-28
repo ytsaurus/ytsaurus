@@ -853,7 +853,7 @@ private:
         columnIdMapping.reserve(compressionDictionaryExt.column_infos_size());
         for (int index = 0; index < compressionDictionaryExt.column_infos_size(); ++index) {
             const auto& columnInfo = compressionDictionaryExt.column_infos(index);
-            auto* column = tabletSnapshot->PhysicalSchema->FindColumnByStableName(FromProto<TColumnStableName>(
+            auto* column = tabletSnapshot->PhysicalSchema->FindColumnByStableName(FromProto<TStableName>(
                 columnInfo.stable_name()));
             YT_VERIFY(column);
             columnIdMapping.push_back(tabletSnapshot->PhysicalSchema->GetColumnIndex(*column));
