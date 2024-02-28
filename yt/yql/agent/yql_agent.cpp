@@ -82,6 +82,8 @@ public:
         NYqlPlugin::TYqlPluginOptions options{
             .SingletonsConfig = singletonsConfigString,
             .GatewayConfig = ConvertToYsonString(Config_->GatewayConfig),
+            .DqGatewayConfig = Config_->EnableDq ? ConvertToYsonString(Config_->DqGatewayConfig) : TYsonString(),
+            .DqManagerConfig = Config_->EnableDq ? ConvertToYsonString(Config_->DqManagerConfig) : TYsonString(),
             .FileStorageConfig = ConvertToYsonString(Config_->FileStorageConfig),
             .OperationAttributes = ConvertToYsonString(Config_->OperationAttributes),
             .YTTokenPath = Config_->YTTokenPath,
@@ -92,7 +94,9 @@ public:
     }
 
     void Start() override
-    { }
+    {
+        YqlPlugin_->Start();
+    }
 
     void Stop() override
     { }

@@ -16,6 +16,93 @@ namespace NYT::NYqlAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TVanillaJobFile
+    : public NYTree::TYsonStruct
+{
+public:
+    TString Name;
+    TString LocalPath;
+
+    REGISTER_YSON_STRUCT(TVanillaJobFile);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TVanillaJobFile)
+
+class TDqYtBackend
+    : public NYTree::TYsonStruct
+{
+public:
+    TString ClusterName;
+    ui32 JobsPerOperation;
+    ui32 MaxJobs;
+    TString VanillaJobLite;
+    TString VanillaJobCommand;
+    std::vector<TVanillaJobFilePtr> VanillaJobFiles;
+    TString Prefix;
+    ui32 UploadReplicationFactor;
+    TString TokenFile;
+    TString User;
+    TString Pool;
+    std::vector<TString> PoolTrees;
+    std::vector<TString> Owner;
+    i64 CpuLimit;
+    i32 WorkerCapacity;
+    i64 MemoryLimit;
+    i64 CacheSize;
+    bool UseTmpFs;
+    TString NetworkProject;
+    bool CanUseComputeActor;
+    bool EnforceJobUtc;
+
+    REGISTER_YSON_STRUCT(TDqYtBackend);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDqYtBackend)
+
+class TDqYtCoordinator
+    : public NYTree::TYsonStruct
+{
+public:
+    TString ClusterName;
+    TString Prefix;
+    TString TokenFile;
+    TString User;
+    TString DebugLogFile;
+
+    REGISTER_YSON_STRUCT(TDqYtCoordinator);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDqYtCoordinator)
+
+class TDqManagerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    ui16 InterconnectPort;
+    ui16 GrpcPort;
+    ui32 ActorThreads;
+    bool UseIPv4;
+    std::vector<TDqYtBackendPtr> YtBackends;
+    TDqYtCoordinatorPtr YtCoordinator;
+
+    //! Dq Interconnect Settings. Fields from NYql::NProto::TDqConfig::TICSettings with snake case keys.
+    NYTree::INodePtr ICSettings;
+
+    REGISTER_YSON_STRUCT(TDqManagerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDqManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TYqlPluginConfig
     : public NYTree::TYsonStruct
 {
@@ -25,6 +112,14 @@ public:
 
     //! Fields from NYql::TYtGatewayConfig with snake case keys.
     NYTree::INodePtr GatewayConfig;
+
+    //! Fields from NYql::TDqGatewayConfig with snake case keys.
+    NYTree::INodePtr DqGatewayConfig;
+
+    //! Fields from NYT::NYqlPlugin::TDqManagerConfig with snake case keys.
+    TDqManagerConfigPtr DqManagerConfig;
+
+    bool EnableDq;
 
     //! Fields from NYql::TFileStorageConfig with snake case keys.
     NYTree::INodePtr FileStorageConfig;

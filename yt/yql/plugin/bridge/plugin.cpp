@@ -36,10 +36,11 @@ DEFINE_ENUM(EYqlPluginAbiVersion,
     ((TheBigBang)          (0))
     ((AbortQuery)          (1)) // gritukan: Added BridgeAbort; no breaking changes.
     ((ValidateExplain)     (2)) // aleksandr.gaev: Adjusted BridgeRun to accept settings length and execution mode.
+    ((DqManager)           (3)) // mpereskokova: Added BridgeStartYqlPlugin; Adjusted TBridgeYqlPluginOptions to save DQ configs.
 );
 
-constexpr auto MinSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::ValidateExplain;
-constexpr auto MaxSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::ValidateExplain;
+constexpr auto MinSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::DqManager;
+constexpr auto MaxSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::DqManager;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,12 +101,18 @@ public:
         : TDynamicYqlPlugin(options.YqlPluginSharedLibrary)
     {
         TString singletonsConfig = options.SingletonsConfig ? options.SingletonsConfig.ToString() : "{}";
+        TString dqGatewayConfig = options.DqGatewayConfig ? options.DqGatewayConfig.ToString() : "";
+        TString dqManagerConfig = options.DqManagerConfig ? options.DqManagerConfig.ToString() : "";
 
         TBridgeYqlPluginOptions bridgeOptions {
             .SingletonsConfig = singletonsConfig.data(),
             .SingletonsConfigLength = static_cast<int>(singletonsConfig.size()),
             .GatewayConfig = options.GatewayConfig.AsStringBuf().Data(),
             .GatewayConfigLength = options.GatewayConfig.AsStringBuf().Size(),
+            .DqGatewayConfig = dqGatewayConfig.data(),
+            .DqGatewayConfigLength = dqGatewayConfig.size(),
+            .DqManagerConfig = dqManagerConfig.data(),
+            .DqManagerConfigLength = dqManagerConfig.size(),
             .FileStorageConfig = options.FileStorageConfig.AsStringBuf().Data(),
             .FileStorageConfigLength = options.FileStorageConfig.AsStringBuf().Size(),
             .OperationAttributes = options.OperationAttributes.AsStringBuf().Data(),
@@ -160,6 +167,11 @@ public:
         };
         BridgeFreeQueryResult(bridgeQueryResult);
         return queryResult;
+    }
+
+    void Start() override
+    {
+        BridgeStartYqlPlugin(BridgePlugin_);
     }
 
     TQueryResult GetProgress(TQueryId queryId) noexcept override

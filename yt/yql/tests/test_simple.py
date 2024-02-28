@@ -388,7 +388,7 @@ class TestYqlAgent(TestQueriesYqlBase):
             assert gateway_config["execute_udf_locally_if_possible"]
             assert len(gateway_config["cluster_mapping"]) == 1
             assert len(gateway_config["cluster_mapping"][0]["settings"]) == 2
-            assert len(gateway_config["default_settings"]) == 56
+            assert len(gateway_config["default_settings"]) == 58
 
             setting_found = False
             for setting in gateway_config["default_settings"]:
