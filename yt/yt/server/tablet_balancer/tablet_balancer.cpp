@@ -577,13 +577,14 @@ std::vector<TString> TTabletBalancer::UpdateBundleList()
 
     // Find bundles that are not in the list of bundles (probably deleted)
     // and erase them and all their tables.
-    for (auto it = Bundles_.begin(); it != Bundles_.end(); ++it) {
+    for (auto it = Bundles_.begin(); it != Bundles_.end();) {
         if (currentBundles.contains(it->first)) {
+            ++it;
             continue;
         }
 
         TableRegistry_->RemoveBundle(it->second->GetBundle());
-        Bundles_.erase(it);
+        Bundles_.erase(it++);
     }
     return newBundles;
 }
