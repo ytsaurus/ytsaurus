@@ -8,7 +8,6 @@ type Speclet struct {
 	Resources
 
 	CHYTVersion       *string `yson:"chyt_version"`
-	LogTailerVersion  *string `yson:"log_tailer_version"`
 	TrampolineVersion *string `yson:"trampoline_version"`
 
 	EnableGeoData *bool       `yson:"enable_geodata"`
@@ -25,16 +24,12 @@ type Speclet struct {
 	// YTConfig is a base config for YT part of CHYT. Its usage is highly discouraged.
 	YTConfig map[string]any `yson:"yt_config"`
 
-	// LogTailerLogRotation contains log-tailer options for rotating debug/info instance logs.
-	LogTailerLogRotation map[string]any `yson:"log_tailer_log_rotation"`
-
 	// BuiltinLogRotationPolicy contains options for builtin log rotation.
 	BuiltinLogRotationPolicy map[string]any `yson:"builtin_log_rotation_policy"`
 }
 
 const (
 	DefaultCHYTVersion       = "ytserver-clickhouse"
-	DefaultLogTailerVersion  = "ytserver-log-tailer"
 	DefaultTrampolineVersion = "clickhouse-trampoline"
 
 	DefaultEnableGeoData = true
@@ -48,13 +43,6 @@ func (speclet *Speclet) CHYTVersionOrDefault() string {
 		return *speclet.CHYTVersion
 	}
 	return DefaultCHYTVersion
-}
-
-func (speclet *Speclet) LogTailerVersionOrDefault() string {
-	if speclet.LogTailerVersion != nil {
-		return *speclet.LogTailerVersion
-	}
-	return DefaultLogTailerVersion
 }
 
 func (speclet *Speclet) TrampolineVersionOrDefault() string {

@@ -21,7 +21,6 @@ const (
 		defaultMemoryUncompressedBlockCache +
 		defaultMemoryReader
 
-	defaultMemoryLogTailer = 2 * gib
 	defaultMemoryFootprint = 10 * gib
 
 	defaultMemoryClickHouseWatermark = 10 * gib
@@ -29,8 +28,7 @@ const (
 	defaultMemoryWatchdogOOMWindowWatermark = 20 * gib
 	defaultMemoryWatchdogOOMWatermark       = 4 * gib
 
-	memNonElastic = defaultMemoryLogTailer +
-		defaultMemoryFootprint +
+	memNonElastic = defaultMemoryFootprint +
 		defaultMemoryClickHouseWatermark
 
 	defaultInstanceCPU = 16
@@ -53,7 +51,6 @@ type InstanceMemory struct {
 	WatchdogOOMWatermark       *uint64 `yson:"watchdog_oom_watermark" json:"watchdog_oom_watermark"`
 	WatchdogOOMWindowWatermark *uint64 `yson:"watchdog_oom_window_watermark" json:"watchdog_oom_window_watermark"`
 	Footprint                  *uint64 `yson:"footprint" json:"footprint"`
-	LogTailer                  *uint64 `yson:"log_tailer" json:"log_tailer"`
 }
 
 func (mem *InstanceMemory) ClickHouseOrDefault() uint64 {
@@ -119,13 +116,6 @@ func (mem *InstanceMemory) FootprintOrDefault() uint64 {
 	return defaultMemoryFootprint
 }
 
-func (mem *InstanceMemory) LogTailerOrDefault() uint64 {
-	if mem.LogTailer != nil {
-		return *mem.LogTailer
-	}
-	return defaultMemoryLogTailer
-}
-
 func (mem *InstanceMemory) maxServerMemoryUsage() uint64 {
 	return mem.ClickHouseOrDefault() +
 		mem.ChunkMetaCacheOrDefault() +
@@ -140,7 +130,7 @@ func (mem *InstanceMemory) ytServerClickHouseMemoryLimit() uint64 {
 }
 
 func (mem *InstanceMemory) totalMemory() uint64 {
-	return mem.ytServerClickHouseMemoryLimit() + mem.LogTailerOrDefault()
+	return mem.ytServerClickHouseMemoryLimit()
 }
 
 func (mem *InstanceMemory) memoryConfig() map[string]uint64 {
@@ -168,7 +158,7 @@ type Resources struct {
 	InstanceCPU *uint64 `yson:"instance_cpu"`
 
 	// InstanceTotalMemory is a total instance memory; should not be less than
-	// defaultMemoryFootprint + defaultMemoryLogTailer. If set, all additive memory parts are
+	// memNonElastic. If set, all additive memory parts are
 	// scaled to fit into given total memory.
 	InstanceTotalMemory *uint64 `yson:"instance_total_memory"`
 

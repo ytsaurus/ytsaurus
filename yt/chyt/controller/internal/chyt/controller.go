@@ -18,16 +18,15 @@ import (
 type LogRotationModeType string
 
 const (
-	LogRotationModeDisabled  LogRotationModeType = "disabled"
-	LogRotationModeLogTailer LogRotationModeType = "log_tailer"
-	LogRotationModeBuiltin   LogRotationModeType = "builtin"
+	LogRotationModeDisabled LogRotationModeType = "disabled"
+	LogRotationModeBuiltin  LogRotationModeType = "builtin"
 
 	DefaultLogRotationMode = LogRotationModeBuiltin
 )
 
 type Config struct {
 	// LocalBinariesDir is set if we want to execute local binaries on the clique.
-	// This directory should contain trampoline, chyt and log-tailer binaries.
+	// This directory should contain trampoline and chyt binaries.
 	LocalBinariesDir          *string              `yson:"local_binaries_dir"`
 	LogRotationMode           *LogRotationModeType `yson:"log_rotation_mode"`
 	AddressResolver           map[string]any       `yson:"address_resolver"`
@@ -129,16 +128,12 @@ func (c *Controller) buildCommand(speclet *Speclet) string {
 	}
 	trampolinePath := binariesDir + "clickhouse-trampoline"
 	chytPath := binariesDir + "ytserver-clickhouse"
-	logTailerPath := binariesDir + "ytserver-log-tailer"
 
 	var args []string
 	args = append(args, trampolinePath, chytPath)
 	args = append(args, "--monitoring-port", "10142")
 	if speclet.EnableGeoDataOrDefault() {
 		args = append(args, "--prepare-geodata")
-	}
-	if c.config.LogRotationModeOrDefault() == LogRotationModeLogTailer {
-		args = append(args, "--log-tailer-bin", logTailerPath, "--log-tailer-monitoring-port", "10242")
 	}
 	return strings.Join(args, " ")
 }

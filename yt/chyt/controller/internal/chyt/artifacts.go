@@ -11,7 +11,6 @@ import (
 
 const (
 	CHYTBinaryDirectory       = ypath.Path("//sys/bin/ytserver-clickhouse")
-	LogTailerBinaryDirectory  = ypath.Path("//sys/bin/ytserver-log-tailer")
 	TrampolineBinaryDirectory = ypath.Path("//sys/bin/clickhouse-trampoline")
 )
 
@@ -48,9 +47,6 @@ func (c *Controller) appendArtifacts(ctx context.Context, speclet *Speclet, file
 		{"clickhouse-trampoline", TrampolineBinaryDirectory.Child(speclet.TrampolineVersionOrDefault())},
 	}
 
-	if c.config.LogRotationModeOrDefault() == LogRotationModeLogTailer {
-		artifacts = append(artifacts, artifact{"ytserver-log-tailer", LogTailerBinaryDirectory.Child(speclet.LogTailerVersionOrDefault())})
-	}
 	if speclet.EnableGeoDataOrDefault() {
 		artifacts = append(artifacts, artifact{"geodata.tgz", speclet.GeoDataPathOrDefault()})
 	}

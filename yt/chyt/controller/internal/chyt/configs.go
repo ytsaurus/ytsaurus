@@ -180,34 +180,6 @@ func (c Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.Op
 	return
 }
 
-func getPatchedLogTailerLogRotationConfig(speclet *Speclet) (map[string]any, error) {
-	configNode, err := cloneNode(speclet.LogTailerLogRotation)
-	if err != nil {
-		return nil, err
-	}
-	config, ok := configNode.(map[string]any)
-	if !ok && configNode != nil {
-		return nil, yterrors.Err("log_rotation config has unexpected type",
-			log.String("type", reflect.TypeOf(configNode).String()))
-	}
-	if config == nil {
-		config = map[string]any{}
-	}
-	if _, ok := config["enable"]; !ok {
-		config["enable"] = true
-	}
-	if _, ok := config["rotation_delay"]; !ok {
-		config["rotation_delay"] = 15000
-	}
-	if _, ok := config["log_segment_count"]; !ok {
-		config["log_segment_count"] = 10
-	}
-	if _, ok := config["rotation_period"]; !ok {
-		config["rotation_period"] = 900000
-	}
-	return config, nil
-}
-
 func getPatchedBuiltinLogRotationPolicy(speclet *Speclet) (map[string]any, error) {
 	configNode, err := cloneNode(speclet.BuiltinLogRotationPolicy)
 	if err != nil {
@@ -417,96 +389,6 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 		return err
 	}
 	*filePaths = append(*filePaths, ytServerClickHouseConfigPath)
-
-	if c.config.LogRotationModeOrDefault() == LogRotationModeLogTailer {
-		logRotationConfig, err := getPatchedLogTailerLogRotationConfig(speclet)
-		if err != nil {
-			return err
-		}
-
-		logTailerConfig := map[string]any{
-			// TODO(dakovalkov): "profile_manager" is a compat for older CHYT versions.
-			// Remove it after updating log tailer to new version.
-			"profile_manager": map[string]any{
-				"global_tags": map[string]any{
-					"operation_alias": oplet.Alias(),
-					"cookie":          "$YT_JOB_COOKIE",
-				},
-			},
-			"solomon_exporter": map[string]any{
-				// NOTE(dakovalkov): override host, otherwise metric count will bloat.
-				"host": "",
-				"instance_tags": map[string]any{
-					"operation_alias": oplet.Alias(),
-					"cookie":          "$YT_JOB_COOKIE",
-				},
-			},
-			"cluster_connection": c.cachedClusterConnection,
-			"log_tailer": map[string]any{
-				"log_rotation": logRotationConfig,
-				"log_files": [2](map[string]any){
-					{
-						"path": "clickhouse.debug.log",
-					},
-					{
-						"path": "clickhouse.log",
-					},
-				},
-				"log_writer_liveness_checker": map[string]any{
-					"enable":                true,
-					"liveness_check_period": 5000,
-				},
-			},
-			"logging": map[string]any{
-				"writers": map[string]any{
-					"error": map[string]any{
-						"file_name": "./log_tailer.error.log",
-						"type":      "file",
-					},
-					"stderr": map[string]any{
-						"type": "stderr",
-					},
-					"debug": map[string]any{
-						"file_name": "./log_tailer.debug.log",
-						"type":      "file",
-					},
-					"info": map[string]any{
-						"file_name": "./log_tailer.log",
-						"type":      "file",
-					},
-				},
-				"rules": [3](map[string]any){
-					{
-						"min_level": "trace",
-						"writers": [1]string{
-							"debug",
-						},
-					},
-					{
-						"min_level": "info",
-						"writers": [1]string{
-							"info",
-						},
-					},
-					{
-						"min_level": "error",
-						"writers": [2]string{
-							"error",
-							"stderr",
-						},
-					},
-				},
-			},
-		}
-		if nativeAuthenticatorConfig != nil {
-			logTailerConfig["native_authentication_manager"] = nativeAuthenticatorConfig
-		}
-		logTailerConfigPath, err := c.uploadConfig(ctx, oplet.Alias(), "log_tailer_config.yson", logTailerConfig)
-		if err != nil {
-			return err
-		}
-		*filePaths = append(*filePaths, logTailerConfigPath)
-	}
 
 	return nil
 }
