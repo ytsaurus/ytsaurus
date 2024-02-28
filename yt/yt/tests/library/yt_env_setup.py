@@ -1134,7 +1134,7 @@ class YTEnvSetup(object):
                 driver=driver,
             )
 
-    def teardown_method(self, method):
+    def teardown_method(self, method, wait_for_nodes=True):
         yt_commands._zombie_responses[:] = []
 
         for cluster_index, env in enumerate(self.ground_envs + [self.Env] + self.remote_envs):
@@ -1146,14 +1146,14 @@ class YTEnvSetup(object):
                 self._master_exit_read_only_sync(env, driver=driver)
 
         for cluster_index, env in enumerate([self.Env] + self.remote_envs):
-            self.teardown_cluster(method, cluster_index)
+            self.teardown_cluster(method, cluster_index, wait_for_nodes)
 
             if self.get_param("USE_SEQUOIA", cluster_index):
                 self.teardown_cluster(method, cluster_index + self.GROUND_INDEX_OFFSET)
 
         yt_commands.reset_events_on_fs()
 
-    def teardown_cluster(self, method, cluster_index):
+    def teardown_cluster(self, method, cluster_index, wait_for_nodes=True):
         cluster_name = self.get_cluster_name(cluster_index)
         driver = yt_commands.get_driver(cluster=cluster_name)
         if driver is None:
@@ -1162,7 +1162,7 @@ class YTEnvSetup(object):
         if self.VALIDATE_SEQUOIA_TREE_CONSISTENCY and not self._is_ground_cluster(cluster_index):
             yt_sequoia_helpers.validate_sequoia_tree_consistency(cluster_name)
 
-        self._reset_nodes(driver=driver)
+        self._reset_nodes(wait_for_nodes, driver=driver)
 
         if self.get_param("NUM_SCHEDULERS", cluster_index) > 0:
             self._remove_operations(driver=driver)
@@ -1220,7 +1220,7 @@ class YTEnvSetup(object):
 
         yt_commands.execute_batch(requests)
 
-    def _reset_nodes(self, driver=None):
+    def _reset_nodes(self, wait_for_nodes=True, driver=None):
         use_maintenance_requests = yt_commands.get(
             "//sys/@config/node_tracker/forbid_maintenance_attribute_writes",
             default=False,
@@ -1299,6 +1299,18 @@ class YTEnvSetup(object):
                                 yt.logger.error(f"Location {path} is disabled after test execution")
                                 disabled_paths.append(path)
         assert not disabled_paths, 'Found disabled locations after test execution:\n' + "\n".join(disabled_paths)
+
+        def nodes_online():
+            nodes = yt_commands.ls("//sys/cluster_nodes", attributes=["state"], driver=driver)
+
+            return all(node.attributes["state"] == "online" for node in nodes)
+
+        if wait_for_nodes:
+            wait(
+                nodes_online,
+                ignore_exceptions=True,
+                error_message="Nodes weren't online after the test teardown for 60 seconds",
+                timeout=60)
 
     def _walk_dictionary(self, dictionary, key_list):
         node = dictionary
