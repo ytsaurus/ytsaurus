@@ -394,7 +394,12 @@ THunkValue ReadHunkValue(TRef input)
                 currentPtr += ReadVarUint64(currentPtr, &blockSize);
             }
             if (IsBlobChunkId(chunkId)) {
-                ReadPod(currentPtr, compressionDictionaryId);
+                // COMPAT(akozhikhov): We need to check for that bounds now because in case of a data node of old version
+                // data node lookup may produce payload that does not contain compressionDictionaryId.
+                // Which is fine in case of disabled hunk value compression (i.e. null compressionDictionaryId).
+                if (currentPtr < input.End()) {
+                    ReadPod(currentPtr, compressionDictionaryId);
+                }
             }
             // TODO(babenko): better out-of-bounds check.
             if (currentPtr > input.End()) {
@@ -1110,6 +1115,10 @@ public:
                     // of the size of uncompressed inline hunk values we have to perform such override here.
                     miscExt.set_data_weight(dataWeight);
                     SetProtoExtension(meta->mutable_extensions(), miscExt);
+
+                    auto chunkFeatures = FromProto<EChunkFeatures>(meta->features());
+                    chunkFeatures |= EChunkFeatures::CompressedHunkValues;
+                    meta->set_features(ToProto<ui64>(chunkFeatures));
                 }
 
                 if (hunkChunkRefs.empty()) {
