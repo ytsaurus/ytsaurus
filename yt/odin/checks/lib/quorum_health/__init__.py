@@ -91,8 +91,8 @@ def configure_timeout_and_retries(yt_client):
 
 def get_hydra_state(hydra, monitoring_port, logger):
     try:
-        result = requests.get(
-            "http://{}:{}/orchid/monitoring/hydra/state".format(hydra.hostname, monitoring_port))
+        url = "http://{}:{}/orchid/monitoring/hydra/state".format(hydra.hostname, monitoring_port)
+        result = requests.get(url, timeout=(5, 15))
         if result.status_code == 200:
             hydra.set_state(str(yson.loads(result.content)), logger)
             logger.info("Successfully read hydra state from {}:{} (state: {})".format(hydra.hostname, monitoring_port, hydra.state()))
