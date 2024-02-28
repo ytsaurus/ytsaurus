@@ -433,6 +433,9 @@ class TestReregisterNode(YTEnvSetup):
         else:
             cls.SECOND_CONFIG = config
 
+    def teardown_method(self, method):
+        super(TestReregisterNode, self).teardown_method(method, wait_for_nodes=False)
+
     @authors("aleksandra-zh")
     def test_reregister_node_with_different_address(self):
         TestReregisterNode._change_node_address()
