@@ -35,6 +35,50 @@ static constexpr auto RetryInterval = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const std::vector<TDevice> DefaultContainerDevices = {
+    {
+        .DeviceName = "/dev/kvm",
+        .Access = "rw",
+    },
+    {
+        .DeviceName = "/dev/fuse",
+        .Access = "rw",
+    },
+    {
+        .DeviceName = "/dev/null",
+        .Access = "rw",
+    },
+    {
+        .DeviceName = "/dev/zero",
+        .Access = "rw",
+    },
+    {
+        .DeviceName = "/dev/full",
+        .Access = "rw",
+    },
+    {
+        .DeviceName = "/dev/random",
+        .Access = "rw",
+    },
+    {
+        .DeviceName = "/dev/urandom",
+        .Access = "rw",
+    },
+    {
+        .DeviceName = "/dev/tty",
+        .Access = "rw",
+    },
+    {
+        .DeviceName = "/dev/null",
+        .Access = "rw",
+        // It is necessary for the consistency of default devices in the container, but access must be denied.
+        // See porto/src/device.cpp::TDevices::InitDefault and https://docs.kernel.org/admin-guide/serial-console.html.
+        .Path = "/dev/console"
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TString PortoErrorCodeFormatter(int code)
 {
     return TEnumTraits<EPortoErrorCode>::ToString(static_cast<EPortoErrorCode>(code));
@@ -596,10 +640,20 @@ private:
             portoSpec.mutable_controllers()->add_controller(controller);
         }
 
-        for (const auto& device : spec.Devices) {
-            auto* portoDevice = portoSpec.mutable_devices()->add_device();
-            portoDevice->set_device(device.DeviceName);
-            portoDevice->set_access(device.Enabled ? "rw" : "-");
+        const auto& devices = !spec.Devices.empty()
+            ? spec.Devices
+            : DefaultContainerDevices;
+
+        for (const auto& device : devices) {
+            if (NFS::Exists(device.DeviceName)) {
+                auto* portoDevice = portoSpec.mutable_devices()->add_device();
+                portoDevice->set_device(device.DeviceName);
+                portoDevice->set_access(device.Access);
+
+                if (device.Path) {
+                    portoDevice->set_path(device.Path.value());
+                }
+            }
         }
 
         auto addBind = [&] (const TBind& bind) {
