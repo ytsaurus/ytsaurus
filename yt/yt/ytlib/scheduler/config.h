@@ -874,6 +874,23 @@ DEFINE_REFCOUNTED_TYPE(TJobExperimentConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCudaProfilerEnvironment
+    : public NYTree::TYsonStruct
+{
+public:
+    TString PathEnvironmentVariableName;
+
+    TString PathEnvironmentVariableValue;
+
+    REGISTER_YSON_STRUCT(TCudaProfilerEnvironment);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCudaProfilerEnvironment)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperationSpecBase
     : public TStrategyOperationSpec
 {
@@ -1085,6 +1102,10 @@ public:
 
     //! If explicitly true, allow remote copy of tables with hunk columns.
     std::optional<bool> BypassHunkRemoteCopyProhibition;
+
+    //! Options for cuda profiler.
+    std::optional<TString> CudaProfilerLayerPath;
+    TCudaProfilerEnvironmentPtr CudaProfilerEnvironment;
 
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 

@@ -555,6 +555,15 @@ void TColumnarStatisticsConfig::Register(TRegistrar registrar)
         .Default(EColumnarStatisticsFetcherMode::Fallback);
 }
 
+void TCudaProfilerEnvironment::Register(TRegistrar registrar)
+{
+    registrar.Parameter("path_environment_variable_name", &TThis::PathEnvironmentVariableName)
+        .NonEmpty();
+
+    registrar.Parameter("path_environment_variable_value", &TThis::PathEnvironmentVariableValue)
+        .NonEmpty();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TOperationSpecBase::Register(TRegistrar registrar)
@@ -782,6 +791,12 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("bypass_hunk_remote_copy_prohibition", &TThis::BypassHunkRemoteCopyProhibition)
         .Default();
 
+    registrar.Parameter("cuda_profiler_layer_path", &TThis::CudaProfilerLayerPath)
+        .Default();
+
+    registrar.Parameter("cuda_profiler_environment", &TThis::CudaProfilerEnvironment)
+        .Default();
+
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
         if (spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             spec->UnavailableChunkTactics == EUnavailableChunkAction::Skip)
@@ -857,8 +872,7 @@ void TJobExperimentConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Postprocessor([] (TJobExperimentConfig* config) {
-        if (config->BaseLayerPath && config->NetworkProject)
-        {
+        if (config->BaseLayerPath && config->NetworkProject) {
             THROW_ERROR_EXCEPTION(
                 "Options \"base_layer_path\" and \"network_project\" cannot be specified simultaneously")
                 << TErrorAttribute("base_layer_path", config->BaseLayerPath)

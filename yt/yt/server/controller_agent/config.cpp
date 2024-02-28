@@ -1084,6 +1084,12 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_job_profiling", &TThis::EnableJobProfiling)
         .Default();
 
+    registrar.Parameter("cuda_profiler_layer_path", &TThis::CudaProfilerLayerPath)
+        .Default();
+
+    registrar.Parameter("cuda_profiler_environment", &TThis::CudaProfilerEnvironment)
+        .Default();
+
     registrar.Parameter("max_running_job_statistics_update_count_per_heartbeat", &TThis::MaxRunningJobStatisticsUpdateCountPerHeartbeat)
         .Default(std::numeric_limits<int>::max());
 

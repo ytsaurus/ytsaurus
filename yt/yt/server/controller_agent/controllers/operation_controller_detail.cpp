@@ -9925,6 +9925,18 @@ void TOperationControllerBase::InitUserJobSpec(
         jobSpec->add_environment(Format("YT_START_ROW_INDEX=%v", joblet->StartRowIndex));
     }
 
+    if (joblet->EnabledJobProfiler && joblet->EnabledJobProfiler->Type == EProfilerType::Cuda) {
+        auto cudaProfilerEnvironment = Spec_->CudaProfilerEnvironment
+            ? Spec_->CudaProfilerEnvironment
+            : Config->CudaProfilerEnvironment;
+
+        if (cudaProfilerEnvironment) {
+            jobSpec->add_environment(Format("%v=%v",
+                cudaProfilerEnvironment->PathEnvironmentVariableName,
+                cudaProfilerEnvironment->PathEnvironmentVariableValue));
+        }
+    }
+
     if (SecureVault) {
         // NB: These environment variables should be added to user job spec, not to the user job spec template.
         // They may contain sensitive information that should not be persisted with a controller.
@@ -10847,6 +10859,14 @@ std::vector<TRichYPath> TOperationControllerBase::GetLayerPaths(
         // If cuda toolkit is requested, add the layer as the topmost user layer.
         auto path = *Config->GpuCheckLayerDirectoryPath + "/" + *userJobSpec->GpuCheckLayerName;
         layerPaths.insert(layerPaths.begin(), path);
+    }
+    if (Config->CudaProfilerLayerPath && userJobSpec->Profilers) {
+        for (const auto& profilerSpec : *userJobSpec->Profilers) {
+            if (profilerSpec->Type == EProfilerType::Cuda) {
+                layerPaths.insert(layerPaths.begin(), *Config->CudaProfilerLayerPath);
+                break;
+            }
+        }
     }
     if (!layerPaths.empty()) {
         auto systemLayerPath = userJobSpec->SystemLayerPath
