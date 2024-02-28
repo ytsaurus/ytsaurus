@@ -1675,12 +1675,12 @@ class BaseTestDiskPreemption(YTEnvSetup):
         actual_ssd_node_count = 0
         for node in ls("//sys/cluster_nodes"):
             has_ssd_tag = BaseTestDiskPreemption.SSD_NODE_TAG in get("//sys/cluster_nodes/{}/@tags".format(node))
-            has_ssd_medium = any(medium["medium_name"] == BaseTestDiskPreemption.SSD_MEDIUM
-                                 for medium in get("//sys/cluster_nodes/{}/@statistics/slot_locations".format(node)))
+            if not has_ssd_tag:
+                continue
 
-            assert has_ssd_medium == has_ssd_tag
-            if has_ssd_medium:
-                actual_ssd_node_count += 1
+            wait(lambda: any(medium["medium_name"] == BaseTestDiskPreemption.SSD_MEDIUM
+                             for medium in get("//sys/cluster_nodes/{}/@statistics/slot_locations".format(node))))
+            actual_ssd_node_count += 1
 
         assert BaseTestDiskPreemption.SSD_NODE_COUNT == actual_ssd_node_count
 
