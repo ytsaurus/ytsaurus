@@ -105,6 +105,7 @@
     XX(CommittedResourceUsage, committed_resource_usage) \
     XX(CompressedDataSize, compressed_data_size) \
     XX(CompressionCodec, compression_codec) \
+    XX(CompressionDictionaryId, compression_dictionary_id) \
     XX(CompressionRatio, compression_ratio) \
     XX(CompressionStatistics, compression_statistics) \
     XX(CollocationType, collocation_type) \

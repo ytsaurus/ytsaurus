@@ -29,21 +29,30 @@ using TRowDictionaryDecompressor = THashMap<int, NCompression::IDictionaryDecomp
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ICompressionDictionaryManager
-    : public TRefCounted
+    : public virtual TRefCounted
 {
-    virtual NTableClient::IDictionaryCompressionFactoryPtr CreateTabletDictionaryCompressionFactory() const = 0;
+    virtual NTableClient::IDictionaryCompressionFactoryPtr CreateTabletDictionaryCompressionFactory(
+        const TTabletSnapshotPtr& tabletSnapshot) = 0;
+
+    virtual TFuture<TRowDictionaryCompressors> MaybeGetCompressors(
+        const TTabletSnapshotPtr& tabletSnapshot,
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions) = 0;
 
     virtual TFuture<THashMap<NChunkClient::TChunkId, TRowDictionaryDecompressor>> GetDecompressors(
-        const TTabletSnapshotPtr& /*tabletSnapshot*/,
-        const NChunkClient::TClientChunkReadOptions& /*chunkReadOptions*/,
-        const THashSet<NChunkClient::TChunkId>& /*dictionaryIds*/) = 0;
+        const TTabletSnapshotPtr& tabletSnapshot,
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+        const THashSet<NChunkClient::TChunkId>& dictionaryIds) = 0;
+
+    virtual void OnDynamicConfigChanged(const TSlruCacheDynamicConfigPtr& config) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICompressionDictionaryManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ICompressionDictionaryManagerPtr CreateCompressionDictionaryManager();
+ICompressionDictionaryManagerPtr CreateCompressionDictionaryManager(
+    TSlruCacheConfigPtr config,
+    IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

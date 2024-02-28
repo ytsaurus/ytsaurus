@@ -225,7 +225,7 @@ protected:
     const TTabletSnapshotPtr TabletSnapshot_;
     const ITransactionPtr Transaction_;
     const bool ResultsInEden_;
-    const EWorkloadCategory WorkloadCategory_;
+    const TClientChunkReadOptions ChunkReadOptions_;
     const NLogging::TLogger Logger;
 
     TTabletStoreWriterConfigPtr StoreWriterConfig_;
@@ -246,13 +246,13 @@ protected:
         TTabletSnapshotPtr tabletSnapshot,
         ITransactionPtr transaction,
         bool resultsInEden,
-        EWorkloadCategory workloadCategory,
+        TClientChunkReadOptions chunkReadOptions,
         NLogging::TLogger logger)
         : Bootstrap_(bootstrap)
         , TabletSnapshot_(std::move(tabletSnapshot))
         , Transaction_(std::move(transaction))
         , ResultsInEden_(resultsInEden)
-        , WorkloadCategory_(workloadCategory)
+        , ChunkReadOptions_(std::move(chunkReadOptions))
         , Logger(std::move(logger))
     { }
 
@@ -288,7 +288,7 @@ protected:
             Transaction_->GetId(),
             TabletSnapshot_->SchemaId,
             /*parentChunkListId*/ {},
-            Bootstrap_->GetOutThrottler(WorkloadCategory_),
+            Bootstrap_->GetOutThrottler(ChunkReadOptions_.WorkloadDescriptor.Category),
             BlockCache_);
         Writers_.push_back(writer);
         return writer;
@@ -308,7 +308,7 @@ private:
     {
         StoreWriterConfig_ = CloneYsonStruct(TabletSnapshot_->Settings.StoreWriterConfig);
         StoreWriterConfig_->MinUploadReplicationFactor = StoreWriterConfig_->UploadReplicationFactor;
-        StoreWriterConfig_->WorkloadDescriptor = TWorkloadDescriptor(WorkloadCategory_);
+        StoreWriterConfig_->WorkloadDescriptor = TWorkloadDescriptor(ChunkReadOptions_.WorkloadDescriptor.Category);
 
         StoreWriterOptions_ = CloneYsonStruct(TabletSnapshot_->Settings.StoreWriterOptions);
         StoreWriterOptions_->ChunksEden = ResultsInEden_;
@@ -318,7 +318,7 @@ private:
         StoreWriterOptions_->MemoryReferenceTracker = Bootstrap_->GetNodeMemoryReferenceTracker()->WithCategory(EMemoryCategory::TabletBackground);
 
         HunkWriterConfig_ = CloneYsonStruct(TabletSnapshot_->Settings.HunkWriterConfig);
-        HunkWriterConfig_->WorkloadDescriptor = TWorkloadDescriptor(WorkloadCategory_);
+        HunkWriterConfig_->WorkloadDescriptor = TWorkloadDescriptor(ChunkReadOptions_.WorkloadDescriptor.Category);
         HunkWriterConfig_->MinUploadReplicationFactor = HunkWriterConfig_->UploadReplicationFactor;
 
         HunkWriterOptions_ = CloneYsonStruct(TabletSnapshot_->Settings.HunkWriterOptions);
@@ -340,10 +340,10 @@ private:
             Bootstrap_->GetLocalHostName(),
             GetNullBlockCache(),
             /*trafficMeter*/ nullptr,
-            Bootstrap_->GetOutThrottler(WorkloadCategory_));
+            Bootstrap_->GetOutThrottler(ChunkReadOptions_.WorkloadDescriptor.Category));
 
         HunkChunkPayloadWriter_ = CreateHunkChunkPayloadWriter(
-            TWorkloadDescriptor(WorkloadCategory_),
+            TWorkloadDescriptor(ChunkReadOptions_.WorkloadDescriptor.Category),
             HunkWriterConfig_,
             HunkChunkWriter_);
         if (TabletSnapshot_->PhysicalSchema->HasHunkColumns()) {
@@ -436,7 +436,9 @@ private:
                 BlockCache_),
             TabletSnapshot_->PhysicalSchema,
             HunkChunkPayloadWriter_,
-            HunkChunkWriterStatistics_);
+            HunkChunkWriterStatistics_,
+            TabletSnapshot_->DictionaryCompressionFactory,
+            ChunkReadOptions_);
     }
 };
 
@@ -464,13 +466,14 @@ public:
         IBootstrap* bootstrap,
         TTabletSnapshotPtr tabletSnapshot,
         ITransactionPtr transaction,
+        TClientChunkReadOptions chunkReadOptions,
         NLogging::TLogger logger)
         : TStoreCompactionSessionBase(
             bootstrap,
             std::move(tabletSnapshot),
             std::move(transaction),
             /*resultsInEden*/ false,
-            EWorkloadCategory::SystemTabletPartitioning,
+            std::move(chunkReadOptions),
             std::move(logger))
     { }
 
@@ -637,13 +640,14 @@ public:
         TTabletSnapshotPtr tabletSnapshot,
         TPartition* partition,
         ITransactionPtr transaction,
+        TClientChunkReadOptions chunkReadOptions,
         NLogging::TLogger logger)
         : TStoreCompactionSessionBase(
             bootstrap,
             std::move(tabletSnapshot),
             std::move(transaction),
             /*resultsInEden*/ partition->IsEden(),
-            EWorkloadCategory::SystemTabletCompaction,
+            std::move(chunkReadOptions),
             std::move(logger))
     { }
 
@@ -1528,6 +1532,7 @@ private:
                 Bootstrap_,
                 tabletSnapshot,
                 transaction,
+                chunkReadOptions,
                 Logger);
 
             auto partitioningResultFuture =
@@ -1924,6 +1929,7 @@ private:
                 tabletSnapshot,
                 partition,
                 transaction,
+                chunkReadOptions,
                 Logger);
 
             auto compactionResultFuture =
@@ -2215,6 +2221,7 @@ private:
                 std::move(inboundThrottler),
                 chunkReadOptions.WorkloadDescriptor.Category),
             tablet->GetChunkFragmentReader(),
+            tabletSnapshot->DictionaryCompressionFactory,
             tablet->GetPhysicalSchema(),
             PickCompactableHunkChunkIds(
                 task,

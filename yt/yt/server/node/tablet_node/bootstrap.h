@@ -70,6 +70,8 @@ struct IBootstrap
     const NDataNode::IChunkRegistryPtr& GetChunkRegistry() const override = 0;
 
     virtual const TOverloadControllerPtr& GetOverloadController() const = 0;
+
+    virtual const ICompressionDictionaryManagerPtr& GetCompressionDictionaryManager() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

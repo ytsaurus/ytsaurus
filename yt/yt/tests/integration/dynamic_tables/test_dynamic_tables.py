@@ -570,7 +570,6 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
     @authors("akozhikhov")
     def test_override_profiling_mode_attribute(self):
-
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
         sync_mount_table("//tmp/t")

@@ -2634,7 +2634,8 @@ private:
 
             if (auto miscExt = FindProtoExtension<TMiscExt>(descriptor.chunk_meta().extensions())) {
                 if (miscExt->has_dictionary_compression_policy()) {
-                    auto policy = CheckedEnumCast<EDictionaryCompressionPolicy>(miscExt->dictionary_compression_policy());
+                    auto policy = CheckedEnumCast<EDictionaryCompressionPolicy>(
+                        miscExt->dictionary_compression_policy());
                     tablet->AttachCompressionDictionary(policy, chunkId);
                     compressionDictionaryIds.push_back(chunkId);
                 }

@@ -55,7 +55,8 @@ DEFINE_REFCOUNTED_TYPE(IDictionaryDecompressionSession)
 struct IDictionaryCompressionFactory
     : public TRefCounted
 {
-    virtual IDictionaryCompressionSessionPtr CreateDictionaryCompressionSession() const = 0;
+    virtual TFuture<IDictionaryCompressionSessionPtr> MaybeCreateDictionaryCompressionSession(
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions) const = 0;
 
     virtual IDictionaryDecompressionSessionPtr CreateDictionaryDecompressionSession() const = 0;
 };

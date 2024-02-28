@@ -716,6 +716,7 @@ protected:
         , Schema_(tabletSnapshot->PhysicalSchema)
         , ColumnFilter_(std::move(columnFilter))
         , ChunkFragmentReader_(tabletSnapshot->ChunkFragmentReader)
+        , DictionaryCompressionFactory_(tabletSnapshot->DictionaryCompressionFactory)
         , ChunkReadOptions_(std::move(chunkReadOptions))
     {
         if (const auto& hedgingManagerRegistry = tabletSnapshot->HedgingManagerRegistry) {
@@ -758,6 +759,7 @@ private:
     const TColumnFilter ColumnFilter_;
 
     NChunkClient::IChunkFragmentReaderPtr ChunkFragmentReader_;
+    NTableClient::IDictionaryCompressionFactoryPtr DictionaryCompressionFactory_;
     NChunkClient::TClientChunkReadOptions ChunkReadOptions_;
 
     std::vector<TMutableRow> HunkEncodedRows_;
@@ -773,7 +775,7 @@ private:
             Schema_,
             ColumnFilter_,
             std::move(ChunkFragmentReader_),
-            /*dictionaryCompressionFactory*/ nullptr,
+            std::move(DictionaryCompressionFactory_),
             std::move(ChunkReadOptions_),
             std::move(rows));
     }
@@ -785,7 +787,7 @@ private:
 
         return DecodeHunksInVersionedRows(
             std::move(ChunkFragmentReader_),
-            /*dictionaryCompressionFactory*/ nullptr,
+            std::move(DictionaryCompressionFactory_),
             std::move(ChunkReadOptions_),
             std::move(rows));
     }

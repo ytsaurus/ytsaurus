@@ -273,6 +273,7 @@ struct TTabletSnapshot
     ITabletHedgingManagerRegistryPtr HedgingManagerRegistry;
 
     TCompressionDictionaryInfos CompressionDictionaryInfos;
+    NTableClient::IDictionaryCompressionFactoryPtr DictionaryCompressionFactory;
 
     TString TabletCellBundle;
 

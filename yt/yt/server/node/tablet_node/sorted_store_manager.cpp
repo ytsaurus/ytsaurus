@@ -730,7 +730,16 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                 blockCache),
             tabletSnapshot->PhysicalSchema,
             hunkChunkPayloadWriter,
-            hunkChunkWriterStatistics);
+            hunkChunkWriterStatistics,
+            tabletSnapshot->DictionaryCompressionFactory,
+            TClientChunkReadOptions{
+                // TODO(akozhikhov): Populate with memory tracker?
+                .WorkloadDescriptor = workloadDescriptor,
+                .ReadSessionId = TReadSessionId::Create(),
+                .HunkChunkReaderStatistics = CreateHunkChunkReaderStatistics(
+                    tabletSnapshot->Settings.MountConfig->EnableHunkColumnarProfiling,
+                    tabletSnapshot->PhysicalSchema),
+            });
 
         auto updateProfilerGuard = Finally([&] {
             writerProfiler->Update(storeWriter);

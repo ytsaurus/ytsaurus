@@ -269,8 +269,14 @@ class DynamicTablesBase(YTEnvSetup):
         wait(check)
 
     def _get_store_chunk_ids(self, path):
-        chunk_ids = get(path + "/@chunk_ids")
-        return [chunk_id for chunk_id in chunk_ids if get("#{}/@chunk_type".format(chunk_id)) == "table"]
+        for _ in range(5):
+            try:
+                chunk_ids = get(path + "/@chunk_ids")
+                return [chunk_id for chunk_id in chunk_ids if get("#{}/@chunk_type".format(chunk_id)) == "table"]
+            except YtError as err:
+                if not err.is_resolve_error():
+                    raise
+        raise RuntimeError("Method get_store_chunk_ids failed")
 
     def _get_hunk_chunk_ids(self, path):
         for _ in range(5):
@@ -280,7 +286,7 @@ class DynamicTablesBase(YTEnvSetup):
             except YtError as err:
                 if not err.is_resolve_error():
                     raise
-        raise RuntimeError
+        raise RuntimeError("Method get_hunk_chunk_ids failed")
 
     def _get_delta_profiling_wrapper(self, profiling_path, counters, table, user=None):
         self_ = self
