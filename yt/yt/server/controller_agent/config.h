@@ -10,6 +10,8 @@
 
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
 
+#include <yt/yt/ytlib/scheduler/config.h>
+
 #include <yt/yt/ytlib/chunk_client/config.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -1163,6 +1165,9 @@ public:
 
     //! Enables job profiling.
     bool EnableJobProfiling;
+
+    std::optional<TString> CudaProfilerLayerPath;
+    NScheduler::TCudaProfilerEnvironmentPtr CudaProfilerEnvironment;
 
     int MaxRunningJobStatisticsUpdateCountPerHeartbeat;
     TDuration RunningAllocationTimeStatisticsUpdatesSendPeriod;

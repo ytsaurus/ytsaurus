@@ -1362,6 +1362,15 @@ class TestJobProfiling(YTEnvSetup):
         }
     }
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "cuda_profiler_environment": {
+                "path_environment_variable_name": "CUDA_INJECTION64_PATH",
+                "path_environment_variable_value": "/opt/some/path",
+            }
+        }
+    }
+
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "enable_job_reporter": True,
@@ -1454,9 +1463,11 @@ class TestJobProfiling(YTEnvSetup):
         create("table", input_table)
         create("table", output_table)
         write_table(input_table, [{"foo": "{}".format(i)} for i in range(5000)])
-
         mapper_command = """
             cat;
+            if [[ "$CUDA_INJECTION64_PATH" != "/opt/some/path" ]];
+            then exit 0;
+            fi
             if [[ "$YT_JOB_PROFILER_SPEC" == *"cuda"* ]];
             then printf 'profile_cuda' > $YT_CUDA_PROFILER_PATH
             fi
