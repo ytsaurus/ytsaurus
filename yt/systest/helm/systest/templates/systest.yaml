@@ -7,6 +7,7 @@ spec:
   containers:
   - name: ytentry
     image: {{ .Values.SystestImagePath }}
+    imagePullPolicy: Always
     env:
     - name: YT_CONFIG_PATCHES
       value: '{proxy={enable_proxy_discovery=%false}}'
