@@ -173,7 +173,7 @@ class RetryingTableWriterBaseImpl<T> {
                                         .setPath(path)
                                         .setType(CypressNodeType.TABLE)
                                         .setAttributes(attributes)
-                                        .setForce(true)
+                                        .setIgnoreExisting(true)
                                         .build());
                     } else {
                         createNodeFuture = CompletableFuture.completedFuture(transaction);
