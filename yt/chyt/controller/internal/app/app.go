@@ -172,6 +172,8 @@ func (app *App) Run(stopCh <-chan struct{}) {
 	if app.HTTPMonitoringServer != nil {
 		go app.HTTPMonitoringServer.Run()
 	}
+
+L:
 	for {
 		app.l.Debug("trying to acquire lock")
 		lost, err := app.acquireLock()
@@ -204,8 +206,10 @@ func (app *App) Run(stopCh <-chan struct{}) {
 			}
 		}
 
-		if _, ok := <-stopCh; !ok {
-			break
+		select {
+		case <-stopCh:
+			break L
+		default:
 		}
 	}
 
