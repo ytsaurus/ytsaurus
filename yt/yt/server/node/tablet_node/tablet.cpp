@@ -1036,7 +1036,7 @@ void TTablet::Load(TLoadContext& context)
         Load(context, CompressionDictionaryInfos_);
         for (auto policy : TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()) {
             auto chunkId = CompressionDictionaryInfos_[policy].ChunkId;
-            if (chunkId == NullChunkId) {
+            if (!chunkId) {
                 continue;
             }
             auto dictionaryHunkChunk = GetHunkChunk(chunkId);
@@ -1240,7 +1240,7 @@ void TTablet::OnAfterSnapshotLoaded()
 
     for (auto& dictionaryInfo : CompressionDictionaryInfos_) {
         auto chunkId = dictionaryInfo.ChunkId;
-        if (chunkId == NullChunkId) {
+        if (!chunkId) {
             continue;
         }
         auto dictionaryHunkChunk = GetHunkChunk(chunkId);
@@ -1634,14 +1634,14 @@ void TTablet::AttachCompressionDictionary(
     auto oldDictionaryId = CompressionDictionaryInfos_[policy].ChunkId;
     CompressionDictionaryInfos_[policy].ChunkId = chunkId;
 
-    if (oldDictionaryId != NullChunkId) {
+    if (oldDictionaryId) {
         auto oldDictionaryHunkChunk = GetHunkChunk(oldDictionaryId);
         YT_VERIFY(oldDictionaryHunkChunk->GetAttachedCompressionDictionary());
         oldDictionaryHunkChunk->SetAttachedCompressionDictionary(false);
         UpdateDanglingHunkChunks(oldDictionaryHunkChunk);
     }
 
-    if (chunkId != NullChunkId) {
+    if (chunkId) {
         auto dictionaryHunkChunk = GetHunkChunk(chunkId);
         YT_VERIFY(!dictionaryHunkChunk->GetAttachedCompressionDictionary());
         dictionaryHunkChunk->SetAttachedCompressionDictionary(true);
@@ -2073,7 +2073,7 @@ void TTablet::ReconfigureCompressionDictionaries()
 {
     if (Settings_.MountConfig->ValueDictionaryCompression->Enable) {
         for (auto policy : TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()) {
-            if (CompressionDictionaryInfos_[policy].ChunkId != NullChunkId &&
+            if (CompressionDictionaryInfos_[policy].ChunkId &&
                 !Settings_.MountConfig->ValueDictionaryCompression->AppliedPolicies.contains(policy))
             {
                 AttachCompressionDictionary(policy, NullChunkId);

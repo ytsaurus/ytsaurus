@@ -56,7 +56,7 @@ public:
         }
 
         if (force ||
-            NYT::TXorFilter::ComputeByteSize(ssize(Keys_), Config_->EffectiveBitsPerKey) > Config_->BlockSize)
+            TXorFilter::ComputeByteSize(ssize(Keys_), Config_->EffectiveBitsPerKey) > Config_->BlockSize)
         {
             DoFlushBlock(lastKey);
         }
