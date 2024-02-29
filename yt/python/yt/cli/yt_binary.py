@@ -91,7 +91,7 @@ Other commands:
     show-spec, execute, execute-batch, sky-share, show-default-config, transfer-account-resources, transfer-pool-resources,
     generate-timestamp
 Subtools:
-    chyt, spyt, jupyt, idm
+    chyt, spyt, jupyt, idm, flow
 '''
 
 EPILOG = '''Examples:
@@ -675,16 +675,20 @@ def add_create_pool_parser(add_parser):
     add_structured_argument(parser, "--attributes")
 
 
-@copy_docstring_from(yt.get)
-def get(**kwargs):
-    result = yt.get(**kwargs)
-    if kwargs["format"] is None:
-        result = dump_data(result)
-    print_to_output(result)
+def get_helper(yt_method):
+
+    @copy_docstring_from(yt_method)
+    def inner(**kwargs):
+        result = yt_method(**kwargs)
+        if kwargs["format"] is None:
+            result = dump_data(result)
+        print_to_output(result)
+
+    return inner
 
 
 def add_get_parser(add_parser):
-    parser = add_parser("get", get)
+    parser = add_parser("get", get_helper(yt.get))
     add_ypath_argument(parser, "path", hybrid=True)
     parser.add_argument("--max-size", type=int,
                         help=("maximum size of entries returned by get; "
@@ -699,22 +703,26 @@ def add_get_parser(add_parser):
     add_read_from_arguments(parser)
 
 
-@copy_docstring_from(yt.set)
-def set(**kwargs):
-    if kwargs["value"] is None:
-        value = get_binary_std_stream(sys.stdin).read()
-    else:
-        value = kwargs["value"]
-        if PY3:
-            value = value.encode("utf-8")
-    if kwargs["format"] is None:
-        value = parse_arguments(value)
-    kwargs["value"] = value
-    yt.set(**kwargs)
+def set_helper(yt_method):
+
+    @copy_docstring_from(yt_method)
+    def inner(**kwargs):
+        if kwargs["value"] is None:
+            value = get_binary_std_stream(sys.stdin).read()
+        else:
+            value = kwargs["value"]
+            if PY3:
+                value = value.encode("utf-8")
+        if kwargs["format"] is None:
+            value = parse_arguments(value)
+        kwargs["value"] = value
+        yt_method(**kwargs)
+
+    return inner
 
 
 def add_set_parser(add_parser):
-    parser = add_parser("set", set)
+    parser = add_parser("set", set_helper(yt.set))
     add_ypath_argument(parser, "path", hybrid=True)
     add_structured_format_argument(parser, default=YT_STRUCTURED_DATA_FORMAT)
     parser.add_argument("-r", "--recursive", action="store_true")
@@ -2351,6 +2359,107 @@ def add_find_spark_cluster_parser(add_parser):
                                                  "SPARK_YT_DISCOVERY_PATH env variable is used by default")
 
 
+def add_flow_parser(root_subparsers):
+    parser = populate_argument_help(root_subparsers.add_parser(
+        "flow", description="YT Flow commands"))
+
+    flow_subparsers = parser.add_subparsers(metavar="flow_command", **SUBPARSER_KWARGS)
+
+    add_flow_subparser = add_subparser(flow_subparsers, params_argument=False)
+
+    add_flow_start_pipeline_parser(add_flow_subparser)
+    add_flow_stop_pipeline_parser(add_flow_subparser)
+    add_flow_pause_pipeline_parser(add_flow_subparser)
+    add_flow_get_pipeline_spec_parser(add_flow_subparser)
+    add_flow_set_pipeline_spec_parser(add_flow_subparser)
+    add_flow_remove_pipeline_spec_parser(add_flow_subparser)
+    add_flow_get_pipeline_dynamic_spec_parser(add_flow_subparser)
+    add_flow_set_pipeline_dynamic_spec_parser(add_flow_subparser)
+    add_flow_remove_pipeline_dynamic_spec_parser(add_flow_subparser)
+
+
+def add_flow_start_pipeline_parser(add_parser):
+    parser = add_parser("start-pipeline", yt.start_pipeline,
+                        help="Start YT Flow pipeline")
+    add_ypath_argument(parser, "pipeline_path", hybrid=True)
+
+
+def add_flow_stop_pipeline_parser(add_parser):
+    parser = add_parser("stop-pipeline", yt.stop_pipeline,
+                        help="Stop YT Flow pipeline")
+    add_ypath_argument(parser, "pipeline_path", hybrid=True)
+
+
+def add_flow_pause_pipeline_parser(add_parser):
+    parser = add_parser("pause-pipeline", yt.pause_pipeline,
+                        help="Pause YT Flow pipeline")
+    add_ypath_argument(parser, "pipeline_path", hybrid=True)
+
+
+def add_flow_get_pipeline_spec_parser(add_parser):
+    parser = add_parser("get-pipeline-spec", get_helper(yt.get_pipeline_spec),
+                        help="Get YT Flow pipeline spec")
+    add_ypath_argument(parser, "pipeline_path", hybrid=True)
+    add_structured_format_argument(parser, default=output_format)
+    parser.add_argument("--spec-path", help="Path to part of the spec")
+
+
+def add_flow_set_pipeline_spec_parser(add_parser):
+    parser = add_parser("set-pipeline-spec", set_helper(yt.set_pipeline_spec),
+                        help="Set YT Flow pipeline spec")
+    add_ypath_argument(parser, "pipeline_path", hybrid=True)
+    add_structured_format_argument(parser, default=YT_STRUCTURED_DATA_FORMAT)
+    parser.add_argument("--expected-version", type=int,
+                        help="Pipeline spec expected version")
+    parser.add_argument("--force", action="store_true",
+                        help="Set spec even if pipeline is paused")
+    parser.add_argument("--spec-path", help="Path to part of the spec")
+    add_hybrid_argument(parser, "value", group_required=False,
+                        help="new spec attribute value")
+
+
+def add_flow_remove_pipeline_spec_parser(add_parser):
+    parser = add_parser("remove-pipeline-spec", yt.remove_pipeline_spec,
+                        help="Remove YT Flow pipeline spec")
+    add_ypath_argument(parser, "pipeline_path", hybrid=True)
+    add_structured_format_argument(parser, default=output_format)
+    parser.add_argument("--expected-version", type=int,
+                        help="Pipeline spec expected version")
+    parser.add_argument("--force", action="store_true",
+                        help="Remove spec even if pipeline is paused")
+    parser.add_argument("--spec-path", help="Path to part of the spec")
+
+
+def add_flow_get_pipeline_dynamic_spec_parser(add_parser):
+    parser = add_parser("get-pipeline-dynamic-spec", get_helper(yt.get_pipeline_dynamic_spec),
+                        help="Get YT Flow pipeline dynamic spec")
+    add_ypath_argument(parser, "pipeline_path", hybrid=True)
+    add_structured_format_argument(parser, default=output_format)
+    parser.add_argument("--spec-path", help="Path to part of the spec")
+
+
+def add_flow_set_pipeline_dynamic_spec_parser(add_parser):
+    parser = add_parser("set-pipeline-dynamic-spec", set_helper(yt.set_pipeline_dynamic_spec),
+                        help="Set YT Flow pipeline dynamic spec")
+    add_ypath_argument(parser, "pipeline_path", hybrid=True)
+    add_structured_format_argument(parser, default=YT_STRUCTURED_DATA_FORMAT)
+    parser.add_argument("--expected-version", type=int,
+                        help="Pipeline spec expected version")
+    parser.add_argument("--spec-path", help="Path to part of the spec")
+    add_hybrid_argument(parser, "spec", group_required=False,
+                        help="new spec attribute value")
+
+
+def add_flow_remove_pipeline_dynamic_spec_parser(add_parser):
+    parser = add_parser("remove-pipeline-dynamic-spec", yt.remove_pipeline_dynamic_spec,
+                        help="Remove YT Flow pipeline dynamic spec")
+    add_ypath_argument(parser, "pipeline_path", hybrid=True)
+    add_structured_format_argument(parser, default=output_format)
+    parser.add_argument("--expected-version", type=int,
+                        help="Pipeline spec expected version")
+    parser.add_argument("--spec-path", help="Path to part of the spec")
+
+
 @copy_docstring_from(yt.run_command_with_lock)
 def run_command_with_lock_handler(**kwargs):
     kwargs["popen_kwargs"] = dict(
@@ -2574,6 +2683,7 @@ def main_func():
     add_chyt_parser(subparsers)
     add_jupyt_parser(subparsers)
     add_spark_parser(subparsers)
+    add_flow_parser(subparsers)
 
     if HAS_IDM_CLI_HELPERS:
         add_idm_parser(subparsers)

@@ -991,6 +991,38 @@ class YtClient(ClientState):
             operation,
             client=self)
 
+    def get_pipeline_dynamic_spec(
+            self,
+            pipeline_path,
+            spec_path=None, format=None):
+        """
+        Get YT Flow pipeline dynamic spec.
+
+        :param pipeline_path: path to pipeline.
+        :param spec_path: path to part of the spec.
+
+        """
+        return client_api.get_pipeline_dynamic_spec(
+            pipeline_path,
+            client=self,
+            spec_path=spec_path, format=format)
+
+    def get_pipeline_spec(
+            self,
+            pipeline_path,
+            spec_path=None, format=None):
+        """
+        Get YT Flow pipeline spec.
+
+        :param pipeline_path: path to pipeline.
+        :param spec_path: path to part of the spec.
+
+        """
+        return client_api.get_pipeline_spec(
+            pipeline_path,
+            client=self,
+            spec_path=spec_path, format=format)
+
     def get_query(
             self,
             query_id,
@@ -1534,6 +1566,19 @@ class YtClient(ClientState):
             partition_mode=partition_mode, data_weight_per_partition=data_weight_per_partition, max_partition_count=max_partition_count,
             enable_key_guarantee=enable_key_guarantee, adjust_data_weight_per_partition=adjust_data_weight_per_partition)
 
+    def pause_pipeline(
+            self,
+            pipeline_path):
+        """
+        Pause YT Flow pipeline.
+
+        :param pipeline_path: path to pipeline.
+
+        """
+        return client_api.pause_pipeline(
+            pipeline_path,
+            client=self)
+
     def ping_transaction(
             self,
             transaction,
@@ -1852,6 +1897,41 @@ class YtClient(ClientState):
         return client_api.remove_member(
             member, group,
             client=self)
+
+    def remove_pipeline_dynamic_spec(
+            self,
+            pipeline_path,
+            spec_path=None, expected_version=None):
+        """
+        Remove YT Flow pipeline dynamic spec.
+
+        :param pipeline_path: path to pipeline.
+        :param spec_path: path to part of the spec.
+        :param expected_version: current dynamic spec expected version.
+
+        """
+        return client_api.remove_pipeline_dynamic_spec(
+            pipeline_path,
+            client=self,
+            spec_path=spec_path, expected_version=expected_version)
+
+    def remove_pipeline_spec(
+            self,
+            pipeline_path,
+            spec_path=None, expected_version=None, force=None):
+        """
+        Remove YT Flow pipeline spec.
+
+        :param pipeline_path: path to pipeline.
+        :param spec_path: path to part of the spec.
+        :param expected_version: current spec expected version.
+        :param force: if true, remove spec even if pipeline is paused.
+
+        """
+        return client_api.remove_pipeline_spec(
+            pipeline_path,
+            client=self,
+            spec_path=spec_path, expected_version=expected_version, force=force)
 
     def reshard_table(
             self,
@@ -2387,6 +2467,43 @@ class YtClient(ClientState):
             path, attribute, value,
             client=self)
 
+    def set_pipeline_dynamic_spec(
+            self,
+            pipeline_path, value,
+            format=None, spec_path=None, expected_version=None):
+        """
+        Set YT Flow pipeline dynamic spec.
+
+        :param pipeline_path: path to pipeline.
+        :param spec: new pipeline spec.
+        :param spec_path: path to part of the spec.
+        :param expected_version: current dynamic spec expected version.
+
+        """
+        return client_api.set_pipeline_dynamic_spec(
+            pipeline_path, value,
+            client=self,
+            format=format, spec_path=spec_path, expected_version=expected_version)
+
+    def set_pipeline_spec(
+            self,
+            pipeline_path, value,
+            format=None, spec_path=None, expected_version=None, force=None):
+        """
+        Set YT Flow pipeline spec.
+
+        :param pipeline_path: path to pipeline.
+        :param spec: new pipeline spec.
+        :param spec_path: path to part of the spec.
+        :param expected_version: current spec expected version.
+        :param force: if true, update spec even if pipeline is paused.
+
+        """
+        return client_api.set_pipeline_spec(
+            pipeline_path, value,
+            client=self,
+            format=format, spec_path=spec_path, expected_version=expected_version, force=force)
+
     def set_user_password(
             self,
             user, new_password,
@@ -2454,6 +2571,19 @@ class YtClient(ClientState):
             client=self,
             destination=destination, yt_filename=yt_filename, placement_strategy=placement_strategy,
             ignore_set_attributes_error=ignore_set_attributes_error, hash=hash)
+
+    def start_pipeline(
+            self,
+            pipeline_path):
+        """
+        Start YT Flow pipeline.
+
+        :param pipeline_path: path to pipeline.
+
+        """
+        return client_api.start_pipeline(
+            pipeline_path,
+            client=self)
 
     def start_query(
             self,
@@ -2537,6 +2667,19 @@ class YtClient(ClientState):
             client=self,
             parent_transaction=parent_transaction, timeout=timeout, deadline=deadline, attributes=attributes,
             type=type, sticky=sticky, prerequisite_transaction_ids=prerequisite_transaction_ids)
+
+    def stop_pipeline(
+            self,
+            pipeline_path):
+        """
+        Stop YT Flow pipeline.
+
+        :param pipeline_path: path to pipeline.
+
+        """
+        return client_api.stop_pipeline(
+            pipeline_path,
+            client=self)
 
     def suspend_operation(
             self,

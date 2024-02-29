@@ -8,6 +8,9 @@ from .table_commands import (  # noqa
     write_table_structured, read_table_structured, partition_tables, dump_parquet)
 from .download_core_dump import download_core_dump  # noqa
 from .dynamic_table_commands import select_rows, insert_rows, delete_rows, lookup_rows, lock_rows, explain_query  # noqa
+from .flow_commands import (  # noqa
+    start_pipeline, stop_pipeline, pause_pipeline, get_pipeline_spec, set_pipeline_spec, remove_pipeline_spec,
+    get_pipeline_dynamic_spec, set_pipeline_dynamic_spec, remove_pipeline_dynamic_spec)
 from .queue_commands import (  # noqa
     register_queue_consumer, unregister_queue_consumer, list_queue_consumer_registrations, pull_queue, pull_consumer,
     advance_consumer)
