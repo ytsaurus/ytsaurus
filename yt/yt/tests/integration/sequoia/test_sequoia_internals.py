@@ -159,6 +159,17 @@ class TestSequoiaInternals(YTEnvSetup):
                 {'path': '//tmp/strings/s1/'},
                 {'path': '//tmp/strings/s2/'},
             ]
+
+            # Let's do it twice for good measure.
+            copy("//tmp/strings", "//tmp/other_other")
+            assert select_rows_from_ground(f"path from [{DESCRIPTORS.path_to_node_id.get_default_path()}]") == COMMON_ROWS + [
+                {'path': '//tmp/other_other/'},
+                {'path': '//tmp/other_other/s1/'},
+                {'path': '//tmp/other_other/s2/'},
+                {'path': '//tmp/strings/'},
+                {'path': '//tmp/strings/s1/'},
+                {'path': '//tmp/strings/s2/'},
+            ]
         else:
             move("//tmp/strings", "//tmp/other")
             assert select_rows_from_ground(f"path from [{DESCRIPTORS.path_to_node_id.get_default_path()}]") == COMMON_ROWS
