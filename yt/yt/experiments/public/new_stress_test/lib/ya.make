@@ -3,6 +3,7 @@ PY3_LIBRARY()
 PEERDIR(
     yt/python/yt
     yt/python/yt/wrapper
+    yt/yt/library/query/stresstests/lib
     yt/yt/python/yt_yson_bindings
     yt/python/client_with_rpc
     contrib/python/numpy
@@ -17,6 +18,7 @@ PY_SRCS(
     __init__.py
     aggregate.py
     create_data.py
+    group_by.py
     helpers.py
     job_base.py
     logger.py

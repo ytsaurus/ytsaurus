@@ -190,6 +190,8 @@ class Column():
             return lhs
         else:
             return self.type.aggregate(self.aggregate, lhs, rhs)
+    def __repr__(self):
+        return "Column" + str(self.yson())
 
 class Schema():
     def __init__(self, sorted, spec):
@@ -280,6 +282,8 @@ class Schema():
         return self.key_columns
     def get_data_columns(self):
         return self.data_columns
+    def get_columns(self):
+        return self.columns
 
     def create_pivot_keys(self, tablet_count):
         self.pivot_keys = self._generate_pivot_keys(tablet_count)

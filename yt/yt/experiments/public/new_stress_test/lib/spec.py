@@ -251,6 +251,7 @@ spec_template = {
         "skip_verify": False,
         "skip_lookup": False,
         "skip_select": False,
+        "skip_group_by": True,
         "ignore_failed_mr": False,
     },
 

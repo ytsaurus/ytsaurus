@@ -254,6 +254,7 @@ def parse_args():
         builder.add_argument("skip_verify", action="store_true")
         builder.add_argument("skip_lookup", action="store_true")
         builder.add_argument("skip_select", action="store_true")
+        builder.add_argument("skip_group_by", action="store_true")
         builder.add_argument("ignore_failed_mr", action="store_true")
 
     # Leftovers from the previous incarnation.
