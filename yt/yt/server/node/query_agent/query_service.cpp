@@ -954,8 +954,8 @@ private:
 
                 // NB: Dynamic store reader is non-blocking in the sense of ready event.
                 // However, waiting on blocked row may occur. See YT-12492.
-                auto batch = reader->Read(options);
-                if (!batch || batch->IsEmpty()) {
+                auto batch = ReadRowBatch(reader, options);
+                if (!batch) {
                     return TSharedRef{};
                 }
                 rowCount += batch->GetRowCount();
@@ -1028,7 +1028,7 @@ private:
                     sessionDataWeight += dataWeight;
                 });
 
-                auto batch = reader->Read(readOptions);
+                auto batch = ReadRowBatch(reader, readOptions);
                 if (!batch) {
                     return TSharedRef{};
                 }
