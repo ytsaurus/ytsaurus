@@ -3,7 +3,6 @@ GO_LIBRARY()
 LICENSE(BSD-3-Clause)
 
 SRCS(
-    bits_go1.13.go
     poly1305.go
     sum_generic.go
 )
