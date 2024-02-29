@@ -19,6 +19,10 @@ import yt.wrapper as yt
 import random
 import copy
 
+
+MAX_KEY_COLUMN_NUMBER = 64
+
+
 class Registry(object):
     def __init__(self, base):
         self.base = base
@@ -287,7 +291,8 @@ def test_sorted_tables(base_path, spec, attributes, force):
 
         if spec.alter:
             unmount_table(registry.base)
-            schema.add_key_column()
+            if len(schema.get_key_columns()) < MAX_KEY_COLUMN_NUMBER:
+                schema.add_key_column()
             logger.info("Altering table")
             yt.alter_table(registry.base, schema=schema.yson())
             yt.alter_table(registry.data, schema=schema.yson_with_unique())
