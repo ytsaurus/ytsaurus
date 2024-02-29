@@ -237,6 +237,7 @@ DEFINE_ENUM(EMasterReign,
     ((CheckChunkCountPerTabletBeforeMount)                          (2534))  // alexelexa
     ((ErasureHunkStorage_24_1)                                      (2535))  // akozhikhov
     ((TabletCellsHydraPersistenceMigration)                         (2536))  // danilalexeev
+    ((ErasureHunkCodecInDoCopy)                                     (2537))  // akozhikhov
     // 24.2 starts here.
 );
 

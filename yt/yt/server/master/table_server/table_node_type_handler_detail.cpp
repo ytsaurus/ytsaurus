@@ -516,6 +516,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     if (auto optionalChunkFormat = sourceNode->TryGetChunkFormat()) {
         clonedTrunkNode->SetChunkFormat(*optionalChunkFormat);
     }
+    clonedTrunkNode->SetHunkErasureCodec(sourceNode->GetHunkErasureCodec());
 
     auto* trunkSourceNode = sourceNode->GetTrunkNode();
     if (trunkSourceNode->HasCustomDynamicTableAttributes()) {
