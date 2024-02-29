@@ -11,6 +11,7 @@
 
 #include <yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/node_tracker_client/node_status_directory.h>
@@ -180,6 +181,9 @@ public:
         , SuccessfulProbingRequestCounter_(profiler.Counter("/successful_probing_request_count"))
         , FailedProbingRequestCounter_(profiler.Counter("/failed_probing_request_count"))
     {
+        // NB: Ensure that it is started so medium priorities could be accounted.
+        Client_->GetNativeConnection()->GetMediumDirectorySynchronizer()->Start();
+
         SchedulePeriodicProbing();
     }
 
