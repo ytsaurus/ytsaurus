@@ -2638,7 +2638,7 @@ private:
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
             transactionManager->SetTransactionTimeout(transaction, timeout);
 
-            if (node->IsPendingRestart()) {
+            if (node->IsPendingRestart() && IsLeader()) {
                 const auto& invoker = Bootstrap_->GetHydraFacade()->GetTransactionTrackerInvoker();
                 invoker->Invoke(BIND([=] {
                     try {
@@ -2657,12 +2657,15 @@ private:
 
         if (auto transaction = node->GetLeaseTransaction()) {
             if (auto timeout = transaction->GetTimeout()) {
-                YT_VERIFY(node->IsPendingRestart() ||
-                    node->GetLastSeenLeaseTransactionTimeout());
+                // COPMAT(danilalexeev)
+                const auto& config = Bootstrap_->GetConfig()->NodeTracker;
+                auto defaultTimeout = node->IsDataNode()
+                    ? config->DefaultDataNodeLeaseTransactionTimeout
+                    : config->DefaultNodeTransactionTimeout;
 
                 auto newTimeout = node->IsPendingRestart()
                     ? GetDynamicConfig()->PendingRestartLeaseTimeout
-                    : *node->GetLastSeenLeaseTransactionTimeout();
+                    : node->GetLastSeenLeaseTransactionTimeout().value_or(defaultTimeout);
 
                 node->SetLastSeenLeaseTransactionTimeout(timeout);
 
