@@ -187,7 +187,7 @@ void ToProto(NTableClient::NProto::THunkChunkRef* protoRef, const THunkChunkRef&
     }
     protoRef->set_hunk_count(ref.HunkCount);
     protoRef->set_total_hunk_length(ref.TotalHunkLength);
-    if (ref.CompressionDictionaryId != NullChunkId) {
+    if (ref.CompressionDictionaryId) {
         ToProto(protoRef->mutable_compression_dictionary_id(), ref.CompressionDictionaryId);
     }
 }
@@ -198,9 +198,7 @@ void FromProto(THunkChunkRef* ref, const NTableClient::NProto::THunkChunkRef& pr
     ref->ErasureCodec = FromProto<NErasure::ECodec>(protoRef.erasure_codec());
     ref->HunkCount = protoRef.hunk_count();
     ref->TotalHunkLength = protoRef.total_hunk_length();
-    if (protoRef.has_compression_dictionary_id()) {
-        ref->CompressionDictionaryId = FromProto<TChunkId>(protoRef.compression_dictionary_id());
-    }
+    ref->CompressionDictionaryId = FromProto<TChunkId>(protoRef.compression_dictionary_id());
 }
 
 void Serialize(const THunkChunkRef& ref, IYsonConsumer* consumer)
@@ -225,7 +223,7 @@ void FormatValue(TStringBuilderBase* builder, const THunkChunkRef& ref, TStringB
         builder->AppendFormat("ErasureCodec: %v, ",
             ref.ErasureCodec);
     }
-    if (ref.CompressionDictionaryId != NullChunkId) {
+    if (ref.CompressionDictionaryId) {
         builder->AppendFormat("CompressionDictionaryId: %v, ",
             ref.CompressionDictionaryId);
     }
@@ -381,7 +379,7 @@ THunkValue ReadHunkValue(TRef input)
             ui32 blockIndex;
             ui64 blockOffset;
             ui64 blockSize = 0;
-            TChunkId compressionDictionaryId = NullChunkId;
+            TChunkId compressionDictionaryId;
             ReadPod(currentPtr, chunkId);
             bool isErasure = IsErasureChunkId(chunkId);
             if (isErasure) {
@@ -447,7 +445,7 @@ void DoGlobalizeHunkValue(
     Visit(
         ReadHunkValue(TRef(value->Data.String, value->Length)),
         [&] (const TInlineHunkValue& inlineHunkValue) {
-            if (compressionDictionaryId != NullChunkId) {
+            if (compressionDictionaryId) {
                 TCompressedInlineRefHunkValue compressedInlineRefHunkValue{
                     .CompressionDictionaryId = compressionDictionaryId,
                     .Payload = inlineHunkValue.Payload,
@@ -503,9 +501,7 @@ void GlobalizeHunkValues(
 
     const auto& hunkChunkRefsExt = chunkMeta->HunkChunkRefsExt();
     const auto& hunkChunkMetasExt = chunkMeta->HunkChunkMetasExt();
-    auto compressionDictionaryId = chunkMeta->Misc().has_compression_dictionary_id()
-        ? FromProto<TChunkId>(chunkMeta->Misc().compression_dictionary_id())
-        : NullChunkId;
+    auto compressionDictionaryId = FromProto<TChunkId>(chunkMeta->Misc().compression_dictionary_id());
 
     for (auto& value : row.Values()) {
         if (None(value.Flags & EValueFlags::Hunk)) {
@@ -548,9 +544,7 @@ void GlobalizeHunkValuesAndSetHunkFlag(
 
     const auto& hunkChunkRefsExt = chunkMeta->HunkChunkRefsExt();
     const auto& hunkChunkMetasExt = chunkMeta->HunkChunkMetasExt();
-    auto compressionDictionaryId = chunkMeta->Misc().has_compression_dictionary_id()
-        ? FromProto<TChunkId>(chunkMeta->Misc().compression_dictionary_id())
-        : NullChunkId;
+    auto compressionDictionaryId = FromProto<TChunkId>(chunkMeta->Misc().compression_dictionary_id());
 
     for (auto& value : row.Values()) {
         if (!columnHunkFlags[value.Id]) {
@@ -1056,7 +1050,7 @@ public:
             }
         }
 
-        TChunkId newDictionaryId = CompressionContext_
+        auto newDictionaryId = CompressionContext_
             ? CompressionContext_->Session->GetCompressionDictionaryId()
             : NullChunkId;
 
@@ -1070,7 +1064,7 @@ public:
                 .TotalHunkLength = TotalHunkLength_,
             };
 
-            if (newDictionaryId != NullChunkId) {
+            if (newDictionaryId) {
                 HunkChunkRefs_[*HunkChunkPayloadWriterChunkIndex_].CompressionDictionaryId = newDictionaryId;
             }
 
@@ -1078,12 +1072,12 @@ public:
         }
 
         std::vector<TChunkId> dictionaryIds;
-        if (newDictionaryId != NullChunkId) {
+        if (newDictionaryId) {
             // NB: This is for the case when all (compressed) values are inlined and there is no new hunk chunk.
             dictionaryIds.push_back(newDictionaryId);
         }
         for (const auto& ref : HunkChunkRefs_) {
-            if (ref.CompressionDictionaryId != NullChunkId) {
+            if (ref.CompressionDictionaryId) {
                 dictionaryIds.push_back(ref.CompressionDictionaryId);
             }
         }
@@ -1107,7 +1101,7 @@ public:
                 hunkChunkMetas = std::move(HunkChunkMetas_),
                 dictionaryIds = std::move(dictionaryIds)
             ] (TDeferredChunkMeta* meta) mutable {
-                if (newDictionaryId != NullChunkId) {
+                if (newDictionaryId) {
                     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
                     // NB: This value reflects compression dictionary id of inline hunk values.
                     ToProto(miscExt.mutable_compression_dictionary_id(), newDictionaryId);
@@ -1334,7 +1328,7 @@ private:
             blockSizes[blockIndex] = *globalRefHunkValue.BlockSize;
         }
 
-        if (ref.CompressionDictionaryId == NullChunkId) {
+        if (!ref.CompressionDictionaryId) {
             ref.CompressionDictionaryId = globalRefHunkValue.CompressionDictionaryId;
         }
         YT_VERIFY(ref.CompressionDictionaryId == globalRefHunkValue.CompressionDictionaryId);
@@ -1531,7 +1525,7 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
                 if (columnarStatisticsThunk) {
                     columnarStatisticsThunk->UpdateStatistics(value->Id, compressedInlineRefHunkValue);
                 }
-                YT_VERIFY(compressedInlineRefHunkValue.CompressionDictionaryId != NullChunkId);
+                YT_VERIFY(compressedInlineRefHunkValue.CompressionDictionaryId);
                 setValuePayload(value, compressedInlineRefHunkValue.Payload);
                 compressedValues.push_back(value);
                 compressionDictionaryIds.push_back(compressedInlineRefHunkValue.CompressionDictionaryId);
@@ -1554,7 +1548,7 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
                 });
                 requestedValues.push_back(value);
 
-                if (globalRefHunkValue.CompressionDictionaryId != NullChunkId) {
+                if (globalRefHunkValue.CompressionDictionaryId) {
                     compressedValues.push_back(value);
                     compressionDictionaryIds.push_back(globalRefHunkValue.CompressionDictionaryId);
                 }
@@ -2256,7 +2250,7 @@ public:
             ext.set_data_weight(DataWeight_);
             ext.set_uncompressed_data_size(DataSize_);
             ext.set_compressed_data_size(DataSize_);
-            if (CompressionDictionaryId_ != NullChunkId) {
+            if (CompressionDictionaryId_) {
                 ToProto(ext.mutable_compression_dictionary_id(), CompressionDictionaryId_);
             }
             SetProtoExtension(Meta_->mutable_extensions(), ext);
@@ -2347,7 +2341,7 @@ private:
     static constexpr auto BufferReserveFactor = 1.2;
     TBlob Buffer_{GetRefCountedTypeCookie<TBufferTag>()};
 
-    TChunkId CompressionDictionaryId_ = NullChunkId;
+    TChunkId CompressionDictionaryId_;
 
 
     char* BeginWriteToBuffer(i64 writeSize)

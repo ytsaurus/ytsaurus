@@ -333,10 +333,10 @@ private:
         auto newDecompressedValueCount = decompressedValueCount;
         while (newDecompressedValueCount < std::ssize(values)) {
             auto dictionaryId = dictionaryIds[newDecompressedValueCount];
-            YT_VERIFY(dictionaryId != NullChunkId);
+            YT_VERIFY(dictionaryId);
 
             auto* compressedValue = values[newDecompressedValueCount];
-            YT_ASSERT(IsStringLikeType(compressedValue->Type));
+            YT_VERIFY(IsStringLikeType(compressedValue->Type));
             YT_VERIFY(None(compressedValue->Flags & EValueFlags::Hunk));
 
             ++newDecompressedValueCount;
@@ -368,7 +368,7 @@ private:
         i64 currentUncompressedSize = 0;
         for (int valueIndex = decompressedValueCount; valueIndex < newDecompressedValueCount; ++valueIndex) {
             auto dictionaryId = dictionaryIds[valueIndex];
-            YT_VERIFY(dictionaryId != NullChunkId);
+            YT_VERIFY(dictionaryId);
 
             auto* compressedValue = values[valueIndex];
             TRef compressedValueRef(compressedValue->Data.String, compressedValue->Length);
@@ -629,7 +629,7 @@ public:
         std::vector<TFuture<TCompressionDictionaryCacheEntryPtr>> entryFutures;
         for (auto policy : TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()) {
             auto chunkId = tabletSnapshot->CompressionDictionaryInfos[policy].ChunkId;
-            if (chunkId == NullChunkId) {
+            if (!chunkId) {
                 continue;
             }
 
@@ -712,7 +712,7 @@ public:
         };
 
         for (auto chunkId : dictionaryIds) {
-            YT_VERIFY(chunkId != NullChunkId);
+            YT_VERIFY(chunkId);
 
             auto key = TCompressionDictionaryCacheKey{
                 .ChunkId = chunkId,

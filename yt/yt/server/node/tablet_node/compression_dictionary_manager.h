@@ -10,13 +10,13 @@ namespace NYT::NTabletNode {
 
 struct TColumnDictionaryCompressor
 {
-    NCompression::IDictionaryCompressorPtr Compressor = nullptr;
+    NCompression::IDictionaryCompressorPtr Compressor;
     i64 CompressedSamplesSize = 0;
 };
 
 struct TRowDictionaryCompressor
 {
-    NChunkClient::TChunkId DictionaryId = NChunkClient::NullChunkId;
+    NChunkClient::TChunkId DictionaryId;
     THashMap<int, TColumnDictionaryCompressor> ColumnCompressors;
 };
 

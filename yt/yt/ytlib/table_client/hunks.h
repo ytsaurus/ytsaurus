@@ -37,7 +37,7 @@ struct THunkChunkRef
     NErasure::ECodec ErasureCodec = NErasure::ECodec::None;
     i64 HunkCount = 0;
     i64 TotalHunkLength = 0;
-    NChunkClient::TChunkId CompressionDictionaryId = NChunkClient::NullChunkId;
+    NChunkClient::TChunkId CompressionDictionaryId;
 };
 
 void ToProto(NProto::THunkChunkRef* protoRef, const THunkChunkRef& ref);
@@ -271,7 +271,7 @@ struct TInlineHunkValue
 
 struct TCompressedInlineRefHunkValue
 {
-    NChunkClient::TChunkId CompressionDictionaryId = NChunkClient::NullChunkId;
+    NChunkClient::TChunkId CompressionDictionaryId;
     TRef Payload;
 };
 
@@ -291,7 +291,7 @@ struct TGlobalRefHunkValue
     i64 BlockOffset;
     std::optional<i64> BlockSize;
     i64 Length;
-    NChunkClient::TChunkId CompressionDictionaryId = NChunkClient::NullChunkId;
+    NChunkClient::TChunkId CompressionDictionaryId;
 };
 
 using THunkValue = std::variant<

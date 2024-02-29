@@ -101,7 +101,7 @@ private:
             } catch (const std::exception& ex) {
                 auto error = TError("Failed to scan hunk tablet")
                     << TErrorAttribute("tablet_id", Tablet_->GetId())
-                    << TError(ex);
+                    << ex;
                 YT_LOG_ERROR(error);
             }
         }
