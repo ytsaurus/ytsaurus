@@ -1597,11 +1597,11 @@ private:
         JobRegistered_.Fire(job);
 
         job->SubscribeJobPrepared(
-            BIND_NO_PROPAGATE(&TJobController::OnJobPrepared, MakeWeak(this), MakeWeak(job))
+            BIND_NO_PROPAGATE(&TJobController::OnJobPrepared, MakeWeak(this))
                 .Via(Bootstrap_->GetJobInvoker()));
 
         job->SubscribeJobFinished(
-            BIND_NO_PROPAGATE(&TJobController::OnJobFinished, MakeWeak(this), MakeWeak(job))
+            BIND_NO_PROPAGATE(&TJobController::OnJobFinished, MakeWeak(this))
                 .Via(Bootstrap_->GetJobInvoker()));
 
         job->GetCleanupFinishedEvent()
@@ -1927,14 +1927,9 @@ private:
         }
     }
 
-    void OnJobPrepared(const TWeakPtr<TJob>& weakJob)
+    void OnJobPrepared(const TJobPtr& job)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-
-        auto job = weakJob.Lock();
-        if (!job) {
-            return;
-        }
 
         YT_VERIFY(job->IsStarted());
 
@@ -1944,12 +1939,11 @@ private:
         CacheBypassedArtifactsSizeCounter_.Increment(chunkCacheStatistics.CacheBypassedArtifactsSize);
     }
 
-    void OnJobFinished(const TWeakPtr<TJob>& weakJob)
+    void OnJobFinished(const TJobPtr& job)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        auto job = weakJob.Lock();
-        if (!job || !job->IsStarted()) {
+        if (!job->IsStarted()) {
             return;
         }
 
