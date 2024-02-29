@@ -755,7 +755,7 @@ class UserJobSpecBuilder(object):
 
         if "command" not in spec and not requires_command:
             return None
-        require(self._spec.get("command") is not None, lambda: YtError("You should specify job command"))
+        require(spec.get("command") is not None, lambda: YtError("You should specify job command"))
 
         command = spec["command"]
 
