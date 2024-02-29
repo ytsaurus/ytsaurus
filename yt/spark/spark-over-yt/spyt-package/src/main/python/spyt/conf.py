@@ -24,25 +24,48 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
+class SpytVersion:
+    def __init__(self, version=None, major=0, minor=0, patch=0):
+        if version is not None:
+            self.major, self.minor, self.patch = map(int, version.split("-")[0].split("."))
+        else:
+            self.major, self.minor, self.patch = major, minor, patch
+
+    def get_minor(self):
+        return SpytVersion(major=self.major, minor=self.minor)
+
+    def __gt__(self, other):
+        return self.tuple() > other.tuple()
+
+    def __ge__(self, other):
+        return self.tuple() >= other.tuple()
+
+    def __eq__(self, other):
+        return self.tuple() == other.tuple()
+
+    def __lt__(self, other):
+        return self.tuple() < other.tuple()
+
+    def __le__(self, other):
+        return self.tuple() <= other.tuple()
+
+    def tuple(self):
+        return self.major, self.minor, self.patch
+
+    def __str__(self):
+        return f"{self.major}.{self.minor}.{self.patch}"
+
+
 def validate_cluster_version(spark_cluster_version, client=None):
     if not check_cluster_version_exists(spark_cluster_version, client=client):
         raise RuntimeError("Unknown SPYT cluster version: {}. Available release versions are: {}".format(
             spark_cluster_version, get_available_cluster_versions(client=client)
         ))
-    spyt_minor_version = _get_spyt_minor_version(SELF_VERSION)
-    spark_cluster_minor_version = _get_spark_cluster_minor_version(spark_cluster_version)
-    if spyt_minor_version < spark_cluster_minor_version:
+    spyt_minor_version = SpytVersion(SELF_VERSION).get_minor()
+    cluster_minor_version = SpytVersion(spark_cluster_version).get_minor()
+    if spyt_minor_version < cluster_minor_version:
         logger.warning("You required SPYT version {} which is older than your local ytsaurus-spyt version {}."
                        "Please update your local ytsaurus-spyt".format(spark_cluster_version, SELF_VERSION))
-
-
-def is_supported_cluster_minor_version(spark_cluster_version, required_version):
-    cluster_minor_version = _get_spark_cluster_minor_version(spark_cluster_version)
-    return get_version_tuple(cluster_minor_version) >= get_version_tuple(required_version)
-
-
-def get_version_tuple(version):
-    return list(map(int, version.split(".")))
 
 
 def validate_spyt_version(spyt_version, client=None):
@@ -57,8 +80,8 @@ def validate_spyt_version(spyt_version, client=None):
 
 
 def validate_versions_compatibility(spyt_version, spark_cluster_version):
-    spyt_minor_version = _get_spyt_minor_version(spyt_version)
-    spark_cluster_minor_version = _get_spark_cluster_minor_version(spark_cluster_version)
+    spyt_minor_version = SpytVersion(spyt_version).get_minor()
+    spark_cluster_minor_version = SpytVersion(spark_cluster_version).get_minor()
     if spyt_minor_version > spark_cluster_minor_version:
         logger.warning("Your SPYT library has version {} which is older than your cluster version {}. "
                        "Some new features may not work as expected. "
@@ -70,16 +93,13 @@ def validate_mtn_config(enablers, network_project, tvm_id, tvm_secret):
         raise RuntimeError("When using MTN, network_project arg must be set.")
 
 
-def latest_compatible_spyt_version(spark_cluster_version, client=None):
-    spark_cluster_minor_version = _get_spark_cluster_minor_version(spark_cluster_version)
+def latest_compatible_spyt_version(version, client=None):
+    minor_version = SpytVersion(version).get_minor()
     spyt_versions = get_available_spyt_versions(client)
-    compatible_spyt_versions = [x for x in spyt_versions if _get_spyt_minor_version(x) <= spark_cluster_minor_version]
-    return max(compatible_spyt_versions)
-
-
-def latest_spyt_version(global_conf):
-    # COMPAT(atokarew): latest_spark_cluster_version is deprecated and is left for compatibility with old clusters
-    return global_conf["latest_spyt_version"] if "latest_spyt_version" in global_conf else global_conf["latest_spark_cluster_version"]
+    compatible_spyt_versions = [x for x in spyt_versions if SpytVersion(x).get_minor() == minor_version]
+    if not compatible_spyt_versions:
+        raise RuntimeError(f"No compatible SPYT versions found for specified version {version}")
+    return max(compatible_spyt_versions, key=SpytVersion)
 
 
 def python_bin_path(global_conf, version):
@@ -181,11 +201,3 @@ def _get_version_conf_path(cluster_version):
 
 def _get_spyt_version_path(spyt_version):
     return SPYT_BASE_PATH.join(_version_subdir(spyt_version)).join(spyt_version)
-
-
-def _get_spyt_minor_version(spyt_version):
-    return ".".join(spyt_version.split(".")[:2])
-
-
-def _get_spark_cluster_minor_version(spark_cluster_version):
-    return ".".join(spark_cluster_version.split("-")[0].split(".")[:2])

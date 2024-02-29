@@ -15,7 +15,6 @@ from yt.wrapper.http_helpers import get_user_name  # noqa: E402
 from yt.wrapper.operation_commands import get_operation_url  # noqa: E402
 from yt.yson.convert import yson_to_json  # noqa: E402
 from .arcadia import checked_extract_spark, checked_extract_spyt  # noqa: E402
-from .conf import is_supported_cluster_minor_version  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -242,12 +241,9 @@ def base_spark_conf(client, discovery):
         "spark.shuffle.service.enabled": "true",
         "spark.eventLog.dir": "ytEventLog:/{}".format(discovery.event_log_table()),
         "spark.yt.cluster.version": spark_cluster_version,
-        "spark.base.discovery.path": discovery.base_discovery_path
+        "spark.base.discovery.path": discovery.base_discovery_path,
+        "spark.master.driverIdRegistration.enabled": "true"
     }
-    if is_supported_cluster_minor_version(spark_cluster_version, "1.9"):
-        conf["spark.master.driverIdRegistration.enabled"] = "true"
-    else:
-        conf["spark.master.driverIdRegistration.enabled"] = "false"
 
     if exists(spark_cluster_conf, client=client):
         conf["spark.yt.cluster.confPath"] = str(spark_cluster_conf)

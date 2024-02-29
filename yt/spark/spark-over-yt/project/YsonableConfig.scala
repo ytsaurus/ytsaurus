@@ -51,7 +51,8 @@ object YsonableConfig {
 }
 
 case class SparkGlobalConfig(spark_conf: Map[String, String],
-                             latest_spyt_version: String,
+                             latest_spyt_version: String = "1.76.1",  // COMPAT(alex-shishkin)
+                             latest_spark_cluster_version: String = "1.75.4",
                              python_cluster_paths: Map[String, String] = Map(
                                "3.11" -> "/opt/python3.11/bin/python3.11",
                                "3.9" -> "/opt/python3.9/bin/python3.9",

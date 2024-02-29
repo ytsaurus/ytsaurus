@@ -1,7 +1,6 @@
 
 package org.apache.spark.scheduler.cluster.ytsaurus
 
-import org.apache.spark.deploy.SparkSubmit
 import org.apache.spark.deploy.ytsaurus.Config._
 import org.apache.spark.{SparkConf, SparkContext, SparkException}
 import org.apache.spark.deploy.ytsaurus.{ApplicationArguments, Config, YTsaurusUtils}
@@ -20,7 +19,6 @@ import tech.ytsaurus.core.GUID
 import tech.ytsaurus.ysontree.{YTree, YTreeMapNode, YTreeNode}
 
 import java.nio.file.Paths
-import java.util.concurrent.CompletableFuture
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 
@@ -106,7 +104,8 @@ private[spark] class YTsaurusOperationManager(
 
   private def createSpec(conf: SparkConf, taskName: String, opParams: OperationParameters): VanillaSpec = {
 
-    val pool = conf.get("spark.ytsaurus.pool")
+    val poolParameters = conf.getOption("spark.ytsaurus.pool")
+      .map(pool => Map("pool" -> YTree.stringNode(pool))).getOrElse(Map.empty)
 
     val opSpecBuilder: VanillaSpec.BuilderBase[_] = VanillaSpec.builder()
 
@@ -120,12 +119,11 @@ private[spark] class YTsaurusOperationManager(
     val title = s"Spark $taskName for ${conf.get("spark.app.name")}${opParams.attemptId}"
 
     val additionalParameters: Map[String, YTreeNode] = Map(
-      "pool" -> YTree.stringNode(pool),
       "secure_vault" -> secureVault,
       "max_failed_job_count" -> YTree.integerNode(opParams.maxFailedJobCount),
       "preemption_mode" -> YTree.stringNode("normal"),
       "title" -> YTree.stringNode(title),
-    )
+    ) ++ poolParameters
 
     opSpecBuilder.setAdditionalSpecParameters(additionalParameters.asJava)
 
@@ -263,7 +261,8 @@ private[spark] object YTsaurusOperationManager extends Logging {
       val globalConfigPath = conf.get(GLOBAL_CONFIG_PATH)
       val globalConfig: YTreeMapNode = getDocument(ytClient, globalConfigPath)
 
-      val spytVersion = conf.get(SPYT_VERSION).getOrElse(getLatestRelease(globalConfig))
+      val spytVersion = conf.get(SPYT_VERSION).getOrElse(getLatestRelease(ytClient, conf))
+      logInfo(s"Used SPYT version: $spytVersion")
       val environment = globalConfig.getMap("environment")
       val javaHome = environment.getStringO("JAVA_HOME")
         .orElseThrow(() => new SparkException("JAVA_HOME is not set in " +
@@ -324,15 +323,20 @@ private[spark] object YTsaurusOperationManager extends Logging {
     }
   }
 
-  private[ytsaurus] def getLatestRelease(globalConfig: YTreeMapNode): String = {
-    val spytReleaseOpt = globalConfig.getStringO("latest_spyt_version")
-    if (spytReleaseOpt.isEmpty) {
-      throw new SparkException("SPYT Release doesn't configured for specified cluster in " +
-        "spark.ytsaurus.config.global.path parameter value")
+  private def parseVersion(version: String): SpytVersion = {
+    val array = version.split("\\.").map(_.toInt)
+    require(array.length == 3, s"Release version ($version) must have 3 numbers")
+    SpytVersion(array(0), array(1), array(2))
+  }
+
+  private[ytsaurus] def getLatestRelease(ytClient: YTsaurusClient, conf: SparkConf): String = {
+    val path = conf.get(RELEASE_SPYT_PATH)
+    val releaseNodes = ytClient.listNode(path).join().asList().asScala
+    if (releaseNodes.isEmpty) {
+      throw new IllegalStateException(s"No releases found in $path")
     }
-    val spytRelease = spytReleaseOpt.get()
-    logInfo(s"Using latest SPYT release installed: $spytRelease")
-    spytRelease
+    val versions = releaseNodes.map(x => parseVersion(x.stringValue()))
+    versions.max.toString
   }
 
   private[ytsaurus] def applicationFiles(conf: SparkConf): Seq[String] = {
@@ -427,3 +431,11 @@ private[spark] object YTsaurusOperationManager extends Logging {
 
 private[spark] case class YTsaurusOperation(id: GUID)
 private[spark] case class OperationParameters(taskSpec: Spec, maxFailedJobCount: Int, attemptId: String)
+
+private case class SpytVersion(major: Int, minor: Int, patch: Int) extends Comparable[SpytVersion] {
+  override def compareTo(o: SpytVersion): Int = {
+    100 * (major - o.major).signum + 10 * (minor - o.minor).signum + (patch - o.patch).signum
+  }
+
+  override def toString: String = s"$major.$minor.$patch"
+}

@@ -28,13 +28,13 @@ except Exception:
 
 from .conf import read_remote_conf, validate_cluster_version, spyt_python_path, \
     validate_spyt_version, validate_versions_compatibility, latest_compatible_spyt_version, \
-    latest_spyt_version, update_config_inplace, validate_custom_params, validate_mtn_config, \
+    update_config_inplace, validate_custom_params, validate_mtn_config, \
     latest_ytserver_proxy_path, ytserver_proxy_attributes, read_global_conf, python_bin_path, \
     worker_num_limit, validate_worker_num, read_cluster_conf, validate_ssd_config  # noqa: E402
 from .utils import get_spark_master, base_spark_conf, SparkDiscovery, SparkCluster, call_get_proxy_address_url, \
     parse_bool  # noqa: E402
 from .enabler import SpytEnablers  # noqa: E402
-from .version import __version__  # noqa: E402
+from .version import __scala_version__, __version__  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -771,7 +771,9 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_cores_ov
 
     ytserver_proxy_path = latest_ytserver_proxy_path(spark_cluster_version, client=client)
     global_conf = read_global_conf(client=client)
-    spark_cluster_version = spark_cluster_version or latest_spyt_version(global_conf)
+    if spark_cluster_version is None:
+        spark_cluster_version = latest_compatible_spyt_version(__scala_version__, client=client)
+    logger.info(f"{spark_cluster_version} cluster version will be launched")
 
     if ssd_limit is not None:
         worker_disk_name = "ssd_slots_physical"
