@@ -44,6 +44,7 @@ public:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->RegisterTransactionActionHandlers<TReqCreateNode>({
             .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareCreateNode, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraCommitCreateNode, Unretained(this)),
             .Abort = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraAbortCreateNode, Unretained(this)),
         });
         transactionManager->RegisterTransactionActionHandlers<TReqAttachChild>({
@@ -407,7 +408,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto nodeId = FromProto<TNodeId>(request->src_id());
+        auto nodeId = FromProto<TNodeId>(request->dst_id());
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* node = cypressManager->GetNode(TVersionedNodeId(nodeId));
 
