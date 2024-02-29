@@ -64,8 +64,6 @@ void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("active_query_lease_timeout", &TThis::ActiveQueryLeaseTimeout)
         .Default(TDuration::Seconds(5));
-    registrar.Parameter("query_acquisition_grace_period", &TThis::QueryAcquisitionGracePeriod)
-        .Default(TDuration::Seconds(3));
     registrar.Parameter("active_query_ping_period", &TThis::ActiveQueryPingPeriod)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("query_finish_backoff", &TThis::QueryFinishBackoff)

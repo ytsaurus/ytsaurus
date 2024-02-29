@@ -168,7 +168,7 @@ private:
             auto selectQuery = Format(
                 "[query_id], [incarnation], [assigned_tracker], [ping_time], [engine], [user], [query], [settings], [files] from [%v] where [ping_time] < %v",
                 StateRoot_ + "/active_queries",
-                (TInstant::Now() - Config_->ActiveQueryLeaseTimeout - Config_->QueryAcquisitionGracePeriod).MicroSeconds(),
+                (TInstant::Now() - Config_->ActiveQueryLeaseTimeout).MicroSeconds(),
                 SelfAddress_);
             auto selectResult = WaitFor(StateClient_->SelectRows(selectQuery))
                 .ValueOrThrow();
@@ -495,9 +495,7 @@ private:
             try {
                 ValidateLease(incarnation, *activeQueryRecord, Config_->ActiveQueryLeaseTimeout);
             } catch (const std::exception& ex) {
-                YT_LOG_INFO(ex, "Query lease has expired, giving up finishing (NewIncarnation: %v, NewPingTime: %v)",
-                    activeQueryRecord->Incarnation,
-                    activeQueryRecord->PingTime);
+                YT_LOG_INFO(ex, "Query lease has expired, giving up finishing (NewIncarnation: %v, NewPingTime: %v)", activeQueryRecord->Incarnation, activeQueryRecord->PingTime);
                 return false;
             }
 
@@ -590,19 +588,17 @@ private:
     {
         ValidateIncarnation(expectedIncarnation, record);
         if (record.PingTime + leaseExpirationTimeout < TInstant::Now()) {
-            THROW_ERROR_EXCEPTION(
-                NQueryTrackerClient::EErrorCode::IncarnationMismatch,
-                "Query lease expired for incarnation %v",
-                expectedIncarnation)
-                << TErrorAttribute("incarnation", expectedIncarnation)
-                << TErrorAttribute("ping_time", record.PingTime);
+                THROW_ERROR_EXCEPTION(
+                    NQueryTrackerClient::EErrorCode::IncarnationMismatch,
+                    "Query lease expired for incarnation %v",
+                    expectedIncarnation)
+                    << TErrorAttribute("incarnation", expectedIncarnation)
+                    << TErrorAttribute("ping_time", record.PingTime);
         }
     }
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueryTracker)
-
-///////////////////////////////////////////////////////////////////////////////
 
 IQueryTrackerPtr CreateQueryTracker(
     TQueryTrackerDynamicConfigPtr config,
