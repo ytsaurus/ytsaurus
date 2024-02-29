@@ -26,11 +26,11 @@ class TTabletRequestBatcherTest
 protected:
     TTableSchemaPtr Schema_;
     ITabletRequestBatcherPtr Batcher_;
-    TLockMask primaryExclusiveMask_;
+    TLockMask PrimaryExclusiveMask_;
 
     void SetUp() override
     {
-        primaryExclusiveMask_.Set(PrimaryLockIndex, ELockType::Exclusive);
+        PrimaryExclusiveMask_.Set(PrimaryLockIndex, ELockType::Exclusive);
     }
 
     void CreateBatcher(bool sorted, TTabletRequestBatcherOptions options = {})
@@ -70,7 +70,7 @@ protected:
 
     TLockMask GetPrimaryLockExclusiveMask() const
     {
-        return primaryExclusiveMask_;
+        return PrimaryExclusiveMask_;
     }
 };
 
@@ -291,6 +291,22 @@ TEST_F(TTabletRequestBatcherTest, RowMerger3)
     mask.Set(1, ELockType::SharedWeak);
     EXPECT_EQ(row2, reader->ReadUnversionedRow(/*captureValues*/ true));
     EXPECT_EQ(mask, reader->ReadLockMask());
+    EXPECT_TRUE(reader->IsFinished());
+}
+
+TEST_F(TTabletRequestBatcherTest, LockAfterDelete)
+{
+    CreateBatcher(/*sorted*/ true);
+
+    auto row = MakeRow(/*key*/ 1);
+    Batcher_->SubmitUnversionedRow(EWireProtocolCommand::DeleteRow, row, TLockMask());
+    TLockMask mask;
+    mask.Set(1, ELockType::SharedWeak);
+    Batcher_->SubmitUnversionedRow(EWireProtocolCommand::WriteAndLockRow, row, mask);
+
+    auto reader = GetSingularBatchReader();
+    EXPECT_EQ(EWireProtocolCommand::DeleteRow, reader->ReadCommand());
+    EXPECT_EQ(row, reader->ReadUnversionedRow(/*captureValues*/ true));
     EXPECT_TRUE(reader->IsFinished());
 }
 
