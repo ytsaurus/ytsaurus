@@ -280,11 +280,13 @@ class TestTabletCellsSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
 
         insert_rows("//tmp/t", [{"key": 0, "value": 0}], tx=tx)
 
-        if build_tablet_snapshots and modification == "lock_exclusive" and commit_wrt_restart == "before":
+        expected_error = (
+            "Row lock conflict" if modification != "lock_shared_strong"
+            else "Write failed due to concurrent read lock"
+        )
+
+        with pytest.raises(YtError, match=expected_error):
             commit_transaction(tx)
-        else:
-            with pytest.raises(YtError):
-                commit_transaction(tx)
 
 
 class TestBundleControllerAttribute(MasterSnapshotsCompatibilityBase):
