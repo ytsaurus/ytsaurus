@@ -31,10 +31,14 @@ DEFINE_REFCOUNTED_TYPE(TNodeDiscoveryManagerConfig)
 class TNodeTrackerConfig
     : public NYTree::TYsonStruct
 {
+public:
+    // COMPAT(danilalexeev)
+    TDuration DefaultNodeTransactionTimeout;
+    TDuration DefaultDataNodeLeaseTransactionTimeout;
+
     REGISTER_YSON_STRUCT(TNodeTrackerConfig);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeTrackerConfig)

@@ -20,6 +20,16 @@ void TNodeDiscoveryManagerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TNodeTrackerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("default_node_transaction_timeout", &TThis::DefaultNodeTransactionTimeout)
+        .Default(TDuration::Seconds(30));
+    registrar.Parameter("default_data_node_lease_transaction_timeout", &TThis::DefaultDataNodeLeaseTransactionTimeout)
+        .Default(TDuration::Seconds(120));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TNodeGroupConfigBase::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_concurrent_node_registrations", &TThis::MaxConcurrentNodeRegistrations)
