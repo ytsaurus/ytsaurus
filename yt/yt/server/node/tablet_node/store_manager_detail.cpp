@@ -522,9 +522,10 @@ void TStoreManagerBase::Rotate(bool createNewStore, EStoreRotationReason reason)
 
         StructuredLogger_->OnStoreStateChanged(activeStore);
 
-        YT_LOG_INFO("Rotating store (StoreId: %v, DynamicMemoryUsage: %v, Reason: %v)",
+        YT_LOG_INFO("Rotating store (StoreId: %v, DynamicMemoryUsage: %v, RowCount: %v, Reason: %v)",
             activeStore->GetId(),
             activeStore->GetDynamicMemoryUsage(),
+            activeStore->GetRowCount(),
             reason);
 
         if (activeStore->GetLockCount() > 0) {
