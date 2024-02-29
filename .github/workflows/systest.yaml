@@ -44,6 +44,8 @@ jobs:
       - checkout
 
     runs-on: ${{ needs.start-vm.outputs.label }}
+    timeout-minutes: 720
+
     steps:
       - name: Kube cluster get credentials
         shell: bash
