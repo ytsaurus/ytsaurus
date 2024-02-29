@@ -891,7 +891,8 @@ def _update_from_file(config):
                 config_path = home_config_path
 
         try:
-            open(config_path, "r")
+            with open(config_path, "r"):
+                pass
         except IOError:
             config_path = None
 
@@ -905,7 +906,8 @@ def _update_from_file(config):
         else:
             raise common.YtError("Incorrect config_format '%s'" % format)
         try:
-            common.update_inplace(config, load_func(open(config_path, "rb")))
+            with open(config_path, "rb") as f:
+                common.update_inplace(config, load_func(f))
         except Exception:
             print("Failed to parse YT config from " + config_path, file=sys.stderr)
             raise
