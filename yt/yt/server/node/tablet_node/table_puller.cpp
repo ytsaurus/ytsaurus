@@ -141,7 +141,6 @@ public:
         , LocalConnection_(std::move(localConnection))
         , Slot_(std::move(slot))
         , TabletSnapshotStore_(std::move(tabletSnapshotStore))
-        , ChaosAgent_(tablet->GetChaosAgent())
         , WorkerInvoker_(std::move(workerInvoker))
         , TabletId_(tablet->GetId())
         , MountRevision_(tablet->GetMountRevision())
@@ -187,7 +186,6 @@ private:
     const NNative::IConnectionPtr LocalConnection_;
     const ITabletSlotPtr Slot_;
     const ITabletSnapshotStorePtr TabletSnapshotStore_;
-    const IChaosAgentPtr ChaosAgent_;
     const IInvokerPtr WorkerInvoker_;
 
     const TTabletId TabletId_;
