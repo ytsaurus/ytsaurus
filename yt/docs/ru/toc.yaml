@@ -277,6 +277,8 @@ items:
                 href: user-guide/data-processing/spyt/cluster/cluster-desc.md
               - name: Запуск кластера
                 href: user-guide/data-processing/spyt/cluster/cluster-start.md
+              - name: Livy сервер
+                href: user-guide/data-processing/spyt/cluster/livy.md
               # - name: Метрики в Prometheus
               #   href: user-guide/data-processing/spyt/cluster/prometheus.md
               - name: Конфигурации
