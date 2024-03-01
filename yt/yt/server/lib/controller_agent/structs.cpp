@@ -64,6 +64,8 @@ TJobSummary::TJobSummary(NProto::TJobStatus* status)
     , FinishedOnNode(true)
 {
     Result = std::move(*status->mutable_result());
+    Error = FromProto<TError>(Result->error());
+
     TimeStatistics = FromProto<NJobAgent::TTimeStatistics>(status->time_statistics());
     if (status->has_statistics()) {
         auto mutableStatistics = std::make_shared<TStatistics>();
@@ -104,6 +106,12 @@ void TJobSummary::Persist(const TPersistenceContext& context)
     using NYT::Persist;
 
     Persist(context, Result);
+    if (context.GetVersion() >= ESnapshotVersion::JobErrorInJobSummary) {
+        Persist(context, Error);
+    } else if (context.IsLoad() && Result) {
+        Error = FromProto<TError>(Result->error());
+    }
+
     Persist(context, Id);
     Persist(context, State);
     Persist(context, FinishTime);
@@ -157,6 +165,12 @@ const TJobResultExt* TJobSummary::FindJobResultExt() const
     return Result->HasExtension(TJobResultExt::job_result_ext)
         ? &Result->GetExtension(TJobResultExt::job_result_ext)
         : nullptr;
+}
+
+const TError& TJobSummary::GetError() const
+{
+    YT_VERIFY(Error);
+    return *Error;
 }
 
 void TJobSummary::FillDataStatisticsFromStatistics()
@@ -237,7 +251,7 @@ TAbortedJobSummary::TAbortedJobSummary(NProto::TJobStatus* status, const NLoggin
 {
     YT_VERIFY(State == ExpectedState);
 
-    if (auto error = NYT::FromProto<TError>(GetJobResult().error()); !error.IsOK()) {
+    if (const auto& error = GetError(); !error.IsOK()) {
         AbortReason = GetAbortReason(error, Logger);
     }
 
@@ -255,6 +269,7 @@ std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
     summary.FinishTime = eventSummary.FinishTime;
 
     ToProto(summary.Result.emplace().mutable_error(), eventSummary.Error);
+    summary.Error = std::move(eventSummary.Error);
 
     summary.Scheduled = eventSummary.Scheduled;
     summary.AbortInitiator = EJobAbortInitiator::Scheduler;

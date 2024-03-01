@@ -238,10 +238,8 @@ void TJobProfiler::ProfileAbortedJob(const TJoblet& joblet, const TAbortedJobSum
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto abortReason = jobSummary.AbortReason;
-    // Job result may be missing if the job summary is synthetic.
-    auto error = jobSummary.Result
-        ? NYT::FromProto<TError>(jobSummary.GetJobResult().error())
-        : TError();
+    // Job error may be missing if the job summary is synthetic.
+    auto error = jobSummary.Error.value_or(TError());
 
     auto jobType = joblet.JobType;
     auto treeId = joblet.TreeId;

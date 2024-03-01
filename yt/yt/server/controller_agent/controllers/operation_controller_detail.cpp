@@ -3354,10 +3354,9 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
         return;
     }
 
-    const auto& result = jobSummary->GetJobResult();
+    auto error = jobSummary->GetError();
 
     TJobFinishedResult taskJobResult;
-    TError error;
 
     {
         // NB: We want to process finished job changes atomically.
@@ -3370,8 +3369,6 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
             ShouldUpdateLightOperationAttributes_ = true;
             ShouldUpdateProgressAttributesInCypress_ = true;
         }
-
-        error = FromProto<TError>(result.error());
 
         UpdateJobletFromSummary(*jobSummary, joblet);
 
@@ -3421,16 +3418,18 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
     if (FailedJobCount_ >= maxFailedJobCount) {
         auto failedJobsLimitExceededError = TError(NScheduler::EErrorCode::MaxFailedJobsLimitExceeded, "Failed jobs limit exceeded")
                 << TErrorAttribute("max_failed_job_count", maxFailedJobCount);
-        if (IsFailingByTimeout()) {
-            error = GetTimeLimitError()
-                << failedJobsLimitExceededError
-                << error;
-        } else {
-            error = failedJobsLimitExceededError
-                << error;
-        }
+        auto operationFailedError = [&] {
+            if (IsFailingByTimeout()) {
+                return GetTimeLimitError()
+                    << failedJobsLimitExceededError
+                    << error;
+            } else {
+                return failedJobsLimitExceededError
+                    << error;
+            }
+        }();
 
-        OnOperationFailed(error);
+        OnOperationFailed(operationFailedError);
         return;
     }
 
@@ -3503,11 +3502,13 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
         if (wasScheduled) {
             if (joblet->ShouldLogFinishedEvent()) {
                 auto fluent = LogFinishedJobFluently(ELogEventType::JobAborted, joblet)
-                    .Item("reason").Value(abortReason);
-                if (jobSummary->PreemptedFor) {
-                    fluent
-                        .Item("preempted_for").Value(jobSummary->PreemptedFor);
-                }
+                    .Item("reason").Value(abortReason)
+                    .DoIf(jobSummary->Error.has_value(), [&] (TFluentMap fluent) {
+                        fluent.Item("error").Value(jobSummary->Error);
+                    })
+                    .DoIf(jobSummary->PreemptedFor.has_value(), [&] (TFluentMap fluent) {
+                        fluent.Item("preempted_for").Value(jobSummary->PreemptedFor);
+                    });
             }
             UpdateAggregatedFinishedJobStatistics(joblet, *jobSummary);
         }
@@ -3574,8 +3575,7 @@ bool TOperationControllerBase::WasJobGracefullyAborted(const std::unique_ptr<TAb
         return false;
     }
 
-    auto error = FromProto<TError>(jobSummary->Result->error());
-
+    const auto& error = jobSummary->GetError();
     if (auto innerError = error.FindMatching(NExecNode::EErrorCode::AbortByControllerAgent)) {
         return innerError->Attributes().Get("graceful_abort", false);
     }
@@ -3843,13 +3843,12 @@ void TOperationControllerBase::BuildFinishedJobAttributes(
 
     BuildJobAttributes(joblet, jobSummary->State, stderrSize, fluent);
 
-    bool shouldLogError = jobSummary->State == EJobState::Failed ||
+    bool includeError = jobSummary->State == EJobState::Failed ||
         jobSummary->State == EJobState::Aborted;
     fluent
         .Item("finish_time").Value(joblet->FinishTime)
-        .DoIf(shouldLogError, [&] (TFluentMap fluent) {
-            auto error = FromProto<TError>(jobSummary->Result->error());
-            fluent.Item("error").Value(error);
+        .DoIf(includeError, [&] (TFluentMap fluent) {
+            fluent.Item("error").Value(jobSummary->GetError());
         })
         .DoIf(jobSummary->GetJobResult().HasExtension(TJobResultExt::job_result_ext),
             [&] (TFluentMap fluent)
