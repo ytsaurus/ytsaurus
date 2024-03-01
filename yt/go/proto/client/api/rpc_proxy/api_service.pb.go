@@ -1740,6 +1740,210 @@ func (EJobSpecSource) EnumDescriptor() ([]byte, []int) {
 	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{25}
 }
 
+type EQueryEngine int32
+
+const (
+	EQueryEngine_QE_UNKNOWN EQueryEngine = 100
+	EQueryEngine_QE_QL      EQueryEngine = 0
+	EQueryEngine_QE_YQL     EQueryEngine = 1
+	EQueryEngine_QE_CHYT    EQueryEngine = 2
+	EQueryEngine_QE_MOCK    EQueryEngine = 3
+	EQueryEngine_QE_SPYT    EQueryEngine = 4
+)
+
+// Enum value maps for EQueryEngine.
+var (
+	EQueryEngine_name = map[int32]string{
+		100: "QE_UNKNOWN",
+		0:   "QE_QL",
+		1:   "QE_YQL",
+		2:   "QE_CHYT",
+		3:   "QE_MOCK",
+		4:   "QE_SPYT",
+	}
+	EQueryEngine_value = map[string]int32{
+		"QE_UNKNOWN": 100,
+		"QE_QL":      0,
+		"QE_YQL":     1,
+		"QE_CHYT":    2,
+		"QE_MOCK":    3,
+		"QE_SPYT":    4,
+	}
+)
+
+func (x EQueryEngine) Enum() *EQueryEngine {
+	p := new(EQueryEngine)
+	*p = x
+	return p
+}
+
+func (x EQueryEngine) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (EQueryEngine) Descriptor() protoreflect.EnumDescriptor {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_enumTypes[26].Descriptor()
+}
+
+func (EQueryEngine) Type() protoreflect.EnumType {
+	return &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_enumTypes[26]
+}
+
+func (x EQueryEngine) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Do not use.
+func (x *EQueryEngine) UnmarshalJSON(b []byte) error {
+	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
+	if err != nil {
+		return err
+	}
+	*x = EQueryEngine(num)
+	return nil
+}
+
+// Deprecated: Use EQueryEngine.Descriptor instead.
+func (EQueryEngine) EnumDescriptor() ([]byte, []int) {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{26}
+}
+
+type EContentType int32
+
+const (
+	EContentType_CT_RAW_INLINE_DATA EContentType = 0
+	EContentType_CT_URL             EContentType = 1
+)
+
+// Enum value maps for EContentType.
+var (
+	EContentType_name = map[int32]string{
+		0: "CT_RAW_INLINE_DATA",
+		1: "CT_URL",
+	}
+	EContentType_value = map[string]int32{
+		"CT_RAW_INLINE_DATA": 0,
+		"CT_URL":             1,
+	}
+)
+
+func (x EContentType) Enum() *EContentType {
+	p := new(EContentType)
+	*p = x
+	return p
+}
+
+func (x EContentType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (EContentType) Descriptor() protoreflect.EnumDescriptor {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_enumTypes[27].Descriptor()
+}
+
+func (EContentType) Type() protoreflect.EnumType {
+	return &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_enumTypes[27]
+}
+
+func (x EContentType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Do not use.
+func (x *EContentType) UnmarshalJSON(b []byte) error {
+	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
+	if err != nil {
+		return err
+	}
+	*x = EContentType(num)
+	return nil
+}
+
+// Deprecated: Use EContentType.Descriptor instead.
+func (EContentType) EnumDescriptor() ([]byte, []int) {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{27}
+}
+
+type EQueryState int32
+
+const (
+	EQueryState_QS_UNKNOWN    EQueryState = 100
+	EQueryState_QS_DRAFT      EQueryState = 0
+	EQueryState_QS_PENDING    EQueryState = 1
+	EQueryState_QS_RUNNING    EQueryState = 2
+	EQueryState_QS_ABORTING   EQueryState = 3
+	EQueryState_QS_ABORTED    EQueryState = 4
+	EQueryState_QS_COMPLETING EQueryState = 5
+	EQueryState_QS_COMPLETED  EQueryState = 6
+	EQueryState_QS_FAILING    EQueryState = 7
+	EQueryState_QS_FAILED     EQueryState = 8
+)
+
+// Enum value maps for EQueryState.
+var (
+	EQueryState_name = map[int32]string{
+		100: "QS_UNKNOWN",
+		0:   "QS_DRAFT",
+		1:   "QS_PENDING",
+		2:   "QS_RUNNING",
+		3:   "QS_ABORTING",
+		4:   "QS_ABORTED",
+		5:   "QS_COMPLETING",
+		6:   "QS_COMPLETED",
+		7:   "QS_FAILING",
+		8:   "QS_FAILED",
+	}
+	EQueryState_value = map[string]int32{
+		"QS_UNKNOWN":    100,
+		"QS_DRAFT":      0,
+		"QS_PENDING":    1,
+		"QS_RUNNING":    2,
+		"QS_ABORTING":   3,
+		"QS_ABORTED":    4,
+		"QS_COMPLETING": 5,
+		"QS_COMPLETED":  6,
+		"QS_FAILING":    7,
+		"QS_FAILED":     8,
+	}
+)
+
+func (x EQueryState) Enum() *EQueryState {
+	p := new(EQueryState)
+	*p = x
+	return p
+}
+
+func (x EQueryState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (EQueryState) Descriptor() protoreflect.EnumDescriptor {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_enumTypes[28].Descriptor()
+}
+
+func (EQueryState) Type() protoreflect.EnumType {
+	return &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_enumTypes[28]
+}
+
+func (x EQueryState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Do not use.
+func (x *EQueryState) UnmarshalJSON(b []byte) error {
+	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
+	if err != nil {
+		return err
+	}
+	*x = EQueryState(num)
+	return nil
+}
+
+// Deprecated: Use EQueryState.Descriptor instead.
+func (EQueryState) EnumDescriptor() ([]byte, []int) {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{28}
+}
+
 // COMPAT(max42).
 // A legacy analog of NYT.NYTree.NProto.TAttributeFilter.
 // It is different in that universal filter is encoded via all = true
@@ -20032,6 +20236,1241 @@ func (x *TCheckPermissionByAclResult) GetMissingSubjects() []string {
 	return nil
 }
 
+type TReqStartQuery struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	QueryTrackerStage   *string                      `protobuf:"bytes,1,req,name=query_tracker_stage,json=queryTrackerStage" json:"query_tracker_stage,omitempty"`
+	Engine              *EQueryEngine                `protobuf:"varint,2,req,name=engine,enum=NYT.NApi.NRpcProxy.NProto.EQueryEngine" json:"engine,omitempty"`
+	Query               *string                      `protobuf:"bytes,3,req,name=query" json:"query,omitempty"`
+	Settings            []byte                       `protobuf:"bytes,4,opt,name=settings" json:"settings,omitempty"` // YSON
+	Draft               *bool                        `protobuf:"varint,5,opt,name=draft" json:"draft,omitempty"`
+	Annotations         []byte                       `protobuf:"bytes,6,opt,name=annotations" json:"annotations,omitempty"` // YSON
+	Files               []*TReqStartQuery_TQueryFile `protobuf:"bytes,7,rep,name=files" json:"files,omitempty"`
+	AccessControlObject *string                      `protobuf:"bytes,8,opt,name=access_control_object,json=accessControlObject" json:"access_control_object,omitempty"`
+}
+
+func (x *TReqStartQuery) Reset() {
+	*x = TReqStartQuery{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[274]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TReqStartQuery) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TReqStartQuery) ProtoMessage() {}
+
+func (x *TReqStartQuery) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[274]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TReqStartQuery.ProtoReflect.Descriptor instead.
+func (*TReqStartQuery) Descriptor() ([]byte, []int) {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{274}
+}
+
+func (x *TReqStartQuery) GetQueryTrackerStage() string {
+	if x != nil && x.QueryTrackerStage != nil {
+		return *x.QueryTrackerStage
+	}
+	return ""
+}
+
+func (x *TReqStartQuery) GetEngine() EQueryEngine {
+	if x != nil && x.Engine != nil {
+		return *x.Engine
+	}
+	return EQueryEngine_QE_UNKNOWN
+}
+
+func (x *TReqStartQuery) GetQuery() string {
+	if x != nil && x.Query != nil {
+		return *x.Query
+	}
+	return ""
+}
+
+func (x *TReqStartQuery) GetSettings() []byte {
+	if x != nil {
+		return x.Settings
+	}
+	return nil
+}
+
+func (x *TReqStartQuery) GetDraft() bool {
+	if x != nil && x.Draft != nil {
+		return *x.Draft
+	}
+	return false
+}
+
+func (x *TReqStartQuery) GetAnnotations() []byte {
+	if x != nil {
+		return x.Annotations
+	}
+	return nil
+}
+
+func (x *TReqStartQuery) GetFiles() []*TReqStartQuery_TQueryFile {
+	if x != nil {
+		return x.Files
+	}
+	return nil
+}
+
+func (x *TReqStartQuery) GetAccessControlObject() string {
+	if x != nil && x.AccessControlObject != nil {
+		return *x.AccessControlObject
+	}
+	return ""
+}
+
+type TRspStartQuery struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	QueryId *misc.TGuid `protobuf:"bytes,1,opt,name=query_id,json=queryId" json:"query_id,omitempty"`
+}
+
+func (x *TRspStartQuery) Reset() {
+	*x = TRspStartQuery{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[275]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TRspStartQuery) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TRspStartQuery) ProtoMessage() {}
+
+func (x *TRspStartQuery) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[275]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TRspStartQuery.ProtoReflect.Descriptor instead.
+func (*TRspStartQuery) Descriptor() ([]byte, []int) {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{275}
+}
+
+func (x *TRspStartQuery) GetQueryId() *misc.TGuid {
+	if x != nil {
+		return x.QueryId
+	}
+	return nil
+}
+
+type TReqAbortQuery struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	QueryTrackerStage *string     `protobuf:"bytes,1,req,name=query_tracker_stage,json=queryTrackerStage" json:"query_tracker_stage,omitempty"`
+	QueryId           *misc.TGuid `protobuf:"bytes,2,req,name=query_id,json=queryId" json:"query_id,omitempty"`
+	AbortMessage      *string     `protobuf:"bytes,3,opt,name=abort_message,json=abortMessage" json:"abort_message,omitempty"`
+}
+
+func (x *TReqAbortQuery) Reset() {
+	*x = TReqAbortQuery{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[276]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TReqAbortQuery) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TReqAbortQuery) ProtoMessage() {}
+
+func (x *TReqAbortQuery) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[276]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TReqAbortQuery.ProtoReflect.Descriptor instead.
+func (*TReqAbortQuery) Descriptor() ([]byte, []int) {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{276}
+}
+
+func (x *TReqAbortQuery) GetQueryTrackerStage() string {
+	if x != nil && x.QueryTrackerStage != nil {
+		return *x.QueryTrackerStage
+	}
+	return ""
+}
+
+func (x *TReqAbortQuery) GetQueryId() *misc.TGuid {
+	if x != nil {
+		return x.QueryId
+	}
+	return nil
+}
+
+func (x *TReqAbortQuery) GetAbortMessage() string {
+	if x != nil && x.AbortMessage != nil {
+		return *x.AbortMessage
+	}
+	return ""
+}
+
+type TRspAbortQuery struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *TRspAbortQuery) Reset() {
+	*x = TRspAbortQuery{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[277]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TRspAbortQuery) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TRspAbortQuery) ProtoMessage() {}
+
+func (x *TRspAbortQuery) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[277]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TRspAbortQuery.ProtoReflect.Descriptor instead.
+func (*TRspAbortQuery) Descriptor() ([]byte, []int) {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{277}
+}
+
+type TReqGetQueryResult struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	QueryTrackerStage *string     `protobuf:"bytes,1,req,name=query_tracker_stage,json=queryTrackerStage" json:"query_tracker_stage,omitempty"`
+	QueryId           *misc.TGuid `protobuf:"bytes,2,req,name=query_id,json=queryId" json:"query_id,omitempty"`
+	ResultIndex       *int64      `protobuf:"varint,3,req,name=result_index,json=resultIndex" json:"result_index,omitempty"`
+}
+
+func (x *TReqGetQueryResult) Reset() {
+	*x = TReqGetQueryResult{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[278]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TReqGetQueryResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TReqGetQueryResult) ProtoMessage() {}
+
+func (x *TReqGetQueryResult) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[278]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TReqGetQueryResult.ProtoReflect.Descriptor instead.
+func (*TReqGetQueryResult) Descriptor() ([]byte, []int) {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{278}
+}
+
+func (x *TReqGetQueryResult) GetQueryTrackerStage() string {
+	if x != nil && x.QueryTrackerStage != nil {
+		return *x.QueryTrackerStage
+	}
+	return ""
+}
+
+func (x *TReqGetQueryResult) GetQueryId() *misc.TGuid {
+	if x != nil {
+		return x.QueryId
+	}
+	return nil
+}
+
+func (x *TReqGetQueryResult) GetResultIndex() int64 {
+	if x != nil && x.ResultIndex != nil {
+		return *x.ResultIndex
+	}
+	return 0
+}
+
+type TRspGetQueryResult struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	QueryId        *misc.TGuid                   `protobuf:"bytes,1,req,name=query_id,json=queryId" json:"query_id,omitempty"`
+	ResultIndex    *int64                        `protobuf:"varint,2,req,name=result_index,json=resultIndex" json:"result_index,omitempty"`
+	Error          *misc.TError                  `protobuf:"bytes,3,opt,name=error" json:"error,omitempty"`
+	Schema         *TTableSchema                 `protobuf:"bytes,4,opt,name=schema" json:"schema,omitempty"`
+	DataStatistics *chunk_client.TDataStatistics `protobuf:"bytes,5,req,name=data_statistics,json=dataStatistics" json:"data_statistics,omitempty"`
+	IsTruncated    *bool                         `protobuf:"varint,6,req,name=is_truncated,json=isTruncated" json:"is_truncated,omitempty"`
+}
+
+func (x *TRspGetQueryResult) Reset() {
+	*x = TRspGetQueryResult{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[279]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TRspGetQueryResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TRspGetQueryResult) ProtoMessage() {}
+
+func (x *TRspGetQueryResult) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[279]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TRspGetQueryResult.ProtoReflect.Descriptor instead.
+func (*TRspGetQueryResult) Descriptor() ([]byte, []int) {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{279}
+}
+
+func (x *TRspGetQueryResult) GetQueryId() *misc.TGuid {
+	if x != nil {
+		return x.QueryId
+	}
+	return nil
+}
+
+func (x *TRspGetQueryResult) GetResultIndex() int64 {
+	if x != nil && x.ResultIndex != nil {
+		return *x.ResultIndex
+	}
+	return 0
+}
+
+func (x *TRspGetQueryResult) GetError() *misc.TError {
+	if x != nil {
+		return x.Error
+	}
+	return nil
+}
+
+func (x *TRspGetQueryResult) GetSchema() *TTableSchema {
+	if x != nil {
+		return x.Schema
+	}
+	return nil
+}
+
+func (x *TRspGetQueryResult) GetDataStatistics() *chunk_client.TDataStatistics {
+	if x != nil {
+		return x.DataStatistics
+	}
+	return nil
+}
+
+func (x *TRspGetQueryResult) GetIsTruncated() bool {
+	if x != nil && x.IsTruncated != nil {
+		return *x.IsTruncated
+	}
+	return false
+}
+
+type TReqReadQueryResult struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	QueryTrackerStage *string                       `protobuf:"bytes,1,req,name=query_tracker_stage,json=queryTrackerStage" json:"query_tracker_stage,omitempty"`
+	QueryId           *misc.TGuid                   `protobuf:"bytes,2,req,name=query_id,json=queryId" json:"query_id,omitempty"`
+	ResultIndex       *int64                        `protobuf:"varint,3,req,name=result_index,json=resultIndex" json:"result_index,omitempty"`
+	Columns           *TReqReadQueryResult_TColumns `protobuf:"bytes,4,opt,name=columns" json:"columns,omitempty"`
+	LowerRowIndex     *int64                        `protobuf:"varint,5,opt,name=lower_row_index,json=lowerRowIndex" json:"lower_row_index,omitempty"`
+	UpperRowIndex     *int64                        `protobuf:"varint,6,opt,name=upper_row_index,json=upperRowIndex" json:"upper_row_index,omitempty"`
+}
+
+func (x *TReqReadQueryResult) Reset() {
+	*x = TReqReadQueryResult{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[280]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TReqReadQueryResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TReqReadQueryResult) ProtoMessage() {}
+
+func (x *TReqReadQueryResult) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[280]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TReqReadQueryResult.ProtoReflect.Descriptor instead.
+func (*TReqReadQueryResult) Descriptor() ([]byte, []int) {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{280}
+}
+
+func (x *TReqReadQueryResult) GetQueryTrackerStage() string {
+	if x != nil && x.QueryTrackerStage != nil {
+		return *x.QueryTrackerStage
+	}
+	return ""
+}
+
+func (x *TReqReadQueryResult) GetQueryId() *misc.TGuid {
+	if x != nil {
+		return x.QueryId
+	}
+	return nil
+}
+
+func (x *TReqReadQueryResult) GetResultIndex() int64 {
+	if x != nil && x.ResultIndex != nil {
+		return *x.ResultIndex
+	}
+	return 0
+}
+
+func (x *TReqReadQueryResult) GetColumns() *TReqReadQueryResult_TColumns {
+	if x != nil {
+		return x.Columns
+	}
+	return nil
+}
+
+func (x *TReqReadQueryResult) GetLowerRowIndex() int64 {
+	if x != nil && x.LowerRowIndex != nil {
+		return *x.LowerRowIndex
+	}
+	return 0
+}
+
+func (x *TReqReadQueryResult) GetUpperRowIndex() int64 {
+	if x != nil && x.UpperRowIndex != nil {
+		return *x.UpperRowIndex
+	}
+	return 0
+}
+
+type TRspReadQueryResult struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	RowsetDescriptor *TRowsetDescriptor `protobuf:"bytes,1,req,name=rowset_descriptor,json=rowsetDescriptor" json:"rowset_descriptor,omitempty"`
+}
+
+func (x *TRspReadQueryResult) Reset() {
+	*x = TRspReadQueryResult{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[281]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TRspReadQueryResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TRspReadQueryResult) ProtoMessage() {}
+
+func (x *TRspReadQueryResult) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[281]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TRspReadQueryResult.ProtoReflect.Descriptor instead.
+func (*TRspReadQueryResult) Descriptor() ([]byte, []int) {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{281}
+}
+
+func (x *TRspReadQueryResult) GetRowsetDescriptor() *TRowsetDescriptor {
+	if x != nil {
+		return x.RowsetDescriptor
+	}
+	return nil
+}
+
+type TQuery struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Id                  *misc.TGuid                 `protobuf:"bytes,1,req,name=id" json:"id,omitempty"`
+	Engine              *EQueryEngine               `protobuf:"varint,2,opt,name=engine,enum=NYT.NApi.NRpcProxy.NProto.EQueryEngine" json:"engine,omitempty"`
+	Query               *string                     `protobuf:"bytes,3,opt,name=query" json:"query,omitempty"`
+	Files               []byte                      `protobuf:"bytes,4,opt,name=files" json:"files,omitempty"`                              // YSON
+	StartTime           *uint64                     `protobuf:"varint,5,opt,name=start_time,json=startTime" json:"start_time,omitempty"`    // TInstant
+	FinishTime          *uint64                     `protobuf:"varint,6,opt,name=finish_time,json=finishTime" json:"finish_time,omitempty"` // TInstant
+	Settings            []byte                      `protobuf:"bytes,7,opt,name=settings" json:"settings,omitempty"`                        // YSON
+	User                *string                     `protobuf:"bytes,8,opt,name=user" json:"user,omitempty"`
+	AccessControlObject *string                     `protobuf:"bytes,9,opt,name=access_control_object,json=accessControlObject" json:"access_control_object,omitempty"`
+	State               *EQueryState                `protobuf:"varint,10,opt,name=state,enum=NYT.NApi.NRpcProxy.NProto.EQueryState" json:"state,omitempty"`
+	ResultCount         *int64                      `protobuf:"varint,11,opt,name=result_count,json=resultCount" json:"result_count,omitempty"`
+	Progress            []byte                      `protobuf:"bytes,12,opt,name=progress" json:"progress,omitempty"` // YSON
+	Error               *misc.TError                `protobuf:"bytes,13,opt,name=error" json:"error,omitempty"`
+	Annotations         []byte                      `protobuf:"bytes,14,opt,name=annotations" json:"annotations,omitempty"` // YSON
+	OtherAttributes     *ytree.TAttributeDictionary `protobuf:"bytes,15,opt,name=other_attributes,json=otherAttributes" json:"other_attributes,omitempty"`
+}
+
+func (x *TQuery) Reset() {
+	*x = TQuery{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[282]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TQuery) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TQuery) ProtoMessage() {}
+
+func (x *TQuery) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[282]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TQuery.ProtoReflect.Descriptor instead.
+func (*TQuery) Descriptor() ([]byte, []int) {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{282}
+}
+
+func (x *TQuery) GetId() *misc.TGuid {
+	if x != nil {
+		return x.Id
+	}
+	return nil
+}
+
+func (x *TQuery) GetEngine() EQueryEngine {
+	if x != nil && x.Engine != nil {
+		return *x.Engine
+	}
+	return EQueryEngine_QE_UNKNOWN
+}
+
+func (x *TQuery) GetQuery() string {
+	if x != nil && x.Query != nil {
+		return *x.Query
+	}
+	return ""
+}
+
+func (x *TQuery) GetFiles() []byte {
+	if x != nil {
+		return x.Files
+	}
+	return nil
+}
+
+func (x *TQuery) GetStartTime() uint64 {
+	if x != nil && x.StartTime != nil {
+		return *x.StartTime
+	}
+	return 0
+}
+
+func (x *TQuery) GetFinishTime() uint64 {
+	if x != nil && x.FinishTime != nil {
+		return *x.FinishTime
+	}
+	return 0
+}
+
+func (x *TQuery) GetSettings() []byte {
+	if x != nil {
+		return x.Settings
+	}
+	return nil
+}
+
+func (x *TQuery) GetUser() string {
+	if x != nil && x.User != nil {
+		return *x.User
+	}
+	return ""
+}
+
+func (x *TQuery) GetAccessControlObject() string {
+	if x != nil && x.AccessControlObject != nil {
+		return *x.AccessControlObject
+	}
+	return ""
+}
+
+func (x *TQuery) GetState() EQueryState {
+	if x != nil && x.State != nil {
+		return *x.State
+	}
+	return EQueryState_QS_UNKNOWN
+}
+
+func (x *TQuery) GetResultCount() int64 {
+	if x != nil && x.ResultCount != nil {
+		return *x.ResultCount
+	}
+	return 0
+}
+
+func (x *TQuery) GetProgress() []byte {
+	if x != nil {
+		return x.Progress
+	}
+	return nil
+}
+
+func (x *TQuery) GetError() *misc.TError {
+	if x != nil {
+		return x.Error
+	}
+	return nil
+}
+
+func (x *TQuery) GetAnnotations() []byte {
+	if x != nil {
+		return x.Annotations
+	}
+	return nil
+}
+
+func (x *TQuery) GetOtherAttributes() *ytree.TAttributeDictionary {
+	if x != nil {
+		return x.OtherAttributes
+	}
+	return nil
+}
+
+type TReqGetQuery struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	QueryTrackerStage *string                 `protobuf:"bytes,1,req,name=query_tracker_stage,json=queryTrackerStage" json:"query_tracker_stage,omitempty"`
+	QueryId           *misc.TGuid             `protobuf:"bytes,2,req,name=query_id,json=queryId" json:"query_id,omitempty"`
+	Attributes        *ytree.TAttributeFilter `protobuf:"bytes,3,opt,name=attributes" json:"attributes,omitempty"`
+	Timestamp         *uint64                 `protobuf:"varint,4,opt,name=timestamp" json:"timestamp,omitempty"`
+}
+
+func (x *TReqGetQuery) Reset() {
+	*x = TReqGetQuery{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[283]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TReqGetQuery) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TReqGetQuery) ProtoMessage() {}
+
+func (x *TReqGetQuery) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[283]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TReqGetQuery.ProtoReflect.Descriptor instead.
+func (*TReqGetQuery) Descriptor() ([]byte, []int) {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{283}
+}
+
+func (x *TReqGetQuery) GetQueryTrackerStage() string {
+	if x != nil && x.QueryTrackerStage != nil {
+		return *x.QueryTrackerStage
+	}
+	return ""
+}
+
+func (x *TReqGetQuery) GetQueryId() *misc.TGuid {
+	if x != nil {
+		return x.QueryId
+	}
+	return nil
+}
+
+func (x *TReqGetQuery) GetAttributes() *ytree.TAttributeFilter {
+	if x != nil {
+		return x.Attributes
+	}
+	return nil
+}
+
+func (x *TReqGetQuery) GetTimestamp() uint64 {
+	if x != nil && x.Timestamp != nil {
+		return *x.Timestamp
+	}
+	return 0
+}
+
+type TRspGetQuery struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Query *TQuery `protobuf:"bytes,1,opt,name=query" json:"query,omitempty"`
+}
+
+func (x *TRspGetQuery) Reset() {
+	*x = TRspGetQuery{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[284]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TRspGetQuery) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TRspGetQuery) ProtoMessage() {}
+
+func (x *TRspGetQuery) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[284]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TRspGetQuery.ProtoReflect.Descriptor instead.
+func (*TRspGetQuery) Descriptor() ([]byte, []int) {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{284}
+}
+
+func (x *TRspGetQuery) GetQuery() *TQuery {
+	if x != nil {
+		return x.Query
+	}
+	return nil
+}
+
+type TReqListQueries struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	QueryTrackerStage *string                  `protobuf:"bytes,1,req,name=query_tracker_stage,json=queryTrackerStage" json:"query_tracker_stage,omitempty"`
+	FromTime          *uint64                  `protobuf:"varint,2,opt,name=from_time,json=fromTime" json:"from_time,omitempty"`       // TInstant
+	ToTime            *uint64                  `protobuf:"varint,3,opt,name=to_time,json=toTime" json:"to_time,omitempty"`             // TInstant
+	CursorTime        *uint64                  `protobuf:"varint,4,opt,name=cursor_time,json=cursorTime" json:"cursor_time,omitempty"` // TInstant
+	CursorDirection   *EOperationSortDirection `protobuf:"varint,5,opt,name=cursor_direction,json=cursorDirection,enum=NYT.NApi.NRpcProxy.NProto.EOperationSortDirection,def=1" json:"cursor_direction,omitempty"`
+	UserFilter        *string                  `protobuf:"bytes,6,opt,name=user_filter,json=userFilter" json:"user_filter,omitempty"`
+	StateFilter       *EQueryState             `protobuf:"varint,7,opt,name=state_filter,json=stateFilter,enum=NYT.NApi.NRpcProxy.NProto.EQueryState" json:"state_filter,omitempty"`
+	EngineFilter      *EQueryEngine            `protobuf:"varint,8,opt,name=engine_filter,json=engineFilter,enum=NYT.NApi.NRpcProxy.NProto.EQueryEngine" json:"engine_filter,omitempty"`
+	SubstrFilter      *string                  `protobuf:"bytes,9,opt,name=substr_filter,json=substrFilter" json:"substr_filter,omitempty"`
+	Limit             *uint64                  `protobuf:"varint,10,opt,name=limit,def=100" json:"limit,omitempty"`
+	Attributes        *ytree.TAttributeFilter  `protobuf:"bytes,11,opt,name=attributes" json:"attributes,omitempty"`
+}
+
+// Default values for TReqListQueries fields.
+const (
+	Default_TReqListQueries_CursorDirection = EOperationSortDirection_OSD_PAST
+	Default_TReqListQueries_Limit           = uint64(100)
+)
+
+func (x *TReqListQueries) Reset() {
+	*x = TReqListQueries{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[285]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TReqListQueries) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TReqListQueries) ProtoMessage() {}
+
+func (x *TReqListQueries) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[285]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TReqListQueries.ProtoReflect.Descriptor instead.
+func (*TReqListQueries) Descriptor() ([]byte, []int) {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{285}
+}
+
+func (x *TReqListQueries) GetQueryTrackerStage() string {
+	if x != nil && x.QueryTrackerStage != nil {
+		return *x.QueryTrackerStage
+	}
+	return ""
+}
+
+func (x *TReqListQueries) GetFromTime() uint64 {
+	if x != nil && x.FromTime != nil {
+		return *x.FromTime
+	}
+	return 0
+}
+
+func (x *TReqListQueries) GetToTime() uint64 {
+	if x != nil && x.ToTime != nil {
+		return *x.ToTime
+	}
+	return 0
+}
+
+func (x *TReqListQueries) GetCursorTime() uint64 {
+	if x != nil && x.CursorTime != nil {
+		return *x.CursorTime
+	}
+	return 0
+}
+
+func (x *TReqListQueries) GetCursorDirection() EOperationSortDirection {
+	if x != nil && x.CursorDirection != nil {
+		return *x.CursorDirection
+	}
+	return Default_TReqListQueries_CursorDirection
+}
+
+func (x *TReqListQueries) GetUserFilter() string {
+	if x != nil && x.UserFilter != nil {
+		return *x.UserFilter
+	}
+	return ""
+}
+
+func (x *TReqListQueries) GetStateFilter() EQueryState {
+	if x != nil && x.StateFilter != nil {
+		return *x.StateFilter
+	}
+	return EQueryState_QS_UNKNOWN
+}
+
+func (x *TReqListQueries) GetEngineFilter() EQueryEngine {
+	if x != nil && x.EngineFilter != nil {
+		return *x.EngineFilter
+	}
+	return EQueryEngine_QE_UNKNOWN
+}
+
+func (x *TReqListQueries) GetSubstrFilter() string {
+	if x != nil && x.SubstrFilter != nil {
+		return *x.SubstrFilter
+	}
+	return ""
+}
+
+func (x *TReqListQueries) GetLimit() uint64 {
+	if x != nil && x.Limit != nil {
+		return *x.Limit
+	}
+	return Default_TReqListQueries_Limit
+}
+
+func (x *TReqListQueries) GetAttributes() *ytree.TAttributeFilter {
+	if x != nil {
+		return x.Attributes
+	}
+	return nil
+}
+
+type TRspListQueries struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Queries    []*TQuery `protobuf:"bytes,1,rep,name=queries" json:"queries,omitempty"`
+	Incomplete *bool     `protobuf:"varint,2,req,name=incomplete" json:"incomplete,omitempty"`
+	Timestamp  *uint64   `protobuf:"varint,3,req,name=timestamp" json:"timestamp,omitempty"`
+}
+
+func (x *TRspListQueries) Reset() {
+	*x = TRspListQueries{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[286]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TRspListQueries) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TRspListQueries) ProtoMessage() {}
+
+func (x *TRspListQueries) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[286]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TRspListQueries.ProtoReflect.Descriptor instead.
+func (*TRspListQueries) Descriptor() ([]byte, []int) {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{286}
+}
+
+func (x *TRspListQueries) GetQueries() []*TQuery {
+	if x != nil {
+		return x.Queries
+	}
+	return nil
+}
+
+func (x *TRspListQueries) GetIncomplete() bool {
+	if x != nil && x.Incomplete != nil {
+		return *x.Incomplete
+	}
+	return false
+}
+
+func (x *TRspListQueries) GetTimestamp() uint64 {
+	if x != nil && x.Timestamp != nil {
+		return *x.Timestamp
+	}
+	return 0
+}
+
+type TReqAlterQuery struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	QueryTrackerStage   *string     `protobuf:"bytes,1,req,name=query_tracker_stage,json=queryTrackerStage" json:"query_tracker_stage,omitempty"`
+	QueryId             *misc.TGuid `protobuf:"bytes,2,req,name=query_id,json=queryId" json:"query_id,omitempty"`
+	Annotations         []byte      `protobuf:"bytes,3,opt,name=annotations" json:"annotations,omitempty"` // YSON
+	AccessControlObject *string     `protobuf:"bytes,4,opt,name=access_control_object,json=accessControlObject" json:"access_control_object,omitempty"`
+}
+
+func (x *TReqAlterQuery) Reset() {
+	*x = TReqAlterQuery{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[287]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TReqAlterQuery) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TReqAlterQuery) ProtoMessage() {}
+
+func (x *TReqAlterQuery) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[287]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TReqAlterQuery.ProtoReflect.Descriptor instead.
+func (*TReqAlterQuery) Descriptor() ([]byte, []int) {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{287}
+}
+
+func (x *TReqAlterQuery) GetQueryTrackerStage() string {
+	if x != nil && x.QueryTrackerStage != nil {
+		return *x.QueryTrackerStage
+	}
+	return ""
+}
+
+func (x *TReqAlterQuery) GetQueryId() *misc.TGuid {
+	if x != nil {
+		return x.QueryId
+	}
+	return nil
+}
+
+func (x *TReqAlterQuery) GetAnnotations() []byte {
+	if x != nil {
+		return x.Annotations
+	}
+	return nil
+}
+
+func (x *TReqAlterQuery) GetAccessControlObject() string {
+	if x != nil && x.AccessControlObject != nil {
+		return *x.AccessControlObject
+	}
+	return ""
+}
+
+type TRspAlterQuery struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *TRspAlterQuery) Reset() {
+	*x = TRspAlterQuery{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[288]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TRspAlterQuery) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TRspAlterQuery) ProtoMessage() {}
+
+func (x *TRspAlterQuery) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[288]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TRspAlterQuery.ProtoReflect.Descriptor instead.
+func (*TRspAlterQuery) Descriptor() ([]byte, []int) {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{288}
+}
+
+type TReqGetQueryTrackerInfo struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	QueryTrackerStage *string                 `protobuf:"bytes,1,req,name=query_tracker_stage,json=queryTrackerStage" json:"query_tracker_stage,omitempty"`
+	Attributes        *ytree.TAttributeFilter `protobuf:"bytes,2,opt,name=attributes" json:"attributes,omitempty"`
+}
+
+func (x *TReqGetQueryTrackerInfo) Reset() {
+	*x = TReqGetQueryTrackerInfo{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[289]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TReqGetQueryTrackerInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TReqGetQueryTrackerInfo) ProtoMessage() {}
+
+func (x *TReqGetQueryTrackerInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[289]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TReqGetQueryTrackerInfo.ProtoReflect.Descriptor instead.
+func (*TReqGetQueryTrackerInfo) Descriptor() ([]byte, []int) {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{289}
+}
+
+func (x *TReqGetQueryTrackerInfo) GetQueryTrackerStage() string {
+	if x != nil && x.QueryTrackerStage != nil {
+		return *x.QueryTrackerStage
+	}
+	return ""
+}
+
+func (x *TReqGetQueryTrackerInfo) GetAttributes() *ytree.TAttributeFilter {
+	if x != nil {
+		return x.Attributes
+	}
+	return nil
+}
+
+type TRspGetQueryTrackerInfo struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	ClusterName          *string  `protobuf:"bytes,1,req,name=cluster_name,json=clusterName" json:"cluster_name,omitempty"`
+	SupportedFeatures    []byte   `protobuf:"bytes,2,req,name=supported_features,json=supportedFeatures" json:"supported_features,omitempty"` // YSON
+	AccessControlObjects []string `protobuf:"bytes,3,rep,name=access_control_objects,json=accessControlObjects" json:"access_control_objects,omitempty"`
+}
+
+func (x *TRspGetQueryTrackerInfo) Reset() {
+	*x = TRspGetQueryTrackerInfo{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[290]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TRspGetQueryTrackerInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TRspGetQueryTrackerInfo) ProtoMessage() {}
+
+func (x *TRspGetQueryTrackerInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[290]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TRspGetQueryTrackerInfo.ProtoReflect.Descriptor instead.
+func (*TRspGetQueryTrackerInfo) Descriptor() ([]byte, []int) {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{290}
+}
+
+func (x *TRspGetQueryTrackerInfo) GetClusterName() string {
+	if x != nil && x.ClusterName != nil {
+		return *x.ClusterName
+	}
+	return ""
+}
+
+func (x *TRspGetQueryTrackerInfo) GetSupportedFeatures() []byte {
+	if x != nil {
+		return x.SupportedFeatures
+	}
+	return nil
+}
+
+func (x *TRspGetQueryTrackerInfo) GetAccessControlObjects() []string {
+	if x != nil {
+		return x.AccessControlObjects
+	}
+	return nil
+}
+
 type TRowsetDescriptor_TNameTableEntry struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -20047,7 +21486,7 @@ type TRowsetDescriptor_TNameTableEntry struct {
 func (x *TRowsetDescriptor_TNameTableEntry) Reset() {
 	*x = TRowsetDescriptor_TNameTableEntry{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[274]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[291]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20060,7 +21499,7 @@ func (x *TRowsetDescriptor_TNameTableEntry) String() string {
 func (*TRowsetDescriptor_TNameTableEntry) ProtoMessage() {}
 
 func (x *TRowsetDescriptor_TNameTableEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[274]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[291]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20121,7 +21560,7 @@ const (
 func (x *TReqMultiLookup_TSubrequest) Reset() {
 	*x = TReqMultiLookup_TSubrequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[275]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[292]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20134,7 +21573,7 @@ func (x *TReqMultiLookup_TSubrequest) String() string {
 func (*TReqMultiLookup_TSubrequest) ProtoMessage() {}
 
 func (x *TReqMultiLookup_TSubrequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[275]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[292]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20211,7 +21650,7 @@ type TRspMultiLookup_TSubresponse struct {
 func (x *TRspMultiLookup_TSubresponse) Reset() {
 	*x = TRspMultiLookup_TSubresponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[276]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[293]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20224,7 +21663,7 @@ func (x *TRspMultiLookup_TSubresponse) String() string {
 func (*TRspMultiLookup_TSubresponse) ProtoMessage() {}
 
 func (x *TRspMultiLookup_TSubresponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[276]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[293]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20266,7 +21705,7 @@ type TReqRegisterQueueConsumer_TRegistrationPartitions struct {
 func (x *TReqRegisterQueueConsumer_TRegistrationPartitions) Reset() {
 	*x = TReqRegisterQueueConsumer_TRegistrationPartitions{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[277]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[294]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20279,7 +21718,7 @@ func (x *TReqRegisterQueueConsumer_TRegistrationPartitions) String() string {
 func (*TReqRegisterQueueConsumer_TRegistrationPartitions) ProtoMessage() {}
 
 func (x *TReqRegisterQueueConsumer_TRegistrationPartitions) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[277]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[294]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20316,7 +21755,7 @@ type TRspListQueueConsumerRegistrations_TQueueConsumerRegistration struct {
 func (x *TRspListQueueConsumerRegistrations_TQueueConsumerRegistration) Reset() {
 	*x = TRspListQueueConsumerRegistrations_TQueueConsumerRegistration{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[278]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[295]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20329,7 +21768,7 @@ func (x *TRspListQueueConsumerRegistrations_TQueueConsumerRegistration) String()
 func (*TRspListQueueConsumerRegistrations_TQueueConsumerRegistration) ProtoMessage() {}
 
 func (x *TRspListQueueConsumerRegistrations_TQueueConsumerRegistration) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[278]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[295]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20385,7 +21824,7 @@ type TRspListQueueConsumerRegistrations_TQueueConsumerRegistration_TRegistration
 func (x *TRspListQueueConsumerRegistrations_TQueueConsumerRegistration_TRegistrationPartitions) Reset() {
 	*x = TRspListQueueConsumerRegistrations_TQueueConsumerRegistration_TRegistrationPartitions{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[279]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[296]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20399,7 +21838,7 @@ func (*TRspListQueueConsumerRegistrations_TQueueConsumerRegistration_TRegistrati
 }
 
 func (x *TRspListQueueConsumerRegistrations_TQueueConsumerRegistration_TRegistrationPartitions) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[279]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[296]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20439,7 +21878,7 @@ type TRspGetTabletInfos_TTabletInfo struct {
 func (x *TRspGetTabletInfos_TTabletInfo) Reset() {
 	*x = TRspGetTabletInfos_TTabletInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[280]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[297]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20452,7 +21891,7 @@ func (x *TRspGetTabletInfos_TTabletInfo) String() string {
 func (*TRspGetTabletInfos_TTabletInfo) ProtoMessage() {}
 
 func (x *TRspGetTabletInfos_TTabletInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[280]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[297]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20533,7 +21972,7 @@ type TRspGetTabletInfos_TTabletInfo_TReplicaInfo struct {
 func (x *TRspGetTabletInfos_TTabletInfo_TReplicaInfo) Reset() {
 	*x = TRspGetTabletInfos_TTabletInfo_TReplicaInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[281]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[298]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20546,7 +21985,7 @@ func (x *TRspGetTabletInfos_TTabletInfo_TReplicaInfo) String() string {
 func (*TRspGetTabletInfos_TTabletInfo_TReplicaInfo) ProtoMessage() {}
 
 func (x *TRspGetTabletInfos_TTabletInfo_TReplicaInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[281]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[298]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20615,7 +22054,7 @@ type TRspGetTabletErrors_TErrorList struct {
 func (x *TRspGetTabletErrors_TErrorList) Reset() {
 	*x = TRspGetTabletErrors_TErrorList{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[282]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[299]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20628,7 +22067,7 @@ func (x *TRspGetTabletErrors_TErrorList) String() string {
 func (*TRspGetTabletErrors_TErrorList) ProtoMessage() {}
 
 func (x *TRspGetTabletErrors_TErrorList) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[282]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[299]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20662,7 +22101,7 @@ type TPrerequisiteOptions_TTransactionPrerequisite struct {
 func (x *TPrerequisiteOptions_TTransactionPrerequisite) Reset() {
 	*x = TPrerequisiteOptions_TTransactionPrerequisite{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[284]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[301]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20675,7 +22114,7 @@ func (x *TPrerequisiteOptions_TTransactionPrerequisite) String() string {
 func (*TPrerequisiteOptions_TTransactionPrerequisite) ProtoMessage() {}
 
 func (x *TPrerequisiteOptions_TTransactionPrerequisite) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[284]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[301]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20710,7 +22149,7 @@ type TPrerequisiteOptions_TRevisionPrerequisite struct {
 func (x *TPrerequisiteOptions_TRevisionPrerequisite) Reset() {
 	*x = TPrerequisiteOptions_TRevisionPrerequisite{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[285]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[302]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20723,7 +22162,7 @@ func (x *TPrerequisiteOptions_TRevisionPrerequisite) String() string {
 func (*TPrerequisiteOptions_TRevisionPrerequisite) ProtoMessage() {}
 
 func (x *TPrerequisiteOptions_TRevisionPrerequisite) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[285]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[302]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20765,7 +22204,7 @@ type TBackupManifest_TClusterManifest struct {
 func (x *TBackupManifest_TClusterManifest) Reset() {
 	*x = TBackupManifest_TClusterManifest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[286]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[303]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20778,7 +22217,7 @@ func (x *TBackupManifest_TClusterManifest) String() string {
 func (*TBackupManifest_TClusterManifest) ProtoMessage() {}
 
 func (x *TBackupManifest_TClusterManifest) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[286]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[303]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20820,7 +22259,7 @@ type TReqMultisetAttributesNode_TSubrequest struct {
 func (x *TReqMultisetAttributesNode_TSubrequest) Reset() {
 	*x = TReqMultisetAttributesNode_TSubrequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[287]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[304]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20833,7 +22272,7 @@ func (x *TReqMultisetAttributesNode_TSubrequest) String() string {
 func (*TReqMultisetAttributesNode_TSubrequest) ProtoMessage() {}
 
 func (x *TReqMultisetAttributesNode_TSubrequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[287]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[304]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20879,7 +22318,7 @@ const (
 func (x *TReqConcatenateNodes_TFetcher) Reset() {
 	*x = TReqConcatenateNodes_TFetcher{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[288]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[305]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20892,7 +22331,7 @@ func (x *TReqConcatenateNodes_TFetcher) String() string {
 func (*TReqConcatenateNodes_TFetcher) ProtoMessage() {}
 
 func (x *TReqConcatenateNodes_TFetcher) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[288]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[305]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20926,7 +22365,7 @@ type TReqPartitionTables_TChunkSliceFetcherConfig struct {
 func (x *TReqPartitionTables_TChunkSliceFetcherConfig) Reset() {
 	*x = TReqPartitionTables_TChunkSliceFetcherConfig{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[289]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[306]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20939,7 +22378,7 @@ func (x *TReqPartitionTables_TChunkSliceFetcherConfig) String() string {
 func (*TReqPartitionTables_TChunkSliceFetcherConfig) ProtoMessage() {}
 
 func (x *TReqPartitionTables_TChunkSliceFetcherConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[289]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[306]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20975,7 +22414,7 @@ type TMultiTablePartition_TStatistics struct {
 func (x *TMultiTablePartition_TStatistics) Reset() {
 	*x = TMultiTablePartition_TStatistics{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[290]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[307]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20988,7 +22427,7 @@ func (x *TMultiTablePartition_TStatistics) String() string {
 func (*TMultiTablePartition_TStatistics) ProtoMessage() {}
 
 func (x *TMultiTablePartition_TStatistics) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[290]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[307]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21036,7 +22475,7 @@ type TReqCheckPermission_TColumns struct {
 func (x *TReqCheckPermission_TColumns) Reset() {
 	*x = TReqCheckPermission_TColumns{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[291]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[308]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -21049,7 +22488,7 @@ func (x *TReqCheckPermission_TColumns) String() string {
 func (*TReqCheckPermission_TColumns) ProtoMessage() {}
 
 func (x *TReqCheckPermission_TColumns) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[291]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[308]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21083,7 +22522,7 @@ type TRspCheckPermission_TColumns struct {
 func (x *TRspCheckPermission_TColumns) Reset() {
 	*x = TRspCheckPermission_TColumns{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[292]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[309]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -21096,7 +22535,7 @@ func (x *TRspCheckPermission_TColumns) String() string {
 func (*TRspCheckPermission_TColumns) ProtoMessage() {}
 
 func (x *TRspCheckPermission_TColumns) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[292]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[309]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21130,7 +22569,7 @@ type TOperation_TStrings struct {
 func (x *TOperation_TStrings) Reset() {
 	*x = TOperation_TStrings{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[293]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[310]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -21143,7 +22582,7 @@ func (x *TOperation_TStrings) String() string {
 func (*TOperation_TStrings) ProtoMessage() {}
 
 func (x *TOperation_TStrings) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[293]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[310]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21177,7 +22616,7 @@ type TListOperationsResult_TPoolCounts struct {
 func (x *TListOperationsResult_TPoolCounts) Reset() {
 	*x = TListOperationsResult_TPoolCounts{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[294]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[311]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -21190,7 +22629,7 @@ func (x *TListOperationsResult_TPoolCounts) String() string {
 func (*TListOperationsResult_TPoolCounts) ProtoMessage() {}
 
 func (x *TListOperationsResult_TPoolCounts) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[294]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[311]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21224,7 +22663,7 @@ type TListOperationsResult_TUserCounts struct {
 func (x *TListOperationsResult_TUserCounts) Reset() {
 	*x = TListOperationsResult_TUserCounts{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[295]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[312]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -21237,7 +22676,7 @@ func (x *TListOperationsResult_TUserCounts) String() string {
 func (*TListOperationsResult_TUserCounts) ProtoMessage() {}
 
 func (x *TListOperationsResult_TUserCounts) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[295]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[312]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21271,7 +22710,7 @@ type TListOperationsResult_TOperationStateCounts struct {
 func (x *TListOperationsResult_TOperationStateCounts) Reset() {
 	*x = TListOperationsResult_TOperationStateCounts{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[296]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[313]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -21284,7 +22723,7 @@ func (x *TListOperationsResult_TOperationStateCounts) String() string {
 func (*TListOperationsResult_TOperationStateCounts) ProtoMessage() {}
 
 func (x *TListOperationsResult_TOperationStateCounts) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[296]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[313]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21318,7 +22757,7 @@ type TListOperationsResult_TOperationTypeCounts struct {
 func (x *TListOperationsResult_TOperationTypeCounts) Reset() {
 	*x = TListOperationsResult_TOperationTypeCounts{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[297]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[314]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -21331,7 +22770,7 @@ func (x *TListOperationsResult_TOperationTypeCounts) String() string {
 func (*TListOperationsResult_TOperationTypeCounts) ProtoMessage() {}
 
 func (x *TListOperationsResult_TOperationTypeCounts) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[297]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[314]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21365,7 +22804,7 @@ type TListOperationsResult_TPoolTreeCounts struct {
 func (x *TListOperationsResult_TPoolTreeCounts) Reset() {
 	*x = TListOperationsResult_TPoolTreeCounts{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[298]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[315]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -21378,7 +22817,7 @@ func (x *TListOperationsResult_TPoolTreeCounts) String() string {
 func (*TListOperationsResult_TPoolTreeCounts) ProtoMessage() {}
 
 func (x *TListOperationsResult_TPoolTreeCounts) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[298]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[315]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21413,7 +22852,7 @@ type TListOperationsResult_TPoolCounts_TPoolCount struct {
 func (x *TListOperationsResult_TPoolCounts_TPoolCount) Reset() {
 	*x = TListOperationsResult_TPoolCounts_TPoolCount{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[299]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[316]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -21426,7 +22865,7 @@ func (x *TListOperationsResult_TPoolCounts_TPoolCount) String() string {
 func (*TListOperationsResult_TPoolCounts_TPoolCount) ProtoMessage() {}
 
 func (x *TListOperationsResult_TPoolCounts_TPoolCount) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[299]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[316]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21468,7 +22907,7 @@ type TListOperationsResult_TUserCounts_TUserCount struct {
 func (x *TListOperationsResult_TUserCounts_TUserCount) Reset() {
 	*x = TListOperationsResult_TUserCounts_TUserCount{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[300]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[317]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -21481,7 +22920,7 @@ func (x *TListOperationsResult_TUserCounts_TUserCount) String() string {
 func (*TListOperationsResult_TUserCounts_TUserCount) ProtoMessage() {}
 
 func (x *TListOperationsResult_TUserCounts_TUserCount) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[300]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[317]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21523,7 +22962,7 @@ type TListOperationsResult_TOperationStateCounts_TOperationStateCount struct {
 func (x *TListOperationsResult_TOperationStateCounts_TOperationStateCount) Reset() {
 	*x = TListOperationsResult_TOperationStateCounts_TOperationStateCount{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[301]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[318]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -21536,7 +22975,7 @@ func (x *TListOperationsResult_TOperationStateCounts_TOperationStateCount) Strin
 func (*TListOperationsResult_TOperationStateCounts_TOperationStateCount) ProtoMessage() {}
 
 func (x *TListOperationsResult_TOperationStateCounts_TOperationStateCount) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[301]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[318]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21578,7 +23017,7 @@ type TListOperationsResult_TOperationTypeCounts_TOperationTypeCount struct {
 func (x *TListOperationsResult_TOperationTypeCounts_TOperationTypeCount) Reset() {
 	*x = TListOperationsResult_TOperationTypeCounts_TOperationTypeCount{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[302]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[319]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -21591,7 +23030,7 @@ func (x *TListOperationsResult_TOperationTypeCounts_TOperationTypeCount) String(
 func (*TListOperationsResult_TOperationTypeCounts_TOperationTypeCount) ProtoMessage() {}
 
 func (x *TListOperationsResult_TOperationTypeCounts_TOperationTypeCount) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[302]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[319]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21632,7 +23071,7 @@ type TListJobsStatistics_TJobStateCounts struct {
 func (x *TListJobsStatistics_TJobStateCounts) Reset() {
 	*x = TListJobsStatistics_TJobStateCounts{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[304]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[321]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -21645,7 +23084,7 @@ func (x *TListJobsStatistics_TJobStateCounts) String() string {
 func (*TListJobsStatistics_TJobStateCounts) ProtoMessage() {}
 
 func (x *TListJobsStatistics_TJobStateCounts) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[304]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[321]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21679,7 +23118,7 @@ type TListJobsStatistics_TJobTypeCounts struct {
 func (x *TListJobsStatistics_TJobTypeCounts) Reset() {
 	*x = TListJobsStatistics_TJobTypeCounts{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[305]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[322]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -21692,7 +23131,7 @@ func (x *TListJobsStatistics_TJobTypeCounts) String() string {
 func (*TListJobsStatistics_TJobTypeCounts) ProtoMessage() {}
 
 func (x *TListJobsStatistics_TJobTypeCounts) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[305]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[322]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21727,7 +23166,7 @@ type TListJobsStatistics_TJobStateCounts_TJobStateCount struct {
 func (x *TListJobsStatistics_TJobStateCounts_TJobStateCount) Reset() {
 	*x = TListJobsStatistics_TJobStateCounts_TJobStateCount{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[306]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[323]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -21740,7 +23179,7 @@ func (x *TListJobsStatistics_TJobStateCounts_TJobStateCount) String() string {
 func (*TListJobsStatistics_TJobStateCounts_TJobStateCount) ProtoMessage() {}
 
 func (x *TListJobsStatistics_TJobStateCounts_TJobStateCount) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[306]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[323]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21782,7 +23221,7 @@ type TListJobsStatistics_TJobTypeCounts_TJobTypeCount struct {
 func (x *TListJobsStatistics_TJobTypeCounts_TJobTypeCount) Reset() {
 	*x = TListJobsStatistics_TJobTypeCounts_TJobTypeCount{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[307]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[324]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -21795,7 +23234,7 @@ func (x *TListJobsStatistics_TJobTypeCounts_TJobTypeCount) String() string {
 func (*TListJobsStatistics_TJobTypeCounts_TJobTypeCount) ProtoMessage() {}
 
 func (x *TListJobsStatistics_TJobTypeCounts_TJobTypeCount) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[307]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[324]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21823,6 +23262,116 @@ func (x *TListJobsStatistics_TJobTypeCounts_TJobTypeCount) GetCount() int64 {
 		return *x.Count
 	}
 	return 0
+}
+
+type TReqStartQuery_TQueryFile struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Name    *string       `protobuf:"bytes,1,req,name=name" json:"name,omitempty"`
+	Content *string       `protobuf:"bytes,2,req,name=content" json:"content,omitempty"`
+	Type    *EContentType `protobuf:"varint,3,req,name=type,enum=NYT.NApi.NRpcProxy.NProto.EContentType" json:"type,omitempty"`
+}
+
+func (x *TReqStartQuery_TQueryFile) Reset() {
+	*x = TReqStartQuery_TQueryFile{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[325]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TReqStartQuery_TQueryFile) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TReqStartQuery_TQueryFile) ProtoMessage() {}
+
+func (x *TReqStartQuery_TQueryFile) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[325]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TReqStartQuery_TQueryFile.ProtoReflect.Descriptor instead.
+func (*TReqStartQuery_TQueryFile) Descriptor() ([]byte, []int) {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{274, 0}
+}
+
+func (x *TReqStartQuery_TQueryFile) GetName() string {
+	if x != nil && x.Name != nil {
+		return *x.Name
+	}
+	return ""
+}
+
+func (x *TReqStartQuery_TQueryFile) GetContent() string {
+	if x != nil && x.Content != nil {
+		return *x.Content
+	}
+	return ""
+}
+
+func (x *TReqStartQuery_TQueryFile) GetType() EContentType {
+	if x != nil && x.Type != nil {
+		return *x.Type
+	}
+	return EContentType_CT_RAW_INLINE_DATA
+}
+
+type TReqReadQueryResult_TColumns struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Items []string `protobuf:"bytes,1,rep,name=items" json:"items,omitempty"`
+}
+
+func (x *TReqReadQueryResult_TColumns) Reset() {
+	*x = TReqReadQueryResult_TColumns{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[326]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TReqReadQueryResult_TColumns) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TReqReadQueryResult_TColumns) ProtoMessage() {}
+
+func (x *TReqReadQueryResult_TColumns) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[326]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TReqReadQueryResult_TColumns.ProtoReflect.Descriptor instead.
+func (*TReqReadQueryResult_TColumns) Descriptor() ([]byte, []int) {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{280, 0}
+}
+
+func (x *TReqReadQueryResult_TColumns) GetItems() []string {
+	if x != nil {
+		return x.Items
+	}
+	return nil
 }
 
 var File_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto protoreflect.FileDescriptor
@@ -25543,202 +27092,460 @@ var file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDesc = [
 	0x01, 0x28, 0x09, 0x52, 0x0b, 0x73, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x4e, 0x61, 0x6d, 0x65,
 	0x12, 0x29, 0x0a, 0x10, 0x6d, 0x69, 0x73, 0x73, 0x69, 0x6e, 0x67, 0x5f, 0x73, 0x75, 0x62, 0x6a,
 	0x65, 0x63, 0x74, 0x73, 0x18, 0x04, 0x20, 0x03, 0x28, 0x09, 0x52, 0x0f, 0x6d, 0x69, 0x73, 0x73,
-	0x69, 0x6e, 0x67, 0x53, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x73, 0x2a, 0x30, 0x0a, 0x10, 0x45,
-	0x54, 0x72, 0x61, 0x6e, 0x73, 0x61, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x54, 0x79, 0x70, 0x65, 0x12,
-	0x0d, 0x0a, 0x09, 0x54, 0x54, 0x5f, 0x4d, 0x41, 0x53, 0x54, 0x45, 0x52, 0x10, 0x00, 0x12, 0x0d,
-	0x0a, 0x09, 0x54, 0x54, 0x5f, 0x54, 0x41, 0x42, 0x4c, 0x45, 0x54, 0x10, 0x01, 0x2a, 0x45, 0x0a,
-	0x14, 0x45, 0x52, 0x6f, 0x77, 0x4d, 0x6f, 0x64, 0x69, 0x66, 0x69, 0x63, 0x61, 0x74, 0x69, 0x6f,
-	0x6e, 0x54, 0x79, 0x70, 0x65, 0x12, 0x0d, 0x0a, 0x09, 0x52, 0x4d, 0x54, 0x5f, 0x57, 0x52, 0x49,
-	0x54, 0x45, 0x10, 0x00, 0x12, 0x0e, 0x0a, 0x0a, 0x52, 0x4d, 0x54, 0x5f, 0x44, 0x45, 0x4c, 0x45,
-	0x54, 0x45, 0x10, 0x01, 0x12, 0x0e, 0x0a, 0x0a, 0x52, 0x4d, 0x54, 0x5f, 0x4d, 0x4f, 0x44, 0x49,
-	0x46, 0x59, 0x10, 0x03, 0x2a, 0x24, 0x0a, 0x0a, 0x45, 0x41, 0x74, 0x6f, 0x6d, 0x69, 0x63, 0x69,
-	0x74, 0x79, 0x12, 0x0a, 0x0a, 0x06, 0x41, 0x5f, 0x46, 0x55, 0x4c, 0x4c, 0x10, 0x00, 0x12, 0x0a,
-	0x0a, 0x06, 0x41, 0x5f, 0x4e, 0x4f, 0x4e, 0x45, 0x10, 0x01, 0x2a, 0x26, 0x0a, 0x0b, 0x45, 0x44,
-	0x75, 0x72, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x79, 0x12, 0x0a, 0x0a, 0x06, 0x44, 0x5f, 0x53,
-	0x59, 0x4e, 0x43, 0x10, 0x00, 0x12, 0x0b, 0x0a, 0x07, 0x44, 0x5f, 0x41, 0x53, 0x59, 0x4e, 0x43,
-	0x10, 0x01, 0x2a, 0x5d, 0x0a, 0x11, 0x45, 0x54, 0x61, 0x62, 0x6c, 0x65, 0x52, 0x65, 0x70, 0x6c,
-	0x69, 0x63, 0x61, 0x4d, 0x6f, 0x64, 0x65, 0x12, 0x0c, 0x0a, 0x08, 0x54, 0x52, 0x4d, 0x5f, 0x53,
-	0x59, 0x4e, 0x43, 0x10, 0x00, 0x12, 0x0d, 0x0a, 0x09, 0x54, 0x52, 0x4d, 0x5f, 0x41, 0x53, 0x59,
-	0x4e, 0x43, 0x10, 0x01, 0x12, 0x15, 0x0a, 0x11, 0x54, 0x52, 0x4d, 0x5f, 0x41, 0x53, 0x59, 0x4e,
-	0x43, 0x5f, 0x54, 0x4f, 0x5f, 0x53, 0x59, 0x4e, 0x43, 0x10, 0x02, 0x12, 0x14, 0x0a, 0x10, 0x54,
-	0x52, 0x4d, 0x5f, 0x53, 0x59, 0x4e, 0x43, 0x5f, 0x54, 0x4f, 0x5f, 0x53, 0x59, 0x4e, 0x43, 0x10,
-	0x03, 0x2a, 0x31, 0x0a, 0x13, 0x45, 0x52, 0x65, 0x70, 0x6c, 0x69, 0x63, 0x61, 0x43, 0x6f, 0x6e,
-	0x73, 0x69, 0x73, 0x74, 0x65, 0x6e, 0x63, 0x79, 0x12, 0x0c, 0x0a, 0x08, 0x52, 0x52, 0x4d, 0x5f,
-	0x4e, 0x4f, 0x4e, 0x45, 0x10, 0x00, 0x12, 0x0c, 0x0a, 0x08, 0x52, 0x52, 0x4d, 0x5f, 0x53, 0x59,
-	0x4e, 0x43, 0x10, 0x01, 0x2a, 0x58, 0x0a, 0x0f, 0x45, 0x4d, 0x61, 0x73, 0x74, 0x65, 0x72, 0x52,
-	0x65, 0x61, 0x64, 0x4b, 0x69, 0x6e, 0x64, 0x12, 0x0e, 0x0a, 0x0a, 0x4d, 0x52, 0x4b, 0x5f, 0x4c,
-	0x45, 0x41, 0x44, 0x45, 0x52, 0x10, 0x00, 0x12, 0x10, 0x0a, 0x0c, 0x4d, 0x52, 0x4b, 0x5f, 0x46,
-	0x4f, 0x4c, 0x4c, 0x4f, 0x57, 0x45, 0x52, 0x10, 0x01, 0x12, 0x0d, 0x0a, 0x09, 0x4d, 0x52, 0x4b,
-	0x5f, 0x43, 0x41, 0x43, 0x48, 0x45, 0x10, 0x02, 0x12, 0x14, 0x0a, 0x10, 0x4d, 0x52, 0x4b, 0x5f,
-	0x4d, 0x41, 0x53, 0x54, 0x45, 0x52, 0x5f, 0x43, 0x41, 0x43, 0x48, 0x45, 0x10, 0x03, 0x2a, 0x33,
-	0x0a, 0x0b, 0x45, 0x52, 0x6f, 0x77, 0x73, 0x65, 0x74, 0x4b, 0x69, 0x6e, 0x64, 0x12, 0x12, 0x0a,
-	0x0e, 0x52, 0x4b, 0x5f, 0x55, 0x4e, 0x56, 0x45, 0x52, 0x53, 0x49, 0x4f, 0x4e, 0x45, 0x44, 0x10,
-	0x01, 0x12, 0x10, 0x0a, 0x0c, 0x52, 0x4b, 0x5f, 0x56, 0x45, 0x52, 0x53, 0x49, 0x4f, 0x4e, 0x45,
-	0x44, 0x10, 0x02, 0x2a, 0x3c, 0x0a, 0x0d, 0x45, 0x52, 0x6f, 0x77, 0x73, 0x65, 0x74, 0x46, 0x6f,
-	0x72, 0x6d, 0x61, 0x74, 0x12, 0x0e, 0x0a, 0x0a, 0x52, 0x46, 0x5f, 0x59, 0x54, 0x5f, 0x57, 0x49,
-	0x52, 0x45, 0x10, 0x00, 0x12, 0x0c, 0x0a, 0x08, 0x52, 0x46, 0x5f, 0x41, 0x52, 0x52, 0x4f, 0x57,
-	0x10, 0x01, 0x12, 0x0d, 0x0a, 0x09, 0x52, 0x46, 0x5f, 0x46, 0x4f, 0x52, 0x4d, 0x41, 0x54, 0x10,
-	0x02, 0x2a, 0x4f, 0x0a, 0x0f, 0x45, 0x54, 0x61, 0x62, 0x6c, 0x65, 0x74, 0x52, 0x65, 0x61, 0x64,
-	0x4b, 0x69, 0x6e, 0x64, 0x12, 0x0e, 0x0a, 0x0a, 0x54, 0x52, 0x4b, 0x5f, 0x4c, 0x45, 0x41, 0x44,
-	0x45, 0x52, 0x10, 0x00, 0x12, 0x10, 0x0a, 0x0c, 0x54, 0x52, 0x4b, 0x5f, 0x46, 0x4f, 0x4c, 0x4c,
-	0x4f, 0x57, 0x45, 0x52, 0x10, 0x01, 0x12, 0x1a, 0x0a, 0x16, 0x54, 0x52, 0x4b, 0x5f, 0x4c, 0x45,
-	0x41, 0x44, 0x45, 0x52, 0x5f, 0x4f, 0x52, 0x5f, 0x46, 0x4f, 0x4c, 0x4c, 0x4f, 0x57, 0x45, 0x52,
-	0x10, 0x02, 0x2a, 0xaf, 0x01, 0x0a, 0x0e, 0x45, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f,
-	0x6e, 0x54, 0x79, 0x70, 0x65, 0x12, 0x0e, 0x0a, 0x0a, 0x4f, 0x54, 0x5f, 0x55, 0x4e, 0x4b, 0x4e,
-	0x4f, 0x57, 0x4e, 0x10, 0x64, 0x12, 0x0a, 0x0a, 0x06, 0x4f, 0x54, 0x5f, 0x4d, 0x41, 0x50, 0x10,
-	0x00, 0x12, 0x0c, 0x0a, 0x08, 0x4f, 0x54, 0x5f, 0x4d, 0x45, 0x52, 0x47, 0x45, 0x10, 0x01, 0x12,
-	0x0c, 0x0a, 0x08, 0x4f, 0x54, 0x5f, 0x45, 0x52, 0x41, 0x53, 0x45, 0x10, 0x02, 0x12, 0x0b, 0x0a,
-	0x07, 0x4f, 0x54, 0x5f, 0x53, 0x4f, 0x52, 0x54, 0x10, 0x03, 0x12, 0x0d, 0x0a, 0x09, 0x4f, 0x54,
-	0x5f, 0x52, 0x45, 0x44, 0x55, 0x43, 0x45, 0x10, 0x04, 0x12, 0x11, 0x0a, 0x0d, 0x4f, 0x54, 0x5f,
-	0x4d, 0x41, 0x50, 0x5f, 0x52, 0x45, 0x44, 0x55, 0x43, 0x45, 0x10, 0x05, 0x12, 0x12, 0x0a, 0x0e,
-	0x4f, 0x54, 0x5f, 0x52, 0x45, 0x4d, 0x4f, 0x54, 0x45, 0x5f, 0x43, 0x4f, 0x50, 0x59, 0x10, 0x06,
-	0x12, 0x12, 0x0a, 0x0e, 0x4f, 0x54, 0x5f, 0x4a, 0x4f, 0x49, 0x4e, 0x5f, 0x52, 0x45, 0x44, 0x55,
-	0x43, 0x45, 0x10, 0x07, 0x12, 0x0e, 0x0a, 0x0a, 0x4f, 0x54, 0x5f, 0x56, 0x41, 0x4e, 0x49, 0x4c,
-	0x4c, 0x41, 0x10, 0x08, 0x2a, 0xef, 0x02, 0x0a, 0x0f, 0x45, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74,
-	0x69, 0x6f, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12, 0x0e, 0x0a, 0x0a, 0x4f, 0x53, 0x5f, 0x55,
-	0x4e, 0x4b, 0x4e, 0x4f, 0x57, 0x4e, 0x10, 0x64, 0x12, 0x0b, 0x0a, 0x07, 0x4f, 0x53, 0x5f, 0x4e,
-	0x4f, 0x4e, 0x45, 0x10, 0x00, 0x12, 0x0f, 0x0a, 0x0b, 0x4f, 0x53, 0x5f, 0x53, 0x54, 0x41, 0x52,
-	0x54, 0x49, 0x4e, 0x47, 0x10, 0x01, 0x12, 0x0f, 0x0a, 0x0b, 0x4f, 0x53, 0x5f, 0x4f, 0x52, 0x50,
-	0x48, 0x41, 0x4e, 0x45, 0x44, 0x10, 0x02, 0x12, 0x18, 0x0a, 0x14, 0x4f, 0x53, 0x5f, 0x57, 0x41,
-	0x49, 0x54, 0x49, 0x4e, 0x47, 0x5f, 0x46, 0x4f, 0x52, 0x5f, 0x41, 0x47, 0x45, 0x4e, 0x54, 0x10,
-	0x03, 0x12, 0x13, 0x0a, 0x0f, 0x4f, 0x53, 0x5f, 0x49, 0x4e, 0x49, 0x54, 0x49, 0x41, 0x4c, 0x49,
-	0x5a, 0x49, 0x4e, 0x47, 0x10, 0x04, 0x12, 0x10, 0x0a, 0x0c, 0x4f, 0x53, 0x5f, 0x50, 0x52, 0x45,
-	0x50, 0x41, 0x52, 0x49, 0x4e, 0x47, 0x10, 0x05, 0x12, 0x14, 0x0a, 0x10, 0x4f, 0x53, 0x5f, 0x4d,
-	0x41, 0x54, 0x45, 0x52, 0x49, 0x41, 0x4c, 0x49, 0x5a, 0x49, 0x4e, 0x47, 0x10, 0x06, 0x12, 0x0f,
-	0x0a, 0x0b, 0x4f, 0x53, 0x5f, 0x52, 0x45, 0x56, 0x49, 0x56, 0x49, 0x4e, 0x47, 0x10, 0x07, 0x12,
-	0x14, 0x0a, 0x10, 0x4f, 0x53, 0x5f, 0x52, 0x45, 0x56, 0x49, 0x56, 0x49, 0x4e, 0x47, 0x5f, 0x4a,
-	0x4f, 0x42, 0x53, 0x10, 0x08, 0x12, 0x0e, 0x0a, 0x0a, 0x4f, 0x53, 0x5f, 0x50, 0x45, 0x4e, 0x44,
-	0x49, 0x4e, 0x47, 0x10, 0x09, 0x12, 0x0e, 0x0a, 0x0a, 0x4f, 0x53, 0x5f, 0x52, 0x55, 0x4e, 0x4e,
-	0x49, 0x4e, 0x47, 0x10, 0x0a, 0x12, 0x11, 0x0a, 0x0d, 0x4f, 0x53, 0x5f, 0x43, 0x4f, 0x4d, 0x50,
-	0x4c, 0x45, 0x54, 0x49, 0x4e, 0x47, 0x10, 0x0b, 0x12, 0x10, 0x0a, 0x0c, 0x4f, 0x53, 0x5f, 0x43,
-	0x4f, 0x4d, 0x50, 0x4c, 0x45, 0x54, 0x45, 0x44, 0x10, 0x0c, 0x12, 0x0f, 0x0a, 0x0b, 0x4f, 0x53,
-	0x5f, 0x41, 0x42, 0x4f, 0x52, 0x54, 0x49, 0x4e, 0x47, 0x10, 0x0d, 0x12, 0x0e, 0x0a, 0x0a, 0x4f,
-	0x53, 0x5f, 0x41, 0x42, 0x4f, 0x52, 0x54, 0x45, 0x44, 0x10, 0x0e, 0x12, 0x0e, 0x0a, 0x0a, 0x4f,
-	0x53, 0x5f, 0x46, 0x41, 0x49, 0x4c, 0x49, 0x4e, 0x47, 0x10, 0x0f, 0x12, 0x0d, 0x0a, 0x09, 0x4f,
-	0x53, 0x5f, 0x46, 0x41, 0x49, 0x4c, 0x45, 0x44, 0x10, 0x10, 0x12, 0x1a, 0x0a, 0x16, 0x4f, 0x53,
-	0x5f, 0x52, 0x45, 0x56, 0x49, 0x56, 0x45, 0x5f, 0x49, 0x4e, 0x49, 0x54, 0x49, 0x41, 0x4c, 0x49,
-	0x5a, 0x49, 0x4e, 0x47, 0x10, 0x11, 0x2a, 0x45, 0x0a, 0x17, 0x45, 0x4f, 0x70, 0x65, 0x72, 0x61,
-	0x74, 0x69, 0x6f, 0x6e, 0x53, 0x6f, 0x72, 0x74, 0x44, 0x69, 0x72, 0x65, 0x63, 0x74, 0x69, 0x6f,
-	0x6e, 0x12, 0x0c, 0x0a, 0x08, 0x4f, 0x53, 0x44, 0x5f, 0x4e, 0x4f, 0x4e, 0x45, 0x10, 0x00, 0x12,
-	0x0c, 0x0a, 0x08, 0x4f, 0x53, 0x44, 0x5f, 0x50, 0x41, 0x53, 0x54, 0x10, 0x01, 0x12, 0x0e, 0x0a,
-	0x0a, 0x4f, 0x53, 0x44, 0x5f, 0x46, 0x55, 0x54, 0x55, 0x52, 0x45, 0x10, 0x02, 0x2a, 0xb3, 0x04,
-	0x0a, 0x08, 0x45, 0x4a, 0x6f, 0x62, 0x54, 0x79, 0x70, 0x65, 0x12, 0x0f, 0x0a, 0x0a, 0x4a, 0x54,
-	0x5f, 0x55, 0x4e, 0x4b, 0x4e, 0x4f, 0x57, 0x4e, 0x10, 0xe8, 0x07, 0x12, 0x0a, 0x0a, 0x06, 0x4a,
-	0x54, 0x5f, 0x4d, 0x41, 0x50, 0x10, 0x01, 0x12, 0x14, 0x0a, 0x10, 0x4a, 0x54, 0x5f, 0x50, 0x41,
-	0x52, 0x54, 0x49, 0x54, 0x49, 0x4f, 0x4e, 0x5f, 0x4d, 0x41, 0x50, 0x10, 0x02, 0x12, 0x13, 0x0a,
-	0x0f, 0x4a, 0x54, 0x5f, 0x53, 0x4f, 0x52, 0x54, 0x45, 0x44, 0x5f, 0x4d, 0x45, 0x52, 0x47, 0x45,
-	0x10, 0x03, 0x12, 0x14, 0x0a, 0x10, 0x4a, 0x54, 0x5f, 0x4f, 0x52, 0x44, 0x45, 0x52, 0x45, 0x44,
-	0x5f, 0x4d, 0x45, 0x52, 0x47, 0x45, 0x10, 0x04, 0x12, 0x16, 0x0a, 0x12, 0x4a, 0x54, 0x5f, 0x55,
-	0x4e, 0x4f, 0x52, 0x44, 0x45, 0x52, 0x45, 0x44, 0x5f, 0x4d, 0x45, 0x52, 0x47, 0x45, 0x10, 0x05,
-	0x12, 0x10, 0x0a, 0x0c, 0x4a, 0x54, 0x5f, 0x50, 0x41, 0x52, 0x54, 0x49, 0x54, 0x49, 0x4f, 0x4e,
-	0x10, 0x06, 0x12, 0x12, 0x0a, 0x0e, 0x4a, 0x54, 0x5f, 0x53, 0x49, 0x4d, 0x50, 0x4c, 0x45, 0x5f,
-	0x53, 0x4f, 0x52, 0x54, 0x10, 0x07, 0x12, 0x11, 0x0a, 0x0d, 0x4a, 0x54, 0x5f, 0x46, 0x49, 0x4e,
-	0x41, 0x4c, 0x5f, 0x53, 0x4f, 0x52, 0x54, 0x10, 0x08, 0x12, 0x14, 0x0a, 0x10, 0x4a, 0x54, 0x5f,
-	0x53, 0x4f, 0x52, 0x54, 0x45, 0x44, 0x5f, 0x52, 0x45, 0x44, 0x55, 0x43, 0x45, 0x10, 0x09, 0x12,
-	0x17, 0x0a, 0x13, 0x4a, 0x54, 0x5f, 0x50, 0x41, 0x52, 0x54, 0x49, 0x54, 0x49, 0x4f, 0x4e, 0x5f,
-	0x52, 0x45, 0x44, 0x55, 0x43, 0x45, 0x10, 0x0a, 0x12, 0x16, 0x0a, 0x12, 0x4a, 0x54, 0x5f, 0x52,
-	0x45, 0x44, 0x55, 0x43, 0x45, 0x5f, 0x43, 0x4f, 0x4d, 0x42, 0x49, 0x4e, 0x45, 0x52, 0x10, 0x0b,
-	0x12, 0x12, 0x0a, 0x0e, 0x4a, 0x54, 0x5f, 0x52, 0x45, 0x4d, 0x4f, 0x54, 0x45, 0x5f, 0x43, 0x4f,
-	0x50, 0x59, 0x10, 0x0c, 0x12, 0x18, 0x0a, 0x14, 0x4a, 0x54, 0x5f, 0x49, 0x4e, 0x54, 0x45, 0x52,
-	0x4d, 0x45, 0x44, 0x49, 0x41, 0x54, 0x45, 0x5f, 0x53, 0x4f, 0x52, 0x54, 0x10, 0x0d, 0x12, 0x12,
-	0x0a, 0x0e, 0x4a, 0x54, 0x5f, 0x4f, 0x52, 0x44, 0x45, 0x52, 0x45, 0x44, 0x5f, 0x4d, 0x41, 0x50,
-	0x10, 0x0e, 0x12, 0x12, 0x0a, 0x0e, 0x4a, 0x54, 0x5f, 0x4a, 0x4f, 0x49, 0x4e, 0x5f, 0x52, 0x45,
-	0x44, 0x55, 0x43, 0x45, 0x10, 0x0f, 0x12, 0x0e, 0x0a, 0x0a, 0x4a, 0x54, 0x5f, 0x56, 0x41, 0x4e,
-	0x49, 0x4c, 0x4c, 0x41, 0x10, 0x10, 0x12, 0x14, 0x0a, 0x10, 0x4a, 0x54, 0x5f, 0x53, 0x48, 0x41,
-	0x4c, 0x4c, 0x4f, 0x57, 0x5f, 0x4d, 0x45, 0x52, 0x47, 0x45, 0x10, 0x11, 0x12, 0x18, 0x0a, 0x14,
-	0x4a, 0x54, 0x5f, 0x53, 0x43, 0x48, 0x45, 0x44, 0x55, 0x4c, 0x45, 0x52, 0x5f, 0x55, 0x4e, 0x4b,
-	0x4e, 0x4f, 0x57, 0x4e, 0x10, 0x62, 0x12, 0x16, 0x0a, 0x12, 0x4a, 0x54, 0x5f, 0x52, 0x45, 0x50,
-	0x4c, 0x49, 0x43, 0x41, 0x54, 0x45, 0x5f, 0x43, 0x48, 0x55, 0x4e, 0x4b, 0x10, 0x64, 0x12, 0x13,
-	0x0a, 0x0f, 0x4a, 0x54, 0x5f, 0x52, 0x45, 0x4d, 0x4f, 0x56, 0x45, 0x5f, 0x43, 0x48, 0x55, 0x4e,
-	0x4b, 0x10, 0x65, 0x12, 0x13, 0x0a, 0x0f, 0x4a, 0x54, 0x5f, 0x52, 0x45, 0x50, 0x41, 0x49, 0x52,
-	0x5f, 0x43, 0x48, 0x55, 0x4e, 0x4b, 0x10, 0x66, 0x12, 0x11, 0x0a, 0x0d, 0x4a, 0x54, 0x5f, 0x53,
-	0x45, 0x41, 0x4c, 0x5f, 0x43, 0x48, 0x55, 0x4e, 0x4b, 0x10, 0x67, 0x12, 0x13, 0x0a, 0x0f, 0x4a,
-	0x54, 0x5f, 0x4d, 0x45, 0x52, 0x47, 0x45, 0x5f, 0x43, 0x48, 0x55, 0x4e, 0x4b, 0x53, 0x10, 0x68,
-	0x12, 0x17, 0x0a, 0x13, 0x4a, 0x54, 0x5f, 0x41, 0x55, 0x54, 0x4f, 0x54, 0x4f, 0x4d, 0x49, 0x5a,
-	0x45, 0x5f, 0x43, 0x48, 0x55, 0x4e, 0x4b, 0x10, 0x69, 0x12, 0x18, 0x0a, 0x14, 0x4a, 0x54, 0x5f,
-	0x52, 0x45, 0x49, 0x4e, 0x43, 0x41, 0x52, 0x4e, 0x41, 0x54, 0x45, 0x5f, 0x43, 0x48, 0x55, 0x4e,
-	0x4b, 0x10, 0x6a, 0x2a, 0x97, 0x01, 0x0a, 0x09, 0x45, 0x4a, 0x6f, 0x62, 0x53, 0x74, 0x61, 0x74,
-	0x65, 0x12, 0x0e, 0x0a, 0x0a, 0x4a, 0x53, 0x5f, 0x55, 0x4e, 0x4b, 0x4e, 0x4f, 0x57, 0x4e, 0x10,
-	0x64, 0x12, 0x0e, 0x0a, 0x0a, 0x4a, 0x53, 0x5f, 0x57, 0x41, 0x49, 0x54, 0x49, 0x4e, 0x47, 0x10,
-	0x00, 0x12, 0x0e, 0x0a, 0x0a, 0x4a, 0x53, 0x5f, 0x52, 0x55, 0x4e, 0x4e, 0x49, 0x4e, 0x47, 0x10,
-	0x01, 0x12, 0x0f, 0x0a, 0x0b, 0x4a, 0x53, 0x5f, 0x41, 0x42, 0x4f, 0x52, 0x54, 0x49, 0x4e, 0x47,
-	0x10, 0x02, 0x12, 0x10, 0x0a, 0x0c, 0x4a, 0x53, 0x5f, 0x43, 0x4f, 0x4d, 0x50, 0x4c, 0x45, 0x54,
-	0x45, 0x44, 0x10, 0x03, 0x12, 0x0d, 0x0a, 0x09, 0x4a, 0x53, 0x5f, 0x46, 0x41, 0x49, 0x4c, 0x45,
-	0x44, 0x10, 0x04, 0x12, 0x0e, 0x0a, 0x0a, 0x4a, 0x53, 0x5f, 0x41, 0x42, 0x4f, 0x52, 0x54, 0x45,
-	0x44, 0x10, 0x05, 0x12, 0x0b, 0x0a, 0x07, 0x4a, 0x53, 0x5f, 0x4c, 0x4f, 0x53, 0x54, 0x10, 0x07,
-	0x12, 0x0b, 0x0a, 0x07, 0x4a, 0x53, 0x5f, 0x4e, 0x4f, 0x4e, 0x45, 0x10, 0x08, 0x2a, 0xa4, 0x01,
-	0x0a, 0x0d, 0x45, 0x4a, 0x6f, 0x62, 0x53, 0x6f, 0x72, 0x74, 0x46, 0x69, 0x65, 0x6c, 0x64, 0x12,
-	0x0c, 0x0a, 0x08, 0x4a, 0x53, 0x46, 0x5f, 0x4e, 0x4f, 0x4e, 0x45, 0x10, 0x00, 0x12, 0x0c, 0x0a,
-	0x08, 0x4a, 0x53, 0x46, 0x5f, 0x54, 0x59, 0x50, 0x45, 0x10, 0x01, 0x12, 0x0d, 0x0a, 0x09, 0x4a,
-	0x53, 0x46, 0x5f, 0x53, 0x54, 0x41, 0x54, 0x45, 0x10, 0x02, 0x12, 0x12, 0x0a, 0x0e, 0x4a, 0x53,
-	0x46, 0x5f, 0x53, 0x54, 0x41, 0x52, 0x54, 0x5f, 0x54, 0x49, 0x4d, 0x45, 0x10, 0x03, 0x12, 0x13,
-	0x0a, 0x0f, 0x4a, 0x53, 0x46, 0x5f, 0x46, 0x49, 0x4e, 0x49, 0x53, 0x48, 0x5f, 0x54, 0x49, 0x4d,
-	0x45, 0x10, 0x04, 0x12, 0x0f, 0x0a, 0x0b, 0x4a, 0x53, 0x46, 0x5f, 0x41, 0x44, 0x44, 0x52, 0x45,
-	0x53, 0x53, 0x10, 0x05, 0x12, 0x10, 0x0a, 0x0c, 0x4a, 0x53, 0x46, 0x5f, 0x44, 0x55, 0x52, 0x41,
-	0x54, 0x49, 0x4f, 0x4e, 0x10, 0x06, 0x12, 0x10, 0x0a, 0x0c, 0x4a, 0x53, 0x46, 0x5f, 0x50, 0x52,
-	0x4f, 0x47, 0x52, 0x45, 0x53, 0x53, 0x10, 0x07, 0x12, 0x0a, 0x0a, 0x06, 0x4a, 0x53, 0x46, 0x5f,
-	0x49, 0x44, 0x10, 0x08, 0x2a, 0x3a, 0x0a, 0x11, 0x45, 0x4a, 0x6f, 0x62, 0x53, 0x6f, 0x72, 0x74,
-	0x44, 0x69, 0x72, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x11, 0x0a, 0x0d, 0x4a, 0x53, 0x44,
-	0x5f, 0x41, 0x53, 0x43, 0x45, 0x4e, 0x44, 0x49, 0x4e, 0x47, 0x10, 0x00, 0x12, 0x12, 0x0a, 0x0e,
-	0x4a, 0x53, 0x44, 0x5f, 0x44, 0x45, 0x53, 0x43, 0x45, 0x4e, 0x44, 0x49, 0x4e, 0x47, 0x10, 0x01,
-	0x2a, 0x49, 0x0a, 0x0b, 0x45, 0x44, 0x61, 0x74, 0x61, 0x53, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x12,
-	0x0e, 0x0a, 0x0a, 0x44, 0x53, 0x5f, 0x41, 0x52, 0x43, 0x48, 0x49, 0x56, 0x45, 0x10, 0x00, 0x12,
-	0x0e, 0x0a, 0x0a, 0x44, 0x53, 0x5f, 0x52, 0x55, 0x4e, 0x54, 0x49, 0x4d, 0x45, 0x10, 0x01, 0x12,
-	0x0b, 0x0a, 0x07, 0x44, 0x53, 0x5f, 0x41, 0x55, 0x54, 0x4f, 0x10, 0x02, 0x12, 0x0d, 0x0a, 0x09,
-	0x44, 0x53, 0x5f, 0x4d, 0x41, 0x4e, 0x55, 0x41, 0x4c, 0x10, 0x03, 0x2a, 0x3e, 0x0a, 0x0f, 0x45,
-	0x53, 0x65, 0x63, 0x75, 0x72, 0x69, 0x74, 0x79, 0x41, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x10,
-	0x0a, 0x0c, 0x53, 0x41, 0x5f, 0x55, 0x4e, 0x44, 0x45, 0x46, 0x49, 0x4e, 0x45, 0x44, 0x10, 0x00,
-	0x12, 0x0c, 0x0a, 0x08, 0x53, 0x41, 0x5f, 0x41, 0x4c, 0x4c, 0x4f, 0x57, 0x10, 0x01, 0x12, 0x0b,
-	0x0a, 0x07, 0x53, 0x41, 0x5f, 0x44, 0x45, 0x4e, 0x59, 0x10, 0x02, 0x2a, 0x55, 0x0a, 0x11, 0x45,
-	0x4d, 0x75, 0x6c, 0x74, 0x69, 0x70, 0x6c, 0x65, 0x78, 0x69, 0x6e, 0x67, 0x42, 0x61, 0x6e, 0x64,
-	0x12, 0x0e, 0x0a, 0x0a, 0x4d, 0x42, 0x5f, 0x44, 0x45, 0x46, 0x41, 0x55, 0x4c, 0x54, 0x10, 0x00,
-	0x12, 0x0e, 0x0a, 0x0a, 0x4d, 0x42, 0x5f, 0x43, 0x4f, 0x4e, 0x54, 0x52, 0x4f, 0x4c, 0x10, 0x01,
-	0x12, 0x0c, 0x0a, 0x08, 0x4d, 0x42, 0x5f, 0x48, 0x45, 0x41, 0x56, 0x59, 0x10, 0x02, 0x12, 0x12,
-	0x0a, 0x0e, 0x4d, 0x42, 0x5f, 0x49, 0x4e, 0x54, 0x45, 0x52, 0x41, 0x43, 0x54, 0x49, 0x56, 0x45,
-	0x10, 0x03, 0x2a, 0x69, 0x0a, 0x18, 0x45, 0x54, 0x61, 0x62, 0x6c, 0x65, 0x53, 0x63, 0x68, 0x65,
-	0x6d, 0x61, 0x4d, 0x6f, 0x64, 0x69, 0x66, 0x69, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x0c,
-	0x0a, 0x08, 0x54, 0x53, 0x4d, 0x5f, 0x4e, 0x4f, 0x4e, 0x45, 0x10, 0x00, 0x12, 0x1a, 0x0a, 0x16,
-	0x54, 0x53, 0x4d, 0x5f, 0x55, 0x4e, 0x56, 0x45, 0x52, 0x53, 0x49, 0x4f, 0x4e, 0x45, 0x44, 0x5f,
-	0x55, 0x50, 0x44, 0x41, 0x54, 0x45, 0x10, 0x01, 0x12, 0x23, 0x0a, 0x1f, 0x54, 0x53, 0x4d, 0x5f,
-	0x55, 0x4e, 0x56, 0x45, 0x52, 0x53, 0x49, 0x4f, 0x4e, 0x45, 0x44, 0x5f, 0x55, 0x50, 0x44, 0x41,
-	0x54, 0x45, 0x5f, 0x55, 0x4e, 0x53, 0x4f, 0x52, 0x54, 0x45, 0x44, 0x10, 0x02, 0x2a, 0x5e, 0x0a,
-	0x1e, 0x45, 0x43, 0x6f, 0x6c, 0x75, 0x6d, 0x6e, 0x61, 0x72, 0x53, 0x74, 0x61, 0x74, 0x69, 0x73,
-	0x74, 0x69, 0x63, 0x73, 0x46, 0x65, 0x74, 0x63, 0x68, 0x65, 0x72, 0x4d, 0x6f, 0x64, 0x65, 0x12,
-	0x13, 0x0a, 0x0f, 0x43, 0x53, 0x46, 0x4d, 0x5f, 0x46, 0x52, 0x4f, 0x4d, 0x5f, 0x4e, 0x4f, 0x44,
-	0x45, 0x53, 0x10, 0x00, 0x12, 0x14, 0x0a, 0x10, 0x43, 0x53, 0x46, 0x4d, 0x5f, 0x46, 0x52, 0x4f,
-	0x4d, 0x5f, 0x4d, 0x41, 0x53, 0x54, 0x45, 0x52, 0x10, 0x01, 0x12, 0x11, 0x0a, 0x0d, 0x43, 0x53,
-	0x46, 0x4d, 0x5f, 0x46, 0x41, 0x4c, 0x4c, 0x42, 0x41, 0x43, 0x4b, 0x10, 0x02, 0x2a, 0x4a, 0x0a,
-	0x14, 0x45, 0x50, 0x61, 0x72, 0x74, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x54, 0x61, 0x62, 0x6c, 0x65,
-	0x73, 0x4d, 0x6f, 0x64, 0x65, 0x12, 0x0e, 0x0a, 0x0a, 0x54, 0x50, 0x4d, 0x5f, 0x53, 0x4f, 0x52,
-	0x54, 0x45, 0x44, 0x10, 0x00, 0x12, 0x0f, 0x0a, 0x0b, 0x54, 0x50, 0x4d, 0x5f, 0x4f, 0x52, 0x44,
-	0x45, 0x52, 0x45, 0x44, 0x10, 0x01, 0x12, 0x11, 0x0a, 0x0d, 0x54, 0x50, 0x4d, 0x5f, 0x55, 0x4e,
-	0x4f, 0x52, 0x44, 0x45, 0x52, 0x45, 0x44, 0x10, 0x02, 0x2a, 0xa6, 0x01, 0x0a, 0x10, 0x45, 0x4d,
-	0x61, 0x69, 0x6e, 0x74, 0x65, 0x6e, 0x61, 0x6e, 0x63, 0x65, 0x54, 0x79, 0x70, 0x65, 0x12, 0x0a,
-	0x0a, 0x06, 0x4d, 0x54, 0x5f, 0x42, 0x41, 0x4e, 0x10, 0x01, 0x12, 0x13, 0x0a, 0x0f, 0x4d, 0x54,
-	0x5f, 0x44, 0x45, 0x43, 0x4f, 0x4d, 0x4d, 0x49, 0x53, 0x53, 0x49, 0x4f, 0x4e, 0x10, 0x02, 0x12,
-	0x1d, 0x0a, 0x19, 0x4d, 0x54, 0x5f, 0x44, 0x49, 0x53, 0x41, 0x42, 0x4c, 0x45, 0x5f, 0x53, 0x43,
-	0x48, 0x45, 0x44, 0x55, 0x4c, 0x45, 0x52, 0x5f, 0x4a, 0x4f, 0x42, 0x53, 0x10, 0x03, 0x12, 0x1d,
-	0x0a, 0x19, 0x4d, 0x54, 0x5f, 0x44, 0x49, 0x53, 0x41, 0x42, 0x4c, 0x45, 0x5f, 0x57, 0x52, 0x49,
-	0x54, 0x45, 0x5f, 0x53, 0x45, 0x53, 0x53, 0x49, 0x4f, 0x4e, 0x53, 0x10, 0x04, 0x12, 0x1b, 0x0a,
-	0x17, 0x4d, 0x54, 0x5f, 0x44, 0x49, 0x53, 0x41, 0x42, 0x4c, 0x45, 0x5f, 0x54, 0x41, 0x42, 0x4c,
-	0x45, 0x54, 0x5f, 0x43, 0x45, 0x4c, 0x4c, 0x53, 0x10, 0x05, 0x12, 0x16, 0x0a, 0x12, 0x4d, 0x54,
-	0x5f, 0x50, 0x45, 0x4e, 0x44, 0x49, 0x4e, 0x47, 0x5f, 0x52, 0x45, 0x53, 0x54, 0x41, 0x52, 0x54,
-	0x10, 0x06, 0x2a, 0x5e, 0x0a, 0x15, 0x45, 0x4d, 0x61, 0x69, 0x6e, 0x74, 0x65, 0x6e, 0x61, 0x6e,
-	0x63, 0x65, 0x43, 0x6f, 0x6d, 0x70, 0x6f, 0x6e, 0x65, 0x6e, 0x74, 0x12, 0x13, 0x0a, 0x0f, 0x4d,
-	0x43, 0x5f, 0x43, 0x4c, 0x55, 0x53, 0x54, 0x45, 0x52, 0x5f, 0x4e, 0x4f, 0x44, 0x45, 0x10, 0x01,
-	0x12, 0x11, 0x0a, 0x0d, 0x4d, 0x43, 0x5f, 0x48, 0x54, 0x54, 0x50, 0x5f, 0x50, 0x52, 0x4f, 0x58,
-	0x59, 0x10, 0x02, 0x12, 0x10, 0x0a, 0x0c, 0x4d, 0x43, 0x5f, 0x52, 0x50, 0x43, 0x5f, 0x50, 0x52,
-	0x4f, 0x58, 0x59, 0x10, 0x03, 0x12, 0x0b, 0x0a, 0x07, 0x4d, 0x43, 0x5f, 0x48, 0x4f, 0x53, 0x54,
-	0x10, 0x04, 0x2a, 0x3f, 0x0a, 0x0e, 0x45, 0x4a, 0x6f, 0x62, 0x53, 0x70, 0x65, 0x63, 0x53, 0x6f,
-	0x75, 0x72, 0x63, 0x65, 0x12, 0x0c, 0x0a, 0x08, 0x4a, 0x53, 0x53, 0x5f, 0x4e, 0x4f, 0x44, 0x45,
-	0x10, 0x01, 0x12, 0x0f, 0x0a, 0x0b, 0x4a, 0x53, 0x53, 0x5f, 0x41, 0x52, 0x43, 0x48, 0x49, 0x56,
-	0x45, 0x10, 0x02, 0x12, 0x0e, 0x0a, 0x08, 0x4a, 0x53, 0x53, 0x5f, 0x41, 0x55, 0x54, 0x4f, 0x10,
-	0xff, 0xff, 0x03, 0x42, 0x58, 0x0a, 0x16, 0x74, 0x65, 0x63, 0x68, 0x2e, 0x79, 0x74, 0x73, 0x61,
-	0x75, 0x72, 0x75, 0x73, 0x2e, 0x72, 0x70, 0x63, 0x70, 0x72, 0x6f, 0x78, 0x79, 0x42, 0x09, 0x41,
-	0x70, 0x69, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x73, 0x50, 0x01, 0x5a, 0x31, 0x61, 0x2e, 0x79, 0x61,
-	0x6e, 0x64, 0x65, 0x78, 0x2d, 0x74, 0x65, 0x61, 0x6d, 0x2e, 0x72, 0x75, 0x2f, 0x79, 0x74, 0x2f,
-	0x67, 0x6f, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x63, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x2f,
-	0x61, 0x70, 0x69, 0x2f, 0x72, 0x70, 0x63, 0x5f, 0x70, 0x72, 0x6f, 0x78, 0x79,
+	0x69, 0x6e, 0x67, 0x53, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x73, 0x22, 0xe4, 0x03, 0x0a, 0x0e,
+	0x54, 0x52, 0x65, 0x71, 0x53, 0x74, 0x61, 0x72, 0x74, 0x51, 0x75, 0x65, 0x72, 0x79, 0x12, 0x2e,
+	0x0a, 0x13, 0x71, 0x75, 0x65, 0x72, 0x79, 0x5f, 0x74, 0x72, 0x61, 0x63, 0x6b, 0x65, 0x72, 0x5f,
+	0x73, 0x74, 0x61, 0x67, 0x65, 0x18, 0x01, 0x20, 0x02, 0x28, 0x09, 0x52, 0x11, 0x71, 0x75, 0x65,
+	0x72, 0x79, 0x54, 0x72, 0x61, 0x63, 0x6b, 0x65, 0x72, 0x53, 0x74, 0x61, 0x67, 0x65, 0x12, 0x3f,
+	0x0a, 0x06, 0x65, 0x6e, 0x67, 0x69, 0x6e, 0x65, 0x18, 0x02, 0x20, 0x02, 0x28, 0x0e, 0x32, 0x27,
+	0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x41, 0x70, 0x69, 0x2e, 0x4e, 0x52, 0x70, 0x63, 0x50, 0x72,
+	0x6f, 0x78, 0x79, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x45, 0x51, 0x75, 0x65, 0x72,
+	0x79, 0x45, 0x6e, 0x67, 0x69, 0x6e, 0x65, 0x52, 0x06, 0x65, 0x6e, 0x67, 0x69, 0x6e, 0x65, 0x12,
+	0x14, 0x0a, 0x05, 0x71, 0x75, 0x65, 0x72, 0x79, 0x18, 0x03, 0x20, 0x02, 0x28, 0x09, 0x52, 0x05,
+	0x71, 0x75, 0x65, 0x72, 0x79, 0x12, 0x1a, 0x0a, 0x08, 0x73, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67,
+	0x73, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x08, 0x73, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67,
+	0x73, 0x12, 0x14, 0x0a, 0x05, 0x64, 0x72, 0x61, 0x66, 0x74, 0x18, 0x05, 0x20, 0x01, 0x28, 0x08,
+	0x52, 0x05, 0x64, 0x72, 0x61, 0x66, 0x74, 0x12, 0x20, 0x0a, 0x0b, 0x61, 0x6e, 0x6e, 0x6f, 0x74,
+	0x61, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x18, 0x06, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x0b, 0x61, 0x6e,
+	0x6e, 0x6f, 0x74, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x12, 0x4a, 0x0a, 0x05, 0x66, 0x69, 0x6c,
+	0x65, 0x73, 0x18, 0x07, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x34, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e,
+	0x41, 0x70, 0x69, 0x2e, 0x4e, 0x52, 0x70, 0x63, 0x50, 0x72, 0x6f, 0x78, 0x79, 0x2e, 0x4e, 0x50,
+	0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x54, 0x52, 0x65, 0x71, 0x53, 0x74, 0x61, 0x72, 0x74, 0x51, 0x75,
+	0x65, 0x72, 0x79, 0x2e, 0x54, 0x51, 0x75, 0x65, 0x72, 0x79, 0x46, 0x69, 0x6c, 0x65, 0x52, 0x05,
+	0x66, 0x69, 0x6c, 0x65, 0x73, 0x12, 0x32, 0x0a, 0x15, 0x61, 0x63, 0x63, 0x65, 0x73, 0x73, 0x5f,
+	0x63, 0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x5f, 0x6f, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x18, 0x08,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x13, 0x61, 0x63, 0x63, 0x65, 0x73, 0x73, 0x43, 0x6f, 0x6e, 0x74,
+	0x72, 0x6f, 0x6c, 0x4f, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x1a, 0x77, 0x0a, 0x0a, 0x54, 0x51, 0x75,
+	0x65, 0x72, 0x79, 0x46, 0x69, 0x6c, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18,
+	0x01, 0x20, 0x02, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x63,
+	0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x18, 0x02, 0x20, 0x02, 0x28, 0x09, 0x52, 0x07, 0x63, 0x6f,
+	0x6e, 0x74, 0x65, 0x6e, 0x74, 0x12, 0x3b, 0x0a, 0x04, 0x74, 0x79, 0x70, 0x65, 0x18, 0x03, 0x20,
+	0x02, 0x28, 0x0e, 0x32, 0x27, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x41, 0x70, 0x69, 0x2e, 0x4e,
+	0x52, 0x70, 0x63, 0x50, 0x72, 0x6f, 0x78, 0x79, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e,
+	0x45, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x54, 0x79, 0x70, 0x65, 0x52, 0x04, 0x74, 0x79,
+	0x70, 0x65, 0x22, 0x3e, 0x0a, 0x0e, 0x54, 0x52, 0x73, 0x70, 0x53, 0x74, 0x61, 0x72, 0x74, 0x51,
+	0x75, 0x65, 0x72, 0x79, 0x12, 0x2c, 0x0a, 0x08, 0x71, 0x75, 0x65, 0x72, 0x79, 0x5f, 0x69, 0x64,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x11, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x50, 0x72,
+	0x6f, 0x74, 0x6f, 0x2e, 0x54, 0x47, 0x75, 0x69, 0x64, 0x52, 0x07, 0x71, 0x75, 0x65, 0x72, 0x79,
+	0x49, 0x64, 0x22, 0x93, 0x01, 0x0a, 0x0e, 0x54, 0x52, 0x65, 0x71, 0x41, 0x62, 0x6f, 0x72, 0x74,
+	0x51, 0x75, 0x65, 0x72, 0x79, 0x12, 0x2e, 0x0a, 0x13, 0x71, 0x75, 0x65, 0x72, 0x79, 0x5f, 0x74,
+	0x72, 0x61, 0x63, 0x6b, 0x65, 0x72, 0x5f, 0x73, 0x74, 0x61, 0x67, 0x65, 0x18, 0x01, 0x20, 0x02,
+	0x28, 0x09, 0x52, 0x11, 0x71, 0x75, 0x65, 0x72, 0x79, 0x54, 0x72, 0x61, 0x63, 0x6b, 0x65, 0x72,
+	0x53, 0x74, 0x61, 0x67, 0x65, 0x12, 0x2c, 0x0a, 0x08, 0x71, 0x75, 0x65, 0x72, 0x79, 0x5f, 0x69,
+	0x64, 0x18, 0x02, 0x20, 0x02, 0x28, 0x0b, 0x32, 0x11, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x50,
+	0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x54, 0x47, 0x75, 0x69, 0x64, 0x52, 0x07, 0x71, 0x75, 0x65, 0x72,
+	0x79, 0x49, 0x64, 0x12, 0x23, 0x0a, 0x0d, 0x61, 0x62, 0x6f, 0x72, 0x74, 0x5f, 0x6d, 0x65, 0x73,
+	0x73, 0x61, 0x67, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0c, 0x61, 0x62, 0x6f, 0x72,
+	0x74, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x22, 0x10, 0x0a, 0x0e, 0x54, 0x52, 0x73, 0x70,
+	0x41, 0x62, 0x6f, 0x72, 0x74, 0x51, 0x75, 0x65, 0x72, 0x79, 0x22, 0x95, 0x01, 0x0a, 0x12, 0x54,
+	0x52, 0x65, 0x71, 0x47, 0x65, 0x74, 0x51, 0x75, 0x65, 0x72, 0x79, 0x52, 0x65, 0x73, 0x75, 0x6c,
+	0x74, 0x12, 0x2e, 0x0a, 0x13, 0x71, 0x75, 0x65, 0x72, 0x79, 0x5f, 0x74, 0x72, 0x61, 0x63, 0x6b,
+	0x65, 0x72, 0x5f, 0x73, 0x74, 0x61, 0x67, 0x65, 0x18, 0x01, 0x20, 0x02, 0x28, 0x09, 0x52, 0x11,
+	0x71, 0x75, 0x65, 0x72, 0x79, 0x54, 0x72, 0x61, 0x63, 0x6b, 0x65, 0x72, 0x53, 0x74, 0x61, 0x67,
+	0x65, 0x12, 0x2c, 0x0a, 0x08, 0x71, 0x75, 0x65, 0x72, 0x79, 0x5f, 0x69, 0x64, 0x18, 0x02, 0x20,
+	0x02, 0x28, 0x0b, 0x32, 0x11, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f,
+	0x2e, 0x54, 0x47, 0x75, 0x69, 0x64, 0x52, 0x07, 0x71, 0x75, 0x65, 0x72, 0x79, 0x49, 0x64, 0x12,
+	0x21, 0x0a, 0x0c, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x5f, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x18,
+	0x03, 0x20, 0x02, 0x28, 0x03, 0x52, 0x0b, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x49, 0x6e, 0x64,
+	0x65, 0x78, 0x22, 0xc6, 0x02, 0x0a, 0x12, 0x54, 0x52, 0x73, 0x70, 0x47, 0x65, 0x74, 0x51, 0x75,
+	0x65, 0x72, 0x79, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x12, 0x2c, 0x0a, 0x08, 0x71, 0x75, 0x65,
+	0x72, 0x79, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x02, 0x28, 0x0b, 0x32, 0x11, 0x2e, 0x4e, 0x59,
+	0x54, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x54, 0x47, 0x75, 0x69, 0x64, 0x52, 0x07,
+	0x71, 0x75, 0x65, 0x72, 0x79, 0x49, 0x64, 0x12, 0x21, 0x0a, 0x0c, 0x72, 0x65, 0x73, 0x75, 0x6c,
+	0x74, 0x5f, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x18, 0x02, 0x20, 0x02, 0x28, 0x03, 0x52, 0x0b, 0x72,
+	0x65, 0x73, 0x75, 0x6c, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x12, 0x28, 0x0a, 0x05, 0x65, 0x72,
+	0x72, 0x6f, 0x72, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x12, 0x2e, 0x4e, 0x59, 0x54, 0x2e,
+	0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x54, 0x45, 0x72, 0x72, 0x6f, 0x72, 0x52, 0x05, 0x65,
+	0x72, 0x72, 0x6f, 0x72, 0x12, 0x3f, 0x0a, 0x06, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x18, 0x04,
+	0x20, 0x01, 0x28, 0x0b, 0x32, 0x27, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x41, 0x70, 0x69, 0x2e,
+	0x4e, 0x52, 0x70, 0x63, 0x50, 0x72, 0x6f, 0x78, 0x79, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f,
+	0x2e, 0x54, 0x54, 0x61, 0x62, 0x6c, 0x65, 0x53, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x52, 0x06, 0x73,
+	0x63, 0x68, 0x65, 0x6d, 0x61, 0x12, 0x51, 0x0a, 0x0f, 0x64, 0x61, 0x74, 0x61, 0x5f, 0x73, 0x74,
+	0x61, 0x74, 0x69, 0x73, 0x74, 0x69, 0x63, 0x73, 0x18, 0x05, 0x20, 0x02, 0x28, 0x0b, 0x32, 0x28,
+	0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x43, 0x6c, 0x69, 0x65, 0x6e,
+	0x74, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x54, 0x44, 0x61, 0x74, 0x61, 0x53, 0x74,
+	0x61, 0x74, 0x69, 0x73, 0x74, 0x69, 0x63, 0x73, 0x52, 0x0e, 0x64, 0x61, 0x74, 0x61, 0x53, 0x74,
+	0x61, 0x74, 0x69, 0x73, 0x74, 0x69, 0x63, 0x73, 0x12, 0x21, 0x0a, 0x0c, 0x69, 0x73, 0x5f, 0x74,
+	0x72, 0x75, 0x6e, 0x63, 0x61, 0x74, 0x65, 0x64, 0x18, 0x06, 0x20, 0x02, 0x28, 0x08, 0x52, 0x0b,
+	0x69, 0x73, 0x54, 0x72, 0x75, 0x6e, 0x63, 0x61, 0x74, 0x65, 0x64, 0x22, 0xdb, 0x02, 0x0a, 0x13,
+	0x54, 0x52, 0x65, 0x71, 0x52, 0x65, 0x61, 0x64, 0x51, 0x75, 0x65, 0x72, 0x79, 0x52, 0x65, 0x73,
+	0x75, 0x6c, 0x74, 0x12, 0x2e, 0x0a, 0x13, 0x71, 0x75, 0x65, 0x72, 0x79, 0x5f, 0x74, 0x72, 0x61,
+	0x63, 0x6b, 0x65, 0x72, 0x5f, 0x73, 0x74, 0x61, 0x67, 0x65, 0x18, 0x01, 0x20, 0x02, 0x28, 0x09,
+	0x52, 0x11, 0x71, 0x75, 0x65, 0x72, 0x79, 0x54, 0x72, 0x61, 0x63, 0x6b, 0x65, 0x72, 0x53, 0x74,
+	0x61, 0x67, 0x65, 0x12, 0x2c, 0x0a, 0x08, 0x71, 0x75, 0x65, 0x72, 0x79, 0x5f, 0x69, 0x64, 0x18,
+	0x02, 0x20, 0x02, 0x28, 0x0b, 0x32, 0x11, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x50, 0x72, 0x6f,
+	0x74, 0x6f, 0x2e, 0x54, 0x47, 0x75, 0x69, 0x64, 0x52, 0x07, 0x71, 0x75, 0x65, 0x72, 0x79, 0x49,
+	0x64, 0x12, 0x21, 0x0a, 0x0c, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x5f, 0x69, 0x6e, 0x64, 0x65,
+	0x78, 0x18, 0x03, 0x20, 0x02, 0x28, 0x03, 0x52, 0x0b, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x49,
+	0x6e, 0x64, 0x65, 0x78, 0x12, 0x51, 0x0a, 0x07, 0x63, 0x6f, 0x6c, 0x75, 0x6d, 0x6e, 0x73, 0x18,
+	0x04, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x37, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x41, 0x70, 0x69,
+	0x2e, 0x4e, 0x52, 0x70, 0x63, 0x50, 0x72, 0x6f, 0x78, 0x79, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74,
+	0x6f, 0x2e, 0x54, 0x52, 0x65, 0x71, 0x52, 0x65, 0x61, 0x64, 0x51, 0x75, 0x65, 0x72, 0x79, 0x52,
+	0x65, 0x73, 0x75, 0x6c, 0x74, 0x2e, 0x54, 0x43, 0x6f, 0x6c, 0x75, 0x6d, 0x6e, 0x73, 0x52, 0x07,
+	0x63, 0x6f, 0x6c, 0x75, 0x6d, 0x6e, 0x73, 0x12, 0x26, 0x0a, 0x0f, 0x6c, 0x6f, 0x77, 0x65, 0x72,
+	0x5f, 0x72, 0x6f, 0x77, 0x5f, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x18, 0x05, 0x20, 0x01, 0x28, 0x03,
+	0x52, 0x0d, 0x6c, 0x6f, 0x77, 0x65, 0x72, 0x52, 0x6f, 0x77, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x12,
+	0x26, 0x0a, 0x0f, 0x75, 0x70, 0x70, 0x65, 0x72, 0x5f, 0x72, 0x6f, 0x77, 0x5f, 0x69, 0x6e, 0x64,
+	0x65, 0x78, 0x18, 0x06, 0x20, 0x01, 0x28, 0x03, 0x52, 0x0d, 0x75, 0x70, 0x70, 0x65, 0x72, 0x52,
+	0x6f, 0x77, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x1a, 0x20, 0x0a, 0x08, 0x54, 0x43, 0x6f, 0x6c, 0x75,
+	0x6d, 0x6e, 0x73, 0x12, 0x14, 0x0a, 0x05, 0x69, 0x74, 0x65, 0x6d, 0x73, 0x18, 0x01, 0x20, 0x03,
+	0x28, 0x09, 0x52, 0x05, 0x69, 0x74, 0x65, 0x6d, 0x73, 0x22, 0x70, 0x0a, 0x13, 0x54, 0x52, 0x73,
+	0x70, 0x52, 0x65, 0x61, 0x64, 0x51, 0x75, 0x65, 0x72, 0x79, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74,
+	0x12, 0x59, 0x0a, 0x11, 0x72, 0x6f, 0x77, 0x73, 0x65, 0x74, 0x5f, 0x64, 0x65, 0x73, 0x63, 0x72,
+	0x69, 0x70, 0x74, 0x6f, 0x72, 0x18, 0x01, 0x20, 0x02, 0x28, 0x0b, 0x32, 0x2c, 0x2e, 0x4e, 0x59,
+	0x54, 0x2e, 0x4e, 0x41, 0x70, 0x69, 0x2e, 0x4e, 0x52, 0x70, 0x63, 0x50, 0x72, 0x6f, 0x78, 0x79,
+	0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x54, 0x52, 0x6f, 0x77, 0x73, 0x65, 0x74, 0x44,
+	0x65, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x6f, 0x72, 0x52, 0x10, 0x72, 0x6f, 0x77, 0x73, 0x65,
+	0x74, 0x44, 0x65, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x6f, 0x72, 0x22, 0xd9, 0x04, 0x0a, 0x06,
+	0x54, 0x51, 0x75, 0x65, 0x72, 0x79, 0x12, 0x21, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x02,
+	0x28, 0x0b, 0x32, 0x11, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e,
+	0x54, 0x47, 0x75, 0x69, 0x64, 0x52, 0x02, 0x69, 0x64, 0x12, 0x3f, 0x0a, 0x06, 0x65, 0x6e, 0x67,
+	0x69, 0x6e, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x27, 0x2e, 0x4e, 0x59, 0x54, 0x2e,
+	0x4e, 0x41, 0x70, 0x69, 0x2e, 0x4e, 0x52, 0x70, 0x63, 0x50, 0x72, 0x6f, 0x78, 0x79, 0x2e, 0x4e,
+	0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x45, 0x51, 0x75, 0x65, 0x72, 0x79, 0x45, 0x6e, 0x67, 0x69,
+	0x6e, 0x65, 0x52, 0x06, 0x65, 0x6e, 0x67, 0x69, 0x6e, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x71, 0x75,
+	0x65, 0x72, 0x79, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x71, 0x75, 0x65, 0x72, 0x79,
+	0x12, 0x14, 0x0a, 0x05, 0x66, 0x69, 0x6c, 0x65, 0x73, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0c, 0x52,
+	0x05, 0x66, 0x69, 0x6c, 0x65, 0x73, 0x12, 0x1d, 0x0a, 0x0a, 0x73, 0x74, 0x61, 0x72, 0x74, 0x5f,
+	0x74, 0x69, 0x6d, 0x65, 0x18, 0x05, 0x20, 0x01, 0x28, 0x04, 0x52, 0x09, 0x73, 0x74, 0x61, 0x72,
+	0x74, 0x54, 0x69, 0x6d, 0x65, 0x12, 0x1f, 0x0a, 0x0b, 0x66, 0x69, 0x6e, 0x69, 0x73, 0x68, 0x5f,
+	0x74, 0x69, 0x6d, 0x65, 0x18, 0x06, 0x20, 0x01, 0x28, 0x04, 0x52, 0x0a, 0x66, 0x69, 0x6e, 0x69,
+	0x73, 0x68, 0x54, 0x69, 0x6d, 0x65, 0x12, 0x1a, 0x0a, 0x08, 0x73, 0x65, 0x74, 0x74, 0x69, 0x6e,
+	0x67, 0x73, 0x18, 0x07, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x08, 0x73, 0x65, 0x74, 0x74, 0x69, 0x6e,
+	0x67, 0x73, 0x12, 0x12, 0x0a, 0x04, 0x75, 0x73, 0x65, 0x72, 0x18, 0x08, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x04, 0x75, 0x73, 0x65, 0x72, 0x12, 0x32, 0x0a, 0x15, 0x61, 0x63, 0x63, 0x65, 0x73, 0x73,
+	0x5f, 0x63, 0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x5f, 0x6f, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x18,
+	0x09, 0x20, 0x01, 0x28, 0x09, 0x52, 0x13, 0x61, 0x63, 0x63, 0x65, 0x73, 0x73, 0x43, 0x6f, 0x6e,
+	0x74, 0x72, 0x6f, 0x6c, 0x4f, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x12, 0x3c, 0x0a, 0x05, 0x73, 0x74,
+	0x61, 0x74, 0x65, 0x18, 0x0a, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x26, 0x2e, 0x4e, 0x59, 0x54, 0x2e,
+	0x4e, 0x41, 0x70, 0x69, 0x2e, 0x4e, 0x52, 0x70, 0x63, 0x50, 0x72, 0x6f, 0x78, 0x79, 0x2e, 0x4e,
+	0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x45, 0x51, 0x75, 0x65, 0x72, 0x79, 0x53, 0x74, 0x61, 0x74,
+	0x65, 0x52, 0x05, 0x73, 0x74, 0x61, 0x74, 0x65, 0x12, 0x21, 0x0a, 0x0c, 0x72, 0x65, 0x73, 0x75,
+	0x6c, 0x74, 0x5f, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x18, 0x0b, 0x20, 0x01, 0x28, 0x03, 0x52, 0x0b,
+	0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x12, 0x1a, 0x0a, 0x08, 0x70,
+	0x72, 0x6f, 0x67, 0x72, 0x65, 0x73, 0x73, 0x18, 0x0c, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x08, 0x70,
+	0x72, 0x6f, 0x67, 0x72, 0x65, 0x73, 0x73, 0x12, 0x28, 0x0a, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72,
+	0x18, 0x0d, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x12, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x50, 0x72,
+	0x6f, 0x74, 0x6f, 0x2e, 0x54, 0x45, 0x72, 0x72, 0x6f, 0x72, 0x52, 0x05, 0x65, 0x72, 0x72, 0x6f,
+	0x72, 0x12, 0x20, 0x0a, 0x0b, 0x61, 0x6e, 0x6e, 0x6f, 0x74, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x73,
+	0x18, 0x0e, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x0b, 0x61, 0x6e, 0x6e, 0x6f, 0x74, 0x61, 0x74, 0x69,
+	0x6f, 0x6e, 0x73, 0x12, 0x52, 0x0a, 0x10, 0x6f, 0x74, 0x68, 0x65, 0x72, 0x5f, 0x61, 0x74, 0x74,
+	0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x73, 0x18, 0x0f, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x27, 0x2e,
+	0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x59, 0x54, 0x72, 0x65, 0x65, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74,
+	0x6f, 0x2e, 0x54, 0x41, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x44, 0x69, 0x63, 0x74,
+	0x69, 0x6f, 0x6e, 0x61, 0x72, 0x79, 0x52, 0x0f, 0x6f, 0x74, 0x68, 0x65, 0x72, 0x41, 0x74, 0x74,
+	0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x73, 0x22, 0xcf, 0x01, 0x0a, 0x0c, 0x54, 0x52, 0x65, 0x71,
+	0x47, 0x65, 0x74, 0x51, 0x75, 0x65, 0x72, 0x79, 0x12, 0x2e, 0x0a, 0x13, 0x71, 0x75, 0x65, 0x72,
+	0x79, 0x5f, 0x74, 0x72, 0x61, 0x63, 0x6b, 0x65, 0x72, 0x5f, 0x73, 0x74, 0x61, 0x67, 0x65, 0x18,
+	0x01, 0x20, 0x02, 0x28, 0x09, 0x52, 0x11, 0x71, 0x75, 0x65, 0x72, 0x79, 0x54, 0x72, 0x61, 0x63,
+	0x6b, 0x65, 0x72, 0x53, 0x74, 0x61, 0x67, 0x65, 0x12, 0x2c, 0x0a, 0x08, 0x71, 0x75, 0x65, 0x72,
+	0x79, 0x5f, 0x69, 0x64, 0x18, 0x02, 0x20, 0x02, 0x28, 0x0b, 0x32, 0x11, 0x2e, 0x4e, 0x59, 0x54,
+	0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x54, 0x47, 0x75, 0x69, 0x64, 0x52, 0x07, 0x71,
+	0x75, 0x65, 0x72, 0x79, 0x49, 0x64, 0x12, 0x43, 0x0a, 0x0a, 0x61, 0x74, 0x74, 0x72, 0x69, 0x62,
+	0x75, 0x74, 0x65, 0x73, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x23, 0x2e, 0x4e, 0x59, 0x54,
+	0x2e, 0x4e, 0x59, 0x54, 0x72, 0x65, 0x65, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x54,
+	0x41, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x46, 0x69, 0x6c, 0x74, 0x65, 0x72, 0x52,
+	0x0a, 0x61, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x73, 0x12, 0x1c, 0x0a, 0x09, 0x74,
+	0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x18, 0x04, 0x20, 0x01, 0x28, 0x04, 0x52, 0x09,
+	0x74, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x22, 0x47, 0x0a, 0x0c, 0x54, 0x52, 0x73,
+	0x70, 0x47, 0x65, 0x74, 0x51, 0x75, 0x65, 0x72, 0x79, 0x12, 0x37, 0x0a, 0x05, 0x71, 0x75, 0x65,
+	0x72, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x21, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e,
+	0x41, 0x70, 0x69, 0x2e, 0x4e, 0x52, 0x70, 0x63, 0x50, 0x72, 0x6f, 0x78, 0x79, 0x2e, 0x4e, 0x50,
+	0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x54, 0x51, 0x75, 0x65, 0x72, 0x79, 0x52, 0x05, 0x71, 0x75, 0x65,
+	0x72, 0x79, 0x22, 0xc0, 0x04, 0x0a, 0x0f, 0x54, 0x52, 0x65, 0x71, 0x4c, 0x69, 0x73, 0x74, 0x51,
+	0x75, 0x65, 0x72, 0x69, 0x65, 0x73, 0x12, 0x2e, 0x0a, 0x13, 0x71, 0x75, 0x65, 0x72, 0x79, 0x5f,
+	0x74, 0x72, 0x61, 0x63, 0x6b, 0x65, 0x72, 0x5f, 0x73, 0x74, 0x61, 0x67, 0x65, 0x18, 0x01, 0x20,
+	0x02, 0x28, 0x09, 0x52, 0x11, 0x71, 0x75, 0x65, 0x72, 0x79, 0x54, 0x72, 0x61, 0x63, 0x6b, 0x65,
+	0x72, 0x53, 0x74, 0x61, 0x67, 0x65, 0x12, 0x1b, 0x0a, 0x09, 0x66, 0x72, 0x6f, 0x6d, 0x5f, 0x74,
+	0x69, 0x6d, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x04, 0x52, 0x08, 0x66, 0x72, 0x6f, 0x6d, 0x54,
+	0x69, 0x6d, 0x65, 0x12, 0x17, 0x0a, 0x07, 0x74, 0x6f, 0x5f, 0x74, 0x69, 0x6d, 0x65, 0x18, 0x03,
+	0x20, 0x01, 0x28, 0x04, 0x52, 0x06, 0x74, 0x6f, 0x54, 0x69, 0x6d, 0x65, 0x12, 0x1f, 0x0a, 0x0b,
+	0x63, 0x75, 0x72, 0x73, 0x6f, 0x72, 0x5f, 0x74, 0x69, 0x6d, 0x65, 0x18, 0x04, 0x20, 0x01, 0x28,
+	0x04, 0x52, 0x0a, 0x63, 0x75, 0x72, 0x73, 0x6f, 0x72, 0x54, 0x69, 0x6d, 0x65, 0x12, 0x67, 0x0a,
+	0x10, 0x63, 0x75, 0x72, 0x73, 0x6f, 0x72, 0x5f, 0x64, 0x69, 0x72, 0x65, 0x63, 0x74, 0x69, 0x6f,
+	0x6e, 0x18, 0x05, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x32, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x41,
+	0x70, 0x69, 0x2e, 0x4e, 0x52, 0x70, 0x63, 0x50, 0x72, 0x6f, 0x78, 0x79, 0x2e, 0x4e, 0x50, 0x72,
+	0x6f, 0x74, 0x6f, 0x2e, 0x45, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x53, 0x6f,
+	0x72, 0x74, 0x44, 0x69, 0x72, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x3a, 0x08, 0x4f, 0x53, 0x44,
+	0x5f, 0x50, 0x41, 0x53, 0x54, 0x52, 0x0f, 0x63, 0x75, 0x72, 0x73, 0x6f, 0x72, 0x44, 0x69, 0x72,
+	0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x1f, 0x0a, 0x0b, 0x75, 0x73, 0x65, 0x72, 0x5f, 0x66,
+	0x69, 0x6c, 0x74, 0x65, 0x72, 0x18, 0x06, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x75, 0x73, 0x65,
+	0x72, 0x46, 0x69, 0x6c, 0x74, 0x65, 0x72, 0x12, 0x49, 0x0a, 0x0c, 0x73, 0x74, 0x61, 0x74, 0x65,
+	0x5f, 0x66, 0x69, 0x6c, 0x74, 0x65, 0x72, 0x18, 0x07, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x26, 0x2e,
+	0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x41, 0x70, 0x69, 0x2e, 0x4e, 0x52, 0x70, 0x63, 0x50, 0x72, 0x6f,
+	0x78, 0x79, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x45, 0x51, 0x75, 0x65, 0x72, 0x79,
+	0x53, 0x74, 0x61, 0x74, 0x65, 0x52, 0x0b, 0x73, 0x74, 0x61, 0x74, 0x65, 0x46, 0x69, 0x6c, 0x74,
+	0x65, 0x72, 0x12, 0x4c, 0x0a, 0x0d, 0x65, 0x6e, 0x67, 0x69, 0x6e, 0x65, 0x5f, 0x66, 0x69, 0x6c,
+	0x74, 0x65, 0x72, 0x18, 0x08, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x27, 0x2e, 0x4e, 0x59, 0x54, 0x2e,
+	0x4e, 0x41, 0x70, 0x69, 0x2e, 0x4e, 0x52, 0x70, 0x63, 0x50, 0x72, 0x6f, 0x78, 0x79, 0x2e, 0x4e,
+	0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x45, 0x51, 0x75, 0x65, 0x72, 0x79, 0x45, 0x6e, 0x67, 0x69,
+	0x6e, 0x65, 0x52, 0x0c, 0x65, 0x6e, 0x67, 0x69, 0x6e, 0x65, 0x46, 0x69, 0x6c, 0x74, 0x65, 0x72,
+	0x12, 0x23, 0x0a, 0x0d, 0x73, 0x75, 0x62, 0x73, 0x74, 0x72, 0x5f, 0x66, 0x69, 0x6c, 0x74, 0x65,
+	0x72, 0x18, 0x09, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0c, 0x73, 0x75, 0x62, 0x73, 0x74, 0x72, 0x46,
+	0x69, 0x6c, 0x74, 0x65, 0x72, 0x12, 0x19, 0x0a, 0x05, 0x6c, 0x69, 0x6d, 0x69, 0x74, 0x18, 0x0a,
+	0x20, 0x01, 0x28, 0x04, 0x3a, 0x03, 0x31, 0x30, 0x30, 0x52, 0x05, 0x6c, 0x69, 0x6d, 0x69, 0x74,
+	0x12, 0x43, 0x0a, 0x0a, 0x61, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x73, 0x18, 0x0b,
+	0x20, 0x01, 0x28, 0x0b, 0x32, 0x23, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x59, 0x54, 0x72, 0x65,
+	0x65, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x54, 0x41, 0x74, 0x74, 0x72, 0x69, 0x62,
+	0x75, 0x74, 0x65, 0x46, 0x69, 0x6c, 0x74, 0x65, 0x72, 0x52, 0x0a, 0x61, 0x74, 0x74, 0x72, 0x69,
+	0x62, 0x75, 0x74, 0x65, 0x73, 0x22, 0x8c, 0x01, 0x0a, 0x0f, 0x54, 0x52, 0x73, 0x70, 0x4c, 0x69,
+	0x73, 0x74, 0x51, 0x75, 0x65, 0x72, 0x69, 0x65, 0x73, 0x12, 0x3b, 0x0a, 0x07, 0x71, 0x75, 0x65,
+	0x72, 0x69, 0x65, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x21, 0x2e, 0x4e, 0x59, 0x54,
+	0x2e, 0x4e, 0x41, 0x70, 0x69, 0x2e, 0x4e, 0x52, 0x70, 0x63, 0x50, 0x72, 0x6f, 0x78, 0x79, 0x2e,
+	0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x54, 0x51, 0x75, 0x65, 0x72, 0x79, 0x52, 0x07, 0x71,
+	0x75, 0x65, 0x72, 0x69, 0x65, 0x73, 0x12, 0x1e, 0x0a, 0x0a, 0x69, 0x6e, 0x63, 0x6f, 0x6d, 0x70,
+	0x6c, 0x65, 0x74, 0x65, 0x18, 0x02, 0x20, 0x02, 0x28, 0x08, 0x52, 0x0a, 0x69, 0x6e, 0x63, 0x6f,
+	0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x12, 0x1c, 0x0a, 0x09, 0x74, 0x69, 0x6d, 0x65, 0x73, 0x74,
+	0x61, 0x6d, 0x70, 0x18, 0x03, 0x20, 0x02, 0x28, 0x04, 0x52, 0x09, 0x74, 0x69, 0x6d, 0x65, 0x73,
+	0x74, 0x61, 0x6d, 0x70, 0x22, 0xc4, 0x01, 0x0a, 0x0e, 0x54, 0x52, 0x65, 0x71, 0x41, 0x6c, 0x74,
+	0x65, 0x72, 0x51, 0x75, 0x65, 0x72, 0x79, 0x12, 0x2e, 0x0a, 0x13, 0x71, 0x75, 0x65, 0x72, 0x79,
+	0x5f, 0x74, 0x72, 0x61, 0x63, 0x6b, 0x65, 0x72, 0x5f, 0x73, 0x74, 0x61, 0x67, 0x65, 0x18, 0x01,
+	0x20, 0x02, 0x28, 0x09, 0x52, 0x11, 0x71, 0x75, 0x65, 0x72, 0x79, 0x54, 0x72, 0x61, 0x63, 0x6b,
+	0x65, 0x72, 0x53, 0x74, 0x61, 0x67, 0x65, 0x12, 0x2c, 0x0a, 0x08, 0x71, 0x75, 0x65, 0x72, 0x79,
+	0x5f, 0x69, 0x64, 0x18, 0x02, 0x20, 0x02, 0x28, 0x0b, 0x32, 0x11, 0x2e, 0x4e, 0x59, 0x54, 0x2e,
+	0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x54, 0x47, 0x75, 0x69, 0x64, 0x52, 0x07, 0x71, 0x75,
+	0x65, 0x72, 0x79, 0x49, 0x64, 0x12, 0x20, 0x0a, 0x0b, 0x61, 0x6e, 0x6e, 0x6f, 0x74, 0x61, 0x74,
+	0x69, 0x6f, 0x6e, 0x73, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x0b, 0x61, 0x6e, 0x6e, 0x6f,
+	0x74, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x12, 0x32, 0x0a, 0x15, 0x61, 0x63, 0x63, 0x65, 0x73,
+	0x73, 0x5f, 0x63, 0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x5f, 0x6f, 0x62, 0x6a, 0x65, 0x63, 0x74,
+	0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x52, 0x13, 0x61, 0x63, 0x63, 0x65, 0x73, 0x73, 0x43, 0x6f,
+	0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x4f, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x22, 0x10, 0x0a, 0x0e, 0x54,
+	0x52, 0x73, 0x70, 0x41, 0x6c, 0x74, 0x65, 0x72, 0x51, 0x75, 0x65, 0x72, 0x79, 0x22, 0x8e, 0x01,
+	0x0a, 0x17, 0x54, 0x52, 0x65, 0x71, 0x47, 0x65, 0x74, 0x51, 0x75, 0x65, 0x72, 0x79, 0x54, 0x72,
+	0x61, 0x63, 0x6b, 0x65, 0x72, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x2e, 0x0a, 0x13, 0x71, 0x75, 0x65,
+	0x72, 0x79, 0x5f, 0x74, 0x72, 0x61, 0x63, 0x6b, 0x65, 0x72, 0x5f, 0x73, 0x74, 0x61, 0x67, 0x65,
+	0x18, 0x01, 0x20, 0x02, 0x28, 0x09, 0x52, 0x11, 0x71, 0x75, 0x65, 0x72, 0x79, 0x54, 0x72, 0x61,
+	0x63, 0x6b, 0x65, 0x72, 0x53, 0x74, 0x61, 0x67, 0x65, 0x12, 0x43, 0x0a, 0x0a, 0x61, 0x74, 0x74,
+	0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x73, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x23, 0x2e,
+	0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x59, 0x54, 0x72, 0x65, 0x65, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74,
+	0x6f, 0x2e, 0x54, 0x41, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x46, 0x69, 0x6c, 0x74,
+	0x65, 0x72, 0x52, 0x0a, 0x61, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x73, 0x22, 0xa1,
+	0x01, 0x0a, 0x17, 0x54, 0x52, 0x73, 0x70, 0x47, 0x65, 0x74, 0x51, 0x75, 0x65, 0x72, 0x79, 0x54,
+	0x72, 0x61, 0x63, 0x6b, 0x65, 0x72, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x21, 0x0a, 0x0c, 0x63, 0x6c,
+	0x75, 0x73, 0x74, 0x65, 0x72, 0x5f, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x02, 0x28, 0x09,
+	0x52, 0x0b, 0x63, 0x6c, 0x75, 0x73, 0x74, 0x65, 0x72, 0x4e, 0x61, 0x6d, 0x65, 0x12, 0x2d, 0x0a,
+	0x12, 0x73, 0x75, 0x70, 0x70, 0x6f, 0x72, 0x74, 0x65, 0x64, 0x5f, 0x66, 0x65, 0x61, 0x74, 0x75,
+	0x72, 0x65, 0x73, 0x18, 0x02, 0x20, 0x02, 0x28, 0x0c, 0x52, 0x11, 0x73, 0x75, 0x70, 0x70, 0x6f,
+	0x72, 0x74, 0x65, 0x64, 0x46, 0x65, 0x61, 0x74, 0x75, 0x72, 0x65, 0x73, 0x12, 0x34, 0x0a, 0x16,
+	0x61, 0x63, 0x63, 0x65, 0x73, 0x73, 0x5f, 0x63, 0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x5f, 0x6f,
+	0x62, 0x6a, 0x65, 0x63, 0x74, 0x73, 0x18, 0x03, 0x20, 0x03, 0x28, 0x09, 0x52, 0x14, 0x61, 0x63,
+	0x63, 0x65, 0x73, 0x73, 0x43, 0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x4f, 0x62, 0x6a, 0x65, 0x63,
+	0x74, 0x73, 0x2a, 0x30, 0x0a, 0x10, 0x45, 0x54, 0x72, 0x61, 0x6e, 0x73, 0x61, 0x63, 0x74, 0x69,
+	0x6f, 0x6e, 0x54, 0x79, 0x70, 0x65, 0x12, 0x0d, 0x0a, 0x09, 0x54, 0x54, 0x5f, 0x4d, 0x41, 0x53,
+	0x54, 0x45, 0x52, 0x10, 0x00, 0x12, 0x0d, 0x0a, 0x09, 0x54, 0x54, 0x5f, 0x54, 0x41, 0x42, 0x4c,
+	0x45, 0x54, 0x10, 0x01, 0x2a, 0x45, 0x0a, 0x14, 0x45, 0x52, 0x6f, 0x77, 0x4d, 0x6f, 0x64, 0x69,
+	0x66, 0x69, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x54, 0x79, 0x70, 0x65, 0x12, 0x0d, 0x0a, 0x09,
+	0x52, 0x4d, 0x54, 0x5f, 0x57, 0x52, 0x49, 0x54, 0x45, 0x10, 0x00, 0x12, 0x0e, 0x0a, 0x0a, 0x52,
+	0x4d, 0x54, 0x5f, 0x44, 0x45, 0x4c, 0x45, 0x54, 0x45, 0x10, 0x01, 0x12, 0x0e, 0x0a, 0x0a, 0x52,
+	0x4d, 0x54, 0x5f, 0x4d, 0x4f, 0x44, 0x49, 0x46, 0x59, 0x10, 0x03, 0x2a, 0x24, 0x0a, 0x0a, 0x45,
+	0x41, 0x74, 0x6f, 0x6d, 0x69, 0x63, 0x69, 0x74, 0x79, 0x12, 0x0a, 0x0a, 0x06, 0x41, 0x5f, 0x46,
+	0x55, 0x4c, 0x4c, 0x10, 0x00, 0x12, 0x0a, 0x0a, 0x06, 0x41, 0x5f, 0x4e, 0x4f, 0x4e, 0x45, 0x10,
+	0x01, 0x2a, 0x26, 0x0a, 0x0b, 0x45, 0x44, 0x75, 0x72, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x79,
+	0x12, 0x0a, 0x0a, 0x06, 0x44, 0x5f, 0x53, 0x59, 0x4e, 0x43, 0x10, 0x00, 0x12, 0x0b, 0x0a, 0x07,
+	0x44, 0x5f, 0x41, 0x53, 0x59, 0x4e, 0x43, 0x10, 0x01, 0x2a, 0x5d, 0x0a, 0x11, 0x45, 0x54, 0x61,
+	0x62, 0x6c, 0x65, 0x52, 0x65, 0x70, 0x6c, 0x69, 0x63, 0x61, 0x4d, 0x6f, 0x64, 0x65, 0x12, 0x0c,
+	0x0a, 0x08, 0x54, 0x52, 0x4d, 0x5f, 0x53, 0x59, 0x4e, 0x43, 0x10, 0x00, 0x12, 0x0d, 0x0a, 0x09,
+	0x54, 0x52, 0x4d, 0x5f, 0x41, 0x53, 0x59, 0x4e, 0x43, 0x10, 0x01, 0x12, 0x15, 0x0a, 0x11, 0x54,
+	0x52, 0x4d, 0x5f, 0x41, 0x53, 0x59, 0x4e, 0x43, 0x5f, 0x54, 0x4f, 0x5f, 0x53, 0x59, 0x4e, 0x43,
+	0x10, 0x02, 0x12, 0x14, 0x0a, 0x10, 0x54, 0x52, 0x4d, 0x5f, 0x53, 0x59, 0x4e, 0x43, 0x5f, 0x54,
+	0x4f, 0x5f, 0x53, 0x59, 0x4e, 0x43, 0x10, 0x03, 0x2a, 0x31, 0x0a, 0x13, 0x45, 0x52, 0x65, 0x70,
+	0x6c, 0x69, 0x63, 0x61, 0x43, 0x6f, 0x6e, 0x73, 0x69, 0x73, 0x74, 0x65, 0x6e, 0x63, 0x79, 0x12,
+	0x0c, 0x0a, 0x08, 0x52, 0x52, 0x4d, 0x5f, 0x4e, 0x4f, 0x4e, 0x45, 0x10, 0x00, 0x12, 0x0c, 0x0a,
+	0x08, 0x52, 0x52, 0x4d, 0x5f, 0x53, 0x59, 0x4e, 0x43, 0x10, 0x01, 0x2a, 0x58, 0x0a, 0x0f, 0x45,
+	0x4d, 0x61, 0x73, 0x74, 0x65, 0x72, 0x52, 0x65, 0x61, 0x64, 0x4b, 0x69, 0x6e, 0x64, 0x12, 0x0e,
+	0x0a, 0x0a, 0x4d, 0x52, 0x4b, 0x5f, 0x4c, 0x45, 0x41, 0x44, 0x45, 0x52, 0x10, 0x00, 0x12, 0x10,
+	0x0a, 0x0c, 0x4d, 0x52, 0x4b, 0x5f, 0x46, 0x4f, 0x4c, 0x4c, 0x4f, 0x57, 0x45, 0x52, 0x10, 0x01,
+	0x12, 0x0d, 0x0a, 0x09, 0x4d, 0x52, 0x4b, 0x5f, 0x43, 0x41, 0x43, 0x48, 0x45, 0x10, 0x02, 0x12,
+	0x14, 0x0a, 0x10, 0x4d, 0x52, 0x4b, 0x5f, 0x4d, 0x41, 0x53, 0x54, 0x45, 0x52, 0x5f, 0x43, 0x41,
+	0x43, 0x48, 0x45, 0x10, 0x03, 0x2a, 0x33, 0x0a, 0x0b, 0x45, 0x52, 0x6f, 0x77, 0x73, 0x65, 0x74,
+	0x4b, 0x69, 0x6e, 0x64, 0x12, 0x12, 0x0a, 0x0e, 0x52, 0x4b, 0x5f, 0x55, 0x4e, 0x56, 0x45, 0x52,
+	0x53, 0x49, 0x4f, 0x4e, 0x45, 0x44, 0x10, 0x01, 0x12, 0x10, 0x0a, 0x0c, 0x52, 0x4b, 0x5f, 0x56,
+	0x45, 0x52, 0x53, 0x49, 0x4f, 0x4e, 0x45, 0x44, 0x10, 0x02, 0x2a, 0x3c, 0x0a, 0x0d, 0x45, 0x52,
+	0x6f, 0x77, 0x73, 0x65, 0x74, 0x46, 0x6f, 0x72, 0x6d, 0x61, 0x74, 0x12, 0x0e, 0x0a, 0x0a, 0x52,
+	0x46, 0x5f, 0x59, 0x54, 0x5f, 0x57, 0x49, 0x52, 0x45, 0x10, 0x00, 0x12, 0x0c, 0x0a, 0x08, 0x52,
+	0x46, 0x5f, 0x41, 0x52, 0x52, 0x4f, 0x57, 0x10, 0x01, 0x12, 0x0d, 0x0a, 0x09, 0x52, 0x46, 0x5f,
+	0x46, 0x4f, 0x52, 0x4d, 0x41, 0x54, 0x10, 0x02, 0x2a, 0x4f, 0x0a, 0x0f, 0x45, 0x54, 0x61, 0x62,
+	0x6c, 0x65, 0x74, 0x52, 0x65, 0x61, 0x64, 0x4b, 0x69, 0x6e, 0x64, 0x12, 0x0e, 0x0a, 0x0a, 0x54,
+	0x52, 0x4b, 0x5f, 0x4c, 0x45, 0x41, 0x44, 0x45, 0x52, 0x10, 0x00, 0x12, 0x10, 0x0a, 0x0c, 0x54,
+	0x52, 0x4b, 0x5f, 0x46, 0x4f, 0x4c, 0x4c, 0x4f, 0x57, 0x45, 0x52, 0x10, 0x01, 0x12, 0x1a, 0x0a,
+	0x16, 0x54, 0x52, 0x4b, 0x5f, 0x4c, 0x45, 0x41, 0x44, 0x45, 0x52, 0x5f, 0x4f, 0x52, 0x5f, 0x46,
+	0x4f, 0x4c, 0x4c, 0x4f, 0x57, 0x45, 0x52, 0x10, 0x02, 0x2a, 0xaf, 0x01, 0x0a, 0x0e, 0x45, 0x4f,
+	0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x54, 0x79, 0x70, 0x65, 0x12, 0x0e, 0x0a, 0x0a,
+	0x4f, 0x54, 0x5f, 0x55, 0x4e, 0x4b, 0x4e, 0x4f, 0x57, 0x4e, 0x10, 0x64, 0x12, 0x0a, 0x0a, 0x06,
+	0x4f, 0x54, 0x5f, 0x4d, 0x41, 0x50, 0x10, 0x00, 0x12, 0x0c, 0x0a, 0x08, 0x4f, 0x54, 0x5f, 0x4d,
+	0x45, 0x52, 0x47, 0x45, 0x10, 0x01, 0x12, 0x0c, 0x0a, 0x08, 0x4f, 0x54, 0x5f, 0x45, 0x52, 0x41,
+	0x53, 0x45, 0x10, 0x02, 0x12, 0x0b, 0x0a, 0x07, 0x4f, 0x54, 0x5f, 0x53, 0x4f, 0x52, 0x54, 0x10,
+	0x03, 0x12, 0x0d, 0x0a, 0x09, 0x4f, 0x54, 0x5f, 0x52, 0x45, 0x44, 0x55, 0x43, 0x45, 0x10, 0x04,
+	0x12, 0x11, 0x0a, 0x0d, 0x4f, 0x54, 0x5f, 0x4d, 0x41, 0x50, 0x5f, 0x52, 0x45, 0x44, 0x55, 0x43,
+	0x45, 0x10, 0x05, 0x12, 0x12, 0x0a, 0x0e, 0x4f, 0x54, 0x5f, 0x52, 0x45, 0x4d, 0x4f, 0x54, 0x45,
+	0x5f, 0x43, 0x4f, 0x50, 0x59, 0x10, 0x06, 0x12, 0x12, 0x0a, 0x0e, 0x4f, 0x54, 0x5f, 0x4a, 0x4f,
+	0x49, 0x4e, 0x5f, 0x52, 0x45, 0x44, 0x55, 0x43, 0x45, 0x10, 0x07, 0x12, 0x0e, 0x0a, 0x0a, 0x4f,
+	0x54, 0x5f, 0x56, 0x41, 0x4e, 0x49, 0x4c, 0x4c, 0x41, 0x10, 0x08, 0x2a, 0xef, 0x02, 0x0a, 0x0f,
+	0x45, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12,
+	0x0e, 0x0a, 0x0a, 0x4f, 0x53, 0x5f, 0x55, 0x4e, 0x4b, 0x4e, 0x4f, 0x57, 0x4e, 0x10, 0x64, 0x12,
+	0x0b, 0x0a, 0x07, 0x4f, 0x53, 0x5f, 0x4e, 0x4f, 0x4e, 0x45, 0x10, 0x00, 0x12, 0x0f, 0x0a, 0x0b,
+	0x4f, 0x53, 0x5f, 0x53, 0x54, 0x41, 0x52, 0x54, 0x49, 0x4e, 0x47, 0x10, 0x01, 0x12, 0x0f, 0x0a,
+	0x0b, 0x4f, 0x53, 0x5f, 0x4f, 0x52, 0x50, 0x48, 0x41, 0x4e, 0x45, 0x44, 0x10, 0x02, 0x12, 0x18,
+	0x0a, 0x14, 0x4f, 0x53, 0x5f, 0x57, 0x41, 0x49, 0x54, 0x49, 0x4e, 0x47, 0x5f, 0x46, 0x4f, 0x52,
+	0x5f, 0x41, 0x47, 0x45, 0x4e, 0x54, 0x10, 0x03, 0x12, 0x13, 0x0a, 0x0f, 0x4f, 0x53, 0x5f, 0x49,
+	0x4e, 0x49, 0x54, 0x49, 0x41, 0x4c, 0x49, 0x5a, 0x49, 0x4e, 0x47, 0x10, 0x04, 0x12, 0x10, 0x0a,
+	0x0c, 0x4f, 0x53, 0x5f, 0x50, 0x52, 0x45, 0x50, 0x41, 0x52, 0x49, 0x4e, 0x47, 0x10, 0x05, 0x12,
+	0x14, 0x0a, 0x10, 0x4f, 0x53, 0x5f, 0x4d, 0x41, 0x54, 0x45, 0x52, 0x49, 0x41, 0x4c, 0x49, 0x5a,
+	0x49, 0x4e, 0x47, 0x10, 0x06, 0x12, 0x0f, 0x0a, 0x0b, 0x4f, 0x53, 0x5f, 0x52, 0x45, 0x56, 0x49,
+	0x56, 0x49, 0x4e, 0x47, 0x10, 0x07, 0x12, 0x14, 0x0a, 0x10, 0x4f, 0x53, 0x5f, 0x52, 0x45, 0x56,
+	0x49, 0x56, 0x49, 0x4e, 0x47, 0x5f, 0x4a, 0x4f, 0x42, 0x53, 0x10, 0x08, 0x12, 0x0e, 0x0a, 0x0a,
+	0x4f, 0x53, 0x5f, 0x50, 0x45, 0x4e, 0x44, 0x49, 0x4e, 0x47, 0x10, 0x09, 0x12, 0x0e, 0x0a, 0x0a,
+	0x4f, 0x53, 0x5f, 0x52, 0x55, 0x4e, 0x4e, 0x49, 0x4e, 0x47, 0x10, 0x0a, 0x12, 0x11, 0x0a, 0x0d,
+	0x4f, 0x53, 0x5f, 0x43, 0x4f, 0x4d, 0x50, 0x4c, 0x45, 0x54, 0x49, 0x4e, 0x47, 0x10, 0x0b, 0x12,
+	0x10, 0x0a, 0x0c, 0x4f, 0x53, 0x5f, 0x43, 0x4f, 0x4d, 0x50, 0x4c, 0x45, 0x54, 0x45, 0x44, 0x10,
+	0x0c, 0x12, 0x0f, 0x0a, 0x0b, 0x4f, 0x53, 0x5f, 0x41, 0x42, 0x4f, 0x52, 0x54, 0x49, 0x4e, 0x47,
+	0x10, 0x0d, 0x12, 0x0e, 0x0a, 0x0a, 0x4f, 0x53, 0x5f, 0x41, 0x42, 0x4f, 0x52, 0x54, 0x45, 0x44,
+	0x10, 0x0e, 0x12, 0x0e, 0x0a, 0x0a, 0x4f, 0x53, 0x5f, 0x46, 0x41, 0x49, 0x4c, 0x49, 0x4e, 0x47,
+	0x10, 0x0f, 0x12, 0x0d, 0x0a, 0x09, 0x4f, 0x53, 0x5f, 0x46, 0x41, 0x49, 0x4c, 0x45, 0x44, 0x10,
+	0x10, 0x12, 0x1a, 0x0a, 0x16, 0x4f, 0x53, 0x5f, 0x52, 0x45, 0x56, 0x49, 0x56, 0x45, 0x5f, 0x49,
+	0x4e, 0x49, 0x54, 0x49, 0x41, 0x4c, 0x49, 0x5a, 0x49, 0x4e, 0x47, 0x10, 0x11, 0x2a, 0x45, 0x0a,
+	0x17, 0x45, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x53, 0x6f, 0x72, 0x74, 0x44,
+	0x69, 0x72, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x0c, 0x0a, 0x08, 0x4f, 0x53, 0x44, 0x5f,
+	0x4e, 0x4f, 0x4e, 0x45, 0x10, 0x00, 0x12, 0x0c, 0x0a, 0x08, 0x4f, 0x53, 0x44, 0x5f, 0x50, 0x41,
+	0x53, 0x54, 0x10, 0x01, 0x12, 0x0e, 0x0a, 0x0a, 0x4f, 0x53, 0x44, 0x5f, 0x46, 0x55, 0x54, 0x55,
+	0x52, 0x45, 0x10, 0x02, 0x2a, 0xb3, 0x04, 0x0a, 0x08, 0x45, 0x4a, 0x6f, 0x62, 0x54, 0x79, 0x70,
+	0x65, 0x12, 0x0f, 0x0a, 0x0a, 0x4a, 0x54, 0x5f, 0x55, 0x4e, 0x4b, 0x4e, 0x4f, 0x57, 0x4e, 0x10,
+	0xe8, 0x07, 0x12, 0x0a, 0x0a, 0x06, 0x4a, 0x54, 0x5f, 0x4d, 0x41, 0x50, 0x10, 0x01, 0x12, 0x14,
+	0x0a, 0x10, 0x4a, 0x54, 0x5f, 0x50, 0x41, 0x52, 0x54, 0x49, 0x54, 0x49, 0x4f, 0x4e, 0x5f, 0x4d,
+	0x41, 0x50, 0x10, 0x02, 0x12, 0x13, 0x0a, 0x0f, 0x4a, 0x54, 0x5f, 0x53, 0x4f, 0x52, 0x54, 0x45,
+	0x44, 0x5f, 0x4d, 0x45, 0x52, 0x47, 0x45, 0x10, 0x03, 0x12, 0x14, 0x0a, 0x10, 0x4a, 0x54, 0x5f,
+	0x4f, 0x52, 0x44, 0x45, 0x52, 0x45, 0x44, 0x5f, 0x4d, 0x45, 0x52, 0x47, 0x45, 0x10, 0x04, 0x12,
+	0x16, 0x0a, 0x12, 0x4a, 0x54, 0x5f, 0x55, 0x4e, 0x4f, 0x52, 0x44, 0x45, 0x52, 0x45, 0x44, 0x5f,
+	0x4d, 0x45, 0x52, 0x47, 0x45, 0x10, 0x05, 0x12, 0x10, 0x0a, 0x0c, 0x4a, 0x54, 0x5f, 0x50, 0x41,
+	0x52, 0x54, 0x49, 0x54, 0x49, 0x4f, 0x4e, 0x10, 0x06, 0x12, 0x12, 0x0a, 0x0e, 0x4a, 0x54, 0x5f,
+	0x53, 0x49, 0x4d, 0x50, 0x4c, 0x45, 0x5f, 0x53, 0x4f, 0x52, 0x54, 0x10, 0x07, 0x12, 0x11, 0x0a,
+	0x0d, 0x4a, 0x54, 0x5f, 0x46, 0x49, 0x4e, 0x41, 0x4c, 0x5f, 0x53, 0x4f, 0x52, 0x54, 0x10, 0x08,
+	0x12, 0x14, 0x0a, 0x10, 0x4a, 0x54, 0x5f, 0x53, 0x4f, 0x52, 0x54, 0x45, 0x44, 0x5f, 0x52, 0x45,
+	0x44, 0x55, 0x43, 0x45, 0x10, 0x09, 0x12, 0x17, 0x0a, 0x13, 0x4a, 0x54, 0x5f, 0x50, 0x41, 0x52,
+	0x54, 0x49, 0x54, 0x49, 0x4f, 0x4e, 0x5f, 0x52, 0x45, 0x44, 0x55, 0x43, 0x45, 0x10, 0x0a, 0x12,
+	0x16, 0x0a, 0x12, 0x4a, 0x54, 0x5f, 0x52, 0x45, 0x44, 0x55, 0x43, 0x45, 0x5f, 0x43, 0x4f, 0x4d,
+	0x42, 0x49, 0x4e, 0x45, 0x52, 0x10, 0x0b, 0x12, 0x12, 0x0a, 0x0e, 0x4a, 0x54, 0x5f, 0x52, 0x45,
+	0x4d, 0x4f, 0x54, 0x45, 0x5f, 0x43, 0x4f, 0x50, 0x59, 0x10, 0x0c, 0x12, 0x18, 0x0a, 0x14, 0x4a,
+	0x54, 0x5f, 0x49, 0x4e, 0x54, 0x45, 0x52, 0x4d, 0x45, 0x44, 0x49, 0x41, 0x54, 0x45, 0x5f, 0x53,
+	0x4f, 0x52, 0x54, 0x10, 0x0d, 0x12, 0x12, 0x0a, 0x0e, 0x4a, 0x54, 0x5f, 0x4f, 0x52, 0x44, 0x45,
+	0x52, 0x45, 0x44, 0x5f, 0x4d, 0x41, 0x50, 0x10, 0x0e, 0x12, 0x12, 0x0a, 0x0e, 0x4a, 0x54, 0x5f,
+	0x4a, 0x4f, 0x49, 0x4e, 0x5f, 0x52, 0x45, 0x44, 0x55, 0x43, 0x45, 0x10, 0x0f, 0x12, 0x0e, 0x0a,
+	0x0a, 0x4a, 0x54, 0x5f, 0x56, 0x41, 0x4e, 0x49, 0x4c, 0x4c, 0x41, 0x10, 0x10, 0x12, 0x14, 0x0a,
+	0x10, 0x4a, 0x54, 0x5f, 0x53, 0x48, 0x41, 0x4c, 0x4c, 0x4f, 0x57, 0x5f, 0x4d, 0x45, 0x52, 0x47,
+	0x45, 0x10, 0x11, 0x12, 0x18, 0x0a, 0x14, 0x4a, 0x54, 0x5f, 0x53, 0x43, 0x48, 0x45, 0x44, 0x55,
+	0x4c, 0x45, 0x52, 0x5f, 0x55, 0x4e, 0x4b, 0x4e, 0x4f, 0x57, 0x4e, 0x10, 0x62, 0x12, 0x16, 0x0a,
+	0x12, 0x4a, 0x54, 0x5f, 0x52, 0x45, 0x50, 0x4c, 0x49, 0x43, 0x41, 0x54, 0x45, 0x5f, 0x43, 0x48,
+	0x55, 0x4e, 0x4b, 0x10, 0x64, 0x12, 0x13, 0x0a, 0x0f, 0x4a, 0x54, 0x5f, 0x52, 0x45, 0x4d, 0x4f,
+	0x56, 0x45, 0x5f, 0x43, 0x48, 0x55, 0x4e, 0x4b, 0x10, 0x65, 0x12, 0x13, 0x0a, 0x0f, 0x4a, 0x54,
+	0x5f, 0x52, 0x45, 0x50, 0x41, 0x49, 0x52, 0x5f, 0x43, 0x48, 0x55, 0x4e, 0x4b, 0x10, 0x66, 0x12,
+	0x11, 0x0a, 0x0d, 0x4a, 0x54, 0x5f, 0x53, 0x45, 0x41, 0x4c, 0x5f, 0x43, 0x48, 0x55, 0x4e, 0x4b,
+	0x10, 0x67, 0x12, 0x13, 0x0a, 0x0f, 0x4a, 0x54, 0x5f, 0x4d, 0x45, 0x52, 0x47, 0x45, 0x5f, 0x43,
+	0x48, 0x55, 0x4e, 0x4b, 0x53, 0x10, 0x68, 0x12, 0x17, 0x0a, 0x13, 0x4a, 0x54, 0x5f, 0x41, 0x55,
+	0x54, 0x4f, 0x54, 0x4f, 0x4d, 0x49, 0x5a, 0x45, 0x5f, 0x43, 0x48, 0x55, 0x4e, 0x4b, 0x10, 0x69,
+	0x12, 0x18, 0x0a, 0x14, 0x4a, 0x54, 0x5f, 0x52, 0x45, 0x49, 0x4e, 0x43, 0x41, 0x52, 0x4e, 0x41,
+	0x54, 0x45, 0x5f, 0x43, 0x48, 0x55, 0x4e, 0x4b, 0x10, 0x6a, 0x2a, 0x97, 0x01, 0x0a, 0x09, 0x45,
+	0x4a, 0x6f, 0x62, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12, 0x0e, 0x0a, 0x0a, 0x4a, 0x53, 0x5f, 0x55,
+	0x4e, 0x4b, 0x4e, 0x4f, 0x57, 0x4e, 0x10, 0x64, 0x12, 0x0e, 0x0a, 0x0a, 0x4a, 0x53, 0x5f, 0x57,
+	0x41, 0x49, 0x54, 0x49, 0x4e, 0x47, 0x10, 0x00, 0x12, 0x0e, 0x0a, 0x0a, 0x4a, 0x53, 0x5f, 0x52,
+	0x55, 0x4e, 0x4e, 0x49, 0x4e, 0x47, 0x10, 0x01, 0x12, 0x0f, 0x0a, 0x0b, 0x4a, 0x53, 0x5f, 0x41,
+	0x42, 0x4f, 0x52, 0x54, 0x49, 0x4e, 0x47, 0x10, 0x02, 0x12, 0x10, 0x0a, 0x0c, 0x4a, 0x53, 0x5f,
+	0x43, 0x4f, 0x4d, 0x50, 0x4c, 0x45, 0x54, 0x45, 0x44, 0x10, 0x03, 0x12, 0x0d, 0x0a, 0x09, 0x4a,
+	0x53, 0x5f, 0x46, 0x41, 0x49, 0x4c, 0x45, 0x44, 0x10, 0x04, 0x12, 0x0e, 0x0a, 0x0a, 0x4a, 0x53,
+	0x5f, 0x41, 0x42, 0x4f, 0x52, 0x54, 0x45, 0x44, 0x10, 0x05, 0x12, 0x0b, 0x0a, 0x07, 0x4a, 0x53,
+	0x5f, 0x4c, 0x4f, 0x53, 0x54, 0x10, 0x07, 0x12, 0x0b, 0x0a, 0x07, 0x4a, 0x53, 0x5f, 0x4e, 0x4f,
+	0x4e, 0x45, 0x10, 0x08, 0x2a, 0xa4, 0x01, 0x0a, 0x0d, 0x45, 0x4a, 0x6f, 0x62, 0x53, 0x6f, 0x72,
+	0x74, 0x46, 0x69, 0x65, 0x6c, 0x64, 0x12, 0x0c, 0x0a, 0x08, 0x4a, 0x53, 0x46, 0x5f, 0x4e, 0x4f,
+	0x4e, 0x45, 0x10, 0x00, 0x12, 0x0c, 0x0a, 0x08, 0x4a, 0x53, 0x46, 0x5f, 0x54, 0x59, 0x50, 0x45,
+	0x10, 0x01, 0x12, 0x0d, 0x0a, 0x09, 0x4a, 0x53, 0x46, 0x5f, 0x53, 0x54, 0x41, 0x54, 0x45, 0x10,
+	0x02, 0x12, 0x12, 0x0a, 0x0e, 0x4a, 0x53, 0x46, 0x5f, 0x53, 0x54, 0x41, 0x52, 0x54, 0x5f, 0x54,
+	0x49, 0x4d, 0x45, 0x10, 0x03, 0x12, 0x13, 0x0a, 0x0f, 0x4a, 0x53, 0x46, 0x5f, 0x46, 0x49, 0x4e,
+	0x49, 0x53, 0x48, 0x5f, 0x54, 0x49, 0x4d, 0x45, 0x10, 0x04, 0x12, 0x0f, 0x0a, 0x0b, 0x4a, 0x53,
+	0x46, 0x5f, 0x41, 0x44, 0x44, 0x52, 0x45, 0x53, 0x53, 0x10, 0x05, 0x12, 0x10, 0x0a, 0x0c, 0x4a,
+	0x53, 0x46, 0x5f, 0x44, 0x55, 0x52, 0x41, 0x54, 0x49, 0x4f, 0x4e, 0x10, 0x06, 0x12, 0x10, 0x0a,
+	0x0c, 0x4a, 0x53, 0x46, 0x5f, 0x50, 0x52, 0x4f, 0x47, 0x52, 0x45, 0x53, 0x53, 0x10, 0x07, 0x12,
+	0x0a, 0x0a, 0x06, 0x4a, 0x53, 0x46, 0x5f, 0x49, 0x44, 0x10, 0x08, 0x2a, 0x3a, 0x0a, 0x11, 0x45,
+	0x4a, 0x6f, 0x62, 0x53, 0x6f, 0x72, 0x74, 0x44, 0x69, 0x72, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e,
+	0x12, 0x11, 0x0a, 0x0d, 0x4a, 0x53, 0x44, 0x5f, 0x41, 0x53, 0x43, 0x45, 0x4e, 0x44, 0x49, 0x4e,
+	0x47, 0x10, 0x00, 0x12, 0x12, 0x0a, 0x0e, 0x4a, 0x53, 0x44, 0x5f, 0x44, 0x45, 0x53, 0x43, 0x45,
+	0x4e, 0x44, 0x49, 0x4e, 0x47, 0x10, 0x01, 0x2a, 0x49, 0x0a, 0x0b, 0x45, 0x44, 0x61, 0x74, 0x61,
+	0x53, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x12, 0x0e, 0x0a, 0x0a, 0x44, 0x53, 0x5f, 0x41, 0x52, 0x43,
+	0x48, 0x49, 0x56, 0x45, 0x10, 0x00, 0x12, 0x0e, 0x0a, 0x0a, 0x44, 0x53, 0x5f, 0x52, 0x55, 0x4e,
+	0x54, 0x49, 0x4d, 0x45, 0x10, 0x01, 0x12, 0x0b, 0x0a, 0x07, 0x44, 0x53, 0x5f, 0x41, 0x55, 0x54,
+	0x4f, 0x10, 0x02, 0x12, 0x0d, 0x0a, 0x09, 0x44, 0x53, 0x5f, 0x4d, 0x41, 0x4e, 0x55, 0x41, 0x4c,
+	0x10, 0x03, 0x2a, 0x3e, 0x0a, 0x0f, 0x45, 0x53, 0x65, 0x63, 0x75, 0x72, 0x69, 0x74, 0x79, 0x41,
+	0x63, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x10, 0x0a, 0x0c, 0x53, 0x41, 0x5f, 0x55, 0x4e, 0x44, 0x45,
+	0x46, 0x49, 0x4e, 0x45, 0x44, 0x10, 0x00, 0x12, 0x0c, 0x0a, 0x08, 0x53, 0x41, 0x5f, 0x41, 0x4c,
+	0x4c, 0x4f, 0x57, 0x10, 0x01, 0x12, 0x0b, 0x0a, 0x07, 0x53, 0x41, 0x5f, 0x44, 0x45, 0x4e, 0x59,
+	0x10, 0x02, 0x2a, 0x55, 0x0a, 0x11, 0x45, 0x4d, 0x75, 0x6c, 0x74, 0x69, 0x70, 0x6c, 0x65, 0x78,
+	0x69, 0x6e, 0x67, 0x42, 0x61, 0x6e, 0x64, 0x12, 0x0e, 0x0a, 0x0a, 0x4d, 0x42, 0x5f, 0x44, 0x45,
+	0x46, 0x41, 0x55, 0x4c, 0x54, 0x10, 0x00, 0x12, 0x0e, 0x0a, 0x0a, 0x4d, 0x42, 0x5f, 0x43, 0x4f,
+	0x4e, 0x54, 0x52, 0x4f, 0x4c, 0x10, 0x01, 0x12, 0x0c, 0x0a, 0x08, 0x4d, 0x42, 0x5f, 0x48, 0x45,
+	0x41, 0x56, 0x59, 0x10, 0x02, 0x12, 0x12, 0x0a, 0x0e, 0x4d, 0x42, 0x5f, 0x49, 0x4e, 0x54, 0x45,
+	0x52, 0x41, 0x43, 0x54, 0x49, 0x56, 0x45, 0x10, 0x03, 0x2a, 0x69, 0x0a, 0x18, 0x45, 0x54, 0x61,
+	0x62, 0x6c, 0x65, 0x53, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x4d, 0x6f, 0x64, 0x69, 0x66, 0x69, 0x63,
+	0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x0c, 0x0a, 0x08, 0x54, 0x53, 0x4d, 0x5f, 0x4e, 0x4f, 0x4e,
+	0x45, 0x10, 0x00, 0x12, 0x1a, 0x0a, 0x16, 0x54, 0x53, 0x4d, 0x5f, 0x55, 0x4e, 0x56, 0x45, 0x52,
+	0x53, 0x49, 0x4f, 0x4e, 0x45, 0x44, 0x5f, 0x55, 0x50, 0x44, 0x41, 0x54, 0x45, 0x10, 0x01, 0x12,
+	0x23, 0x0a, 0x1f, 0x54, 0x53, 0x4d, 0x5f, 0x55, 0x4e, 0x56, 0x45, 0x52, 0x53, 0x49, 0x4f, 0x4e,
+	0x45, 0x44, 0x5f, 0x55, 0x50, 0x44, 0x41, 0x54, 0x45, 0x5f, 0x55, 0x4e, 0x53, 0x4f, 0x52, 0x54,
+	0x45, 0x44, 0x10, 0x02, 0x2a, 0x5e, 0x0a, 0x1e, 0x45, 0x43, 0x6f, 0x6c, 0x75, 0x6d, 0x6e, 0x61,
+	0x72, 0x53, 0x74, 0x61, 0x74, 0x69, 0x73, 0x74, 0x69, 0x63, 0x73, 0x46, 0x65, 0x74, 0x63, 0x68,
+	0x65, 0x72, 0x4d, 0x6f, 0x64, 0x65, 0x12, 0x13, 0x0a, 0x0f, 0x43, 0x53, 0x46, 0x4d, 0x5f, 0x46,
+	0x52, 0x4f, 0x4d, 0x5f, 0x4e, 0x4f, 0x44, 0x45, 0x53, 0x10, 0x00, 0x12, 0x14, 0x0a, 0x10, 0x43,
+	0x53, 0x46, 0x4d, 0x5f, 0x46, 0x52, 0x4f, 0x4d, 0x5f, 0x4d, 0x41, 0x53, 0x54, 0x45, 0x52, 0x10,
+	0x01, 0x12, 0x11, 0x0a, 0x0d, 0x43, 0x53, 0x46, 0x4d, 0x5f, 0x46, 0x41, 0x4c, 0x4c, 0x42, 0x41,
+	0x43, 0x4b, 0x10, 0x02, 0x2a, 0x4a, 0x0a, 0x14, 0x45, 0x50, 0x61, 0x72, 0x74, 0x69, 0x74, 0x69,
+	0x6f, 0x6e, 0x54, 0x61, 0x62, 0x6c, 0x65, 0x73, 0x4d, 0x6f, 0x64, 0x65, 0x12, 0x0e, 0x0a, 0x0a,
+	0x54, 0x50, 0x4d, 0x5f, 0x53, 0x4f, 0x52, 0x54, 0x45, 0x44, 0x10, 0x00, 0x12, 0x0f, 0x0a, 0x0b,
+	0x54, 0x50, 0x4d, 0x5f, 0x4f, 0x52, 0x44, 0x45, 0x52, 0x45, 0x44, 0x10, 0x01, 0x12, 0x11, 0x0a,
+	0x0d, 0x54, 0x50, 0x4d, 0x5f, 0x55, 0x4e, 0x4f, 0x52, 0x44, 0x45, 0x52, 0x45, 0x44, 0x10, 0x02,
+	0x2a, 0xa6, 0x01, 0x0a, 0x10, 0x45, 0x4d, 0x61, 0x69, 0x6e, 0x74, 0x65, 0x6e, 0x61, 0x6e, 0x63,
+	0x65, 0x54, 0x79, 0x70, 0x65, 0x12, 0x0a, 0x0a, 0x06, 0x4d, 0x54, 0x5f, 0x42, 0x41, 0x4e, 0x10,
+	0x01, 0x12, 0x13, 0x0a, 0x0f, 0x4d, 0x54, 0x5f, 0x44, 0x45, 0x43, 0x4f, 0x4d, 0x4d, 0x49, 0x53,
+	0x53, 0x49, 0x4f, 0x4e, 0x10, 0x02, 0x12, 0x1d, 0x0a, 0x19, 0x4d, 0x54, 0x5f, 0x44, 0x49, 0x53,
+	0x41, 0x42, 0x4c, 0x45, 0x5f, 0x53, 0x43, 0x48, 0x45, 0x44, 0x55, 0x4c, 0x45, 0x52, 0x5f, 0x4a,
+	0x4f, 0x42, 0x53, 0x10, 0x03, 0x12, 0x1d, 0x0a, 0x19, 0x4d, 0x54, 0x5f, 0x44, 0x49, 0x53, 0x41,
+	0x42, 0x4c, 0x45, 0x5f, 0x57, 0x52, 0x49, 0x54, 0x45, 0x5f, 0x53, 0x45, 0x53, 0x53, 0x49, 0x4f,
+	0x4e, 0x53, 0x10, 0x04, 0x12, 0x1b, 0x0a, 0x17, 0x4d, 0x54, 0x5f, 0x44, 0x49, 0x53, 0x41, 0x42,
+	0x4c, 0x45, 0x5f, 0x54, 0x41, 0x42, 0x4c, 0x45, 0x54, 0x5f, 0x43, 0x45, 0x4c, 0x4c, 0x53, 0x10,
+	0x05, 0x12, 0x16, 0x0a, 0x12, 0x4d, 0x54, 0x5f, 0x50, 0x45, 0x4e, 0x44, 0x49, 0x4e, 0x47, 0x5f,
+	0x52, 0x45, 0x53, 0x54, 0x41, 0x52, 0x54, 0x10, 0x06, 0x2a, 0x5e, 0x0a, 0x15, 0x45, 0x4d, 0x61,
+	0x69, 0x6e, 0x74, 0x65, 0x6e, 0x61, 0x6e, 0x63, 0x65, 0x43, 0x6f, 0x6d, 0x70, 0x6f, 0x6e, 0x65,
+	0x6e, 0x74, 0x12, 0x13, 0x0a, 0x0f, 0x4d, 0x43, 0x5f, 0x43, 0x4c, 0x55, 0x53, 0x54, 0x45, 0x52,
+	0x5f, 0x4e, 0x4f, 0x44, 0x45, 0x10, 0x01, 0x12, 0x11, 0x0a, 0x0d, 0x4d, 0x43, 0x5f, 0x48, 0x54,
+	0x54, 0x50, 0x5f, 0x50, 0x52, 0x4f, 0x58, 0x59, 0x10, 0x02, 0x12, 0x10, 0x0a, 0x0c, 0x4d, 0x43,
+	0x5f, 0x52, 0x50, 0x43, 0x5f, 0x50, 0x52, 0x4f, 0x58, 0x59, 0x10, 0x03, 0x12, 0x0b, 0x0a, 0x07,
+	0x4d, 0x43, 0x5f, 0x48, 0x4f, 0x53, 0x54, 0x10, 0x04, 0x2a, 0x3f, 0x0a, 0x0e, 0x45, 0x4a, 0x6f,
+	0x62, 0x53, 0x70, 0x65, 0x63, 0x53, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x12, 0x0c, 0x0a, 0x08, 0x4a,
+	0x53, 0x53, 0x5f, 0x4e, 0x4f, 0x44, 0x45, 0x10, 0x01, 0x12, 0x0f, 0x0a, 0x0b, 0x4a, 0x53, 0x53,
+	0x5f, 0x41, 0x52, 0x43, 0x48, 0x49, 0x56, 0x45, 0x10, 0x02, 0x12, 0x0e, 0x0a, 0x08, 0x4a, 0x53,
+	0x53, 0x5f, 0x41, 0x55, 0x54, 0x4f, 0x10, 0xff, 0xff, 0x03, 0x2a, 0x5c, 0x0a, 0x0c, 0x45, 0x51,
+	0x75, 0x65, 0x72, 0x79, 0x45, 0x6e, 0x67, 0x69, 0x6e, 0x65, 0x12, 0x0e, 0x0a, 0x0a, 0x51, 0x45,
+	0x5f, 0x55, 0x4e, 0x4b, 0x4e, 0x4f, 0x57, 0x4e, 0x10, 0x64, 0x12, 0x09, 0x0a, 0x05, 0x51, 0x45,
+	0x5f, 0x51, 0x4c, 0x10, 0x00, 0x12, 0x0a, 0x0a, 0x06, 0x51, 0x45, 0x5f, 0x59, 0x51, 0x4c, 0x10,
+	0x01, 0x12, 0x0b, 0x0a, 0x07, 0x51, 0x45, 0x5f, 0x43, 0x48, 0x59, 0x54, 0x10, 0x02, 0x12, 0x0b,
+	0x0a, 0x07, 0x51, 0x45, 0x5f, 0x4d, 0x4f, 0x43, 0x4b, 0x10, 0x03, 0x12, 0x0b, 0x0a, 0x07, 0x51,
+	0x45, 0x5f, 0x53, 0x50, 0x59, 0x54, 0x10, 0x04, 0x2a, 0x32, 0x0a, 0x0c, 0x45, 0x43, 0x6f, 0x6e,
+	0x74, 0x65, 0x6e, 0x74, 0x54, 0x79, 0x70, 0x65, 0x12, 0x16, 0x0a, 0x12, 0x43, 0x54, 0x5f, 0x52,
+	0x41, 0x57, 0x5f, 0x49, 0x4e, 0x4c, 0x49, 0x4e, 0x45, 0x5f, 0x44, 0x41, 0x54, 0x41, 0x10, 0x00,
+	0x12, 0x0a, 0x0a, 0x06, 0x43, 0x54, 0x5f, 0x55, 0x52, 0x4c, 0x10, 0x01, 0x2a, 0xb0, 0x01, 0x0a,
+	0x0b, 0x45, 0x51, 0x75, 0x65, 0x72, 0x79, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12, 0x0e, 0x0a, 0x0a,
+	0x51, 0x53, 0x5f, 0x55, 0x4e, 0x4b, 0x4e, 0x4f, 0x57, 0x4e, 0x10, 0x64, 0x12, 0x0c, 0x0a, 0x08,
+	0x51, 0x53, 0x5f, 0x44, 0x52, 0x41, 0x46, 0x54, 0x10, 0x00, 0x12, 0x0e, 0x0a, 0x0a, 0x51, 0x53,
+	0x5f, 0x50, 0x45, 0x4e, 0x44, 0x49, 0x4e, 0x47, 0x10, 0x01, 0x12, 0x0e, 0x0a, 0x0a, 0x51, 0x53,
+	0x5f, 0x52, 0x55, 0x4e, 0x4e, 0x49, 0x4e, 0x47, 0x10, 0x02, 0x12, 0x0f, 0x0a, 0x0b, 0x51, 0x53,
+	0x5f, 0x41, 0x42, 0x4f, 0x52, 0x54, 0x49, 0x4e, 0x47, 0x10, 0x03, 0x12, 0x0e, 0x0a, 0x0a, 0x51,
+	0x53, 0x5f, 0x41, 0x42, 0x4f, 0x52, 0x54, 0x45, 0x44, 0x10, 0x04, 0x12, 0x11, 0x0a, 0x0d, 0x51,
+	0x53, 0x5f, 0x43, 0x4f, 0x4d, 0x50, 0x4c, 0x45, 0x54, 0x49, 0x4e, 0x47, 0x10, 0x05, 0x12, 0x10,
+	0x0a, 0x0c, 0x51, 0x53, 0x5f, 0x43, 0x4f, 0x4d, 0x50, 0x4c, 0x45, 0x54, 0x45, 0x44, 0x10, 0x06,
+	0x12, 0x0e, 0x0a, 0x0a, 0x51, 0x53, 0x5f, 0x46, 0x41, 0x49, 0x4c, 0x49, 0x4e, 0x47, 0x10, 0x07,
+	0x12, 0x0d, 0x0a, 0x09, 0x51, 0x53, 0x5f, 0x46, 0x41, 0x49, 0x4c, 0x45, 0x44, 0x10, 0x08, 0x42,
+	0x58, 0x0a, 0x16, 0x74, 0x65, 0x63, 0x68, 0x2e, 0x79, 0x74, 0x73, 0x61, 0x75, 0x72, 0x75, 0x73,
+	0x2e, 0x72, 0x70, 0x63, 0x70, 0x72, 0x6f, 0x78, 0x79, 0x42, 0x09, 0x41, 0x70, 0x69, 0x50, 0x72,
+	0x6f, 0x74, 0x6f, 0x73, 0x50, 0x01, 0x5a, 0x31, 0x61, 0x2e, 0x79, 0x61, 0x6e, 0x64, 0x65, 0x78,
+	0x2d, 0x74, 0x65, 0x61, 0x6d, 0x2e, 0x72, 0x75, 0x2f, 0x79, 0x74, 0x2f, 0x67, 0x6f, 0x2f, 0x70,
+	0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x63, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x2f, 0x61, 0x70, 0x69, 0x2f,
+	0x72, 0x70, 0x63, 0x5f, 0x70, 0x72, 0x6f, 0x78, 0x79,
 }
 
 var (
@@ -25753,8 +27560,8 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZI
 	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescData
 }
 
-var file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_enumTypes = make([]protoimpl.EnumInfo, 26)
-var file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes = make([]protoimpl.MessageInfo, 308)
+var file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_enumTypes = make([]protoimpl.EnumInfo, 29)
+var file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes = make([]protoimpl.MessageInfo, 327)
 var file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_goTypes = []interface{}{
 	(ETransactionType)(0),                                     // 0: NYT.NApi.NRpcProxy.NProto.ETransactionType
 	(ERowModificationType)(0),                                 // 1: NYT.NApi.NRpcProxy.NProto.ERowModificationType
@@ -25782,699 +27589,749 @@ var file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_goTypes = [
 	(EMaintenanceType)(0),                                     // 23: NYT.NApi.NRpcProxy.NProto.EMaintenanceType
 	(EMaintenanceComponent)(0),                                // 24: NYT.NApi.NRpcProxy.NProto.EMaintenanceComponent
 	(EJobSpecSource)(0),                                       // 25: NYT.NApi.NRpcProxy.NProto.EJobSpecSource
-	(*TLegacyAttributeKeys)(nil),                              // 26: NYT.NApi.NRpcProxy.NProto.TLegacyAttributeKeys
-	(*TRowsetDescriptor)(nil),                                 // 27: NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
-	(*TRowsetStatistics)(nil),                                 // 28: NYT.NApi.NRpcProxy.NProto.TRowsetStatistics
-	(*TReqStartTransaction)(nil),                              // 29: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction
-	(*TRspStartTransaction)(nil),                              // 30: NYT.NApi.NRpcProxy.NProto.TRspStartTransaction
-	(*TReqPingTransaction)(nil),                               // 31: NYT.NApi.NRpcProxy.NProto.TReqPingTransaction
-	(*TRspPingTransaction)(nil),                               // 32: NYT.NApi.NRpcProxy.NProto.TRspPingTransaction
-	(*TReqCommitTransaction)(nil),                             // 33: NYT.NApi.NRpcProxy.NProto.TReqCommitTransaction
-	(*TRspCommitTransaction)(nil),                             // 34: NYT.NApi.NRpcProxy.NProto.TRspCommitTransaction
-	(*TReqFlushTransaction)(nil),                              // 35: NYT.NApi.NRpcProxy.NProto.TReqFlushTransaction
-	(*TRspFlushTransaction)(nil),                              // 36: NYT.NApi.NRpcProxy.NProto.TRspFlushTransaction
-	(*TReqAbortTransaction)(nil),                              // 37: NYT.NApi.NRpcProxy.NProto.TReqAbortTransaction
-	(*TRspAbortTransaction)(nil),                              // 38: NYT.NApi.NRpcProxy.NProto.TRspAbortTransaction
-	(*TReqLookupRows)(nil),                                    // 39: NYT.NApi.NRpcProxy.NProto.TReqLookupRows
-	(*TRspLookupRows)(nil),                                    // 40: NYT.NApi.NRpcProxy.NProto.TRspLookupRows
-	(*TRetentionConfig)(nil),                                  // 41: NYT.NApi.NRpcProxy.NProto.TRetentionConfig
-	(*TReqVersionedLookupRows)(nil),                           // 42: NYT.NApi.NRpcProxy.NProto.TReqVersionedLookupRows
-	(*TRspVersionedLookupRows)(nil),                           // 43: NYT.NApi.NRpcProxy.NProto.TRspVersionedLookupRows
-	(*TReqMultiLookup)(nil),                                   // 44: NYT.NApi.NRpcProxy.NProto.TReqMultiLookup
-	(*TRspMultiLookup)(nil),                                   // 45: NYT.NApi.NRpcProxy.NProto.TRspMultiLookup
-	(*TQueryStatistics)(nil),                                  // 46: NYT.NApi.NRpcProxy.NProto.TQueryStatistics
-	(*TReqSelectRows)(nil),                                    // 47: NYT.NApi.NRpcProxy.NProto.TReqSelectRows
-	(*TRspSelectRows)(nil),                                    // 48: NYT.NApi.NRpcProxy.NProto.TRspSelectRows
-	(*TReqAdvanceConsumer)(nil),                               // 49: NYT.NApi.NRpcProxy.NProto.TReqAdvanceConsumer
-	(*TRspAdvanceConsumer)(nil),                               // 50: NYT.NApi.NRpcProxy.NProto.TRspAdvanceConsumer
-	(*TRowBatchReadOptions)(nil),                              // 51: NYT.NApi.NRpcProxy.NProto.TRowBatchReadOptions
-	(*TReqPullQueue)(nil),                                     // 52: NYT.NApi.NRpcProxy.NProto.TReqPullQueue
-	(*TRspPullQueue)(nil),                                     // 53: NYT.NApi.NRpcProxy.NProto.TRspPullQueue
-	(*TReqPullConsumer)(nil),                                  // 54: NYT.NApi.NRpcProxy.NProto.TReqPullConsumer
-	(*TRspPullConsumer)(nil),                                  // 55: NYT.NApi.NRpcProxy.NProto.TRspPullConsumer
-	(*TReqRegisterQueueConsumer)(nil),                         // 56: NYT.NApi.NRpcProxy.NProto.TReqRegisterQueueConsumer
-	(*TRspRegisterQueueConsumer)(nil),                         // 57: NYT.NApi.NRpcProxy.NProto.TRspRegisterQueueConsumer
-	(*TReqUnregisterQueueConsumer)(nil),                       // 58: NYT.NApi.NRpcProxy.NProto.TReqUnregisterQueueConsumer
-	(*TRspUnregisterQueueConsumer)(nil),                       // 59: NYT.NApi.NRpcProxy.NProto.TRspUnregisterQueueConsumer
-	(*TReqListQueueConsumerRegistrations)(nil),                // 60: NYT.NApi.NRpcProxy.NProto.TReqListQueueConsumerRegistrations
-	(*TRspListQueueConsumerRegistrations)(nil),                // 61: NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations
-	(*TReqExplainQuery)(nil),                                  // 62: NYT.NApi.NRpcProxy.NProto.TReqExplainQuery
-	(*TRspExplainQuery)(nil),                                  // 63: NYT.NApi.NRpcProxy.NProto.TRspExplainQuery
-	(*TReplicationRowIndex)(nil),                              // 64: NYT.NApi.NRpcProxy.NProto.TReplicationRowIndex
-	(*TReqPullRows)(nil),                                      // 65: NYT.NApi.NRpcProxy.NProto.TReqPullRows
-	(*TRspPullRows)(nil),                                      // 66: NYT.NApi.NRpcProxy.NProto.TRspPullRows
-	(*TReqGetInSyncReplicas)(nil),                             // 67: NYT.NApi.NRpcProxy.NProto.TReqGetInSyncReplicas
-	(*TRspGetInSyncReplicas)(nil),                             // 68: NYT.NApi.NRpcProxy.NProto.TRspGetInSyncReplicas
-	(*TReqGetTabletInfos)(nil),                                // 69: NYT.NApi.NRpcProxy.NProto.TReqGetTabletInfos
-	(*TRspGetTabletInfos)(nil),                                // 70: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos
-	(*TReqGetTabletErrors)(nil),                               // 71: NYT.NApi.NRpcProxy.NProto.TReqGetTabletErrors
-	(*TRspGetTabletErrors)(nil),                               // 72: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors
-	(*TReqModifyRows)(nil),                                    // 73: NYT.NApi.NRpcProxy.NProto.TReqModifyRows
-	(*TRspModifyRows)(nil),                                    // 74: NYT.NApi.NRpcProxy.NProto.TRspModifyRows
-	(*TReqBatchModifyRows)(nil),                               // 75: NYT.NApi.NRpcProxy.NProto.TReqBatchModifyRows
-	(*TRspBatchModifyRows)(nil),                               // 76: NYT.NApi.NRpcProxy.NProto.TRspBatchModifyRows
-	(*TReqBuildSnapshot)(nil),                                 // 77: NYT.NApi.NRpcProxy.NProto.TReqBuildSnapshot
-	(*TRspBuildSnapshot)(nil),                                 // 78: NYT.NApi.NRpcProxy.NProto.TRspBuildSnapshot
-	(*TReqExitReadOnly)(nil),                                  // 79: NYT.NApi.NRpcProxy.NProto.TReqExitReadOnly
-	(*TRspExitReadOnly)(nil),                                  // 80: NYT.NApi.NRpcProxy.NProto.TRspExitReadOnly
-	(*TReqMasterExitReadOnly)(nil),                            // 81: NYT.NApi.NRpcProxy.NProto.TReqMasterExitReadOnly
-	(*TRspMasterExitReadOnly)(nil),                            // 82: NYT.NApi.NRpcProxy.NProto.TRspMasterExitReadOnly
-	(*TReqDiscombobulateNonvotingPeers)(nil),                  // 83: NYT.NApi.NRpcProxy.NProto.TReqDiscombobulateNonvotingPeers
-	(*TRspDiscombobulateNonvotingPeers)(nil),                  // 84: NYT.NApi.NRpcProxy.NProto.TRspDiscombobulateNonvotingPeers
-	(*TReqGCCollect)(nil),                                     // 85: NYT.NApi.NRpcProxy.NProto.TReqGCCollect
-	(*TRspGCCollect)(nil),                                     // 86: NYT.NApi.NRpcProxy.NProto.TRspGCCollect
-	(*TReqSuspendCoordinator)(nil),                            // 87: NYT.NApi.NRpcProxy.NProto.TReqSuspendCoordinator
-	(*TRspSuspendCoordinator)(nil),                            // 88: NYT.NApi.NRpcProxy.NProto.TRspSuspendCoordinator
-	(*TReqResumeCoordinator)(nil),                             // 89: NYT.NApi.NRpcProxy.NProto.TReqResumeCoordinator
-	(*TRspResumeCoordinator)(nil),                             // 90: NYT.NApi.NRpcProxy.NProto.TRspResumeCoordinator
-	(*TReqMigrateReplicationCards)(nil),                       // 91: NYT.NApi.NRpcProxy.NProto.TReqMigrateReplicationCards
-	(*TRspMigrateReplicationCards)(nil),                       // 92: NYT.NApi.NRpcProxy.NProto.TRspMigrateReplicationCards
-	(*TReqSuspendChaosCells)(nil),                             // 93: NYT.NApi.NRpcProxy.NProto.TReqSuspendChaosCells
-	(*TRspSuspendChaosCells)(nil),                             // 94: NYT.NApi.NRpcProxy.NProto.TRspSuspendChaosCells
-	(*TReqResumeChaosCells)(nil),                              // 95: NYT.NApi.NRpcProxy.NProto.TReqResumeChaosCells
-	(*TRspResumeChaosCells)(nil),                              // 96: NYT.NApi.NRpcProxy.NProto.TRspResumeChaosCells
-	(*TReqAddMaintenance)(nil),                                // 97: NYT.NApi.NRpcProxy.NProto.TReqAddMaintenance
-	(*TRspAddMaintenance)(nil),                                // 98: NYT.NApi.NRpcProxy.NProto.TRspAddMaintenance
-	(*TReqRemoveMaintenance)(nil),                             // 99: NYT.NApi.NRpcProxy.NProto.TReqRemoveMaintenance
-	(*TRspRemoveMaintenance)(nil),                             // 100: NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance
-	(*TTransactionalOptions)(nil),                             // 101: NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	(*TPrerequisiteOptions)(nil),                              // 102: NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
-	(*TMasterReadOptions)(nil),                                // 103: NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
-	(*TMutatingOptions)(nil),                                  // 104: NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	(*TSuppressableAccessTrackingOptions)(nil),                // 105: NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
-	(*TTabletRangeOptions)(nil),                               // 106: NYT.NApi.NRpcProxy.NProto.TTabletRangeOptions
-	(*TTabletReadOptions)(nil),                                // 107: NYT.NApi.NRpcProxy.NProto.TTabletReadOptions
-	(*TReqGenerateTimestamps)(nil),                            // 108: NYT.NApi.NRpcProxy.NProto.TReqGenerateTimestamps
-	(*TRspGenerateTimestamps)(nil),                            // 109: NYT.NApi.NRpcProxy.NProto.TRspGenerateTimestamps
-	(*TReqExistsNode)(nil),                                    // 110: NYT.NApi.NRpcProxy.NProto.TReqExistsNode
-	(*TRspExistsNode)(nil),                                    // 111: NYT.NApi.NRpcProxy.NProto.TRspExistsNode
-	(*TReqGetNode)(nil),                                       // 112: NYT.NApi.NRpcProxy.NProto.TReqGetNode
-	(*TRspGetNode)(nil),                                       // 113: NYT.NApi.NRpcProxy.NProto.TRspGetNode
-	(*TReqListNode)(nil),                                      // 114: NYT.NApi.NRpcProxy.NProto.TReqListNode
-	(*TRspListNode)(nil),                                      // 115: NYT.NApi.NRpcProxy.NProto.TRspListNode
-	(*TReqCreateObject)(nil),                                  // 116: NYT.NApi.NRpcProxy.NProto.TReqCreateObject
-	(*TRspCreateObject)(nil),                                  // 117: NYT.NApi.NRpcProxy.NProto.TRspCreateObject
-	(*TColumnSchema)(nil),                                     // 118: NYT.NApi.NRpcProxy.NProto.TColumnSchema
-	(*TDeletedColumn)(nil),                                    // 119: NYT.NApi.NRpcProxy.NProto.TDeletedColumn
-	(*TTableSchema)(nil),                                      // 120: NYT.NApi.NRpcProxy.NProto.TTableSchema
-	(*TTabletInfo)(nil),                                       // 121: NYT.NApi.NRpcProxy.NProto.TTabletInfo
-	(*TReplicaInfo)(nil),                                      // 122: NYT.NApi.NRpcProxy.NProto.TReplicaInfo
-	(*TIndexInfo)(nil),                                        // 123: NYT.NApi.NRpcProxy.NProto.TIndexInfo
-	(*TReqGetTableMountInfo)(nil),                             // 124: NYT.NApi.NRpcProxy.NProto.TReqGetTableMountInfo
-	(*TRspGetTableMountInfo)(nil),                             // 125: NYT.NApi.NRpcProxy.NProto.TRspGetTableMountInfo
-	(*TReqGetTablePivotKeys)(nil),                             // 126: NYT.NApi.NRpcProxy.NProto.TReqGetTablePivotKeys
-	(*TRspGetTablePivotKeys)(nil),                             // 127: NYT.NApi.NRpcProxy.NProto.TRspGetTablePivotKeys
-	(*TTableBackupManifest)(nil),                              // 128: NYT.NApi.NRpcProxy.NProto.TTableBackupManifest
-	(*TBackupManifest)(nil),                                   // 129: NYT.NApi.NRpcProxy.NProto.TBackupManifest
-	(*TReqCreateTableBackup)(nil),                             // 130: NYT.NApi.NRpcProxy.NProto.TReqCreateTableBackup
-	(*TRspCreateTableBackup)(nil),                             // 131: NYT.NApi.NRpcProxy.NProto.TRspCreateTableBackup
-	(*TReqRestoreTableBackup)(nil),                            // 132: NYT.NApi.NRpcProxy.NProto.TReqRestoreTableBackup
-	(*TRspRestoreTableBackup)(nil),                            // 133: NYT.NApi.NRpcProxy.NProto.TRspRestoreTableBackup
-	(*TReqCreateNode)(nil),                                    // 134: NYT.NApi.NRpcProxy.NProto.TReqCreateNode
-	(*TRspCreateNode)(nil),                                    // 135: NYT.NApi.NRpcProxy.NProto.TRspCreateNode
-	(*TReqRemoveNode)(nil),                                    // 136: NYT.NApi.NRpcProxy.NProto.TReqRemoveNode
-	(*TRspRemoveNode)(nil),                                    // 137: NYT.NApi.NRpcProxy.NProto.TRspRemoveNode
-	(*TReqSetNode)(nil),                                       // 138: NYT.NApi.NRpcProxy.NProto.TReqSetNode
-	(*TRspSetNode)(nil),                                       // 139: NYT.NApi.NRpcProxy.NProto.TRspSetNode
-	(*TReqMultisetAttributesNode)(nil),                        // 140: NYT.NApi.NRpcProxy.NProto.TReqMultisetAttributesNode
-	(*TRspMultisetAttributesNode)(nil),                        // 141: NYT.NApi.NRpcProxy.NProto.TRspMultisetAttributesNode
-	(*TReqLockNode)(nil),                                      // 142: NYT.NApi.NRpcProxy.NProto.TReqLockNode
-	(*TRspLockNode)(nil),                                      // 143: NYT.NApi.NRpcProxy.NProto.TRspLockNode
-	(*TReqUnlockNode)(nil),                                    // 144: NYT.NApi.NRpcProxy.NProto.TReqUnlockNode
-	(*TRspUnlockNode)(nil),                                    // 145: NYT.NApi.NRpcProxy.NProto.TRspUnlockNode
-	(*TReqCopyNode)(nil),                                      // 146: NYT.NApi.NRpcProxy.NProto.TReqCopyNode
-	(*TRspCopyNode)(nil),                                      // 147: NYT.NApi.NRpcProxy.NProto.TRspCopyNode
-	(*TReqMoveNode)(nil),                                      // 148: NYT.NApi.NRpcProxy.NProto.TReqMoveNode
-	(*TRspMoveNode)(nil),                                      // 149: NYT.NApi.NRpcProxy.NProto.TRspMoveNode
-	(*TReqLinkNode)(nil),                                      // 150: NYT.NApi.NRpcProxy.NProto.TReqLinkNode
-	(*TRspLinkNode)(nil),                                      // 151: NYT.NApi.NRpcProxy.NProto.TRspLinkNode
-	(*TReqConcatenateNodes)(nil),                              // 152: NYT.NApi.NRpcProxy.NProto.TReqConcatenateNodes
-	(*TRspConcatenateNodes)(nil),                              // 153: NYT.NApi.NRpcProxy.NProto.TRspConcatenateNodes
-	(*TReqExternalizeNode)(nil),                               // 154: NYT.NApi.NRpcProxy.NProto.TReqExternalizeNode
-	(*TRspExternalizeNode)(nil),                               // 155: NYT.NApi.NRpcProxy.NProto.TRspExternalizeNode
-	(*TReqInternalizeNode)(nil),                               // 156: NYT.NApi.NRpcProxy.NProto.TReqInternalizeNode
-	(*TRspInternalizeNode)(nil),                               // 157: NYT.NApi.NRpcProxy.NProto.TRspInternalizeNode
-	(*TReqAttachTransaction)(nil),                             // 158: NYT.NApi.NRpcProxy.NProto.TReqAttachTransaction
-	(*TRspAttachTransaction)(nil),                             // 159: NYT.NApi.NRpcProxy.NProto.TRspAttachTransaction
-	(*TReqDetachTransaction)(nil),                             // 160: NYT.NApi.NRpcProxy.NProto.TReqDetachTransaction
-	(*TRspDetachTransaction)(nil),                             // 161: NYT.NApi.NRpcProxy.NProto.TRspDetachTransaction
-	(*TReqMountTable)(nil),                                    // 162: NYT.NApi.NRpcProxy.NProto.TReqMountTable
-	(*TRspMountTable)(nil),                                    // 163: NYT.NApi.NRpcProxy.NProto.TRspMountTable
-	(*TReqUnmountTable)(nil),                                  // 164: NYT.NApi.NRpcProxy.NProto.TReqUnmountTable
-	(*TRspUnmountTable)(nil),                                  // 165: NYT.NApi.NRpcProxy.NProto.TRspUnmountTable
-	(*TReqRemountTable)(nil),                                  // 166: NYT.NApi.NRpcProxy.NProto.TReqRemountTable
-	(*TRspRemountTable)(nil),                                  // 167: NYT.NApi.NRpcProxy.NProto.TRspRemountTable
-	(*TReqFreezeTable)(nil),                                   // 168: NYT.NApi.NRpcProxy.NProto.TReqFreezeTable
-	(*TRspFreezeTable)(nil),                                   // 169: NYT.NApi.NRpcProxy.NProto.TRspFreezeTable
-	(*TReqUnfreezeTable)(nil),                                 // 170: NYT.NApi.NRpcProxy.NProto.TReqUnfreezeTable
-	(*TRspUnfreezeTable)(nil),                                 // 171: NYT.NApi.NRpcProxy.NProto.TRspUnfreezeTable
-	(*TReqReshardTable)(nil),                                  // 172: NYT.NApi.NRpcProxy.NProto.TReqReshardTable
-	(*TRspReshardTable)(nil),                                  // 173: NYT.NApi.NRpcProxy.NProto.TRspReshardTable
-	(*TReqReshardTableAutomatic)(nil),                         // 174: NYT.NApi.NRpcProxy.NProto.TReqReshardTableAutomatic
-	(*TRspReshardTableAutomatic)(nil),                         // 175: NYT.NApi.NRpcProxy.NProto.TRspReshardTableAutomatic
-	(*TReqTrimTable)(nil),                                     // 176: NYT.NApi.NRpcProxy.NProto.TReqTrimTable
-	(*TRspTrimTable)(nil),                                     // 177: NYT.NApi.NRpcProxy.NProto.TRspTrimTable
-	(*TReqAlterTable)(nil),                                    // 178: NYT.NApi.NRpcProxy.NProto.TReqAlterTable
-	(*TRspAlterTable)(nil),                                    // 179: NYT.NApi.NRpcProxy.NProto.TRspAlterTable
-	(*TReqAlterTableReplica)(nil),                             // 180: NYT.NApi.NRpcProxy.NProto.TReqAlterTableReplica
-	(*TRspAlterTableReplica)(nil),                             // 181: NYT.NApi.NRpcProxy.NProto.TRspAlterTableReplica
-	(*TReqAlterReplicationCard)(nil),                          // 182: NYT.NApi.NRpcProxy.NProto.TReqAlterReplicationCard
-	(*TRspAlterReplicationCard)(nil),                          // 183: NYT.NApi.NRpcProxy.NProto.TRspAlterReplicationCard
-	(*TFetchChunkSpecConfig)(nil),                             // 184: NYT.NApi.NRpcProxy.NProto.TFetchChunkSpecConfig
-	(*TFetcherConfig)(nil),                                    // 185: NYT.NApi.NRpcProxy.NProto.TFetcherConfig
-	(*TReqGetColumnarStatistics)(nil),                         // 186: NYT.NApi.NRpcProxy.NProto.TReqGetColumnarStatistics
-	(*TColumnarStatistics)(nil),                               // 187: NYT.NApi.NRpcProxy.NProto.TColumnarStatistics
-	(*TRspGetColumnarStatistics)(nil),                         // 188: NYT.NApi.NRpcProxy.NProto.TRspGetColumnarStatistics
-	(*TReqDisableChunkLocations)(nil),                         // 189: NYT.NApi.NRpcProxy.NProto.TReqDisableChunkLocations
-	(*TRspDisableChunkLocations)(nil),                         // 190: NYT.NApi.NRpcProxy.NProto.TRspDisableChunkLocations
-	(*TReqDestroyChunkLocations)(nil),                         // 191: NYT.NApi.NRpcProxy.NProto.TReqDestroyChunkLocations
-	(*TRspDestroyChunkLocations)(nil),                         // 192: NYT.NApi.NRpcProxy.NProto.TRspDestroyChunkLocations
-	(*TReqResurrectChunkLocations)(nil),                       // 193: NYT.NApi.NRpcProxy.NProto.TReqResurrectChunkLocations
-	(*TRspResurrectChunkLocations)(nil),                       // 194: NYT.NApi.NRpcProxy.NProto.TRspResurrectChunkLocations
-	(*TReqRequestRestart)(nil),                                // 195: NYT.NApi.NRpcProxy.NProto.TReqRequestRestart
-	(*TRspRequestRestart)(nil),                                // 196: NYT.NApi.NRpcProxy.NProto.TRspRequestRestart
-	(*TReqPartitionTables)(nil),                               // 197: NYT.NApi.NRpcProxy.NProto.TReqPartitionTables
-	(*TMultiTablePartition)(nil),                              // 198: NYT.NApi.NRpcProxy.NProto.TMultiTablePartition
-	(*TRspPartitionTables)(nil),                               // 199: NYT.NApi.NRpcProxy.NProto.TRspPartitionTables
-	(*TReqBalanceTabletCells)(nil),                            // 200: NYT.NApi.NRpcProxy.NProto.TReqBalanceTabletCells
-	(*TRspBalanceTabletCells)(nil),                            // 201: NYT.NApi.NRpcProxy.NProto.TRspBalanceTabletCells
-	(*TReqGetFileFromCache)(nil),                              // 202: NYT.NApi.NRpcProxy.NProto.TReqGetFileFromCache
-	(*TRspGetFileFromCache)(nil),                              // 203: NYT.NApi.NRpcProxy.NProto.TRspGetFileFromCache
-	(*TReqPutFileToCache)(nil),                                // 204: NYT.NApi.NRpcProxy.NProto.TReqPutFileToCache
-	(*TRspPutFileToCache)(nil),                                // 205: NYT.NApi.NRpcProxy.NProto.TRspPutFileToCache
-	(*TReqStartOperation)(nil),                                // 206: NYT.NApi.NRpcProxy.NProto.TReqStartOperation
-	(*TRspStartOperation)(nil),                                // 207: NYT.NApi.NRpcProxy.NProto.TRspStartOperation
-	(*TReqAbortOperation)(nil),                                // 208: NYT.NApi.NRpcProxy.NProto.TReqAbortOperation
-	(*TRspAbortOperation)(nil),                                // 209: NYT.NApi.NRpcProxy.NProto.TRspAbortOperation
-	(*TReqSuspendOperation)(nil),                              // 210: NYT.NApi.NRpcProxy.NProto.TReqSuspendOperation
-	(*TRspSuspendOperation)(nil),                              // 211: NYT.NApi.NRpcProxy.NProto.TRspSuspendOperation
-	(*TReqResumeOperation)(nil),                               // 212: NYT.NApi.NRpcProxy.NProto.TReqResumeOperation
-	(*TRspResumeOperation)(nil),                               // 213: NYT.NApi.NRpcProxy.NProto.TRspResumeOperation
-	(*TReqCompleteOperation)(nil),                             // 214: NYT.NApi.NRpcProxy.NProto.TReqCompleteOperation
-	(*TRspCompleteOperation)(nil),                             // 215: NYT.NApi.NRpcProxy.NProto.TRspCompleteOperation
-	(*TReqUpdateOperationParameters)(nil),                     // 216: NYT.NApi.NRpcProxy.NProto.TReqUpdateOperationParameters
-	(*TRspUpdateOperationParameters)(nil),                     // 217: NYT.NApi.NRpcProxy.NProto.TRspUpdateOperationParameters
-	(*TReqGetOperation)(nil),                                  // 218: NYT.NApi.NRpcProxy.NProto.TReqGetOperation
-	(*TRspGetOperation)(nil),                                  // 219: NYT.NApi.NRpcProxy.NProto.TRspGetOperation
-	(*TReqListOperations)(nil),                                // 220: NYT.NApi.NRpcProxy.NProto.TReqListOperations
-	(*TRspListOperations)(nil),                                // 221: NYT.NApi.NRpcProxy.NProto.TRspListOperations
-	(*TReqListJobs)(nil),                                      // 222: NYT.NApi.NRpcProxy.NProto.TReqListJobs
-	(*TRspListJobs)(nil),                                      // 223: NYT.NApi.NRpcProxy.NProto.TRspListJobs
-	(*TReqGetJob)(nil),                                        // 224: NYT.NApi.NRpcProxy.NProto.TReqGetJob
-	(*TRspGetJob)(nil),                                        // 225: NYT.NApi.NRpcProxy.NProto.TRspGetJob
-	(*TReqGetJobInputPaths)(nil),                              // 226: NYT.NApi.NRpcProxy.NProto.TReqGetJobInputPaths
-	(*TRspGetJobInputPaths)(nil),                              // 227: NYT.NApi.NRpcProxy.NProto.TRspGetJobInputPaths
-	(*TReqGetJobSpec)(nil),                                    // 228: NYT.NApi.NRpcProxy.NProto.TReqGetJobSpec
-	(*TRspGetJobSpec)(nil),                                    // 229: NYT.NApi.NRpcProxy.NProto.TRspGetJobSpec
-	(*TReqGetJobStderr)(nil),                                  // 230: NYT.NApi.NRpcProxy.NProto.TReqGetJobStderr
-	(*TRspGetJobStderr)(nil),                                  // 231: NYT.NApi.NRpcProxy.NProto.TRspGetJobStderr
-	(*TReqGetJobFailContext)(nil),                             // 232: NYT.NApi.NRpcProxy.NProto.TReqGetJobFailContext
-	(*TRspGetJobFailContext)(nil),                             // 233: NYT.NApi.NRpcProxy.NProto.TRspGetJobFailContext
-	(*TReqDumpJobContext)(nil),                                // 234: NYT.NApi.NRpcProxy.NProto.TReqDumpJobContext
-	(*TRspDumpJobContext)(nil),                                // 235: NYT.NApi.NRpcProxy.NProto.TRspDumpJobContext
-	(*TReqAbandonJob)(nil),                                    // 236: NYT.NApi.NRpcProxy.NProto.TReqAbandonJob
-	(*TRspAbandonJob)(nil),                                    // 237: NYT.NApi.NRpcProxy.NProto.TRspAbandonJob
-	(*TReqPollJobShell)(nil),                                  // 238: NYT.NApi.NRpcProxy.NProto.TReqPollJobShell
-	(*TRspPollJobShell)(nil),                                  // 239: NYT.NApi.NRpcProxy.NProto.TRspPollJobShell
-	(*TReqAbortJob)(nil),                                      // 240: NYT.NApi.NRpcProxy.NProto.TReqAbortJob
-	(*TRspAbortJob)(nil),                                      // 241: NYT.NApi.NRpcProxy.NProto.TRspAbortJob
-	(*TReqReadFile)(nil),                                      // 242: NYT.NApi.NRpcProxy.NProto.TReqReadFile
-	(*TReadFileMeta)(nil),                                     // 243: NYT.NApi.NRpcProxy.NProto.TReadFileMeta
-	(*TRspReadFile)(nil),                                      // 244: NYT.NApi.NRpcProxy.NProto.TRspReadFile
-	(*TReqWriteFile)(nil),                                     // 245: NYT.NApi.NRpcProxy.NProto.TReqWriteFile
-	(*TRspWriteFile)(nil),                                     // 246: NYT.NApi.NRpcProxy.NProto.TRspWriteFile
-	(*TReqReadJournal)(nil),                                   // 247: NYT.NApi.NRpcProxy.NProto.TReqReadJournal
-	(*TRspReadJournal)(nil),                                   // 248: NYT.NApi.NRpcProxy.NProto.TRspReadJournal
-	(*TReqWriteJournal)(nil),                                  // 249: NYT.NApi.NRpcProxy.NProto.TReqWriteJournal
-	(*TRspWriteJournal)(nil),                                  // 250: NYT.NApi.NRpcProxy.NProto.TRspWriteJournal
-	(*TReqTruncateJournal)(nil),                               // 251: NYT.NApi.NRpcProxy.NProto.TReqTruncateJournal
-	(*TRspTruncateJournal)(nil),                               // 252: NYT.NApi.NRpcProxy.NProto.TRspTruncateJournal
-	(*TReqReadTable)(nil),                                     // 253: NYT.NApi.NRpcProxy.NProto.TReqReadTable
-	(*TRspReadTableMeta)(nil),                                 // 254: NYT.NApi.NRpcProxy.NProto.TRspReadTableMeta
-	(*TRspReadTable)(nil),                                     // 255: NYT.NApi.NRpcProxy.NProto.TRspReadTable
-	(*TReqWriteTable)(nil),                                    // 256: NYT.NApi.NRpcProxy.NProto.TReqWriteTable
-	(*TWriteTableMeta)(nil),                                   // 257: NYT.NApi.NRpcProxy.NProto.TWriteTableMeta
-	(*TRspWriteTable)(nil),                                    // 258: NYT.NApi.NRpcProxy.NProto.TRspWriteTable
-	(*TReqGetJobInput)(nil),                                   // 259: NYT.NApi.NRpcProxy.NProto.TReqGetJobInput
-	(*TRspGetJobInput)(nil),                                   // 260: NYT.NApi.NRpcProxy.NProto.TRspGetJobInput
-	(*TReqAddMember)(nil),                                     // 261: NYT.NApi.NRpcProxy.NProto.TReqAddMember
-	(*TRspAddMember)(nil),                                     // 262: NYT.NApi.NRpcProxy.NProto.TRspAddMember
-	(*TReqRemoveMember)(nil),                                  // 263: NYT.NApi.NRpcProxy.NProto.TReqRemoveMember
-	(*TRspRemoveMember)(nil),                                  // 264: NYT.NApi.NRpcProxy.NProto.TRspRemoveMember
-	(*TReqCheckPermission)(nil),                               // 265: NYT.NApi.NRpcProxy.NProto.TReqCheckPermission
-	(*TRspCheckPermission)(nil),                               // 266: NYT.NApi.NRpcProxy.NProto.TRspCheckPermission
-	(*TReqCheckPermissionByAcl)(nil),                          // 267: NYT.NApi.NRpcProxy.NProto.TReqCheckPermissionByAcl
-	(*TRspCheckPermissionByAcl)(nil),                          // 268: NYT.NApi.NRpcProxy.NProto.TRspCheckPermissionByAcl
-	(*TReqTransferAccountResources)(nil),                      // 269: NYT.NApi.NRpcProxy.NProto.TReqTransferAccountResources
-	(*TRspTransferAccountResources)(nil),                      // 270: NYT.NApi.NRpcProxy.NProto.TRspTransferAccountResources
-	(*TReqTransferPoolResources)(nil),                         // 271: NYT.NApi.NRpcProxy.NProto.TReqTransferPoolResources
-	(*TRspTransferPoolResources)(nil),                         // 272: NYT.NApi.NRpcProxy.NProto.TRspTransferPoolResources
-	(*TReqCheckClusterLiveness)(nil),                          // 273: NYT.NApi.NRpcProxy.NProto.TReqCheckClusterLiveness
-	(*TRspCheckClusterLiveness)(nil),                          // 274: NYT.NApi.NRpcProxy.NProto.TRspCheckClusterLiveness
-	(*TReqGetPipelineSpec)(nil),                               // 275: NYT.NApi.NRpcProxy.NProto.TReqGetPipelineSpec
-	(*TRspGetPipelineSpec)(nil),                               // 276: NYT.NApi.NRpcProxy.NProto.TRspGetPipelineSpec
-	(*TReqSetPipelineSpec)(nil),                               // 277: NYT.NApi.NRpcProxy.NProto.TReqSetPipelineSpec
-	(*TRspSetPipelineSpec)(nil),                               // 278: NYT.NApi.NRpcProxy.NProto.TRspSetPipelineSpec
-	(*TReqGetPipelineDynamicSpec)(nil),                        // 279: NYT.NApi.NRpcProxy.NProto.TReqGetPipelineDynamicSpec
-	(*TRspGetPipelineDynamicSpec)(nil),                        // 280: NYT.NApi.NRpcProxy.NProto.TRspGetPipelineDynamicSpec
-	(*TReqSetPipelineDynamicSpec)(nil),                        // 281: NYT.NApi.NRpcProxy.NProto.TReqSetPipelineDynamicSpec
-	(*TRspSetPipelineDynamicSpec)(nil),                        // 282: NYT.NApi.NRpcProxy.NProto.TRspSetPipelineDynamicSpec
-	(*TReqStartPipeline)(nil),                                 // 283: NYT.NApi.NRpcProxy.NProto.TReqStartPipeline
-	(*TRspStartPipeline)(nil),                                 // 284: NYT.NApi.NRpcProxy.NProto.TRspStartPipeline
-	(*TReqPausePipeline)(nil),                                 // 285: NYT.NApi.NRpcProxy.NProto.TReqPausePipeline
-	(*TRspPausePipeline)(nil),                                 // 286: NYT.NApi.NRpcProxy.NProto.TRspPausePipeline
-	(*TReqStopPipeline)(nil),                                  // 287: NYT.NApi.NRpcProxy.NProto.TReqStopPipeline
-	(*TRspStopPipeline)(nil),                                  // 288: NYT.NApi.NRpcProxy.NProto.TRspStopPipeline
-	(*TReqGetPipelineStatus)(nil),                             // 289: NYT.NApi.NRpcProxy.NProto.TReqGetPipelineStatus
-	(*TRspGetPipelineStatus)(nil),                             // 290: NYT.NApi.NRpcProxy.NProto.TRspGetPipelineStatus
-	(*TOperation)(nil),                                        // 291: NYT.NApi.NRpcProxy.NProto.TOperation
-	(*TListOperationsResult)(nil),                             // 292: NYT.NApi.NRpcProxy.NProto.TListOperationsResult
-	(*TJob)(nil),                                              // 293: NYT.NApi.NRpcProxy.NProto.TJob
-	(*TListJobsStatistics)(nil),                               // 294: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics
-	(*TListJobsResult)(nil),                                   // 295: NYT.NApi.NRpcProxy.NProto.TListJobsResult
-	(*TGetFileFromCacheResult)(nil),                           // 296: NYT.NApi.NRpcProxy.NProto.TGetFileFromCacheResult
-	(*TPutFileToCacheResult)(nil),                             // 297: NYT.NApi.NRpcProxy.NProto.TPutFileToCacheResult
-	(*TCheckPermissionResult)(nil),                            // 298: NYT.NApi.NRpcProxy.NProto.TCheckPermissionResult
-	(*TCheckPermissionByAclResult)(nil),                       // 299: NYT.NApi.NRpcProxy.NProto.TCheckPermissionByAclResult
-	(*TRowsetDescriptor_TNameTableEntry)(nil),                 // 300: NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor.TNameTableEntry
-	(*TReqMultiLookup_TSubrequest)(nil),                       // 301: NYT.NApi.NRpcProxy.NProto.TReqMultiLookup.TSubrequest
-	(*TRspMultiLookup_TSubresponse)(nil),                      // 302: NYT.NApi.NRpcProxy.NProto.TRspMultiLookup.TSubresponse
-	(*TReqRegisterQueueConsumer_TRegistrationPartitions)(nil), // 303: NYT.NApi.NRpcProxy.NProto.TReqRegisterQueueConsumer.TRegistrationPartitions
-	(*TRspListQueueConsumerRegistrations_TQueueConsumerRegistration)(nil),                         // 304: NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations.TQueueConsumerRegistration
-	(*TRspListQueueConsumerRegistrations_TQueueConsumerRegistration_TRegistrationPartitions)(nil), // 305: NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations.TQueueConsumerRegistration.TRegistrationPartitions
-	(*TRspGetTabletInfos_TTabletInfo)(nil),                                                        // 306: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo
-	(*TRspGetTabletInfos_TTabletInfo_TReplicaInfo)(nil),                                           // 307: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo.TReplicaInfo
-	(*TRspGetTabletErrors_TErrorList)(nil),                                                        // 308: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.TErrorList
-	nil,                                                                                           // 309: NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.RemovedMaintenanceCountsEntry
-	(*TPrerequisiteOptions_TTransactionPrerequisite)(nil),                                         // 310: NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.TTransactionPrerequisite
-	(*TPrerequisiteOptions_TRevisionPrerequisite)(nil),                                            // 311: NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.TRevisionPrerequisite
-	(*TBackupManifest_TClusterManifest)(nil),                                                      // 312: NYT.NApi.NRpcProxy.NProto.TBackupManifest.TClusterManifest
-	(*TReqMultisetAttributesNode_TSubrequest)(nil),                                                // 313: NYT.NApi.NRpcProxy.NProto.TReqMultisetAttributesNode.TSubrequest
-	(*TReqConcatenateNodes_TFetcher)(nil),                                                         // 314: NYT.NApi.NRpcProxy.NProto.TReqConcatenateNodes.TFetcher
-	(*TReqPartitionTables_TChunkSliceFetcherConfig)(nil),                                          // 315: NYT.NApi.NRpcProxy.NProto.TReqPartitionTables.TChunkSliceFetcherConfig
-	(*TMultiTablePartition_TStatistics)(nil),                                                      // 316: NYT.NApi.NRpcProxy.NProto.TMultiTablePartition.TStatistics
-	(*TReqCheckPermission_TColumns)(nil),                                                          // 317: NYT.NApi.NRpcProxy.NProto.TReqCheckPermission.TColumns
-	(*TRspCheckPermission_TColumns)(nil),                                                          // 318: NYT.NApi.NRpcProxy.NProto.TRspCheckPermission.TColumns
-	(*TOperation_TStrings)(nil),                                                                   // 319: NYT.NApi.NRpcProxy.NProto.TOperation.TStrings
-	(*TListOperationsResult_TPoolCounts)(nil),                                                     // 320: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolCounts
-	(*TListOperationsResult_TUserCounts)(nil),                                                     // 321: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TUserCounts
-	(*TListOperationsResult_TOperationStateCounts)(nil),                                           // 322: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationStateCounts
-	(*TListOperationsResult_TOperationTypeCounts)(nil),                                            // 323: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationTypeCounts
-	(*TListOperationsResult_TPoolTreeCounts)(nil),                                                 // 324: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolTreeCounts
-	(*TListOperationsResult_TPoolCounts_TPoolCount)(nil),                                          // 325: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolCounts.TPoolCount
-	(*TListOperationsResult_TUserCounts_TUserCount)(nil),                                          // 326: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TUserCounts.TUserCount
-	(*TListOperationsResult_TOperationStateCounts_TOperationStateCount)(nil),                      // 327: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationStateCounts.TOperationStateCount
-	(*TListOperationsResult_TOperationTypeCounts_TOperationTypeCount)(nil),                        // 328: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationTypeCounts.TOperationTypeCount
-	nil, // 329: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolTreeCounts.EntriesEntry
-	(*TListJobsStatistics_TJobStateCounts)(nil),                // 330: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobStateCounts
-	(*TListJobsStatistics_TJobTypeCounts)(nil),                 // 331: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobTypeCounts
-	(*TListJobsStatistics_TJobStateCounts_TJobStateCount)(nil), // 332: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobStateCounts.TJobStateCount
-	(*TListJobsStatistics_TJobTypeCounts_TJobTypeCount)(nil),   // 333: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobTypeCounts.TJobTypeCount
-	(*chunk_client.TDataStatistics)(nil),                       // 334: NYT.NChunkClient.NProto.TDataStatistics
-	(*misc.TGuid)(nil),                                         // 335: NYT.NProto.TGuid
-	(*ytree.TAttributeDictionary)(nil),                         // 336: NYT.NYTree.NProto.TAttributeDictionary
-	(*hive.TTimestampMap)(nil),                                 // 337: NYT.NHiveClient.NProto.TTimestampMap
-	(*chaos_client.TReplicationProgress)(nil),                  // 338: NYT.NChaosClient.NProto.TReplicationProgress
-	(*ytree.TAttributeFilter)(nil),                             // 339: NYT.NYTree.NProto.TAttributeFilter
-	(*ytree.TReadRequestComplexityLimits)(nil),                 // 340: NYT.NYTree.NProto.TReadRequestComplexityLimits
-	(*misc.TError)(nil),                                        // 341: NYT.NProto.TError
+	(EQueryEngine)(0),                                         // 26: NYT.NApi.NRpcProxy.NProto.EQueryEngine
+	(EContentType)(0),                                         // 27: NYT.NApi.NRpcProxy.NProto.EContentType
+	(EQueryState)(0),                                          // 28: NYT.NApi.NRpcProxy.NProto.EQueryState
+	(*TLegacyAttributeKeys)(nil),                              // 29: NYT.NApi.NRpcProxy.NProto.TLegacyAttributeKeys
+	(*TRowsetDescriptor)(nil),                                 // 30: NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
+	(*TRowsetStatistics)(nil),                                 // 31: NYT.NApi.NRpcProxy.NProto.TRowsetStatistics
+	(*TReqStartTransaction)(nil),                              // 32: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction
+	(*TRspStartTransaction)(nil),                              // 33: NYT.NApi.NRpcProxy.NProto.TRspStartTransaction
+	(*TReqPingTransaction)(nil),                               // 34: NYT.NApi.NRpcProxy.NProto.TReqPingTransaction
+	(*TRspPingTransaction)(nil),                               // 35: NYT.NApi.NRpcProxy.NProto.TRspPingTransaction
+	(*TReqCommitTransaction)(nil),                             // 36: NYT.NApi.NRpcProxy.NProto.TReqCommitTransaction
+	(*TRspCommitTransaction)(nil),                             // 37: NYT.NApi.NRpcProxy.NProto.TRspCommitTransaction
+	(*TReqFlushTransaction)(nil),                              // 38: NYT.NApi.NRpcProxy.NProto.TReqFlushTransaction
+	(*TRspFlushTransaction)(nil),                              // 39: NYT.NApi.NRpcProxy.NProto.TRspFlushTransaction
+	(*TReqAbortTransaction)(nil),                              // 40: NYT.NApi.NRpcProxy.NProto.TReqAbortTransaction
+	(*TRspAbortTransaction)(nil),                              // 41: NYT.NApi.NRpcProxy.NProto.TRspAbortTransaction
+	(*TReqLookupRows)(nil),                                    // 42: NYT.NApi.NRpcProxy.NProto.TReqLookupRows
+	(*TRspLookupRows)(nil),                                    // 43: NYT.NApi.NRpcProxy.NProto.TRspLookupRows
+	(*TRetentionConfig)(nil),                                  // 44: NYT.NApi.NRpcProxy.NProto.TRetentionConfig
+	(*TReqVersionedLookupRows)(nil),                           // 45: NYT.NApi.NRpcProxy.NProto.TReqVersionedLookupRows
+	(*TRspVersionedLookupRows)(nil),                           // 46: NYT.NApi.NRpcProxy.NProto.TRspVersionedLookupRows
+	(*TReqMultiLookup)(nil),                                   // 47: NYT.NApi.NRpcProxy.NProto.TReqMultiLookup
+	(*TRspMultiLookup)(nil),                                   // 48: NYT.NApi.NRpcProxy.NProto.TRspMultiLookup
+	(*TQueryStatistics)(nil),                                  // 49: NYT.NApi.NRpcProxy.NProto.TQueryStatistics
+	(*TReqSelectRows)(nil),                                    // 50: NYT.NApi.NRpcProxy.NProto.TReqSelectRows
+	(*TRspSelectRows)(nil),                                    // 51: NYT.NApi.NRpcProxy.NProto.TRspSelectRows
+	(*TReqAdvanceConsumer)(nil),                               // 52: NYT.NApi.NRpcProxy.NProto.TReqAdvanceConsumer
+	(*TRspAdvanceConsumer)(nil),                               // 53: NYT.NApi.NRpcProxy.NProto.TRspAdvanceConsumer
+	(*TRowBatchReadOptions)(nil),                              // 54: NYT.NApi.NRpcProxy.NProto.TRowBatchReadOptions
+	(*TReqPullQueue)(nil),                                     // 55: NYT.NApi.NRpcProxy.NProto.TReqPullQueue
+	(*TRspPullQueue)(nil),                                     // 56: NYT.NApi.NRpcProxy.NProto.TRspPullQueue
+	(*TReqPullConsumer)(nil),                                  // 57: NYT.NApi.NRpcProxy.NProto.TReqPullConsumer
+	(*TRspPullConsumer)(nil),                                  // 58: NYT.NApi.NRpcProxy.NProto.TRspPullConsumer
+	(*TReqRegisterQueueConsumer)(nil),                         // 59: NYT.NApi.NRpcProxy.NProto.TReqRegisterQueueConsumer
+	(*TRspRegisterQueueConsumer)(nil),                         // 60: NYT.NApi.NRpcProxy.NProto.TRspRegisterQueueConsumer
+	(*TReqUnregisterQueueConsumer)(nil),                       // 61: NYT.NApi.NRpcProxy.NProto.TReqUnregisterQueueConsumer
+	(*TRspUnregisterQueueConsumer)(nil),                       // 62: NYT.NApi.NRpcProxy.NProto.TRspUnregisterQueueConsumer
+	(*TReqListQueueConsumerRegistrations)(nil),                // 63: NYT.NApi.NRpcProxy.NProto.TReqListQueueConsumerRegistrations
+	(*TRspListQueueConsumerRegistrations)(nil),                // 64: NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations
+	(*TReqExplainQuery)(nil),                                  // 65: NYT.NApi.NRpcProxy.NProto.TReqExplainQuery
+	(*TRspExplainQuery)(nil),                                  // 66: NYT.NApi.NRpcProxy.NProto.TRspExplainQuery
+	(*TReplicationRowIndex)(nil),                              // 67: NYT.NApi.NRpcProxy.NProto.TReplicationRowIndex
+	(*TReqPullRows)(nil),                                      // 68: NYT.NApi.NRpcProxy.NProto.TReqPullRows
+	(*TRspPullRows)(nil),                                      // 69: NYT.NApi.NRpcProxy.NProto.TRspPullRows
+	(*TReqGetInSyncReplicas)(nil),                             // 70: NYT.NApi.NRpcProxy.NProto.TReqGetInSyncReplicas
+	(*TRspGetInSyncReplicas)(nil),                             // 71: NYT.NApi.NRpcProxy.NProto.TRspGetInSyncReplicas
+	(*TReqGetTabletInfos)(nil),                                // 72: NYT.NApi.NRpcProxy.NProto.TReqGetTabletInfos
+	(*TRspGetTabletInfos)(nil),                                // 73: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos
+	(*TReqGetTabletErrors)(nil),                               // 74: NYT.NApi.NRpcProxy.NProto.TReqGetTabletErrors
+	(*TRspGetTabletErrors)(nil),                               // 75: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors
+	(*TReqModifyRows)(nil),                                    // 76: NYT.NApi.NRpcProxy.NProto.TReqModifyRows
+	(*TRspModifyRows)(nil),                                    // 77: NYT.NApi.NRpcProxy.NProto.TRspModifyRows
+	(*TReqBatchModifyRows)(nil),                               // 78: NYT.NApi.NRpcProxy.NProto.TReqBatchModifyRows
+	(*TRspBatchModifyRows)(nil),                               // 79: NYT.NApi.NRpcProxy.NProto.TRspBatchModifyRows
+	(*TReqBuildSnapshot)(nil),                                 // 80: NYT.NApi.NRpcProxy.NProto.TReqBuildSnapshot
+	(*TRspBuildSnapshot)(nil),                                 // 81: NYT.NApi.NRpcProxy.NProto.TRspBuildSnapshot
+	(*TReqExitReadOnly)(nil),                                  // 82: NYT.NApi.NRpcProxy.NProto.TReqExitReadOnly
+	(*TRspExitReadOnly)(nil),                                  // 83: NYT.NApi.NRpcProxy.NProto.TRspExitReadOnly
+	(*TReqMasterExitReadOnly)(nil),                            // 84: NYT.NApi.NRpcProxy.NProto.TReqMasterExitReadOnly
+	(*TRspMasterExitReadOnly)(nil),                            // 85: NYT.NApi.NRpcProxy.NProto.TRspMasterExitReadOnly
+	(*TReqDiscombobulateNonvotingPeers)(nil),                  // 86: NYT.NApi.NRpcProxy.NProto.TReqDiscombobulateNonvotingPeers
+	(*TRspDiscombobulateNonvotingPeers)(nil),                  // 87: NYT.NApi.NRpcProxy.NProto.TRspDiscombobulateNonvotingPeers
+	(*TReqGCCollect)(nil),                                     // 88: NYT.NApi.NRpcProxy.NProto.TReqGCCollect
+	(*TRspGCCollect)(nil),                                     // 89: NYT.NApi.NRpcProxy.NProto.TRspGCCollect
+	(*TReqSuspendCoordinator)(nil),                            // 90: NYT.NApi.NRpcProxy.NProto.TReqSuspendCoordinator
+	(*TRspSuspendCoordinator)(nil),                            // 91: NYT.NApi.NRpcProxy.NProto.TRspSuspendCoordinator
+	(*TReqResumeCoordinator)(nil),                             // 92: NYT.NApi.NRpcProxy.NProto.TReqResumeCoordinator
+	(*TRspResumeCoordinator)(nil),                             // 93: NYT.NApi.NRpcProxy.NProto.TRspResumeCoordinator
+	(*TReqMigrateReplicationCards)(nil),                       // 94: NYT.NApi.NRpcProxy.NProto.TReqMigrateReplicationCards
+	(*TRspMigrateReplicationCards)(nil),                       // 95: NYT.NApi.NRpcProxy.NProto.TRspMigrateReplicationCards
+	(*TReqSuspendChaosCells)(nil),                             // 96: NYT.NApi.NRpcProxy.NProto.TReqSuspendChaosCells
+	(*TRspSuspendChaosCells)(nil),                             // 97: NYT.NApi.NRpcProxy.NProto.TRspSuspendChaosCells
+	(*TReqResumeChaosCells)(nil),                              // 98: NYT.NApi.NRpcProxy.NProto.TReqResumeChaosCells
+	(*TRspResumeChaosCells)(nil),                              // 99: NYT.NApi.NRpcProxy.NProto.TRspResumeChaosCells
+	(*TReqAddMaintenance)(nil),                                // 100: NYT.NApi.NRpcProxy.NProto.TReqAddMaintenance
+	(*TRspAddMaintenance)(nil),                                // 101: NYT.NApi.NRpcProxy.NProto.TRspAddMaintenance
+	(*TReqRemoveMaintenance)(nil),                             // 102: NYT.NApi.NRpcProxy.NProto.TReqRemoveMaintenance
+	(*TRspRemoveMaintenance)(nil),                             // 103: NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance
+	(*TTransactionalOptions)(nil),                             // 104: NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	(*TPrerequisiteOptions)(nil),                              // 105: NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
+	(*TMasterReadOptions)(nil),                                // 106: NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
+	(*TMutatingOptions)(nil),                                  // 107: NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	(*TSuppressableAccessTrackingOptions)(nil),                // 108: NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
+	(*TTabletRangeOptions)(nil),                               // 109: NYT.NApi.NRpcProxy.NProto.TTabletRangeOptions
+	(*TTabletReadOptions)(nil),                                // 110: NYT.NApi.NRpcProxy.NProto.TTabletReadOptions
+	(*TReqGenerateTimestamps)(nil),                            // 111: NYT.NApi.NRpcProxy.NProto.TReqGenerateTimestamps
+	(*TRspGenerateTimestamps)(nil),                            // 112: NYT.NApi.NRpcProxy.NProto.TRspGenerateTimestamps
+	(*TReqExistsNode)(nil),                                    // 113: NYT.NApi.NRpcProxy.NProto.TReqExistsNode
+	(*TRspExistsNode)(nil),                                    // 114: NYT.NApi.NRpcProxy.NProto.TRspExistsNode
+	(*TReqGetNode)(nil),                                       // 115: NYT.NApi.NRpcProxy.NProto.TReqGetNode
+	(*TRspGetNode)(nil),                                       // 116: NYT.NApi.NRpcProxy.NProto.TRspGetNode
+	(*TReqListNode)(nil),                                      // 117: NYT.NApi.NRpcProxy.NProto.TReqListNode
+	(*TRspListNode)(nil),                                      // 118: NYT.NApi.NRpcProxy.NProto.TRspListNode
+	(*TReqCreateObject)(nil),                                  // 119: NYT.NApi.NRpcProxy.NProto.TReqCreateObject
+	(*TRspCreateObject)(nil),                                  // 120: NYT.NApi.NRpcProxy.NProto.TRspCreateObject
+	(*TColumnSchema)(nil),                                     // 121: NYT.NApi.NRpcProxy.NProto.TColumnSchema
+	(*TDeletedColumn)(nil),                                    // 122: NYT.NApi.NRpcProxy.NProto.TDeletedColumn
+	(*TTableSchema)(nil),                                      // 123: NYT.NApi.NRpcProxy.NProto.TTableSchema
+	(*TTabletInfo)(nil),                                       // 124: NYT.NApi.NRpcProxy.NProto.TTabletInfo
+	(*TReplicaInfo)(nil),                                      // 125: NYT.NApi.NRpcProxy.NProto.TReplicaInfo
+	(*TIndexInfo)(nil),                                        // 126: NYT.NApi.NRpcProxy.NProto.TIndexInfo
+	(*TReqGetTableMountInfo)(nil),                             // 127: NYT.NApi.NRpcProxy.NProto.TReqGetTableMountInfo
+	(*TRspGetTableMountInfo)(nil),                             // 128: NYT.NApi.NRpcProxy.NProto.TRspGetTableMountInfo
+	(*TReqGetTablePivotKeys)(nil),                             // 129: NYT.NApi.NRpcProxy.NProto.TReqGetTablePivotKeys
+	(*TRspGetTablePivotKeys)(nil),                             // 130: NYT.NApi.NRpcProxy.NProto.TRspGetTablePivotKeys
+	(*TTableBackupManifest)(nil),                              // 131: NYT.NApi.NRpcProxy.NProto.TTableBackupManifest
+	(*TBackupManifest)(nil),                                   // 132: NYT.NApi.NRpcProxy.NProto.TBackupManifest
+	(*TReqCreateTableBackup)(nil),                             // 133: NYT.NApi.NRpcProxy.NProto.TReqCreateTableBackup
+	(*TRspCreateTableBackup)(nil),                             // 134: NYT.NApi.NRpcProxy.NProto.TRspCreateTableBackup
+	(*TReqRestoreTableBackup)(nil),                            // 135: NYT.NApi.NRpcProxy.NProto.TReqRestoreTableBackup
+	(*TRspRestoreTableBackup)(nil),                            // 136: NYT.NApi.NRpcProxy.NProto.TRspRestoreTableBackup
+	(*TReqCreateNode)(nil),                                    // 137: NYT.NApi.NRpcProxy.NProto.TReqCreateNode
+	(*TRspCreateNode)(nil),                                    // 138: NYT.NApi.NRpcProxy.NProto.TRspCreateNode
+	(*TReqRemoveNode)(nil),                                    // 139: NYT.NApi.NRpcProxy.NProto.TReqRemoveNode
+	(*TRspRemoveNode)(nil),                                    // 140: NYT.NApi.NRpcProxy.NProto.TRspRemoveNode
+	(*TReqSetNode)(nil),                                       // 141: NYT.NApi.NRpcProxy.NProto.TReqSetNode
+	(*TRspSetNode)(nil),                                       // 142: NYT.NApi.NRpcProxy.NProto.TRspSetNode
+	(*TReqMultisetAttributesNode)(nil),                        // 143: NYT.NApi.NRpcProxy.NProto.TReqMultisetAttributesNode
+	(*TRspMultisetAttributesNode)(nil),                        // 144: NYT.NApi.NRpcProxy.NProto.TRspMultisetAttributesNode
+	(*TReqLockNode)(nil),                                      // 145: NYT.NApi.NRpcProxy.NProto.TReqLockNode
+	(*TRspLockNode)(nil),                                      // 146: NYT.NApi.NRpcProxy.NProto.TRspLockNode
+	(*TReqUnlockNode)(nil),                                    // 147: NYT.NApi.NRpcProxy.NProto.TReqUnlockNode
+	(*TRspUnlockNode)(nil),                                    // 148: NYT.NApi.NRpcProxy.NProto.TRspUnlockNode
+	(*TReqCopyNode)(nil),                                      // 149: NYT.NApi.NRpcProxy.NProto.TReqCopyNode
+	(*TRspCopyNode)(nil),                                      // 150: NYT.NApi.NRpcProxy.NProto.TRspCopyNode
+	(*TReqMoveNode)(nil),                                      // 151: NYT.NApi.NRpcProxy.NProto.TReqMoveNode
+	(*TRspMoveNode)(nil),                                      // 152: NYT.NApi.NRpcProxy.NProto.TRspMoveNode
+	(*TReqLinkNode)(nil),                                      // 153: NYT.NApi.NRpcProxy.NProto.TReqLinkNode
+	(*TRspLinkNode)(nil),                                      // 154: NYT.NApi.NRpcProxy.NProto.TRspLinkNode
+	(*TReqConcatenateNodes)(nil),                              // 155: NYT.NApi.NRpcProxy.NProto.TReqConcatenateNodes
+	(*TRspConcatenateNodes)(nil),                              // 156: NYT.NApi.NRpcProxy.NProto.TRspConcatenateNodes
+	(*TReqExternalizeNode)(nil),                               // 157: NYT.NApi.NRpcProxy.NProto.TReqExternalizeNode
+	(*TRspExternalizeNode)(nil),                               // 158: NYT.NApi.NRpcProxy.NProto.TRspExternalizeNode
+	(*TReqInternalizeNode)(nil),                               // 159: NYT.NApi.NRpcProxy.NProto.TReqInternalizeNode
+	(*TRspInternalizeNode)(nil),                               // 160: NYT.NApi.NRpcProxy.NProto.TRspInternalizeNode
+	(*TReqAttachTransaction)(nil),                             // 161: NYT.NApi.NRpcProxy.NProto.TReqAttachTransaction
+	(*TRspAttachTransaction)(nil),                             // 162: NYT.NApi.NRpcProxy.NProto.TRspAttachTransaction
+	(*TReqDetachTransaction)(nil),                             // 163: NYT.NApi.NRpcProxy.NProto.TReqDetachTransaction
+	(*TRspDetachTransaction)(nil),                             // 164: NYT.NApi.NRpcProxy.NProto.TRspDetachTransaction
+	(*TReqMountTable)(nil),                                    // 165: NYT.NApi.NRpcProxy.NProto.TReqMountTable
+	(*TRspMountTable)(nil),                                    // 166: NYT.NApi.NRpcProxy.NProto.TRspMountTable
+	(*TReqUnmountTable)(nil),                                  // 167: NYT.NApi.NRpcProxy.NProto.TReqUnmountTable
+	(*TRspUnmountTable)(nil),                                  // 168: NYT.NApi.NRpcProxy.NProto.TRspUnmountTable
+	(*TReqRemountTable)(nil),                                  // 169: NYT.NApi.NRpcProxy.NProto.TReqRemountTable
+	(*TRspRemountTable)(nil),                                  // 170: NYT.NApi.NRpcProxy.NProto.TRspRemountTable
+	(*TReqFreezeTable)(nil),                                   // 171: NYT.NApi.NRpcProxy.NProto.TReqFreezeTable
+	(*TRspFreezeTable)(nil),                                   // 172: NYT.NApi.NRpcProxy.NProto.TRspFreezeTable
+	(*TReqUnfreezeTable)(nil),                                 // 173: NYT.NApi.NRpcProxy.NProto.TReqUnfreezeTable
+	(*TRspUnfreezeTable)(nil),                                 // 174: NYT.NApi.NRpcProxy.NProto.TRspUnfreezeTable
+	(*TReqReshardTable)(nil),                                  // 175: NYT.NApi.NRpcProxy.NProto.TReqReshardTable
+	(*TRspReshardTable)(nil),                                  // 176: NYT.NApi.NRpcProxy.NProto.TRspReshardTable
+	(*TReqReshardTableAutomatic)(nil),                         // 177: NYT.NApi.NRpcProxy.NProto.TReqReshardTableAutomatic
+	(*TRspReshardTableAutomatic)(nil),                         // 178: NYT.NApi.NRpcProxy.NProto.TRspReshardTableAutomatic
+	(*TReqTrimTable)(nil),                                     // 179: NYT.NApi.NRpcProxy.NProto.TReqTrimTable
+	(*TRspTrimTable)(nil),                                     // 180: NYT.NApi.NRpcProxy.NProto.TRspTrimTable
+	(*TReqAlterTable)(nil),                                    // 181: NYT.NApi.NRpcProxy.NProto.TReqAlterTable
+	(*TRspAlterTable)(nil),                                    // 182: NYT.NApi.NRpcProxy.NProto.TRspAlterTable
+	(*TReqAlterTableReplica)(nil),                             // 183: NYT.NApi.NRpcProxy.NProto.TReqAlterTableReplica
+	(*TRspAlterTableReplica)(nil),                             // 184: NYT.NApi.NRpcProxy.NProto.TRspAlterTableReplica
+	(*TReqAlterReplicationCard)(nil),                          // 185: NYT.NApi.NRpcProxy.NProto.TReqAlterReplicationCard
+	(*TRspAlterReplicationCard)(nil),                          // 186: NYT.NApi.NRpcProxy.NProto.TRspAlterReplicationCard
+	(*TFetchChunkSpecConfig)(nil),                             // 187: NYT.NApi.NRpcProxy.NProto.TFetchChunkSpecConfig
+	(*TFetcherConfig)(nil),                                    // 188: NYT.NApi.NRpcProxy.NProto.TFetcherConfig
+	(*TReqGetColumnarStatistics)(nil),                         // 189: NYT.NApi.NRpcProxy.NProto.TReqGetColumnarStatistics
+	(*TColumnarStatistics)(nil),                               // 190: NYT.NApi.NRpcProxy.NProto.TColumnarStatistics
+	(*TRspGetColumnarStatistics)(nil),                         // 191: NYT.NApi.NRpcProxy.NProto.TRspGetColumnarStatistics
+	(*TReqDisableChunkLocations)(nil),                         // 192: NYT.NApi.NRpcProxy.NProto.TReqDisableChunkLocations
+	(*TRspDisableChunkLocations)(nil),                         // 193: NYT.NApi.NRpcProxy.NProto.TRspDisableChunkLocations
+	(*TReqDestroyChunkLocations)(nil),                         // 194: NYT.NApi.NRpcProxy.NProto.TReqDestroyChunkLocations
+	(*TRspDestroyChunkLocations)(nil),                         // 195: NYT.NApi.NRpcProxy.NProto.TRspDestroyChunkLocations
+	(*TReqResurrectChunkLocations)(nil),                       // 196: NYT.NApi.NRpcProxy.NProto.TReqResurrectChunkLocations
+	(*TRspResurrectChunkLocations)(nil),                       // 197: NYT.NApi.NRpcProxy.NProto.TRspResurrectChunkLocations
+	(*TReqRequestRestart)(nil),                                // 198: NYT.NApi.NRpcProxy.NProto.TReqRequestRestart
+	(*TRspRequestRestart)(nil),                                // 199: NYT.NApi.NRpcProxy.NProto.TRspRequestRestart
+	(*TReqPartitionTables)(nil),                               // 200: NYT.NApi.NRpcProxy.NProto.TReqPartitionTables
+	(*TMultiTablePartition)(nil),                              // 201: NYT.NApi.NRpcProxy.NProto.TMultiTablePartition
+	(*TRspPartitionTables)(nil),                               // 202: NYT.NApi.NRpcProxy.NProto.TRspPartitionTables
+	(*TReqBalanceTabletCells)(nil),                            // 203: NYT.NApi.NRpcProxy.NProto.TReqBalanceTabletCells
+	(*TRspBalanceTabletCells)(nil),                            // 204: NYT.NApi.NRpcProxy.NProto.TRspBalanceTabletCells
+	(*TReqGetFileFromCache)(nil),                              // 205: NYT.NApi.NRpcProxy.NProto.TReqGetFileFromCache
+	(*TRspGetFileFromCache)(nil),                              // 206: NYT.NApi.NRpcProxy.NProto.TRspGetFileFromCache
+	(*TReqPutFileToCache)(nil),                                // 207: NYT.NApi.NRpcProxy.NProto.TReqPutFileToCache
+	(*TRspPutFileToCache)(nil),                                // 208: NYT.NApi.NRpcProxy.NProto.TRspPutFileToCache
+	(*TReqStartOperation)(nil),                                // 209: NYT.NApi.NRpcProxy.NProto.TReqStartOperation
+	(*TRspStartOperation)(nil),                                // 210: NYT.NApi.NRpcProxy.NProto.TRspStartOperation
+	(*TReqAbortOperation)(nil),                                // 211: NYT.NApi.NRpcProxy.NProto.TReqAbortOperation
+	(*TRspAbortOperation)(nil),                                // 212: NYT.NApi.NRpcProxy.NProto.TRspAbortOperation
+	(*TReqSuspendOperation)(nil),                              // 213: NYT.NApi.NRpcProxy.NProto.TReqSuspendOperation
+	(*TRspSuspendOperation)(nil),                              // 214: NYT.NApi.NRpcProxy.NProto.TRspSuspendOperation
+	(*TReqResumeOperation)(nil),                               // 215: NYT.NApi.NRpcProxy.NProto.TReqResumeOperation
+	(*TRspResumeOperation)(nil),                               // 216: NYT.NApi.NRpcProxy.NProto.TRspResumeOperation
+	(*TReqCompleteOperation)(nil),                             // 217: NYT.NApi.NRpcProxy.NProto.TReqCompleteOperation
+	(*TRspCompleteOperation)(nil),                             // 218: NYT.NApi.NRpcProxy.NProto.TRspCompleteOperation
+	(*TReqUpdateOperationParameters)(nil),                     // 219: NYT.NApi.NRpcProxy.NProto.TReqUpdateOperationParameters
+	(*TRspUpdateOperationParameters)(nil),                     // 220: NYT.NApi.NRpcProxy.NProto.TRspUpdateOperationParameters
+	(*TReqGetOperation)(nil),                                  // 221: NYT.NApi.NRpcProxy.NProto.TReqGetOperation
+	(*TRspGetOperation)(nil),                                  // 222: NYT.NApi.NRpcProxy.NProto.TRspGetOperation
+	(*TReqListOperations)(nil),                                // 223: NYT.NApi.NRpcProxy.NProto.TReqListOperations
+	(*TRspListOperations)(nil),                                // 224: NYT.NApi.NRpcProxy.NProto.TRspListOperations
+	(*TReqListJobs)(nil),                                      // 225: NYT.NApi.NRpcProxy.NProto.TReqListJobs
+	(*TRspListJobs)(nil),                                      // 226: NYT.NApi.NRpcProxy.NProto.TRspListJobs
+	(*TReqGetJob)(nil),                                        // 227: NYT.NApi.NRpcProxy.NProto.TReqGetJob
+	(*TRspGetJob)(nil),                                        // 228: NYT.NApi.NRpcProxy.NProto.TRspGetJob
+	(*TReqGetJobInputPaths)(nil),                              // 229: NYT.NApi.NRpcProxy.NProto.TReqGetJobInputPaths
+	(*TRspGetJobInputPaths)(nil),                              // 230: NYT.NApi.NRpcProxy.NProto.TRspGetJobInputPaths
+	(*TReqGetJobSpec)(nil),                                    // 231: NYT.NApi.NRpcProxy.NProto.TReqGetJobSpec
+	(*TRspGetJobSpec)(nil),                                    // 232: NYT.NApi.NRpcProxy.NProto.TRspGetJobSpec
+	(*TReqGetJobStderr)(nil),                                  // 233: NYT.NApi.NRpcProxy.NProto.TReqGetJobStderr
+	(*TRspGetJobStderr)(nil),                                  // 234: NYT.NApi.NRpcProxy.NProto.TRspGetJobStderr
+	(*TReqGetJobFailContext)(nil),                             // 235: NYT.NApi.NRpcProxy.NProto.TReqGetJobFailContext
+	(*TRspGetJobFailContext)(nil),                             // 236: NYT.NApi.NRpcProxy.NProto.TRspGetJobFailContext
+	(*TReqDumpJobContext)(nil),                                // 237: NYT.NApi.NRpcProxy.NProto.TReqDumpJobContext
+	(*TRspDumpJobContext)(nil),                                // 238: NYT.NApi.NRpcProxy.NProto.TRspDumpJobContext
+	(*TReqAbandonJob)(nil),                                    // 239: NYT.NApi.NRpcProxy.NProto.TReqAbandonJob
+	(*TRspAbandonJob)(nil),                                    // 240: NYT.NApi.NRpcProxy.NProto.TRspAbandonJob
+	(*TReqPollJobShell)(nil),                                  // 241: NYT.NApi.NRpcProxy.NProto.TReqPollJobShell
+	(*TRspPollJobShell)(nil),                                  // 242: NYT.NApi.NRpcProxy.NProto.TRspPollJobShell
+	(*TReqAbortJob)(nil),                                      // 243: NYT.NApi.NRpcProxy.NProto.TReqAbortJob
+	(*TRspAbortJob)(nil),                                      // 244: NYT.NApi.NRpcProxy.NProto.TRspAbortJob
+	(*TReqReadFile)(nil),                                      // 245: NYT.NApi.NRpcProxy.NProto.TReqReadFile
+	(*TReadFileMeta)(nil),                                     // 246: NYT.NApi.NRpcProxy.NProto.TReadFileMeta
+	(*TRspReadFile)(nil),                                      // 247: NYT.NApi.NRpcProxy.NProto.TRspReadFile
+	(*TReqWriteFile)(nil),                                     // 248: NYT.NApi.NRpcProxy.NProto.TReqWriteFile
+	(*TRspWriteFile)(nil),                                     // 249: NYT.NApi.NRpcProxy.NProto.TRspWriteFile
+	(*TReqReadJournal)(nil),                                   // 250: NYT.NApi.NRpcProxy.NProto.TReqReadJournal
+	(*TRspReadJournal)(nil),                                   // 251: NYT.NApi.NRpcProxy.NProto.TRspReadJournal
+	(*TReqWriteJournal)(nil),                                  // 252: NYT.NApi.NRpcProxy.NProto.TReqWriteJournal
+	(*TRspWriteJournal)(nil),                                  // 253: NYT.NApi.NRpcProxy.NProto.TRspWriteJournal
+	(*TReqTruncateJournal)(nil),                               // 254: NYT.NApi.NRpcProxy.NProto.TReqTruncateJournal
+	(*TRspTruncateJournal)(nil),                               // 255: NYT.NApi.NRpcProxy.NProto.TRspTruncateJournal
+	(*TReqReadTable)(nil),                                     // 256: NYT.NApi.NRpcProxy.NProto.TReqReadTable
+	(*TRspReadTableMeta)(nil),                                 // 257: NYT.NApi.NRpcProxy.NProto.TRspReadTableMeta
+	(*TRspReadTable)(nil),                                     // 258: NYT.NApi.NRpcProxy.NProto.TRspReadTable
+	(*TReqWriteTable)(nil),                                    // 259: NYT.NApi.NRpcProxy.NProto.TReqWriteTable
+	(*TWriteTableMeta)(nil),                                   // 260: NYT.NApi.NRpcProxy.NProto.TWriteTableMeta
+	(*TRspWriteTable)(nil),                                    // 261: NYT.NApi.NRpcProxy.NProto.TRspWriteTable
+	(*TReqGetJobInput)(nil),                                   // 262: NYT.NApi.NRpcProxy.NProto.TReqGetJobInput
+	(*TRspGetJobInput)(nil),                                   // 263: NYT.NApi.NRpcProxy.NProto.TRspGetJobInput
+	(*TReqAddMember)(nil),                                     // 264: NYT.NApi.NRpcProxy.NProto.TReqAddMember
+	(*TRspAddMember)(nil),                                     // 265: NYT.NApi.NRpcProxy.NProto.TRspAddMember
+	(*TReqRemoveMember)(nil),                                  // 266: NYT.NApi.NRpcProxy.NProto.TReqRemoveMember
+	(*TRspRemoveMember)(nil),                                  // 267: NYT.NApi.NRpcProxy.NProto.TRspRemoveMember
+	(*TReqCheckPermission)(nil),                               // 268: NYT.NApi.NRpcProxy.NProto.TReqCheckPermission
+	(*TRspCheckPermission)(nil),                               // 269: NYT.NApi.NRpcProxy.NProto.TRspCheckPermission
+	(*TReqCheckPermissionByAcl)(nil),                          // 270: NYT.NApi.NRpcProxy.NProto.TReqCheckPermissionByAcl
+	(*TRspCheckPermissionByAcl)(nil),                          // 271: NYT.NApi.NRpcProxy.NProto.TRspCheckPermissionByAcl
+	(*TReqTransferAccountResources)(nil),                      // 272: NYT.NApi.NRpcProxy.NProto.TReqTransferAccountResources
+	(*TRspTransferAccountResources)(nil),                      // 273: NYT.NApi.NRpcProxy.NProto.TRspTransferAccountResources
+	(*TReqTransferPoolResources)(nil),                         // 274: NYT.NApi.NRpcProxy.NProto.TReqTransferPoolResources
+	(*TRspTransferPoolResources)(nil),                         // 275: NYT.NApi.NRpcProxy.NProto.TRspTransferPoolResources
+	(*TReqCheckClusterLiveness)(nil),                          // 276: NYT.NApi.NRpcProxy.NProto.TReqCheckClusterLiveness
+	(*TRspCheckClusterLiveness)(nil),                          // 277: NYT.NApi.NRpcProxy.NProto.TRspCheckClusterLiveness
+	(*TReqGetPipelineSpec)(nil),                               // 278: NYT.NApi.NRpcProxy.NProto.TReqGetPipelineSpec
+	(*TRspGetPipelineSpec)(nil),                               // 279: NYT.NApi.NRpcProxy.NProto.TRspGetPipelineSpec
+	(*TReqSetPipelineSpec)(nil),                               // 280: NYT.NApi.NRpcProxy.NProto.TReqSetPipelineSpec
+	(*TRspSetPipelineSpec)(nil),                               // 281: NYT.NApi.NRpcProxy.NProto.TRspSetPipelineSpec
+	(*TReqGetPipelineDynamicSpec)(nil),                        // 282: NYT.NApi.NRpcProxy.NProto.TReqGetPipelineDynamicSpec
+	(*TRspGetPipelineDynamicSpec)(nil),                        // 283: NYT.NApi.NRpcProxy.NProto.TRspGetPipelineDynamicSpec
+	(*TReqSetPipelineDynamicSpec)(nil),                        // 284: NYT.NApi.NRpcProxy.NProto.TReqSetPipelineDynamicSpec
+	(*TRspSetPipelineDynamicSpec)(nil),                        // 285: NYT.NApi.NRpcProxy.NProto.TRspSetPipelineDynamicSpec
+	(*TReqStartPipeline)(nil),                                 // 286: NYT.NApi.NRpcProxy.NProto.TReqStartPipeline
+	(*TRspStartPipeline)(nil),                                 // 287: NYT.NApi.NRpcProxy.NProto.TRspStartPipeline
+	(*TReqPausePipeline)(nil),                                 // 288: NYT.NApi.NRpcProxy.NProto.TReqPausePipeline
+	(*TRspPausePipeline)(nil),                                 // 289: NYT.NApi.NRpcProxy.NProto.TRspPausePipeline
+	(*TReqStopPipeline)(nil),                                  // 290: NYT.NApi.NRpcProxy.NProto.TReqStopPipeline
+	(*TRspStopPipeline)(nil),                                  // 291: NYT.NApi.NRpcProxy.NProto.TRspStopPipeline
+	(*TReqGetPipelineStatus)(nil),                             // 292: NYT.NApi.NRpcProxy.NProto.TReqGetPipelineStatus
+	(*TRspGetPipelineStatus)(nil),                             // 293: NYT.NApi.NRpcProxy.NProto.TRspGetPipelineStatus
+	(*TOperation)(nil),                                        // 294: NYT.NApi.NRpcProxy.NProto.TOperation
+	(*TListOperationsResult)(nil),                             // 295: NYT.NApi.NRpcProxy.NProto.TListOperationsResult
+	(*TJob)(nil),                                              // 296: NYT.NApi.NRpcProxy.NProto.TJob
+	(*TListJobsStatistics)(nil),                               // 297: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics
+	(*TListJobsResult)(nil),                                   // 298: NYT.NApi.NRpcProxy.NProto.TListJobsResult
+	(*TGetFileFromCacheResult)(nil),                           // 299: NYT.NApi.NRpcProxy.NProto.TGetFileFromCacheResult
+	(*TPutFileToCacheResult)(nil),                             // 300: NYT.NApi.NRpcProxy.NProto.TPutFileToCacheResult
+	(*TCheckPermissionResult)(nil),                            // 301: NYT.NApi.NRpcProxy.NProto.TCheckPermissionResult
+	(*TCheckPermissionByAclResult)(nil),                       // 302: NYT.NApi.NRpcProxy.NProto.TCheckPermissionByAclResult
+	(*TReqStartQuery)(nil),                                    // 303: NYT.NApi.NRpcProxy.NProto.TReqStartQuery
+	(*TRspStartQuery)(nil),                                    // 304: NYT.NApi.NRpcProxy.NProto.TRspStartQuery
+	(*TReqAbortQuery)(nil),                                    // 305: NYT.NApi.NRpcProxy.NProto.TReqAbortQuery
+	(*TRspAbortQuery)(nil),                                    // 306: NYT.NApi.NRpcProxy.NProto.TRspAbortQuery
+	(*TReqGetQueryResult)(nil),                                // 307: NYT.NApi.NRpcProxy.NProto.TReqGetQueryResult
+	(*TRspGetQueryResult)(nil),                                // 308: NYT.NApi.NRpcProxy.NProto.TRspGetQueryResult
+	(*TReqReadQueryResult)(nil),                               // 309: NYT.NApi.NRpcProxy.NProto.TReqReadQueryResult
+	(*TRspReadQueryResult)(nil),                               // 310: NYT.NApi.NRpcProxy.NProto.TRspReadQueryResult
+	(*TQuery)(nil),                                            // 311: NYT.NApi.NRpcProxy.NProto.TQuery
+	(*TReqGetQuery)(nil),                                      // 312: NYT.NApi.NRpcProxy.NProto.TReqGetQuery
+	(*TRspGetQuery)(nil),                                      // 313: NYT.NApi.NRpcProxy.NProto.TRspGetQuery
+	(*TReqListQueries)(nil),                                   // 314: NYT.NApi.NRpcProxy.NProto.TReqListQueries
+	(*TRspListQueries)(nil),                                   // 315: NYT.NApi.NRpcProxy.NProto.TRspListQueries
+	(*TReqAlterQuery)(nil),                                    // 316: NYT.NApi.NRpcProxy.NProto.TReqAlterQuery
+	(*TRspAlterQuery)(nil),                                    // 317: NYT.NApi.NRpcProxy.NProto.TRspAlterQuery
+	(*TReqGetQueryTrackerInfo)(nil),                           // 318: NYT.NApi.NRpcProxy.NProto.TReqGetQueryTrackerInfo
+	(*TRspGetQueryTrackerInfo)(nil),                           // 319: NYT.NApi.NRpcProxy.NProto.TRspGetQueryTrackerInfo
+	(*TRowsetDescriptor_TNameTableEntry)(nil),                 // 320: NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor.TNameTableEntry
+	(*TReqMultiLookup_TSubrequest)(nil),                       // 321: NYT.NApi.NRpcProxy.NProto.TReqMultiLookup.TSubrequest
+	(*TRspMultiLookup_TSubresponse)(nil),                      // 322: NYT.NApi.NRpcProxy.NProto.TRspMultiLookup.TSubresponse
+	(*TReqRegisterQueueConsumer_TRegistrationPartitions)(nil), // 323: NYT.NApi.NRpcProxy.NProto.TReqRegisterQueueConsumer.TRegistrationPartitions
+	(*TRspListQueueConsumerRegistrations_TQueueConsumerRegistration)(nil),                         // 324: NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations.TQueueConsumerRegistration
+	(*TRspListQueueConsumerRegistrations_TQueueConsumerRegistration_TRegistrationPartitions)(nil), // 325: NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations.TQueueConsumerRegistration.TRegistrationPartitions
+	(*TRspGetTabletInfos_TTabletInfo)(nil),                                                        // 326: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo
+	(*TRspGetTabletInfos_TTabletInfo_TReplicaInfo)(nil),                                           // 327: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo.TReplicaInfo
+	(*TRspGetTabletErrors_TErrorList)(nil),                                                        // 328: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.TErrorList
+	nil,                                                                                           // 329: NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.RemovedMaintenanceCountsEntry
+	(*TPrerequisiteOptions_TTransactionPrerequisite)(nil),                                         // 330: NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.TTransactionPrerequisite
+	(*TPrerequisiteOptions_TRevisionPrerequisite)(nil),                                            // 331: NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.TRevisionPrerequisite
+	(*TBackupManifest_TClusterManifest)(nil),                                                      // 332: NYT.NApi.NRpcProxy.NProto.TBackupManifest.TClusterManifest
+	(*TReqMultisetAttributesNode_TSubrequest)(nil),                                                // 333: NYT.NApi.NRpcProxy.NProto.TReqMultisetAttributesNode.TSubrequest
+	(*TReqConcatenateNodes_TFetcher)(nil),                                                         // 334: NYT.NApi.NRpcProxy.NProto.TReqConcatenateNodes.TFetcher
+	(*TReqPartitionTables_TChunkSliceFetcherConfig)(nil),                                          // 335: NYT.NApi.NRpcProxy.NProto.TReqPartitionTables.TChunkSliceFetcherConfig
+	(*TMultiTablePartition_TStatistics)(nil),                                                      // 336: NYT.NApi.NRpcProxy.NProto.TMultiTablePartition.TStatistics
+	(*TReqCheckPermission_TColumns)(nil),                                                          // 337: NYT.NApi.NRpcProxy.NProto.TReqCheckPermission.TColumns
+	(*TRspCheckPermission_TColumns)(nil),                                                          // 338: NYT.NApi.NRpcProxy.NProto.TRspCheckPermission.TColumns
+	(*TOperation_TStrings)(nil),                                                                   // 339: NYT.NApi.NRpcProxy.NProto.TOperation.TStrings
+	(*TListOperationsResult_TPoolCounts)(nil),                                                     // 340: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolCounts
+	(*TListOperationsResult_TUserCounts)(nil),                                                     // 341: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TUserCounts
+	(*TListOperationsResult_TOperationStateCounts)(nil),                                           // 342: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationStateCounts
+	(*TListOperationsResult_TOperationTypeCounts)(nil),                                            // 343: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationTypeCounts
+	(*TListOperationsResult_TPoolTreeCounts)(nil),                                                 // 344: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolTreeCounts
+	(*TListOperationsResult_TPoolCounts_TPoolCount)(nil),                                          // 345: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolCounts.TPoolCount
+	(*TListOperationsResult_TUserCounts_TUserCount)(nil),                                          // 346: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TUserCounts.TUserCount
+	(*TListOperationsResult_TOperationStateCounts_TOperationStateCount)(nil),                      // 347: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationStateCounts.TOperationStateCount
+	(*TListOperationsResult_TOperationTypeCounts_TOperationTypeCount)(nil),                        // 348: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationTypeCounts.TOperationTypeCount
+	nil, // 349: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolTreeCounts.EntriesEntry
+	(*TListJobsStatistics_TJobStateCounts)(nil),                // 350: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobStateCounts
+	(*TListJobsStatistics_TJobTypeCounts)(nil),                 // 351: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobTypeCounts
+	(*TListJobsStatistics_TJobStateCounts_TJobStateCount)(nil), // 352: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobStateCounts.TJobStateCount
+	(*TListJobsStatistics_TJobTypeCounts_TJobTypeCount)(nil),   // 353: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobTypeCounts.TJobTypeCount
+	(*TReqStartQuery_TQueryFile)(nil),                          // 354: NYT.NApi.NRpcProxy.NProto.TReqStartQuery.TQueryFile
+	(*TReqReadQueryResult_TColumns)(nil),                       // 355: NYT.NApi.NRpcProxy.NProto.TReqReadQueryResult.TColumns
+	(*chunk_client.TDataStatistics)(nil),                       // 356: NYT.NChunkClient.NProto.TDataStatistics
+	(*misc.TGuid)(nil),                                         // 357: NYT.NProto.TGuid
+	(*ytree.TAttributeDictionary)(nil),                         // 358: NYT.NYTree.NProto.TAttributeDictionary
+	(*hive.TTimestampMap)(nil),                                 // 359: NYT.NHiveClient.NProto.TTimestampMap
+	(*chaos_client.TReplicationProgress)(nil),                  // 360: NYT.NChaosClient.NProto.TReplicationProgress
+	(*ytree.TAttributeFilter)(nil),                             // 361: NYT.NYTree.NProto.TAttributeFilter
+	(*ytree.TReadRequestComplexityLimits)(nil),                 // 362: NYT.NYTree.NProto.TReadRequestComplexityLimits
+	(*misc.TError)(nil),                                        // 363: NYT.NProto.TError
 }
 var file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_depIdxs = []int32{
 	7,   // 0: NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor.rowset_kind:type_name -> NYT.NApi.NRpcProxy.NProto.ERowsetKind
 	8,   // 1: NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor.rowset_format:type_name -> NYT.NApi.NRpcProxy.NProto.ERowsetFormat
-	300, // 2: NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor.name_table_entries:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor.TNameTableEntry
-	120, // 3: NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor.schema:type_name -> NYT.NApi.NRpcProxy.NProto.TTableSchema
-	334, // 4: NYT.NApi.NRpcProxy.NProto.TRowsetStatistics.data_statistics:type_name -> NYT.NChunkClient.NProto.TDataStatistics
+	320, // 2: NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor.name_table_entries:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor.TNameTableEntry
+	123, // 3: NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor.schema:type_name -> NYT.NApi.NRpcProxy.NProto.TTableSchema
+	356, // 4: NYT.NApi.NRpcProxy.NProto.TRowsetStatistics.data_statistics:type_name -> NYT.NChunkClient.NProto.TDataStatistics
 	0,   // 5: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.type:type_name -> NYT.NApi.NRpcProxy.NProto.ETransactionType
-	335, // 6: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.id:type_name -> NYT.NProto.TGuid
-	335, // 7: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.parent_id:type_name -> NYT.NProto.TGuid
+	357, // 6: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.id:type_name -> NYT.NProto.TGuid
+	357, // 7: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.parent_id:type_name -> NYT.NProto.TGuid
 	2,   // 8: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.atomicity:type_name -> NYT.NApi.NRpcProxy.NProto.EAtomicity
 	3,   // 9: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.durability:type_name -> NYT.NApi.NRpcProxy.NProto.EDurability
-	336, // 10: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.attributes:type_name -> NYT.NYTree.NProto.TAttributeDictionary
-	335, // 11: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.prerequisite_transaction_ids:type_name -> NYT.NProto.TGuid
-	104, // 12: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	335, // 13: NYT.NApi.NRpcProxy.NProto.TRspStartTransaction.id:type_name -> NYT.NProto.TGuid
-	335, // 14: NYT.NApi.NRpcProxy.NProto.TReqPingTransaction.transaction_id:type_name -> NYT.NProto.TGuid
-	335, // 15: NYT.NApi.NRpcProxy.NProto.TReqCommitTransaction.transaction_id:type_name -> NYT.NProto.TGuid
-	335, // 16: NYT.NApi.NRpcProxy.NProto.TReqCommitTransaction.additional_participant_cell_ids:type_name -> NYT.NProto.TGuid
-	102, // 17: NYT.NApi.NRpcProxy.NProto.TReqCommitTransaction.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
-	104, // 18: NYT.NApi.NRpcProxy.NProto.TReqCommitTransaction.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	337, // 19: NYT.NApi.NRpcProxy.NProto.TRspCommitTransaction.commit_timestamps:type_name -> NYT.NHiveClient.NProto.TTimestampMap
-	335, // 20: NYT.NApi.NRpcProxy.NProto.TReqFlushTransaction.transaction_id:type_name -> NYT.NProto.TGuid
-	335, // 21: NYT.NApi.NRpcProxy.NProto.TRspFlushTransaction.participant_cell_ids:type_name -> NYT.NProto.TGuid
-	335, // 22: NYT.NApi.NRpcProxy.NProto.TReqAbortTransaction.transaction_id:type_name -> NYT.NProto.TGuid
-	104, // 23: NYT.NApi.NRpcProxy.NProto.TReqAbortTransaction.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	107, // 24: NYT.NApi.NRpcProxy.NProto.TReqLookupRows.tablet_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletReadOptions
+	358, // 10: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.attributes:type_name -> NYT.NYTree.NProto.TAttributeDictionary
+	357, // 11: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.prerequisite_transaction_ids:type_name -> NYT.NProto.TGuid
+	107, // 12: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	357, // 13: NYT.NApi.NRpcProxy.NProto.TRspStartTransaction.id:type_name -> NYT.NProto.TGuid
+	357, // 14: NYT.NApi.NRpcProxy.NProto.TReqPingTransaction.transaction_id:type_name -> NYT.NProto.TGuid
+	357, // 15: NYT.NApi.NRpcProxy.NProto.TReqCommitTransaction.transaction_id:type_name -> NYT.NProto.TGuid
+	357, // 16: NYT.NApi.NRpcProxy.NProto.TReqCommitTransaction.additional_participant_cell_ids:type_name -> NYT.NProto.TGuid
+	105, // 17: NYT.NApi.NRpcProxy.NProto.TReqCommitTransaction.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
+	107, // 18: NYT.NApi.NRpcProxy.NProto.TReqCommitTransaction.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	359, // 19: NYT.NApi.NRpcProxy.NProto.TRspCommitTransaction.commit_timestamps:type_name -> NYT.NHiveClient.NProto.TTimestampMap
+	357, // 20: NYT.NApi.NRpcProxy.NProto.TReqFlushTransaction.transaction_id:type_name -> NYT.NProto.TGuid
+	357, // 21: NYT.NApi.NRpcProxy.NProto.TRspFlushTransaction.participant_cell_ids:type_name -> NYT.NProto.TGuid
+	357, // 22: NYT.NApi.NRpcProxy.NProto.TReqAbortTransaction.transaction_id:type_name -> NYT.NProto.TGuid
+	107, // 23: NYT.NApi.NRpcProxy.NProto.TReqAbortTransaction.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	110, // 24: NYT.NApi.NRpcProxy.NProto.TReqLookupRows.tablet_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletReadOptions
 	5,   // 25: NYT.NApi.NRpcProxy.NProto.TReqLookupRows.replica_consistency:type_name -> NYT.NApi.NRpcProxy.NProto.EReplicaConsistency
 	19,  // 26: NYT.NApi.NRpcProxy.NProto.TReqLookupRows.multiplexing_band:type_name -> NYT.NApi.NRpcProxy.NProto.EMultiplexingBand
-	27,  // 27: NYT.NApi.NRpcProxy.NProto.TReqLookupRows.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
-	27,  // 28: NYT.NApi.NRpcProxy.NProto.TRspLookupRows.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
-	41,  // 29: NYT.NApi.NRpcProxy.NProto.TReqVersionedLookupRows.retention_config:type_name -> NYT.NApi.NRpcProxy.NProto.TRetentionConfig
-	107, // 30: NYT.NApi.NRpcProxy.NProto.TReqVersionedLookupRows.tablet_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletReadOptions
+	30,  // 27: NYT.NApi.NRpcProxy.NProto.TReqLookupRows.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
+	30,  // 28: NYT.NApi.NRpcProxy.NProto.TRspLookupRows.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
+	44,  // 29: NYT.NApi.NRpcProxy.NProto.TReqVersionedLookupRows.retention_config:type_name -> NYT.NApi.NRpcProxy.NProto.TRetentionConfig
+	110, // 30: NYT.NApi.NRpcProxy.NProto.TReqVersionedLookupRows.tablet_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletReadOptions
 	5,   // 31: NYT.NApi.NRpcProxy.NProto.TReqVersionedLookupRows.replica_consistency:type_name -> NYT.NApi.NRpcProxy.NProto.EReplicaConsistency
 	19,  // 32: NYT.NApi.NRpcProxy.NProto.TReqVersionedLookupRows.multiplexing_band:type_name -> NYT.NApi.NRpcProxy.NProto.EMultiplexingBand
-	27,  // 33: NYT.NApi.NRpcProxy.NProto.TReqVersionedLookupRows.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
-	27,  // 34: NYT.NApi.NRpcProxy.NProto.TRspVersionedLookupRows.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
-	301, // 35: NYT.NApi.NRpcProxy.NProto.TReqMultiLookup.subrequests:type_name -> NYT.NApi.NRpcProxy.NProto.TReqMultiLookup.TSubrequest
-	107, // 36: NYT.NApi.NRpcProxy.NProto.TReqMultiLookup.tablet_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletReadOptions
+	30,  // 33: NYT.NApi.NRpcProxy.NProto.TReqVersionedLookupRows.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
+	30,  // 34: NYT.NApi.NRpcProxy.NProto.TRspVersionedLookupRows.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
+	321, // 35: NYT.NApi.NRpcProxy.NProto.TReqMultiLookup.subrequests:type_name -> NYT.NApi.NRpcProxy.NProto.TReqMultiLookup.TSubrequest
+	110, // 36: NYT.NApi.NRpcProxy.NProto.TReqMultiLookup.tablet_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletReadOptions
 	5,   // 37: NYT.NApi.NRpcProxy.NProto.TReqMultiLookup.replica_consistency:type_name -> NYT.NApi.NRpcProxy.NProto.EReplicaConsistency
 	19,  // 38: NYT.NApi.NRpcProxy.NProto.TReqMultiLookup.multiplexing_band:type_name -> NYT.NApi.NRpcProxy.NProto.EMultiplexingBand
-	302, // 39: NYT.NApi.NRpcProxy.NProto.TRspMultiLookup.subresponses:type_name -> NYT.NApi.NRpcProxy.NProto.TRspMultiLookup.TSubresponse
-	46,  // 40: NYT.NApi.NRpcProxy.NProto.TQueryStatistics.inner_statistics:type_name -> NYT.NApi.NRpcProxy.NProto.TQueryStatistics
+	322, // 39: NYT.NApi.NRpcProxy.NProto.TRspMultiLookup.subresponses:type_name -> NYT.NApi.NRpcProxy.NProto.TRspMultiLookup.TSubresponse
+	49,  // 40: NYT.NApi.NRpcProxy.NProto.TQueryStatistics.inner_statistics:type_name -> NYT.NApi.NRpcProxy.NProto.TQueryStatistics
 	5,   // 41: NYT.NApi.NRpcProxy.NProto.TReqSelectRows.replica_consistency:type_name -> NYT.NApi.NRpcProxy.NProto.EReplicaConsistency
-	105, // 42: NYT.NApi.NRpcProxy.NProto.TReqSelectRows.suppressable_access_tracking_options:type_name -> NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
-	27,  // 43: NYT.NApi.NRpcProxy.NProto.TRspSelectRows.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
-	46,  // 44: NYT.NApi.NRpcProxy.NProto.TRspSelectRows.statistics:type_name -> NYT.NApi.NRpcProxy.NProto.TQueryStatistics
-	335, // 45: NYT.NApi.NRpcProxy.NProto.TReqAdvanceConsumer.transaction_id:type_name -> NYT.NProto.TGuid
-	51,  // 46: NYT.NApi.NRpcProxy.NProto.TReqPullQueue.row_batch_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TRowBatchReadOptions
+	108, // 42: NYT.NApi.NRpcProxy.NProto.TReqSelectRows.suppressable_access_tracking_options:type_name -> NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
+	30,  // 43: NYT.NApi.NRpcProxy.NProto.TRspSelectRows.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
+	49,  // 44: NYT.NApi.NRpcProxy.NProto.TRspSelectRows.statistics:type_name -> NYT.NApi.NRpcProxy.NProto.TQueryStatistics
+	357, // 45: NYT.NApi.NRpcProxy.NProto.TReqAdvanceConsumer.transaction_id:type_name -> NYT.NProto.TGuid
+	54,  // 46: NYT.NApi.NRpcProxy.NProto.TReqPullQueue.row_batch_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TRowBatchReadOptions
 	5,   // 47: NYT.NApi.NRpcProxy.NProto.TReqPullQueue.replica_consistency:type_name -> NYT.NApi.NRpcProxy.NProto.EReplicaConsistency
-	27,  // 48: NYT.NApi.NRpcProxy.NProto.TRspPullQueue.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
-	51,  // 49: NYT.NApi.NRpcProxy.NProto.TReqPullConsumer.row_batch_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TRowBatchReadOptions
+	30,  // 48: NYT.NApi.NRpcProxy.NProto.TRspPullQueue.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
+	54,  // 49: NYT.NApi.NRpcProxy.NProto.TReqPullConsumer.row_batch_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TRowBatchReadOptions
 	5,   // 50: NYT.NApi.NRpcProxy.NProto.TReqPullConsumer.replica_consistency:type_name -> NYT.NApi.NRpcProxy.NProto.EReplicaConsistency
-	27,  // 51: NYT.NApi.NRpcProxy.NProto.TRspPullConsumer.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
-	303, // 52: NYT.NApi.NRpcProxy.NProto.TReqRegisterQueueConsumer.partitions:type_name -> NYT.NApi.NRpcProxy.NProto.TReqRegisterQueueConsumer.TRegistrationPartitions
-	304, // 53: NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations.registrations:type_name -> NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations.TQueueConsumerRegistration
-	335, // 54: NYT.NApi.NRpcProxy.NProto.TReplicationRowIndex.tablet_id:type_name -> NYT.NProto.TGuid
-	335, // 55: NYT.NApi.NRpcProxy.NProto.TReqPullRows.upstream_replica_id:type_name -> NYT.NProto.TGuid
-	338, // 56: NYT.NApi.NRpcProxy.NProto.TReqPullRows.replication_progress:type_name -> NYT.NChaosClient.NProto.TReplicationProgress
-	64,  // 57: NYT.NApi.NRpcProxy.NProto.TReqPullRows.start_replication_row_indexes:type_name -> NYT.NApi.NRpcProxy.NProto.TReplicationRowIndex
-	338, // 58: NYT.NApi.NRpcProxy.NProto.TRspPullRows.replication_progress:type_name -> NYT.NChaosClient.NProto.TReplicationProgress
-	64,  // 59: NYT.NApi.NRpcProxy.NProto.TRspPullRows.end_replication_row_indexes:type_name -> NYT.NApi.NRpcProxy.NProto.TReplicationRowIndex
-	27,  // 60: NYT.NApi.NRpcProxy.NProto.TRspPullRows.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
-	27,  // 61: NYT.NApi.NRpcProxy.NProto.TReqGetInSyncReplicas.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
-	335, // 62: NYT.NApi.NRpcProxy.NProto.TRspGetInSyncReplicas.replica_ids:type_name -> NYT.NProto.TGuid
-	306, // 63: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.tablets:type_name -> NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo
-	335, // 64: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.tablet_ids:type_name -> NYT.NProto.TGuid
-	308, // 65: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.tablet_errors:type_name -> NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.TErrorList
-	335, // 66: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.replica_ids:type_name -> NYT.NProto.TGuid
-	308, // 67: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.replication_errors:type_name -> NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.TErrorList
-	335, // 68: NYT.NApi.NRpcProxy.NProto.TReqModifyRows.transaction_id:type_name -> NYT.NProto.TGuid
+	30,  // 51: NYT.NApi.NRpcProxy.NProto.TRspPullConsumer.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
+	323, // 52: NYT.NApi.NRpcProxy.NProto.TReqRegisterQueueConsumer.partitions:type_name -> NYT.NApi.NRpcProxy.NProto.TReqRegisterQueueConsumer.TRegistrationPartitions
+	324, // 53: NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations.registrations:type_name -> NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations.TQueueConsumerRegistration
+	357, // 54: NYT.NApi.NRpcProxy.NProto.TReplicationRowIndex.tablet_id:type_name -> NYT.NProto.TGuid
+	357, // 55: NYT.NApi.NRpcProxy.NProto.TReqPullRows.upstream_replica_id:type_name -> NYT.NProto.TGuid
+	360, // 56: NYT.NApi.NRpcProxy.NProto.TReqPullRows.replication_progress:type_name -> NYT.NChaosClient.NProto.TReplicationProgress
+	67,  // 57: NYT.NApi.NRpcProxy.NProto.TReqPullRows.start_replication_row_indexes:type_name -> NYT.NApi.NRpcProxy.NProto.TReplicationRowIndex
+	360, // 58: NYT.NApi.NRpcProxy.NProto.TRspPullRows.replication_progress:type_name -> NYT.NChaosClient.NProto.TReplicationProgress
+	67,  // 59: NYT.NApi.NRpcProxy.NProto.TRspPullRows.end_replication_row_indexes:type_name -> NYT.NApi.NRpcProxy.NProto.TReplicationRowIndex
+	30,  // 60: NYT.NApi.NRpcProxy.NProto.TRspPullRows.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
+	30,  // 61: NYT.NApi.NRpcProxy.NProto.TReqGetInSyncReplicas.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
+	357, // 62: NYT.NApi.NRpcProxy.NProto.TRspGetInSyncReplicas.replica_ids:type_name -> NYT.NProto.TGuid
+	326, // 63: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.tablets:type_name -> NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo
+	357, // 64: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.tablet_ids:type_name -> NYT.NProto.TGuid
+	328, // 65: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.tablet_errors:type_name -> NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.TErrorList
+	357, // 66: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.replica_ids:type_name -> NYT.NProto.TGuid
+	328, // 67: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.replication_errors:type_name -> NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.TErrorList
+	357, // 68: NYT.NApi.NRpcProxy.NProto.TReqModifyRows.transaction_id:type_name -> NYT.NProto.TGuid
 	1,   // 69: NYT.NApi.NRpcProxy.NProto.TReqModifyRows.row_modification_types:type_name -> NYT.NApi.NRpcProxy.NProto.ERowModificationType
-	335, // 70: NYT.NApi.NRpcProxy.NProto.TReqModifyRows.upstream_replica_id:type_name -> NYT.NProto.TGuid
-	27,  // 71: NYT.NApi.NRpcProxy.NProto.TReqModifyRows.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
-	335, // 72: NYT.NApi.NRpcProxy.NProto.TReqBatchModifyRows.transaction_id:type_name -> NYT.NProto.TGuid
-	335, // 73: NYT.NApi.NRpcProxy.NProto.TReqBuildSnapshot.cell_id:type_name -> NYT.NProto.TGuid
-	335, // 74: NYT.NApi.NRpcProxy.NProto.TReqExitReadOnly.cell_id:type_name -> NYT.NProto.TGuid
-	335, // 75: NYT.NApi.NRpcProxy.NProto.TReqDiscombobulateNonvotingPeers.cell_id:type_name -> NYT.NProto.TGuid
-	335, // 76: NYT.NApi.NRpcProxy.NProto.TReqGCCollect.cell_id:type_name -> NYT.NProto.TGuid
-	335, // 77: NYT.NApi.NRpcProxy.NProto.TReqSuspendCoordinator.coordinator_cell_id:type_name -> NYT.NProto.TGuid
-	335, // 78: NYT.NApi.NRpcProxy.NProto.TReqResumeCoordinator.coordinator_cell_id:type_name -> NYT.NProto.TGuid
-	335, // 79: NYT.NApi.NRpcProxy.NProto.TReqMigrateReplicationCards.chaos_cell_id:type_name -> NYT.NProto.TGuid
-	335, // 80: NYT.NApi.NRpcProxy.NProto.TReqMigrateReplicationCards.destination_cell_id:type_name -> NYT.NProto.TGuid
-	335, // 81: NYT.NApi.NRpcProxy.NProto.TReqMigrateReplicationCards.replication_card_ids:type_name -> NYT.NProto.TGuid
-	335, // 82: NYT.NApi.NRpcProxy.NProto.TReqSuspendChaosCells.cell_ids:type_name -> NYT.NProto.TGuid
-	335, // 83: NYT.NApi.NRpcProxy.NProto.TReqResumeChaosCells.cell_ids:type_name -> NYT.NProto.TGuid
+	357, // 70: NYT.NApi.NRpcProxy.NProto.TReqModifyRows.upstream_replica_id:type_name -> NYT.NProto.TGuid
+	30,  // 71: NYT.NApi.NRpcProxy.NProto.TReqModifyRows.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
+	357, // 72: NYT.NApi.NRpcProxy.NProto.TReqBatchModifyRows.transaction_id:type_name -> NYT.NProto.TGuid
+	357, // 73: NYT.NApi.NRpcProxy.NProto.TReqBuildSnapshot.cell_id:type_name -> NYT.NProto.TGuid
+	357, // 74: NYT.NApi.NRpcProxy.NProto.TReqExitReadOnly.cell_id:type_name -> NYT.NProto.TGuid
+	357, // 75: NYT.NApi.NRpcProxy.NProto.TReqDiscombobulateNonvotingPeers.cell_id:type_name -> NYT.NProto.TGuid
+	357, // 76: NYT.NApi.NRpcProxy.NProto.TReqGCCollect.cell_id:type_name -> NYT.NProto.TGuid
+	357, // 77: NYT.NApi.NRpcProxy.NProto.TReqSuspendCoordinator.coordinator_cell_id:type_name -> NYT.NProto.TGuid
+	357, // 78: NYT.NApi.NRpcProxy.NProto.TReqResumeCoordinator.coordinator_cell_id:type_name -> NYT.NProto.TGuid
+	357, // 79: NYT.NApi.NRpcProxy.NProto.TReqMigrateReplicationCards.chaos_cell_id:type_name -> NYT.NProto.TGuid
+	357, // 80: NYT.NApi.NRpcProxy.NProto.TReqMigrateReplicationCards.destination_cell_id:type_name -> NYT.NProto.TGuid
+	357, // 81: NYT.NApi.NRpcProxy.NProto.TReqMigrateReplicationCards.replication_card_ids:type_name -> NYT.NProto.TGuid
+	357, // 82: NYT.NApi.NRpcProxy.NProto.TReqSuspendChaosCells.cell_ids:type_name -> NYT.NProto.TGuid
+	357, // 83: NYT.NApi.NRpcProxy.NProto.TReqResumeChaosCells.cell_ids:type_name -> NYT.NProto.TGuid
 	24,  // 84: NYT.NApi.NRpcProxy.NProto.TReqAddMaintenance.component:type_name -> NYT.NApi.NRpcProxy.NProto.EMaintenanceComponent
 	23,  // 85: NYT.NApi.NRpcProxy.NProto.TReqAddMaintenance.type:type_name -> NYT.NApi.NRpcProxy.NProto.EMaintenanceType
-	335, // 86: NYT.NApi.NRpcProxy.NProto.TRspAddMaintenance.id:type_name -> NYT.NProto.TGuid
+	357, // 86: NYT.NApi.NRpcProxy.NProto.TRspAddMaintenance.id:type_name -> NYT.NProto.TGuid
 	24,  // 87: NYT.NApi.NRpcProxy.NProto.TReqRemoveMaintenance.component:type_name -> NYT.NApi.NRpcProxy.NProto.EMaintenanceComponent
-	335, // 88: NYT.NApi.NRpcProxy.NProto.TReqRemoveMaintenance.ids:type_name -> NYT.NProto.TGuid
+	357, // 88: NYT.NApi.NRpcProxy.NProto.TReqRemoveMaintenance.ids:type_name -> NYT.NProto.TGuid
 	23,  // 89: NYT.NApi.NRpcProxy.NProto.TReqRemoveMaintenance.type:type_name -> NYT.NApi.NRpcProxy.NProto.EMaintenanceType
-	309, // 90: NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.removed_maintenance_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.RemovedMaintenanceCountsEntry
-	335, // 91: NYT.NApi.NRpcProxy.NProto.TTransactionalOptions.transaction_id:type_name -> NYT.NProto.TGuid
-	310, // 92: NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.transactions:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.TTransactionPrerequisite
-	311, // 93: NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.revisions:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.TRevisionPrerequisite
+	329, // 90: NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.removed_maintenance_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.RemovedMaintenanceCountsEntry
+	357, // 91: NYT.NApi.NRpcProxy.NProto.TTransactionalOptions.transaction_id:type_name -> NYT.NProto.TGuid
+	330, // 92: NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.transactions:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.TTransactionPrerequisite
+	331, // 93: NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.revisions:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.TRevisionPrerequisite
 	6,   // 94: NYT.NApi.NRpcProxy.NProto.TMasterReadOptions.read_from:type_name -> NYT.NApi.NRpcProxy.NProto.EMasterReadKind
-	335, // 95: NYT.NApi.NRpcProxy.NProto.TMutatingOptions.mutation_id:type_name -> NYT.NProto.TGuid
+	357, // 95: NYT.NApi.NRpcProxy.NProto.TMutatingOptions.mutation_id:type_name -> NYT.NProto.TGuid
 	9,   // 96: NYT.NApi.NRpcProxy.NProto.TTabletReadOptions.read_from:type_name -> NYT.NApi.NRpcProxy.NProto.ETabletReadKind
-	101, // 97: NYT.NApi.NRpcProxy.NProto.TReqExistsNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	102, // 98: NYT.NApi.NRpcProxy.NProto.TReqExistsNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
-	103, // 99: NYT.NApi.NRpcProxy.NProto.TReqExistsNode.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
-	105, // 100: NYT.NApi.NRpcProxy.NProto.TReqExistsNode.suppressable_access_tracking_options:type_name -> NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
-	26,  // 101: NYT.NApi.NRpcProxy.NProto.TReqGetNode.legacy_attributes:type_name -> NYT.NApi.NRpcProxy.NProto.TLegacyAttributeKeys
-	339, // 102: NYT.NApi.NRpcProxy.NProto.TReqGetNode.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
-	340, // 103: NYT.NApi.NRpcProxy.NProto.TReqGetNode.complexity_limits:type_name -> NYT.NYTree.NProto.TReadRequestComplexityLimits
-	101, // 104: NYT.NApi.NRpcProxy.NProto.TReqGetNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	102, // 105: NYT.NApi.NRpcProxy.NProto.TReqGetNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
-	103, // 106: NYT.NApi.NRpcProxy.NProto.TReqGetNode.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
-	105, // 107: NYT.NApi.NRpcProxy.NProto.TReqGetNode.suppressable_access_tracking_options:type_name -> NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
-	336, // 108: NYT.NApi.NRpcProxy.NProto.TReqGetNode.options:type_name -> NYT.NYTree.NProto.TAttributeDictionary
-	26,  // 109: NYT.NApi.NRpcProxy.NProto.TReqListNode.legacy_attributes:type_name -> NYT.NApi.NRpcProxy.NProto.TLegacyAttributeKeys
-	339, // 110: NYT.NApi.NRpcProxy.NProto.TReqListNode.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
-	340, // 111: NYT.NApi.NRpcProxy.NProto.TReqListNode.complexity_limits:type_name -> NYT.NYTree.NProto.TReadRequestComplexityLimits
-	101, // 112: NYT.NApi.NRpcProxy.NProto.TReqListNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	102, // 113: NYT.NApi.NRpcProxy.NProto.TReqListNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
-	103, // 114: NYT.NApi.NRpcProxy.NProto.TReqListNode.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
-	105, // 115: NYT.NApi.NRpcProxy.NProto.TReqListNode.suppressable_access_tracking_options:type_name -> NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
-	336, // 116: NYT.NApi.NRpcProxy.NProto.TReqCreateObject.attributes:type_name -> NYT.NYTree.NProto.TAttributeDictionary
-	104, // 117: NYT.NApi.NRpcProxy.NProto.TReqCreateObject.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	335, // 118: NYT.NApi.NRpcProxy.NProto.TRspCreateObject.object_id:type_name -> NYT.NProto.TGuid
-	118, // 119: NYT.NApi.NRpcProxy.NProto.TTableSchema.columns:type_name -> NYT.NApi.NRpcProxy.NProto.TColumnSchema
-	119, // 120: NYT.NApi.NRpcProxy.NProto.TTableSchema.deleted_columns:type_name -> NYT.NApi.NRpcProxy.NProto.TDeletedColumn
-	335, // 121: NYT.NApi.NRpcProxy.NProto.TTabletInfo.tablet_id:type_name -> NYT.NProto.TGuid
-	335, // 122: NYT.NApi.NRpcProxy.NProto.TTabletInfo.cell_id:type_name -> NYT.NProto.TGuid
-	335, // 123: NYT.NApi.NRpcProxy.NProto.TReplicaInfo.replica_id:type_name -> NYT.NProto.TGuid
-	335, // 124: NYT.NApi.NRpcProxy.NProto.TIndexInfo.index_table_id:type_name -> NYT.NProto.TGuid
-	335, // 125: NYT.NApi.NRpcProxy.NProto.TRspGetTableMountInfo.table_id:type_name -> NYT.NProto.TGuid
-	120, // 126: NYT.NApi.NRpcProxy.NProto.TRspGetTableMountInfo.schema:type_name -> NYT.NApi.NRpcProxy.NProto.TTableSchema
-	121, // 127: NYT.NApi.NRpcProxy.NProto.TRspGetTableMountInfo.tablets:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletInfo
-	335, // 128: NYT.NApi.NRpcProxy.NProto.TRspGetTableMountInfo.upstream_replica_id:type_name -> NYT.NProto.TGuid
-	122, // 129: NYT.NApi.NRpcProxy.NProto.TRspGetTableMountInfo.replicas:type_name -> NYT.NApi.NRpcProxy.NProto.TReplicaInfo
-	123, // 130: NYT.NApi.NRpcProxy.NProto.TRspGetTableMountInfo.indices:type_name -> NYT.NApi.NRpcProxy.NProto.TIndexInfo
-	312, // 131: NYT.NApi.NRpcProxy.NProto.TBackupManifest.clusters:type_name -> NYT.NApi.NRpcProxy.NProto.TBackupManifest.TClusterManifest
-	129, // 132: NYT.NApi.NRpcProxy.NProto.TReqCreateTableBackup.manifest:type_name -> NYT.NApi.NRpcProxy.NProto.TBackupManifest
-	129, // 133: NYT.NApi.NRpcProxy.NProto.TReqRestoreTableBackup.manifest:type_name -> NYT.NApi.NRpcProxy.NProto.TBackupManifest
-	336, // 134: NYT.NApi.NRpcProxy.NProto.TReqCreateNode.attributes:type_name -> NYT.NYTree.NProto.TAttributeDictionary
-	101, // 135: NYT.NApi.NRpcProxy.NProto.TReqCreateNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	102, // 136: NYT.NApi.NRpcProxy.NProto.TReqCreateNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
-	104, // 137: NYT.NApi.NRpcProxy.NProto.TReqCreateNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	335, // 138: NYT.NApi.NRpcProxy.NProto.TRspCreateNode.node_id:type_name -> NYT.NProto.TGuid
-	101, // 139: NYT.NApi.NRpcProxy.NProto.TReqRemoveNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	102, // 140: NYT.NApi.NRpcProxy.NProto.TReqRemoveNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
-	104, // 141: NYT.NApi.NRpcProxy.NProto.TReqRemoveNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	101, // 142: NYT.NApi.NRpcProxy.NProto.TReqSetNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	102, // 143: NYT.NApi.NRpcProxy.NProto.TReqSetNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
-	104, // 144: NYT.NApi.NRpcProxy.NProto.TReqSetNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	105, // 145: NYT.NApi.NRpcProxy.NProto.TReqSetNode.suppressable_access_tracking_options:type_name -> NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
-	313, // 146: NYT.NApi.NRpcProxy.NProto.TReqMultisetAttributesNode.subrequests:type_name -> NYT.NApi.NRpcProxy.NProto.TReqMultisetAttributesNode.TSubrequest
-	101, // 147: NYT.NApi.NRpcProxy.NProto.TReqMultisetAttributesNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	102, // 148: NYT.NApi.NRpcProxy.NProto.TReqMultisetAttributesNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
-	104, // 149: NYT.NApi.NRpcProxy.NProto.TReqMultisetAttributesNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	105, // 150: NYT.NApi.NRpcProxy.NProto.TReqMultisetAttributesNode.suppressable_access_tracking_options:type_name -> NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
-	101, // 151: NYT.NApi.NRpcProxy.NProto.TReqLockNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	102, // 152: NYT.NApi.NRpcProxy.NProto.TReqLockNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
-	104, // 153: NYT.NApi.NRpcProxy.NProto.TReqLockNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	335, // 154: NYT.NApi.NRpcProxy.NProto.TRspLockNode.node_id:type_name -> NYT.NProto.TGuid
-	335, // 155: NYT.NApi.NRpcProxy.NProto.TRspLockNode.lock_id:type_name -> NYT.NProto.TGuid
-	101, // 156: NYT.NApi.NRpcProxy.NProto.TReqUnlockNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	102, // 157: NYT.NApi.NRpcProxy.NProto.TReqUnlockNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
-	104, // 158: NYT.NApi.NRpcProxy.NProto.TReqUnlockNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	101, // 159: NYT.NApi.NRpcProxy.NProto.TReqCopyNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	102, // 160: NYT.NApi.NRpcProxy.NProto.TReqCopyNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
-	104, // 161: NYT.NApi.NRpcProxy.NProto.TReqCopyNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	335, // 162: NYT.NApi.NRpcProxy.NProto.TRspCopyNode.node_id:type_name -> NYT.NProto.TGuid
-	101, // 163: NYT.NApi.NRpcProxy.NProto.TReqMoveNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	102, // 164: NYT.NApi.NRpcProxy.NProto.TReqMoveNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
-	104, // 165: NYT.NApi.NRpcProxy.NProto.TReqMoveNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	335, // 166: NYT.NApi.NRpcProxy.NProto.TRspMoveNode.node_id:type_name -> NYT.NProto.TGuid
-	101, // 167: NYT.NApi.NRpcProxy.NProto.TReqLinkNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	102, // 168: NYT.NApi.NRpcProxy.NProto.TReqLinkNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
-	104, // 169: NYT.NApi.NRpcProxy.NProto.TReqLinkNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	335, // 170: NYT.NApi.NRpcProxy.NProto.TRspLinkNode.node_id:type_name -> NYT.NProto.TGuid
-	314, // 171: NYT.NApi.NRpcProxy.NProto.TReqConcatenateNodes.fetcher:type_name -> NYT.NApi.NRpcProxy.NProto.TReqConcatenateNodes.TFetcher
-	101, // 172: NYT.NApi.NRpcProxy.NProto.TReqConcatenateNodes.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	104, // 173: NYT.NApi.NRpcProxy.NProto.TReqConcatenateNodes.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	101, // 174: NYT.NApi.NRpcProxy.NProto.TReqExternalizeNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	101, // 175: NYT.NApi.NRpcProxy.NProto.TReqInternalizeNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	335, // 176: NYT.NApi.NRpcProxy.NProto.TReqAttachTransaction.transaction_id:type_name -> NYT.NProto.TGuid
+	104, // 97: NYT.NApi.NRpcProxy.NProto.TReqExistsNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	105, // 98: NYT.NApi.NRpcProxy.NProto.TReqExistsNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
+	106, // 99: NYT.NApi.NRpcProxy.NProto.TReqExistsNode.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
+	108, // 100: NYT.NApi.NRpcProxy.NProto.TReqExistsNode.suppressable_access_tracking_options:type_name -> NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
+	29,  // 101: NYT.NApi.NRpcProxy.NProto.TReqGetNode.legacy_attributes:type_name -> NYT.NApi.NRpcProxy.NProto.TLegacyAttributeKeys
+	361, // 102: NYT.NApi.NRpcProxy.NProto.TReqGetNode.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
+	362, // 103: NYT.NApi.NRpcProxy.NProto.TReqGetNode.complexity_limits:type_name -> NYT.NYTree.NProto.TReadRequestComplexityLimits
+	104, // 104: NYT.NApi.NRpcProxy.NProto.TReqGetNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	105, // 105: NYT.NApi.NRpcProxy.NProto.TReqGetNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
+	106, // 106: NYT.NApi.NRpcProxy.NProto.TReqGetNode.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
+	108, // 107: NYT.NApi.NRpcProxy.NProto.TReqGetNode.suppressable_access_tracking_options:type_name -> NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
+	358, // 108: NYT.NApi.NRpcProxy.NProto.TReqGetNode.options:type_name -> NYT.NYTree.NProto.TAttributeDictionary
+	29,  // 109: NYT.NApi.NRpcProxy.NProto.TReqListNode.legacy_attributes:type_name -> NYT.NApi.NRpcProxy.NProto.TLegacyAttributeKeys
+	361, // 110: NYT.NApi.NRpcProxy.NProto.TReqListNode.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
+	362, // 111: NYT.NApi.NRpcProxy.NProto.TReqListNode.complexity_limits:type_name -> NYT.NYTree.NProto.TReadRequestComplexityLimits
+	104, // 112: NYT.NApi.NRpcProxy.NProto.TReqListNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	105, // 113: NYT.NApi.NRpcProxy.NProto.TReqListNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
+	106, // 114: NYT.NApi.NRpcProxy.NProto.TReqListNode.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
+	108, // 115: NYT.NApi.NRpcProxy.NProto.TReqListNode.suppressable_access_tracking_options:type_name -> NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
+	358, // 116: NYT.NApi.NRpcProxy.NProto.TReqCreateObject.attributes:type_name -> NYT.NYTree.NProto.TAttributeDictionary
+	107, // 117: NYT.NApi.NRpcProxy.NProto.TReqCreateObject.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	357, // 118: NYT.NApi.NRpcProxy.NProto.TRspCreateObject.object_id:type_name -> NYT.NProto.TGuid
+	121, // 119: NYT.NApi.NRpcProxy.NProto.TTableSchema.columns:type_name -> NYT.NApi.NRpcProxy.NProto.TColumnSchema
+	122, // 120: NYT.NApi.NRpcProxy.NProto.TTableSchema.deleted_columns:type_name -> NYT.NApi.NRpcProxy.NProto.TDeletedColumn
+	357, // 121: NYT.NApi.NRpcProxy.NProto.TTabletInfo.tablet_id:type_name -> NYT.NProto.TGuid
+	357, // 122: NYT.NApi.NRpcProxy.NProto.TTabletInfo.cell_id:type_name -> NYT.NProto.TGuid
+	357, // 123: NYT.NApi.NRpcProxy.NProto.TReplicaInfo.replica_id:type_name -> NYT.NProto.TGuid
+	357, // 124: NYT.NApi.NRpcProxy.NProto.TIndexInfo.index_table_id:type_name -> NYT.NProto.TGuid
+	357, // 125: NYT.NApi.NRpcProxy.NProto.TRspGetTableMountInfo.table_id:type_name -> NYT.NProto.TGuid
+	123, // 126: NYT.NApi.NRpcProxy.NProto.TRspGetTableMountInfo.schema:type_name -> NYT.NApi.NRpcProxy.NProto.TTableSchema
+	124, // 127: NYT.NApi.NRpcProxy.NProto.TRspGetTableMountInfo.tablets:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletInfo
+	357, // 128: NYT.NApi.NRpcProxy.NProto.TRspGetTableMountInfo.upstream_replica_id:type_name -> NYT.NProto.TGuid
+	125, // 129: NYT.NApi.NRpcProxy.NProto.TRspGetTableMountInfo.replicas:type_name -> NYT.NApi.NRpcProxy.NProto.TReplicaInfo
+	126, // 130: NYT.NApi.NRpcProxy.NProto.TRspGetTableMountInfo.indices:type_name -> NYT.NApi.NRpcProxy.NProto.TIndexInfo
+	332, // 131: NYT.NApi.NRpcProxy.NProto.TBackupManifest.clusters:type_name -> NYT.NApi.NRpcProxy.NProto.TBackupManifest.TClusterManifest
+	132, // 132: NYT.NApi.NRpcProxy.NProto.TReqCreateTableBackup.manifest:type_name -> NYT.NApi.NRpcProxy.NProto.TBackupManifest
+	132, // 133: NYT.NApi.NRpcProxy.NProto.TReqRestoreTableBackup.manifest:type_name -> NYT.NApi.NRpcProxy.NProto.TBackupManifest
+	358, // 134: NYT.NApi.NRpcProxy.NProto.TReqCreateNode.attributes:type_name -> NYT.NYTree.NProto.TAttributeDictionary
+	104, // 135: NYT.NApi.NRpcProxy.NProto.TReqCreateNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	105, // 136: NYT.NApi.NRpcProxy.NProto.TReqCreateNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
+	107, // 137: NYT.NApi.NRpcProxy.NProto.TReqCreateNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	357, // 138: NYT.NApi.NRpcProxy.NProto.TRspCreateNode.node_id:type_name -> NYT.NProto.TGuid
+	104, // 139: NYT.NApi.NRpcProxy.NProto.TReqRemoveNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	105, // 140: NYT.NApi.NRpcProxy.NProto.TReqRemoveNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
+	107, // 141: NYT.NApi.NRpcProxy.NProto.TReqRemoveNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	104, // 142: NYT.NApi.NRpcProxy.NProto.TReqSetNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	105, // 143: NYT.NApi.NRpcProxy.NProto.TReqSetNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
+	107, // 144: NYT.NApi.NRpcProxy.NProto.TReqSetNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	108, // 145: NYT.NApi.NRpcProxy.NProto.TReqSetNode.suppressable_access_tracking_options:type_name -> NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
+	333, // 146: NYT.NApi.NRpcProxy.NProto.TReqMultisetAttributesNode.subrequests:type_name -> NYT.NApi.NRpcProxy.NProto.TReqMultisetAttributesNode.TSubrequest
+	104, // 147: NYT.NApi.NRpcProxy.NProto.TReqMultisetAttributesNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	105, // 148: NYT.NApi.NRpcProxy.NProto.TReqMultisetAttributesNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
+	107, // 149: NYT.NApi.NRpcProxy.NProto.TReqMultisetAttributesNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	108, // 150: NYT.NApi.NRpcProxy.NProto.TReqMultisetAttributesNode.suppressable_access_tracking_options:type_name -> NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
+	104, // 151: NYT.NApi.NRpcProxy.NProto.TReqLockNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	105, // 152: NYT.NApi.NRpcProxy.NProto.TReqLockNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
+	107, // 153: NYT.NApi.NRpcProxy.NProto.TReqLockNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	357, // 154: NYT.NApi.NRpcProxy.NProto.TRspLockNode.node_id:type_name -> NYT.NProto.TGuid
+	357, // 155: NYT.NApi.NRpcProxy.NProto.TRspLockNode.lock_id:type_name -> NYT.NProto.TGuid
+	104, // 156: NYT.NApi.NRpcProxy.NProto.TReqUnlockNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	105, // 157: NYT.NApi.NRpcProxy.NProto.TReqUnlockNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
+	107, // 158: NYT.NApi.NRpcProxy.NProto.TReqUnlockNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	104, // 159: NYT.NApi.NRpcProxy.NProto.TReqCopyNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	105, // 160: NYT.NApi.NRpcProxy.NProto.TReqCopyNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
+	107, // 161: NYT.NApi.NRpcProxy.NProto.TReqCopyNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	357, // 162: NYT.NApi.NRpcProxy.NProto.TRspCopyNode.node_id:type_name -> NYT.NProto.TGuid
+	104, // 163: NYT.NApi.NRpcProxy.NProto.TReqMoveNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	105, // 164: NYT.NApi.NRpcProxy.NProto.TReqMoveNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
+	107, // 165: NYT.NApi.NRpcProxy.NProto.TReqMoveNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	357, // 166: NYT.NApi.NRpcProxy.NProto.TRspMoveNode.node_id:type_name -> NYT.NProto.TGuid
+	104, // 167: NYT.NApi.NRpcProxy.NProto.TReqLinkNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	105, // 168: NYT.NApi.NRpcProxy.NProto.TReqLinkNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
+	107, // 169: NYT.NApi.NRpcProxy.NProto.TReqLinkNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	357, // 170: NYT.NApi.NRpcProxy.NProto.TRspLinkNode.node_id:type_name -> NYT.NProto.TGuid
+	334, // 171: NYT.NApi.NRpcProxy.NProto.TReqConcatenateNodes.fetcher:type_name -> NYT.NApi.NRpcProxy.NProto.TReqConcatenateNodes.TFetcher
+	104, // 172: NYT.NApi.NRpcProxy.NProto.TReqConcatenateNodes.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	107, // 173: NYT.NApi.NRpcProxy.NProto.TReqConcatenateNodes.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	104, // 174: NYT.NApi.NRpcProxy.NProto.TReqExternalizeNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	104, // 175: NYT.NApi.NRpcProxy.NProto.TReqInternalizeNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	357, // 176: NYT.NApi.NRpcProxy.NProto.TReqAttachTransaction.transaction_id:type_name -> NYT.NProto.TGuid
 	0,   // 177: NYT.NApi.NRpcProxy.NProto.TRspAttachTransaction.type:type_name -> NYT.NApi.NRpcProxy.NProto.ETransactionType
 	2,   // 178: NYT.NApi.NRpcProxy.NProto.TRspAttachTransaction.atomicity:type_name -> NYT.NApi.NRpcProxy.NProto.EAtomicity
 	3,   // 179: NYT.NApi.NRpcProxy.NProto.TRspAttachTransaction.durability:type_name -> NYT.NApi.NRpcProxy.NProto.EDurability
-	335, // 180: NYT.NApi.NRpcProxy.NProto.TReqDetachTransaction.transaction_id:type_name -> NYT.NProto.TGuid
-	335, // 181: NYT.NApi.NRpcProxy.NProto.TReqMountTable.cell_id:type_name -> NYT.NProto.TGuid
-	104, // 182: NYT.NApi.NRpcProxy.NProto.TReqMountTable.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	106, // 183: NYT.NApi.NRpcProxy.NProto.TReqMountTable.tablet_range_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletRangeOptions
-	335, // 184: NYT.NApi.NRpcProxy.NProto.TReqMountTable.target_cell_ids:type_name -> NYT.NProto.TGuid
-	104, // 185: NYT.NApi.NRpcProxy.NProto.TReqUnmountTable.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	106, // 186: NYT.NApi.NRpcProxy.NProto.TReqUnmountTable.tablet_range_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletRangeOptions
-	104, // 187: NYT.NApi.NRpcProxy.NProto.TReqRemountTable.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	106, // 188: NYT.NApi.NRpcProxy.NProto.TReqRemountTable.tablet_range_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletRangeOptions
-	104, // 189: NYT.NApi.NRpcProxy.NProto.TReqFreezeTable.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	106, // 190: NYT.NApi.NRpcProxy.NProto.TReqFreezeTable.tablet_range_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletRangeOptions
-	104, // 191: NYT.NApi.NRpcProxy.NProto.TReqUnfreezeTable.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	106, // 192: NYT.NApi.NRpcProxy.NProto.TReqUnfreezeTable.tablet_range_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletRangeOptions
-	104, // 193: NYT.NApi.NRpcProxy.NProto.TReqReshardTable.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	106, // 194: NYT.NApi.NRpcProxy.NProto.TReqReshardTable.tablet_range_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletRangeOptions
-	27,  // 195: NYT.NApi.NRpcProxy.NProto.TReqReshardTable.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
-	104, // 196: NYT.NApi.NRpcProxy.NProto.TReqReshardTableAutomatic.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	106, // 197: NYT.NApi.NRpcProxy.NProto.TReqReshardTableAutomatic.tablet_range_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletRangeOptions
-	335, // 198: NYT.NApi.NRpcProxy.NProto.TRspReshardTableAutomatic.tablet_actions:type_name -> NYT.NProto.TGuid
-	335, // 199: NYT.NApi.NRpcProxy.NProto.TReqAlterTable.upstream_replica_id:type_name -> NYT.NProto.TGuid
+	357, // 180: NYT.NApi.NRpcProxy.NProto.TReqDetachTransaction.transaction_id:type_name -> NYT.NProto.TGuid
+	357, // 181: NYT.NApi.NRpcProxy.NProto.TReqMountTable.cell_id:type_name -> NYT.NProto.TGuid
+	107, // 182: NYT.NApi.NRpcProxy.NProto.TReqMountTable.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	109, // 183: NYT.NApi.NRpcProxy.NProto.TReqMountTable.tablet_range_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletRangeOptions
+	357, // 184: NYT.NApi.NRpcProxy.NProto.TReqMountTable.target_cell_ids:type_name -> NYT.NProto.TGuid
+	107, // 185: NYT.NApi.NRpcProxy.NProto.TReqUnmountTable.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	109, // 186: NYT.NApi.NRpcProxy.NProto.TReqUnmountTable.tablet_range_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletRangeOptions
+	107, // 187: NYT.NApi.NRpcProxy.NProto.TReqRemountTable.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	109, // 188: NYT.NApi.NRpcProxy.NProto.TReqRemountTable.tablet_range_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletRangeOptions
+	107, // 189: NYT.NApi.NRpcProxy.NProto.TReqFreezeTable.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	109, // 190: NYT.NApi.NRpcProxy.NProto.TReqFreezeTable.tablet_range_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletRangeOptions
+	107, // 191: NYT.NApi.NRpcProxy.NProto.TReqUnfreezeTable.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	109, // 192: NYT.NApi.NRpcProxy.NProto.TReqUnfreezeTable.tablet_range_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletRangeOptions
+	107, // 193: NYT.NApi.NRpcProxy.NProto.TReqReshardTable.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	109, // 194: NYT.NApi.NRpcProxy.NProto.TReqReshardTable.tablet_range_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletRangeOptions
+	30,  // 195: NYT.NApi.NRpcProxy.NProto.TReqReshardTable.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
+	107, // 196: NYT.NApi.NRpcProxy.NProto.TReqReshardTableAutomatic.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	109, // 197: NYT.NApi.NRpcProxy.NProto.TReqReshardTableAutomatic.tablet_range_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletRangeOptions
+	357, // 198: NYT.NApi.NRpcProxy.NProto.TRspReshardTableAutomatic.tablet_actions:type_name -> NYT.NProto.TGuid
+	357, // 199: NYT.NApi.NRpcProxy.NProto.TReqAlterTable.upstream_replica_id:type_name -> NYT.NProto.TGuid
 	20,  // 200: NYT.NApi.NRpcProxy.NProto.TReqAlterTable.schema_modification:type_name -> NYT.NApi.NRpcProxy.NProto.ETableSchemaModification
-	338, // 201: NYT.NApi.NRpcProxy.NProto.TReqAlterTable.replication_progress:type_name -> NYT.NChaosClient.NProto.TReplicationProgress
-	335, // 202: NYT.NApi.NRpcProxy.NProto.TReqAlterTable.schema_id:type_name -> NYT.NProto.TGuid
-	101, // 203: NYT.NApi.NRpcProxy.NProto.TReqAlterTable.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	104, // 204: NYT.NApi.NRpcProxy.NProto.TReqAlterTable.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	335, // 205: NYT.NApi.NRpcProxy.NProto.TReqAlterTableReplica.replica_id:type_name -> NYT.NProto.TGuid
+	360, // 201: NYT.NApi.NRpcProxy.NProto.TReqAlterTable.replication_progress:type_name -> NYT.NChaosClient.NProto.TReplicationProgress
+	357, // 202: NYT.NApi.NRpcProxy.NProto.TReqAlterTable.schema_id:type_name -> NYT.NProto.TGuid
+	104, // 203: NYT.NApi.NRpcProxy.NProto.TReqAlterTable.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	107, // 204: NYT.NApi.NRpcProxy.NProto.TReqAlterTable.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	357, // 205: NYT.NApi.NRpcProxy.NProto.TReqAlterTableReplica.replica_id:type_name -> NYT.NProto.TGuid
 	4,   // 206: NYT.NApi.NRpcProxy.NProto.TReqAlterTableReplica.mode:type_name -> NYT.NApi.NRpcProxy.NProto.ETableReplicaMode
 	2,   // 207: NYT.NApi.NRpcProxy.NProto.TReqAlterTableReplica.atomicity:type_name -> NYT.NApi.NRpcProxy.NProto.EAtomicity
-	104, // 208: NYT.NApi.NRpcProxy.NProto.TReqAlterTableReplica.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	335, // 209: NYT.NApi.NRpcProxy.NProto.TReqAlterReplicationCard.replication_card_id:type_name -> NYT.NProto.TGuid
-	335, // 210: NYT.NApi.NRpcProxy.NProto.TReqAlterReplicationCard.replication_card_collocation_id:type_name -> NYT.NProto.TGuid
-	104, // 211: NYT.NApi.NRpcProxy.NProto.TReqAlterReplicationCard.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	184, // 212: NYT.NApi.NRpcProxy.NProto.TReqGetColumnarStatistics.fetch_chunk_spec_config:type_name -> NYT.NApi.NRpcProxy.NProto.TFetchChunkSpecConfig
-	185, // 213: NYT.NApi.NRpcProxy.NProto.TReqGetColumnarStatistics.fetcher_config:type_name -> NYT.NApi.NRpcProxy.NProto.TFetcherConfig
+	107, // 208: NYT.NApi.NRpcProxy.NProto.TReqAlterTableReplica.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	357, // 209: NYT.NApi.NRpcProxy.NProto.TReqAlterReplicationCard.replication_card_id:type_name -> NYT.NProto.TGuid
+	357, // 210: NYT.NApi.NRpcProxy.NProto.TReqAlterReplicationCard.replication_card_collocation_id:type_name -> NYT.NProto.TGuid
+	107, // 211: NYT.NApi.NRpcProxy.NProto.TReqAlterReplicationCard.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	187, // 212: NYT.NApi.NRpcProxy.NProto.TReqGetColumnarStatistics.fetch_chunk_spec_config:type_name -> NYT.NApi.NRpcProxy.NProto.TFetchChunkSpecConfig
+	188, // 213: NYT.NApi.NRpcProxy.NProto.TReqGetColumnarStatistics.fetcher_config:type_name -> NYT.NApi.NRpcProxy.NProto.TFetcherConfig
 	21,  // 214: NYT.NApi.NRpcProxy.NProto.TReqGetColumnarStatistics.fetcher_mode:type_name -> NYT.NApi.NRpcProxy.NProto.EColumnarStatisticsFetcherMode
-	101, // 215: NYT.NApi.NRpcProxy.NProto.TReqGetColumnarStatistics.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	187, // 216: NYT.NApi.NRpcProxy.NProto.TRspGetColumnarStatistics.statistics:type_name -> NYT.NApi.NRpcProxy.NProto.TColumnarStatistics
-	335, // 217: NYT.NApi.NRpcProxy.NProto.TReqDisableChunkLocations.location_uuids:type_name -> NYT.NProto.TGuid
-	335, // 218: NYT.NApi.NRpcProxy.NProto.TRspDisableChunkLocations.location_uuids:type_name -> NYT.NProto.TGuid
-	335, // 219: NYT.NApi.NRpcProxy.NProto.TReqDestroyChunkLocations.location_uuids:type_name -> NYT.NProto.TGuid
-	335, // 220: NYT.NApi.NRpcProxy.NProto.TRspDestroyChunkLocations.location_uuids:type_name -> NYT.NProto.TGuid
-	335, // 221: NYT.NApi.NRpcProxy.NProto.TReqResurrectChunkLocations.location_uuids:type_name -> NYT.NProto.TGuid
-	335, // 222: NYT.NApi.NRpcProxy.NProto.TRspResurrectChunkLocations.location_uuids:type_name -> NYT.NProto.TGuid
-	184, // 223: NYT.NApi.NRpcProxy.NProto.TReqPartitionTables.fetch_chunk_spec_config:type_name -> NYT.NApi.NRpcProxy.NProto.TFetchChunkSpecConfig
-	185, // 224: NYT.NApi.NRpcProxy.NProto.TReqPartitionTables.fetcher_config:type_name -> NYT.NApi.NRpcProxy.NProto.TFetcherConfig
-	315, // 225: NYT.NApi.NRpcProxy.NProto.TReqPartitionTables.chunk_slice_fetcher_config:type_name -> NYT.NApi.NRpcProxy.NProto.TReqPartitionTables.TChunkSliceFetcherConfig
+	104, // 215: NYT.NApi.NRpcProxy.NProto.TReqGetColumnarStatistics.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	190, // 216: NYT.NApi.NRpcProxy.NProto.TRspGetColumnarStatistics.statistics:type_name -> NYT.NApi.NRpcProxy.NProto.TColumnarStatistics
+	357, // 217: NYT.NApi.NRpcProxy.NProto.TReqDisableChunkLocations.location_uuids:type_name -> NYT.NProto.TGuid
+	357, // 218: NYT.NApi.NRpcProxy.NProto.TRspDisableChunkLocations.location_uuids:type_name -> NYT.NProto.TGuid
+	357, // 219: NYT.NApi.NRpcProxy.NProto.TReqDestroyChunkLocations.location_uuids:type_name -> NYT.NProto.TGuid
+	357, // 220: NYT.NApi.NRpcProxy.NProto.TRspDestroyChunkLocations.location_uuids:type_name -> NYT.NProto.TGuid
+	357, // 221: NYT.NApi.NRpcProxy.NProto.TReqResurrectChunkLocations.location_uuids:type_name -> NYT.NProto.TGuid
+	357, // 222: NYT.NApi.NRpcProxy.NProto.TRspResurrectChunkLocations.location_uuids:type_name -> NYT.NProto.TGuid
+	187, // 223: NYT.NApi.NRpcProxy.NProto.TReqPartitionTables.fetch_chunk_spec_config:type_name -> NYT.NApi.NRpcProxy.NProto.TFetchChunkSpecConfig
+	188, // 224: NYT.NApi.NRpcProxy.NProto.TReqPartitionTables.fetcher_config:type_name -> NYT.NApi.NRpcProxy.NProto.TFetcherConfig
+	335, // 225: NYT.NApi.NRpcProxy.NProto.TReqPartitionTables.chunk_slice_fetcher_config:type_name -> NYT.NApi.NRpcProxy.NProto.TReqPartitionTables.TChunkSliceFetcherConfig
 	22,  // 226: NYT.NApi.NRpcProxy.NProto.TReqPartitionTables.partition_mode:type_name -> NYT.NApi.NRpcProxy.NProto.EPartitionTablesMode
-	101, // 227: NYT.NApi.NRpcProxy.NProto.TReqPartitionTables.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	316, // 228: NYT.NApi.NRpcProxy.NProto.TMultiTablePartition.aggregate_statistics:type_name -> NYT.NApi.NRpcProxy.NProto.TMultiTablePartition.TStatistics
-	198, // 229: NYT.NApi.NRpcProxy.NProto.TRspPartitionTables.partitions:type_name -> NYT.NApi.NRpcProxy.NProto.TMultiTablePartition
-	104, // 230: NYT.NApi.NRpcProxy.NProto.TReqBalanceTabletCells.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	335, // 231: NYT.NApi.NRpcProxy.NProto.TRspBalanceTabletCells.tablet_actions:type_name -> NYT.NProto.TGuid
-	101, // 232: NYT.NApi.NRpcProxy.NProto.TReqGetFileFromCache.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	103, // 233: NYT.NApi.NRpcProxy.NProto.TReqGetFileFromCache.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
-	296, // 234: NYT.NApi.NRpcProxy.NProto.TRspGetFileFromCache.result:type_name -> NYT.NApi.NRpcProxy.NProto.TGetFileFromCacheResult
-	101, // 235: NYT.NApi.NRpcProxy.NProto.TReqPutFileToCache.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	102, // 236: NYT.NApi.NRpcProxy.NProto.TReqPutFileToCache.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
-	103, // 237: NYT.NApi.NRpcProxy.NProto.TReqPutFileToCache.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
-	104, // 238: NYT.NApi.NRpcProxy.NProto.TReqPutFileToCache.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	297, // 239: NYT.NApi.NRpcProxy.NProto.TRspPutFileToCache.result:type_name -> NYT.NApi.NRpcProxy.NProto.TPutFileToCacheResult
+	104, // 227: NYT.NApi.NRpcProxy.NProto.TReqPartitionTables.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	336, // 228: NYT.NApi.NRpcProxy.NProto.TMultiTablePartition.aggregate_statistics:type_name -> NYT.NApi.NRpcProxy.NProto.TMultiTablePartition.TStatistics
+	201, // 229: NYT.NApi.NRpcProxy.NProto.TRspPartitionTables.partitions:type_name -> NYT.NApi.NRpcProxy.NProto.TMultiTablePartition
+	107, // 230: NYT.NApi.NRpcProxy.NProto.TReqBalanceTabletCells.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	357, // 231: NYT.NApi.NRpcProxy.NProto.TRspBalanceTabletCells.tablet_actions:type_name -> NYT.NProto.TGuid
+	104, // 232: NYT.NApi.NRpcProxy.NProto.TReqGetFileFromCache.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	106, // 233: NYT.NApi.NRpcProxy.NProto.TReqGetFileFromCache.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
+	299, // 234: NYT.NApi.NRpcProxy.NProto.TRspGetFileFromCache.result:type_name -> NYT.NApi.NRpcProxy.NProto.TGetFileFromCacheResult
+	104, // 235: NYT.NApi.NRpcProxy.NProto.TReqPutFileToCache.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	105, // 236: NYT.NApi.NRpcProxy.NProto.TReqPutFileToCache.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
+	106, // 237: NYT.NApi.NRpcProxy.NProto.TReqPutFileToCache.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
+	107, // 238: NYT.NApi.NRpcProxy.NProto.TReqPutFileToCache.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	300, // 239: NYT.NApi.NRpcProxy.NProto.TRspPutFileToCache.result:type_name -> NYT.NApi.NRpcProxy.NProto.TPutFileToCacheResult
 	10,  // 240: NYT.NApi.NRpcProxy.NProto.TReqStartOperation.type:type_name -> NYT.NApi.NRpcProxy.NProto.EOperationType
-	101, // 241: NYT.NApi.NRpcProxy.NProto.TReqStartOperation.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	104, // 242: NYT.NApi.NRpcProxy.NProto.TReqStartOperation.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	335, // 243: NYT.NApi.NRpcProxy.NProto.TRspStartOperation.operation_id:type_name -> NYT.NProto.TGuid
-	335, // 244: NYT.NApi.NRpcProxy.NProto.TReqAbortOperation.operation_id:type_name -> NYT.NProto.TGuid
-	335, // 245: NYT.NApi.NRpcProxy.NProto.TReqSuspendOperation.operation_id:type_name -> NYT.NProto.TGuid
-	335, // 246: NYT.NApi.NRpcProxy.NProto.TReqResumeOperation.operation_id:type_name -> NYT.NProto.TGuid
-	335, // 247: NYT.NApi.NRpcProxy.NProto.TReqCompleteOperation.operation_id:type_name -> NYT.NProto.TGuid
-	335, // 248: NYT.NApi.NRpcProxy.NProto.TReqUpdateOperationParameters.operation_id:type_name -> NYT.NProto.TGuid
-	335, // 249: NYT.NApi.NRpcProxy.NProto.TReqGetOperation.operation_id:type_name -> NYT.NProto.TGuid
-	339, // 250: NYT.NApi.NRpcProxy.NProto.TReqGetOperation.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
-	103, // 251: NYT.NApi.NRpcProxy.NProto.TReqGetOperation.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
+	104, // 241: NYT.NApi.NRpcProxy.NProto.TReqStartOperation.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	107, // 242: NYT.NApi.NRpcProxy.NProto.TReqStartOperation.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	357, // 243: NYT.NApi.NRpcProxy.NProto.TRspStartOperation.operation_id:type_name -> NYT.NProto.TGuid
+	357, // 244: NYT.NApi.NRpcProxy.NProto.TReqAbortOperation.operation_id:type_name -> NYT.NProto.TGuid
+	357, // 245: NYT.NApi.NRpcProxy.NProto.TReqSuspendOperation.operation_id:type_name -> NYT.NProto.TGuid
+	357, // 246: NYT.NApi.NRpcProxy.NProto.TReqResumeOperation.operation_id:type_name -> NYT.NProto.TGuid
+	357, // 247: NYT.NApi.NRpcProxy.NProto.TReqCompleteOperation.operation_id:type_name -> NYT.NProto.TGuid
+	357, // 248: NYT.NApi.NRpcProxy.NProto.TReqUpdateOperationParameters.operation_id:type_name -> NYT.NProto.TGuid
+	357, // 249: NYT.NApi.NRpcProxy.NProto.TReqGetOperation.operation_id:type_name -> NYT.NProto.TGuid
+	361, // 250: NYT.NApi.NRpcProxy.NProto.TReqGetOperation.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
+	106, // 251: NYT.NApi.NRpcProxy.NProto.TReqGetOperation.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
 	12,  // 252: NYT.NApi.NRpcProxy.NProto.TReqListOperations.cursor_direction:type_name -> NYT.NApi.NRpcProxy.NProto.EOperationSortDirection
 	11,  // 253: NYT.NApi.NRpcProxy.NProto.TReqListOperations.state_filter:type_name -> NYT.NApi.NRpcProxy.NProto.EOperationState
 	10,  // 254: NYT.NApi.NRpcProxy.NProto.TReqListOperations.type_filter:type_name -> NYT.NApi.NRpcProxy.NProto.EOperationType
-	26,  // 255: NYT.NApi.NRpcProxy.NProto.TReqListOperations.legacy_attributes:type_name -> NYT.NApi.NRpcProxy.NProto.TLegacyAttributeKeys
-	339, // 256: NYT.NApi.NRpcProxy.NProto.TReqListOperations.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
-	103, // 257: NYT.NApi.NRpcProxy.NProto.TReqListOperations.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
-	292, // 258: NYT.NApi.NRpcProxy.NProto.TRspListOperations.result:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult
-	335, // 259: NYT.NApi.NRpcProxy.NProto.TReqListJobs.operation_id:type_name -> NYT.NProto.TGuid
+	29,  // 255: NYT.NApi.NRpcProxy.NProto.TReqListOperations.legacy_attributes:type_name -> NYT.NApi.NRpcProxy.NProto.TLegacyAttributeKeys
+	361, // 256: NYT.NApi.NRpcProxy.NProto.TReqListOperations.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
+	106, // 257: NYT.NApi.NRpcProxy.NProto.TReqListOperations.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
+	295, // 258: NYT.NApi.NRpcProxy.NProto.TRspListOperations.result:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult
+	357, // 259: NYT.NApi.NRpcProxy.NProto.TReqListJobs.operation_id:type_name -> NYT.NProto.TGuid
 	13,  // 260: NYT.NApi.NRpcProxy.NProto.TReqListJobs.type:type_name -> NYT.NApi.NRpcProxy.NProto.EJobType
 	14,  // 261: NYT.NApi.NRpcProxy.NProto.TReqListJobs.state:type_name -> NYT.NApi.NRpcProxy.NProto.EJobState
 	15,  // 262: NYT.NApi.NRpcProxy.NProto.TReqListJobs.sort_field:type_name -> NYT.NApi.NRpcProxy.NProto.EJobSortField
 	16,  // 263: NYT.NApi.NRpcProxy.NProto.TReqListJobs.sort_order:type_name -> NYT.NApi.NRpcProxy.NProto.EJobSortDirection
 	17,  // 264: NYT.NApi.NRpcProxy.NProto.TReqListJobs.data_source:type_name -> NYT.NApi.NRpcProxy.NProto.EDataSource
-	335, // 265: NYT.NApi.NRpcProxy.NProto.TReqListJobs.job_competition_id:type_name -> NYT.NProto.TGuid
-	103, // 266: NYT.NApi.NRpcProxy.NProto.TReqListJobs.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
-	295, // 267: NYT.NApi.NRpcProxy.NProto.TRspListJobs.result:type_name -> NYT.NApi.NRpcProxy.NProto.TListJobsResult
-	335, // 268: NYT.NApi.NRpcProxy.NProto.TReqGetJob.operation_id:type_name -> NYT.NProto.TGuid
-	335, // 269: NYT.NApi.NRpcProxy.NProto.TReqGetJob.job_id:type_name -> NYT.NProto.TGuid
-	26,  // 270: NYT.NApi.NRpcProxy.NProto.TReqGetJob.legacy_attributes:type_name -> NYT.NApi.NRpcProxy.NProto.TLegacyAttributeKeys
-	339, // 271: NYT.NApi.NRpcProxy.NProto.TReqGetJob.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
-	335, // 272: NYT.NApi.NRpcProxy.NProto.TReqGetJobInputPaths.job_id:type_name -> NYT.NProto.TGuid
+	357, // 265: NYT.NApi.NRpcProxy.NProto.TReqListJobs.job_competition_id:type_name -> NYT.NProto.TGuid
+	106, // 266: NYT.NApi.NRpcProxy.NProto.TReqListJobs.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
+	298, // 267: NYT.NApi.NRpcProxy.NProto.TRspListJobs.result:type_name -> NYT.NApi.NRpcProxy.NProto.TListJobsResult
+	357, // 268: NYT.NApi.NRpcProxy.NProto.TReqGetJob.operation_id:type_name -> NYT.NProto.TGuid
+	357, // 269: NYT.NApi.NRpcProxy.NProto.TReqGetJob.job_id:type_name -> NYT.NProto.TGuid
+	29,  // 270: NYT.NApi.NRpcProxy.NProto.TReqGetJob.legacy_attributes:type_name -> NYT.NApi.NRpcProxy.NProto.TLegacyAttributeKeys
+	361, // 271: NYT.NApi.NRpcProxy.NProto.TReqGetJob.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
+	357, // 272: NYT.NApi.NRpcProxy.NProto.TReqGetJobInputPaths.job_id:type_name -> NYT.NProto.TGuid
 	25,  // 273: NYT.NApi.NRpcProxy.NProto.TReqGetJobInputPaths.job_spec_source:type_name -> NYT.NApi.NRpcProxy.NProto.EJobSpecSource
-	335, // 274: NYT.NApi.NRpcProxy.NProto.TReqGetJobSpec.job_id:type_name -> NYT.NProto.TGuid
+	357, // 274: NYT.NApi.NRpcProxy.NProto.TReqGetJobSpec.job_id:type_name -> NYT.NProto.TGuid
 	25,  // 275: NYT.NApi.NRpcProxy.NProto.TReqGetJobSpec.job_spec_source:type_name -> NYT.NApi.NRpcProxy.NProto.EJobSpecSource
-	335, // 276: NYT.NApi.NRpcProxy.NProto.TReqGetJobStderr.operation_id:type_name -> NYT.NProto.TGuid
-	335, // 277: NYT.NApi.NRpcProxy.NProto.TReqGetJobStderr.job_id:type_name -> NYT.NProto.TGuid
-	335, // 278: NYT.NApi.NRpcProxy.NProto.TReqGetJobFailContext.operation_id:type_name -> NYT.NProto.TGuid
-	335, // 279: NYT.NApi.NRpcProxy.NProto.TReqGetJobFailContext.job_id:type_name -> NYT.NProto.TGuid
-	335, // 280: NYT.NApi.NRpcProxy.NProto.TReqDumpJobContext.job_id:type_name -> NYT.NProto.TGuid
-	335, // 281: NYT.NApi.NRpcProxy.NProto.TReqAbandonJob.job_id:type_name -> NYT.NProto.TGuid
-	335, // 282: NYT.NApi.NRpcProxy.NProto.TReqPollJobShell.job_id:type_name -> NYT.NProto.TGuid
-	335, // 283: NYT.NApi.NRpcProxy.NProto.TReqAbortJob.job_id:type_name -> NYT.NProto.TGuid
-	101, // 284: NYT.NApi.NRpcProxy.NProto.TReqReadFile.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	105, // 285: NYT.NApi.NRpcProxy.NProto.TReqReadFile.suppressable_access_tracking_options:type_name -> NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
-	335, // 286: NYT.NApi.NRpcProxy.NProto.TReadFileMeta.id:type_name -> NYT.NProto.TGuid
-	101, // 287: NYT.NApi.NRpcProxy.NProto.TReqWriteFile.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	102, // 288: NYT.NApi.NRpcProxy.NProto.TReqWriteFile.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
-	101, // 289: NYT.NApi.NRpcProxy.NProto.TReqReadJournal.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	105, // 290: NYT.NApi.NRpcProxy.NProto.TReqReadJournal.suppressable_access_tracking_options:type_name -> NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
-	101, // 291: NYT.NApi.NRpcProxy.NProto.TReqWriteJournal.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	102, // 292: NYT.NApi.NRpcProxy.NProto.TReqWriteJournal.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
-	102, // 293: NYT.NApi.NRpcProxy.NProto.TReqTruncateJournal.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
-	104, // 294: NYT.NApi.NRpcProxy.NProto.TReqTruncateJournal.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	357, // 276: NYT.NApi.NRpcProxy.NProto.TReqGetJobStderr.operation_id:type_name -> NYT.NProto.TGuid
+	357, // 277: NYT.NApi.NRpcProxy.NProto.TReqGetJobStderr.job_id:type_name -> NYT.NProto.TGuid
+	357, // 278: NYT.NApi.NRpcProxy.NProto.TReqGetJobFailContext.operation_id:type_name -> NYT.NProto.TGuid
+	357, // 279: NYT.NApi.NRpcProxy.NProto.TReqGetJobFailContext.job_id:type_name -> NYT.NProto.TGuid
+	357, // 280: NYT.NApi.NRpcProxy.NProto.TReqDumpJobContext.job_id:type_name -> NYT.NProto.TGuid
+	357, // 281: NYT.NApi.NRpcProxy.NProto.TReqAbandonJob.job_id:type_name -> NYT.NProto.TGuid
+	357, // 282: NYT.NApi.NRpcProxy.NProto.TReqPollJobShell.job_id:type_name -> NYT.NProto.TGuid
+	357, // 283: NYT.NApi.NRpcProxy.NProto.TReqAbortJob.job_id:type_name -> NYT.NProto.TGuid
+	104, // 284: NYT.NApi.NRpcProxy.NProto.TReqReadFile.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	108, // 285: NYT.NApi.NRpcProxy.NProto.TReqReadFile.suppressable_access_tracking_options:type_name -> NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
+	357, // 286: NYT.NApi.NRpcProxy.NProto.TReadFileMeta.id:type_name -> NYT.NProto.TGuid
+	104, // 287: NYT.NApi.NRpcProxy.NProto.TReqWriteFile.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	105, // 288: NYT.NApi.NRpcProxy.NProto.TReqWriteFile.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
+	104, // 289: NYT.NApi.NRpcProxy.NProto.TReqReadJournal.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	108, // 290: NYT.NApi.NRpcProxy.NProto.TReqReadJournal.suppressable_access_tracking_options:type_name -> NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
+	104, // 291: NYT.NApi.NRpcProxy.NProto.TReqWriteJournal.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	105, // 292: NYT.NApi.NRpcProxy.NProto.TReqWriteJournal.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
+	105, // 293: NYT.NApi.NRpcProxy.NProto.TReqTruncateJournal.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
+	107, // 294: NYT.NApi.NRpcProxy.NProto.TReqTruncateJournal.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
 	8,   // 295: NYT.NApi.NRpcProxy.NProto.TReqReadTable.desired_rowset_format:type_name -> NYT.NApi.NRpcProxy.NProto.ERowsetFormat
 	8,   // 296: NYT.NApi.NRpcProxy.NProto.TReqReadTable.arrow_fallback_rowset_format:type_name -> NYT.NApi.NRpcProxy.NProto.ERowsetFormat
-	101, // 297: NYT.NApi.NRpcProxy.NProto.TReqReadTable.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	105, // 298: NYT.NApi.NRpcProxy.NProto.TReqReadTable.suppressable_access_tracking_options:type_name -> NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
-	120, // 299: NYT.NApi.NRpcProxy.NProto.TRspReadTableMeta.schema:type_name -> NYT.NApi.NRpcProxy.NProto.TTableSchema
-	28,  // 300: NYT.NApi.NRpcProxy.NProto.TRspReadTableMeta.statistics:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetStatistics
-	101, // 301: NYT.NApi.NRpcProxy.NProto.TReqWriteTable.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	120, // 302: NYT.NApi.NRpcProxy.NProto.TWriteTableMeta.schema:type_name -> NYT.NApi.NRpcProxy.NProto.TTableSchema
-	335, // 303: NYT.NApi.NRpcProxy.NProto.TReqGetJobInput.job_id:type_name -> NYT.NProto.TGuid
+	104, // 297: NYT.NApi.NRpcProxy.NProto.TReqReadTable.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	108, // 298: NYT.NApi.NRpcProxy.NProto.TReqReadTable.suppressable_access_tracking_options:type_name -> NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
+	123, // 299: NYT.NApi.NRpcProxy.NProto.TRspReadTableMeta.schema:type_name -> NYT.NApi.NRpcProxy.NProto.TTableSchema
+	31,  // 300: NYT.NApi.NRpcProxy.NProto.TRspReadTableMeta.statistics:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetStatistics
+	104, // 301: NYT.NApi.NRpcProxy.NProto.TReqWriteTable.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	123, // 302: NYT.NApi.NRpcProxy.NProto.TWriteTableMeta.schema:type_name -> NYT.NApi.NRpcProxy.NProto.TTableSchema
+	357, // 303: NYT.NApi.NRpcProxy.NProto.TReqGetJobInput.job_id:type_name -> NYT.NProto.TGuid
 	25,  // 304: NYT.NApi.NRpcProxy.NProto.TReqGetJobInput.job_spec_source:type_name -> NYT.NApi.NRpcProxy.NProto.EJobSpecSource
-	104, // 305: NYT.NApi.NRpcProxy.NProto.TReqAddMember.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	102, // 306: NYT.NApi.NRpcProxy.NProto.TReqAddMember.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
-	104, // 307: NYT.NApi.NRpcProxy.NProto.TReqRemoveMember.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	102, // 308: NYT.NApi.NRpcProxy.NProto.TReqRemoveMember.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
-	101, // 309: NYT.NApi.NRpcProxy.NProto.TReqCheckPermission.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	102, // 310: NYT.NApi.NRpcProxy.NProto.TReqCheckPermission.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
-	103, // 311: NYT.NApi.NRpcProxy.NProto.TReqCheckPermission.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
-	317, // 312: NYT.NApi.NRpcProxy.NProto.TReqCheckPermission.columns:type_name -> NYT.NApi.NRpcProxy.NProto.TReqCheckPermission.TColumns
-	298, // 313: NYT.NApi.NRpcProxy.NProto.TRspCheckPermission.result:type_name -> NYT.NApi.NRpcProxy.NProto.TCheckPermissionResult
-	318, // 314: NYT.NApi.NRpcProxy.NProto.TRspCheckPermission.columns:type_name -> NYT.NApi.NRpcProxy.NProto.TRspCheckPermission.TColumns
-	102, // 315: NYT.NApi.NRpcProxy.NProto.TReqCheckPermissionByAcl.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
-	103, // 316: NYT.NApi.NRpcProxy.NProto.TReqCheckPermissionByAcl.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
-	299, // 317: NYT.NApi.NRpcProxy.NProto.TRspCheckPermissionByAcl.result:type_name -> NYT.NApi.NRpcProxy.NProto.TCheckPermissionByAclResult
-	104, // 318: NYT.NApi.NRpcProxy.NProto.TReqTransferAccountResources.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	104, // 319: NYT.NApi.NRpcProxy.NProto.TReqTransferPoolResources.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	335, // 320: NYT.NApi.NRpcProxy.NProto.TOperation.id:type_name -> NYT.NProto.TGuid
+	107, // 305: NYT.NApi.NRpcProxy.NProto.TReqAddMember.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	105, // 306: NYT.NApi.NRpcProxy.NProto.TReqAddMember.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
+	107, // 307: NYT.NApi.NRpcProxy.NProto.TReqRemoveMember.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	105, // 308: NYT.NApi.NRpcProxy.NProto.TReqRemoveMember.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
+	104, // 309: NYT.NApi.NRpcProxy.NProto.TReqCheckPermission.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
+	105, // 310: NYT.NApi.NRpcProxy.NProto.TReqCheckPermission.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
+	106, // 311: NYT.NApi.NRpcProxy.NProto.TReqCheckPermission.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
+	337, // 312: NYT.NApi.NRpcProxy.NProto.TReqCheckPermission.columns:type_name -> NYT.NApi.NRpcProxy.NProto.TReqCheckPermission.TColumns
+	301, // 313: NYT.NApi.NRpcProxy.NProto.TRspCheckPermission.result:type_name -> NYT.NApi.NRpcProxy.NProto.TCheckPermissionResult
+	338, // 314: NYT.NApi.NRpcProxy.NProto.TRspCheckPermission.columns:type_name -> NYT.NApi.NRpcProxy.NProto.TRspCheckPermission.TColumns
+	105, // 315: NYT.NApi.NRpcProxy.NProto.TReqCheckPermissionByAcl.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
+	106, // 316: NYT.NApi.NRpcProxy.NProto.TReqCheckPermissionByAcl.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
+	302, // 317: NYT.NApi.NRpcProxy.NProto.TRspCheckPermissionByAcl.result:type_name -> NYT.NApi.NRpcProxy.NProto.TCheckPermissionByAclResult
+	107, // 318: NYT.NApi.NRpcProxy.NProto.TReqTransferAccountResources.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	107, // 319: NYT.NApi.NRpcProxy.NProto.TReqTransferPoolResources.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
+	357, // 320: NYT.NApi.NRpcProxy.NProto.TOperation.id:type_name -> NYT.NProto.TGuid
 	10,  // 321: NYT.NApi.NRpcProxy.NProto.TOperation.type:type_name -> NYT.NApi.NRpcProxy.NProto.EOperationType
 	11,  // 322: NYT.NApi.NRpcProxy.NProto.TOperation.state:type_name -> NYT.NApi.NRpcProxy.NProto.EOperationState
-	319, // 323: NYT.NApi.NRpcProxy.NProto.TOperation.pools:type_name -> NYT.NApi.NRpcProxy.NProto.TOperation.TStrings
-	291, // 324: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.operations:type_name -> NYT.NApi.NRpcProxy.NProto.TOperation
-	320, // 325: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.pool_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolCounts
-	321, // 326: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.user_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TUserCounts
-	322, // 327: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.state_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationStateCounts
-	323, // 328: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.type_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationTypeCounts
-	324, // 329: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.pool_tree_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolTreeCounts
-	335, // 330: NYT.NApi.NRpcProxy.NProto.TJob.id:type_name -> NYT.NProto.TGuid
+	339, // 323: NYT.NApi.NRpcProxy.NProto.TOperation.pools:type_name -> NYT.NApi.NRpcProxy.NProto.TOperation.TStrings
+	294, // 324: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.operations:type_name -> NYT.NApi.NRpcProxy.NProto.TOperation
+	340, // 325: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.pool_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolCounts
+	341, // 326: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.user_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TUserCounts
+	342, // 327: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.state_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationStateCounts
+	343, // 328: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.type_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationTypeCounts
+	344, // 329: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.pool_tree_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolTreeCounts
+	357, // 330: NYT.NApi.NRpcProxy.NProto.TJob.id:type_name -> NYT.NProto.TGuid
 	13,  // 331: NYT.NApi.NRpcProxy.NProto.TJob.type:type_name -> NYT.NApi.NRpcProxy.NProto.EJobType
 	14,  // 332: NYT.NApi.NRpcProxy.NProto.TJob.state:type_name -> NYT.NApi.NRpcProxy.NProto.EJobState
-	335, // 333: NYT.NApi.NRpcProxy.NProto.TJob.operation_id:type_name -> NYT.NProto.TGuid
+	357, // 333: NYT.NApi.NRpcProxy.NProto.TJob.operation_id:type_name -> NYT.NProto.TGuid
 	14,  // 334: NYT.NApi.NRpcProxy.NProto.TJob.controller_state:type_name -> NYT.NApi.NRpcProxy.NProto.EJobState
 	14,  // 335: NYT.NApi.NRpcProxy.NProto.TJob.archive_state:type_name -> NYT.NApi.NRpcProxy.NProto.EJobState
-	335, // 336: NYT.NApi.NRpcProxy.NProto.TJob.job_competition_id:type_name -> NYT.NProto.TGuid
-	335, // 337: NYT.NApi.NRpcProxy.NProto.TJob.probing_job_competition_id:type_name -> NYT.NProto.TGuid
-	330, // 338: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.state_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobStateCounts
-	331, // 339: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.type_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobTypeCounts
-	293, // 340: NYT.NApi.NRpcProxy.NProto.TListJobsResult.jobs:type_name -> NYT.NApi.NRpcProxy.NProto.TJob
-	294, // 341: NYT.NApi.NRpcProxy.NProto.TListJobsResult.statistics:type_name -> NYT.NApi.NRpcProxy.NProto.TListJobsStatistics
-	341, // 342: NYT.NApi.NRpcProxy.NProto.TListJobsResult.errors:type_name -> NYT.NProto.TError
+	357, // 336: NYT.NApi.NRpcProxy.NProto.TJob.job_competition_id:type_name -> NYT.NProto.TGuid
+	357, // 337: NYT.NApi.NRpcProxy.NProto.TJob.probing_job_competition_id:type_name -> NYT.NProto.TGuid
+	350, // 338: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.state_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobStateCounts
+	351, // 339: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.type_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobTypeCounts
+	296, // 340: NYT.NApi.NRpcProxy.NProto.TListJobsResult.jobs:type_name -> NYT.NApi.NRpcProxy.NProto.TJob
+	297, // 341: NYT.NApi.NRpcProxy.NProto.TListJobsResult.statistics:type_name -> NYT.NApi.NRpcProxy.NProto.TListJobsStatistics
+	363, // 342: NYT.NApi.NRpcProxy.NProto.TListJobsResult.errors:type_name -> NYT.NProto.TError
 	18,  // 343: NYT.NApi.NRpcProxy.NProto.TCheckPermissionResult.action:type_name -> NYT.NApi.NRpcProxy.NProto.ESecurityAction
-	335, // 344: NYT.NApi.NRpcProxy.NProto.TCheckPermissionResult.object_id:type_name -> NYT.NProto.TGuid
-	335, // 345: NYT.NApi.NRpcProxy.NProto.TCheckPermissionResult.subject_id:type_name -> NYT.NProto.TGuid
+	357, // 344: NYT.NApi.NRpcProxy.NProto.TCheckPermissionResult.object_id:type_name -> NYT.NProto.TGuid
+	357, // 345: NYT.NApi.NRpcProxy.NProto.TCheckPermissionResult.subject_id:type_name -> NYT.NProto.TGuid
 	18,  // 346: NYT.NApi.NRpcProxy.NProto.TCheckPermissionByAclResult.action:type_name -> NYT.NApi.NRpcProxy.NProto.ESecurityAction
-	335, // 347: NYT.NApi.NRpcProxy.NProto.TCheckPermissionByAclResult.subject_id:type_name -> NYT.NProto.TGuid
-	27,  // 348: NYT.NApi.NRpcProxy.NProto.TReqMultiLookup.TSubrequest.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
-	27,  // 349: NYT.NApi.NRpcProxy.NProto.TRspMultiLookup.TSubresponse.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
-	305, // 350: NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations.TQueueConsumerRegistration.partitions:type_name -> NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations.TQueueConsumerRegistration.TRegistrationPartitions
-	307, // 351: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo.replicas:type_name -> NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo.TReplicaInfo
-	341, // 352: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo.tablet_errors:type_name -> NYT.NProto.TError
-	335, // 353: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo.TReplicaInfo.replica_id:type_name -> NYT.NProto.TGuid
-	341, // 354: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo.TReplicaInfo.replication_error:type_name -> NYT.NProto.TError
-	341, // 355: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.TErrorList.errors:type_name -> NYT.NProto.TError
-	335, // 356: NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.TTransactionPrerequisite.transaction_id:type_name -> NYT.NProto.TGuid
-	128, // 357: NYT.NApi.NRpcProxy.NProto.TBackupManifest.TClusterManifest.table_manifests:type_name -> NYT.NApi.NRpcProxy.NProto.TTableBackupManifest
-	298, // 358: NYT.NApi.NRpcProxy.NProto.TRspCheckPermission.TColumns.items:type_name -> NYT.NApi.NRpcProxy.NProto.TCheckPermissionResult
-	325, // 359: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolCounts.TPoolCount
-	326, // 360: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TUserCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TUserCounts.TUserCount
-	327, // 361: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationStateCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationStateCounts.TOperationStateCount
-	328, // 362: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationTypeCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationTypeCounts.TOperationTypeCount
-	329, // 363: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolTreeCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolTreeCounts.EntriesEntry
-	11,  // 364: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationStateCounts.TOperationStateCount.state:type_name -> NYT.NApi.NRpcProxy.NProto.EOperationState
-	10,  // 365: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationTypeCounts.TOperationTypeCount.type:type_name -> NYT.NApi.NRpcProxy.NProto.EOperationType
-	332, // 366: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobStateCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobStateCounts.TJobStateCount
-	333, // 367: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobTypeCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobTypeCounts.TJobTypeCount
-	14,  // 368: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobStateCounts.TJobStateCount.state:type_name -> NYT.NApi.NRpcProxy.NProto.EJobState
-	13,  // 369: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobTypeCounts.TJobTypeCount.type:type_name -> NYT.NApi.NRpcProxy.NProto.EJobType
-	370, // [370:370] is the sub-list for method output_type
-	370, // [370:370] is the sub-list for method input_type
-	370, // [370:370] is the sub-list for extension type_name
-	370, // [370:370] is the sub-list for extension extendee
-	0,   // [0:370] is the sub-list for field type_name
+	357, // 347: NYT.NApi.NRpcProxy.NProto.TCheckPermissionByAclResult.subject_id:type_name -> NYT.NProto.TGuid
+	26,  // 348: NYT.NApi.NRpcProxy.NProto.TReqStartQuery.engine:type_name -> NYT.NApi.NRpcProxy.NProto.EQueryEngine
+	354, // 349: NYT.NApi.NRpcProxy.NProto.TReqStartQuery.files:type_name -> NYT.NApi.NRpcProxy.NProto.TReqStartQuery.TQueryFile
+	357, // 350: NYT.NApi.NRpcProxy.NProto.TRspStartQuery.query_id:type_name -> NYT.NProto.TGuid
+	357, // 351: NYT.NApi.NRpcProxy.NProto.TReqAbortQuery.query_id:type_name -> NYT.NProto.TGuid
+	357, // 352: NYT.NApi.NRpcProxy.NProto.TReqGetQueryResult.query_id:type_name -> NYT.NProto.TGuid
+	357, // 353: NYT.NApi.NRpcProxy.NProto.TRspGetQueryResult.query_id:type_name -> NYT.NProto.TGuid
+	363, // 354: NYT.NApi.NRpcProxy.NProto.TRspGetQueryResult.error:type_name -> NYT.NProto.TError
+	123, // 355: NYT.NApi.NRpcProxy.NProto.TRspGetQueryResult.schema:type_name -> NYT.NApi.NRpcProxy.NProto.TTableSchema
+	356, // 356: NYT.NApi.NRpcProxy.NProto.TRspGetQueryResult.data_statistics:type_name -> NYT.NChunkClient.NProto.TDataStatistics
+	357, // 357: NYT.NApi.NRpcProxy.NProto.TReqReadQueryResult.query_id:type_name -> NYT.NProto.TGuid
+	355, // 358: NYT.NApi.NRpcProxy.NProto.TReqReadQueryResult.columns:type_name -> NYT.NApi.NRpcProxy.NProto.TReqReadQueryResult.TColumns
+	30,  // 359: NYT.NApi.NRpcProxy.NProto.TRspReadQueryResult.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
+	357, // 360: NYT.NApi.NRpcProxy.NProto.TQuery.id:type_name -> NYT.NProto.TGuid
+	26,  // 361: NYT.NApi.NRpcProxy.NProto.TQuery.engine:type_name -> NYT.NApi.NRpcProxy.NProto.EQueryEngine
+	28,  // 362: NYT.NApi.NRpcProxy.NProto.TQuery.state:type_name -> NYT.NApi.NRpcProxy.NProto.EQueryState
+	363, // 363: NYT.NApi.NRpcProxy.NProto.TQuery.error:type_name -> NYT.NProto.TError
+	358, // 364: NYT.NApi.NRpcProxy.NProto.TQuery.other_attributes:type_name -> NYT.NYTree.NProto.TAttributeDictionary
+	357, // 365: NYT.NApi.NRpcProxy.NProto.TReqGetQuery.query_id:type_name -> NYT.NProto.TGuid
+	361, // 366: NYT.NApi.NRpcProxy.NProto.TReqGetQuery.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
+	311, // 367: NYT.NApi.NRpcProxy.NProto.TRspGetQuery.query:type_name -> NYT.NApi.NRpcProxy.NProto.TQuery
+	12,  // 368: NYT.NApi.NRpcProxy.NProto.TReqListQueries.cursor_direction:type_name -> NYT.NApi.NRpcProxy.NProto.EOperationSortDirection
+	28,  // 369: NYT.NApi.NRpcProxy.NProto.TReqListQueries.state_filter:type_name -> NYT.NApi.NRpcProxy.NProto.EQueryState
+	26,  // 370: NYT.NApi.NRpcProxy.NProto.TReqListQueries.engine_filter:type_name -> NYT.NApi.NRpcProxy.NProto.EQueryEngine
+	361, // 371: NYT.NApi.NRpcProxy.NProto.TReqListQueries.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
+	311, // 372: NYT.NApi.NRpcProxy.NProto.TRspListQueries.queries:type_name -> NYT.NApi.NRpcProxy.NProto.TQuery
+	357, // 373: NYT.NApi.NRpcProxy.NProto.TReqAlterQuery.query_id:type_name -> NYT.NProto.TGuid
+	361, // 374: NYT.NApi.NRpcProxy.NProto.TReqGetQueryTrackerInfo.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
+	30,  // 375: NYT.NApi.NRpcProxy.NProto.TReqMultiLookup.TSubrequest.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
+	30,  // 376: NYT.NApi.NRpcProxy.NProto.TRspMultiLookup.TSubresponse.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
+	325, // 377: NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations.TQueueConsumerRegistration.partitions:type_name -> NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations.TQueueConsumerRegistration.TRegistrationPartitions
+	327, // 378: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo.replicas:type_name -> NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo.TReplicaInfo
+	363, // 379: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo.tablet_errors:type_name -> NYT.NProto.TError
+	357, // 380: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo.TReplicaInfo.replica_id:type_name -> NYT.NProto.TGuid
+	363, // 381: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo.TReplicaInfo.replication_error:type_name -> NYT.NProto.TError
+	363, // 382: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.TErrorList.errors:type_name -> NYT.NProto.TError
+	357, // 383: NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.TTransactionPrerequisite.transaction_id:type_name -> NYT.NProto.TGuid
+	131, // 384: NYT.NApi.NRpcProxy.NProto.TBackupManifest.TClusterManifest.table_manifests:type_name -> NYT.NApi.NRpcProxy.NProto.TTableBackupManifest
+	301, // 385: NYT.NApi.NRpcProxy.NProto.TRspCheckPermission.TColumns.items:type_name -> NYT.NApi.NRpcProxy.NProto.TCheckPermissionResult
+	345, // 386: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolCounts.TPoolCount
+	346, // 387: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TUserCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TUserCounts.TUserCount
+	347, // 388: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationStateCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationStateCounts.TOperationStateCount
+	348, // 389: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationTypeCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationTypeCounts.TOperationTypeCount
+	349, // 390: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolTreeCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolTreeCounts.EntriesEntry
+	11,  // 391: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationStateCounts.TOperationStateCount.state:type_name -> NYT.NApi.NRpcProxy.NProto.EOperationState
+	10,  // 392: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationTypeCounts.TOperationTypeCount.type:type_name -> NYT.NApi.NRpcProxy.NProto.EOperationType
+	352, // 393: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobStateCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobStateCounts.TJobStateCount
+	353, // 394: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobTypeCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobTypeCounts.TJobTypeCount
+	14,  // 395: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobStateCounts.TJobStateCount.state:type_name -> NYT.NApi.NRpcProxy.NProto.EJobState
+	13,  // 396: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobTypeCounts.TJobTypeCount.type:type_name -> NYT.NApi.NRpcProxy.NProto.EJobType
+	27,  // 397: NYT.NApi.NRpcProxy.NProto.TReqStartQuery.TQueryFile.type:type_name -> NYT.NApi.NRpcProxy.NProto.EContentType
+	398, // [398:398] is the sub-list for method output_type
+	398, // [398:398] is the sub-list for method input_type
+	398, // [398:398] is the sub-list for extension type_name
+	398, // [398:398] is the sub-list for extension extendee
+	0,   // [0:398] is the sub-list for field type_name
 }
 
 func init() { file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() }
@@ -29772,7 +31629,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[274].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRowsetDescriptor_TNameTableEntry); i {
+			switch v := v.(*TReqStartQuery); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -29784,7 +31641,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[275].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqMultiLookup_TSubrequest); i {
+			switch v := v.(*TRspStartQuery); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -29796,7 +31653,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[276].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspMultiLookup_TSubresponse); i {
+			switch v := v.(*TReqAbortQuery); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -29808,7 +31665,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[277].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqRegisterQueueConsumer_TRegistrationPartitions); i {
+			switch v := v.(*TRspAbortQuery); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -29820,7 +31677,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[278].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspListQueueConsumerRegistrations_TQueueConsumerRegistration); i {
+			switch v := v.(*TReqGetQueryResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -29832,7 +31689,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[279].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspListQueueConsumerRegistrations_TQueueConsumerRegistration_TRegistrationPartitions); i {
+			switch v := v.(*TRspGetQueryResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -29844,7 +31701,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[280].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspGetTabletInfos_TTabletInfo); i {
+			switch v := v.(*TReqReadQueryResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -29856,7 +31713,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[281].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspGetTabletInfos_TTabletInfo_TReplicaInfo); i {
+			switch v := v.(*TRspReadQueryResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -29868,7 +31725,19 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[282].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspGetTabletErrors_TErrorList); i {
+			switch v := v.(*TQuery); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[283].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TReqGetQuery); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -29880,7 +31749,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[284].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TPrerequisiteOptions_TTransactionPrerequisite); i {
+			switch v := v.(*TRspGetQuery); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -29892,7 +31761,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[285].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TPrerequisiteOptions_TRevisionPrerequisite); i {
+			switch v := v.(*TReqListQueries); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -29904,7 +31773,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[286].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TBackupManifest_TClusterManifest); i {
+			switch v := v.(*TRspListQueries); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -29916,7 +31785,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[287].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqMultisetAttributesNode_TSubrequest); i {
+			switch v := v.(*TReqAlterQuery); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -29928,7 +31797,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[288].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqConcatenateNodes_TFetcher); i {
+			switch v := v.(*TRspAlterQuery); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -29940,7 +31809,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[289].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqPartitionTables_TChunkSliceFetcherConfig); i {
+			switch v := v.(*TReqGetQueryTrackerInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -29952,7 +31821,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[290].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TMultiTablePartition_TStatistics); i {
+			switch v := v.(*TRspGetQueryTrackerInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -29964,7 +31833,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[291].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqCheckPermission_TColumns); i {
+			switch v := v.(*TRowsetDescriptor_TNameTableEntry); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -29976,7 +31845,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[292].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspCheckPermission_TColumns); i {
+			switch v := v.(*TReqMultiLookup_TSubrequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -29988,7 +31857,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[293].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TOperation_TStrings); i {
+			switch v := v.(*TRspMultiLookup_TSubresponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -30000,7 +31869,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[294].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TListOperationsResult_TPoolCounts); i {
+			switch v := v.(*TReqRegisterQueueConsumer_TRegistrationPartitions); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -30012,7 +31881,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[295].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TListOperationsResult_TUserCounts); i {
+			switch v := v.(*TRspListQueueConsumerRegistrations_TQueueConsumerRegistration); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -30024,7 +31893,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[296].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TListOperationsResult_TOperationStateCounts); i {
+			switch v := v.(*TRspListQueueConsumerRegistrations_TQueueConsumerRegistration_TRegistrationPartitions); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -30036,7 +31905,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[297].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TListOperationsResult_TOperationTypeCounts); i {
+			switch v := v.(*TRspGetTabletInfos_TTabletInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -30048,7 +31917,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[298].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TListOperationsResult_TPoolTreeCounts); i {
+			switch v := v.(*TRspGetTabletInfos_TTabletInfo_TReplicaInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -30060,19 +31929,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[299].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TListOperationsResult_TPoolCounts_TPoolCount); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[300].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TListOperationsResult_TUserCounts_TUserCount); i {
+			switch v := v.(*TRspGetTabletErrors_TErrorList); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -30084,7 +31941,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[301].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TListOperationsResult_TOperationStateCounts_TOperationStateCount); i {
+			switch v := v.(*TPrerequisiteOptions_TTransactionPrerequisite); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -30096,7 +31953,19 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[302].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TListOperationsResult_TOperationTypeCounts_TOperationTypeCount); i {
+			switch v := v.(*TPrerequisiteOptions_TRevisionPrerequisite); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[303].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TBackupManifest_TClusterManifest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -30108,7 +31977,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[304].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TListJobsStatistics_TJobStateCounts); i {
+			switch v := v.(*TReqMultisetAttributesNode_TSubrequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -30120,7 +31989,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[305].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TListJobsStatistics_TJobTypeCounts); i {
+			switch v := v.(*TReqConcatenateNodes_TFetcher); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -30132,7 +32001,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[306].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TListJobsStatistics_TJobStateCounts_TJobStateCount); i {
+			switch v := v.(*TReqPartitionTables_TChunkSliceFetcherConfig); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -30144,7 +32013,223 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[307].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TMultiTablePartition_TStatistics); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[308].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TReqCheckPermission_TColumns); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[309].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TRspCheckPermission_TColumns); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[310].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TOperation_TStrings); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[311].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TListOperationsResult_TPoolCounts); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[312].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TListOperationsResult_TUserCounts); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[313].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TListOperationsResult_TOperationStateCounts); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[314].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TListOperationsResult_TOperationTypeCounts); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[315].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TListOperationsResult_TPoolTreeCounts); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[316].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TListOperationsResult_TPoolCounts_TPoolCount); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[317].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TListOperationsResult_TUserCounts_TUserCount); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[318].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TListOperationsResult_TOperationStateCounts_TOperationStateCount); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[319].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TListOperationsResult_TOperationTypeCounts_TOperationTypeCount); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[321].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TListJobsStatistics_TJobStateCounts); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[322].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TListJobsStatistics_TJobTypeCounts); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[323].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TListJobsStatistics_TJobStateCounts_TJobStateCount); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[324].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TListJobsStatistics_TJobTypeCounts_TJobTypeCount); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[325].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TReqStartQuery_TQueryFile); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[326].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TReqReadQueryResult_TColumns); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -30201,8 +32286,8 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDesc,
-			NumEnums:      26,
-			NumMessages:   308,
+			NumEnums:      29,
+			NumMessages:   327,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
