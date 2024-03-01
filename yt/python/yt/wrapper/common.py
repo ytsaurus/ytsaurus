@@ -17,10 +17,13 @@ except ImportError:
     from collections import Iterable
 try:
     from yt.packages.decorator import decorator
-    import yt.packages.typing as typing  # noqa
 except ImportError:
     from decorator import decorator
+
+try:
     import typing  # noqa
+except ImportError:
+    import yt.packages.typing as typing  # noqa
 
 import argparse
 import collections
