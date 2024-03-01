@@ -1,11 +1,12 @@
 #include "profilers.h"
 #include "private.h"
 
-#include <yt/yt/server/lib/misc/profiling_helpers.h>
+#include <yt/yt/library/ytprof/allocation_tag_profiler/allocation_tag_profiler.h>
 
 namespace NYT::NHttpProxy {
 
 using namespace NProfiling;
+using namespace NYTProf;
 
 ////////////////////////////////////////////////////////////////////////////////
 

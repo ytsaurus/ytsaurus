@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/misc/public.h>
+#include <yt/yt/library/ytprof/allocation_tag_profiler/public.h>
 
 #include <yt/yt/core/actions/public.h>
 
@@ -23,7 +23,7 @@ public:
         THeapProfilerConfigPtr config);
 
 private:
-    const THeapUsageProfilerPtr HeapProfiler_;
+    const NYTProf::THeapUsageProfilerPtr HeapProfiler_;
 };
 
 DEFINE_REFCOUNTED_TYPE(THttpProxyHeapUsageProfiler)

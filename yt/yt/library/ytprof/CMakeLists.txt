@@ -6,6 +6,7 @@
 # original buildsystem will not be accepted.
 
 
+add_subdirectory(allocation_tag_profiler)
 add_subdirectory(api)
 add_subdirectory(http)
 add_subdirectory(proto)

@@ -21,6 +21,7 @@ target_link_libraries(server-lib-misc PUBLIC
   yt-library-coredumper
   yt-library-process
   yt-library-ytprof
+  library-ytprof-allocation_tag_profiler
   library-cpp-porto
 )
 target_sources(server-lib-misc PRIVATE
@@ -53,6 +54,7 @@ target_link_libraries(server-lib-misc.global PUBLIC
   yt-library-coredumper
   yt-library-process
   yt-library-ytprof
+  library-ytprof-allocation_tag_profiler
   library-cpp-porto
 )
 target_sources(server-lib-misc.global PRIVATE

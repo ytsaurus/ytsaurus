@@ -991,6 +991,7 @@
   "yt/yt/library/xor_filter/CMakeLists.txt":"",
   "yt/yt/library/xor_filter/unittests/CMakeLists.txt":"",
   "yt/yt/library/ytprof/CMakeLists.txt":"",
+  "yt/yt/library/ytprof/allocation_tag_profiler/CMakeLists.txt":"",
   "yt/yt/library/ytprof/api/CMakeLists.txt":"",
   "yt/yt/library/ytprof/http/CMakeLists.txt":"",
   "yt/yt/library/ytprof/proto/CMakeLists.txt":"",
