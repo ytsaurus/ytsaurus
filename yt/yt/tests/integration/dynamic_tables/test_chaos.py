@@ -25,7 +25,7 @@ from yt_commands import (
 from yt_type_helpers import make_schema
 
 from yt.environment.helpers import assert_items_equal, are_items_equal
-from yt.common import YtError
+from yt.common import YtError, YtResponseError
 
 import yt.yson as yson
 
@@ -3511,6 +3511,118 @@ class TestChaosRpcProxy(TestChaos):
 
         assert lookup_rows("//tmp/t", [{"key": 0}]) == values
         wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=remote_driver1) == values)
+
+
+##################################################################
+
+
+class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
+    NUM_REMOTE_CLUSTERS = 1
+    NUM_TEST_PARTITIONS = 20
+    NUM_SCHEDULERS = 1
+
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    DELTA_RPC_DRIVER_CONFIG = {
+        "table_mount_cache": {
+            "expire_after_successful_update_time": 0,
+            "expire_after_failed_update_time": 0,
+            "expire_after_access_time": 0,
+            "refresh_time": 0,
+        },
+    }
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "replication_card_cache": {
+                "expire_after_successful_update_time": 60000,
+                "expire_after_failed_update_time": 60000,
+                "expire_after_access_time": 60000,
+                "refresh_time": 10000,
+                "soft_backoff_time": 10000,
+                "hard_backoff_time":  10000,
+            },
+        },
+    }
+
+    def setup_method(self, method):
+        super().setup_method(method)
+
+        primary_cell_tag = get("//sys/@primary_cell_tag")
+        for driver in self._get_drivers():
+            set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", primary_cell_tag, driver=driver)
+
+    @authors("osidorkin")
+    def test_multitable_transactions(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        remote_driver0 = self._get_drivers()[1]
+
+        schema = yson.YsonList([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ])
+
+        replicas1 = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/ts1"},
+            {"cluster_name": "remote_0", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/ta1"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q1"}
+        ]
+
+        replicas2 = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/ts2"},
+            {"cluster_name": "remote_0", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/ta2"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q2"}
+        ]
+
+        create("chaos_replicated_table", "//tmp/crt1", attributes={"chaos_cell_bundle": "c", "schema": schema})
+        create("chaos_replicated_table", "//tmp/crt2", attributes={"chaos_cell_bundle": "c", "schema": schema})
+
+        replica_ids1 = self._create_chaos_table_replicas(replicas1, table_path="//tmp/crt1")
+        replica_ids2 = self._create_chaos_table_replicas(replicas2, table_path="//tmp/crt2")
+
+        self._create_replica_tables(replicas1, replica_ids1)
+        self._create_replica_tables(replicas2, replica_ids2)
+
+        self._sync_replication_era(get("//tmp/crt1/@replication_card_id"), replicas1)
+        self._sync_replication_era(get("//tmp/crt2/@replication_card_id"), replicas2)
+
+        values = [{"key": 0, "value": "0"}]
+        values1 = [{"key": 1, "value": "1"}]
+        values2 = [{"key": 2, "value": "2"}]
+
+        def _insert_rows_with_retries(v, replica_ids_to_alter=None):
+            need_to_alter = replica_ids_to_alter is not None
+            for _ in range(1, 100):
+                try:
+                    tx = start_transaction(type="tablet")
+                    # Altering AFTER transaction is started is essential
+                    if need_to_alter:
+                        alter_table_replica(replica_ids_to_alter[1], mode="sync", driver=remote_driver0)
+                        need_to_alter = False
+
+                    insert_rows("//tmp/ts2", v, tx=tx)
+                    insert_rows("//tmp/ts1", v, tx=tx)
+
+                    commit_transaction(tx)
+                    break
+
+                except (YtResponseError):
+                    pass
+
+            else:
+                raise Exception("Failed to insert rows")
+
+        _insert_rows_with_retries(values)
+        assert lookup_rows("//tmp/ts2", [{"key": 0}]) == values
+
+        _insert_rows_with_retries(values1, replica_ids_to_alter=replica_ids2)
+        assert lookup_rows("//tmp/ts2", [{"key": 1}]) == values1
+        assert lookup_rows("//tmp/ta2", [{"key": 1}], driver=remote_driver0) == values1
+
+        _insert_rows_with_retries(values2, replica_ids_to_alter=replica_ids1)
+        assert lookup_rows("//tmp/ta1", [{"key": 2}], driver=remote_driver0) == values2
+        assert lookup_rows("//tmp/ta2", [{"key": 2}], driver=remote_driver0) == values2
 
 
 ##################################################################
