@@ -1971,17 +1971,30 @@ private:
     {
         CommitOptions_ = options;
 
+        THashSet<NObjectClient::TCellId> selectedCellIds;
+        THashSet<NChaosClient::TReplicationCardId> requestedReplicationCardIds;
+
         for (const auto& [path, session] : TablePathToSession_) {
             if (session->GetInfo()->IsReplicated()) {
                 CommitOptions_.Force2PC = true;
             }
 
             const auto& replicationCard = session->GetReplicationCard();
-            auto replicationCardId = session->GetInfo()->ReplicationCardId;
+            const auto& replicationCardId = session->GetInfo()->ReplicationCardId;
             if (replicationCardId &&
                 replicationCard->Era > InitialReplicationEra &&
                 !options.CoordinatorCellId)
             {
+                if (!requestedReplicationCardIds.insert(replicationCardId).second) {
+                    YT_LOG_DEBUG("Coordinator for replication card already selected, skipping "
+                        "(Path: %v, ReplicationCardId: %v, Era: %v)",
+                        path,
+                        replicationCardId,
+                        replicationCard->Era);
+
+                    continue;
+                }
+
                 const auto& coordinatorCellIds = replicationCard->CoordinatorCellIds;
 
                 YT_LOG_DEBUG("Considering replication card (Path: %v, ReplicationCardId: %v, Era: %v, CoordinatorCellIds: %v)",
@@ -2000,8 +2013,21 @@ private:
                         options.CoordinatorCommitMode);
                 }
 
-                auto coordinatorCellId = coordinatorCellIds[RandomNumber(coordinatorCellIds.size())];
-                Transaction_->RegisterParticipant(coordinatorCellId);
+                NObjectClient::TCellId coordinatorCellId;
+                // Actual problem is NP-hard, so use a simple heuristic (however greedy approach could do better here):
+                // if we've already seen given cell id, use it. Otherwise select a random one.
+                for (const auto& coordinatorCellIdCanditate : coordinatorCellIds) {
+                    if (selectedCellIds.contains(coordinatorCellIdCanditate)) {
+                        coordinatorCellId = coordinatorCellIdCanditate;
+                        break;
+                    }
+                }
+
+                if (!coordinatorCellId) {
+                    coordinatorCellId = coordinatorCellIds[RandomNumber(coordinatorCellIds.size())];
+                    selectedCellIds.insert(coordinatorCellId);
+                    Transaction_->RegisterParticipant(coordinatorCellId);
+                }
 
                 NChaosClient::NProto::TReqReplicatedCommit request;
                 ToProto(request.mutable_replication_card_id(), replicationCardId);
@@ -2010,12 +2036,16 @@ private:
                 DoAddAction(coordinatorCellId, MakeTransactionActionData(request));
 
                 CommitOptions_.Force2PC = true;
-                CommitOptions_.CoordinatorCellId = coordinatorCellId;
+                if (!CommitOptions_.CoordinatorCellId) {
+                    CommitOptions_.CoordinatorCellId = coordinatorCellId;
+                    YT_LOG_DEBUG("2PC Coordinator selected (CoordinatorCellId: %v)", coordinatorCellId);
+                }
 
-                YT_LOG_DEBUG("Coordinator selected (CoordinatorCellId: %v)",
+                YT_LOG_DEBUG("Coordinator selected (Path: %v, ReplicationCardId: %v, Era: %v, CoordinatorCellId: %v)",
+                    path,
+                    replicationCardId,
+                    replicationCard->Era,
                     coordinatorCellId);
-
-                break;
             }
         }
     }
