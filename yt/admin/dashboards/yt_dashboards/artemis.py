@@ -35,6 +35,7 @@ def build_read_write_rowset():
     return (Rowset()
         .aggr(MonitoringTag("host"), "table_tag", "table_path")
         .all("#UB")
+        .stack()
         .top()
 
         .row()
@@ -123,7 +124,7 @@ def build_lookup_select_ack_time():
         .row()
             .cell(
                 "Table lookup (QueryService::Multiread) RPC acknowledge time",
-                s.value("method", "Multiread"))
+                s.value("method", "Multiread").all("queue"))
             .cell(
                 "Table select (QueryService::Execute) RPC acknowledge time",
                 s.value("method", "Execute"))
@@ -152,6 +153,7 @@ def build_background_resource_usage():
     return (Rowset()
         .all("#AB", "method", "medium")
         .aggr(MonitoringTag("host"), "table_tag", "table_path")
+        .stack()
         .top()
 
         .row()
@@ -307,6 +309,7 @@ def build_fair_throttler(cls):
     return (Rowset()
         .stack(False)
         .all("bucket")
+        .min(0)
         .row()
             .cell(
                 "In throttlers queue size",
@@ -346,7 +349,29 @@ def build_chunk_meta_caches_base():
         .row()
             .cell("Block cache usage", usage("yt.data_node.block_cache.*compressed_data").aggr("segment"))
             .cell("Block cache miss rate", misses("data", "block_cache.*compressed_data"))
-    ).owner
+    )
+
+def build_link_to_cache_dashboard_local():
+    try:
+        from .constants import CACHE_DASHBOARD_URL
+    except ImportError:
+        return
+
+    def _make_url(service, cache_address):
+        return CACHE_DASHBOARD_URL + "?" + "&".join((
+            "p.cluster={{cluster}}",
+            "p.container={{container}}",
+            "p.host=!Aggr",
+            "p.service=" + service,
+            "p.cache=" + cache_address))
+
+    text = f"""
+See more information about caches at the separate dashboards.<EOLN>
+- [Chunk meta cache]({_make_url("node_tablet", "yt.tablet_node.versioned_chunk_meta_cache")})
+- [Compressed block cache]({_make_url("tab_node", "yt.data_node.block_cache.compressed_data")})
+- [Uncompressed block cache]({_make_url("tab_node", "yt.data_node.block_cache.uncompressed_data")})
+"""
+    return Rowset().row(height=5).cell("", Text(text.strip()))
 
 
 def build_chunk_meta_caches():
@@ -408,7 +433,8 @@ def build_memory_by_category():
             .cell(
                 "Node memory categories",
                 TabNode("yt.cluster_node.memory_usage.used")
-                    .all("category"))
+                    .all("category")
+                    .stack())
            .cell("", EmptyCell())
     ).owner
 
@@ -483,7 +509,7 @@ def build_thread_cpu_compressed():
 
 def build_rpc_request_rate():
     request_rate = (TabNodeRpc("yt.rpc.server.{}.rate")
-        .aggr(MonitoringTag("host"), "#U")
+        .aggr(MonitoringTag("host"), "#U", "queue")
         .all("yt_service", "method")
         .stack(False)
         .top())
@@ -522,16 +548,16 @@ def build_hydra():
         .aggr("cell_id")
         .row()
             .cell(
-                "Hydra restart rate",
-                NodeTablet("yt.hydra.restart_count.rate")
-                    .aggr(MonitoringTag("host"))
-                    .all("#B", "reason"))
-            .cell(
                 "Hydra remote changelog replica quorum lag time",
                 NodeTablet("yt.tablet_node.remote_changelog.write_quorum_lag.max")
                     .all(MonitoringTag("host"), "#B")
                     .stack(False)
                     .top())
+            .cell(
+                "Hydra restart rate",
+                NodeTablet("yt.hydra.restart_count.rate")
+                    .aggr(MonitoringTag("host"))
+                    .all("#B", "reason"))
         .row()
             .cell(
                 "Hydra mutation wait time",
@@ -616,7 +642,8 @@ def build_rpc_message_size_stats_per_host(
 def build_server_rpc_message_size_stats_per_method(sensor_class, name_prefix):
     server_per_method = (sensor_class("yt.rpc.server.{}.rate")
         .all("yt_service", "method")
-        .aggr(MonitoringTag("host"), "#U", "queue"))
+        .aggr(MonitoringTag("host"), "#U", "queue")
+        .stack())
     return (Rowset()
         .row()
             .cell(
@@ -673,13 +700,14 @@ def build_network_local_porto():
     s = (TabNodePorto("yt.porto.network.{}_bytes")
         .value("container_category", "pod"))
     return (Rowset()
+        .min(0)
         .row()
             .cell("Network received bytes", s("rx"))
             .cell("Network transmitted bytes", s("tx"))
         .row()
             .cell(
                 "Pending out bytes",
-                TabNodeInternal("yt.bus.pending_out_bytes").all("network", "band"))
+                TabNodeInternal("yt.bus.pending_out_bytes").all("network", "band", "encrypted"))
     ).owner
 
 
@@ -893,7 +921,6 @@ def build_local_artemis():
 
 def build_local_artemis_container():
     rowsets = [
-        Rowset().row(height=3).cell("", Text("Container Artemis. For host version go [here](https://nda.ya.ru/t/SGREkY2C3VuMTw).")),
         build_read_write_rowset(),
         build_max_lookup_select_execute_time_per_host().all("#U"),
         build_lookup_select_ack_time(),
@@ -901,14 +928,13 @@ def build_local_artemis_container():
         build_lsm(),
         build_memory(),
         build_memory_by_category(),
-        build_thread_cpu(),
         build_thread_cpu_compressed(),
         build_rpc_request_rate(),
         build_tx_stats(),
         build_hydra(),
         build_chunk_meta_caches_container(),
+        build_link_to_cache_dashboard_local(),
         build_tablet_node_preload_throttler(),
-
         build_rpc_message_size_stats_per_host(
             TabNodeRpcClient, "client", "Rpc client (yt_node)"),
         build_rpc_message_size_stats_per_host(
@@ -918,13 +944,26 @@ def build_local_artemis_container():
         build_fair_throttler(TabNode),
     ]
 
+    try:
+        from .constants import LEGACY_LOCAL_ARTEMIS_URL as legacy_url
+        rowsets[:0] = [
+            Rowset().row(height=2).cell("", Text(
+                "This dashboard works for clusters with split tablet nodes "
+                "(those under Bundle Controller). For other clusters please use "
+                f"the [legacy dashboard]({legacy_url})."))
+        ]
+    except ImportError:
+        pass
+
     d = Dashboard()
     for r in rowsets:
-        d.add(r)
+        if r is not None:
+            d.add(r)
 
     d.value("container", TemplateTag("container"))
     d.all("#B", MonitoringTag("host"))
     d.set_title("Local Artemis (container)")
+    d.set_description("Multi-purpose diagnostics dashboard for tablet node")
     d.add_parameter(
         "cluster",
         "YT cluster",
