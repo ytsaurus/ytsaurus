@@ -262,20 +262,14 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
             return true;
 
         case EInternedAttributeKey::MaxChangelogId: {
-            int maxId = GetMaxHydraFileId(
-                GetCellHydraPersistencePath(cell->GetId()) + "/changelogs",
-                GetCellPath(cell->GetId()) + "/changelogs");
             BuildYsonFluently(consumer)
-                .Value(maxId);
+                .Value(cell->GetMaxChangelogId());
             return true;
         }
 
         case EInternedAttributeKey::MaxSnapshotId: {
-            int maxId = GetMaxHydraFileId(
-                GetCellHydraPersistencePath(cell->GetId()) + "/snapshots",
-                GetCellPath(cell->GetId()) + "/snapshots");
             BuildYsonFluently(consumer)
-                .Value(maxId);
+                .Value(cell->GetMaxSnapshotId());
             return true;
         }
 
@@ -345,7 +339,7 @@ TCellProxyBase::TResolveResult TCellProxyBase::Resolve(const TYPath& path, const
     if (tokenizer.Advance() == NYPath::ETokenType::At) {
         return ResolveAttributes(TYPath(tokenizer.GetSuffix()), context);
     } else {
-        return PropogateToHydraPersistenceStorage("/" + TYPath(tokenizer.GetInput()));
+        return PropagateToHydraPersistenceStorage("/" + TYPath(tokenizer.GetInput()));
     }
 }
 
@@ -361,50 +355,16 @@ TCellProxyBase::TResolveResult TCellProxyBase::ResolveSelf(const TYPath& path, c
     {
         return TResolveResultHere{path};
     } else {
-        return PropogateToHydraPersistenceStorage(path);
+        return PropagateToHydraPersistenceStorage(path);
     }
 }
 
-TCellProxyBase::TResolveResult TCellProxyBase::PropogateToHydraPersistenceStorage(const TYPath& pathSuffix) const
+TCellProxyBase::TResolveResult TCellProxyBase::PropagateToHydraPersistenceStorage(const TYPath& pathSuffix) const
 {
     const auto& objectManager = Bootstrap_->GetObjectManager();
     auto* cell = GetThisImpl();
     auto combinedPath = GetCellHydraPersistencePath(cell->GetId()) + pathSuffix;
     return TResolveResultThere{objectManager->GetRootService(), std::move(combinedPath)};
-}
-
-int TCellProxyBase::GetMaxHydraFileId(const TYPath& primaryPath, const TYPath& secondaryPath) const
-{
-    auto proxy = CreateObjectServiceReadProxy(
-        Bootstrap_->GetRootClient(),
-        EMasterChannelKind::Follower);
-
-    auto getMaxId = [&] (const TYPath& path) {
-        int maxId = -1;
-
-        auto batchReq = proxy.ExecuteBatch();
-        batchReq->AddRequest(TYPathProxy::List(path));
-        auto batchRsp = WaitFor(batchReq->Invoke())
-            .ValueOrThrow();
-        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspList>(0);
-        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            return maxId;
-        }
-
-        auto listNode = ConvertToNode(TYsonString(rspOrError.ValueOrThrow()->value()));
-        auto list = listNode->AsList();
-        for (const auto& item : list->GetChildren()) {
-            auto key = item->GetValue<TString>();
-            int id;
-            if (!TryFromString<int>(key, id)) {
-                continue;
-            }
-            maxId = std::max(maxId, id);
-        }
-        return maxId;
-    };
-
-    return std::max(getMaxId(primaryPath), getMaxId(secondaryPath));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

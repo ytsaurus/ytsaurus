@@ -121,6 +121,8 @@ void TCellBase::Save(TSaveContext& context) const
     Save(context, LeaseTransactionIds_);
     Save(context, RegisteredInCypress_);
     Save(context, PendingAclsUpdate_);
+    Save(context, MaxSnapshotId_);
+    Save(context, MaxChangelogId_);
 }
 
 void TCellBase::Load(TLoadContext& context)
@@ -149,6 +151,12 @@ void TCellBase::Load(TLoadContext& context)
     if (context.GetVersion() >= EMasterReign::TabletCellsHydraPersistenceMigration) {
         Load(context, RegisteredInCypress_);
         Load(context, PendingAclsUpdate_);
+    }
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::CachedMaxSnapshotId) {
+        Load(context, MaxSnapshotId_);
+        Load(context, MaxChangelogId_);
     }
 }
 

@@ -238,6 +238,7 @@ DEFINE_ENUM(EMasterReign,
     ((ErasureHunkStorage_24_1)                                      (2535))  // akozhikhov
     ((TabletCellsHydraPersistenceMigration)                         (2536))  // danilalexeev
     ((ErasureHunkCodecInDoCopy)                                     (2537))  // akozhikhov
+    ((CachedMaxSnapshotId)                                          (2538))  // ifsmirnov
     // 24.2 starts here.
 );
 

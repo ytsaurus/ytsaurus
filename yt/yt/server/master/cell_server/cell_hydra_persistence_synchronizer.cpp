@@ -1,6 +1,7 @@
 #include "cell_hydra_persistence_synchronizer.h"
 
 #include "private.h"
+#include "tamed_cell_manager.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
@@ -12,6 +13,8 @@
 #include <yt/yt/server/lib/cellar_agent/helpers.h>
 
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+
+#include <yt/yt/server/lib/cell_server/proto/cell_manager.pb.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -27,6 +30,8 @@
 
 #include <yt/yt/core/ypath/helpers.h>
 
+#include <library/cpp/iterator/enumerate.h>
+
 namespace NYT::NCellServer {
 
 using namespace NApi;
@@ -41,6 +46,8 @@ using namespace NTabletServer::NProto;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
+
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,26 +70,53 @@ public:
 
     void Start() override
     {
-        YT_VERIFY(!PeriodicExecutor_);
-        PeriodicExecutor_ = New<TPeriodicExecutor>(
+        YT_VERIFY(!SynchronizePeriodicExecutor_);
+        SynchronizePeriodicExecutor_ = New<TPeriodicExecutor>(
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             BIND(&TCellHydraPersistenceSynchronizer::OnSynchronize, MakeWeak(this)),
             GetDynamicConfig()->SynchronizationPeriod);
-        PeriodicExecutor_->Start();
+        SynchronizePeriodicExecutor_->Start();
+
+        YT_VERIFY(!UpdateHydraFileIdsPeriodicExecutor_);
+        UpdateHydraFileIdsPeriodicExecutor_ = New<TPeriodicExecutor>(
+            NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+            BIND(&TCellHydraPersistenceSynchronizer::OnUpdateHydraFileIds, MakeWeak(this)),
+            GetDynamicConfig()->HydraFileIdUpdatePeriod);
+        UpdateHydraFileIdsPeriodicExecutor_->Start();
+
+        CachedHydraFileInfos_.clear();
+        NextCellIndexToFetchHydraFileIds_ = 0;
     }
 
     void Stop() override
     {
-        if (PeriodicExecutor_) {
-            YT_UNUSED_FUTURE(PeriodicExecutor_->Stop());
-            PeriodicExecutor_.Reset();
+        if (SynchronizePeriodicExecutor_) {
+            YT_UNUSED_FUTURE(SynchronizePeriodicExecutor_->Stop());
+            SynchronizePeriodicExecutor_.Reset();
+        }
+
+        if (UpdateHydraFileIdsPeriodicExecutor_) {
+            YT_UNUSED_FUTURE(UpdateHydraFileIdsPeriodicExecutor_->Stop());
+            UpdateHydraFileIdsPeriodicExecutor_.Reset();
         }
     }
 
 private:
     TBootstrap* const Bootstrap_;
-    TPeriodicExecutorPtr PeriodicExecutor_;
+    TPeriodicExecutorPtr SynchronizePeriodicExecutor_;
+    TPeriodicExecutorPtr UpdateHydraFileIdsPeriodicExecutor_;
     TAtomicIntrusivePtr<TDynamicCellHydraPersistenceSynchronizerConfig> DynamicConfig_;
+
+    struct THydraFileInfo
+    {
+        int MaxSnapshotId = -1;
+        int MaxChangelogId = -1;
+
+        bool operator==(const THydraFileInfo&) const = default;
+    };
+
+    std::vector<std::pair<TCellId, THydraFileInfo>> CachedHydraFileInfos_;
+    int NextCellIndexToFetchHydraFileIds_ = 0;
 
     using TPeerListPtr = IListNodePtr;
 
@@ -91,8 +125,12 @@ private:
         const auto& newConfig = Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->CellHydraPersistenceSynchronizer;
         DynamicConfig_.Store(newConfig);
 
-        if (PeriodicExecutor_) {
-            PeriodicExecutor_->SetPeriod(newConfig->SynchronizationPeriod);
+        if (SynchronizePeriodicExecutor_) {
+            SynchronizePeriodicExecutor_->SetPeriod(newConfig->SynchronizationPeriod);
+        }
+
+        if (UpdateHydraFileIdsPeriodicExecutor_) {
+            UpdateHydraFileIdsPeriodicExecutor_->SetPeriod(newConfig->HydraFileIdUpdatePeriod);
         }
     }
 
@@ -515,7 +553,7 @@ private:
                         toRegisterCellIds.push_back(cellId);
                     }
                     if (item->Attributes().Get<bool>("pending_acls_update", false) &&
-                        std::ssize(pendingAclsUpdateCellIds) < dynamicConfig->MaxCellAclsUpdatesPerIteration)
+                        std::ssize(pendingAclsUpdateCellIds) < dynamicConfig->MaxCellAclUpdatesPerIteration)
                     {
                         pendingAclsUpdateCellIds.push_back(cellId);
                     }
@@ -565,6 +603,138 @@ private:
                 ->CommitAndLog(Logger);
             Y_UNUSED(WaitFor(future));
         }
+    }
+
+    void OnUpdateHydraFileIds()
+    {
+        YT_LOG_DEBUG("Started cell Hydra file id update");
+
+        if (NextCellIndexToFetchHydraFileIds_ >= ssize(CachedHydraFileInfos_)) {
+            auto asyncHydraFileInfos = BIND([cellManager = Bootstrap_->GetTamedCellManager()] {
+                std::vector<std::pair<TCellId, THydraFileInfo>> cellInfos;
+                for (auto [id, cell] : cellManager->Cells()) {
+                    cellInfos.emplace_back(
+                        id,
+                        THydraFileInfo{cell->GetMaxSnapshotId(), cell->GetMaxChangelogId()});
+                }
+                return cellInfos;
+            })
+                .AsyncVia(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(
+                    EAutomatonThreadQueue::TamedCellManager))
+                .Run();
+
+            try {
+                CachedHydraFileInfos_ = WaitFor(asyncHydraFileInfos)
+                    .ValueOrThrow();
+                NextCellIndexToFetchHydraFileIds_ = 0;
+
+                YT_LOG_DEBUG("Cell Hydra file updater updated cell list (CellCount: %v)",
+                    ssize(CachedHydraFileInfos_));
+            } catch (const std::exception& ex) {
+                YT_LOG_ERROR(ex, "Failed to list cells to update max Hydra file ids");
+                return;
+            }
+        }
+
+        int lastCellIndex = std::min<int>(
+            ssize(CachedHydraFileInfos_),
+            NextCellIndexToFetchHydraFileIds_ + DynamicConfig_.Acquire()->MaxHydraFileIdUpdatesPerIteration);
+
+        std::vector<TCellId> cellIds;
+        for (int index = NextCellIndexToFetchHydraFileIds_; index < lastCellIndex; ++index) {
+            cellIds.push_back(CachedHydraFileInfos_[index].first);
+        }
+
+        NProto::TReqSetMaxHydraFileIds request;
+
+        try {
+            auto maxHydraFileIds = GetMaxHydraFileIds(cellIds);
+            YT_VERIFY(ssize(maxHydraFileIds) == lastCellIndex - NextCellIndexToFetchHydraFileIds_);
+
+            for (int index = 0; index < ssize(maxHydraFileIds); ++index) {
+                auto [cellId, oldInfo] = CachedHydraFileInfos_[NextCellIndexToFetchHydraFileIds_ + index];
+                auto newInfo = maxHydraFileIds[index];
+                if (newInfo != oldInfo) {
+                    auto* entry = request.add_entries();
+                    ToProto(entry->mutable_cell_id(), cellId);
+                    entry->set_max_snapshot_id(newInfo.MaxSnapshotId);
+                    entry->set_max_changelog_id(newInfo.MaxChangelogId);
+                }
+            }
+
+            if (!request.entries().empty()) {
+                auto future = CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
+                    ->CommitAndLog(Logger);
+                WaitFor(future)
+                    .ThrowOnError();
+            }
+
+            YT_LOG_DEBUG("Finished cell Hydra file id update (UpdatedCellCount: %v)",
+                request.entries_size());
+
+            NextCellIndexToFetchHydraFileIds_ = lastCellIndex;
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Failed to update max Hydra file ids");
+        }
+    }
+
+    std::vector<THydraFileInfo> GetMaxHydraFileIds(const std::vector<TCellId>& cellIds) const
+    {
+        auto proxy = CreateObjectServiceReadProxy(
+            Bootstrap_->GetRootClient(),
+            EMasterChannelKind::Follower);
+
+        // Batch request contains four requests for each cell:
+        // - cell Hydra persistence path -> snapshots
+        // - cell path -> snapshots
+        // - cell Hydra persistence path -> changelogs
+        // - cell path -> changelogs
+        auto batchReq = proxy.ExecuteBatch();
+
+        for (auto cellId : cellIds) {
+            for (const char* fileType : {"snapshots", "changelogs"}) {
+                batchReq->AddRequest(TYPathProxy::List(
+                    GetCellHydraPersistencePath(cellId) + "/" + fileType));
+                batchReq->AddRequest(TYPathProxy::List(
+                    GetCellPath(cellId) + "/" + fileType));
+            }
+        }
+
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+
+        auto getMaxId = [&] (int subrequestIndex) {
+            auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspList>(subrequestIndex);
+            int maxId = -1;
+
+            if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                return maxId;
+            }
+
+            auto listNode = ConvertToNode(TYsonString(rspOrError.ValueOrThrow()->value()));
+            auto list = listNode->AsList();
+            for (const auto& item : list->GetChildren()) {
+                auto key = item->GetValue<TString>();
+                int id;
+                if (!TryFromString<int>(key, id)) {
+                    continue;
+                }
+                maxId = std::max(maxId, id);
+            }
+            return maxId;
+        };
+
+        std::vector<THydraFileInfo> result;
+        result.reserve(ssize(cellIds));
+
+        for (auto [index, cellId] : Enumerate(cellIds)) {
+            result.push_back({
+                .MaxSnapshotId = std::max(getMaxId(index * 4 + 0), getMaxId(index * 4 + 1)),
+                .MaxChangelogId = std::max(getMaxId(index * 4 + 2), getMaxId(index * 4 + 3)),
+            });
+        }
+
+        return result;
     }
 };
 

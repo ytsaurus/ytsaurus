@@ -182,7 +182,11 @@ public:
 
     int MaxCellsToUnregisterFromCypressPerIteration;
 
-    int MaxCellAclsUpdatesPerIteration;
+    int MaxCellAclUpdatesPerIteration;
+
+    TDuration HydraFileIdUpdatePeriod;
+
+    int MaxHydraFileIdUpdatesPerIteration;
 
     REGISTER_YSON_STRUCT(TDynamicCellHydraPersistenceSynchronizerConfig);
 

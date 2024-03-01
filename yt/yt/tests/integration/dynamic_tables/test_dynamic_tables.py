@@ -3754,7 +3754,7 @@ class TestDynamicTablesHydraPersistenceMigrationPortal(TestDynamicTablesMulticel
         externalize("//sys/hydra_persistence", 11)
 
     @authors("danilalexeev")
-    def test_extenrnalized_hydra_persistence_storage(self):
+    def test_externalized_hydra_persistence_storage(self):
         assert get("//sys/hydra_persistence&/@type") == "portal_entrance"
         assert get("//sys/hydra_persistence/@type") == "portal_exit"
 
@@ -3766,7 +3766,7 @@ class TestDynamicTablesHydraPersistenceMigrationPortal(TestDynamicTablesMulticel
         snapshot_id = build_snapshot(cell_id=cell_id)
         assert [int(x) for x in ls(f"{path}/snapshots")] == [snapshot_id]
 
-        assert get(f"//sys/tablet_cells/{cell_id}/@max_snapshot_id") == snapshot_id
+        wait(lambda: get(f"//sys/tablet_cells/{cell_id}/@max_snapshot_id") == snapshot_id)
         get(f"//sys/tablet_cells/{cell_id}/@max_changelog_id")
 
         remove(f"//sys/tablet_cells/{cell_id}", force=True)
@@ -3786,5 +3786,5 @@ class TestDynamicTablesHydraPersistenceMigrationPortal(TestDynamicTablesMulticel
         build_snapshot(cell_id=cell_id)
         assert len(ls(f"//sys/tablet_cells/{cell_id}/snapshots")) == 1
 
-        # Should not fail
+        # Should not fail.
         sync_remove_tablet_cells([cell_id])

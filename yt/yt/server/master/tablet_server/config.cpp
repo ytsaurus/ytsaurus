@@ -121,9 +121,14 @@ void TDynamicCellHydraPersistenceSynchronizerConfig::Register(TRegistrar registr
     registrar.Parameter("max_cells_to_unregister_from_cypress_per_iteration", &TThis::MaxCellsToUnregisterFromCypressPerIteration)
         .GreaterThanOrEqual(0)
         .Default(200);
-    registrar.Parameter("max_cell_acls_updates_per_iteration", &TThis::MaxCellAclsUpdatesPerIteration)
+    registrar.Parameter("max_cell_acl_updates_per_iteration", &TThis::MaxCellAclUpdatesPerIteration)
         .GreaterThanOrEqual(0)
         .Default(20);
+    registrar.Parameter("hydra_file_id_update_period", &TThis::HydraFileIdUpdatePeriod)
+        .Default(TDuration::Seconds(1));
+    registrar.Parameter("max_hydra_file_id_updates_per_iteration", &TThis::MaxHydraFileIdUpdatesPerIteration)
+        .GreaterThan(0)
+        .Default(200);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

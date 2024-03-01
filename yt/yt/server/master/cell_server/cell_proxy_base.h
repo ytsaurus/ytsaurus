@@ -34,9 +34,7 @@ protected:
     TResolveResult ResolveSelf(const NYPath::TYPath& path, const NYTree::IYPathServiceContextPtr& context) override;
 
 private:
-    TResolveResult PropogateToHydraPersistenceStorage(const NYPath::TYPath& path) const;
-    // COMPAT(danilalexeev): secondaryPath.
-    int GetMaxHydraFileId(const NYPath::TYPath& primaryPath, const NYPath::TYPath& secondaryPath) const;
+    TResolveResult PropagateToHydraPersistenceStorage(const NYPath::TYPath& path) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
