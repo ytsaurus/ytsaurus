@@ -23,7 +23,6 @@ object ClusterConfig {
     SparkLaunchConfig(
       clusterBasePath,
       spark_conf = Map(
-        "spark.yt.jarCaching" -> "true",
         "spark.yt.version" -> version,
         "spark.hadoop.yt.byop.enabled" -> "false",
         "spark.hadoop.yt.read.arrow.enabled" -> "true",
@@ -40,7 +39,6 @@ object ClusterConfig {
         s"$clusterBasePath/spark.tgz",
         s"$clusterBasePath/spyt-package.zip",
         s"$clusterBasePath/setup-spyt-env.sh",
-        s"$clusterBasePath/spyt.zip"
       ) ++ sidecarConfigsClusterPaths
     )
   }

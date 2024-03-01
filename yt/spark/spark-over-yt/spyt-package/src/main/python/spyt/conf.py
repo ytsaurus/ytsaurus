@@ -68,17 +68,6 @@ def validate_cluster_version(spark_cluster_version, client=None):
                        "Please update your local ytsaurus-spyt".format(spark_cluster_version, SELF_VERSION))
 
 
-def validate_spyt_version(spyt_version, client=None):
-    if not check_spyt_version_exists(spyt_version, client=client):
-        raise RuntimeError("Unknown SPYT library version: {}. Available release versions are: {}".format(
-            spyt_version, get_available_spyt_versions(client=client)
-        ))
-    if spyt_version > SELF_VERSION:
-        logger.warning("You required SPYT library version {} which is older than your local version {}. "
-                       "Some new features may not work as expected. "
-                       "Please update your local ytsaurus-spyt".format(spyt_version, SELF_VERSION))
-
-
 def validate_versions_compatibility(spyt_version, spark_cluster_version):
     spyt_minor_version = SpytVersion(spyt_version).get_minor()
     spark_cluster_minor_version = SpytVersion(spark_cluster_version).get_minor()
@@ -161,14 +150,6 @@ def validate_custom_params(params):
                            "Use argument 'enablers' instead")
 
 
-def spyt_python_path(spyt_version):
-    return _get_spyt_version_path(spyt_version).join("spyt.zip")
-
-
-def check_spyt_version_exists(spyt_version, client=None):
-    return exists(_get_spyt_version_path(spyt_version), client=client)
-
-
 def get_available_spyt_versions(client=None):
     return yt_list(SPYT_BASE_PATH.join(RELEASES_SUBDIR), client=client)
 
@@ -197,7 +178,3 @@ def _version_subdir(version):
 
 def _get_version_conf_path(cluster_version):
     return CONF_BASE_PATH.join(_version_subdir(cluster_version)).join(cluster_version).join("spark-launch-conf")
-
-
-def _get_spyt_version_path(spyt_version):
-    return SPYT_BASE_PATH.join(_version_subdir(spyt_version)).join(spyt_version)

@@ -146,7 +146,7 @@ private[spark] class YTsaurusOperationManager(
         val suppliedFiles = (conf.get(FILES) ++ conf.get(SUBMIT_PYTHON_FILES)).map { fileName =>
           s"$home/${Paths.get(fileName).getFileName.toString}"
         }
-        val pyFiles = (Seq(s"$home/spyt.zip") ++ suppliedFiles).mkString(",")
+        val pyFiles = (Seq(s"$home/spyt-package/python") ++ suppliedFiles).mkString(",")
         Seq(pythonFile, pyFiles)
       case _ => Seq.empty
     }

@@ -10,7 +10,6 @@ from spyt import utils as spark_utils  # noqa: E402
 
 def main(raw_args=None):
     parser = spark_utils.get_default_arg_parser(description="Spark Submit")
-    parser.add_argument("--spyt-version", required=False)
     parser.add_argument("--python-version", required=False)
 
     parser.add_argument('--no-local-files',
@@ -25,7 +24,6 @@ def main(raw_args=None):
     return_code = raw_submit(discovery_path=args.discovery_path,
                              spark_home=spark_utils.get_spark_home(),
                              spark_args=unknown_args,
-                             spyt_version=args.spyt_version,
                              python_version=args.python_version,
                              local_files=args.local_files,
                              client=yt_client)

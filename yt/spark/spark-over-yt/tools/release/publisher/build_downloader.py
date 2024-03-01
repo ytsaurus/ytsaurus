@@ -26,8 +26,6 @@ def download_spyt(downloader: Client, versions: Versions, sources_path: str):
     if not versions.spyt_version.is_snapshot:
         global_conf_file = join(conf_local_dir, 'global')
         downloader.read_document("conf/global", global_conf_file)
-    spyt_zip = join(sources_path, 'spyt.zip')
-    downloader.read_file(f"{spyt_remote_dir(versions)}/spyt.zip", spyt_zip)
     spyt_package_zip = join(sources_path, 'spyt-package.zip')
     downloader.read_file(f"{spyt_remote_dir(versions)}/spyt-package.zip", spyt_package_zip)
 

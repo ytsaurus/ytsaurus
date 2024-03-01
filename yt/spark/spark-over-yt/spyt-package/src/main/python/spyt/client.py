@@ -12,10 +12,9 @@ from yt.wrapper.http_helpers import get_token, get_user_name  # noqa: E402
 from .arcadia import checked_extract_spark  # noqa: E402
 from .utils import default_token, default_discovery_dir, get_spark_master, set_conf, \
     SparkDiscovery, parse_memory, format_memory, base_spark_conf, parse_bool, get_spyt_home  # noqa: E402
-from .conf import read_remote_conf, read_global_conf, spyt_python_path, validate_versions_compatibility, \
+from .conf import read_remote_conf, read_global_conf, validate_versions_compatibility, \
     read_cluster_conf, SELF_VERSION  # noqa: E402
 from .enabler import set_enablers, set_except_enablers, get_enablers_list  # noqa: E402
-from .standalone import wrap_cached_jar  # noqa: E402
 
 
 logger = logging.getLogger(__name__)
@@ -144,14 +143,10 @@ def _configure_client_mode(spark_conf,
     os.environ["SPARK_CONF_DIR"] = os.path.join(get_spyt_home(), "conf")
     spark_conf.set("spark.yt.master.discoveryPath", str(discovery.base_discovery_path))
 
-    jar_caching_enabled = parse_bool(spark_conf.get("spark.yt.jarCaching"))
-
     spyt_version = spyt_version or SELF_VERSION
     spark_cluster_version = spark_conf.get("spark.yt.cluster.version")
     validate_versions_compatibility(spyt_version, spark_cluster_version)
     spark_conf.set("spark.yt.version", spyt_version)
-    spark_conf.set("spark.yt.pyFiles",
-                   wrap_cached_jar("yt:/{}".format(spyt_python_path(spyt_version)), jar_caching_enabled))
 
 
 def _validate_resources(num_executors, cores_per_executor, executor_memory_per_core):

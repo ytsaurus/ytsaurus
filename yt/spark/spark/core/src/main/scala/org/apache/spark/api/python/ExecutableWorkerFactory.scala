@@ -33,7 +33,6 @@ private[spark] class ExecutableWorkerFactory(execPath: String, envVars: Map[Stri
 
   override val pythonPath = PythonUtils.mergePythonPaths(
     PythonUtils.sparkPythonPath,
-    ExecutableUtils.pythonPath,
     envVars.getOrElse("PYTHONPATH", ""),
     sys.env.getOrElse("PYTHONPATH", ""))
 

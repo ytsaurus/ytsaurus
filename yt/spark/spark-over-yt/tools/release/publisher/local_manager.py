@@ -62,7 +62,6 @@ def check_existence(sources_path: str, files: List[str]) -> bool:
 
 def check_spyt_files(sources_path: str) -> bool:
     return check_existence(sources_path, [
-        'spyt.zip',
         'conf',
         'spyt-package.zip',
         'setup-spyt-env.sh'])

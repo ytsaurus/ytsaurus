@@ -21,7 +21,6 @@ import scala.util.{Failure, Success, Try}
 
 class SubmissionClient(proxy: String,
                        discoveryPath: String,
-                       spytVersion: String,
                        user: String,
                        token: String) {
   private val log = LoggerFactory.getLogger(getClass)
@@ -60,7 +59,6 @@ class SubmissionClient(proxy: String,
 
     launcher.setDeployMode("cluster")
 
-    val jarCachingEnabled = remoteConfig.get("spark.yt.jarCaching").exists(_.toBoolean)
     val ipv6Enabled = remoteConfig.get("spark.hadoop.yt.preferenceIpv6.enabled").exists(_.toBoolean)
 
     addConf(launcher, remoteConfig)
@@ -79,8 +77,6 @@ class SubmissionClient(proxy: String,
     launcher.setConf("spark.hadoop.yt.user", user)
     launcher.setConf("spark.hadoop.yt.token", token)
 
-    launcher.setConf("spark.yt.version", spytVersion)
-    launcher.setConf("spark.yt.pyFiles", wrapCachedJar(s"yt:/${spytPythonPath(spytVersion)}", jarCachingEnabled))
     launcher.setConf("spark.eventLog.dir", "ytEventLog:/" + eventLogPath)
 
     if (useDedicatedDriverOp) {
@@ -266,31 +262,5 @@ class SubmissionClient(proxy: String,
       throw new RuntimeException(s"Spark submission finished with error: $message")
     }
     FileUtils.readFileToString(submissionFiles.id)
-  }
-
-  private val SPARK_BASE_PATH = YPath.simple("//home/spark")
-  private val SPYT_BASE_PATH = SPARK_BASE_PATH.child("spyt")
-  private val RELEASES_SUBDIR = "releases"
-  private val SNAPSHOTS_SUBDIR = "snapshots"
-
-  private def wrapCachedJar(path: String, jarCachingEnabled: Boolean): String = {
-    if (jarCachingEnabled && path.startsWith("yt:/")) {
-      "ytCached:/" + path.drop(4)
-    } else {
-      path
-    }
-  }
-
-  private def spytPythonPath(spytVersion: String): YPath = {
-    getSpytVersionPath(spytVersion).child("spyt.zip")
-  }
-
-  private def getSpytVersionPath(spytVersion: String): YPath = {
-    SPYT_BASE_PATH.child(versionSubdir(spytVersion)).child(spytVersion)
-  }
-
-  private def versionSubdir(version: String): String = {
-    if (version.contains("SNAPSHOT") || version.contains("beta") || version.contains("dev")) SNAPSHOTS_SUBDIR
-    else RELEASES_SUBDIR
   }
 }

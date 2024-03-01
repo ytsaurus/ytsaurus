@@ -182,7 +182,8 @@ trait SparkLauncher {
       "JAVA_HOME" -> javaHome,
       "PYSPARK_PYTHON" -> "python3",
       "LIVY_SERVER_JAVA_OPTS" -> livyJavaOpts,
-      "CLASSPATH" -> s"$sparkHome/jars/*"
+      "CLASSPATH" -> s"$sparkHome/jars/*",
+      "PYTHONPATH" -> s"$spytHome/python"
     ).run(ProcessLogger(log.info(_)))
     val startProcessCode = startProcess.exitValue()
     log.info(f"Server started. Code: $startProcessCode")
@@ -288,6 +289,7 @@ trait SparkLauncher {
       "JAVA_HOME" -> javaHome,
       "SPARK_HOME" -> sparkHome,
       "SPARK_CONF_DIR" -> s"$spytHome/conf",
+      "PYTHONPATH" -> s"$spytHome/python",
       "SPARK_LOCAL_DIRS" -> sparkLocalDirs,
       // when using MTN, Spark should use ip address and not hostname, because hostname is not in DNS
       "SPARK_LOCAL_HOSTNAME" -> ytHostnameOrIpAddress,

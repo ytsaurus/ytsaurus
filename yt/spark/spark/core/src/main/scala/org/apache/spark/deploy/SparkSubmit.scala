@@ -377,13 +377,6 @@ private[spark] class SparkSubmit extends Logging {
       }
     }
 
-//    val ytJars = sparkConf.get("spark.yt.jars", "")
-//    args.jars = Option(args.jars).map(mergeFileLists(_, ytJars)).getOrElse(ytJars)
-//
-// TODO: try to remove also these lines
-    val ytPyFiles = sparkConf.get("spark.yt.pyFiles", "")
-    args.pyFiles = Option(args.pyFiles).map(mergeFileLists(_, ytPyFiles)).getOrElse(ytPyFiles)
-
     // Resolve glob path for different resources.
     args.jars = Option(args.jars).map(resolveGlobPaths(_, hadoopConf)).orNull
     args.files = Option(args.files).map(resolveGlobPaths(_, hadoopConf)).orNull
@@ -533,11 +526,6 @@ private[spark] class SparkSubmit extends Logging {
     if (deployMode == CLIENT && clusterManager != YARN) {
       // The YARN backend handles python files differently, so don't merge the lists.
       args.files = mergeFileLists(args.files, args.pyFiles)
-
-      val submitPyFiles = sparkConf.getOption("spark.submit.pyFiles").orNull
-      Option(mergeFileLists(submitPyFiles, args.pyFiles)).foreach(
-        sparkConf.set("spark.submit.pyFiles", _)
-      )
     }
 
     if (args.isExecutable && clusterManager == STANDALONE && deployMode == CLUSTER) {
@@ -559,9 +547,6 @@ private[spark] class SparkSubmit extends Logging {
       args.mainClass = "org.apache.spark.deploy.PythonRunner"
       args.childArgs = ArrayBuffer("{{USER_JAR}}", "{{PY_FILES}}") ++ args.childArgs
       args.files = mergeFileLists(args.files, args.pyFiles)
-      sparkConf.set("spark.python.files", Option(args.pyFiles).getOrElse(""))
-      val submitPyFiles = sparkConf.getOption("spark.submit.pyFiles").orNull
-      sparkConf.set("spark.submit.pyFiles", mergeFileLists(submitPyFiles, args.pyFiles))
     }
 
     if (localPyFiles != null) {

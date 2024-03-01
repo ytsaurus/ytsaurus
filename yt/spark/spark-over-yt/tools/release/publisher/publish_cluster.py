@@ -54,10 +54,6 @@ def upload_spyt(uploader: Client, versions: Versions, sources_path: str, publish
         global_conf_file = join(conf_local_dir, global_conf_file_name)
         uploader.write_document(global_conf_file, "conf/global")
 
-    logger.info("Uploading client files")
-    spyt_zip = join(sources_path, 'spyt.zip')
-    uploader.write_file(spyt_zip, f"{spyt_remote_dir(versions)}/spyt.zip")
-
 
 def create_base_dirs(uploader: Client, versions: Versions):
     logger.debug("Creation root directories")

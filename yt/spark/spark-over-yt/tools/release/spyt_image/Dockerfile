@@ -27,7 +27,6 @@ ARG PUBLISH_SCRIPTS_PATH
 
 COPY ${BUILD_OUTPUT_PATH}/version.json /data/
 COPY ${BUILD_OUTPUT_PATH}/conf /data/conf
-COPY ${BUILD_OUTPUT_PATH}/spyt.zip /data/
 COPY ${BUILD_OUTPUT_PATH}/spyt-package.zip /data/
 COPY ${BUILD_OUTPUT_PATH}/setup-spyt-env.sh /data/
 COPY ${BUILD_OUTPUT_PATH}/livy.tgz /data/

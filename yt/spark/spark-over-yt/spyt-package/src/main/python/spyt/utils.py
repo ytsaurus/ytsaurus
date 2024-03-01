@@ -241,6 +241,7 @@ def base_spark_conf(client, discovery):
         "spark.shuffle.service.enabled": "true",
         "spark.eventLog.dir": "ytEventLog:/{}".format(discovery.event_log_table()),
         "spark.yt.cluster.version": spark_cluster_version,
+        "spark.yt.version": spark_cluster_version,
         "spark.base.discovery.path": discovery.base_discovery_path,
         "spark.master.driverIdRegistration.enabled": "true"
     }

@@ -137,9 +137,16 @@ class SparkSubmissionClient(object):
         instance = super(SparkSubmissionClient, cls).__new__(cls)
         return instance
 
-    def __init__(self, gateway, proxy, discovery_path, spyt_version, user, token):
-        self._jclient = gateway.jvm.tech.ytsaurus.spyt.submit.SubmissionClient(proxy, discovery_path,
-                                                                               spyt_version, user, token)
+    def __init__(self, gateway, proxy, discovery_path, user, token):
+        # COMPAT(atokarew): Backward compatibility for CI/CD, remove after 1.77.0 release
+        n_constr_args = gateway.jvm.java.lang.Class.forName('tech.ytsaurus.spyt.submit.SubmissionClient')\
+            .getConstructors()[0].getParameterCount()
+        if n_constr_args == 5:
+            self._jclient = gateway.jvm.tech.ytsaurus.spyt.submit.SubmissionClient(
+                proxy, discovery_path, "1.76.1", user, token)
+        else:
+            # COMPAT END
+            self._jclient = gateway.jvm.tech.ytsaurus.spyt.submit.SubmissionClient(proxy, discovery_path, user, token)
         self.gateway = gateway
 
     def new_launcher(self):

@@ -7,7 +7,6 @@ import spyt.SparkPaths._
 import spyt.SpytPlugin.autoImport._
 import spyt.TarArchiverPlugin.autoImport._
 import spyt.YtPublishPlugin.autoImport._
-import spyt.ZipPlugin.autoImport._
 
 lazy val `yt-wrapper` = (project in file("yt-wrapper"))
   .enablePlugins(BuildInfoPlugin)
@@ -118,6 +117,13 @@ lazy val `spyt-package` = (project in file("spyt-package"))
       val dir = sourceDirectory.value / "main" / "spark-extra"
       (dir ** AllPassFilter --- dir) pair relativeTo(dir)
     },
+    Universal / mappings ++= {
+      val dir = sourceDirectory.value / "main" / "python" / "spyt"
+      val pythonFilter = new SimpleFileFilter(file =>
+        !(file.getName.contains("__pycache__") || file.getName.endsWith(".pyc"))
+      )
+      (dir ** pythonFilter --- dir) pair relativeTo(dir.getParentFile.getParentFile)
+    },
     Universal / mappings := {
       val oldMappings = (Universal / mappings).value
       val scalaLibs = scalaInstance.value.libraryJars.toSet
@@ -128,26 +134,19 @@ lazy val `spyt-package` = (project in file("spyt-package"))
 
     setupSpytEnvScript := sourceDirectory.value / "main" / "bash" / "setup-spyt-env.sh",
 
-    zipPath := Some(target.value / "spyt.zip"),
-    zipMapping += sourceDirectory.value / "main" / "python" / "spyt" -> "",
-    zipIgnore := { file: File =>
-      file.getName.contains("__pycache__") || file.getName.endsWith(".pyc")
-    },
-
     pythonDeps := {
       val packagePaths = (Universal / mappings).value.flatMap {
         case (file, path) if !file.isDirectory =>
           val target = path.substring(0, path.lastIndexOf("/")) match {
             case dir@("jars"|"bin"|"conf") => s"spyt/$dir"
+            case dir@("python/spyt") => "spyt"
             case x => x
           }
           Some(target -> file)
         case _ => None
       }
       val binBasePath = sourceDirectory.value / "main" / "bin"
-      val pySpytBasePath = sourceDirectory.value / "main" / "python" / "spyt"
-      binBasePath.listFiles().map(f => "bin" -> f) ++ pySpytBasePath.listFiles().map(f => "spyt" -> f) ++
-        packagePaths
+      binBasePath.listFiles().map(f => "bin" -> f) ++ packagePaths
     },
     pythonAppends := {
       if (isSnapshot.value) { Seq("spyt/conf/spark-defaults.conf" -> (
@@ -162,7 +161,7 @@ lazy val `spyt-package` = (project in file("spyt-package"))
   .settings(
     spytArtifacts := {
       val rootDirectory = baseDirectory.value.getParentFile
-      val files = Seq((Universal / packageBin).value, setupSpytEnvScript.value, zip.value)
+      val files = Seq((Universal / packageBin).value, setupSpytEnvScript.value)
       makeLinksToBuildDirectory(files, rootDirectory)
       val versionValue = (ThisBuild / spytVersion).value
       val baseConfigDir = (Compile / resourceDirectory).value
@@ -202,7 +201,6 @@ lazy val `spyt-package` = (project in file("spyt-package"))
         (Compile / resourceDirectory).value)
 
       sparkLink ++ Seq(
-        YtPublishFile(zip.value, basePath, proxy = None, isTtlLimited = isTtlLimited),
         YtPublishFile((Universal / packageBin).value, basePath, None, isTtlLimited = isTtlLimited),
         YtPublishFile(setupSpytEnvScript.value, basePath, None, isTtlLimited = isTtlLimited, isExecutable = true)
       ) ++ clusterConfigArtifacts

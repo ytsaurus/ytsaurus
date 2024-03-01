@@ -17,21 +17,11 @@
 
 package org.apache.spark.api.python
 
-import java.io.File
-
 import org.apache.hadoop.fs.Path
 
 import org.apache.spark.{SparkEnv, SparkFiles}
 
 private[spark] object ExecutableUtils {
-
-  // executable must know about python files provided by spark.yt.pyFiles before the process starts,
-  // otherwise, if there are top-level imports from those python files, they will fail
-  def pythonPath: String = {
-    val ytPyFiles = SparkEnv.get.conf.get("spark.yt.pyFiles", "")
-    val localPyFiles = ytPyFiles.split(",").map(new Path(_).getName)
-    localPyFiles.map(SparkFiles.get).mkString(File.pathSeparator)
-  }
 
   def executablePath: String = {
     val execName = new Path(SparkEnv.get.conf.get("spark.yt.executableResource")).getName

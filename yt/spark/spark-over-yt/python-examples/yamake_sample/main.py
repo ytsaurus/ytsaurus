@@ -4,12 +4,12 @@ import spyt.submit as submit
 import spyt.utils as utils
 
 
-def run_job(proxy, discovery_path, client_version):
+def run_job(proxy, discovery_path):
     logging.info("Running job")
     with submit.java_gateway() as gateway:
         logging.info("Gateway created")
 
-        submission_client = submit.SparkSubmissionClient(gateway, proxy, discovery_path, client_version,
+        submission_client = submit.SparkSubmissionClient(gateway, proxy, discovery_path,
                                                          utils.default_user(), utils.default_token())
         logging.info("Submission client created")
 
@@ -26,9 +26,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('proxy')
     parser.add_argument('discovery_path')
-    parser.add_argument('client_version')
     args, _ = parser.parse_known_args()
-    run_job(args.proxy, args.discovery_path, args.client_version)
+    run_job(args.proxy, args.discovery_path)
 
 
 if __name__ == '__main__':

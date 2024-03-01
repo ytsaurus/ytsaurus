@@ -26,9 +26,8 @@ except Exception:
     from yt.wrapper.operation_commands \
         import process_operation_unsuccesful_finish_state as process_operation_unsuccessful_finish_state
 
-from .conf import read_remote_conf, validate_cluster_version, spyt_python_path, \
-    validate_spyt_version, validate_versions_compatibility, latest_compatible_spyt_version, \
-    update_config_inplace, validate_custom_params, validate_mtn_config, \
+from .conf import read_remote_conf, validate_cluster_version, \
+    latest_compatible_spyt_version, update_config_inplace, validate_custom_params, validate_mtn_config, \
     latest_ytserver_proxy_path, ytserver_proxy_attributes, read_global_conf, python_bin_path, \
     worker_num_limit, validate_worker_num, read_cluster_conf, validate_ssd_config  # noqa: E402
 from .utils import get_spark_master, base_spark_conf, SparkDiscovery, SparkCluster, call_get_proxy_address_url, \
@@ -198,7 +197,7 @@ def submit_python(discovery_path, spark_home, deploy_mode, spark_conf, main_py_p
                client=client)
 
 
-def raw_submit(discovery_path, spark_home, spark_args, spyt_version=None,
+def raw_submit(discovery_path, spark_home, spark_args,
                python_version=None, local_files=True, client=None):
     spark_submit_path = "{}/bin/spark-submit".format(spark_home)
     spark_base_args = [spark_submit_path]
@@ -212,13 +211,11 @@ def raw_submit(discovery_path, spark_home, spark_args, spyt_version=None,
     cluster_conf = read_cluster_conf(str(discovery.conf()), client)
     spark_conf = cluster_conf['spark_conf']
     dedicated_driver_op = parse_bool(spark_conf.get('spark.dedicated_operation_mode'))
-    jar_caching_enabled = parse_bool(spark_conf.get('spark.yt.jarCaching'))
     ipv6_preference_enabled = parse_bool(spark_conf.get('spark.hadoop.yt.preferenceIpv6.enabled'))
 
     _add_master(discovery, spark_base_args, rest=True, client=client)
     _add_shs_option(discovery, spark_base_args, client=client)
     _add_base_spark_conf(client, discovery, spark_base_args)
-    _add_spyt_deps(spyt_version, spark_base_args, discovery, client, jar_caching_enabled)
     _add_python_version(python_version, spark_base_args, client)
     _add_dedicated_driver_op_conf(spark_base_args, dedicated_driver_op)
     _add_ipv6_preference(ipv6_preference_enabled, spark_base_args)
@@ -295,26 +292,12 @@ def wrap_cached_jar(path, jar_caching_enabled):
         return path
 
 
-def _add_spyt_deps(spyt_version, spark_args, discovery, client, jar_caching_enabled):
-    spark_cluster_version = SparkDiscovery.get(discovery.spark_cluster_version(), client=client)
-    if spyt_version is not None:
-        validate_spyt_version(spyt_version, client=client)
-        validate_versions_compatibility(spyt_version, spark_cluster_version)
-    else:
-        spyt_version = latest_compatible_spyt_version(spark_cluster_version, client=client)
-    _add_conf({
-        "spark.yt.version": spyt_version,
-        "spark.yt.pyFiles": wrap_cached_jar("yt:/{}".format(spyt_python_path(spyt_version)), jar_caching_enabled)
-    }, spark_args)
-
-
 def shell(discovery_path, spark_home, spark_args, spyt_version=None, client=None):
     spark_shell_path = "{}/bin/spark-shell".format(spark_home)
     spark_base_args = [spark_shell_path]
     discovery = SparkDiscovery(discovery_path=discovery_path)
 
     spark_conf = read_cluster_conf(str(discovery.conf()), client)['spark_conf']
-    jar_caching_enabled = parse_bool(spark_conf.get('spark.yt.jarCaching'))
     ipv6_preference_enabled = parse_bool(spark_conf.get('spark.hadoop.yt.preferenceIpv6.enabled'))
 
     _add_master(discovery, spark_base_args, rest=False, client=client)
@@ -322,7 +305,6 @@ def shell(discovery_path, spark_home, spark_args, spyt_version=None, client=None
     _add_base_spark_conf(client, discovery, spark_base_args)
     _add_conf({"spark.ui.showConsoleProgress": "true"}, spark_base_args)
     _add_conf(spark_conf, spark_base_args)
-    _add_spyt_deps(spyt_version, spark_base_args, discovery, client, jar_caching_enabled)
     _add_ipv6_preference(ipv6_preference_enabled, spark_base_args)
     spark_env = _create_spark_env(client, spark_home)
 
