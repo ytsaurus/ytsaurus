@@ -634,3 +634,24 @@ class TestAccessControlList(YTEnvSetup):
         expect_queries([q_u2], list_queries(filter="aco:aco_list_by_aco2"))
         expect_queries([q_u3], list_queries(filter="aco_list_by_aco3"))
         expect_queries([q_u3], list_queries(filter="aco:aco_list_by_aco3"))
+
+
+##################################################################
+
+
+@authors("apollo1321")
+class TestQueriesMockRpcProxy(TestQueriesMock):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+
+@authors("apollo1321")
+class TestAccessControlRpcProxy(TestAccessControl):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+
+@authors("apollo1321")
+class TestAccessControlListRpcProxy(TestAccessControlList):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True

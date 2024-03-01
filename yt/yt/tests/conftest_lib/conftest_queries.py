@@ -1,8 +1,13 @@
 from yt_commands import (
     create, create_access_control_object_namespace, create_access_control_object, create_user,
     remove_user, remove, add_member, sync_create_cells, sync_remove_tablet_cells, ls,
-    set, get_connection_config, wait, get)
+    set, wait, get)
+
+from yt_queries import get_query_tracker_info
+
 from yt.environment import ExternalComponent
+
+from yt.common import YtError
 
 import pytest
 
@@ -36,6 +41,13 @@ class QueryTracker(ExternalComponent):
         remove("//sys/query_tracker/instances", recursive=True, force=True)
 
 
+def query_tracker_has_loaded():
+    try:
+        return get_query_tracker_info().get("cluster_name") is not None
+    except YtError:
+        return False
+
+
 @pytest.fixture
 def query_tracker_environment():
     create_user("query_tracker")
@@ -50,8 +62,8 @@ def query_tracker_environment():
     create("document", "//sys/query_tracker/config", recursive=True, force=True, attributes={"value": {}})
     create_access_control_object_namespace("queries")
     create_access_control_object("nobody", "queries")
-    wait(lambda: get_connection_config(verbose=False)
-         .get("query_tracker", {}).get("stages", {}).get("production") is not None)
+
+    wait(query_tracker_has_loaded)
     yield
     remove("//sys/access_control_object_namespaces/queries/nobody")
     remove("//sys/access_control_object_namespaces/queries")

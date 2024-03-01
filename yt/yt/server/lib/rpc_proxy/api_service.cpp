@@ -771,6 +771,15 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PartitionTables));
 
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartQuery));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortQuery));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQueryResult));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadQueryResult));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQuery));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ListQueries));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterQuery));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQueryTrackerInfo));
+
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckClusterLiveness));
 
         DeclareServerFeature(ERpcProxyFeature::GetInSyncWithoutKeys);
@@ -5563,6 +5572,363 @@ private:
                 context->SetResponseInfo("PartitionCount: %v", result.Partitions.size());
             });
     }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // QUERY TRACKER
+    ////////////////////////////////////////////////////////////////////////////////
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StartQuery)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TStartQueryOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        options.QueryTrackerStage = request->query_tracker_stage();
+
+        if (request->has_settings()) {
+            options.Settings = ConvertToNode(TYsonStringBuf(request->settings()));
+        }
+
+        options.Draft = request->draft();
+
+        if (request->has_annotations()) {
+            options.Annotations = ConvertToNode(TYsonStringBuf(request->annotations()))->AsMap();
+        }
+
+        for (const auto& requestFile : request->files()) {
+            auto file = New<TQueryFile>();
+            file->Name = requestFile.name();
+            file->Content = requestFile.content();
+            file->Type = FromProto<EContentType>(requestFile.type());
+            options.Files.emplace_back(file);
+        }
+
+        if (request->has_access_control_object()) {
+            options.AccessControlObject = request->access_control_object();
+        }
+
+        auto engine = FromProto<NQueryTrackerClient::EQueryEngine>(request->engine());
+
+        context->SetRequestInfo("QueryTrackerStage: %v, Engine: %v, Draft: %v, AccessControlObject: %v",
+            options.QueryTrackerStage,
+            engine,
+            options.Draft,
+            options.AccessControlObject);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->StartQuery(engine, request->query(), options);
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_query_id(), result);
+
+                context->SetResponseInfo("QueryId: %v", result);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AbortQuery)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TAbortQueryOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        options.QueryTrackerStage = request->query_tracker_stage();
+
+        if (request->has_abort_message()) {
+            options.AbortMessage = request->abort_message();
+        }
+
+        auto queryId = FromProto<NQueryTrackerClient::TQueryId>(request->query_id());
+
+        context->SetRequestInfo("QueryTrackerStage: %v, QueryId: %v, AbortMessage: %v",
+            options.QueryTrackerStage,
+            queryId,
+            options.AbortMessage);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->AbortQuery(queryId, options);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetQueryResult)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TGetQueryResultOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        options.QueryTrackerStage = request->query_tracker_stage();
+
+        auto queryId = FromProto<NQueryTrackerClient::TQueryId>(request->query_id());
+
+        context->SetRequestInfo("QueryTrackerStage: %v, QueryId: %v, ResultIndex: %v",
+            options.QueryTrackerStage,
+            queryId,
+            request->result_index());
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->GetQueryResult(queryId, request->result_index(), options);
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+
+                ToProto(response->mutable_query_id(), result.Id);
+                response->set_result_index(result.ResultIndex);
+                ToProto(response->mutable_error(), result.Error);
+
+                if (result.Schema) {
+                    ToProto(response->mutable_schema(), result.Schema);
+                }
+
+                ToProto(response->mutable_data_statistics(), result.DataStatistics);
+                response->set_is_truncated(result.IsTruncated);
+
+                context->SetResponseInfo("QueryId: %v, ResultIndex: %v, Error: %v, IsTruncated: %v",
+                    result.Id,
+                    result.ResultIndex,
+                    result.Error,
+                    result.IsTruncated);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadQueryResult)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TReadQueryResultOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        options.QueryTrackerStage = request->query_tracker_stage();
+
+        auto queryId = FromProto<NQueryTrackerClient::TQueryId>(request->query_id());
+
+        if (request->has_columns()) {
+            options.Columns = FromProto<std::vector<TString>>(request->columns().items());
+        }
+
+        if (request->has_lower_row_index()) {
+            options.LowerRowIndex = request->lower_row_index();
+        }
+
+        if (request->has_upper_row_index()) {
+            options.UpperRowIndex = request->upper_row_index();
+        }
+
+        context->SetRequestInfo("QueryTrackerStage: %v, QueryId: %v, ResultIndex: %v",
+            options.QueryTrackerStage,
+            queryId,
+            request->result_index());
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->ReadQueryResult(queryId, request->result_index(), options);
+            },
+            [] (const auto& context, const auto& rowset) {
+                auto* response = &context->Response();
+
+                response->Attachments() = NApi::NRpcProxy::SerializeRowset(
+                    *rowset->GetSchema(),
+                    rowset->GetRows(),
+                    response->mutable_rowset_descriptor());
+
+                context->SetResponseInfo("RowCount: %v", rowset->GetRows().Size());
+            });
+    }
+
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetQuery)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TGetQueryOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        options.QueryTrackerStage = request->query_tracker_stage();
+
+        if (request->has_attributes()) {
+            options.Attributes = FromProto<NYTree::TAttributeFilter>(request->attributes());
+        }
+
+        auto queryId = FromProto<NQueryTrackerClient::TQueryId>(request->query_id());
+
+        if (request->has_timestamp()) {
+            options.Timestamp = request->timestamp();
+        }
+
+        context->SetRequestInfo("QueryTrackerStage: %v, QueryId: %v, StartTimestamp: %v",
+            options.QueryTrackerStage,
+            queryId,
+            options.Timestamp);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->GetQuery(queryId, options);
+            },
+            [] (const auto& context, const auto& query) {
+                auto* response = &context->Response();
+
+                ToProto(response->mutable_query(), query);
+
+                context->SetResponseInfo("QueryId: %v, Engine: %v, State: %v",
+                    query.Id,
+                    query.Engine,
+                    query.State);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ListQueries)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TListQueriesOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        options.QueryTrackerStage = request->query_tracker_stage();
+
+        if (request->has_from_time()) {
+            options.FromTime = TInstant::FromValue(request->from_time());
+        }
+        if (request->has_to_time()) {
+            options.ToTime = TInstant::FromValue(request->to_time());
+        }
+        if (request->has_cursor_time()) {
+            options.CursorTime = TInstant::FromValue(request->cursor_time());
+        }
+        options.CursorDirection = FromProto<EOperationSortDirection>(request->cursor_direction());
+
+        if (request->has_user_filter()) {
+            options.UserFilter = request->user_filter();
+        }
+        if (request->has_state_filter()) {
+            options.StateFilter = FromProto<NQueryTrackerClient::EQueryState>(request->state_filter());
+        }
+        if (request->has_engine_filter()) {
+            options.EngineFilter = FromProto<NQueryTrackerClient::EQueryEngine>(request->engine_filter());
+        }
+        if (request->has_substr_filter()) {
+            options.SubstrFilter = request->substr_filter();
+        }
+
+        options.Limit = request->limit();
+
+        if (request->has_attributes()) {
+            options.Attributes = FromProto<NYTree::TAttributeFilter>(request->attributes());
+        }
+
+        context->SetRequestInfo(
+            "QueryTrackerStage: %v, FromTime: %v, ToTime: %v, CursorTime: %v, CursorDirection: %v, "
+            "UserFilter: %v, StateFilter: %v, EngineFilter: %v, SubstrFilter: %v, Limit: %v",
+            options.QueryTrackerStage,
+            options.FromTime,
+            options.ToTime,
+            options.CursorTime,
+            options.CursorDirection,
+            options.UserFilter,
+            options.StateFilter,
+            options.EngineFilter,
+            options.SubstrFilter,
+            options.Limit);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->ListQueries(options);
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+
+                for (const auto& query : result.Queries) {
+                    ToProto(response->add_queries(), query);
+                }
+
+                response->set_incomplete(result.Incomplete);
+                response->set_timestamp(result.Timestamp);
+
+                context->SetResponseInfo("QueryCount: %v, Incomplete: %v, Timestamp: %v",
+                    result.Queries.size(),
+                    result.Incomplete,
+                    result.Timestamp);
+            });
+    }
+
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AlterQuery)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TAlterQueryOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        options.QueryTrackerStage = request->query_tracker_stage();
+
+        if (request->has_annotations()) {
+            options.Annotations = ConvertToNode(TYsonStringBuf(request->annotations()))->AsMap();
+        }
+
+        if (request->has_access_control_object()) {
+            options.AccessControlObject = request->access_control_object();
+        }
+
+        auto queryId = FromProto<NQueryTrackerClient::TQueryId>(request->query_id());
+
+        context->SetRequestInfo("QueryTrackerStage: %v, QueryId: %v, AccessControlObject: %v",
+            options.QueryTrackerStage,
+            queryId,
+            options.AccessControlObject);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->AlterQuery(queryId, options);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetQueryTrackerInfo)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TGetQueryTrackerInfoOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        options.QueryTrackerStage = request->query_tracker_stage();
+
+        if (request->has_attributes()) {
+            options.Attributes = FromProto<NYTree::TAttributeFilter>(request->attributes());
+        }
+
+        context->SetRequestInfo("QueryTrackerStage: %v", options.QueryTrackerStage);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->GetQueryTrackerInfo(options);
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+
+                response->set_cluster_name(result.ClusterName);
+                response->set_supported_features(result.SupportedFeatures.ToString());
+                for (const auto& accessControlObject : result.AccessControlObjects) {
+                    *response->add_access_control_objects() = accessControlObject;
+                }
+
+                context->SetResponseInfo("ClusterName: %v", result.ClusterName);
+            });
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // MISC
+    ////////////////////////////////////////////////////////////////////////////////
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CheckClusterLiveness)
     {

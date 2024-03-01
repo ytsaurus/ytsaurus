@@ -104,3 +104,12 @@ class TestQueriesQL(YTEnvSetup):
         ]
         assert result_info["schema"] == expected_schema
         assert_items_equal(q.read_result(0), rows)
+
+
+##################################################################
+
+
+@authors("apollo1321")
+class TestQueriesQLRpcProxy(TestQueriesQL):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True

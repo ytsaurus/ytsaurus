@@ -173,6 +173,18 @@ public:
     // Metadata
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetColumnarStatistics);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, PartitionTables);
+
+    // Query tracker
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, StartQuery);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AbortQuery);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetQueryResult);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ReadQueryResult);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetQuery);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ListQueries);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AlterQuery);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetQueryTrackerInfo);
+
+    // Misc
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CheckClusterLiveness);
 };
 
