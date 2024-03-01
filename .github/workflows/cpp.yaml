@@ -127,6 +127,7 @@ jobs:
 
   systest:
     name: systest
+    if: github.ref_name == 'main'
     needs:
       - start-vm
       - tag
