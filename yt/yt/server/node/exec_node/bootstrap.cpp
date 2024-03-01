@@ -328,7 +328,9 @@ private:
 
         // Singletons.
         JobProxyConfigTemplate_->FiberStackPoolSizes = GetConfig()->FiberStackPoolSizes;
-        JobProxyConfigTemplate_->AddressResolver = GetConfig()->AddressResolver;
+        JobProxyConfigTemplate_->AddressResolver = CloneYsonStruct(GetConfig()->AddressResolver);
+        JobProxyConfigTemplate_->AddressResolver->LocalHostNameOverride = NNet::ReadLocalHostName();
+
         JobProxyConfigTemplate_->RpcDispatcher = GetConfig()->RpcDispatcher;
         JobProxyConfigTemplate_->TcpDispatcher = GetConfig()->TcpDispatcher;
         JobProxyConfigTemplate_->YPServiceDiscovery = GetConfig()->YPServiceDiscovery;
