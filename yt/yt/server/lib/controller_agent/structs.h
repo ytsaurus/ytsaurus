@@ -42,6 +42,9 @@ struct TJobSummary
     NControllerAgent::NProto::TJobResultExt& GetJobResultExt();
     const NControllerAgent::NProto::TJobResultExt& GetJobResultExt() const;
 
+    //! Crashes if job result is not combined yet.
+    const TError& GetError() const;
+
     //! Crashes if job result is not combined yet, and returns nullptr if scheduler job
     //! result extension is missing.
     const NControllerAgent::NProto::TJobResultExt* FindJobResultExt() const;
@@ -53,6 +56,7 @@ struct TJobSummary
     // result is being combined from scheduler and node parts.
     // Prefer using GetJobResult() and GetJobResult() helpers.
     std::optional<NProto::TJobResult> Result;
+    std::optional<TError> Error;
 
     TJobId Id;
     EJobState State = EJobState::None;
