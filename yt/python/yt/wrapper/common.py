@@ -17,8 +17,10 @@ except ImportError:
     from collections import Iterable
 try:
     from yt.packages.decorator import decorator
+    import yt.packages.typing as typing  # noqa
 except ImportError:
     from decorator import decorator
+    import typing  # noqa
 
 import argparse
 import collections

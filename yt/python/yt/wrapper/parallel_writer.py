@@ -1,6 +1,6 @@
 from .batch_helpers import batch_apply
 from .config import get_config
-from .common import MB
+from .common import MB, typing  # noqa
 from .cypress_commands import mkdir, concatenate, find_free_subpath, remove
 from .default_config import DEFAULT_WRITE_CHUNK_SIZE
 from .driver import make_request
@@ -160,6 +160,8 @@ def _get_chunk_size_and_thread_count(size_hint, config):
 def make_parallel_write_request(command_name, stream, path, params, unordered,
                                 create_object, remote_temp_directory, size_hint=None,
                                 filename_hint=None, progress_monitor=None, client=None):
+    # type: (str, RawStream | ItemStream, str | YPath, dict, bool, typing.Callable[[YPath, yt.YtClient], None], str, int | None, str | None, _ProgressReporter | None, yt.YtClient | None) -> None
+
     assert isinstance(stream, (RawStream, ItemStream))
 
     if stream.isatty():

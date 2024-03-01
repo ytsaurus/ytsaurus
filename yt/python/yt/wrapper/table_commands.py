@@ -19,7 +19,7 @@ from .table_helpers import (_prepare_source_tables, _are_default_empty_table, _p
 from .file_commands import _get_remote_temp_files_directory, _enrich_with_attributes
 from .parallel_reader import make_read_parallel_request
 from .schema import _SchemaRuntimeCtx, TableSchema
-from .ypath import TablePath, ypath_join
+from .ypath import YPath, TablePath, ypath_join
 
 import yt.json_wrapper as json
 import yt.yson as yson
@@ -196,9 +196,18 @@ def write_table(table, input_stream, format=None, table_writer=None, max_row_buf
     set_param(params, "table_writer", table_writer)
 
     def prepare_table(path, client):
+        # type: (YPath | str, yt.YtClient) -> None
         if not force_create:
             return
-        _create_table(path, ignore_existing=True, client=client)
+
+        if isinstance(path, YPath) and path.attributes.get("schema") and path.attributes.get("append"):
+            # try to create table with schema (write_table will not do it in append mode)
+            _create_table(path, ignore_existing=True, client=client, attributes={"schema": path.attributes["schema"]})
+            # "schema" with "append" causes error on cluster side
+            del path.attributes["schema"]
+        else:
+            # create table without schema
+            _create_table(path, ignore_existing=True, client=client)
 
     can_split_input = isinstance(input_stream, list) or format.is_raw_load_supported()
     enable_retries = get_config(client)["write_retries"]["enable"] and \
@@ -265,8 +274,7 @@ def _try_get_schema(table, client=None):
 def _try_infer_schema(table, row_type):
     if table.attributes.get("schema") is not None:
         return
-    if table.attributes.get("append", False):
-        return
+    # "schema" with "append=True" do not make sense but required in prepare_table()
     schema = TableSchema.from_row_type(row_type)
     sorted_by = table.attributes.get("sorted_by")
     if sorted_by is not None:

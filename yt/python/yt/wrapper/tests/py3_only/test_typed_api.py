@@ -369,6 +369,14 @@ class TestTypedApi(object):
         read_rows = list(yt.read_table(table))
         assert read_rows == []
 
+    @authors("denvr")
+    def test_write_with_append(self):
+        table = "//tmp/table"
+        yt.remove(table, force=True)
+        assert not yt.exists(table)
+        yt.write_table_structured(yt.TablePath(table, append=True), TheRow, ROWS)
+        assert ROW_DICTS == list(yt.read_table(table))
+
     @authors("levysotsky")
     @pytest.mark.parametrize("create", [True, False])
     def test_write_schema_inference(self, create):

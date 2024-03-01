@@ -1,5 +1,5 @@
 from .config import get_option, get_config, get_command_param
-from .common import YtError, MB
+from .common import YtError, MB, typing  # noqa
 from .cypress_commands import get
 from .default_config import DEFAULT_WRITE_CHUNK_SIZE
 from .driver import make_request
@@ -148,6 +148,7 @@ class WriteRequestRetrier(Retrier):
 def make_write_request(command_name, stream, path, params, create_object, use_retries,
                        is_stream_compressed=False, size_hint=None, filename_hint=None,
                        progress_monitor=None, client=None):
+    # type: (str, RawStream | ItemStream, str | YPath, dict, typing.Callable[[YPath, YtClient], None], bool, bool | None, int | None, str | None, _ProgressReporter | None, YtClient | None) -> None
     assert isinstance(stream, (RawStream, ItemStream))
 
     path = YPathSupportingAppend(path, client=client)
