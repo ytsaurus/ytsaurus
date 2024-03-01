@@ -285,6 +285,8 @@ items:
                 href: user-guide/data-processing/spyt/logs.md
             - name: Чтение и запись под транзакцией
               href: user-guide/data-processing/spyt/read-transaction.md
+            - name: Structured Streaming
+              href: user-guide/data-processing/spyt/structured-streaming.md
             - name: API
               items:
                 - name: SPYT в Python

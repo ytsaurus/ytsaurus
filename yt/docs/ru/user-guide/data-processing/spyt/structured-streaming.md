@@ -1,0 +1,1 @@
+{% include [Structured Streaming](../../../_includes/user-guide/data-processing/spyt/structured-streaming.md) %}
