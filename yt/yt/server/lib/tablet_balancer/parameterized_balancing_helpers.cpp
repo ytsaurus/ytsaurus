@@ -921,6 +921,22 @@ std::optional<TReshardDescriptor> TParameterizedResharder::TryMakeTabletFit(
     if (tabletMetric > statistics.MaxTabletMetric ||
         tabletSize > statistics.MaxTabletSize)
     {
+        if (tabletSize == 0) {
+            // Should not happen othen.
+            YT_LOG_WARNING_IF(
+                (Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging) &&
+                LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
+                "Trying to split an empty tablet. Skip it "
+                "(TableId: %v, TabletId: %v, TabletMetric: %v, TableSize: %v, DesiredTabletSize: %v, MaxTabletSize: %v)",
+                table->Id,
+                table->Tablets[tabletIndex]->Id,
+                tabletMetric,
+                statistics.TableSize,
+                statistics.DesiredTabletSize,
+                statistics.MaxTabletSize);
+            return std::nullopt;
+        }
+
         return SplitTablet(table, tabletIndex, touchedTabletIndexes, statistics);
     }
 

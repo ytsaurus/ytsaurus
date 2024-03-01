@@ -1042,8 +1042,6 @@ TEST_P(TTestMergeSplitTabletsParameterized, ViaMemorySize)
     auto expectedDescriptorsIt = expected.begin();
 
     for (const auto& [id, table] : bundle->Tables) {
-        YT_VERIFY(table->CompressedDataSize);
-        YT_VERIFY(table->UncompressedDataSize);
         YT_VERIFY(table->TableConfig->DesiredTabletCount);
 
         auto descriptors = resharder->BuildTableActionDescriptors(table);
@@ -1118,6 +1116,16 @@ INSTANTIATE_TEST_SUITE_P(
             "cells=[{cell_index=1; memory_size=1; node_address=home}];"
             "nodes=[{node_address=home; memory_used=1}]}",
             /*reshardDescriptors*/ "[{tablets=[2;]; tablet_count=2; data_size=10}]"),
+        std::tuple( // SPLIT an empty table (do nothing)
+            "{config={groups={default={parameterized={metric=\"1\"; enable_reshard=%true}}}};"
+            "tables=[{in_memory_mode=none; uncompressed_data_size=0; compressed_data_size=0;"
+                     "config={enable_parameterized=%true; desired_tablet_count=2};"
+                     "tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=0; memory_size=0; compressed_data_size=0; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=0; node_address=home}];"
+            "nodes=[{node_address=home; memory_used=0}]}",
+            /*reshardDescriptors*/ "[]"),
         std::tuple( // Just right
             "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"; enable_reshard=%true}}}};"
             "tables=[{in_memory_mode=uncompressed; uncompressed_data_size=40; compressed_data_size=40;"
