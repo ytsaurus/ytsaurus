@@ -527,10 +527,27 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0);
 
     registrar.Parameter("job_throttler", &TThis::JobThrottler)
-        .DefaultNew();
+        .DefaultCtor([] {
+            auto jobThrottler = New<NConcurrency::TThroughputThrottlerConfig>();
+            jobThrottler->Limit = 10'000;
+
+            return jobThrottler;
+        });
 
     registrar.Parameter("per_type_job_throttlers", &TThis::JobTypeToThrottler)
-        .Default();
+        .DefaultCtor([] {
+            THashMap<EJobType, NConcurrency::TThroughputThrottlerConfigPtr> jobTypeToThrottler;
+
+            for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
+                if (IsMasterJobType(jobType)) {
+                    auto jobThrottler = EmplaceOrCrash(jobTypeToThrottler, jobType, New<NConcurrency::TThroughputThrottlerConfig>());
+                    jobThrottler->second->Limit = 10'000;
+                }
+            }
+
+            return jobTypeToThrottler;
+        })
+        .ResetOnLoad();
 
     registrar.Parameter("max_heavy_columns", &TThis::MaxHeavyColumns)
         .Default(30)
@@ -643,16 +660,6 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_chunk_schemas", &TThis::EnableChunkSchemas)
         .Default(true);
-
-    registrar.Preprocessor([] (TThis* config) {
-        config->JobThrottler->Limit = 10'000;
-        for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
-            if (IsMasterJobType(jobType)) {
-                auto jobThrottler = EmplaceOrCrash(config->JobTypeToThrottler, jobType, New<NConcurrency::TThroughputThrottlerConfig>());
-                jobThrottler->second->Limit = 10'000;
-            }
-        }
-    });
 
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;

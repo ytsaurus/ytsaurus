@@ -130,7 +130,8 @@ void TFormatConfigBase::Register(TRegistrar registrar)
     registrar.Parameter("enable", &TThis::Enable)
         .Default(true);
     registrar.Parameter("default_attributes", &TThis::DefaultAttributes)
-        .Default(NYTree::GetEphemeralNodeFactory()->CreateMap());
+        .Default(NYTree::GetEphemeralNodeFactory()->CreateMap())
+        .ResetOnLoad();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

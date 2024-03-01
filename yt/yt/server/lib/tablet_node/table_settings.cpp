@@ -9,28 +9,31 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NYTree::IMapNodePtr DefaultMapNodeCtor()
+{
+    return GetEphemeralNodeFactory()->CreateMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TTableIOConfigPatch::Register(TRegistrar registrar)
 {
     registrar.Parameter("store_reader_config", &TThis::StoreReaderConfig)
-        .Default();
+        .DefaultCtor(&DefaultMapNodeCtor)
+        .ResetOnLoad();
     registrar.Parameter("hunk_reader_config", &TThis::HunkReaderConfig)
-        .Default();
+        .DefaultCtor(&DefaultMapNodeCtor)
+        .ResetOnLoad();
     registrar.Parameter("store_writer_config", &TThis::StoreWriterConfig)
-        .Default();
+        .DefaultCtor(&DefaultMapNodeCtor)
+        .ResetOnLoad();
     registrar.Parameter("hunk_writer_config", &TThis::HunkWriterConfig)
-        .Default();
+        .DefaultCtor(&DefaultMapNodeCtor)
+        .ResetOnLoad();
 
     // Unrecognized parameters are undesired at the top level. We keep them and
     // validate their absence during postprocessing.
     registrar.UnrecognizedStrategy(EUnrecognizedStrategy::Keep);
-
-    registrar.Preprocessor([&] (TTableIOConfigPatch* config) {
-        auto* factory = GetEphemeralNodeFactory();
-        config->StoreReaderConfig = factory->CreateMap();
-        config->HunkReaderConfig = factory->CreateMap();
-        config->StoreWriterConfig = factory->CreateMap();
-        config->HunkWriterConfig = factory->CreateMap();
-    });
 
     registrar.Postprocessor([&] (TTableIOConfigPatch* config) {
         ConvertTo<TTabletStoreReaderConfigPtr>(config->StoreReaderConfig);
@@ -89,17 +92,13 @@ void ValidateNoForbiddenKeysInPatch(const NYTree::IMapNodePtr& keys, TStringBuf 
 void TTableConfigPatch::Register(TRegistrar registrar)
 {
     registrar.Parameter("mount_config_template_patch", &TThis::MountConfigTemplatePatch)
-        .Default();
+        .DefaultCtor(&DefaultMapNodeCtor)
+        .ResetOnLoad();
     registrar.Parameter("mount_config_patch", &TThis::MountConfigPatch)
-        .Default();
+        .DefaultCtor(&DefaultMapNodeCtor)
+        .ResetOnLoad();
     registrar.Parameter("io_config_patch", &TThis::IOConfigPatch)
         .DefaultNew();
-
-    registrar.Preprocessor([&] (TTableConfigPatch* config) {
-        auto* factory = GetEphemeralNodeFactory();
-        config->MountConfigTemplatePatch = factory->CreateMap();
-        config->MountConfigPatch = factory->CreateMap();
-    });
 
     registrar.Postprocessor([&] (TTableConfigPatch* config) {
         ValidateNoForbiddenKeysInPatch(config->MountConfigTemplatePatch, "template patch");

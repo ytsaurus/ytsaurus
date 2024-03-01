@@ -75,12 +75,12 @@ TTableMountConfigPtr TMountConfigOptimizer::GetPatchedConfig(
         if (param->Integer) {
             auto scalarNode = nodeFactory->CreateInt64();
             scalarNode->SetValue(std::llround(realValue));
-            mountConfig->LoadParameter(name, scalarNode, EMergeStrategy::Overwrite);
+            mountConfig->LoadParameter(name, scalarNode);
             effectiveValues[name] = std::llround(realValue);
         } else {
             auto scalarNode = nodeFactory->CreateDouble();
             scalarNode->SetValue(realValue);
-            mountConfig->LoadParameter(name, scalarNode, EMergeStrategy::Overwrite);
+            mountConfig->LoadParameter(name, scalarNode);
             effectiveValues[name] = realValue;
         }
 

@@ -454,7 +454,8 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
             EJobResourceType::UserSlots,
             EJobResourceType::Gpu,
             EJobResourceType::Network
-        });
+        })
+        .ResetOnLoad();
 
     registrar.Parameter("profiled_operation_resources", &TThis::ProfiledOperationResources)
         .Default({
@@ -463,7 +464,8 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
             EJobResourceType::UserSlots,
             EJobResourceType::Gpu,
             EJobResourceType::Network
-        });
+        })
+        .ResetOnLoad();
 
     registrar.Parameter("waiting_for_resources_on_node_timeout", &TThis::WaitingForResourcesOnNodeTimeout)
         .Alias("waiting_job_timeout")
@@ -670,7 +672,8 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("operation_hangup_deactivation_reasons", &TThis::OperationHangupDeactivationReasons)
         .Alias("operation_unschedulable_deactivation_reasons")
-        .Default({EDeactivationReason::ScheduleAllocationFailed, EDeactivationReason::MinNeededResourcesUnsatisfied});
+        .Default({EDeactivationReason::ScheduleAllocationFailed, EDeactivationReason::MinNeededResourcesUnsatisfied})
+        .ResetOnLoad();
 
     registrar.Parameter("operation_hangup_due_to_limiting_ancestor_safe_timeout", &TThis::OperationHangupDueToLimitingAncestorSafeTimeout)
         .Alias("operation_unschedulable_due_to_limiting_ancestor_safe_timeout")
@@ -681,7 +684,8 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
         .GreaterThan(0);
 
     registrar.Parameter("operations_without_tentative_pool_trees", &TThis::OperationsWithoutTentativePoolTrees)
-        .Default({EOperationType::Sort, EOperationType::MapReduce, EOperationType::RemoteCopy});
+        .Default({EOperationType::Sort, EOperationType::MapReduce, EOperationType::RemoteCopy})
+        .ResetOnLoad();
 
     registrar.Parameter("default_tentative_pool_trees", &TThis::DefaultTentativePoolTrees)
         .Default();
@@ -1137,7 +1141,8 @@ void TSchedulerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("min_spare_allocation_resources_on_node", &TThis::MinSpareAllocationResourcesOnNode)
         .Alias("min_spare_job_resources_on_node")
-        .DefaultCtor(&GetDefaultMinSpareAllocationResourcesOnNode);
+        .DefaultCtor(&GetDefaultMinSpareAllocationResourcesOnNode)
+        .ResetOnLoad();
 
     registrar.Parameter("schedule_allocation_duration_logging_threshold", &TThis::ScheduleAllocationDurationLoggingThreshold)
         .Alias("schedule_job_duration_logging_threshold")
