@@ -131,7 +131,6 @@ func (c *Controller) buildCommand(speclet *Speclet) string {
 
 	var args []string
 	args = append(args, trampolinePath, chytPath)
-	args = append(args, "--monitoring-port", "10142")
 	if speclet.EnableGeoDataOrDefault() {
 		args = append(args, "--prepare-geodata")
 	}
