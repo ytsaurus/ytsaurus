@@ -15,6 +15,16 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static TString GenerateToken()
+{
+    constexpr int TokenLength = 16;
+    auto tokenBytes = GenerateCryptoStrongRandomString(TokenLength);
+    auto token = to_lower(HexEncode(tokenBytes.data(), tokenBytes.size()));
+    return token;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TClient::DoSetUserPassword(
     const TString& user,
     const TString& currentPasswordSha256,
@@ -70,7 +80,21 @@ TIssueTokenResult TClient::DoIssueToken(
     YT_LOG_DEBUG("Issuing new token for user (User: %v)",
         user);
 
-    return DoIssueTokenImpl(user, CreateEphemeralAttributes(), options);
+    return DoIssueTokenImpl(user, GenerateToken(), CreateEphemeralAttributes(), options);
+}
+
+TIssueTokenResult TClient::DoIssueSpecificTemporaryToken(
+    const TString& user,
+    const TString& token,
+    const IAttributeDictionaryPtr& attributes,
+    const TIssueTemporaryTokenOptions& options)
+{
+    YT_LOG_DEBUG("Issuing specific temporary token for user (User: %v)",
+        user);
+
+    auto attributesCopy = attributes->Clone();
+    attributesCopy->Set("expiration_timeout", options.ExpirationTimeout.MilliSeconds());
+    return DoIssueTokenImpl(user, token, attributesCopy, options);
 }
 
 TIssueTokenResult TClient::DoIssueTemporaryToken(
@@ -83,17 +107,15 @@ TIssueTokenResult TClient::DoIssueTemporaryToken(
 
     auto attributesCopy = attributes->Clone();
     attributesCopy->Set("expiration_timeout", options.ExpirationTimeout.MilliSeconds());
-    return DoIssueTokenImpl(user, attributesCopy, options);
+    return DoIssueTokenImpl(user, GenerateToken(), attributesCopy, options);
 }
 
 TIssueTokenResult TClient::DoIssueTokenImpl(
     const TString& user,
+    const TString& token,
     const IAttributeDictionaryPtr& attributes,
     const TIssueTokenOptions& options)
 {
-    constexpr int TokenLength = 16;
-    auto tokenBytes = GenerateCryptoStrongRandomString(TokenLength);
-    auto token = to_lower(HexEncode(tokenBytes.data(), tokenBytes.size()));
     auto tokenHash = GetSha256HexDigestLowerCase(token);
 
     TCreateNodeOptions createOptions;

@@ -250,7 +250,7 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
     registrar.Parameter("operation_attributes", &TThis::OperationAttributes)
         .Default(GetEphemeralNodeFactory()->CreateMap());
     registrar.Parameter("yt_token_path", &TThis::YTTokenPath)
-        .Default();
+        .IsRequired();
     registrar.Parameter("yql_plugin_shared_library", &TThis::YqlPluginSharedLibrary)
         .Default();
     registrar.Parameter("dq_manager_config", &TThis::DqManagerConfig)
@@ -315,6 +315,10 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
 
 void TYqlAgentConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("token_expiration_timeout", &TThis::TokenExpirationTimeout)
+        .Default(TDuration::Minutes(20));
+    registrar.Parameter("refresh_token_period", &TThis::RefreshTokenPeriod)
+        .Default(TDuration::Minutes(10));
     registrar.Parameter("bus_client", &TThis::BusClient)
         .DefaultNew();
     registrar.Parameter("yql_thread_count", &TThis::YqlThreadCount)
