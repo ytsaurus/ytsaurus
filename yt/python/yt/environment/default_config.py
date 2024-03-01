@@ -157,9 +157,8 @@ def get_dynamic_master_config():
         cell_hydra_persistence_synchronizer =  {
             use_hydra_persistence_directory = %true;
             migrate_to_virtual_cell_maps = %true;
-            synchronization_period = 1000;
+            synchronization_period = 100;
         };
-
     };
 
     sequoia_manager = {};

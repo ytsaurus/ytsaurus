@@ -190,6 +190,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraOnCellDecommissionedOnMaster, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraOnCellSuspensionToggled, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraSetCellConfigVersion, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraSetMaxHydraFileIds, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraSetCellStatus, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraUpdateCellHealth, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraUpdatePeerCount, Unretained(this)));
@@ -2673,6 +2674,20 @@ private:
         if (!IsObjectAlive(cell))
             return;
         cell->SetConfigVersion(request->config_version());
+    }
+
+    void HydraSetMaxHydraFileIds(NProto::TReqSetMaxHydraFileIds* request)
+    {
+        for (const auto& entry : request->entries()) {
+            auto cellId = FromProto<TTamedCellId>(entry.cell_id());
+            auto* cell = FindCell(cellId);
+            if (!IsObjectAlive(cell)) {
+                continue;
+            }
+
+            cell->SetMaxSnapshotId(entry.max_snapshot_id());
+            cell->SetMaxChangelogId(entry.max_changelog_id());
+        }
     }
 
     void OnProfiling()

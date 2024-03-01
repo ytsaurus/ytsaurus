@@ -109,6 +109,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, RegisteredInCypress);
     DEFINE_BYVAL_RW_PROPERTY(bool, PendingAclsUpdate);
 
+    DEFINE_BYVAL_RW_PROPERTY(int, MaxSnapshotId, -1);
+    DEFINE_BYVAL_RW_PROPERTY(int, MaxChangelogId, -1);
+
 public:
     explicit TCellBase(TTamedCellId id);
 

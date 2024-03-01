@@ -22,5 +22,17 @@ message TReqSetCellStatus
     repeated TEntry entries = 2;
 }
 
+message TReqSetMaxHydraFileIds
+{
+    message TEntry
+    {
+        required NYT.NProto.TGuid cell_id = 1;
+        required int32 max_snapshot_id = 2;
+        required int32 max_changelog_id = 3;
+    }
+
+    repeated TEntry entries = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
