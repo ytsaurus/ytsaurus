@@ -37,4 +37,8 @@ SIZE(LARGE)
 
 YT_SPEC(yt/yt/tests/integration/spec.yson)
 
+IF (SANITIZER_TYPE)
+    REQUIREMENTS(ram:20)
+ENDIF()
+
 END()
