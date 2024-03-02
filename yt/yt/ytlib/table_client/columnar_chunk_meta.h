@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "chunk_meta_extensions.h"
+#include "hunks.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
@@ -25,11 +26,12 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TTableSchemaPtr, ChunkSchema);
     DEFINE_BYREF_RO_PROPERTY(TNameTablePtr, ChunkNameTable);
     DEFINE_BYREF_RO_PROPERTY(TSharedRange<TUnversionedRow>, BlockLastKeys);
-    DEFINE_BYREF_RO_PROPERTY(NTableClient::NProto::THunkChunkRefsExt, HunkChunkRefsExt);
-    DEFINE_BYREF_RO_PROPERTY(NTableClient::NProto::THunkChunkMetasExt, HunkChunkMetasExt);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<THunkChunkRef>, HunkChunkRefs);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<THunkChunkMeta>, HunkChunkMetas);
     DEFINE_BYREF_RO_PROPERTY(std::optional<NTableClient::NProto::TColumnarStatisticsExt>, ColumnarStatisticsExt);
 
 public:
+
     explicit TColumnarChunkMeta(const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
     virtual i64 GetMemoryUsage() const;

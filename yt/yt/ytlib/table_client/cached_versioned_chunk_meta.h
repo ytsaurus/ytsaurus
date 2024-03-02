@@ -37,10 +37,12 @@ struct THashTableChunkIndexMeta
         const TLegacyOwningKey BlockLastKey;
     };
 
-    explicit THashTableChunkIndexMeta(const TTableSchemaPtr& schema);
-
     TIndexedVersionedBlockFormatDetail IndexedBlockFormatDetail;
     std::vector<TBlockMeta> BlockMetas;
+
+    explicit THashTableChunkIndexMeta(const TTableSchemaPtr& schema);
+
+    i64 GetMemoryUsage() const;
 };
 
 struct TXorFilterMeta
@@ -57,6 +59,8 @@ struct TXorFilterMeta
 
     int KeyPrefixLength;
     std::vector<TBlockMeta> BlockMetas;
+
+    i64 GetMemoryUsage() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

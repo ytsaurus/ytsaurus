@@ -2,6 +2,7 @@
 
 #include <yt/yt/ytlib/table_client/schemaless_block_reader.h>
 #include <yt/yt/ytlib/table_client/schemaless_block_writer.h>
+#include <yt/yt/ytlib/table_client/hunks.h>
 
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/logical_type.h>
@@ -96,8 +97,8 @@ protected:
             Meta_,
             compositeColumnFlags,
             /*hunkColumnFlags*/ std::vector<bool>{},
-            /*hunkChunkMetasExt*/ {},
-            /*hunkChunkRefsExt*/ {},
+            /*hunkChunkMetas*/ {},
+            /*hunkChunkRefs*/ {},
             idMapping,
             /*sortOrders*/ {},
             /*commonKeyPrefix*/ 0,
@@ -144,8 +145,8 @@ TEST_F(TSchemalessBlocksTestOneRow, ReadColumnFilter)
         Meta_,
         /*compositeColumnFlags*/ std::vector<bool>{},
         /*hunkColumnFlags*/ std::vector<bool>{},
-        /*hunkChunkMetasExt*/ {},
-        /*hunkChunkRefsExt*/ {},
+        /*hunkChunkMetas*/ {},
+        /*hunkChunkRefs*/ {},
         idMapping,
         /*sortOrders*/ {},
         /*commonKeyPrefix*/ 0,
@@ -173,8 +174,8 @@ TEST_F(TSchemalessBlocksTestOneRow, SkipToKey)
         Meta_,
         std::vector<bool>{},
         /*hunkColumnFlags*/ std::vector<bool>{},
-        /*hunkChunkMetasExt*/ {},
-        /*hunkChunkRefsExt*/ {},
+        /*hunkChunkMetas*/ {},
+        /*hunkChunkRefs*/ {},
         idMapping,
         sortOrders,
         sortOrders.size(),
@@ -246,8 +247,8 @@ TEST_F(TSchemalessBlocksTestManyRows, SkipToKey)
         Meta_,
         std::vector<bool>{},
         /*hunkColumnFlags*/ std::vector<bool>{},
-        /*hunkChunkMetasExt*/ {},
-        /*hunkChunkRefsExt*/ {},
+        /*hunkChunkMetas*/ {},
+        /*hunkChunkRefs*/ {},
         idMapping,
         sortOrders,
         sortOrders.size(),
@@ -271,8 +272,8 @@ TEST_F(TSchemalessBlocksTestManyRows, SkipToWiderKey)
         Meta_,
         std::vector<bool>{},
         /*hunkColumnFlags*/ std::vector<bool>{},
-        /*hunkChunkMetasExt*/ {},
-        /*hunkChunkRefsExt*/ {},
+        /*hunkChunkMetas*/ {},
+        /*hunkChunkRefs*/ {},
         idMapping,
         sortOrders,
         /*commonKeyPrefix*/ 1,

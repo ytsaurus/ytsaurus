@@ -337,8 +337,8 @@ void GlobalizeHunkValues(
 
 void GlobalizeHunkValueAndSetHunkFlag(
     TChunkedMemoryPool* pool,
-    const NTableClient::NProto::THunkChunkRefsExt& hunkChunkRefsExt,
-    const NTableClient::NProto::THunkChunkMetasExt& hunkChunkMetasExt,
+    const std::vector<THunkChunkRef>& hunkChunkRefs,
+    const std::vector<THunkChunkMeta>& hunkChunkMetas,
     TUnversionedValue* value);
 void GlobalizeHunkValuesAndSetHunkFlag(
     TChunkedMemoryPool* pool,

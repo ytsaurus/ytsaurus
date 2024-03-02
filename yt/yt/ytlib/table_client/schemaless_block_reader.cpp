@@ -58,8 +58,8 @@ THorizontalBlockReader::THorizontalBlockReader(
     const NProto::TDataBlockMeta& meta,
     const std::vector<bool>& compositeColumnFlags,
     const std::vector<bool>& hunkColumnFlags,
-    const NTableClient::NProto::THunkChunkMetasExt& hunkChunkMetasExt,
-    const NTableClient::NProto::THunkChunkRefsExt& hunkChunkRefsExt,
+    const std::vector<THunkChunkRef>& hunkChunkRefs,
+    const std::vector<THunkChunkMeta>& hunkChunkMetas,
     const std::vector<int>& chunkToReaderIdMapping,
     TRange<ESortOrder> sortOrders,
     int commonKeyPrefix,
@@ -70,8 +70,8 @@ THorizontalBlockReader::THorizontalBlockReader(
     , ChunkToReaderIdMapping_(chunkToReaderIdMapping)
     , CompositeColumnFlags_(compositeColumnFlags)
     , HunkColumnFlags_(hunkColumnFlags)
-    , HunkChunkMetasExt_(hunkChunkMetasExt)
-    , HunkChunkRefsExt_(hunkChunkRefsExt)
+    , HunkChunkRefs_(hunkChunkRefs)
+    , HunkChunkMetas_(hunkChunkMetas)
     , KeyWideningOptions_(keyWideningOptions)
     , SortOrders_(sortOrders.begin(), sortOrders.end())
     , CommonKeyPrefix_(commonKeyPrefix)
@@ -198,8 +198,8 @@ TMutableUnversionedRow THorizontalBlockReader::GetRow(TChunkedMemoryPool* memory
         if (IsHunkValue(value)) {
             GlobalizeHunkValueAndSetHunkFlag(
                 memoryPool,
-                HunkChunkRefsExt_,
-                HunkChunkMetasExt_,
+                HunkChunkRefs_,
+                HunkChunkMetas_,
                 &value);
         }
 
@@ -275,8 +275,8 @@ TMutableVersionedRow THorizontalBlockReader::GetVersionedRow(
         if (IsHunkValue(value)) {
             GlobalizeHunkValueAndSetHunkFlag(
                 memoryPool,
-                HunkChunkRefsExt_,
-                HunkChunkMetasExt_,
+                HunkChunkRefs_,
+                HunkChunkMetas_,
                 &value);
         }
 
