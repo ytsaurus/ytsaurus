@@ -12,7 +12,7 @@ REQUIREMENTS(
 
 IF (SANITIZER_TYPE)
     REQUIREMENTS(
-        ram:48
+        ram:56
     )
 ELSE()
     REQUIREMENTS(
