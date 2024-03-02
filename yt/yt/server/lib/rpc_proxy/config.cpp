@@ -103,8 +103,7 @@ void TApiServiceDynamicConfig::Register(TRegistrar registrar)
                 };
 
             return structuredLoggingMainTopic;
-        })
-        .DefaultNew();
+        });
     registrar.Parameter("structured_logging_error_topic", &TThis::StructuredLoggingErrorTopic)
         .DefaultNew();
     registrar.Parameter("structured_logging_max_request_byte_size", &TThis::StructuredLoggingMaxRequestByteSize)
