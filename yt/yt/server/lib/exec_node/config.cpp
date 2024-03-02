@@ -461,17 +461,7 @@ const THashMap<TString, TUserJobSensorPtr>& TUserJobMonitoringDynamicConfig::Get
 void TUserJobMonitoringDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("sensors", &TThis::Sensors)
-        .Default();
-
-    registrar.Postprocessor([] (TThis* config) {
-        auto defaultSensors = GetDefaultSensors();
-
-        for (const auto& [sensorName, sensor] : config->Sensors) {
-            defaultSensors[sensorName] = sensor;
-        }
-
-        config->Sensors = std::move(defaultSensors);
-    });
+        .DefaultCtor(&TUserJobMonitoringDynamicConfig::GetDefaultSensors);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

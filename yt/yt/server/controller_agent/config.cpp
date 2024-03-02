@@ -310,8 +310,7 @@ void TUserJobOptions::Register(TRegistrar registrar)
 void TOperationOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("spec_template", &TThis::SpecTemplate)
-        .Default()
-        .MergeBy(NYTree::EMergeStrategy::Combine);
+        .Default();
 
     registrar.Parameter("slice_data_weight_multiplier", &TThis::SliceDataWeightMultiplier)
         .Alias("slice_data_size_multiplier")
@@ -518,7 +517,8 @@ void TUserJobMonitoringConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_extended_max_monitored_user_jobs_per_operation", &TThis::EnableExtendedMaxMonitoredUserJobsPerOperation)
         .Default({
             {EOperationType::Vanilla, true},
-        });
+        })
+        .ResetOnLoad();
 
     registrar.Parameter("max_monitored_user_jobs_per_agent", &TThis::MaxMonitoredUserJobsPerAgent)
         .Default(1'000)
@@ -812,8 +812,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(10'000);
 
     registrar.Parameter("operation_options", &TThis::OperationOptions)
-        .Default(NYTree::GetEphemeralNodeFactory()->CreateMap())
-        .MergeBy(NYTree::EMergeStrategy::Combine);
+        .Default(NYTree::GetEphemeralNodeFactory()->CreateMap());
 
     registrar.Parameter("map_operation_options", &TThis::MapOperationOptions)
         .DefaultNew();
@@ -842,7 +841,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default({
             {"HOME", "$(SandboxPath)"},
             {"TMPDIR", "$(SandboxPath)"},
-        }).MergeBy(NYTree::EMergeStrategy::Combine);
+        });
 
     registrar.Parameter("enable_controller_failure_spec_option", &TThis::EnableControllerFailureSpecOption)
         .Default(false);

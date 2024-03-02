@@ -132,11 +132,14 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
         .EndList();
 
     registrar.Parameter("gateway_config", &TThis::GatewayConfig)
-        .Default(GetEphemeralNodeFactory()->CreateMap());
+        .Default(GetEphemeralNodeFactory()->CreateMap())
+        .ResetOnLoad();
     registrar.Parameter("file_storage_config", &TThis::FileStorageConfig)
-        .Default(GetEphemeralNodeFactory()->CreateMap());
+        .Default(GetEphemeralNodeFactory()->CreateMap())
+        .ResetOnLoad();
     registrar.Parameter("operation_attributes", &TThis::OperationAttributes)
-        .Default(GetEphemeralNodeFactory()->CreateMap());
+        .Default(GetEphemeralNodeFactory()->CreateMap())
+        .ResetOnLoad();
     registrar.Parameter("yt_token_path", &TThis::YTTokenPath)
         .Default();
     registrar.Parameter("yql_plugin_shared_library", &TThis::YqlPluginSharedLibrary)

@@ -231,7 +231,7 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
                             Id_,
                             key,
                             ConvertToYsonString(value, EYsonFormat::Text));
-                        FullConfig_->LoadParameter(key, NYTree::ConvertToNode(value), EMergeStrategy::Overwrite);
+                        FullConfig_->LoadParameter(key, NYTree::ConvertToNode(value));
                         EmplaceOrCrash(SpecifiedAttributes_, internedKey, std::move(value));
                         keysToRemove.push_back(key);
                     } catch (const std::exception& e) {
@@ -265,7 +265,7 @@ void TSchedulerPool::GuardedUpdatePoolAttribute(
         auto restoringValueIt = SpecifiedAttributes_.find(key);
         if (restoringValueIt != SpecifiedAttributes_.end()) {
             // TODO(renadeen): avoid building INode
-            FullConfig_->LoadParameter(uninternedKey, NYTree::ConvertToNode(restoringValueIt->second), EMergeStrategy::Overwrite);
+            FullConfig_->LoadParameter(uninternedKey, NYTree::ConvertToNode(restoringValueIt->second));
         } else {
             FullConfig_->ResetParameter(uninternedKey);
         }

@@ -419,12 +419,8 @@ void TClickHouseTableConfig::Register(TRegistrar registrar)
 void TQueryLogConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("additional_tables", &TThis::AdditionalTables)
-        .Default();
-
-    // NB: .DefaultCtor() does not work properly for this case, so set default value in preprocessor.
-    // Will be fixed in YT-19026.
-    registrar.Preprocessor([](TThis* config){
-            config->AdditionalTables = {
+        .DefaultCtor([] {
+            return std::vector({
                 TClickHouseTableConfig::Create(
                     "system",
                     "query_log_older",
@@ -435,7 +431,7 @@ void TQueryLogConfig::Register(TRegistrar registrar)
                     // A flush period is counted from "first_writte_time", so writing to an empty Buffer table guarantees
                     // that data will stay there at least for a specified period of time.
                     "ENGINE = Buffer('', '', 1, 1, 1740, 1000000000000, 1000000000000, 1000000000000, 1000000000000)"),
-            };
+            });
         });
 }
 
@@ -530,7 +526,6 @@ void TYtConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("create_table_default_attributes", &TThis::CreateTableDefaultAttributes)
-        .MergeBy(NYTree::EMergeStrategy::Combine)
         .Default(NYTree::BuildYsonNodeFluently()
         .BeginMap()
             .Item("optimize_for").Value("scan")

@@ -113,7 +113,7 @@ bool TSchedulerPoolProxy::SetBuiltinAttribute(NYTree::TInternedAttributeKey key,
     } else if (IsKnownPoolAttribute(key)) {
         ValidateNoAliasClash(schedulerPool->FullConfig(), schedulerPool->SpecifiedAttributes(), key);
         GuardedUpdateBuiltinPoolAttribute(key, [&value] (const TPoolConfigPtr& config, const TString& uninternedKey) {
-            config->LoadParameter(uninternedKey, ConvertToNode(value), EMergeStrategy::Overwrite);
+            config->LoadParameter(uninternedKey, ConvertToNode(value));
         });
 
         schedulerPool->SpecifiedAttributes()[key] = value;

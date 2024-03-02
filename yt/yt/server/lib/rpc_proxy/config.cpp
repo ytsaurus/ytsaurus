@@ -39,7 +39,8 @@ void TStructuredLoggingTopicDynamicConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("suppressed_methods", &TThis::SuppressedMethods)
-        .Default();
+        .Default()
+        .ResetOnLoad();
 
     registrar.Parameter("methods", &TThis::Methods)
         .Default();
@@ -90,7 +91,19 @@ void TApiServiceDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("security_manager", &TThis::SecurityManager)
         .DefaultNew();
     registrar.Parameter("structured_logging_main_topic", &TThis::StructuredLoggingMainTopic)
-        .DefaultNew();
+        .DefaultCtor([] {
+            auto structuredLoggingMainTopic = New<TStructuredLoggingTopicDynamicConfig>();
+
+            structuredLoggingMainTopic->SuppressedMethods =
+                THashSet<TString>{
+                    "ModifyRows",
+                    "BatchModifyRows",
+                    "LookupRows",
+                    "VersionedLookupRows"
+                };
+
+            return structuredLoggingMainTopic;
+        });
     registrar.Parameter("structured_logging_error_topic", &TThis::StructuredLoggingErrorTopic)
         .DefaultNew();
     registrar.Parameter("structured_logging_max_request_byte_size", &TThis::StructuredLoggingMaxRequestByteSize)
@@ -101,10 +114,6 @@ void TApiServiceDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("enable_allocation_tags", &TThis::EnableAllocationTags)
         .Default(false);
-
-    registrar.Preprocessor([] (TThis* config) {
-        config->StructuredLoggingMainTopic->SuppressedMethods = THashSet<TString>{"ModifyRows", "BatchModifyRows", "LookupRows", "VersionedLookupRows"};
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

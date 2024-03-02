@@ -26,7 +26,8 @@ void TUserConfig::Register(TRegistrar registrar)
                         .EndMap()
                     .EndMap()
                 .EndMap()->AsMap();
-        });
+        })
+        .ResetOnLoad();
 
     registrar.Parameter("user_template", &TThis::UserTemplate)
         .DefaultCtor([] {
@@ -39,7 +40,8 @@ void TUserConfig::Register(TRegistrar registrar)
                     .Item("profile").Value("default")
                     .Item("quota").Value("default")
                 .EndMap()->AsMap();
-        });
+        })
+        .ResetOnLoad();
 
     registrar.Parameter("users", &TThis::Users)
         .DefaultCtor([] {
@@ -176,8 +178,19 @@ void TClickHouseConfig::Register(TRegistrar registrar)
         .Default(0);
 
     registrar.Parameter("settings", &TThis::Settings)
-        .Optional()
-        .MergeBy(NYTree::EMergeStrategy::Combine);
+        .DefaultCtor([] {
+            THashMap<TString, NYTree::INodePtr> map;
+            map["max_memory_usage_for_all_queries"] = NYTree::ConvertToNode(9_GB);
+            map["max_threads"] = NYTree::ConvertToNode(32);
+            map["max_concurrent_queries_for_user"] = NYTree::ConvertToNode(10);
+            map["connect_timeout_with_failover_ms"] = NYTree::ConvertToNode(1000); // 1 sec.
+            map["log_queries"] = NYTree::ConvertToNode(1);
+            map["optimize_move_to_prewhere"] = NYTree::ConvertToNode(0);
+            // CH hedged requests use their own poller implementation over epoll, which is kind of
+            // broken around our 2.04 branch (it imposes busy loop in polling thread).
+            map["use_hedged_requests"] = NYTree::ConvertToNode(0);
+            return map;
+        });
 
     registrar.Parameter("max_server_memory_usage", &TThis::MaxServerMemoryUsage)
         .Default();
@@ -208,19 +221,8 @@ void TClickHouseConfig::Register(TRegistrar registrar)
                             .Item("replace").Value("url(...)")
                         .EndMap()
                 .EndMap()->AsMap();
-        });
-
-    registrar.Preprocessor([] (TThis* config) {
-        config->Settings["max_memory_usage_for_all_queries"] = NYTree::ConvertToNode(9_GB);
-        config->Settings["max_threads"] = NYTree::ConvertToNode(32);
-        config->Settings["max_concurrent_queries_for_user"] = NYTree::ConvertToNode(10);
-        config->Settings["connect_timeout_with_failover_ms"] = NYTree::ConvertToNode(1000); // 1 sec.
-        config->Settings["log_queries"] = NYTree::ConvertToNode(1);
-        config->Settings["optimize_move_to_prewhere"] = NYTree::ConvertToNode(0);
-        // CH hedged requests use their own poller implementation over epoll, which is kind of
-        // broken around our 2.04 branch (it imposes busy loop in polling thread).
-        config->Settings["use_hedged_requests"] = NYTree::ConvertToNode(0);
-    });
+        })
+        .ResetOnLoad();
 
     registrar.Postprocessor([] (TThis* config) {
         auto& userDefaultProfile = config->Users->Profiles["default"];
