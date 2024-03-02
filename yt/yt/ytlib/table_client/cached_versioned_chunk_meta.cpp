@@ -41,12 +41,22 @@ THashTableChunkIndexMeta::TBlockMeta::TBlockMeta(
     , BlockLastKey(FromProto<TLegacyOwningKey>(hashTableChunkIndexSystemBlockMetaExt.last_key()))
 { }
 
+i64 THashTableChunkIndexMeta::GetMemoryUsage() const
+{
+    return sizeof(IndexedBlockFormatDetail) + sizeof(BlockMetas[0]) * BlockMetas.size();
+}
+
 TXorFilterMeta::TBlockMeta::TBlockMeta(
     int blockIndex,
     const TXorFilterSystemBlockMeta& xorFilterSystemBlockMetaExt)
     : BlockIndex(blockIndex)
     , BlockLastKey(FromProto<TLegacyOwningKey>(xorFilterSystemBlockMetaExt.last_key()))
 { }
+
+i64 TXorFilterMeta::GetMemoryUsage() const
+{
+    return sizeof(KeyPrefixLength) + sizeof(BlockMetas[0]) * BlockMetas.size();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -110,10 +120,15 @@ bool TCachedVersionedChunkMeta::IsColumnarMetaPrepared() const
 
 i64 TCachedVersionedChunkMeta::GetMemoryUsage() const
 {
+    i64 xorFilterMetaSize = 0;
+    for (const auto& [_, xorFilterMeta] : XorFilterMetaByLength_) {
+        xorFilterMetaSize += xorFilterMeta.GetMemoryUsage();
+    }
+
     return TColumnarChunkMeta::GetMemoryUsage()
-        + HunkChunkRefsExt().SpaceUsedLong()
-        + HunkChunkMetasExt().SpaceUsedLong()
-        + PreparedMetaSize_.load();
+        + PreparedMetaSize_.load()
+        + (HashTableChunkIndexMeta_ ? HashTableChunkIndexMeta_->GetMemoryUsage() : 0)
+        + xorFilterMetaSize;
 }
 
 TIntrusivePtr<NColumnarChunkFormat::TPreparedChunkMeta> TCachedVersionedChunkMeta::GetPreparedChunkMeta(

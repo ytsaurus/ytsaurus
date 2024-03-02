@@ -39,6 +39,7 @@ class THorizontalBlockReader;
 
 struct THunkChunkRef;
 struct THunkChunksInfo;
+struct THunkChunkMeta;
 
 struct TTableReadSpec;
 struct TFetchSingleTableReadSpecOptions;

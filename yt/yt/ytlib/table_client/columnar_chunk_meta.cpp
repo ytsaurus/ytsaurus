@@ -106,11 +106,17 @@ TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta)
         std::move(buffer));
 
     if (auto optionalHunkChunkRefsExt = FindProtoExtension<THunkChunkRefsExt>(chunkMeta.extensions())) {
-        HunkChunkRefsExt_ = std::move(*optionalHunkChunkRefsExt);
+        HunkChunkRefs_.reserve(optionalHunkChunkRefsExt->refs_size());
+        for (const auto& ref : optionalHunkChunkRefsExt->refs()) {
+            HunkChunkRefs_.push_back(FromProto<NTableClient::THunkChunkRef>(ref));
+        }
     }
 
     if (auto optionalHunkChunkMetasExt = FindProtoExtension<THunkChunkMetasExt>(chunkMeta.extensions())) {
-        HunkChunkMetasExt_ = std::move(*optionalHunkChunkMetasExt);
+        HunkChunkMetas_.reserve(optionalHunkChunkMetasExt->metas_size());
+        for (const auto& meta : optionalHunkChunkMetasExt->metas()) {
+            HunkChunkMetas_.push_back(FromProto<NTableClient::THunkChunkMeta>(meta));
+        }
     }
 
     if (auto optionalColumnarStatisticsExt = FindProtoExtension<TColumnarStatisticsExt>(chunkMeta.extensions())) {
@@ -132,7 +138,9 @@ i64 TColumnarChunkMeta::GetMemoryUsage() const
         DataBlockMeta_->GetSize() * metaMemoryFactor +
         (ColumnGroupInfos_ ? ColumnGroupInfos_->GetSize() * metaMemoryFactor : 0) +
         (ColumnMeta_ ? ColumnMeta_->GetSize() * metaMemoryFactor : 0) +
-        ChunkSchema_->GetMemoryUsage();
+        ChunkSchema_->GetMemoryUsage() +
+        (sizeof(HunkChunkRefs_[0]) * HunkChunkRefs_.size()) +
+        (sizeof(HunkChunkMetas_[0]) * HunkChunkMetas_.size());
 }
 
 void TColumnarChunkMeta::ClearColumnMeta()

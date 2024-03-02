@@ -437,8 +437,8 @@ namespace {
 
 void DoGlobalizeHunkValue(
     TChunkedMemoryPool* pool,
-    const NTableClient::NProto::THunkChunkRefsExt& hunkChunkRefsExt,
-    const NTableClient::NProto::THunkChunkMetasExt& hunkChunkMetasExt,
+    const std::vector<THunkChunkRef>& hunkChunkRefs,
+    const std::vector<THunkChunkMeta>& hunkChunkMetas,
     TUnversionedValue* value,
     NChunkClient::TChunkId compressionDictionaryId)
 {
@@ -458,24 +458,23 @@ void DoGlobalizeHunkValue(
             THROW_ERROR_EXCEPTION("Unexpected compressed inline hunk value");
         },
         [&] (const TLocalRefHunkValue& localRefHunkValue) {
-            const auto& hunkChunkRef = hunkChunkRefsExt.refs(localRefHunkValue.ChunkIndex);
-            auto chunkId = FromProto<TChunkId>(hunkChunkRef.chunk_id());
+            const auto& hunkChunkRef = hunkChunkRefs[localRefHunkValue.ChunkIndex];
 
             std::optional<i64> blockSize;
-            if (IsErasureChunkId(chunkId)) {
-                const auto& hunkChunkMeta = hunkChunkMetasExt.metas(localRefHunkValue.ChunkIndex);
-                YT_VERIFY(FromProto<TChunkId>(hunkChunkMeta.chunk_id()) == chunkId);
-                blockSize = hunkChunkMeta.block_sizes(localRefHunkValue.BlockIndex);
+            if (IsErasureChunkId(hunkChunkRef.ChunkId)) {
+                const auto& hunkChunkMeta = hunkChunkMetas[localRefHunkValue.ChunkIndex];
+                YT_VERIFY(hunkChunkMeta.ChunkId == hunkChunkRef.ChunkId);
+                blockSize = hunkChunkMeta.BlockSizes[localRefHunkValue.BlockIndex];
             }
 
             TGlobalRefHunkValue globalRefHunkValue{
-                .ChunkId = chunkId,
-                .ErasureCodec = FromProto<NErasure::ECodec>(hunkChunkRef.erasure_codec()),
+                .ChunkId = hunkChunkRef.ChunkId,
+                .ErasureCodec = hunkChunkRef.ErasureCodec,
                 .BlockIndex = localRefHunkValue.BlockIndex,
                 .BlockOffset = localRefHunkValue.BlockOffset,
                 .BlockSize = blockSize,
                 .Length = localRefHunkValue.Length,
-                .CompressionDictionaryId = FromProto<TChunkId>(hunkChunkRef.compression_dictionary_id()),
+                .CompressionDictionaryId = hunkChunkRef.CompressionDictionaryId,
             };
 
             auto globalRefPayload = WriteHunkValue(pool, globalRefHunkValue);
@@ -499,8 +498,8 @@ void GlobalizeHunkValues(
         return;
     }
 
-    const auto& hunkChunkRefsExt = chunkMeta->HunkChunkRefsExt();
-    const auto& hunkChunkMetasExt = chunkMeta->HunkChunkMetasExt();
+    const auto& hunkChunkRefs = chunkMeta->HunkChunkRefs();
+    const auto& hunkChunkMetas = chunkMeta->HunkChunkMetas();
     auto compressionDictionaryId = FromProto<TChunkId>(chunkMeta->Misc().compression_dictionary_id());
 
     for (auto& value : row.Values()) {
@@ -510,8 +509,8 @@ void GlobalizeHunkValues(
 
         DoGlobalizeHunkValue(
             pool,
-            hunkChunkRefsExt,
-            hunkChunkMetasExt,
+            hunkChunkRefs,
+            hunkChunkMetas,
             &value,
             compressionDictionaryId);
     }
@@ -519,15 +518,15 @@ void GlobalizeHunkValues(
 
 void GlobalizeHunkValueAndSetHunkFlag(
     TChunkedMemoryPool* pool,
-    const NTableClient::NProto::THunkChunkRefsExt& hunkChunkRefsExt,
-    const NTableClient::NProto::THunkChunkMetasExt& hunkChunkMetasExt,
+    const std::vector<THunkChunkRef>& hunkChunkRefs,
+    const std::vector<THunkChunkMeta>& hunkChunkMetas,
     TUnversionedValue* value)
 {
     value->Flags |= EValueFlags::Hunk;
     DoGlobalizeHunkValue(
         pool,
-        hunkChunkRefsExt,
-        hunkChunkMetasExt,
+        hunkChunkRefs,
+        hunkChunkMetas,
         value,
         /*compressionDictionaryId*/ NullChunkId);
 }
@@ -542,8 +541,8 @@ void GlobalizeHunkValuesAndSetHunkFlag(
         return;
     }
 
-    const auto& hunkChunkRefsExt = chunkMeta->HunkChunkRefsExt();
-    const auto& hunkChunkMetasExt = chunkMeta->HunkChunkMetasExt();
+    const auto& hunkChunkRefs = chunkMeta->HunkChunkRefs();
+    const auto& hunkChunkMetas = chunkMeta->HunkChunkMetas();
     auto compressionDictionaryId = FromProto<TChunkId>(chunkMeta->Misc().compression_dictionary_id());
 
     for (auto& value : row.Values()) {
@@ -559,8 +558,8 @@ void GlobalizeHunkValuesAndSetHunkFlag(
 
         DoGlobalizeHunkValue(
             pool,
-            hunkChunkRefsExt,
-            hunkChunkMetasExt,
+            hunkChunkRefs,
+            hunkChunkMetas,
             &value,
             compressionDictionaryId);
     }
