@@ -1,4 +1,4 @@
-from .base import Query
+from .ql_base import Query
 
 
 def to_ql_notation(query: Query, table_path: str, pretty: bool) -> str:

@@ -4,8 +4,8 @@ from .spec import Spec
 from .job_base import JobBase
 from .process_runner import process_runner
 
-from yt.yt.library.query.stresstests.lib.checks import check_random_query_with_group_by, IExecutor
-from yt.yt.library.query.stresstests.lib.util import from_yt_to_list
+from .ql_checks import check_random_query_with_group_by, IExecutor
+from .ql_util import from_yt_to_list
 
 import yt.wrapper as yt
 from yt.wrapper.client import YtClient

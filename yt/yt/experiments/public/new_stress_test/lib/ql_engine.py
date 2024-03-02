@@ -1,5 +1,5 @@
-from .base import Query, ProjectionAggregate
-from .util import compare_rows_like_in_ql
+from .ql_base import Query, ProjectionAggregate
+from .ql_util import compare_rows_like_in_ql
 
 from functools import cmp_to_key
 from dataclasses import dataclass

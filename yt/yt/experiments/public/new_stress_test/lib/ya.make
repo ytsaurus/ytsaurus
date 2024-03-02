@@ -3,7 +3,6 @@ PY3_LIBRARY()
 PEERDIR(
     yt/python/yt
     yt/python/yt/wrapper
-    yt/yt/library/query/stresstests/lib
     yt/yt/python/yt_yson_bindings
     yt/python/client_with_rpc
     contrib/python/numpy
@@ -40,6 +39,13 @@ PY_SRCS(
     test_sorted.py
     verify.py
     write_data.py
+
+    ql_base.py
+    ql_checks.py
+    ql_engine.py
+    ql_generator.py
+    ql_printer.py
+    ql_util.py
 )
 
 END()

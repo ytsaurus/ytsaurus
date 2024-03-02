@@ -1,8 +1,8 @@
-from .base import Query, ProjectionAggregate
-from .engine import run_query
-from .generator import make_query
-from .printer import to_ql_notation
-from .util import compare_rows_like_in_ql
+from .ql_base import Query, ProjectionAggregate
+from .ql_engine import run_query
+from .ql_generator import make_query
+from .ql_printer import to_ql_notation
+from .ql_util import compare_rows_like_in_ql
 
 from pprint import pformat
 

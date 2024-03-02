@@ -1,4 +1,4 @@
-from .base import ProjectionAggregate, STRING_AGGREGATE_FUNCTIONS, ALL_AGGREGATE_FUNCTIONS, Query, TotalsMode
+from .ql_base import ProjectionAggregate, STRING_AGGREGATE_FUNCTIONS, ALL_AGGREGATE_FUNCTIONS, Query, TotalsMode
 
 import random
 
