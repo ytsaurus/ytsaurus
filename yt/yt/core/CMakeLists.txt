@@ -319,7 +319,6 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/ypath_detail.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/ypath_resolver.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/ypath_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/yson_serializable.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/yson_struct.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/yson_struct_detail.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/json/config.cpp
