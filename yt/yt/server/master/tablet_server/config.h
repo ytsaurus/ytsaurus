@@ -184,9 +184,9 @@ public:
 
     int MaxCellAclUpdatesPerIteration;
 
-    TDuration HydraFileIdUpdatePeriod;
+    TDuration HydraPersistenceFileIdUpdatePeriod;
 
-    int MaxHydraFileIdUpdatesPerIteration;
+    int MaxHydraPersistenceFileIdUpdatesPerIteration;
 
     REGISTER_YSON_STRUCT(TDynamicCellHydraPersistenceSynchronizerConfig);
 
