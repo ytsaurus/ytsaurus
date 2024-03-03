@@ -35,6 +35,10 @@ REQUIREMENTS(
     cpu:4
 )
 
+IF (SANITIZER_TYPE)
+    REQUIREMENTS(ram:20)
+ENDIF()
+
 TAG(ya:yt ya:fat)
 YT_SPEC(yt/yt/tests/integration/spec.yson)
 SIZE(LARGE)
