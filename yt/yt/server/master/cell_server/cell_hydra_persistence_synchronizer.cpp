@@ -79,9 +79,9 @@ public:
 
         YT_VERIFY(!UpdateHydraFileIdsPeriodicExecutor_);
         UpdateHydraFileIdsPeriodicExecutor_ = New<TPeriodicExecutor>(
-            NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::TamedCellManager),
             BIND(&TCellHydraPersistenceSynchronizer::OnUpdateHydraFileIds, MakeWeak(this)),
-            GetDynamicConfig()->HydraFileIdUpdatePeriod);
+            GetDynamicConfig()->HydraPersistenceFileIdUpdatePeriod);
         UpdateHydraFileIdsPeriodicExecutor_->Start();
 
         CachedHydraFileInfos_.clear();
@@ -130,7 +130,7 @@ private:
         }
 
         if (UpdateHydraFileIdsPeriodicExecutor_) {
-            UpdateHydraFileIdsPeriodicExecutor_->SetPeriod(newConfig->HydraFileIdUpdatePeriod);
+            UpdateHydraFileIdsPeriodicExecutor_->SetPeriod(newConfig->HydraPersistenceFileIdUpdatePeriod);
         }
     }
 
@@ -607,75 +607,80 @@ private:
 
     void OnUpdateHydraFileIds()
     {
-        YT_LOG_DEBUG("Started cell Hydra file id update");
+        YT_LOG_DEBUG("Started cell Hydra persistence file id update");
 
         if (NextCellIndexToFetchHydraFileIds_ >= ssize(CachedHydraFileInfos_)) {
-            auto asyncHydraFileInfos = BIND([cellManager = Bootstrap_->GetTamedCellManager()] {
-                std::vector<std::pair<TCellId, THydraFileInfo>> cellInfos;
-                for (auto [id, cell] : cellManager->Cells()) {
-                    cellInfos.emplace_back(
-                        id,
-                        THydraFileInfo{cell->GetMaxSnapshotId(), cell->GetMaxChangelogId()});
-                }
-                return cellInfos;
-            })
-                .AsyncVia(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(
-                    EAutomatonThreadQueue::TamedCellManager))
-                .Run();
+            CachedHydraFileInfos_.clear();
 
-            try {
-                CachedHydraFileInfos_ = WaitFor(asyncHydraFileInfos)
-                    .ValueOrThrow();
-                NextCellIndexToFetchHydraFileIds_ = 0;
-
-                YT_LOG_DEBUG("Cell Hydra file updater updated cell list (CellCount: %v)",
-                    ssize(CachedHydraFileInfos_));
-            } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Failed to list cells to update max Hydra file ids");
-                return;
+            for (auto [id, cell] : Bootstrap_->GetTamedCellManager()->Cells()) {
+                CachedHydraFileInfos_.emplace_back(
+                    id,
+                    THydraFileInfo{cell->GetMaxSnapshotId(), cell->GetMaxChangelogId()});
             }
+
+            NextCellIndexToFetchHydraFileIds_ = 0;
+
+            YT_LOG_DEBUG("Cell Hydra persistence file updater updated cell list (CellCount: %v)",
+                ssize(CachedHydraFileInfos_));
         }
 
         int lastCellIndex = std::min<int>(
             ssize(CachedHydraFileInfos_),
-            NextCellIndexToFetchHydraFileIds_ + DynamicConfig_.Acquire()->MaxHydraFileIdUpdatesPerIteration);
+            NextCellIndexToFetchHydraFileIds_ + DynamicConfig_.Acquire()->MaxHydraPersistenceFileIdUpdatesPerIteration);
 
+        std::vector pickedCellInfos(
+            CachedHydraFileInfos_.begin() + NextCellIndexToFetchHydraFileIds_,
+            CachedHydraFileInfos_.begin() + lastCellIndex);
+
+        auto asyncResult = BIND(
+            &TCellHydraPersistenceSynchronizer::DoUpdateHydraFileIds,
+            MakeWeak(this),
+            Passed(std::move(pickedCellInfos)))
+            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+            .Run();
+
+        try {
+            WaitFor(asyncResult)
+                .ThrowOnError();
+            NextCellIndexToFetchHydraFileIds_ = lastCellIndex;
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Failed to update Hydra persistence file ids");
+        }
+    }
+
+    void DoUpdateHydraFileIds(std::vector<std::pair<TCellId, THydraFileInfo>> cellInfos)
+    {
         std::vector<TCellId> cellIds;
-        for (int index = NextCellIndexToFetchHydraFileIds_; index < lastCellIndex; ++index) {
-            cellIds.push_back(CachedHydraFileInfos_[index].first);
+        cellIds.reserve(cellInfos.size());
+        for (auto [cellId, _] : cellInfos) {
+            cellIds.push_back(cellId);
         }
 
         NProto::TReqSetMaxHydraFileIds request;
 
-        try {
-            auto maxHydraFileIds = GetMaxHydraFileIds(cellIds);
-            YT_VERIFY(ssize(maxHydraFileIds) == lastCellIndex - NextCellIndexToFetchHydraFileIds_);
+        auto maxHydraFileIds = GetMaxHydraFileIds(cellIds);
+        YT_VERIFY(ssize(maxHydraFileIds) == ssize(cellInfos));
 
-            for (int index = 0; index < ssize(maxHydraFileIds); ++index) {
-                auto [cellId, oldInfo] = CachedHydraFileInfos_[NextCellIndexToFetchHydraFileIds_ + index];
-                auto newInfo = maxHydraFileIds[index];
-                if (newInfo != oldInfo) {
-                    auto* entry = request.add_entries();
-                    ToProto(entry->mutable_cell_id(), cellId);
-                    entry->set_max_snapshot_id(newInfo.MaxSnapshotId);
-                    entry->set_max_changelog_id(newInfo.MaxChangelogId);
-                }
+        for (int index = 0; index < ssize(maxHydraFileIds); ++index) {
+            auto [cellId, oldInfo] = cellInfos[index];
+            auto newInfo = maxHydraFileIds[index];
+            if (newInfo != oldInfo) {
+                auto* entry = request.add_entries();
+                ToProto(entry->mutable_cell_id(), cellId);
+                entry->set_max_snapshot_id(newInfo.MaxSnapshotId);
+                entry->set_max_changelog_id(newInfo.MaxChangelogId);
             }
-
-            if (!request.entries().empty()) {
-                auto future = CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-                    ->CommitAndLog(Logger);
-                WaitFor(future)
-                    .ThrowOnError();
-            }
-
-            YT_LOG_DEBUG("Finished cell Hydra file id update (UpdatedCellCount: %v)",
-                request.entries_size());
-
-            NextCellIndexToFetchHydraFileIds_ = lastCellIndex;
-        } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Failed to update max Hydra file ids");
         }
+
+        if (!request.entries().empty()) {
+            auto future = CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
+                ->CommitAndLog(Logger);
+            WaitFor(future)
+                .ThrowOnError();
+        }
+
+        YT_LOG_DEBUG("Finished cell Hydra persistence file id update (UpdatedCellCount: %v)",
+            request.entries_size());
     }
 
     std::vector<THydraFileInfo> GetMaxHydraFileIds(const std::vector<TCellId>& cellIds) const
