@@ -17,19 +17,16 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVirtualPoolTreeMap
-    : public TVirtualMapBase
+    : public TVirtualSinglecellMapBase
 {
 public:
     TVirtualPoolTreeMap(TBootstrap* bootstrap, INodePtr owningNode)
-        : TVirtualMapBase(std::move(owningNode))
-        , Bootstrap_(bootstrap)
+        : TVirtualSinglecellMapBase(bootstrap, std::move(owningNode))
     {
         SetOpaque(false);
     }
 
 private:
-    TBootstrap* const Bootstrap_;
-
     std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
         sizeLimit = std::min<i64>(GetSize(), sizeLimit);

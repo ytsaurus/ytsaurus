@@ -39,20 +39,18 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVirtualChunkLocationMap
-    : public TVirtualMapBase
+    : public TVirtualSinglecellMapBase
 {
 public:
     TVirtualChunkLocationMap(
         TBootstrap* bootstrap,
         INodePtr owningNode,
         const TChunkLocationUuidMap* locations)
-        : TVirtualMapBase(std::move(owningNode))
-        , Bootstrap_(bootstrap)
+        : TVirtualSinglecellMapBase(bootstrap, std::move(owningNode))
         , ChunkLocations_(locations)
     { }
 
 private:
-    TBootstrap* const Bootstrap_;
     const TChunkLocationUuidMap* const ChunkLocations_;
 
     std::vector<TString> GetKeys(i64 sizeLimit) const override
@@ -712,17 +710,12 @@ INodeTypeHandlerPtr CreateChunkListMapTypeHandler(TBootstrap* bootstrap)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVirtualMediumMap
-    : public TVirtualMapBase
+    : public TVirtualSinglecellMapBase
 {
 public:
-    TVirtualMediumMap(TBootstrap* bootstrap, INodePtr owningNode)
-        : TVirtualMapBase(owningNode)
-        , Bootstrap_(bootstrap)
-    { }
+    using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    TBootstrap* const Bootstrap_;
-
     std::vector<TString> GetKeys(i64 /*sizeLimit*/) const override
     {
         std::vector<TString> keys;

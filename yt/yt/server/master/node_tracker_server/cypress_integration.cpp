@@ -50,6 +50,30 @@ using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+std::optional<ENodeFlavor> NodeFlavorFromObjectType(EObjectType objectType)
+{
+    switch (objectType) {
+        case EObjectType::ClusterNodeMap:
+            return std::nullopt;
+        case EObjectType::DataNodeMap:
+            return ENodeFlavor::Data;
+        case EObjectType::ExecNodeMap:
+            return ENodeFlavor::Exec;
+        case EObjectType::TabletNodeMap:
+            return ENodeFlavor::Tablet;
+        case EObjectType::ChaosNodeMap:
+            return ENodeFlavor::Chaos;
+        default:
+            YT_ABORT();
+    }
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 // COMPAT(gritukan)
 class TClusterNodeNodeProxy
     : public TCypressMapNodeProxy
@@ -130,21 +154,20 @@ INodeTypeHandlerPtr CreateClusterNodeNodeTypeHandler(TBootstrap* bootstrap)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVirtualNodeMapBase
-    : public TVirtualMapBase
+    : public TVirtualSinglecellMapBase
 {
 public:
     TVirtualNodeMapBase(
         TBootstrap* bootstrap,
         INodePtr owningNode,
-        std::optional<ENodeFlavor> flavor)
-        : TVirtualMapBase(std::move(owningNode))
-        , Bootstrap_(bootstrap)
-        , Flavor_(flavor)
+        EObjectType type)
+        : TVirtualSinglecellMapBase(
+            bootstrap,
+            std::move(owningNode))
+        , Flavor_(NodeFlavorFromObjectType(type))
     { }
 
 protected:
-    TBootstrap* const Bootstrap_;
-
     // std::nullopt stands for all cluster nodes.
     const std::optional<ENodeFlavor> Flavor_;
 
@@ -250,7 +273,7 @@ private:
 
             case EInternedAttributeKey::IOStatistics:
                 BuildYsonFluently(consumer)
-                    .DoMap(BIND(&TVirtualNodeMapBase::BuildIOStatisticsYson, Unretained(this), statistics.TotalIO));
+                    .DoMap(std::bind(&TVirtualNodeMapBase::BuildIOStatisticsYson, this, statistics.TotalIO, std::placeholders::_1));
                 return true;
 
             case EInternedAttributeKey::AvailableSpacePerMedium:
@@ -293,7 +316,7 @@ private:
                                 return;
                             }
                             fluent.Item(medium->GetName())
-                                .DoMap(BIND(&TVirtualNodeMapBase::BuildIOStatisticsYson, Unretained(this), it->second));
+                                .DoMap(std::bind(&TVirtualNodeMapBase::BuildIOStatisticsYson, this, it->second, std::placeholders::_1));
                         });
                 return true;
 
@@ -368,7 +391,10 @@ class TVirtualClusterNodeMap
 {
 public:
     TVirtualClusterNodeMap(TBootstrap* bootstrap, INodePtr owningNode)
-        : TVirtualNodeMapBase(bootstrap, std::move(owningNode), /*flavor*/ std::nullopt)
+        : TVirtualNodeMapBase(
+            bootstrap,
+            std::move(owningNode),
+            EObjectType::ClusterNodeMap)
     { }
 
 private:
@@ -419,11 +445,11 @@ public:
     TVirtualFlavoredNodeMap(
         TBootstrap* bootstrap,
         INodePtr owningNode,
-        EObjectType objectType)
+        EObjectType type)
         : TVirtualNodeMapBase(
             bootstrap,
             std::move(owningNode),
-            GetNodeFlavorByMapObjectType(objectType))
+            type)
     { }
 
 private:
@@ -448,22 +474,6 @@ private:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         return nodeTracker->GetNodesWithFlavor(*Flavor_).size();
     }
-
-    static ENodeFlavor GetNodeFlavorByMapObjectType(EObjectType objectType)
-    {
-        switch (objectType) {
-            case EObjectType::DataNodeMap:
-                return ENodeFlavor::Data;
-            case EObjectType::ExecNodeMap:
-                return ENodeFlavor::Exec;
-            case EObjectType::TabletNodeMap:
-                return ENodeFlavor::Tablet;
-            case EObjectType::ChaosNodeMap:
-                return ENodeFlavor::Chaos;
-            default:
-                YT_ABORT();
-        }
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -484,17 +494,12 @@ INodeTypeHandlerPtr CreateFlavoredNodeMapTypeHandler(TBootstrap* bootstrap, EObj
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVirtualHostMap
-    : public TVirtualMapBase
+    : public TVirtualSinglecellMapBase
 {
 public:
-    TVirtualHostMap(TBootstrap* bootstrap, INodePtr owningNode)
-        : TVirtualMapBase(std::move(owningNode))
-        , Bootstrap_(bootstrap)
-    { }
+    using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    TBootstrap* const Bootstrap_;
-
     std::vector<TString> GetKeys(i64 /*sizeLimit*/) const override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -547,17 +552,12 @@ INodeTypeHandlerPtr CreateHostMapTypeHandler(TBootstrap* bootstrap)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVirtualRackMap
-    : public TVirtualMapBase
+    : public TVirtualSinglecellMapBase
 {
 public:
-    TVirtualRackMap(TBootstrap* bootstrap, INodePtr owningNode)
-        : TVirtualMapBase(owningNode)
-        , Bootstrap_(bootstrap)
-    { }
+    using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    TBootstrap* const Bootstrap_;
-
     std::vector<TString> GetKeys(i64 /*sizeLimit*/) const override
     {
         std::vector<TString> keys;
@@ -603,17 +603,12 @@ INodeTypeHandlerPtr CreateRackMapTypeHandler(TBootstrap* bootstrap)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVirtualDataCenterMap
-    : public TVirtualMapBase
+    : public TVirtualSinglecellMapBase
 {
 public:
-    TVirtualDataCenterMap(TBootstrap* bootstrap, INodePtr owningNode)
-        : TVirtualMapBase(owningNode)
-        , Bootstrap_(bootstrap)
-    { }
+    using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    TBootstrap* const Bootstrap_;
-
     std::vector<TString> GetKeys(i64 /*sizeLimit*/) const override
     {
         std::vector<TString> keys;

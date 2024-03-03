@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/master/cypress_server/public.h>
 
+#include <yt/yt/client/security_client/public.h>
+
 namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,7 +17,7 @@ NCypressServer::INodeTypeHandlerPtr CreateGroupMapTypeHandler(NCellMaster::TBoot
 NCypressServer::INodeTypeHandlerPtr CreateNetworkProjectMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
 NCypressServer::INodeTypeHandlerPtr CreateProxyRoleMapTypeHandler(
     NCellMaster::TBootstrap* bootstrap,
-    NObjectClient::EObjectType type);
+    NSecurityClient::EProxyKind proxyKind);
 
 ////////////////////////////////////////////////////////////////////////////////
 
