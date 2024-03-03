@@ -660,6 +660,9 @@ class TestMasterSnapshots(YTEnvSetup):
     NUM_CHAOS_NODES = 1
     USE_DYNAMIC_TABLES = True
 
+    def _build_master_snapshots(self):
+        build_master_snapshots()
+
     @authors("ermolovd")
     def test(self):
         if self.is_multicell():
@@ -669,7 +672,7 @@ class TestMasterSnapshots(YTEnvSetup):
         for s in checker_state_list:
             next(s)
 
-        build_master_snapshots()
+        self._build_master_snapshots()
 
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
@@ -696,6 +699,13 @@ class TestMasterSnapshots(YTEnvSetup):
 class TestMasterSnapshotsMulticell(TestMasterSnapshots):
     NUM_SECONDARY_MASTER_CELLS = 3
 
+
+##################################################################
+
+
+class TestMasterChangelogsMulticell(TestMasterSnapshotsMulticell):
+    def _build_master_snapshots(self):
+        pass
 
 ##################################################################
 
