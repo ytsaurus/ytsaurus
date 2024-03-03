@@ -110,6 +110,7 @@ def get_dynamic_master_config():
         expiration_check_period = 200;
         expiration_backoff_time = 200;
         scion_removal_period = 1000;
+        virtual_map_read_offload_batch_size = 2;
     };
 
     transaction_manager = {
