@@ -13,7 +13,7 @@ import builtins
 class ChaosTestBase(DynamicTablesBase):
     NUM_CLOCKS = 1
     NUM_MASTER_CACHES = 1
-    NUM_NODES = 5
+    NUM_NODES = 3
     NUM_CHAOS_NODES = 1
 
     def _get_drivers(self):

@@ -688,6 +688,18 @@ class TestChaos(ChaosTestBase):
     def test_replication_progress(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
 
+        # Default replication factor is 3 and there are only 3 nodes in this configuration one of which is banned in the test.
+        set(
+            "//sys/tablet_cell_bundles/default/@options",
+            {
+                "snapshot_account": "sys",
+                "changelog_account": "sys",
+                "changelog_replication_factor": 2,
+                "changelog_write_quorum": 2,
+                "changelog_read_quorum": 1,
+            },
+        )
+
         replicas = [
             {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
