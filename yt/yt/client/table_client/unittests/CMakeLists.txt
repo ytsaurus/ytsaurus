@@ -40,6 +40,7 @@ target_sources(unittester-client-table-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/unittests/columnar_statistics_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/unittests/columnar_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/unittests/serialization_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/unittests/unversioned_row_ut.cpp
 )
 add_test(
   NAME
