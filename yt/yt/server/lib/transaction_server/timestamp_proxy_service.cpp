@@ -59,7 +59,7 @@ private:
 
             auto foreignProviderPtr = AlienProviders_.find(clockClusterTag);
             if (foreignProviderPtr == AlienProviders_.end()) {
-                context->Reply(TError("Unknown clock cluster tag: %v", clockClusterTag));
+                context->Reply(TError("Unknown clock cluster tag %v", clockClusterTag));
                 return;
             }
 
