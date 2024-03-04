@@ -116,7 +116,8 @@ void TDiskLocation::ValidateLockFile() const
 
     auto errorData = fileInput.ReadAll();
     if (errorData.empty()) {
-        THROW_ERROR_EXCEPTION("Empty lock file found");
+        THROW_ERROR_EXCEPTION("Empty lock file found")
+            << TErrorAttribute("lock_file", lockFilePath);
     }
 
     TError error;
@@ -124,9 +125,12 @@ void TDiskLocation::ValidateLockFile() const
         error = ConvertTo<TError>(TYsonString(errorData));
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing lock file contents")
+            << TErrorAttribute("lock_file", lockFilePath)
             << ex;
     }
-    THROW_ERROR error;
+    THROW_ERROR_EXCEPTION("Lock file found")
+        << TErrorAttribute("lock_file", lockFilePath)
+        << error;
 }
 
 void TDiskLocation::ValidateMinimumSpace() const
