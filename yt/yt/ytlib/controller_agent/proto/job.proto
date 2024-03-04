@@ -291,6 +291,8 @@ message TUserJobSpec
     optional bool enable_rpc_proxy_in_job_proxy = 70 [default = false];
     optional int32 rpc_proxy_worker_thread_pool_size = 71 [default = 1];
 
+    optional bool redirect_stdout_to_stderr = 72 [default = false];
+
     reserved 38, 48, 61, 62;
 }
 

@@ -15,6 +15,8 @@
 #include <yt/yt/server/controller_agent/config.h>
 #include <yt/yt/server/controller_agent/private.h>
 
+#include <yt/yt/server/job_proxy/public.h>
+
 #include <yt/yt/server/lib/controller_agent/job_report.h>
 
 #include <yt/yt/server/lib/exec_node/public.h>
@@ -9888,6 +9890,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_copy_files(jobSpecConfig->CopyFiles);
     jobSpec->set_debug_artifacts_account(debugArtifactsAccount);
     jobSpec->set_set_container_cpu_limit(jobSpecConfig->SetContainerCpuLimit || Options->SetContainerCpuLimit);
+    jobSpec->set_redirect_stdout_to_stderr(jobSpecConfig->RedirectStdoutToStderr);
 
     // This is common policy for all operations of given type.
     if (Options->SetContainerCpuLimit) {
@@ -10057,6 +10060,10 @@ void TOperationControllerBase::InitUserJobSpec(
     jobSpec->add_environment(Format("YT_JOB_COOKIE=%v", joblet->OutputCookie));
     if (joblet->StartRowIndex >= 0) {
         jobSpec->add_environment(Format("YT_START_ROW_INDEX=%v", joblet->StartRowIndex));
+    }
+    if (!jobSpec->use_yamr_descriptors()) {
+        int jobFirstOutputTableFd = GetJobFirstOutputTableFdFromSpec(*jobSpec);
+        jobSpec->add_environment(Format("YT_FIRST_OUTPUT_TABLE_FD=%v", jobFirstOutputTableFd));
     }
 
     if (joblet->EnabledJobProfiler && joblet->EnabledJobProfiler->Type == EProfilerType::Cuda) {

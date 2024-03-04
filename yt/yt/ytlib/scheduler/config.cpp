@@ -1047,6 +1047,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
     registrar.Parameter("docker_image", &TThis::DockerImage)
         .Default();
 
+    registrar.Parameter("redirect_stdout_to_stderr", &TThis::RedirectStdoutToStderr)
+        .Default(false);
+
     registrar.Parameter("profilers", &TThis::Profilers)
         .Default();
 
