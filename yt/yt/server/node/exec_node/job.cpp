@@ -2512,8 +2512,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
                 YT_VERIFY(artifact.Chunk);
 
                 YT_LOG_INFO(
-                    "Make bind for artifact (FileName: %v, Executable: "
-                    "%v, SandboxKind: %v, CompressedDataSize: %v)",
+                    "Make bind for artifact (FileName: %v, Executable: %v"
+                    ", SandboxKind: %v, CompressedDataSize: %v)",
                     artifact.Name,
                     artifact.Executable,
                     artifact.SandboxKind,
