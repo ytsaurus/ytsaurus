@@ -150,7 +150,9 @@ Query tracker позволяет:
 
 Access Control Object (ACO) — это объект с атрибутом `@principal_acl`, который задаёт правила доступа тем же способом, что и `@acl` для нод Кипариса. Подробнее можно почитать в разделе [Контроль доступа](../../user-guide/storage/access-control.md).
 
-Создание ACO возможно через пользовательский интерфейс, либо с помощью вызова команды [create](../../user-guide/storage/cypress-example.md#create): `yt create access_control_object --attr '{namespace=queries;name=my_aco}'`.
+Создание ACO возможно через пользовательский интерфейс, либо с помощью вызова команды [create](../../user-guide/storage/cypress-example.md#create):
+
+`yt create access_control_object --attr '{namespace=queries;name=my_aco}'`.
 
 Все API используют ACO для проверки доступа:
 
