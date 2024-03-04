@@ -446,6 +446,20 @@ class TestSchedulingTags(YTEnvSetup):
             )
 
     @authors("ignat")
+    def test_numeric_tag_filter(self):
+        self._prepare()
+
+        set("//sys/cluster_nodes/{0}/@user_tags".format(self.node), ["default", "127.0.0.1"])
+
+        map(
+            command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"scheduling_tag": "127.0.0.1"},
+        )
+        assert read_table("//tmp/t_out") == [{"foo": "bar"}]
+
+    @authors("ignat")
     def test_pools(self):
         self._prepare()
 
