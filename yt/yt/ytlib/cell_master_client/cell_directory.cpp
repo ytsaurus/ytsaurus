@@ -49,9 +49,11 @@ class TCellDirectory
     : public ICellDirectory
 {
 public:
+    DEFINE_SIGNAL_OVERRIDE(TCellReconfigurationSignature, CellDirectoryChanged);
+
     TCellDirectory(
         TCellDirectoryConfigPtr config,
-        const NNative::TConnectionOptions& options,
+        NNative::TConnectionOptions options,
         IChannelFactoryPtr channelFactory,
         NLogging::TLogger logger)
         : Config_(std::move(config))
@@ -65,21 +67,26 @@ public:
             Logger,
             NProfiling::TProfiler()))
         , RpcServer_(CreateLocalServer())
+        , Options_(std::move(options))
         , RandomGenerator_(TInstant::Now().GetValue())
     {
         for (const auto& masterConfig : Config_->SecondaryMasters) {
             auto cellId = masterConfig->CellId;
+            SecondaryMasterConnectionConfigs_[CellTagFromId(cellId)] = masterConfig;
             SecondaryMasterCellTags_.push_back(CellTagFromId(cellId));
             SecondaryMasterCellIds_.push_back(cellId);
         }
         // Sort tag list to simplify subsequent equality checks.
-        std::sort(SecondaryMasterCellTags_.begin(), SecondaryMasterCellTags_.end());
+        Sort(SecondaryMasterCellTags_);
 
         // NB: unlike channels, roles will be filled on first sync.
 
-        InitMasterChannels(Config_->PrimaryMaster, options);
-        for (const auto& masterConfig : Config_->SecondaryMasters) {
-            InitMasterChannels(masterConfig, options);
+        {
+            auto guard = WriterGuard(SpinLock_);
+            InitMasterChannels(Config_->PrimaryMaster);
+            for (const auto& [_, masterConfig] : SecondaryMasterConnectionConfigs_) {
+                InitMasterChannels(masterConfig);
+            }
         }
         RpcServer_->Start();
     }
@@ -94,14 +101,22 @@ public:
         return PrimaryMasterCellTag_;
     }
 
-    const TCellTagList& GetSecondaryMasterCellTags() override
+    TCellTagList GetSecondaryMasterCellTags() override
     {
+        auto guard = ReaderGuard(SpinLock_);
         return SecondaryMasterCellTags_;
     }
 
-    const TCellIdList& GetSecondaryMasterCellIds() override
+    TCellIdList GetSecondaryMasterCellIds() override
     {
+        auto guard = ReaderGuard(SpinLock_);
         return SecondaryMasterCellIds_;
+    }
+
+    TSecondaryMasterConnectionConfigs GetSecondaryMasterConnectionConfigs()
+    {
+        auto guard = ReaderGuard(SpinLock_);
+        return SecondaryMasterConnectionConfigs_;
     }
 
     IChannelPtr GetMasterChannelOrThrow(EMasterChannelKind kind, TCellTag cellTag) override
@@ -122,7 +137,7 @@ public:
     TCellTagList GetMasterCellTagsWithRole(EMasterCellRole role) override
     {
         auto guard = ReaderGuard(SpinLock_);
-        return RoleCells_[role];
+        return RoleToCellTags_[role];
     }
 
     TCellId GetRandomMasterCellWithRoleOrThrow(EMasterCellRole role) override
@@ -145,73 +160,82 @@ public:
 
     void Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory) override
     {
-        THashMap<TCellTag, EMasterCellRoles> cellRoles;
-        cellRoles.reserve(protoDirectory.items_size());
-        TEnumIndexedArray<EMasterCellRole, TCellTagList> roleCells;
+        THashMap<TCellTag, EMasterCellRoles> cellTagToRoles;
+        cellTagToRoles.reserve(protoDirectory.items_size());
+
+        TEnumIndexedArray<EMasterCellRole, TCellTagList> roleToCellTags;
         THashMap<TCellTag, std::vector<TString>> cellAddresses;
         cellAddresses.reserve(protoDirectory.items_size());
+
+        TSecondaryMasterConnectionConfigs cellTagToSecondaryMaster;
         TCellTagList secondaryCellTags;
+        cellTagToSecondaryMaster.reserve(protoDirectory.items_size());
         secondaryCellTags.reserve(protoDirectory.items_size());
 
         auto primaryCellFound = false;
 
-        for (auto i = 0; i < protoDirectory.items_size(); ++i) {
-            const auto& item = protoDirectory.items(i);
+        for (const auto& item : protoDirectory.items()) {
+            // TODO(cherepashka): parsing of proto version of TMasterConnectionConfig.
+            auto masterConnectionConfig = New<TMasterConnectionConfig>();
+            masterConnectionConfig->CellId = FromProto<TCellId>(item.cell_id());
+            masterConnectionConfig->Addresses = FromProto<std::vector<TString>>(item.addresses());
+            Sort(*masterConnectionConfig->Addresses);
 
-            auto cellId = FromProto<TGuid>(item.cell_id());
+            auto cellId = masterConnectionConfig->CellId;
             auto cellTag = CellTagFromId(cellId);
 
             auto roles = EMasterCellRoles::None;
-            for (auto j = 0; j < item.roles_size(); ++j) {
-                auto role = EMasterCellRole(item.roles(j));
+            for (auto protoRole : item.roles()) {
+                auto role = CheckedEnumCast<EMasterCellRole>(protoRole);
                 roles = roles | EMasterCellRoles(role);
-                roleCells[role].push_back(cellTag);
+                roleToCellTags[role].push_back(cellTag);
             }
+            EmplaceOrCrash(cellTagToRoles, cellTag, roles);
 
-            YT_VERIFY(cellRoles.emplace(cellTag, roles).second);
-
-            auto addresses = FromProto<std::vector<TString>>(item.addresses());
-            std::sort(addresses.begin(), addresses.end());
-            YT_VERIFY(cellAddresses.emplace(cellTag, std::move(addresses)).second);
+            YT_VERIFY(masterConnectionConfig->Addresses);
+            auto addresses = *masterConnectionConfig->Addresses;
+            Sort(addresses);
+            EmplaceOrCrash(cellAddresses, cellTag, std::move(addresses));
 
             if (cellTag == PrimaryMasterCellTag_) {
                 YT_VERIFY(cellId == PrimaryMasterCellId_);
                 primaryCellFound = true;
             } else {
+                EmplaceOrCrash(cellTagToSecondaryMaster, cellTag, std::move(masterConnectionConfig));
                 secondaryCellTags.push_back(cellTag);
             }
         }
 
         YT_VERIFY(primaryCellFound);
-        YT_VERIFY(cellRoles.contains(PrimaryMasterCellTag_) && cellAddresses.contains(PrimaryMasterCellTag_));
+        YT_VERIFY(cellTagToRoles.contains(PrimaryMasterCellTag_) && cellAddresses.contains(PrimaryMasterCellTag_));
 
-        std::sort(secondaryCellTags.begin(), secondaryCellTags.end());
+        // To get the actual values under lock.
+        const auto& oldSecondaryMasterCellTags = GetSecondaryMasterCellTags();
+        const auto& oldSecondaryMasterConnectionConfigs = GetSecondaryMasterConnectionConfigs();
 
-        if (SecondaryMasterCellTags_.empty() &&
-            !secondaryCellTags.empty()) {
-            YT_LOG_WARNING("Synchronized master cell tag list does not match, connection config is probably meant for a direct connection to a secondary cell tag (ConfigPrimaryCellTag: %v, SynchronizedSecondaryMasters: %v)",
-                PrimaryMasterCellTag_,
+        if (ClusterMasterCompositionChanged(cellTagToSecondaryMaster)) {
+            YT_LOG_DEBUG("Cluster membership configuration has changed, starting reconfiguration "
+                "(SecondaryMasterCellTags: %v, ReceivedSecondaryMasterCellTags: %v)",
+                oldSecondaryMasterCellTags,
                 secondaryCellTags);
+            ReconfigureMasterCellDirectory(oldSecondaryMasterConnectionConfigs, cellTagToSecondaryMaster, secondaryCellTags);
+        }
 
-            const auto primaryMasterCellRoles = cellRoles[PrimaryMasterCellTag_];
-            cellRoles.clear();
-            cellRoles.emplace(PrimaryMasterCellTag_, primaryMasterCellRoles);
+        if (oldSecondaryMasterCellTags.empty() &&
+            !secondaryCellTags.empty()) {
+            const auto primaryMasterCellRoles = cellTagToRoles[PrimaryMasterCellTag_];
+            cellTagToRoles.clear();
+            cellTagToRoles.emplace(PrimaryMasterCellTag_, primaryMasterCellRoles);
             for (auto role : TEnumTraits<EMasterCellRole>::GetDomainValues()) {
-                roleCells[role].clear();
+                roleToCellTags[role].clear();
                 if (Any(primaryMasterCellRoles & EMasterCellRoles(role))) {
-                    roleCells[role].push_back(PrimaryMasterCellTag_);
+                    roleToCellTags[role].push_back(PrimaryMasterCellTag_);
                 }
             }
         } else {
-            YT_LOG_WARNING_UNLESS(
-                SecondaryMasterCellTags_ == secondaryCellTags,
-                "Synchronized secondary master cell tag list does not match, connection config is probably incorrect (ConfigSecondaryMasters: %v, SynchronizedSecondaryMasters: %v)",
-                SecondaryMasterCellTags_,
-                secondaryCellTags);
-
             if (Config_->PrimaryMaster->Addresses) {
                 auto expectedPrimaryCellAddresses = *Config_->PrimaryMaster->Addresses;
-                std::sort(expectedPrimaryCellAddresses.begin(), expectedPrimaryCellAddresses.end());
+                Sort(expectedPrimaryCellAddresses);
                 const auto& actualPrimaryCellAddresses = cellAddresses[PrimaryMasterCellTag_];
                 YT_LOG_WARNING_UNLESS(
                     expectedPrimaryCellAddresses == actualPrimaryCellAddresses,
@@ -219,10 +243,10 @@ public:
                     expectedPrimaryCellAddresses,
                     actualPrimaryCellAddresses);
 
-                for (auto cellConfig : Config_->SecondaryMasters) {
+                for (auto [_, cellConfig] : oldSecondaryMasterConnectionConfigs) {
                     if (cellConfig->Addresses) {
                         auto expectedCellAddresses = *cellConfig->Addresses;
-                        std::sort(expectedCellAddresses.begin(), expectedCellAddresses.end());
+                        Sort(expectedCellAddresses);
                         const auto& actualCellAddresses = cellAddresses[CellTagFromId(cellConfig->CellId)];
 
                         YT_LOG_WARNING_UNLESS(
@@ -235,13 +259,13 @@ public:
             }
         }
 
-        YT_LOG_DEBUG("Successfully synchronized master cell roles (CellRoles: %v)",
-            cellRoles);
+        YT_LOG_DEBUG("Successfully synchronized master cell roles (CellTagToRoles: %v)",
+            cellTagToRoles);
 
         {
             auto guard = WriterGuard(SpinLock_);
-            CellRoleMap_ = std::move(cellRoles);
-            RoleCells_ = std::move(roleCells);
+            CellTagToRoles_ = std::move(cellTagToRoles);
+            RoleToCellTags_ = std::move(roleToCellTags);
         }
     }
 
@@ -250,11 +274,11 @@ public:
         {
             auto guard = WriterGuard(SpinLock_);
 
-            CellRoleMap_.clear();
-            RoleCells_ = {};
+            CellTagToRoles_.clear();
+            RoleToCellTags_ = {};
             auto addRole = [&] (TCellTag cellTag, EMasterCellRole role) {
-                CellRoleMap_[cellTag] |= EMasterCellRoles(role);
-                RoleCells_[role].push_back(cellTag);
+                CellTagToRoles_[cellTag] |= EMasterCellRoles(role);
+                RoleToCellTags_[role].push_back(cellTag);
             };
 
             addRole(PrimaryMasterCellTag_, EMasterCellRole::TransactionCoordinator);
@@ -280,21 +304,101 @@ private:
     const NLogging::TLogger Logger;
     const TObjectServiceCachePtr Cache_;
     const IServerPtr RpcServer_;
+    const NNative::TConnectionOptions Options_;
 
-    /*const*/ TCellTagList SecondaryMasterCellTags_;
-    /*const*/ TCellIdList SecondaryMasterCellIds_;
-
-    /*const*/ THashMap<TCellTag, TEnumIndexedArray<EMasterChannelKind, IChannelPtr>> CellChannelMap_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
-    THashMap<TCellTag, EMasterCellRoles> CellRoleMap_;
-    TEnumIndexedArray<EMasterCellRole, TCellTagList> RoleCells_;
+    THashMap<TCellTag, TEnumIndexedArray<EMasterChannelKind, IChannelPtr>> CellChannelMap_;
+    THashMap<TCellTag, EMasterCellRoles> CellTagToRoles_;
+    TEnumIndexedArray<EMasterCellRole, TCellTagList> RoleToCellTags_;
     TRandomGenerator RandomGenerator_;
+    TSecondaryMasterConnectionConfigs SecondaryMasterConnectionConfigs_;
+    TCellTagList SecondaryMasterCellTags_;
+    TCellIdList SecondaryMasterCellIds_;
+    THashMap<TCellTag, IServicePtr> CachingObjectServices_;
 
-    std::vector<IServicePtr> CachingObjectServices_;
+    bool ClusterMasterCompositionChanged(const TSecondaryMasterConnectionConfigs& secondaryMasterConnectionConfigs)
+    {
+        const auto& oldSecondaryMasterConnectionConfigs = GetSecondaryMasterConnectionConfigs();
+
+        if (secondaryMasterConnectionConfigs.size() != oldSecondaryMasterConnectionConfigs.size()) {
+            return true;
+        }
+
+        for (const auto& [cellTag, secondaryMasterConnectionConfig] : secondaryMasterConnectionConfigs) {
+            if (!oldSecondaryMasterConnectionConfigs.contains(cellTag)) {
+                return true;
+            }
+            const auto& secondaryMaster = GetOrCrash(oldSecondaryMasterConnectionConfigs, cellTag);
+            // TODO(cherepashka): replace with connection config comparison after changing NProto::TCellDirectory.
+            if (secondaryMaster->Addresses != secondaryMasterConnectionConfig->Addresses) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void ReconfigureMasterCellDirectory(
+        const TSecondaryMasterConnectionConfigs& oldSecondaryMasterConnectionConfigs,
+        const TSecondaryMasterConnectionConfigs& secondaryMasterConnectionConfigs,
+        const TCellTagList& secondaryMasterCellTags)
+    {
+        TCellIdList secondaryMasterCellIds;
+        THashSet<TCellTag> addedSecondaryCellTags;
+        TSecondaryMasterConnectionConfigs reconfiguredSecondaryMasterConfigs;
+        secondaryMasterCellIds.reserve(secondaryMasterConnectionConfigs.size());
+        addedSecondaryCellTags.reserve(secondaryMasterConnectionConfigs.size());
+        reconfiguredSecondaryMasterConfigs.reserve(secondaryMasterConnectionConfigs.size());
+
+        // TODO(cherepashka): add logic for removal and addition of master cells.
+        for (const auto& [cellTag, secondaryMaster] : secondaryMasterConnectionConfigs) {
+            if (!oldSecondaryMasterConnectionConfigs.contains(cellTag)) {
+                YT_LOG_DEBUG("Unexpected master cell cluster reconfiguration (AppearedCellTag: %v)",
+                    cellTag);
+                InsertOrCrash(addedSecondaryCellTags, cellTag);
+            } else if (secondaryMaster->Addresses != GetOrCrash(oldSecondaryMasterConnectionConfigs, cellTag)->Addresses) {
+                YT_LOG_DEBUG("Master cell will be reconfigured (CellTag: %v, NewCellAddresses: %v, OldCellAddresses: %v)",
+                    cellTag,
+                    secondaryMaster->Addresses,
+                    GetOrCrash(oldSecondaryMasterConnectionConfigs, cellTag)->Addresses);
+                EmplaceOrCrash(reconfiguredSecondaryMasterConfigs, cellTag, secondaryMaster);
+            }
+            secondaryMasterCellIds.push_back(secondaryMaster->CellId);
+        }
+
+        Sort(secondaryMasterCellIds);
+
+        THashSet<TCellTag> removedSecondaryTags;
+        for (const auto& [cellTag, _] : oldSecondaryMasterConnectionConfigs) {
+            if (!secondaryMasterConnectionConfigs.contains(cellTag)) {
+                removedSecondaryTags.insert(cellTag);
+            }
+        }
+        YT_LOG_WARNING_UNLESS(
+            removedSecondaryTags.empty(),
+            "Some master cells were removed in new configuration of secondary masters (RemovedCellTags: %v)",
+            removedSecondaryTags);
+
+        {
+            auto guard = WriterGuard(SpinLock_);
+            for (const auto& [cellTag, secondaryMaster] : reconfiguredSecondaryMasterConfigs) {
+                RemoveMasterChannels(cellTag);
+                InitMasterChannels(secondaryMaster);
+            }
+            SecondaryMasterConnectionConfigs_ = secondaryMasterConnectionConfigs;
+            SecondaryMasterCellIds_ = std::move(secondaryMasterCellIds);
+            SecondaryMasterCellTags_ = secondaryMasterCellTags;
+        }
+
+        CellDirectoryChanged_.Fire(
+            addedSecondaryCellTags,
+            reconfiguredSecondaryMasterConfigs,
+            removedSecondaryTags);
+    }
 
     IChannelPtr GetCellChannelOrThrow(TCellTag cellTag, EMasterChannelKind kind) const
     {
+        auto guard = ReaderGuard(SpinLock_);
         auto it = CellChannelMap_.find(cellTag);
         if (it == CellChannelMap_.end()) {
             ThrowUnknownMasterCellTag(cellTag);
@@ -322,14 +426,15 @@ private:
     }
 
     void InitMasterChannels(
-        const TMasterConnectionConfigPtr& config,
-        const NNative::TConnectionOptions& options)
+        const TMasterConnectionConfigPtr& config)
     {
+        VERIFY_WRITER_SPINLOCK_AFFINITY(SpinLock_);
+
         auto cellTag = CellTagFromId(config->CellId);
 
-        InitMasterChannel(EMasterChannelKind::Leader, config, EPeerKind::Leader, options);
-        InitMasterChannel(EMasterChannelKind::Follower, config, EPeerKind::Follower, options);
-        InitMasterChannel(EMasterChannelKind::MasterCache, config, EPeerKind::Follower, options);
+        InitMasterChannel(EMasterChannelKind::Leader, config, EPeerKind::Leader);
+        InitMasterChannel(EMasterChannelKind::Follower, config, EPeerKind::Follower);
+        InitMasterChannel(EMasterChannelKind::MasterCache, config, EPeerKind::Follower);
 
         auto masterCacheConfig = BuildMasterCacheConfig(config);
         if (Config_->MasterCache && Config_->MasterCache->EnableMasterCacheDiscovery) {
@@ -338,10 +443,10 @@ private:
                 Config_->MasterCache->MasterCacheDiscoveryPeriodSplay,
                 MakeWeak(this),
                 ENodeRole::MasterCache,
-                BIND(&TCellDirectory::CreatePeerChannelFromAddresses, ChannelFactory_, masterCacheConfig, EPeerKind::Follower, options));
+                BIND(&TCellDirectory::CreatePeerChannelFromAddresses, ChannelFactory_, masterCacheConfig, EPeerKind::Follower, Options_));
             CellChannelMap_[cellTag][EMasterChannelKind::Cache] = channel;
         } else {
-            InitMasterChannel(EMasterChannelKind::Cache, masterCacheConfig, EPeerKind::Follower, options);
+            InitMasterChannel(EMasterChannelKind::Cache, masterCacheConfig, EPeerKind::Follower);
         }
 
         auto cachingObjectService = CreateCachingObjectService(
@@ -353,7 +458,7 @@ private:
             ObjectClientLogger,
             /*profiler*/ {},
             /*authenticator*/ nullptr);
-        CachingObjectServices_.push_back(cachingObjectService);
+        EmplaceOrCrash(CachingObjectServices_, cellTag, cachingObjectService);
         RpcServer_->RegisterService(cachingObjectService);
         CellChannelMap_[cellTag][EMasterChannelKind::LocalCache] = CreateRealmChannel(CreateLocalChannel(RpcServer_), config->CellId);
     }
@@ -361,13 +466,27 @@ private:
     void InitMasterChannel(
         EMasterChannelKind channelKind,
         const TMasterConnectionConfigPtr& config,
-        EPeerKind peerKind,
-        const NNative::TConnectionOptions& options)
+        EPeerKind peerKind)
     {
+        VERIFY_WRITER_SPINLOCK_AFFINITY(SpinLock_);
+
         auto cellTag = CellTagFromId(config->CellId);
-        auto peerChannel = CreatePeerChannel(ChannelFactory_, config, peerKind, options);
+        auto peerChannel = CreatePeerChannel(ChannelFactory_, config, peerKind, Options_);
 
         CellChannelMap_[cellTag][channelKind] = peerChannel;
+    }
+
+    void RemoveMasterChannels(TCellTag cellTag)
+    {
+        VERIFY_WRITER_SPINLOCK_AFFINITY(SpinLock_);
+
+        auto cachingObjectServiceIt = CachingObjectServices_.find(cellTag);
+        YT_VERIFY(cachingObjectServiceIt != CachingObjectServices_.end());
+
+        const auto& cachingObjectService = cachingObjectServiceIt->second;
+        RpcServer_->UnregisterService(cachingObjectService);
+        CachingObjectServices_.erase(cachingObjectServiceIt);
+        EraseOrCrash(CellChannelMap_, cellTag);
     }
 
     static IChannelPtr CreatePeerChannelFromAddresses(

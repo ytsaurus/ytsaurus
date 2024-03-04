@@ -29,6 +29,8 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
+
 #include <yt/yt/ytlib/data_node_tracker_client/data_node_tracker_service_proxy.h>
 #include <yt/yt/ytlib/data_node_tracker_client/location_directory.h>
 
@@ -52,6 +54,7 @@
 
 namespace NYT::NDataNode {
 
+using namespace NCellMasterClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NChunkServer;
@@ -138,6 +141,11 @@ public:
 
         Bootstrap_->SubscribeMasterConnected(BIND(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
         Bootstrap_->SubscribeMasterDisconnected(BIND(&TMasterConnector::OnMasterDisconnected, MakeWeak(this)));
+
+        const auto& connection = Bootstrap_->GetClient()->GetNativeConnection();
+        connection->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(
+            BIND(&TMasterConnector::OnMasterCellDirectoryChanged, MakeStrong(this))
+                .Via(Bootstrap_->GetControlInvoker()));
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(BIND(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
@@ -697,6 +705,21 @@ private:
         }
 
         StartHeartbeats();
+    }
+
+    void OnMasterCellDirectoryChanged(
+        const THashSet<TCellTag>& addedSecondaryCellTags,
+        const TSecondaryMasterConnectionConfigs& /*reconfiguredSecondaryMasterConfigs*/,
+        const THashSet<TCellTag>& removedSecondaryTags)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YT_LOG_DEBUG_UNLESS(
+            addedSecondaryCellTags.empty() && removedSecondaryTags.empty(),
+            "Unexpected master cell configuration detected "
+            "(AddedCellTags: %v, RemovedCellTags: %v)",
+            addedSecondaryCellTags,
+            removedSecondaryTags);
     }
 
     void OnDynamicConfigChanged(

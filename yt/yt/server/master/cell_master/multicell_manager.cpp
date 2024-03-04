@@ -22,6 +22,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/ytlib/api/native/config.h>
+
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
@@ -49,6 +51,7 @@
 
 namespace NYT::NCellMaster {
 
+using namespace NApi::NNative;
 using namespace NElection;
 using namespace NRpc;
 using namespace NYTree;
@@ -180,6 +183,11 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetSecondaryCellTags();
+    }
+
+    const TConnectionStaticConfigPtr& GetMasterCellConnectionConfigs() const override
+    {
+        return Bootstrap_->GetConfig()->ClusterConnection->Static;
     }
 
     int GetCellCount() const override

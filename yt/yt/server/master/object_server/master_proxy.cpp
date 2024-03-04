@@ -28,6 +28,8 @@
 #include <yt/yt/server/master/security_server/acl.h>
 #include <yt/yt/server/master/security_server/user.h>
 
+#include <yt/yt/ytlib/api/native/config.h>
+
 #include <yt/yt/ytlib/election/config.h>
 
 #include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
@@ -223,18 +225,17 @@ private:
         }
 
         if (populateCellDirectory) {
-            const auto& cellMasterConfig = Bootstrap_->GetConfig();
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            const auto& masterCellConnectionConfigs = multicellManager->GetMasterCellConnectionConfigs();
+            // TODO(cherepashka): to add all fields from TMasterConnectionConfig into NProto::TCellDirectory.
             auto* protoCellDirectory = response->mutable_cell_directory();
 
-            auto addCell = [&] (const NElection::TCellConfigPtr& cellConfig) {
+            auto addCell = [&] (const NApi::NNative::TMasterConnectionConfigPtr& cellConfig) {
                 auto* cellItem = protoCellDirectory->add_items();
                 ToProto(cellItem->mutable_cell_id(), cellConfig->CellId);
 
-                for (const auto& peerConfig : cellConfig->Peers) {
-                    if (peerConfig->Address) {
-                        cellItem->add_addresses(*peerConfig->Address);
-                    }
+                if (cellConfig->Addresses) {
+                    ToProto(cellItem->mutable_addresses(), *cellConfig->Addresses);
                 }
 
                 auto roles = multicellManager->GetMasterCellRoles(CellTagFromId(cellConfig->CellId));
@@ -245,8 +246,8 @@ private:
                 }
             };
 
-            addCell(cellMasterConfig->PrimaryMaster);
-            for (const auto& secondaryMasterConfig : cellMasterConfig->SecondaryMasters) {
+            addCell(masterCellConnectionConfigs->PrimaryMaster);
+            for (const auto& secondaryMasterConfig : masterCellConnectionConfigs->SecondaryMasters) {
                 addCell(secondaryMasterConfig);
             }
         }

@@ -204,6 +204,7 @@ DEFINE_ENUM(EMasterReign,
     ((TabletCellsHydraPersistenceMigration)                         (2536))  // danilalexeev
     ((ErasureHunkCodecInDoCopy)                                     (2537))  // akozhikhov
     ((CachedMaxSnapshotId)                                          (2538))  // ifsmirnov
+    ((MasterCellsCompositionReconfigurationOnNodes)                 (2539))  // cherepashka
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov

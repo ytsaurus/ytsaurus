@@ -478,7 +478,7 @@ public:
         return MasterCellDirectory_->GetPrimaryMasterCellTag();
     }
 
-    const TCellTagList& GetSecondaryMasterCellTags() const override
+    TCellTagList GetSecondaryMasterCellTags() const override
     {
         return MasterCellDirectory_->GetSecondaryMasterCellTags();
     }

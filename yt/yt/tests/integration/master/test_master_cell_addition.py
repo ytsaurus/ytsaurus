@@ -71,6 +71,10 @@ class TestMasterCellAdditionBase(YTEnvSetup):
     @classmethod
     def modify_master_config(cls, config, tag, peer_index, cluster_index):
         cls._disable_last_cell_and_stash_config(config, cluster_index)
+        cluster_connection = config["cluster_connection"]
+        if len(cluster_connection["secondary_masters"]) == 3:
+            # Prevent cluster nodes from finding out about the "new" cell via cell directory synchronizer.
+            cls._disable_last_cell_and_stash_config(cluster_connection, cluster_index)
 
     @classmethod
     def modify_scheduler_config(cls, config, cluster_index):

@@ -25,16 +25,27 @@ NRpc::IChannelPtr CreateMasterCacheChannel(
 
 ///////////////////////////////////////////////////////////////////////////////
 
+using TSecondaryMasterConnectionConfigs = THashMap<NObjectClient::TCellTag, NApi::NNative::TMasterConnectionConfigPtr>;
+
+///////////////////////////////////////////////////////////////////////////////
+
 struct ICellDirectory
     : public TRefCounted
 {
+    using TCellReconfigurationSignature = void(
+        const THashSet<NObjectClient::TCellTag>& /*addedSecondaryCellTags*/,
+        const TSecondaryMasterConnectionConfigs& /*reconfiguredSecondaryMasterConfigs*/,
+        const THashSet<NObjectClient::TCellTag>& /*removedSecondaryTags*/);
+
+    DECLARE_INTERFACE_SIGNAL(TCellReconfigurationSignature, CellDirectoryChanged);
+
     virtual void Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory) = 0;
     virtual void UpdateDefault() = 0;
 
     virtual NObjectClient::TCellId GetPrimaryMasterCellId() = 0;
     virtual NObjectClient::TCellTag GetPrimaryMasterCellTag() = 0;
-    virtual const NObjectClient::TCellTagList& GetSecondaryMasterCellTags() = 0;
-    virtual const NObjectClient::TCellIdList& GetSecondaryMasterCellIds() = 0;
+    virtual NObjectClient::TCellTagList GetSecondaryMasterCellTags() = 0;
+    virtual NObjectClient::TCellIdList GetSecondaryMasterCellIds() = 0;
 
     virtual NRpc::IChannelPtr GetMasterChannelOrThrow(
         NApi::EMasterChannelKind kind,

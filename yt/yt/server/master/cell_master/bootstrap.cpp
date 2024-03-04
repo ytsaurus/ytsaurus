@@ -1262,6 +1262,12 @@ void TBootstrap::OnDynamicConfigChanged(const TDynamicClusterConfigPtr& /*oldCon
     ReconfigureNativeSingletons(Config_, config->CellMaster);
 
     HydraFacade_->Reconfigure(config->CellMaster);
+
+    const auto& testingConfig = config->MulticellManager->Testing;
+    // TODO(cherepashka): temporary logic.
+    if (testingConfig->MasterCellDirectoryOverride) {
+        MulticellManager_->GetMasterCellConnectionConfigs()->SecondaryMasters = testingConfig->MasterCellDirectoryOverride->SecondaryMasters;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

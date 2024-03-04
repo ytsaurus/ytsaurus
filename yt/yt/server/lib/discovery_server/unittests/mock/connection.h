@@ -39,7 +39,7 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
-    const NObjectClient::TCellTagList& GetSecondaryMasterCellTags() const override
+    NObjectClient::TCellTagList GetSecondaryMasterCellTags() const override
     {
         YT_UNIMPLEMENTED();
     }
