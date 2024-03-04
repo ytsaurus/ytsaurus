@@ -233,8 +233,9 @@ public:
 
     NCypressServer::TCypressManagerConfigPtr CypressManager;
 
-    NTabletServer::TReplicatedTableTrackerConfigPtr ReplicatedTableTracker;
+    NCellServer::TCellManagerConfigPtr CellManager;
 
+    NTabletServer::TReplicatedTableTrackerConfigPtr ReplicatedTableTracker;
     bool EnableTimestampManager;
     NTimestampServer::TTimestampManagerConfigPtr TimestampManager;
 

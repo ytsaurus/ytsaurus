@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
+#include <yt/yt/server/master/cell_server/config.h>
+
 #include <yt/yt/server/master/cypress_server/node_detail.h>
 
 #include <yt/yt/server/master/object_server/private.h>
@@ -741,15 +743,28 @@ private:
                 transactionId,
                 EObjectType::TabletCellBundleMap);
 
-            ScheduleCreateNode(
-                "//sys/chaos_cells",
-                transactionId,
-                EObjectType::VirtualChaosCellMap);
+            // COMPAT(danilalexeev)
+            if (Config_->CellManager->CreateVirtualCellMapsByDefault) {
+                ScheduleCreateNode(
+                    "//sys/chaos_cells",
+                    transactionId,
+                    EObjectType::VirtualChaosCellMap);
 
-            ScheduleCreateNode(
-                "//sys/tablet_cells",
-                transactionId,
-                EObjectType::VirtualTabletCellMap);
+                ScheduleCreateNode(
+                    "//sys/tablet_cells",
+                    transactionId,
+                    EObjectType::VirtualTabletCellMap);
+            } else {
+                ScheduleCreateNode(
+                    "//sys/chaos_cells",
+                    transactionId,
+                    EObjectType::ChaosCellMap);
+
+                ScheduleCreateNode(
+                    "//sys/tablet_cells",
+                    transactionId,
+                    EObjectType::TabletCellMap);
+            }
 
             ScheduleCreateNode(
                 NCellarAgent::CellsHydraPersistenceCypressPrefix,
