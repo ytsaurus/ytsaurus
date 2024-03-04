@@ -41,12 +41,6 @@ public:
 
         void AddUnconfirmedJobIds(std::vector<TJobId> unconfirmedJobIds);
 
-        struct TAllocationInfo
-        {
-            TAllocationId AllocationId;
-            TOperationId OperationId;
-        };
-
         struct TJobStartInfo
         {
             TJobId JobId;
@@ -106,8 +100,9 @@ public:
             const TRspHeartbeatPtr& response,
             const TAgentHeartbeatContextPtr& context);
 
-        std::vector<TFuture<TJobStartInfo>>
-        SettleJobs(const std::vector<TAllocationInfo>& allocationInfos);
+        TFuture<TJobStartInfo> SettleJob(
+            TOperationId operationId,
+            TAllocationId allocationId);
 
         void OnJobRegistered(const TJobPtr& job);
 
@@ -134,10 +129,10 @@ public:
 
     std::vector<NScheduler::TIncarnationId> GetRegisteredAgentIncarnationIds() const;
 
-    std::vector<TFuture<TControllerAgentConnector::TJobStartInfo>>
-    SettleJobs(
+    TFuture<TControllerAgentConnector::TJobStartInfo> SettleJob(
         const TControllerAgentDescriptor& agentDescriptor,
-        const std::vector<TControllerAgentConnector::TAllocationInfo>& allocationInfos);
+        TOperationId operationId,
+        TAllocationId allocationId);
 
     THashMap<TAllocationId, TOperationId> GetAllocationIdsWaitingForSpec() const;
 

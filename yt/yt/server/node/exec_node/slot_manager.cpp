@@ -740,7 +740,10 @@ void TSlotManager::OnJobFinished(const TJobPtr& job)
                 YT_LOG_WARNING(error, "Scheduler jobs disabled until %v", TInstant::Now() + delay);
                 Alerts_[ESlotManagerAlertType::TooManyConsecutiveGpuJobFailures] = error;
 
-                TDelayedExecutor::Submit(BIND(&TSlotManager::ResetConsecutiveFailedGpuJobCount, MakeStrong(this)), delay, Bootstrap_->GetJobInvoker());
+                TDelayedExecutor::Submit(
+                    BIND(&TSlotManager::ResetConsecutiveFailedGpuJobCount, MakeStrong(this)),
+                    delay,
+                    Bootstrap_->GetJobInvoker());
             }
         }
     }

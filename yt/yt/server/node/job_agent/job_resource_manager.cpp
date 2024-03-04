@@ -976,12 +976,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        THashMap<TGuid, TResourceHolder::TResourceHolderInfo> result;
+        std::vector<TResourceHolder::TResourceHolderInfo> result;
 
         for (const auto& resourceHolder : ResourceHolders_) {
-            result.emplace(
-                resourceHolder->GetIdAsGuid(),
-                resourceHolder->BuildResourceHolderInfo());
+            result.push_back(resourceHolder->BuildResourceHolderInfo());
         }
 
         return result;
@@ -1034,13 +1032,8 @@ private:
             .Item("free_ports").Value(jobResourceManagerInfo.FreePorts)
             .Item("resource_holders").DoMapFor(
                 resourceHoldersInfo,
-                [] (auto fluent, const auto& guidAndInfo) {
-                    auto [
-                        guid,
-                        resourceHolderInfo
-                    ] = guidAndInfo;
-
-                    fluent.Item(ToString(guid)).BeginMap()
+                [] (auto fluent, const auto& resourceHolderInfo) {
+                    fluent.Item(ToString(resourceHolderInfo.Id)).BeginMap()
                         .Item("resources_counsumer_type").Value(resourceHolderInfo.ResourcesConsumerType)
                         .Item("base_resource_usage").Value(resourceHolderInfo.BaseResourceUsage)
                         .Item("additional_resource_usage").Value(resourceHolderInfo.AdditionalResourceUsage)
@@ -1389,6 +1382,7 @@ TResourceHolder::TResourceHolderInfo TResourceHolder::BuildResourceHolderInfo() 
     ] = GetDetailedResourceUsage();
 
     return {
+        .Id = GetIdAsGuid(),
         .BaseResourceUsage = baseResourceUsage,
         .AdditionalResourceUsage = additionalResourceUsage,
         .ResourcesConsumerType = ResourcesConsumerType_,

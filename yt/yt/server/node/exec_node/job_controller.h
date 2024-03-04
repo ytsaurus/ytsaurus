@@ -33,8 +33,6 @@ struct IJobController
 
     virtual void Start() = 0;
 
-    virtual void ScheduleStartJobs() = 0;
-
     //! Finds the job by its id, returns |nullptr| if no job is found.
     /*
      * \note Thread affinity: any
@@ -43,8 +41,6 @@ struct IJobController
 
     //! Finds the job by its id, throws if no job is found.
     virtual TJobPtr GetJobOrThrow(TJobId jobId) const = 0;
-
-    virtual void OnControllerAgentIncarnationOutdated(const THashSet<TControllerAgentDescriptor>& outdatedDescriptors) = 0;
 
     //! Finds the job that is held after it has been removed.
     virtual TJobPtr FindRecentlyRemovedJob(TJobId jobId) const = 0;
