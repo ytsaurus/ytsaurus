@@ -14,27 +14,42 @@ using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+EObjectType MapObjectTypeFromCellarType(ECellarType cellarType)
+{
+    switch (cellarType) {
+        case ECellarType::Tablet:
+            return EObjectType::TabletCellMap;
+        case ECellarType::Chaos:
+            return EObjectType::ChaosCellMap;
+        default:
+            YT_ABORT();
+    }
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCellMapTypeHandler
     : public TCypressMapNodeTypeHandler
 {
 public:
     TCellMapTypeHandler(
         TBootstrap* bootstrap,
-        ECellarType cellarType,
-        EObjectType cellMapType)
+        ECellarType cellarType)
         : TCypressMapNodeTypeHandler(bootstrap)
         , CellarType_(cellarType)
-        , CellMapType_(cellMapType)
     { }
 
     EObjectType GetObjectType() const override
     {
-        return CellMapType_;
+        return MapObjectTypeFromCellarType(CellarType_);
     }
 
 private:
     const ECellarType CellarType_;
-    const EObjectType CellMapType_;
 
     ICypressNodeProxyPtr DoGetProxy(
         TCypressMapNode* trunkNode,
@@ -49,12 +64,13 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 INodeTypeHandlerPtr CreateCellMapTypeHandler(
     TBootstrap* bootstrap,
-    ECellarType cellarType,
-    EObjectType cellMapType)
+    ECellarType cellarType)
 {
-    return New<TCellMapTypeHandler>(bootstrap, cellarType, cellMapType);
+    return New<TCellMapTypeHandler>(bootstrap, cellarType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -18,8 +18,7 @@ NCypressServer::INodeTypeHandlerPtr CreateCellNodeTypeHandler(
     NCellMaster::TBootstrap* bootstrap);
 NCypressServer::INodeTypeHandlerPtr CreateCellBundleMapTypeHandler(
     NCellMaster::TBootstrap* bootstrap,
-    NCellarClient::ECellarType cellType,
-    NObjectClient::EObjectType cellBundleMapType);
+    NCellarClient::ECellarType cellarType);
 
 ////////////////////////////////////////////////////////////////////////////////
 

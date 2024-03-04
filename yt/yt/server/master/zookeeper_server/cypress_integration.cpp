@@ -15,17 +15,12 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVirtualZookeeperShardMap
-    : public TVirtualMapBase
+    : public TVirtualSinglecellMapBase
 {
 public:
-    TVirtualZookeeperShardMap(TBootstrap* bootstrap, INodePtr owningNode)
-        : TVirtualMapBase(std::move(owningNode))
-        , Bootstrap_(bootstrap)
-    { }
+    using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    TBootstrap* const Bootstrap_;
-
     std::vector<TString> GetKeys(i64 /*sizeLimit*/) const override
     {
         const auto& zookeeperManager = Bootstrap_->GetZookeeperManager();

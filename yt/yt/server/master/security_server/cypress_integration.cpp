@@ -34,6 +34,7 @@ using namespace NYTree;
 using namespace NCypressServer;
 using namespace NCellMaster;
 using namespace NObjectClient;
+using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,21 +42,32 @@ static const auto& Logger = SecurityServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+EObjectType RoleMapObjectTypeFromProxyKind(EProxyKind proxyKind)
+{
+    switch (proxyKind) {
+        case EProxyKind::Http:
+            return EObjectType::HttpProxyRoleMap;
+        case EProxyKind::Rpc:
+            return EObjectType::RpcProxyRoleMap;
+        default:
+            YT_ABORT();
+    }
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TVirtualAccountMap
-    : public TVirtualMapBase
+    : public TVirtualSinglecellMapBase
 {
 public:
-    TVirtualAccountMap(TBootstrap* bootstrap, INodePtr owningNode)
-        : TVirtualMapBase(owningNode)
-        , Bootstrap_(bootstrap)
-    {
-        SetOpaque(true);
-    }
+    using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
     using TBase = TVirtualMapBase;
-
-    TBootstrap* const Bootstrap_;
 
     std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
@@ -158,17 +170,12 @@ INodeTypeHandlerPtr CreateAccountMapTypeHandler(TBootstrap* bootstrap)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVirtualAccountResourceUsageLeaseMap
-    : public TVirtualMapBase
+    : public TVirtualSinglecellMapBase
 {
 public:
-    TVirtualAccountResourceUsageLeaseMap(TBootstrap* bootstrap, INodePtr owningNode)
-        : TVirtualMapBase(owningNode)
-        , Bootstrap_(bootstrap)
-    { }
+    using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    TBootstrap* const Bootstrap_;
-
     std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -220,17 +227,12 @@ INodeTypeHandlerPtr CreateAccountResourceUsageLeaseMapTypeHandler(TBootstrap* bo
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVirtualUserMap
-    : public TVirtualMapBase
+    : public TVirtualSinglecellMapBase
 {
 public:
-    TVirtualUserMap(TBootstrap* bootstrap, INodePtr owningNode)
-        : TVirtualMapBase(owningNode)
-        , Bootstrap_(bootstrap)
-    { }
+    using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    TBootstrap* const Bootstrap_;
-
     std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -272,17 +274,12 @@ INodeTypeHandlerPtr CreateUserMapTypeHandler(TBootstrap* bootstrap)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVirtualGroupMap
-    : public TVirtualMapBase
+    : public TVirtualSinglecellMapBase
 {
 public:
-    TVirtualGroupMap(TBootstrap* bootstrap, INodePtr owningNode)
-        : TVirtualMapBase(owningNode)
-        , Bootstrap_(bootstrap)
-    { }
+    using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    TBootstrap* const Bootstrap_;
-
     std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -324,17 +321,12 @@ INodeTypeHandlerPtr CreateGroupMapTypeHandler(TBootstrap* bootstrap)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVirtualNetworkProjectMap
-    : public TVirtualMapBase
+    : public TVirtualSinglecellMapBase
 {
 public:
-    TVirtualNetworkProjectMap(TBootstrap* bootstrap, INodePtr owningNode)
-        : TVirtualMapBase(owningNode)
-        , Bootstrap_(bootstrap)
-    { }
+    using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    TBootstrap* const Bootstrap_;
-
     std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -376,19 +368,16 @@ INodeTypeHandlerPtr CreateNetworkProjectMapTypeHandler(TBootstrap* bootstrap)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVirtualProxyRoleMap
-    : public TVirtualMapBase
+    : public TVirtualSinglecellMapBase
 {
 public:
-    TVirtualProxyRoleMap(TBootstrap* bootstrap, INodePtr owningNode, EObjectType type)
-        : TVirtualMapBase(std::move(owningNode))
-        , Bootstrap_(bootstrap)
-        , Type_(type)
+    TVirtualProxyRoleMap(TBootstrap* bootstrap, INodePtr owningNode, EProxyKind proxyKind)
+        : TVirtualSinglecellMapBase(bootstrap, std::move(owningNode))
+        , ProxyKind_(proxyKind)
     { }
 
 private:
-    TBootstrap* const Bootstrap_;
-
-    const EObjectType Type_;
+    const EProxyKind ProxyKind_;
 
     std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
@@ -419,32 +408,22 @@ private:
 
     const THashMap<TString, TProxyRole*>& GetProxyRoles() const
     {
-        EProxyKind proxyKind;
-        switch (Type_) {
-            case EObjectType::HttpProxyRoleMap:
-                proxyKind = EProxyKind::Http;
-                break;
-            case EObjectType::RpcProxyRoleMap:
-                proxyKind = EProxyKind::Rpc;
-                break;
-            default:
-                YT_ABORT();
-        }
-
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        return securityManager->GetProxyRolesWithProxyKind(proxyKind);
+        return securityManager->GetProxyRolesWithProxyKind(ProxyKind_);
     }
 };
 
-INodeTypeHandlerPtr CreateProxyRoleMapTypeHandler(TBootstrap* bootstrap, EObjectType type)
+////////////////////////////////////////////////////////////////////////////////
+
+INodeTypeHandlerPtr CreateProxyRoleMapTypeHandler(TBootstrap* bootstrap, EProxyKind proxyKind)
 {
     YT_VERIFY(bootstrap);
 
     return CreateVirtualTypeHandler(
         bootstrap,
-        type,
+        RoleMapObjectTypeFromProxyKind(proxyKind),
         BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
-            return New<TVirtualProxyRoleMap>(bootstrap, owningNode, type);
+            return New<TVirtualProxyRoleMap>(bootstrap, owningNode, proxyKind);
         }),
         EVirtualNodeOptions::RedirectSelf);
 }

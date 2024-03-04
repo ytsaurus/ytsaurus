@@ -14,12 +14,29 @@
 
 #include <yt/yt/core/ytree/ypath_detail.h>
 #include <yt/yt/core/ytree/system_attribute_provider.h>
+#include <yt/yt/core/ytree/virtual.h>
 
 #include <yt/yt/core/yson/string.h>
 
 #include <yt/yt/core/ypath/public.h>
 
 namespace NYT::NCypressServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualSinglecellMapBase
+    : public NYTree::TVirtualMapBase
+{
+protected:
+    NCellMaster::TBootstrap* const Bootstrap_;
+
+    TVirtualSinglecellMapBase(
+        NCellMaster::TBootstrap* bootstrap,
+        NYTree::INodePtr owningNode = nullptr);
+
+private:
+    std::optional<NYTree::TVirtualCompositeNodeReadOffloadParams> GetReadOffloadParams() const override;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

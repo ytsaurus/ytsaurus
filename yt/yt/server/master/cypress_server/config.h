@@ -88,6 +88,8 @@ public:
 
     int MaxLocksPerTransactionSubtree;
 
+    std::optional<i64> VirtualMapReadOffloadBatchSize;
+
     REGISTER_YSON_STRUCT(TDynamicCypressManagerConfig);
 
     static void Register(TRegistrar registrar);

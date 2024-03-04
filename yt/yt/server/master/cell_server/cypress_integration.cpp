@@ -30,17 +30,31 @@ using namespace NCellarClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+EObjectType BundleMapObjectTypeFromCellarType(ECellarType cellarType)
+{
+    switch (cellarType) {
+        case ECellarType::Tablet:
+            return EObjectType::TabletCellBundleMap;
+        case ECellarType::Chaos:
+            return EObjectType::ChaosCellBundleMap;
+        default:
+            YT_ABORT();
+    }
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TVirtualAreaMap
-    : public TVirtualMapBase
+    : public TVirtualSinglecellMapBase
 {
 public:
-    explicit TVirtualAreaMap(TBootstrap* bootstrap)
-        : Bootstrap_(bootstrap)
-    { }
+    using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    TBootstrap* const Bootstrap_;
-
     std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
@@ -167,16 +181,15 @@ INodeTypeHandlerPtr CreateCellNodeTypeHandler(TBootstrap* bootstrap)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVirtualCellBundleMap
-    : public TVirtualMapBase
+    : public TVirtualSinglecellMapBase
 {
 public:
     TVirtualCellBundleMap(TBootstrap* bootstrap, ECellarType cellarType)
-        : Bootstrap_(bootstrap)
+        : TVirtualSinglecellMapBase(bootstrap)
         , CellarType_(cellarType)
     { }
 
 private:
-    TBootstrap* const Bootstrap_;
     const ECellarType CellarType_;
 
     std::vector<TString> GetKeys(i64 sizeLimit) const override
@@ -204,16 +217,17 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 INodeTypeHandlerPtr CreateCellBundleMapTypeHandler(
     TBootstrap* bootstrap,
-    ECellarType cellarType,
-    EObjectType cellBundleMapType)
+    ECellarType cellarType)
 {
     YT_VERIFY(bootstrap);
 
     return CreateVirtualTypeHandler(
         bootstrap,
-        cellBundleMapType,
+        BundleMapObjectTypeFromCellarType(cellarType),
         BIND_NO_PROPAGATE([=] (INodePtr /*owningNode*/) -> IYPathServicePtr {
             return New<TVirtualCellBundleMap>(bootstrap, cellarType);
         }),

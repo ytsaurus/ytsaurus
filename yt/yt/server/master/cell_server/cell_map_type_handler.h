@@ -16,8 +16,7 @@ namespace NYT::NCellServer {
 
 NCypressServer::INodeTypeHandlerPtr CreateCellMapTypeHandler(
     NCellMaster::TBootstrap* bootstrap,
-    NCellarClient::ECellarType cellarType,
-    NObjectClient::EObjectType cellMapType);
+    NCellarClient::ECellarType cellarType);
 
 ////////////////////////////////////////////////////////////////////////////////
 

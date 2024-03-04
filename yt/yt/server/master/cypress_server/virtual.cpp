@@ -2,6 +2,7 @@
 #include "node.h"
 #include "node_detail.h"
 #include "node_proxy_detail.h"
+#include "config.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
@@ -16,6 +17,7 @@
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 #include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
@@ -54,6 +56,34 @@ using namespace NCypressClient;
 using namespace NConcurrency;
 
 using NYT::FromProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TVirtualSinglecellMapBase::TVirtualSinglecellMapBase(
+    NCellMaster::TBootstrap* bootstrap,
+    NYTree::INodePtr owningNode)
+    : TVirtualMapBase(std::move(owningNode))
+    , Bootstrap_(bootstrap)
+{ }
+
+std::optional<TVirtualCompositeNodeReadOffloadParams> TVirtualSinglecellMapBase::GetReadOffloadParams() const
+{
+    const auto& hydraFacade = Bootstrap_->GetHydraFacade();
+    if (!hydraFacade->IsAutomatonLocked()) {
+        // This means that multithreaded reads are disabled.
+        return std::nullopt;
+    }
+    const auto& configManager = Bootstrap_->GetConfigManager();
+    const auto& config = configManager->GetConfig();
+    if (!config->CypressManager->VirtualMapReadOffloadBatchSize) {
+        return std::nullopt;
+    }
+    return TVirtualCompositeNodeReadOffloadParams{
+        // NB: Must not release LocalRead thread.
+        .WaitForStrategy = EWaitForStrategy::Get,
+        .BatchSize = *config->CypressManager->VirtualMapReadOffloadBatchSize,
+    };
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

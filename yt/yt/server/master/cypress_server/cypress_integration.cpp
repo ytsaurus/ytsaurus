@@ -74,17 +74,12 @@ INodeTypeHandlerPtr CreateLockMapTypeHandler(TBootstrap* bootstrap)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVirtualAccessControlObjectNamespaceMap
-    : public TVirtualMapBase
+    : public TVirtualSinglecellMapBase
 {
 public:
-    TVirtualAccessControlObjectNamespaceMap(TBootstrap* bootstrap, INodePtr owningNode)
-        : TVirtualMapBase(owningNode)
-        , Bootstrap_(bootstrap)
-    { }
+    using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    TBootstrap* const Bootstrap_;
-
     std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
         std::vector<TString> result;

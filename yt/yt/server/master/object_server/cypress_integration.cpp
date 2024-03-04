@@ -29,19 +29,12 @@ using namespace NHydra;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEstimatedCreationTimeMap
-    : public TVirtualMapBase
+    : public TVirtualSinglecellMapBase
 {
 public:
-    TEstimatedCreationTimeMap(
-        TBootstrap* bootstrap,
-        NYTree::INodePtr owningNode)
-        : TVirtualMapBase(std::move(owningNode))
-        , Bootstrap_(bootstrap)
-    { }
+    using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
 
 private:
-    TBootstrap* const Bootstrap_;
-
     class TRemoteService
         : public IYPathService
     {

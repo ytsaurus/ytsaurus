@@ -111,6 +111,11 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_locks_per_transaction_subtree", &TThis::MaxLocksPerTransactionSubtree)
         .Default(100'000);
+
+    registrar.Parameter("virtual_map_read_offload_batch_size", &TThis::VirtualMapReadOffloadBatchSize)
+        .Default()
+        .GreaterThanOrEqual(1)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
