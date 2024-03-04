@@ -18,6 +18,15 @@ void TDynamicCellarNodeTrackerConfig::Register(TRegistrar registrar)
         .Default(10)
         .GreaterThan(0);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCellManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("create_virtual_cell_maps_by_default", &TThis::CreateVirtualCellMapsByDefault)
+        .Default(false);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TDynamicCellManagerConfig::Register(TRegistrar registrar)

@@ -30,6 +30,10 @@ def get_master_config():
         enable_local_read_busy_wait = %false;
     };
 
+    cell_manager = {
+        create_virtual_cell_maps_by_default = %true;
+    };
+
     timestamp_manager = {
         commit_advance = 2000;
         request_backoff_time = 100;

@@ -220,6 +220,8 @@ void TCellMasterConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("cypress_manager", &TThis::CypressManager)
         .DefaultNew();
+    registrar.Parameter("cell_manager", &TThis::CellManager)
+        .DefaultNew();
     registrar.Parameter("replicated_table_tracker", &TThis::ReplicatedTableTracker)
         .DefaultNew();
     registrar.Parameter("enable_timestamp_manager", &TThis::EnableTimestampManager)
