@@ -14,6 +14,8 @@
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
+#include <stack>
+
 namespace NYT::NDiscoveryServer {
 
 using namespace NYPath;

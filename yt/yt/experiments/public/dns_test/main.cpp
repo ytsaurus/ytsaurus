@@ -1,5 +1,7 @@
 #include <yt/yt/library/program/program.h>
 
+#include <yt/yt/core/misc/optional.h>
+
 #include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/dns/dns_resolver.h>

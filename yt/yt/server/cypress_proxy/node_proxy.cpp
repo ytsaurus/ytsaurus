@@ -44,6 +44,8 @@
 
 #include <util/random/random.h>
 
+#include <stack>
+
 namespace NYT::NCypressProxy {
 
 using namespace NApi;

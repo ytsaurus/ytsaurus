@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/core/misc/optional.h>
+
 namespace NYT::NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
