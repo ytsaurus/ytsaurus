@@ -1,8 +1,6 @@
-#!/bin/bash
+#!/bin/bash -e
 
-set -e
-
-pip3 install wheel
+pip3 install wheel auditwheel patchelf
 
 script_name=$0
 ytsaurus_source_path="."
@@ -51,6 +49,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+set -u
+
 ytsaurus_python=$(realpath "${ytsaurus_build_path}/ytsaurus_python")
 
 mkdir -p ${ytsaurus_python}
@@ -63,23 +63,22 @@ $ytsaurus_source_path/yt/python/packages/yt_setup/generate_python_proto.py \
 
 
 cd $ytsaurus_source_path/yt/python/packages
+
 if [[ "$prepare_bindings_libraries" = true ]]; then
-    python3 -m yt_setup.prepare_python_modules \
-        --source-root ${ytsaurus_source_path} \
-        --build-root ${ytsaurus_build_path} \
-        --output-path ${ytsaurus_python} \
-        --prepare-bindings-libraries
+    prepare_bindings_libraries_option="--prepare-bindings-libraries"
 else
-    python3 -m yt_setup.prepare_python_modules \
-        --source-root ${ytsaurus_source_path} \
-        --build-root ${ytsaurus_build_path} \
-        --output-path ${ytsaurus_python}
+    prepare_bindings_libraries_option=""
 fi
+
+python3 -m yt_setup.prepare_python_modules \
+    --source-root ${ytsaurus_source_path} \
+    --build-root ${ytsaurus_build_path} \
+    --output-path ${ytsaurus_python} \
+    $prepare_bindings_libraries_option
 
 cd ${ytsaurus_python}
 
-if [[ ${ytsaurus_package_name} == "" ]]
-then
+if [[ ${ytsaurus_package_name} == "" ]]; then
     packages=("ytsaurus-client" "ytsaurus-yson" "ytsaurus-local" "ytsaurus-native-driver")
 else
     packages=("${ytsaurus_package_name}")
@@ -87,10 +86,17 @@ fi
 
 for package in ${packages[@]}; do
     cp "${ytsaurus_source_path}/yt/python/packages/${package}/setup.py" .
-    dist_dir="$(echo ${package} | sed -e s/-/_/g)_dist"
-    if [[ ${package} == "ytsaurus-native-driver" ]] || [[ ${package} == "ytsaurus-yson" ]] 
-    then
+
+    package_undescored=$(echo -e $package | sed -e s/-/_/g)
+    dist_dir="${package_undescored}_dist"
+
+    if [[ ${package} == "ytsaurus-native-driver" ]] || [[ ${package} == "ytsaurus-yson" ]]; then
         python3 setup.py bdist_wheel --py-limited-api cp34 --dist-dir ${dist_dir}
+        for wheel in ${dist_dir}/${package_undescored}*.whl; do
+            auditwheel repair "$wheel" -w "${dist_dir}" --plat manylinux2014_x86_64
+            # Remove original wheel.
+            rm "$wheel"
+        done
     else
         python3 setup.py bdist_wheel --universal --dist-dir ${dist_dir}
     fi

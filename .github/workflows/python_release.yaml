@@ -86,6 +86,15 @@ jobs:
           export CCACHE_REMOTE_STORAGE="${{ vars.CCACHE_REMOTE_STORAGE }}"
           ninja yson_lib driver_lib driver_rpc_lib
 
+      - name: Build ya make
+        run: |
+          export SOURCE_ROOT="$(pwd)/ytsaurus"
+          export YA_BUILD_PATH=$(realpath $(pwd)/../ya_build)
+          mkdir -p "$YA_BUILD_PATH"
+
+          ytsaurus/yt/python/packages/build_python_libraries_with_docker.sh
+          cp "$YA_BUILD_PATH/yson_lib.so" ../build/yt/yt/python/yson_shared/libyson_lib.so
+
       - name: Build package
         id: build
         run: |
