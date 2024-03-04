@@ -15,6 +15,7 @@ PEERDIR(
     contrib/python/decorator
     contrib/python/flaky
     contrib/python/grpcio
+    contrib/python/python-dateutil
     library/python/porto
     library/cpp/xdelta3/py_bindings
 )

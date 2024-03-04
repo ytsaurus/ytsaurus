@@ -134,6 +134,13 @@ def get_tests_sandbox(non_arcadia_path=None, arcadia_suffix="sandbox"):
     return path
 
 
+def get_source_root():
+    if yatest_common is not None:
+        return yatest_common.source_path()
+    else:
+        return os.environ["SOURCE_ROOT"]
+
+
 def get_build_root():
     if yatest_common is not None:
         return yatest_common.build_path()

@@ -5,7 +5,3 @@ RECURSE(
     test_native_api
     test_rpc_api
 )
-
-IF (NOT OPENSOURCE)
-    RECURSE(recipe)
-ENDIF()

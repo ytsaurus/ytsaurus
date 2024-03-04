@@ -9,5 +9,5 @@
         };
     };
     DRIVER_BACKEND = native;
-    RPC_PROXY_COUNT = 0;
+    NUM_RPC_PROXIES = 0;
 }

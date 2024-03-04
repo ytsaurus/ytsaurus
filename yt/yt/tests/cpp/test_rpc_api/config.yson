@@ -9,5 +9,7 @@
         };
     };
     DRIVER_BACKEND = rpc;
-    RPC_PROXY_COUNT = 2;
+    NUM_RPC_PROXIES = 2;
+    ENABLE_RPC_PROXY = %true;
+    NUM_SCHEDULERS = 0;
 }

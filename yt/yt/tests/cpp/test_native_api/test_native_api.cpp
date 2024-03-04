@@ -1,10 +1,3 @@
-//%NUM_MASTERS=1
-//%NUM_NODES=3
-//%NUM_SCHEDULERS=0
-//%DRIVER_BACKENDS=['native']
-//%ENABLE_RPC_PROXY=True
-//%DELTA_MASTER_CONFIG={"object_service":{"timeout_backoff_lead_time":100}}
-
 #include <yt/yt/tests/cpp/test_base/api_test_base.h>
 #include "yt/yt/tests/cpp/modify_rows_test.h"
 

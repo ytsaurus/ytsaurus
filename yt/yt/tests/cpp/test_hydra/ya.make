@@ -35,7 +35,7 @@ ELSE()
     SIZE(MEDIUM)
 ENDIF()
 
-INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/cpp/recipe/recipe.inc)
+INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/recipe/recipe.inc)
 
 IF (SANITIZER_TYPE)
     REQUIREMENTS(ram:16)
