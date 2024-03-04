@@ -400,6 +400,9 @@ std::vector<TTableMountInfoPtr> GetQueryTableInfos(
     const TStickyTableMountInfoCachePtr& cache)
 {
     std::vector<TYPath> paths{query->Table.Path};
+    if (query->WithIndex) {
+        paths.push_back(query->WithIndex->Path);
+    }
     for (const auto& join : query->Joins) {
         if (const auto* tableJoin = std::get_if<NAst::TJoin>(&join)) {
             paths.push_back(tableJoin->Table.Path);
@@ -1457,8 +1460,6 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
 
     auto cache = New<TStickyTableMountInfoCache>(Connection_->GetTableMountCache());
     GetQueryTableInfos(astQuery, cache);
-
-    TransformWithIndexStatement(&parsedQuery->AstHead, cache);
 
     TransformWithIndexStatement(&parsedQuery->AstHead, cache);
 
