@@ -114,6 +114,7 @@ target_sources(unittester-core-yson PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/unittests/protobuf_yson_schema_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/unittests/protobuf_yson_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/unittests/ypath_designated_yson_consumer_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/unittests/ypath_filtering_yson_consumer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/unittests/yson_parser_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/unittests/yson_pull_parser_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/unittests/yson_token_writer_ut.cpp
