@@ -4,6 +4,9 @@ INCLUDE(../../YaMakeBoilerplateForTestsWithConftest.txt)
 
 DEPENDS(
     yt/yt/tests/integration/fake_blackbox
+    
+    # Required for HTTPS proxy tests.
+    contrib/libs/openssl/apps
 )
 
 IF (NOT OPENSOURCE)

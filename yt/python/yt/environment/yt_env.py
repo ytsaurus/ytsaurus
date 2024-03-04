@@ -14,6 +14,8 @@ from .init_cluster import BatchProcessor, _initialize_world_for_local_cluster
 from .local_cypress import _synchronize_cypress_with_local_dir
 from .local_cluster_configuration import modify_cluster_configuration, get_patched_dynamic_node_config
 
+from .tls_helpers import create_ca, create_certificate
+
 from yt.common import YtError, remove_file, makedirp, update, get_value, which, to_native_str
 from yt.wrapper.common import flatten
 from yt.wrapper.constants import FEEDBACK_URL
@@ -360,6 +362,36 @@ class YTInstance(object):
 
         return config_paths
 
+    def _prepare_certificates(self):
+        names = [self.yt_config.fqdn, self.yt_config.cluster_name]
+
+        if self.yt_config.ca_cert is None:
+            self.yt_config.ca_cert = os.path.join(self.path, "ca.crt")
+            self.yt_config.ca_cert_key = os.path.join(self.path, "ca.key")
+            create_ca(ca_cert=self.yt_config.ca_cert, ca_cert_key=self.yt_config.ca_cert_key)
+
+        if self.yt_config.rpc_cert is None:
+            self.yt_config.rpc_cert = os.path.join(self.path, "rpc.crt")
+            self.yt_config.rpc_cert_key = os.path.join(self.path, "rpc.key")
+            create_certificate(
+                ca_cert=self.yt_config.ca_cert,
+                ca_cert_key=self.yt_config.ca_cert_key,
+                cert=self.yt_config.rpc_cert,
+                cert_key=self.yt_config.rpc_cert_key,
+                names=names
+            )
+
+        if self.yt_config.https_cert is None and self.yt_config.http_proxy_count > 0:
+            self.yt_config.https_cert = os.path.join(self.path, "https.crt")
+            self.yt_config.https_cert_key = os.path.join(self.path, "https.key")
+            create_certificate(
+                ca_cert=self.yt_config.ca_cert,
+                ca_cert_key=self.yt_config.ca_cert_key,
+                cert=self.yt_config.https_cert,
+                cert_key=self.yt_config.https_cert_key,
+                names=names
+            )
+
     def _prepare_builtin_environment(self, ports_generator, modify_configs_func):
         service_infos = [
             ("ytserver-clock", "clocks", self.yt_config.clock_count),
@@ -392,6 +424,10 @@ class YTInstance(object):
 
         logger.info("Preparing directories")
         dirs = self._prepare_directories()
+
+        if self.yt_config.enable_tls:
+            logger.info("Preparing certificates")
+            self._prepare_certificates()
 
         logger.info("Preparing configs")
         cluster_configuration = build_configs(
@@ -656,19 +692,31 @@ class YTInstance(object):
     def get_proxy_address(self):
         return self.get_http_proxy_address()
 
-    def get_http_proxy_address(self, tvm_only=False):
-        return self.get_http_proxy_addresses(tvm_only=tvm_only)[0]
+    def get_http_proxy_address(self, tvm_only=False, https=False):
+        return self.get_http_proxy_addresses(tvm_only=tvm_only, https=https)[0]
 
     def get_http_proxy_url(self):
-        return "http://" + self.Env.get_http_proxy_address()
+        return "http://" + self.get_http_proxy_address()
 
-    def get_http_proxy_addresses(self, tvm_only=False):
+    def get_https_proxy_url(self):
+        return "https://" + self.get_http_proxy_address(https=True)
+
+    def get_http_proxy_addresses(self, tvm_only=False, https=False):
         if self.yt_config.http_proxy_count == 0:
             raise YtError("Http proxies are not started")
+        if tvm_only and https:
+            raise YtError("Request of HTTPS and TVM proxies are not supported simultaneously")
+        if https and not self.yt_config.enable_tls:
+            raise YtError("Https proxies are not enabled")
+
         if tvm_only:
-            return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, "tvm_only_http_server/port", "http_proxy"))
-                    for config in self.configs["http_proxy"]]
-        return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, "port", "http_proxy"))
+            port_path = "tvm_only_http_server/port"
+        elif https:
+            port_path = "https_server/port"
+        else:
+            port_path = "port"
+
+        return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, port_path, "http_proxy"))
                 for config in self.configs["http_proxy"]]
 
     def get_rpc_proxy_address(self, tvm_only=False):
@@ -1787,6 +1835,11 @@ class YTInstance(object):
             else:
                 config = proxy_configs[i]
                 write_config(config, config_path)
+
+            if self.yt_config.https_cert is not None:
+                cred = config["https_server"]["credentials"]
+                shutil.copy(self.yt_config.https_cert, cred["cert_chain"]["file_name"])
+                shutil.copy(self.yt_config.https_cert_key, cred["private_key"]["file_name"])
 
             self.configs["http_proxy"].append(config)
             self.config_paths["http_proxy"].append(config_path)

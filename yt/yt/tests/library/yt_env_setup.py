@@ -249,6 +249,7 @@ class YTEnvSetup(object):
     ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES = True
     ENABLE_STATIC_DROP_COLUMN = True
     ENABLE_DYNAMIC_DROP_COLUMN = True
+    ENABLE_TLS = False
 
     DELTA_DRIVER_CONFIG = {}
     DELTA_RPC_DRIVER_CONFIG = {}
@@ -485,6 +486,7 @@ class YTEnvSetup(object):
             enable_resource_tracking=cls.get_param("ENABLE_RESOURCE_TRACKING", index),
             enable_tvm_only_proxies=cls.get_param("ENABLE_TVM_ONLY_PROXIES", index),
             mock_tvm_id=(1000 + index if use_native_auth else None),
+            enable_tls=cls.ENABLE_TLS,
         )
 
         if yt_config.jobs_environment_type == "cri" and yt_config.cri_endpoint is None:

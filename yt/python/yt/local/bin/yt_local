@@ -173,6 +173,8 @@ def add_start_subparser(subparsers):
                         help="proxy ports for http proxy; number of values should be equal to http-proxy-count.")
     parser.add_argument("--http-proxy-port", type=int, nargs="+", dest="http_proxy_ports",
                         help="proxy ports for http proxy; number of values should be equal to http-proxy-count.")
+    parser.add_argument("--https-proxy-port", type=int, nargs="+", dest="https_proxy_ports",
+                        help="proxy ports for https proxy; number of values should be equal to http-proxy-count.")
     parser.add_argument("--rpc-proxy-port", type=int, nargs="+", dest="rpc_proxy_ports",
                         help="ports for rpc proxues; number of values should be equal to rpc-proxy-count.")
     parser.add_argument("--enable-debug-logging", action="store_true", default=False,
@@ -193,6 +195,8 @@ def add_start_subparser(subparsers):
     parser.add_argument("--prepare-only", action="store_true", default=False,
                         help="Only prepare environment, but don't start.")
 
+    parser.add_argument("--enable-tls", action="store_true", default=False,
+                        help="Enable TLS for all components")
     parser.add_argument("--mock-tvm-id", type=int, default=None,
                         help="cluster native TVM id used for authentication mock.")
 
