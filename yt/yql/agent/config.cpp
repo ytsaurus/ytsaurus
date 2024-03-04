@@ -250,7 +250,7 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
     registrar.Parameter("operation_attributes", &TThis::OperationAttributes)
         .Default(GetEphemeralNodeFactory()->CreateMap());
     registrar.Parameter("yt_token_path", &TThis::YTTokenPath)
-        .IsRequired();
+        .Default();
     registrar.Parameter("yql_plugin_shared_library", &TThis::YqlPluginSharedLibrary)
         .Default();
     registrar.Parameter("dq_manager_config", &TThis::DqManagerConfig)
