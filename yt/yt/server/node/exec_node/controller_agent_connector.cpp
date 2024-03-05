@@ -421,7 +421,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnAllocationFaile
 {
     VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
 
-    EraseOrCrash(AllocationIdsWaitingForSpec_, allocationId);
+    AllocationIdsWaitingForSpec_.erase(allocationId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
