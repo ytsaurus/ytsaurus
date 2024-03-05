@@ -201,7 +201,7 @@ TTabletActionBatch Balance(
                 };
         }
 
-        case EBalancingMode::Parameterized: {
+        case EBalancingMode::ParameterizedMove: {
             auto commonParameterizedConfig = ConvertTo<TParameterizedBalancingConfigPtr>(TYsonString(parameterizedConfig));
             auto groupConfig = GetOrCrash(bundle->Config->Groups, group)->Parameterized;
             auto config = TParameterizedReassignSolverConfig()
@@ -224,7 +224,7 @@ TTabletActionBatch Balance(
             return TTabletActionBatch{.ReshardDescriptors = ReshardBundle(bundle)};
         }
 
-        case EBalancingMode::ReshardParameterized: {
+        case EBalancingMode::ParameterizedReshard: {
             return TTabletActionBatch{.ReshardDescriptors = ReshardBundleParameterized(bundle, parameterizedConfig, group)};
         }
 

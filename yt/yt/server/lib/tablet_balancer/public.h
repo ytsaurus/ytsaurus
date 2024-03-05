@@ -29,6 +29,14 @@ DEFINE_ENUM(EBalancingType,
     ((Parameterized)  (1))
 );
 
+DEFINE_ENUM(EBalancingMode,
+    (ParameterizedMove)
+    (InMemoryMove)
+    (OrdinaryMove)
+    (Reshard)
+    (ParameterizedReshard)
+);
+
 struct TTabletStatistics;
 struct TTabletCellStatistics;
 
