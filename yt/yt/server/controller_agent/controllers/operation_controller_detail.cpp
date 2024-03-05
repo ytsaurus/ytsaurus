@@ -10063,6 +10063,14 @@ void TOperationControllerBase::InitUserJobSpec(
         joblet->EstimatedResourceUsage.GetFootprintMemory() +
         joblet->EstimatedResourceUsage.GetJobProxyMemory() * joblet->JobProxyMemoryReserveFactor.value());
 
+    if (Options->SetSlotContainerMemoryLimit) {
+        jobSpec->set_slot_container_memory_limit(
+            jobSpec->memory_limit() +
+            joblet->EstimatedResourceUsage.GetJobProxyMemory() +
+            joblet->EstimatedResourceUsage.GetFootprintMemory() +
+            Options->SlotContainerMemoryOverhead);
+    }
+
     jobSpec->add_environment(Format("YT_JOB_INDEX=%v", joblet->JobIndex));
     jobSpec->add_environment(Format("YT_TASK_JOB_INDEX=%v", joblet->TaskJobIndex));
     jobSpec->add_environment(Format("YT_JOB_ID=%v", joblet->JobId));

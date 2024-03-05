@@ -2487,6 +2487,10 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         }
     }
 
+    if (UserJobSpec_ && UserJobSpec_->slot_container_memory_limit()) {
+        proxyConfig->SlotContainerMemoryLimit = UserJobSpec_->slot_container_memory_limit();
+    }
+
     proxyConfig->MemoryTracker->MemoryStatisticsCachePeriod = proxyConfig->MemoryTracker->UseSMapsMemoryTracker
         ? CommonConfig_->SMapsMemoryTrackerCachePeriod
         : CommonConfig_->MemoryTrackerCachePeriod;
