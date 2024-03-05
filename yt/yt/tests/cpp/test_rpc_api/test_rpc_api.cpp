@@ -1006,6 +1006,13 @@ std::vector<std::string> ReadStringArrayFromDictionaryArray(const std::shared_pt
     return result;
 }
 
+std::vector<float> ReadFloatArray(const std::shared_ptr<arrow::Array>& array)
+{
+    auto floatArray = std::dynamic_pointer_cast<arrow::FloatArray>(array);
+    YT_VERIFY(floatArray);
+    return  {floatArray->raw_values(), floatArray->raw_values() + array->length()};
+}
+
 TEST_F(TArrowTestBase, YTADMINREQ_33599)
 {
     TRichYPath tablePath("//tmp/test_arrow_reading");
@@ -1276,6 +1283,68 @@ TEST_F(TArrowTestBase, TestArrowNullColumns)
 
             EXPECT_EQ(batch->column_name(1),"VoidColumn");
             EXPECT_TRUE(std::dynamic_pointer_cast<arrow::NullArray>(batch->column(1)));
+        }
+    }
+}
+
+TEST_F(TArrowTestBase, Float)
+{
+    TRichYPath tablePath("//tmp/test_arrow_reading");
+    TCreateNodeOptions options;
+    options.Attributes = NYTree::CreateEphemeralAttributes();
+    options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"FloatColumn", ESimpleLogicalValueType::Float}}));
+    options.Attributes->Set("optimize_for", "scan");
+    options.Force = true;
+
+    WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+        .ThrowOnError();
+
+    {
+         auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+            .ValueOrThrow();
+        auto floatColumnId = writer->GetNameTable()->GetIdOrRegisterName("FloatColumn");
+        auto floatValue = MakeUnversionedDoubleValue(3.14, floatColumnId);
+
+        TUnversionedRowBuilder rowBuilder;
+        rowBuilder.AddValue(floatValue);
+
+        YT_VERIFY(writer->Write({rowBuilder.GetRow()}));
+        WaitFor(writer->Close())
+            .ThrowOnError();
+    }
+
+    auto apiServiceProxy = VerifyDynamicCast<NYT::NApi::NRpcProxy::TClientBase*>(Client_.Get())->CreateApiServiceProxy();
+    auto req = apiServiceProxy.ReadTable();
+
+    req->set_desired_rowset_format(NRpcProxy::NProto::ERowsetFormat::RF_ARROW);
+    req->set_arrow_fallback_rowset_format(NRpcProxy::NProto::ERowsetFormat::RF_FORMAT);
+    req->set_format("<format=text>yson");
+
+    ToProto(req->mutable_path(), tablePath);
+    auto stream = WaitFor(NRpc::CreateRpcClientInputStream(req))
+        .ValueOrThrow();
+
+    auto metaRef = WaitFor(stream->Read())
+            .ValueOrThrow();
+
+    NRpcProxy::NProto::TRspReadTableMeta meta;
+    if (!TryDeserializeProto(&meta, metaRef)) {
+        THROW_ERROR_EXCEPTION("Failed to deserialize table reader meta information");
+    }
+
+    while (auto block = WaitFor(stream->Read()).ValueOrThrow()) {
+        NApi::NRpcProxy::NProto::TRowsetDescriptor descriptor;
+        NApi::NRpcProxy::NProto::TRowsetStatistics statistics;
+        auto payloadRef = NApi::NRpcProxy::DeserializeRowStreamBlockEnvelope(block, &descriptor, &statistics);
+
+        if (descriptor.rowset_format() == NApi::NRpcProxy::NProto::RF_ARROW) {
+            auto batch = MakeBatch(payloadRef.ToStringBuf());
+            EXPECT_EQ(batch->num_columns(), 1);
+            EXPECT_EQ(batch->column_name(0),"FloatColumn");
+            EXPECT_EQ(batch->num_columns(), 1);
+
+            std::vector<float> expectedArray(1, 3.14);
+            EXPECT_EQ(ReadFloatArray(batch->column(0)), expectedArray);
         }
     }
 }
