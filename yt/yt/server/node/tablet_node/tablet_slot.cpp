@@ -43,7 +43,7 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/yt/server/node/cellar_node/dynamic_bundle_config_manager.h>
+#include <yt/yt/server/node/cellar_node/bundle_dynamic_config_manager.h>
 #include <yt/yt/server/node/cellar_node/config.h>
 #include <yt/yt/server/node/cellar_node/master_connector.h>
 

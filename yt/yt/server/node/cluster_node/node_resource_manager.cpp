@@ -10,7 +10,7 @@
 
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
-#include <yt/yt/server/node/cellar_node/dynamic_bundle_config_manager.h>
+#include <yt/yt/server/node/cellar_node/bundle_dynamic_config_manager.h>
 #include <yt/yt/server/node/cellar_node/config.h>
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>

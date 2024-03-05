@@ -1,4 +1,4 @@
-#include "dynamic_bundle_config_manager.h"
+#include "bundle_dynamic_config_manager.h"
 
 #include "bootstrap.h"
 #include "config.h"

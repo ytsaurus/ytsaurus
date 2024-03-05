@@ -959,8 +959,8 @@ class YTEnvSetup(object):
                 self.setup_cluster(method, cluster_index + self.GROUND_INDEX_OFFSET)
 
         for env in self.combined_envs:
-            env.restore_default_dynamic_node_config()
-            env.restore_default_dynamic_bundle_config()
+            env.restore_default_node_dynamic_config()
+            env.restore_default_bundle_dynamic_config()
 
     def setup_cluster(self, method, cluster_index):
         driver = yt_commands.get_driver(cluster=self.get_cluster_name(cluster_index))

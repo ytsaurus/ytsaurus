@@ -2120,19 +2120,19 @@ class YTInstance(object):
 
         return patched_dynamic_node_config["%true"]
 
-    def restore_default_dynamic_node_config(self):
+    def restore_default_node_dynamic_config(self):
         client = self._create_cluster_client()
 
         patched_config = self._apply_nodes_dynamic_config(client)
 
         self._wait_for_dynamic_config_update(patched_config, client)
 
-    def restore_default_dynamic_bundle_config(self):
+    def restore_default_bundle_dynamic_config(self):
         client = self._create_cluster_client()
 
         client.set("//sys/tablet_cell_bundles/@config", {})
 
-        self._wait_for_dynamic_config_update({}, client, config_node_name="dynamic_bundle_config_manager")
+        self._wait_for_dynamic_config_update({}, client, config_node_name="bundle_dynamic_config_manager")
 
     def _wait_for_dynamic_config_update(self, expected_config, client, instance_type="cluster_nodes", config_node_name="dynamic_config_manager"):
         nodes = client.list("//sys/{0}".format(instance_type))
@@ -2143,8 +2143,8 @@ class YTInstance(object):
         def check():
             batch_processor = BatchProcessor(client)
 
-            # COMPAT(gryzlov-ad): Remove this when dynamic_bundle_config_manager is in cluster_node orchid
-            if instance_type == "cluster_nodes" and config_node_name == "dynamic_bundle_config_manager":
+            # COMPAT(gryzlov-ad): Remove this when bundle_dynamic_config_manager is in cluster_node orchid
+            if instance_type == "cluster_nodes" and config_node_name == "bundle_dynamic_config_manager":
                 if not client.exists("//sys/{0}/{1}/orchid/{2}".format(instance_type, nodes[0], config_node_name)):
                     return True
 
