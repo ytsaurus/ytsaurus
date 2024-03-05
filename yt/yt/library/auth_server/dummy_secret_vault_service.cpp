@@ -23,6 +23,9 @@ public:
     {
         return MakeFuture<TString>(TError("Secret Vault is not configured"));
     }
+
+    void RevokeDelegationToken(TRevokeDelegationTokenRequest /*request*/) noexcept override
+    { }
 };
 
 ISecretVaultServicePtr CreateDummySecretVaultService()

@@ -64,6 +64,15 @@ struct ISecretVaultService
     };
 
     virtual TFuture<TString> GetDelegationToken(TDelegationTokenRequest request) = 0;
+
+    struct TRevokeDelegationTokenRequest
+    {
+        TString DelegationToken;
+        TString SecretId;
+        TString Signature;
+    };
+
+    virtual void RevokeDelegationToken(TRevokeDelegationTokenRequest request) noexcept = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISecretVaultService)

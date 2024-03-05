@@ -337,6 +337,36 @@ TEST_F(TDefaultSecretVaultTest, GetToken)
     }
 }
 
+TEST_F(TDefaultSecretVaultTest, RevokeToken)
+{
+    TStringStream outputStream;
+    auto jsonConfig = New<NJson::TJsonFormatConfig>();
+    jsonConfig->EncodeUtf8 = false;
+    auto consumer = NJson::CreateJsonConsumer(&outputStream, NYson::EYsonType::Node, jsonConfig);
+    NYTree::BuildYsonFluently(consumer.get())
+        .BeginMap()
+            .Item("status").Value("ok")
+            .Item("result").BeginList()
+                .Item().BeginMap()
+                    .Item("status").Value("ok")
+                .EndMap()
+            .EndList()
+        .EndMap();
+    consumer->Flush();
+
+    SetCallback(outputStream.Str());
+
+    auto service = CreateDefaultSecretVaultService();
+
+    ISecretVaultService::TRevokeDelegationTokenRequest request = {
+        "TheToken",
+        SecretId,
+        SecretSignature,
+    };
+
+    service->RevokeDelegationToken(request);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TDefaultSecretVaultTest, GetTokenFails)

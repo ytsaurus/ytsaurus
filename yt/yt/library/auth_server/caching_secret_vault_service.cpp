@@ -54,6 +54,11 @@ public:
         return Underlying_->GetDelegationToken(std::move(request));
     }
 
+    void RevokeDelegationToken(TRevokeDelegationTokenRequest request) noexcept override
+    {
+        Underlying_->RevokeDelegationToken(std::move(request));
+    }
+
 protected:
     //! Called under write lock.
     void OnAdded(const ISecretVaultService::TSecretSubrequest& subrequest) noexcept override

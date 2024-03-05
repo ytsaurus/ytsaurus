@@ -55,6 +55,11 @@ public:
         return Underlying_->GetDelegationToken(std::move(request));
     }
 
+    void RevokeDelegationToken(TRevokeDelegationTokenRequest request) noexcept override
+    {
+        Underlying_->RevokeDelegationToken(std::move(request));
+    }
+
 private:
     const TBatchingSecretVaultServiceConfigPtr Config_;
     const ISecretVaultServicePtr Underlying_;

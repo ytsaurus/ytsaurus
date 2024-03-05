@@ -99,6 +99,91 @@ public:
             .Run();
     }
 
+    void RevokeDelegationToken(TRevokeDelegationTokenRequest request) noexcept override
+    {
+        if (request.DelegationToken.empty()
+            || request.Signature.empty()
+            || request.SecretId.empty())
+        {
+            YT_LOG_WARNING(
+                "Invalid call to revoke delegation token with signature %Qv, secret id %Qv",
+                request.Signature,
+                request.SecretId);
+            return;
+        }
+
+        const auto callId = TGuid::Create();
+
+        YT_LOG_DEBUG(
+            "Revoking delegation token from Vault "
+            "(SecretId: %v, Signature: %v, CallId: %v)",
+            request.SecretId,
+            request.Signature,
+            callId);
+
+        CallCountCounter_.Increment();
+
+        try {
+            const auto url = MakeRequestUrl("/1/tokens/revoke", false);
+            const auto headers = New<THeaders>();
+            const auto vaultTicket = TvmService_->GetServiceTicket(Config_->VaultServiceId);
+            headers->Add("Content-Type", "application/json");
+            headers->Add("X-Ya-Service-Ticket", vaultTicket);
+            const auto body = MakeRevokeDelegationTokenRequestBody(request);
+
+            const auto responseBody = HttpPost(url, body, headers);
+            const auto response = ParseVaultResponse(responseBody);
+
+            auto responseStatusString = GetStatusStringFromResponse(response);
+            auto responseStatus = ParseStatus(responseStatusString);
+            if (responseStatus == ESecretVaultResponseStatus::Error) {
+                THROW_ERROR GetErrorFromResponse(response, responseStatusString);
+            }
+            if (responseStatus == ESecretVaultResponseStatus::Unknown) {
+                THROW_ERROR MakeUnexpectedStatusError(responseStatusString);
+            }
+            if (responseStatus == ESecretVaultResponseStatus::Warning) {
+                WarningSubrequestCountCounter_.Increment();
+                YT_LOG_WARNING("Received warning message from Vault: %v",
+                    GetWarningMessageFromResponse(response));
+            }
+
+            auto resultsNode = response->GetChildOrThrow("result")->AsList();
+            auto resultNodes = resultsNode->GetChildren();
+            THROW_ERROR_EXCEPTION_UNLESS(resultNodes.size() == 1,
+                "Unexpected number of results from Vault: %v", resultNodes.size());
+            auto resultNode = resultNodes[0]->AsMap();
+
+            responseStatusString = GetStatusStringFromResponse(resultNode);
+            responseStatus = ParseStatus(responseStatusString);
+            if (responseStatus == ESecretVaultResponseStatus::Error) {
+                THROW_ERROR GetErrorFromResponse(response, responseStatusString);
+            }
+            if (responseStatus == ESecretVaultResponseStatus::Unknown) {
+                THROW_ERROR MakeUnexpectedStatusError(responseStatusString);
+            }
+            if (responseStatus == ESecretVaultResponseStatus::Warning) {
+                WarningSubrequestCountCounter_.Increment();
+                YT_LOG_WARNING("Received warning message from Vault: %v",
+                    GetWarningMessageFromResponse(response));
+            }
+            YT_LOG_DEBUG(
+                "Revoked delegation token from Vault "
+                "(SecretId: %v, Signature: %v, CallId: %v)",
+                request.SecretId,
+                request.Signature,
+                callId);
+        } catch (const std::exception& ex) {
+            FailedCallCountCounter_.Increment();
+            YT_LOG_WARNING(ex,
+                "Failed to revoke delegation token from Vault "
+                "(SecretId: %v, Signature: %v, CallId: %v)",
+                request.SecretId,
+                request.Signature,
+                callId);
+        }
+    }
+
 private:
     const TDefaultSecretVaultServiceConfigPtr Config_;
     const ITvmServicePtr TvmService_;
@@ -336,6 +421,25 @@ private:
                     [&] (auto fluent) {
                         fluent.Item("comment").Value(request.Comment);
                     })
+            .EndMap();
+        jsonWriter->Flush();
+        return TSharedRef::FromString(std::move(body));
+    }
+
+    TSharedRef MakeRevokeDelegationTokenRequestBody(const TRevokeDelegationTokenRequest& request)
+    {
+        TString body;
+        TStringOutput stream(body);
+        auto jsonWriter = CreateJsonConsumer(&stream);
+        BuildYsonFluently(jsonWriter.get())
+            .BeginMap()
+                .Item("tokenized_requests").BeginList()
+                    .Item().BeginMap()
+                        .Item("token").Value(request.DelegationToken)
+                        .Item("signature").Value(request.Signature)
+                        .Item("secret_uuid").Value(request.SecretId)
+                    .EndMap()
+                .EndList()
             .EndMap();
         jsonWriter->Flush();
         return TSharedRef::FromString(std::move(body));
