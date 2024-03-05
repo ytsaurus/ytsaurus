@@ -527,7 +527,7 @@ void TJob::OnJobPrepared()
     GuardedAction(
         "OnJobPrepared",
         [&] {
-            JobPrepared_.Fire();
+            JobPrepared_.Fire(MakeStrong(this));
 
             YT_LOG_INFO("Job prepared");
 
@@ -702,7 +702,7 @@ void TJob::OnJobFinalized()
     FillTrafficStatistics(ExecAgentTrafficStatisticsPrefix, statistics, TrafficMeter_);
     StatisticsYson_ = ConvertToYsonString(statistics);
 
-    JobFinished_.Fire();
+    JobFinished_.Fire(MakeStrong(this));
 
     if (!currentError.IsOK()) {
         // NB: it is required to report error that occurred in some place different

@@ -74,8 +74,8 @@ class TJob
     };
 
 public:
-    DEFINE_SIGNAL(void(), JobPrepared);
-    DEFINE_SIGNAL(void(), JobFinished);
+    DEFINE_SIGNAL(void(TJobPtr), JobPrepared);
+    DEFINE_SIGNAL(void(TJobPtr), JobFinished);
 
 public:
     TJob(
