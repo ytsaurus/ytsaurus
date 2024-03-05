@@ -44,7 +44,7 @@ class TMockNvGpuManagerService
     : public NRpc::TServiceBase
 {
 public:
-    TMockNvGpuManagerService(IInvokerPtr invoker)
+    explicit TMockNvGpuManagerService(IInvokerPtr invoker)
         : TServiceBase(
             invoker,
             NRpc::TServiceDescriptor(ServiceName),
@@ -139,7 +139,7 @@ public:
     }
 };
 
-class TTestNvManagerGpuInfoProvider
+class TNvManagerGpuInfoProviderTest
     : public ::testing::Test
 {
 public:
@@ -180,7 +180,7 @@ protected:
     IServerPtr Server_;
 };
 
-TEST_F(TTestNvManagerGpuInfoProvider, SimpleGpuInfo)
+TEST_F(TNvManagerGpuInfoProviderTest, SimpleGpuInfo)
 {
     auto config = New<TGpuInfoSourceConfig>();
     config->NvGpuManagerServiceAddress = Address_;
@@ -235,7 +235,7 @@ TEST_F(TTestNvManagerGpuInfoProvider, SimpleGpuInfo)
     }
 }
 
-TEST_F(TTestNvManagerGpuInfoProvider, SimpleRdmaDeviceInfo)
+TEST_F(TNvManagerGpuInfoProviderTest, SimpleRdmaDeviceInfo)
 {
     auto config = New<TGpuInfoSourceConfig>();
     config->NvGpuManagerServiceAddress = Address_;
