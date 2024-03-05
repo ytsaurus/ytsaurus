@@ -16,7 +16,7 @@ from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManag
 from yt.wrapper.common import get_disk_size, MB
 from yt.wrapper.operation_commands import (
     add_failed_operation_stderrs_to_error_message, get_jobs_with_error_or_stderr, get_operation_error)
-from yt.wrapper.schema import TableSchema
+from yt.wrapper.schema import SortColumn, TableSchema
 from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder, VanillaSpecBuilder
 from yt.wrapper.skiff import convert_to_skiff_schema
 
@@ -182,6 +182,11 @@ class TestOperations(object):
 
         yt.run_sort(table, sort_by=["y"])
         assert [{"x": x, "y": y} for x, y in sorted(columns, key=lambda c: c[1])] == list(yt.read_table(table))
+
+        assert yt.is_sorted(table)
+
+        yt.run_sort(table, sort_by=[SortColumn("x", sort_order=SortColumn.DESCENDING)])
+        assert [{"x": x, "y": y} for x, y in sorted(columns, key=lambda c: c[0], reverse=True)] == list(yt.read_table(table))
 
         assert yt.is_sorted(table)
 
