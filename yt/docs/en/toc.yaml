@@ -324,6 +324,9 @@ items:
        - name: Importing external data
          when: audience == "public"
          href: user-guide/import.md
+       - name: Query Tracker
+         when: audience == "public"
+         href: user-guide/query-tracker.md
    - name: API and reference
      when: audience == "public"
      items:
