@@ -9,6 +9,7 @@ COPY ./ytserver-all /usr/bin/ytserver-all
 
 # If this list changes, also update yt_nightly/Dockerfile
 RUN ln -s /usr/bin/ytserver-all /usr/bin/ytserver-master && \
+    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-master-cache && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-clock && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-discovery && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-node && \
