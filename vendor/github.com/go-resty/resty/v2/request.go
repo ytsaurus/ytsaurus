@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2021 Jeevanandam M (jeeva@myjeeva.com), All rights reserved.
+// Copyright (c) 2015-2023 Jeevanandam M (jeeva@myjeeva.com), All rights reserved.
 // resty source code and usage is governed by a MIT style
 // license that can be found in the LICENSE file.
 
@@ -27,22 +27,24 @@ import (
 // resty client. Request provides an options to override client level
 // settings and also an options for the request composition.
 type Request struct {
-	URL        string
-	Method     string
-	Token      string
-	AuthScheme string
-	QueryParam url.Values
-	FormData   url.Values
-	PathParams map[string]string
-	Header     http.Header
-	Time       time.Time
-	Body       interface{}
-	Result     interface{}
-	Error      interface{}
-	RawRequest *http.Request
-	SRV        *SRVRecord
-	UserInfo   *User
-	Cookies    []*http.Cookie
+	URL           string
+	Method        string
+	Token         string
+	AuthScheme    string
+	QueryParam    url.Values
+	FormData      url.Values
+	PathParams    map[string]string
+	RawPathParams map[string]string
+	Header        http.Header
+	Time          time.Time
+	Body          interface{}
+	Result        interface{}
+	Error         interface{}
+	RawRequest    *http.Request
+	SRV           *SRVRecord
+	UserInfo      *User
+	Cookies       []*http.Cookie
+	Debug         bool
 
 	// Attempt is to represent the request attempt made during a Resty
 	// request execution flow, including retry count.
@@ -487,7 +489,7 @@ func (r *Request) SetAuthToken(token string) *Request {
 //
 //	client.R().SetAuthScheme("OAuth")
 //
-// This auth header scheme gets added to all the request rasied from this client instance.
+// This auth header scheme gets added to all the request raised from this client instance.
 // Also it can be overridden or set one at the request level is supported.
 //
 // Information about Auth schemes can be found in RFC7235 which is linked to below along with the page containing
@@ -499,6 +501,35 @@ func (r *Request) SetAuthToken(token string) *Request {
 // This method overrides the Authorization scheme set by method `Client.SetAuthScheme`.
 func (r *Request) SetAuthScheme(scheme string) *Request {
 	r.AuthScheme = scheme
+	return r
+}
+
+// SetDigestAuth method sets the Digest Access auth scheme for the HTTP request. If a server responds with 401 and sends
+// a Digest challenge in the WWW-Authenticate Header, the request will be resent with the appropriate Authorization Header.
+//
+// For Example: To set the Digest scheme with username "Mufasa" and password "Circle Of Life"
+//
+//	client.R().SetDigestAuth("Mufasa", "Circle Of Life")
+//
+// Information about Digest Access Authentication can be found in RFC7616:
+//
+//	https://datatracker.ietf.org/doc/html/rfc7616
+//
+// This method overrides the username and password set by method `Client.SetDigestAuth`.
+func (r *Request) SetDigestAuth(username, password string) *Request {
+	oldTransport := r.client.httpClient.Transport
+	r.client.OnBeforeRequest(func(c *Client, _ *Request) error {
+		c.httpClient.Transport = &digestTransport{
+			digestCredentials: digestCredentials{username, password},
+			transport:         oldTransport,
+		}
+		return nil
+	})
+	r.client.OnAfterResponse(func(c *Client, _ *Response) error {
+		c.httpClient.Transport = oldTransport
+		return nil
+	})
+
 	return r
 }
 
@@ -549,8 +580,17 @@ func (r *Request) SetDoNotParseResponse(parse bool) *Request {
 //	   URL - /v1/users/{userId}/details
 //	   Composed URL - /v1/users/sample@sample.com/details
 //
-// It replaces the value of the key while composing the request URL. Also you can
-// override Path Params value, which was set at client instance level.
+//	client.R().SetPathParam("path", "groups/developers")
+//
+//	Result:
+//	   URL - /v1/users/{userId}/details
+//	   Composed URL - /v1/users/groups%2Fdevelopers/details
+//
+// It replaces the value of the key while composing the request URL.
+// The values will be escaped using `url.PathEscape` function.
+//
+// Also you can override Path Params value, which was set at client instance
+// level.
 func (r *Request) SetPathParam(param, value string) *Request {
 	r.PathParams[param] = value
 	return r
@@ -560,19 +600,77 @@ func (r *Request) SetPathParam(param, value string) *Request {
 // Resty current request instance.
 //
 //	client.R().SetPathParams(map[string]string{
-//	   "userId": "sample@sample.com",
-//	   "subAccountId": "100002",
+//		"userId":       "sample@sample.com",
+//		"subAccountId": "100002",
+//		"path":         "groups/developers",
 //	})
 //
 //	Result:
-//	   URL - /v1/users/{userId}/{subAccountId}/details
-//	   Composed URL - /v1/users/sample@sample.com/100002/details
+//	   URL - /v1/users/{userId}/{subAccountId}/{path}/details
+//	   Composed URL - /v1/users/sample@sample.com/100002/groups%2Fdevelopers/details
 //
-// It replaces the value of the key while composing request URL. Also you can
-// override Path Params value, which was set at client instance level.
+// It replaces the value of the key while composing request URL.
+// The value will be used as it is and will not be escaped.
+//
+// Also you can override Path Params value, which was set at client instance
+// level.
 func (r *Request) SetPathParams(params map[string]string) *Request {
 	for p, v := range params {
 		r.SetPathParam(p, v)
+	}
+	return r
+}
+
+// SetRawPathParam method sets single URL path key-value pair in the
+// Resty current request instance.
+//
+//	client.R().SetPathParam("userId", "sample@sample.com")
+//
+//	Result:
+//	   URL - /v1/users/{userId}/details
+//	   Composed URL - /v1/users/sample@sample.com/details
+//
+//	client.R().SetPathParam("path", "groups/developers")
+//
+//	Result:
+//	   URL - /v1/users/{userId}/details
+//	   Composed URL - /v1/users/groups/developers/details
+//
+// It replaces the value of the key while composing the request URL.
+// The value will be used as it is and will not be escaped.
+//
+// Also you can override Path Params value, which was set at client instance
+// level.
+//
+// Since v2.8.0
+func (r *Request) SetRawPathParam(param, value string) *Request {
+	r.RawPathParams[param] = value
+	return r
+}
+
+// SetRawPathParams method sets multiple URL path key-value pairs at one go in the
+// Resty current request instance.
+//
+//	client.R().SetPathParams(map[string]string{
+//		"userId": "sample@sample.com",
+//		"subAccountId": "100002",
+//		"path":         "groups/developers",
+//	})
+//
+//	Result:
+//	   URL - /v1/users/{userId}/{subAccountId}/{path}/details
+//	   Composed URL - /v1/users/sample@sample.com/100002/groups/developers/details
+//
+// It replaces the value of the key while composing request URL.
+// The values will be used as they are and will not be escaped.
+//
+// Also you can override Path Params value, which was set at client instance
+// level.
+//
+// Since v2.8.0
+func (r *Request) SetRawPathParams(params map[string]string) *Request {
+	for p, v := range params {
+		r.SetRawPathParam(p, v)
 	}
 	return r
 }
@@ -645,6 +743,17 @@ func (r *Request) SetCookies(rs []*http.Cookie) *Request {
 // Compliant to interface `resty.Logger`.
 func (r *Request) SetLogger(l Logger) *Request {
 	r.log = l
+	return r
+}
+
+// SetDebug method enables the debug mode on current request Resty request, It logs
+// the details current request and response.
+// For `Request` it logs information such as HTTP verb, Relative URL path, Host, Headers, Body if it has one.
+// For `Response` it logs information such as Status, Response Time, Headers, Body if it has one.
+//
+//	client.R().SetDebug(true)
+func (r *Request) SetDebug(d bool) *Request {
+	r.Debug = d
 	return r
 }
 
@@ -837,7 +946,7 @@ func (r *Request) Execute(method, url string) (*Response, error) {
 
 			resp, err = r.client.execute(r)
 			if err != nil {
-				r.log.Errorf("%v, Attempt %v", err, r.Attempt)
+				r.log.Warnf("%v, Attempt %v", err, r.Attempt)
 			}
 
 			return resp, err
@@ -849,6 +958,10 @@ func (r *Request) Execute(method, url string) (*Response, error) {
 		RetryHooks(r.client.RetryHooks),
 		ResetMultipartReaders(r.client.RetryResetReaders),
 	)
+
+	if err != nil {
+		r.log.Errorf("%v", err)
+	}
 
 	r.client.onErrorHooks(r, resp, unwrapNoRetryErr(err))
 	return resp, unwrapNoRetryErr(err)
@@ -901,7 +1014,12 @@ func (r *Request) fmtBodyString(sl int64) (body string) {
 	contentType := r.Header.Get(hdrContentTypeKey)
 	kind := kindOf(r.Body)
 	if canJSONMarshal(contentType, kind) {
-		prtBodyBytes, err = json.MarshalIndent(&r.Body, "", "   ")
+		var bodyBuf *bytes.Buffer
+		bodyBuf, err = noescapeJSONMarshalIndent(&r.Body)
+		if err == nil {
+			prtBodyBytes = bodyBuf.Bytes()
+			defer releaseBuffer(bodyBuf)
+		}
 	} else if IsXMLType(contentType) && (kind == reflect.Struct) {
 		prtBodyBytes, err = xml.MarshalIndent(&r.Body, "", "   ")
 	} else if b, ok := r.Body.(string); ok {
@@ -956,6 +1074,20 @@ var noescapeJSONMarshal = func(v interface{}) (*bytes.Buffer, error) {
 	buf := acquireBuffer()
 	encoder := json.NewEncoder(buf)
 	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(v); err != nil {
+		releaseBuffer(buf)
+		return nil, err
+	}
+
+	return buf, nil
+}
+
+var noescapeJSONMarshalIndent = func(v interface{}) (*bytes.Buffer, error) {
+	buf := acquireBuffer()
+	encoder := json.NewEncoder(buf)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "   ")
+
 	if err := encoder.Encode(v); err != nil {
 		releaseBuffer(buf)
 		return nil, err

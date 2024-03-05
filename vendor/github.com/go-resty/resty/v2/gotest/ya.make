@@ -8,7 +8,10 @@ SIZE(MEDIUM)
 
 IF (NOT OPENSOURCE)
     # Removing the dependency on recipes
-    DATA(arcadia/vendor/github.com/go-resty/resty/v2)
+
+    DATA(
+        arcadia/vendor/github.com/go-resty/resty/v2
+    )
 
     DEPENDS(library/go/test/mutable_testdata)
 
