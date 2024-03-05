@@ -6,7 +6,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, print_debug, release_breakpoint, remove, wait, wait_breakpoint, with_breakpoint, create, ls, get,
+    authors, create_test_tables, print_debug, release_breakpoint, remove, wait, wait_breakpoint, with_breakpoint, create, ls, get,
     set, exists, update_op_parameters,
     write_table, map, reduce, map_reduce, merge, erase, vanilla, run_sleeping_vanilla, run_test_vanilla, get_operation, raises_yt_error)
 
@@ -999,3 +999,52 @@ class TestMemoryWatchdog(YTEnvSetup):
                 assert err.contains_code(yt_error_codes.ControllerMemoryLimitExceeded)
                 failed += 1
         assert failed == 1
+
+
+class TestLivePreview(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 500,
+            "map_operation_options": {},
+        }
+    }
+
+    @authors("galtsev")
+    @pytest.mark.parametrize("clean_start", [False, True])
+    def test_do_not_crash_on_disabling_legacy_live_preview_in_config(self, clean_start):
+        create_test_tables(row_count=1)
+
+        op = map(
+            command="sleep 1000",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={
+                "testing": {
+                    "delay_inside_revive": 10000,
+                },
+            },
+            track=False,
+        )
+
+        wait(lambda: op.get_state() == "running")
+
+        snapshot_path = op.get_path() + "/snapshot"
+        if not clean_start:
+            wait(lambda: exists(snapshot_path))
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            set(
+                "//sys/controller_agents/config/map_operation_options",
+                {"spec_template": {"enable_legacy_live_preview": False}},
+            )
+            if clean_start and exists(snapshot_path):
+                remove(snapshot_path)
+
+        wait(lambda: op.get_state() == "running")
+
+        op.abort()
+        wait(lambda: op.get_state() == "aborted")

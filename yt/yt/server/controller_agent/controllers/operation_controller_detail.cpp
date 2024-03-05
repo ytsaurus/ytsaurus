@@ -5769,6 +5769,12 @@ void TOperationControllerBase::CreateLivePreviewTables()
         const TYsonString& acl,
         const TTableSchemaPtr& schema)
     {
+        if (!AsyncTransaction) {
+            YT_LOG_INFO("Creating transaction required for the legacy live preview (Type: %v)", ETransactionType::Async);
+            AsyncTransaction = WaitFor(StartTransaction(ETransactionType::Async, Client))
+                .ValueOrThrow();
+        }
+
         auto req = TCypressYPathProxy::Create(path);
         req->set_type(ToProto<int>(EObjectType::Table));
         req->set_ignore_existing(true);
