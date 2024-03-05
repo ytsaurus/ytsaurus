@@ -13,14 +13,6 @@ namespace NYT::NTabletBalancer::NDryRun {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EBalancingMode,
-    (Parameterized)
-    (InMemoryMove)
-    (OrdinaryMove)
-    (Reshard)
-    (ReshardParameterized)
-);
-
 struct TTabletActionBatch
 {
     std::vector<TMoveDescriptor> MoveDescriptors;

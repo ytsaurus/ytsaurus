@@ -17,6 +17,8 @@
 #include <yt/yt/server/lib/tablet_balancer/balancing_helpers.h>
 #include <yt/yt/server/lib/tablet_balancer/parameterized_balancing_helpers.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/tablet_client/pivot_keys_picker.h>
@@ -32,6 +34,7 @@ namespace NYT::NTabletBalancer {
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NObjectClient;
+using namespace NProfiling;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTracing;
@@ -149,6 +152,7 @@ private:
     // Logical iteration start time used for iteration scheduling.
     TInstant CurrentIterationStartTime_;
     THashMap<TGlobalGroupTag, TInstant> GroupPreviousIterationStartTime_;
+    mutable THashMap<TGlobalGroupTag, THashMap<EBalancingMode, TEventTimer>> IterationProfilingTimers_;
     i64 IterationIndex_;
 
     NProfiling::TCounter PickPivotFailures_;
@@ -161,6 +165,8 @@ private:
 
     bool IsBalancingAllowed(const TBundleStatePtr& bundleState) const;
     bool TryScheduleActionCreation(const TGlobalGroupTag& groupTag, const TActionDescriptor& descriptor);
+
+    TEventTimer& GetProfilingTimer(const TGlobalGroupTag& groupTag, EBalancingMode type) const;
 
     void BalanceViaReshard(const TBundleStatePtr& bundleState, const TGroupName& groupName);
     void BalanceViaMove(const TBundleStatePtr& bundleState, const TGroupName& groupName);
@@ -692,6 +698,10 @@ void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundleState)
         return;
     }
 
+    TEventTimerGuard timer(GetProfilingTimer(
+        {bundleState->GetBundle()->Name, LegacyInMemoryGroupName},
+        EBalancingMode::InMemoryMove));
+
     auto descriptors = WaitFor(
         BIND(
             ReassignInMemoryTablets,
@@ -748,6 +758,10 @@ void TTabletBalancer::BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState)
             bundleState->GetBundle()->Name);
         return;
     }
+
+    TEventTimerGuard timer(GetProfilingTimer(
+        {bundleState->GetBundle()->Name, LegacyGroupName},
+        EBalancingMode::OrdinaryMove));
 
     auto descriptors = WaitFor(
         BIND(
@@ -880,6 +894,10 @@ void TTabletBalancer::BalanceViaReshardParameterized(const TBundleStatePtr& bund
 void TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName)
 {
     const auto bundle = bundleState->GetBundle();
+    TEventTimerGuard timer(GetProfilingTimer(
+        {bundle->Name, groupName},
+        EBalancingMode::ParameterizedMove));
+
     try {
         BalanceViaMoveParameterized(bundleState, groupName);
     } catch (const std::exception& ex) {
@@ -905,6 +923,10 @@ void TTabletBalancer::TryBalanceViaReshardParameterized(
     const TGroupName& groupName)
 {
     const auto bundle = bundleState->GetBundle();
+    TEventTimerGuard timer(GetProfilingTimer(
+        {bundle->Name, groupName},
+        EBalancingMode::ParameterizedReshard));
+
     try {
         BalanceViaReshardParameterized(bundleState, groupName);
     } catch (const std::exception& ex) {
@@ -1107,6 +1129,10 @@ void TTabletBalancer::ExecuteReshardIteration(
 
 void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, const TGroupName& groupName)
 {
+    TEventTimerGuard timer(GetProfilingTimer(
+        {bundleState->GetBundle()->Name, groupName},
+        EBalancingMode::Reshard));
+
     ExecuteReshardIteration(CreateSizeReshardIteration(
         bundleState->GetBundle()->Name,
         groupName,
@@ -1239,6 +1265,31 @@ TTableParameterizedMetricTrackerPtr TTabletBalancer::GetParameterizedMetricTrack
     }
 
     return it->second;
+}
+
+TEventTimer& TTabletBalancer::GetProfilingTimer(const TGlobalGroupTag& groupTag, EBalancingMode type) const
+{
+    THashMap<EBalancingMode, TEventTimer>* groupTimers;
+    auto timersIt = IterationProfilingTimers_.find(groupTag);
+    if (timersIt != IterationProfilingTimers_.end()) {
+        groupTimers = &timersIt->second;
+    } else {
+        groupTimers = &EmplaceOrCrash(
+            IterationProfilingTimers_,
+            groupTag,
+            THashMap<EBalancingMode, TEventTimer>())->second;
+    }
+
+    auto eventIt = groupTimers->find(type);
+    if (eventIt != groupTimers->end()) {
+        return eventIt->second;
+    }
+
+    return EmplaceOrCrash(*groupTimers, type, TabletBalancerProfiler
+        .WithTag("tablet_cell_bundle", groupTag.first)
+        .WithTag("group", groupTag.second)
+        .WithTag("type", ToString(type))
+        .Timer("/group_iteration_time"))->second;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
