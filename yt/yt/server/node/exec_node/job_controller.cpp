@@ -69,7 +69,6 @@ using NNodeTrackerClient::NProto::TNodeResources;
 
 using TControllerAgentConnectorPtr = TControllerAgentConnectorPool::TControllerAgentConnectorPtr;
 
-using TAllocationInfo = TControllerAgentConnectorPool::TControllerAgentConnector::TAllocationInfo;
 using TJobStartInfo = TControllerAgentConnectorPool::TControllerAgentConnector::TJobStartInfo;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -218,17 +217,6 @@ public:
         return it == RecentlyRemovedJobMap_.end() ? nullptr : it->second.Job;
     }
 
-    void OnControllerAgentIncarnationOutdated(const THashSet<TControllerAgentDescriptor>& descriptorsToRemove) override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        for (TForbidContextSwitchGuard guard; const auto& [id, job] : JobMap_) {
-            if (descriptorsToRemove.contains(job->GetControllerAgentDescriptor())) {
-                job->UpdateControllerAgentDescriptor(TControllerAgentDescriptor{});
-            }
-        }
-    }
-
     void SetJobsDisabledByMaster(bool value) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -324,7 +312,7 @@ public:
         return JobsDisabledByMaster_.load() || slotManager->HasFatalAlert();
     }
 
-    void ScheduleStartJobs() override
+    void ScheduleStartJobs()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -527,33 +515,22 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
-    std::vector<TFuture<TJobStartInfo>>
-    SettleJobs(
+    TFuture<TJobStartInfo>
+    SettleJob(
         const TControllerAgentDescriptor& controllerAgentDescriptor,
-        std::vector<TAllocationStartInfo> allocationStartInfoProtos)
+        TOperationId operationId,
+        TAllocationId allocationId)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-
-        std::vector<TAllocationInfo> allocationInfos;
-        allocationInfos.reserve(std::size(allocationStartInfoProtos));
-
-        for (const auto& startInfoProto : allocationStartInfoProtos) {
-            auto operationId = FromProto<TOperationId>(startInfoProto.operation_id());
-            auto allocationId = FromProto<TAllocationId>(startInfoProto.allocation_id());
-
-            allocationInfos.push_back({
-                .AllocationId = allocationId,
-                .OperationId = operationId,
-            });
-        }
 
         const auto& controllerAgentConnectorPool = Bootstrap_
             ->GetExecNodeBootstrap()
             ->GetControllerAgentConnectorPool();
 
-        return controllerAgentConnectorPool->SettleJobs(
+        return controllerAgentConnectorPool->SettleJob(
             controllerAgentDescriptor,
-            allocationInfos);
+            operationId,
+            allocationId);
     }
 
     const TError& MakeJobsDisabledError() const
@@ -583,7 +560,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        THashMap<TControllerAgentDescriptor, std::vector<TAllocationStartInfo>> groupedStartInfoProtos;
+        TForbidContextSwitchGuard guard;
+
+        bool areJobsDisabled = AreJobsDisabled();
 
         for (auto& startInfoProto : allocationStartInfoProtos) {
             auto operationId = FromProto<TOperationId>(startInfoProto.operation_id());
@@ -593,71 +572,56 @@ private:
                 startInfoProto.controller_agent_descriptor().incarnation_id());
 
             const auto& controllerAgentConnectorPool = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool();
-            auto descriptor = controllerAgentConnectorPool->GetDescriptorByIncarnationId(incarnationId);
-            YT_VERIFY(descriptor);
+            auto maybeAgentDescriptor = controllerAgentConnectorPool->GetDescriptorByIncarnationId(incarnationId);
+            YT_VERIFY(maybeAgentDescriptor);
+
+            auto agentDescriptor = std::move(*maybeAgentDescriptor);
 
             YT_LOG_INFO(
                 "Requested to create allocation (OperationId: %v, AllocationId: %v, ControllerAgentDescriptor: %v)",
                 operationId,
                 allocationId,
-                descriptor);
+                agentDescriptor);
 
-            groupedStartInfoProtos[std::move(*descriptor)].push_back(std::move(startInfoProto));
-        }
+            if (areJobsDisabled) {
+                const auto& allocationAbortingError = MakeJobsDisabledError();
 
-        if (AreJobsDisabled()) {
-            const auto& allocationAbortingError = MakeJobsDisabledError();
-            for (auto& [agentDescriptor, startInfoProtos] : groupedStartInfoProtos) {
-                for (const auto& startInfoProto : startInfoProtos) {
-                    auto operationId = FromProto<TOperationId>(startInfoProto.operation_id());
-                    auto allocationId = FromProto<TAllocationId>(startInfoProto.allocation_id());
+                YT_LOG_INFO(
+                    "Allocation not created since jobs disabled on node (OperationId: %v, AllocationId: %v, ControllerAgentDescriptor: %v)",
+                    operationId,
+                    allocationId,
+                    agentDescriptor);
 
-                    YT_LOG_INFO(
-                        "Allocation not created since jobs disabled on node (OperationId: %v, AllocationId: %v, ControllerAgentDescriptor: %v)",
-                        operationId,
+                AllocationFailed_.Fire(
+                    allocationId,
+                    operationId,
+                    agentDescriptor,
+                    allocationAbortingError);
+
+                continue;
+            }
+
+            SettleJob(agentDescriptor, operationId, allocationId)
+                .SubscribeUnique(BIND([
+                    operationId,
+                    allocationId,
+                    resourceLimits = startInfoProto.resource_limits(),
+                    agentDescriptor,
+                    this,
+                    this_ = MakeStrong(this)
+                ] (TErrorOr<TJobStartInfo>&& jobInfoOrError) mutable
+                {
+                    resourceLimits.set_vcpu(
+                        static_cast<double>(NVectorHdrf::TCpuResource(
+                            resourceLimits.cpu() * JobResourceManager_->GetCpuToVCpuFactor())));
+                    OnJobStartInfoReceived(
                         allocationId,
-                        agentDescriptor);
-
-                    AllocationFailed_.Fire(
-                        allocationId,
                         operationId,
+                        resourceLimits,
                         agentDescriptor,
-                        allocationAbortingError);
-                }
-            }
-
-            return;
-        }
-
-        for (auto& [agentDescriptor, startInfoProtos] : groupedStartInfoProtos) {
-            auto jobInfoFutures = SettleJobs(
-                agentDescriptor,
-                startInfoProtos);
-
-            YT_VERIFY(std::size(startInfoProtos) == std::size(jobInfoFutures));
-
-            for (int index = 0; index < std::ssize(startInfoProtos); ++index) {
-                auto& startInfoProto = startInfoProtos[index];
-
-                // TODO(pogorelov): Is it needed now?
-                startInfoProto.mutable_resource_limits()->set_vcpu(
-                    static_cast<double>(NVectorHdrf::TCpuResource(
-                        startInfoProto.resource_limits().cpu() * JobResourceManager_->GetCpuToVCpuFactor())));
-
-                auto operationId = FromProto<TOperationId>(startInfoProto.operation_id());
-                auto allocationId = FromProto<TAllocationId>(startInfoProto.allocation_id());
-
-                auto& jobInfoFuture = jobInfoFutures[index];
-                jobInfoFuture.SubscribeUnique(
-                    BIND(
-                        &TJobController::OnJobStartInfoReceived,
-                        MakeStrong(this),
-                        allocationId,
-                        operationId,
-                        startInfoProto.resource_limits(),
-                        agentDescriptor)
+                        std::move(jobInfoOrError));
+                })
                     .Via(Bootstrap_->GetJobInvoker()));
-            }
         }
     }
 

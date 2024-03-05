@@ -176,6 +176,7 @@ private:
 
     struct TResourceHolderInfo
     {
+        TGuid Id;
         NClusterNode::TJobResources BaseResourceUsage;
         NClusterNode::TJobResources AdditionalResourceUsage;
         EResourcesConsumerType ResourcesConsumerType;
