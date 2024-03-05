@@ -67,6 +67,12 @@ struct TArtifact
 class TJob
     : public NJobAgent::TResourceHolder
 {
+    struct TNameWithAddress
+    {
+        TString Name;
+        NNet::TIP6Address Address;
+    };
+
 public:
     DEFINE_SIGNAL(void(), JobPrepared);
     DEFINE_SIGNAL(void(), JobFinished);
@@ -85,7 +91,7 @@ public:
     ~TJob();
 
     void Start() noexcept;
-    void DoStart();
+    void DoStart(TErrorOr<std::vector<TNameWithAddress>>&& resolvedNodeAddresses);
     bool IsStarted() const;
 
     void Abort(TError error, bool graceful = false);
@@ -351,7 +357,7 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, JobProbeLock_);
     NJobProxy::IJobProbePtr JobProbe_;
 
-    std::vector<std::pair<TString, NNet::TIP6Address>> ResolvedNodeAddresses_;
+    std::vector<TNameWithAddress> ResolvedNodeAddresses_;
 
     // Artifact statistics.
     NJobAgent::TChunkCacheStatistics ChunkCacheStatistics_;

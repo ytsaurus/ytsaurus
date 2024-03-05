@@ -205,25 +205,6 @@ TJob::TJob(
 
     AddJobEvent(JobState_, JobPhase_);
 
-    if (UserJobSpec_ && UserJobSpec_->has_network_project_id()) {
-        auto addresses = Bootstrap_->GetConfig()->Addresses;
-        ResolvedNodeAddresses_.reserve(addresses.size());
-        for (const auto& [addressName, address] : addresses) {
-            auto* resolver = TAddressResolver::Get();
-            auto resolvedAddressOrError = WaitFor(resolver->Resolve(address));
-            YT_LOG_DEBUG_IF(
-                !resolvedAddressOrError.IsOK(),
-                resolvedAddressOrError,
-                "Failed to resolve node address (AddressName: %v, Address: %v)",
-                addressName,
-                address);
-
-            auto resolvedAddress = std::move(resolvedAddressOrError).ValueOrThrow();
-            YT_VERIFY(resolvedAddress.IsIP6());
-            ResolvedNodeAddresses_.emplace_back(addressName, resolvedAddress.ToIP6Address());
-        }
-    }
-
     HandleJobReport(MakeDefaultJobReport()
         .TreeId(JobSpecExt_->tree_id()));
 }
@@ -236,7 +217,7 @@ TJob::~TJob()
         BIND([jobSpec = std::move(jobSpec)] () mutable { jobSpec.reset(); }));
 }
 
-void TJob::DoStart()
+void TJob::DoStart(TErrorOr<std::vector<TNameWithAddress>>&& resolvedNodeAddresses)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -245,6 +226,12 @@ void TJob::DoStart()
         [&] () {
             auto now = TInstant::Now();
             PrepareStartTime_ = now;
+
+            if (!resolvedNodeAddresses.IsOK()) {
+                THROW_ERROR TError("Failed to resolve node addresses") << std::move(resolvedNodeAddresses);
+            }
+
+            ResolvedNodeAddresses_ = std::move(resolvedNodeAddresses.Value());
 
             StartUserJobMonitoring();
 
@@ -329,9 +316,54 @@ void TJob::Start() noexcept
 
     GetUserSlot()->SetAllocationId(GetAllocationId());
 
-    Bootstrap_
-        ->GetJobInvoker()
-        ->Invoke(BIND(&TJob::DoStart, MakeStrong(this)));
+    TFuture<std::vector<TNameWithAddress>> resolvingFuture;
+
+    if (UserJobSpec_ && UserJobSpec_->has_network_project_id()) {
+        std::vector<TFuture<TNameWithAddress>> nodeAddressFutures;
+
+        auto addresses = Bootstrap_->GetConfig()->Addresses;
+        ResolvedNodeAddresses_.reserve(std::size(addresses));
+
+        auto* resolver = TAddressResolver::Get();
+
+        for (auto& [addressName, address] : addresses) {
+            nodeAddressFutures.push_back(
+                resolver->Resolve(address)
+                    .Apply(BIND(
+                        [
+                            this,
+                            this_ = MakeStrong(this),
+                            address = std::move(address),
+                            addressName = std::move(addressName)
+                        ] (const TErrorOr<TNetworkAddress>& resolvedAddressOrError) mutable
+                        {
+                            if (!resolvedAddressOrError.IsOK()) {
+                                YT_LOG_WARNING(
+                                    resolvedAddressOrError,
+                                    "Failed to resolve node address (AddressName: %v, Address: %v)",
+                                    addressName,
+                                    address);
+                                THROW_ERROR resolvedAddressOrError;
+                            }
+
+                            const auto& resolvedAddress = resolvedAddressOrError.Value();
+                            YT_VERIFY(resolvedAddress.IsIP6());
+
+                            return TNameWithAddress{
+                                .Name = std::move(addressName),
+                                .Address = resolvedAddress.ToIP6Address(),
+                            };
+                        })));
+        }
+
+        resolvingFuture = AllSucceeded(std::move(nodeAddressFutures));
+    } else {
+        resolvingFuture = MakeFuture(std::vector<TNameWithAddress>());
+    }
+
+    resolvingFuture.SubscribeUnique(
+        BIND(&TJob::DoStart, MakeStrong(this))
+            .Via(Bootstrap_->GetJobInvoker()));
 }
 
 void TJob::Abort(TError error, bool graceful)
