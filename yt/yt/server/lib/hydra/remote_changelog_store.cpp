@@ -4,7 +4,6 @@
 #include "changelog_store_helpers.h"
 #include "changelog.h"
 #include "config.h"
-#include "lazy_changelog.h"
 
 #include <yt/yt/server/lib/cellar_agent/public.h>
 
@@ -319,7 +318,7 @@ private:
             id);
     }
 
-    IChangelogPtr DoCreateChangelog(int id, const NProto::TChangelogMeta& meta, const TChangelogOptions& options)
+    TFuture<IChangelogPtr> DoCreateChangelog(int id, const NProto::TChangelogMeta& meta, const TChangelogOptions& options)
     {
         auto path = GetChangelogPath(
             StorageState_ == EStorageState::Secondary ? SecondaryPath_ : PrimaryPath_,
@@ -365,7 +364,7 @@ private:
 
             UpdateLatestChangelogId(id);
 
-            return MakeRemoteChangelog(
+            return CreateRemoteChangelog(
                 id,
                 path,
                 meta,
@@ -379,7 +378,7 @@ private:
         }
     }
 
-    IChangelogPtr DoOpenChangelog(int id, const TChangelogOptions& options)
+    TFuture<IChangelogPtr> DoOpenChangelog(int id, const TChangelogOptions& options)
     {
         TYPath path;
         try {
@@ -423,7 +422,7 @@ private:
                 id,
                 path);
 
-            return MakeRemoteChangelog(
+            return CreateRemoteChangelog(
                 id,
                 path,
                 /*meta*/ {},
@@ -483,7 +482,7 @@ private:
         }
     }
 
-    IChangelogPtr MakeRemoteChangelog(
+    TFuture<IChangelogPtr> CreateRemoteChangelog(
         int id,
         TYPath path,
         TChangelogMeta meta,
@@ -491,15 +490,19 @@ private:
         i64 dataSize,
         const TChangelogOptions& options)
     {
-        return New<TRemoteChangelog>(
+        auto changelog = New<TRemoteChangelog>(
             id,
             std::move(path),
             std::move(meta),
             PrerequisiteTransaction_,
             recordCount,
             dataSize,
-            options,
             this);
+        if (options.CreateWriterEagerly) {
+            return changelog->CreateWriter().Apply(BIND([=] () -> IChangelogPtr { return changelog; }));
+        } else {
+            return MakeFuture<IChangelogPtr>(changelog);
+        }
     }
 
     TJournalWriterOptions GetJournalWriterOptions() const
@@ -536,7 +539,6 @@ private:
             ITransactionPtr prerequisiteTransaction,
             int recordCount,
             i64 dataSize,
-            const TChangelogOptions& options,
             TRemoteChangelogStorePtr owner)
             : Id_(id)
             , Path_(std::move(path))
@@ -546,11 +548,19 @@ private:
             , Logger(Owner_->Logger.WithTag("ChangelogId: %v", id))
             , RecordCount_(recordCount)
             , DataSize_(dataSize)
+        { }
+
+        TFuture<void> CreateWriter()
         {
-            if (options.CreateWriterEagerly) {
-                auto guard = Guard(WriterLock_);
-                CreateWriter();
+            auto guard = Guard(WriterLock_);
+
+            try {
+                DoCreateWriter();
+            } catch (const std::exception& ex) {
+                return MakeFuture(TError(ex));
             }
+
+            return WriterOpenFuture_;
         }
 
         int GetId() const override
@@ -583,12 +593,8 @@ private:
             auto guard = Guard(WriterLock_);
 
             if (!Writer_) {
-                if (Owner_->IsReadOnly()) {
-                    return MakeFuture(TError("Changelog is read-only"));
-                }
-
                 try {
-                    CreateWriter();
+                    DoCreateWriter();
                 } catch (const std::exception& ex) {
                     return MakeFuture(TError(ex));
                 }
@@ -598,28 +604,28 @@ private:
             auto recordCount = records.size();
 
             if (WriterOpened_) {
-                FlushResult_ = Writer_->Write(records);
+                FlushFuture_ = Writer_->Write(records);
             } else {
                 PendingRecords_.insert(
                     PendingRecords_.end(),
                     records.begin(),
                     records.end());
-                FlushResult_ = PendingRecordsFlushed_;
+                FlushFuture_ = PendingRecordsFlushFuture_;
             }
 
-            FlushResult_.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
+            FlushFuture_.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
                 if (error.IsOK()) {
                     DataSize_ += recordsDataSize;
                     RecordCount_ += recordCount;
                 }
             }));
 
-            return FlushResult_;
+            return FlushFuture_;
         }
 
         TFuture<void> Flush() override
         {
-            return FlushResult_;
+            return FlushFuture_;
         }
 
         TFuture<std::vector<TSharedRef>> Read(
@@ -648,17 +654,17 @@ private:
 
         TFuture<void> Close() override
         {
-            TFuture<void> future;
-            {
-                auto guard = Guard(WriterLock_);
-                if (!Writer_) {
-                    YT_LOG_DEBUG("Remote changelog has no underlying writer and is now closed");
-                    return VoidFuture;
-                }
-                YT_LOG_DEBUG("Closing remote changelog with its underlying writer");
-                future = Writer_->Close();
+            auto guard = Guard(WriterLock_);
+
+            if (!Writer_) {
+                YT_LOG_DEBUG("Remote changelog has no underlying writer and is now closed");
+                return VoidFuture;
             }
 
+            YT_LOG_DEBUG("Closing remote changelog with its underlying writer");
+
+            auto future = PendingRecordsFlushFuture_.Apply(
+                BIND(&IJournalWriter::Close, Writer_));
             future.Subscribe(BIND([Logger = Logger] (const TError& error) {
                 if (error.IsOK()) {
                     YT_LOG_DEBUG("Remote changelog closed");
@@ -681,18 +687,19 @@ private:
         YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, WriterLock_);
 
         IJournalWriterPtr Writer_;
+        TFuture<void> WriterOpenFuture_;
 
         //! If #WriterOpened_ is true, records are sent directly to #Writer_.
         //! If #WriterOpened_ is false, records are being kept in #PendingRecords_
         //! until writer is opened and then flushed.
         bool WriterOpened_ = false;
         std::vector<TSharedRef> PendingRecords_;
-        TFuture<void> PendingRecordsFlushed_;
+        TFuture<void> PendingRecordsFlushFuture_;
 
         std::atomic<int> RecordCount_;
         std::atomic<i64> DataSize_;
 
-        TFuture<void> FlushResult_ = VoidFuture;
+        TFuture<void> FlushFuture_ = VoidFuture;
 
 
         IInvokerPtr GetInvoker() const
@@ -711,23 +718,29 @@ private:
             }
         }
 
-        void CreateWriter()
+        void DoCreateWriter()
         {
             VERIFY_SPINLOCK_AFFINITY(WriterLock_);
+
+            if (Owner_->IsReadOnly()) {
+                THROW_ERROR_EXCEPTION("Changelog is read-only");
+            }
 
             YT_LOG_DEBUG("Creating remote changelog writer");
 
             try {
                 auto writerOptions = Owner_->GetJournalWriterOptions();
                 Writer_ = Owner_->Client_->CreateJournalWriter(Path_, writerOptions);
-                PendingRecordsFlushed_ = Writer_->Open()
-                    .Apply(BIND(&TRemoteChangelog::FlushPendingRecords, MakeStrong(this))
-                        .AsyncVia(GetInvoker()));
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Failed to open remote changelog writer")
                     << TErrorAttribute("changelog_path", Path_)
                     << ex;
             }
+
+            WriterOpenFuture_ = Writer_->Open();
+            PendingRecordsFlushFuture_ = WriterOpenFuture_
+                .Apply(BIND(&TRemoteChangelog::FlushPendingRecords, MakeStrong(this))
+                    .AsyncVia(GetInvoker()));
         }
 
         TFuture<void> FlushPendingRecords()
