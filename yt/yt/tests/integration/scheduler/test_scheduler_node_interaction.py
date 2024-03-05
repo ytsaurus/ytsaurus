@@ -436,7 +436,9 @@ class TestSchedulingTags(YTEnvSetup):
             )
 
         set("//sys/cluster_nodes/{0}/@user_tags".format(self.node), ["default"])
-        time.sleep(1.0)
+
+        wait(lambda: "default" in get("//sys/scheduler/orchid/scheduler/nodes/{}/tags".format(self.node)))
+
         with pytest.raises(YtError):
             map(
                 command="cat",
@@ -450,6 +452,8 @@ class TestSchedulingTags(YTEnvSetup):
         self._prepare()
 
         set("//sys/cluster_nodes/{0}/@user_tags".format(self.node), ["default", "127.0.0.1"])
+
+        wait(lambda: "127.0.0.1" in get("//sys/scheduler/orchid/scheduler/nodes/{}/tags".format(self.node)))
 
         map(
             command="cat",
