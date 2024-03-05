@@ -245,7 +245,7 @@ protected:
     NHiveServer::IHiveManagerPtr HiveManager_;
     NHiveClient::ICellDirectoryPtr CellDirectory_;
     NHiveServer::TSimpleAvenueDirectoryPtr AvenueDirectory_;
-    NHiveServer::ICellDirectorySynchronizerPtr CellDirectorySynchronizer_;
+    NHiveClient::ICellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     NConcurrency::TActionQueuePtr ControlQueue_;
     NConcurrency::TActionQueuePtr SnapshotIOQueue_;
     NCoreDump::ICoreDumperPtr CoreDumper_;

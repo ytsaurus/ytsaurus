@@ -14,18 +14,8 @@ namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ICellDirectorySynchronizer
-    : public TRefCounted
-{
-    virtual void Start() = 0;
-    virtual void Stop() = 0;
-};
 
-DEFINE_REFCOUNTED_TYPE(ICellDirectorySynchronizer)
-
-////////////////////////////////////////////////////////////////////////////////
-
-ICellDirectorySynchronizerPtr CreateCellDirectorySynchronizer(
+NHiveClient::ICellDirectorySynchronizerPtr CreateCellDirectorySynchronizer(
     TCellDirectorySynchronizerConfigPtr config,
     NHiveClient::ICellDirectoryPtr cellDirectory,
     NCellServer::ITamedCellManagerPtr cellManager,

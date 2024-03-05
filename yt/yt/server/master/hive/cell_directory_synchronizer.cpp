@@ -12,6 +12,7 @@
 #include <yt/yt/server/master/object_server/object.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/cell_directory_synchronizer.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -57,12 +58,26 @@ public:
 
     void Start() override
     {
+        // Refresh promise after Stop() if it has been called
+        if (SyncPromise_.IsSet()) {
+            SyncPromise_ = NewPromise<void>();
+        }
         SyncExecutor_->Start();
     }
 
     void Stop() override
     {
-        YT_UNUSED_FUTURE(SyncExecutor_->Stop());
+        SyncExecutor_->Stop().Subscribe(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<void>& /*result*/) {
+            // Sync() sets promise after replacing only, so we never see it set when synchronizer is active
+            if (!SyncPromise_.IsSet()) {
+                SyncPromise_.Set(TError("Synchronizer is stopped"));
+            }
+        }));
+    }
+
+    TFuture<void> Sync() override
+    {
+        return SyncPromise_.ToFuture();
     }
 
 private:
@@ -73,10 +88,13 @@ private:
 
     const TPeriodicExecutorPtr SyncExecutor_;
 
+    TPromise<void> SyncPromise_ = NewPromise<void>();
 
     void OnSync()
     {
+        auto promise = std::exchange(SyncPromise_, NewPromise<void>());
         if (!HydraManager_->IsActive()) {
+            promise.Set(TError("Peer is not active"));
             return;
         }
 
@@ -112,8 +130,10 @@ private:
             }
 
             YT_LOG_DEBUG("Finished synchronizing cell directory");
+            promise.Set();
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Error synchronizing cell directory");
+            promise.Set(ex);
         }
     }
 };
@@ -122,7 +142,7 @@ DEFINE_REFCOUNTED_TYPE(TCellDirectorySynchronizer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ICellDirectorySynchronizerPtr CreateCellDirectorySynchronizer(
+NHiveClient::ICellDirectorySynchronizerPtr CreateCellDirectorySynchronizer(
     TCellDirectorySynchronizerConfigPtr config,
     NHiveClient::ICellDirectoryPtr cellDirectory,
     NCellServer::ITamedCellManagerPtr cellManager,
