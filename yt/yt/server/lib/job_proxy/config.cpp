@@ -245,6 +245,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("container_cpu_limit", &TThis::ContainerCpuLimit)
         .Default();
 
+    registrar.Parameter("slot_container_memory_limit", &TThis::SlotContainerMemoryLimit)
+        .Default();
+
     registrar.Parameter("testing_config", &TThis::TestingConfig)
         .DefaultNew();
 
