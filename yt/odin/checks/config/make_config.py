@@ -1006,6 +1006,17 @@ def get_checks_config():
                 "check_timeout": 120,
                 "alerts": instant
             },
+            "tablet_cell_snapshot_convergence": {
+                "enable": False,
+                "check_timeout": 120,
+                "alerts": {
+                    "simple": {
+                        "period": 2,
+                        "threshold": 2,
+                        "partially_available_strategy": "force_ok",
+                    },
+                }
+            },
             "tablet_stress_test": {
                 "enable": False,
                 "check_timeout": 120,
