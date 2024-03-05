@@ -46,9 +46,8 @@ void RequestJobInterruption(
     auto rspOrError = WaitFor(req->Invoke());
     if (!rspOrError.IsOK()) {
         if (IsRevivalError(rspOrError)) {
-            THROW_ERROR(
-                TError("Failed to interrupt job")
-                    << CreateRevivalError(operationId, jobId));
+            THROW_ERROR_EXCEPTION("Failed to interrupt job")
+                << MakeRevivalError(operationId, jobId);
         }
 
         THROW_ERROR_EXCEPTION(
@@ -114,11 +113,10 @@ void TClient::DoAbandonJob(
     auto error = WaitFor(request->Invoke());
     if (!error.IsOK()) {
         if (IsRevivalError(error)) {
-            THROW_ERROR(
-                TError("Failed to abandon job")
-                    << CreateRevivalError(allocationBriefInfo.OperationId, jobId));
+            THROW_ERROR_EXCEPTION("Failed to abandon job")
+                << MakeRevivalError(allocationBriefInfo.OperationId, jobId);
         }
-        error.ThrowOnError();
+        THROW_ERROR(error);
     }
 }
 

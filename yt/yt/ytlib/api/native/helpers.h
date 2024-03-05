@@ -68,7 +68,7 @@ TFuture<NScheduler::TAllocationBriefInfo> GetAllocationBriefInfo(
 
 bool IsRevivalError(const TError& error);
 
-TError CreateRevivalError(
+TError MakeRevivalError(
     NScheduler::TOperationId operationId,
     NScheduler::TJobId jobId);
 

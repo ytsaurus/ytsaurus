@@ -158,9 +158,8 @@ private:
 
         if (!rspOrError.IsOK()) {
             if (NApi::NNative::IsRevivalError(rspOrError)) {
-                THROW_ERROR(
-                    TError("Failed to get job shell descriptor")
-                        << NNative::CreateRevivalError(allocationBriefInfo.OperationId, key.JobId));
+                THROW_ERROR_EXCEPTION("Failed to get job shell descriptor")
+                    << NNative::MakeRevivalError(allocationBriefInfo.OperationId, key.JobId);
             }
 
             OnJobShellDescriptorFetchingFailed(std::move(rspOrError), key);

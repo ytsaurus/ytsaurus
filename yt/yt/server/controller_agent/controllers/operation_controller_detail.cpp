@@ -3776,7 +3776,10 @@ void TOperationControllerBase::SafeInterruptJobByUserRequest(TJobId jobId, TDura
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
 
-    YT_LOG_DEBUG("Interrupting job (JobId: %v, Timeout: %v)", jobId, timeout);
+    YT_LOG_DEBUG(
+        "Interrupting job (JobId: %v, Timeout: %v)",
+        jobId,
+        timeout);
 
     if (State != EControllerState::Running) {
         THROW_ERROR_EXCEPTION(

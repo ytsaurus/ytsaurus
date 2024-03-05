@@ -241,8 +241,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, GetAllocationBriefInfo)
     {
         auto allocationId = FromProto<TAllocationId>(request->allocation_id());
-        TAllocationInfoToRequest requestedAllocationInfo;
-        FromProto(&requestedAllocationInfo, request->requested_info());
+        auto requestedAllocationInfo = FromProto<TAllocationInfoToRequest>(request->requested_info());
 
         context->SetRequestInfo(
             "AllocationId: %v, RequestedInfo: {OperationId: %v, OperationAcl: %v, CADescriptor: %v, NodeDescriptor: %v}",

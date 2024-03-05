@@ -533,11 +533,11 @@ private:
             allocationId);
     }
 
-    const TError& MakeJobsDisabledError() const
+    TError MakeJobsDisabledError() const
     {
-        static const auto AllocationAbortingError = TError("Jobs disabled on node")
+        auto error = TError("Jobs disabled on node")
             << TErrorAttribute("abort_reason", EAbortReason::NodeWithDisabledJobs);
-        return AllocationAbortingError;
+        return error;
     }
 
     std::vector<TJobPtr> GetJobs()

@@ -57,7 +57,7 @@ void Serialize(const TCoreInfo& coreInfo, IYsonConsumer* consumer)
         })
         .DoIf(coreInfo.has_error(), [&] (TFluentMap fluent) {
             fluent
-                .Item("error").Value(NYT::FromProto<TError>(coreInfo.error()));
+                .Item("error").Value(FromProto<TError>(coreInfo.error()));
         })
         .DoIf(coreInfo.has_thread_id(), [&] (TFluentMap fluent) {
             fluent
@@ -89,9 +89,6 @@ void SaveJobFiles(
     const std::vector<TJobFile>& files,
     TTransactionId transactionId)
 {
-    using NYT::FromProto;
-    using NYT::ToProto;
-
     if (files.empty()) {
         return;
     }
@@ -385,9 +382,9 @@ void FromProto(
         controllerAgentDescriptor->Addresses = FromProto<NNodeTrackerClient::TAddressMap>(
             controllerAgentDescriptorProto.addresses());
     }
-    controllerAgentDescriptor->IncarnationId = NYT::FromProto<TIncarnationId>(
+    controllerAgentDescriptor->IncarnationId = FromProto<TIncarnationId>(
         controllerAgentDescriptorProto.incarnation_id());
-    controllerAgentDescriptor->AgentId = NYT::FromProto<TAgentId>(
+    controllerAgentDescriptor->AgentId = FromProto<TAgentId>(
         controllerAgentDescriptorProto.agent_id());
 }
 

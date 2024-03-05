@@ -43,8 +43,8 @@ public:
     const TString& GetSubcontainerName();
 
 private:
-    TJobShellPtr JobShell_;
-    TOperationJobShellRuntimeParametersPtr JobShellRuntimeParameters_;
+    const TJobShellPtr JobShell_;
+    const TOperationJobShellRuntimeParametersPtr JobShellRuntimeParameters_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

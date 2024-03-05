@@ -317,7 +317,7 @@ void TJob::Start() noexcept
 
     GetUserSlot()->SetAllocationId(GetAllocationId());
 
-    TFuture<std::vector<TNameWithAddress>> resolvingFuture;
+    TFuture<std::vector<TNameWithAddress>> resolveFuture;
 
     if (UserJobSpec_ && UserJobSpec_->has_network_project_id()) {
         std::vector<TFuture<TNameWithAddress>> nodeAddressFutures;
@@ -336,8 +336,7 @@ void TJob::Start() noexcept
                             this_ = MakeStrong(this),
                             address = std::move(address),
                             addressName = std::move(addressName)
-                        ] (const TErrorOr<TNetworkAddress>& resolvedAddressOrError) mutable
-                        {
+                        ] (const TErrorOr<TNetworkAddress>& resolvedAddressOrError) mutable {
                             if (!resolvedAddressOrError.IsOK()) {
                                 YT_LOG_WARNING(
                                     resolvedAddressOrError,
@@ -357,12 +356,12 @@ void TJob::Start() noexcept
                         })));
         }
 
-        resolvingFuture = AllSucceeded(std::move(nodeAddressFutures));
+        resolveFuture = AllSucceeded(std::move(nodeAddressFutures));
     } else {
-        resolvingFuture = MakeFuture(std::vector<TNameWithAddress>());
+        resolveFuture = MakeFuture(std::vector<TNameWithAddress>());
     }
 
-    resolvingFuture.SubscribeUnique(
+    resolveFuture.SubscribeUnique(
         BIND(&TJob::DoStart, MakeStrong(this))
             .Via(Bootstrap_->GetJobInvoker()));
 }

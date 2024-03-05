@@ -35,7 +35,7 @@ using NYT::ToProto;
 
 namespace {
 
-TError CreateOperationRevivalError()
+TError MakeOperationRevivalError()
 {
     return TError("Operation of job is reviving");
 }
@@ -47,7 +47,7 @@ TAllocationBriefInfo ParseGetBreifAllocationInfoResponse(
 {
     if (!rspOrError.IsOK()) {
         if (NApi::NNative::IsRevivalError(rspOrError)) {
-            THROW_ERROR CreateOperationRevivalError();
+            THROW_ERROR MakeOperationRevivalError();
         }
 
         THROW_ERROR(rspOrError);
@@ -196,11 +196,11 @@ bool IsRevivalError(const TError& error)
         error.FindMatching(NScheduler::EErrorCode::AgentRevoked);
 }
 
-TError CreateRevivalError(
+TError MakeRevivalError(
     NScheduler::TOperationId operationId,
     NScheduler::TJobId jobId)
 {
-    return CreateOperationRevivalError()
+    return MakeOperationRevivalError()
         << TErrorAttribute("job_id", jobId)
         << TErrorAttribute("operation_id", operationId);
 }

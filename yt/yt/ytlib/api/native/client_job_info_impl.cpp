@@ -629,11 +629,17 @@ void TClient::DoDumpJobContext(
         WaitFor(transaction->Commit())
             .ThrowOnError();
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error saving input context for job %v into %v", jobId, path)
+        THROW_ERROR_EXCEPTION(
+            "Error saving input context for job %v into %v",
+            jobId,
+            path)
             << ex;
     }
 
-    YT_LOG_DEBUG("Job input context attached (ChunkId: %v, Path: %v)", chunkId, path);
+    YT_LOG_DEBUG(
+        "Job input context attached (ChunkId: %v, Path: %v)",
+        chunkId,
+        path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -68,7 +68,7 @@ THashSet<int> GetDiskQuotaMedia(const TDiskQuota& diskQuota);
 
 struct TAllocationDescription
 {
-    bool Running;
+    bool Running = false;
     NNodeTrackerClient::TNodeId NodeId;
 
     std::optional<TString> NodeAddress;

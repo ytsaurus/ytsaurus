@@ -650,11 +650,13 @@ bool TSlotManager::Disable(const TError& error)
     const auto& jobController = Bootstrap_->GetJobController();
 
     if (auto syncResult = WaitFor(jobController->AbortAllJobs(jobsAbortionError).WithTimeout(timeout));
-        dynamicConfig->AbortOnFreeSlotSynchronizationFailed)
+        !syncResult.IsOK())
     {
-        YT_LOG_FATAL_IF(!syncResult.IsOK(), syncResult, "Free slot synchronization failed");
-    } else {
-        YT_LOG_WARNING_IF(!syncResult.IsOK(), syncResult, "Free slot synchronization failed");
+        YT_LOG_EVENT(
+            Logger,
+            dynamicConfig->AbortOnFreeSlotSynchronizationFailed ? NLogging::ELogLevel::Fatal : NLogging::ELogLevel::Error,
+            syncResult,
+            "Free slot synchronization failed");
     }
 
     if (auto volumeManager = RootVolumeManager_.Acquire()) {
@@ -662,14 +664,10 @@ bool TSlotManager::Disable(const TError& error)
             .Apply(BIND(&IVolumeManager::DisableLayerCache, volumeManager, error)
             .AsyncVia(Bootstrap_->GetControlInvoker()))
             .WithTimeout(timeout));
-        if (dynamicConfig->AbortOnFreeVolumeSynchronizationFailed) {
-            YT_LOG_FATAL_IF(
-                !result.IsOK(),
-                result,
-                "Free volume synchronization failed");
-        } else {
-            YT_LOG_WARNING_IF(
-                !result.IsOK(),
+        if (!result.IsOK()) {
+            YT_LOG_EVENT(
+                Logger,
+                dynamicConfig->AbortOnFreeVolumeSynchronizationFailed ? NLogging::ELogLevel::Fatal : NLogging::ELogLevel::Error,
                 result,
                 "Free volume synchronization failed");
         }
@@ -711,17 +709,26 @@ void TSlotManager::OnJobFinished(const TJobPtr& job)
 
     auto dynamicConfig = DynamicConfig_.Acquire();
 
-    if (ConsecutiveAbortedSchedulerJobCount_ > dynamicConfig->MaxConsecutiveJobAborts) {
-        if (Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions].IsOK()) {
+    auto setAlert = [&] (ESlotManagerAlertType alertType, TError error, TClosure resetter) {
+        if (Alerts_[alertType].IsOK()) {
             auto delay = GetDisableJobsBackoff();
 
-            auto error = TError("Too many consecutive scheduler job abortions")
-                << TErrorAttribute("max_consecutive_job_aborts", dynamicConfig->MaxConsecutiveJobAborts);
-            YT_LOG_WARNING(error, "Scheduler jobs disabled until %v", TInstant::Now() + delay);
-            Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions] = error;
+            YT_LOG_WARNING(
+                error,
+                "Scheduler jobs disabled (Until: %v)",
+                TInstant::Now() + delay);
+            Alerts_[alertType] = std::move(error);
 
-            TDelayedExecutor::Submit(BIND(&TSlotManager::ResetConsecutiveAbortedJobCount, MakeStrong(this)), delay, Bootstrap_->GetJobInvoker());
+            TDelayedExecutor::Submit(std::move(resetter), delay, Bootstrap_->GetJobInvoker());
         }
+    };
+
+    if (ConsecutiveAbortedSchedulerJobCount_ > dynamicConfig->MaxConsecutiveJobAborts) {
+        setAlert(
+            ESlotManagerAlertType::TooManyConsecutiveJobAbortions,
+            TError("Too many consecutive scheduler job abortions")
+                << TErrorAttribute("max_consecutive_job_aborts", dynamicConfig->MaxConsecutiveJobAborts),
+            BIND(&TSlotManager::ResetConsecutiveAbortedJobCount, MakeStrong(this)));
     }
 
     if (job->IsGpuRequested()) {
@@ -731,20 +738,13 @@ void TSlotManager::OnJobFinished(const TJobPtr& job)
             ConsecutiveFailedGpuJobCount_ = 0;
         }
 
+
         if (ConsecutiveFailedGpuJobCount_ > dynamicConfig->MaxConsecutiveGpuJobFailures) {
-            if (Alerts_[ESlotManagerAlertType::TooManyConsecutiveGpuJobFailures].IsOK()) {
-                auto delay = GetDisableJobsBackoff();
-
-                auto error = TError("Too many consecutive GPU job failures")
-                    << TErrorAttribute("max_consecutive_job_aborts", dynamicConfig->MaxConsecutiveGpuJobFailures);
-                YT_LOG_WARNING(error, "Scheduler jobs disabled until %v", TInstant::Now() + delay);
-                Alerts_[ESlotManagerAlertType::TooManyConsecutiveGpuJobFailures] = error;
-
-                TDelayedExecutor::Submit(
-                    BIND(&TSlotManager::ResetConsecutiveFailedGpuJobCount, MakeStrong(this)),
-                    delay,
-                    Bootstrap_->GetJobInvoker());
-            }
+            setAlert(
+                ESlotManagerAlertType::TooManyConsecutiveGpuJobFailures,
+                TError("Too many consecutive GPU job failures")
+                    << TErrorAttribute("max_consecutive_job_aborts", dynamicConfig->MaxConsecutiveGpuJobFailures),
+                BIND(&TSlotManager::ResetConsecutiveFailedGpuJobCount, MakeStrong(this)));
         }
     }
 }

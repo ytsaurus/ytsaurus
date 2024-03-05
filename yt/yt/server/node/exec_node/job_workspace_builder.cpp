@@ -268,14 +268,7 @@ public:
             std::move(invoker),
             std::move(context),
             std::move(directoryManager))
-    {
-        YT_LOG_DEBUG("Creating simple job workspace builder");
-    }
-
-    ~TSimpleJobWorkspaceBuilder()
-    {
-        YT_LOG_DEBUG("Destroying simple job workspace builder");
-    }
+    { }
 
 private:
     TRootFS MakeWritableRootFS()
@@ -384,14 +377,7 @@ public:
             std::move(invoker),
             std::move(context),
             std::move(directoryManager))
-    {
-        YT_LOG_DEBUG("Creating Porto job workspace builder");
-    }
-
-    ~TPortoJobWorkspaceBuilder()
-    {
-        YT_LOG_DEBUG("Destroying Porto job workspace builder");
-    }
+    { }
 
 private:
     TFuture<void> DoPrepareSandboxDirectories() override
