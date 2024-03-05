@@ -857,10 +857,7 @@ private:
             NodeMemoryReferenceTracker_,
             DataNodeProfiler.WithPrefix("/block_cache"));
 
-        BusServer_ = CreateBusServer(
-            Config_->BusServer,
-            GetYTPacketTranscoderFactory(MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc)),
-            MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc));
+        BusServer_ = CreateBusServer(Config_->BusServer);
 
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
         RpcServer_->Configure(Config_->RpcServer);
