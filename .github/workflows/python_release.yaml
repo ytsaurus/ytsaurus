@@ -93,7 +93,7 @@ jobs:
           mkdir -p "$YA_BUILD_PATH"
 
           ytsaurus/yt/python/packages/build_python_libraries_with_docker.sh
-          cp "$YA_BUILD_PATH/yson_lib.so" ../build/yt/yt/python/yson_shared/libyson_lib.so
+          cp "$YA_BUILD_PATH/yt/yt/python/yson_shared/yson_lib.so" ../build/yt/yt/python/yson_shared/libyson_lib.so
 
       - name: Build package
         id: build
