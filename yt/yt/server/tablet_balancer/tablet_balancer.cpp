@@ -181,7 +181,7 @@ private:
         const IReshardIterationPtr& reshardIteration,
         const TBundleStatePtr& bundleState);
 
-    THashSet<TGroupName> GetBalancingGroups(const TBundleStatePtr& bundleState) const;
+    THashSet<TGroupName> GetBalancingGroups(const TTabletCellBundlePtr& bundleState) const;
 
     std::vector<TString> UpdateBundleList();
     bool HasUntrackedUnfinishedActions(
@@ -192,6 +192,7 @@ private:
         const TTabletCellBundlePtr& bundle,
         const TGlobalGroupTag& groupTag,
         const TTimeFormula& groupSchedule) const;
+    bool CouldAnyBalancingHappen(const TTabletCellBundlePtr& bundle) const;
     TTimeFormula GetBundleSchedule(const TTabletCellBundlePtr& bundle, const TTimeFormula& groupSchedule) const;
 
     void BuildOrchid(IYsonConsumer* consumer) const;
@@ -337,6 +338,20 @@ void TTabletBalancer::BalancerIteration()
             continue;
         }
 
+        if (!IsBalancingAllowed(bundle)) {
+            YT_LOG_INFO("Balancing is disabled (BundleName: %v)",
+                bundleName);
+            continue;
+        }
+
+        if (!CouldAnyBalancingHappen(bundle->GetBundle())) {
+            YT_LOG_INFO("Skip fetching for bundle since balancing is not planned "
+                "at this iteration according to the schedule (BundleName: %v)",
+                bundleName);
+            continue;
+
+        }
+
         YT_LOG_INFO("Started fetching (BundleName: %v)", bundleName);
 
         if (auto result = WaitFor(bundle->UpdateState(
@@ -350,12 +365,6 @@ void TTabletBalancer::BalancerIteration()
                 EErrorCode::StatisticsFetchFailed,
                 "Failed to update meta registry")
                 << result);
-            continue;
-        }
-
-        if (!IsBalancingAllowed(bundle)) {
-            YT_LOG_INFO("Balancing is disabled (BundleName: %v)",
-                bundleName);
             continue;
         }
 
@@ -401,7 +410,7 @@ void TTabletBalancer::TryBalancerIteration()
 void TTabletBalancer::BalanceBundle(const TBundleStatePtr& bundle)
 {
     const auto& bundleName = bundle->GetBundle()->Name;
-    auto groups = GetBalancingGroups(bundle);
+    auto groups = GetBalancingGroups(bundle->GetBundle());
 
     for (const auto& groupName : groups) {
         const auto& groupConfig = GetOrCrash(bundle->GetBundle()->Config->Groups, groupName);
@@ -476,10 +485,9 @@ bool TTabletBalancer::TryScheduleActionCreation(
     return increased;
 }
 
-THashSet<TGroupName> TTabletBalancer::GetBalancingGroups(const TBundleStatePtr& bundleState) const
+THashSet<TGroupName> TTabletBalancer::GetBalancingGroups(const TTabletCellBundlePtr& bundle) const
 {
     THashSet<TGroupName> groups;
-    const auto& bundle = bundleState->GetBundle();
     for (const auto& [id, table] : bundle->Tables) {
         auto groupName = table->GetBalancingGroup();
         if (!groupName) {
@@ -684,6 +692,22 @@ TTimeFormula TTabletBalancer::GetBundleSchedule(
         bundle->Name,
         formula.GetFormula());
     return formula;
+}
+
+bool TTabletBalancer::CouldAnyBalancingHappen(const TTabletCellBundlePtr& bundle) const
+{
+    for (const auto& [bundleName, _] : GroupsToMoveOnNextIteration_) {
+        if (bundle->Name == bundleName) {
+            return true;
+        }
+    }
+
+    for (const auto& [groupName, config] : bundle->Config->Groups) {
+        if (DidBundleBalancingTimeHappen(bundle, {bundle->Name, groupName}, config->Schedule)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundleState)
