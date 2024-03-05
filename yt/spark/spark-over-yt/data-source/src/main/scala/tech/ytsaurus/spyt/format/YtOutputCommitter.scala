@@ -150,7 +150,13 @@ class YtOutputCommitter(jobId: String,
   private def concatenateSortedTables(conf: Configuration, transaction: String): Unit = {
     implicit val yt: CompoundClient = YtClientProvider.ytClient(ytClientConfiguration(conf))
     val tmpTables = YtWrapper.listDir(tmpPath, Some(transaction)).map(name => s"$tmpPath/$name")
-    YtWrapper.concatenate(path +: tmpTables, path, Some(transaction))
+    try {
+      YtWrapper.concatenate(path +: tmpTables, path, Some(transaction))
+    } catch {
+      case e: RuntimeException =>
+        logWarning("Concatenate operation failed. Fallback to merge", e)
+        YtWrapper.mergeTables(tmpPath, path, sorted = true, Some(transaction), conf.getYtSpecConf("merge"))
+    }
     YtWrapper.remove(tmpPath, Some(transaction))
   }
 
