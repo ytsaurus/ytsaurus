@@ -95,14 +95,17 @@ static void ValidateColumnRemoval(
         }
 
         if (!enabledFeatures.EnableStaticTableDropColumn && !isTableDynamic ||
-            !enabledFeatures.EnableDynamicTableDropColumn && isTableDynamic) {
+            !enabledFeatures.EnableDynamicTableDropColumn && isTableDynamic)
+        {
             THROW_ERROR_EXCEPTION("Cannot remove column %v from a strict schema",
                 oldColumn.GetDiagnosticNameString());
         }
 
         if (!newSchema.FindDeletedColumn(oldColumn.StableName())) {
-            THROW_ERROR_EXCEPTION("To remove column %v from a strict schema, put it into "
-                "deleted columns.", oldColumn.GetDiagnosticNameString());
+            THROW_ERROR_EXCEPTION(
+                "Column %v is missing in strict schema; to remove a column, one must annotate it with \"deleted\" flag "
+                "while keeping it in schema",
+                oldColumn.GetDiagnosticNameString());
         }
 
         if (oldColumn.SortOrder() && newSchema.FindDeletedColumn(oldColumn.StableName())) {
@@ -110,20 +113,26 @@ static void ValidateColumnRemoval(
                 oldColumn.GetDiagnosticNameString());
         }
     }
-    if (!newSchema.DeletedColumns().empty()) {
-        if (!enabledFeatures.EnableDynamicTableDropColumn && isTableDynamic) {
-            THROW_ERROR_EXCEPTION("Deleting columns is not allowed on a dynamic table, "
-                "got %v deleted columns", std::ssize(newSchema.DeletedColumns()));
+    if (!newSchema.DeletedColumns().empty() && !enabledFeatures.EnableDynamicTableDropColumn) {
+        auto getDeletedColumnNamesAttribute = [&] {
+            std::vector<TColumnStableName> deletedColumnNames;
+            for (const auto& deletedColumn : newSchema.DeletedColumns()) {
+                deletedColumnNames.push_back(deletedColumn.StableName());
+            }
+            return TErrorAttribute("deleted_columns", deletedColumnNames);
+        };
+        if (!isTableDynamic && !enabledFeatures.EnableStaticTableDropColumn) {
+            THROW_ERROR_EXCEPTION("Deleting columns is not allowed on a static table")
+                << getDeletedColumnNamesAttribute();
         }
-
-        if (!enabledFeatures.EnableStaticTableDropColumn && !isTableDynamic) {
-            THROW_ERROR_EXCEPTION("Deleting columns is not allowed on a static table, "
-                "got %v deleted columns", std::ssize(newSchema.DeletedColumns()));
+        if (isTableDynamic && !enabledFeatures.EnableDynamicTableDropColumn) {
+            THROW_ERROR_EXCEPTION("Deleting columns is not allowed on a dynamic table")
+                << getDeletedColumnNamesAttribute();
         }
     }
     for (const auto& oldDeletedColumn : oldSchema.DeletedColumns()) {
         if (!newSchema.FindDeletedColumn(oldDeletedColumn.StableName())) {
-            THROW_ERROR_EXCEPTION("Deleted column %v must remain in the deleted column list",
+            THROW_ERROR_EXCEPTION("Deleted column %Qv must remain in the deleted column list",
                 oldDeletedColumn.StableName());
         }
     }

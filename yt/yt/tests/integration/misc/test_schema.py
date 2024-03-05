@@ -2899,7 +2899,7 @@ class TestDeleteColumns(YTEnvSetup):
             make_column("a", "int64", sort_order="ascending"),
             make_column("b", "string"),
         ], unique_keys=True, strict=True)
-        with raises_yt_error("Deleted column c must remain in the deleted column list"):
+        with raises_yt_error('Deleted column "c" must remain in the deleted column list'):
             alter_table(self._TABLE_PATH, schema=schema4, verbose=True)
 
         schema5 = make_schema([
@@ -2907,7 +2907,7 @@ class TestDeleteColumns(YTEnvSetup):
             make_column("b", "string"),
             make_column("c", "bool"),
         ], unique_keys=True, strict=True)
-        with raises_yt_error("Deleted column c must remain in the deleted column list"):
+        with raises_yt_error('Deleted column "c" must remain in the deleted column list'):
             alter_table(self._TABLE_PATH, schema=schema5, verbose=True)
 
         schema6 = make_schema([
@@ -2950,7 +2950,7 @@ class TestDeleteColumns(YTEnvSetup):
             make_column("c", "bool"),
             make_deleted_column("bb"),
         ], unique_keys=True, strict=True)
-        with raises_yt_error("To remove column \"bb\" (stable name \"b\") from "):
+        with raises_yt_error("Column \"bb\" (stable name \"b\") is missing in strict schema"):
             alter_table(self._TABLE_PATH, schema=schema3, verbose=True)
 
         schema4 = make_schema([
