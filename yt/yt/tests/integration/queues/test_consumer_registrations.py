@@ -754,6 +754,27 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
             remove(f"{queue}-link")
             remove(f"{consumer}-link")
 
+    @authors("nadya02")
+    @pytest.mark.parametrize("create_registration_table", [
+        TestQueueConsumerApiBase._create_simple_registration_table,
+    ])
+    def test_normalize_cluster(self, create_registration_table):
+        config = create_registration_table(self)
+        self._apply_registration_table_config(config)
+
+        attrs = {"dynamic": True, "schema": [{"name": "a", "type": "string"}]}
+        create("table", "//tmp/q1", attributes=attrs)
+        create("table", "//tmp/c1", attributes=attrs)
+
+        register_queue_consumer("<cluster=cluster.yt.yandex.net>//tmp/q1",  "<cluster=cluster.yt.yandex.net>//tmp/c1", vital=True)
+
+        wait(lambda: self.listed_registrations_are_equal(
+            list_queue_consumer_registrations(),
+            [
+                ("cluster", "//tmp/q1", "cluster", "//tmp/c1", True),
+            ]
+        ))
+
     @authors("cherepashka")
     @pytest.mark.parametrize("create_registration_table", [
         TestQueueConsumerApiBase._create_simple_registration_table,
