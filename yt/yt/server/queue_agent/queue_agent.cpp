@@ -587,6 +587,7 @@ void TQueueAgent::Profile()
                 .Cluster = queueRef.Cluster,
                 .LeadingStatus = getLeadingStatus(queue.Controller),
                 .QueueAgentStage = snapshot->Row.QueueAgentStage.value_or(NoneQueueAgentStage),
+                .ObjectType = snapshot->Row.ObjectType ? ToString(*snapshot->Row.ObjectType) : NoneObjectType,
             };
 
             auto& taggedCounters = tagsToCounters[profilingTags];
@@ -609,6 +610,7 @@ void TQueueAgent::Profile()
                 .Cluster = consumerRef.Cluster,
                 .LeadingStatus = getLeadingStatus(consumer.Controller),
                 .QueueAgentStage = snapshot->Row.QueueAgentStage.value_or(NoneQueueAgentStage),
+                .ObjectType = snapshot->Row.ObjectType ? ToString(*snapshot->Row.ObjectType) : NoneObjectType,
             };
 
             auto& taggedCounters = tagsToCounters[profilingTags];
@@ -655,7 +657,8 @@ TTaggedProfilingCounters& TQueueAgent::GetOrCreateTaggedProfilingCounters(const 
             TTaggedProfilingCounters(QueueAgentProfiler
                 .WithTag("yt_cluster", profilingTags.Cluster)
                 .WithTag("leading_status", profilingTags.LeadingStatus)
-                .WithTag("queue_agent_stage", profilingTags.QueueAgentStage));
+                .WithTag("queue_agent_stage", profilingTags.QueueAgentStage)
+                .WithTag("object_type", profilingTags.ObjectType));
         it = TaggedProfilingCounters_.insert({profilingTags, profilingCounters}).first;
     }
     return it->second;
