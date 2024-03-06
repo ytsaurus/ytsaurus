@@ -11017,10 +11017,14 @@ std::vector<TRichYPath> TOperationControllerBase::GetLayerPaths(
         auto path = *Config->GpuCheckLayerDirectoryPath + "/" + *userJobSpec->GpuCheckLayerName;
         layerPaths.insert(layerPaths.begin(), path);
     }
-    if (Config->CudaProfilerLayerPath && userJobSpec->Profilers) {
+    if (userJobSpec->Profilers) {
         for (const auto& profilerSpec : *userJobSpec->Profilers) {
-            if (profilerSpec->Type == EProfilerType::Cuda) {
-                layerPaths.insert(layerPaths.begin(), *Config->CudaProfilerLayerPath);
+            auto cudaProfilerLayerPath = Spec_->CudaProfilerLayerPath
+                ? Spec_->CudaProfilerLayerPath
+                : Config->CudaProfilerLayerPath;
+
+            if (cudaProfilerLayerPath && profilerSpec->Type == EProfilerType::Cuda) {
+                layerPaths.insert(layerPaths.begin(), *cudaProfilerLayerPath);
                 break;
             }
         }
