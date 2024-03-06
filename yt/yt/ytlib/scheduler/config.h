@@ -1264,6 +1264,8 @@ public:
     //! If set, overrides |Profilers| from operation spec.
     std::optional<std::vector<TJobProfilerSpecPtr>> Profilers;
 
+    bool RedirectStdoutToStderr;
+
     bool EnableRpcProxyInJobProxy;
     int RpcProxyWorkerThreadPoolSize;
 

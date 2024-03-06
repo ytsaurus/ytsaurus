@@ -9890,6 +9890,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_copy_files(jobSpecConfig->CopyFiles);
     jobSpec->set_debug_artifacts_account(debugArtifactsAccount);
     jobSpec->set_set_container_cpu_limit(jobSpecConfig->SetContainerCpuLimit || Options->SetContainerCpuLimit);
+    jobSpec->set_redirect_stdout_to_stderr(jobSpecConfig->RedirectStdoutToStderr);
 
     // This is common policy for all operations of given type.
     if (Options->SetContainerCpuLimit) {

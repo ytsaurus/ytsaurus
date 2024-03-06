@@ -4,10 +4,12 @@ from yt_helpers import profiler_factory
 
 from yt_commands import (
     ls, get, set, print_debug, authors, wait, run_test_vanilla, create_user,
-    wait_breakpoint, with_breakpoint, release_breakpoint)
+    wait_breakpoint, with_breakpoint, release_breakpoint, create, remove, read_table)
 
 from yt.common import YtError, update_inplace
 from yt.wrapper import YtClient
+
+import yt.yson
 
 import pytest
 
@@ -154,6 +156,87 @@ class TestJobProxyBinary(JobProxyTestBase):
         content = op.read_stderr(job_id).decode("ascii").strip()
         release_breakpoint()
         assert re.match(r"^.*/pipes/.*-job-proxy-[0-9]+$", content)
+
+
+class TestJobProxyUserJobFlagRedirectStdoutToStderr(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    ENABLE_HTTP_PROXY = True
+    NUM_HTTP_PROXIES = 1
+
+    @authors("apachee")
+    @pytest.mark.parametrize('env_variable_value,spec', [
+        ("1", {}),
+        ("1", {"redirect_stdout_to_stderr": False}),
+        ("4", {"redirect_stdout_to_stderr": True}),
+    ])
+    def test_first_output_table_fd_env_variable_value(self, env_variable_value: str, spec: dict):
+        command = "echo $YT_FIRST_OUTPUT_TABLE_FD >&2; BREAKPOINT"
+
+        op = run_test_vanilla(
+            with_breakpoint(command),
+            task_patch=spec,
+        )
+
+        job_ids = wait_breakpoint()
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
+        content = op.read_stderr(job_id).decode("ascii").strip()
+
+        # check $YT_FIRST_OUTPUT_TABLE_FD value
+        assert content == env_variable_value
+
+        release_breakpoint()
+
+    @authors("apachee")
+    @pytest.mark.parametrize("tables_data_yson,spec", [
+        (["{a=1};", "{b=2};"], {}),
+        (["{a=3};", "{b=4};"], {"redirect_stdout_to_stderr": False}),
+        (["{a=5};", "{b=6};"], {"redirect_stdout_to_stderr": True}),
+    ])
+    def test_output_pipes(self, tables_data_yson: list[str], spec: dict):
+        tables_data = [
+            yt.yson.loads(f"[{table_data_yson}]".encode("ascii"))
+            for table_data_yson in tables_data_yson
+        ]
+
+        tables = [f"//tmp/t{i}" for i in range(len(tables_data))]
+        for table in tables:
+            create("table", table)
+
+        commands = [
+            f"echo {table_data_yson!r} >&$(( $YT_FIRST_OUTPUT_TABLE_FD + {3*i} ));"
+            for i, table_data_yson in enumerate(tables_data_yson)
+        ]
+        command = " ".join(commands)
+
+        run_test_vanilla(command, track=True, task_patch={
+            "output_table_paths": tables,
+            **spec
+        })
+
+        # check contents of the tables
+        for table, table_data in zip(tables, tables_data):
+            assert read_table(table) == table_data
+
+        for table in tables:
+            remove(table)
+
+    @authors("apachee")
+    def test_stdout(self):
+        op = run_test_vanilla(with_breakpoint("echo content; BREAKPOINT"), task_patch={
+            "redirect_stdout_to_stderr": True
+        })
+
+        job_ids = wait_breakpoint()
+
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
+        content = op.read_stderr(job_id).decode('ascii').strip()
+        assert content == "content"
+
+        release_breakpoint()
 
 
 class TestRpcProxyInJobProxy(YTEnvSetup):

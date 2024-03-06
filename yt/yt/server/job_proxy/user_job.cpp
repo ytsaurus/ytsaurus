@@ -16,6 +16,8 @@
 #include <yt/yt/library/containers/porto_executor.h>
 #endif
 
+#include <yt/yt/server/job_proxy/public.h>
+
 #include <yt/yt/server/lib/job_proxy/config.h>
 
 #include <yt/yt/server/lib/exec_node/config.h>
@@ -45,6 +47,7 @@
 
 #include <yt/yt/ytlib/file_client/file_chunk_output.h>
 
+#include <yt/yt/ytlib/job_proxy/helpers.h>
 #include <yt/yt/ytlib/job_proxy/user_job_read_controller.h>
 
 #include <yt/yt/ytlib/query_client/functions_cache.h>
@@ -977,12 +980,18 @@ private:
 
         auto outputStreamCount = UserJobWriteController_->GetOutputStreamCount();
         TableOutputs_.reserve(outputStreamCount);
+
+        if (UserJobSpec_.use_yamr_descriptors() && UserJobSpec_.redirect_stdout_to_stderr()) {
+            THROW_ERROR_EXCEPTION("Uncompatible flags are present in operation spec: " \
+                                  "use_yamr_descriptors and redirect_stdout_to_stderr.");
+        }
+
         for (int i = 0; i < outputStreamCount; ++i) {
             TableOutputs_.emplace_back(std::make_unique<TTableOutput>(std::move(parsers[i])));
 
             int jobDescriptor = UserJobSpec_.use_yamr_descriptors()
                 ? 3 + i
-                : 3 * i + 1;
+                : 3 * i + GetJobFirstOutputTableFdFromSpec(UserJobSpec_);
 
             // In case of YAMR jobs dup 1 and 3 fd for YAMR compatibility
             auto wrappingError = TError("Error writing to output table %v", i);
@@ -1123,25 +1132,35 @@ private:
 
         // We use the following convention for designating input and output file descriptors
         // in job processes:
-        // fd == 3 * (N - 1) for the N-th input table (if exists)
-        // fd == 3 * (N - 1) + 1 for the N-th output table (if exists)
+        //
+        // The first output table file descriptor is
+        // defined by the environment variable YT_FIRST_TABLE_OUTPUT_FD.
+        // The default value of YT_FIRST_TABLE_OUTPUT_FD is 1 to
+        // conform to the convention prior to the addition of this variable.
+        //
+        // fd = 0 for all table inputs
+        // fd = 3 * (N - 1) + $YT_FIRST_TABLE_OUTPUT_FD for the N-th output table (if exists)
         // fd == 2 for the error stream
         // fd == 5 for statistics
         // fd == 8 for job profiles
-        // e. g.
+        // e. g. for YT_FIRST_TABLE_OUTPUT_TABLE_FD = 1
         // 0 - all input tables
         // 1 - first output table
         // 2 - error stream
         // 3 - not used
         // 4 - second output table
-        //
-        // A special option (ToDo(psushin): which one?) enables concatenating
-        // all input streams into fd == 0.
 
         // Configure stderr pipe.
+
+        std::vector<int> errorOutputDescriptors = {STDERR_FILENO};
+        // Redirect stdout to stderr to allow writing to stdout.
+        if (UserJobSpec_.redirect_stdout_to_stderr()) {
+            errorOutputDescriptors.push_back(STDOUT_FILENO);
+        }
+
         StderrPipeReader_ = PrepareOutputPipeReader(
             CreateNamedPipe(),
-            {STDERR_FILENO},
+            errorOutputDescriptors,
             CreateErrorOutput(),
             &StderrActions_,
             TError("Error writing to stderr"));
@@ -1206,6 +1225,11 @@ private:
             Environment_.push_back(Format("YT_JOB_PROFILER_SPEC=%v", spec));
 
             YT_LOG_INFO("User job profiler is enabled (Spec: %v)", spec);
+        }
+
+        if (!UserJobSpec_.use_yamr_descriptors()) {
+            int jobFirstOutputTableFd = GetJobFirstOutputTableFdFromSpec(UserJobSpec_);
+            Environment_.push_back(Format("YT_FIRST_OUTPUT_TABLE_FD=%v", jobFirstOutputTableFd));
         }
 
         const auto& environment = UserJobEnvironment_->GetEnvironmentVariables();
