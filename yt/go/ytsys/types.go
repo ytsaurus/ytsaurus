@@ -325,6 +325,16 @@ func (n *Node) HasTag(t string) bool {
 	return false
 }
 
+// HasAnyTag check that node has at least one of given tags.
+func (n *Node) HasAnyTag(tags []string) bool {
+	for _, tag := range tags {
+		if n.HasTag(tag) {
+			return true
+		}
+	}
+	return false
+}
+
 // HasFlavor check that node has given flavor.
 func (n *Node) HasFlavor(f string) bool {
 	for _, flavor := range n.Flavors {
