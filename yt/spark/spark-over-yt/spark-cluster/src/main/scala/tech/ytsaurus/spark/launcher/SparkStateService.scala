@@ -105,7 +105,7 @@ object SparkStateService {
         }
       }
 
-        override def masterStats: Try[MasterStats] = {
+      override def masterStats: Try[MasterStats] = {
         val uri = uri"http://${webUi.asString}/metrics/master/prometheus"
         log.debug(s"querying $uri")
         basicRequest

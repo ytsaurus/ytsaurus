@@ -104,7 +104,7 @@ trait SparkLauncher {
 
   private def copyToSparkConfIfExists(filename: String): Unit = {
     val src = Path.of(home, filename)
-    val dst = Path.of(sparkHome, "conf", filename)
+    val dst = Path.of(spytHome, "conf", filename)
     if (Files.exists(src)) {
       Files.deleteIfExists(dst)
       Files.copy(src, dst)

@@ -69,11 +69,11 @@ object AdditionalMetricsSender {
       def initialize(): Unit = {
         // Add default properties in case there's no properties file
         setDefaultProperties(properties)
-        val sparkHome = sys.env.get("SPARK_HOME").map(p => p.replaceAll("\\$HOME", sys.env.getOrElse("HOME", "")))
+        val spytHome = sys.env.get("SPYT_HOME").map(p => p.replaceAll("\\$HOME", sys.env.getOrElse("HOME", "")))
         // constant from config package replaced with plain string
         loadPropertiesFromFile(
           systemProps.get("spark.metrics.conf")
-            .orElse(sparkHome.map(p => s"$p/conf/metrics.properties"))
+            .orElse(spytHome.map(p => s"$p/conf/metrics.properties"))
         )
 
         // Also look for the properties in provided Spark configuration
