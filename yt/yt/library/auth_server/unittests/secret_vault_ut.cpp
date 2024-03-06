@@ -43,6 +43,7 @@ protected:
         config->Secure = false;
         config->RequestTimeout = TDuration::Seconds(1);
         config->Consumer = "yp.unittest";
+        config->EnableRevocation = true;
         return config;
     }
 

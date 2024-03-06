@@ -316,6 +316,7 @@ public:
     TDuration RequestTimeout;
     TString VaultServiceId;
     TString Consumer;
+    bool EnableRevocation;
 
     REGISTER_YSON_STRUCT(TDefaultSecretVaultServiceConfig);
 

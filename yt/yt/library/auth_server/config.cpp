@@ -202,6 +202,8 @@ void TDefaultSecretVaultServiceConfig::Register(TRegistrar registrar)
         .Default("yav");
     registrar.Parameter("consumer", &TThis::Consumer)
         .Optional();
+    registrar.Parameter("enable_revocation", &TThis::EnableRevocation)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

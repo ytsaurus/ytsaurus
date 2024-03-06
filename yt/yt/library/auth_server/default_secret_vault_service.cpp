@@ -123,6 +123,10 @@ public:
 
         CallCountCounter_.Increment();
 
+        if (!Config_->EnableRevocation) {
+            return;
+        }
+
         try {
             const auto url = MakeRequestUrl("/1/tokens/revoke", false);
             const auto headers = New<THeaders>();
