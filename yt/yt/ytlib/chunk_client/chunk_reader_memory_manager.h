@@ -126,6 +126,8 @@ private:
 
     DECLARE_NEW_FRIEND()
 
+    TMemoryUsageGuardPtr OnSemaphoreAcquired(NConcurrency::TAsyncSemaphoreGuard&& semaphoreGuard);
+
     void OnMemoryRequirementsUpdated();
 
     void DoUnregister();

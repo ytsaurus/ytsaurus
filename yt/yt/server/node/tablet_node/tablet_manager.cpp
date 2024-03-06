@@ -533,8 +533,8 @@ public:
             ->AsyncAcquire()
             .ApplyUnique(
                 BIND(
-                    &TTabletManager::OnStoresUpdateCommitSemaphoreAcquired,
-                    MakeStrong(this),
+                    ThrowOnDestroyed(&TTabletManager::OnStoresUpdateCommitSemaphoreAcquired),
+                    MakeWeak(this),
                     tablet,
                     transaction)
                 .AsyncVia(tablet->GetEpochAutomatonInvoker()));

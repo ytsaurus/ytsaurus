@@ -64,8 +64,8 @@ void TEncodingWriter::WriteBlock(
 
     auto blockFuture = CodecSemaphore_->AsyncAcquire().ApplyUnique(
         BIND(
-            &TEncodingWriter::DoCompressBlock,
-            MakeStrong(this),
+            ThrowOnDestroyed(&TEncodingWriter::DoCompressBlock),
+            MakeWeak(this),
             std::move(block),
             blockType,
             AddedBlockIndex_,
