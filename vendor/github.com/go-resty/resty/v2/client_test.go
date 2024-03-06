@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2023 Jeevanandam M (jeeva@myjeeva.com), All rights reserved.
+// Copyright (c) 2015-2021 Jeevanandam M (jeeva@myjeeva.com), All rights reserved.
 // resty source code and usage is governed by a MIT style
 // license that can be found in the LICENSE file.
 
@@ -9,11 +9,10 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
 	"reflect"
 	"strconv"
@@ -82,77 +81,6 @@ func TestClientAuthScheme(t *testing.T) {
 
 }
 
-func TestClientDigestAuth(t *testing.T) {
-	conf := defaultDigestServerConf()
-	ts := createDigestServer(t, conf)
-	defer ts.Close()
-
-	c := dc().
-		SetBaseURL(ts.URL+"/").
-		SetDigestAuth(conf.username, conf.password)
-
-	resp, err := c.R().
-		SetResult(&AuthSuccess{}).
-		Get(conf.uri)
-	assertError(t, err)
-	assertEqual(t, http.StatusOK, resp.StatusCode())
-
-	t.Logf("Result Success: %q", resp.Result().(*AuthSuccess))
-	logResponse(t, resp)
-}
-
-func TestClientDigestSession(t *testing.T) {
-	conf := defaultDigestServerConf()
-	conf.algo = "MD5-sess"
-	ts := createDigestServer(t, conf)
-	defer ts.Close()
-
-	c := dc().
-		SetBaseURL(ts.URL+"/").
-		SetDigestAuth(conf.username, conf.password)
-
-	resp, err := c.R().
-		SetResult(&AuthSuccess{}).
-		Get(conf.uri)
-	assertError(t, err)
-	assertEqual(t, http.StatusOK, resp.StatusCode())
-
-	t.Logf("Result Success: %q", resp.Result().(*AuthSuccess))
-	logResponse(t, resp)
-}
-
-func TestClientDigestErrors(t *testing.T) {
-	type test struct {
-		mutateConf func(*digestServerConfig)
-		expect     error
-	}
-	tests := []test{
-		{mutateConf: func(c *digestServerConfig) { c.algo = "BAD_ALGO" }, expect: ErrDigestAlgNotSupported},
-		{mutateConf: func(c *digestServerConfig) { c.qop = "bad-qop" }, expect: ErrDigestQopNotSupported},
-		{mutateConf: func(c *digestServerConfig) { c.qop = "" }, expect: ErrDigestNoQop},
-		{mutateConf: func(c *digestServerConfig) { c.charset = "utf-16" }, expect: ErrDigestCharset},
-		{mutateConf: func(c *digestServerConfig) { c.uri = "/bad" }, expect: ErrDigestBadChallenge},
-		{mutateConf: func(c *digestServerConfig) { c.uri = "/unknown_param" }, expect: ErrDigestBadChallenge},
-		{mutateConf: func(c *digestServerConfig) { c.uri = "/missing_value" }, expect: ErrDigestBadChallenge},
-		{mutateConf: func(c *digestServerConfig) { c.uri = "/no_challenge" }, expect: ErrDigestBadChallenge},
-		{mutateConf: func(c *digestServerConfig) { c.uri = "/status_500" }, expect: nil},
-	}
-
-	for _, tc := range tests {
-		conf := defaultDigestServerConf()
-		tc.mutateConf(conf)
-		ts := createDigestServer(t, conf)
-
-		c := dc().
-			SetBaseURL(ts.URL+"/").
-			SetDigestAuth(conf.username, conf.password)
-
-		_, err := c.R().Get(conf.uri)
-		assertErrorIs(t, tc.expect, err)
-		ts.Close()
-	}
-}
-
 func TestOnAfterMiddleware(t *testing.T) {
 	ts := createGenServer(t)
 	defer ts.Close()
@@ -181,13 +109,13 @@ func TestClientRedirectPolicy(t *testing.T) {
 	c := dc().SetRedirectPolicy(FlexibleRedirectPolicy(20))
 	_, err := c.R().Get(ts.URL + "/redirect-1")
 
-	assertEqual(t, true, (err.Error() == "Get /redirect-21: stopped after 20 redirects" ||
-		err.Error() == "Get \"/redirect-21\": stopped after 20 redirects"))
+	assertEqual(t, true, ("Get /redirect-21: stopped after 20 redirects" == err.Error() ||
+		"Get \"/redirect-21\": stopped after 20 redirects" == err.Error()))
 
 	c.SetRedirectPolicy(NoRedirectPolicy())
 	_, err = c.R().Get(ts.URL + "/redirect-1")
-	assertEqual(t, true, (err.Error() == "Get /redirect-2: auto redirect is disabled" ||
-		err.Error() == "Get \"/redirect-2\": auto redirect is disabled"))
+	assertEqual(t, true, ("Get /redirect-2: auto redirect is disabled" == err.Error() ||
+		"Get \"/redirect-2\": auto redirect is disabled" == err.Error()))
 }
 
 func TestClientTimeout(t *testing.T) {
@@ -249,7 +177,7 @@ func TestClientSetCertificates(t *testing.T) {
 	client := dc()
 	client.SetCertificates(tls.Certificate{})
 
-	transport, err := client.Transport()
+	transport, err := client.transport()
 
 	assertNil(t, err)
 	assertEqual(t, 1, len(transport.TLSClientConfig.Certificates))
@@ -259,7 +187,7 @@ func TestClientSetRootCertificate(t *testing.T) {
 	client := dc()
 	client.SetRootCertificate(filepath.Join(getTestDataPath(), "sample-root.pem"))
 
-	transport, err := client.Transport()
+	transport, err := client.transport()
 
 	assertNil(t, err)
 	assertNotNil(t, transport.TLSClientConfig.RootCAs)
@@ -269,7 +197,7 @@ func TestClientSetRootCertificateNotExists(t *testing.T) {
 	client := dc()
 	client.SetRootCertificate(filepath.Join(getTestDataPath(), "not-exists-sample-root.pem"))
 
-	transport, err := client.Transport()
+	transport, err := client.transport()
 
 	assertNil(t, err)
 	assertNil(t, transport.TLSClientConfig)
@@ -277,12 +205,12 @@ func TestClientSetRootCertificateNotExists(t *testing.T) {
 
 func TestClientSetRootCertificateFromString(t *testing.T) {
 	client := dc()
-	rootPemData, err := os.ReadFile(filepath.Join(getTestDataPath(), "sample-root.pem"))
+	rootPemData, err := ioutil.ReadFile(filepath.Join(getTestDataPath(), "sample-root.pem"))
 	assertNil(t, err)
 
 	client.SetRootCertificateFromString(string(rootPemData))
 
-	transport, err := client.Transport()
+	transport, err := client.transport()
 
 	assertNil(t, err)
 	assertNotNil(t, transport.TLSClientConfig.RootCAs)
@@ -290,13 +218,13 @@ func TestClientSetRootCertificateFromString(t *testing.T) {
 
 func TestClientSetRootCertificateFromStringErrorTls(t *testing.T) {
 	client := NewWithClient(&http.Client{})
-	client.outputLogTo(io.Discard)
+	client.outputLogTo(ioutil.Discard)
 
-	rootPemData, err := os.ReadFile(filepath.Join(getTestDataPath(), "sample-root.pem"))
+	rootPemData, err := ioutil.ReadFile(filepath.Join(getTestDataPath(), "sample-root.pem"))
 	assertNil(t, err)
 	rt := &CustomRoundTripper{}
 	client.SetTransport(rt)
-	transport, err := client.Transport()
+	transport, err := client.transport()
 
 	client.SetRootCertificateFromString(string(rootPemData))
 
@@ -334,9 +262,7 @@ func TestClientSetHeaderVerbatim(t *testing.T) {
 		SetHeaderVerbatim("header-lowercase", "value_lowercase").
 		SetHeader("header-lowercase", "value_standard")
 
-	//lint:ignore SA1008 valid one, so ignore this!
-	unConventionHdrValue := strings.Join(c.Header["header-lowercase"], "")
-	assertEqual(t, "value_lowercase", unConventionHdrValue)
+	assertEqual(t, "value_lowercase", strings.Join(c.Header["header-lowercase"], "")) //nolint
 	assertEqual(t, "value_standard", c.Header.Get("Header-Lowercase"))
 }
 
@@ -352,7 +278,7 @@ func TestClientSetTransport(t *testing.T) {
 		},
 	}
 	client.SetTransport(transport)
-	transportInUse, err := client.Transport()
+	transportInUse, err := client.transport()
 
 	assertNil(t, err)
 	assertEqual(t, true, transport == transportInUse)
@@ -451,7 +377,7 @@ func TestClientOptions(t *testing.T) {
 	}
 
 	client.SetTLSClientConfig(&tls.Config{InsecureSkipVerify: true})
-	transport, transportErr := client.Transport()
+	transport, transportErr := client.transport()
 
 	assertNil(t, transportErr)
 	assertEqual(t, true, transport.TLSClientConfig.InsecureSkipVerify)
@@ -488,17 +414,6 @@ func TestClientOptions(t *testing.T) {
 	assertEqual(t, client.closeConnection, true)
 }
 
-func TestContentLengthWhenBodyIsNil(t *testing.T) {
-	client := dc()
-
-	client.SetPreRequestHook(func(c *Client, r *http.Request) error {
-		assertEqual(t, "0", r.Header.Get(hdrContentLengthKey))
-		return nil
-	})
-
-	client.R().SetContentLength(true).SetBody(nil).Get("http://localhost")
-}
-
 func TestClientPreRequestHook(t *testing.T) {
 	client := dc()
 	client.SetPreRequestHook(func(c *Client, r *http.Request) error {
@@ -512,7 +427,7 @@ func TestClientPreRequestHook(t *testing.T) {
 		// Reading Request `N` no of times
 		for i := 0; i < 5; i++ {
 			b, _ := r.GetBody()
-			rb, _ := io.ReadAll(b)
+			rb, _ := ioutil.ReadAll(b)
 			c.log.Debugf("%s %v", string(rb), len(rb))
 			assertEqual(t, true, len(rb) >= 45)
 		}
@@ -554,22 +469,6 @@ func TestClientAllowsGetMethodPayload(t *testing.T) {
 	assertEqual(t, payload, resp.String())
 }
 
-func TestClientAllowsGetMethodPayloadIoReader(t *testing.T) {
-	ts := createGetServer(t)
-	defer ts.Close()
-
-	c := dc()
-	c.SetAllowGetMethodPayload(true)
-
-	payload := "test-payload"
-	body := bytes.NewReader([]byte(payload))
-	resp, err := c.R().SetBody(body).Get(ts.URL + "/get-method-payload-test")
-
-	assertError(t, err)
-	assertEqual(t, http.StatusOK, resp.StatusCode())
-	assertEqual(t, payload, resp.String())
-}
-
 func TestClientAllowsGetMethodPayloadDisabled(t *testing.T) {
 	ts := createGetServer(t)
 	defer ts.Close()
@@ -587,12 +486,12 @@ func TestClientAllowsGetMethodPayloadDisabled(t *testing.T) {
 
 func TestClientRoundTripper(t *testing.T) {
 	c := NewWithClient(&http.Client{})
-	c.outputLogTo(io.Discard)
+	c.outputLogTo(ioutil.Discard)
 
 	rt := &CustomRoundTripper{}
 	c.SetTransport(rt)
 
-	ct, err := c.Transport()
+	ct, err := c.transport()
 	assertNotNil(t, err)
 	assertNil(t, ct)
 	assertEqual(t, "current transport is not an *http.Transport instance", err.Error())
@@ -608,38 +507,6 @@ func TestClientNewRequest(t *testing.T) {
 	c := New()
 	request := c.NewRequest()
 	assertNotNil(t, request)
-}
-
-func TestClientSetJSONMarshaler(t *testing.T) {
-	m := func(v interface{}) ([]byte, error) { return nil, nil }
-	c := New().SetJSONMarshaler(m)
-	p1 := fmt.Sprintf("%p", c.JSONMarshal)
-	p2 := fmt.Sprintf("%p", m)
-	assertEqual(t, p1, p2) // functions can not be compared, we only can compare pointers
-}
-
-func TestClientSetJSONUnmarshaler(t *testing.T) {
-	m := func([]byte, interface{}) error { return nil }
-	c := New().SetJSONUnmarshaler(m)
-	p1 := fmt.Sprintf("%p", c.JSONUnmarshal)
-	p2 := fmt.Sprintf("%p", m)
-	assertEqual(t, p1, p2) // functions can not be compared, we only can compare pointers
-}
-
-func TestClientSetXMLMarshaler(t *testing.T) {
-	m := func(v interface{}) ([]byte, error) { return nil, nil }
-	c := New().SetXMLMarshaler(m)
-	p1 := fmt.Sprintf("%p", c.XMLMarshal)
-	p2 := fmt.Sprintf("%p", m)
-	assertEqual(t, p1, p2) // functions can not be compared, we only can compare pointers
-}
-
-func TestClientSetXMLUnmarshaler(t *testing.T) {
-	m := func([]byte, interface{}) error { return nil }
-	c := New().SetXMLUnmarshaler(m)
-	p1 := fmt.Sprintf("%p", c.XMLUnmarshal)
-	p2 := fmt.Sprintf("%p", m)
-	assertEqual(t, p1, p2) // functions can not be compared, we only can compare pointers
 }
 
 func TestDebugBodySizeLimit(t *testing.T) {
@@ -722,12 +589,12 @@ func TestLogCallbacks(t *testing.T) {
 	c.outputLogTo(&lgr)
 
 	c.OnRequestLog(func(r *RequestLog) error {
-		// masking authorization header
+		// masking authorzation header
 		r.Header.Set("Authorization", "Bearer *******************************")
 		return nil
 	})
 	c.OnResponseLog(func(r *ResponseLog) error {
-		r.Header.Add("X-Debug-Response-Log", "Modified :)")
+		r.Header.Add("X-Debug-Resposne-Log", "Modified :)")
 		r.Body += "\nModified the response body content"
 		return nil
 	})
@@ -745,7 +612,7 @@ func TestLogCallbacks(t *testing.T) {
 	// Validating debug log updates
 	logInfo := lgr.String()
 	assertEqual(t, true, strings.Contains(logInfo, "Bearer *******************************"))
-	assertEqual(t, true, strings.Contains(logInfo, "X-Debug-Response-Log"))
+	assertEqual(t, true, strings.Contains(logInfo, "X-Debug-Resposne-Log"))
 	assertEqual(t, true, strings.Contains(logInfo, "Modified the response body content"))
 
 	// Error scenario
@@ -766,29 +633,6 @@ func TestLogCallbacks(t *testing.T) {
 	assertNotNil(t, resp)
 }
 
-func TestDebugLogSimultaneously(t *testing.T) {
-	ts := createGetServer(t)
-
-	c := New().
-		SetDebug(true).
-		SetBaseURL(ts.URL).
-		outputLogTo(io.Discard)
-
-	t.Cleanup(ts.Close)
-	for i := 0; i < 50; i++ {
-		t.Run(fmt.Sprint(i), func(t *testing.T) {
-			t.Parallel()
-			resp, err := c.R().
-				SetBody([]int{1, 2, 3}).
-				SetHeader(hdrContentTypeKey, "application/json; charset=utf-8").
-				Post("/")
-
-			assertError(t, err)
-			assertEqual(t, http.StatusOK, resp.StatusCode())
-		})
-	}
-}
-
 func TestNewWithLocalAddr(t *testing.T) {
 	ts := createGetServer(t)
 	defer ts.Close()
@@ -803,6 +647,9 @@ func TestNewWithLocalAddr(t *testing.T) {
 }
 
 func TestClientOnResponseError(t *testing.T) {
+	ts := createAuthServer(t)
+	defer ts.Close()
+
 	tests := []struct {
 		name        string
 		setup       func(*Client)
@@ -882,12 +729,7 @@ func TestClientOnResponseError(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			ts := createAuthServer(t)
-			defer ts.Close()
-
 			var assertErrorHook = func(r *Request, err error) {
 				assertNotNil(t, r)
 				v, ok := err.(*ResponseError)
@@ -907,7 +749,7 @@ func TestClientOnResponseError(t *testing.T) {
 					assertEqual(t, 1, hook6)
 				}
 			}()
-			c := New().outputLogTo(io.Discard).
+			c := New().outputLogTo(ioutil.Discard).
 				SetTLSClientConfig(&tls.Config{InsecureSkipVerify: true}).
 				SetAuthToken("004DDB79-6801-4587-B976-F093E6AC44FF").
 				SetRetryCount(0).
@@ -1040,32 +882,4 @@ func TestPostRedirectWithBody(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-}
-
-func TestUnixSocket(t *testing.T) {
-	unixSocketAddr := createUnixSocketEchoServer(t)
-	defer os.Remove(unixSocketAddr)
-
-	// Create a Go's http.Transport so we can set it in resty.
-	transport := http.Transport{
-		Dial: func(_, _ string) (net.Conn, error) {
-			return net.Dial("unix", unixSocketAddr)
-		},
-	}
-
-	// Create a Resty Client
-	client := New()
-
-	// Set the previous transport that we created, set the scheme of the communication to the
-	// socket and set the unixSocket as the HostURL.
-	client.SetTransport(&transport).SetScheme("http").SetHostURL(unixSocketAddr)
-
-	// No need to write the host's URL on the request, just the path.
-	res, err := client.R().Get("http://localhost/")
-	assertNil(t, err)
-	assertEqual(t, "Hi resty client from a server running on Unix domain socket!", res.String())
-
-	res, err = client.R().Get("http://localhost/hello")
-	assertNil(t, err)
-	assertEqual(t, "Hello resty client from a server running on endpoint /hello!", res.String())
 }

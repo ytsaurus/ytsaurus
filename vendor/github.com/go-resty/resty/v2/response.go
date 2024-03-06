@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2023 Jeevanandam M (jeeva@myjeeva.com), All rights reserved.
+// Copyright (c) 2015-2021 Jeevanandam M (jeeva@myjeeva.com), All rights reserved.
 // resty source code and usage is governed by a MIT style
 // license that can be found in the LICENSE file.
 
@@ -35,18 +35,6 @@ func (r *Response) Body() []byte {
 		return []byte{}
 	}
 	return r.body
-}
-
-// SetBody method is to set Response body in byte slice. Typically,
-// its helpful for test cases.
-//
-//	resp.SetBody([]byte("This is test body content"))
-//	resp.SetBody(nil)
-//
-// Since v2.10.0
-func (r *Response) SetBody(b []byte) *Response {
-	r.body = b
-	return r
 }
 
 // Status method returns the HTTP status string for the executed request.
@@ -105,7 +93,7 @@ func (r *Response) Cookies() []*http.Cookie {
 
 // String method returns the body of the server response as String.
 func (r *Response) String() string {
-	if len(r.body) == 0 {
+	if r.body == nil {
 		return ""
 	}
 	return strings.TrimSpace(string(r.body))
@@ -168,7 +156,7 @@ func (r *Response) setReceivedAt() {
 }
 
 func (r *Response) fmtBodyString(sl int64) string {
-	if len(r.body) > 0 {
+	if r.body != nil {
 		if int64(len(r.body)) > sl {
 			return fmt.Sprintf("***** RESPONSE TOO LARGE (size - %d) *****", len(r.body))
 		}

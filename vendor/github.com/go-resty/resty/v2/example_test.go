@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2023 Jeevanandam M. (jeeva@myjeeva.com), All rights reserved.
+// Copyright (c) 2015-2021 Jeevanandam M. (jeeva@myjeeva.com), All rights reserved.
 // resty source code and usage is governed by a MIT style
 // license that can be found in the LICENSE file.
 
@@ -7,6 +7,7 @@ package resty_test
 import (
 	"crypto/tls"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -120,7 +121,8 @@ func Example_post() {
 func Example_dropboxUpload() {
 	// For example: upload file to Dropbox
 	// POST of raw bytes for file upload.
-	fileBytes, _ := os.ReadFile("/Users/jeeva/mydocument.pdf")
+	file, _ := os.Open("/Users/jeeva/mydocument.pdf")
+	fileBytes, _ := ioutil.ReadAll(file)
 
 	// Create a resty client
 	client := resty.New()

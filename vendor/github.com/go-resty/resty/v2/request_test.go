@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2023 Jeevanandam M (jeeva@myjeeva.com), All rights reserved.
+// Copyright (c) 2015-2021 Jeevanandam M (jeeva@myjeeva.com), All rights reserved.
 // resty source code and usage is governed by a MIT style
 // license that can be found in the LICENSE file.
 
@@ -10,6 +10,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -19,8 +20,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"golang.org/x/time/rate"
 )
 
 type AuthSuccess struct {
@@ -47,63 +46,6 @@ func TestGet(t *testing.T) {
 	assertEqual(t, "TestGet: text response", resp.String())
 
 	logResponse(t, resp)
-}
-
-func TestGetGH524(t *testing.T) {
-	ts := createGetServer(t)
-	defer ts.Close()
-
-	resp, err := dc().R().
-		SetPathParams((map[string]string{
-			"userId":       "sample@sample.com",
-			"subAccountId": "100002",
-			"path":         "groups/developers",
-		})).
-		SetQueryParam("request_no", strconv.FormatInt(time.Now().Unix(), 10)).
-		SetDebug(true).
-		Get(ts.URL + "/v1/users/{userId}/{subAccountId}/{path}/details")
-
-	assertError(t, err)
-	assertEqual(t, http.StatusOK, resp.StatusCode())
-	assertEqual(t, resp.Request.Header.Get("Content-Type"), "") //  unable to reproduce reported issue
-}
-
-func TestRateLimiter(t *testing.T) {
-	ts := createGetServer(t)
-	defer ts.Close()
-
-	// Test a burst with a valid capacity and then a consecutive request that must fail.
-
-	// Allow a rate of 1 every 100 ms but also allow bursts of 10 requests.
-	client := dc().SetRateLimiter(rate.NewLimiter(rate.Every(100*time.Millisecond), 10))
-
-	// Execute a burst of 10 requests.
-	for i := 0; i < 10; i++ {
-		resp, err := client.R().
-			SetQueryParam("request_no", strconv.Itoa(i)).Get(ts.URL + "/")
-		assertError(t, err)
-		assertEqual(t, http.StatusOK, resp.StatusCode())
-	}
-	// Next request issued directly should fail because burst of 10 has been consumed.
-	{
-		_, err := client.R().
-			SetQueryParam("request_no", strconv.Itoa(11)).Get(ts.URL + "/")
-		assertErrorIs(t, ErrRateLimitExceeded, err)
-	}
-
-	// Test continues request at a valid rate
-
-	// Allow a rate of 1 every ms with no burst.
-	client = dc().SetRateLimiter(rate.NewLimiter(rate.Every(1*time.Millisecond), 1))
-
-	// Sending requests every ms+tiny delta must succeed.
-	for i := 0; i < 100; i++ {
-		resp, err := client.R().
-			SetQueryParam("request_no", strconv.Itoa(i)).Get(ts.URL + "/")
-		assertError(t, err)
-		assertEqual(t, http.StatusOK, resp.StatusCode())
-		time.Sleep(1*time.Millisecond + 100*time.Microsecond)
-	}
 }
 
 func TestIllegalRetryCount(t *testing.T) {
@@ -142,7 +84,7 @@ func TestGetClientParamRequestParam(t *testing.T) {
 	c.SetQueryParam("client_param", "true").
 		SetQueryParams(map[string]string{"req_1": "jeeva", "req_3": "jeeva3"}).
 		SetDebug(true)
-	c.outputLogTo(io.Discard)
+	c.outputLogTo(ioutil.Discard)
 
 	resp, err := c.R().
 		SetQueryParams(map[string]string{"req_1": "req 1 value", "req_2": "req 2 value"}).
@@ -688,59 +630,6 @@ func TestRequestAuthScheme(t *testing.T) {
 	assertEqual(t, http.StatusOK, resp.StatusCode())
 }
 
-func TestRequestDigestAuth(t *testing.T) {
-	conf := defaultDigestServerConf()
-	ts := createDigestServer(t, nil)
-	defer ts.Close()
-
-	resp, err := dclr().
-		SetDigestAuth(conf.username, conf.password).
-		SetResult(&AuthSuccess{}).
-		Get(ts.URL + conf.uri)
-
-	assertError(t, err)
-	assertEqual(t, http.StatusOK, resp.StatusCode())
-
-	t.Logf("Result Success: %q", resp.Result().(*AuthSuccess))
-	logResponse(t, resp)
-}
-
-func TestRequestDigestAuthFail(t *testing.T) {
-	conf := defaultDigestServerConf()
-	ts := createDigestServer(t, nil)
-	defer ts.Close()
-
-	resp, err := dclr().
-		SetDigestAuth(conf.username, "wrongPassword").
-		SetError(AuthError{}).
-		Get(ts.URL + conf.uri)
-
-	assertError(t, err)
-	assertEqual(t, http.StatusUnauthorized, resp.StatusCode())
-
-	t.Logf("Result Error: %q", resp.Error().(*AuthError))
-	logResponse(t, resp)
-}
-
-func TestRequestDigestAuthWithBody(t *testing.T) {
-	conf := defaultDigestServerConf()
-	ts := createDigestServer(t, nil)
-	defer ts.Close()
-
-	resp, err := dclr().
-		SetDigestAuth(conf.username, conf.password).
-		SetResult(&AuthSuccess{}).
-		SetHeader(hdrContentTypeKey, "application/json").
-		SetBody(map[string]interface{}{"zip_code": "00000", "city": "Los Angeles"}).
-		Post(ts.URL + conf.uri)
-
-	assertError(t, err)
-	assertEqual(t, http.StatusOK, resp.StatusCode())
-
-	t.Logf("Result Success: %q", resp.Result().(*AuthSuccess))
-	logResponse(t, resp)
-}
-
 func TestFormData(t *testing.T) {
 	ts := createFormPostServer(t)
 	defer ts.Close()
@@ -749,7 +638,7 @@ func TestFormData(t *testing.T) {
 	c.SetFormData(map[string]string{"zip_code": "00000", "city": "Los Angeles"}).
 		SetContentLength(true).
 		SetDebug(true)
-	c.outputLogTo(io.Discard)
+	c.outputLogTo(ioutil.Discard)
 
 	resp, err := c.R().
 		SetFormData(map[string]string{"first_name": "Jeevanandam", "last_name": "M", "zip_code": "00001"}).
@@ -771,7 +660,7 @@ func TestMultiValueFormData(t *testing.T) {
 
 	c := dc()
 	c.SetContentLength(true).SetDebug(true)
-	c.outputLogTo(io.Discard)
+	c.outputLogTo(ioutil.Discard)
 
 	resp, err := c.R().
 		SetQueryParamsFromValues(v).
@@ -789,11 +678,11 @@ func TestFormDataDisableWarn(t *testing.T) {
 	c := dc()
 	c.SetFormData(map[string]string{"zip_code": "00000", "city": "Los Angeles"}).
 		SetContentLength(true).
+		SetDebug(true).
 		SetDisableWarn(true)
-	c.outputLogTo(io.Discard)
+	c.outputLogTo(ioutil.Discard)
 
 	resp, err := c.R().
-		SetDebug(true).
 		SetFormData(map[string]string{"first_name": "Jeevanandam", "last_name": "M", "zip_code": "00001"}).
 		SetBasicAuth("myuser", "mypass").
 		Post(ts.URL + "/profile")
@@ -892,8 +781,8 @@ func TestMultiPartIoReaderFiles(t *testing.T) {
 	defer cleanupFiles(".testdata/upload")
 
 	basePath := getTestDataPath()
-	profileImgBytes, _ := os.ReadFile(filepath.Join(basePath, "test-img.png"))
-	notesBytes, _ := os.ReadFile(filepath.Join(basePath, "text-file.txt"))
+	profileImgBytes, _ := ioutil.ReadFile(filepath.Join(basePath, "test-img.png"))
+	notesBytes, _ := ioutil.ReadFile(filepath.Join(basePath, "text-file.txt"))
 
 	// Just info values
 	file := File{
@@ -1144,7 +1033,7 @@ func TestPutJSONString(t *testing.T) {
 	})
 
 	client.SetDebug(true)
-	client.outputLogTo(io.Discard)
+	client.outputLogTo(ioutil.Discard)
 
 	resp, err := client.R().
 		SetHeaders(map[string]string{hdrContentTypeKey: "application/json; charset=utf-8", hdrAcceptKey: "application/json; charset=utf-8"}).
@@ -1200,8 +1089,8 @@ func TestHTTPAutoRedirectUpTo10(t *testing.T) {
 
 	_, err := dc().R().Get(ts.URL + "/redirect-1")
 
-	assertEqual(t, true, (err.Error() == "Get /redirect-11: stopped after 10 redirects" ||
-		err.Error() == "Get \"/redirect-11\": stopped after 10 redirects"))
+	assertEqual(t, true, ("Get /redirect-11: stopped after 10 redirects" == err.Error() ||
+		"Get \"/redirect-11\": stopped after 10 redirects" == err.Error()))
 }
 
 func TestHostCheckRedirectPolicy(t *testing.T) {
@@ -1247,7 +1136,7 @@ func TestPatchMethod(t *testing.T) {
 	assertError(t, err)
 	assertEqual(t, http.StatusOK, resp.StatusCode())
 
-	resp.SetBody(nil)
+	resp.body = nil
 	assertEqual(t, "", resp.String())
 }
 
@@ -1313,7 +1202,9 @@ func TestRawFileUploadByBody(t *testing.T) {
 	ts := createFormPostServer(t)
 	defer ts.Close()
 
-	fileBytes, err := os.ReadFile(filepath.Join(getTestDataPath(), "test-img.png"))
+	file, err := os.Open(filepath.Join(getTestDataPath(), "test-img.png"))
+	assertNil(t, err)
+	fileBytes, err := ioutil.ReadAll(file)
 	assertNil(t, err)
 
 	resp, err := dclr().
@@ -1330,7 +1221,7 @@ func TestRawFileUploadByBody(t *testing.T) {
 func TestProxySetting(t *testing.T) {
 	c := dc()
 
-	transport, err := c.Transport()
+	transport, err := c.transport()
 
 	assertNil(t, err)
 
@@ -1395,7 +1286,7 @@ func TestDetectContentTypeForPointer(t *testing.T) {
 }
 
 type ExampleUser struct {
-	FirstName string `json:"first_name"`
+	FirstName string `json:"frist_name"`
 	LastName  string `json:"last_name"`
 	ZipCode   string `json:"zip_code"`
 }
@@ -1542,8 +1433,7 @@ func TestSetHeaderVerbatim(t *testing.T) {
 		SetHeaderVerbatim("header-lowercase", "value_lowercase").
 		SetHeader("header-lowercase", "value_standard")
 
-	//lint:ignore SA1008 valid one ignore this!
-	assertEqual(t, "value_lowercase", strings.Join(r.Header["header-lowercase"], ""))
+	assertEqual(t, "value_lowercase", strings.Join(r.Header["header-lowercase"], "")) //nolint
 	assertEqual(t, "value_standard", r.Header.Get("Header-Lowercase"))
 }
 
@@ -1569,7 +1459,7 @@ func TestOutputFileWithBaseDirAndRelativePath(t *testing.T) {
 		SetRedirectPolicy(FlexibleRedirectPolicy(10)).
 		SetOutputDirectory(filepath.Join(getTestDataPath(), "dir-sample")).
 		SetDebug(true)
-	client.outputLogTo(io.Discard)
+	client.outputLogTo(ioutil.Discard)
 
 	resp, err := client.R().
 		SetOutput("go-resty/test-img-success.png").
@@ -1714,7 +1604,7 @@ func TestGetPathParamAndPathParams(t *testing.T) {
 	defer ts.Close()
 
 	c := dc().
-		SetBaseURL(ts.URL).
+		SetHostURL(ts.URL).
 		SetPathParam("userId", "sample@sample.com")
 
 	resp, err := c.R().SetPathParam("subAccountId", "100002").
@@ -1822,101 +1712,26 @@ func TestHostHeaderOverride(t *testing.T) {
 	logResponse(t, resp)
 }
 
-type HTTPErrorResponse struct {
-	Error string `json:"error,omitempty"`
-}
-
-func TestNotFoundWithError(t *testing.T) {
-	var httpError HTTPErrorResponse
-	ts := createGetServer(t)
-	defer ts.Close()
-
-	resp, err := dc().R().
-		SetHeader(hdrContentTypeKey, "application/json").
-		SetError(&httpError).
-		Get(ts.URL + "/not-found-with-error")
-
-	assertError(t, err)
-	assertEqual(t, http.StatusNotFound, resp.StatusCode())
-	assertEqual(t, "404 Not Found", resp.Status())
-	assertNotNil(t, resp.Body())
-	assertEqual(t, "{\"error\": \"Not found\"}", resp.String())
-	assertNotNil(t, httpError)
-	assertEqual(t, "Not found", httpError.Error)
-
-	logResponse(t, resp)
-}
-
-func TestNotFoundWithoutError(t *testing.T) {
-	var httpError HTTPErrorResponse
-
-	ts := createGetServer(t)
-	defer ts.Close()
-
-	c := dc().outputLogTo(os.Stdout)
-	resp, err := c.R().
-		SetError(&httpError).
-		SetHeader(hdrContentTypeKey, "application/json").
-		Get(ts.URL + "/not-found-no-error")
-
-	assertError(t, err)
-	assertEqual(t, http.StatusNotFound, resp.StatusCode())
-	assertEqual(t, "404 Not Found", resp.Status())
-	assertNotNil(t, resp.Body())
-	assertEqual(t, 0, len(resp.Body()))
-	assertNotNil(t, httpError)
-	assertEqual(t, "", httpError.Error)
-
-	logResponse(t, resp)
-}
-
 func TestPathParamURLInput(t *testing.T) {
 	ts := createGetServer(t)
 	defer ts.Close()
 
-	c := dc().
-		SetBaseURL(ts.URL).
-		SetPathParams(map[string]string{
-			"userId": "sample@sample.com",
-			"path":   "users/developers",
-		})
-
-	resp, err := c.R().
-		SetDebug(true).
-		SetPathParams(map[string]string{
-			"subAccountId": "100002",
-			"website":      "https://example.com",
-		}).Get("/v1/users/{userId}/{subAccountId}/{path}/{website}")
-
-	assertError(t, err)
-	assertEqual(t, http.StatusOK, resp.StatusCode())
-	assertEqual(t, true, strings.Contains(resp.String(), "TestPathParamURLInput: text response"))
-	assertEqual(t, true, strings.Contains(resp.String(), "/v1/users/sample@sample.com/100002/users%2Fdevelopers/https:%2F%2Fexample.com"))
-
-	logResponse(t, resp)
-}
-
-func TestRawPathParamURLInput(t *testing.T) {
-	ts := createGetServer(t)
-	defer ts.Close()
-
 	c := dc().SetDebug(true).
-		SetBaseURL(ts.URL).
-		SetRawPathParams(map[string]string{
+		SetHostURL(ts.URL).
+		SetPathParams(map[string]string{
 			"userId": "sample@sample.com",
-			"path":   "users/developers",
 		})
 
 	resp, err := c.R().
-		SetRawPathParams(map[string]string{
+		SetPathParams(map[string]string{
 			"subAccountId": "100002",
 			"website":      "https://example.com",
-		}).Get("/v1/users/{userId}/{subAccountId}/{path}/{website}")
+		}).Get("/v1/users/{userId}/{subAccountId}/{website}")
 
 	assertError(t, err)
 	assertEqual(t, http.StatusOK, resp.StatusCode())
 	assertEqual(t, true, strings.Contains(resp.String(), "TestPathParamURLInput: text response"))
-	assertEqual(t, true, strings.Contains(resp.String(), "/v1/users/sample@sample.com/100002/users/developers/https://example.com"))
+	assertEqual(t, true, strings.Contains(resp.String(), "/v1/users/sample@sample.com/100002/https:%2F%2Fexample.com"))
 
 	logResponse(t, resp)
 }
@@ -2027,8 +1842,7 @@ func TestDebugLoggerRequestBodyTooLarge(t *testing.T) {
 
 	// upload a text file with no more than 512 bytes
 	output = bytes.NewBufferString("")
-	resp, err = New().outputLogTo(output).SetDebugBodyLimit(debugBodySizeLimit).R().
-		SetDebug(true).
+	resp, err = New().SetDebug(true).outputLogTo(output).SetDebugBodyLimit(debugBodySizeLimit).R().
 		SetFile("file", filepath.Join(getTestDataPath(), "text-file.txt")).
 		SetHeader("Content-Type", "text/plain").
 		Post(ts.URL + "/upload")
@@ -2055,8 +1869,7 @@ func TestDebugLoggerRequestBodyTooLarge(t *testing.T) {
 
 	// post form with no more than 512 bytes data
 	output = bytes.NewBufferString("")
-	resp, err = New().outputLogTo(output).SetDebugBodyLimit(debugBodySizeLimit).R().
-		SetDebug(true).
+	resp, err = New().SetDebug(true).outputLogTo(output).SetDebugBodyLimit(debugBodySizeLimit).R().
 		SetFormData(map[string]string{
 			"first_name": "Alex",
 			"last_name":  "C",
@@ -2083,8 +1896,7 @@ func TestDebugLoggerRequestBodyTooLarge(t *testing.T) {
 
 	// post slice with more than 512 bytes data
 	output = bytes.NewBufferString("")
-	resp, err = New().outputLogTo(output).SetDebugBodyLimit(debugBodySizeLimit).R().
-		SetDebug(true).
+	resp, err = New().SetDebug(true).outputLogTo(output).SetDebugBodyLimit(debugBodySizeLimit).R().
 		SetBody([]string{strings.Repeat("C", int(debugBodySizeLimit))}).
 		SetBasicAuth("myuser", "mypass").
 		Post(formTs.URL + "/profile")
@@ -2135,3 +1947,4 @@ func TestSetResultMustNotPanicOnNil(t *testing.T) {
 	}()
 	dc().R().SetResult(nil)
 }
+
