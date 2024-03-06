@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
-
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/client/object_client/public.h>
@@ -84,10 +82,6 @@ void AdvanceEpoch(TControllerEpoch& epoch);
 TIncarnationId IncarnationIdFromTransactionId(NObjectClient::TTransactionId transactionId);
 
 NObjectClient::TTransactionId IncarnationIdToTransactionId(TIncarnationId incarnationId);
-
-////////////////////////////////////////////////////////////////////////////////
-
-int GetJobFirstOutputTableFdFromSpec(const NProto::TUserJobSpec& spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

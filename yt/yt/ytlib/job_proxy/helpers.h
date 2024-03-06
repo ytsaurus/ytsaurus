@@ -2,6 +2,8 @@
 
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
 #include <yt/yt/ytlib/controller_agent/public.h>
 
 #include <yt/yt/ytlib/table_client/partitioner.h>
@@ -30,6 +32,10 @@ void RunQuery(
 std::vector<NChunkClient::TDataSliceDescriptor> UnpackDataSliceDescriptors(const NControllerAgent::NProto::TTableInputSpec& inputTableSpec);
 
 NTableClient::IPartitionerPtr CreatePartitioner(const NControllerAgent::NProto::TPartitionJobSpecExt& partitionJobSpecExt);
+
+////////////////////////////////////////////////////////////////////////////////
+
+int GetJobFirstOutputTableFdFromSpec(const NControllerAgent::NProto::TUserJobSpec& spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

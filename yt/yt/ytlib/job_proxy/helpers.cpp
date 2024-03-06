@@ -141,4 +141,16 @@ IPartitionerPtr CreatePartitioner(const TPartitionJobSpecExt& partitionJobSpecEx
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr int JobFirstOutputTableFdDefault = 1;
+constexpr int JobFirstOutputTableFdWithRedirectStdoutToStderr = 4;
+
+int GetJobFirstOutputTableFdFromSpec(const TUserJobSpec& spec)
+{
+    return spec.redirect_stdout_to_stderr()
+        ? JobFirstOutputTableFdWithRedirectStdoutToStderr
+        : JobFirstOutputTableFdDefault;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NJobProxy

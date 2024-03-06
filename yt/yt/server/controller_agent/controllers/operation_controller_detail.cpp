@@ -15,8 +15,6 @@
 #include <yt/yt/server/controller_agent/config.h>
 #include <yt/yt/server/controller_agent/private.h>
 
-#include <yt/yt/server/job_proxy/public.h>
-
 #include <yt/yt/server/lib/controller_agent/job_report.h>
 
 #include <yt/yt/server/lib/exec_node/public.h>
@@ -10077,10 +10075,6 @@ void TOperationControllerBase::InitUserJobSpec(
     jobSpec->add_environment(Format("YT_JOB_COOKIE=%v", joblet->OutputCookie));
     if (joblet->StartRowIndex >= 0) {
         jobSpec->add_environment(Format("YT_START_ROW_INDEX=%v", joblet->StartRowIndex));
-    }
-    if (!jobSpec->use_yamr_descriptors()) {
-        int jobFirstOutputTableFd = GetJobFirstOutputTableFdFromSpec(*jobSpec);
-        jobSpec->add_environment(Format("YT_FIRST_OUTPUT_TABLE_FD=%v", jobFirstOutputTableFd));
     }
 
     if (joblet->EnabledJobProfiler && joblet->EnabledJobProfiler->Type == EProfilerType::Cuda) {

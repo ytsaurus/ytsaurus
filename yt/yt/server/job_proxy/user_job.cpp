@@ -41,13 +41,13 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/yt/ytlib/controller_agent/helpers.h>
 #include <yt/yt/ytlib/controller_agent/public.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/file_client/file_chunk_output.h>
 
+#include <yt/yt/ytlib/job_proxy/helpers.h>
 #include <yt/yt/ytlib/job_proxy/user_job_read_controller.h>
 
 #include <yt/yt/ytlib/query_client/functions_cache.h>
@@ -1227,6 +1227,11 @@ private:
             Environment_.push_back(Format("YT_JOB_PROFILER_SPEC=%v", spec));
 
             YT_LOG_INFO("User job profiler is enabled (Spec: %v)", spec);
+        }
+
+        if (!UserJobSpec_.use_yamr_descriptors()) {
+            int jobFirstOutputTableFd = GetJobFirstOutputTableFdFromSpec(UserJobSpec_);
+            Environment_.push_back(Format("YT_FIRST_OUTPUT_TABLE_FD=%v", jobFirstOutputTableFd));
         }
 
         const auto& environment = UserJobEnvironment_->GetEnvironmentVariables();

@@ -457,15 +457,4 @@ NObjectClient::TTransactionId IncarnationIdToTransactionId(TIncarnationId incarn
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr int JobFirstOutputTableFdDefault = 1;
-constexpr int JobFirstOutputTableFdWithRedirectStdoutToStderr = 4;
-
-int GetJobFirstOutputTableFdFromSpec(const NProto::TUserJobSpec& spec) {
-    return spec.redirect_stdout_to_stderr()
-        ? JobFirstOutputTableFdWithRedirectStdoutToStderr
-        : JobFirstOutputTableFdDefault;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NControllerAgent
