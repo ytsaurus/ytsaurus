@@ -2410,12 +2410,17 @@ private:
         auto objectIdPath = FromObjectId(ObjectId_);
 
         YT_LOG_DEBUG("Closing table");
-        {
-            auto error = WaitFor(UnderlyingWriter_->Close());
-            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing chunk writer");
-        }
+
+        auto underlyingWriterCloseError = WaitFor(UnderlyingWriter_->Close());
 
         StopListenTransaction(UploadTransaction_);
+
+        if (!underlyingWriterCloseError.IsOK()) {
+            YT_VERIFY(UploadTransaction_); // Shouldn't be closing an unopened writer.
+            Y_UNUSED(WaitFor(UploadTransaction_->Abort()));
+            THROW_ERROR_EXCEPTION("Error closing chunk writer")
+                << underlyingWriterCloseError;
+        }
 
         auto proxy = CreateObjectServiceWriteProxy(
             Client_,
