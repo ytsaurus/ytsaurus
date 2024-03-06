@@ -5,8 +5,6 @@
 
 #include <yt/yt/ytlib/table_chunk_format/helpers.h>
 
-#include <yt/yt/core/misc/tls_guard.h>
-
 namespace NYT::NColumnarChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
