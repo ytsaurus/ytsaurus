@@ -361,9 +361,6 @@ std::optional<TOperation> TClient::DoGetOperationFromArchive(
     try {
         THashSet<TString> ignoredAttributes = {"suspended", "memory_usage", "has_failed_jobs"};
 
-        if (DoGetOperationsArchiveVersion() < 46) {
-            ignoredAttributes.insert("provided_spec");
-        }
         auto attributes = DeduceActualAttributes(
             options.Attributes,
             /* requiredAttributes */ {},
@@ -1032,14 +1029,6 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
 
     if (!options.ToTime) {
         THROW_ERROR_EXCEPTION("Missing required parameter \"to_time\"");
-    }
-
-    if (options.PoolTree) {
-        constexpr int requiredVersion = 44;
-        if (DoGetOperationsArchiveVersion() < requiredVersion) {
-            THROW_ERROR_EXCEPTION("\"pool_tree\" filter is not supported in operations archive of version < %v",
-                requiredVersion);
-        }
     }
 
     auto addCommonWhereConjuncts = [&] (NQueryClient::TQueryBuilder* builder) {
