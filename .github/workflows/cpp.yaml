@@ -125,7 +125,6 @@ jobs:
       - tag
       - check
     runs-on: ${{ needs.start-vm.outputs.label }}
-    if: ${{ github.ref_name == 'main' || contains(github.ref_name, 'test') }}
     steps:
       - name: Mark latest nightly
         run: |
