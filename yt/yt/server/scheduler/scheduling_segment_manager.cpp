@@ -188,7 +188,7 @@ void TSchedulingSegmentManager::InitOrUpdateOperationSchedulingSegment(
     }();
 
     if (operationState->SchedulingSegment != segment) {
-        YT_LOG_DEBUG(
+        YT_LOG_INFO(
             "Setting new scheduling segment for operation ("
             "Segment: %v, Mode: %v, AllowOnlyGangOperationsInLargeSegment: %v, IsGang: %v, "
             "InitialMinNeededResources: %v, SpecifiedSegment: %v, OperationId: %v)",
@@ -392,7 +392,7 @@ std::optional<TSchedulingSegmentManager::TOperationsToPreempt> TSchedulingSegmen
         return {};
     }
 
-    YT_LOG_DEBUG(
+    YT_LOG_INFO(
         "Found operations to preempt for a priority operation "
         "(OperationId: %v, BestOperationsToPreemptSize: %v, TotalPenalty: %v)",
         operationId,
@@ -564,7 +564,7 @@ void TSchedulingSegmentManager::ResetOperationModuleAssignments(TUpdateSchedulin
             }
 
             if (*failingToScheduleAtModuleSince + Config_->ModuleReconsiderationTimeout < context->Now) {
-                YT_LOG_DEBUG(
+                YT_LOG_INFO(
                     "Operation has failed to schedule all jobs for too long, revoking its module assignment "
                     "(OperationId: %v, SchedulingSegment: %v, PreviousModule: %v, ResourceUsage: %v, ResourceDemand: %v, Timeout: %v, "
                     "InitializationDeadline: %v)",
@@ -743,7 +743,7 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
 
         operation->FailingToAssignToModuleSince.reset();
 
-        YT_LOG_DEBUG(
+        YT_LOG_INFO(
             "Assigned operation to a new scheduling segment module "
             "(SchedulingSegment: %v, Module: %v, SpecifiedModules: %v, "
             "OperationDemand: %v, RemainingCapacityPerModule: %v, TotalCapacityPerModule: %v, "
