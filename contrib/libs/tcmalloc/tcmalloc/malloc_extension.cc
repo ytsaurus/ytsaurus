@@ -471,15 +471,17 @@ void MallocExtension::EnableForkSupport() {
 void MallocExtension::SetSampleUserDataCallbacks(
     CreateSampleUserDataCallback create,
     CopySampleUserDataCallback copy,
-    DestroySampleUserDataCallback destroy) {
+    DestroySampleUserDataCallback destroy,
+    ComputeSampleUserDataHashCallback compute_hash) {
 #if ABSL_INTERNAL_HAVE_WEAK_MALLOCEXTENSION_STUBS
   if (&MallocExtension_SetSampleUserDataCallbacks != nullptr) {
-    MallocExtension_SetSampleUserDataCallbacks(create, copy, destroy);
+    MallocExtension_SetSampleUserDataCallbacks(create, copy, destroy, compute_hash);
   }
 #else
   (void)create;
   (void)copy;
   (void)destroy;
+  (void)compute_hash;
 #endif
 }
 

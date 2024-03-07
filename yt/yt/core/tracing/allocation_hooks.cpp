@@ -52,6 +52,19 @@ const TAllocationTags::TTags* ReadAllocationTagsData(void* userData)
     return allocationTagsPtr->GetTagsPtr();
 }
 
+size_t ComputeAllocationTagsDataHash(void* userData)
+{
+    size_t hash = 0;
+
+    if (const auto *data = ReadAllocationTagsData(userData)) {
+        for (const auto& pair : *data) {
+            NYT::HashCombine(hash, pair);
+        }
+    }
+
+    return hash;
+}
+
 std::optional<TString> FindTagValue(
     const TAllocationTags::TTags& tags,
     const TString& key)
