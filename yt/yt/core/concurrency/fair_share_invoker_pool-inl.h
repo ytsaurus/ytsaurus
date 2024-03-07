@@ -10,7 +10,7 @@ namespace NYT::NConcurrency {
 
 template <class EInvoker>
     requires TEnumTraits<EInvoker>::IsEnum
-TDiagnosableInvokerPoolPtr CreateEnumIndexedProfiledFairShareInvokerPool(
+IDiagnosableInvokerPoolPtr CreateEnumIndexedProfiledFairShareInvokerPool(
     IInvokerPtr underlyingInvoker,
     TFairShareCallbackQueueFactory callbackQueueFactory,
     TDuration actionTimeRelevancyHalflife,

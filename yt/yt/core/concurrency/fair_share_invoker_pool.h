@@ -60,7 +60,7 @@ IDiagnosableInvokerPoolPtr CreateFairShareInvokerPool(
 //! Creates invoker pool from above with invokerCount = bucketNames.size()
 //! And adds profiling on top of it.
 
-TDiagnosableInvokerPoolPtr CreateProfiledFairShareInvokerPool(
+IDiagnosableInvokerPoolPtr CreateProfiledFairShareInvokerPool(
     IInvokerPtr underlyingInvoker,
     TFairShareCallbackQueueFactory callbackQueueFactory = CreateFairShareCallbackQueue,
     TDuration actionTimeRelevancyHalflife = TAdjustedExponentialMovingAverage::DefaultHalflife,
@@ -74,7 +74,7 @@ TDiagnosableInvokerPoolPtr CreateProfiledFairShareInvokerPool(
 
 template <class EInvoker>
     requires TEnumTraits<EInvoker>::IsEnum
-TDiagnosableInvokerPoolPtr CreateEnumIndexedProfiledFairShareInvokerPool(
+IDiagnosableInvokerPoolPtr CreateEnumIndexedProfiledFairShareInvokerPool(
     IInvokerPtr underlyingInvoker,
     TFairShareCallbackQueueFactory callbackQueueFactory = CreateFairShareCallbackQueue,
     TDuration actionTimeRelevancyHalflife = TAdjustedExponentialMovingAverage::DefaultHalflife,
