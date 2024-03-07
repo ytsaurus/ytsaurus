@@ -105,7 +105,7 @@ struct IBootstrapBase
 
     virtual NObjectClient::TCellId GetCellId() const = 0;
     virtual NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const = 0;
-    virtual const NObjectClient::TCellTagList& GetMasterCellTags() const = 0;
+    virtual const THashSet<NObjectClient::TCellTag>& GetMasterCellTags() const = 0;
     virtual std::vector<TString> GetMasterAddressesOrThrow(NObjectClient::TCellTag cellTag) const = 0;
 
     virtual void ResetAndRegisterAtMaster() = 0;
@@ -260,7 +260,7 @@ public:
 
     NObjectClient::TCellId GetCellId() const override;
     NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const override;
-    const NObjectClient::TCellTagList& GetMasterCellTags() const override;
+    const THashSet<NObjectClient::TCellTag>& GetMasterCellTags() const override;
     std::vector<TString> GetMasterAddressesOrThrow(NObjectClient::TCellTag cellTag) const override;
 
     void ResetAndRegisterAtMaster() override;

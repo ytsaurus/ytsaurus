@@ -23,7 +23,10 @@
 #include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 
 #include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
@@ -49,6 +52,7 @@
 namespace NYT::NClusterNode {
 
 using namespace NApi;
+using namespace NCellMasterClient;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NDataNode;
@@ -104,10 +108,12 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         const auto& connection = Bootstrap_->GetClient()->GetNativeConnection();
-        MasterCellTags_.push_back(connection->GetPrimaryMasterCellTag());
-        for (auto cellTag : connection->GetSecondaryMasterCellTags()) {
-            MasterCellTags_.push_back(cellTag);
-        }
+        const auto secondaryMasterCellTags = connection->GetSecondaryMasterCellTags();
+        MasterCellTags_.insert(connection->GetPrimaryMasterCellTag());
+        MasterCellTags_.insert(secondaryMasterCellTags.begin(), secondaryMasterCellTags.end());
+        connection->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(
+            BIND(&TMasterConnector::OnMasterCellDirectoryChanged, MakeStrong(this))
+                .Via(Bootstrap_->GetControlInvoker()));
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(BIND(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
@@ -176,6 +182,21 @@ public:
         .ThrowOnError();
 
         return heartbeat;
+    }
+
+    void OnMasterCellDirectoryChanged(
+        const THashSet<TCellTag>& addedSecondaryCellTags,
+        const TSecondaryMasterConnectionConfigs& /*reconfiguredSecondaryMasterConfigs*/,
+        const THashSet<TCellTag>& removedSecondaryTags)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YT_LOG_DEBUG_UNLESS(
+            addedSecondaryCellTags.empty() && removedSecondaryTags.empty(),
+            "Unexpected master cell configuration detected "
+            "(AddedCellTags: %v, RemovedCellTags: %v)",
+            addedSecondaryCellTags,
+            removedSecondaryTags);
     }
 
     void OnHeartbeatResponse(const TRspHeartbeat& response)
@@ -273,7 +294,7 @@ public:
         return Epoch_.load();
     }
 
-    const NObjectClient::TCellTagList& GetMasterCellTags() const override
+    const THashSet<TCellTag>& GetMasterCellTags() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -308,7 +329,7 @@ private:
     TDuration HeartbeatPeriod_;
     TDuration HeartbeatPeriodSplay_;
 
-    TCellTagList MasterCellTags_;
+    THashSet<TCellTag> MasterCellTags_;
 
     std::vector<TError> GetAlerts()
     {
@@ -604,6 +625,7 @@ private:
         WaitFor(connection->GetClusterDirectorySynchronizer()->Sync())
             .ThrowOnError();
         YT_LOG_INFO("Cluster directory synchronized");
+        // TODO(cherepashka): add synchronization of master cell directory in future.
     }
 
     void StartHeartbeats()

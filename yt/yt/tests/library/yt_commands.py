@@ -137,6 +137,10 @@ def print_debug(*args):
             decode(arg) if type(arg) is bytes else str(arg) for arg in args))
 
 
+def get_cell_tag(id):
+    return int(id.split("-")[2][:-4], 16)
+
+
 def get_driver(cell_index=0, cluster="primary", api_version=default_api_version):
     if cluster not in _clusters_drivers:
         return None

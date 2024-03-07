@@ -104,6 +104,9 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
@@ -189,6 +192,7 @@ using namespace NAuth;
 using namespace NBus;
 using namespace NCellarAgent;
 using namespace NCellarClient;
+using namespace NCellMasterClient;
 using namespace NChaosNode;
 using namespace NChunkClient;
 using namespace NContainers;
@@ -219,6 +223,7 @@ using namespace NHiveServer;
 using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NNet;
+using namespace NThreading;
 using namespace NYTree;
 using namespace NIO;
 
@@ -406,7 +411,7 @@ public:
 
     TCellId GetCellId() const override
     {
-        return Config_->ClusterConnection->Static->PrimaryMaster->CellId;
+        return PrimaryMaster_->CellId;
     }
 
     TCellId GetCellId(TCellTag cellTag) const override
@@ -416,7 +421,7 @@ public:
             : ReplaceCellTagInId(GetCellId(), cellTag);
     }
 
-    const TCellTagList& GetMasterCellTags() const override
+    const THashSet<TCellTag>& GetMasterCellTags() const override
     {
         return MasterConnector_->GetMasterCellTags();
     }
@@ -433,17 +438,17 @@ public:
 
         auto cellId = GetCellId(cellTag);
 
-        if (Config_->ClusterConnection->Static->PrimaryMaster->CellId == cellId) {
-            return unwrapAddresses(Config_->ClusterConnection->Static->PrimaryMaster->Addresses);
+        if (GetCellId() == cellId) {
+            return unwrapAddresses(PrimaryMaster_->Addresses);
         }
 
-        for (const auto& secondaryMaster : Config_->ClusterConnection->Static->SecondaryMasters) {
-            if (secondaryMaster->CellId == cellId) {
-                return unwrapAddresses(secondaryMaster->Addresses);
-            }
+        const auto secondaryMasterConnectionConfigs = GetSecondaryMasterConnectionConfigs();
+        auto secondaryMasterIt = secondaryMasterConnectionConfigs.find(cellTag);
+        if (secondaryMasterIt == secondaryMasterConnectionConfigs.end()) {
+            THROW_ERROR_EXCEPTION("Master with cell tag %v is not known", cellTag);
         }
-
-        THROW_ERROR_EXCEPTION("Master with cell tag %v is not known", cellTag);
+        const auto& secondaryMaster = secondaryMasterIt->second;
+        return unwrapAddresses(secondaryMaster->Addresses);
     }
 
     void ResetAndRegisterAtMaster() override
@@ -730,7 +735,13 @@ private:
     TError UnrecognizedOptionsAlert_;
 
     TObjectServiceCachePtr ObjectServiceCache_;
-    std::vector<ICachingObjectServicePtr> CachingObjectServices_;
+    THashMap<TCellTag, ICachingObjectServicePtr> CachingObjectServices_;
+    THashMap<TCellTag, IServicePtr> ProxyingChunkServices_;
+
+    NApi::NNative::TMasterConnectionConfigPtr PrimaryMaster_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SecondaryMasterConnectionLock_);
+    TSecondaryMasterConnectionConfigs SecondaryMasterConnectionConfigs_;
 
     IIOTrackerPtr IOTracker_;
 
@@ -757,10 +768,15 @@ private:
             Flavors_ = THashSet<ENodeFlavor>(flavors.begin(), flavors.end());
         }
 
+        PrimaryMaster_ = Config_->ClusterConnection->Static->PrimaryMaster;
+        for (const auto& secondaryMaster : Config_->ClusterConnection->Static->SecondaryMasters) {
+            EmplaceOrCrash(SecondaryMasterConnectionConfigs_, CellTagFromId(secondaryMaster->CellId), secondaryMaster);
+        }
+
         YT_LOG_INFO(
             "Initializing cluster node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v, Flavors: %v)",
             GetValues(localRpcAddresses),
-            Config_->ClusterConnection->Static->PrimaryMaster->Addresses,
+            PrimaryMaster_->Addresses,
             Config_->Tags,
             Flavors_);
 
@@ -774,6 +790,7 @@ private:
         connectionOptions.ConnectionInvoker = ConnectionThreadPool_->GetInvoker();
         connectionOptions.BlockCache = GetBlockCache();
         Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, std::move(connectionOptions));
+        Connection_->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(BIND(&TBootstrap::OnMasterCellDirectoryChanged, this));
 
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
 
@@ -869,19 +886,9 @@ private:
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
         RpcServer_->Configure(Config_->RpcServer);
 
-        auto createProxyingChunkService = [&] (const auto& config) {
-            RpcServer_->RegisterService(CreateProxyingChunkService(
-                config->CellId,
-                Config_->ProxyingChunkService,
-                config,
-                Config_->ClusterConnection->Dynamic,
-                Connection_->GetChannelFactory(),
-                NativeAuthenticator_));
-        };
-
-        createProxyingChunkService(Config_->ClusterConnection->Static->PrimaryMaster);
-        for (const auto& config : Config_->ClusterConnection->Static->SecondaryMasters) {
-            createProxyingChunkService(config);
+        InitProxyingChunkService(PrimaryMaster_);
+        for (const auto& [_, masterConfig] : SecondaryMasterConnectionConfigs_) {
+            InitProxyingChunkService(masterConfig);
         }
 
         MasterConnector_ = NClusterNode::CreateMasterConnector(
@@ -937,7 +944,7 @@ private:
 
         auto timestampProviderConfig = Config_->TimestampProvider;
         if (!timestampProviderConfig) {
-            timestampProviderConfig = CreateRemoteTimestampProviderConfig(Config_->ClusterConnection->Static->PrimaryMaster);
+            timestampProviderConfig = CreateRemoteTimestampProviderConfig(PrimaryMaster_);
         }
         auto timestampProvider = CreateBatchingRemoteTimestampProvider(
             timestampProviderConfig,
@@ -956,23 +963,9 @@ private:
             Logger,
             ClusterNodeProfiler.WithPrefix("/object_service_cache"));
 
-        auto initCachingObjectService = [&] (const auto& masterConfig) {
-            return CreateCachingObjectService(
-                Config_->CachingObjectService,
-                MasterCacheQueue_->GetInvoker(),
-                CreateMasterChannelForCache(GetConnection(), masterConfig->CellId),
-                ObjectServiceCache_,
-                masterConfig->CellId,
-                Logger,
-                ClusterNodeProfiler.WithPrefix("/caching_object_service"),
-                NativeAuthenticator_);
-        };
-
-        CachingObjectServices_.push_back(initCachingObjectService(
-            Config_->ClusterConnection->Static->PrimaryMaster));
-
-        for (const auto& masterConfig : Config_->ClusterConnection->Static->SecondaryMasters) {
-            CachingObjectServices_.push_back(initCachingObjectService(masterConfig));
+        InitCachingObjectService(PrimaryMaster_->CellId);
+        for (const auto& [_, masterConfig] : SecondaryMasterConnectionConfigs_) {
+            InitCachingObjectService(masterConfig->CellId);
         }
 
         // NB: Data Node master connector is required for chunk cache.
@@ -1094,7 +1087,7 @@ private:
         YT_LOG_INFO(
             "Starting node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v)",
             GetValues(localRpcAddresses),
-            Config_->ClusterConnection->Static->PrimaryMaster->Addresses,
+            PrimaryMaster_->Addresses,
             Config_->Tags);
 
         // Do not start subsystems until everything is initialized.
@@ -1130,6 +1123,8 @@ private:
 
         Connection_->GetClusterDirectorySynchronizer()->Start();
 
+        Connection_->GetMasterCellDirectorySynchronizer()->Start();
+
         SetNodeByYPath(
             OrchidRoot_,
             "/config",
@@ -1154,6 +1149,10 @@ private:
             OrchidRoot_,
             "/node_resource_manager",
             CreateVirtualNode(NodeResourceManager_->GetOrchidService()));
+        SetNodeByYPath(
+            OrchidRoot_,
+            "/connected_secondary_masters",
+            CreateVirtualNode(GetCellTagToSecondaryMasterOrchidService()));
         SetBuildAttributes(
             OrchidRoot_,
             "node");
@@ -1201,6 +1200,16 @@ private:
         HttpServer_->Start();
 
         YT_LOG_INFO("Node started successfully");
+    }
+
+    IYPathServicePtr GetCellTagToSecondaryMasterOrchidService()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return IYPathService::FromProducer(BIND([this](NYson::IYsonConsumer* consumer) {
+            BuildYsonFluently(consumer)
+                .Value(GetSecondaryMasterConnectionConfigs());
+        }))->Via(GetControlInvoker());
     }
 
     void DoValidateConfig()
@@ -1361,7 +1370,7 @@ private:
         RpcServer_->OnDynamicConfigChanged(newConfig->RpcServer);
 
         ObjectServiceCache_->Reconfigure(newConfig->CachingObjectService);
-        for (const auto& service : CachingObjectServices_) {
+        for (const auto& [_, service] : CachingObjectServices_) {
             service->Reconfigure(newConfig->CachingObjectService);
         }
 
@@ -1428,7 +1437,7 @@ private:
     {
         MasterConnected_.Fire(nodeId);
 
-        for (const auto& cachingObjectService : CachingObjectServices_) {
+        for (const auto& [_, cachingObjectService] : CachingObjectServices_) {
             RpcServer_->RegisterService(cachingObjectService);
         }
     }
@@ -1437,9 +1446,86 @@ private:
     {
         MasterDisconnected_.Fire();
 
-        for (const auto& cachingObjectService : CachingObjectServices_) {
+        for (const auto& [_, cachingObjectService] : CachingObjectServices_) {
             RpcServer_->UnregisterService(cachingObjectService);
         }
+    }
+
+    void InitCachingObjectService(TCellId cellId)
+    {
+        auto cachingObjectService = CreateCachingObjectService(
+            Config_->CachingObjectService,
+            MasterCacheQueue_->GetInvoker(),
+            CreateMasterChannelForCache(GetConnection(), cellId),
+            ObjectServiceCache_,
+            cellId,
+            Logger,
+            ClusterNodeProfiler.WithPrefix("/caching_object_service"),
+            NativeAuthenticator_);
+        EmplaceOrCrash(CachingObjectServices_, CellTagFromId(cellId), cachingObjectService);
+        if (MasterConnector_->IsConnected()) {
+            RpcServer_->RegisterService(std::move(cachingObjectService));
+        }
+    }
+
+    void InitProxyingChunkService(const NApi::NNative::TMasterConnectionConfigPtr& config) {
+        auto service = CreateProxyingChunkService(
+            config->CellId,
+            Config_->ProxyingChunkService,
+            config,
+            Config_->ClusterConnection->Dynamic,
+            Connection_->GetChannelFactory(),
+            NativeAuthenticator_);
+        RpcServer_->RegisterService(service);
+        ProxyingChunkServices_[CellTagFromId(config->CellId)] = std::move(service);
+    }
+
+    void OnMasterCellDirectoryChanged(
+        const THashSet<TCellTag>& additionalSecondaryTags,
+        const TSecondaryMasterConnectionConfigs& reconfiguredSecondaryMasterConfigs,
+        const THashSet<TCellTag>& dissapearedSecondaryTags)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        YT_LOG_DEBUG_UNLESS(
+            additionalSecondaryTags.empty(),
+            "Unexpected appearance of master cells in received configuration detected (UnexpectedCellTags: %v)",
+            additionalSecondaryTags);
+        YT_LOG_WARNING_UNLESS(
+            dissapearedSecondaryTags.empty(),
+            "Some cells disappeared in received configuration of secondary masters (DisappearedCellTags: %v)",
+            dissapearedSecondaryTags);
+
+        THashSet<TCellTag> reconfiguredCellTags;
+        reconfiguredCellTags.reserve(reconfiguredSecondaryMasterConfigs.size());
+        {
+            auto guard = WriterGuard(SecondaryMasterConnectionLock_);
+            auto reconfigureMasterCell = [&] (const auto& masterConfig) {
+                auto cellTag = CellTagFromId(masterConfig->CellId);
+                auto masterConfigIt = SecondaryMasterConnectionConfigs_.find(cellTag);
+                YT_VERIFY(masterConfigIt != SecondaryMasterConnectionConfigs_.end());
+                masterConfigIt->second = masterConfig;
+                // NB: It's necessary to reinitialize only ProxyingChunkServices_, since it uses the config completely,
+                // while in CachingObjectServices_ only the CellId is used - it does not need to be reinitialized.
+                RpcServer_->UnregisterService(ProxyingChunkServices_[cellTag]);
+                InitProxyingChunkService(masterConfig);
+            };
+
+            for (const auto& [cellTag, masterConfig] : reconfiguredSecondaryMasterConfigs) {
+                reconfigureMasterCell(masterConfig);
+                InsertOrCrash(reconfiguredCellTags, cellTag);
+            }
+        }
+
+        YT_LOG_DEBUG(
+            "Received new master cell cluster configuration (ReconfiguredCellTags: %v)",
+            reconfiguredCellTags);
+    }
+
+    TSecondaryMasterConnectionConfigs GetSecondaryMasterConnectionConfigs() const
+    {
+        auto guard = ReaderGuard(SecondaryMasterConnectionLock_);
+        return SecondaryMasterConnectionConfigs_;
     }
 
     i64 GetNetworkThrottlerLimit(const TClusterNodeDynamicConfigPtr& dynamicConfig, std::optional<i64> portoNetLimit) const
@@ -1599,7 +1685,7 @@ TCellId TBootstrapBase::GetCellId(TCellTag cellTag) const
     return Bootstrap_->GetCellId(cellTag);
 }
 
-const TCellTagList& TBootstrapBase::GetMasterCellTags() const
+const THashSet<TCellTag>& TBootstrapBase::GetMasterCellTags() const
 {
     return Bootstrap_->GetMasterCellTags();
 }

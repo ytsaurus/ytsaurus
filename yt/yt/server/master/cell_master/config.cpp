@@ -129,6 +129,32 @@ void TMasterCellDescriptor::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TMasterCellDirectoryConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("secondary_masters", &TThis::SecondaryMasters)
+        .Default();
+
+    registrar.Postprocessor([] (TThis* config) {
+        auto originalSize = config->SecondaryMasters.size();
+        SortUniqueBy(config->SecondaryMasters, [] (const auto& secondaryMaster) {
+            return secondaryMaster->CellId;
+        });
+        if (originalSize != config->SecondaryMasters.size()) {
+            THROW_ERROR_EXCEPTION("Master cell IDs should be unique");
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TTestConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("master_cell_directory_override", &TThis::MasterCellDirectoryOverride)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDynamicMulticellManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cell_statistics_gossip_period", &TThis::CellStatisticsGossipPeriod)
@@ -142,6 +168,8 @@ void TDynamicMulticellManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("sync_hive_clocks_period", &TThis::SyncHiveClocksPeriod)
         .Default(TDuration::Seconds(10));
+    registrar.Parameter("testing", &TThis::Testing)
+        .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
         THashMap<TString, NObjectServer::TCellTag> nameToCellTag;

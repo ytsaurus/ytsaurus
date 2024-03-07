@@ -88,7 +88,7 @@ struct IMasterConnector
     *  \note
     *  Thread affinity: any
     */
-    virtual const NObjectClient::TCellTagList& GetMasterCellTags() const = 0;
+    virtual const THashSet<NObjectClient::TCellTag>& GetMasterCellTags() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMasterConnector)

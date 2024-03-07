@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, wait,
+    authors, get_cell_tag, wait,
     exists, get, set, ls, remove, create_account, remove_account, make_ace, create_rack,
     create_user, remove_user, add_member, remove_member, create_group, remove_group,
     create_tablet_cell, create_tablet_cell_bundle, remove_tablet_cell_bundle, create_area, wait_for_cells,
@@ -279,6 +279,49 @@ class TestMasterCellsSync(YTEnvSetup):
         check(1)
         remove("//sys/@config/foo")
         check(0)
+
+    @authors("cherepashka")
+    def test_master_cell_reconfiguration_on_node(self):
+        def _get_connected_secondary_masters_addresses(node, cell_id):
+            connected_secondary_masters = get(f"//sys/cluster_nodes/{node}/orchid/connected_secondary_masters", driver=get_driver(0))
+            connected_secondary_masters = {int(cell_tag) : connection_config for cell_tag, connection_config in connected_secondary_masters.items()}
+            cell_tag = get_cell_tag(cell_id)
+            if cell_tag not in connected_secondary_masters.keys():
+                return None
+            return connected_secondary_masters[cell_tag]["addresses"]
+
+        nodes = ls("//sys/cluster_nodes")
+        secondary_masters = get("//sys/@cluster_connection/secondary_masters")
+        last_cell = secondary_masters[-1]
+        last_cell_addresses = last_cell["addresses"]
+        removed_host = last_cell_addresses[-1]
+        assert removed_host == last_cell["peers"][-1]["address"]
+
+        # Remove last peer.
+        secondary_masters[-1]["addresses"] = secondary_masters[-1]["addresses"][:-1]
+        secondary_masters[-1]["peers"] = secondary_masters[-1]["peers"][:-1]
+        set("//sys/@config/multicell_manager/testing/master_cell_directory_override", {
+            "secondary_masters" :  secondary_masters
+        }, driver=get_driver(0))
+
+        def _check(predicate):
+            for node in nodes:
+                if not predicate(node):
+                    return False
+            return True
+
+        # Wait for all nodes to receive new cell cluster configuration.
+        wait(lambda: _check(lambda node: removed_host not in _get_connected_secondary_masters_addresses(node, last_cell["cell_id"])))
+
+        # Return last peer.
+        secondary_masters[-1]["addresses"].append(removed_host)
+        secondary_masters[-1]["peers"].append(removed_host)
+        set("//sys/@config/multicell_manager/testing/master_cell_directory_override", {
+            "secondary_masters" :  secondary_masters
+        }, driver=get_driver(0))
+
+        # Wait for all nodes to receive new cell cluster configuration.
+        wait(lambda: _check(lambda node: removed_host in _get_connected_secondary_masters_addresses(node, last_cell["cell_id"])))
 
 ##################################################################
 

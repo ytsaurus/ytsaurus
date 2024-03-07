@@ -23,6 +23,7 @@
 #include <yt/yt/server/master/node_tracker_server/public.h>
 
 #include <yt/yt/server/master/object_server/public.h>
+#include <yt/yt/server/master/object_server/config.h>
 
 #include <yt/yt/server/master/security_server/public.h>
 
@@ -161,6 +162,35 @@ struct TMasterCellDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMasterCellDirectoryConfig
+    : public NYTree::TYsonStructLite
+{
+public:
+    std::vector<NApi::NNative::TMasterConnectionConfigPtr> SecondaryMasters;
+
+    REGISTER_YSON_STRUCT_LITE(TMasterCellDirectoryConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTestConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    // NB: Temporary field to test dynamic reconfiguration of master cell cluster on nodes.
+    std::optional<TMasterCellDirectoryConfig> MasterCellDirectoryOverride;
+
+    REGISTER_YSON_STRUCT(TTestConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTestConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDynamicMulticellManagerConfig
     : public NYTree::TYsonStruct
 {
@@ -175,6 +205,9 @@ public:
     bool RemoveSecondaryCellDefaultRoles;
 
     TDuration SyncHiveClocksPeriod;
+
+    // NB: Section for testing purposes.
+    TTestConfigPtr Testing;
 
     REGISTER_YSON_STRUCT(TDynamicMulticellManagerConfig);
 

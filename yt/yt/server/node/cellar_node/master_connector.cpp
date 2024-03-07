@@ -12,6 +12,10 @@
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
 #include <yt/yt/server/lib/cellar_agent/master_connector_helpers.h>
 
+#include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
+
 #include <yt/yt/ytlib/tablet_client/config.h>
 
 #include <yt/yt/ytlib/cellar_node_tracker_client/cellar_node_tracker_service_proxy.h>
@@ -27,6 +31,7 @@
 
 namespace NYT::NCellarNode {
 
+using namespace NCellMasterClient;
 using namespace NCellarAgent;
 using namespace NCellarClient;
 using namespace NClusterNode;
@@ -66,6 +71,11 @@ public:
         Bootstrap_->SubscribeMasterConnected(BIND(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
         Bootstrap_->SubscribeMasterDisconnected(BIND(&TMasterConnector::OnMasterDisconnected, MakeWeak(this)));
         Bootstrap_->SubscribePopulateAlerts(BIND(&TMasterConnector::PopulateAlerts, MakeWeak(this)));
+
+        const auto& connection = Bootstrap_->GetClient()->GetNativeConnection();
+        connection->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(
+            BIND(&TMasterConnector::OnMasterCellDirectoryChanged, MakeStrong(this))
+                .Via(Bootstrap_->GetControlInvoker()));
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(BIND(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
@@ -182,6 +192,21 @@ private:
         for (auto& [_, data] : PerCellTagData_) {
             data.ScheduledHeartbeatCount = 0;
         }
+    }
+
+    void OnMasterCellDirectoryChanged(
+        const THashSet<TCellTag>& addedSecondaryCellTags,
+        const TSecondaryMasterConnectionConfigs& /*reconfiguredSecondaryMasterConfigs*/,
+        const THashSet<TCellTag>& removedSecondaryTags)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YT_LOG_DEBUG_UNLESS(
+            addedSecondaryCellTags.empty() && removedSecondaryTags.empty(),
+            "Unexpected master cell configuration detected "
+            "(AddedCellTags: %v, RemovedCellTags: %v)",
+            addedSecondaryCellTags,
+            removedSecondaryTags);
     }
 
     void OnDynamicConfigChanged(
