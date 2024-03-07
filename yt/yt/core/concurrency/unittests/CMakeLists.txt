@@ -50,6 +50,7 @@ target_sources(unittester-core-concurrency PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/unittests/nonblocking_batcher_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/unittests/nonblocking_queue_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/unittests/periodic_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/unittests/profiled_fair_share_invoker_pool_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/unittests/propagating_storage_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/unittests/quantized_executor_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/unittests/scheduled_executor_ut.cpp

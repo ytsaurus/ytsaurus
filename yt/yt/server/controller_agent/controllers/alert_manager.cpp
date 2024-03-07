@@ -766,14 +766,14 @@ private:
             const auto& lastStatistics = LastControllerQueueStatistics_[queue];
 
             auto deltaEnqueuedActionCount = statistics.EnqueuedActionCount - lastStatistics.EnqueuedActionCount;
-            auto deltaDequeuedActionCount = statistics.DequeuedActionCount - lastStatistics.DequeuedActionCount;
+            auto deltaExecutedActionCount = statistics.ExecutedActionCount - lastStatistics.ExecutedActionCount;
 
             YT_LOG_DEBUG(
                 "Operation controller queue statistics (ControllerQueue: %v, DeltaEnqueuedActionCount: %v, "
-                "DeltaDequeuedActionCount: %v, WaitingActionCount: %v, TotalTimeEstimate: %v)",
+                "DeltaExecutedActionCount: %v, WaitingActionCount: %v, TotalTimeEstimate: %v)",
                 queue,
                 deltaEnqueuedActionCount,
-                deltaDequeuedActionCount,
+                deltaExecutedActionCount,
                 statistics.WaitingActionCount,
                 statistics.TotalTimeEstimate);
 
