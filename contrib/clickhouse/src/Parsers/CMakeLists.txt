@@ -47,8 +47,6 @@ target_link_libraries(clickhouse-src-Parsers PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   clickhouse-src-Common
-  contrib-libs-cctz
-  libs-cctz-tzdata
   contrib-libs-double-conversion
   contrib-libs-fmt
   contrib-libs-miniselect

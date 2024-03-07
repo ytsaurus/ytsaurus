@@ -12,8 +12,6 @@ LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
 PEERDIR(
     contrib/clickhouse/src/Common
-    contrib/libs/cctz
-    contrib/libs/cctz/tzdata
     contrib/libs/double-conversion
     contrib/libs/fmt
     contrib/libs/miniselect

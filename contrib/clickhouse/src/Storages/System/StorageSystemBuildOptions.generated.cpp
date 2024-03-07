@@ -41,7 +41,7 @@ const char * auto_config_build[]
     "USE_ODBC", "",
     "USE_GRPC", "",
     "USE_LDAP", "",
-    "TZDATA_VERSION", "2023c",
+    "TZDATA_VERSION", "2024a",
     "USE_KRB5", "",
     "USE_FILELOG", "1",
     "USE_BZIP2", "",
