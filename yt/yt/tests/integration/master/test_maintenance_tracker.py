@@ -110,12 +110,12 @@ class TestMaintenanceTracker(YTEnvSetup):
         create_user("u2")
         node = ls("//sys/cluster_nodes")[0]
         for kind, flag in self._KIND_TO_FLAG.items():
-            m1 = add_maintenance("cluster_node", node, kind, comment="comment1", authenticated_user="u1")
+            m1 = add_maintenance("cluster_node", node, kind, comment="comment1", authenticated_user="u1")[node]
             assert get(f"//sys/cluster_nodes/{node}/@{flag}")
-            m2 = add_maintenance("cluster_node", node, kind, comment="comment2", authenticated_user="u2")
+            m2 = add_maintenance("cluster_node", node, kind, comment="comment2", authenticated_user="u2")[node]
             assert get(f"//sys/cluster_nodes/{node}/@{flag}")
 
-            assert remove_maintenance("cluster_node", node, id=m1) == {kind: 1}
+            assert remove_maintenance("cluster_node", node, id=m1) == {node: {kind: 1}}
             assert get(f"//sys/cluster_nodes/{node}/@{flag}")
 
             ((m_id, m),) = get(f"//sys/cluster_nodes/{node}/@maintenance_requests").items()
@@ -127,7 +127,7 @@ class TestMaintenanceTracker(YTEnvSetup):
             ts = datetime.strptime(m["timestamp"], "%Y-%m-%dT%H:%M:%S.%fZ")
             assert (datetime.utcnow() - ts).seconds / 60 <= 30
 
-            assert remove_maintenance("cluster_node", node, id=m2) == {kind: 1}
+            assert remove_maintenance("cluster_node", node, id=m2) == {node: {kind: 1}}
             assert not get(f"//sys/cluster_nodes/{node}/@{flag}")
 
     @authors("kvk1920")
@@ -155,7 +155,7 @@ class TestMaintenanceTracker(YTEnvSetup):
         for kind, flag in self._KIND_TO_FLAG.items():
             check_flags()
             assert remove_maintenance("cluster_node", node, id=maintenance_ids[kind]) == {
-                kind: 1,
+                node: {kind: 1}
             }
             cleared_flags.add(flag)
             check_flags()
@@ -169,7 +169,7 @@ class TestMaintenanceTracker(YTEnvSetup):
         old_acl = get("//sys/schemas/cluster_node/@acl")
         set("//sys/schemas/cluster_node/@acl", [make_ace("deny", "u", "write")])
         try:
-            maintenance_id = add_maintenance("cluster_node", node, "ban", comment="ban by root")
+            maintenance_id = add_maintenance("cluster_node", node, "ban", comment="ban by root")[node]
             with raises_yt_error("Access denied"):
                 add_maintenance("cluster_node", node, "ban", comment="ban by u", authenticated_user="u")
             with raises_yt_error("Access denied"):
@@ -205,10 +205,10 @@ class TestMaintenanceTracker(YTEnvSetup):
         assert get(f"{path}/@decommissioned")
         assert get(f"{path}/@disable_write_sessions")
 
-        assert remove_maintenance("cluster_node", node, all=True) == {
+        assert remove_maintenance("cluster_node", node, all=True) == {node: {
             "disable_write_sessions": 1,
             "decommission": 1,
-        }
+        }}
 
         assert len(get(f"{path}/@maintenance_requests")) == 0
         assert not get(f"{path}/@decommissioned")
@@ -228,7 +228,7 @@ class TestMaintenanceTracker(YTEnvSetup):
         assert len(get(f"{path}/@maintenance_requests")) == 2
 
         assert remove_maintenance("cluster_node", node, mine=True, authenticated_user="u1") == {
-            "disable_write_sessions": 1
+            node: {"disable_write_sessions": 1}
         }
         assert [request["user"] for request in get(f"{path}/@maintenance_requests").values()] == ["u2"]
 
@@ -241,18 +241,18 @@ class TestMaintenanceTracker(YTEnvSetup):
         path = "//sys/cluster_nodes/" + node
 
         ids_to_remove = [
-            add_maintenance("cluster_node", node, "disable_write_sessions", "", authenticated_user="u1"),
-            add_maintenance("cluster_node", node, "disable_write_sessions", "", authenticated_user="u1"),
-            add_maintenance("cluster_node", node, "disable_scheduler_jobs", "", authenticated_user="u2"),
+            add_maintenance("cluster_node", node, "disable_write_sessions", "", authenticated_user="u1")[node],
+            add_maintenance("cluster_node", node, "disable_write_sessions", "", authenticated_user="u1")[node],
+            add_maintenance("cluster_node", node, "disable_scheduler_jobs", "", authenticated_user="u2")[node],
         ]
 
         reminded_requests = sorted([
             ids_to_remove[2],
-            add_maintenance("cluster_node", node, "disable_write_sessions", "", authenticated_user="u1")
+            add_maintenance("cluster_node", node, "disable_write_sessions", "", authenticated_user="u1")[node]
         ])
 
         assert remove_maintenance("cluster_node", node, mine=True, ids=ids_to_remove, authenticated_user="u1") == {
-            "disable_write_sessions": 2
+            node: {"disable_write_sessions": 2}
         }
 
         # Only listed in `ids_to_remove` requests and with user "u1" must be removed.
@@ -269,10 +269,10 @@ class TestMaintenanceTracker(YTEnvSetup):
         self._set_host(nodes[1], "h1")
         self._set_host(nodes[2], "h2")
 
-        # Adding host maintenance adds maintenances for every node on this host.
-        zero = add_maintenance("host", "h1", "ban", comment="because I want", authenticated_user="u")
-        # Return value of `add_maintenance("host", ...)` is meaningless.
-        assert zero == "0-0-0-0"
+        maintenances = add_maintenance("host", "h1", "ban", comment="because I want", authenticated_user="u")
+        assert builtins.set(maintenances.keys()) == {nodes[0], nodes[1]}
+        assert [maintenances[nodes[0]]] == list(get(f"//sys/cluster_nodes/{nodes[0]}/@maintenance_requests").keys())
+        assert [maintenances[nodes[1]]] == list(get(f"//sys/cluster_nodes/{nodes[1]}/@maintenance_requests").keys())
 
         for node in nodes[:2]:
             maintenances = get(f"//sys/cluster_nodes/{node}/@maintenance_requests")
@@ -284,12 +284,15 @@ class TestMaintenanceTracker(YTEnvSetup):
 
         assert not get(f"//sys/cluster_nodes/{nodes[2]}/@maintenance_requests")
 
-        not_mine_maintenance = add_maintenance("cluster_node", nodes[0], "ban", comment="")
+        not_mine_maintenance = add_maintenance("cluster_node", nodes[0], "ban", comment="")[nodes[0]]
         add_maintenance("cluster_node", nodes[1], "ban", comment="", authenticated_user="u")
-        h2_maintenance = add_maintenance("cluster_node", nodes[2], "ban", comment="", authenticated_user="u")
+        h2_maintenances = add_maintenance("cluster_node", nodes[2], "ban", comment="", authenticated_user="u")
+        assert list(h2_maintenances.keys()) == [nodes[2]]
+        h2_maintenance = h2_maintenances[nodes[2]]
 
         assert remove_maintenance("host", "h1", mine=True, authenticated_user="u") == {
-            "ban": 3,
+            nodes[0]: {"ban": 1},
+            nodes[1]: {"ban": 2},
         }
 
         # All requests of user "u" must be removed from every node on "h" host.
@@ -305,7 +308,7 @@ class TestMaintenanceTracker(YTEnvSetup):
             pytest.skip("Rpc proxies cannot be used if they are banned")
         proxy = ls(f"//sys/{proxy_type}_proxies")[1]
         proxy_path = f"//sys/{proxy_type}_proxies/{proxy}"
-        maintenance_id = add_maintenance(f"{proxy_type}_proxy", proxy, "ban", comment="ABCDEF")
+        maintenance_id = add_maintenance(f"{proxy_type}_proxy", proxy, "ban", comment="ABCDEF")[proxy]
         assert get(f"{proxy_path}/@banned")
         maintenances = get(f"{proxy_path}/@maintenance_requests")
         assert len(maintenances) == 1
@@ -338,7 +341,7 @@ class TestMaintenanceTrackerMulticell(TestMaintenanceTracker):
             assert len(maintenances) == 5
             maintenances.sort(reverse=True)
             assert remove_maintenance("cluster_node", node, ids=maintenances) == {
-                "ban": 5
+                node: {"ban": 5}
             }
 
 

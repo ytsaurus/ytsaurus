@@ -205,6 +205,7 @@ DEFINE_ENUM(EMasterReign,
     ((ErasureHunkCodecInDoCopy)                                     (2537))  // akozhikhov
     ((CachedMaxSnapshotId)                                          (2538))  // ifsmirnov
     ((MasterCellsCompositionReconfigurationOnNodes)                 (2539))  // cherepashka
+    ((ImproveMaintenanceRequestsApi)                                (2540))  // kvk1920
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov

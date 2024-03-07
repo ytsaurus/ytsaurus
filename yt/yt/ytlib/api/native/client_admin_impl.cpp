@@ -669,7 +669,7 @@ TMaintenanceTargetInfo GetCellTagForMaintenanceComponent(
 
 } // namespace
 
-TMaintenanceId TClient::DoAddMaintenance(
+TMaintenanceIdPerTarget TClient::DoAddMaintenance(
     EMaintenanceComponent component,
     const TString& address,
     EMaintenanceType type,
@@ -691,6 +691,7 @@ TMaintenanceId TClient::DoAddMaintenance(
     if (componentRegistryId != NullObjectId) {
         ToProto(request->mutable_component_registry_id(), componentRegistryId);
     }
+    request->set_supports_per_target_response(true);
     batchRequest->AddRequest(request);
     batchRequest->SetTimeout(options.Timeout);
 
@@ -701,10 +702,20 @@ TMaintenanceId TClient::DoAddMaintenance(
         ->GetResponse<TMasterYPathProxy::TRspAddMaintenance>(0)
         .ValueOrThrow();
 
-    return FromProto<TMaintenanceId>(response->id());
+    // COMPAT(kvk1920): compatibility with pre-24.2 masters.
+    if (response->has_id()) {
+        return {{address, FromProto<TMaintenanceId>(response->id())}};
+    }
+
+    TMaintenanceIdPerTarget ids;
+    ids.reserve(response->ids_size());
+    for (const auto& proto : response->ids()) {
+        ids[proto.target()] = FromProto<TMaintenanceId>(proto.id());
+    }
+    return ids;
 }
 
-TMaintenanceCounts TClient::DoRemoveMaintenance(
+TMaintenanceCountsPerTarget TClient::DoRemoveMaintenance(
     EMaintenanceComponent component,
     const TString& address,
     const TMaintenanceFilter& filter,
@@ -740,6 +751,8 @@ TMaintenanceCounts TClient::DoRemoveMaintenance(
         ToProto(request->mutable_component_registry_id(), componentRegistryId);
     }
 
+    request->set_supports_per_target_response(true);
+
     batchRequest->AddRequest(request);
     batchRequest->SetTimeout(options.Timeout);
 
@@ -748,19 +761,23 @@ TMaintenanceCounts TClient::DoRemoveMaintenance(
     auto response = batchResponse->GetResponse<TMasterYPathProxy::TRspRemoveMaintenance>(0)
         .ValueOrThrow();
 
-    TMaintenanceCounts result;
+    TMaintenanceCountsPerTarget result;
 
-    if (response->use_map_instead_of_fields()) {
-        for (const auto& entry : response->removed_maintenance_counts()) {
-            result[CheckedEnumCast<EMaintenanceType>(entry.type())] = entry.count();
+    auto extractRemovedCounts = [] (TMaintenanceCounts* counts, const auto& proto) {
+        for (const auto& entry : proto) {
+            counts->operator[](CheckedEnumCast<EMaintenanceType>(entry.type())) = entry.count();
         }
-    } else {
-        result[EMaintenanceType::Ban] = response->ban();
-        result[EMaintenanceType::Decommission] = response->decommission();
-        result[EMaintenanceType::DisableSchedulerJobs] = response->disable_scheduler_jobs();
-        result[EMaintenanceType::DisableWriteSessions] = response->disable_write_sessions();
-        result[EMaintenanceType::DisableTabletCells] = response->disable_tablet_cells();
-        result[EMaintenanceType::PendingRestart] = response->pending_restart();
+    };
+
+    // COMPAT(kvk1920): compatibility with pre-24.2 masters.
+    if (!response->supports_per_target_response()) {
+        extractRemovedCounts(&result[address], response->removed_maintenance_counts());
+        return result;
+    }
+
+    result.reserve(response->removed_maintenance_counts_per_target_size());
+    for (const auto& protoPerTargetCounts : response->removed_maintenance_counts_per_target()) {
+        extractRemovedCounts(&result[protoPerTargetCounts.target()], protoPerTargetCounts.counts());
     }
 
     return result;

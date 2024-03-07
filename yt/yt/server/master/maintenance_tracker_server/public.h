@@ -11,6 +11,8 @@ using NApi::EMaintenanceComponent;
 using NApi::EMaintenanceType;
 using NApi::TMaintenanceId;
 using NApi::TMaintenanceCounts;
+using NApi::TMaintenanceIdPerTarget;
+using NApi::TMaintenanceCountsPerTarget;
 
 ////////////////////////////////////////////////////////////////////////////////
 

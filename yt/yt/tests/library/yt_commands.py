@@ -1779,9 +1779,10 @@ def add_maintenance(component, address, type, comment, **kwargs):
         "component": component,
         "address": address,
         "type": type,
-        "comment": comment
+        "comment": comment,
+        "supports_per_target_response": True,
     })
-    return execute_command("add_maintenance", kwargs, parse_yson=True)
+    return execute_command("add_maintenance", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 
 def remove_maintenance(component, address, *, id_=None, ids=None, type_=None, user=None,
@@ -1790,7 +1791,8 @@ def remove_maintenance(component, address, *, id_=None, ids=None, type_=None, us
         "component": component,
         "address": address,
         "mine": mine,
-        "all": all ,
+        "all": all,
+        "supports_per_target_response": True,
     })
     if id_ is not None:
         kwargs["ids"] = [id_]

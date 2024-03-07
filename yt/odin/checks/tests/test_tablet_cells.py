@@ -20,7 +20,7 @@ def test_tablet_cells(yt_env):
 
         assert _check() == FULLY_AVAILABLE_STATE
 
-        maintenance_id = add_maintenance("cluster_node", node, "disable_tablet_cells", "", client=yt_client)
+        maintenance_id = add_maintenance("cluster_node", node, "disable_tablet_cells", "", client=yt_client)[node]
 
         wait(lambda: _check() == PARTIALLY_AVAILABLE_STATE)
         assert _check() == UNAVAILABLE_STATE

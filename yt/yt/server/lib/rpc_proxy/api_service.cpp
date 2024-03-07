@@ -4657,14 +4657,19 @@ private:
         auto comment = request->comment();
         ValidateMaintenanceComment(comment);
 
+        // COMPAT(kvk1920): For compatibility with pre-24.2 clients.
+        auto supportsPerTargetResponse = request->supports_per_target_response();
+
         TAddMaintenanceOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRequestInfo("Component: %v, Address: %v, Type: %v, Comment: %v",
+        context->SetRequestInfo(
+            "Component: %v, Address: %v, Type: %v, Comment: %v, SupportsPerTargetResponse: %v",
             component,
             address,
             type,
-            comment);
+            comment,
+            supportsPerTargetResponse);
 
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -4673,9 +4678,21 @@ private:
             [=] {
                 return client->AddMaintenance(component, address, type, comment, options);
             },
-            [=] (const auto& context, const auto& result) {
+            [=] (const auto& context, const TMaintenanceIdPerTarget& result) {
                 auto* response = &context->Response();
-                ToProto(response->mutable_id(), result);
+                // COMPAT(kvk1920): Compatibility with pre-24.2 RPC clients.
+                if (!supportsPerTargetResponse) {
+                    ToProto(
+                        response->mutable_id(),
+                        result.size() == 1 ? result.begin()->second : TMaintenanceId{});
+                    return;
+                }
+
+                for (const auto& [target, id] : result) {
+                    ToProto(
+                        &(response->mutable_id_per_target()->operator[](target)),
+                        id);
+                }
             });
     }
 
@@ -4714,6 +4731,12 @@ private:
             filter.User = TByUser::TAll{};
         }
 
+        // COMPAT(kvk1920): For compatibility with pre-24.2 RPC clients.
+        auto supportsPerTargetResponse = request->supports_per_target_response();
+        requestInfo.AppendFormat(
+            ", SupportsPerTargetResponse: %v",
+            supportsPerTargetResponse);
+
         TRemoveMaintenanceOptions options;
         SetTimeoutOptions(&options, context.Get());
 
@@ -4726,31 +4749,58 @@ private:
             [=] {
                 return client->RemoveMaintenance(component, address, filter);
             },
-            [=] (const auto& context, const TMaintenanceCounts& result) {
+            [=] (const auto& context, const TMaintenanceCountsPerTarget& result) {
                 auto& response = context->Response();
 
-                response.set_ban(result[EMaintenanceType::Ban]);
-                response.set_decommission(result[EMaintenanceType::Decommission]);
-                response.set_disable_scheduler_jobs(result[EMaintenanceType::DisableSchedulerJobs]);
-                response.set_disable_write_sessions(result[EMaintenanceType::DisableWriteSessions]);
-                response.set_disable_tablet_cells(result[EMaintenanceType::DisableTabletCells]);
-                response.set_pending_restart(result[EMaintenanceType::PendingRestart]);
+                auto fillMaintenanceCounts = [] (auto* protoMap, const TMaintenanceCounts& counts) {
+                    using namespace NApi::NRpcProxy::NProto;
+                    constexpr NApi::NRpcProxy::NProto::EMaintenanceType Types[] =  {
+                        MT_BAN,
+                        MT_DECOMMISSION,
+                        MT_DISABLE_SCHEDULER_JOBS,
+                        MT_DISABLE_WRITE_SESSIONS,
+                        MT_DISABLE_TABLET_CELLS,
+                        MT_PENDING_RESTART
+                    };
 
-                response.set_use_map_instead_of_fields(true);
-
-                using namespace NApi::NRpcProxy::NProto;
-                constexpr NApi::NRpcProxy::NProto::EMaintenanceType Types[] =  {
-                    MT_BAN,
-                    MT_DECOMMISSION,
-                    MT_DISABLE_SCHEDULER_JOBS,
-                    MT_DISABLE_WRITE_SESSIONS,
-                    MT_DISABLE_TABLET_CELLS,
-                    MT_PENDING_RESTART
+                    for (auto type : Types) {
+                        protoMap->insert({
+                            type,
+                            counts[MaintenanceTypeFromProto(type)]});
+                    }
                 };
 
-                auto* map = response.mutable_removed_maintenance_counts();
-                for (auto type : Types) {
-                    map->insert({type, result[MaintenanceTypeFromProto(type)]});
+                // COMPAT(kvk1920): For compatibility with pre-24.2 RPC clients.
+                if (!supportsPerTargetResponse) {
+                    TMaintenanceCounts totalCounts;
+                    for (const auto& [target, targetCounts] : result) {
+                        for (auto type : TEnumTraits<EMaintenanceType>::GetDomainValues()) {
+                            totalCounts[type] += targetCounts[type];
+                        }
+                    }
+
+                    // COMPAT(kvk1920): For compatibility with pre-23.2 RPC clients.
+                    response.set_ban(totalCounts[EMaintenanceType::Ban]);
+                    response.set_decommission(totalCounts[EMaintenanceType::Decommission]);
+                    response.set_disable_scheduler_jobs(totalCounts[EMaintenanceType::DisableSchedulerJobs]);
+                    response.set_disable_write_sessions(totalCounts[EMaintenanceType::DisableWriteSessions]);
+                    response.set_disable_tablet_cells(totalCounts[EMaintenanceType::DisableTabletCells]);
+                    response.set_pending_restart(totalCounts[EMaintenanceType::PendingRestart]);
+
+                    response.set_use_map_instead_of_fields(true);
+
+                    fillMaintenanceCounts(response.mutable_removed_maintenance_counts(), totalCounts);
+
+                    return;
+                }
+
+                response.set_supports_per_target_response(true);
+
+                auto* protoMap = response.mutable_removed_maintenance_counts_per_target();
+                for (const auto& [target, counts] : result) {
+                    fillMaintenanceCounts(
+                        protoMap->operator[](target).mutable_counts(),
+                        counts);
                 }
             });
     }

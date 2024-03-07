@@ -13,14 +13,14 @@ namespace NYT::NMaintenanceTrackerServer {
 struct IMaintenanceTracker
     : public virtual TRefCounted
 {
-    virtual TMaintenanceId AddMaintenance(
+    virtual TMaintenanceIdPerTarget AddMaintenance(
         EMaintenanceComponent component,
         const TString& address,
         EMaintenanceType type,
         const TString& comment,
         std::optional<NCypressServer::TNodeId> targetMapNodeId) = 0;
 
-    virtual TMaintenanceCounts RemoveMaintenance(
+    virtual TMaintenanceCountsPerTarget RemoveMaintenance(
         EMaintenanceComponent component,
         const TString& address,
         const std::optional<TCompactSet<TMaintenanceId, TypicalMaintenanceRequestCount>> ids,
