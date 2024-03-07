@@ -49,7 +49,13 @@ public:
     //! (obtained by calling TTablet::GetRowKeyComparer).
     const TSortedDynamicRowKeyComparer& GetRowKeyComparer() const;
 
-    using TRowBlockedHandler = TCallback<void(TSortedDynamicRow row, int lockIndex)>;
+    struct TConflictInfo
+    {
+        int LockIndex;
+        TTimestamp CheckingTimestamp;
+    };
+
+    using TRowBlockedHandler = TCallback<void(TSortedDynamicRow row, TConflictInfo conflictInfo, TDuration timeout)>;
 
     //! Sets the handler that is being invoked when read request faces a blocked row.
     void SetRowBlockedHandler(TRowBlockedHandler handler);

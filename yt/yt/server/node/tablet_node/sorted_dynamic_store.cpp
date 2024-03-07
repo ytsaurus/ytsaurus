@@ -1042,7 +1042,15 @@ void TSortedDynamicStore::WaitOnBlockedRow(
             throwError(NTabletClient::EErrorCode::RowIsBlocked, "Row is blocked");
         }
 
-        handler.Run(row, lockIndex);
+        auto timeLeft = NProfiling::CpuDurationToDuration(deadline - NProfiling::GetCpuInstant());
+
+        handler.Run(
+            row,
+            TConflictInfo{
+                .LockIndex = lockIndex,
+                .CheckingTimestamp = timestamp
+            },
+            timeLeft);
 
         if (NProfiling::GetCpuInstant() > deadline) {
             throwError(NTabletClient::EErrorCode::BlockedRowWaitTimeout, "Timed out waiting on blocked row");
@@ -1553,7 +1561,7 @@ int TSortedDynamicStore::GetBlockingLockIndex(
     {
         auto lockType = lockMask.Get(index);
 
-        if (lockType != ELockType::None && lock->PrepareTimestamp < timestamp) {
+        if (lockType != ELockType::None && lock->PrepareTimestamp.load() < timestamp) {
             return index;
         }
     }

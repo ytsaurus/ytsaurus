@@ -1150,7 +1150,11 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ReadNotBlocked)
     PrepareRow(transaction.get(), row);
 
     bool blocked = false;
-    Store_->SetRowBlockedHandler(BIND([&] (TSortedDynamicRow /*row*/, int /*lockIndex*/) {
+    Store_->SetRowBlockedHandler(BIND([&] (
+        TSortedDynamicRow /*row*/,
+        TSortedDynamicStore::TConflictInfo /*conflictInfo*/,
+        TDuration /*timeout*/)
+    {
         blocked = true;
     }));
 
@@ -1173,8 +1177,12 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ReadBlockedAbort)
     PrepareRow(transaction.get(), row);
 
     bool blocked = false;
-    Store_->SetRowBlockedHandler(BIND([&] (TSortedDynamicRow blockedRow, int lockIndex) {
-        EXPECT_EQ(PrimaryLockIndex, lockIndex);
+    Store_->SetRowBlockedHandler(BIND([&] (
+        TSortedDynamicRow blockedRow,
+        TSortedDynamicStore::TConflictInfo conflictInfo,
+        TDuration /*timeout*/)
+    {
+        EXPECT_EQ(PrimaryLockIndex, conflictInfo.LockIndex);
         EXPECT_EQ(blockedRow, row);
         AbortTransaction(transaction.get());
         AbortRow(transaction.get(), row);
@@ -1199,8 +1207,12 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ReadBlockedCommit)
     PrepareRow(transaction.get(), dynamicRow);
 
     bool blocked = false;
-    Store_->SetRowBlockedHandler(BIND([&] (TSortedDynamicRow blockedRow, int lockIndex) {
-        EXPECT_EQ(PrimaryLockIndex, lockIndex);
+    Store_->SetRowBlockedHandler(BIND([&] (
+        TSortedDynamicRow blockedRow,
+        TSortedDynamicStore::TConflictInfo conflictInfo,
+        TDuration /*timeout*/)
+    {
+        EXPECT_EQ(PrimaryLockIndex, conflictInfo.LockIndex);
         EXPECT_EQ(blockedRow, dynamicRow);
         CommitTransaction(transaction.get());
         WriteRow(transaction.get(), dynamicRow, row);
@@ -1225,7 +1237,11 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ReadBlockedTimeout)
     PrepareRow(transaction.get(), row);
 
     bool blocked = false;
-    Store_->SetRowBlockedHandler(BIND([&] (TSortedDynamicRow /*blockedRow*/, int /*lockIndex*/) {
+    Store_->SetRowBlockedHandler(BIND([&] (
+        TSortedDynamicRow /*blockedRow*/,
+        TSortedDynamicStore::TConflictInfo /*conflictInfo*/,
+        TDuration /*timeout*/)
+    {
         blocked = true;
         Sleep(TDuration::MilliSeconds(10));
     }));
@@ -1859,7 +1875,11 @@ TEST_F(TMultiLockSortedDynamicStoreTest, WriteNotBlocked)
     PrepareRow(transaction1.get(), row1);
 
     bool blocked = false;
-    Store_->SetRowBlockedHandler(BIND([&] (TSortedDynamicRow /*blockedRow*/, int /*lockIndex*/) {
+    Store_->SetRowBlockedHandler(BIND([&] (
+        TSortedDynamicRow /*blockedRow*/,
+        TSortedDynamicStore::TConflictInfo /*conflictInfo*/,
+        TDuration /*timeout*/)
+    {
         blocked = true;
     }));
 

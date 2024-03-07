@@ -141,11 +141,13 @@ private:
         IStore* store,
         IInvokerPtr invoker,
         TSortedDynamicRow row,
-        int lockIndex);
+        TSortedDynamicStore::TConflictInfo conflictInfo,
+        TDuration timeout);
     void WaitOnBlockedRow(
         IStorePtr store,
         TSortedDynamicRow row,
-        int lockIndex);
+        TSortedDynamicStore::TConflictInfo conflictInfo,
+        TDuration timeout);
 
     void BuildPivotKeys(
         std::vector<TLegacyOwningKey>* pivotKeys,
