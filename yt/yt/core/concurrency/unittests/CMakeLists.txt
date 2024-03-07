@@ -50,6 +50,7 @@ target_sources(unittester-core-concurrency PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/nonblocking_batcher_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/nonblocking_queue_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/periodic_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/profiled_fair_share_invoker_pool_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/propagating_storage_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/quantized_executor_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/scheduled_executor_ut.cpp

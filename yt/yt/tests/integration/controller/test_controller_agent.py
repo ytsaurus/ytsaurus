@@ -10,6 +10,8 @@ from yt_commands import (
     set, exists, update_op_parameters,
     write_table, map, reduce, map_reduce, merge, erase, vanilla, run_sleeping_vanilla, run_test_vanilla, get_operation, raises_yt_error)
 
+from yt_helpers import profiler_factory
+
 from yt.common import YtError, YtResponseError
 
 import yt_error_codes
@@ -999,6 +1001,40 @@ class TestMemoryWatchdog(YTEnvSetup):
                 assert err.contains_code(yt_error_codes.ControllerMemoryLimitExceeded)
                 failed += 1
         assert failed == 1
+
+    @authors("arkady-e1ppa")
+    def test_operation_controller_profiling(self):
+        controller_agent = ls("//sys/controller_agents/instances")[0]
+        profiler = profiler_factory().at_controller_agent(controller_agent)
+
+        bucket_names = [
+            "Default",
+            "GetJobSpec",
+            "JobEvents",
+        ]
+
+        counter_names = [
+            "enqueued",
+            "dequeued",
+        ]
+
+        counters = {
+            bucket : {
+                counter : profiler.counter(name=f"fair_share_invoker_pool/{counter}", tags={"thread": "OperationController", "bucket": bucket})
+                for counter in counter_names
+            }
+            for bucket in bucket_names
+        }
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1)
+
+        wait_breakpoint()
+
+        wait(lambda: all(counter["enqueued"].get_delta() > 0 and counter["dequeued"].get_delta() > 0 for _, counter in counters.items()))
+
+        release_breakpoint()
+
+        op.track()
 
 
 class TestLivePreview(YTEnvSetup):
