@@ -1095,9 +1095,10 @@ def partition_tables(paths, partition_mode=None, data_weight_per_partition=None,
 
 
 def dump_parquet(table, output_file, client=None):
-    """Dump parquet
+    """Dump parquet into a file from table with a strict schema
+    `parquet doc <https://parquet.apache.org/docs>`_
 
-    :param table: path to tables
+    :param table: table
     :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
     :param output_file: path to output file
     :type path: str
@@ -1111,3 +1112,22 @@ def dump_parquet(table, output_file, client=None):
             'can be installed ' + YSON_PACKAGE_INSTALLATION_TEXT)
 
     yson.dump_parquet(output_file, stream)
+
+
+def upload_parquet(table, input_file, client=None):
+    """Upload parquet from a file into a table that must be created with a strict schema
+    `parquet doc <https://parquet.apache.org/docs>`_
+
+    :param table: table
+    :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param input_file: path to input file
+    :type path: str
+    """
+    if not yson.HAS_PARQUET:
+        raise YtError(
+            'YSON bindings required.'
+            'Bindings are shipped as additional package and '
+            'can be installed ' + YSON_PACKAGE_INSTALLATION_TEXT)
+
+    stream = yson.upload_parquet(input_file)
+    write_table(table, stream, raw=True, format="arrow", client=client)

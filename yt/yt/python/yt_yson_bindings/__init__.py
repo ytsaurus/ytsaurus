@@ -1,9 +1,9 @@
 try:
-    from .yson_lib import (load, loads, dump, dumps, loads_proto, dumps_proto, dump_parquet,  # noqa
+    from .yson_lib import (load, loads, dump, dumps, loads_proto, dumps_proto, dump_parquet, upload_parquet, # noqa
                            load_skiff, load_skiff_structured, dump_skiff, dump_skiff_structured,
                            SkiffRecord, SkiffSchema, SkiffTableSwitch, SkiffOtherColumns)
 except ImportError:
-    from yson_lib import (load, loads, dump, dumps, loads_proto, dumps_proto, dump_parquet, # noqa
+    from yson_lib import (load, loads, dump, dumps, loads_proto, dumps_proto, dump_parquet, upload_parquet, # noqa
                           load_skiff, load_skiff_structured, dump_skiff, dump_skiff_structured,
                           SkiffRecord, SkiffSchema, SkiffTableSwitch, SkiffOtherColumns)
 

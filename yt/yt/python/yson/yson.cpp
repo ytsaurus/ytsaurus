@@ -277,6 +277,8 @@ public:
         TSkiffStructuredIterator::InitType();
         TSkiffOtherColumns::InitType();
 
+        InitArrowIteratorType();
+
         PyType_Ready(TLazyYsonMapBaseType);
         PyType_Ready(TLazyYsonMapType);
 
@@ -297,7 +299,8 @@ public:
         add_keyword_method("load_skiff", &TYsonModule::LoadSkiff, "Loads Skiff from stream");
         add_keyword_method("dump_skiff", &TYsonModule::DumpSkiff, "Dumps Skiff to stream");
 
-        add_keyword_method("dump_parquet", &TYsonModule::DumpParquet, "Dumps Parquet from stream");
+        add_keyword_method("dump_parquet", &TYsonModule::DumpParquet, "Dumps Parquet to file from Arrow stream");
+        add_keyword_method("upload_parquet", &TYsonModule::UploadParquet, "Uploads Parquet from file as Arrow to stream");
 
         add_keyword_method("load_skiff_structured", &TYsonModule::LoadSkiffStructured, "Loads Skiff rows from stream in structured form");
         add_keyword_method("dump_skiff_structured", &TYsonModule::DumpSkiffStructured, "Dumps Skiff rows to stream in structured form");
@@ -468,6 +471,13 @@ public:
         auto args = args_;
         auto kwargs = kwargs_;
         return NPython::DumpParquet(args, kwargs);
+    }
+
+    Py::Object UploadParquet(const Py::Tuple& args_, const Py::Dict& kwargs_)
+    {
+        auto args = args_;
+        auto kwargs = kwargs_;
+        return NPython::UploadParquet(args, kwargs);
     }
 
     Py::Object LoadSkiffStructured(const Py::Tuple& args_, const Py::Dict& kwargs_)

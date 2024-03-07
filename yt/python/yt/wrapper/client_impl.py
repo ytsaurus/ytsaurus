@@ -642,9 +642,10 @@ class YtClient(ClientState):
             self,
             table, output_file):
         """
-        Dump parquet
+        Dump parquet into a file from table with a strict schema
+        `parquet doc <https://parquet.apache.org/docs>`_
 
-        :param table: path to tables
+        :param table: table
         :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
         :param output_file: path to output file
         :type path: str
@@ -2857,6 +2858,23 @@ class YtClient(ClientState):
         """
         return client_api.update_operation_parameters(
             operation_id, parameters,
+            client=self)
+
+    def upload_parquet(
+            self,
+            table, input_file):
+        """
+        Upload parquet from a file into a table that must be created with a strict schema
+        `parquet doc <https://parquet.apache.org/docs>`_
+
+        :param table: table
+        :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param input_file: path to input file
+        :type path: str
+
+        """
+        return client_api.upload_parquet(
+            table, input_file,
             client=self)
 
     def write_file(

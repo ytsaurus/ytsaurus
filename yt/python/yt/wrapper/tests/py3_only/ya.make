@@ -42,6 +42,7 @@ PEERDIR(
 
     contrib/python/flaky
     contrib/python/pyarrow
+    contrib/python/pandas
 )
 
 COPY_FILE(../conftest.py conftest.py)

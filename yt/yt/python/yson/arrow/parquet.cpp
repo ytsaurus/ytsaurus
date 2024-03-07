@@ -1,3 +1,5 @@
+#include "arrow_raw_iterator.h"
+
 #include <yt/yt/python/common/helpers.h>
 #include <yt/yt/python/common/stream.h>
 
@@ -229,7 +231,7 @@ void WriteParquet(const std::string& outputFilePath, IInputStream* stream)
 
 Py::Object DumpParquet(Py::Tuple& args, Py::Dict& kwargs)
 {
-    auto outputFilePath = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "path_to_file"));
+    auto outputFilePath = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "pathToFile"));
 
     auto streamArg = ExtractArgument(args, kwargs, "stream");
     auto stream = CreateInputStreamWrapper(streamArg);
@@ -239,6 +241,29 @@ Py::Object DumpParquet(Py::Tuple& args, Py::Dict& kwargs)
     WriteParquet(outputFilePath, stream.get());
 
     return Py::None();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Py::Object UploadParquet(Py::Tuple& args, Py::Dict& kwargs)
+{
+    auto inputFilePath = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "pathToFile"));
+
+    ValidateArgumentsEmpty(args, kwargs);
+
+    Py::Callable classType(TArrowRawIterator::type());
+    Py::PythonClassObject<TArrowRawIterator> pythonIter(classType.apply(Py::Tuple(), Py::Dict()));
+    auto* iter = pythonIter.getCxxObject();
+    iter->Initialize(inputFilePath);
+
+    return pythonIter;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void InitArrowIteratorType()
+{
+    TArrowRawIterator::InitType();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

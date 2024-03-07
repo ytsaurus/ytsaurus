@@ -543,6 +543,17 @@ def add_dump_parquet_parser(add_parser):
     parser.add_argument("--output-file", type=str, required=True)
 
 
+@copy_docstring_from(yt.upload_parquet)
+def upload_parquet(**kwargs):
+    yt.upload_parquet(**kwargs)
+
+
+def add_upload_parquet_parser(add_parser):
+    parser = add_parser("upload-parquet", upload_parquet)
+    add_ypath_argument(parser, "table", hybrid=True)
+    parser.add_argument("--input-file", type=str, required=True)
+
+
 @copy_docstring_from(yt.write_table)
 def write_table(**kwargs):
     func_args = dict(kwargs)
@@ -2693,6 +2704,8 @@ def main_func():
     add_compression_benchmark_parser(add_parser)
 
     add_dump_parquet_parser(add_parser)
+
+    add_upload_parquet_parser(add_parser)
 
     if HAS_SKY_SHARE:
         add_sky_share_parser(add_parser)

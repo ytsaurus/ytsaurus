@@ -8,6 +8,7 @@ CXXFLAGS(
 
 SRCS(
     GLOBAL parquet.cpp
+    GLOBAL arrow_raw_iterator.cpp
 )
 
 PEERDIR(
