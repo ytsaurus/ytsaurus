@@ -419,19 +419,27 @@ private:
             }
         }
 
+        Sort(pickedBlockIndexes);
+
         std::vector<TUnversionedOwningRow> owningBounds;
         owningBounds.reserve(pickedBlockIndexes.size() * 2);
         std::vector<TRowRange> readRanges;
         readRanges.reserve(pickedBlockIndexes.size());
 
+        auto transformBound = [&] (int blockIndex) {
+            const auto& protoKeyBound = chunkMeta->DataBlockMeta()->data_blocks(blockIndex).last_key();
+            auto owningRow = FromProto<TUnversionedOwningRow>(protoKeyBound);
+            return WidenKeySuccessor(
+                owningRow,
+                tabletSnapshot->PhysicalSchema->GetKeyColumnCount());
+        };
+
         for (auto blockIndex : pickedBlockIndexes) {
-            auto blockUpperBound = GetKeySuccessor(FromProto<TUnversionedOwningRow>(
-                chunkMeta->DataBlockMeta()->data_blocks(blockIndex).last_key()));
+            auto blockUpperBound = transformBound(blockIndex);
             owningBounds.push_back(blockUpperBound);
             auto blockLowerBound = blockIndex == 0
                 ? MinKey()
-                : GetKeySuccessor(FromProto<TUnversionedOwningRow>(
-                    chunkMeta->DataBlockMeta()->data_blocks(blockIndex - 1).last_key()));
+                : transformBound(blockIndex - 1);
             owningBounds.push_back(blockLowerBound);
             readRanges.emplace_back(blockLowerBound, blockUpperBound);
         }
@@ -484,7 +492,20 @@ private:
             .ThrowOnError();
 
         auto processedRowCount = ProcessRows(reader);
-        YT_VERIFY(currentSampleCount == processedRowCount);
+        YT_LOG_ALERT_IF(currentSampleCount != processedRowCount,
+            "Compression dictionary builder processed unexpected amount of rows "
+            "(Actual: %v, Expected: %v, ChunkId: %v, Ranges: [%v])",
+            processedRowCount,
+            currentSampleCount,
+            store->GetId(),
+            MakeFormattableView(
+                sharedReadRanges,
+                [&] (auto* builder, const auto& readRange) {
+                    builder->AppendFormat("(%v : %v);",
+                        readRange.first,
+                        readRange.second);
+                }));
+        // YT_VERIFY(currentSampleCount == processedRowCount);
 
         readerProfiler->Update(
             reader,
@@ -507,7 +528,13 @@ private:
                 ++processedRowCount;
 
                 for (const auto& value : row.Values()) {
-                    auto& columnInfo = GetOrCrash(SamplerInfo_.ColumnIdToInfo, value.Id);
+                    // FIXME(akozhikhov): Now we ignore column filter when reading all versions from backing store.
+                    // auto& columnInfo = GetOrCrash(SamplerInfo_.ColumnIdToInfo, value.Id);
+                    auto it = SamplerInfo_.ColumnIdToInfo.find(value.Id);
+                    if (it == SamplerInfo_.ColumnIdToInfo.end()) {
+                        continue;
+                    }
+                    auto& columnInfo = it->second;
                     ++columnInfo.ProcessedSampleCount;
 
                     if (value.Type == EValueType::Null) {
@@ -999,7 +1026,7 @@ private:
 
         auto addStoresToRequest = [&] (const TPartition* partition) {
             for (const auto& store : partition->Stores()) {
-                if (store->GetType() == EStoreType::SortedChunk) {
+                if (store->GetType() == EStoreType::SortedChunk && TypeFromId(store->GetId()) != EObjectType::ChunkView) {
                     auto chunkStore = store->AsChunk();
                     auto chunkFormat = CheckedEnumCast<EChunkFormat>(chunkStore->GetChunkMeta().format());
                     if (OptimizeForFromFormat(chunkFormat) == EOptimizeFor::Lookup) {

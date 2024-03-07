@@ -67,7 +67,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
     DELTA_MASTER_CONFIG = {}
 
     def _get_table_schema(self, schema, max_inline_hunk_size):
-        schema[1]["max_inline_hunk_size"] = max_inline_hunk_size
+        if "sort_order" not in schema[1]:
+            schema[1]["max_inline_hunk_size"] = max_inline_hunk_size
         return schema
 
     def _create_table(self, chunk_format="table_versioned_simple", max_inline_hunk_size=10, hunk_erasure_codec="none", schema=SCHEMA, dynamic=True):
@@ -1417,7 +1418,8 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
     DELTA_MASTER_CONFIG = {}
 
     def _get_table_schema(self, schema, max_inline_hunk_size):
-        schema[1]["max_inline_hunk_size"] = max_inline_hunk_size
+        if "sort_order" not in schema[1]:
+            schema[1]["max_inline_hunk_size"] = max_inline_hunk_size
         return schema
 
     def _create_table(self, optimize_for="lookup", max_inline_hunk_size=10, hunk_erasure_codec="none", schema=SCHEMA):
@@ -2416,8 +2418,6 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
 
         keys = [{"key": i} for i in range(100)]
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
-
-        keys = [{"key": i} for i in range(100)]
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
 
         SCHEMA_WITH_MULTIPLE_COLUMNS = [
@@ -2431,4 +2431,64 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
 
         rows = [{**row, "value2": yson.YsonEntity()} for row in rows]
         keys = [{"key": i} for i in range(100)]
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+
+    @authors("akozhikhov")
+    def test_value_compression_build_from_multiple_blocks(self):
+        sync_create_cells(1)
+        self._create_table()
+        self._setup_for_dictionary_compression("//tmp/t")
+        set("//tmp/t/@chunk_writer", {"block_size": 25})
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 100} for i in range(100)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        self._wait_dictionaries_built("//tmp/t", 1)
+        self._perform_forced_compaction("//tmp/t", "compaction")
+
+        keys = [{"key": i} for i in range(100)]
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+
+        set("//tmp/t/@mount_config/value_dictionary_compression/desired_sample_count", 20)
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        self._wait_dictionaries_built("//tmp/t", 2)
+        self._perform_forced_compaction("//tmp/t", "compaction")
+
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+
+    @authors("akozhikhov")
+    def test_value_compression_build_after_schema_alter(self):
+        SCHEMA_WITH_MULTIPLE_KEY_COLUMNS = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "key1", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string", "max_inline_hunk_size": 10},
+        ]
+
+        sync_create_cells(1)
+        self._create_table()
+        self._setup_for_dictionary_compression("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 100} for i in range(100)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        self._wait_dictionaries_built("//tmp/t", 1)
+        self._perform_forced_compaction("//tmp/t", "compaction")
+
+        keys = [{"key": i} for i in range(100)]
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+
+        sync_unmount_table("//tmp/t")
+        alter_table("//tmp/t", schema=SCHEMA_WITH_MULTIPLE_KEY_COLUMNS)
+        sync_mount_table("//tmp/t")
+
+        self._wait_dictionaries_built("//tmp/t", 2)
+        self._perform_forced_compaction("//tmp/t", "compaction")
+
+        rows = [{"key": i, "key1": yson.YsonEntity(), "value": "value" + str(i) + "x" * 100} for i in range(100)]
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)

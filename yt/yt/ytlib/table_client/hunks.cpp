@@ -2252,6 +2252,7 @@ public:
             if (CompressionDictionaryId_) {
                 ToProto(ext.mutable_compression_dictionary_id(), CompressionDictionaryId_);
             }
+            ext.set_creation_time(TInstant::Now().GetValue());
             SetProtoExtension(Meta_->mutable_extensions(), ext);
         }
 
