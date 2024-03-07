@@ -9,7 +9,7 @@ PEERDIR(
 )
 
 FROM_SANDBOX(
-    5909879095 AUTOUPDATED spyt_cluster
+    5951526627 AUTOUPDATED spyt_cluster
     OUT_NOAUTO spyt_cluster/spyt-package.zip
 )
 
