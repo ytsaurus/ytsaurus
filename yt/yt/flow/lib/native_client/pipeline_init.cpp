@@ -24,7 +24,6 @@ TTableSchema GetInputMessagesTableSchema()
     return TTableSchema(
         std::vector{
             TColumnSchema("computation_id", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("partitioning_key", EValueType::Uint64, ESortOrder::Ascending),
             TColumnSchema("key", EValueType::String, ESortOrder::Ascending),
             TColumnSchema("message_id", EValueType::String, ESortOrder::Ascending),
             TColumnSchema("system_timestamp", EValueType::Uint64),
@@ -38,9 +37,8 @@ TTableSchema GetOutputMessagesTableSchema()
     return TTableSchema(
         std::vector{
             TColumnSchema("computation_id", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("partitioning_key", EValueType::Uint64, ESortOrder::Ascending),
+            TColumnSchema("partition_id", EValueType::String, ESortOrder::Ascending),
             TColumnSchema("message_id", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("destination_computation_id", EValueType::String, ESortOrder::Ascending),
             TColumnSchema("message", EValueType::String),
             TColumnSchema("system_timestamp", EValueType::Uint64),
         },
