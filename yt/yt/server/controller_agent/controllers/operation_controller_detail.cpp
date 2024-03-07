@@ -253,16 +253,16 @@ TOperationControllerBase::TOperationControllerBase(
     , Acl(operation->GetAcl())
     , ControllerEpoch(operation->GetControllerEpoch())
     , CancelableContext(New<TCancelableContext>())
-    , DiagnosableInvokerPool_(CreateFairShareInvokerPool(
+    , DiagnosableInvokerPool_(CreateEnumIndexedProfiledFairShareInvokerPool<EOperationControllerQueue>(
         CreateCodicilGuardedInvoker(
             CreateSerializedInvoker(Host->GetControllerThreadPoolInvoker(), "operation_controller_base"),
             Format(
                 "OperationId: %v\nAuthenticatedUser: %v",
                 OperationId,
                 AuthenticatedUser)),
-        TEnumTraits<EOperationControllerQueue>::GetDomainSize(),
         CreateFairShareCallbackQueue,
-        Config->InvokerPoolTotalTimeAggregationPeriod))
+        Config->InvokerPoolTotalTimeAggregationPeriod,
+        "OperationController"))
     , InvokerPool(DiagnosableInvokerPool_)
     , SuspendableInvokerPool(TransformInvokerPool(InvokerPool, CreateSuspendableInvoker))
     , CancelableInvokerPool(TransformInvokerPool(
