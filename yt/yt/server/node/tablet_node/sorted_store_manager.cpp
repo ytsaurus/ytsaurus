@@ -82,7 +82,6 @@ struct TMergeRowsOnFlushTag
 { };
 
 static const size_t MaxRowsPerFlushRead = 1024;
-static const auto BlockedRowWaitQuantum = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1231,7 +1230,8 @@ void TSortedStoreManager::OnRowBlocked(
     IStore* store,
     IInvokerPtr invoker,
     TSortedDynamicRow row,
-    int lockIndex)
+    TSortedDynamicStore::TConflictInfo conflictInfo,
+    TDuration timeout)
 {
     Y_UNUSED(WaitFor(
         BIND(
@@ -1239,7 +1239,8 @@ void TSortedStoreManager::OnRowBlocked(
             MakeStrong(this),
             MakeStrong(store),
             row,
-            lockIndex)
+            conflictInfo,
+            timeout)
         .AsyncVia(invoker)
         .Run()));
 }
@@ -1247,21 +1248,27 @@ void TSortedStoreManager::OnRowBlocked(
 void TSortedStoreManager::WaitOnBlockedRow(
     IStorePtr /*store*/,
     TSortedDynamicRow row,
-    int lockIndex)
+    TSortedDynamicStore::TConflictInfo conflictInfo,
+    TDuration timeout)
 {
-    const auto& lock = row.BeginLocks(Tablet_->GetPhysicalSchema()->GetKeyColumnCount())[lockIndex];
+    const auto& lock = row.BeginLocks(Tablet_->GetPhysicalSchema()->GetKeyColumnCount())[conflictInfo.LockIndex];
     const auto* transaction = lock.PreparedTransaction;
 
     if (!transaction) {
         return;
     }
 
-    YT_LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TransactionId: %v)",
-        RowToKey(*Tablet_->GetPhysicalSchema(), row),
-        lockIndex,
-        transaction->GetId());
+    if (lock.PrepareTimestamp.load() >= conflictInfo.CheckingTimestamp) {
+        return;
+    }
 
-    Y_UNUSED(WaitFor(transaction->GetFinished().WithTimeout(BlockedRowWaitQuantum)));
+    YT_LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TransactionId: %v, Timeout: %v)",
+        RowToKey(*Tablet_->GetPhysicalSchema(), row),
+        conflictInfo.LockIndex,
+        transaction->GetId(),
+        timeout);
+
+    Y_UNUSED(WaitFor(transaction->GetFinished().WithTimeout(timeout)));
 }
 
 bool TSortedStoreManager::IsOverflowRotationNeeded() const
