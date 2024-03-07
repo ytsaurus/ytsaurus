@@ -93,6 +93,8 @@ def prepare_attributes(spec):
             attributes["lookup_cache_rows_per_tablet"] = spec.sorted.lookup_cache_rows_per_tablet
         if spec.sorted.enable_hash_chunk_index_for_lookup:
             attributes["mount_config"]["enable_hash_chunk_index_for_lookup"] = True
+        if spec.sorted.enable_value_dictionary_compression:
+            attributes["mount_config"]["value_dictionary_compression"] = {"enable": True}
 
     return attributes
 
