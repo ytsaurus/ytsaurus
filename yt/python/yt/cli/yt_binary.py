@@ -2181,6 +2181,34 @@ if HAS_IDM_CLI_HELPERS:
         parser.set_defaults(func=idm.copy)
 
 
+@copy_docstring_from(yt.add_maintenance)
+def add_maintenance(**kwargs):
+    print_to_output(yt.add_maintenance(**kwargs))
+
+
+@copy_docstring_from(yt.remove_maintenance)
+def remove_maintenance(**kwargs):
+    print_to_output(yt.remove_maintenance(**kwargs))
+
+
+def add_maintenance_request_parsers(add_parser):
+    parser = add_parser("add_maintenance", add_maintenance)
+    parser.add_argument("--component", type=str)
+    parser.add_argument("--address", type=str)
+    parser.add_argument("--type", type=str)
+    parser.add_argument("--comment", type=str)
+
+    parser = add_parser("remove_maintenance", remove_maintenance)
+    parser.add_argument("-c", "--component", type=str)
+    parser.add_argument("-a", "--address", type=str)
+    parser.add_argument("--id", default=None)
+    add_structured_argument(parser, "--ids", default=None)
+    parser.add_argument("-t", "--type", default=None)
+    parser.add_argument("-u", "--user", default=None)
+    parser.add_argument("--mine", default=False)
+    parser.add_argument("--all", default=False)
+
+
 def add_admin_parser(root_subparsers):
     parser = populate_argument_help(root_subparsers.add_parser("admin", description="Administer commands"))
 

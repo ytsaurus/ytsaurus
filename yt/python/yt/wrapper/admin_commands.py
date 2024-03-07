@@ -1,7 +1,8 @@
 from .batch_response import apply_function_to_result
 from .common import set_param
-from .driver import get_api_version, make_request, make_formatted_request
+from .driver import make_request, make_formatted_request
 from .errors import YtError
+from .yson import YsonMap
 
 
 def build_snapshot(cell_id=None, client=None):
@@ -67,28 +68,33 @@ def resume_tablet_cells(cell_ids, client=None):
 
 
 def add_maintenance(component, address, type, comment, client=None):
-    """Adds maintenance request for given node
+    """Adds maintenance request for a given node.
 
-    :param component: component type. There are 4 component types: `cluster_node`, `http_proxy`, `rpc_proxy`, `host`.
+    :param component: component type. There are 4 component types: `cluster_node`, `http_proxy`,
+    `rpc_proxy`, `host`. Note that `host` type is "virtual" since hosts do not support maintenance
+    flags. Instead command is applied to all nodes on the given host.
     :param address: component address.
-    :param type: maintenance type. There are 6 maintenance types: ban, decommission, disable_scheduler_jobs,
-    disable_write_sessions, disable_tablet_cells, pending_restart.
+    :param type: maintenance type. There are 6 maintenance types: ban, decommission,
+    disable_scheduler_jobs, disable_write_sessions, disable_tablet_cells, pending_restart.
     :param comment: any string with length not larger than 512 characters.
-    :return: unique (per component) maintenance id.
+    :return: YSON map-node with maintenance IDs for each target. Maintenance IDs are unique
+    per target.
     """
     params = {
         "component": component,
         "address": address,
         "type": type,
-        "comment": comment
+        "comment": comment,
+        "supports_per_target_response": True,
     }
 
     request = make_formatted_request("add_maintenance", params=params, format=None, client=client)
 
     def _process_result(result):
-        try:
-            return result["id"] if get_api_version(client) == "v4" else result
-        except TypeError:
+        if "id" in result:
+            # COMPAT(kvk1920): Compatibility with pre-24.2 HTTP proxies.
+            return YsonMap({address: result["id"]})
+        else:
             return result
 
     return apply_function_to_result(_process_result, request)
@@ -107,9 +113,9 @@ def remove_maintenance(component,
 
     :param component: component type. There are 4 component types: `cluster_node`, `http_proxy`, `rpc_proxy`, `host`.
     :param address: component address.
-    :param ids: maintenance ids. Only maintenance requests which id is listed can be removed.
     :param id: single maintenance id. The same as `ids` but accepts single id instead of list.
     Cannot be used at the same time with `ids`.
+    :param ids: maintenance ids. Only maintenance requests which id is listed can be removed.
     :param type: maintenance type. If set only maintenance requests with given type will be removed.
     There are 6 maintenance types: ban, decommission, disable_scheduler_jobs, disable_write_sessions,
     disable_tablet_cell, pending_restart.
@@ -118,11 +124,12 @@ def remove_maintenance(component,
     Cannot be used with `user`.
     :param all: all maintenance requests from given node will be removed.
     Cannot be used with other options.
-    :return: Dictionary with removed maintenance request count for each maintenance type.
+    :return: two-level YSON map-node: {target -> {maintenance_type -> count}}.
     """
     params = {
         "component": component,
         "address": address,
+        "supports_per_target_response": True,
     }
 
     if not (user or mine or all or type or id or ids):
@@ -144,7 +151,20 @@ def remove_maintenance(component,
     if user is not None:
         set_param(params, "user", user)
 
-    return make_formatted_request("remove_maintenance", params=params, format=None, client=client)
+    def _process_result(result):
+        if not result:
+            return {}
+
+        # Since 24.2 remove_maintenance() returns 2-level dictionary:
+        # { address: { type: count }}
+        if isinstance(list(result.values())[0], dict):
+            return result
+
+        # COMPAT(kvk1920): Compatibility with pre-24.2 HTTP proxies.
+        return {address: result}
+
+    result = make_formatted_request("remove_maintenance", params=params, format=None, client=client)
+    return apply_function_to_result(_process_result, result)
 
 
 def disable_chunk_locations(node_address, location_uuids, client=None):

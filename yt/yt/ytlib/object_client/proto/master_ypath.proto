@@ -76,11 +76,22 @@ message TReqAddMaintenance
     required string comment = 4;
     // Required for RPC and HTTP proxies.
     optional NYT.NProto.TGuid component_registry_id = 5;
+
+    // COMPAT(kvk1920): For compatibility with pre-24.2 native clients.
+    optional bool supports_per_target_response = 6 [default = false];
 }
 
 message TRspAddMaintenance
 {
-    required NYT.NProto.TGuid id = 1;
+    // COMPAT(kvk1920): For compatibility with pre-24.2 masters.
+    optional NYT.NProto.TGuid id = 1;
+
+    message TMaintenanceIdPerTarget
+    {
+        required string target = 1;
+        required NYT.NProto.TGuid id = 2;
+    }
+    repeated TMaintenanceIdPerTarget ids = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,27 +106,33 @@ message TReqRemoveMaintenance
     optional bool mine = 6 [default = false];
     // Required for RPC and HTTP proxies.
     optional NYT.NProto.TGuid component_registry_id = 7;
+
+    // COMPAT(kvk1920): For compatibility with pre-24.2 native clients.
+    optional bool supports_per_target_response = 8 [default = false];
 }
 
 message TRspRemoveMaintenance
 {
-    // COMPAT(kvk1920): Can be removed after all masters and proxies will be updated.
-    optional int32 ban = 1;
-    optional int32 decommission = 2;
-    optional int32 disable_scheduler_jobs = 3;
-    optional int32 disable_write_sessions = 4;
-    optional int32 disable_tablet_cells = 5;
-    optional int32 pending_restart = 8;
-
-    // COMPAT(kvk1920)
-    optional bool use_map_instead_of_fields = 6 [default = false];
-
     message TRemovedMaintenanceCount
     {
         required int32 type = 1; // EMaintenanceType
         required int32 count = 2;
     };
+
+    // COMPAT(kvk1920): For compatibility with pre-24.2 masters.
     repeated TRemovedMaintenanceCount removed_maintenance_counts = 7;
+
+    // COMPAT(kvk1920): For compatibility with pre-24.2 masters.
+    optional bool supports_per_target_response = 9 [default = false];
+
+    message TRemovedMaintenanceCountPerTarget
+    {
+        required string target = 1;
+        repeated TRemovedMaintenanceCount counts = 2;
+    }
+    repeated TRemovedMaintenanceCountPerTarget removed_maintenance_counts_per_target = 10;
+
+    reserved 1, 2, 3, 4, 5, 6, 8;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

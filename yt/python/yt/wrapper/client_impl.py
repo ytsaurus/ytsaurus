@@ -190,14 +190,17 @@ class YtClient(ClientState):
             self,
             component, address, type, comment):
         """
-        Adds maintenance request for given node
+        Adds maintenance request for a given node.
 
-        :param component: component type. There are 4 component types: `cluster_node`, `http_proxy`, `rpc_proxy`, `host`.
+        :param component: component type. There are 4 component types: `cluster_node`, `http_proxy`,
+        `rpc_proxy`, `host`. Note that `host` type is "virtual" since hosts do not support maintenance
+        flags. Instead command is applied to all nodes on the given host.
         :param address: component address.
-        :param type: maintenance type. There are 6 maintenance types: ban, decommission, disable_scheduler_jobs,
-        disable_write_sessions, disable_tablet_cells, pending_restart.
+        :param type: maintenance type. There are 6 maintenance types: ban, decommission,
+        disable_scheduler_jobs, disable_write_sessions, disable_tablet_cells, pending_restart.
         :param comment: any string with length not larger than 512 characters.
-        :return: unique (per component) maintenance id.
+        :return: YSON map-node with maintenance IDs for each target. Maintenance IDs are unique
+        per target.
 
         """
         return client_api.add_maintenance(
@@ -1817,9 +1820,9 @@ class YtClient(ClientState):
 
         :param component: component type. There are 4 component types: `cluster_node`, `http_proxy`, `rpc_proxy`, `host`.
         :param address: component address.
-        :param ids: maintenance ids. Only maintenance requests which id is listed can be removed.
         :param id: single maintenance id. The same as `ids` but accepts single id instead of list.
         Cannot be used at the same time with `ids`.
+        :param ids: maintenance ids. Only maintenance requests which id is listed can be removed.
         :param type: maintenance type. If set only maintenance requests with given type will be removed.
         There are 6 maintenance types: ban, decommission, disable_scheduler_jobs, disable_write_sessions,
         disable_tablet_cell, pending_restart.
@@ -1828,7 +1831,7 @@ class YtClient(ClientState):
         Cannot be used with `user`.
         :param all: all maintenance requests from given node will be removed.
         Cannot be used with other options.
-        :return: Dictionary with removed maintenance request count for each maintenance type.
+        :return: two-level YSON map-node: {target -> {maintenance_type -> count}}.
 
         """
         return client_api.remove_maintenance(

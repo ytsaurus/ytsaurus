@@ -48,7 +48,7 @@ public:
         RegisterMethod(BIND(&TMaintenanceTracker::HydraReplicateMaintenanceRequestRemoval, Unretained(this)));
     }
 
-    TMaintenanceId AddMaintenance(
+    TMaintenanceIdPerTarget AddMaintenance(
         EMaintenanceComponent component,
         const TString& address,
         EMaintenanceType type,
@@ -95,10 +95,15 @@ public:
             DoAddMaintenance(component, address, id, user, type, comment, componentRegistryId);
         }
 
-        return targets.size() == 1 ? std::get<TMaintenanceId>(targets.front()) : TMaintenanceId{};
+        TMaintenanceIdPerTarget result;
+        result.reserve(targets.size());
+        for (const auto& [id, component, target] : targets) {
+            result[target] = id;
+        }
+        return result;
     }
 
-    TMaintenanceCounts RemoveMaintenance(
+    TMaintenanceCountsPerTarget RemoveMaintenance(
         EMaintenanceComponent component,
         const TString& address,
         const std::optional<TCompactSet<TMaintenanceId, TypicalMaintenanceRequestCount>> ids,
@@ -108,7 +113,7 @@ public:
     {
         MaybeVerifyPrimaryMasterMutation(component);
 
-        TCompactVector<std::tuple<EMaintenanceComponent, TString, TNontemplateMaintenanceTargetBase*>, 2> targets;
+        TCompactVector<std::tuple<EMaintenanceComponent, TString, TNontemplateMaintenanceTargetBase*>, 1> targets;
 
         if (component == EMaintenanceComponent::Host) {
             const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -119,6 +124,7 @@ public:
                 ValidatePermission(node, EPermission::Write);
             }
 
+            targets.reserve(host->Nodes().size());
             for (auto* node : host->Nodes()) {
                 targets.emplace_back(
                     EMaintenanceComponent::ClusterNode,
@@ -131,9 +137,11 @@ public:
             targets.emplace_back(component, address, target);
         }
 
-        TMaintenanceCounts result;
+        TMaintenanceCountsPerTarget result;
+        result.reserve(targets.size());
         for (const auto& [component, address, target] : targets) {
             const auto& maintenanceRequests = target->MaintenanceRequests();
+            auto& resultPerTarget = result[address];
 
             TMaintenanceIdList filteredIds;
             if (ids) {
@@ -148,7 +156,7 @@ public:
                     (!type || type == request.Type))
                 {
                     filteredIds.push_back(id);
-                    ++result[request.Type];
+                    ++resultPerTarget[request.Type];
                 }
             }
 

@@ -284,11 +284,13 @@ private:
             "Component: %v, "
             "Address: %v, "
             "Type: %v, "
-            "Comment: %v",
+            "Comment: %v, "
+            "SupportsPerTargetResponse: %v",
             component,
             request->address(),
             type,
-            request->comment());
+            request->comment(),
+            request->supports_per_target_response());
 
         if (component == EMaintenanceComponent::ClusterNode || component == EMaintenanceComponent::Host) {
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -303,14 +305,31 @@ private:
         }
 
         const auto& maintenanceTracker = Bootstrap_->GetMaintenanceTracker();
-        auto id = maintenanceTracker->AddMaintenance(
+        auto ids = maintenanceTracker->AddMaintenance(
             component,
             request->address(),
             type,
             request->comment(),
             componentRegistry);
 
-        ToProto(response->mutable_id(), id);
+        // COMPAT(kvk1920): Compatibility with pre-24.2 native clients.
+        if (!request->supports_per_target_response()) {
+            ToProto(
+                response->mutable_id(),
+                ids.size() == 1 ? ids.begin()->second : TMaintenanceId{});
+        } else {
+            // Result have to be sorted here because of Persistent Response
+            // Keeper. TCompactFlatMap is sorted so just check that nobody
+            // changed the TMaintenanceIdPerTarget type alias.
+            static_assert(std::is_same_v<TMaintenanceIdPerTarget, TCompactFlatMap<TString, TMaintenanceId, 1>>);
+            YT_ASSERT(std::is_sorted(ids.begin(), ids.end()));
+
+            for (const auto& [target, id] : ids) {
+                auto* proto = response->add_ids();
+                proto->set_target(target);
+                ToProto(proto->mutable_id(), id);
+            }
+        }
         context->Reply();
     }
 
@@ -341,12 +360,14 @@ private:
             type = CheckedEnumCast<EMaintenanceType>(request->type());
         }
 
-        context->SetRequestInfo("Component: %v, Address: %v, Ids: %v, User: %v, Type: %v",
+        context->SetRequestInfo(
+            "Component: %v, Address: %v, Ids: %v, User: %v, Type: %v, SupportsPerTargetResponse: %v",
             component,
             request->address(),
             ids ? std::optional(TCompactVector<TMaintenanceId, TypicalMaintenanceRequestCount>(ids->begin(), ids->end())) : std::nullopt,
             user,
-            type);
+            type,
+            request->supports_per_target_response());
 
         if (component == EMaintenanceComponent::ClusterNode || component == EMaintenanceComponent::Host) {
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -354,7 +375,6 @@ private:
                 THROW_ERROR_EXCEPTION("Cluster node maintenance can only be added via primary master");
             }
         }
-
 
         THROW_ERROR_EXCEPTION_IF(request->has_user() && request->mine(),
             "At most one of {\"mine\", \"user\"} can be specified");
@@ -364,7 +384,7 @@ private:
         if (request->has_component_registry_id()) {
             FromProto(&componentRegistry.emplace(), request->component_registry_id());
         }
-        auto removed = maintenanceTracker->RemoveMaintenance(
+        auto removedMaintenanceCounts = maintenanceTracker->RemoveMaintenance(
             component,
             request->address(),
             ids,
@@ -372,18 +392,35 @@ private:
             type,
             componentRegistry);
 
-        response->set_ban(removed[EMaintenanceType::Ban]);
-        response->set_decommission(removed[EMaintenanceType::Decommission]);
-        response->set_disable_scheduler_jobs(removed[EMaintenanceType::DisableSchedulerJobs]);
-        response->set_disable_write_sessions(removed[EMaintenanceType::DisableWriteSessions]);
-        response->set_disable_tablet_cells(removed[EMaintenanceType::DisableTabletCells]);
-        response->set_pending_restart(removed[EMaintenanceType::PendingRestart]);
+        auto fillMaintenanceCount = [] (
+            auto* proto,
+            EMaintenanceType type,
+            const TMaintenanceCounts& counts) {
+                proto->set_type(ToProto<int>(type));
+                proto->set_count(counts[type]);
+            };
 
-        response->set_use_map_instead_of_fields(true);
-        for (auto type : TEnumTraits<EMaintenanceType>::GetDomainValues()) {
-            auto* entry = response->add_removed_maintenance_counts();
-            entry->set_type(ToProto<int>(type));
-            entry->set_count(removed[type]);
+        // COMPAT(kvk1920): Compatibility with pre-24.2 proxies.
+        if (!request->supports_per_target_response()) {
+            TMaintenanceCounts totalCounts;
+            for (const auto& [target, counts] : removedMaintenanceCounts) {
+                for (auto type : TEnumTraits<EMaintenanceType>::GetDomainValues()) {
+                    totalCounts[type] += counts[type];
+                }
+            }
+
+            for (auto type : TEnumTraits<EMaintenanceType>::GetDomainValues()) {
+                fillMaintenanceCount(response->add_removed_maintenance_counts(), type, totalCounts);
+            }
+        } else {
+            response->set_supports_per_target_response(true);
+            for (const auto& [target, counts] : removedMaintenanceCounts) {
+                auto* perTargetResponse = response->add_removed_maintenance_counts_per_target();
+                perTargetResponse->set_target(target);
+                for (auto type : TEnumTraits<EMaintenanceType>::GetDomainValues()) {
+                    fillMaintenanceCount(perTargetResponse->add_counts(), type, counts);
+                }
+            }
         }
 
         context->Reply();

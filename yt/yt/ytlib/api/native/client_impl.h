@@ -701,14 +701,14 @@ public: \
         const std::vector<NObjectClient::TCellId>& cellIds,
         const TResumeTabletCellsOptions& options),
         (cellIds, options))
-    IMPLEMENT_METHOD(TMaintenanceId, AddMaintenance, (
+    IMPLEMENT_METHOD(TMaintenanceIdPerTarget, AddMaintenance, (
         EMaintenanceComponent component,
         const TString& address,
         EMaintenanceType type,
         const TString& comment,
         const TAddMaintenanceOptions& options),
         (component, address, type, comment, options))
-    IMPLEMENT_METHOD(TMaintenanceCounts, RemoveMaintenance, (
+    IMPLEMENT_METHOD(TMaintenanceCountsPerTarget, RemoveMaintenance, (
         EMaintenanceComponent component,
         const TString& address,
         const TMaintenanceFilter& target,

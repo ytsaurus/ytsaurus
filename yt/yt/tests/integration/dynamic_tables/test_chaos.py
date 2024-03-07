@@ -2373,7 +2373,7 @@ class TestChaos(ChaosTestBase):
 
         chaos_nodes = ls("//sys/chaos_nodes", driver=remote_driver1)
         assert len(chaos_nodes) == 1
-        maintenance_id = add_maintenance("cluster_node", chaos_nodes[0], "ban", comment="", driver=remote_driver1)
+        maintenance_id = add_maintenance("cluster_node", chaos_nodes[0], "ban", comment="", driver=remote_driver1)[chaos_nodes[0]]
 
         set("//sys/chaos_cell_bundles/chaos_bundle/@node_tag_filter", "empty_set_of_nodes", driver=remote_driver1)
         wait(lambda: get("//sys/chaos_cells/{}/@local_health".format(cell_id), driver=remote_driver1) != "good")

@@ -367,14 +367,14 @@ class TestChunkServer(YTEnvSetup):
         chunk_id = get_singular_chunk_id("//tmp/t")
         wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
 
-        node = get(f"#{chunk_id}/@stored_replicas")[0]
-        maintenance_id = add_maintenance("cluster_node", node, "pending_restart", "")
+        node = str(get(f"#{chunk_id}/@stored_replicas")[0])
+        maintenance_id = add_maintenance("cluster_node", node, "pending_restart", "")[node]
 
         assert get(f"//sys/cluster_nodes/{node}/@pending_restart")
         wait(lambda: chunk_id in get("//sys/replica_temporarily_unavailable_chunks"))
 
         assert remove_maintenance("cluster_node", node, id=maintenance_id) == {
-            "pending_restart": 1
+            node: {"pending_restart": 1}
         }
 
         assert not get(f"//sys/cluster_nodes/{node}/@pending_restart")
@@ -537,28 +537,28 @@ class TestNodeLeaseTransactionTimeout(YTEnvSetup):
         set("//sys/@config/node_tracker/pending_restart_lease_timeout", 1000)
 
         node = ls("//sys/cluster_nodes")[0]
-        maintenance_id = add_maintenance("cluster_node", node, "pending_restart", "")
+        maintenance_id = add_maintenance("cluster_node", node, "pending_restart", "")[node]
 
         assert get(f"//sys/cluster_nodes/{node}/@pending_restart")
 
         wait(lambda: not get(f"//sys/cluster_nodes/{node}/@pending_restart"), sleep_backoff=1.0)
 
-        assert remove_maintenance("cluster_node", node, id=maintenance_id) == {}
+        assert remove_maintenance("cluster_node", node, id=maintenance_id) == {node: {}}
 
     @authors("danilalexeev")
     def test_auto_remove_pending_restart_medium(self):
         set("//sys/@config/node_tracker/pending_restart_lease_timeout", 1000)
 
         nodes = ls("//sys/cluster_nodes")
-        maintenance_ids = [0] * 4
 
-        for i, node in enumerate(nodes):
-            maintenance_ids[i] = add_maintenance("cluster_node", node, "pending_restart", "")
+        maintenance_ids = {}
+        for node in nodes:
+            maintenance_ids.update(add_maintenance("cluster_node", node, "pending_restart", ""))
 
         for _ in range(4):
-            for i, node in enumerate(nodes):
-                remove_maintenance("cluster_node", node, id=maintenance_ids[i])
-                maintenance_ids[i] = add_maintenance("cluster_node", node, "pending_restart", "")
+            for node in nodes:
+                remove_maintenance("cluster_node", node, id=maintenance_ids[node])
+                maintenance_ids.update(add_maintenance("cluster_node", node, "pending_restart", ""))
 
         for node in nodes:
             assert get(f"//sys/cluster_nodes/{node}/@pending_restart")
@@ -1017,8 +1017,8 @@ class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBas
         self._create_table_with_two_consistently_placed_chunks("//tmp/t5")
         chunk_ids = get("//tmp/t5/@chunk_ids")
 
-        troubled_node = get("#{}/@stored_replicas".format(chunk_ids[0]))[1]
-        maintenance_id = add_maintenance("cluster_node", troubled_node, trouble_mode, "test roubled node restart")
+        troubled_node = str(get("#{}/@stored_replicas".format(chunk_ids[0]))[1])
+        maintenance_id = add_maintenance("cluster_node", troubled_node, trouble_mode, "test roubled node restart")[troubled_node]
 
         def are_chunks_collocated(troubled_node_ok):
             chunk0_replicas = get("#{}/@stored_replicas".format(chunk_ids[0]))

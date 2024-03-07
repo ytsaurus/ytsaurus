@@ -1,6 +1,7 @@
 from .conftest import authors
 from .helpers import get_operation_path, wait, yatest_common
 
+from yt.wrapper.driver import get_api_version
 from yt.wrapper.native_driver import get_driver_instance
 from yt.wrapper.spec_builders import VanillaSpecBuilder
 
@@ -44,12 +45,15 @@ class TestAdminCommands(object):
 
     @authors("kvk1920")
     def test_maintenance_requests(self):
+        if get_api_version() != "v4":
+            pytest.skip("Maintenance requests are supported for API v4 only")
+
         node = yt.list("//sys/cluster_nodes")[0]
         path = "//sys/cluster_nodes/" + node
-        maintenance_id = yt.add_maintenance("cluster_node", node, "decommission", "1234")
+        maintenance_id = yt.add_maintenance("cluster_node", node, "decommission", "1234")[node]
         assert list(yt.get(path + "/@maintenance_requests").keys()) == [maintenance_id]
         assert yt.get(path + "/@decommissioned")
         assert yt.remove_maintenance("cluster_node", node, id=maintenance_id) == {
-            "decommission": 1,
+            node: {"decommission": 1},
         }
         assert not yt.get(path + "/@decommissioned")
