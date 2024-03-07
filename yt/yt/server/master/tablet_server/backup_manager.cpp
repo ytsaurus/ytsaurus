@@ -693,7 +693,9 @@ private:
             }
         }
 
-        UpdateAggregatedBackupState(table);
+        if (table) {
+            UpdateAggregatedBackupState(table);
+        }
     }
 
     void HydraResetBackupMode(NProto::TReqResetBackupMode* request)
@@ -823,6 +825,10 @@ private:
 
         auto maybeFlush = [&] (bool force) {
             if (storeCount < MaxStoresPerBackupMutation && !force) {
+                return;
+            }
+
+            if (currentReq.tablet_ids().empty()) {
                 return;
             }
 
