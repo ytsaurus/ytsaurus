@@ -182,13 +182,22 @@ private:
         ETabletWriteMode writeMode = ETabletWriteMode::Pull;
         auto progress = Tablet_->RuntimeData()->ReplicationProgress.Acquire();
 
+        const auto& lastHistoryItem = selfReplica->History.back();
+        bool isProgressGreaterThanTimestamp =
+            IsReplicationProgressGreaterOrEqual(*progress, lastHistoryItem.Timestamp);
+
         YT_LOG_DEBUG("Checking self write mode (ReplicationProgress: %v, LastHistoryItemTimestamp: %v, IsProgressGreaterThanTimestamp: %v)",
             static_cast<TReplicationProgress>(*progress),
-            selfReplica->History.back().Timestamp,
-            IsReplicationProgressGreaterOrEqual(*progress, selfReplica->History.back().Timestamp));
+            lastHistoryItem.Timestamp,
+            isProgressGreaterThanTimestamp);
 
-        if (IsReplicaReallySync(selfReplica->Mode, selfReplica->State) &&
-            IsReplicationProgressGreaterOrEqual(*progress, selfReplica->History.back().Timestamp))
+        // Mode can be switched from AsyncToSync to SyncToAsync without adding a history record. So while in
+        // SyncToAsync mode check that previous mode was actually Sync before changing write mode to Direct
+        if (IsReplicaEnabled(selfReplica->State) &&
+            (selfReplica->Mode == ETableReplicaMode::Sync ||
+                (selfReplica->Mode == ETableReplicaMode::SyncToAsync &&
+                lastHistoryItem.Mode == ETableReplicaMode::Sync)) &&
+            isProgressGreaterThanTimestamp)
         {
             writeMode = ETabletWriteMode::Direct;
         }
