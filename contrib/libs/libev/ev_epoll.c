@@ -80,9 +80,24 @@ epoll_modify (EV_P_ int fd, int oev, int nev)
    * event in epoll_poll.
    * if the fd is added again, we try to ADD it, and, if that
    * fails, we assume it still has the same eventmask.
+   *
+   * however, if the select-ready notification is removed by another
+   * thread and not the thread that does ev_run, this would be a pessimization,
+   * condition it on epoll_pessimistic_remove.
    */
   if (!nev)
-    return;
+    {
+      if (epoll_pessimistic_remove)
+        {
+          /* pre-2.6.9 kernels require a non-null pointer with EPOLL_CTL_DEL, */
+          /* which is fortunately easy to do for us. */
+          if (ecb_expect_true (!epoll_ctl(backend_fd, EPOLL_CTL_DEL, fd, &ev)))
+            return;
+
+          postfork |= 2; /* an error occurred, recreate kernel state */
+        }
+      return;
+    }
 
   oldmask = anfds [fd].emask;
   anfds [fd].emask = nev;

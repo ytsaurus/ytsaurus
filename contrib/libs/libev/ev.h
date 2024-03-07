@@ -676,6 +676,10 @@ EV_API_DECL void ev_set_loop_release_cb (EV_P_ void (*release)(EV_P) EV_NOEXCEPT
 
 EV_API_DECL unsigned int ev_pending_count (EV_P) EV_NOEXCEPT; /* number of pending events, if any */
 
+#define EV_HAS_IO_PESSIMISTIC_REMOVE 1
+/* Disable an optimistics epoll_ctl(..., EPOLL_CTL_DEL, ...) optimization for epoll backend, does nothing for other backends */
+EV_API_DECL void ev_set_io_pessimistic_remove (EV_P) EV_NOEXCEPT;
+
 /*
  * stop/start the timer handling.
  */

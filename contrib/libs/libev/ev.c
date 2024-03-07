@@ -3751,6 +3751,14 @@ ev_pending_count (EV_P) EV_NOEXCEPT
   return count;
 }
 
+void
+ev_set_io_pessimistic_remove (EV_P) EV_NOEXCEPT
+{
+#if EV_USE_EPOLL || EV_GENWRAP
+  epoll_pessimistic_remove = 1;
+#endif
+}
+
 ecb_noinline
 void
 ev_invoke_pending (EV_P)

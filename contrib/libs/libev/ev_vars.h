@@ -105,6 +105,7 @@ VARx(int, epoll_eventmax)
 VARx(int *, epoll_eperms)
 VARx(int, epoll_epermcnt)
 VARx(int, epoll_epermmax)
+VARx(char, epoll_pessimistic_remove)
 #endif
 
 #if EV_USE_LINUXAIO || EV_GENWRAP

@@ -26,6 +26,7 @@
 #define epoll_eperms ((loop)->epoll_eperms)
 #define epoll_eventmax ((loop)->epoll_eventmax)
 #define epoll_events ((loop)->epoll_events)
+#define epoll_pessimistic_remove ((loop)->epoll_pessimistic_remove)
 #define evpipe ((loop)->evpipe)
 #define fdchangecnt ((loop)->fdchangecnt)
 #define fdchangemax ((loop)->fdchangemax)
