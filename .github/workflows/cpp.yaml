@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - stable/[0-9]+\.[0-9]+
+      - test_systest_fix
 
 jobs:
   start-vm:
@@ -127,7 +128,7 @@ jobs:
 
   systest:
     name: systest
-    if: github.ref_name == 'main'
+    if: github.ref_name == 'test_systest_fix'
     needs:
       - start-vm
       - tag

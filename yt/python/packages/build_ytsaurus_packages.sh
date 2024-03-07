@@ -7,6 +7,7 @@ ytsaurus_source_path="."
 ytsaurus_build_path="."
 ytsaurus_package_name=""
 prepare_bindings_libraries=true
+apply_auditwheel=false
 
 print_usage() {
     cat << EOF
@@ -15,6 +16,7 @@ Usage: $script_name [-h|--help]
                     [--ytsaurus-build-path /path/to/ytsaurus.build (default: $ytsaurus_build_path)]
                     [--ytsaurus-package-name some-ytsaurus-package-name (default: all packages will be build) (values: ytsaurus-client, ytsaurus-yson, ytsaurus-local, ytsaurus-native-driver)]
                     [--not-prepare-bindings-libraries]
+                    [--apply-auditwheel]
 EOF
     exit 1
 }
@@ -40,6 +42,10 @@ while [[ $# -gt 0 ]]; do
         ;;
         --not-prepare-bindings-libraries)
         prepare_bindings_libraries=false
+        shift 2
+        ;;
+        --apply-auditwheel)
+        apply_auditwheel=true
         shift 1
         ;;
         *)
@@ -90,15 +96,15 @@ for package in ${packages[@]}; do
     package_undescored=$(echo -e $package | sed -e s/-/_/g)
     dist_dir="${package_undescored}_dist"
 
-    if [[ ${package} == "ytsaurus-native-driver" ]]; then
+    if [[ ${package} == "ytsaurus-native-driver" ]] || [[ ${package} == "ytsaurus-yson" ]]; then
         python3 setup.py bdist_wheel --py-limited-api cp34 --dist-dir ${dist_dir}
-    elif [[ ${package} == "ytsaurus-yson" ]]; then
-        python3 setup.py bdist_wheel --py-limited-api cp34 --dist-dir ${dist_dir}
-        for wheel in ${dist_dir}/${package_undescored}*.whl; do
-            auditwheel repair "$wheel" -w "${dist_dir}" --plat manylinux2014_x86_64
-            # Remove original wheel.
-            rm "$wheel"
-        done
+        if [[ ${apply_auditwheel} == "true" ]]; then
+            for wheel in ${dist_dir}/${package_undescored}*.whl; do
+                auditwheel repair "$wheel" -w "${dist_dir}" --plat manylinux2014_x86_64
+                # Remove original wheel.
+                rm "$wheel"
+            done
+        fi
     else
         python3 setup.py bdist_wheel --universal --dist-dir ${dist_dir}
     fi
