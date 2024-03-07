@@ -580,6 +580,12 @@ private:
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
 
+        // COMPAT(pogorelov): Remove when all masters will be 24.1.
+        if (rsp->tags_size() > 0) {
+            auto tags = FromProto<std::vector<TString>>(rsp->tags());
+            UpdateTags(std::move(tags));
+        }
+
         Bootstrap_->CompleteNodeRegistration();
 
         if (Bootstrap_->NeedDataNodeBootstrap()) {
@@ -603,11 +609,6 @@ private:
         }
 
         NodeId_.store(FromProto<TNodeId>(rsp->node_id()));
-
-        if (rsp->tags_size() > 0) {
-            auto tags = FromProto<std::vector<TString>>(rsp->tags());
-            UpdateTags(std::move(tags));
-        }
     }
 
     void SyncDirectories()
