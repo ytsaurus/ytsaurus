@@ -367,7 +367,7 @@ private:
 
         YT_VERIFY(historyItemIndex >= 0 && historyItemIndex < std::ssize(selfReplica->History));
         const auto& historyItem = selfReplica->History[historyItemIndex];
-        if (IsReplicaReallySync(historyItem.Mode, historyItem.State)) {
+        if (historyItem.IsSync()) {
             YT_LOG_DEBUG("Will not pull rows since oldest progress timestamp corresponds to sync history item (OldestTimestamp: %v, HistoryItem: %v)",
                 oldestTimestamp,
                 historyItem);
@@ -426,19 +426,22 @@ private:
                     continue;
                 }
 
-                if (const auto& item = replicaInfo.History[historyItemIndex]; !IsReplicaReallySync(item.Mode, item.State)) {
+                const auto& historyItem = replicaInfo.History[historyItemIndex];
+                if (!historyItem.IsSync()) {
                     continue;
                 }
 
                 YT_LOG_DEBUG("Found sync replica corresponding history item (ReplicaId %v, HistoryItem: %v)",
                     replicaId,
-                    replicaInfo.History[historyItemIndex]);
+                    historyItem);
 
                 // Pull from (past) sync replica until it changed mode or we became sync.
+                // AsyncToSync -> SyncToAsync transition is possible, so check the previous state
+                // when in SyncToAsync mode
                 auto upperTimestamp = NullTimestamp;
                 if (historyItemIndex + 1 < std::ssize(replicaInfo.History)) {
                     upperTimestamp = replicaInfo.History[historyItemIndex + 1].Timestamp;
-                } else if (IsReplicaReallySync(selfReplica->Mode, selfReplica->State)) {
+                } else if (IsReplicaReallySync(selfReplica->Mode, selfReplica->State, selfReplica->History.back())) {
                     upperTimestamp = selfReplica->History.back().Timestamp;
                 }
 
@@ -719,8 +722,7 @@ private:
                 *selfReplica,
                 oldestTimestamp);
         } else {
-            const auto& item = selfReplica->History[historyItemIndex];
-            if (IsReplicaReallySync(item.Mode, item.State)) {
+            if (selfReplica->History[historyItemIndex].IsSync()) {
                 ++historyItemIndex;
                 if (historyItemIndex >= std::ssize(selfReplica->History)) {
                     YT_LOG_DEBUG("Will not advance replication progress to the next era because current history item is the last one (HistoryItemIndex: %v, Replica: %v)",

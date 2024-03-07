@@ -1227,7 +1227,8 @@ private:
                 return replicationCardCache->GetReplicationCard({
                         .CardId = TableInfo_->ReplicationCardId,
                         .FetchOptions = {
-                            .IncludeCoordinators = true
+                            .IncludeCoordinators = true,
+                            .IncludeHistory = true
                         }
                     }).Apply(BIND([=, this, this_ = MakeStrong(this)] (const TReplicationCardPtr& replicationCard) {
                         YT_LOG_DEBUG("Got replication card from cache (Path: %v, ReplicationCardId: %v, CoordinatorCellIds: %v)",
@@ -1418,7 +1419,9 @@ private:
                 }
             } else if (HasChaosReplicas()) {
                 for (const auto& [chaosReplicaId, chaosReplicaInfo] : ReplicationCard_->Replicas) {
-                    if (IsReplicaReallySync(chaosReplicaInfo.Mode, chaosReplicaInfo.State)) {
+                    if (IsReplicaReallySync(chaosReplicaInfo.Mode, chaosReplicaInfo.State,
+                        chaosReplicaInfo.History.back()))
+                    {
                         auto replicaInfo = New<TTableReplicaInfo>();
                         replicaInfo->ReplicaId = chaosReplicaId;
                         replicaInfo->ClusterName = chaosReplicaInfo.ClusterName;
