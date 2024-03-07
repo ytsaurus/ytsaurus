@@ -29,6 +29,29 @@ func (initializer *ClusterInitializer) createNodesIfNotExist(ctx context.Context
 	return err
 }
 
+func (initializer *ClusterInitializer) setUpIDMRoles(ctx context.Context) error {
+	idmRoles := map[string]any{
+		"manage": map[string]any{
+			"idm_name": "Manage",
+			"permissions": []yt.Permission{
+				yt.PermissionRead,
+				yt.PermissionManage,
+				yt.PermissionRemove,
+			},
+		},
+		"use": map[string]any{
+			"idm_name": "Use",
+			"permissions": []yt.Permission{
+				yt.PermissionUse,
+			},
+		},
+	}
+	path := ypath.Path("//sys/access_control_object_namespaces").
+		Child(initializer.ACONamespace()).
+		Attr("idm_roles")
+	return initializer.ytc.SetNode(ctx, path, idmRoles, nil)
+}
+
 func (initializer *ClusterInitializer) createUserIfNotExists(ctx context.Context, user string) error {
 	userPath := ypath.Path("//sys/users").Child(user)
 	ok, err := initializer.ytc.NodeExists(ctx, userPath, nil)
@@ -149,6 +172,9 @@ func (initializer *ClusterInitializer) setUpCHYTSQLObjectsUser(ctx context.Conte
 func (initializer *ClusterInitializer) InitializeCluster() error {
 	ctx := context.Background()
 	if err := initializer.createNodesIfNotExist(ctx); err != nil {
+		return err
+	}
+	if err := initializer.setUpIDMRoles(ctx); err != nil {
 		return err
 	}
 	if err := initializer.setUpYTClickHouseUser(ctx); err != nil {

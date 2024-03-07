@@ -11,6 +11,7 @@ import (
 
 	"go.ytsaurus.tech/yt/chyt/controller/internal/agent"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/app"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/chyt"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yttest"
@@ -68,7 +69,11 @@ func setupCluster(t *testing.T, c *Config) {
 		Families: []string{c.Family},
 	}
 
-	initializer := app.NewClusterInitializer(&config, c.ClusterInitializerFactory)
+	familyToInitializerFactory := map[string]strawberry.ClusterInitializerFactory{
+		"chyt": chyt.NewClusterInitializer,
+	}
+
+	initializer := app.NewClusterInitializer(&config, familyToInitializerFactory)
 	err := initializer.InitCluster()
 	require.NoError(t, err)
 }

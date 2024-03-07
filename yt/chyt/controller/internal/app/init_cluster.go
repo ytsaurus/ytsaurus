@@ -22,13 +22,13 @@ type ClusterInitializerConfig struct {
 }
 
 type ClusterInitializer struct {
-	ytc                   yt.Client
-	l                     log.Logger
-	config                ClusterInitializerConfig
-	strawberryInitializer strawberry.ClusterInitializer
+	ytc                 yt.Client
+	l                   log.Logger
+	config              ClusterInitializerConfig
+	familyToInitializer map[string]strawberry.ClusterInitializer
 }
 
-func NewClusterInitializer(config *ClusterInitializerConfig, initializerFactory strawberry.ClusterInitializerFactory) (initializer ClusterInitializer) {
+func NewClusterInitializer(config *ClusterInitializerConfig, familyToInitializerFactory map[string]strawberry.ClusterInitializerFactory) (initializer ClusterInitializer) {
 	l := newLogger("init_cluster", false /*stderr*/)
 	initializer.l = l
 	initializer.config = *config
@@ -44,7 +44,10 @@ func NewClusterInitializer(config *ClusterInitializerConfig, initializerFactory 
 	if err != nil {
 		panic(err)
 	}
-	initializer.strawberryInitializer = initializerFactory(l, initializer.ytc, config.StrawberryRoot)
+	initializer.familyToInitializer = make(map[string]strawberry.ClusterInitializer)
+	for family, initializerFactory := range familyToInitializerFactory {
+		initializer.familyToInitializer[family] = initializerFactory(l, initializer.ytc, config.StrawberryRoot)
+	}
 	return
 }
 
@@ -63,9 +66,12 @@ func (initializer *ClusterInitializer) checkRobotPermissions(ctx context.Context
 
 	paths := []ypath.Path{
 		initializer.config.StrawberryRoot,
-		ypath.Path("//sys/access_control_object_namespaces").Child(initializer.strawberryInitializer.ACONamespace()),
 		ypath.Path("//sys/schemas/access_control_object"),
 	}
+	for _, strawberryInitializer := range initializer.familyToInitializer {
+		paths = append(paths, ypath.Path("//sys/access_control_object_namespaces").Child(strawberryInitializer.ACONamespace()))
+	}
+
 	permissions := []yt.Permission{yt.PermissionCreate, yt.PermissionRead}
 
 	for _, path := range paths {
@@ -110,29 +116,18 @@ func (initializer *ClusterInitializer) createRootsIfNotExists(ctx context.Contex
 }
 
 func (initializer *ClusterInitializer) createACONamespaceIfNotExists(ctx context.Context) error {
-	_, err := initializer.ytc.CreateObject(ctx, yt.NodeAccessControlObjectNamespace, &yt.CreateObjectOptions{
-		Attributes: map[string]any{
-			"name": initializer.strawberryInitializer.ACONamespace(),
-			"idm_roles": map[string]any{
-				"manage": map[string]any{
-					"idm_name": "Manage",
-					"permissions": []yt.Permission{
-						yt.PermissionRead,
-						yt.PermissionManage,
-						yt.PermissionRemove,
-					},
-				},
-				"use": map[string]any{
-					"idm_name": "Use",
-					"permissions": []yt.Permission{
-						yt.PermissionUse,
-					},
-				},
+	for _, strawberryInitializer := range initializer.familyToInitializer {
+		_, err := initializer.ytc.CreateObject(ctx, yt.NodeAccessControlObjectNamespace, &yt.CreateObjectOptions{
+			Attributes: map[string]any{
+				"name": strawberryInitializer.ACONamespace(),
 			},
-		},
-		IgnoreExisting: true,
-	})
-	return err
+			IgnoreExisting: true,
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (initializer *ClusterInitializer) InitCluster() error {
@@ -143,8 +138,10 @@ func (initializer *ClusterInitializer) InitCluster() error {
 	if err := initializer.createACONamespaceIfNotExists(ctx); err != nil {
 		return err
 	}
-	if err := initializer.strawberryInitializer.InitializeCluster(); err != nil {
-		return err
+	for _, strawberryInitializer := range initializer.familyToInitializer {
+		if err := strawberryInitializer.InitializeCluster(); err != nil {
+			return err
+		}
 	}
 	if err := initializer.checkRobotPermissions(ctx); err != nil {
 		return err
