@@ -5744,6 +5744,11 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
         }
     }
 
+    if (IntermediateOutputCellTagList.size() != 1 && IsLegacyIntermediateLivePreviewSupported() && suppressionErrors.empty()) {
+        suppressionErrors.emplace_back(TError(
+            "Legacy live preview appears to have been disabled in the controller agents config when the operation started."));
+    }
+
     IsLegacyLivePreviewSuppressed = !suppressionErrors.empty();
     if (IsLegacyLivePreviewSuppressed) {
         auto combinedSuppressionError = TError("Legacy live preview is suppressed due to the following reasons")
