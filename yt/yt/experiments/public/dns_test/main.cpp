@@ -1,7 +1,5 @@
 #include <yt/yt/library/program/program.h>
 
-#include <yt/yt/core/misc/optional.h>
-
 #include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/dns/dns_resolver.h>
@@ -9,6 +7,8 @@
 #include <yt/yt/core/dns/config.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+
+#include <library/cpp/yt/misc/optional.h>
 
 #include <ares.h>
 

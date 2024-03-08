@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/core/misc/optional.h>
+#include <library/cpp/yt/misc/optional.h>
 
 namespace NYT::NChunkClient {
 

@@ -12,6 +12,7 @@ PEERDIR(
     yt/yt/core
     yt/yt/ytlib
     library/cpp/getopt
+    library/cpp/yt/misc
 )
 
 END()

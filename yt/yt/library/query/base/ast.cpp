@@ -1,7 +1,7 @@
 #include "ast.h"
 
 #include <library/cpp/yt/misc/variant.h>
-#include <yt/yt/core/misc/optional.h>
+#include <library/cpp/yt/misc/optional.h>
 
 #include <util/string/escape.h>
 
