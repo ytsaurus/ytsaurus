@@ -330,6 +330,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletStoreReaderConfig)
 class TTabletHunkReaderConfig
     : public NChunkClient::TChunkFragmentReaderConfig
     , public NTableClient::TBatchHunkReaderConfig
+    , public NTableClient::TDictionaryCompressionSessionConfig
 {
 public:
     TAdaptiveHedgingManagerConfigPtr HedgingManager;

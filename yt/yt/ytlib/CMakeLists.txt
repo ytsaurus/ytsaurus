@@ -1398,6 +1398,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/columnar_chunk_reader_base.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/columnar_statistics_fetcher.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/config.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/dictionary_compression_session.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/hunks.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/indexed_versioned_chunk_reader.cpp

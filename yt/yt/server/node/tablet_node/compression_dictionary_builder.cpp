@@ -505,7 +505,6 @@ private:
                         readRange.first,
                         readRange.second);
                 }));
-        // YT_VERIFY(currentSampleCount == processedRowCount);
 
         readerProfiler->Update(
             reader,

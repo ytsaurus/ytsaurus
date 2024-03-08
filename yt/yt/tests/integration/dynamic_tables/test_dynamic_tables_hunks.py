@@ -1743,8 +1743,8 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
             "enable": True,
             "column_dictionary_size": 256,
             "max_processed_chunk_count": 2,
-            "max_decompression_blob_size": 1000,
         })
+        set("{}/@hunk_chunk_reader/max_decompression_blob_size".format(path), 100)
 
     def _wait_dictionaries_built(self, path, previous_hunk_chunk_count):
         # One dictionary hunk chunk for each of two policies.
@@ -2167,6 +2167,7 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
 
         keys = [{"key": i} for i in range(200)]
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        assert_items_equal(lookup_rows("//tmp/t", keys, keep_missing_rows=True), rows + [None] * 100)
 
     @authors("akozhikhov")
     def test_value_compression_rebuild_dictionary(self):
@@ -2492,3 +2493,54 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
 
         rows = [{"key": i, "key1": yson.YsonEntity(), "value": "value" + str(i) + "x" * 100} for i in range(100)]
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+
+    @authors("akozhikhov")
+    def test_value_compression_read_from_map(self):
+        sync_create_cells(1)
+        self._create_table()
+        self._setup_for_dictionary_compression("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 100} for i in range(100)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        self._wait_dictionaries_built("//tmp/t", 1)
+        self._perform_forced_compaction("//tmp/t", "compaction")
+
+        assert read_table("//tmp/t") == rows
+
+        create("table", "//tmp/t_out")
+        map(
+            in_="//tmp/t",
+            out="//tmp/t_out",
+            command="cat",
+        )
+        assert read_table("//tmp/t_out") == rows
+
+    @authors("akozhikhov")
+    def test_value_compression_column_filter(self):
+        SCHEMA_WITH_MULTIPLE_COLUMNS = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "key1", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string", "max_inline_hunk_size": 50},
+            {"name": "value1", "type": "string", "max_inline_hunk_size": 50},
+        ]
+        sync_create_cells(1)
+        self._create_table(schema=SCHEMA_WITH_MULTIPLE_COLUMNS)
+        self._setup_for_dictionary_compression("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "key1": i + 1, "value": "value" + str(i) + "x" * 100, "value1": "y"} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        self._wait_dictionaries_built("//tmp/t", 1)
+        self._perform_forced_compaction("//tmp/t", "compaction")
+
+        assert_items_equal(
+            lookup_rows("//tmp/t", [{"key": 1, "key1": 2}], column_names=["value"]),
+            [{"value": "value1" + "x" * 100}])
+        assert_items_equal(
+            lookup_rows("//tmp/t", [{"key": 3, "key1": 4}], column_names=["key1", "value1"]),
+            [{"key1": 4, "value1": "y"}])
