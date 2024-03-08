@@ -41,6 +41,7 @@ target_sources(unittester-core-concurrency PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/coroutines_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/count_down_latch_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/delayed_executor_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/fair_share_action_queue_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/fair_share_invoker_pool_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/fair_share_thread_pool_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/fair_throttler_ut.cpp
