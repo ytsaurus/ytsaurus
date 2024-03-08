@@ -130,9 +130,7 @@ public:
         try {
             const auto url = MakeRequestUrl("/1/tokens/revoke", false);
             const auto headers = New<THeaders>();
-            const auto vaultTicket = TvmService_->GetServiceTicket(Config_->VaultServiceId);
             headers->Add("Content-Type", "application/json");
-            headers->Add("X-Ya-Service-Ticket", vaultTicket);
             const auto body = MakeRevokeDelegationTokenRequestBody(request);
 
             const auto responseBody = HttpPost(url, body, headers);
@@ -442,6 +440,8 @@ private:
                         .Item("token").Value(request.DelegationToken)
                         .Item("signature").Value(request.Signature)
                         .Item("secret_uuid").Value(request.SecretId)
+                        .Item("service_ticket")
+                            .Value(TvmService_->GetServiceTicket(Config_->VaultServiceId))
                     .EndMap()
                 .EndList()
             .EndMap();
