@@ -411,6 +411,7 @@ TRANSFORMS[6] = [
                 ("filter_factors", "string", {"lock": "client"}),
                 ("state", "string", {"lock": "common"}),
                 ("incarnation", "int64", {"lock": "query_tracker"}),
+                ("ping_time", "timestamp", {"lock": "query_tracker"}),
                 ("lease_transaction_id", "string", {"lock": "query_tracker"}),
                 ("assigned_tracker", "string", {"lock": "query_tracker"}),
                 ("progress", "any", {"lock": "query_tracker_progress"}),
