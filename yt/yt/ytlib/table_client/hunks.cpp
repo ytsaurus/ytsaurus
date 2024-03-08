@@ -2105,6 +2105,7 @@ ISchemalessChunkReaderPtr CreateHunkDecodingSchemalessChunkReader(
     TBatchHunkReaderConfigPtr config,
     ISchemalessChunkReaderPtr underlying,
     IChunkFragmentReaderPtr chunkFragmentReader,
+    IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TTableSchemaPtr schema,
     TClientChunkReadOptions options)
 {
@@ -2118,7 +2119,7 @@ ISchemalessChunkReaderPtr CreateHunkDecodingSchemalessChunkReader(
         std::move(config),
         std::move(underlying),
         std::move(chunkFragmentReader),
-        /*dictionaryCompressionFactory*/ nullptr,
+        std::move(dictionaryCompressionFactory),
         std::move(options));
 }
 
@@ -2157,6 +2158,7 @@ ISchemalessMultiChunkReaderPtr CreateHunkDecodingSchemalessMultiChunkReader(
     TBatchHunkReaderConfigPtr config,
     ISchemalessMultiChunkReaderPtr underlying,
     IChunkFragmentReaderPtr chunkFragmentReader,
+    IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TTableSchemaPtr schema,
     TClientChunkReadOptions options)
 {
@@ -2170,7 +2172,7 @@ ISchemalessMultiChunkReaderPtr CreateHunkDecodingSchemalessMultiChunkReader(
         std::move(config),
         std::move(underlying),
         std::move(chunkFragmentReader),
-        /*dictionaryCompressionFactory*/ nullptr,
+        std::move(dictionaryCompressionFactory),
         std::move(options));
 }
 

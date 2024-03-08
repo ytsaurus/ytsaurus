@@ -4,9 +4,43 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
+#include <yt/yt/core/compression/dictionary_codec.h>
+
+#include <yt/yt/core/logging/log.h>
+
 #include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TColumnDictionaryCompressor
+{
+    NCompression::IDictionaryCompressorPtr Compressor;
+    i64 CompressedSamplesSize = 0;
+};
+
+struct TRowDictionaryCompressor
+{
+    NChunkClient::TChunkId DictionaryId;
+    THashMap<int, TColumnDictionaryCompressor> ColumnCompressors;
+};
+
+using TRowDictionaryCompressors = TEnumIndexedArray<
+    NTableClient::EDictionaryCompressionPolicy,
+    TRowDictionaryCompressor>;
+
+using TRowDictionaryDecompressor = THashMap<int, NCompression::IDictionaryDecompressorPtr>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TRowDigestedCompressionDictionary = THashMap<int, NCompression::IDigestedCompressionDictionaryPtr>;
+
+using TRowDigestedDecompressionDictionary = THashMap<int, NCompression::IDigestedDecompressionDictionaryPtr>;
+
+using TRowDigestedDictionary = std::variant<
+    TRowDigestedCompressionDictionary,
+    TRowDigestedDecompressionDictionary>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,6 +84,11 @@ struct IDictionaryDecompressionSession
 
 DEFINE_REFCOUNTED_TYPE(IDictionaryDecompressionSession)
 
+IDictionaryDecompressionSessionPtr CreateDictionaryDecompressionSession(
+    TWeakPtr<IDictionaryCompressionFactory> dictionaryCompressionFactory,
+    TDictionaryCompressionSessionConfigPtr config,
+    NLogging::TLogger logger);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IDictionaryCompressionFactory
@@ -58,10 +97,40 @@ struct IDictionaryCompressionFactory
     virtual TFuture<IDictionaryCompressionSessionPtr> MaybeCreateDictionaryCompressionSession(
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions) const = 0;
 
-    virtual IDictionaryDecompressionSessionPtr CreateDictionaryDecompressionSession() const = 0;
+    virtual IDictionaryDecompressionSessionPtr CreateDictionaryDecompressionSession() = 0;
+
+    virtual TFuture<THashMap<NChunkClient::TChunkId, TRowDictionaryDecompressor>> GetDecompressors(
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+        const THashSet<NChunkClient::TChunkId>& dictionaryIds) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDictionaryCompressionFactory)
+
+////////////////////////////////////////////////////////////////////////////////
+
+// NB: This factory implementation is used when reading table outside of tablet node.
+// Tablet node has its own caching implementation.
+IDictionaryCompressionFactoryPtr CreateSimpleDictionaryCompressionFactory(
+    NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
+    TTableReaderConfigPtr readerConfig,
+    TNameTablePtr nameTable,
+    NChunkClient::TChunkReaderHostPtr chunkReaderHost);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<TRowDigestedDictionary> ReadDigestedDictionary(
+    NChunkClient::TChunkId dictionaryId,
+    bool isDecompression,
+    NChunkClient::TChunkReaderHostPtr chunkReaderHost,
+    NChunkClient::TErasureReaderConfigPtr storeReaderConfig,
+    TDictionaryCompressionSessionConfigPtr dictionaryReaderConfig,
+    NChunkClient::TClientChunkReadOptions chunkReadOptions,
+    TNameTablePtr nameTable,
+    NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
+    NLogging::TLogger logger);
+
+TRowDictionaryDecompressor CreateRowDictionaryDecompressor(
+    const TRowDigestedDecompressionDictionary& digestedDictionary);
 
 ////////////////////////////////////////////////////////////////////////////////
 

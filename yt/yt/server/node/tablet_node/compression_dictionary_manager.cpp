@@ -12,6 +12,8 @@
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
+#include <yt/yt/client/table_client/name_table.h>
+
 #include <yt/yt/core/compression/dictionary_codec.h>
 
 #include <yt/yt/core/misc/async_slru_cache.h>
@@ -24,14 +26,6 @@ using namespace NChunkClient;
 using namespace NCompression;
 using namespace NProfiling;
 using namespace NTableClient;
-
-////////////////////////////////////////////////////////////////////////////////
-
-using TRowDigestedCompressionDictionary = THashMap<int, IDigestedCompressionDictionaryPtr>;
-using TRowDigestedDecompressionDictionary = THashMap<int, IDigestedDecompressionDictionaryPtr>;
-using TRowDigestedDictionary = std::variant<
-    TRowDigestedCompressionDictionary,
-    TRowDigestedDecompressionDictionary>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -217,214 +211,6 @@ DEFINE_REFCOUNTED_TYPE(TDictionaryCompressionSession)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TDictionaryDecompressionSession)
-
-class TDictionaryDecompressionSession
-    : public IDictionaryDecompressionSession
-{
-public:
-    TDictionaryDecompressionSession(
-        TTabletSnapshotPtr tabletSnapshot,
-        TWeakPtr<ICompressionDictionaryManager> dictionaryManager)
-        : TabletSnapshot_(std::move(tabletSnapshot))
-        , DictionaryManager_(dictionaryManager)
-        , Logger(TabletNodeLogger.WithTag("%v",
-            TabletSnapshot_->LoggingTag))
-    { }
-
-    TFuture<std::vector<TSharedRef>> DecompressValues(
-        std::vector<TUnversionedValue*> values,
-        std::vector<TChunkId> dictionaryIds,
-        TClientChunkReadOptions chunkReadOptions) override
-    {
-        YT_VERIFY(values.size() == dictionaryIds.size());
-
-        YT_VERIFY(!Promise_);
-        Promise_ = NewPromise<std::vector<TSharedRef>>();
-
-        Logger.AddTag("ReadSessionId: %v",
-            chunkReadOptions.ReadSessionId);
-
-        auto dictionaryManager = DictionaryManager_.Lock();
-        if (!dictionaryManager) {
-            Promise_.TrySet(TError(NYT::EErrorCode::Canceled, "Dictionary manager was destroyed"));
-            return Promise_;
-        }
-
-        THashSet<TChunkId> dictionaryIdSet(dictionaryIds.begin(), dictionaryIds.end());
-        YT_VERIFY(!dictionaryIdSet.contains(NullChunkId));
-
-        YT_LOG_DEBUG("Dictionary decompression session will fetch decompressors from cache (DictionaryIds: %v)",
-            dictionaryIdSet);
-
-        auto decompressorsFuture = dictionaryManager->GetDecompressors(
-            TabletSnapshot_,
-            chunkReadOptions,
-            dictionaryIdSet);
-
-        if (auto maybeDecompressors = decompressorsFuture.TryGetUnique();
-            maybeDecompressors && maybeDecompressors->IsOK())
-        {
-            DoDecompressValues(
-                /*decompressedValueCount*/ 0,
-                std::move(values),
-                std::move(dictionaryIds),
-                std::move(chunkReadOptions),
-                TErrorOr<THashMap<TChunkId, TRowDictionaryDecompressor>>(std::move(*maybeDecompressors)));
-        } else {
-            decompressorsFuture.SubscribeUnique(BIND(
-                &TDictionaryDecompressionSession::DoDecompressValues,
-                MakeStrong(this),
-                /*decompressedValueCount*/ 0,
-                Passed(std::move(values)),
-                Passed(std::move(dictionaryIds)),
-                Passed(std::move(chunkReadOptions)))
-                .Via(GetCurrentInvoker()));
-        }
-
-        return Promise_;
-    }
-
-    TDuration GetDecompressionTime() const override
-    {
-        return DecompressionTime_;
-    }
-
-private:
-    struct TDecompressionSessionDataTag
-    { };
-
-    const TTabletSnapshotPtr TabletSnapshot_;
-    const TWeakPtr<ICompressionDictionaryManager> DictionaryManager_;
-
-    NLogging::TLogger Logger;
-
-    TPromise<std::vector<TSharedRef>> Promise_;
-    std::vector<TSharedRef> Blobs_;
-
-    TDuration DecompressionTime_;
-
-
-    void DoDecompressValues(
-        int decompressedValueCount,
-        std::vector<TUnversionedValue*> values,
-        std::vector<TChunkId> dictionaryIds,
-        TClientChunkReadOptions chunkReadOptions,
-        TErrorOr<THashMap<TChunkId, TRowDictionaryDecompressor>>&& decompressorsOrError)
-    {
-        // Shortcut.
-        if (Promise_.IsSet()) {
-            return;
-        }
-
-        if (!decompressorsOrError.IsOK()) {
-            Promise_.TrySet(TError(decompressorsOrError));
-            return;
-        }
-
-        const auto& decompressors = decompressorsOrError.Value();
-
-        auto* codec = GetDictionaryCompressionCodec();
-
-        TWallTimer decompressionTimer;
-
-        i64 decompressedSize = 0;
-        std::vector<i64> contentSizes;
-        auto newDecompressedValueCount = decompressedValueCount;
-        while (newDecompressedValueCount < std::ssize(values)) {
-            auto dictionaryId = dictionaryIds[newDecompressedValueCount];
-            YT_VERIFY(dictionaryId);
-
-            auto* compressedValue = values[newDecompressedValueCount];
-            YT_VERIFY(IsStringLikeType(compressedValue->Type));
-            YT_VERIFY(None(compressedValue->Flags & EValueFlags::Hunk));
-
-            ++newDecompressedValueCount;
-
-            const auto& rowDecompressor = GetOrCrash(decompressors, dictionaryId);
-            if (!rowDecompressor.contains(compressedValue->Id)) {
-                contentSizes.push_back(-1);
-                continue;
-            }
-
-            auto frameInfo = codec->GetFrameInfo(TRef(compressedValue->Data.String, compressedValue->Length));
-            contentSizes.push_back(frameInfo.ContentSize);
-            decompressedSize += contentSizes.back();
-
-            if (decompressedSize >=
-                TabletSnapshot_->Settings.MountConfig->ValueDictionaryCompression->MaxDecompressionBlobSize)
-            {
-                break;
-            }
-        }
-
-        auto blob = TSharedMutableRef::Allocate<TDecompressionSessionDataTag>(
-            decompressedSize,
-            { .InitializeStorage = false });
-        Blobs_.push_back(blob);
-
-        i64 currentCompressedSize = 0;
-        i64 currentDecompressedSize = 0;
-        i64 currentUncompressedSize = 0;
-        for (int valueIndex = decompressedValueCount; valueIndex < newDecompressedValueCount; ++valueIndex) {
-            auto dictionaryId = dictionaryIds[valueIndex];
-            YT_VERIFY(dictionaryId);
-
-            auto* compressedValue = values[valueIndex];
-            TRef compressedValueRef(compressedValue->Data.String, compressedValue->Length);
-
-            const auto& rowDecompressor = GetOrCrash(decompressors, dictionaryId);
-            auto columnDecompressorIt = rowDecompressor.find(compressedValue->Id);
-            if (columnDecompressorIt == rowDecompressor.end()) {
-                currentUncompressedSize += compressedValue->Length;
-                continue;
-            }
-
-            TMutableRef output(
-                blob.Begin() + currentDecompressedSize,
-                contentSizes[valueIndex - decompressedValueCount]);
-            columnDecompressorIt->second->Decompress(compressedValueRef, output);
-
-            currentCompressedSize += compressedValue->Length;
-            currentDecompressedSize += output.Size();
-
-            compressedValue->Data.String = output.Begin();
-            compressedValue->Length = output.Size();
-        }
-
-        YT_VERIFY(currentDecompressedSize == std::ssize(blob));
-
-        YT_LOG_DEBUG("Dictionary decompression session successfully decompressed rows "
-            "(DecompressionTime: %v, RowCount: %v/%v, CompressedSize: %v, DecompressedSize: %v, UncompressedSize: %v)",
-            decompressionTimer.GetElapsedTime(),
-            newDecompressedValueCount,
-            values.size(),
-            currentCompressedSize,
-            currentDecompressedSize,
-            currentUncompressedSize);
-
-        DecompressionTime_ += decompressionTimer.GetElapsedTime();
-
-        YT_VERIFY(newDecompressedValueCount <= std::ssize(values));
-        if (newDecompressedValueCount == std::ssize(values)) {
-            Promise_.TrySet(std::move(Blobs_));
-        } else {
-            GetCurrentInvoker()->Invoke(BIND(
-                &TDictionaryDecompressionSession::DoDecompressValues,
-                MakeStrong(this),
-                newDecompressedValueCount,
-                Passed(std::move(values)),
-                Passed(std::move(dictionaryIds)),
-                Passed(std::move(chunkReadOptions)),
-                Passed(std::move(decompressorsOrError))));
-        }
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TDictionaryDecompressionSession)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TDictionaryCompressionFactory
     : public IDictionaryCompressionFactory
 {
@@ -467,7 +253,7 @@ public:
             }));
     }
 
-    IDictionaryDecompressionSessionPtr CreateDictionaryDecompressionSession() const override
+    IDictionaryDecompressionSessionPtr CreateDictionaryDecompressionSession() override
     {
         auto tabletSnapshot = TabletSnapshot_.Lock();
         if (!tabletSnapshot) {
@@ -475,9 +261,29 @@ public:
                 "Unable to decompress values due to tablet cell reconfiguration");
         }
 
-        return New<TDictionaryDecompressionSession>(
+        return NTableClient::CreateDictionaryDecompressionSession(
+            MakeWeak(this),
+            tabletSnapshot->Settings.HunkReaderConfig,
+            TabletNodeLogger.WithTag("%v",
+                tabletSnapshot->LoggingTag));
+    }
+
+    TFuture<THashMap<TChunkId, TRowDictionaryDecompressor>> GetDecompressors(
+        const TClientChunkReadOptions& chunkReadOptions,
+        const THashSet<TChunkId>& dictionaryIds) override
+    {
+        auto dictionaryManager = DictionaryManager_.Lock();
+        auto tabletSnapshot = TabletSnapshot_.Lock();
+        if (!dictionaryManager || !tabletSnapshot) {
+            auto error = TError(NYT::EErrorCode::Canceled,
+                "Unable to get decompressors due to tablet cell reconfiguration");
+            return MakeFuture<THashMap<TChunkId, TRowDictionaryDecompressor>>(error);
+        }
+
+        return dictionaryManager->GetDecompressors(
             tabletSnapshot,
-            DictionaryManager_);
+            chunkReadOptions,
+            dictionaryIds);
     }
 
 private:
@@ -696,19 +502,10 @@ public:
         std::vector<TFuture<TCompressionDictionaryCacheEntryPtr>> entryFutures;
 
         auto populateResult = [] (const auto& entry, auto* result) {
-            TRowDictionaryDecompressor rowDecompressor;
-            const auto& rowDigestedDictionary = entry->GetRowDigestedDecompressionDictionary();
-            for (const auto& [valueId, columnDigestedDictionary] : rowDigestedDictionary) {
-                EmplaceOrCrash(
-                    rowDecompressor,
-                    valueId,
-                    GetDictionaryCompressionCodec()->CreateDictionaryDecompressor(columnDigestedDictionary));
-            }
-
             EmplaceOrCrash(
                 *result,
                 entry->GetKey().ChunkId,
-                std::move(rowDecompressor));
+                CreateRowDictionaryDecompressor(entry->GetRowDigestedDecompressionDictionary()));
         };
 
         for (auto chunkId : dictionaryIds) {
@@ -773,20 +570,12 @@ private:
 
     void PrepareDigestedDictionary(
         const TTabletSnapshotPtr& tabletSnapshot,
-        const TClientChunkReadOptions& options,
+        const TClientChunkReadOptions& chunkReadOptions,
         TCookie cookie,
         EDictionaryCompressionPolicy policy)
     {
         auto Logger = TabletNodeLogger.WithTag("%v",
             tabletSnapshot->LoggingTag);
-
-        YT_LOG_DEBUG("Compression dictionary manager will read meta of a dictionary chunk (%v)",
-            cookie.GetKey());
-
-        TWallTimer metaWaitTimer;
-
-        NChunkClient::NProto::TChunkSpec chunkSpec;
-        ToProto(chunkSpec.mutable_chunk_id(), cookie.GetKey().ChunkId);
 
         auto chunkReaderHost = New<TChunkReaderHost>(
             Bootstrap_->GetClient(),
@@ -798,165 +587,38 @@ private:
             Bootstrap_->GetReadRpsOutThrottler(),
             /*trafficMeter*/ nullptr);
 
-        auto chunkReader = CreateRemoteReader(
-            chunkSpec,
-            // Using store reader config here to read hunk chunk meta seems fine.
+        ReadDigestedDictionary(
+            cookie.GetKey().ChunkId,
+            cookie.GetKey().IsDecompression,
+            std::move(chunkReaderHost),
             tabletSnapshot->Settings.StoreReaderConfig,
-            New<TRemoteReaderOptions>(),
-            std::move(chunkReaderHost));
-
-        chunkReader->GetMeta(options)
-            .Subscribe(BIND(
-                &TCompressionDictionaryManager::OnDictionaryMetaRead,
-                MakeStrong(this),
-                chunkReader,
-                tabletSnapshot,
-                options,
-                Passed(std::move(cookie)),
-                policy,
-                metaWaitTimer));
-    }
-
-    void OnDictionaryMetaRead(
-        const IChunkReaderPtr& chunkReader,
-        const TTabletSnapshotPtr& tabletSnapshot,
-        TClientChunkReadOptions options,
-        TCookie cookie,
-        EDictionaryCompressionPolicy policy,
-        TWallTimer metaWaitTimer,
-        const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
-    {
-        // Hold reader to prevent its destruction during meta read.
-        Y_UNUSED(chunkReader);
-
-        auto Logger = TabletNodeLogger.WithTag("%v",
-            tabletSnapshot->LoggingTag);
-
-        if (!metaOrError.IsOK()) {
-            auto error = TError("Compression dictionary manager failed to read meta")
-                << TErrorAttribute("key", cookie.GetKey())
-                << metaOrError;
-            YT_LOG_DEBUG(error);
-            cookie.Cancel(error);
-            return;
-        }
-
-        options.ChunkReaderStatistics->MetaWaitTime.fetch_add(
-            metaWaitTimer.GetElapsedValue(),
-            std::memory_order::relaxed);
-
-        auto meta = metaOrError.Value();
-        auto compressionDictionaryExt = GetProtoExtension<NTableClient::NProto::TCompressionDictionaryExt>(
-            meta->extensions());
-
-        std::vector<int> columnIdMapping;
-        columnIdMapping.reserve(compressionDictionaryExt.column_infos_size());
-        for (int index = 0; index < compressionDictionaryExt.column_infos_size(); ++index) {
-            const auto& columnInfo = compressionDictionaryExt.column_infos(index);
-            auto* column = tabletSnapshot->PhysicalSchema->FindColumnByStableName(FromProto<TColumnStableName>(
-                columnInfo.stable_name()));
-            YT_VERIFY(column);
-            columnIdMapping.push_back(tabletSnapshot->PhysicalSchema->GetColumnIndex(*column));
-        }
-
-        auto erasureCodec = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions()).erasure_codec();
-        YT_VERIFY(CheckedEnumCast<NErasure::ECodec>(erasureCodec) == NErasure::ECodec::None);
-
-        std::vector<IChunkFragmentReader::TChunkFragmentRequest> requests;
-        requests.reserve(compressionDictionaryExt.column_infos_size());
-        for (int index = 0; index < compressionDictionaryExt.column_infos_size(); ++index) {
-            const auto& columnInfo = compressionDictionaryExt.column_infos(index);
-            requests.push_back({
-                .ChunkId = cookie.GetKey().ChunkId,
-                .Length = columnInfo.length(),
-                .BlockIndex = columnInfo.block_index(),
-                .BlockOffset = columnInfo.block_offset(),
-            });
-        }
-
-        auto hunkChunkReaderStatistics = options.HunkChunkReaderStatistics;
-        if (hunkChunkReaderStatistics) {
-            options.ChunkReaderStatistics = hunkChunkReaderStatistics->GetChunkReaderStatistics();
-        }
-
-        YT_LOG_DEBUG("Compression dictionary manager will read fragments of a dictionary chunk "
-            "(%v, FragmentCount: %v)",
-            cookie.GetKey(),
-            requests.size());
-
-        tabletSnapshot->ChunkFragmentReader->ReadFragments(
-            options,
-            std::move(requests))
-            .Subscribe(BIND(
-                [=, cookie = std::move(cookie), columnIdMapping = std::move(columnIdMapping)]
-                (const TErrorOr<IChunkFragmentReader::TReadFragmentsResponse>& responseOrError) mutable
+            tabletSnapshot->Settings.HunkReaderConfig,
+            chunkReadOptions,
+            TNameTable::FromSchemaStable(*tabletSnapshot->PhysicalSchema),
+            tabletSnapshot->ChunkFragmentReader,
+            Logger)
+            .SubscribeUnique(BIND(
+                [=, cookie = std::move(cookie)] (TErrorOr<TRowDigestedDictionary>&& digestedDictionaryOrError) mutable
             {
-                if (!responseOrError.IsOK()) {
-                    auto error = TError("Compression dictionary manager failed to read fragments")
-                        << TErrorAttribute("key", cookie.GetKey())
-                        << responseOrError;
+                if (!digestedDictionaryOrError.IsOK()) {
+                    auto error = TError("Compression dictionary manager failed to read digested dictionary")
+                        << digestedDictionaryOrError;
                     YT_LOG_DEBUG(error);
                     cookie.Cancel(error);
                     return;
-                }
+                };
 
-                auto response = responseOrError.Value();
-                YT_VERIFY(response.Fragments.size() == columnIdMapping.size());
+                auto entry = New<TCompressionDictionaryCacheEntry>(
+                    cookie.GetKey(),
+                    std::move(digestedDictionaryOrError.Value()),
+                    policy);
 
-                TCompressionDictionaryCacheEntryPtr entry;
-                if (cookie.GetKey().IsDecompression) {
-                    TRowDigestedDecompressionDictionary rowDigestedDictionary;
-                    // NB: Columns that are missing in the dictionary will be ignored here
-                    // and no decompression will be performed either.
-                    for (int index = 0; index < std::ssize(columnIdMapping); ++index) {
-                        YT_VERIFY(response.Fragments[index]);
-
-                        auto digestedDictionary = GetDictionaryCompressionCodec()->CreateDigestedDecompressionDictionary(
-                            response.Fragments[index]);
-                        EmplaceOrCrash(
-                            rowDigestedDictionary,
-                            columnIdMapping[index],
-                            std::move(digestedDictionary));
-                    }
-                    entry = New<TCompressionDictionaryCacheEntry>(
-                        cookie.GetKey(),
-                        std::move(rowDigestedDictionary),
-                        policy);
-                } else {
-                    TRowDigestedCompressionDictionary rowDigestedDictionary;
-                    // NB: Columns that are missing in the dictionary will be ignored here
-                    // and no compression will be performed either.
-                    for (int index = 0; index < std::ssize(columnIdMapping); ++index) {
-                        YT_VERIFY(response.Fragments[index]);
-
-                        auto digestedDictionary = GetDictionaryCompressionCodec()->CreateDigestedCompressionDictionary(
-                            response.Fragments[index],
-                            tabletSnapshot->Settings.MountConfig->ValueDictionaryCompression->CompressionLevel);
-                        EmplaceOrCrash(
-                            rowDigestedDictionary,
-                            columnIdMapping[index],
-                            std::move(digestedDictionary));
-                    }
-                    entry = New<TCompressionDictionaryCacheEntry>(
-                        cookie.GetKey(),
-                        std::move(rowDigestedDictionary),
-                        policy);
-                }
-
-                YT_LOG_DEBUG("Compression dictionary manager successfully read fragments of a dictionary chunk "
+                YT_LOG_DEBUG("Compression dictionary manager successfully read digested dictionary "
                     "(%v, MemoryUsage: %v)",
                     cookie.GetKey(),
                     entry->GetMemoryUsage());
 
                 cookie.EndInsert(std::move(entry));
-
-                if (hunkChunkReaderStatistics) {
-                    hunkChunkReaderStatistics->DataWeight() += GetByteSize(response.Fragments);
-                    hunkChunkReaderStatistics->RefValueCount() += std::ssize(response.Fragments);
-                    hunkChunkReaderStatistics->BackendReadRequestCount() += response.BackendReadRequestCount;
-                    hunkChunkReaderStatistics->BackendHedgingReadRequestCount() += response.BackendHedgingReadRequestCount;
-                    hunkChunkReaderStatistics->BackendProbingRequestCount() += response.BackendProbingRequestCount;
-                }
             }));
     }
 };

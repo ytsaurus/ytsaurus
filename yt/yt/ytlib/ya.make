@@ -418,6 +418,7 @@ SRCS(
     table_client/columnar_chunk_reader_base.cpp
     table_client/columnar_statistics_fetcher.cpp
     table_client/config.cpp
+    table_client/dictionary_compression_session.cpp
     table_client/helpers.cpp
     table_client/hunks.cpp
     table_client/indexed_versioned_chunk_reader.cpp

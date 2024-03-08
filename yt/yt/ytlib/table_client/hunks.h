@@ -390,12 +390,14 @@ ISchemalessChunkReaderPtr CreateHunkDecodingSchemalessChunkReader(
     TBatchHunkReaderConfigPtr config,
     ISchemalessChunkReaderPtr underlying,
     NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
+    IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TTableSchemaPtr schema,
     NChunkClient::TClientChunkReadOptions options);
 ISchemalessMultiChunkReaderPtr CreateHunkDecodingSchemalessMultiChunkReader(
     TBatchHunkReaderConfigPtr config,
     ISchemalessMultiChunkReaderPtr underlying,
     NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
+    IDictionaryCompressionFactoryPtr dictionaryCompressionFactory,
     TTableSchemaPtr schema,
     NChunkClient::TClientChunkReadOptions options);
 
