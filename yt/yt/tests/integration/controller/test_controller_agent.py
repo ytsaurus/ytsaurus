@@ -1053,11 +1053,13 @@ class TestLivePreview(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
+    NUM_SECONDARY_MASTER_CELLS = 2
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "snapshot_period": 500,
             "map_operation_options": {},
+            "map_reduce_operation_options": {},
+            "snapshot_period": 500,
         }
     }
 
@@ -1067,7 +1069,7 @@ class TestLivePreview(YTEnvSetup):
         create_test_tables(row_count=1)
 
         op = map(
-            command="sleep 1000",
+            command=with_breakpoint("BREAKPOINT; cat"),
             in_=["//tmp/t_in"],
             out="//tmp/t_out",
             spec={
@@ -1089,6 +1091,46 @@ class TestLivePreview(YTEnvSetup):
                 "//sys/controller_agents/config/map_operation_options",
                 {"spec_template": {"enable_legacy_live_preview": False}},
             )
+            if clean_start and exists(snapshot_path):
+                remove(snapshot_path)
+
+        wait(lambda: op.get_state() == "running")
+
+        op.abort()
+        wait(lambda: op.get_state() == "aborted")
+
+    @authors("galtsev")
+    @pytest.mark.parametrize("clean_start", [False, True])
+    def test_do_not_crash_on_enabling_legacy_live_preview_in_config(self, clean_start):
+        create_test_tables(row_count=1)
+
+        set(
+            "//sys/controller_agents/config/map_reduce_operation_options",
+            {"spec_template": {"enable_legacy_live_preview": False}},
+        )
+
+        op = map_reduce(
+            mapper_command="cat",
+            reducer_command=with_breakpoint("BREAKPOINT; cat"),
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            sort_by=["x"],
+            spec={
+                "testing": {
+                    "delay_inside_revive": 10000,
+                },
+            },
+            track=False,
+        )
+
+        wait(lambda: op.get_state() == "running")
+
+        snapshot_path = op.get_path() + "/snapshot"
+        if not clean_start:
+            wait(lambda: exists(snapshot_path))
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            set("//sys/controller_agents/config/map_reduce_operation_options", {})
             if clean_start and exists(snapshot_path):
                 remove(snapshot_path)
 
