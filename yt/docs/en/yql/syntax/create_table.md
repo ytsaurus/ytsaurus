@@ -1,5 +1,4 @@
 # CREATE TABLE
 
 
-Таблица создается автоматически при первом [INSERT INTO](insert_into.md), в заданной оператором [USE](use.md) базе данных. Схема при этом определяется автоматически.
-
+The table is created automatically at the first [INSERT INTO](insert_into.md), as specified by the [USE](use.md) operator of database. The scheme is defined automatically.
