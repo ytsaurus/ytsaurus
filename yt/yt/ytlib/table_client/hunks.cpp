@@ -1604,8 +1604,8 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
                     std::move(options))
                     .ApplyUnique(BIND([
                         result = std::move(result)
-                    ] (std::vector<TSharedRef>&& decompressionResults) mutable {
-                        return MakeSharedRange(std::move(result), std::move(decompressionResults));
+                    ] (std::vector<TSharedRef>&& decompressionResults) {
+                        return MakeSharedRange(result, result, std::move(decompressionResults));
                     }));
             }
 
