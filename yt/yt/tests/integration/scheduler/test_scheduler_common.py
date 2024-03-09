@@ -34,10 +34,7 @@ import pytest
 
 import io
 import time
-try:
-    import zstd
-except ImportError:
-    import zstandard as zstd
+import zstandard as zstd
 
 
 ##################################################################
