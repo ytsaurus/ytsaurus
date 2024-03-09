@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash -ex
 
 pip3 install wheel auditwheel patchelf
 
@@ -42,7 +42,7 @@ while [[ $# -gt 0 ]]; do
         ;;
         --not-prepare-bindings-libraries)
         prepare_bindings_libraries=false
-        shift 2
+        shift 1
         ;;
         --apply-auditwheel)
         apply_auditwheel=true
