@@ -29,7 +29,7 @@ struct TPersistentMailboxState
     {
         TSerializedMessagePtr SerializedMessage;
         NTracing::TTraceContextPtr TraceContext;
-        TLogicalTime Time{0};
+        TLogicalTime Time;
 
         void Save(TStreamSaveContext& context) const;
         void Load(TStreamLoadContext& context);

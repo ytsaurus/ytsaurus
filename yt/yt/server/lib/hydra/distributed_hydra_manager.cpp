@@ -596,6 +596,13 @@ public:
         return false;
     }
 
+    i64 GetSequenceNumber() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return DecoratedAutomaton_->GetSequenceNumber();
+    }
+
     TDistributedHydraManagerDynamicOptions GetDynamicOptions() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();

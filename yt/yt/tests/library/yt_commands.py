@@ -1748,6 +1748,10 @@ def discombobulate_nonvoting_peers(cell_id, **kwargs):
     return execute_command("discombobulate_nonvoting_peers", kwargs)
 
 
+def get_master_consistent_state(**kwargs):
+    return execute_command("get_master_consistent_state", kwargs, parse_yson=True)
+
+
 def switch_leader(cell_id, new_leader_address):
     parameters = {"cell_id": cell_id, "new_leader_address": new_leader_address}
     return execute_command("switch_leader", parameters, parse_yson=True)

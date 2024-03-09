@@ -19,6 +19,10 @@ def build_master_snapshots(*args, **kwargs):
     print(get_driver_instance(None).build_master_snapshots(*args, **kwargs))
 
 
+def get_master_consistent_state(*args, **kwargs):
+    get_driver_instance(None).get_master_consistent_state(*args, **kwargs)
+
+
 def exit_read_only(*args, **kwargs):
     get_driver_instance(None).exit_read_only(*args, **kwargs)
 
@@ -92,6 +96,10 @@ def main():
     add_set_readonly_parser(build_master_snapshot_parser)
     add_wait_for_snapshot_completion_parser(build_master_snapshot_parser)
     build_master_snapshot_parser.add_argument("--retry", action="store_true", default=True)
+
+    get_master_consistent_state_parser = subparsers.add_parser("get-master-consistent-state",
+                                                               help="Record master consistent state")
+    get_master_consistent_state_parser.set_defaults(func=get_master_consistent_state)
 
     exit_read_only_parser = subparsers.add_parser("exit-read-only", help="Exit read-only mode at given cell")
     exit_read_only_parser.set_defaults(func=exit_read_only)

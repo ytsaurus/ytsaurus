@@ -4,6 +4,16 @@ namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TLogicalTimeRegistryConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("eviction_period", &TThis::EvictionPeriod)
+        .Default(TDuration::Seconds(5));
+    registrar.Parameter("expiration_timeout", &TThis::ExpirationTimeout)
+        .Default(TDuration::Minutes(1));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void THiveManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("ping_period", &TThis::PingPeriod)
@@ -28,6 +38,8 @@ void THiveManagerConfig::Register(TRegistrar registrar)
         .Default(TDuration::MilliSeconds(10));
     registrar.Parameter("sync_timeout", &TThis::SyncTimeout)
         .Default(TDuration::Seconds(30));
+    registrar.Parameter("logical_time_registry", &TThis::LogicalTimeRegistry)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

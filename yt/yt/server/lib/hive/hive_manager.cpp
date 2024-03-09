@@ -3,6 +3,7 @@
 #include "avenue_directory.h"
 #include "config.h"
 #include "helpers.h"
+#include "logical_time_registry.h"
 #include "mailbox.h"
 #include "private.h"
 
@@ -132,14 +133,18 @@ public:
         , AutomatonInvoker_(std::move(automatonInvoker))
         , GuardedAutomatonInvoker_(hydraManager->CreateGuardedAutomatonInvoker(AutomatonInvoker_))
         , HydraManager_(std::move(hydraManager))
-    {
-        auto profiler = HiveServerProfiler
+        , Profiler_(HiveServerProfiler
             .WithGlobal()
             .WithSparse()
-            .WithTag("cell_id", ToString(selfCellId));
-
-        SyncPostingTimeCounter_ = profiler.TimeCounter("/sync_posting_time");
-        AsyncPostingTimeCounter_ = profiler.TimeCounter("/async_posting_time");
+            .WithTag("cell_id", ToString(selfCellId)))
+        , LogicalTimeRegistry_(New<TLogicalTimeRegistry>(
+            Config_->LogicalTimeRegistry,
+            AutomatonInvoker_,
+            HydraManager_,
+            Profiler_))
+    {
+        SyncPostingTimeCounter_ = Profiler_.TimeCounter("/sync_posting_time");
+        AsyncPostingTimeCounter_ = Profiler_.TimeCounter("/async_posting_time");
 
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(Ping)
             .SetInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
@@ -151,6 +156,7 @@ public:
             .SetHeavy(true));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncWithOthers)
             .SetHeavy(true));
+        TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(GetConsistentState));
 
         TCompositeAutomatonPart::RegisterMethod(BIND(&THiveManager::HydraAcknowledgeMessages, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&THiveManager::HydraPostMessages, Unretained(this)));
@@ -175,6 +181,7 @@ public:
             BIND(&THiveManager::SaveValues, Unretained(this)));
 
         OrchidService_ = CreateOrchidService();
+        LamportClock_ = LogicalTimeRegistry_->GetClock();
 
         if (AvenueDirectory_) {
             AvenueDirectory_->SubscribeEndpointUpdated(
@@ -468,8 +475,12 @@ private:
     const IInvokerPtr AutomatonInvoker_;
     const IInvokerPtr GuardedAutomatonInvoker_;
     const IHydraManagerPtr HydraManager_;
+    const TProfiler Profiler_;
 
     IYPathServicePtr OrchidService_;
+
+    TLogicalTimeRegistryPtr LogicalTimeRegistry_;
+    TLogicalTimeRegistry::TLamportClock* LamportClock_;
 
     TEntityMap<TCellMailbox> CellMailboxMap_;
     TEntityMap<TAvenueMailbox> AvenueMailboxMap_;
@@ -490,45 +501,6 @@ private:
     THashMap<TCellId, TTimeCounter> PerCellSyncTimeCounter_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
-
-    class TLamportClock
-    {
-    public:
-        TLogicalTime Tick(TLogicalTime externalTime = {})
-        {
-            // COMPAT(danilalexeev)
-            auto reign = GetCurrentMutationContext()->Request().Reign;
-            // ETabletReign::HiveManagerLamportTimestamp = 100909.
-            if (reign >= 100000 && reign < 100909) {
-                return {};
-            }
-
-            LocalTime_ = std::max(LocalTime_, externalTime);
-            return TLogicalTime(++LocalTime_.Underlying());
-        }
-
-        TLogicalTime GetTime() const
-        {
-            return LocalTime_;
-        }
-
-        void Save(TSaveContext& context) const
-        {
-            using NYT::Save;
-            Save(context, LocalTime_);
-        }
-
-        void Load(TLoadContext& context)
-        {
-            using NYT::Load;
-            Load(context, LocalTime_);
-        }
-
-    private:
-        TLogicalTime LocalTime_{0};
-    };
-
-    TLamportClock LamportClock_;
 
     // RPC handlers.
 
@@ -732,6 +704,26 @@ private:
         context->ReplyFrom(AllSucceeded(asyncResults));
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, GetConsistentState)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto requestTime = request->has_logical_time()
+            ? std::make_optional<TLogicalTime>(request->logical_time())
+            : std::nullopt;
+
+        context->SetRequestInfo("LogicalTime: %v",
+            requestTime);
+
+        auto [logicalTime, sequenceNumber] = LogicalTimeRegistry_->GetConsistentState(requestTime);
+        response->set_logical_time(logicalTime.Underlying());
+        response->set_sequence_number(sequenceNumber);
+
+        context->SetResponseInfo("StateLogicalTime: %v, StateSequenceNumber: %v",
+            logicalTime,
+            sequenceNumber);
+        context->Reply();
+    }
 
     // Hydra handlers.
 
@@ -901,9 +893,9 @@ private:
 
         auto* mutationContext = TryGetCurrentMutationContext();
 
-        auto logicalTime = LamportClock_.GetTime();
+        auto logicalTime = LamportClock_->GetTime();
         if (mutationContext) {
-            logicalTime = LamportClock_.Tick();
+            logicalTime = LamportClock_->Tick();
             mutationContext->CombineStateHash(message->Type, message->Data);
         }
 
@@ -1310,10 +1302,7 @@ private:
 
         auto it = PerCellSyncTimeCounter_.find(cellId);
         if (it == PerCellSyncTimeCounter_.end()) {
-            auto profiler = HiveServerProfiler
-                .WithGlobal()
-                .WithSparse()
-                .WithTag("cell_id", ToString(SelfCellId_))
+            auto profiler = Profiler_
                 .WithTag("source_cell_id", ToString(cellId));
 
             it = EmplaceOrCrash(PerCellSyncTimeCounter_, cellId, profiler.TimeCounter("/cell_sync_time"));
@@ -1950,7 +1939,7 @@ private:
                 ConcatToString(TStringBuf("HiveManager:"), message.type()));
             traceContextGuard.emplace(std::move(traceContext));
         }
-        auto logicalTime = LamportClock_.Tick(TLogicalTime(message.logical_time()));
+        auto logicalTime = LamportClock_->Tick(TLogicalTime(message.logical_time()));
 
         auto* mutationContext = GetCurrentMutationContext();
         YT_LOG_DEBUG("Applying reliable incoming message (%v, "
@@ -2202,7 +2191,7 @@ private:
         CellMailboxMap_.SaveValues(context);
         AvenueMailboxMap_.SaveValues(context);
         Save(context, RemovedCellIds_);
-        Save(context, LamportClock_);
+        Save(context, *LamportClock_);
     }
 
     void LoadKeys(TLoadContext& context)
@@ -2224,7 +2213,7 @@ private:
         Load(context, RemovedCellIds_);
         // COMPAT(danilalexeev)
         if (context.GetVersion() >= 7) {
-            Load(context, LamportClock_);
+            Load(context, *LamportClock_);
         }
 
         {
@@ -2250,7 +2239,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        return LamportClock_.GetTime();
+        return LamportClock_->GetTime();
     }
 
     IYPathServicePtr CreateOrchidService()

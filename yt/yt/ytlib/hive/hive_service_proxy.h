@@ -24,6 +24,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, PostMessages);
     DEFINE_RPC_PROXY_METHOD(NProto, SendMessages);
     DEFINE_RPC_PROXY_METHOD(NProto, SyncWithOthers);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetConsistentState);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -630,6 +630,9 @@ public: \
     IMPLEMENT_METHOD(TCellIdToSnapshotIdMap, BuildMasterSnapshots, (
         const TBuildMasterSnapshotsOptions& options),
         (options))
+    IMPLEMENT_METHOD(TCellIdToSequenceNumberMap, GetMasterConsistentState, (
+        const TGetMasterConsistentStateOptions& options),
+        (options))
     IMPLEMENT_METHOD(void, ExitReadOnly, (
         NObjectClient::TCellId cellId,
         const TExitReadOnlyOptions& options),

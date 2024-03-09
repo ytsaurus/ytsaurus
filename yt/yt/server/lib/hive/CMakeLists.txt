@@ -43,6 +43,7 @@ target_sources(server-lib-hive PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hive/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hive/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hive/hive_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hive/logical_time_registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hive/mailbox.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hive/public.cpp
 )

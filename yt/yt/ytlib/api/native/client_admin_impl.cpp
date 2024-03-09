@@ -26,6 +26,7 @@
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 #include <yt/yt/ytlib/hive/cell_directory_synchronizer.h>
+#include <yt/yt/ytlib/hive/hive_service_proxy.h>
 
 #include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
 #include <yt/yt/ytlib/hydra/helpers.h>
@@ -168,6 +169,103 @@ TCellIdToSnapshotIdMap TClient::DoBuildMasterSnapshots(const TBuildMasterSnapsho
     }
 
     return cellIdToSnapshotId;
+}
+
+TCellIdToSequenceNumberMap TClient::DoGetMasterConsistentState(
+    const TGetMasterConsistentStateOptions& options)
+{
+    ValidatePermissionsWithAcn(
+        EAccessControlObject::GetMasterConsistentState,
+        EPermission::Use);
+
+    using TResponseFuture = TFuture<TIntrusivePtr<TTypedClientResponse<NHiveClient::NProto::TRspGetConsistentState>>>;
+    struct TGetMasterConsistentStateRequest
+    {
+        TResponseFuture Future;
+        TCellId CellId;
+    };
+
+    auto constructRequest = [&] (IChannelPtr channel, std::optional<i64> logicalTime = {}) {
+        THiveServiceProxy proxy(std::move(channel));
+        auto req = proxy.GetConsistentState();
+        req->SetTimeout(options.Timeout);
+        if (logicalTime) {
+            req->set_logical_time(*logicalTime);
+        }
+        return req;
+    };
+
+    TCellIdToSequenceNumberMap cellIdToSequenceNumber;
+
+    auto primaryCellId = Connection_->GetPrimaryMasterCellId();
+    std::vector<TCellId> secondaryCellIds;
+    for (auto cellTag : Connection_->GetSecondaryMasterCellTags()) {
+        secondaryCellIds.push_back(Connection_->GetMasterCellId(cellTag));
+    }
+
+    THashMap<TCellId, IChannelPtr> channels;
+    const auto& cellDirectory = Connection_->GetCellDirectory();
+    EmplaceOrCrash(channels, primaryCellId, cellDirectory->GetChannelByCellIdOrThrow(primaryCellId));
+    for (auto cellId : secondaryCellIds) {
+        EmplaceOrCrash(channels, cellId, cellDirectory->GetChannelByCellIdOrThrow(cellId));
+    }
+
+    i64 logicalTime;
+    std::queue<TGetMasterConsistentStateRequest> requestQueue;
+    auto enqueueRequest = [&] (TCellId cellId) {
+        YT_LOG_INFO("Requesting consistent state (CellId: %v)", cellId);
+        auto request = constructRequest(channels[cellId], logicalTime);
+        requestQueue.push({request->Invoke(), cellId});
+    };
+
+    auto resetState = [&] {
+        cellIdToSequenceNumber.clear();
+        {
+            std::queue<TGetMasterConsistentStateRequest> queue;
+            requestQueue.swap(queue);
+        }
+
+        auto req = constructRequest(channels[primaryCellId]);
+        auto rsp = WaitFor(req->Invoke())
+            .ValueOrThrow();
+        YT_LOG_INFO("Recieved consistent state (CellId: %v, LogicalTime: %v, SequenceNumber: %v)",
+            primaryCellId,
+            rsp->logical_time(),
+            rsp->sequence_number());
+        logicalTime = rsp->logical_time();
+        EmplaceOrCrash(cellIdToSequenceNumber, primaryCellId, rsp->sequence_number());
+
+        for (auto cellId : secondaryCellIds) {
+            enqueueRequest(cellId);
+        }
+    };
+
+    resetState();
+
+    while (!requestQueue.empty()) {
+        auto request = requestQueue.front();
+        requestQueue.pop();
+
+        auto cellId = request.CellId;
+        auto responseOrError = WaitFor(request.Future);
+        if (responseOrError.IsOK()) {
+            auto sequenceNumber = responseOrError.Value()->sequence_number();
+            YT_LOG_INFO("Recieved consistent state (CellId: %v, SequenceNumber: %v)",
+                cellId,
+                sequenceNumber);
+            EmplaceOrCrash(cellIdToSequenceNumber, cellId, sequenceNumber);
+            continue;
+        }
+        if (responseOrError.GetCode() == NHiveClient::EErrorCode::EntryNotFound) {
+            YT_LOG_INFO("Requested time is missing; reseting (CellId: %v)",
+                primaryCellId);
+            resetState();
+        } else {
+            THROW_ERROR(responseOrError);
+        }
+    }
+
+    return cellIdToSequenceNumber;
 }
 
 void TClient::DoExitReadOnly(

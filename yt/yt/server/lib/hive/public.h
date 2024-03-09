@@ -25,6 +25,7 @@ DECLARE_REFCOUNTED_STRUCT(IHiveManager)
 DECLARE_REFCOUNTED_STRUCT(IAvenueDirectory)
 
 DECLARE_REFCOUNTED_CLASS(TSimpleAvenueDirectory)
+DECLARE_REFCOUNTED_CLASS(TLogicalTimeRegistry)
 
 class TMailbox;
 DECLARE_ENTITY_TYPE(TCellMailbox, TCellId, ::THash<TCellId>)
@@ -43,6 +44,7 @@ DECLARE_REFCOUNTED_STRUCT(TSerializedMessage)
 
 DECLARE_REFCOUNTED_CLASS(TCellDirectorySynchronizer)
 
+DECLARE_REFCOUNTED_CLASS(TLogicalTimeRegistryConfig)
 DECLARE_REFCOUNTED_CLASS(THiveManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TCellDirectorySynchronizerConfig)
 DECLARE_REFCOUNTED_CLASS(TClusterDirectorySynchronizerConfig)
