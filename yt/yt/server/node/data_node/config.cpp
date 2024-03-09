@@ -773,7 +773,7 @@ void TDataNodeConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("publish_disabled_locations", &TThis::PublishDisabledLocations)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("max_write_sessions", &TThis::MaxWriteSessions)
         .Default(1000)
@@ -924,7 +924,7 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("track_memory_after_session_completion", &TThis::TrackMemoryAfterSessionCompletion)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("track_system_jobs_memory", &TThis::TrackSystemJobsMemory)
         .Default(false);
