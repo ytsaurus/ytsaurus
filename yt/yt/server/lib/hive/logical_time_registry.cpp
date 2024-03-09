@@ -31,12 +31,7 @@ TLogicalTimeRegistry::TLogicalTimeRegistry(
     EvictionExecutor_->Start();
 
     profiler.AddFuncGauge("/logical_time_registry/registry_size", MakeStrong(this), [this] {
-        return WaitFor(BIND([this, this_ = MakeStrong(this)] {
-            return TimeInfoMap_.size();
-        })
-            .AsyncVia(AutomatonInvoker_)
-            .Run())
-            .Value();
+        return TimeInfoMapSize_.load();
     });
 
     Clock_.SubscribeTick(BIND(&TLogicalTimeRegistry::OnTick, MakeWeak(this)));
@@ -105,15 +100,14 @@ std::pair<TLogicalTime, i64> TLogicalTimeRegistry::GetConsistentState(std::optio
 
 void TLogicalTimeRegistry::OnTick(TLogicalTime logicalTime)
 {
-    YT_VERIFY(HasMutationContext());
-
-    auto mutationContext = GetCurrentMutationContext();
+    auto* mutationContext = GetCurrentMutationContext();
     EmplaceOrCrash(TimeInfoMap_,
         logicalTime,
         TTimeInfo{
             .SequenceNumber = mutationContext->GetSequenceNumber(),
             .Timestamp = mutationContext->GetTimestamp(),
         });
+    ++TimeInfoMapSize_;
 }
 
 void TLogicalTimeRegistry::OnEvict()
@@ -127,6 +121,8 @@ void TLogicalTimeRegistry::OnEvict()
         }
         TimeInfoMap_.erase(it);
     }
+
+    TimeInfoMapSize_ = std::ssize(TimeInfoMap_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
