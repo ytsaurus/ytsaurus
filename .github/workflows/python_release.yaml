@@ -106,8 +106,7 @@ jobs:
           source ../venv/bin/activate
           pip3 install -r ./ytsaurus/yt/yt/scripts/pytest_requirements.txt
 
-          YTSAURUS_PACKAGE_VERSION=${{ steps.tag.outputs.RELEASE_VERSION }} bash ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ..
-          /build --ytsaurus-package-name ${{ steps.tag.outputs.PACKAGE_NAME }} --apply-auditwheel
+          YTSAURUS_PACKAGE_VERSION=${{ steps.tag.outputs.RELEASE_VERSION }} ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --ytsaurus-package-name ${{ steps.tag.outputs.PACKAGE_NAME }} --apply-auditwheel
 
           ytsaurus_python=$(realpath "../build/ytsaurus_python")
           mv "${ytsaurus_python}/$(echo ${{ steps.tag.outputs.PACKAGE_NAME }} | sed -E "s/-/_/g")_dist" dist
