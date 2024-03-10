@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
+#include <library/cpp/yt/misc/optional.h>
+
 #include <ares.h>
 
 #include <arpa/inet.h>

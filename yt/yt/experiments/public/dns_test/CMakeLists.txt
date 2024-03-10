@@ -19,6 +19,7 @@ target_link_libraries(dns_test PUBLIC
   yt-yt-core
   yt-yt-ytlib
   library-cpp-getopt
+  cpp-yt-misc
 )
 target_link_options(dns_test PRIVATE
   -ldl

@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "property.h"
-#include "optional.h"
 
 #include <yt/yt/core/yson/string.h>
 
