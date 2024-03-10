@@ -341,16 +341,19 @@ public:
         }
     }
 
-    void SetTotalLimit(const TString& throttlerId, std::optional<double> limit)
+    void SetTotalLimit(const TString& throttlerId, std::optional<double> newLimit)
     {
         auto* shard = GetThrottlerShard(throttlerId);
 
         auto guard = WriterGuard(shard->TotalLimitsLock);
-
-        YT_LOG_DEBUG("Changing throttler total limit (ThrottlerId: %v, Limit: %v)",
-            throttlerId,
-            limit);
-        shard->ThrottlerIdToTotalLimit[throttlerId] = limit;
+        auto& limit = shard->ThrottlerIdToTotalLimit[throttlerId];
+        if (auto oldLimit = limit; newLimit != oldLimit) {
+            YT_LOG_DEBUG("Changing throttler total limit (ThrottlerId: %v, Limit: %v -> %v)",
+                throttlerId,
+                oldLimit,
+                newLimit);
+            limit = newLimit;
+        }
     }
 
     void UpdateUsageRate(const TMemberId& memberId, THashMap<TString, double> throttlerIdToUsageRate)
