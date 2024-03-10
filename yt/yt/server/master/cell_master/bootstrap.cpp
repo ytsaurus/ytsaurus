@@ -446,6 +446,11 @@ const IObjectManagerPtr& TBootstrap::GetObjectManager() const
     return ObjectManager_;
 }
 
+const IObjectServicePtr& TBootstrap::GetObjectService() const
+{
+    return ObjectService_;
+}
+
 const IYsonInternRegistryPtr& TBootstrap::GetYsonInternRegistry() const
 {
     return YsonInternRegistry_;

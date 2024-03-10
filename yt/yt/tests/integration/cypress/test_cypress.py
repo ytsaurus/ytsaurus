@@ -1177,6 +1177,12 @@ class TestCypress(YTEnvSetup):
         assert txs[tx] == yson.to_yson_type(None, attributes={"type": "transaction"})
 
     @authors("babenko")
+    def test_epoch_bound_attributes_in_virtual_maps(self):
+        # Accessing "ephemeral_ref_counter" attribute in read-offloaded virtual maps requires special care.
+        for x in ls("//sys/accounts", attributes=["ephemeral_ref_counter"]):
+            assert x.attributes["ephemeral_ref_counter"] == 0
+
+    @authors("babenko")
     @not_implemented_in_sequoia
     def test_move_virtual_maps1(self):
         create("tablet_map", "//tmp/t")
