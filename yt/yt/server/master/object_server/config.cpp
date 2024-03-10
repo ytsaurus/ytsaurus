@@ -128,6 +128,10 @@ void TDynamicObjectServiceConfig::Register(TRegistrar registrar)
     registrar.Parameter("local_read_worker_count", &TThis::LocalReadWorkerCount)
         .GreaterThan(0)
         .Default(4);
+    registrar.Parameter("local_read_offload_thread_count", &TThis::LocalReadOffloadThreadCount)
+        .GreaterThan(0)
+        .Default(8)
+        .DontSerializeDefault();
     registrar.Parameter("schedule_reply_retry_backoff", &TThis::ScheduleReplyRetryBackoff)
         .Default(TDuration::MilliSeconds(100));
 

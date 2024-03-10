@@ -168,6 +168,7 @@ public:
     bool EnableTwoLevelCache;
     bool EnableLocalReadExecutor;
     int LocalReadWorkerCount;
+    int LocalReadOffloadThreadCount;
     TDuration ScheduleReplyRetryBackoff;
 
     TDuration LocalReadExecutorQuantumDuration;

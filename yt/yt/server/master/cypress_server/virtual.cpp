@@ -4,9 +4,6 @@
 #include "node_proxy_detail.h"
 #include "config.h"
 
-#include <yt/yt/server/master/cell_master/bootstrap.h>
-#include <yt/yt/server/master/cell_master/hydra_facade.h>
-
 #include <yt/yt/server/lib/hydra/hydra_manager.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
@@ -19,12 +16,15 @@
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 
+#include <yt/yt/server/master/object_server/object_service.h>
+
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+
+#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/ypath/tokenizer.h>
 #include <yt/yt/core/ypath/token.h>
@@ -78,8 +78,10 @@ std::optional<TVirtualCompositeNodeReadOffloadParams> TVirtualSinglecellMapBase:
     if (!config->CypressManager->VirtualMapReadOffloadBatchSize) {
         return std::nullopt;
     }
+    const auto& objectService = Bootstrap_->GetObjectService();
     return TVirtualCompositeNodeReadOffloadParams{
         // NB: Must not release LocalRead thread.
+        .OffloadInvoker = objectService->GetLocalReadOffloadInvoker(),
         .WaitForStrategy = EWaitForStrategy::Get,
         .BatchSize = *config->CypressManager->VirtualMapReadOffloadBatchSize,
     };

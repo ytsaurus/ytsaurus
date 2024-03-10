@@ -133,6 +133,7 @@ public:
     const IEpochHistoryManagerPtr& GetEpochHistoryManager() const;
     const IWorldInitializerPtr& GetWorldInitializer() const;
     const NObjectServer::IObjectManagerPtr& GetObjectManager() const;
+    const NObjectServer::IObjectServicePtr& GetObjectService() const;
     const NObjectServer::IYsonInternRegistryPtr& GetYsonInternRegistry() const;
     const NObjectServer::IRequestProfilingManagerPtr& GetRequestProfilingManager() const;
     const NChunkServer::IChunkManagerPtr& GetChunkManager() const;
