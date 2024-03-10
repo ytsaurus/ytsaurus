@@ -110,9 +110,7 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, EnableSharedWriteLocks);
 }
 
-void TTableNode::TDynamicTableAttributes::Load(
-    NCellMaster::TLoadContext& context,
-    TTabletOwnerBase* tabletOwner)
+void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
     Load(context, Atomicity);
@@ -122,10 +120,7 @@ void TTableNode::TDynamicTableAttributes::Load(
     Load(context, ForcedCompactionRevision);
     Load(context, ForcedStoreCompactionRevision);
     Load(context, ForcedHunkCompactionRevision);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::InternedForcedChunkViewCompactionRevision) {
-        Load(context, ForcedChunkViewCompactionRevision);
-    }
+    Load(context, ForcedChunkViewCompactionRevision);
     Load(context, Dynamic);
     Load(context, *TabletBalancerConfig);
     Load(context, DynamicTableLocks);
@@ -143,47 +138,10 @@ void TTableNode::TDynamicTableAttributes::Load(
     Load(context, BackupMode);
     Load(context, BackupError);
     Load(context, ReplicaBackupDescriptors);
-
-    // COMPAT(achulkov2): Set QueueAgentStage to std::nullopt for old reigns.
-    if (context.GetVersion() == EMasterReign::ZookeeperShards) {
-        TString oldQueueAgentStage;
-        Load(context, oldQueueAgentStage);
-        QueueAgentStage = {};
-    } else {
-        Load(context, QueueAgentStage);
-    }
-
+    Load(context, QueueAgentStage);
     Load(context, TreatAsConsumer);
     Load(context, IsVitalConsumer);
     Load(context, *MountConfigStorage);
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() < EMasterReign::InternedForcedChunkViewCompactionRevision) {
-        auto value = MountConfigStorage->Find("forced_chunk_view_compaction_revision");
-
-        if (value) {
-            auto node = ConvertToNode(value);
-            switch (node->GetType()) {
-                case ENodeType::Int64:
-                    ForcedChunkViewCompactionRevision = node->AsInt64()->GetValue();
-                    break;
-
-                case ENodeType::Uint64:
-                    ForcedChunkViewCompactionRevision = node->AsUint64()->GetValue();
-                    break;
-
-                default:
-                    YT_LOG_ERROR("Found table with invalid type of \"forced_chunk_view_compaction_revision\" "
-                        "attribute: expected integral, got %Qlv (TableId: %v, Value: %v)",
-                        node->GetType(),
-                        tabletOwner->GetId(),
-                        ConvertToYsonString(node, EYsonFormat::Text));
-            }
-
-            MountConfigStorage->Remove("forced_chunk_view_compaction_revision");
-        }
-    }
-
     Load(context, HunkStorageNode);
 
     // COMPAT(sabdenovch)
@@ -392,10 +350,7 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
     Load(context, OptimizeFor_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= EMasterReign::ChunkFormat) {
-        Load(context, ChunkFormat_);
-    }
+    Load(context, ChunkFormat_);
     Load(context, HunkErasureCodec_);
     Load(context, RetainedTimestamp_);
     Load(context, UnflushedTimestamp_);
@@ -404,7 +359,7 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     // COMPAT(gritukan): Use TUniquePtrSerializer.
     if (Load<bool>(context)) {
         DynamicTableAttributes_ = std::make_unique<TDynamicTableAttributes>();
-        DynamicTableAttributes_->Load(context, this);
+        DynamicTableAttributes_->Load(context);
     } else {
         DynamicTableAttributes_.reset();
     }

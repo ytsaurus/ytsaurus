@@ -1208,7 +1208,7 @@ public:
         }
     }
 
-    void UpdateMasterMemoryUsage(TCypressNode* node, bool accountChanged = false) override
+    void UpdateMasterMemoryUsage(TCypressNode* node, bool accountChanged) override
     {
         auto* account = node->Account().Get();
         if (!account) {
@@ -2818,10 +2818,6 @@ private:
     // COMPAT(h0pless): Remove this after chunk schemas are introduced.
     bool NeedRecomputeReferencingAccounts_ = false;
 
-    // COMPAT(shakurov)
-    bool RecomputeAccountResourceUsages_ = false;
-    bool RecomputeAccountRefCounters_ = false;
-
     bool MustRecomputeMembershipClosure_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -3130,11 +3126,7 @@ private:
         AccountResourceUsageLeaseMap_.LoadKeys(context);
 
         NeedUpdatePerUserThrottlerLimits_ = context.GetVersion() < EMasterReign::UpdatePerUserThrottlerLimits;
-
         NeedRecomputeReferencingAccounts_ = context.GetVersion() < EMasterReign::AddChunkSchemas;
-
-        RecomputeAccountRefCounters_ = context.GetVersion() < EMasterReign::RecomputeAccountRefCounters;
-        RecomputeAccountResourceUsages_ = context.GetVersion() < EMasterReign::FixAccountResourceUsageCharge;
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -3229,17 +3221,10 @@ private:
 
         InitBuiltins();
 
-        if (RecomputeAccountResourceUsages_) {
-            RecomputeAccountResourceUsages();
-        } else {
-            ValidateAccountResourceUsages();
-        }
+        ValidateAccountResourceUsages();
 
         RecomputeAccountMasterMemoryUsage();
         RecomputeSubtreeSize(RootAccount_, /*validateMatch*/ true);
-        if (RecomputeAccountRefCounters_) {
-            RecomputeAccountRefCounters();
-        }
 
         // Strictly speaking, only root user is necessary here, but it doesn't hurt to make more built-in users independent from the default config.
         if (NeedUpdatePerUserThrottlerLimits_) {
@@ -3456,17 +3441,6 @@ private:
         }
     }
 
-    void RecomputeAccountResourceUsages()
-    {
-        auto resourceUsages = ComputeAccountResourceUsages();
-        for (auto [accountId, account] : Accounts()) {
-            ValidateAndMaybeRecomputeAccountResourceUsage(
-                account,
-                resourceUsages[account],
-                /*recompute*/ true);
-        }
-    }
-
     void RecomputeAccountMasterMemoryUsage()
     {
         YT_LOG_INFO("Started recomputing account master memory usage");
@@ -3529,41 +3503,6 @@ private:
         }
 
         YT_LOG_INFO("Finished recomputing account master memory usage");
-    }
-
-    void RecomputeAccountRefCounters()
-    {
-        auto accountRefCounters = ComputeAccountRefCounters();
-        for (auto [accountId, account] : AccountMap_) {
-            auto expectedRefCounter = GetOrCrash(accountRefCounters, account);
-            auto actualRefCounter = account->GetObjectRefCounter();
-
-            if (expectedRefCounter != actualRefCounter) {
-                auto logLevel = Bootstrap_->GetConfig()->SecurityManager->AlertOnAccountRefCounterMismatch
-                    ? ELogLevel::Alert
-                    : ELogLevel::Error;
-
-                YT_LOG_EVENT(Logger, logLevel, "Account has invalid ref counter; setting proper value "
-                    "(AccountName: %v, AccountId: %v, ExpectedRefCounter: %v, ActualRefCounter: %v)",
-                    account->GetName(),
-                    account->GetId(),
-                    expectedRefCounter,
-                    actualRefCounter);
-
-                const auto& objectManager = Bootstrap_->GetObjectManager();
-                if (actualRefCounter > expectedRefCounter) {
-                    for (int index = 0; index < actualRefCounter - expectedRefCounter; ++index) {
-                        objectManager->UnrefObject(account);
-                    }
-                } else {
-                    for (int index = 0; index < expectedRefCounter - actualRefCounter; ++index) {
-                        objectManager->RefObject(account);
-                    }
-                }
-
-                YT_VERIFY(account->GetObjectRefCounter() == expectedRefCounter);
-            }
-        }
     }
 
     void CheckInvariants() override
@@ -3710,8 +3649,6 @@ private:
         MustRecomputeMembershipClosure_ = false;
         NeedUpdatePerUserThrottlerLimits_ = false;
         NeedRecomputeReferencingAccounts_ = false;
-        RecomputeAccountRefCounters_ = false;
-        RecomputeAccountResourceUsages_ = false;
 
         ResetAuthenticatedUser();
     }

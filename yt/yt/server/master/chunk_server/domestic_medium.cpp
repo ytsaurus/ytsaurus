@@ -51,11 +51,6 @@ void TDomesticMedium::Load(NCellMaster::TLoadContext& context)
 
     Load(context, Transient_);
 
-    // COMPAT(gritukan)
-    if (context.GetVersion() < EMasterReign::RemoveCacheMedium) {
-        Load<bool>(context);
-    }
-
     Load(context, *Config_);
 
     // COMPAT(gritukan)
