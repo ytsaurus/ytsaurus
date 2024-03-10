@@ -612,6 +612,7 @@ void TNode::Save(TSaveContext& context) const
     Save(context, ResourceLimitsOverrides_);
     Save(context, Host_);
     Save(context, LeaseTransaction_);
+    Save(context, LastSeenLeaseTransactionTimeout_);
     Save(context, Cellars_);
     Save(context, Annotations_);
     Save(context, Version_);
@@ -696,6 +697,11 @@ void TNode::Load(TLoadContext& context)
     Load(context, ResourceLimitsOverrides_);
     Load(context, Host_);
     Load(context, LeaseTransaction_);
+
+    if (context.GetVersion() >= EMasterReign::PersistLastSeenLeaseTransactionTimeout) {
+        Load(context, LastSeenLeaseTransactionTimeout_);
+    }
+
     Load(context, Cellars_);
     Load(context, Annotations_);
     Load(context, Version_);
