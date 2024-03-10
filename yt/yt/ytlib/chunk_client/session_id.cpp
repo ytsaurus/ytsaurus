@@ -4,6 +4,33 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////
+
+TSessionId::TSessionId()
+    : TSessionId(TChunkId(), DefaultStoreMediumIndex)
+{ }
+
+TSessionId::TSessionId(TChunkId chunkId, int mediumIndex)
+    : ChunkId(chunkId)
+    , MediumIndex(mediumIndex)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FromProto(TSessionId* sessionId, const NProto::TSessionId& protoSessionId)
+{
+    FromProto(&sessionId->ChunkId, protoSessionId.chunk_id());
+    sessionId->MediumIndex = protoSessionId.medium_index();
+}
+
+void ToProto(NProto::TSessionId* protoSessionId, TSessionId sessionId)
+{
+    ToProto(protoSessionId->mutable_chunk_id(), sessionId.ChunkId);
+    protoSessionId->set_medium_index(sessionId.MediumIndex);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void FormatValue(TStringBuilderBase* builder, TSessionId id, TStringBuf /*format*/)
 {
     if (id.MediumIndex == AllMediaIndex) {
@@ -21,3 +48,8 @@ TString ToString(TSessionId id)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient
+
+size_t THash<NYT::NChunkClient::TSessionId>::operator()(NYT::NChunkClient::TSessionId value) const
+{
+    return THash<NYT::NChunkClient::TChunkId>()(value.ChunkId) * 497 + value.MediumIndex;
+}

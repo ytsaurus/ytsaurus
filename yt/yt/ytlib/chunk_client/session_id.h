@@ -33,16 +33,8 @@ void FromProto(TSessionId* sessionId, const NProto::TSessionId& protoSessionId);
 
 Y_DECLARE_PODTYPE(NYT::NChunkClient::TSessionId);
 
-//! A hasher for TSessionId.
 template <>
 struct THash<NYT::NChunkClient::TSessionId>
 {
-    inline size_t operator()(NYT::NChunkClient::TSessionId value) const
-    {
-        return THash<NYT::NChunkClient::TChunkId>()(value.ChunkId) * 497 + value.MediumIndex;
-    }
+    size_t operator()(NYT::NChunkClient::TSessionId value) const;
 };
-
-#define SESSION_ID_INL_H_
-#include "session_id-inl.h"
-#undef SESSION_ID_INL_H_
