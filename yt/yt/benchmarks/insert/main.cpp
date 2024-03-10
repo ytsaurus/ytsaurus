@@ -536,8 +536,8 @@ private:
     TMpscStack<TShot> ShootResultQueue_;
 
     TBuckets WriteBuckets_;
-    TSchedulerThreadBasePtr ResultProcessingThread_;
-    TSchedulerThreadBasePtr ResultPrintingThread_;
+    TSchedulerThreadPtr ResultProcessingThread_;
+    TSchedulerThreadPtr ResultPrintingThread_;
 
     // TODO: multiple files
     TString FileName_;

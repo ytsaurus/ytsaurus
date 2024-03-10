@@ -177,7 +177,9 @@ public:
         , LocalReadExecutor_(CreateQuantizedExecutor(
             "LocalRead",
             LocalReadCallbackProvider_,
-            /*workerCount*/ 4))
+            TQuantizedExecutorOptions{
+                .ThreadInitializer = MakeLocalReadThreadInitializer(),
+            }))
         , StickyUserErrorCache_(Config_->StickyUserErrorExpireTime)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
@@ -202,9 +204,6 @@ public:
 
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TObjectService::OnDynamicConfigChanged, MakeWeak(this)));
-
-        const auto& epochContext = Bootstrap_->GetHydraFacade()->GetEpochContext();
-        LocalReadExecutor_->Initialize(BIND_NO_PROPAGATE([epochContext = epochContext] { NObjectServer::SetupEpochContext(epochContext); }));
 
         EnableLocalReadExecutor_ = Config_->EnableLocalReadExecutor;
 
@@ -286,6 +285,13 @@ private:
     void OnUserCharged(TUser* user, const TUserWorkload& workload);
 
     void SetStickyUserError(const TString& userName, const TError& error);
+
+    std::function<void()> MakeLocalReadThreadInitializer()
+    {
+        return [epochContext = Bootstrap_->GetHydraFacade()->GetEpochContext()] {
+            NObjectServer::SetupEpochContext(epochContext);
+        };
+    }
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
