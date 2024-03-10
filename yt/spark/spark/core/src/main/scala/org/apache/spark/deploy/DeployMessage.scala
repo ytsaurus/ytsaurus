@@ -192,8 +192,6 @@ private[deploy] object DeployMessages {
   case class RegisterApplication(appDescription: ApplicationDescription, driver: RpcEndpointRef)
     extends DeployMessage
 
-  case class RegisterDriverToAppId(driverId: String, appId: String) extends DeployMessage
-
   case class UnregisterApplication(appId: String)
 
   case class MasterChangeAcknowledged(appId: String)
@@ -236,29 +234,8 @@ private[deploy] object DeployMessages {
 
   case class RequestDriverStatus(driverId: String) extends DeployMessage
 
-  case object RequestDriverStatuses extends DeployMessage
-
-  case class RequestApplicationStatus(appId: String) extends DeployMessage
-
-  case object RequestApplicationStatuses extends DeployMessage
-
   case class DriverStatusResponse(found: Boolean, state: Option[DriverState],
     workerId: Option[String], workerHostPort: Option[String], exception: Option[Exception])
-
-  case class DriverStatus(id: String, state: String, startTimeMs: Long)
-
-  case class DriverStatusesResponse(statuses: Seq[DriverStatus],
-                                    exception: Option[Exception])
-
-  case class ApplicationStatusResponse(found: Boolean, info: Option[ApplicationInfo])
-
-  case class ApplicationStatusesResponse(statuses: Seq[ApplicationInfo], masterIsAlive: Boolean)
-
-  case class RequestAppId(driverId: String) extends DeployMessage
-
-  case class AppIdResponse(appId: Option[String])
-
-  case class AppStatusResponse(found: Boolean, appState: Option[String])
 
   // Internal message in AppClient
 

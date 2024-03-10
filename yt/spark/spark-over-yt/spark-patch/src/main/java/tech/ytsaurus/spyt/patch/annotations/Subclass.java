@@ -8,8 +8,4 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.CLASS)
 @Target(ElementType.TYPE)
 public @interface Subclass {
-    /**
-     * Base class that this subclass will substitute.
-     */
-    String value();
 }

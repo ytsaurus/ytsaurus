@@ -69,10 +69,6 @@ class InterpretedOrdering(ordering: Seq[SortOrder]) extends BaseOrdering {
             s.interpretedOrdering.asInstanceOf[Ordering[Any]].compare(left, right)
           case s: StructType if order.direction == Descending =>
             - s.interpretedOrdering.asInstanceOf[Ordering[Any]].compare(left, right)
-          case a: AggregatingUserDefinedType[_] if order.direction == Ascending =>
-            a.ordering.compare(left, right)
-          case a: AggregatingUserDefinedType[_] if order.direction == Descending =>
-            a.ordering.reverse.compare(left, right)
           case other =>
             throw QueryExecutionErrors.orderedOperationUnsupportedByDataTypeError(other)
         }

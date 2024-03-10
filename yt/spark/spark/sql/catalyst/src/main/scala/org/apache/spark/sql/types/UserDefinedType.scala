@@ -97,15 +97,6 @@ abstract class UserDefinedType[UserType >: Null] extends DataType with Serializa
   override def catalogString: String = sqlType.simpleString
 }
 
-trait AggregatingUserDefinedType[UserType >: Null] {
-  self: UserDefinedType[UserType] =>
-  def hashGen(name: String): String
-
-  def compareGen(first: String, second: String): String
-
-  val ordering: Ordering[Any]
-}
-
 private[spark] object UserDefinedType {
   /**
    * Get the sqlType of a (potential) [[UserDefinedType]].
@@ -114,10 +105,6 @@ private[spark] object UserDefinedType {
     case udt: UserDefinedType[_] => udt.sqlType
     case _ => dt
   }
-}
-
-trait ValidatedCastType {
-  def validate(datum: Any): Unit
 }
 
 /**

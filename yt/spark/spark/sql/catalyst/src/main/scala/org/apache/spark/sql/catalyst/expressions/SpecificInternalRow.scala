@@ -203,7 +203,6 @@ final class SpecificInternalRow(val values: Array[MutableValue]) extends BaseGen
     case BooleanType => new MutableBoolean
     case ByteType => new MutableByte
     case ShortType => new MutableShort
-    case udt: UserDefinedType[_] => dataTypeToMutableValue(udt.sqlType)
     case _ => new MutableAny
   }
 

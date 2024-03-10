@@ -111,14 +111,7 @@ object Cast {
                 toField.nullable)
         }
 
-    case (udt1: UserDefinedType[_], udt2: UserDefinedType[_])if udt2.userClass == udt1.userClass =>
-      true
-
-    case (udt: UserDefinedType[_], toType) if udt.sqlType == toType =>
-      true
-
-    case (fromType, udt: UserDefinedType[_]) if udt.sqlType == fromType =>
-      true
+    case (udt1: UserDefinedType[_], udt2: UserDefinedType[_]) if udt2.acceptsType(udt1) => true
 
     case _ => false
   }
@@ -883,10 +876,6 @@ abstract class CastBase extends UnaryExpression with TimeZoneAwareExpression wit
     })
   }
 
-  private[this] def udtSqlTypeEquals(dt: DataType, udt: DataType): Boolean = {
-    udt.isInstanceOf[UserDefinedType[_]] && udt.asInstanceOf[UserDefinedType[_]].sqlType == dt
-  }
-
   protected[this] def cast(from: DataType, to: DataType): Any => Any = {
     // If the cast does not change the structure, then we don't really need to cast anything.
     // We can return what the children return. Same thing should happen in the codegen path.
@@ -901,7 +890,6 @@ abstract class CastBase extends UnaryExpression with TimeZoneAwareExpression wit
     } else {
       to match {
         case dt if dt == from => identity[Any]
-        case dt if udtSqlTypeEquals(dt, from) => identity[Any]
         case StringType => castToString(from)
         case BinaryType => castToBinary(from)
         case DateType => castToDate(from)
@@ -922,7 +910,6 @@ abstract class CastBase extends UnaryExpression with TimeZoneAwareExpression wit
           castArray(from.asInstanceOf[ArrayType].elementType, array.elementType)
         case map: MapType => castMap(from.asInstanceOf[MapType], map)
         case struct: StructType => castStruct(from.asInstanceOf[StructType], struct)
-        case udt: UserDefinedType[_] if udtSqlTypeEquals(from, udt) => identity[Any]
         case udt: UserDefinedType[_] if udt.acceptsType(from) =>
           identity[Any]
         case _: UserDefinedType[_] =>
@@ -964,9 +951,6 @@ abstract class CastBase extends UnaryExpression with TimeZoneAwareExpression wit
 
     case _ if from == NullType => (c, evPrim, evNull) => code"$evNull = true;"
     case _ if to == from => (c, evPrim, evNull) => code"$evPrim = $c;"
-    case _ if from.isInstanceOf[UserDefinedType[_]] &&
-      from.asInstanceOf[UserDefinedType[_]].sqlType == to =>
-      (c, evPrim, evNull) => code"$evPrim = $c;"
     case StringType => castToStringCode(from, ctx)
     case BinaryType => castToBinaryCode(from)
     case DateType => castToDateCode(from, ctx)
@@ -988,18 +972,8 @@ abstract class CastBase extends UnaryExpression with TimeZoneAwareExpression wit
       castArrayCode(from.asInstanceOf[ArrayType].elementType, array.elementType, ctx)
     case map: MapType => castMapCode(from.asInstanceOf[MapType], map, ctx)
     case struct: StructType => castStructCode(from.asInstanceOf[StructType], struct, ctx)
-    case udt: UserDefinedType[_]
-      if udt.sqlType == from || udt.userClass == from.asInstanceOf[UserDefinedType[_]].userClass =>
-      to match {
-        case udt: UserDefinedType[_] with ValidatedCastType =>
-          val udtRef = JavaCode.global(ctx.addReferenceObj("udt", udt), udt.sqlType)
-          (c, evPrim, evNull) =>
-            code"""
-                  |$udtRef.validate($c);
-                  |$evPrim = $c;
-                  """.stripMargin
-        case _ => (c, evPrim, evNull) => code"$evPrim = $c;"
-      }
+    case udt: UserDefinedType[_] if udt.acceptsType(from) =>
+      (c, evPrim, evNull) => code"$evPrim = $c;"
     case _: UserDefinedType[_] =>
       throw QueryExecutionErrors.cannotCastError(from, to)
   }

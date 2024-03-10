@@ -1,0 +1,13 @@
+org/apache/spark/sql/catalyst/ScalaReflectionDecorators$
+org/apache/spark/sql/catalyst/expressions/codegen/CodeGeneratorDecorators$
+org/apache/spark/sql/catalyst/encoders/RowEncoderDecorators$
+org/apache/spark/sql/catalyst/expressions/SpecializedGettersReaderDecorator
+org/apache/spark/sql/catalyst/expressions/HashExpressionSpyt
+org/apache/spark/sql/catalyst/expressions/CastBaseDecorators
+org/apache/spark/sql/execution/aggregate/HashMapGeneratorDecorators
+org/apache/spark/sql/catalyst/expressions/SpecificInternalRowDecorators
+org/apache/spark/sql/catalyst/expressions/codegen/CodegenContextDecorators
+org/apache/spark/sql/catalyst/expressions/CastDecorators$
+org/apache/spark/deploy/rest/spyt/patch/StandaloneRestServer
+org/apache/spark/deploy/rest/RestSubmissionClientAppSpyt
+org/apache/spark/sql/SparkSessionBuilderDecorators

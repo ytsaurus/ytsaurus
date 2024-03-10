@@ -1,11 +1,13 @@
 package org.apache.spark.sql.yson
 
+import org.apache.spark.sql.catalyst.expressions.codegen.Block.BlockHelper
+import org.apache.spark.sql.catalyst.expressions.codegen.{Block, ExprValue}
 import org.apache.spark.sql.types._
 import org.json4s.JsonAST.JValue
 import org.json4s.JsonDSL._
 import tech.ytsaurus.spyt.serialization.{IndexedDataType, YsonDecoder}
 
-class YsonType extends UserDefinedType[YsonBinary] with ValidatedCastType {
+class YsonType extends UserDefinedType[YsonBinary] {
   override def pyUDT: String = "spyt.types.YsonType"
 
   override def sqlType: DataType = BinaryType
@@ -19,16 +21,6 @@ class YsonType extends UserDefinedType[YsonBinary] with ValidatedCastType {
   }
 
   override def userClass: Class[YsonBinary] = classOf[YsonBinary]
-
-  override def validate(datum: Any): Unit = datum match {
-    case bytes: Array[Byte] =>
-      try {
-        YsonDecoder.decode(bytes, IndexedDataType.NoneType)
-      } catch {
-        case e: Throwable => throw new IllegalArgumentException(s"Illegal yson bytes", e)
-      }
-
-  }
 
   override private[sql] def jsonValue: JValue = {
     ("type" -> "udt") ~
@@ -49,3 +41,38 @@ case object YsonType extends YsonType
 
 @SQLUserDefinedType(udt = classOf[YsonType])
 case class YsonBinary(bytes: Array[Byte])
+
+object YsonBinary {
+  // Actually - from a certain type to Binary with validation
+  def cast(from: DataType): Any => Any = from match {
+    case BinaryType => (datum: Any) => {
+      validate(datum)
+      datum
+    }
+  }
+
+  def validate(datum: Any): Unit = datum match {
+    case bytes: Array[Byte] =>
+      try {
+        YsonDecoder.decode(bytes, IndexedDataType.NoneType)
+      } catch {
+        case e: Throwable => throw new IllegalArgumentException(s"Illegal yson bytes", e)
+      }
+  }
+}
+
+object YsonCastToBinary extends (Any => Any) {
+  override def apply(t: Any): Any = t.asInstanceOf[Array[Byte]]
+}
+
+object YsonCastToBinaryCode extends ((ExprValue, ExprValue, ExprValue) => Block) {
+  def apply(c: ExprValue, evPrim: ExprValue, evNull: ExprValue): Block = code"$evPrim = $c;"
+}
+
+object BinaryCastToYsonCode extends ((ExprValue, ExprValue, ExprValue) => Block) {
+  def apply(c: ExprValue, evPrim: ExprValue, evNull: ExprValue): Block =
+    code"""
+          org.apache.spark.sql.yson.YsonBinary$$.MODULE$$.validate($c);
+          $evPrim = $c;
+        """
+}

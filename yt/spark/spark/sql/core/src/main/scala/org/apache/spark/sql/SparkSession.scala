@@ -32,7 +32,7 @@ import org.apache.spark.api.java.JavaRDD
 import org.apache.spark.internal.Logging
 import org.apache.spark.internal.config.{ConfigEntry, EXECUTOR_ALLOW_SPARK_CONTEXT}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.scheduler.{SparkListener, SparkListenerApplicationEnd, UserDefinedSparkListener}
+import org.apache.spark.scheduler.{SparkListener, SparkListenerApplicationEnd}
 import org.apache.spark.sql.catalog.Catalog
 import org.apache.spark.sql.catalyst._
 import org.apache.spark.sql.catalyst.analysis.UnresolvedRelation
@@ -961,8 +961,6 @@ object SparkSession extends Logging {
         registerContextListener(sparkContext)
       }
 
-      addUserDefinedListeners(session)
-
       return session
     }
 
@@ -1227,28 +1225,8 @@ object SparkSession extends Logging {
   }
 
   /**
-   * Initialize listeners for given classnames. The classes will be added to the
-   * SparkContext passed into this function.
+   * Temporary stub for integration tests. Should be removed when integration tests
+   * will use vanilla Spark.
    */
-    def addUserDefinedListeners(spark: SparkSession): Unit = {
-    logInfo("Add user defined spark listeners")
-    val udlConfClassNames = spark.sparkContext.getConf
-      .get(StaticSQLConf.SPARK_SESSION_LISTENERS).getOrElse(Seq.empty)
-    udlConfClassNames.foreach { udlConfClassName =>
-      try {
-        val udlConfClass = Utils.classForName(udlConfClassName)
-        val udlc = udlConfClass.getConstructor(classOf[SparkSession])
-        val udli: UserDefinedSparkListener = udlc.newInstance(spark)
-        udli.onListenerStart()
-        spark.sparkContext.addSparkListener(udli)
-        logInfo(s"Added user defined spark listener $udlConfClassName")
-      } catch {
-        // Ignore the error if we cannot find the class or when the class has the wrong type.
-        case e@(_: ClassCastException |
-                _: ClassNotFoundException |
-                _: NoClassDefFoundError) =>
-          logWarning(s"Cannot use $udlConfClassName to configure session listeners.", e)
-      }
-    }
-  }
+  def addUserDefinedListeners(spark: SparkSession): Unit = ()
 }

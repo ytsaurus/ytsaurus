@@ -25,7 +25,7 @@ import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 import scala.util.Random
 
 import org.apache.spark.{SecurityManager, SparkConf, SparkException}
-import org.apache.spark.deploy.{AddressUtils, ApplicationDescription, DriverDescription, ExecutorState, SparkHadoopUtil}
+import org.apache.spark.deploy.{ApplicationDescription, DriverDescription, ExecutorState, SparkHadoopUtil}
 import org.apache.spark.deploy.DeployMessages._
 import org.apache.spark.deploy.master.DriverState.DriverState
 import org.apache.spark.deploy.master.MasterMessages._
@@ -69,8 +69,6 @@ private[deploy] class Master(
   val idToApp = new HashMap[String, ApplicationInfo]
   private val waitingApps = new ArrayBuffer[ApplicationInfo]
   val apps = new HashSet[ApplicationInfo]
-
-  val driverIdToApp = new HashMap[String, String]
 
   private val idToWorker = new HashMap[String, WorkerInfo]
   private val addressToWorker = new HashMap[RpcAddress, WorkerInfo]
@@ -145,8 +143,7 @@ private[deploy] class Master(
     logInfo(s"Running Spark version ${org.apache.spark.SPARK_VERSION}")
     webUi = new MasterWebUI(this, webUiPort)
     webUi.bind()
-    masterWebUiUrl = s"${webUi.scheme}${Utils.addBracketsIfIpV6Host(masterPublicAddress)}" +
-      s":${webUi.boundPort}"
+    masterWebUiUrl = webUi.webUrl
     if (reverseProxy) {
       val uiReverseProxyUrl = conf.get(UI_REVERSE_PROXY_URL).map(_.stripSuffix("/"))
       if (uiReverseProxyUrl.nonEmpty) {
@@ -168,8 +165,6 @@ private[deploy] class Master(
       restServer = Some(new StandaloneRestServer(address.host, port, conf, self, masterUrl))
     }
     restServerBoundPort = restServer.map(_.start())
-    AddressUtils.writeAddressToFile("master", masterPublicAddress,
-      address.port, Some(webUi.boundPort), restServerBoundPort)
 
     masterMetricsSystem.registerSource(masterSource)
     masterMetricsSystem.start()
@@ -313,18 +308,6 @@ private[deploy] class Master(
         persistenceEngine.addApplication(app)
         driver.send(RegisteredApplication(app.id, self))
         schedule()
-      }
-
-    case RegisterDriverToAppId(driverId, appId) =>
-      if (driverId != null && appId != null) {
-        if (state == RecoveryState.STANDBY) {
-          // ignore, don't send response
-        } else {
-          logInfo("Registered driverId " + driverId + " to appId " + appId)
-          driverIdToApp(driverId) = appId
-        }
-      } else {
-        logInfo("Unsuccessful registration try " + driverId + " to " + appId)
       }
 
     case DriverStateChanged(driverId, state, exception) =>
@@ -496,46 +479,6 @@ private[deploy] class Master(
             context.reply(DriverStatusResponse(found = false, None, None, None, None))
         }
       }
-
-    case RequestDriverStatuses =>
-      logDebug(s"Driver statuses requested, state=$state")
-      if (state != RecoveryState.ALIVE) {
-        val msg = s"${Utils.BACKUP_STANDALONE_MASTER_PREFIX}: $state. " +
-          "Can only request driver statuses in ALIVE state."
-        context.reply(DriverStatusesResponse(Seq(), Some(new Exception(msg))))
-      } else {
-        val statuses = (drivers ++ completedDrivers).map(driver =>
-          DriverStatus(driver.id, driver.state.toString, driver.startTime))
-        context.reply(DriverStatusesResponse(statuses.toSeq, None))
-      }
-
-    case RequestApplicationStatus(appId) =>
-      logDebug(s"Driver status requested, state=$state, id=$appId")
-      if (state != RecoveryState.ALIVE) {
-        context.reply(
-          ApplicationStatusResponse(found = false, None))
-      } else {
-        logInfo("Asked application status for application " + appId)
-        idToApp.get(appId) match {
-          case Some(application) =>
-            context.reply(ApplicationStatusResponse(found = true, Some(application)))
-          case None =>
-            context.reply(ApplicationStatusResponse(found = false, None))
-        }
-      }
-
-    case RequestApplicationStatuses =>
-      logInfo("Application statuses requested")
-      val res = ApplicationStatusesResponse(
-        idToApp.values.filter(app => app.state != ApplicationState.FINISHED).toSeq,
-        state == RecoveryState.ALIVE
-      )
-      context.reply(res)
-
-    case RequestAppId(driverId) =>
-      logInfo("Asked app id for driver " + driverId)
-      val appIdOption = driverIdToApp.get(driverId)
-      context.reply(AppIdResponse(appIdOption))
 
     case RequestMasterState =>
       context.reply(MasterStateResponse(

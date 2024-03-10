@@ -7,6 +7,7 @@ import org.apache.spark.sql.execution.datasources.v2.FileDataSourceV2
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import org.apache.spark.sql.vectorized.YtFileFormat
+import tech.ytsaurus.spyt.format.GlobalTransactionUtils
 import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration.GlobalTransaction
 import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration.Read.YtPartitioningEnabled
 import tech.ytsaurus.spyt.fs.path.YPathEnriched.{YtLatestVersionPath, YtRootPath, YtTimestampPath, YtTransactionPath}
@@ -23,7 +24,7 @@ class YtDataSourceV2 extends FileDataSourceV2 with SessionConfigSupport {
     import tech.ytsaurus.spyt.fs.conf._
 
     val paths = super.getPaths(options)
-    val transaction = options.getYtConf(Transaction).orElse(sparkSession.getYtConf(GlobalTransaction.Id))
+    val transaction = options.getYtConf(Transaction).orElse(GlobalTransactionUtils.getGlobalTransactionId(sparkSession))
     val timestamp = options.getYtConf(Timestamp)
     val inconsistentReadEnabled = options.ytConf(InconsistentReadEnabled)
 

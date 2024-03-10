@@ -1,5 +1,4 @@
 import sbt._
-import spyt.SparkForkVersion.sparkForkVersion
 
 object Dependencies {
   lazy val circeVersion = "0.12.3"
@@ -49,12 +48,9 @@ object Dependencies {
       ExclusionRule(organization = "org.scalatest")
   )
 
-  lazy val spark = Seq(
-    "tech.ytsaurus.spark" %% "spark-core",
-    "tech.ytsaurus.spark" %% "spark-sql"
-  ).map(_ % sparkForkVersion).map(_ excludeAll
-    ExclusionRule(organization = "org.apache.httpcomponents")
-  ).map(_ % Provided)
+  lazy val spark = Seq("spark-core", "spark-sql").map { module =>
+    "org.apache.spark" %% module % sparkVersion % Provided
+  }
 
   lazy val sparkTest = Seq(
     "org.apache.spark" %% "spark-core" % sparkVersion % Test classifier "tests"

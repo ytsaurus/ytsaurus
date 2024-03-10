@@ -8,6 +8,13 @@ import spyt.SpytPlugin.autoImport._
 import spyt.TarArchiverPlugin.autoImport._
 import spyt.YtPublishPlugin.autoImport._
 
+lazy val `spark-patch` = (project in file("spark-patch"))
+  .settings(
+    libraryDependencies ++= spark ++ livy,
+    Compile / packageBin / packageOptions +=
+      Package.ManifestAttributes(new java.util.jar.Attributes.Name("PreMain-Class") -> "tech.ytsaurus.spyt.patch.SparkPatchAgent")
+  )
+
 lazy val `yt-wrapper` = (project in file("yt-wrapper"))
   .enablePlugins(BuildInfoPlugin)
   .settings(
@@ -27,10 +34,15 @@ lazy val `file-system` = (project in file("file-system"))
 
 lazy val `data-source` = (project in file("data-source"))
   .configs(IntegrationTest)
-  .dependsOn(`file-system` % "compile->compile;test->test;provided->provided")
+  .dependsOn(`file-system` % "compile->compile;test->test;provided->provided", `spark-patch` % Provided)
+  .enablePlugins(JavaAgent)
   .settings(
     Defaults.itSettings,
     libraryDependencies ++= itTestDeps,
+    resolvedJavaAgents := Seq(JavaAgent.ResolvedAgent(
+      JavaAgent.AgentModule("spark-patch", null, JavaAgent.AgentScope(test = true, dist = false), ""),
+      (`spark-patch` / Compile / packageBin).value
+    ))
   )
 
 lazy val `spark-fork` = (project in file("spark-fork"))
@@ -65,19 +77,6 @@ lazy val `spark-fork` = (project in file("spark-fork"))
     }
   )
 
-lazy val `spark-submit` = (project in file("spark-submit"))
-  .dependsOn(`yt-wrapper` % "compile->compile;test->test;provided->provided")
-  .settings(
-    libraryDependencies ++= scaldingArgs,
-  )
-
-lazy val `spark-patch` = (project in file("spark-patch"))
-  .settings(
-    libraryDependencies ++= spark ++ livy,
-    Compile / packageBin / packageOptions +=
-      Package.ManifestAttributes(new java.util.jar.Attributes.Name("PreMain-Class") -> "tech.ytsaurus.spyt.patch.SparkPatchAgent")
-  )
-
 lazy val `resource-manager` = (project in file("resource-manager"))
   .settings(
     libraryDependencies ++= spark ++ ytsaurusClient ++ sparkTest
@@ -92,9 +91,15 @@ lazy val `cluster` = (project in file("spark-cluster"))
     libraryDependencies ++= scalatraTestDeps,
   )
 
+lazy val `spark-submit` = (project in file("spark-submit"))
+  .dependsOn(`cluster` % "compile->compile;test->test;provided->provided")
+  .settings(
+    libraryDependencies ++= scaldingArgs,
+  )
+
 lazy val `spyt-package` = (project in file("spyt-package"))
   .enablePlugins(JavaAppPackaging, PythonPlugin)
-  .dependsOn(`cluster` % "compile->compile;test->test;provided->provided", `resource-manager`, `spark-patch`, `spark-submit`)
+  .dependsOn(`spark-submit` % "compile->compile;test->test;provided->provided", `resource-manager`, `spark-patch`)
   .settings(
 
     // These dependencies are already provided by spark distributive
@@ -108,7 +113,10 @@ lazy val `spyt-package` = (project in file("spyt-package"))
       "com.google.protobuf" % "protobuf-java",
       "org.slf4j" % "slf4j-api",
       "org.scala-lang.modules" %% "scala-parser-combinators",
-      "org.scala-lang.modules" %% "scala-xml"
+      "org.scala-lang.modules" %% "scala-xml",
+    ),
+    excludeDependencies ++= Seq(
+      ExclusionRule(organization = "org.apache.httpcomponents")
     ),
 
     Compile / discoveredMainClasses := Seq(),

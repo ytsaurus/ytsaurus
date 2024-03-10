@@ -155,7 +155,6 @@ abstract class HashMapGenerator(
          |}
        """.stripMargin
     }
-    def hashUDT(h: String): String = s"int $result = $h;"
 
     dataType match {
       case BooleanType => hashInt(s"$input ? 1 : 0")
@@ -175,8 +174,6 @@ abstract class HashMapGenerator(
           """
         }
       case StringType => hashBytes(s"$input.getBytes()")
-      case audt: AggregatingUserDefinedType[_] => hashUDT(audt.hashGen(input))
-      case udt: UserDefinedType[_] => hashUDT(s"$input.hashCode()")
     }
   }
 }

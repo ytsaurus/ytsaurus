@@ -616,7 +616,6 @@ class CodegenContext extends Logging {
    * Generates code for equal expression in Java.
    */
   def genEqual(dataType: DataType, c1: String, c2: String): String = dataType match {
-    case audt: AggregatingUserDefinedType[_] => genComp(audt, c1, c2) + " == 0"
     case BinaryType => s"java.util.Arrays.equals($c1, $c2)"
     case FloatType =>
       s"((java.lang.Float.isNaN($c1) && java.lang.Float.isNaN($c2)) || $c1 == $c2)"
@@ -641,7 +640,6 @@ class CodegenContext extends Logging {
    * @param c2 name of the variable of expression 2's output
    */
   def genComp(dataType: DataType, c1: String, c2: String): String = dataType match {
-    case audt: AggregatingUserDefinedType[_] => audt.compareGen(c1, c2)
     // java boolean doesn't support > or < operator
     case BooleanType => s"($c1 == $c2 ? 0 : ($c1 ? 1 : -1))"
     case DoubleType =>

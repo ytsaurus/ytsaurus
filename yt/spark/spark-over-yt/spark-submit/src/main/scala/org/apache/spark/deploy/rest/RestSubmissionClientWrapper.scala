@@ -1,23 +1,23 @@
 package org.apache.spark.deploy.rest
 
 object RestSubmissionClientWrapper {
-  type Client = RestSubmissionClient
+  type Client = RestSubmissionClientSpyt
 
-  def create(master: String): RestSubmissionClient = new RestSubmissionClient(master = master)
+  def create(master: String): RestSubmissionClientSpyt = new RestSubmissionClientSpyt(master = master)
 
-  def requestSubmissionStatus(client: RestSubmissionClient, id: String): SubmissionStatusResponse = {
+  def requestSubmissionStatus(client: RestSubmissionClientSpyt, id: String): SubmissionStatusResponse = {
     client.requestSubmissionStatus(id).asInstanceOf[SubmissionStatusResponse]
   }
 
-  def requestApplicationId(client: RestSubmissionClient, id: String): AppIdRestResponse = {
+  def requestApplicationId(client: RestSubmissionClientSpyt, id: String): AppIdRestResponse = {
     client.requestAppId(id).asInstanceOf[AppIdRestResponse]
   }
 
-  def requestApplicationStatus(client: RestSubmissionClient, id: String): AppStatusRestResponse = {
+  def requestApplicationStatus(client: RestSubmissionClientSpyt, id: String): AppStatusRestResponse = {
     client.requestAppStatus(id).asInstanceOf[AppStatusRestResponse]
   }
 
-  def killSubmission(client: RestSubmissionClient, id: String): KillSubmissionResponse = {
+  def killSubmission(client: RestSubmissionClientSpyt, id: String): KillSubmissionResponse = {
     client.killSubmission(id).asInstanceOf[KillSubmissionResponse]
   }
 }

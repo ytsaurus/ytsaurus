@@ -62,13 +62,6 @@ abstract class PartitioningAwareFileIndex(
   protected def matchPathPattern(file: FileStatus): Boolean =
     pathFilters.forall(_.accept(file))
 
-  protected lazy val pathGlobFilter: Option[GlobFilter] =
-    caseInsensitiveMap.get("pathGlobFilter").map(new GlobFilter(_))
-
-  protected def matchGlobPattern(file: FileStatus): Boolean = {
-    pathGlobFilter.forall(_.accept(file.getPath))
-  }
-
   protected lazy val recursiveFileLookup: Boolean = {
     caseInsensitiveMap.getOrElse("recursiveFileLookup", "false").toBoolean
   }

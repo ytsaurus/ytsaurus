@@ -65,12 +65,6 @@ private[deploy] class StandaloneRestServer(
     new StandaloneKillRequestServlet(masterEndpoint, masterConf)
   protected override val statusRequestServlet =
     new StandaloneStatusRequestServlet(masterEndpoint, masterConf)
-  protected override val masterStateRequestServlet =
-    new StandaloneMasterStateRequestServlet(masterEndpoint, masterConf)
-  protected override val appIdRequestServlet =
-    new StandaloneAppIdRequestServlet(masterEndpoint, masterConf)
-  protected override val appStatusRequestServlet =
-    new StandaloneAppStatusRequestServlet(masterEndpoint, masterConf)
 }
 
 /**
@@ -110,24 +104,6 @@ private[rest] class StandaloneStatusRequestServlet(masterEndpoint: RpcEndpointRe
     d.workerHostPort = response.workerHostPort.orNull
     d.message = message.orNull
     d
-  }
-
-  protected def handleStatuses: SubmissionStatusesResponse = {
-    val response = masterEndpoint.askSync[DeployMessages.DriverStatusesResponse](
-      DeployMessages.RequestDriverStatuses)
-    val resp = new SubmissionStatusesResponse
-    resp.serverSparkVersion = sparkVersion
-    resp.success = response.exception.isEmpty
-    resp.message = response.exception.map(s"Exception from the cluster:\n"
-      + formatException(_)).orNull
-    resp.statuses = response.statuses.map(r => {
-      val d = new SubmissionsStatus
-      d.driverId = r.id
-      d.status = r.state
-      d.startedAt = r.startTimeMs
-      d
-    })
-    resp
   }
 }
 
@@ -238,81 +214,5 @@ private[rest] class StandaloneSubmitRequestServlet(
         responseServlet.setStatus(HttpServletResponse.SC_BAD_REQUEST)
         handleError(s"Received message of unexpected type ${unexpected.messageType}.")
     }
-  }
-}
-
-private[rest] class StandaloneMasterStateRequestServlet(
-    masterEndpoint: RpcEndpointRef,
-    conf: SparkConf)
-  extends MasterStateRequestServlet {
-  override protected def handleMasterState(
-    responseServlet: HttpServletResponse
-  ): MasterStateResponse = {
-    val response = masterEndpoint.askSync[DeployMessages.MasterStateResponse](
-      DeployMessages.RequestMasterState)
-    val masterStateResponse = new MasterStateResponse
-    masterStateResponse.workers = response.workers
-    masterStateResponse.serverSparkVersion = sparkVersion
-    masterStateResponse
-  }
-}
-
-private[rest] class StandaloneAppIdRequestServlet(
-                                                   masterEndpoint: RpcEndpointRef,
-                                                   conf: SparkConf)
-  extends AppIdRequestServlet {
-  override protected def handleGetAppId(
-                                         submissionId: String,
-                                         responseServlet: HttpServletResponse
-                                       ): AppIdRestResponse = {
-    val response = masterEndpoint.askSync[DeployMessages.AppIdResponse](
-      DeployMessages.RequestAppId(submissionId))
-    val appIdResponse = new AppIdRestResponse
-    appIdResponse.submissionId = submissionId
-    appIdResponse.success = true
-    appIdResponse.appId = response.appId.orNull
-    appIdResponse.serverSparkVersion = sparkVersion
-    appIdResponse
-  }
-}
-
-private[rest] class StandaloneAppStatusRequestServlet(
-                                                       masterEndpoint: RpcEndpointRef,
-                                                       conf: SparkConf)
-  extends AppStatusRequestServlet {
-  override protected def handleGetAppStatus(
-                                             appId: String,
-                                             responseServlet: HttpServletResponse
-                                           ): AppStatusRestResponse = {
-    val response = masterEndpoint.askSync[DeployMessages.ApplicationStatusResponse](
-      DeployMessages.RequestApplicationStatus(appId))
-    val appStatusResponse = new AppStatusRestResponse
-    appStatusResponse.appId = appId
-    appStatusResponse.success = response.found
-    appStatusResponse.appState = response.info.map(_.state.toString).orNull
-    appStatusResponse.appSubmittedAt = response.info.map(_.submitDate).orNull
-    appStatusResponse.appStartedAt = response.info.map(_.startTime).getOrElse(-1L)
-    appStatusResponse.serverSparkVersion = sparkVersion
-    appStatusResponse
-  }
-
-  override protected def handleGetAllAppStatuses(response: HttpServletResponse):
-  AppStatusesRestResponse = {
-    val response = masterEndpoint.askSync[DeployMessages.ApplicationStatusesResponse](
-      DeployMessages.RequestApplicationStatuses)
-    val statusesRestResponse = new AppStatusesRestResponse
-    statusesRestResponse.statuses = response.statuses.map { info =>
-      val status = new AppStatusRestResponse
-      status.appId = info.id
-      status.appState = info.state.toString
-      status.appSubmittedAt = info.submitDate
-      status.appStartedAt = info.startTime
-      status.serverSparkVersion = sparkVersion
-      status.success = true
-      status
-    }
-    statusesRestResponse.success = true
-    statusesRestResponse.serverSparkVersion = sparkVersion
-    statusesRestResponse
   }
 }

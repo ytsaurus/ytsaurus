@@ -21,21 +21,19 @@ import java.util.NoSuchElementException
 import java.util.zip.ZipOutputStream
 import javax.servlet.http.{HttpServlet, HttpServletRequest, HttpServletResponse}
 
-import scala.reflect.internal.util.ScalaClassLoader
 import scala.util.control.NonFatal
 import scala.xml.Node
 
 import org.eclipse.jetty.servlet.{ServletContextHandler, ServletHolder}
 
 import org.apache.spark.{SecurityManager, SparkConf}
-import org.apache.spark.deploy.{AddressUtils, SparkHadoopUtil}
+import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.internal.Logging
 import org.apache.spark.internal.config._
 import org.apache.spark.internal.config.History
 import org.apache.spark.internal.config.UI._
 import org.apache.spark.status.api.v1.{ApiRootResource, ApplicationInfo, UIRoot}
 import org.apache.spark.ui.{SparkUI, UIUtils, WebUI}
-import org.apache.spark.ui.JettyUtils.createServletHandler
 import org.apache.spark.util.{ShutdownHookManager, SystemClock, Utils}
 
 /**
@@ -152,18 +150,6 @@ class HistoryServer(
     attachPage(new HistoryPage(this))
 
     attachHandler(ApiRootResource.getServletHandler(this))
-
-    try {
-      val logPage = ScalaClassLoader(getClass.getClassLoader)
-        .loadClass("org.apache.spark.deploy.history.YtLogPage")
-        .getConstructor(classOf[SparkConf]).newInstance(conf).asInstanceOf[WorkerLogPage]
-      attachPage(logPage)
-      attachHandler(createServletHandler("/workerLog",
-        (request: HttpServletRequest) => logPage.renderLog(request), conf))
-    } catch {
-      case e: ClassNotFoundException =>
-        logError("Logs from YT will not be loaded because class in spyt was not found", e)
-    }
 
     addStaticHandler(SparkUI.STATIC_RESOURCE_DIR)
 
@@ -323,7 +309,6 @@ object HistoryServer extends Logging {
     val server = new HistoryServer(conf, provider, securityManager, port)
     server.bind()
     provider.start()
-    AddressUtils.writeAddressToFile("history", server.publicHostName, server.boundPort, None, None)
 
     ShutdownHookManager.addShutdownHook { () => server.stop() }
 

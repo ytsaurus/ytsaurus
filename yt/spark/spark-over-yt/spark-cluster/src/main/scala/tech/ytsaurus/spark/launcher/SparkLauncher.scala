@@ -4,6 +4,9 @@ import io.circe.generic.auto._
 import io.circe.parser._
 import org.slf4j.{Logger, LoggerFactory}
 import Service.{BasicService, MasterService}
+import org.apache.spark.deploy.history.YtHistoryServer
+import org.apache.spark.deploy.master.YtMaster
+import org.apache.spark.deploy.worker.YtWorker
 import tech.ytsaurus.spyt.wrapper.Utils.{parseDuration, ytHostnameOrIpAddress}
 import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.spyt.wrapper.client.YtClientConfiguration
@@ -24,9 +27,9 @@ trait SparkLauncher {
   self: VanillaLauncher =>
 
   private val log = LoggerFactory.getLogger(getClass)
-  private val masterClass = "org.apache.spark.deploy.master.Master"
-  private val workerClass = "org.apache.spark.deploy.worker.Worker"
-  private val historyServerClass = "org.apache.spark.deploy.history.HistoryServer"
+  private val masterClass = classOf[YtMaster].getName
+  private val workerClass = classOf[YtWorker].getName
+  private val historyServerClass = classOf[YtHistoryServer].getName
   private val commonJavaOpts = configureJavaOptions()
 
   case class SparkDaemonConfig(memory: String,

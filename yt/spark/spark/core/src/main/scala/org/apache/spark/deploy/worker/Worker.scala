@@ -30,7 +30,7 @@ import scala.util.{Failure, Random, Success}
 import scala.util.control.NonFatal
 
 import org.apache.spark.{SecurityManager, SparkConf}
-import org.apache.spark.deploy.{AddressUtils, Command, ExecutorDescription, ExecutorState}
+import org.apache.spark.deploy.{Command, ExecutorDescription, ExecutorState}
 import org.apache.spark.deploy.DeployMessages._
 import org.apache.spark.deploy.ExternalShuffleService
 import org.apache.spark.deploy.StandaloneResourceUtils._
@@ -183,8 +183,7 @@ private[deploy] class Worker(
 
   private val publicAddress = {
     val envVar = conf.getenv("SPARK_PUBLIC_DNS")
-    val rawHost = if (envVar != null) envVar else host
-    if (rawHost.contains(":")) s"[$rawHost]" else rawHost
+    if (envVar != null) envVar else host
   }
   private var webUi: WorkerWebUI = null
 
@@ -243,8 +242,6 @@ private[deploy] class Worker(
     metricsSystem.start()
     // Attach the worker metrics servlet handler to the web ui after the metrics system is started.
     metricsSystem.getServletHandlers.foreach(webUi.attachHandler)
-
-    AddressUtils.writeAddressToFile("worker", host, webUi.boundPort, None, None)
   }
 
   private def setupWorkerResources(): Unit = {

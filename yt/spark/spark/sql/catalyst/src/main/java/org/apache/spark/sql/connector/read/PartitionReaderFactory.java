@@ -19,7 +19,6 @@ package org.apache.spark.sql.connector.read;
 
 import java.io.Serializable;
 
-import org.apache.spark.TaskContext;
 import org.apache.spark.annotation.Evolving;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
@@ -65,8 +64,5 @@ public interface PartitionReaderFactory extends Serializable {
    */
   default boolean supportColumnarReads(InputPartition partition) {
     return false;
-  }
-
-  default void setTaskContext(TaskContext context) {
   }
 }

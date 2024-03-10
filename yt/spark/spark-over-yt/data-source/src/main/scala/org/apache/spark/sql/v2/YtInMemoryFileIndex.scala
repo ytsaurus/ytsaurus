@@ -8,6 +8,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.internal.Logging
 import org.apache.spark.metrics.source.HiveCatalogMetrics
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 import org.apache.spark.sql.execution.datasources.{FileStatusCache, NoopCache, PartitionSpec, PartitioningAwareFileIndex}
 import org.apache.spark.sql.execution.streaming.FileStreamSink
 import org.apache.spark.sql.types.StructType
@@ -141,6 +142,20 @@ class YtInMemoryFileIndex(
 
   def containsPathAttrs(path: Path, requiredAttrs: Set[String]): Boolean =
     getPathAttrsSuffix(path).intersect(requiredAttrs).size == requiredAttrs.size
+
+  protected lazy val pathGlobFilter: Option[GlobFilter] = {
+    val baseClass = this.getClass.getSuperclass
+    val field = baseClass.getDeclaredField("caseInsensitiveMap")
+    field.setAccessible(true)
+    val caseInsensitiveMap = field.get(this).asInstanceOf[CaseInsensitiveMap[String]]
+    val value = caseInsensitiveMap.get("pathGlobFilter").map(new GlobFilter(_))
+    field.setAccessible(false)
+    value
+  }
+
+  protected def matchGlobPattern(file: FileStatus): Boolean = {
+    pathGlobFilter.forall(_.accept(file.getPath))
+  }
 
   override def allFiles(): Seq[FileStatus] = {
     val files = if (partitionSpec().partitionColumns.isEmpty && !recursiveFileLookup) {

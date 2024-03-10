@@ -81,4 +81,10 @@ object SparkYtConfiguration {
     case object Id extends ConfigEntry[String](s"$prefix.id", None)
   }
 
+  object Schema {
+    private val prefix = "schema"
+
+    case object ForcingNullableIfNoMetadata extends ConfigEntry[Boolean](s"$prefix.forcingNullableIfNoMetadata.enabled", Some(true))
+  }
+
 }

@@ -2016,15 +2016,6 @@ object SQLConf {
       .booleanConf
       .createWithDefault(true)
 
-  val FORCING_SCHEMA_NULLABLE_FLAG_IF_NO_METADATA =
-    buildConf("spark.sql.schema.forcingNullableIfNoMetadata.enabled")
-      .doc("When true, force the schema of non streaming file source to be nullable" +
-        " (including all the fields).")
-      .version("3.0.0")
-      .internal()
-      .booleanConf
-      .createWithDefault(true)
-
   val PARALLEL_FILE_LISTING_IN_STATS_COMPUTATION =
     buildConf("spark.sql.statistics.parallelFileListingInStatsComputation.enabled")
       .internal()

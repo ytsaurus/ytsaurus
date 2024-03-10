@@ -2472,26 +2472,6 @@ private[spark] object Utils extends Logging {
     }
   }
 
-  def isIpV6Host(host: String): Boolean = {
-    host != null && host.contains(":")
-  }
-
-  def removeBracketsIfIpV6Host(host: String): String = {
-    if (isIpV6Host(host) && host.startsWith("[")) {
-      host.substring(1, host.length - 1)
-    } else {
-      host
-    }
-  }
-
-  def addBracketsIfIpV6Host(host: String): String = {
-    if (isIpV6Host(host) && !host.startsWith("[")) {
-      s"[$host]"
-    } else {
-      host
-    }
-  }
-
   /**
    * Return a pair of host and port extracted from the `sparkUrl`.
    *

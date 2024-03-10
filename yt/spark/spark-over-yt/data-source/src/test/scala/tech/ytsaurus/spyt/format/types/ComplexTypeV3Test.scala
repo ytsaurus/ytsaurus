@@ -23,11 +23,11 @@ class ComplexTypeV3Test extends AnyFlatSpec with Matchers with LocalSpark with T
 
   override def beforeAll(): Unit = {
     super.beforeAll()
-    spark.conf.set("spark.sql.schema.forcingNullableIfNoMetadata.enabled", value = false)
+    spark.conf.set("spark.yt.schema.forcingNullableIfNoMetadata.enabled", value = false)
   }
 
   override def afterAll(): Unit = {
-    spark.conf.set("spark.sql.schema.forcingNullableIfNoMetadata.enabled", value = true)
+    spark.conf.set("spark.yt.schema.forcingNullableIfNoMetadata.enabled", value = true)
     super.afterAll()
   }
 
@@ -492,7 +492,7 @@ class ComplexTypeV3Test extends AnyFlatSpec with Matchers with LocalSpark with T
       (Map(1 -> TestStructHard(2, Some(Seq(TestStruct(3.0, "4"), TestStruct(5.0, "6"))))), "a"),
       (Map(7 -> TestStructHard(0, None)), "b")
     )
-    withConf("spark.sql.schema.forcingNullableIfNoMetadata.enabled", "false") {
+    withConf("spark.yt.schema.forcingNullableIfNoMetadata.enabled", "false") {
       data.map(Some(_))
         .toDF("a").coalesce(1)
         .write.option(YtTableSparkSettings.WriteTypeV3.name, value = true).yt(tmpPath)

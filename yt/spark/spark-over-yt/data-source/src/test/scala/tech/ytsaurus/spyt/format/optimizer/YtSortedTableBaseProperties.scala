@@ -32,16 +32,6 @@ private class YtSortedTableBaseProperties extends FlatSpec with Matchers with Be
     "spark.yt.minPartitionBytes" -> "10Kb"
   )
 
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    spark.experimental.extraOptimizations = Seq(new YtSortedTableMarkerRule(spark))
-  }
-
-  override def afterAll(): Unit = {
-    spark.experimental.extraOptimizations = Nil
-    super.afterAll()
-  }
-
   protected def writeSortedData(source: Source, path: String): Seq[Seq[Any]] = {
     val sortedData = source.data.data.sortWith { case (l, r) => compareRows(l, r) }
     writeTableFromURow(

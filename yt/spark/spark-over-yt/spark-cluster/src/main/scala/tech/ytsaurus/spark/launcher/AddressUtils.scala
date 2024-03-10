@@ -15,17 +15,17 @@
  * limitations under the License.
  */
 
-package org.apache.spark.deploy
+package tech.ytsaurus.spark.launcher
 
 import java.io.{File, PrintWriter}
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
-import com.fasterxml.jackson.module.scala.experimental.ScalaObjectMapper
+import com.fasterxml.jackson.module.scala.ScalaObjectMapper
 
 import org.apache.spark.internal.Logging
 
-private[deploy] object AddressUtils extends Logging {
+object AddressUtils extends Logging {
   def writeAddressToFile(name: String,
                          host: String,
                          port: Int,

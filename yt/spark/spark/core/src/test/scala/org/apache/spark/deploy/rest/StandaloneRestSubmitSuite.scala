@@ -32,7 +32,6 @@ import org.apache.spark._
 import org.apache.spark.deploy.{SparkSubmit, SparkSubmitArguments}
 import org.apache.spark.deploy.DeployMessages._
 import org.apache.spark.deploy.master.DriverState._
-import org.apache.spark.deploy.master.WorkerInfo
 import org.apache.spark.rpc._
 import org.apache.spark.util.Utils
 
@@ -626,10 +625,6 @@ private class FaultyStandaloneRestServer(
   protected override val submitRequestServlet = new MalformedSubmitServlet
   protected override val killRequestServlet = new InvalidKillServlet
   protected override val statusRequestServlet = new ExplodingStatusServlet
-  protected override val masterStateRequestServlet = new ExplodingMasterStateServlet
-  protected override val appIdRequestServlet: AppIdRequestServlet = new ExplodingAppIdRequestServlet
-  protected override val appStatusRequestServlet: AppStatusRequestServlet =
-    new ExplodingAppStatusRequestServlet
 
   /** A faulty servlet that produces malformed responses. */
   class MalformedSubmitServlet
@@ -657,49 +652,6 @@ private class FaultyStandaloneRestServer(
     protected override def handleStatus(submissionId: String): SubmissionStatusResponse = {
       val s = super.handleStatus(submissionId)
       s.workerId = explode.toString
-      s
-    }
-  }
-
-  /** A faulty master state servlet that explodes. */
-  class ExplodingMasterStateServlet
-    extends StandaloneMasterStateRequestServlet(masterEndpoint, masterConf) {
-
-    private def explode: Int = 1 / 0
-    protected override def handleMasterState(
-      response: HttpServletResponse): MasterStateResponse = {
-      val s = super.handleMasterState(response)
-      s.workers = explode.asInstanceOf[Array[WorkerInfo]]
-      s
-    }
-  }
-
-  /** A faulty app if servlet that explodes. */
-  class ExplodingAppIdRequestServlet
-    extends StandaloneAppIdRequestServlet(masterEndpoint, masterConf) {
-
-    private def explode: Int = 1 / 0
-
-    override protected def handleGetAppId(submissionId: String,
-                                          responseServlet: HttpServletResponse
-                                         ): AppIdRestResponse = {
-      val s = super.handleGetAppId(submissionId, responseServlet)
-      s.appId = explode.asInstanceOf[String]
-      s
-    }
-  }
-
-  /** A faulty app if servlet that explodes. */
-  class ExplodingAppStatusRequestServlet
-    extends StandaloneAppStatusRequestServlet(masterEndpoint, masterConf) {
-
-    private def explode: Int = 1 / 0
-
-    override protected def handleGetAppStatus(submissionId: String,
-                                              responseServlet: HttpServletResponse
-                                             ): AppStatusRestResponse = {
-      val s = super.handleGetAppStatus(submissionId, responseServlet)
-      s.appId = explode.asInstanceOf[String]
       s
     }
   }

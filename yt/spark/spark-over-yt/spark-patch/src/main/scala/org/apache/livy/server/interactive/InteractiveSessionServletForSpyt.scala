@@ -5,10 +5,11 @@ import org.apache.livy.server.AccessManager
 import org.apache.livy.server.recovery.SessionStore
 import org.apache.livy.sessions.InteractiveSessionManager
 import org.scalatra._
-import tech.ytsaurus.spyt.patch.annotations.Subclass
+import tech.ytsaurus.spyt.patch.annotations.{OriginClass, Subclass}
 
 
-@Subclass("org.apache.livy.server.interactive.InteractiveSessionServlet")
+@Subclass
+@OriginClass("org.apache.livy.server.interactive.InteractiveSessionServlet")
 class InteractiveSessionServletForSpyt(
     sessionManager: InteractiveSessionManager,
     sessionStore: SessionStore,

@@ -49,13 +49,6 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
   private val batchMaxSize = sqlConf.ytConf(VectorizedCapacity)
   private val countOptimizationEnabled = sqlConf.ytConf(CountOptimizationEnabled)
 
-  @transient private lazy val taskContext: ThreadLocal[TaskContext] = new ThreadLocal()
-
-
-  override def setTaskContext(context: TaskContext): Unit = {
-    taskContext.set(context)
-  }
-
   override def supportColumnarReads(partition: InputPartition): Boolean = {
     returnBatch
   }
@@ -133,7 +126,7 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
 
   private def createSplit(file: YtPartitionedFile): YtInputSplit = {
     val log = LoggerFactory.getLogger(getClass)
-    val ytLoggerConfigWithTaskInfo = ytLoggerConfig.map(_.copy(taskContext = Some(TaskInfo(taskContext.get()))))
+    val ytLoggerConfigWithTaskInfo = ytLoggerConfig.map(_.copy(taskContext = Some(TaskInfo(TaskContext.get()))))
     val split = YtInputSplit(file, resultSchema, pushedFilterSegments, filterPushdownConf,
       ytLoggerConfigWithTaskInfo)
 

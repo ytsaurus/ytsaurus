@@ -54,7 +54,6 @@ class DataSourceRDD(
   }
 
   override def compute(split: Partition, context: TaskContext): Iterator[InternalRow] = {
-    partitionReaderFactory.setTaskContext(context)
     val inputPartition = castPartition(split).inputPartition
     val (iter, reader) = if (columnarReads) {
       val batchReader = partitionReaderFactory.createColumnarReader(inputPartition)

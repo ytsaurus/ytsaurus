@@ -55,9 +55,6 @@ private[spark] abstract class RestSubmissionServer(
   protected val submitRequestServlet: SubmitRequestServlet
   protected val killRequestServlet: KillRequestServlet
   protected val statusRequestServlet: StatusRequestServlet
-  protected val masterStateRequestServlet: MasterStateRequestServlet
-  protected val appIdRequestServlet: AppIdRequestServlet
-  protected val appStatusRequestServlet: AppStatusRequestServlet
 
   private var _server: Option[Server] = None
 
@@ -67,9 +64,6 @@ private[spark] abstract class RestSubmissionServer(
     s"$baseContext/create/*" -> submitRequestServlet,
     s"$baseContext/kill/*" -> killRequestServlet,
     s"$baseContext/status/*" -> statusRequestServlet,
-    s"$baseContext/master/*" -> masterStateRequestServlet,
-    s"$baseContext/getAppId/*" -> appIdRequestServlet,
-    s"$baseContext/getAppStatus/*" -> appStatusRequestServlet,
     "/*" -> new ErrorServlet // default handler
   )
 
@@ -246,20 +240,14 @@ private[rest] abstract class StatusRequestServlet extends RestServlet {
       request: HttpServletRequest,
       response: HttpServletResponse): Unit = {
     val submissionId = parseSubmissionId(request.getPathInfo)
-    val responseMessage = submissionId match {
-      case Some(value) =>
-        log.debug("Status request for submission ID " + value)
-        handleStatus(value)
-      case None =>
-        log.debug("No submission ID in status request.")
-        handleStatuses
+    val responseMessage = submissionId.map(handleStatus).getOrElse {
+      response.setStatus(HttpServletResponse.SC_BAD_REQUEST)
+      handleError("Submission ID is missing in status request.")
     }
     sendResponse(responseMessage, response)
   }
 
   protected def handleStatus(submissionId: String): SubmissionStatusResponse
-
-  protected def handleStatuses: SubmissionStatusesResponse
 }
 
 /**
@@ -298,85 +286,6 @@ private[rest] abstract class SubmitRequestServlet extends RestServlet {
       requestMessageJson: String,
       requestMessage: SubmitRestProtocolMessage,
       responseServlet: HttpServletResponse): SubmitRestProtocolResponse
-}
-
-/**
- * A servlet for handling get application id requests passed to the [[RestSubmissionServer]].
- */
-private[rest] abstract class AppIdRequestServlet extends RestServlet {
-
-  /**
-   * If a submission ID is specified in the URL, request the status of the corresponding
-   * driver from the Master and include it in the response. Otherwise, return error.
-   */
-  protected override def doGet(
-                                request: HttpServletRequest,
-                                response: HttpServletResponse): Unit = {
-    val submissionId = parseSubmissionId(request.getPathInfo)
-    val responseMessage = submissionId.map(handleGetAppId(_, response)).getOrElse {
-      response.setStatus(HttpServletResponse.SC_BAD_REQUEST)
-      handleError("Submission ID is missing in status request.")
-    }
-    sendResponse(responseMessage, response)
-  }
-
-  protected def handleGetAppId(submissionId: String,
-                               responseServlet: HttpServletResponse): AppIdRestResponse
-}
-
-/**
- * A servlet for handling get application id requests passed to the [[RestSubmissionServer]].
- */
-private[rest] abstract class AppStatusRequestServlet extends RestServlet {
-
-  /**
-   * If a submission ID is specified in the URL, request the status of the corresponding
-   * driver from the Master and include it in the response. Otherwise, return error.
-   */
-  protected override def doGet(
-                                request: HttpServletRequest,
-                                response: HttpServletResponse): Unit = {
-    val responseMessage = parseSubmissionId(request.getPathInfo) match {
-      case Some(appId) =>
-        handleGetAppStatus(appId, response)
-      case None =>
-        handleGetAllAppStatuses(response)
-    }
-    sendResponse(responseMessage, response)
-  }
-
-  protected def handleGetAppStatus(appId: String,
-                                   responseServlet: HttpServletResponse): AppStatusRestResponse
-
-  protected def handleGetAllAppStatuses(response: HttpServletResponse): AppStatusesRestResponse
-
-}
-
-/**
- * A servlet for handling master state requests passed to the [[RestSubmissionServer]].
- */
-private[rest] abstract class MasterStateRequestServlet extends RestServlet {
-
-  /**
-   * If a submission ID is specified in the URL, request the status of the corresponding
-   * driver from the Master and include it in the response. Otherwise, return error.
-   */
-  protected override def doGet(
-                                request: HttpServletRequest,
-                                response: HttpServletResponse): Unit = {
-    val responseMessage =
-      try {
-        handleMasterState(response)
-      } catch {
-        // The client failed to provide a valid JSON, so this is not our fault
-        case e @ (_: JsonProcessingException | _: SubmitRestProtocolException) =>
-          response.setStatus(HttpServletResponse.SC_BAD_REQUEST)
-          handleError("Malformed request: " + formatException(e))
-      }
-    sendResponse(responseMessage, response)
-  }
-
-  protected def handleMasterState(responseServlet: HttpServletResponse): MasterStateResponse
 }
 
 /**

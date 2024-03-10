@@ -578,7 +578,3 @@ abstract class SparkListener extends SparkListenerInterface {
 
   override def onResourceProfileAdded(event: SparkListenerResourceProfileAdded): Unit = { }
 }
-
-abstract class UserDefinedSparkListener extends SparkListener {
-  def onListenerStart(): Unit = {}
-}

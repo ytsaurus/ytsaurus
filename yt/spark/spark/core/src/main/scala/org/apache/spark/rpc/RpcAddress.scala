@@ -25,10 +25,7 @@ import org.apache.spark.util.Utils
  */
 private[spark] case class RpcAddress(host: String, port: Int) {
 
-  def hostPort: String = {
-    val newHost = Utils.addBracketsIfIpV6Host(host)
-    s"$newHost:$port"
-  }
+  def hostPort: String = host + ":" + port
 
   /** Returns a string in the form of "spark://host:port". */
   def toSparkURL: String = "spark://" + hostPort

@@ -38,17 +38,11 @@ class YtSortedTableJoinTest extends FlatSpec with Matchers with LocalSpark with 
 
   override def beforeAll(): Unit = {
     super.beforeAll()
-    spark.experimental.extraOptimizations = Seq(new YtSortedTableMarkerRule(spark))
 
     // creating common table for speed boosting
     val data = (1L to 2000L).map(x => (x, x / 10))
     val df = data.toDF("a", "b")
     df.write.sortedBy("a", "b").yt(commonTable)
-  }
-
-  override def afterAll(): Unit = {
-    spark.experimental.extraOptimizations = Nil
-    super.afterAll()
   }
 
   private def isFakeHashShuffle(shuffle: SparkPlan): Boolean = shuffle match {

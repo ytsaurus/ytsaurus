@@ -127,14 +127,6 @@ object StaticSQLConf {
     .toSequence
     .createOptional
 
-  val SPARK_SESSION_LISTENERS = buildStaticConf("spark.context.listeners")
-    .doc("A comma-separated list of classes that implement " +
-      "UserDefinedSparkListener added to Spark Session listeners.")
-    .version("2.2.0")
-    .stringConf
-    .toSequence
-    .createOptional
-
   val SPARK_CACHE_SERIALIZER = buildStaticConf("spark.sql.cache.serializer")
     .doc("The name of a class that implements " +
       "org.apache.spark.sql.columnar.CachedBatchSerializer. It will be used to " +

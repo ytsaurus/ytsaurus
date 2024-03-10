@@ -79,17 +79,6 @@ object ReleaseUtils {
     IO.write(sparkVersionFile, sparkVersionContent)
   }
 
-  def updateSparkDependencyVersion(version: String, file: File): Unit = {
-    val line =
-      s"""package spyt
-         |
-         |object SparkForkVersion {
-         |  val sparkForkVersion = "$version"
-         |}
-         |""".stripMargin
-    IO.writeLines(file, Seq(line))
-  }
-
   def writeVersionToPom(version: String, file: File): Unit = {
     val lines = IO.readLines(file).map {
       case line if line.contains("fork.version") =>

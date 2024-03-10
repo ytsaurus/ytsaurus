@@ -1,7 +1,6 @@
 package tech.ytsaurus.spyt.format
 
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.internal.StaticSQLConf.SPARK_SESSION_LISTENERS
 import org.scalatest.{FlatSpec, Matchers}
 import tech.ytsaurus.spyt._
 import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration.GlobalTransaction
@@ -24,7 +23,7 @@ class SparkSessionTransactionTest extends FlatSpec with Matchers with LocalYtCli
     import spark.implicits._
 
     val transaction = try {
-      val tr = spark.ytConf(GlobalTransaction.Id)
+      val tr = GlobalTransactionUtils.getGlobalTransactionId(spark).get
       YtWrapper.transactionExists(tr) shouldBe true
       val df = spark.read.yt(tmpPath)
       YtWrapper.lockCount(tmpPath) shouldEqual 1
@@ -47,7 +46,7 @@ class SparkSessionTransactionTest extends FlatSpec with Matchers with LocalYtCli
     ), tmpPath, longColumnSchema)
     val spark = prepareSparkSession(false)
     try {
-      spark.getYtConf(GlobalTransaction.Id).isEmpty shouldBe true
+      GlobalTransactionUtils.getGlobalTransactionId(spark).isEmpty shouldBe true
     } finally {
       spark.stop()
     }
@@ -58,7 +57,7 @@ class SparkSessionTransactionTest extends FlatSpec with Matchers with LocalYtCli
     val sparkConf = LocalSpark.defaultSparkConf
       .clone()
       .setYtConf(GlobalTransaction.Enabled, globalTransactionEnabled)
-      .set(SPARK_SESSION_LISTENERS.key, classOf[GlobalTransactionSparkListener].getCanonicalName)
+      .set("spark.extraListeners", classOf[GlobalTransactionSparkListener].getCanonicalName)
     SparkSession.builder().master(s"local[1]").config(sparkConf).getOrCreate()
   }
 }

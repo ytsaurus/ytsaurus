@@ -1,11 +1,10 @@
 package tech.ytsaurus.spyt.format
 
-import org.apache.spark.sql.SparkSessionExtensions
+import org.apache.spark.sql.{SparkSessionExtensions, SparkSessionExtensionsProvider}
 import org.slf4j.LoggerFactory
-import tech.ytsaurus.spyt.format.optimizer.YtSourceStrategy
-import tech.ytsaurus.spyt.format.optimizer.YtSortedTableStrategy
+import tech.ytsaurus.spyt.format.optimizer.{YtSortedTableStrategy, YtSourceStrategy}
 
-class YtSparkExtensions extends (SparkSessionExtensions => Unit) {
+class YtSparkExtensions extends SparkSessionExtensionsProvider {
   private val log = LoggerFactory.getLogger(getClass)
 
   override def apply(extensions: SparkSessionExtensions): Unit = {

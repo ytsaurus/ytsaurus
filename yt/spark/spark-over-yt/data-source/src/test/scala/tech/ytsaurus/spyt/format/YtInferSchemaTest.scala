@@ -211,7 +211,7 @@ class YtInferSchemaTest extends FlatSpec with Matchers with LocalSpark
       (1L, Some(true), 1.0, Some("1"), Array[Byte](56, 52)),
       (3L, Some(false), 2.0, None, Array[Byte](56, 49))
     )
-    withConf("spark.sql.schema.forcingNullableIfNoMetadata.enabled", "false") {
+    withConf("spark.yt.schema.forcingNullableIfNoMetadata.enabled", "false") {
       data
         .toDF("a", "b", "c", "d", "e").coalesce(1)
         .write.yt(tmpPath)

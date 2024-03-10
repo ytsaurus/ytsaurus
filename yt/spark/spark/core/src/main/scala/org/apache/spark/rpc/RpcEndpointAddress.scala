@@ -18,7 +18,6 @@
 package org.apache.spark.rpc
 
 import org.apache.spark.SparkException
-import org.apache.spark.util.Utils.{addBracketsIfIpV6Host, removeBracketsIfIpV6Host}
 
 /**
  * An address identifier for an RPC endpoint.
@@ -39,7 +38,7 @@ private[spark] case class RpcEndpointAddress(rpcAddress: RpcAddress, name: Strin
   }
 
   override val toString = if (rpcAddress != null) {
-      s"spark://$name@${addBracketsIfIpV6Host(rpcAddress.host)}:${rpcAddress.port}"
+      s"spark://$name@${rpcAddress.host}:${rpcAddress.port}"
     } else {
       s"spark-client://$name"
     }
@@ -54,7 +53,7 @@ private[spark] object RpcEndpointAddress {
   def apply(sparkUrl: String): RpcEndpointAddress = {
     try {
       val uri = new java.net.URI(sparkUrl)
-      val host = removeBracketsIfIpV6Host(uri.getHost)
+      val host = uri.getHost
       val port = uri.getPort
       val name = uri.getUserInfo
       if (uri.getScheme != "spark" ||

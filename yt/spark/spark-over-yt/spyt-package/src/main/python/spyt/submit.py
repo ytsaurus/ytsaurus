@@ -24,6 +24,7 @@ def launch_gateway(memory="512m",
                    additional_environ=None,
                    prefer_ipv6=False):  # Internal Yandex users must enable ipv6 option by default
     spark_home = get_spark_home()
+    spyt_home = get_spyt_home()
     java = os.path.join(java_home, "bin", "java") if java_home else "java"
     additional_jars = additional_jars or []
 
@@ -31,7 +32,12 @@ def launch_gateway(memory="512m",
     command += java_opts or []
     if prefer_ipv6:
         command.append('-Djava.net.preferIPv6Addresses=true')
+    spark_patch = [
+        os.path.join(spyt_home, 'jars', jar)
+        for jar in os.listdir(os.path.join(spyt_home, 'jars'))
+        if 'spark-yt-spark-patch' in jar][0]
     command += [
+        f"-javaagent:{spark_patch}",
         "-cp", ":".join(additional_jars + _submit_classpath(spark_home)),
         "tech.ytsaurus.spyt.submit.PythonGatewayServer"
     ]
@@ -175,9 +181,11 @@ class SparkSubmissionClient(object):
         return scala_buffer_to_list(self._jclient.getAllDrivers())
 
     def get_status(self, submission_id):
+        # TODO refactor to use requests package
         return SubmissionStatus.from_string(self._jclient.getStringStatus(submission_id))
 
     def get_app_status(self, driver_id):
+        # TODO refactor to use requests package
         return ApplicationStatus.from_string(self._jclient.getStringApplicationStatus(driver_id))
 
     def wait_final(self, app_id, ping_period=5):
@@ -275,7 +283,7 @@ class ApplicationStatus(Enum):
 
 
 # wraps methods from
-# https://github.yandex-team.ru/sashbel/spark/blob/3.0.1-yt/launcher/src/main/java/org/apache/spark/launcher/AbstractLauncher.java
+# https://github.com/apache/spark/blob/master/launcher/src/main/java/org/apache/spark/launcher/AbstractLauncher.java
 class SparkLauncher(object):
     def __new__(cls, *args, **kwargs):
         instance = super(SparkLauncher, cls).__new__(cls)
