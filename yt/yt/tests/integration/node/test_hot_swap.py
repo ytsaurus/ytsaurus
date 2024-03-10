@@ -18,10 +18,7 @@ from os import listdir
 from os.path import isfile, join
 
 import io
-try:
-    import zstd
-except ImportError:
-    import zstandard as zstd
+import zstandard as zstd
 
 ##################################################################
 

@@ -4,9 +4,14 @@ from yt_env_setup import (
 from yt_commands import (
     authors, wait, create,
     ls, get,
-    set, exists, write_table,
-    map)
+    set, exists, write_table, map,
+    update_scheduler_config, run_test_vanilla,
+    print_debug)
 
+import zstandard as zstd
+
+import io
+import time
 
 ##################################################################
 
@@ -37,6 +42,8 @@ class TestSchedulerConfig(YTEnvSetup):
         },
         "addresses": [("ipv4", "127.0.0.1"), ("ipv6", "::1")],
     }
+
+    LOG_WRITE_WAIT_TIME = 0.5
 
     @authors("ignat")
     def test_basic(self):
@@ -108,3 +115,52 @@ class TestSchedulerConfig(YTEnvSetup):
 
         set("//sys/scheduler/config/min_spare_allocation_resources_on_node", {"user_slots": 2})
         wait(lambda: get("{0}/min_spare_allocation_resources_on_node".format(orchid_scheduler_config)) == {"user_slots": 2})
+
+    @authors("ignat")
+    def test_tracing_mode(self):
+        update_scheduler_config("rpc_server/tracing_mode", "force")
+
+        run_test_vanilla("sleep 0.1", track=True)
+
+        scheduler_log_file = self.path_to_run + "/logs/scheduler-0.debug.log.zst"
+
+        time.sleep(self.LOG_WRITE_WAIT_TIME)
+
+        trace_id = None
+
+        decompressor = zstd.ZstdDecompressor()
+        with open(scheduler_log_file, "rb") as fin:
+            binary_reader = decompressor.stream_reader(fin, read_size=8192)
+            text_stream = io.TextIOWrapper(binary_reader, encoding="utf-8")
+            for line in text_stream:
+                if "AllocationTrackerService.Heartbeat ->" not in line:
+                    continue
+                if "StartedAllocations:" not in line:
+                    continue
+
+                print_debug(line.split("StartedAllocations:", 1)[1])
+                started_allocation_count = int(line.split("StartedAllocations:", 1)[1].split(",", 1)[0].split()[1])
+                if started_allocation_count == 0:
+                    continue
+
+                print_debug("LINE", line)
+
+                parts = line.strip().split("\t")
+
+                # datetime \t log_level \t logger_name \t message \t txid \t fid \t trace_context_it
+                assert len(parts) == 7
+
+                trace_id = parts[-1]
+
+        assert trace_id is not None
+
+        has_allocation_registered_line = False
+        with open(scheduler_log_file, "rb") as fin:
+            binary_reader = decompressor.stream_reader(fin, read_size=8192)
+            text_stream = io.TextIOWrapper(binary_reader, encoding="utf-8")
+            for line in text_stream:
+                if line.strip().endswith(trace_id) and "Allocation registered" in line:
+                    has_allocation_registered_line = True
+                    break
+
+        assert has_allocation_registered_line
