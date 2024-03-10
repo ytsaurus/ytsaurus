@@ -285,14 +285,15 @@ private:
         options.SyncOnClose = request->sync_on_close();
         options.EnableMultiplexing = request->enable_multiplexing();
         options.PlacementId = FromProto<TPlacementId>(request->placement_id());
+        options.DisableSendBlocks = GetDynamicConfig()->UseDisableSendBlocks && request->disable_send_blocks();
 
-        context->SetRequestInfo("ChunkId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, "
-            "PlacementId: %v",
+        context->SetRequestInfo("ChunkId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, PlacementId: %v, DisableSendBlocks: %v",
             sessionId,
             options.WorkloadDescriptor,
             options.SyncOnClose,
             options.EnableMultiplexing,
-            options.PlacementId);
+            options.PlacementId,
+            options.DisableSendBlocks);
 
         ValidateOnline();
 
@@ -414,14 +415,16 @@ private:
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(sessionId);
         const auto& location = session->GetStoreLocation();
+        auto options = session->GetSessionOptions();
 
-        context->SetRequestInfo("BlockIds: %v:%v-%v, PopulateCache: %v, FlushBlocks: %v, Medium: %v",
+        context->SetRequestInfo("BlockIds: %v:%v-%v, PopulateCache: %v, FlushBlocks: %v, Medium: %v, DisableSendBlocks: %v",
             sessionId,
             firstBlockIndex,
             lastBlockIndex,
             populateCache,
             flushBlocks,
-            location->GetMediumName());
+            location->GetMediumName(),
+            options.DisableSendBlocks);
 
         if (location->CheckWriteThrottling(session->GetWorkloadDescriptor())) {
             THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::WriteThrottlingActive, "Disk write throttling is active");

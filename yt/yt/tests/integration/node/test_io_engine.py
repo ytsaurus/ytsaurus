@@ -97,7 +97,7 @@ class TestIoEngine(YTEnvSetup):
 
     @authors("don-dron")
     def test_pending_read_write_memory_tracking(self):
-        REPLICATION_FACTOR = 1
+        REPLICATION_FACTOR = 2
 
         update_nodes_dynamic_config({
             "data_node": {
