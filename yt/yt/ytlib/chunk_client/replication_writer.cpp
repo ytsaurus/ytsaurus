@@ -425,10 +425,11 @@ private:
     void DoOpen()
     {
         try {
-            StartSessions(InitialTargets_);
+            bool disableSendBlocks = InitialTargets_.size() <= 1 && (UploadReplicationFactor_ == 1 || !Options_->AllowAllocatingNewTargetNodes);
+            StartSessions(InitialTargets_, disableSendBlocks);
 
             while (std::ssize(Nodes_) < UploadReplicationFactor_) {
-                StartSessions(AllocateTargets());
+                StartSessions(AllocateTargets(), disableSendBlocks);
             }
 
             YT_LOG_INFO("Writer opened (Addresses: %v, PopulateCache: %v, Workload: %v, Networks: %v)",
@@ -529,14 +530,14 @@ private:
             Logger);
     }
 
-    void StartSessions(const TChunkReplicaWithMediumList& targets)
+    void StartSessions(const TChunkReplicaWithMediumList& targets, bool disableSendBlocks)
     {
         VERIFY_THREAD_AFFINITY(WriterThread);
 
         std::vector<TFuture<void>> asyncResults;
         for (auto target : targets) {
             asyncResults.push_back(
-                BIND(&TReplicationWriter::StartChunk, MakeWeak(this), target)
+                BIND(&TReplicationWriter::StartChunk, MakeWeak(this), target, disableSendBlocks)
                     .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
                     .Run());
         }
@@ -737,7 +738,7 @@ private:
         }
     }
 
-    void StartChunk(TChunkReplicaWithMedium target)
+    void StartChunk(TChunkReplicaWithMedium target, bool disableSendBlocks)
     {
         VERIFY_THREAD_AFFINITY(WriterThread);
         if (IsRegularChunkId(SessionId_.ChunkId)) {
@@ -765,6 +766,7 @@ private:
         ToProto(req->mutable_session_id(), SessionId_);
         req->set_sync_on_close(Config_->SyncOnClose);
         req->set_enable_direct_io(Config_->EnableDirectIO);
+        req->set_disable_send_blocks(disableSendBlocks);
         ToProto(req->mutable_placement_id(), Options_->PlacementId);
 
         auto rspOrError = WaitFor(req->Invoke());

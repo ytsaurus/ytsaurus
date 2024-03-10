@@ -368,7 +368,7 @@ TFuture<TChunkInfo> TBlobSession::DoFinish(
 
     for (int blockIndex = WindowStartBlockIndex_; blockIndex < std::ssize(Window_); ++blockIndex) {
         const auto& slot = GetSlot(blockIndex);
-        if (slot.State != ESlotState::Empty) {
+        if (slot.State != ESlotState::Released) {
             return MakeFuture<TChunkInfo>(TError(
                 NChunkClient::EErrorCode::WindowError,
                 "Attempt to finish a session with an unflushed block %v",
@@ -658,6 +658,13 @@ void TBlobSession::OnBlocksWritten(int beginBlockIndex, int endBlockIndex, const
             YT_VERIFY(slot.State == ESlotState::Received);
             slot.State = ESlotState::Written;
             slot.WrittenPromise.TrySet();
+
+            // Checking for a state is necessary because the subscriber may trigger after calling slot.WrittenPromise.TrySet().
+            if (Options_.DisableSendBlocks && slot.State == ESlotState::Written) {
+                slot.State = ESlotState::Released;
+                slot.Block = {};
+                slot.MemoryUsageGuard.Release();
+            }
         }
     }
 }
@@ -781,22 +788,26 @@ void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
 
     while (WindowStartBlockIndex_ <= flushedBlockIndex) {
         auto& slot = GetSlot(WindowStartBlockIndex_);
-        YT_VERIFY(slot.State == ESlotState::Written);
+        YT_VERIFY(slot.State == ESlotState::Written || slot.State == EBlobSessionSlotState::Released);
 
-        if (delayBeforeFree) {
-            YT_LOG_DEBUG("Simulate delay before blob write session block free (BlockSize: %v, Delay: %v)", slot.Block.Size(), *delayBeforeFree);
+        if (slot.State == ESlotState::Written) {
+            if (delayBeforeFree) {
+                YT_LOG_DEBUG("Simulate delay before blob write session block free (BlockSize: %v, Delay: %v)", slot.Block.Size(), *delayBeforeFree);
 
-            slot.Block = {};
+                slot.Block = {};
 
-            YT_UNUSED_FUTURE(BIND([=] (TMemoryUsageTrackerGuard guard) {
-                TDelayedExecutor::WaitForDuration(*delayBeforeFree);
-                guard.Release();
-            })
-            .AsyncVia(GetCurrentInvoker())
-            .Run(std::move(slot.MemoryUsageGuard)));
-        } else {
-            slot.Block = {};
-            slot.MemoryUsageGuard.Release();
+                YT_UNUSED_FUTURE(BIND([=] (TMemoryUsageTrackerGuard guard) {
+                    TDelayedExecutor::WaitForDuration(*delayBeforeFree);
+                    guard.Release();
+                })
+                .AsyncVia(GetCurrentInvoker())
+                .Run(std::move(slot.MemoryUsageGuard)));
+            } else {
+                slot.Block = {};
+                slot.MemoryUsageGuard.Release();
+            }
+
+            slot.State = EBlobSessionSlotState::Released;
         }
 
         slot.PendingIOGuard.Release();
@@ -860,6 +871,13 @@ TBlock TBlobSession::GetBlock(int blockIndex)
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::WindowError,
             "Trying to retrieve block %v that is not received yet",
+            TBlockId(GetChunkId(), blockIndex));
+    }
+
+    if (slot.State == ESlotState::Released) {
+        THROW_ERROR_EXCEPTION(
+            NChunkClient::EErrorCode::WindowError,
+            "Trying to retrieve block %v that is already released",
             TBlockId(GetChunkId(), blockIndex));
     }
 

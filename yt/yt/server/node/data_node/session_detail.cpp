@@ -88,6 +88,13 @@ const TWorkloadDescriptor& TSessionBase::GetWorkloadDescriptor() const
     return Options_.WorkloadDescriptor;
 }
 
+const TSessionOptions& TSessionBase::GetSessionOptions() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return Options_;
+}
+
 const TStoreLocationPtr& TSessionBase::GetStoreLocation() const
 {
     VERIFY_THREAD_AFFINITY_ANY();

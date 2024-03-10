@@ -882,6 +882,7 @@ def _build_node_configs(node_dirs,
             store_location_configs.append(store_location_config)
 
         set_at(config, "data_node/store_locations", store_location_configs)
+        set_at(config, "data_node/use_disable_send_blocks", True)
 
         layer_location_config = {
             "low_watermark": 1,

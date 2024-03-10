@@ -1016,6 +1016,8 @@ public:
     //! Publish disabled locations to master.
     std::optional<bool> PublishDisabledLocations;
 
+    bool UseDisableSendBlocks;
+
     TP2PConfigPtr P2P;
 
     TDuration IOStatisticsUpdateTimeout;
