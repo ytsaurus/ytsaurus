@@ -34,7 +34,7 @@ protected:
     std::atomic<bool> ShutdownFlag_ = false;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    std::vector<TSchedulerThreadBasePtr> Threads_;
+    std::vector<TSchedulerThreadPtr> Threads_;
 
     void Resize();
 
@@ -45,7 +45,7 @@ protected:
     virtual TClosure MakeFinalizerCallback();
     virtual void DoConfigure(int threadCount);
 
-    virtual TSchedulerThreadBasePtr SpawnThread(int index) = 0;
+    virtual TSchedulerThreadPtr SpawnThread(int index) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
