@@ -50,8 +50,6 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/helpers.h>
 
-#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
-
 #include <library/cpp/testing/common/env.h>
 #include <library/cpp/testing/common/network.h>
 
