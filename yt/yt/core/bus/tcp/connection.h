@@ -281,7 +281,7 @@ private:
 
     size_t MaxFragmentsPerWrite_ = 256;
 
-    void Open();
+    void Open(TGuard<NThreading::TSpinLock>& guard);
     void Close();
     void CloseSslSession(ESslState newSslState);
 
