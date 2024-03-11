@@ -138,7 +138,7 @@ def _build_scheduler_rpc_statistics(d):
     scheduler_rate = SchedulerRpc("yt.rpc.server.request_count.rate")
     scheduler_queue_size = SchedulerRpc("yt.rpc.server.request_queue_size")
     scheduler_time = SchedulerRpc("yt.rpc.server.request_time.total.max")
-    scheduler_concurrency = SchedulerRpc("yt.rpc.server.concurrency*")
+    scheduler_concurrency = SchedulerRpc("yt.rpc.server.concurrency|yt.rpc.server.concurrency_limit")
 
     d.add(Rowset()
         .stack(False)
