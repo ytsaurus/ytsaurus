@@ -63,6 +63,8 @@
 #include <yt/yt/ytlib/scheduler/config.h>
 #include <yt/yt/ytlib/scheduler/scheduler_channel.h>
 
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/yt/ytlib/bundle_controller/bundle_controller_channel.h>
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
@@ -192,7 +194,11 @@ public:
 
         ChannelFactory_ = CreateNativeAuthenticationInjectingChannelFactory(
             CreateCachingChannelFactory(
-                NRpc::NBus::CreateTcpBusChannelFactory(config->BusClient),
+                NRpc::NBus::CreateTcpBusChannelFactory(
+                    config->BusClient,
+                    MemoryTracker_
+                        ? MemoryTracker_->WithCategory(EMemoryCategory::Rpc)
+                        : GetNullMemoryUsageTracker()),
                 config->IdleChannelTtl),
             config->TvmId,
             Options_.TvmService);
