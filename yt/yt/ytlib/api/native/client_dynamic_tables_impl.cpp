@@ -3178,11 +3178,9 @@ TPullRowsResult TClient::DoPullRows(
 
     bool success = false;
     for (const auto& session : sessions) {
-        if (!session->GetResultOrError().IsOK()) {
-            continue;
+        if (session->GetResultOrError().IsOK()) {
+            success = true;
         }
-
-        success = true;
 
         const auto& rows = session->GetRows(maxTimestamp, outputRowBuffer);
         resultRows.insert(resultRows.end(), rows.begin(), rows.end());

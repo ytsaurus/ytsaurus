@@ -3051,6 +3051,22 @@ private:
                 << TErrorAttribute("transaction_id", transaction->GetId())
                 << TErrorAttribute("write_pull_rows_transaction_id", chaosData->PreparedWritePulledRowsTransactionId);
         }
+
+        auto newProgress = FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress());
+        if (newProgress.Segments.empty()) {
+            THROW_ERROR_EXCEPTION("Empty progress");
+        }
+        if (CompareRows(newProgress.Segments.front().LowerKey.Get(), tablet->GetPivotKey()) != 0) {
+            THROW_ERROR_EXCEPTION("Replication progress boundaries differ from tablet pivot keys")
+                << TErrorAttribute("tablet_lower_key", tablet->GetPivotKey())
+                << TErrorAttribute("progress_lower_key", newProgress.Segments.front().LowerKey.Get());
+        }
+        if (CompareRows(newProgress.UpperKey.Get(), tablet->GetNextPivotKey()) != 0) {
+            THROW_ERROR_EXCEPTION("Replication progress boundaries differ from tablet pivot keys")
+                << TErrorAttribute("tablet_upper_key", tablet->GetNextPivotKey())
+                << TErrorAttribute("progress_upper_key", newProgress.UpperKey.Get());
+        }
+
         chaosData->PreparedWritePulledRowsTransactionId = transaction->GetId();
 
         const auto& tabletCellWriteManager = Slot_->GetTabletCellWriteManager();
