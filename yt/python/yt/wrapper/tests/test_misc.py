@@ -1233,6 +1233,7 @@ class TestGetSupportedFeatures(object):
             "float", "double",
             "void", "null",
             "date", "datetime", "timestamp", "interval",
+            "date32", "datetime64", "timestamp64", "interval64",
         }
         assert expected_types == expected_types.intersection(set(features["primitive_types"]))
 

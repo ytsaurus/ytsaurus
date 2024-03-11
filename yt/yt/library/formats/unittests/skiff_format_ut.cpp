@@ -978,6 +978,26 @@ public:
         addSimpleAndListCases(EWireType::Uint32, Datetime(), 42ull, TStringBuf("\x2a\x00\x00\x00"sv));
         addSimpleAndListCases(EWireType::Uint32, Datetime(), DatetimeUpperBound - 1, TStringBuf("\x7f\xdd\xce\xff"sv));
 
+        addSimpleAndListCases(EWireType::Int64, Date32(), 0ll, TStringBuf("\x00\x00\x00\x00\x00\x00\x00\x00"sv));
+        addSimpleAndListCases(EWireType::Int64, Date32(), Date32UpperBound - 1, TStringBuf("\x3f\x73\x2e\x03\x00\x00\x00\x00"sv));
+        addSimpleAndListCases(EWireType::Int64, Date32(), Date32LowerBound, TStringBuf("\xbf\x8c\xd1\xfc\xff\xff\xff\xff"sv));
+
+        addSimpleAndListCases(EWireType::Int32, Date32(), 0ll, TStringBuf("\x00\x00\x00\x00"sv));
+        addSimpleAndListCases(EWireType::Int32, Date32(), Date32UpperBound - 1, TStringBuf("\x3f\x73\x2e\x03"sv));
+        addSimpleAndListCases(EWireType::Int32, Date32(), Date32LowerBound, TStringBuf("\xbf\x8c\xd1\xfc"sv));
+
+        addSimpleAndListCases(EWireType::Int64, Datetime64(), 0ll, TStringBuf("\x00\x00\x00\x00\x00\x00\x00\x00"sv));
+        addSimpleAndListCases(EWireType::Int64, Datetime64(), Datetime64UpperBound - 1, TStringBuf("\xff\xdf\xf0\xbc\x31\x04\x00\x00"sv));
+        addSimpleAndListCases(EWireType::Int64, Datetime64(), Datetime64LowerBound, TStringBuf("\x80\xce\x0d\x43\xce\xfb\xff\xff"sv));
+
+        addSimpleAndListCases(EWireType::Int64, Timestamp64(), 0ll, TStringBuf("\x00\x00\x00\x00\x00\x00\x00\x00"sv));
+        addSimpleAndListCases(EWireType::Int64, Timestamp64(), Timestamp64UpperBound - 1, TStringBuf("\xff\xff\xf7\x75\x42\xf1\xff\x3f"sv));
+        addSimpleAndListCases(EWireType::Int64, Timestamp64(), Timestamp64LowerBound, TStringBuf("\x00\xa0\x30\x6c\xa9\x0e\x00\xc0"sv));
+
+        addSimpleAndListCases(EWireType::Int64, Interval64(), 0ll, TStringBuf("\x00\x00\x00\x00\x00\x00\x00\x00"sv));
+        addSimpleAndListCases(EWireType::Int64, Interval64(), Interval64UpperBound - 1, TStringBuf("\x00\x60\xc7\x09\x99\xe2\xff\x7f"sv));
+        addSimpleAndListCases(EWireType::Int64, Interval64(), -Interval64UpperBound + 1, TStringBuf("\x00\xa0\x38\xf6\x66\x1d\x00\x80"sv));
+
         return result;
     }
 

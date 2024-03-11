@@ -826,6 +826,10 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
             {"date", SimpleLogicalType(ESimpleLogicalValueType::Date)},
             {"datetime", SimpleLogicalType(ESimpleLogicalValueType::Datetime)},
             {"interval", SimpleLogicalType(ESimpleLogicalValueType::Interval)},
+            {"date32", SimpleLogicalType(ESimpleLogicalValueType::Date32)},
+            {"datetime64", SimpleLogicalType(ESimpleLogicalValueType::Datetime64)},
+            {"timestamp64", SimpleLogicalType(ESimpleLogicalValueType::Timestamp64)},
+            {"interval64", SimpleLogicalType(ESimpleLogicalValueType::Interval64)},
             {"json", SimpleLogicalType(ESimpleLogicalValueType::Json)},
             {"float", SimpleLogicalType(ESimpleLogicalValueType::Float)},
         })},
@@ -934,6 +938,22 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
                 ["DataType"; "Interval"]
             ];
             [
+                "date32";
+                ["DataType"; "Date32"]
+            ];
+            [
+                "datetime64";
+                ["DataType"; "Datetime64"]
+            ];
+            [
+                "timestamp64";
+                ["DataType"; "Timestamp64"]
+            ];
+            [
+                "interval64";
+                ["DataType"; "Interval64"]
+            ];
+            [
                 "json";
                 ["DataType"; "Json"]
             ];
@@ -1009,6 +1029,10 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
                         101u;
                         102u;
                         103;
+                        -42;
+                        42;
+                        -42;
+                        -1;
                         "[\"a\", {\"b\": 42}]";
                         -3.25;
                     ])",
@@ -1034,6 +1058,10 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
                         1101u;
                         1102u;
                         1103;
+                        123;
+                        -123;
+                        123;
+                        123;
                         "null";
                         0.0;
                     ])",
@@ -1058,6 +1086,10 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
                         3101u;
                         3202u;
                         3103;
+                        -53375809;
+                        -4611669897600;
+                        -4611669897600000000;
+                        -9223339708799999999;
                         "{\"x\": false}";
                         1e10;
                     ])"
@@ -1085,6 +1117,10 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
                         4101u;
                         4202u;
                         4103;
+                        53375807;
+                        4611669811199;
+                        4611669811199999999;
+                        9223339708799999999;
                         "{}";
                         -2.125;
                     ])",
@@ -1171,6 +1207,10 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
             "101";
             "102";
             "103";
+            "-42";
+            "42";
+            "-42";
+            "-1";
             "[\"a\", {\"b\": 42}]";
             "-3.25";
         ])")));
@@ -1200,6 +1240,10 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
             "1101";
             "1102";
             "1103";
+            "123";
+            "-123";
+            "123";
+            "123";
             "null";
             "0";
         ])")));
@@ -1229,6 +1273,10 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
             "3101";
             "3202";
             "3103";
+            "-53375809";
+            "-4611669897600";
+            "-4611669897600000000";
+            "-9223339708799999999";
             "{\"x\": false}";
             "10000000000";
         ])")));
@@ -1259,6 +1307,10 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
             "4101";
             "4202";
             "4103";
+            "53375807";
+            "4611669811199";
+            "4611669811199999999";
+            "9223339708799999999";
             "{}";
             "-2.125";
         ])")));

@@ -121,6 +121,22 @@ std::vector<TValueExample> GetPrimitiveValueExamples()
         TValueExample{Timestamp(), 4291747199999999ll, "4291747199999999"},
         TValueExample{Timestamp(), -4291747199999999ll, "-4291747199999999"},
 
+        TValueExample{Date32(), -53375809, "-53375809"},
+        TValueExample{Date32(), 0, "0"},
+        TValueExample{Date32(), 53375807, "53375807"},
+
+        TValueExample{Datetime64(), -4611669897600ll, "-4611669897600"},
+        TValueExample{Datetime64(), 42, "42"},
+        TValueExample{Datetime64(), 4611669811199ll, "4611669811199"},
+
+        TValueExample{Timestamp64(), -4611669897600000000ll, "-4611669897600000000"},
+        TValueExample{Timestamp64(), 42, "42"},
+        TValueExample{Timestamp64(), 4611669811199999999l, "4611669811199999999"},
+
+        TValueExample{Interval64(), -9223339708799999999ll, "-9223339708799999999"},
+        TValueExample{Interval64(), 0, "0"},
+        TValueExample{Interval64(), 9223339708799999999ll, "9223339708799999999"},
+
         TValueExample{Yson(), "qux", R"("qux")"},
 
         TValueExample{Decimal(3, 2), NDecimal::TDecimal::TextToBinary("3.14", 3, 2), R"("\x80\x00\x01\x3a")"},

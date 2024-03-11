@@ -21,6 +21,10 @@ class TestGetFeatures(YTEnvSetup):
         driver = get_driver(api_version=4)
         features = get_supported_features(driver=driver)
 
+        is_compat = "23_2" in getattr(self, "ARTIFACT_COMPONENTS", {})
+        if is_compat:
+            return
+
         assert "primitive_types" in features
         expected_types = {
             "int8",
@@ -43,6 +47,10 @@ class TestGetFeatures(YTEnvSetup):
             "datetime",
             "timestamp",
             "interval",
+            "date32",
+            "datetime64",
+            "timestamp64",
+            "interval64",
         }
         assert expected_types == expected_types.intersection(builtins.set(features["primitive_types"]))
 
