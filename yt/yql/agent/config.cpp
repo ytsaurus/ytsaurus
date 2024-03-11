@@ -319,6 +319,8 @@ void TYqlAgentConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(20));
     registrar.Parameter("refresh_token_period", &TThis::RefreshTokenPeriod)
         .Default(TDuration::Minutes(10));
+    registrar.Parameter("issue_token_attempts", &TThis::IssueTokenAttempts)
+        .Default(10);
     registrar.Parameter("bus_client", &TThis::BusClient)
         .DefaultNew();
     registrar.Parameter("yql_thread_count", &TThis::YqlThreadCount)

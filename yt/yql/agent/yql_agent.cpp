@@ -69,9 +69,9 @@ static std::optional<TString> TryIssueToken(const TQueryId queryId, const TStrin
     return token;
 }
 
-static TString IssueToken(const TQueryId queryId, const TString& user, const std::vector<TString>& clusters, THashMap<TString, NApi::NNative::IClientPtr>& queryClients, const TDuration& expirationTimeout)
+static TString IssueToken(const TQueryId queryId, const TString& user, const std::vector<TString>& clusters, THashMap<TString, NApi::NNative::IClientPtr>& queryClients, const TDuration& expirationTimeout, const int attempts)
 {
-    while (true) {
+    for (int attempt = 0; attempt < attempts; attempt++) {
         auto tokenOrErr = TryIssueToken(queryId, user, clusters, queryClients, expirationTimeout);
         if (!tokenOrErr) {
             // The selected token already exists on one of the clusters. We need to try to issue token again.
@@ -80,6 +80,8 @@ static TString IssueToken(const TQueryId queryId, const TString& user, const std
 
         return *tokenOrErr;
     }
+
+    THROW_ERROR_EXCEPTION("Token cannot be issued, all attempts failed");
 }
 
 static void RefreshToken(const TString& user, const TString& token, const THashMap<TString, NApi::NNative::IClientPtr>& queryClients)
@@ -272,7 +274,7 @@ private:
                 queryClients[clusterName] = ClusterDirectory_->GetConnectionOrThrow(clusterName)->CreateNativeClient(NApi::TClientOptions{ .User = user });
             }
 
-            auto token = IssueToken(queryId, user, clustersResult.Clusters, queryClients, Config_->TokenExpirationTimeout);
+            auto token = IssueToken(queryId, user, clustersResult.Clusters, queryClients, Config_->TokenExpirationTimeout, Config_->IssueTokenAttempts);
 
             auto refreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, user, token, queryClients), Config_->RefreshTokenPeriod);
             refreshTokenExecutor->Start();
