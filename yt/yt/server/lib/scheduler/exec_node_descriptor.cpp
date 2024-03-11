@@ -45,7 +45,7 @@ TExecNodeDescriptor::TExecNodeDescriptor(
 
 bool TExecNodeDescriptor::CanSchedule(const TSchedulingTagFilter& filter) const
 {
-    return Online && (filter.IsEmpty() || filter.CanSchedule(Tags));
+    return Online && ResourceLimits.GetUserSlots() > 0 && (filter.IsEmpty() || filter.CanSchedule(Tags));
 }
 
 void TExecNodeDescriptor::Persist(const TStreamPersistenceContext& context)

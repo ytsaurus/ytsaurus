@@ -1657,7 +1657,7 @@ private:
         for (const auto& protoDescriptor : descriptorList.exec_nodes()) {
             auto descriptor = New<TExecNodeDescriptor>();
             FromProto(descriptor.Get(), protoDescriptor);
-            if (descriptor->Online) {
+            if (descriptor->CanSchedule({})) {
                 ++onlineExecNodeCount;
             }
             EmplaceOrCrash(
@@ -1874,7 +1874,7 @@ private:
                         }
 
                         const auto& execNodeDescriptor = *descriptorIt->second;
-                        if (!execNodeDescriptor.Online) {
+                        if (!execNodeDescriptor.CanSchedule({})) {
                             YT_LOG_DEBUG(
                                 "Failed to schedule allocation due to node is offline (OperationId: %v, AllocationId: %v, NodeId: %v)",
                                 operationId,
@@ -2052,7 +2052,7 @@ private:
         for (const auto& [nodeId, descriptor] : *CachedExecNodeDescriptors_) {
             if (filter.CanSchedule(descriptor->Tags)) {
                 YT_VERIFY(result.All->emplace(nodeId, descriptor).second);
-                if (descriptor->Online) {
+                if (descriptor->CanSchedule({})) {
                     YT_VERIFY(result.Online->emplace(nodeId, descriptor).second);
                 }
                 maxAvailableResources = Max(maxAvailableResources, descriptor->ResourceLimits);
