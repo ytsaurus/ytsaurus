@@ -33,6 +33,7 @@ struct TSessionOptions
     bool SyncOnClose = false;
     bool EnableMultiplexing = false;
     NChunkClient::TPlacementId PlacementId;
+    bool DisableSendBlocks = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,6 +60,8 @@ struct ISession
 
     //! Returns the workload descriptor provided by the client during handshake.
     virtual const TWorkloadDescriptor& GetWorkloadDescriptor() const = 0;
+
+    virtual const TSessionOptions& GetSessionOptions() const = 0;
 
     //! Returns the target chunk location.
     virtual const TStoreLocationPtr& GetStoreLocation() const = 0;

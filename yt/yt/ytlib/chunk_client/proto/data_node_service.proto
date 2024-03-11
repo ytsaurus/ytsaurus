@@ -52,6 +52,7 @@ message TReqStartChunk
     optional bool enable_direct_io = 8 [default = false];
     optional bool enable_multiplexing = 4 [default = false];
     optional NYT.NProto.TGuid placement_id = 6;
+    optional bool disable_send_blocks = 9 [default = false];
 }
 
 message TRspStartChunk

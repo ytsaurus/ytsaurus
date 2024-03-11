@@ -23,6 +23,7 @@ DEFINE_ENUM(EBlobSessionSlotState,
     (Empty)
     (Received)
     (Written)
+    (Released)
 );
 
 class TBlobSession

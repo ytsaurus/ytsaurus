@@ -33,6 +33,7 @@ public:
 
     const TWorkloadDescriptor& GetWorkloadDescriptor() const override;
     const TStoreLocationPtr& GetStoreLocation() const override;
+    const TSessionOptions& GetSessionOptions() const override;
 
     TFuture<void> Start() override;
 

@@ -918,6 +918,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("publish_disabled_locations", &TThis::PublishDisabledLocations)
         .Default();
 
+    registrar.Parameter("use_disable_send_blocks", &TThis::UseDisableSendBlocks)
+        .Default(false);
+
     registrar.Parameter("p2p", &TThis::P2P)
         .Optional();
 
