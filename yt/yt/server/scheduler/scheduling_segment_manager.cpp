@@ -577,6 +577,7 @@ void TSchedulingSegmentManager::ResetOperationModuleAssignments(TUpdateSchedulin
                     InitializationDeadline_);
 
                 ResetOperationModule(element, context);
+                continue;
             }
         } else {
             failingToScheduleAtModuleSince.reset();
