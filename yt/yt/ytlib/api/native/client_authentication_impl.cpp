@@ -1,5 +1,6 @@
 #include "client_impl.h"
 
+#include <yt/yt/library/re2/re2.h>
 #include <yt/yt/core/crypto/crypto.h>
 
 #include <util/string/hex.h>
@@ -15,12 +16,23 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*
+ * User-created cypress tokens follow the format "ytct-{}-{}".
+ * First {} is 4 hexadecimal characters and may be saved and revealed to the user.
+ * Second {} is 32 hexadecimal characters, private, and should not be saved in the system.
+ */
+constexpr TStringBuf CypressTokenPrefixRegex = "ytct-[0-9a-f]{4}-";
+constexpr int CypressTokenPrefixLength = 10; // "ytct-abcd-"
+
 static TString GenerateToken()
 {
-    constexpr int TokenLength = 16;
-    auto tokenBytes = GenerateCryptoStrongRandomString(TokenLength);
-    auto token = to_lower(HexEncode(tokenBytes.data(), tokenBytes.size()));
-    return token;
+    constexpr int TokenBodyBytesLength = 16;
+    constexpr int TokenPrefixBytesLength = 2;
+    auto tokenBodyBytes = GenerateCryptoStrongRandomString(TokenBodyBytesLength);
+    auto tokenBody = to_lower(HexEncode(tokenBodyBytes.data(), tokenBodyBytes.size()));
+    auto tokenPrefixBytes = GenerateCryptoStrongRandomString(TokenPrefixBytesLength);
+    auto tokenPrefix = Format("ytct-%v-", to_lower(HexEncode(tokenPrefixBytes.data(), tokenPrefixBytes.size())));
+    return tokenPrefix + tokenBody;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,7 +92,9 @@ TIssueTokenResult TClient::DoIssueToken(
     YT_LOG_DEBUG("Issuing new token for user (User: %v)",
         user);
 
-    return DoIssueTokenImpl(user, GenerateToken(), CreateEphemeralAttributes(), options);
+    auto attributes = CreateEphemeralAttributes();
+    attributes->Set("description", options.Description);
+    return DoIssueTokenImpl(user, GenerateToken(), attributes, options);
 }
 
 TIssueTokenResult TClient::DoIssueSpecificTemporaryToken(
@@ -94,6 +108,7 @@ TIssueTokenResult TClient::DoIssueSpecificTemporaryToken(
 
     auto attributesCopy = attributes->Clone();
     attributesCopy->Set("expiration_timeout", options.ExpirationTimeout.MilliSeconds());
+    attributesCopy->Set("description", options.Description);
     return DoIssueTokenImpl(user, token, attributesCopy, options);
 }
 
@@ -107,6 +122,7 @@ TIssueTokenResult TClient::DoIssueTemporaryToken(
 
     auto attributesCopy = attributes->Clone();
     attributesCopy->Set("expiration_timeout", options.ExpirationTimeout.MilliSeconds());
+    attributesCopy->Set("description", options.Description);
     return DoIssueTokenImpl(user, GenerateToken(), attributesCopy, options);
 }
 
@@ -117,16 +133,22 @@ TIssueTokenResult TClient::DoIssueTokenImpl(
     const TIssueTokenOptions& options)
 {
     auto tokenHash = GetSha256HexDigestLowerCase(token);
+    auto tokenPrefix = token.substr(0, CypressTokenPrefixLength);
+    if (!NRe2::TRe2::FullMatch(tokenPrefix.Data(), CypressTokenPrefixRegex.Data())) {
+        tokenPrefix = "";
+    }
 
     TCreateNodeOptions createOptions;
     static_cast<TTimeoutOptions&>(createOptions) = options;
 
     attributes->Set("user", user);
+    attributes->Set("token_prefix", tokenPrefix);
 
     createOptions.Attributes = attributes;
 
-    YT_LOG_DEBUG("Issuing new token for user (User: %v, TokenHash: %v)",
+    YT_LOG_DEBUG("Issuing new token for user (User: %v, TokenPrefix: %v, TokenHash: %v)",
         user,
+        tokenPrefix,
         tokenHash);
 
     auto rootClient = CreateRootClient();
@@ -138,15 +160,17 @@ TIssueTokenResult TClient::DoIssueTokenImpl(
 
     if (!rspOrError.IsOK()) {
         YT_LOG_DEBUG(rspOrError, "Failed to issue new token for user "
-            "(User: %v, TokenHash: %v)",
+            "(User: %v, TokenPrefix: %v, TokenHash: %v)",
             user,
+            tokenPrefix,
             tokenHash);
         auto error = TError("Failed to issue new token for user") << rspOrError;
         THROW_ERROR error;
     }
 
-    YT_LOG_DEBUG("Issued new token for user (User: %v, TokenHash: %v)",
+    YT_LOG_DEBUG("Issued new token for user (User: %v, TokenPrefix: %v, TokenHash: %v)",
         user,
+        tokenPrefix,
         tokenHash);
 
     return TIssueTokenResult{
@@ -251,10 +275,20 @@ TListUserTokensResult TClient::DoListUserTokens(
         passwordSha256,
         options);
 
+    YT_LOG_DEBUG("Listing tokens for user (User: %v, WithMetadata: %v)",
+        user,
+        options.WithMetadata);
+
     TListNodeOptions listOptions;
     static_cast<TTimeoutOptions&>(listOptions) = options;
 
     listOptions.Attributes = TAttributeFilter({"user"});
+    if (options.WithMetadata) {
+        listOptions.Attributes.Keys.emplace_back("description");
+        listOptions.Attributes.Keys.emplace_back("token_prefix");
+        listOptions.Attributes.Keys.emplace_back("creation_time");
+        listOptions.Attributes.Keys.emplace_back("effective_expiration");
+    }
 
     auto rootClient = CreateRootClient();
     auto rspOrError = WaitFor(rootClient->ListNode("//sys/cypress_tokens", listOptions));
@@ -265,6 +299,7 @@ TListUserTokensResult TClient::DoListUserTokens(
     }
 
     std::vector<TString> userTokens;
+    THashMap<TString, NYson::TYsonString> tokenMetadata;
 
     auto tokens = ConvertTo<IListNodePtr>(rspOrError.Value());
     for (const auto& tokenNode : tokens->GetChildren()) {
@@ -272,11 +307,22 @@ TListUserTokensResult TClient::DoListUserTokens(
         auto userAttribute = attributes.Find<TString>("user");
         if (userAttribute == user) {
             userTokens.push_back(ConvertTo<TString>(tokenNode));
+            if (options.WithMetadata) {
+                auto metadata = BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("description").Value(attributes.Find<TString>("description"))
+                        .Item("token_prefix").Value(attributes.Find<TString>("token_prefix"))
+                        .Item("creation_time").Value(attributes.Find<TString>("creation_time"))
+                        .Item("effective_expiration").Value(attributes.GetYson("effective_expiration"))
+                    .EndMap();
+                tokenMetadata[ConvertTo<TString>(tokenNode)] = ConvertToYsonString(metadata);
+            }
         }
     }
 
     return TListUserTokensResult{
         .Tokens = std::move(userTokens),
+        .Metadata = std::move(tokenMetadata),
     };
 }
 
