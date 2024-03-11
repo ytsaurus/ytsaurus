@@ -42,7 +42,7 @@ spec:
 
   rpcProxies:
     - serviceType: LoadBalancer
-      instanceCount: 1
+      instanceCount: 3
 
   dataNodes:
     - instanceCount: 10
