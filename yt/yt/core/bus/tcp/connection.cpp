@@ -225,8 +225,7 @@ void TTcpConnection::Start()
             YT_VERIFY(Socket_ != INVALID_SOCKET);
             State_ = EState::Opening;
             SetupNetwork(EndpointNetworkAddress_);
-            Open();
-            guard.Release();
+            Open(guard);
 
             if (!SupportsHandshakes_) {
                 // Set the connection ready on the server side.
@@ -403,7 +402,7 @@ TConnectionId TTcpConnection::GetId() const
     return Id_;
 }
 
-void TTcpConnection::Open()
+void TTcpConnection::Open(TGuard<NThreading::TSpinLock>& guard)
 {
     State_ = EState::Open;
 
@@ -421,6 +420,8 @@ void TTcpConnection::Open()
     auto previousPendingControl = static_cast<EPollControl>(PendingControl_.fetch_and(~static_cast<ui64>(EPollControl::Offline)));
 
     ArmPoller();
+
+    guard.Release();
 
     // Something might be pending already, for example Terminate.
     if (Any(previousPendingControl & ~EPollControl::Offline)) {
@@ -624,7 +625,7 @@ void TTcpConnection::OnDialerFinished(const TErrorOr<SOCKET>& socketOrError)
             InitSocketTosLevel(tosLevel);
         }
 
-        Open();
+        Open(guard);
     }
 
     if (!SupportsHandshakes_) {
@@ -788,6 +789,8 @@ void TTcpConnection::Terminate(const TError& error)
 
     // Arm calling OnTerminate() from OnEvent().
     auto previousPendingControl = static_cast<EPollControl>(PendingControl_.fetch_or(static_cast<ui64>(EPollControl::Terminate)));
+
+    guard.Release();
 
     // To recover from bogus state always retry processing unless socket is offline
     if (None(previousPendingControl & EPollControl::Offline)) {
