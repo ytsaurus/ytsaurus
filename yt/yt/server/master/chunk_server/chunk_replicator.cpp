@@ -3392,7 +3392,11 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
         // Examine owners, if any.
         for (const auto* owningNode : chunkList->TrunkOwningNodes()) {
             if (auto* account = owningNode->Account().Get()) {
-                requisition.AggregateWith(owningNode->Replication(), account, true);
+                if (owningNode->GetHunkChunkList() == chunkList) {
+                    requisition.AggregateWith(owningNode->HunkReplication(), account, true);
+                } else {
+                    requisition.AggregateWith(owningNode->Replication(), account, true);
+                }
             }
 
             found = true;
