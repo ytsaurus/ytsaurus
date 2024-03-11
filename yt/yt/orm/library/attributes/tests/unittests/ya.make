@@ -8,6 +8,7 @@ SRCS(
     attribute_path_ut.cpp
     merge_attributes_ut.cpp
     scalar_attribute_ut.cpp
+    unwrapping_consumer_ut.cpp
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)

@@ -7,6 +7,7 @@
 #include <yt/yt/core/ytree/tree_builder.h>
 
 #include <yt/yt/core/yson/protobuf_interop.h>
+#include <yt/yt/core/yson/writer.h>
 
 #include <yt/yt/core/misc/error.h>
 
@@ -15,22 +16,23 @@
 namespace NYT::NOrm::NAttributes {
 
 using namespace NYPath;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const NYson::TProtobufMessageType* GetMessageTypeByYPath(
-    const NYson::TProtobufMessageType* rootType,
+const TProtobufMessageType* GetMessageTypeByYPath(
+    const TProtobufMessageType* rootType,
     const NYPath::TYPath& path,
     bool allowAttributeDictionary)
 {
     auto result = ResolveProtobufElementByYPath(rootType, path);
-    auto* messageElement = std::get_if<std::unique_ptr<NYson::TProtobufMessageElement>>(&result.Element);
+    auto* messageElement = std::get_if<std::unique_ptr<TProtobufMessageElement>>(&result.Element);
     if (messageElement) {
         return (*messageElement)->Type;
     }
     if (allowAttributeDictionary) {
         auto* attributeDictionaryElement =
-            std::get_if<std::unique_ptr<NYson::TProtobufAttributeDictionaryElement>>(&result.Element);
+            std::get_if<std::unique_ptr<TProtobufAttributeDictionaryElement>>(&result.Element);
         if (attributeDictionaryElement) {
             return (*attributeDictionaryElement)->Type;
         }
@@ -40,7 +42,7 @@ const NYson::TProtobufMessageType* GetMessageTypeByYPath(
 }
 
 NYTree::INodePtr ConvertProtobufToNode(
-    const NYson::TProtobufMessageType* rootType,
+    const TProtobufMessageType* rootType,
     const NYPath::TYPath& path,
     const TString& payload)
 {
@@ -51,6 +53,31 @@ NYTree::INodePtr ConvertProtobufToNode(
     builder->BeginTree();
     ParseProtobuf(&*builder, &protobufInputStream, payloadType);
     return builder->EndTree();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TYsonStringWriterHelper::TYsonStringWriterHelper(EYsonFormat format, EYsonType type)
+    : Output_(ValueString_)
+    , Writer_(CreateYsonWriter(&Output_, format, type, /*enableRaw*/ format == EYsonFormat::Binary))
+{ }
+
+IYsonConsumer* TYsonStringWriterHelper::GetConsumer()
+{
+    return Writer_.get();
+}
+
+TYsonString TYsonStringWriterHelper::Flush()
+{
+    Writer_->Flush();
+    auto result = TYsonString(ValueString_);
+    ValueString_.clear();
+    return result;
+}
+
+bool TYsonStringWriterHelper::IsEmpty() const
+{
+    return ValueString_.Empty();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

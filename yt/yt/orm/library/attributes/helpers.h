@@ -22,4 +22,23 @@ NYTree::INodePtr ConvertProtobufToNode(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TYsonStringWriterHelper
+{
+public:
+    TYsonStringWriterHelper(
+        NYson::EYsonFormat format = NYson::EYsonFormat::Binary,
+        NYson::EYsonType type = NYson::EYsonType::Node);
+
+    NYson::IYsonConsumer* GetConsumer();
+    NYson::TYsonString Flush();
+    bool IsEmpty() const;
+
+private:
+    TString ValueString_;
+    TStringOutput Output_;
+    std::unique_ptr<NYson::IFlushableYsonConsumer> Writer_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NOrm::NAttributes

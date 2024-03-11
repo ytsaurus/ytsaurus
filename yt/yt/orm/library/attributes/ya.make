@@ -7,6 +7,7 @@ SRCS(
     helpers.cpp
     merge_attributes.cpp
     scalar_attribute.cpp
+    unwrapping_consumer.cpp
     ytree.cpp
 )
 
