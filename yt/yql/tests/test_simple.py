@@ -270,7 +270,7 @@ class TestExecutionModesYql(TestQueriesYqlBase):
                 query.track()
 
         query = start_query("yql", "select * from `//tmp/t1`", settings={"execution_mode": 42})
-        with raises_yt_error('Invalid value 42 of enum type EExecuteMode'):
+        with raises_yt_error("Error casting"):
             query.track()
 
 
