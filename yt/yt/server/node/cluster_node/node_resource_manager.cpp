@@ -616,13 +616,14 @@ void TNodeResourceManager::UpdateMemoryFootprint()
     auto oldFootprint = memoryUsageTracker->UpdateUsage(EMemoryCategory::Footprint, newFootprint);
     auto oldFragmentation = memoryUsageTracker->UpdateUsage(EMemoryCategory::AllocFragmentation, newFragmentation);
 
-    YT_LOG_INFO("Memory footprint updated (BytesCommitted: %v, BytesUsed: %v, Footprint: %v -> %v, Fragmentation: %v -> %v)",
+    YT_LOG_INFO("Memory footprint updated (BytesCommitted: %v, BytesUsed: %v, Footprint: %v -> %v, Fragmentation: %v -> %v, Rpc: %v)",
         bytesCommitted,
         bytesUsed,
         oldFootprint,
         newFootprint,
         oldFragmentation,
-        newFragmentation);
+        newFragmentation,
+        memoryUsageTracker->GetUsed(EMemoryCategory::Rpc));
 }
 
 void TNodeResourceManager::UpdateJobsCpuLimit()

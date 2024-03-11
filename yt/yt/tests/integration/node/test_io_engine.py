@@ -6,8 +6,10 @@ import re
 import pytest
 import platform
 import os.path
+import threading
+import yt
 
-from yt_commands import (authors, wait, read_table, get, ls, create, write_table, set, update_nodes_dynamic_config, get_applied_node_dynamic_config)
+from yt_commands import (authors, wait, read_table, get, ls, create, write_table, set, update_nodes_dynamic_config, get_applied_node_dynamic_config, print_debug)
 from yt.common import YtError
 
 
@@ -330,3 +332,135 @@ def is_uring_disabled():
 @pytest.mark.skipif(not is_uring_supported() or is_uring_disabled(), reason="io_uring is not available on this host")
 class TestIoEngineUringStats(TestIoEngine):
     NODE_IO_ENGINE_TYPE = "uring"
+
+
+@authors("don-dron")
+class BaseTestRpcMemoryTracking(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 0
+
+    @classmethod
+    def get_rpc_memory_used(self, node):
+        return get("//sys/cluster_nodes/{}/@statistics/memory/rpc/used".format(node))
+
+    @classmethod
+    def get_server_connections_sensor(self, node):
+        node_profiler = profiler_factory().at_node(node)
+        return node_profiler.counter(name="bus/server_connections")
+
+    @classmethod
+    def check_node(self, node, value=32768):
+        # 32768 = 16384 + 16384 = ReadBufferSize + WriteBufferSize, see yt/core/bus/tcp/connection.cpp
+        sensor = self.get_server_connections_sensor(node)
+        connections = sensor.get()
+        if connections is None or connections == 0:
+            return False
+        return self.get_rpc_memory_used(node) == value * connections
+
+
+@authors("don-dron")
+class TestRpcBuffersMemoryTracking(BaseTestRpcMemoryTracking):
+    DELTA_NODE_CONFIG = {
+        "bus_server": {
+            "connection_start_delay": 10000
+        }
+    }
+
+    @authors("don-dron")
+    def test_tcp_socket_buffers_tracking(self):
+        REPLICATION_FACTOR = 1
+
+        nodes = ls("//sys/cluster_nodes")
+        create(
+            "table",
+            "//tmp/test",
+            attributes={
+                "replication_factor": REPLICATION_FACTOR,
+            })
+
+        ys = [{"key": "x"} for i in range(16)]
+        response = write_table("//tmp/test", ys, return_response=True)
+
+        wait(lambda: any(self.check_node(node) for node in nodes))
+
+        response.wait()
+
+
+@authors("don-dron")
+class TestRpcDecoderMemoryTracking(BaseTestRpcMemoryTracking):
+    DELTA_NODE_CONFIG = {
+        "bus_server": {
+            "packet_decoder_delay": 1000
+        }
+    }
+
+    @authors("don-dron")
+    def test_tcp_socket_decoder_tracking(self):
+        REPLICATION_FACTOR = 1
+
+        nodes = ls("//sys/cluster_nodes")
+        for i in range(4):
+            create(
+                "table",
+                "//tmp/test{}".format(i),
+                attributes={
+                    "replication_factor": REPLICATION_FACTOR,
+                })
+
+        ys = [{"key": "x" * (1024 * 1024)}]
+        node = nodes[0]
+
+        responses = []
+
+        def write(index):
+            yw = yt.wrapper.YtClient(proxy=self.Env.get_proxy_address())
+            for _ in range(4):
+                yw.write_table("//tmp/test{}".format(index), ys)
+
+        for i in range(4):
+            responses.append(threading.Thread(target=write, args=i))
+
+        for response in responses:
+            response.start()
+
+        def check_node_with_rct(node, value=32768):
+            # 32768 = 16384 + 16384 = ReadBufferSize + WriteBufferSize, see yt/core/bus/tcp/connection.cpp
+            sensor = self.get_server_connections_sensor(node)
+            connections = sensor.get()
+            if connections is None or connections == 0:
+                return False
+            stat = get("//sys/cluster_nodes/{}/orchid/monitoring/ref_counted/statistics".format(node))
+
+            if stat is None:
+                return False
+
+            def find_in_rct(tag):
+                for i in stat:
+                    if i['name'] == tag:
+                        return i
+
+                return None
+
+            rct_write = find_in_rct("NYT::NBus::TTcpServerConnectionReadBufferTag")
+            rct_read = find_in_rct("NYT::NBus::TTcpServerConnectionWriteBufferTag")
+            rct_decoder = find_in_rct("NYT::NBus::TPacketDecoderTag")
+
+            if rct_read is None or rct_write is None or rct_decoder is None:
+                return False
+
+            rct_write_bytes_alive = rct_write['bytes_alive']
+            rct_read_bytes_alive = rct_read['bytes_alive']
+            rct_decoder_bytes_alive = rct_read['bytes_alive']
+
+            used = self.get_rpc_memory_used(node)
+
+            print_debug("Used: {}, RefCountedTrackerReadBufferTag: {}, RefCountedTrackerWriteBufferTag: {}, RefCountedTrackerDecoderTag: {}".format(
+                used, rct_read_bytes_alive, rct_write_bytes_alive, rct_decoder_bytes_alive))
+
+            return connections * value == rct_read_bytes_alive + rct_write_bytes_alive and used >= rct_write_bytes_alive + rct_read_bytes_alive
+
+        wait(lambda: check_node_with_rct(node))
+
+        for response in responses:
+            response.join()
