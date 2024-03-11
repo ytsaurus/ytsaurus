@@ -144,7 +144,7 @@ protected:
         return InvocationOrder_.InvokerIndexes_;
     }
 
-    TDiagnosableInvokerPoolPtr CreateInvokerPool(IInvokerPtr underlyingInvoker, int invokerCount, TSolomonRegistryPtr registry = nullptr)
+    IDiagnosableInvokerPoolPtr CreateInvokerPool(IInvokerPtr underlyingInvoker, int invokerCount, TSolomonRegistryPtr registry = nullptr)
     {
         std::vector<TString> bucketNames;
 
@@ -880,8 +880,8 @@ TEST_F(TProfiledFairShareInvokerPoolProfilingTest, TestEnumIndexedProfilerGeneri
 
     exporter->Stop();
 
-    TEnumIndexedArray<EInvokerBuckets, bool> mentions;
-    std::ranges::fill(mentions, false);
+    TEnumIndexedVector<EInvokerBuckets, bool> mentions;
+    std::fill(mentions.begin(), mentions.end(), false);
 
     for (const auto& sensor : GetSensors(*json)) {
         auto labels = sensor->AsMap()->FindChild("labels")->AsMap();
@@ -901,7 +901,7 @@ TEST_F(TProfiledFairShareInvokerPoolProfilingTest, TestEnumIndexedProfilerGeneri
         }
     }
 
-    EXPECT_TRUE(std::ranges::all_of(mentions, std::identity{}));
+    EXPECT_TRUE(std::all_of(mentions.begin(), mentions.end(), std::identity{}));
 }
 
 } // namespace

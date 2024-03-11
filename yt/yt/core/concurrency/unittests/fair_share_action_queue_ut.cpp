@@ -65,8 +65,8 @@ public:
     template <class EQueues, class EBuckets>
     void VerifyJson(TString json, THashMap<EBuckets, std::vector<EQueues>> bucketToQueues)
     {
-        TEnumIndexedArray<EQueues, int> enqueuedPerQueue;
-        TEnumIndexedArray<EBuckets, int> enqueuedPerBucket;
+        TEnumIndexedVector<EQueues, int> enqueuedPerQueue;
+        TEnumIndexedVector<EBuckets, int> enqueuedPerBucket;
         int enqueuedPerThread;
         int enqueuedTotal;
 
