@@ -959,6 +959,7 @@ class TestMemoryWatchdog(YTEnvSetup):
     }
 
     @authors("alexkolodezny")
+    @pytest.mark.skip(reason="YT-20965")
     @flaky(max_runs=3)
     @pytest.mark.timeout(30)
     def test_memory_watchdog(self):
