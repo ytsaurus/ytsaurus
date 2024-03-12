@@ -2604,6 +2604,8 @@ private:
 
     TPeriodicExecutorPtr SequoiaReplicaRemovalExecutor_;
     THashMap<TChunkId, TCompactVector<TSequoiaChunkReplica, 3>> SequoiaChunkPurgatory_;
+    // Transient.
+    bool ChunksBeingPurged_ = false;
 
     NHydra::TEntityMap<TChunk> ChunkMap_;
     NHydra::TEntityMap<TChunkView> ChunkViewMap_;
@@ -5511,6 +5513,8 @@ private:
         ChunkPlacement_->Clear();
 
         ChunkReplicator_->OnEpochFinished();
+
+        ChunksBeingPurged_ = false;
     }
 
     void RegisterChunk(TChunk* chunk)
@@ -5620,6 +5624,10 @@ private:
             return;
         }
 
+        if (ChunksBeingPurged_) {
+            return;
+        }
+
         auto config = GetDynamicConfig();
 
         std::vector<TChunkId> chunkIds;
@@ -5643,7 +5651,12 @@ private:
         }
 
         ToProto(request.mutable_chunk_ids(), chunkIds);
-        Y_UNUSED(WaitFor(RemoveDeadSequoiaChunkReplicas(request)));
+
+        ChunksBeingPurged_ = true;
+        auto result = WaitFor(RemoveDeadSequoiaChunkReplicas(request));
+        if (!result.IsOK()) {
+            YT_LOG_DEBUG(result, "Error purging dead Sequoia chunks");
+        }
     }
 
     virtual TFuture<void> RemoveDeadSequoiaChunkReplicas(const NProto::TReqRemoveDeadSequoiaChunkReplicas& request)
@@ -5773,6 +5786,8 @@ private:
         for (auto& [chunkId, replicas] : replicasToPurge) {
             EraseOrCrash(SequoiaChunkPurgatory_, chunkId);
         }
+
+        ChunksBeingPurged_ = false;
     }
 
     void AddChunkReplica(
