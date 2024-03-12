@@ -859,6 +859,7 @@ def get_checks_config():
                         "arnold": 81,
                         "bohr": 87,
                         "freud": 84,
+                        "freud-gnd": 9552,
                         "hahn": 83,
                         "hume": 85,
                         "landau": 138,
@@ -1296,6 +1297,11 @@ def get_checks_config():
                 enable_discovery,
                 enable_nightly_compression,
                 bundle_controller,
+            ),
+            "freud-gnd": deep_merge(
+                snapshot_validation,
+                allow_unaware_nodes,
+                nochyt,
             ),
             "seneca-sas": deep_merge(
                 snapshot_validation,
