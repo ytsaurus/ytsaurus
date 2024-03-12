@@ -793,7 +793,7 @@ std::vector<TInstance> TDiscoverVersionsHandler::ListJobProxies()
             instance.Type = "job_proxy";
             instance.Version = *instance.JobProxyVersion;
             instances.emplace_back(std::move(instance));
-        } else {
+        } else if (instance.Online) {
             fallbackInstances.emplace_back(std::move(instance.Address));
         }
     }
