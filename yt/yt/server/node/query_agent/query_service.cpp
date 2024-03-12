@@ -326,8 +326,7 @@ private:
             queryOptions.MemoryLimitPerNode,
             MemoryTracker_);
 
-        // TODO(lukyan): Use memoryChunkProvider in FromProto.
-        auto dataSources = FromProto<std::vector<TDataSource>>(request->data_sources());
+        auto dataSources = FromProto<std::vector<TDataSource>>(request->data_sources(), memoryChunkProvider);
 
         YT_LOG_DEBUG("Query deserialized (FragmentId: %v, InputRowLimit: %v, OutputRowLimit: %v, "
             "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "

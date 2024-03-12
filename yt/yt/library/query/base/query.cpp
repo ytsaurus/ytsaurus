@@ -1547,7 +1547,10 @@ void ToProto(NProto::TDataSource* serialized, const TDataSource& original)
     serialized->set_key_width(original.KeyWidth);
 }
 
-void FromProto(TDataSource* original, const NProto::TDataSource& serialized)
+void FromProto(
+    TDataSource* original,
+    const NProto::TDataSource& serialized,
+    IMemoryChunkProviderPtr memoryChunkProvider)
 {
     FromProto(&original->ObjectId, serialized.object_id());
     FromProto(&original->CellId, serialized.cell_id());
@@ -1557,7 +1560,7 @@ void FromProto(TDataSource* original, const NProto::TDataSource& serialized)
     { };
 
     TRowRanges ranges;
-    auto rowBuffer = New<TRowBuffer>(TDataSourceBufferTag());
+    auto rowBuffer = New<TRowBuffer>(TDataSourceBufferTag(), std::move(memoryChunkProvider));
     auto rangesReader = CreateWireProtocolReader(
         TSharedRef::FromString<TDataSourceBufferTag>(serialized.ranges()),
         rowBuffer);
