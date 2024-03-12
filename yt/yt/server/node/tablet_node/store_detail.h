@@ -59,6 +59,8 @@ public:
 
     const NLogging::TLogger& GetLogger() const;
 
+    TTabletId GetTabletId() const;
+
 protected:
     const TTabletManagerConfigPtr Config_;
     const TStoreId StoreId_;

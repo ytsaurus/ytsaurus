@@ -436,7 +436,11 @@ private:
                 FromProto<TChunkId>(chunkSpec.chunk_id()),
                 {} /*seedReplicas*/);
 
-            chunk.Reader = CreateReplicationReaderThrottlingAdapter(std::move(reader), InThrottler_, OutRpsThrottler_);
+            chunk.Reader = CreateReplicationReaderThrottlingAdapter(
+                std::move(reader),
+                InThrottler_,
+                OutRpsThrottler_,
+                /*mediumThrottler*/ GetUnlimitedThrottler());
 
             chunk.ReadBlocksOptions.ClientOptions.WorkloadDescriptor.Category = EWorkloadCategory::UserInteractive;
 

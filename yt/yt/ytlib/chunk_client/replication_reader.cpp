@@ -161,6 +161,7 @@ public:
         , NodeStatusDirectory_(chunkReaderHost->NodeStatusDirectory)
         , BandwidthThrottler_(chunkReaderHost->BandwidthThrottler)
         , RpsThrottler_(chunkReaderHost->RpsThrottler)
+        , MediumThrottler_(chunkReaderHost->MediumThrottler)
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
         , Logger(ChunkClientLogger.WithTag("ChunkId: %v",
             ChunkId_))
@@ -256,6 +257,7 @@ private:
     const INodeStatusDirectoryPtr NodeStatusDirectory_;
     const IThroughputThrottlerPtr BandwidthThrottler_;
     const IThroughputThrottlerPtr RpsThrottler_;
+    const IThroughputThrottlerPtr MediumThrottler_;
     const TNetworkPreferenceList Networks_;
 
     const NLogging::TLogger Logger;
@@ -456,6 +458,8 @@ protected:
 
     const IThroughputThrottlerPtr BandwidthThrottler_;
     const IThroughputThrottlerPtr RpsThrottler_;
+    const IThroughputThrottlerPtr MediumThrottler_;
+    const IThroughputThrottlerPtr CombinedDataByteThrottler_;
 
     NLogging::TLogger Logger;
 
@@ -491,11 +495,15 @@ protected:
     //! Total number of bytes received in this session; used to detect slow reads.
     i64 TotalBytesReceived_ = 0;
 
+    //! Total number of bytes read from disk in this session.
+    i64 TotalBytesReadFromDisk_ = 0;
+
     TSessionBase(
         TReplicationReader* reader,
         TClientChunkReadOptions options,
         IThroughputThrottlerPtr bandwidthThrottler,
         IThroughputThrottlerPtr rpsThrottler,
+        IThroughputThrottlerPtr mediumThrottler,
         IInvokerPtr sessionInvoker = {})
         : Reader_(reader)
         , ReaderConfig_(reader->Config_)
@@ -512,6 +520,8 @@ protected:
         , Networks_(reader->Networks_)
         , BandwidthThrottler_(std::move(bandwidthThrottler))
         , RpsThrottler_(std::move(rpsThrottler))
+        , MediumThrottler_(std::move(mediumThrottler))
+        , CombinedDataByteThrottler_(CreateCombinedDataByteThrottler())
         , Logger(ChunkClientLogger.WithTag("SessionId: %v, ReadSessionId: %v, ChunkId: %v",
             TGuid::Create(),
             SessionOptions_.ReadSessionId,
@@ -534,6 +544,14 @@ protected:
     {
         const auto* descriptor = MediumDirectory_->FindByIndex(replica.GetMediumIndex());
         return descriptor ? descriptor->Priority : 0;
+    }
+
+    IThroughputThrottlerPtr CreateCombinedDataByteThrottler() const
+    {
+        return CreateCombinedThrottler({
+            BandwidthThrottler_,
+            MediumThrottler_,
+        });
     }
 
     bool SyncThrottle(const IThroughputThrottlerPtr& throttler, i64 count)
@@ -582,6 +600,27 @@ protected:
 
             throttler->Release(throttledBytes - TotalBytesReceived_);
         }
+    }
+
+    void HandleChunkReaderStatistics(const NProto::TChunkReaderStatistics& protoChunkReaderStatistics)
+    {
+        UpdateFromProto(&SessionOptions_.ChunkReaderStatistics, protoChunkReaderStatistics);
+        TotalBytesReadFromDisk_ += protoChunkReaderStatistics.data_bytes_read_from_disk();
+    }
+
+    void AccountExtraMediumBandwidth(i64 throttledBytes)
+    {
+        auto extraBytesToThrottle = TotalBytesReadFromDisk_ - throttledBytes;
+
+        if (extraBytesToThrottle <= 0) {
+            return;
+        }
+
+        YT_LOG_DEBUG("Accounting for extra medium bandwidth (TotalBytesReadFromDisk: %v, ThrottledBytes: %v)",
+            TotalBytesReadFromDisk_,
+            throttledBytes);
+
+        MediumThrottler_->Acquire(extraBytesToThrottle);
     }
 
     void BanPeer(const TString& address, bool forever)
@@ -1570,7 +1609,8 @@ public:
         const IChunkReader::TReadBlocksOptions& options,
         const std::vector<int>& blockIndexes,
         IThroughputThrottlerPtr bandwidthThrottler,
-        IThroughputThrottlerPtr rpsThrottler)
+        IThroughputThrottlerPtr rpsThrottler,
+        IThroughputThrottlerPtr mediumThrottler)
         : TSessionBase(
             reader,
             options.ClientOptions,
@@ -1578,6 +1618,7 @@ public:
                 ? GetUnlimitedThrottler()
                 : std::move(bandwidthThrottler)),
             std::move(rpsThrottler),
+            std::move(mediumThrottler),
             options.SessionInvoker)
         , BlockIndexes_(blockIndexes)
         , EstimatedSize_(options.EstimatedSize)
@@ -1904,7 +1945,7 @@ private:
             // NB: Some blocks are read from cache hence we need to further estimate throttling amount.
             auto requestedBlocksEstimatedSize = *EstimatedSize_ * std::ssize(blockIndexes) / std::ssize(BlockIndexes_);
             BytesThrottled_ = requestedBlocksEstimatedSize;
-            if (!SyncThrottle(BandwidthThrottler_, requestedBlocksEstimatedSize)) {
+            if (!SyncThrottle(CombinedDataByteThrottler_, requestedBlocksEstimatedSize)) {
                 cancelAll(TError(
                     NChunkClient::EErrorCode::ReaderThrottlingFailed,
                     "Failed to apply throttling in reader"));
@@ -1972,7 +2013,7 @@ private:
         }
 
         if (rsp->has_chunk_reader_statistics()) {
-            UpdateFromProto(&SessionOptions_.ChunkReaderStatistics, rsp->chunk_reader_statistics());
+            HandleChunkReaderStatistics(rsp->chunk_reader_statistics());
         }
 
         i64 bytesReceived = 0;
@@ -2047,7 +2088,7 @@ private:
         if (ShouldThrottle(respondedPeer.Address, TotalBytesReceived_ > BytesThrottled_)) {
             auto delta = TotalBytesReceived_ - BytesThrottled_;
             BytesThrottled_ = TotalBytesReceived_;
-            if (!SyncThrottle(BandwidthThrottler_, delta)) {
+            if (!SyncThrottle(CombinedDataByteThrottler_, delta)) {
                 cancelAll(TError(
                     NChunkClient::EErrorCode::ReaderThrottlingFailed,
                     "Failed to apply throttling in reader"));
@@ -2140,6 +2181,8 @@ private:
             BytesThrottled_,
             EstimatedSize_);
 
+        AccountExtraMediumBandwidth(BytesThrottled_);
+
         Promise_.TrySet(std::vector<TBlock>(blocks));
     }
 
@@ -2194,7 +2237,8 @@ TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
         options,
         blockIndexes,
         BandwidthThrottler_,
-        RpsThrottler_);
+        RpsThrottler_,
+        MediumThrottler_);
     return session->Run();
 }
 
@@ -2210,14 +2254,16 @@ public:
         int firstBlockIndex,
         int blockCount,
         IThroughputThrottlerPtr bandwidthThrottler,
-        IThroughputThrottlerPtr rpsThrottler)
+        IThroughputThrottlerPtr rpsThrottler,
+        IThroughputThrottlerPtr mediumThrottler)
         : TSessionBase(
             reader,
             options.ClientOptions,
             options.DisableBandwidthThrottler
                 ? GetUnlimitedThrottler()
                 : std::move(bandwidthThrottler),
-            std::move(rpsThrottler))
+            std::move(rpsThrottler),
+            std::move(mediumThrottler))
         , FirstBlockIndex_(firstBlockIndex)
         , BlockCount_(blockCount)
         , EstimatedSize_(options.EstimatedSize)
@@ -2307,7 +2353,7 @@ private:
             // Still it protects us from bursty incoming traffic on the host.
             // If estimated size was not given, we fallback to post-throttling on actual received size.
             BytesThrottled_ = *EstimatedSize_;
-            if (!SyncThrottle(BandwidthThrottler_, *EstimatedSize_)) {
+            if (!SyncThrottle(CombinedDataByteThrottler_, *EstimatedSize_)) {
                 return;
             }
         }
@@ -2347,7 +2393,7 @@ private:
             rsp->GetTotalSize(),
             std::memory_order::relaxed);
         if (rsp->has_chunk_reader_statistics()) {
-            UpdateFromProto(&SessionOptions_.ChunkReaderStatistics, rsp->chunk_reader_statistics());
+            HandleChunkReaderStatistics(rsp->chunk_reader_statistics());
         }
 
         auto blocks = GetRpcAttachedBlocks(rsp, /*validateChecksums*/ false);
@@ -2407,7 +2453,7 @@ private:
         if (ShouldThrottle(peerAddress, TotalBytesReceived_ > BytesThrottled_)) {
             auto delta = TotalBytesReceived_ - BytesThrottled_;
             BytesThrottled_ = TotalBytesReceived_;
-            if (!SyncThrottle(BandwidthThrottler_, delta)) {
+            if (!SyncThrottle(CombinedDataByteThrottler_, delta)) {
                 return;
             }
         }
@@ -2424,6 +2470,8 @@ private:
         YT_LOG_DEBUG("Some blocks are fetched (Blocks: %v-%v)",
             FirstBlockIndex_,
             FirstBlockIndex_ + FetchedBlocks_.size() - 1);
+
+        AccountExtraMediumBandwidth(BytesThrottled_);
 
         Promise_.TrySet(std::vector<TBlock>(FetchedBlocks_));
     }
@@ -2478,7 +2526,8 @@ TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
         firstBlockIndex,
         blockCount,
         BandwidthThrottler_,
-        RpsThrottler_);
+        RpsThrottler_,
+        MediumThrottler_);
     return session->Run();
 }
 
@@ -2498,6 +2547,7 @@ public:
             options,
             reader->BandwidthThrottler_,
             reader->RpsThrottler_,
+            reader->MediumThrottler_,
             GetCurrentInvoker())
         , PartitionTag_(partitionTag)
         , ExtensionTags_(extensionTags)
@@ -2636,7 +2686,7 @@ private:
         }
 
         if (rsp->has_chunk_reader_statistics()) {
-            UpdateFromProto(&SessionOptions_.ChunkReaderStatistics, rsp->chunk_reader_statistics());
+            HandleChunkReaderStatistics(rsp->chunk_reader_statistics());
         }
 
         TotalBytesReceived_ += rsp->ByteSize();
@@ -2723,12 +2773,14 @@ public:
         NCompression::ECodec codecId,
         IThroughputThrottlerPtr bandwidthThrottler,
         IThroughputThrottlerPtr rpsThrottler,
+        IThroughputThrottlerPtr mediumThrottler,
         IInvokerPtr sessionInvoker = {})
         : TSessionBase(
             reader,
             options->ChunkReadOptions,
             std::move(bandwidthThrottler),
             std::move(rpsThrottler),
+            std::move(mediumThrottler),
             std::move(sessionInvoker))
         , Options_(std::move(options))
         , LookupKeys_(std::move(lookupKeys))
@@ -2896,11 +2948,11 @@ private:
             // Still it protects us from bursty incoming traffic on the host.
             // If estimated size was not given, we fallback to post-throttling on actual received size.
             std::swap(BytesThrottled_, BytesToThrottle_);
-            if (!BandwidthThrottler_->IsOverdraft()) {
-                BandwidthThrottler_->Acquire(BytesThrottled_);
+            if (!CombinedDataByteThrottler_->IsOverdraft()) {
+                CombinedDataByteThrottler_->Acquire(BytesThrottled_);
             } else {
                 AsyncThrottle(
-                    BandwidthThrottler_,
+                    CombinedDataByteThrottler_,
                     BytesThrottled_,
                     BIND(
                         &TLookupRowsSession::SendLookupRowsRequest,
@@ -3047,7 +3099,7 @@ private:
         }
 
         if (response->has_chunk_reader_statistics()) {
-            UpdateFromProto(&SessionOptions_.ChunkReaderStatistics, response->chunk_reader_statistics());
+            HandleChunkReaderStatistics(response->chunk_reader_statistics());
         }
 
         auto result = response->Attachments()[0];
@@ -3057,7 +3109,7 @@ private:
         if (ShouldThrottle(respondedPeer.Address, BytesToThrottle_ > BytesThrottled_)) {
             auto delta = BytesToThrottle_ - BytesThrottled_;
             BytesThrottled_ += delta;
-            BandwidthThrottler_->Acquire(delta);
+            CombinedDataByteThrottler_->Acquire(delta);
             BytesToThrottle_ = 0;
         }
 
@@ -3070,6 +3122,8 @@ private:
             "(BytesThrottled: %v, Backup: %v)",
             BytesThrottled_,
             backup);
+
+        AccountExtraMediumBandwidth(BytesThrottled_);
 
         Promise_.TrySet(TrackMemory(SessionOptions_.MemoryReferenceTracker, std::move(result)));
     }
@@ -3114,6 +3168,7 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
         codecId,
         BandwidthThrottler_,
         RpsThrottler_,
+        MediumThrottler_,
         std::move(sessionInvoker));
     return session->Run();
 }
@@ -3130,10 +3185,12 @@ public:
     TReplicationReaderWithOverriddenThrottlers(
         TReplicationReaderPtr underlyingReader,
         IThroughputThrottlerPtr bandwidthThrottler,
-        IThroughputThrottlerPtr rpsThrottler)
+        IThroughputThrottlerPtr rpsThrottler,
+        IThroughputThrottlerPtr mediumThrottler)
         : UnderlyingReader_(std::move(underlyingReader))
         , BandwidthThrottler_(std::move(bandwidthThrottler))
         , RpsThrottler_(std::move(rpsThrottler))
+        , MediumThrottler_(std::move(mediumThrottler))
     { }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
@@ -3151,7 +3208,8 @@ public:
             options,
             blockIndexes,
             BandwidthThrottler_,
-            RpsThrottler_);
+            RpsThrottler_,
+            MediumThrottler_);
         return session->Run();
     }
 
@@ -3173,7 +3231,8 @@ public:
             firstBlockIndex,
             blockCount,
             BandwidthThrottler_,
-            RpsThrottler_);
+            RpsThrottler_,
+            MediumThrottler_);
         return session->Run();
     }
 
@@ -3203,6 +3262,7 @@ public:
             codecId,
             BandwidthThrottler_,
             RpsThrottler_,
+            MediumThrottler_,
             std::move(sessionInvoker));
         return session->Run();
     }
@@ -3227,6 +3287,7 @@ private:
 
     const IThroughputThrottlerPtr BandwidthThrottler_;
     const IThroughputThrottlerPtr RpsThrottler_;
+    const IThroughputThrottlerPtr MediumThrottler_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicationReaderWithOverriddenThrottlers)
@@ -3257,7 +3318,8 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
 IChunkReaderAllowingRepairPtr CreateReplicationReaderThrottlingAdapter(
     const IChunkReaderPtr& underlyingReader,
     IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler)
+    IThroughputThrottlerPtr rpsThrottler,
+    IThroughputThrottlerPtr mediumThrottler)
 {
     auto* underlyingReplicationReader = dynamic_cast<TReplicationReader*>(underlyingReader.Get());
     YT_VERIFY(underlyingReplicationReader);
@@ -3265,7 +3327,8 @@ IChunkReaderAllowingRepairPtr CreateReplicationReaderThrottlingAdapter(
     return New<TReplicationReaderWithOverriddenThrottlers>(
         underlyingReplicationReader,
         std::move(bandwidthThrottler),
-        std::move(rpsThrottler));
+        std::move(rpsThrottler),
+        std::move(mediumThrottler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

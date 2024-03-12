@@ -972,6 +972,7 @@ private:
             /*nodeStatusDirectory*/ nullptr,
             Host_->GetInBandwidthThrottler(),
             Host_->GetOutRpsThrottler(),
+            /*mediumThrottler*/ GetUnlimitedThrottler(),
             Host_->GetTrafficMeter());
     }
 };

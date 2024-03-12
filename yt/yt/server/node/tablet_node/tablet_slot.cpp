@@ -117,26 +117,32 @@ using NHydra::EPeerState;
 
 static const TString TabletCellHydraTracker = "TabletCellHydra";
 static const TString WriteDirectionName = "write";
+static const TString ReadDirectionName = "read";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static TThroughputThrottlerConfigPtr GetMediumThrottlerConfig(
     const TString& mediumName,
-    const TBundleDynamicConfigPtr& bundleConfig)
+    const TBundleDynamicConfigPtr& bundleConfig,
+    auto getThrottlerLimit)
 {
     auto result = New<TThroughputThrottlerConfig>();
+
+    static constexpr auto UnlimitedThroughput = 1024_TB;
+    result->Limit = UnlimitedThroughput;
+
     if (!bundleConfig) {
         return result;
     }
 
     const auto& mediumThrottlerConfig = bundleConfig->MediumThroughputLimits;
-
     auto it = mediumThrottlerConfig.find(mediumName);
-    if (it != mediumThrottlerConfig.end()) {
-        result->Limit = it->second->WriteByteRate;
-    } else {
-        static constexpr auto UnlimitedThroughput = 1024_TB;
-        result->Limit = UnlimitedThroughput;
+    if (it == mediumThrottlerConfig.end()) {
+        return result;
+    }
+
+    if (auto limit = getThrottlerLimit(it->second); limit) {
+        result->Limit = limit;
     }
 
     return result;
@@ -178,8 +184,16 @@ public:
     {
         RegisteredWriteThrottlers_.insert(mediumName);
 
-        return GetOrCreateThrottler(
-            WriteDirectionName,
+        return GetOrCreateWriteThrottler(
+            mediumName,
+            DynamicConfigManager_->GetConfig());
+    }
+
+    IReconfigurableThroughputThrottlerPtr GetMediumReadThrottler(const TString& mediumName)
+    {
+        RegisteredReadThrottlers_.insert(mediumName);
+
+        return GetOrCreateReadThrottler(
             mediumName,
             DynamicConfigManager_->GetConfig());
     }
@@ -197,12 +211,40 @@ private:
     const NProfiling::TProfiler Profiler_;
 
     THashSet<TString> RegisteredWriteThrottlers_;
+    THashSet<TString> RegisteredReadThrottlers_;
     TDynamicConfigCallback DynamicConfigCallback_;
+
+    IReconfigurableThroughputThrottlerPtr GetOrCreateWriteThrottler(
+        const TString& mediumName,
+        const TBundleDynamicConfigPtr& bundleConfig)
+    {
+        return GetOrCreateThrottler(
+            WriteDirectionName,
+            mediumName,
+            bundleConfig,
+            [] (const TMediumThroughputLimitsPtr& mediumLimits) {
+                return mediumLimits->WriteByteRate;
+            });
+    }
+
+    IReconfigurableThroughputThrottlerPtr GetOrCreateReadThrottler(
+        const TString& mediumName,
+        const TBundleDynamicConfigPtr& bundleConfig)
+    {
+        return GetOrCreateThrottler(
+            ReadDirectionName,
+            mediumName,
+            bundleConfig,
+            [] (const TMediumThroughputLimitsPtr& mediumLimits) {
+                return mediumLimits->ReadByteRate;
+            });
+    }
 
     IReconfigurableThroughputThrottlerPtr GetOrCreateThrottler(
         const TString& direction,
         const TString& mediumName,
-        const TBundleDynamicConfigPtr& bundleConfig)
+        const TBundleDynamicConfigPtr& bundleConfig,
+        auto getThrottlerLimit)
     {
         if (!DistributedThrottlerManager_) {
             return GetUnlimitedThrottler();
@@ -213,7 +255,7 @@ private:
         return DistributedThrottlerManager_->GetOrCreateThrottler(
             BundlePath_,
             /*cellTag*/ {},
-            GetMediumThrottlerConfig(mediumName, bundleConfig),
+            GetMediumThrottlerConfig(mediumName, bundleConfig, getThrottlerLimit),
             throttlerName,
             EDistributedThrottlerMode::Adaptive,
             WriteThrottlerRpcTimeout,
@@ -230,7 +272,11 @@ private:
         // In order to apply new parameters we have to just call GetOrCreateThrottler with a new config.
 
         for (const auto& medium : RegisteredWriteThrottlers_) {
-            GetOrCreateThrottler(WriteDirectionName, medium, newConfig);
+            GetOrCreateWriteThrottler(medium, newConfig);
+        }
+
+        for (const auto& medium : RegisteredReadThrottlers_) {
+            GetOrCreateReadThrottler(medium, newConfig);
         }
     }
 };
@@ -748,11 +794,14 @@ public:
 
     IChunkFragmentReaderPtr CreateChunkFragmentReader(TTablet* tablet) override
     {
+        auto mediumThrottler = tablet->DistributedThrottlers()[ETabletDistributedThrottlerKind::BlobMediumRead];
+
         return NChunkClient::CreateChunkFragmentReader(
             tablet->GetSettings().HunkReaderConfig,
             Bootstrap_->GetClient(),
             Bootstrap_->GetHintManager(),
             tablet->GetTableProfiler()->GetProfiler().WithPrefix("/chunk_fragment_reader"),
+            std::move(mediumThrottler),
             [bootstrap = Bootstrap_] (EWorkloadCategory category) -> const IThroughputThrottlerPtr& {
                 const auto& dynamicConfigManager = bootstrap->GetDynamicConfigManager();
                 const auto& tabletNodeConfig = dynamicConfigManager->GetConfig()->TabletNode;
@@ -874,6 +923,14 @@ private:
         YT_VERIFY(MediumThrottlerManager_);
 
         return MediumThrottlerManager_->GetMediumWriteThrottler(mediumName);
+    }
+
+    IReconfigurableThroughputThrottlerPtr GetMediumReadThrottler(const TString& mediumName) const override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(MediumThrottlerManager_);
+
+        return MediumThrottlerManager_->GetMediumReadThrottler(mediumName);
     }
 };
 

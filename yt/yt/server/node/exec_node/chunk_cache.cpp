@@ -989,6 +989,7 @@ private:
                 /*nodeStatusDirectory*/ nullptr,
                 Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn),
                 Bootstrap_->GetReadRpsOutThrottler(),
+                /*mediumThrottler*/ GetUnlimitedThrottler(),
                 artifactDownloadOptions.TrafficMeter);
 
             auto chunkReader = CreateReplicationReader(
@@ -1166,6 +1167,7 @@ private:
             /*nodeStatusDirectory*/ nullptr,
             Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn),
             Bootstrap_->GetReadRpsOutThrottler(),
+            /*mediumThrottler*/ GetUnlimitedThrottler(),
             trafficMeter);
         auto reader = CreateFileMultiChunkReader(
             GetArtifactCacheReaderConfig(),
@@ -1300,6 +1302,7 @@ private:
             /*nodeStatusDirectory*/ nullptr,
             Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn),
             Bootstrap_->GetReadRpsOutThrottler(),
+            /*mediumThrottler*/ GetUnlimitedThrottler(),
             trafficMeter);
         auto reader = CreateSchemalessSequentialMultiReader(
             GetArtifactCacheReaderConfig(),

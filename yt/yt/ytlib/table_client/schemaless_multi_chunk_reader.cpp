@@ -157,6 +157,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
         chunkReaderHost->Client,
         CreateTrivialNodeStatusDirectory(),
         /*profiler*/ {},
+        /*mediumThrottler*/ GetUnlimitedThrottler(),
         /*throttlerProvider*/ {});
 
     std::vector<IReaderFactoryPtr> factories;
@@ -1356,6 +1357,7 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
                 chunkReaderHost->Client,
                 CreateTrivialNodeStatusDirectory(),
                 /*profiler*/ {},
+                /*mediumThrottler*/ GetUnlimitedThrottler(),
                 /*throttlerProvider*/ {});
             auto dictionaryCompressionFactory = CreateSimpleDictionaryCompressionFactory(
                 chunkFragmentReader,

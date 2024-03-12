@@ -749,18 +749,21 @@ IChunkReaderPtr CreateRemoteReaderThrottlingAdapter(
     TChunkId chunkId,
     const IChunkReaderPtr& underlyingReader,
     IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler)
+    IThroughputThrottlerPtr rpsThrottler,
+    IThroughputThrottlerPtr mediumThrottler)
 {
     if (IsErasureChunkId(chunkId)) {
         return CreateAdaptiveRepairingErasureReaderThrottlingAdapter(
             underlyingReader,
             std::move(bandwidthThrottler),
-            std::move(rpsThrottler));
+            std::move(rpsThrottler),
+            std::move(mediumThrottler));
     } else {
         return CreateReplicationReaderThrottlingAdapter(
             underlyingReader,
             std::move(bandwidthThrottler),
-            std::move(rpsThrottler));
+            std::move(rpsThrottler),
+            std::move(mediumThrottler));
     }
 }
 

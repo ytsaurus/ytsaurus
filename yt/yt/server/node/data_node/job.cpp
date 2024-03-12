@@ -774,6 +774,7 @@ private:
             /*nodeStatusDirectory*/ nullptr,
             /*bandwidthThrottler*/ Bootstrap_->GetThrottler(EDataNodeThrottlerKind::RepairIn),
             /*rpsThrottler*/ GetUnlimitedThrottler(),
+            /*mediumThrottler*/ GetUnlimitedThrottler(),
             /*trafficMeter*/ nullptr);
 
         return CreateReplicationReader(
@@ -1106,6 +1107,7 @@ private:
                 /*nodeStatusDirectory*/ nullptr,
                 Bootstrap_->GetThrottler(EDataNodeThrottlerKind::ReplicationIn),
                 /*rpsThrottler*/ GetUnlimitedThrottler(),
+                /*mediumThrottler*/ GetUnlimitedThrottler(),
                 /*trafficMeter*/ nullptr);
             auto reader = NJournalClient::CreateChunkReader(
                 DynamicConfig_->Reader,
@@ -1806,6 +1808,7 @@ private:
             /*nodeStatusDirectory*/ nullptr,
             Bootstrap_->GetThrottler(EDataNodeThrottlerKind::MergeIn),
             /*rpsThrottler*/ GetUnlimitedThrottler(),
+            /*mediumThrottler*/ GetUnlimitedThrottler(),
             /*trafficMeter*/ nullptr);
         return CreateRemoteReader(
             GetChunkSpec(chunk),
@@ -2088,6 +2091,7 @@ private:
             /*nodeStatusDirectory*/ nullptr,
             Bootstrap_->GetThrottler(EDataNodeThrottlerKind::ReincarnationIn),
             /*rpsThrottler*/ GetUnlimitedThrottler(),
+            /*mediumThrottler*/ GetUnlimitedThrottler(),
             /*trafficMeter*/ nullptr);
         auto remoteReader = CreateRemoteReader(
             oldChunkSpec,
@@ -2578,6 +2582,7 @@ private:
             /*nodeStatusDirectory*/ nullptr,
             Bootstrap_->GetThrottler(EDataNodeThrottlerKind::AutotomyIn),
             /*rpsThrottler*/ GetUnlimitedThrottler(),
+            /*mediumThrottler*/ GetUnlimitedThrottler(),
             /*trafficMeter*/ nullptr);
 
         auto reader = NJournalClient::CreateChunkReader(

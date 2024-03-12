@@ -49,6 +49,7 @@ std::vector<TSharedRef> TClient::DoReadHunks(
         this,
         CreateTrivialNodeStatusDirectory(),
         /*profiler*/ {},
+        /*mediumThrottler*/ GetUnlimitedThrottler(),
         /*throttlerProvider*/ {});
 
     std::vector<IChunkFragmentReader::TChunkFragmentRequest> readerRequests;
