@@ -2,8 +2,6 @@
 
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 
-#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
-
 #include <yt/yt/ytlib/controller_agent/public.h>
 
 #include <yt/yt/ytlib/table_client/partitioner.h>
@@ -35,7 +33,7 @@ NTableClient::IPartitionerPtr CreatePartitioner(const NControllerAgent::NProto::
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int GetJobFirstOutputTableFdFromSpec(const NControllerAgent::NProto::TUserJobSpec& spec);
+int GetJobFirstOutputTableFDFromSpec(const NControllerAgent::NProto::TUserJobSpec& spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

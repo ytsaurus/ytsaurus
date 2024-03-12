@@ -983,17 +983,12 @@ private:
         auto outputStreamCount = UserJobWriteController_->GetOutputStreamCount();
         TableOutputs_.reserve(outputStreamCount);
 
-        if (UserJobSpec_.use_yamr_descriptors() && UserJobSpec_.redirect_stdout_to_stderr()) {
-            THROW_ERROR_EXCEPTION("Uncompatible flags are present in operation spec: " \
-                                  "use_yamr_descriptors and redirect_stdout_to_stderr.");
-        }
-
         for (int i = 0; i < outputStreamCount; ++i) {
             TableOutputs_.emplace_back(std::make_unique<TTableOutput>(std::move(parsers[i])));
 
             int jobDescriptor = UserJobSpec_.use_yamr_descriptors()
                 ? 3 + i
-                : 3 * i + GetJobFirstOutputTableFdFromSpec(UserJobSpec_);
+                : 3 * i + GetJobFirstOutputTableFDFromSpec(UserJobSpec_);
 
             // In case of YAMR jobs dup 1 and 3 fd for YAMR compatibility
             auto wrappingError = TError("Error writing to output table %v", i);
@@ -1230,8 +1225,8 @@ private:
         }
 
         if (!UserJobSpec_.use_yamr_descriptors()) {
-            int jobFirstOutputTableFd = GetJobFirstOutputTableFdFromSpec(UserJobSpec_);
-            Environment_.push_back(Format("YT_FIRST_OUTPUT_TABLE_FD=%v", jobFirstOutputTableFd));
+            int jobFirstOutputTableFD = GetJobFirstOutputTableFDFromSpec(UserJobSpec_);
+            Environment_.push_back(Format("YT_FIRST_OUTPUT_TABLE_FD=%v", jobFirstOutputTableFD));
         }
 
         const auto& environment = UserJobEnvironment_->GetEnvironmentVariables();
