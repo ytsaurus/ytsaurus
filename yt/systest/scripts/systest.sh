@@ -96,7 +96,5 @@ bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --name tester ${tester_f
 helm install ${nsflags} ${name_systest} --set SystestImagePath=${systest_image} ${ytsaurus_source_path}/yt/systest/helm/systest
 bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --wait-minutes 720 --name systest ${tester_flags} || print_systest_logs $nsflags
 
-# Temporarily disable newstresstest (after review/5431561) until able to build hermetically in OS.
-# TODO(orlovorlov) restore newstresstest.
-#helm install ${nsflags} ${name_new_stress_test} --set SystestImagePath=${systest_image} ${ytsaurus_source_path}/yt/systest/helm/new_stress_test
-#bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --name newstresstest ${tester_flags}
+helm install ${nsflags} ${name_new_stress_test} --set SystestImagePath=${systest_image} ${ytsaurus_source_path}/yt/systest/helm/new_stress_test
+bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --name newstresstest ${tester_flags}
