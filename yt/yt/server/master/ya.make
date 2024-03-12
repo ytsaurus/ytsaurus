@@ -133,7 +133,7 @@ SRCS(
     chunk_server/proto/chunk_reincarnator.proto
     chunk_server/proto/master_cell_chunk_statistics_collector.proto
     chunk_server/public.cpp
-    chunk_server/refresh_epoch.cpp
+    chunk_server/incumbency_epoch.cpp
     chunk_server/s3_medium_proxy.cpp
     chunk_server/s3_medium_type_handler.cpp
     chunk_server/s3_medium.cpp

@@ -56,26 +56,26 @@ inline void TChunk::MaybeResetObsoleteEpochData()
     auto* data = GetDynamicData();
     auto currentEpoch = NObjectServer::GetCurrentEpoch();
     if (currentEpoch != data->Epoch) {
-        data->EpochScanFlags &= EChunkScanKind::Refresh;
+        data->EpochScanFlags &= DelegatedScanKinds;
         data->Epoch = currentEpoch;
     }
 
-    auto currentRefreshEpoch = GetRefreshEpoch(ShardIndex_);
-    if (currentRefreshEpoch != data->RefreshEpoch) {
+    auto currentIncumbencyEpoch = GetIncumbencyEpoch(ShardIndex_);
+    if (currentIncumbencyEpoch != data->IncumbencyEpoch) {
         data->EpochPartLossTime = {};
-        data->EpochScanFlags &= ~EChunkScanKind::Refresh;
-        data->RefreshEpoch = currentRefreshEpoch;
+        data->EpochScanFlags &= ~DelegatedScanKinds;
+        data->IncumbencyEpoch = currentIncumbencyEpoch;
     }
 }
 
 inline bool TChunk::GetScanFlag(EChunkScanKind kind) const
 {
     auto* data = GetDynamicData();
-    if (kind == EChunkScanKind::Refresh) {
-        auto currentRefreshEpoch = GetRefreshEpoch(ShardIndex_);
-        return data->RefreshEpoch == currentRefreshEpoch ? Any(data->EpochScanFlags & kind) : false;
+    if (Any(DelegatedScanKinds & kind)) {
+        auto currentIncumbencyEpoch = GetIncumbencyEpoch(ShardIndex_);
+        return data->IncumbencyEpoch == currentIncumbencyEpoch ? Any(data->EpochScanFlags & kind) : false;
     } else {
-        YT_ASSERT(None(kind & EChunkScanKind::Refresh));
+        YT_ASSERT(None(DelegatedScanKinds & kind));
         auto currentEpoch = NObjectServer::GetCurrentEpoch();
         return data->Epoch == currentEpoch ? Any(data->EpochScanFlags & kind) : false;
     }
@@ -105,8 +105,8 @@ inline TChunk* TChunk::GetNextScannedChunk() const
 inline std::optional<NProfiling::TCpuInstant> TChunk::GetPartLossTime() const
 {
     auto* data = GetDynamicData();
-    auto currentRefreshEpoch = GetRefreshEpoch(ShardIndex_);
-    if (data->RefreshEpoch == currentRefreshEpoch && data->EpochPartLossTime != NProfiling::TCpuInstant{}) {
+    auto currentIncumbencyEpoch = GetIncumbencyEpoch(ShardIndex_);
+    if (data->IncumbencyEpoch == currentIncumbencyEpoch && data->EpochPartLossTime != NProfiling::TCpuInstant{}) {
         return data->EpochPartLossTime;
     } else {
         return std::nullopt;
@@ -347,13 +347,13 @@ inline bool TChunk::IsExported() const
 inline void TChunk::OnRefresh()
 {
     auto* data = GetDynamicData();
-    data->LastRefreshEpoch = GetRefreshEpoch(ShardIndex_);
+    data->LastRefreshIncumbencyEpoch = GetIncumbencyEpoch(ShardIndex_);
 }
 
 inline bool TChunk::IsRefreshActual() const
 {
     if (auto* data = GetDynamicData()) {
-        return data->LastRefreshEpoch == GetRefreshEpoch(ShardIndex_);
+        return data->LastRefreshIncumbencyEpoch == GetIncumbencyEpoch(ShardIndex_);
     } else {
         YT_VERIFY(!NObjectServer::IsObjectAlive(this));
         return false;
