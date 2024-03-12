@@ -382,6 +382,15 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             tabletSnapshot->Settings.StoreWriterOptions->ReplicationFactor,
             dataStatistics.regular_disk_space(),
             dataStatistics.erasure_disk_space());
+        auto mediumThrottler = GetBlobMediumWriteThrottler(
+            TabletContext_->GetDynamicConfigManager(),
+            tabletSnapshot);
+
+        YT_LOG_DEBUG("Throttling blobs media write in ordered store flush (DiskSpace: %v)",
+            diskSpace);
+
+        WaitFor(mediumThrottler->Throttle(diskSpace))
+            .ThrowOnError();
 
         YT_LOG_DEBUG("Ordered store flushed (StoreId: %v, ChunkId: %v, DiskSpace: %v, HunkChunkIds: %v)",
             store->GetId(),

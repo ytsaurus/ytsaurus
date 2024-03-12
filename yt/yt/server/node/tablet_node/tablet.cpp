@@ -16,6 +16,9 @@
 #include "hunk_lock_manager.h"
 #include "hedging_manager_registry.h"
 
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
@@ -2181,8 +2184,11 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
 
     DistributedThrottlers_[ETabletDistributedThrottlerKind::ChangelogMediumWrite] =
         slot->GetChangelogMediumWriteThrottler();
+    DistributedThrottlers_[ETabletDistributedThrottlerKind::BlobMediumWrite] =
+        slot->GetMediumWriteThrottler(Settings_.StoreWriterOptions->MediumName);
 
     YT_VERIFY(DistributedThrottlers_[ETabletDistributedThrottlerKind::ChangelogMediumWrite]);
+    YT_VERIFY(DistributedThrottlers_[ETabletDistributedThrottlerKind::BlobMediumWrite]);
 }
 
 void TTablet::ReconfigureChunkFragmentReader(const ITabletSlotPtr& slot)
@@ -2830,6 +2836,19 @@ void BuildTableSettingsOrchidYson(const TTableSettings& options, NYTree::TFluent
             .EndAttributes()
             .Value(options.HunkReaderConfig);
 }
+
+IThroughputThrottlerPtr GetBlobMediumWriteThrottler(
+    const NClusterNode::TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
+    const TTabletSnapshotPtr& tabletSnapshot)
+{
+    auto mediumThrottlersConfig = dynamicConfigManager->GetConfig()->TabletNode->MediumThrottlers;
+    if (!mediumThrottlersConfig->EnableBlobThrottling) {
+        return GetUnlimitedThrottler();
+    }
+
+    return tabletSnapshot->DistributedThrottlers[ETabletDistributedThrottlerKind::BlobMediumWrite];
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -515,10 +515,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TSubscriptionGuard);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTablet
     : public TObjectBase
     , public TRefTracked<TTablet>
@@ -911,6 +907,10 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 void BuildTableSettingsOrchidYson(const TTableSettings& options, NYTree::TFluentMap fluent);
+
+NConcurrency::IThroughputThrottlerPtr GetBlobMediumWriteThrottler(
+    const NClusterNode::TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
+    const TTabletSnapshotPtr& tabletSnapshot);
 
 ////////////////////////////////////////////////////////////////////////////////
 

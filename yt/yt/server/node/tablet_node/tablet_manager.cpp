@@ -5062,7 +5062,7 @@ private:
         return dynamicConfigManager->GetConfig()->TabletNode;
     }
 
-   const TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const override
+    const TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const override
     {
         return Bootstrap_->GetDynamicConfigManager();
     }

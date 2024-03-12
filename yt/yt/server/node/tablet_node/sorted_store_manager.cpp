@@ -677,7 +677,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         auto combinedThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
             throttler,
-            tabletSnapshot->FlushThrottler
+            tabletSnapshot->FlushThrottler,
         });
 
         auto tabletCellTag = CellTagFromId(tabletSnapshot->TabletId);
@@ -898,6 +898,17 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                 dataStatistics.erasure_disk_space());
         };
 
+        auto totalDiskSpace = getDiskSpace(storeWriter, tabletSnapshot->Settings.StoreWriterOptions) +
+            getDiskSpace(hunkChunkWriter, tabletSnapshot->Settings.HunkWriterOptions);
+        auto mediumThrottler = GetBlobMediumWriteThrottler(
+            TabletContext_->GetDynamicConfigManager(),
+            tabletSnapshot);
+
+        YT_LOG_DEBUG("Throttling blobs media write in sorted store flush (DiskSpace: %v)",
+            totalDiskSpace);
+
+        WaitFor(mediumThrottler->Throttle(totalDiskSpace))
+            .ThrowOnError();
 
         YT_LOG_DEBUG("Sorted store flushed (StoreId: %v, StoreChunkId: %v, StoreChunkDiskSpace: %v%v, RowsInStore %v, FoundCacheRows: %v, DiscardedCacheRows: %v, FailedByMemoryCacheRows: %v)",
             store->GetId(),

@@ -881,6 +881,8 @@ void TMediumThrottlersConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_changelog_throttling", &TThis::EnableChangelogThrottling)
         .Default(false);
+    registrar.Parameter("enable_blob_throttling", &TThis::EnableBlobThrottling)
+        .Default(false);
     registrar.Parameter("throttle_timeout_fraction", &TThis::ThrottleTimeoutFraction)
         .Default(0.5);
     registrar.Parameter("max_throttling_time", &TThis::MaxThrottlingTime)

@@ -108,7 +108,7 @@ struct ITabletSlot
     virtual double GetUsedCpu(double cpuPerTabletSlot) = 0;
 
     virtual NTabletClient::TDynamicTabletCellOptionsPtr GetDynamicOptions() = 0;
-    virtual NTabletClient::TTabletCellOptionsPtr GetOptions() = 0;
+    virtual NTabletClient::TTabletCellOptionsPtr GetOptions() const = 0;
 
     virtual NChunkClient::IChunkFragmentReaderPtr CreateChunkFragmentReader(TTablet* tablet) = 0;
     virtual ICompressionDictionaryManagerPtr GetCompressionDictionaryManager() const = 0;
@@ -122,6 +122,7 @@ struct ITabletSlot
 
     virtual int EstimateChangelogMediumBytes(int payloadBytes) const = 0;
     virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetChangelogMediumWriteThrottler() const = 0;
+    virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetMediumWriteThrottler(const TString& mediumName) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletSlot)

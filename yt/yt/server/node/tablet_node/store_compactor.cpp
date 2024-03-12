@@ -126,6 +126,36 @@ class TTask;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void SyncThrottleMediumWrite(
+    const IBootstrap* bootstrap,
+    const TTabletSnapshotPtr& tabletSnapshot,
+    const NChunkClient::NProto::TDataStatistics& dataStatistics,
+    const NChunkClient::NProto::TDataStatistics& hunkDataStatistics,
+    const NLogging::TLogger& Logger)
+{
+    auto mediumThrottler = GetBlobMediumWriteThrottler(
+        bootstrap->GetDynamicConfigManager(),
+        tabletSnapshot);
+
+    auto totalDiskSpace = CalculateDiskSpaceUsage(
+        tabletSnapshot->Settings.StoreWriterOptions->ReplicationFactor,
+        dataStatistics.regular_disk_space(),
+        dataStatistics.erasure_disk_space());
+
+    totalDiskSpace += CalculateDiskSpaceUsage(
+        tabletSnapshot->Settings.HunkWriterOptions->ReplicationFactor,
+        hunkDataStatistics.regular_disk_space(),
+        hunkDataStatistics.erasure_disk_space());
+
+    YT_LOG_DEBUG("Throttling blobs media write (DiskSpace: %v)",
+        totalDiskSpace);
+
+    WaitFor(mediumThrottler->Throttle(totalDiskSpace))
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCompactionTaskInfo
     : public TTaskInfoBase
 {
@@ -1440,6 +1470,7 @@ private:
         IVersionedReaderPtr reader;
         TEdenPartitioningResult partitioningResult;
         TCompactionSessionFinalizeResult finalizeResult;
+        NChunkClient::NProto::TDataStatistics writerDataStatistics;
 
         auto readerProfiler = New<TReaderProfiler>();
         auto writerProfiler = New<TWriterProfiler>();
@@ -1517,6 +1548,18 @@ private:
             std::tie(partitioningResult, finalizeResult) = WaitFor(partitioningResultFuture)
                 .ValueOrThrow();
             const auto& partitionWriters = partitioningResult.PartitionStoreWriters;
+
+            for (const auto& [writer, _] : partitioningResult.PartitionStoreWriters) {
+                writerDataStatistics += writer->GetDataStatistics();
+                writerProfiler->Update(writer);
+            }
+
+            SyncThrottleMediumWrite(
+                Bootstrap_,
+                tabletSnapshot,
+                writerDataStatistics,
+                partitioningResult.HunkWriter->GetDataStatistics(),
+                Logger);
 
             // We can release semaphore, because we are no longer actively using resources.
             task->SemaphoreGuard.Release();
@@ -1600,12 +1643,6 @@ private:
                 storeManager->BackoffStoreCompaction(store);
             }
             task->Failed = true;
-        }
-
-        NChunkClient::NProto::TDataStatistics writerDataStatistics;
-        for (const auto& [writer, _] : partitioningResult.PartitionStoreWriters) {
-            writerDataStatistics += writer->GetDataStatistics();
-            writerProfiler->Update(writer);
         }
 
         writerProfiler->Update(
@@ -1905,6 +1942,13 @@ private:
 
             std::tie(compactionResult, finalizeResult) = WaitFor(compactionResultFuture)
                 .ValueOrThrow();
+
+            SyncThrottleMediumWrite(
+                Bootstrap_,
+                tabletSnapshot,
+                compactionResult.StoreWriter->GetDataStatistics(),
+                compactionResult.HunkWriter->GetDataStatistics(),
+                Logger);
 
             // We can release semaphore, because we are no longer actively using resources.
             task->SemaphoreGuard.Release();
