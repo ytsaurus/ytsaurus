@@ -28,6 +28,11 @@ Internal Docker Registry доступен по стандартному прот
 
 Каждая exec-нода при запуске джоба скачивает образ себе в локальный кэш, следовательно крупный кластер может генерировать существенную нагрузку на docker registry.
 
+### Авторизация { #docker_auth }
+
+Секрет для доступа к приватному docker registry указывается с помощью ключа `docker_auth` опции `secure_vault`:
+`secure_vault = { docker_auth = { username = "..."; password = "..."; auth = "..."; }; }`.
+
 ## Porto слои { #porto_layers }
 
 В данном разделе собрана информация о Porto слоях.
