@@ -11,6 +11,7 @@
 #include "helpers.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
@@ -61,6 +62,7 @@ using namespace NJournalClient;
 using namespace NNodeTrackerServer;
 using namespace NConcurrency;
 using namespace NSecurityServer;
+using namespace NCellMaster;
 
 using NChunkClient::NProto::TMiscExt;
 using NTableClient::NProto::TBoundaryKeysExt;
@@ -245,6 +247,65 @@ private:
             .SetPresent(false);
     }
 
+    void SerializeReplica(
+        TFluentList fluent,
+        const IChunkManagerPtr& chunkManager,
+        TChunkId chunkId,
+        const TNode* node,
+        const TRealChunkLocation* location,
+        int replicaIndex,
+        EChunkReplicaState replicaState,
+        int mediumIndex)
+    {
+        auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
+        fluent.Item()
+            .BeginAttributes()
+                .Item("medium").Value(medium->GetName())
+                .DoIf(location, [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("location_uuid").Value(location->GetUuid());
+                })
+                .DoIf(node->IsDecommissioned(), [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("decommissioned").Value(true);
+                })
+                .DoIf(IsErasureChunkId(chunkId), [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("index").Value(replicaIndex);
+                })
+                .DoIf(IsJournalChunkId(chunkId), [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("state").Value(replicaState);
+                })
+            .EndAttributes()
+            .Value(node->GetDefaultAddress());
+    };
+
+    void BuildYsonReplicas(
+        IYsonConsumer* consumer,
+        const IChunkManagerPtr& chunkManager,
+        TChunkId chunkId,
+        TChunkLocationPtrWithReplicaInfoList replicas)
+    {
+        SortBy(replicas, [] (TChunkLocationPtrWithReplicaInfo replica) {
+            return std::tuple(replica.GetReplicaIndex(), replica.GetPtr()->GetEffectiveMediumIndex());
+        });
+
+        BuildYsonFluently(consumer)
+            .DoListFor(replicas, [&] (TFluentList fluent, TChunkLocationPtrWithReplicaInfo replica) {
+                const auto* location = replica.GetPtr();
+                SerializeReplica(
+                    fluent,
+                    chunkManager,
+                    chunkId,
+                    location->GetNode(),
+                    location->IsImaginary() ? nullptr : location->AsReal(),
+                    replica.GetReplicaIndex(),
+                    replica.GetReplicaState(),
+                    location->GetEffectiveMediumIndex());
+            });
+    };
+
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -258,134 +319,15 @@ private:
 
         auto miscExt = chunk->ChunkMeta()->FindExtension<TMiscExt>();
 
-        auto serializeReplica = [&] (
-            TFluentList fluent,
-            const TNode* node,
-            const TRealChunkLocation* location,
-            int replicaIndex,
-            EChunkReplicaState replicaState,
-            int mediumIndex)
-        {
-            auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
-            fluent.Item()
-                .BeginAttributes()
-                    .Item("medium").Value(medium->GetName())
-                    .DoIf(location, [&] (TFluentMap fluent) {
-                        fluent
-                            .Item("location_uuid").Value(location->GetUuid());
-                    })
-                    .DoIf(node->IsDecommissioned(), [&] (TFluentMap fluent) {
-                        fluent
-                            .Item("decommissioned").Value(true);
-                    })
-                    .DoIf(chunk->IsErasure(), [&] (TFluentMap fluent) {
-                        fluent
-                            .Item("index").Value(replicaIndex);
-                    })
-                    .DoIf(chunk->IsJournal(), [&] (TFluentMap fluent) {
-                        fluent
-                            .Item("state").Value(replicaState);
-                    })
-                .EndAttributes()
-                .Value(node->GetDefaultAddress());
-        };
-
-        auto buildYsonFromReplicas = [&] (TChunkLocationPtrWithReplicaInfoList& replicas) {
-            SortBy(replicas, [] (TChunkLocationPtrWithReplicaInfo replica) {
-                return std::tuple(replica.GetReplicaIndex(), replica.GetPtr()->GetEffectiveMediumIndex());
-            });
-            BuildYsonFluently(consumer)
-                .DoListFor(replicas, [&] (TFluentList fluent, TChunkLocationPtrWithReplicaInfo replica) {
-                    const auto* location = replica.GetPtr();
-                    serializeReplica(
-                        fluent,
-                        location->GetNode(),
-                        location->IsImaginary() ? nullptr : location->AsReal(),
-                        replica.GetReplicaIndex(),
-                        replica.GetReplicaState(),
-                        location->GetEffectiveMediumIndex());
-                });
-        };
-
         switch (key) {
-            case EInternedAttributeKey::StoredSequoiaReplicas: {
-                if (isForeign) {
-                    break;
-                }
-
-                auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(chunk);
-                // This is context switch, chunk may die.
-                auto replicas = chunkManager->GetSequoiaChunkReplicas(ephemeralChunk)
-                    .ValueOrThrow();
-                buildYsonFromReplicas(replicas);
-                return true;
-            }
-
             case EInternedAttributeKey::StoredMasterReplicas: {
                 if (isForeign) {
                     break;
                 }
+
                 auto masterReplicas = chunk->StoredReplicas();
                 TChunkLocationPtrWithReplicaInfoList replicaList(masterReplicas.begin(), masterReplicas.end());
-                buildYsonFromReplicas(replicaList);
-                return true;
-            }
-
-            case EInternedAttributeKey::StoredReplicas: {
-                if (isForeign) {
-                    break;
-                }
-
-                auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(chunk);
-                // This is context switch, chunk may die.
-                auto replicas = chunkManager->GetChunkReplicas(ephemeralChunk)
-                    .ValueOrThrow();
-                buildYsonFromReplicas(replicas);
-                return true;
-            }
-
-            case EInternedAttributeKey::LastSeenReplicas: {
-                if (isForeign) {
-                    break;
-                }
-
-                TNodePtrWithReplicaIndexList replicas;
-                const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-                auto addReplica = [&] (TNodeId nodeId, int replicaIndex) {
-                    auto* node = nodeTracker->FindNode(nodeId);
-                    if (IsObjectAlive(node)) {
-                        replicas.emplace_back(node, replicaIndex);
-                    }
-                };
-
-                auto chunkHolder = TEphemeralObjectPtr<TChunk>(chunk);
-                auto lastSeenReplicas = chunkManager->GetLastSeenReplicas(chunkHolder);
-                if (chunk->IsErasure()) {
-                    for (int index = 0; index < ::NErasure::MaxTotalPartCount; ++index) {
-                        addReplica(lastSeenReplicas[index], index);
-                    }
-                } else {
-                    for (auto nodeId : lastSeenReplicas) {
-                        addReplica(nodeId, GenericChunkReplicaIndex);
-                    }
-                }
-
-                SortUnique(replicas);
-                BuildYsonFluently(consumer)
-                    .DoListFor(replicas, [&] (TFluentList fluent, TNodePtrWithReplicaIndex replica) {
-                        fluent.Item()
-                            .BeginAttributes()
-                                .DoIf(chunk->IsErasure(), [&] (TFluentMap fluent) {
-                                    fluent
-                                        .Item("index").Value(replica.GetReplicaIndex());
-                                })
-                                .DoIf(replica.GetPtr()->IsDecommissioned(), [&] (TFluentMap fluent) {
-                                    fluent
-                                        .Item("decommissioned").Value(true);
-                                })
-                            .EndAttributes()
-                            .Value(replica.GetPtr()->GetDefaultAddress());
-                    });
+                BuildYsonReplicas(consumer, chunkManager, chunk->GetId(), replicaList);
                 return true;
             }
 
@@ -992,8 +934,10 @@ private:
                 });
                 BuildYsonFluently(consumer)
                     .DoListFor(replicas, [&] (TFluentList fluent, TNodePtrWithReplicaInfoAndMediumIndex replica) {
-                        serializeReplica(
+                        SerializeReplica(
                             fluent,
+                            chunkManager,
+                            chunk->GetId(),
                             replica.GetPtr(),
                             /*location*/ nullptr,
                             replica.GetReplicaIndex(),
@@ -1144,6 +1088,89 @@ private:
                 }
 
                 return chunkSchema->AsYsonAsync();
+            }
+
+            case EInternedAttributeKey::StoredReplicas: {
+                if (isForeign) {
+                    break;
+                }
+
+                auto chunkId = chunk->GetId();
+                return chunkManager->GetChunkReplicasAsync({TEphemeralObjectPtr<TChunk>(chunk)})
+                    .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TChunkLocationPtrWithReplicaInfoList& replicas) {
+                        return BuildYsonStringFluently()
+                            .Do([&] (auto fluent) {
+                                BuildYsonReplicas(fluent.GetConsumer(), chunkManager, chunkId, replicas);
+                            });
+                    }));
+            }
+
+            case EInternedAttributeKey::StoredSequoiaReplicas: {
+                if (isForeign) {
+                    break;
+                }
+
+                auto chunkId = chunk->GetId();
+                return chunkManager->GetOnlySequoiaChunkReplicas({chunk->GetId()})
+                    .Apply(BIND([=, this, this_ = MakeStrong(this)] (const THashMap<TChunkId, TChunkLocationPtrWithReplicaInfoList>& replicas) {
+                        return BuildYsonStringFluently()
+                            .Do([&] (auto fluent) {
+                                BuildYsonReplicas(fluent.GetConsumer(), chunkManager, chunkId, GetOrCrash(replicas, chunkId));
+                            });
+                    }));
+            }
+
+            case EInternedAttributeKey::LastSeenReplicas: {
+                if (isForeign) {
+                    break;
+                }
+
+                auto isErasure = chunk->IsErasure();
+                auto chunkId = chunk->GetId();
+                return chunkManager->GetLastSeenReplicas(TEphemeralObjectPtr<TChunk>(chunk)).Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TNodeId>& lastSeenReplicas) {
+                    TNodePtrWithReplicaIndexList replicas;
+                    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+                    auto addReplica = [&] (TNodeId nodeId, int replicaIndex) {
+                        auto* node = nodeTracker->FindNode(nodeId);
+                        if (IsObjectAlive(node)) {
+                            replicas.emplace_back(node, replicaIndex);
+                        }
+                    };
+
+                    if (isErasure) {
+                        if (std::ssize(lastSeenReplicas) != ::NErasure::MaxTotalPartCount) {
+                            auto error = TError("Unexpected last seen replicas size %v for erasure chunk %v",
+                                std::ssize(lastSeenReplicas),
+                                chunkId);
+                            YT_LOG_ALERT(error);
+                            THROW_ERROR_EXCEPTION(error);
+                        }
+                        for (int index = 0; index < ::NErasure::MaxTotalPartCount; ++index) {
+                            addReplica(lastSeenReplicas[index], index);
+                        }
+                    } else {
+                        for (auto nodeId : lastSeenReplicas) {
+                            addReplica(nodeId, GenericChunkReplicaIndex);
+                        }
+                    }
+
+                    SortUnique(replicas);
+                    return BuildYsonStringFluently()
+                        .DoListFor(replicas, [&] (TFluentList fluent, TNodePtrWithReplicaIndex replica) {
+                            fluent.Item()
+                                .BeginAttributes()
+                                    .DoIf(isErasure, [&] (TFluentMap fluent) {
+                                        fluent
+                                            .Item("index").Value(replica.GetReplicaIndex());
+                                    })
+                                    .DoIf(replica.GetPtr()->IsDecommissioned(), [&] (TFluentMap fluent) {
+                                        fluent
+                                            .Item("decommissioned").Value(true);
+                                    })
+                                .EndAttributes()
+                                .Value(replica.GetPtr()->GetDefaultAddress());
+                        });
+                }));
             }
 
             default:
