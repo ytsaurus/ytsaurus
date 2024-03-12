@@ -1160,8 +1160,18 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
 static std::vector<TJob> ParseJobsFromArchiveResponse(
     TOperationId operationId,
     const std::vector<NRecords::TJobPartial>& records,
+    const NTableClient::TTableSchemaPtr& schema,
     bool needFullStatistics)
 {
+    auto responseHasColumn = [&] (auto ...names) {
+        for (auto name : {names...,}) {
+            if (schema->FindColumn(name)) {
+                return true;
+            }
+        }
+        return false;
+    };
+
     std::vector<TJob> jobs;
     jobs.reserve(records.size());
     for (const auto& record : records) {
@@ -1176,21 +1186,14 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
         }
 
         // Skip jobs that was not fully written (usually it is written only by controller).
-        if (!jobType || !nodeState) {
+        if ((responseHasColumn("job_type", "type") && !jobType) || (responseHasColumn("node_state", "transient_state") && !nodeState)) {
             continue;
         }
 
         auto job = TJob{
             .Id = TJobId(TGuid(record.Key.JobIdHi, record.Key.JobIdLo)),
-            .OperationId = operationId,
-            // This field previously was non-optional.
-            .Address = record.Address.value_or(""),
             .StderrSize = record.StderrSize,
             .FailContextSize = record.FailContextSize,
-            // This field previously was non-optional.
-            .HasSpec = record.HasSpec.value_or(false),
-            .HasCompetitors = record.HasCompetitors.value_or(false),
-            .HasProbingCompetitors = record.HasProbingCompetitors.value_or(false),
             .Error = record.Error.value_or(TYsonString()),
             .InterruptionInfo = record.InterruptionInfo.value_or(TYsonString()),
             .BriefStatistics = record.BriefStatistics.value_or(TYsonString()),
@@ -1202,6 +1205,10 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             .MonitoringDescriptor = record.MonitoringDescriptor,
             .JobCookie = record.JobCookie,
         };
+
+        if (responseHasColumn("operation_id_hi")) {
+            job.OperationId = operationId;
+        }
 
         if (jobType) {
             job.Type = ParseEnum<EJobType>(*jobType);
@@ -1215,6 +1222,11 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             job.ArchiveState = ParseEnum<EJobState>(*nodeState);
         }
 
+        if (responseHasColumn("address")) {
+            // This field previously was non-optional.
+            job.Address = record.Address.value_or("");
+        }
+
         if (record.StartTime) {
             job.StartTime = TInstant::MicroSeconds(*record.StartTime);
         } else {
@@ -1224,6 +1236,21 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
 
         if (record.FinishTime) {
             job.FinishTime = TInstant::MicroSeconds(*record.FinishTime);
+        }
+
+        if (responseHasColumn("has_spec")) {
+            // This field previously was non-optional.
+            job.HasSpec = record.HasSpec.value_or(false);
+        }
+
+        if (responseHasColumn("has_competitors")) {
+            // This field previously was non-optional.
+            job.HasCompetitors = record.HasCompetitors.value_or(false);
+        }
+
+        if (responseHasColumn("has_probing_competitors")) {
+            // This field previously was non-optional.
+            job.HasProbingCompetitors = record.HasProbingCompetitors.value_or(false);
         }
 
         if (record.JobCompetitionId) {
@@ -1413,7 +1440,11 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
 
     return SelectRows(builder.Build(), selectRowsOptions).Apply(BIND([operationId, this_ = MakeStrong(this)] (const TSelectRowsResult& result) {
         auto records = ToRecords<NRecords::TJobPartial>(result.Rowset);
-        return ParseJobsFromArchiveResponse(operationId, records, /*needFullStatistics*/ false);
+        return ParseJobsFromArchiveResponse(
+            operationId,
+            records,
+            result.Rowset->GetSchema(),
+            /*needFullStatistics*/ false);
     }));
 }
 
@@ -2054,7 +2085,11 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
     }
 
     auto records = ToRecords<NRecords::TJobPartial>(rowset);
-    auto jobs = ParseJobsFromArchiveResponse(operationId, records, /*needFullStatistics*/ true);
+    auto jobs = ParseJobsFromArchiveResponse(
+        operationId,
+        records,
+        rowset->GetSchema(),
+        /*needFullStatistics*/ true);
     if (jobs.empty()) {
         return {};
     }
