@@ -98,9 +98,9 @@ TString TTestHome::StderrTable(const TString& operationName)
     return Dir_ + "/" + operationName + "_stderr";
 }
 
-TString TTestHome::TablePath(const TString& tableName) const
+TString TTestHome::TablePath(const TString& tableName, int retryAttempt) const
 {
-    return Dir_ + "/" + tableName;
+    return Dir_ + "/" + tableName + "_" + std::to_string(retryAttempt);
 }
 
 TString TTestHome::IntervalsDir(int shard) const

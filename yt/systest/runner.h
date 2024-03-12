@@ -59,9 +59,9 @@ private:
     TString CloneTableViaMap(const TTable& table, const TString& path, const TString& targetPath);
 
     TDatasetInfo PopulateBootstrapDataset(const NProto::TBootstrap& bootstrap, const TString& path);
-    TDatasetInfo PopulateMapDataset(const TString& name, const TDatasetInfo& parent, const NProto::TMapRunSpec& runSpec, const TString& path);
-    TDatasetInfo PopulateSortDataset(const TString& name, const TDatasetInfo& parent, const NProto::TSortRunSpec& sort, const TString& path);
-    TDatasetInfo PopulateReduceDataset(const TString& name, const TDatasetInfo& parent, const NProto::TReduceRunSpec& runSpec, const TString& path);
+    TDatasetInfo PopulateMapDataset(const TString& name, const TDatasetInfo& parent, const NProto::TMapRunSpec& runSpec);
+    TDatasetInfo PopulateSortDataset(const TString& name, const TDatasetInfo& parent, const NProto::TSortRunSpec& sort);
+    TDatasetInfo PopulateReduceDataset(const TString& name, const TDatasetInfo& parent, const NProto::TReduceRunSpec& runSpec);
 };
 
 }  // namespace NYT::NTest
