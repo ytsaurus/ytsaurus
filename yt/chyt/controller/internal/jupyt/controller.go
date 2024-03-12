@@ -36,7 +36,7 @@ func (c *Controller) buildCommand(speclet *Speclet) (command string, env map[str
 	// TODO(max): come up with a solution how to pass secrets (token or password) without exposing them in the
 	// strawberry attributes.
 	cmd := fmt.Sprintf(
-		"bash -x start.sh /opt/conda/bin/jupyter lab --ip :: --port %v --LabApp.token='' --allow-root >&2", JupytPort)
+		"bash -x start.sh /opt/conda/bin/jupyter lab --ip '*' --port %v --LabApp.token='' --allow-root >&2", JupytPort)
 	return cmd, map[string]string{
 		"NB_GID":  "0",
 		"NB_UID":  "0",
