@@ -2,8 +2,8 @@ from yt_chaos_test_base import ChaosTestBase
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE, CHAOS_NODES_SERVICE, RPC_PROXIES_SERVICE
 from yt_commands import (
     authors, create_tablet_cell_bundle, print_debug, build_master_snapshots, sync_create_cells, wait_for_cells,
-    ls, get, set, retry, create, wait, write_table, remove, exists, create_dynamic_table, sync_mount_table,
-    start_transaction, commit_transaction, insert_rows, delete_rows, lock_rows, build_snapshot, abort_transaction)
+    ls, get, set, retry, create, wait, write_table, remove, exists, create_dynamic_table, sync_mount_table, sync_unmount_table,
+    start_transaction, commit_transaction, insert_rows, delete_rows, lock_rows, build_snapshot, abort_transaction, create_domestic_medium)
 
 from yt_helpers import profiler_factory, master_exit_read_only_sync
 
@@ -401,3 +401,49 @@ class TestChaosCellsHydraPersistenceMigration(CellsHydraPersistenceMigrationBase
     @authors("danilalexeev")
     def test(self):
         self.execute_cells_hydra_presistence_migration(True)
+
+
+##################################################################
+
+
+class TestMediaCompatibility(MasterSnapshotsCompatibilityBase):
+    @authors("kivedernikov")
+    def test(self):
+        cell_ids = sync_create_cells(1)
+        create_domestic_medium("hdd1")
+        create_dynamic_table("//tmp/t", schema=[
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ])
+        create("hunk_storage", "//tmp/h")
+        set("//tmp/t/@hunk_storage_node", "//tmp/h")
+
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        sync_unmount_table("//tmp/t")
+        retry(lambda: self.restart_with_update(MASTERS_SERVICE))
+        wait_for_cells(cell_ids)
+
+        hunk_media = get("//tmp/t/@hunk_media")
+        assert hunk_media == {
+            "default" : {
+                "replication_factor": 3,
+                "data_parts_only": False,
+            }
+        }
+        hunk_media["default"] = {
+            "replication_factor": 2,
+            "data_parts_only": False,
+        }
+        set("//tmp/t/@hunk_media", hunk_media)
+
+        hunk_media = get("//tmp/t/@hunk_media")
+        expected_hunk_media = {
+            'default': {
+                'replication_factor': 2,
+                'data_parts_only': False
+            },
+        }
+        assert hunk_media == expected_hunk_media

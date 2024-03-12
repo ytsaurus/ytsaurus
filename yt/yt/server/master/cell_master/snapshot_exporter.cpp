@@ -114,6 +114,8 @@ static const std::vector<TString> PresetKeys = {
     "dynamic", \
     "erasure_codec", \
     "external", \
+    "hunk_media", \
+    "hunk_primary_medium", \
     "id", \
     "in_memory_mode", \
     "inherit_acl", \

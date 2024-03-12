@@ -207,6 +207,8 @@ DEFINE_ENUM(EMasterReign,
     ((MasterCellsCompositionReconfigurationOnNodes)                 (2539))  // cherepashka
     ((ImproveMaintenanceRequestsApi)                                (2540))  // kvk1920
     ((PersistLastSeenLeaseTransactionTimeout)                       (2541))  // danilalexeev
+    ((WideDateTimeTypes)                                            (2542))  // whatsername
+    ((HunkMedia)                                                    (2543))  // kivedernikov
     // 24.2 starts here.
 );
 

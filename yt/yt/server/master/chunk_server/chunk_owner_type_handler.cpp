@@ -40,6 +40,7 @@
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/core/ytree/interned_attributes.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
 namespace NYT::NChunkServer {
 
@@ -80,7 +81,9 @@ bool TChunkOwnerTypeHandler<TChunkOwner>::IsSupportedInheritableAttribute(const 
         "compression_codec",
         "erasure_codec",
         "media",
+        "hunk_media",
         "primary_medium",
+        "hunk_primary_medium",
         "replication_factor",
         "vital",
         "enable_chunk_merger"
@@ -100,6 +103,8 @@ bool TChunkOwnerTypeHandler<TChunkOwner>::HasBranchedChangesImpl(TChunkOwner* or
         branchedNode->GetUpdateMode() != NChunkClient::EUpdateMode::None ||
         branchedNode->GetPrimaryMediumIndex() != originatingNode->GetPrimaryMediumIndex() ||
         branchedNode->Replication() != originatingNode->Replication() ||
+        branchedNode->GetHunkPrimaryMediumIndex() != originatingNode->GetHunkPrimaryMediumIndex() ||
+        branchedNode->HunkReplication() != originatingNode->HunkReplication() ||
         branchedNode->GetCompressionCodec() != originatingNode->GetCompressionCodec() ||
         branchedNode->GetErasureCodec() != originatingNode->GetErasureCodec() ||
         branchedNode->GetEnableStripedErasure() != originatingNode->GetEnableStripedErasure() ||
@@ -124,7 +129,9 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
     auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
 
     auto primaryMediumName = combinedAttributes->GetAndRemove<TString>("primary_medium", NChunkClient::DefaultStoreMediumName);
+    auto hunkPrimaryMediumName = combinedAttributes->GetAndRemove<TString>("hunk_primary_medium", NChunkClient::DefaultStoreMediumName);
     auto* primaryMedium = chunkManager->GetMediumByNameOrThrow(primaryMediumName);
+    auto* hunkPrimaryMedium = chunkManager->GetMediumByNameOrThrow(hunkPrimaryMediumName);
 
     const auto& securityManager = this->GetBootstrap()->GetSecurityManager();
     securityManager->ValidatePermission(primaryMedium, EPermission::Use);
@@ -142,8 +149,9 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
 
     try {
         node->SetPrimaryMediumIndex(primaryMedium->GetIndex());
-
+        node->SetHunkPrimaryMediumIndex(hunkPrimaryMedium->GetIndex());
         node->Replication().Set(primaryMedium->GetIndex(), TReplicationPolicy(replicationFactor, false));
+        node->HunkReplication().Set(hunkPrimaryMedium->GetIndex(), TReplicationPolicy(replicationFactor, false));
 
         node->SetCompressionCodec(compressionCodec);
         node->SetErasureCodec(erasureCodec);
@@ -208,6 +216,8 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoBranch(
 
     branchedNode->SetPrimaryMediumIndex(originatingNode->GetPrimaryMediumIndex());
     branchedNode->Replication() = originatingNode->Replication();
+    branchedNode->SetHunkPrimaryMediumIndex(originatingNode->GetHunkPrimaryMediumIndex());
+    branchedNode->HunkReplication() = originatingNode->HunkReplication();
     branchedNode->SnapshotStatistics() = originatingNode->ComputeTotalStatistics();
 
     if (originatingNode->DeltaSecurityTags()->IsEmpty()) {
@@ -311,7 +321,9 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
     // overwritten. (NB: replication settings changes are never merged back to
     // the originating node and thus have no effect on these chunks.)
 
-    auto requisitionUpdateNeeded = topmostCommit || originatingNode->Replication() != branchedNode->Replication();
+    auto requisitionUpdateNeeded = topmostCommit ||
+        originatingNode->Replication() != branchedNode->Replication() ||
+        originatingNode->HunkReplication() != branchedNode->HunkReplication();
 
     // Below, chunk requisition update is scheduled no matter what (for non-external chunks,
     // of course). If nothing else, this is necessary to update 'committed' flags on chunks.
@@ -556,6 +568,8 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
     clonedTrunkNode->SetChunkMergerMode(sourceNode->GetChunkMergerMode());
     clonedTrunkNode->SetPrimaryMediumIndex(sourceNode->GetPrimaryMediumIndex());
     clonedTrunkNode->Replication() = sourceNode->Replication();
+    clonedTrunkNode->SetHunkPrimaryMediumIndex(sourceNode->GetHunkPrimaryMediumIndex());
+    clonedTrunkNode->HunkReplication() = sourceNode->HunkReplication();
 
     clonedTrunkNode->SnapshotStatistics() = sourceNode->ComputeTotalStatistics();
 
@@ -623,6 +637,10 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoBeginCopy(
     Save(*context, node->GetEnableSkynetSharing());
     Save(*context, node->GetChunkMergerMode());
 
+    auto* hunkMedium = chunkManager->GetMediumByIndexOrThrow(node->GetHunkPrimaryMediumIndex());
+    Save(*context, hunkMedium);
+
+    Save(*context, node->HunkReplication());
     context->RegisterExternalCellTag(node->GetExternalCellTag());
 }
 
@@ -657,6 +675,10 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoEndCopy(
     trunkNode->SetEnableStripedErasure(Load<bool>(*context));
     trunkNode->SetEnableSkynetSharing(Load<bool>(*context));
     trunkNode->SetChunkMergerMode(Load<EChunkMergerMode>(*context));
+
+    auto* hunkMedium = Load<TMedium*>(*context);
+    trunkNode->SetHunkPrimaryMediumIndex(hunkMedium->GetIndex());
+    Load(*context, trunkNode->HunkReplication());
 
     if (!trunkNode->IsExternal()) {
         if (trunkNode->GetChunkMergerMode() != EChunkMergerMode::None) {

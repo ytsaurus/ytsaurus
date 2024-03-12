@@ -110,8 +110,11 @@ private:
 
     void SetReplicationFactor(int replicationFactor);
     void SetVital(bool vital);
+    TString DoSetReplication(TChunkReplication* replicationStorage, const TChunkReplication& replication, int mediumIndex);
     void SetReplication(const TChunkReplication& replication);
+    void SetHunkReplication(const TChunkReplication& replication);
     void SetPrimaryMedium(TMedium* medium);
+    void SetHunkPrimaryMedium(TMedium* medium);
     void MaybeScheduleChunkMerge();
 
     void ScheduleRequisitionUpdate();
