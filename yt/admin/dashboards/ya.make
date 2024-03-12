@@ -13,6 +13,7 @@ PY_SRCS(
     yt_dashboards/master.py
     yt_dashboards/scheduler_internal.py
     yt_dashboards/scheduler_pool.py
+    yt_dashboards/exe_nodes.py
     yt_dashboards/common/__init__.py
     yt_dashboards/common/postprocessors.py
     yt_dashboards/common/runner.py

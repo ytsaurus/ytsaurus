@@ -10,6 +10,7 @@ from yt_dashboards.cluster_resources import build_cluster_resources
 from yt_dashboards.cache import build_cache_with_ghosts
 from yt_dashboards.chyt import build_chyt_monitoring
 from yt_dashboards.key_filter import build_key_filter
+from yt_dashboards.exe_nodes import build_exe_nodes
 
 from yt_dashboards.bundle_ui_dashboard import (
     build_bundle_ui_user_load, build_bundle_ui_lsm, build_bundle_ui_rpc_resource_overview,
@@ -140,6 +141,11 @@ dashboards = {
     "chyt-monitoring": {
         "func": build_chyt_monitoring,
         "monitoring": {},
+    },
+    "exe-nodes": {
+        "func": build_exe_nodes,
+        "monitoring": {},
+        "grafana": {},
     },
 }
 

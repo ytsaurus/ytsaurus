@@ -114,6 +114,9 @@ class MonitoringExpr(Taggable):
     def drop_nan(self):
         return self.func("drop_nan", self)
 
+    def replace_nan(self, k):
+        return self.func("replace_nan", self, k)
+
     def sqrt(self):
         return self.func("sqrt", self)
 
