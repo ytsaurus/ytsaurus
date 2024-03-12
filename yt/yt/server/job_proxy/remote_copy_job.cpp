@@ -809,19 +809,18 @@ private:
 
         TChunkServiceProxy proxy(MasterChannel_);
 
-        auto batchReq = proxy.ExecuteBatch();
-        GenerateMutationId(batchReq);
-        SetSuppressUpstreamSync(&batchReq->Header(), true);
-        // COMPAT(shakurov): prefer proto ext (above).
-        batchReq->set_suppress_upstream_sync(true);
+        auto req = proxy.ConfirmChunk();
+        GenerateMutationId(req);
 
-        auto* req = batchReq->add_confirm_chunk_subrequests();
         ToProto(req->mutable_chunk_id(), outputSessionId.ChunkId);
         *req->mutable_chunk_info() = chunkInfo;
         *req->mutable_chunk_meta() = masterChunkMeta;
         ToProto(req->mutable_legacy_replicas(), writtenReplicas);
 
         req->set_location_uuids_supported(true);
+
+        auto* multicellSyncExt = req->Header().MutableExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
+        multicellSyncExt->set_suppress_upstream_sync(true);
 
         bool useLocationUuids = std::all_of(writtenReplicas.begin(), writtenReplicas.end(), [] (const TChunkReplicaWithLocation& replica) {
             return replica.GetChunkLocationUuid() != InvalidChunkLocationUuid;
@@ -835,9 +834,9 @@ private:
             }
         }
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            GetCumulativeError(batchRspOrError),
+            rspOrError,
             NChunkClient::EErrorCode::MasterCommunicationFailed,
             "Failed to confirm chunk %v",
             outputSessionId.ChunkId);
