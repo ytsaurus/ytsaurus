@@ -5708,6 +5708,7 @@ private:
             replicasToPurge[replica.ChunkId].push_back(replica);
         }
 
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
         for (auto& [chunkId, replicas] : replicasToPurge) {
             SortUniqueBy(replicas, [] (const auto& replica) {
@@ -5715,8 +5716,15 @@ private:
             });
 
             for (const auto& replica : replicas) {
-                auto locationUuid = replica.LocationUuid;
+                auto* node = nodeTracker->FindNode(replica.NodeId);
+                if (!IsObjectAlive(node)) {
+                    YT_LOG_ALERT("Trying to remove a replica from a nonexistent node (NodeId: %v, ChunkId: %v)",
+                        replica.NodeId,
+                        chunkId);
+                    continue;
+                }
 
+                auto locationUuid = replica.LocationUuid;
                 auto* location = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
                 if (!IsObjectAlive(location)) {
                     YT_LOG_ALERT("Trying to remove a replica from a nonexistent location (LocationUuid: %v, ChunkId: %v)",
@@ -5736,11 +5744,26 @@ private:
                     }
                 }
 
+                auto nodeState = node->GetLocalState();
+                // If node is offline or being disposed, we might have already cleared the corresponding location and
+                // adding destroyed replica there again will just get it stuck there.
+
+                // If node is registered, she will tell us about her replicas with full heartbeat (including that one),
+                // and we will add it to destroyed set at that moment (we should not add it now, because if node goes back offline
+                // before reporting heartbeat, the replica will get stuck as well).
+                if (nodeState != ENodeState::Online) {
+                    YT_LOG_DEBUG("Skip adding replica to destroyed set as node is not online (NodeId: %v, State: %v, ChunkId: %v)",
+                        replica.NodeId,
+                        nodeState,
+                        chunkId);
+                    continue;
+                }
+
                 TChunkIdWithIndex chunkIdWithIndexes(chunkId, replicaIndex);
                 if (location->AddDestroyedReplica(chunkIdWithIndexes)) {
                     ++DestroyedReplicaCount_;
                 } else {
-                    YT_LOG_INFO("Replica is already present in destroyed set (LocationUuid: %v, ChunkId: %v)",
+                    YT_LOG_DEBUG("Replica is already present in destroyed set (LocationUuid: %v, ChunkId: %v)",
                         locationUuid,
                         chunkId);
                 }
