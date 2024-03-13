@@ -160,7 +160,7 @@ class TableSchema(object):
         return self
 
     def build_schema_sorted_by(self, sort_columns):
-        if isinstance(sort_columns, str):
+        if isinstance(sort_columns, str) or isinstance(sort_columns, SortColumn):
             sort_columns = [sort_columns]
 
         sort_columns = self._to_sort_columns(sort_columns)

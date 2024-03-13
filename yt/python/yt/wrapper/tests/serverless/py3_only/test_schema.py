@@ -160,6 +160,15 @@ def test_table_schema_sorting():
     # unique_keys is not reset.
     assert sorted_table_schema.unique_keys
 
+    sorted_table_schema = table_schema.build_schema_sorted_by(SortColumn("b"))
+
+    assert sorted_table_schema.columns == [
+        ColumnSchema("b", ti.List[ti.Int8], sort_order="ascending"),
+        ColumnSchema("a", ti.String),
+        ColumnSchema("c", ti.Utf8),
+        ColumnSchema("d", ti.Struct["x": ti.Optional[ti.Int64], "y": ti.Uuid]),
+    ]
+
 
 @authors("denvr")
 def test_elements_diverge():
