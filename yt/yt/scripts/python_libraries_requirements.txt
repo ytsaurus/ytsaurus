@@ -7,5 +7,5 @@ charset-normalizer==2.0.10
 distro==1.6.0
 typing-extensions==4.5.0
 attrs==22.2.0
-pyarrow==13.0.0
+pyarrow==14.0.0
 pandas==2.0.3
