@@ -16,9 +16,12 @@ struct IObjectService
     : public virtual NRpc::IService
 {
     virtual NObjectClient::TObjectServiceCachePtr GetCache() = 0;
+    virtual IInvokerPtr GetLocalReadOffloadInvoker() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IObjectService)
+
+////////////////////////////////////////////////////////////////////////////////
 
 IObjectServicePtr CreateObjectService(
     TObjectServiceConfigPtr config,
