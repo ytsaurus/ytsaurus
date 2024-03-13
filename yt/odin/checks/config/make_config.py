@@ -1305,6 +1305,7 @@ def get_checks_config():
             "freud-gnd": deep_merge(
                 snapshot_validation,
                 allow_unaware_nodes,
+                clock_quorum_health,
                 nochyt,
             ),
             "seneca-sas": deep_merge(
