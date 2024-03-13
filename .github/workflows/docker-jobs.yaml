@@ -229,6 +229,7 @@ jobs:
 
       - name: Odin image
         if: ${{ inputs.publish-odin }}
+        run: |
           IMAGE_LABEL="ytsaurus/ytsaurus-odin"
           IMAGE_TAG=${{ inputs.image-tag }}
 
