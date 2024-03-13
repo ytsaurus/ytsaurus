@@ -102,8 +102,10 @@ public:
             callbackEventCount,
             threadGroupName,
             threadName,
-            options.ThreadPriority,
-            /*shutdownPriority*/ 0)
+            NThreading::TThreadOptions{
+                .ThreadPriority = options.ThreadPriority,
+                .ThreadInitializer = options.ThreadInitializer,
+            })
         , Queue_(std::move(queue))
         , Options_(options)
     { }
@@ -132,14 +134,6 @@ protected:
     void EndExecute() override
     {
         Y_UNREACHABLE();
-    }
-
-    void OnStart() override
-    {
-        TSchedulerThread::OnStart();
-        if (Options_.ThreadInitializer) {
-            Options_.ThreadInitializer();
-        }
     }
 };
 
@@ -209,7 +203,7 @@ private:
         });
     }
 
-    TSchedulerThreadBasePtr SpawnThread(int index) override
+    TSchedulerThreadPtr SpawnThread(int index) override
     {
         return New<TThreadPoolThread>(
             Queue_,

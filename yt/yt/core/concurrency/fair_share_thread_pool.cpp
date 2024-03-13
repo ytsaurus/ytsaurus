@@ -471,8 +471,9 @@ public:
             std::move(callbackEventCount),
             threadGroupName,
             threadName,
-            threadPriority,
-            /*shutdownPriority*/ 0)
+            NThreading::TThreadOptions{
+                .ThreadPriority = threadPriority,
+            })
         , Queue_(std::move(queue))
         , Index_(index)
     { }
@@ -561,7 +562,7 @@ private:
         TThreadPoolBase::DoConfigure(threadCount);
     }
 
-    TSchedulerThreadBasePtr SpawnThread(int index) override
+    TSchedulerThreadPtr SpawnThread(int index) override
     {
         return New<TFairShareThread>(
             Queue_,

@@ -1305,7 +1305,7 @@ private:
         TThreadPoolBase::DoConfigure(threadCount);
     }
 
-    TSchedulerThreadBasePtr SpawnThread(int index) override
+    TSchedulerThreadPtr SpawnThread(int index) override
     {
         return New<TFairShareThread>(
             Queue_,
