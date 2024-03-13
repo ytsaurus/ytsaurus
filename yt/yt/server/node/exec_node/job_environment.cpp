@@ -1189,6 +1189,8 @@ private:
             spec->Resources.CpusetCpus = cpusetCpu;
         }
 
+        spec->Resources.OOMScoreAdjustment = config->OOMScoreAdjustment;
+
         return Executor_->CreateProcess(JobProxyProgramName, spec, PodDescriptors_[slotIndex], PodSpecs_[slotIndex]);
     }
 

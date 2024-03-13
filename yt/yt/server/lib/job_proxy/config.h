@@ -233,6 +233,8 @@ public:
     //! proper memory limits for asan builds.
     bool CheckUserJobMemoryLimit;
 
+    std::optional<i64> OOMScoreAdjustment;
+
     //! Compat option for urgent disable of job shell audit.
     bool EnableJobShellSeccopm;
 

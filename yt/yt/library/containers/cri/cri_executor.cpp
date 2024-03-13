@@ -670,6 +670,10 @@ private:
             (*unified)["memory.low"] = ToString(*spec.MemoryRequest);
         }
 
+        if (spec.OOMScoreAdjustment) {
+            resources->set_oom_score_adj(*spec.OOMScoreAdjustment);
+        }
+
         if (const auto& cpusetCpus = spec.CpusetCpus) {
             resources->set_cpuset_cpus(*cpusetCpus);
         }

@@ -678,6 +678,9 @@ void TJobCommonConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_throttler", &TThis::JobThrottler)
         .DefaultNew();
+
+    registrar.Parameter("adjust_oom_score", &TThis::AdjustOOMScore)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
