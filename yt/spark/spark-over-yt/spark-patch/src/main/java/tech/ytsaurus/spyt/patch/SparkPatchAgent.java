@@ -4,7 +4,6 @@ import javassist.*;
 import javassist.bytecode.ClassFile;
 import org.apache.commons.io.IOUtils;
 import org.apache.hadoop.shaded.com.google.common.collect.Streams;
-import org.apache.zookeeper.Op;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.ytsaurus.spyt.patch.annotations.Decorate;
@@ -14,12 +13,13 @@ import tech.ytsaurus.spyt.patch.annotations.Subclass;
 
 import java.io.*;
 import java.lang.instrument.ClassFileTransformer;
-import java.lang.instrument.IllegalClassFormatException;
 import java.lang.instrument.Instrumentation;
 import java.lang.management.ManagementFactory;
 import java.nio.charset.Charset;
 import java.security.ProtectionDomain;
-import java.util.*;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -212,6 +212,7 @@ class SparkPatchClassTransformer implements ClassFileTransformer {
                         CtMethod baseMethod = methodSignature.isEmpty()
                                 ? baseCtClass.getDeclaredMethod(methodName)
                                 : baseCtClass.getMethod(methodName, methodSignature);
+                        log.debug("Patching decorated method {}", methodName);
                         String innerMethodName = "__" + methodName;
                         baseMethod.setName(innerMethodName);
 
