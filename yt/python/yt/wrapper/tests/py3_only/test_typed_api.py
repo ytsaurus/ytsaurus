@@ -31,7 +31,7 @@ from yt.wrapper.schema.internal_schema import _get_annotation
 
 from yt.wrapper.prepare_operation import TypedJob
 from yt.testlib.helpers import set_config_option, check_rows_equality
-from yt.wrapper.testlib.helpers import sync_create_cell, TEST_DIR
+from yt.wrapper.testlib.helpers import sync_create_cell, inject_http_error, TEST_DIR
 
 import yt.yson as yson
 import yt.wrapper as yt
@@ -1763,3 +1763,73 @@ class TestTypedApi(object):
             SumRow(key="key2", sum=370),
             SumRow(key="key3", sum=700),
         ]
+
+    @authors("denvr")
+    def test_structured_write_retry(self):
+        client = yt.YtClient(config=yt.config.config)
+
+        @yt.yt_dataclass
+        class Rec:
+            f1: int
+            f2: str
+
+        path = "//tmp/table_structured"
+        client.config["write_retries"]["chunk_size"] = 500
+
+        # list, no fails
+        with inject_http_error(client, filter_url='/write_table', interrupt_from=999, interrupt_every=2, raise_connection_reset=True) as cnt:
+            client.write_table_structured(path, Rec, [Rec(i, str(i)) for i in range(0, 100)])
+        assert client.get(path + "/@row_count") == 100
+        assert client.get(path + "/@chunk_count") == 4
+        assert client.get(path + "/@uncompressed_data_size") == 1326
+        assert cnt.filtered_total_calls == 4
+        assert cnt.filtered_raises == 0
+
+        # list
+        with inject_http_error(client, filter_url='/write_table', interrupt_from=0, interrupt_till=999, interrupt_every=2, raise_connection_reset=True) as cnt:
+            client.write_table_structured(path, Rec, [Rec(i, str(i)) for i in range(0, 100)])
+        assert client.get(path + "/@row_count") == 100
+        assert client.get(path + "/@chunk_count") == 4
+        assert client.get(path + "/@uncompressed_data_size") == 1326
+        assert cnt.filtered_total_calls == 8
+        assert cnt.filtered_raises == 4
+
+        # generator
+        def rec_generator(max_i):
+            for i in range(0, max_i):
+                yield Rec(i, str(i))
+
+        with inject_http_error(client, filter_url='/write_table', interrupt_from=0, interrupt_till=999, interrupt_every=2, raise_connection_reset=True) as cnt:
+            client.write_table_structured(path, Rec, rec_generator(100))
+        assert client.get(path + "/@row_count") == 100
+        assert client.get(path + "/@chunk_count") == 4
+        assert client.get(path + "/@uncompressed_data_size") == 1326
+        assert cnt.filtered_total_calls == 8
+        assert cnt.filtered_raises == 4
+
+        # generator, big data
+        with inject_http_error(client, filter_url='/write_table', interrupt_from=0, interrupt_till=999, interrupt_every=2, raise_connection_reset=True) as cnt:
+            client.write_table_structured(path, Rec, rec_generator(1000))
+        assert client.get(path + "/@row_count") == 1000
+        assert client.get(path + "/@chunk_count") == 34
+        assert client.get(path + "/@uncompressed_data_size") == 14826
+        assert cnt.filtered_total_calls == 68
+        assert cnt.filtered_raises == 34
+
+        # map
+        with inject_http_error(client, filter_url='/write_table', interrupt_from=0, interrupt_till=999, interrupt_every=2, raise_connection_reset=True) as cnt:
+            client.write_table_structured(path, Rec, map(lambda i: Rec(i, str(i)), range(100)))
+        assert client.get(path + "/@row_count") == 100
+        assert client.get(path + "/@chunk_count") == 4
+        assert client.get(path + "/@uncompressed_data_size") == 1326
+        assert cnt.filtered_total_calls == 8
+        assert cnt.filtered_raises == 4
+
+        # iterator
+        with inject_http_error(client, filter_url='/write_table', interrupt_from=0, interrupt_till=999, interrupt_every=2, raise_connection_reset=True) as cnt:
+            client.write_table_structured(path, Rec, iter([Rec(i, str(i)) for i in range(0, 100)]))
+        assert client.get(path + "/@row_count") == 100
+        assert client.get(path + "/@chunk_count") == 4
+        assert client.get(path + "/@uncompressed_data_size") == 1326
+        assert cnt.filtered_total_calls == 8
+        assert cnt.filtered_raises == 4

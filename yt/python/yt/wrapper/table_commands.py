@@ -1,5 +1,5 @@
 from .common import (flatten, require, update, get_value, set_param, datetime_to_string,
-                     MB, chunk_iter_stream, deprecated, merge_blobs_by_size)
+                     MB, chunk_iter_stream, deprecated, merge_blobs_by_size, typing)
 from .compression import try_enable_parallel_write_gzip
 from .config import get_config, get_option
 from .constants import YSON_PACKAGE_INSTALLATION_TEXT
@@ -9,7 +9,7 @@ from .default_config import DEFAULT_WRITE_CHUNK_SIZE
 from .driver import make_request, make_formatted_request
 from .retries import default_chaos_monkey, run_chaos_monkey
 from .errors import YtIncorrectResponse, YtError, YtResponseError
-from .format import create_format, YsonFormat, StructuredSkiffFormat
+from .format import create_format, YsonFormat, StructuredSkiffFormat, Format  # noqa
 from .batch_response import apply_function_to_result
 from .heavy_commands import make_write_request, make_read_request
 from .parallel_writer import make_parallel_write_request
@@ -26,10 +26,10 @@ import yt.yson as yson
 import yt.logger as logger
 
 try:
-    from yt.packages.six import PY3
+    from yt.packages.six import PY3, text_type, binary_type
     from yt.packages.six.moves import map as imap, filter as ifilter, xrange
 except ImportError:
-    from six import PY3
+    from six import PY3, text_type, binary_type
     from six.moves import map as imap, filter as ifilter, xrange
 
 from copy import deepcopy
@@ -142,9 +142,17 @@ def create_temp_table(path=None, prefix=None, attributes=None, expiration_timeou
     return name
 
 
-def write_table(table, input_stream, format=None, table_writer=None, max_row_buffer_size=None,
-                is_stream_compressed=False, force_create=None, raw=None,
-                client=None):
+def write_table(
+    table,  # type: str
+    input_stream,  # type: str | bytes | "filelike" | typing.Iterable
+    format=None,  # type: Format | None
+    table_writer=None,  # type: dict[str, typing.Any] | None
+    max_row_buffer_size=None,  # type: int | None
+    is_stream_compressed=False,  # type: bool | None
+    force_create=None,  # type: bool | None
+    raw=None,  # type: bool | None
+    client=None,  # type: yt.wrapper.YtClient | None
+):
     """Writes rows from input_stream to table.
 
     :param table: output table. Specify `TablePath` attributes for append mode or something like this.
@@ -209,7 +217,10 @@ def write_table(table, input_stream, format=None, table_writer=None, max_row_buf
             # create table without schema
             _create_table(path, ignore_existing=True, client=client)
 
-    can_split_input = isinstance(input_stream, list) or format.is_raw_load_supported()
+    is_input_stream_filelike = hasattr(input_stream, "read")
+    is_input_stream_str = isinstance(input_stream, (text_type, binary_type))
+    can_split_input = (isinstance(input_stream, typing.Iterable) and not is_input_stream_filelike and not is_input_stream_str) \
+        or format.is_raw_load_supported()
     enable_retries = get_config(client)["write_retries"]["enable"] and \
         can_split_input and \
         not is_stream_compressed
