@@ -2944,38 +2944,44 @@ private:
 
     TFuture<void> DoPullRows()
     {
-        const auto& connection = Client_->GetNativeConnection();
-        const auto& cellDirectory = connection->GetCellDirectory();
-        const auto& networks = connection->GetNetworks();
-        auto channel = CreateTabletReadChannel(
-            Client_->GetChannelFactory(),
-            *cellDirectory->GetDescriptorByCellIdOrThrow(TabletInfo_->CellId),
-            Options_,
-            networks);
+        try {
+            const auto& connection = Client_->GetNativeConnection();
+            const auto& cellDirectory = connection->GetCellDirectory();
+            const auto& networks = connection->GetNetworks();
+            auto channel = CreateTabletReadChannel(
+                Client_->GetChannelFactory(),
+                *cellDirectory->GetDescriptorByCellIdOrThrow(TabletInfo_->CellId),
+                Options_,
+                networks);
 
-        TQueryServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(Options_.Timeout.value_or(connection->GetConfig()->DefaultPullRowsTimeout));
-        auto req = proxy.PullRows();
-        req->set_request_codec(static_cast<int>(connection->GetConfig()->LookupRowsRequestCodec));
-        req->set_response_codec(static_cast<int>(connection->GetConfig()->LookupRowsResponseCodec));
-        req->set_mount_revision(TabletInfo_->MountRevision);
-        req->set_max_rows_per_read(Options_.TabletRowsPerRead);
-        req->set_upper_timestamp(Options_.UpperTimestamp);
-        ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
-        ToProto(req->mutable_cell_id(), TabletInfo_->CellId);
-        ToProto(req->mutable_start_replication_progress(), ReplicationProgress_);
-        ToProto(req->mutable_upstream_replica_id(), Options_.UpstreamReplicaId);
-        if (ReplicationRowIndex_.has_value()) {
-            req->set_start_replication_row_index(*ReplicationRowIndex_);
+            TQueryServiceProxy proxy(channel);
+            proxy.SetDefaultTimeout(Options_.Timeout.value_or(connection->GetConfig()->DefaultPullRowsTimeout));
+            auto req = proxy.PullRows();
+            req->set_request_codec(static_cast<int>(connection->GetConfig()->LookupRowsRequestCodec));
+            req->set_response_codec(static_cast<int>(connection->GetConfig()->LookupRowsResponseCodec));
+            req->set_mount_revision(TabletInfo_->MountRevision);
+            req->set_max_rows_per_read(Options_.TabletRowsPerRead);
+            req->set_upper_timestamp(Options_.UpperTimestamp);
+            ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
+            ToProto(req->mutable_cell_id(), TabletInfo_->CellId);
+            ToProto(req->mutable_start_replication_progress(), ReplicationProgress_);
+            ToProto(req->mutable_upstream_replica_id(), Options_.UpstreamReplicaId);
+            if (ReplicationRowIndex_.has_value()) {
+                req->set_start_replication_row_index(*ReplicationRowIndex_);
+            }
+
+            YT_LOG_DEBUG("Issuing pull rows request (Progress: %v, StartRowIndex: %v)",
+                ReplicationProgress_,
+                ReplicationRowIndex_);
+
+            return req->Invoke()
+                .Apply(BIND(&TTabletPullRowsSession::OnPullRowsResponse, MakeWeak(this))
+                    .AsyncVia(Invoker_));
+
+        } catch (const std::exception& ex) {
+            OnPullRowsResponse(TError("Failed to prepare request") << ex);
+            return MakeFuture(TErrorOr<void>());
         }
-
-        YT_LOG_DEBUG("Issuing pull rows request (Progress: %v, StartRowIndex: %v)",
-            ReplicationProgress_,
-            ReplicationRowIndex_);
-
-        return req->Invoke()
-            .Apply(BIND(&TTabletPullRowsSession::OnPullRowsResponse, MakeWeak(this))
-                .AsyncVia(Invoker_));
     }
 
     void OnPullRowsResponse(const TErrorOr<TQueryServiceProxy::TRspPullRowsPtr>& resultOrError)
