@@ -740,7 +740,8 @@ void ToUnversionedValue(
     int id,
     EValueFlags flags)
 {
-    auto errorYson = ConvertToYsonString(value);
+    // Save error in text format in order to escape non-text characters and make errors human-readable
+    auto errorYson = ConvertToYsonString(value, EYsonFormat::Text);
     *unversionedValue = rowBuffer->CaptureValue(MakeUnversionedAnyValue(errorYson.AsStringBuf(), id, flags));
 }
 

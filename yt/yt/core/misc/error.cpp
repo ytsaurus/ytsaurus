@@ -379,7 +379,7 @@ TError::TErrorOr(const std::exception& ex)
     } else if (const auto* errorEx = dynamic_cast<const TErrorException*>(&ex)) {
         *this = errorEx->Error();
     } else {
-        *this = TError(NYT::EErrorCode::Generic, ex.what());
+        *this = TError(NYT::EErrorCode::Generic, ConvertToYsonString(ex.what(), EYsonFormat::Text).ToString());
     }
     YT_VERIFY(!IsOK());
 }
