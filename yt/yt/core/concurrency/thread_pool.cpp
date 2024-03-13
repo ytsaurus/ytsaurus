@@ -28,7 +28,7 @@ public:
     TInvokerQueueAdapter(
         TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
         const TTagSet& counterTagSet,
-        const TDuration pollingPeriod)
+        TDuration pollingPeriod)
         : TMpmcInvokerQueue(callbackEventCount, counterTagSet)
         , TNotifyManager(callbackEventCount, counterTagSet, pollingPeriod)
     { }
@@ -97,18 +97,20 @@ public:
         TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
         const TString& threadGroupName,
         const TString& threadName,
-        NThreading::EThreadPriority threadPriority)
+        const TThreadPoolOptions& options)
         : TSchedulerThread(
             callbackEventCount,
             threadGroupName,
             threadName,
-            threadPriority,
+            options.ThreadPriority,
             /*shutdownPriority*/ 0)
         , Queue_(std::move(queue))
+        , Options_(options)
     { }
 
 protected:
     const TIntrusivePtr<TInvokerQueueAdapter> Queue_;
+    const TThreadPoolOptions Options_;
 
     TEnqueuedAction CurrentAction_;
 
@@ -131,6 +133,14 @@ protected:
     {
         Y_UNREACHABLE();
     }
+
+    void OnStart() override
+    {
+        TSchedulerThread::OnStart();
+        if (Options_.ThreadInitializer) {
+            Options_.ThreadInitializer();
+        }
+    }
 };
 
 class TThreadPool
@@ -141,13 +151,13 @@ public:
     TThreadPool(
         int threadCount,
         const TString& threadNamePrefix,
-        NThreading::EThreadPriority threadPriority,
-        const TDuration pollingPeriod)
-        : TThreadPoolBase(threadNamePrefix, threadPriority)
+        const TThreadPoolOptions& options)
+        : TThreadPoolBase(threadNamePrefix)
+        , Options_(options)
         , Queue_(New<TInvokerQueueAdapter>(
             CallbackEventCount_,
             GetThreadTags(ThreadNamePrefix_),
-            pollingPeriod))
+            options.PollingPeriod))
         , Invoker_(Queue_)
     {
         Configure(threadCount);
@@ -180,6 +190,7 @@ public:
     }
 
 private:
+    const TThreadPoolOptions Options_;
     const TIntrusivePtr<NThreading::TEventCount> CallbackEventCount_ = New<NThreading::TEventCount>();
     const TIntrusivePtr<TInvokerQueueAdapter> Queue_;
     const IInvokerPtr Invoker_;
@@ -205,7 +216,7 @@ private:
             CallbackEventCount_,
             ThreadNamePrefix_,
             MakeThreadName(index),
-            ThreadPriority_);
+            Options_);
     }
 };
 
@@ -214,14 +225,12 @@ private:
 IThreadPoolPtr CreateThreadPool(
     int threadCount,
     const TString& threadNamePrefix,
-    NThreading::EThreadPriority threadPriority,
-    TDuration pollingPeriod)
+    const TThreadPoolOptions& options)
 {
     return New<TThreadPool>(
         threadCount,
         threadNamePrefix,
-        threadPriority,
-        pollingPeriod);
+        options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

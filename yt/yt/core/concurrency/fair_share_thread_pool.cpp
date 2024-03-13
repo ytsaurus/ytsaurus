@@ -568,7 +568,7 @@ private:
             CallbackEventCount_,
             ThreadNamePrefix_,
             MakeThreadName(index),
-            ThreadPriority_,
+            NThreading::EThreadPriority::Normal,
             index);
     }
 };
