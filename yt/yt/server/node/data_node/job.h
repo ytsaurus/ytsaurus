@@ -42,7 +42,6 @@ public:
         const NChunkServer::NProto::TJobSpec& jobSpec,
         TString jobTrackerAddress,
         const NClusterNode::TJobResources& resourceLimits,
-        const NClusterNode::TJobResourceAttributes& resourceAttributes,
         IBootstrap* bootstrap);
 
     NChunkServer::TJobId GetId() const noexcept;
@@ -108,7 +107,6 @@ TMasterJobBasePtr CreateJob(
     NChunkServer::NProto::TJobSpec&& jobSpec,
     TString jobTrackerAddress,
     const NClusterNode::TJobResources& resourceLimits,
-    const NClusterNode::TJobResourceAttributes& resourceAttributes,
     IBootstrap* bootstrap,
     const TMasterJobSensors& sensors);
 

@@ -271,7 +271,6 @@ private:
         NChunkServer::TJobId jobId,
         const TString& jobTrackerAddress,
         const TJobResources& resourceLimits,
-        const TJobResourceAttributes& resourceAttributes,
         TJobSpec&& jobSpec)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
@@ -288,7 +287,6 @@ private:
             std::move(jobSpec),
             jobTrackerAddress,
             resourceLimits,
-            resourceAttributes,
             Bootstrap_->GetDataNodeBootstrap(),
             MasterJobSensors_);
 
@@ -501,7 +499,6 @@ private:
                 jobId,
                 jobTrackerAddress,
                 jobResourceLimits,
-                TJobResourceAttributes(),
                 std::move(spec));
 
             ++attachmentIndex;
