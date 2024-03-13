@@ -14,7 +14,10 @@ private[spark] class YTsaurusClusterApplication extends SparkApplication with Lo
 
   override def start(args: Array[String], conf: SparkConf): Unit = {
     val masterURL = conf.get("spark.master")
-    val ytProxy = YTsaurusUtils.parseMasterUrl(masterURL)
+    val ytProxy = conf.get("spark.hadoop.yt.clientProxy")
+    if (ytProxy == null) {
+      ytProxy = YTsaurusUtils.parseMasterUrl(masterURL)
+    }
 
     val appArgs = ApplicationArguments.fromCommandLineArgs(args)
 
