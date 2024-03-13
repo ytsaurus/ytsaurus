@@ -418,7 +418,11 @@ def get_checks_config():
         return {
             "yp_pod_set_controller": {
                 "enable": True,
-                "options": get_yp_options(cluster),
+                "options": dict(
+                    update_timeout=360,
+                    schedule_timeout=360,
+                    **get_yp_options(cluster),
+                )
             }
         }
 
@@ -1098,7 +1102,7 @@ def get_checks_config():
             },
             "yp_pod_set_controller": {
                 "enable": False,
-                "check_timeout": 360,
+                "check_timeout": 540,
                 "alerts": get_yp_alerts("yp_pod_set_controller"),
             },
             "yp_available_timestamps": {
