@@ -36,6 +36,10 @@ on:
         required: false
         default: false
         type: boolean
+      publish-odin:
+        required: false
+        default: false
+        type: boolean
       image-tag:
         required: true
         type: string
@@ -222,3 +226,11 @@ jobs:
 
           docker push ytsaurus/local:${IMAGE_TAG}
 
+
+      - name: Odin image
+        if: ${{ inputs.publish-odin }}
+          IMAGE_LABEL="ytsaurus/ytsaurus-odin"
+          IMAGE_TAG=${{ inputs.image-tag }}
+
+          docker build -t ${IMAGE_LABEL}:${IMAGE_TAG} -f $(pwd)/ytsaurus/yt/odin/Dockerfile $(pwd)/ytsaurus/yt/odin
+          docker push ${IMAGE_LABEL}:${IMAGE_TAG}
