@@ -2,6 +2,7 @@ python-dateutil==2.8.2
 Flask==2.0.3
 Werkzeug==2.2.2
 cheroot==10.0.0
+python-prctl==1.8.1
 
 # Required by some of the checks
 requests==2.31.0
