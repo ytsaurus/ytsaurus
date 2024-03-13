@@ -2957,6 +2957,10 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
         return EAbortReason::InterruptionUnsupported;
     }
 
+    if (resultError.FindMatching(NExecNode::EErrorCode::RootVolumePreparationFailed)) {
+        return EAbortReason::RootVolumePreparationFailed;
+    }
+
     if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
         resultError.FindMatching(NChunkClient::EErrorCode::ReaderThrottlingFailed) ||
         resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
@@ -2972,7 +2976,6 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
         resultError.FindMatching(NExecNode::EErrorCode::ArtifactDownloadFailed) ||
         resultError.FindMatching(NExecNode::EErrorCode::NodeDirectoryPreparationFailed) ||
         resultError.FindMatching(NExecNode::EErrorCode::SlotLocationDisabled) ||
-        resultError.FindMatching(NExecNode::EErrorCode::RootVolumePreparationFailed) ||
         resultError.FindMatching(NExecNode::EErrorCode::NotEnoughDiskSpace) ||
         resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed) ||
         resultError.FindMatching(NContainers::EErrorCode::FailedToStartContainer) ||

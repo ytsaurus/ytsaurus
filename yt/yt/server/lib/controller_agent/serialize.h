@@ -40,6 +40,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((JobErrorInJobSummary)                 (301308))
     // 24.1 starts here
     ((NodeJobStartTimeInJoblet)             (301408))
+    ((JobAbortsUntilOperationFailure)       (301409))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

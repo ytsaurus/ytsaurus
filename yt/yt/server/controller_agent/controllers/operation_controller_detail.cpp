@@ -335,6 +335,7 @@ TOperationControllerBase::TOperationControllerBase(
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::JobEvents),
         BIND_NO_PROPAGATE(&TThis::SendRunningAllocationTimeStatisticsUpdates, MakeWeak(this)),
         Config->RunningAllocationTimeStatisticsUpdatesSendPeriod))
+    , JobAbortsUntilOperationFailure_(Config->MaxJobAbortsUntilOperationFailure)
 {
     // Attach user transaction if any. Don't ping it.
     TTransactionAttachOptions userAttachOptions;
@@ -3157,6 +3158,10 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
 
     auto joblet = GetJoblet(jobId);
 
+    if (!JobAbortsUntilOperationFailure_.empty()) {
+        JobAbortsUntilOperationFailure_.clear();
+    }
+
     YT_LOG_DEBUG(
         "Job completed (JobId: %v, ResultSize: %v, Abandoned: %v, InterruptReason: %v, Interruptible: %v)",
         jobId,
@@ -3339,6 +3344,10 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
 
     auto joblet = GetJoblet(jobId);
 
+    if (!JobAbortsUntilOperationFailure_.empty()) {
+        JobAbortsUntilOperationFailure_.clear();
+    }
+
     if (Spec_->IgnoreJobFailuresAtBannedNodes && BannedNodeIds_.find(joblet->NodeDescriptor.Id) != BannedNodeIds_.end()) {
         YT_LOG_DEBUG("Job is considered aborted since it has failed at a banned node "
             "(JobId: %v, Address: %v)",
@@ -3465,7 +3474,7 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
     VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
     auto jobId = jobSummary->Id;
-    auto abortReason = jobSummary->AbortReason;
+    const auto abortReason = jobSummary->AbortReason;
 
     if (!ShouldProcessJobEvents()) {
         YT_LOG_DEBUG("Stale job aborted, ignored (JobId: %v)", jobId);
@@ -3486,6 +3495,8 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
     }
 
     auto joblet = GetJoblet(jobId);
+
+    auto error = jobSummary->Error;
 
     TJobFinishedResult taskJobResult;
     std::vector<TChunkId> failedChunkIds;
@@ -3556,6 +3567,18 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
             << TErrorAttribute("job_id", joblet->JobId)
             << TErrorAttribute("reason", EFailOnJobRestartReason::JobAborted)
             << TErrorAttribute("job_abort_reason", abortReason));
+    }
+
+    if (auto it = JobAbortsUntilOperationFailure_.find(abortReason); it != JobAbortsUntilOperationFailure_.end()) {
+        if (--it->second == 0) {
+            JobAbortsUntilOperationFailure_.clear();
+            auto wrappedError = TError("Fail operation due to excessive successive job aborts");
+            if (error) {
+                wrappedError <<= *error;
+            }
+            OnOperationFailed(wrappedError);
+            return;
+        }
     }
 
     if (abortReason == EAbortReason::AccountLimitExceeded) {
@@ -10600,6 +10623,10 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
 
     if (context.IsLoad()) {
         ScheduleAllocationStatistics_->SetMovingAverageWindowSize(Config->ScheduleAllocationStatisticsMovingAverageWindowSize);
+    }
+
+    if (context.GetVersion() >= ESnapshotVersion::JobAbortsUntilOperationFailure) {
+        Persist(context, JobAbortsUntilOperationFailure_);
     }
 }
 

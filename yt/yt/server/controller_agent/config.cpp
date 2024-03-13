@@ -1131,6 +1131,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("rpc_server", &TThis::RpcServer)
         .DefaultNew();
 
+    registrar.Parameter("max_job_aborts_until_operation_failure", &TThis::MaxJobAbortsUntilOperationFailure)
+        .Default(THashMap<EAbortReason, int>({{EAbortReason::RootVolumePreparationFailed, 10}}));
+
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->EventLog->MaxRowWeight = 128_MB;
         if (!config->EventLog->Path) {

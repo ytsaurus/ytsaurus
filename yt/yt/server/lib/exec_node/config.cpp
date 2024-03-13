@@ -258,6 +258,9 @@ void TVolumeManagerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("abort_on_operation_with_layer_failed", &TThis::AbortOnOperationWithLayerFailed)
         .Default(true);
+
+    registrar.Parameter("throw_on_prepare_volume", &TThis::ThrowOnPrepareVolume)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
