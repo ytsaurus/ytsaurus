@@ -698,7 +698,10 @@ void TNode::Load(TLoadContext& context)
     Load(context, Host_);
     Load(context, LeaseTransaction_);
 
-    if (context.GetVersion() >= EMasterReign::PersistLastSeenLeaseTransactionTimeout) {
+    if (context.GetVersion() >= EMasterReign::PersistLastSeenLeaseTransactionTimeout ||
+        (context.GetVersion() >= EMasterReign::PersistLastSeenLeaseTransactionTimeout_23_2 &&
+         context.GetVersion() < EMasterReign::SecondaryIndex))
+    {
         Load(context, LastSeenLeaseTransactionTimeout_);
     }
 
