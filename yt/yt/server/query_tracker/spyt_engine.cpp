@@ -181,6 +181,7 @@ public:
     void Start() override
     {
         YT_LOG_DEBUG("Starting SPYT query");
+        StartProgressWriter();
         AsyncQueryResult_ = BIND(&TSpytQueryHandler::Execute, MakeStrong(this))
             .AsyncVia(GetCurrentInvoker())
             .Run();
@@ -193,6 +194,7 @@ public:
         AsyncQueryResult_.Cancel(TError("Query aborted"));
         // After Abort() call there is Detach() call always. But double closing request is not the error.
         FreeResources();
+        StopBackgroundExecutors();
     }
 
     void Detach() override
@@ -200,6 +202,7 @@ public:
         YT_LOG_DEBUG("Detaching SPYT query (SessionUrl: %v)", SessionUrl_);
         AsyncQueryResult_.Cancel(TError("Query detached"));
         FreeResources();
+        StopBackgroundExecutors();
     }
 
 private:
@@ -597,6 +600,12 @@ private:
         }
     }
 
+    void StopBackgroundExecutors()
+    {
+        StopProgressWriter();
+        YT_UNUSED_FUTURE(RefreshTokenExecutor_->Stop());
+    }
+
     TSharedRef Execute()
     {
         UpdateMasterWebUIUrl();
@@ -619,10 +628,10 @@ private:
 
     void OnSpytResponse(const TErrorOr<TSharedRef>& queryResultOrError)
     {
+        StopBackgroundExecutors();
         if (queryResultOrError.FindMatching(NYT::EErrorCode::Canceled)) {
             return;
         }
-        SetProgress(1.0);
         if (!queryResultOrError.IsOK()) {
             OnQueryFailed(queryResultOrError);
             return;
