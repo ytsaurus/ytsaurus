@@ -10260,9 +10260,9 @@ void TOperationControllerBase::ValidateUserFileCount(TUserJobSpecPtr spec, const
 void TOperationControllerBase::OnExecNodesUpdated()
 { }
 
-int TOperationControllerBase::GetOnlineExecNodeCount()
+int TOperationControllerBase::GetAvailableExecNodeCount()
 {
-    return OnlineExecNodeCount_;
+    return AvailableExecNodeCount_;
 }
 
 const TExecNodeDescriptorMap& TOperationControllerBase::GetOnlineExecNodeDescriptors()
@@ -10281,7 +10281,7 @@ void TOperationControllerBase::UpdateExecNodes()
 
     TSchedulingTagFilter filter(Spec_->SchedulingTagFilter);
 
-    auto onlineExecNodeCount = Host->GetOnlineExecNodeCount();
+    auto onlineExecNodeCount = Host->GetAvailableExecNodeCount();
     auto execNodeDescriptors = Host->GetExecNodeDescriptors(filter, /*onlineOnly*/ false);
     auto onlineExecNodeDescriptors = Host->GetExecNodeDescriptors(filter, /*onlineOnly*/ true);
     auto maxAvailableResources = Host->GetMaxAvailableResources(filter);
@@ -10294,7 +10294,7 @@ void TOperationControllerBase::UpdateExecNodes()
                 return;
             }
 
-            OnlineExecNodeCount_ = onlineExecNodeCount;
+            AvailableExecNodeCount_ = onlineExecNodeCount;
             CachedMaxAvailableExecNodeResources_ = maxAvailableResources;
 
             auto assign = []<class T, class U>(T* variable, U value) {
@@ -10313,13 +10313,13 @@ void TOperationControllerBase::UpdateExecNodes()
 
             YT_LOG_DEBUG("Exec nodes information updated (SuitableExecNodeCount: %v, OnlineExecNodeCount: %v)",
                 ExecNodesDescriptors_->size(),
-                OnlineExecNodeCount_);
+                AvailableExecNodeCount_);
         }));
 }
 
 bool TOperationControllerBase::ShouldSkipSanityCheck()
 {
-    if (GetOnlineExecNodeCount() < Config->SafeOnlineNodeCount) {
+    if (GetAvailableExecNodeCount() < Config->SafeOnlineNodeCount) {
         return true;
     }
 

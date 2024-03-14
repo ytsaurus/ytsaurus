@@ -411,9 +411,9 @@ TJobProfiler* TOperationControllerHost::GetJobProfiler() const
     return Bootstrap_->GetControllerAgent()->GetJobProfiler();
 }
 
-int TOperationControllerHost::GetOnlineExecNodeCount()
+int TOperationControllerHost::GetAvailableExecNodeCount()
 {
-    return Bootstrap_->GetControllerAgent()->GetOnlineExecNodeCount();
+    return Bootstrap_->GetControllerAgent()->GetAvailableExecNodeCount();
 }
 
 TRefCountedExecNodeDescriptorMapPtr TOperationControllerHost::GetExecNodeDescriptors(const TSchedulingTagFilter& filter, bool onlineOnly)

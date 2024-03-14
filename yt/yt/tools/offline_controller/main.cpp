@@ -234,7 +234,7 @@ public:
         return nullptr;
     }
 
-    int GetOnlineExecNodeCount() override
+    int GetAvailableExecNodeCount() override
     {
         return 0;
     }
