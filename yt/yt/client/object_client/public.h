@@ -286,6 +286,7 @@ DEFINE_ENUM(EObjectType,
     ((HunkStorage)                                  (715))
     ((HunkTablet)                                   (716))
     ((VirtualTabletCellMap)                         (717))
+    ((CellOrchidNode)                               (718))
 
     // Node Tracker stuff
     ((Rack)                                         (800))
