@@ -328,7 +328,8 @@ class CellsHydraPersistenceMigrationBase(ChaosTestBase, MasterSnapshotsCompatibi
 
     DELTA_MASTER_CONFIG = {
         "world_initializer": {
-            "update_period": 1000,
+            "init_retry_period": 100,
+            "update_period": 100,
         }
     }
 
@@ -384,8 +385,9 @@ class CellsHydraPersistenceMigrationBase(ChaosTestBase, MasterSnapshotsCompatibi
             abort_transaction(tx)
             remove("//sys/tablet_cells", force=True)
             remove("//sys/chaos_cells", force=True)
-            create("virtual_tablet_cell_map", "//sys/tablet_cells", ignore_existing=True)
-            create("virtual_chaos_cell_map", "//sys/chaos_cells", ignore_existing=True)
+            # wait for world initializer getting the work done
+            wait(lambda: get("//sys/tablet_cells/@type") == "virtual_tablet_cell_map", ignore_exceptions=True)
+            wait(lambda: get("//sys/chaos_cells/@type") == "virtual_chaos_cell_map", ignore_exceptions=True)
 
         assert ls(f"//sys/{map_name}") == [cell_id]
         assert len(ls(secondary_path)) == snapshot_count
