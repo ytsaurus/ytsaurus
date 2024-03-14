@@ -2559,7 +2559,7 @@ void TJobCpuMonitorConfig::Register(TRegistrar registrar)
 void TOffloadingPoolSettingsConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("pool", &TThis::Pool)
-        .NonEmpty();
+        .Default();
 
     registrar.Parameter("weight", &TThis::Weight)
         .Optional()
