@@ -1002,6 +1002,10 @@ class TestLogicalType(YTEnvSetup):
             "interval",
             "float",
             "json",
+            "date32",
+            "datetime64",
+            "timestamp64",
+            "interval64",
         ]
 
         dynamic = table_type == "dynamic"
@@ -1119,6 +1123,37 @@ class TestLogicalType(YTEnvSetup):
         type_tester.check_bad_value("json", "}{")
         type_tester.check_bad_value("json", '{3: "wrong key type"}')
         type_tester.check_bad_value("json", b"Non-utf8: \xFF")
+
+        date32_upper_bound = 53375808
+        date32_lower_bound = -date32_upper_bound - 1
+        type_tester.check_good_value("date32", date32_upper_bound - 1)
+        type_tester.check_bad_value("date32", date32_upper_bound)
+        type_tester.check_good_value("date32", date32_lower_bound)
+        type_tester.check_bad_value("date32", date32_lower_bound - 1)
+        type_tester.check_good_value("date32", 0)
+
+        datetime64_upper_bound = date32_upper_bound * 86400
+        datetime64_lower_bound = date32_lower_bound * 86400
+        type_tester.check_good_value("datetime64", datetime64_upper_bound - 1)
+        type_tester.check_bad_value("datetime64", datetime64_upper_bound)
+        type_tester.check_good_value("datetime64", datetime64_lower_bound)
+        type_tester.check_bad_value("datetime64", datetime64_lower_bound - 1)
+        type_tester.check_good_value("datetime64", 123)
+
+        timestamp64_upper_bound = datetime64_upper_bound * 10**6
+        timestamp64_lower_bound = datetime64_lower_bound * 10**6
+        type_tester.check_good_value("timestamp64", timestamp64_upper_bound - 1)
+        type_tester.check_bad_value("timestamp64", timestamp64_upper_bound)
+        type_tester.check_good_value("timestamp64", timestamp64_lower_bound)
+        type_tester.check_bad_value("timestamp64", timestamp64_lower_bound - 1)
+        type_tester.check_good_value("timestamp64", 0)
+
+        interval64_upper_bound = timestamp64_upper_bound - timestamp64_lower_bound + 1
+        type_tester.check_good_value("interval64", interval64_upper_bound - 1)
+        type_tester.check_bad_value("interval64", interval64_upper_bound)
+        type_tester.check_good_value("interval64", -interval64_upper_bound + 1)
+        type_tester.check_bad_value("interval64", -interval64_upper_bound)
+        type_tester.check_good_value("interval64", 0)
 
         if not dynamic:
             type_tester.check_good_value("null", None)
