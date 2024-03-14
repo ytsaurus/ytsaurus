@@ -225,7 +225,7 @@ TCompositeAutomaton::TCompositeAutomaton(
     , AsyncSnapshotInvoker_(asyncSnapshotInvoker)
     , MutationWaitTimer_(Profiler_.Timer("/mutation_wait_time"))
 {
-    RegisterMethod(BIND(&TCompositeAutomaton::HydraResetStateHash, Unretained(this)));
+    RegisterMethod(BIND_NO_PROPAGATE(&TCompositeAutomaton::HydraResetStateHash, Unretained(this)));
 }
 
 void TCompositeAutomaton::SetSerializationDumpEnabled(bool value)

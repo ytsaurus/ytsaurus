@@ -242,10 +242,10 @@ public:
             "ChunkAutotomizer",
             BIND(&TChunkAutotomizer::Save, Unretained(this)));
 
-        RegisterMethod(BIND(&TChunkAutotomizer::HydraAutotomizeChunk, Unretained(this)));
-        RegisterMethod(BIND(&TChunkAutotomizer::HydraUpdateChunkAutotomizerTransactions, Unretained(this)));
-        RegisterMethod(BIND(&TChunkAutotomizer::HydraUpdateAutotomizerState, Unretained(this)));
-        RegisterMethod(BIND(&TChunkAutotomizer::HydraOnChunkAutotomyCompleted, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkAutotomizer::HydraAutotomizeChunk, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkAutotomizer::HydraUpdateChunkAutotomizerTransactions, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkAutotomizer::HydraUpdateAutotomizerState, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkAutotomizer::HydraOnChunkAutotomyCompleted, Unretained(this)));
     }
 
     // IJobController implementation.

@@ -277,11 +277,11 @@ public:
             "LeaseManager.Values",
             BIND(&TLeaseManager::SaveValues, Unretained(this)));
 
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TLeaseManager::HydraRegisterLease, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TLeaseManager::HydraRevokeLease, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TLeaseManager::HydraRemoveLeases, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TLeaseManager::HydraOnLeaseRevoked, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TLeaseManager::HydraToggleLeaseRefCounter, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TLeaseManager::HydraRegisterLease, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TLeaseManager::HydraRevokeLease, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TLeaseManager::HydraRemoveLeases, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TLeaseManager::HydraOnLeaseRevoked, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TLeaseManager::HydraToggleLeaseRefCounter, Unretained(this)));
 
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(IssueLease));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(RevokeLease));

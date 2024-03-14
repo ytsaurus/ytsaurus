@@ -44,8 +44,8 @@ public:
     explicit TMaintenanceTracker(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::MaintenanceTracker)
     {
-        RegisterMethod(BIND(&TMaintenanceTracker::HydraReplicateMaintenanceRequestCreation, Unretained(this)));
-        RegisterMethod(BIND(&TMaintenanceTracker::HydraReplicateMaintenanceRequestRemoval, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TMaintenanceTracker::HydraReplicateMaintenanceRequestCreation, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TMaintenanceTracker::HydraReplicateMaintenanceRequestRemoval, Unretained(this)));
     }
 
     TMaintenanceIdPerTarget AddMaintenance(

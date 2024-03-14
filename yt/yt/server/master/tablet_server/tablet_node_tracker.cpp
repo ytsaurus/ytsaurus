@@ -48,13 +48,13 @@ public:
     explicit TTabletNodeTracker(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::TabletNodeTracker)
     {
-        RegisterMethod(BIND(&TTabletNodeTracker::HydraTabletNodeHeartbeat, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletNodeTracker::HydraTabletNodeHeartbeat, Unretained(this)));
     }
 
     void Initialize() override
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TTabletNodeTracker::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TTabletNodeTracker::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     void ProcessHeartbeat(TCtxHeartbeatPtr context) override
