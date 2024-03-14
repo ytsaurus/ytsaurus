@@ -334,17 +334,23 @@ public:
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
         const auto& config = GetDynamicConfig();
+        UpdatePoolNameRegexes(config->PoolNameRegexForAdministrators, config->PoolNameRegexForUsers);
+    }
 
+    void UpdatePoolNameRegexes(
+        const TString& poolNameRegexForAdministrators,
+        const TString& poolNameRegexForUsers)
+    {
         if (!PoolNameRegexForAdministrators_ ||
-            PoolNameRegexForAdministrators_->pattern() != config->PoolNameRegexForAdministrators)
+            PoolNameRegexForAdministrators_->pattern() != poolNameRegexForAdministrators)
         {
-            PoolNameRegexForAdministrators_.emplace(config->PoolNameRegexForAdministrators);
+            PoolNameRegexForAdministrators_.emplace(poolNameRegexForAdministrators);
         }
 
         if (!PoolNameRegexForUsers_ ||
-            PoolNameRegexForUsers_->pattern() != config->PoolNameRegexForUsers)
+            PoolNameRegexForUsers_->pattern() != poolNameRegexForUsers)
         {
-            PoolNameRegexForUsers_.emplace(config->PoolNameRegexForUsers);
+            PoolNameRegexForUsers_.emplace(poolNameRegexForUsers);
         }
     }
 
@@ -479,6 +485,9 @@ private:
     void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
+
+        const auto& config = GetDynamicConfig();
+        UpdatePoolNameRegexes(config->PoolNameRegexForAdministrators, config->PoolNameRegexForUsers);
 
         for (const auto& [_, schedulerPoolTree] : SchedulerPoolTreeMap_) {
             if (!IsObjectAlive(schedulerPoolTree)) {
