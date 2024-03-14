@@ -168,9 +168,21 @@ void TMasterJobBase::Start()
     YT_VERIFY(!std::exchange(Started_, true));
 
     JobState_ = EJobState::Running;
+
+    // This bind is necessary to set the trace context.
     JobFuture_ = BIND(&TMasterJobBase::GuardedRun, MakeStrong(this))
         .AsyncVia(Bootstrap_->GetJobInvoker())
         .Run();
+    JobFuture_
+        .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& result) {
+            VERIFY_THREAD_AFFINITY(JobThread);
+
+            if (result.IsOK()) {
+                SetCompleted();
+            } else {
+                SetFailed(result);
+            }
+        }).Via(Bootstrap_->GetJobInvoker()));
 
     YT_VERIFY(GetPorts().empty());
 }
@@ -296,7 +308,7 @@ TBriefJobInfo TMasterJobBase::GetBriefInfo() const
         TResourceHolder::GetPorts());
 }
 
-void TMasterJobBase::GuardedRun()
+TFuture<void> TMasterJobBase::GuardedRun()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -307,17 +319,9 @@ void TMasterJobBase::GuardedRun()
     AddTagToBaggage(baggage, EAggregateIOTag::JobType, FormatEnum(GetType()));
     context->PackBaggage(std::move(baggage));
 
-    try {
-        JobPrepared_.Fire();
-        WaitFor(BIND(&TMasterJobBase::DoRun, MakeStrong(this))
-            .AsyncVia(Bootstrap_->GetMasterJobInvoker())
-            .Run())
-            .ThrowOnError();
-    } catch (const std::exception& ex) {
-        SetFailed(ex);
-        return;
-    }
-    SetCompleted();
+    JobPrepared_.Fire();
+
+    return DoRun();
 }
 
 void TMasterJobBase::SetCompleted()
@@ -442,9 +446,18 @@ private:
     const TChunkId ChunkId_;
     const TRemoveChunkJobDynamicConfigPtr DynamicConfig_;
 
-    void DoRun() override
+    TFuture<void> DoRun() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        return BIND(&TChunkRemovalJob::Execute, MakeStrong(this))
+            .AsyncVia(Bootstrap_->GetMasterJobInvoker())
+            .Run();
+    }
+
+    TFuture<void> Execute()
+    {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
         int mediumIndex = JobSpecExt_.medium_index();
         auto replicas = FromProto<TChunkReplicaList>(JobSpecExt_.replicas());
@@ -467,20 +480,24 @@ private:
         if (!chunk) {
             YT_VERIFY(chunkIsDead);
             YT_LOG_INFO("Dead chunk is missing, reporting success");
-            return;
+            return VoidFuture;
         }
 
+        // Usually, when subscribing, there are more free fibers than when calling wait for,
+        // and the lack of free fibers during a forced context switch leads to the creation
+        // of a new fiber and an increase in the number of stacks.
         const auto& chunkStore = Bootstrap_->GetChunkStore();
-        WaitFor(chunkStore->RemoveChunk(chunk, DynamicConfig_->DelayBeforeStartRemoveChunk))
-            .ThrowOnError();
+        auto resultFuture = chunkStore->RemoveChunk(chunk, DynamicConfig_->DelayBeforeStartRemoveChunk);
 
         if (DynamicConfig_->WaitForIncrementalHeartbeatBarrier) {
             // Wait for the removal notification to be delivered to master.
             // Cf. YT-6532.
             YT_LOG_INFO("Waiting for heartbeat barrier");
             const auto& masterConnector = Bootstrap_->GetMasterConnector();
-            WaitFor(masterConnector->GetHeartbeatBarrier(CellTagFromId(ChunkId_)))
-                .ThrowOnError();
+            return resultFuture
+                .Apply(BIND(&IMasterConnector::GetHeartbeatBarrier, masterConnector, CellTagFromId(ChunkId_)));
+        } else {
+            return resultFuture;
         }
     }
 };
@@ -517,9 +534,18 @@ private:
     const TChunkId ChunkId_;
     const TReplicateChunkJobDynamicConfigPtr DynamicConfig_;
 
-    void DoRun() override
+    TFuture<void> DoRun() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        return BIND(&TChunkReplicationJob::Execute, MakeStrong(this))
+            .AsyncVia(Bootstrap_->GetMasterJobInvoker())
+            .Run();
+    }
+
+    void Execute()
+    {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
         int sourceMediumIndex = JobSpecExt_.source_medium_index();
         auto targetReplicas = FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas());
@@ -899,9 +925,18 @@ private:
         }
     }
 
-    void DoRun() override
+    TFuture<void> DoRun() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        return BIND(&TChunkRepairJob::Execute, MakeStrong(this))
+            .AsyncVia(Bootstrap_->GetMasterJobInvoker())
+            .Run();
+    }
+
+    void Execute()
+    {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
         auto codecId = CheckedEnumCast<NErasure::ECodec>(JobSpecExt_.erasure_codec());
         auto* codec = NErasure::GetCodec(codecId);
@@ -1051,9 +1086,18 @@ private:
         }
     }
 
-    void DoRun() override
+    TFuture<void> DoRun() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        return BIND(&TSealChunkJob::Execute, MakeStrong(this))
+            .AsyncVia(Bootstrap_->GetMasterJobInvoker())
+            .Run();
+    }
+
+    void Execute()
+    {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
         auto codecId = CheckedEnumCast<NErasure::ECodec>(JobSpecExt_.codec_id());
         int mediumIndex = JobSpecExt_.medium_index();
@@ -1204,7 +1248,6 @@ private:
             .ThrowOnError();
 
         YT_LOG_DEBUG("Finished sealing journal chunk");
-
         journalChunk->UpdateFlushedRowCount(changelog->GetRecordCount());
         journalChunk->UpdateDataSize(changelog->GetDataSize());
 
@@ -1486,9 +1529,18 @@ private:
         return MultiReaderMemoryManager_->Finalize();
     }
 
-    void DoRun() override
+    TFuture<void> DoRun() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        return BIND(&TChunkMergeJob::Execute, MakeStrong(this))
+            .AsyncVia(Bootstrap_->GetMasterJobInvoker())
+            .Run();
+    }
+
+    void Execute()
+    {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
         NodeDirectory_->MergeFrom(JobSpecExt_.node_directory());
 
@@ -1537,6 +1589,7 @@ private:
             default:
                 THROW_ERROR_EXCEPTION("Cannot merge chunks in %Qlv mode", MergeMode_);
         }
+
         SetMergeJobResult();
     }
 
@@ -2063,9 +2116,18 @@ private:
         #undef COPY_EXTENSION
     }
 
-    void DoRun() override
+    TFuture<void> DoRun() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        return BIND(&TChunkReincarnationJob::Execute, MakeStrong(this))
+            .AsyncVia(Bootstrap_->GetMasterJobInvoker())
+            .Run();
+    }
+
+    void Execute()
+    {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
         if (IsTestingFailureNeeded()) {
             THROW_ERROR_EXCEPTION("Testing failure");
@@ -2368,9 +2430,18 @@ private:
         const int Index;
     };
 
-    virtual void DoRun() override
+    virtual TFuture<void> DoRun() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        return BIND(&TAutotomizeChunkJob::Execute, MakeStrong(this))
+            .AsyncVia(Bootstrap_->GetMasterJobInvoker())
+            .Run();
+    }
+
+    void Execute()
+    {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
         if (DynamicConfig_->FailJobs) {
             THROW_ERROR_EXCEPTION("Testing failure");

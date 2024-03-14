@@ -81,8 +81,8 @@ protected:
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
-    virtual void DoRun() = 0;
-    void GuardedRun();
+    virtual TFuture<void> DoRun() = 0;
+    TFuture<void> GuardedRun();
 
     void SetCompleted();
     void SetFailed(const TError& error);
