@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, wait, get, set, switch_leader, is_active_primary_master_leader, is_active_primary_master_follower,
     get_active_primary_master_leader_address, get_active_primary_master_follower_address,
-    reset_state_hash, build_master_snapshots, discombobulate_nonvoting_peers, create, write_table, read_table)
+    reset_state_hash, build_snapshot, discombobulate_nonvoting_peers)
 
 from yt.common import YtError
 
@@ -78,6 +78,8 @@ class TestMasterResetStateHash(YTEnvSetup):
 class TestDiscombobulate(YTEnvSetup):
     NUM_MASTERS = 5
     NUM_NONVOTING_MASTERS = 2
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
 
     DELTA_MASTER_CONFIG = {
         "election_manager": {
@@ -88,13 +90,11 @@ class TestDiscombobulate(YTEnvSetup):
 
     @authors("danilalexeev")
     def test_discombobulate_nonvoting_peers(self):
-        rows = [{"a": "b"}]
-        create("table", "//tmp/t")
-        write_table("//tmp/t", rows)
-
-        build_master_snapshots(set_read_only=True)
+        set("//tmp/hello", "world")
 
         primary_master_config = self.Env.configs["master"][0]["primary_master"]
+
+        build_snapshot(cell_id=primary_master_config["cell_id"], set_read_only=True)
 
         discombobulate_nonvoting_peers(primary_master_config["cell_id"])
 
@@ -105,16 +105,20 @@ class TestDiscombobulate(YTEnvSetup):
                     "{}/{}/orchid/monitoring/hydra/active".format("//sys/primary_masters", address),
                     default=False), ignore_exceptions=True)
 
-        def restart_check_masters(master_ids):
+        def restart_check_masters(master_ids, voting):
             self.Env.kill_service("master", indexes=master_ids)
-            time.sleep(1)
+            time.sleep(3)
 
-            assert read_table("//tmp/t") == rows
+            assert get("//tmp/hello") == "world"
+
+            if voting:
+                with pytest.raises(YtError, match="Read-only mode is active"):
+                    set("//tmp/hello", "hello")
 
             self.Env.start_master_cell(set_config=False)
             wait_active(master_ids)
 
-            assert read_table("//tmp/t") == rows
+            assert get("//tmp/hello") == "world"
 
         voting_ids = [0, 1, 2]
         nonvoting_ids = [3, 4]
@@ -124,9 +128,9 @@ class TestDiscombobulate(YTEnvSetup):
                 "{}/{}/orchid/monitoring/hydra/discombobulated".format("//sys/primary_masters", address),
                 default=False))
 
-        restart_check_masters(voting_ids)
+        restart_check_masters(voting_ids, True)
 
-        restart_check_masters(nonvoting_ids)
+        restart_check_masters(nonvoting_ids, False)
 
         for address in primary_master_config["addresses"][3:]:
             assert not get(

@@ -17,6 +17,18 @@ message TPeerKindExt
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TDiscombobulationExt
+{
+    extend NRpc.NProto.TRspDiscover
+    {
+        optional TDiscombobulationExt discombobulation_ext = 100;
+    }
+
+    required bool discombobulated = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqForceSyncWithLeader
 {
 }

@@ -43,6 +43,7 @@ private:
     const IUpstreamSynchronizerPtr UpstreamSynchronizer_;
 
     bool IsUp(const TCtxDiscoverPtr& context) override;
+    void EnrichDiscoverResponse(TRspDiscover* response) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

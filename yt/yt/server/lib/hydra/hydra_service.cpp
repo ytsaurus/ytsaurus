@@ -105,6 +105,17 @@ bool THydraServiceBase::IsUp(const TCtxDiscoverPtr& context)
     }
 }
 
+void THydraServiceBase::EnrichDiscoverResponse(TRspDiscover* response)
+{
+    auto hydraManager = HydraManager_.Lock();
+    if (!hydraManager) {
+        return;
+    }
+
+    auto* ext = response->MutableExtension(NProto::TDiscombobulationExt::discombobulation_ext);
+    ext->set_discombobulated(hydraManager->IsDiscombobulated());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHydra
