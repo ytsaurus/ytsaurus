@@ -861,6 +861,7 @@ def get_checks_config():
                     "cluster_name_to_infra_environment_id": {
                         "ada": 2395,
                         "arnold": 81,
+                        "arnold-gnd": 9626,
                         "bohr": 87,
                         "freud": 84,
                         "freud-gnd": 9552,
@@ -1254,6 +1255,12 @@ def get_checks_config():
                 bundle_controller,
                 dynamic_table_replication_stable,
                 system_quotas_with_non_critical_yp_account,
+            ),
+            "arnold-gnd": deep_merge(
+                snapshot_validation,
+                allow_unaware_nodes,
+                clock_quorum_health,
+                nochyt,
             ),
             "landau": deep_merge(
                 snapshot_validation,
