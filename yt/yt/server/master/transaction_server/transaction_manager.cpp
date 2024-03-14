@@ -598,7 +598,7 @@ public:
             UnrefTimestampHolder(transactionId);
         }
 
-        auto sequoiaContextGuard = CreateSequoiaContextGuard(transaction);
+        auto sequoiaContextGuard = MaybeCreateSequoiaContextGuard(transaction);
 
         RunCommitTransactionActions(transaction, options);
 
@@ -1171,7 +1171,7 @@ public:
             GetAndValidatePrerequisiteTransaction(prerequisiteTransactionId);
         }
 
-        auto sequoiaContextGuard = CreateSequoiaContextGuard(transaction);
+        auto sequoiaContextGuard = MaybeCreateSequoiaContextGuard(transaction);
 
         RunPrepareTransactionActions(transaction, options);
 
@@ -2745,13 +2745,13 @@ private:
         }
     }
 
-    std::unique_ptr<TSequoiaContextGuard> CreateSequoiaContextGuard(TTransaction* transaction)
+    TSequoiaContextGuard MaybeCreateSequoiaContextGuard(TTransaction* transaction)
     {
         if (transaction->GetIsSequoiaTransaction()) {
             auto sequoiaContext = CreateSequoiaContext(Bootstrap_, transaction->GetId(), transaction->SequoiaWriteSet());
-            return std::make_unique<TSequoiaContextGuard>(std::move(sequoiaContext));
+            return TSequoiaContextGuard(std::move(sequoiaContext), Bootstrap_->GetSecurityManager(), transaction->GetAuthenticationIdentity());
         } else {
-            return nullptr;
+            return TSequoiaContextGuard(Bootstrap_->GetSecurityManager());
         }
     }
 

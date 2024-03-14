@@ -212,6 +212,7 @@ DEFINE_ENUM(EMasterReign,
     ((HunkMedia)                                                    (2543))  // kivedernikov
     ((SequoiaQueues)                                                (2544))  // aleksandra-zh
     ((ChunkListTraversalIncumbency)                                 (2545))  // danilalexeev
+    ((UsersInSequoia)                                               (2546))  // cherepashka
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov
