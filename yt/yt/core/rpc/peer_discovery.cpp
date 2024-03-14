@@ -18,6 +18,7 @@ public:
 
     TFuture<TPeerDiscoveryResponse> Discover(
         IChannelPtr channel,
+        const TString& /*address*/,
         TDuration timeout,
         TDuration replyDelay,
         const std::string& serviceName) override
