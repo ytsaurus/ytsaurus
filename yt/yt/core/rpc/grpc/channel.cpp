@@ -166,7 +166,7 @@ public:
         if (!TerminationError_.IsOK()) {
             auto error = TerminationError_;
             guard.Release();
-            responseHandler->HandleError(error);
+            responseHandler->HandleError(std::move(error));
             return nullptr;
         }
         return New<TCallHandler>(
@@ -668,7 +668,7 @@ private:
                 reason,
                 Request_->GetRequestId());
 
-            responseHandler->HandleError(detailedError);
+            responseHandler->HandleError(std::move(detailedError));
         }
 
         void NotifyResponse(TSharedRefArray message)

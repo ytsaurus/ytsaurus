@@ -1027,7 +1027,7 @@ private:
                 reason,
                 requestControl->GetRequestId());
 
-            responseHandler->HandleError(detailedError);
+            responseHandler->HandleError(std::move(detailedError));
         }
 
         void NotifyAcknowledgement(

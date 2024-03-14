@@ -326,7 +326,7 @@ private:
             YT_LOG_DEBUG(detailedError, "Local request failed (RequestId: %v)",
                 RequestId_);
 
-            Handler_->HandleError(detailedError);
+            Handler_->HandleError(std::move(detailedError));
         }
     };
 
