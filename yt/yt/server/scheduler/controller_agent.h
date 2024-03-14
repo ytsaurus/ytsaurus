@@ -97,9 +97,9 @@ public:
         THashSet<TString> tags,
         NRpc::IChannelPtr channel,
         const IInvokerPtr& invoker,
+        const IInvokerPtr& heartbeatInvoker,
         const IInvokerPtr& messageOffloadInvoker);
 
-    DEFINE_BYVAL_RW_PROPERTY(EControllerAgentState, State);
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TLease, Lease);
 
     DEFINE_BYREF_RW_PROPERTY(THashSet<TOperationPtr>, Operations);
@@ -133,6 +133,21 @@ public:
      */
     IInvokerPtr GetMessageOffloadInvoker() const;
 
+    /*
+     * \note Thread affinity: any
+     */
+    TGuard<NThreading::TSpinLock> AcquireInnerStateLock();
+
+    /*
+     * \note Thread affinity: any
+     */
+    void SetState(EControllerAgentState newState);
+
+    /*
+     * \note Thread affinity: any
+     */
+    EControllerAgentState GetState() const;
+
     const NApi::ITransactionPtr& GetIncarnationTransaction() const;
     void SetIncarnationTransaction(NApi::ITransactionPtr transaction);
 
@@ -145,7 +160,16 @@ public:
     const TScheduleAllocationRequestOutboxPtr& GetScheduleAllocationRequestsOutbox();
 
     void Cancel(const TError& error);
-    const IInvokerPtr& GetCancelableInvoker();
+
+    /*
+     * \note Thread affinity: any
+     */
+    const IInvokerPtr& GetCancelableControlInvoker();
+
+    /*
+     * \note Thread affinity: any
+     */
+    const IInvokerPtr& GetCancelableHeartbeatInvoker();
 
     std::optional<TControllerAgentMemoryStatistics> GetMemoryStatistics();
     void SetMemoryStatistics(TControllerAgentMemoryStatistics memoryStatistics);
@@ -161,8 +185,15 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, InnerStateLock_);
+
+    std::atomic<EControllerAgentState> State_;
+
     TCancelableContextPtr CancelableContext_;
-    IInvokerPtr CancelableInvoker_;
+    const IInvokerPtr CancelableControlInvoker_;
+
+    const IInvokerPtr HeartbeatInvoker_;
+    const IInvokerPtr CancelableHeartbeatInvoker_;
 
     IInvokerPtr MessageOffloadInvoker_;
 

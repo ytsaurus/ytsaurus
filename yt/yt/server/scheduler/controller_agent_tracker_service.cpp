@@ -48,7 +48,7 @@ private:
     TBootstrap* const Bootstrap_;
     IResponseKeeperPtr ResponseKeeper_;
 
-    // Returns |true| if we no further action is required.
+    // Returns |true| if no further action is required.
     bool TryReplyingWithResponseKeeper(const IServiceContextPtr& context)
     {
         Bootstrap_->GetScheduler()->ValidateConnected();
@@ -59,40 +59,17 @@ private:
             ResponseKeeper_->TryReplyFrom(context);
     }
 
-    auto ProcessRequest(auto method, const auto& context)
-    {
-        const auto& controllerAgentTracker = Bootstrap_->GetControllerAgentTracker();
-        return WaitFor(BIND([method, &context, &controllerAgentTracker, scheduler = Bootstrap_->GetScheduler()] {
-            scheduler->ValidateConnected();
-
-            return std::invoke(method, controllerAgentTracker, context);
-        })
-            .AsyncVia(controllerAgentTracker->GetInvoker())
-            .Run());
-    }
-
-    void DoReply(const auto& context, auto&& result)
-    {
-        if (!result.IsOK()) {
-            context->Reply(std::move(result));
-            return;
-        }
-
-        context->SetResponseInfo("IncarnationId: %v", result.Value());
-        context->Reply();
-    }
-
     DECLARE_RPC_SERVICE_METHOD(NScheduler::NProto, Handshake)
     {
         if (TryReplyingWithResponseKeeper(context)) {
             return;
         }
 
-        auto incarnationIdOrError = ProcessRequest(
-            &TControllerAgentTracker::ProcessAgentHandshake,
-            context);
+        Bootstrap_
+            ->GetControllerAgentTracker()
+            ->ProcessAgentHandshake(context);
 
-        DoReply(context, std::move(incarnationIdOrError));
+        context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NScheduler::NProto, Heartbeat)
@@ -101,11 +78,11 @@ private:
             return;
         }
 
-        auto incarnationIdOrError = ProcessRequest(
-            &TControllerAgentTracker::ProcessAgentHeartbeat,
-            context);
+        Bootstrap_
+            ->GetControllerAgentTracker()
+            ->ProcessAgentHeartbeat(context);
 
-        DoReply(context, std::move(incarnationIdOrError));
+        context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NScheduler::NProto, ScheduleAllocationHeartbeat)
@@ -114,11 +91,11 @@ private:
             return;
         }
 
-        auto incarnationIdOrError = ProcessRequest(
-            &TControllerAgentTracker::ProcessAgentScheduleAllocationHeartbeat,
-            context);
+        Bootstrap_
+            ->GetControllerAgentTracker()
+            ->ProcessAgentScheduleAllocationHeartbeat(context);
 
-        DoReply(context, std::move(incarnationIdOrError));
+        context->Reply();
     }
 };
 

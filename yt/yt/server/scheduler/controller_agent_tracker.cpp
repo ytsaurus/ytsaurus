@@ -211,9 +211,10 @@ public:
         TBootstrap* bootstrap)
         : SchedulerConfig_(std::move(config))
         , Config_(SchedulerConfig_->ControllerAgentTracker)
-        , CachedConfig_(Config_)
+        , AtomicConfig_(Config_)
         , Bootstrap_(bootstrap)
         , MessageOffloadThreadPool_(CreateThreadPool(Config_->MessageOffloadThreadCount, "MsgOffload"))
+        , HeartbeatActionQueue_(New<TActionQueue>("ControllerAgent"))
         , ResponseKeeper_(CreateResponseKeeper(
             Config_->ResponseKeeper,
             Bootstrap_->GetControlInvoker(EControlQueue::AgentTracker),
@@ -277,6 +278,11 @@ public:
 
         std::vector<TControllerAgentPtr> aliveAgents;
         for (const auto& [agentId, agent] : IdToAgent_) {
+            // (*) Only possible concurrent mutation to GetState is transition
+            // WaitingForFirstHeartbeat -> Registered.
+            // Access to GetState itself is atomic, so no race here.
+            // (*) Implies that agent considered alive cannot leave such state
+            // concurrently to this function execution.
             if (agent->GetState() != EControllerAgentState::Registered) {
                 ++nonRegisteredCount;
                 continue;
@@ -391,8 +397,12 @@ public:
             agent->GetId(),
             agent->GetIncarnationId());
 
-        Bootstrap_->GetControlInvoker(EControlQueue::AgentTracker)->Invoke(
-            BIND(&TImpl::UnregisterAgent, MakeStrong(this), agent));
+        Bootstrap_
+            ->GetControlInvoker(EControlQueue::AgentTracker)
+            ->Invoke(BIND([this, this_ = MakeStrong(this), agent] {
+                auto agentGuard = agent->AcquireInnerStateLock();
+                UnregisterAgent(agent, std::move(agentGuard));
+            }));
     }
 
 
@@ -416,7 +426,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return CachedConfig_.Acquire();
+        return AtomicConfig_.Acquire();
     }
 
     void UpdateConfig(TSchedulerConfigPtr config)
@@ -425,7 +435,7 @@ public:
 
         SchedulerConfig_ = std::move(config);
         Config_ = SchedulerConfig_->ControllerAgentTracker;
-        CachedConfig_.Store(Config_);
+        AtomicConfig_.Store(Config_);
 
         MessageOffloadThreadPool_->Configure(Config_->MessageOffloadThreadCount);
     }
@@ -435,19 +445,30 @@ public:
         return ResponseKeeper_;
     }
 
-    IInvokerPtr GetInvoker() const
+    IInvokerPtr GetHeartbeatInvoker() const
     {
-        return Bootstrap_->GetControlInvoker(EControlQueue::AgentTracker);
+        return HeartbeatActionQueue_->GetInvoker();
     }
 
-    TControllerAgentPtr FindAgent(const TAgentId& id)
+    TControllerAgentPtr DoFindAgent(
+        const TAgentId id,
+        const THashMap<TAgentId, TControllerAgentPtr>& idToAgent) const
     {
-        auto it = IdToAgent_.find(id);
-        return it == IdToAgent_.end() ? nullptr : it->second;
+        auto it = idToAgent.find(id);
+        return it == idToAgent.end() ? nullptr : it->second;
+    }
+
+    TControllerAgentPtr FindAgent(const TAgentId& id) const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return DoFindAgent(id, IdToAgent_);
     }
 
     TControllerAgentPtr GetAgentOrThrow(const TAgentId& id)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto agent = FindAgent(id);
         if (!agent) {
             THROW_ERROR_EXCEPTION(
@@ -457,7 +478,323 @@ public:
         return agent;
     }
 
-    TIncarnationId ProcessAgentHandshake(const TCtxAgentHandshakePtr& context)
+    TControllerAgentPtr GetMirroredAgentOrThrow(const TAgentId& id)
+    {
+        VERIFY_INVOKER_AFFINITY(GetHeartbeatInvoker());
+
+        auto agent = DoFindAgent(id, MirroredIdToAgent_);
+        if (!agent) {
+            THROW_ERROR_EXCEPTION(
+                "Agent %v is not registered",
+                id);
+        }
+        return agent;
+    }
+
+    template <CInvocable<void(THashMap<TAgentId, TControllerAgentPtr>&)> TMutator>
+    void MutateAgentMappings(TMutator mutator)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        mutator(IdToAgent_);
+
+        GetHeartbeatInvoker()->Invoke(BIND([mutator = std::move(mutator), this, this_ = MakeStrong(this)] () mutable {
+            mutator(MirroredIdToAgent_);
+        }));
+    }
+
+    void HandleAgentAndRenewLease(const TControllerAgentPtr& agent, TIncarnationId incarnationId)
+    {
+        auto agentGuard = agent->AcquireInnerStateLock();
+
+        auto agentState = agent->GetState();
+        if (
+            agentState != EControllerAgentState::Registered &&
+            agentState != EControllerAgentState::WaitingForInitialHeartbeat
+        ) {
+            THROW_ERROR_EXCEPTION(
+                "Agent %Qv is in %Qlv state",
+                agent->GetId(),
+                agentState);
+        }
+        if (incarnationId != agent->GetIncarnationId()) {
+            THROW_ERROR_EXCEPTION(
+                "Wrong agent incarnation id: expected %v, got %v",
+                agent->GetIncarnationId(),
+                incarnationId);
+        }
+        if (agentState == EControllerAgentState::WaitingForInitialHeartbeat) {
+            YT_LOG_INFO("Agent registration confirmed by heartbeat");
+            agent->SetState(EControllerAgentState::Registered);
+        }
+
+        TLeaseManager::RenewLease(agent->GetLease(), Config_->HeartbeatTimeout);
+    }
+
+    void ProcessOperationInfos(
+        const TCtxAgentHeartbeatPtr& context,
+        const TControllerAgentPtr& agent)
+    {
+        VERIFY_INVOKER_AFFINITY(GetHeartbeatInvoker());
+
+        const auto& scheduler = Bootstrap_->GetScheduler();
+
+        auto* request = &context->Request();
+        auto* response = &context->Response();
+
+        std::vector<TOperationInfo> operationInfos;
+        operationInfos.reserve(request->operations().size());
+        for (const auto& operationInfoProto : request->operations()) {
+            operationInfos.emplace_back(FromProto<TOperationInfo>(operationInfoProto));
+        }
+
+        agent->GetCancelableControlInvoker()->Invoke(BIND([
+                scheduler,
+                response,
+                agentId = agent->GetId(),
+                operationInfos = std::move(operationInfos)
+            ] {
+                RunNoExcept([&] {
+                    TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics;
+                    for (const auto& operationInfo : operationInfos) {
+                        auto operationId = operationInfo.OperationId;
+                        auto operation = scheduler->FindOperation(operationId);
+                        if (!operation) {
+                            // TODO(eshcherbin): This is used for flap diagnostics. Remove when TestPoolMetricsPorto is fixed (YT-12207).
+                            THashMap<TString, i64> treeIdToOperationTotalTimeDelta;
+                            for (const auto& [treeId, metrics] : operationInfo.JobMetrics) {
+                                treeIdToOperationTotalTimeDelta.emplace(treeId, metrics.Values()[EJobMetricName::TotalTime]);
+                            }
+
+                            YT_LOG_DEBUG(
+                                "Unknown operation is running at agent; unregister requested (AgentId: %v, OperationId: %v, TreeIdToOperationTotalTimeDelta: %v)",
+                                agentId,
+                                operationId,
+                                treeIdToOperationTotalTimeDelta);
+                            ToProto(response->add_operation_ids_to_unregister(), operationId);
+                            continue;
+                        }
+                        EmplaceOrCrash(operationIdToOperationJobMetrics, operationId, std::move(operationInfo.JobMetrics));
+
+                        for (const auto& [alertType, alert] : operationInfo.AlertMap) {
+                            YT_UNUSED_FUTURE(scheduler->SetOperationAlert(operationId, alertType, alert));
+                        }
+
+                        if (operationInfo.SuspiciousJobsYson) {
+                            operation->SetSuspiciousJobs(operationInfo.SuspiciousJobsYson);
+                        }
+
+                        auto controllerRuntimeDataError = CheckControllerRuntimeData(operationInfo.ControllerRuntimeData);
+                        if (controllerRuntimeDataError.IsOK()) {
+                            operation->GetController()->SetControllerRuntimeData(operationInfo.ControllerRuntimeData);
+                            YT_UNUSED_FUTURE(scheduler->SetOperationAlert(operationId, EOperationAlertType::InvalidControllerRuntimeData, TError()));
+                        } else {
+                            auto error = TError("Controller agent reported invalid data for operation")
+                                << TErrorAttribute("operation_id", operation->GetId())
+                                << std::move(controllerRuntimeDataError);
+                            YT_UNUSED_FUTURE(scheduler->SetOperationAlert(operationId, EOperationAlertType::InvalidControllerRuntimeData, error));
+                        }
+                    }
+
+                    scheduler->GetStrategy()->ApplyJobMetricsDelta(std::move(operationIdToOperationJobMetrics));
+                });
+            }));
+    }
+
+    void HandleOperationEventsInbox(
+        const TCtxAgentHeartbeatPtr& context,
+        const TControllerAgentPtr& agent)
+    {
+        const auto& scheduler = Bootstrap_->GetScheduler();
+
+        auto* request = &context->Request();
+        auto* response = &context->Response();
+
+        agent->GetCancelableControlInvoker()->Invoke(BIND([
+                this,
+                this_ = MakeStrong(this),
+                agent,
+                scheduler,
+                requestEvents = std::move(*request->mutable_agent_to_scheduler_operation_events()),
+                responseEvents = std::move(*response->mutable_agent_to_scheduler_operation_events())
+            ] () mutable {
+                // NB: OnInitializationFinished, OnPreparationFinished, OnMaterializationFinished, OnRevivalFinished and OnCommitFinished
+                // can in fact throw if agent pointer expires. However, we have it in our closure meaning that
+                // we are guaranteed to have agent alive at least while this lambda is alive.
+                RunNoExcept([&] {
+                    YT_LOG_DEBUG("Handling operation events inbox");
+                    agent->GetOperationEventsInbox()->HandleIncoming(
+                        &requestEvents,
+                        [&] (auto* protoEvent) {
+                            auto eventType = static_cast<EAgentToSchedulerOperationEventType>(protoEvent->event_type());
+                            auto operationId = FromProto<TOperationId>(protoEvent->operation_id());
+                            auto controllerEpoch = TControllerEpoch(protoEvent->controller_epoch());
+                            auto error = FromProto<TError>(protoEvent->error());
+
+                            auto operation = scheduler->FindOperation(operationId);
+                            if (!operation) {
+                                return;
+                            }
+
+                            if (operation->ControllerEpoch() != controllerEpoch) {
+                                YT_LOG_DEBUG("Received operation event with unexpected controller epoch; ignored "
+                                    "(OperationId: %v, ControllerEpoch: %v, EventType: %v)",
+                                    operationId,
+                                    controllerEpoch,
+                                    eventType);
+                                return;
+                            }
+
+                            switch (eventType) {
+                                case EAgentToSchedulerOperationEventType::Completed:
+                                    scheduler->OnOperationCompleted(operation);
+                                    break;
+                                case EAgentToSchedulerOperationEventType::Suspended:
+                                    scheduler->OnOperationSuspended(operation, error);
+                                    break;
+                                case EAgentToSchedulerOperationEventType::Aborted:
+                                    scheduler->OnOperationAborted(operation, error);
+                                    break;
+                                case EAgentToSchedulerOperationEventType::Failed:
+                                    scheduler->OnOperationFailed(operation, error);
+                                    break;
+                                case EAgentToSchedulerOperationEventType::BannedInTentativeTree: {
+                                    auto treeId = protoEvent->tentative_tree_id();
+                                    auto allocationIds = FromProto<std::vector<TAllocationId>>(protoEvent->tentative_tree_allocation_ids());
+                                    scheduler->OnOperationBannedInTentativeTree(operation, treeId, allocationIds);
+                                    break;
+                                }
+                                case EAgentToSchedulerOperationEventType::InitializationFinished: {
+                                    TErrorOr<TOperationControllerInitializeResult> resultOrError;
+                                    if (error.IsOK()) {
+                                        YT_ASSERT(protoEvent->has_initialize_result());
+
+                                        TOperationControllerInitializeResult result;
+                                        FromProto(
+                                            &result,
+                                            protoEvent->initialize_result(),
+                                            operationId,
+                                            Bootstrap_,
+                                            SchedulerConfig_->OperationTransactionPingPeriod);
+
+                                        resultOrError = std::move(result);
+                                    } else {
+                                        resultOrError = std::move(error);
+                                    }
+
+                                    operation->GetController()->OnInitializationFinished(resultOrError);
+                                    break;
+                                }
+                                case EAgentToSchedulerOperationEventType::PreparationFinished: {
+                                    TErrorOr<TOperationControllerPrepareResult> resultOrError;
+                                    if (error.IsOK()) {
+                                        YT_ASSERT(protoEvent->has_prepare_result());
+                                        resultOrError = FromProto<TOperationControllerPrepareResult>(protoEvent->prepare_result());
+                                    } else {
+                                        resultOrError = std::move(error);
+                                    }
+
+                                    operation->GetController()->OnPreparationFinished(resultOrError);
+                                    break;
+                                }
+                                case EAgentToSchedulerOperationEventType::MaterializationFinished: {
+                                    TErrorOr<TOperationControllerMaterializeResult> resultOrError;
+                                    if (error.IsOK()) {
+                                        YT_ASSERT(protoEvent->has_materialize_result());
+                                        resultOrError = FromProto<TOperationControllerMaterializeResult>(protoEvent->materialize_result());
+                                    } else {
+                                        resultOrError = std::move(error);
+                                    }
+
+                                    operation->GetController()->OnMaterializationFinished(resultOrError);
+                                    break;
+                                }
+                                case EAgentToSchedulerOperationEventType::RevivalFinished: {
+                                    TErrorOr<TOperationControllerReviveResult> resultOrError;
+                                    if (error.IsOK()) {
+                                        YT_ASSERT(protoEvent->has_revive_result());
+
+                                        TOperationControllerReviveResult result;
+                                        FromProto(
+                                            &result,
+                                            protoEvent->revive_result(),
+                                            operationId,
+                                            agent->GetIncarnationId(),
+                                            operation->GetController()->GetPreemptionMode());
+
+                                        resultOrError = std::move(result);
+                                    } else {
+                                        resultOrError = std::move(error);
+                                    }
+
+                                    operation->GetController()->OnRevivalFinished(resultOrError);
+                                    break;
+                                }
+                                case EAgentToSchedulerOperationEventType::CommitFinished: {
+                                    TErrorOr<TOperationControllerCommitResult> resultOrError;
+                                    if (error.IsOK()) {
+                                        YT_ASSERT(protoEvent->has_commit_result());
+                                        resultOrError = FromProto<TOperationControllerCommitResult>(protoEvent->commit_result());
+                                    } else {
+                                        resultOrError = std::move(error);
+                                    }
+
+                                    operation->GetController()->OnCommitFinished(resultOrError);
+                                    break;
+                                }
+                                default:
+                                    YT_ABORT();
+                            }
+                        });
+
+                    agent->GetOperationEventsInbox()->ReportStatus(
+                        &responseEvents);
+
+                    YT_LOG_DEBUG("Operation events inbox handled");
+                });
+            }));
+    }
+
+    template <class TMethod, class... TArgs>
+    void DoRun(IInvokerPtr invoker, TMethod method, TArgs&&... args)
+    {
+        auto callback = [this, this_ = MakeStrong(this), method] (TArgs&&... args) mutable {
+            Bootstrap_->GetScheduler()->ValidateConnected();
+            return std::invoke(method, this, std::forward<TArgs>(args)...);
+        };
+
+        WaitFor(
+            BIND(std::move(callback))
+                .AsyncVia(std::move(invoker))
+                .Run(std::forward<TArgs>(args)...))
+            .ThrowOnError();
+    }
+
+    void ProcessAgentHandshake(const TCtxAgentHandshakePtr& context)
+    {
+        DoRun(
+            Bootstrap_->GetControlInvoker(EControlQueue::AgentTracker),
+            &TImpl::DoProcessAgentHandshake,
+            context);
+    }
+
+    void ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)
+    {
+        DoRun(
+            GetHeartbeatInvoker(),
+            &TImpl::DoProcessAgentHeartbeat,
+            context);
+    }
+
+    void ProcessAgentScheduleAllocationHeartbeat(const TCtxAgentScheduleAllocationHeartbeatPtr& context)
+    {
+        DoRun(
+            GetHeartbeatInvoker(),
+            &TImpl::DoProcessAgentScheduleAllocationHeartbeat,
+            context);
+    }
+
+    void DoProcessAgentHandshake(const TCtxAgentHandshakePtr& context)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -470,12 +807,17 @@ public:
 
         auto existingAgent = FindAgent(agentId);
         if (existingAgent) {
-            auto state = existingAgent->GetState();
-            if (state == EControllerAgentState::Registered || state == EControllerAgentState::WaitingForInitialHeartbeat) {
-                YT_LOG_INFO("Kicking out agent due to id conflict (AgentId: %v, ExistingIncarnationId: %v)",
-                    agentId,
-                    existingAgent->GetIncarnationId());
-                UnregisterAgent(existingAgent);
+            EControllerAgentState state;
+            {
+                auto agentGuard = existingAgent->AcquireInnerStateLock();
+
+                state = existingAgent->GetState();
+                if (state == EControllerAgentState::Registered || state == EControllerAgentState::WaitingForInitialHeartbeat) {
+                    YT_LOG_INFO("Kicking out agent due to id conflict (AgentId: %v, ExistingIncarnationId: %v)",
+                        agentId,
+                        existingAgent->GetIncarnationId());
+                    UnregisterAgent(existingAgent, std::move(agentGuard));
+                }
             }
 
             THROW_ERROR_EXCEPTION(
@@ -506,10 +848,13 @@ public:
                 std::move(tags),
                 std::move(channel),
                 Bootstrap_->GetControlInvoker(EControlQueue::AgentTracker),
+                GetHeartbeatInvoker(),
                 CreateSerializedInvoker(MessageOffloadThreadPool_->GetInvoker(), "controller_agent_tracker"));
 
             agent->SetState(EControllerAgentState::Registering);
-            EmplaceOrCrash(IdToAgent_, agent->GetId(), agent);
+            MutateAgentMappings([agent] (auto& idToAgent) {
+                EmplaceOrCrash(idToAgent, agent->GetId(), agent);
+            });
 
             return agent;
         }();
@@ -530,12 +875,13 @@ public:
         response->set_config(ConvertToYsonString(SchedulerConfig_).ToString());
         response->set_scheduler_version(GetVersion());
 
-        return incarnationId;
+        context->SetResponseInfo("IncarnationId: %v", incarnationId);
     }
 
-    TIncarnationId ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)
+    // TODO(arkady-e1ppa): This method is overly bloated. Split into several methods.
+    void DoProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKER_AFFINITY(GetHeartbeatInvoker());
 
         const auto& scheduler = Bootstrap_->GetScheduler();
 
@@ -552,83 +898,15 @@ public:
             request->controller_memory_usage(),
             request->controller_memory_limit());
 
-        auto agent = GetAgentOrThrow(agentId);
-        if (agent->GetState() != EControllerAgentState::Registered && agent->GetState() != EControllerAgentState::WaitingForInitialHeartbeat) {
-            THROW_ERROR_EXCEPTION(
-                "Agent %Qv is in %Qlv state",
-                agentId,
-                agent->GetState());
-        }
-        if (incarnationId != agent->GetIncarnationId()) {
-            THROW_ERROR_EXCEPTION(
-                "Wrong agent incarnation id: expected %v, got %v",
-                agent->GetIncarnationId(),
-                incarnationId);
-        }
-        if (agent->GetState() == EControllerAgentState::WaitingForInitialHeartbeat) {
-            YT_LOG_INFO("Agent registration confirmed by heartbeat (AgentId: %v)", agentId);
-            agent->SetState(EControllerAgentState::Registered);
-        }
+        auto agent = GetMirroredAgentOrThrow(agentId);
 
-        TLeaseManager::RenewLease(agent->GetLease(), Config_->HeartbeatTimeout);
+        HandleAgentAndRenewLease(agent, incarnationId);
 
-        SwitchTo(agent->GetCancelableInvoker());
+        SwitchTo(agent->GetCancelableHeartbeatInvoker());
 
         agent->OnHeartbeatReceived();
 
-        std::vector<TOperationInfo> operationInfos;
-        auto parseOperationsFuture = BIND([&operationsProto = request->operations(), &operationInfos = operationInfos] () {
-                operationInfos.reserve(operationsProto.size());
-                for (const auto& operationInfoProto : operationsProto) {
-                    operationInfos.emplace_back(FromProto<TOperationInfo>(operationInfoProto));
-                }
-            })
-            .AsyncVia(scheduler->GetBackgroundInvoker())
-            .Run();
-        WaitFor(parseOperationsFuture)
-            .ThrowOnError();
-
-        TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics;
-        for (const auto& operationInfo : operationInfos) {
-            auto operationId = operationInfo.OperationId;
-            auto operation = scheduler->FindOperation(operationId);
-            if (!operation) {
-                // TODO(eshcherbin): This is used for flap diagnostics. Remove when TestPoolMetricsPorto is fixed (YT-12207).
-                THashMap<TString, i64> treeIdToOperationTotalTimeDelta;
-                for (const auto& [treeId, metrics] : operationInfo.JobMetrics) {
-                    treeIdToOperationTotalTimeDelta.emplace(treeId, metrics.Values()[EJobMetricName::TotalTime]);
-                }
-
-                YT_LOG_DEBUG("Unknown operation is running at agent; unregister requested (AgentId: %v, OperationId: %v, TreeIdToOperationTotalTimeDelta: %v)",
-                    agent->GetId(),
-                    operationId,
-                    treeIdToOperationTotalTimeDelta);
-                ToProto(response->add_operation_ids_to_unregister(), operationId);
-                continue;
-            }
-            YT_VERIFY(operationIdToOperationJobMetrics.emplace(operationId, std::move(operationInfo.JobMetrics)).second);
-
-            for (const auto& [alertType, alert] : operationInfo.AlertMap) {
-                YT_UNUSED_FUTURE(scheduler->SetOperationAlert(operationId, alertType, alert));
-            }
-
-            if (operationInfo.SuspiciousJobsYson) {
-                operation->SetSuspiciousJobs(operationInfo.SuspiciousJobsYson);
-            }
-
-            auto controllerRuntimeDataError = CheckControllerRuntimeData(operationInfo.ControllerRuntimeData);
-            if (controllerRuntimeDataError.IsOK()) {
-                operation->GetController()->SetControllerRuntimeData(operationInfo.ControllerRuntimeData);
-                YT_UNUSED_FUTURE(scheduler->SetOperationAlert(operationId, EOperationAlertType::InvalidControllerRuntimeData, TError()));
-            } else {
-                auto error = TError("Controller agent reported invalid data for operation")
-                    << TErrorAttribute("operation_id", operation->GetId())
-                    << std::move(controllerRuntimeDataError);
-                YT_UNUSED_FUTURE(scheduler->SetOperationAlert(operationId, EOperationAlertType::InvalidControllerRuntimeData, error));
-            }
-        }
-
-        scheduler->GetStrategy()->ApplyJobMetricsDelta(std::move(operationIdToOperationJobMetrics));
+        ProcessOperationInfos(context, agent);
 
         auto nodeManager = scheduler->GetNodeManager();
 
@@ -687,135 +965,7 @@ public:
             })
             .ValueOrThrow();
 
-        YT_LOG_DEBUG("Handling operation events inbox");
-
-        agent->GetOperationEventsInbox()->HandleIncoming(
-            request->mutable_agent_to_scheduler_operation_events(),
-            [&] (auto* protoEvent) {
-                auto eventType = static_cast<EAgentToSchedulerOperationEventType>(protoEvent->event_type());
-                auto operationId = FromProto<TOperationId>(protoEvent->operation_id());
-                auto controllerEpoch = TControllerEpoch(protoEvent->controller_epoch());
-                auto error = FromProto<TError>(protoEvent->error());
-                auto operation = scheduler->FindOperation(operationId);
-                if (!operation) {
-                    return;
-                }
-
-                if (operation->ControllerEpoch() != controllerEpoch) {
-                    YT_LOG_DEBUG("Received operation event with unexpected controller epoch; ignored "
-                        "(OperationId: %v, ControllerEpoch: %v, EventType: %v)",
-                        operationId,
-                        controllerEpoch,
-                        eventType);
-                    return;
-                }
-
-                switch (eventType) {
-                    case EAgentToSchedulerOperationEventType::Completed:
-                        scheduler->OnOperationCompleted(operation);
-                        break;
-                    case EAgentToSchedulerOperationEventType::Suspended:
-                        scheduler->OnOperationSuspended(operation, error);
-                        break;
-                    case EAgentToSchedulerOperationEventType::Aborted:
-                        scheduler->OnOperationAborted(operation, error);
-                        break;
-                    case EAgentToSchedulerOperationEventType::Failed:
-                        scheduler->OnOperationFailed(operation, error);
-                        break;
-                    case EAgentToSchedulerOperationEventType::BannedInTentativeTree: {
-                        auto treeId = protoEvent->tentative_tree_id();
-                        auto allocationIds = FromProto<std::vector<TAllocationId>>(protoEvent->tentative_tree_allocation_ids());
-                        scheduler->OnOperationBannedInTentativeTree(operation, treeId, allocationIds);
-                        break;
-                    }
-                    case EAgentToSchedulerOperationEventType::InitializationFinished: {
-                        TErrorOr<TOperationControllerInitializeResult> resultOrError;
-                        if (error.IsOK()) {
-                            YT_ASSERT(protoEvent->has_initialize_result());
-
-                            TOperationControllerInitializeResult result;
-                            FromProto(
-                                &result,
-                                protoEvent->initialize_result(),
-                                operationId,
-                                Bootstrap_,
-                                SchedulerConfig_->OperationTransactionPingPeriod);
-
-                            resultOrError = std::move(result);
-                        } else {
-                            resultOrError = std::move(error);
-                        }
-
-                        operation->GetController()->OnInitializationFinished(resultOrError);
-                        break;
-                    }
-                    case EAgentToSchedulerOperationEventType::PreparationFinished: {
-                        TErrorOr<TOperationControllerPrepareResult> resultOrError;
-                        if (error.IsOK()) {
-                            YT_ASSERT(protoEvent->has_prepare_result());
-                            resultOrError = FromProto<TOperationControllerPrepareResult>(protoEvent->prepare_result());
-                        } else {
-                            resultOrError = std::move(error);
-                        }
-
-                        operation->GetController()->OnPreparationFinished(resultOrError);
-                        break;
-                    }
-                    case EAgentToSchedulerOperationEventType::MaterializationFinished: {
-                        TErrorOr<TOperationControllerMaterializeResult> resultOrError;
-                        if (error.IsOK()) {
-                            YT_ASSERT(protoEvent->has_materialize_result());
-                            resultOrError = FromProto<TOperationControllerMaterializeResult>(protoEvent->materialize_result());
-                        } else {
-                            resultOrError = std::move(error);
-                        }
-
-                        operation->GetController()->OnMaterializationFinished(resultOrError);
-                        break;
-                    }
-                    case EAgentToSchedulerOperationEventType::RevivalFinished: {
-                        TErrorOr<TOperationControllerReviveResult> resultOrError;
-                        if (error.IsOK()) {
-                            YT_ASSERT(protoEvent->has_revive_result());
-
-                            TOperationControllerReviveResult result;
-                            FromProto(
-                                &result,
-                                protoEvent->revive_result(),
-                                operationId,
-                                incarnationId,
-                                operation->GetController()->GetPreemptionMode());
-
-                            resultOrError = std::move(result);
-                        } else {
-                            resultOrError = std::move(error);
-                        }
-
-                        operation->GetController()->OnRevivalFinished(resultOrError);
-                        break;
-                    }
-                    case EAgentToSchedulerOperationEventType::CommitFinished: {
-                        TErrorOr<TOperationControllerCommitResult> resultOrError;
-                        if (error.IsOK()) {
-                            YT_ASSERT(protoEvent->has_commit_result());
-                            resultOrError = FromProto<TOperationControllerCommitResult>(protoEvent->commit_result());
-                        } else {
-                            resultOrError = std::move(error);
-                        }
-
-                        operation->GetController()->OnCommitFinished(resultOrError);
-                        break;
-                    }
-                    default:
-                        YT_ABORT();
-                }
-            });
-
-        agent->GetOperationEventsInbox()->ReportStatus(
-            response->mutable_agent_to_scheduler_operation_events());
-
-        YT_LOG_DEBUG("Operation events inbox handled");
+        HandleOperationEventsInbox(context, agent);
 
         if (request->has_controller_memory_limit()) {
             agent->SetMemoryStatistics(TControllerAgentMemoryStatistics{request->controller_memory_limit(), request->controller_memory_usage()});
@@ -877,12 +1027,12 @@ public:
 
         response->set_operations_archive_version(Bootstrap_->GetScheduler()->GetOperationsArchiveVersion());
 
-        return incarnationId;
+        context->SetResponseInfo("IncarnationId: %v", incarnationId);
     }
 
-    TIncarnationId ProcessAgentScheduleAllocationHeartbeat(const TCtxAgentScheduleAllocationHeartbeatPtr& context)
+    void DoProcessAgentScheduleAllocationHeartbeat(const TCtxAgentScheduleAllocationHeartbeatPtr& context)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKER_AFFINITY(GetHeartbeatInvoker());
 
         auto* request = &context->Request();
         const auto& agentId = request->agent_id();
@@ -892,27 +1042,11 @@ public:
             agentId,
             incarnationId);
 
-        auto agent = GetAgentOrThrow(agentId);
-        if (agent->GetState() != EControllerAgentState::Registered && agent->GetState() != EControllerAgentState::WaitingForInitialHeartbeat) {
-            THROW_ERROR_EXCEPTION(
-                "Agent %Qv is in %Qlv state",
-                agentId,
-                agent->GetState());
-        }
-        if (incarnationId != agent->GetIncarnationId()) {
-            THROW_ERROR_EXCEPTION(
-                "Wrong agent incarnation id: expected %v, got %v",
-                agent->GetIncarnationId(),
-                incarnationId);
-        }
-        if (agent->GetState() == EControllerAgentState::WaitingForInitialHeartbeat) {
-            YT_LOG_INFO("Agent registration confirmed by heartbeat");
-            agent->SetState(EControllerAgentState::Registered);
-        }
+        auto agent = GetMirroredAgentOrThrow(agentId);
 
-        TLeaseManager::RenewLease(agent->GetLease(), Config_->HeartbeatTimeout);
+        HandleAgentAndRenewLease(agent, incarnationId);
 
-        SwitchTo(agent->GetCancelableInvoker());
+        SwitchTo(agent->GetCancelableHeartbeatInvoker());
 
         const auto& nodeManager = Bootstrap_->GetScheduler()->GetNodeManager();
         RunInMessageOffloadInvoker(agent, [
@@ -934,19 +1068,21 @@ public:
             })
             .ThrowOnError();
 
-        return incarnationId;
+        context->SetResponseInfo("IncarnationId: %v", incarnationId);
     }
 
 private:
     TSchedulerConfigPtr SchedulerConfig_;
     TControllerAgentTrackerConfigPtr Config_;
-    TAtomicIntrusivePtr<TControllerAgentTrackerConfig> CachedConfig_;
+    TAtomicIntrusivePtr<TControllerAgentTrackerConfig> AtomicConfig_;
     TBootstrap* const Bootstrap_;
     const IThreadPoolPtr MessageOffloadThreadPool_;
+    const TActionQueuePtr HeartbeatActionQueue_;
 
     IResponseKeeperPtr ResponseKeeper_;
 
     THashMap<TAgentId, TControllerAgentPtr> IdToAgent_;
+    THashMap<TAgentId, TControllerAgentPtr> MirroredIdToAgent_;
 
     THashSet<TString> TagsWithTooFewAgents_;
     bool AgentTagsFetched_{};
@@ -981,26 +1117,32 @@ private:
             THROW_ERROR_EXCEPTION("Failed to start incarnation transaction") << transactionOrError;
         }
 
-        if (agent->GetState() != EControllerAgentState::Registering) {
-            THROW_ERROR_EXCEPTION(
-                "Failed to complete agent registration (AgentState: %Qlv)",
-                agent->GetState());
-        }
-
         auto transaction = std::move(transactionOrError.Value());
 
-        agent->SetIncarnationTransaction(transaction);
+        {
+            auto agentGuard = agent->AcquireInnerStateLock();
+            auto agentState = agent->GetState();
+            if (agentState != EControllerAgentState::Registering) {
+                THROW_ERROR_EXCEPTION(
+                    "Failed to complete agent registration (AgentState: %Qlv)",
+                    agentState);
+            }
+
+            agent->SetIncarnationTransaction(transaction);
+
+            agent->SetLease(TLeaseManager::CreateLease(
+                Config_->HeartbeatTimeout,
+                BIND_NO_PROPAGATE(&TImpl::OnAgentHeartbeatTimeout, MakeWeak(this), MakeWeak(agent))
+                    .Via(GetCancelableControlInvoker())));
+
+            agent->SetState(EControllerAgentState::WaitingForInitialHeartbeat);
+        }
 
         const auto& nodeManager = Bootstrap_->GetScheduler()->GetNodeManager();
         nodeManager->RegisterAgentAtNodeShards(
             agent->GetId(),
             agent->GetAgentAddresses(),
             agent->GetIncarnationId());
-
-        agent->SetLease(TLeaseManager::CreateLease(
-            Config_->HeartbeatTimeout,
-            BIND_NO_PROPAGATE(&TImpl::OnAgentHeartbeatTimeout, MakeWeak(this), MakeWeak(agent))
-                .Via(GetCancelableControlInvoker())));
 
         transaction->SubscribeAborted(
             BIND_NO_PROPAGATE(&TImpl::OnAgentIncarnationTransactionAborted, MakeWeak(this), MakeWeak(agent))
@@ -1010,14 +1152,13 @@ private:
             "Agent incarnation transaction started (AgentId: %v, IncarnationId: %v)",
             agent->GetId(),
             agent->GetIncarnationId());
-
-        agent->SetState(EControllerAgentState::WaitingForInitialHeartbeat);
     }
 
-    void UnregisterAgent(const TControllerAgentPtr& agent)
+    void UnregisterAgent(const TControllerAgentPtr& agent, TGuard<NThreading::TSpinLock>&& guard)
     {
-        if (agent->GetState() == EControllerAgentState::Unregistering ||
-            agent->GetState() == EControllerAgentState::Unregistered)
+        auto agentState = agent->GetState();
+        if (agentState == EControllerAgentState::Unregistering ||
+            agentState == EControllerAgentState::Unregistered)
         {
             return;
         }
@@ -1026,24 +1167,28 @@ private:
             agent->GetId(),
             agent->GetIncarnationId());
 
-        YT_VERIFY(agent->GetState() == EControllerAgentState::Registered || agent->GetState() == EControllerAgentState::WaitingForInitialHeartbeat);
+        YT_VERIFY(agentState == EControllerAgentState::Registered || agentState == EControllerAgentState::WaitingForInitialHeartbeat);
+
+        agent->SetState(EControllerAgentState::Unregistering);
+
+        TerminateAgent(agent, std::move(guard));
 
         const auto& scheduler = Bootstrap_->GetScheduler();
         for (const auto& operation : agent->Operations()) {
             scheduler->OnOperationAgentUnregistered(operation);
         }
 
-        TerminateAgent(agent);
-
         YT_LOG_INFO("Aborting agent incarnation transaction (AgentId: %v, IncarnationId: %v)",
             agent->GetId(),
             agent->GetIncarnationId());
 
-        agent->SetState(EControllerAgentState::Unregistering);
         agent->GetIncarnationTransaction()->Abort()
             .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
                 VERIFY_THREAD_AFFINITY(ControlThread);
 
+                // NB: No AgentInnerStateGuard required here since
+                // All mutations on agents with state >= Unregistering are done
+                // in control thread.
                 if (!error.IsOK()) {
                     Bootstrap_->GetScheduler()->Disconnect(error);
                     return;
@@ -1058,21 +1203,26 @@ private:
                     agent->GetIncarnationId());
 
                 agent->SetState(EControllerAgentState::Unregistered);
-                EraseOrCrash(IdToAgent_, agent->GetId());
+                MutateAgentMappings([agentId = agent->GetId()] (auto& idToAgent) {
+                    EraseOrCrash(idToAgent, agentId);
+                });
             })
             .Via(GetCancelableControlInvoker()));
 
         scheduler->GetNodeManager()->UnregisterAgentFromNodeShards(agent->GetId());
     }
 
-    void TerminateAgent(const TControllerAgentPtr& agent)
+    void TerminateAgent(const TControllerAgentPtr& agent, TGuard<NThreading::TSpinLock>&& guard)
     {
         TLeaseManager::CloseLease(agent->GetLease());
         agent->SetLease(TLease());
 
+        guard.Release();
+
         TError error("Agent disconnected");
         agent->GetChannel()->Terminate(error);
-        agent->Cancel(error);
+
+        agent->Cancel(std::move(error));
     }
 
     void OnAgentHeartbeatTimeout(const TWeakPtr<TControllerAgent>& weakAgent)
@@ -1088,7 +1238,8 @@ private:
             agent->GetId(),
             agent->GetIncarnationId());
 
-        UnregisterAgent(agent);
+        auto agentGuard = agent->AcquireInnerStateLock();
+        UnregisterAgent(agent, std::move(agentGuard));
     }
 
     void OnAgentIncarnationTransactionAborted(const TWeakPtr<TControllerAgent>& weakAgent, const TError& error)
@@ -1104,7 +1255,8 @@ private:
             agent->GetId(),
             agent->GetIncarnationId());
 
-        UnregisterAgent(agent);
+        auto agentGuard = agent->AcquireInnerStateLock();
+        UnregisterAgent(agent, std::move(agentGuard));
     }
 
     void RequestControllerAgentInstances(const NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr& batchReq) const
@@ -1204,10 +1356,13 @@ private:
     void DoCleanup()
     {
         for (const auto& [agentId, agent] : IdToAgent_) {
-            TerminateAgent(agent);
+            auto agentGuard = agent->AcquireInnerStateLock();
             agent->SetState(EControllerAgentState::Unregistered);
+            TerminateAgent(agent, std::move(agentGuard));
         }
-        IdToAgent_.clear();
+        MutateAgentMappings([] (auto& idToAgent) {
+            idToAgent.clear();
+        });
     }
 
     void OnMasterConnected()
@@ -1305,22 +1460,22 @@ const IResponseKeeperPtr& TControllerAgentTracker::GetResponseKeeper() const
     return Impl_->GetResponseKeeper();
 }
 
-IInvokerPtr TControllerAgentTracker::GetInvoker() const
+IInvokerPtr TControllerAgentTracker::GetHeartbeatInvoker() const
 {
-    return Impl_->GetInvoker();
+    return Impl_->GetHeartbeatInvoker();
 }
 
-TIncarnationId TControllerAgentTracker::ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)
+void TControllerAgentTracker::ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)
 {
     return Impl_->ProcessAgentHeartbeat(context);
 }
 
-TIncarnationId TControllerAgentTracker::ProcessAgentScheduleAllocationHeartbeat(const TCtxAgentScheduleAllocationHeartbeatPtr& context)
+void TControllerAgentTracker::ProcessAgentScheduleAllocationHeartbeat(const TCtxAgentScheduleAllocationHeartbeatPtr& context)
 {
     return Impl_->ProcessAgentScheduleAllocationHeartbeat(context);
 }
 
-TIncarnationId TControllerAgentTracker::ProcessAgentHandshake(const TCtxAgentHandshakePtr& context)
+void TControllerAgentTracker::ProcessAgentHandshake(const TCtxAgentHandshakePtr& context)
 {
     return Impl_->ProcessAgentHandshake(context);
 }
