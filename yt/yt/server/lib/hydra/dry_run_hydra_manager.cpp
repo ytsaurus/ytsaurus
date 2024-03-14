@@ -369,6 +369,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    bool IsDiscombobulated() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     DEFINE_SIGNAL_OVERRIDE(TFuture<void>(), LeaderLeaseCheck);
 
     // Stuff from IDistributedHydraManager

@@ -596,6 +596,16 @@ public:
         return false;
     }
 
+    bool IsDiscombobulated() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (auto epochContext = AtomicEpochContext_.Acquire()) {
+            return epochContext->Discombobulated;
+        }
+        return false;
+    }
+
     TDistributedHydraManagerDynamicOptions GetDynamicOptions() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
