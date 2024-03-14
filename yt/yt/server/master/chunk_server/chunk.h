@@ -4,7 +4,7 @@
 #include "chunk_requisition.h"
 #include "chunk_replica.h"
 #include "chunk_tree.h"
-#include "refresh_epoch.h"
+#include "incumbency_epoch.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -72,12 +72,12 @@ struct TChunkDynamicData
     //! Indicates for which epoch #EpochScanFlags (besides refresh) is valid.
     NObjectServer::TEpoch Epoch = 0;
 
-    //! Indicates for which epoch refresh epoch scan flag and #EpochPartLostTime are valid.
-    TRefreshEpoch RefreshEpoch = NullRefreshEpoch;
+    //! Indicates for which epoch incumbency scan flags and #EpochPartLostTime are valid.
+    TIncumbencyEpoch IncumbencyEpoch = NullIncumbencyEpoch;
 
-    //! Indicates last refresh epoch chunk was refreshed in.
+    //! Indicates last incumbency epoch chunk was refreshed in.
     //! This is used to check whether chunk state in replicator is actual.
-    TRefreshEpoch LastRefreshEpoch = NullRefreshEpoch;
+    TIncumbencyEpoch LastRefreshIncumbencyEpoch = NullIncumbencyEpoch;
 
     //! For each medium, contains a valid iterator for those chunks belonging to the repair queue
     //! and null (default iterator value) for others.

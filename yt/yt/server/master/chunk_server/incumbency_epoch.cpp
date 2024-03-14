@@ -1,4 +1,4 @@
-#include "refresh_epoch.h"
+#include "incumbency_epoch.h"
 
 namespace NYT::NChunkServer {
 
@@ -8,7 +8,7 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::array<TRefreshEpoch, ChunkShardCount> RefreshEpochs;
+std::array<TIncumbencyEpoch, ChunkShardCount> IncumbencyEpochs;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,14 +16,14 @@ std::array<TRefreshEpoch, ChunkShardCount> RefreshEpochs;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRefreshEpoch GetRefreshEpoch(int shardIndex)
+TIncumbencyEpoch GetIncumbencyEpoch(int shardIndex)
 {
-    return NDetail::RefreshEpochs[shardIndex];
+    return NDetail::IncumbencyEpochs[shardIndex];
 }
 
-void SetRefreshEpoch(int shardIndex, TRefreshEpoch refreshEpoch)
+void SetIncumbencyEpoch(int shardIndex, TIncumbencyEpoch incumbencyEpoch)
 {
-    NDetail::RefreshEpochs[shardIndex] = refreshEpoch;
+    NDetail::IncumbencyEpochs[shardIndex] = incumbencyEpoch;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

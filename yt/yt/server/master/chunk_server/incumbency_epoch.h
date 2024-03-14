@@ -4,8 +4,8 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRefreshEpoch GetRefreshEpoch(int shardIndex);
-void SetRefreshEpoch(int shardIndex, TRefreshEpoch refreshEpoch);
+TIncumbencyEpoch GetIncumbencyEpoch(int shardIndex);
+void SetIncumbencyEpoch(int shardIndex, TIncumbencyEpoch incumbencyEpoch);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -439,7 +439,7 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_proxy_base.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_type_handler_base.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/refresh_epoch.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/incumbency_epoch.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/s3_medium_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/s3_medium_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/s3_medium.cpp
