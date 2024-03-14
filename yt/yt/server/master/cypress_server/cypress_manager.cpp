@@ -1174,6 +1174,7 @@ public:
         RegisterHandler(CreateTabletActionMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateAreaMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateHunkStorageTypeHandler(Bootstrap_));
+        RegisterHandler(CreateCellOrchidTypeHandler(Bootstrap_));
         RegisterHandler(CreateEstimatedCreationTimeMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateAccessControlObjectNamespaceMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateZookeeperShardMapTypeHandler(Bootstrap_));
