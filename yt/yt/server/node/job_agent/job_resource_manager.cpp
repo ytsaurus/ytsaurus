@@ -519,10 +519,13 @@ public:
             UserMemoryUsageTracker_->Release(-userMemory);
         }
 
+        auto resourceLimits = GetResourceLimits();
+
         YT_LOG_DEBUG(
-            "Resource usage updated (Delta: %v, ResourceUsage: %v, WaitingResources: %v)",
+            "Resource usage updated (Delta: %v, ResourceUsage: %v, ResourceLimits: %v WaitingResources: %v)",
             FormatResources(resourceDelta),
             FormatResources(currentResourceUsage),
+            FormatResources(resourceLimits),
             FormatResources(waitingResources));
 
         if (!Dominates(resourceDelta, ZeroJobResources())) {
@@ -530,7 +533,10 @@ public:
         }
 
         if (resourceUsageOverdrafted) {
-            YT_LOG_DEBUG("Resource usage overdrafted (ResourceUsage: %v)", FormatResources(currentResourceUsage));
+            YT_LOG_INFO(
+                "Resource usage overdrafted (ResourceUsage: %v, ResourceLimits: %v)",
+                FormatResources(currentResourceUsage),
+                FormatResources(resourceLimits));
 
             ResourceUsageOverdrafted_.Fire(MakeStrong(resourceHolder));
         }
