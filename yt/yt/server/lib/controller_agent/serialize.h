@@ -38,6 +38,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((NewLivePreview)                       (301306))
     ((LivePreviewAnnotation)                (301307))
     ((NodeJobStartTimeInJoblet)             (301408))
+    ((JobAbortsUntilOperationFailure)       (301409))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

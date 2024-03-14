@@ -1336,6 +1336,8 @@ private:
     const NConcurrency::TPeriodicExecutorPtr SendRunningJobTimeStatisticsUpdatesExecutor_;
 
     void AccountExternalScheduleJobFailures() const;
+    //! How many initial successive jobs need to abort until we fail operation.
+    THashMap<EAbortReason, int> JobAbortsUntilOperationFailure_;
 
     void InitializeOrchid();
 

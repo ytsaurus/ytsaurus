@@ -730,6 +730,9 @@ void TVolumeManagerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("delay_after_layer_imported", &TThis::DelayAfterLayerImported)
         .Default();
+
+    registrar.Parameter("throw_on_prepare_volume", &TThis::ThrowOnPrepareVolume)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
