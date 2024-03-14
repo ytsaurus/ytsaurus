@@ -3425,6 +3425,11 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
 
     auto joblet = GetJoblet(jobId);
 
+    std::optional<TError> error;
+    if (jobSummary->Result) {
+        error = FromProto<TError>(jobSummary->Result->error());
+    }
+
     TJobFinishedResult taskJobResult;
     std::vector<TChunkId> failedChunkIds;
 
@@ -3493,7 +3498,11 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
     if (auto it = JobAbortsUntilOperationFailure_.find(abortReason); it != JobAbortsUntilOperationFailure_.end()) {
         if (--it->second == 0) {
             JobAbortsUntilOperationFailure_.clear();
-            OnOperationFailed(TError("Fail operation due to excessive successive job aborts"));
+            auto wrappedError = TError("Fail operation due to excessive successive job aborts");
+            if (error) {
+                wrappedError <<= *error;
+            }
+            OnOperationFailed(wrappedError);
             return;
         }
     }
