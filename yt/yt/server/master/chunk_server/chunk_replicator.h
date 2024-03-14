@@ -51,9 +51,6 @@ public:
     void OnEpochStarted();
     void OnEpochFinished();
 
-    void OnLeadingStarted();
-    void OnLeadingFinished();
-
     void OnIncumbencyStarted(int shardIndex) override;
     void OnIncumbencyFinished(int shardIndex) override;
 
@@ -98,6 +95,7 @@ public:
 
     void ScheduleRequisitionUpdate(TChunk* chunk);
     void ScheduleRequisitionUpdate(TChunkList* chunkList);
+    void ScheduleGlobalRequisitionUpdate();
 
     void TouchChunk(TChunk* chunk);
 
@@ -210,7 +208,8 @@ private:
 
     NConcurrency::TPeriodicExecutorPtr FinishedRequisitionTraverseFlushExecutor_;
 
-    std::queue<TChunkId> ChunkIdsAwaitingRequisitionUpdateScheduling_;
+    static constexpr int ChunkListRequisitionUpdaterShardIndex = 0;
+    std::vector<TChunkId> ChunkIdsAwaitingRequisitionUpdateScheduling_;
 
     // Contains the chunk list ids for which requisition update traversals
     // have finished. These confirmations are batched and then flushed.
@@ -235,8 +234,6 @@ private:
     TEnumIndexedArray<EJobType, i64> MisscheduledJobs_;
 
     std::optional<bool> Enabled_;
-
-    bool RequisitionUpdateRunning_ = false;
 
     TInstant LastActiveShardSetUpdateTime_ = TInstant::Zero();
 
@@ -359,7 +356,7 @@ private:
     //! Same as corresponding #TChunk method but the result is capped by the medium-specific bound.
     int GetChunkAggregatedReplicationFactor(const TChunk* chunk, int mediumIndex);
 
-    void OnScheduledChunkRequisitionUpdatesFlush();
+    void OnScheduleChunkRequisitionUpdatesFlush();
 
     void OnRequisitionUpdate();
     void ComputeChunkRequisitionUpdate(TChunk* chunk, NProto::TReqUpdateChunkRequisition* request);
@@ -372,7 +369,8 @@ private:
     //! Computes the actual requisition the chunk must have.
     TChunkRequisition ComputeChunkRequisition(const TChunk* chunk);
 
-    void ConfirmChunkListRequisitionTraverseFinished(TChunkList* chunkList);
+    void ConfirmChunkListRequisitionTraverseFinished(
+        const NObjectServer::TEphemeralObjectPtr<TChunkList>& chunkList);
     void OnFinishedRequisitionTraverseFlush();
 
     //! Follows upward parent links.
