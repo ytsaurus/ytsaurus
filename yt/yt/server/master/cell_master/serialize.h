@@ -210,6 +210,7 @@ DEFINE_ENUM(EMasterReign,
     ((PersistLastSeenLeaseTransactionTimeout)                       (2541))  // danilalexeev
     ((WideDateTimeTypes)                                            (2542))  // whatsername
     ((HunkMedia)                                                    (2543))  // kivedernikov
+    ((SequoiaQueues)                                                (2544))  // aleksandra-zh
     // 24.2 starts here.
 );
 
