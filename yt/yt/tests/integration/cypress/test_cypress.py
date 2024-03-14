@@ -1079,7 +1079,6 @@ class TestCypress(YTEnvSetup):
             assert x.attributes["ephemeral_ref_counter"] == 0
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_move_virtual_maps1(self):
         create("tablet_map", "//tmp/t")
         move("//tmp/t", "//tmp/tt")
