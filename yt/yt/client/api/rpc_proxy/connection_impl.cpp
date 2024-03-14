@@ -25,6 +25,7 @@
 #include <yt/yt/core/rpc/caching_channel_factory.h>
 #include <yt/yt/core/rpc/dynamic_channel_pool.h>
 #include <yt/yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/peer_discovery.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -230,7 +231,7 @@ TConnection::TConnection(TConnectionConfigPtr config, TConnectionOptions options
         MakeEndpointDescription(Config_, ConnectionId_),
         MakeEndpointAttributes(Config_, ConnectionId_),
         TApiServiceProxy::GetDescriptor().ServiceName,
-        TDiscoverRequestHook()))
+        CreateDefaultPeerDiscovery(TDiscoverRequestHook())))
 {
     if (options.ConnectionInvoker) {
         ConnectionInvoker_ = options.ConnectionInvoker;
