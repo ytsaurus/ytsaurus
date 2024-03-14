@@ -1136,7 +1136,7 @@ private:
                 wrappedError = wrappedError
                     << TErrorAttribute("path", Context_->Request().path());
             }
-            Context_->Reply(wrappedError);
+            Context_->Reply(std::move(wrappedError));
         }
     };
 
