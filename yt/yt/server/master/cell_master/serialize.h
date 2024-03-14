@@ -211,6 +211,7 @@ DEFINE_ENUM(EMasterReign,
     ((WideDateTimeTypes)                                            (2542))  // whatsername
     ((HunkMedia)                                                    (2543))  // kivedernikov
     ((SequoiaQueues)                                                (2544))  // aleksandra-zh
+    ((ChunkListTraversalIncumbency)                                 (2545))  // danilalexeev
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov
