@@ -528,6 +528,13 @@ public:
         return ReadOnly_;
     }
 
+    bool IsDiscombobulated() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return false;
+    }
+
     TDistributedHydraManagerDynamicOptions GetDynamicOptions() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();

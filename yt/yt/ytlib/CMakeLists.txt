@@ -1188,6 +1188,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hydra/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hydra/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hydra/peer_channel.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/hydra/peer_discovery.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/incumbent_client/incumbent_descriptor.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/incumbent_client/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/job_prober_client/job_probe.cpp

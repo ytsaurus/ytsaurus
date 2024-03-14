@@ -245,6 +245,7 @@ SRCS(
     hydra/config.cpp
     hydra/helpers.cpp
     hydra/peer_channel.cpp
+    hydra/peer_discovery.cpp
 
     hydra/proto/hydra_manager.proto
     hydra/proto/hydra_service.proto
