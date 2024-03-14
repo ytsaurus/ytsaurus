@@ -38,13 +38,16 @@ TControllerAgent::TControllerAgent(
     THashSet<TString> tags,
     NRpc::IChannelPtr channel,
     const IInvokerPtr& invoker,
+    const IInvokerPtr& heartbeatInvoker,
     const IInvokerPtr& messageOffloadInvoker)
     : Id_(id)
     , AgentAddresses_(agentAddresses)
     , Tags_(std::move(tags))
     , Channel_(std::move(channel))
     , CancelableContext_(New<TCancelableContext>())
-    , CancelableInvoker_(CancelableContext_->CreateInvoker(invoker))
+    , CancelableControlInvoker_(CancelableContext_->CreateInvoker(invoker))
+    , HeartbeatInvoker_(heartbeatInvoker)
+    , CancelableHeartbeatInvoker_(CancelableContext_->CreateInvoker(heartbeatInvoker))
     , MessageOffloadInvoker_(messageOffloadInvoker)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -83,6 +86,25 @@ TIncarnationId TControllerAgent::GetIncarnationId() const
     return NControllerAgent::IncarnationIdFromTransactionId(IncarnationTransaction_->GetId());
 }
 
+TGuard<NThreading::TSpinLock> TControllerAgent::AcquireInnerStateLock()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return TGuard(InnerStateLock_);
+}
+
+void TControllerAgent::SetState(EControllerAgentState newState)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    State_.store(newState);
+}
+
+EControllerAgentState TControllerAgent::GetState() const
+{
+    return State_.load();
+}
+
 IInvokerPtr TControllerAgent::GetMessageOffloadInvoker() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -105,7 +127,7 @@ void TControllerAgent::SetIncarnationTransaction(NApi::ITransactionPtr transacti
             Id_,
             GetIncarnationId()),
         SchedulerProfiler.WithTag("queue", "operation_events"),
-        CancelableInvoker_);
+        CancelableControlInvoker_);
     RunningAllocationStatisticsUpdatesInbox_ = std::make_unique<TMessageQueueInbox>(
         SchedulerLogger.WithTag("Kind: AgentToSchedulerRunningAllocationStatisticsUpdates, AgentId: %v, IncarnationId: %v",
             Id_,
@@ -176,14 +198,25 @@ void TControllerAgent::Cancel(const TError& error)
 
     MaybeError_ = error;
 
-    for (const auto& [_, promise] : CounterToFullHeartbeatProcessedPromise_) {
-        promise.TrySet(error);
-    }
+    HeartbeatInvoker_->Invoke(BIND([
+            error = std::move(error),
+            this,
+            this_ = MakeStrong(this)
+        ] {
+            for (const auto& [_, promise] : CounterToFullHeartbeatProcessedPromise_) {
+                promise.TrySet(error);
+            }
+        }));
 }
 
-const IInvokerPtr& TControllerAgent::GetCancelableInvoker()
+const IInvokerPtr& TControllerAgent::GetCancelableControlInvoker()
 {
-    return CancelableInvoker_;
+    return CancelableControlInvoker_;
+}
+
+const IInvokerPtr& TControllerAgent::GetCancelableHeartbeatInvoker()
+{
+    return CancelableHeartbeatInvoker_;
 }
 
 std::optional<TControllerAgentMemoryStatistics> TControllerAgent::GetMemoryStatistics()
@@ -208,17 +241,21 @@ TFuture<void> TControllerAgent::GetFullHeartbeatProcessed()
         return MakeFuture(*MaybeError_);
     }
 
-    auto it = CounterToFullHeartbeatProcessedPromise_.find(HeartbeatCounter_ + 2);
-    if (it == CounterToFullHeartbeatProcessedPromise_.end()) {
-        // At least one full heartbeat should be processed since current one.
-        it = CounterToFullHeartbeatProcessedPromise_.emplace(HeartbeatCounter_ + 2, NewPromise<void>()).first;
-    }
-    return it->second;
+    return BIND([this, this_ = MakeStrong(this)] {
+        auto it = CounterToFullHeartbeatProcessedPromise_.find(HeartbeatCounter_ + 2);
+        if (it == CounterToFullHeartbeatProcessedPromise_.end()) {
+            // At least one full heartbeat should be processed since current one.
+            it = CounterToFullHeartbeatProcessedPromise_.emplace(HeartbeatCounter_ + 2, NewPromise<void>()).first;
+        }
+        return it->second.ToFuture();
+    })
+        .AsyncVia(GetCancelableHeartbeatInvoker())
+        .Run();
 }
 
 void TControllerAgent::OnHeartbeatReceived()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_INVOKER_AFFINITY(HeartbeatInvoker_);
 
     ++HeartbeatCounter_;
 
