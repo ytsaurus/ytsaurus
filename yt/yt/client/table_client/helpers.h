@@ -342,6 +342,26 @@ TUnversionedValue TryDecodeUnversionedAnyValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TUnversionedValueRangeTruncationResult
+{
+    //! Resulting values, which are captured in the underlying row buffer.
+    TSharedRange<TUnversionedValue> Values;
+    //! Estimation of the total size based on the binary representation of unversioned values.
+    i64 Size;
+    //! Signifies whether resulting value range is actually equal to the input value range.
+    bool Incomplete;
+};
+//! Captures and returns a new list of values of the same length.
+//! The values are truncated to roughly fit the provided size and form a comparable prefix.
+//! I.e. if rangeA is smaller than rangeB, then truncatedRangeA <= truncatedRangeB.
+//! Values truncated completely are replaced by values of type Null.
+//! NB: Comparability implies that values of type Any and any uncomparable parts of values of type Composite are truncated and replaced by Null values.
+//! NB: The resulting size can be slightly larger than the provided limit, since we need to form a range of exactly the same size
+//! and each filler value of type Null takes up some space for the value id and type.
+TUnversionedValueRangeTruncationResult TruncateUnversionedValues(TUnversionedValueRange values, i64 size);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient
 
 #define HELPERS_INL_H_

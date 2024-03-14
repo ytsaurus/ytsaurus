@@ -1,6 +1,8 @@
 #include "composite_compare.h"
 
 #include <yt/yt/core/yson/pull_parser.h>
+#include <yt/yt/core/yson/token_writer.h>
+
 #include <yt/yt/library/numeric/util.h>
 
 #include <library/cpp/yt/farmhash/farm_hash.h>
@@ -148,6 +150,36 @@ Y_FORCE_INLINE static int CompareYsonItems(const TYsonItem& lhs, const TYsonItem
     return ComparePrimitive(static_cast<ui32>(lhsClass), static_cast<ui32>(rhsClass));
 }
 
+// Returns the minimum binary size that should be accounted for with this item.
+// Item should not be Map or Attribute-related, there is no special handling for them.
+i64 GetMinResultingSize(const TYsonItem& item, bool isInsideList)
+{
+    // These bytes were already accounted when handling the corresponding BeginList.
+    if (item.GetType() == EYsonItemType::EndList) {
+        return 0;
+    }
+
+    auto resultingSize = item.GetBinarySize();
+
+    // Strings can be truncated, so we only count the remaining bytes for now.
+    // In practice that is the single flag byte and the length of the string as a varint.
+    if (item.GetType() == EYsonItemType::StringValue) {
+        resultingSize -= item.UncheckedAsString().size();
+    }
+
+    // Accounting for EndList, since we need to accomodate the list ending within the size limit.
+    if (item.GetType() == EYsonItemType::BeginList) {
+        resultingSize += TYsonItem::Simple(EYsonItemType::EndList).GetBinarySize();
+    }
+
+    // All items inside any enclosing list are currently required to be followed by an item separator, which has the size of one byte.
+    if (isInsideList) {
+        resultingSize += 1;
+    }
+
+    return resultingSize;
+}
+
 } // namespace
 
 int CompareCompositeValues(TYsonStringBuf lhs, TYsonStringBuf rhs)
@@ -272,6 +304,114 @@ TFingerprint CompositeFarmHash(TYsonStringBuf value)
                 return result;
         }
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<TYsonString> TruncateCompositeValue(TYsonStringBuf value, i64 size)
+{
+    YT_ASSERT(value.GetType() == EYsonType::Node);
+
+    if (size <= 0) {
+        return {};
+    }
+
+    TMemoryInput valueIn(value.AsStringBuf());
+    TYsonPullParser valueParser(&valueIn, EYsonType::Node);
+
+    TString truncatedYson;
+    TStringOutput output(truncatedYson);
+    output.Reserve(std::min(size, std::ssize(value.AsStringBuf())));
+    TCheckedInDebugYsonTokenWriter writer(&output);
+
+    i64 unclosedListCount = 0;
+    bool nonEmptyResult = false;
+
+    for (auto remainingBytes = size;;) {
+        const auto item = valueParser.Next();
+
+        // Both braces of the outmost list are not considered to be inside an enclosing list.
+        bool isInsideList = unclosedListCount - (item.GetType() == EYsonItemType::EndList);
+        auto resultingItemSize = GetMinResultingSize(item, /*isInsideList*/ isInsideList);
+
+        if (resultingItemSize > remainingBytes) {
+            break;
+        }
+
+        bool canBeTruncatedFurther = true;
+
+        switch (item.GetType()) {
+            case EYsonItemType::BeginList:
+                ++unclosedListCount;
+                writer.WriteBeginList();
+                break;
+            case EYsonItemType::EndList:
+                --unclosedListCount;
+                writer.WriteEndList();
+                break;
+            case EYsonItemType::EntityValue:
+                writer.WriteEntity();
+                break;
+            case EYsonItemType::Int64Value:
+                writer.WriteBinaryInt64(item.UncheckedAsInt64());
+                break;
+            case EYsonItemType::Uint64Value:
+                writer.WriteBinaryUint64(item.UncheckedAsUint64());
+                break;
+            case EYsonItemType::DoubleValue:
+                writer.WriteBinaryDouble(item.UncheckedAsDouble());
+                break;
+            case EYsonItemType::BooleanValue:
+                writer.WriteBinaryBoolean(item.UncheckedAsBoolean());
+                break;
+            case EYsonItemType::StringValue: {
+                auto truncatedString = item.UncheckedAsString().Trunc(remainingBytes - resultingItemSize);
+                writer.WriteBinaryString(truncatedString);
+                // This is a slight overestimation, since a smaller string might have a shorter varint part storing its length.
+                resultingItemSize += truncatedString.size();
+                break;
+            }
+            // Maps and attributes are not comparable.
+            // However, we can store everything up to this point into the truncated string.
+            case EYsonItemType::BeginAttributes:
+            case EYsonItemType::EndAttributes:
+            case EYsonItemType::BeginMap:
+            case EYsonItemType::EndMap:
+            case EYsonItemType::EndOfStream:
+                canBeTruncatedFurther = false;
+        }
+
+        if (!canBeTruncatedFurther) {
+            break;
+        }
+
+        nonEmptyResult = true;
+
+        if (unclosedListCount && item.GetType() != EYsonItemType::BeginList) {
+            writer.WriteItemSeparator();
+        }
+
+        remainingBytes -= resultingItemSize;
+    }
+
+    YT_VERIFY(unclosedListCount >= 0);
+    for (; unclosedListCount;) {
+        writer.WriteEndList();
+        if (--unclosedListCount) {
+            writer.WriteItemSeparator();
+        }
+    }
+
+    if (nonEmptyResult) {
+        writer.Finish();
+    } else {
+        return {};
+    }
+
+    // TODO(achulkov2): Let's double check that we haven't missed any cases. I would also be fine with a slight overflow here.
+    YT_ASSERT(std::ssize(truncatedYson) <= size);
+
+    return TYsonString(std::move(truncatedYson));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

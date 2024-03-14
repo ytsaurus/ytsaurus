@@ -13,7 +13,7 @@ from yt_commands import (
     create_test_tables, assert_statistics, extract_statistic_v2,
     set_node_banned, update_inplace)
 
-from yt_type_helpers import make_schema, normalize_schema, make_column
+from yt_type_helpers import make_schema, normalize_schema, make_column, list_type, tuple_type, optional_type
 
 from yt_helpers import skip_if_no_descending, skip_if_renaming_disabled
 
@@ -818,6 +818,31 @@ print row + table_index
         actual_rate = len(new_data_t2) * 1.0 / len(original_data)
         variation = sampling_rate * (1 - sampling_rate)
         assert sampling_rate - variation <= actual_rate <= sampling_rate + variation
+
+    @authors("achulkov2")
+    def test_truncate_composite_partitioning_sample(self):
+        max_sample_size = 64 * 1024 # 64KiB
+        big_size = 15 * 1024 * 1024 # 15MiB, a bit smaller than the default row limit.
+
+        schema = [{"name": "data", "type_v3": tuple_type(["string", optional_type("int64"), list_type("string")])}]
+
+        create("table", "//tmp/t_in", attributes={"schema": schema})
+        create("table", "//tmp/t_out", attributes={"schema": schema})
+
+        # The last two strings are pretty big and definitely shouldn't be in the sample.
+        data = [{"data": ["is", 42, ["the", "answer", "to", "life" * (max_sample_size // 8), "the" * (max_sample_size // 9), "universe" * (max_sample_size // 32), "and" , "everything" * (big_size // 10)]]}]
+
+        write_table("//tmp/t_in", data, verbose=False)
+        map(in_="//tmp/t_in", out="//tmp/t_out", command="cat", spec={"max_failed_job_count": 1})
+
+        assert read_table("//tmp/t_out") == data
+
+        chunk_ids = get("//tmp/t_out/@chunk_ids")
+        assert len(chunk_ids) == 1
+
+        # Previously the whole string would end up in the sample, which would make a 10+ megabyte-sized meta.
+        assert get(f"#{chunk_ids[0]}/@meta_size") < 2 * max_sample_size
+
 
     @authors("psushin")
     @pytest.mark.parametrize("ordered", [False, True])

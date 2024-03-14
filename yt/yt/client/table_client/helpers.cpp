@@ -2,6 +2,7 @@
 #include "schema.h"
 #include "name_table.h"
 #include "key_bound.h"
+#include "composite_compare.h"
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 
@@ -1565,6 +1566,51 @@ REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(
     NProto::THeavyColumnStatisticsExt,
     /*column_data_weights*/ 5,
     TUnversionedOwningRow)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TUnversionedValueRangeTruncationResult TruncateUnversionedValues(TUnversionedValueRange values, i64 size)
+{
+    auto rowBuffer = New<TRowBuffer>();
+
+    std::vector<TUnversionedValue> truncatedValues;
+    truncatedValues.reserve(values.size());
+
+    i64 resultSize = 0;
+    // Indicates the fact that we have truncated something.
+    // After this moment all next values have to be replaced by nulls to mantain sorting properties.
+    bool incomplete = false;
+
+    for (const auto& value : values) {
+        truncatedValues.push_back(value);
+        auto& ownedValue = truncatedValues.back();
+
+        if (incomplete || resultSize >= size || value.Type == EValueType::Any) {
+            ownedValue = MakeUnversionedNullValue(value.Id, value.Flags);
+            incomplete = true;
+        } else if (value.Type == EValueType::Composite) {
+            if (auto truncatedCompositeValue = TruncateCompositeValue(TYsonStringBuf{value.AsStringBuf()}, size)) {
+                ownedValue = rowBuffer->CaptureValue(MakeUnversionedCompositeValue(truncatedCompositeValue->AsStringBuf(), value.Id, value.Flags));
+            } else {
+                ownedValue = MakeUnversionedNullValue(value.Id, value.Flags);
+                incomplete = true;
+            }
+        } else if (value.Type == EValueType::String) {
+            ownedValue.Length = std::min<ui32>(ownedValue.Length, size - resultSize);
+            ownedValue = rowBuffer->CaptureValue(ownedValue);
+        }
+
+        if (!incomplete && IsStringLikeType(value.Type) && ownedValue.Length < value.Length) {
+            incomplete = true;
+        }
+
+        // This funciton also accounts for the representation of the id and type of the unversioned value.
+        // The limit can be slightly exceeded this way.
+        resultSize += EstimateRowValueSize(ownedValue);
+    }
+
+    return {MakeSharedRange(truncatedValues, rowBuffer), resultSize, incomplete};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

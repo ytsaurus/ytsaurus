@@ -53,6 +53,7 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schemaless_row_reorderer.h>
 #include <yt/yt/client/table_client/check_schema_compatibility.h>
+#include <yt/yt/client/table_client/composite_compare.h>
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
@@ -510,24 +511,11 @@ private:
 
     void EmitSample(TUnversionedRow row)
     {
-        TCompactVector<TUnversionedValue, TypicalColumnCount> sampleValues;
-        int weight = 0;
-        for (auto it = row.Begin(); it != row.End(); ++it) {
-            sampleValues.push_back(*it);
-            auto& value = sampleValues.back();
-            weight += NTableClient::GetDataWeight(value);
+        auto sampleValues = TruncateUnversionedValues(row.Elements(), MaxSampleSize);
 
-            if (value.Type == EValueType::Any) {
-                // Composite types are non-comparable, so we don't store it inside samples.
-                value.Length = 0;
-            } else if (value.Type == EValueType::String) {
-                value.Length = std::min(static_cast<int>(value.Length), MaxSampleSize);
-            }
-        }
-
-        auto entry = SerializeToString(MakeRange(sampleValues));
+        auto entry = SerializeToString(sampleValues.Values);
         SamplesExt_.add_entries(entry);
-        SamplesExt_.add_weights(weight);
+        SamplesExt_.add_weights(sampleValues.Size);
         SamplesExtSize_ += entry.length();
     }
 };
