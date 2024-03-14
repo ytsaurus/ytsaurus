@@ -879,7 +879,7 @@ private:
 
             for (const auto& unlinkError : unlinkResults) {
                 if (!unlinkError.IsOK() && unlinkError.GetCode() != EPortoErrorCode::VolumeNotLinked && unlinkError.GetCode() != EPortoErrorCode::VolumeNotFound) {
-                    THROW_ERROR unlinkError;
+                    THROW_ERROR(unlinkError);
                 }
             }
 
@@ -1072,7 +1072,7 @@ private:
 
             auto innerError = TError(ex);
             if (innerError.GetCode() == EErrorCode::LayerUnpackingFailed) {
-                THROW_ERROR error;
+                THROW_ERROR(error);
             }
 
             Disable(error);
@@ -2678,6 +2678,14 @@ public:
         YT_LOG_DEBUG("Prepare volume (Tag: %v, Artifacts: %v)",
             tag,
             artifactKeys.size());
+
+        if (DynamicConfigManager_->GetConfig()->ExecNode->VolumeManager->ThrowOnPrepareVolume) {
+            auto error = TError(EErrorCode::RootVolumePreparationFailed, "Throw on prepare volume");
+            YT_LOG_DEBUG(error, "Prepare volume (Tag: %v, Artifacts: %v)",
+                tag,
+                artifactKeys.size());
+            THROW_ERROR(error);
+        }
 
         std::vector<int> nbdArtifactPositions;
         std::vector<TArtifactKey> nbdArtifactKeys;
