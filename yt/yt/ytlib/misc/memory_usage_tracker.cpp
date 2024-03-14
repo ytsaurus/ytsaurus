@@ -399,7 +399,10 @@ void TNodeMemoryTracker::SetTotalLimit(i64 newLimit)
 
     auto guard = Guard(SpinLock_);
 
+    auto delta = newLimit - TotalLimit_.load();
+
     TotalLimit_.store(newLimit);
+    TotalFree_ += delta;
 }
 
 void TNodeMemoryTracker::SetCategoryLimit(ECategory category, i64 newLimit)
