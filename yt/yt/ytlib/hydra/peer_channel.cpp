@@ -1,6 +1,6 @@
 #include "peer_channel.h"
+#include "peer_discovery.h"
 #include "config.h"
-#include "hydra_service_proxy.h"
 
 #include <yt/yt/ytlib/hydra/proto/hydra_service.pb.h>
 
@@ -38,12 +38,9 @@ IChannelPtr CreatePeerChannel(
         std::move(realmChannelFactory),
         std::move(endpointDescription),
         std::move(endpointAttributes),
-        CreateDefaultPeerDiscovery(BIND_NO_PROPAGATE([=] (TReqDiscover* request) {
-            if (checkPeerState) {
-                auto* ext = request->MutableExtension(TPeerKindExt::peer_kind_ext);
-                ext->set_peer_kind(static_cast<int>(kind));
-            }
-        })));
+        CreateDefaultPeerDiscovery(checkPeerState
+            ? CreateHydraDiscoverRequestHook(kind)
+            : nullptr));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,0 +1,15 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/yt/core/rpc/peer_discovery.h>
+
+namespace NYT::NHydra {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NRpc::IDiscoverRequestHookPtr CreateHydraDiscoverRequestHook(EPeerKind kind);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NHydra
