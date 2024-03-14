@@ -482,6 +482,14 @@ private:
         return *PoolNameRegexForUsers_;
     }
 
+    void SetZeroState() override
+    {
+        TMasterAutomatonPart::SetZeroState();
+
+        const auto& config = GetDynamicConfig();
+        UpdatePoolNameRegexes(config->PoolNameRegexForAdministrators, config->PoolNameRegexForUsers);
+    }
+
     void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
