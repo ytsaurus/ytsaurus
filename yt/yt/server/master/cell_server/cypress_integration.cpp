@@ -349,6 +349,17 @@ public:
         const TYPath& path,
         const IYPathServiceContextPtr& /*context*/) override
     {
+        return TResolveResultHere{path};
+    }
+
+    ENodeType GetType() const override
+    {
+        return ENodeType::Entity;
+    }
+
+private:
+    bool DoInvoke(const IYPathServiceContextPtr& context) override
+    {
         auto* impl = GetThisImpl();
 
         static const TString CellIdAttributeKey = "cell_id";
@@ -358,25 +369,29 @@ public:
                 << TErrorAttribute("node_id", impl->GetId());
         }
         auto cellId = ConvertTo<TCellId>(*attribute);
-        auto address = GetLeaderAddressOrThrow(cellId);
 
-        // TODO(max42): make customizable.
-        constexpr TDuration timeout = TDuration::Seconds(60);
+        const auto& invoker = NRpc::TDispatcher::Get()->GetHeavyInvoker();
+        invoker->Invoke(BIND([=, this, this_ = MakeStrong(this)] {
+            try {
+                auto address = GetLeaderAddressOrThrow(cellId);
 
-        auto orchidService = CreateOrchidYPathService(TOrchidOptions{
-            .Channel = Bootstrap_->GetNodeChannelFactory()->CreateChannel(address),
-            .RemoteRoot = Format("//tablet_cells/%v", cellId),
-            .Timeout = timeout,
-        });
-        return TResolveResultThere{std::move(orchidService), path};
+                // TODO(max42): make customizable.
+                constexpr TDuration timeout = TDuration::Seconds(60);
+
+                auto orchidService = CreateOrchidYPathService(TOrchidOptions{
+                    .Channel = Bootstrap_->GetNodeChannelFactory()->CreateChannel(address),
+                    .RemoteRoot = Format("//tablet_cells/%v", cellId),
+                    .Timeout = timeout,
+                });
+                orchidService->Invoke(context);
+            } catch (const std::exception& ex) {
+                context->Reply(ex);
+            }
+        }));
+
+        return true;
     }
 
-    ENodeType GetType() const override
-    {
-        return ENodeType::Entity;
-    }
-
-private:
     TString GetLeaderAddressOrThrow(TCellId cellId) const
     {
         try {
