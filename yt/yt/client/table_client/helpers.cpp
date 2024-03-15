@@ -1569,47 +1569,59 @@ REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUnversionedValueRangeTruncationResult TruncateUnversionedValues(TUnversionedValueRange values, i64 size)
+TUnversionedValueRangeTruncationResult TruncateUnversionedValues(
+    TUnversionedValueRange values,
+    const TRowBufferPtr& rowBuffer,
+    const TUnversionedValueRangeTruncationOptions& options)
 {
-    auto rowBuffer = New<TRowBuffer>();
-
     std::vector<TUnversionedValue> truncatedValues;
     truncatedValues.reserve(values.size());
 
+    int truncatableValueCount = 0;
+    i64 remainingSize = options.MaxTotalSize;
+    for (const auto& value : values) {
+        if (IsStringLikeType(value.Type)) {
+            ++truncatableValueCount;
+        } else {
+            remainingSize -= EstimateRowValueSize(value);
+        }
+    }
+
+    auto maxSizePerValue = std::max<i64>(0, remainingSize) / std::max(truncatableValueCount, 1);
+
     i64 resultSize = 0;
-    // Indicates the fact that we have truncated something.
-    // After this moment all next values have to be replaced by nulls to mantain sorting properties.
-    bool incomplete = false;
+    bool clipped = false;
 
     for (const auto& value : values) {
         truncatedValues.push_back(value);
-        auto& ownedValue = truncatedValues.back();
+        auto& truncatedValue = truncatedValues.back();
 
-        if (incomplete || resultSize >= size || value.Type == EValueType::Any) {
-            ownedValue = MakeUnversionedNullValue(value.Id, value.Flags);
-            incomplete = true;
+        if (clipped || value.Type == EValueType::Any) {
+            truncatedValue = MakeUnversionedNullValue(value.Id, value.Flags);
         } else if (value.Type == EValueType::Composite) {
-            if (auto truncatedCompositeValue = TruncateCompositeValue(TYsonStringBuf{value.AsStringBuf()}, size)) {
-                ownedValue = rowBuffer->CaptureValue(MakeUnversionedCompositeValue(truncatedCompositeValue->AsStringBuf(), value.Id, value.Flags));
+            if (auto truncatedCompositeValue = TruncateCompositeValue(TYsonStringBuf{value.AsStringBuf()}, maxSizePerValue)) {
+                truncatedValue = rowBuffer->CaptureValue(MakeUnversionedCompositeValue(truncatedCompositeValue->AsStringBuf(), value.Id, value.Flags));
             } else {
-                ownedValue = MakeUnversionedNullValue(value.Id, value.Flags);
-                incomplete = true;
+                truncatedValue = MakeUnversionedNullValue(value.Id, value.Flags);
             }
         } else if (value.Type == EValueType::String) {
-            ownedValue.Length = std::min<ui32>(ownedValue.Length, size - resultSize);
-            ownedValue = rowBuffer->CaptureValue(ownedValue);
+            truncatedValue.Length = std::min<ui32>(truncatedValue.Length, maxSizePerValue);
         }
 
-        if (!incomplete && IsStringLikeType(value.Type) && ownedValue.Length < value.Length) {
-            incomplete = true;
+        if (options.ClipAfterOverflow && IsStringLikeType(value.Type) && (truncatedValue.Type == EValueType::Null || truncatedValue.Length < value.Length)) {
+            clipped = true;
         }
 
         // This funciton also accounts for the representation of the id and type of the unversioned value.
         // The limit can be slightly exceeded this way.
-        resultSize += EstimateRowValueSize(ownedValue);
+        resultSize += EstimateRowValueSize(truncatedValue);
+
+        if (options.ClipAfterOverflow && resultSize >= options.MaxTotalSize) {
+            clipped = true;
+        }
     }
 
-    return {MakeSharedRange(truncatedValues, rowBuffer), resultSize, incomplete};
+    return {MakeSharedRange(truncatedValues, rowBuffer), resultSize, clipped};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -101,7 +101,7 @@ TEST(TCompositeCompare, TruncateCompositeValue)
 
     checkFullStringIdempotence("[[5; 7]; [1; 5];]");
     checkFullStringIdempotence("[[5; 7]; [1; 5; 4; 3]; [2; 0; 0; 7]]");
-    checkFullStringIdempotence("[[5; 7]; [1; 5; 4; 3; [f; #; c; k]]; [%true; [%false; 0;];]; [2; 0; 0; 7]]");
+    checkFullStringIdempotence("[[5; 7]; [1; 5; 4; 3; [g; r; i; t; #; k; #; n]]; [%true; [%false; 0;];]; [2; 0; 0; 7]]");
     checkFullStringIdempotence("this-string-desperately-wants-to-be-filled-with-some-funny-references-but-i-have-no-ideas");
     checkFullStringIdempotence("%true");
     checkFullStringIdempotence("#");

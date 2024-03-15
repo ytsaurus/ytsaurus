@@ -830,7 +830,8 @@ print row + table_index
         create("table", "//tmp/t_out", attributes={"schema": schema})
 
         # The last two strings are pretty big and definitely shouldn't be in the sample.
-        data = [{"data": ["is", 42, ["the", "answer", "to", "life" * (max_sample_size // 8), "the" * (max_sample_size // 9), "universe" * (max_sample_size // 32), "and" , "everything" * (big_size // 10)]]}]
+        data = [{"data": ["is", 42, ["the", "answer", "to", "life" * (max_sample_size // 8), "the" * (max_sample_size // 9),
+                                     "universe" * (max_sample_size // 32), "and" , "everything" * (big_size // 10)]]}]
 
         write_table("//tmp/t_in", data, verbose=False)
         map(in_="//tmp/t_in", out="//tmp/t_out", command="cat", spec={"max_failed_job_count": 1})
@@ -840,7 +841,6 @@ print row + table_index
         chunk_ids = get("//tmp/t_out/@chunk_ids")
         assert len(chunk_ids) == 1
 
-        # Previously the whole string would end up in the sample, which would make a 10+ megabyte-sized meta.
         assert get(f"#{chunk_ids[0]}/@meta_size") < 2 * max_sample_size
 
 

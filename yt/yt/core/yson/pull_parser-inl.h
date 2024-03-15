@@ -170,6 +170,8 @@ i64 TYsonItem::GetBinarySize() const
             result += WriteVarInt32(buffer.data(), UncheckedAsString().size());
             result += UncheckedAsString().size();
             break;
+        default:
+            YT_ABORT();
     }
 
     return result;

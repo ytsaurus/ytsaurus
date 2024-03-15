@@ -6,12 +6,17 @@
 #include <yt/yt/library/numeric/util.h>
 
 #include <library/cpp/yt/farmhash/farm_hash.h>
+#include <library/cpp/yt/logging/logger.h>
 
 #include <util/stream/mem.h>
 
 namespace NYT::NTableClient {
 
 using namespace NYson;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto Logger = NLogging::TLogger{"YsonCompositveCompare"};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -150,7 +155,7 @@ Y_FORCE_INLINE static int CompareYsonItems(const TYsonItem& lhs, const TYsonItem
     return ComparePrimitive(static_cast<ui32>(lhsClass), static_cast<ui32>(rhsClass));
 }
 
-// Returns the minimum binary size that should be accounted for with this item.
+// Returns the minimum binary size needed to represent a potentially truncated version of the this item.
 // Item should not be Map or Attribute-related, there is no special handling for them.
 i64 GetMinResultingSize(const TYsonItem& item, bool isInsideList)
 {
@@ -165,6 +170,7 @@ i64 GetMinResultingSize(const TYsonItem& item, bool isInsideList)
     // In practice that is the single flag byte and the length of the string as a varint.
     if (item.GetType() == EYsonItemType::StringValue) {
         resultingSize -= item.UncheckedAsString().size();
+        YT_VERIFY(resultingSize >= 0);
     }
 
     // Accounting for EndList, since we need to accomodate the list ending within the size limit.
@@ -310,9 +316,10 @@ TFingerprint CompositeFarmHash(TYsonStringBuf value)
 
 std::optional<TYsonString> TruncateCompositeValue(TYsonStringBuf value, i64 size)
 {
-    YT_ASSERT(value.GetType() == EYsonType::Node);
+    YT_VERIFY(value.GetType() == EYsonType::Node);
 
-    if (size <= 0) {
+    YT_VERIFY(size >= 0);
+    if (!size) {
         return {};
     }
 
@@ -325,14 +332,14 @@ std::optional<TYsonString> TruncateCompositeValue(TYsonStringBuf value, i64 size
     TCheckedInDebugYsonTokenWriter writer(&output);
 
     i64 unclosedListCount = 0;
-    bool nonEmptyResult = false;
+    bool emptyResult = true;
 
     for (auto remainingBytes = size;;) {
         const auto item = valueParser.Next();
 
         // Both braces of the outmost list are not considered to be inside an enclosing list.
-        bool isInsideList = unclosedListCount - (item.GetType() == EYsonItemType::EndList);
-        auto resultingItemSize = GetMinResultingSize(item, /*isInsideList*/ isInsideList);
+        bool isInsideList = unclosedListCount >= 2 || (unclosedListCount == 1 && item.GetType() != EYsonItemType::EndList);
+        auto resultingItemSize = GetMinResultingSize(item, isInsideList);
 
         if (resultingItemSize > remainingBytes) {
             break;
@@ -379,13 +386,16 @@ std::optional<TYsonString> TruncateCompositeValue(TYsonStringBuf value, i64 size
             case EYsonItemType::EndMap:
             case EYsonItemType::EndOfStream:
                 canBeTruncatedFurther = false;
+                break;
+            default:
+                YT_ABORT();
         }
 
         if (!canBeTruncatedFurther) {
             break;
         }
 
-        nonEmptyResult = true;
+        emptyResult = false;
 
         if (unclosedListCount && item.GetType() != EYsonItemType::BeginList) {
             writer.WriteItemSeparator();
@@ -395,21 +405,24 @@ std::optional<TYsonString> TruncateCompositeValue(TYsonStringBuf value, i64 size
     }
 
     YT_VERIFY(unclosedListCount >= 0);
-    for (; unclosedListCount;) {
+    while (unclosedListCount) {
         writer.WriteEndList();
         if (--unclosedListCount) {
             writer.WriteItemSeparator();
         }
     }
 
-    if (nonEmptyResult) {
-        writer.Finish();
-    } else {
+    if (emptyResult) {
         return {};
+    } else {
+        writer.Finish();
     }
 
-    // TODO(achulkov2): Let's double check that we haven't missed any cases. I would also be fine with a slight overflow here.
-    YT_ASSERT(std::ssize(truncatedYson) <= size);
+    YT_LOG_ALERT_IF(
+        std::ssize(truncatedYson) > size,
+        "Composite YSON truncation increased the value's binary size (OriginalValue: %v, TruncatedValue: %v)",
+        value.AsStringBuf(),
+        truncatedYson);
 
     return TYsonString(std::move(truncatedYson));
 }

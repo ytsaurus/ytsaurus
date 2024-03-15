@@ -443,6 +443,7 @@ private:
     TRandomGenerator RandomGenerator_;
     const ui64 SamplingThreshold_;
 
+    TRowBufferPtr TruncatedSampleValueBuffer_ = New<TRowBuffer>();
     TUnversionedOwningRow Sample_;
     NProto::TSamplesExt SamplesExt_;
     i64 SamplesExtSize_ = 0;
@@ -511,7 +512,7 @@ private:
 
     void EmitSample(TUnversionedRow row)
     {
-        auto sampleValues = TruncateUnversionedValues(row.Elements(), MaxSampleSize);
+        auto sampleValues = TruncateUnversionedValues(row.Elements(), TruncatedSampleValueBuffer_, {.ClipAfterOverflow = false, .MaxTotalSize = MaxSampleSize});
 
         auto entry = SerializeToString(sampleValues.Values);
         SamplesExt_.add_entries(entry);

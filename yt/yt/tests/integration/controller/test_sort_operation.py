@@ -2012,12 +2012,12 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 "schema": [{"name": "key", "type_v3": type_v3}],
             },
         )
-        write_table("//tmp/in", [{"key": d} for d in data])
+        write_table("//tmp/in", [{"key": d} for d in data], verbose=False)
 
         create("table", "//tmp/out")
         sort_func("//tmp/in", "//tmp/out", sort_by="key")
 
-        out_data = [r["key"] for r in read_table("//tmp/out")]
+        out_data = [r["key"] for r in read_table("//tmp/out", verbose=False)]
         assert out_data == expected_data
 
     @authors("ermolovd")
@@ -2060,7 +2060,6 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         def expand_string(sample, size):
             return (sample * (size // len(sample) + 1))[:size]
-
 
         self.run_test_complex_sort(
             lambda *args, **kwargs: simple_sort_1_phase(*args, **kwargs, spec={"merge_job_io": {"table_writer": {"max_key_weight": 250 * 1024}}}),

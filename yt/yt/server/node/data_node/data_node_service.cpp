@@ -1778,12 +1778,13 @@ private:
         TUnversionedValueRange values,
         i32 maxSampleSize,
         i64 weight,
-        const TKeySetWriterPtr& keySetWriter)
+        const TKeySetWriterPtr& keySetWriter,
+        const TRowBufferPtr& truncatedSampleValueBuffer)
     {
-        auto truncatedValues = TruncateUnversionedValues(values, maxSampleSize);
+        auto truncatedValues = TruncateUnversionedValues(values, truncatedSampleValueBuffer, {.ClipAfterOverflow = true, .MaxTotalSize = maxSampleSize});
 
         protoSample->set_key_index(keySetWriter->WriteValueRange(truncatedValues.Values));
-        protoSample->set_incomplete(truncatedValues.Incomplete);
+        protoSample->set_incomplete(truncatedValues.Clipped);
         protoSample->set_weight(weight);
     }
 
@@ -1898,6 +1899,8 @@ private:
 
         auto samplesExt = GetProtoExtension<TSamplesExt>(chunkMeta.extensions());
 
+        auto truncatedSampleValueBuffer = New<TRowBuffer>();
+
         // TODO(psushin): respect sampleRequest lower_limit and upper_limit.
         // Old chunks do not store samples weights.
         bool hasWeights = samplesExt.weights_size() > 0;
@@ -1928,7 +1931,8 @@ private:
                 values,
                 maxSampleSize,
                 hasWeights ? samplesExt.weights(index) : samplesExt.entries(index).length(),
-                keySetWriter);
+                keySetWriter,
+                truncatedSampleValueBuffer);
         }
     }
 
