@@ -206,19 +206,20 @@ private:
 
     void DoDestroy(TLinkNode* node) override
     {
-        const auto& cypressManager = GetBootstrap()->GetCypressManager();
-        auto path = cypressManager->GetNodePath(node, {});
-
-        const auto& sequoiaQueueManager = GetBootstrap()->GetSequoiaQueueManager();
-        auto pathToNodeIdRecordKey = NSequoiaClient::NRecords::TPathToNodeIdKey{
-            .Path = MangleSequoiaPath(path),
-        };
-        sequoiaQueueManager->EnqueueDelete(pathToNodeIdRecordKey);
-        auto nodeIdToPathRecordKey = NSequoiaClient::NRecords::TNodeIdToPathKey{
-            .NodeId = node->GetId(),
-        };
-        sequoiaQueueManager->EnqueueDelete(nodeIdToPathRecordKey);
-
+        // TODO(aleksandra-zh, kvk1920 or somebody else): fix this when Sequoia supports branches.
+        if (node->IsTrunk()) {
+            const auto& cypressManager = GetBootstrap()->GetCypressManager();
+            auto path = cypressManager->GetNodePath(node, {});
+            const auto& sequoiaQueueManager = GetBootstrap()->GetSequoiaQueueManager();
+            auto pathToNodeIdRecordKey = NSequoiaClient::NRecords::TPathToNodeIdKey{
+                .Path = MangleSequoiaPath(path),
+            };
+            sequoiaQueueManager->EnqueueDelete(pathToNodeIdRecordKey);
+            auto nodeIdToPathRecordKey = NSequoiaClient::NRecords::TNodeIdToPathKey{
+                .NodeId = node->GetId(),
+            };
+            sequoiaQueueManager->EnqueueDelete(nodeIdToPathRecordKey);
+        }
         TBase::DoDestroy(node);
     }
 

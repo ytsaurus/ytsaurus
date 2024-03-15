@@ -13,7 +13,8 @@ from yt.sequoia_tools import DESCRIPTORS
 
 from yt_commands import (
     authors, create, get, remove, get_singular_chunk_id, write_table, read_table, wait,
-    exists, create_domestic_medium, ls, set, get_account_disk_space_limit, set_account_disk_space_limit, link, build_master_snapshots)
+    exists, create_domestic_medium, ls, set, get_account_disk_space_limit, set_account_disk_space_limit,
+    link, build_master_snapshots, start_transaction, abort_transaction)
 
 from yt.wrapper import yson
 
@@ -329,3 +330,18 @@ class TestSequoiaQueues(YTEnvSetup):
         set("//sys/@config/sequoia_manager/sequoia_queue/pause_flush", False)
 
         wait(lambda: len(get_row('//tmp/m2')) == 0)
+
+    @authors("aleksandra-zh")
+    def test_branched_link(self):
+        create("map_node", "//tmp/m1")
+
+        link_count = len(select_rows_from_ground(f"* from [{DESCRIPTORS.path_to_node_id.get_default_path()}]"))
+
+        tx = start_transaction()
+        link("//tmp/m1", "//tmp/m2", tx=tx)
+        abort_transaction(tx)
+
+        def get_row(path):
+            return lookup_rows_in_ground(DESCRIPTORS.path_to_node_id.get_default_path(), [{"path": mangle_sequoia_path(path)}])
+
+        assert len(get_row('//tmp/m2')) == 0
