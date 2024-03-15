@@ -24,7 +24,11 @@ on:
         default: false
         required: false
         type: boolean
-      build-query-tracker-ya-make:
+      build-query-tracker-ya-make-relwithdebinfo:
+        default: false
+        required: false
+        type: boolean
+      build-query-tracker-ya-make-release:
         default: false
         required: false
         type: boolean
@@ -161,6 +165,15 @@ jobs:
 
           ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
 
+      - name: Build ytsaurus (ya make, release)
+        if: ${{ inputs.build-query-tracker-ya-make-release }}
+        run: |
+          mkdir -p ../ya_build_release
+          cd ../ya_build_release
+          rm -rf *
+
+          ../ytsaurus/ytsaurus/ya make -T --build=release  --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
+
       - name: Build chyt
         if: ${{ inputs.build-chyt }}
         run: |
@@ -212,50 +225,67 @@ jobs:
           ninja ytserver-yql-agent
 
       - name: Build query tracker (ya make, relwithdebinfo)
-        if: ${{ inputs.build-query-tracker-ya-make }}
+        if: ${{ inputs.build-query-tracker-ya-make-relwithdebinfo || inputs.build-query-tracker-ya-make-release }}
         run: |
-          mkdir -p ../build_qt_ya_make
-          cd ../build_qt_ya_make
-          rm -rf *
-
-          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=../ya_build ../ytsaurus/ytsaurus/yt/yql/agent/bin
-
           shopt -s expand_aliases
-          alias ydb-ya-make="../ytsaurus/ydb/ya make -T --ignore-recurses --build=relwithdebinfo  --output=."
 
-          ydb-ya-make ../ytsaurus/ydb/ydb/library/yql/tools/mrjob
-          ydb-ya-make ../ytsaurus/ydb/ydb/library/yql/yt/dynamic
+          build_types=()
+          yqla_output_dirs=()
+          ydb_output_dirs=()
 
-          udfs_prefix="../ytsaurus/ydb/ydb/library/yql/udfs/common"
-          ydb-ya-make ${udfs_prefix}/compress_base
-          ydb-ya-make ${udfs_prefix}/datetime2
-          ydb-ya-make ${udfs_prefix}/digest
-          ydb-ya-make ${udfs_prefix}/file
-          ydb-ya-make ${udfs_prefix}/histogram
-          ydb-ya-make ${udfs_prefix}/hyperloglog
-          ydb-ya-make ${udfs_prefix}/hyperscan
-          ydb-ya-make ${udfs_prefix}/ip_base
-          ydb-ya-make ${udfs_prefix}/json
-          ydb-ya-make ${udfs_prefix}/json2
-          ydb-ya-make ${udfs_prefix}/math
-          ydb-ya-make ${udfs_prefix}/pire
-          ydb-ya-make ${udfs_prefix}/protobuf
-          ydb-ya-make ${udfs_prefix}/re2
-          ydb-ya-make ${udfs_prefix}/set
-          ydb-ya-make ${udfs_prefix}/stat
-          ydb-ya-make ${udfs_prefix}/streaming
-          ydb-ya-make ${udfs_prefix}/string
-          ydb-ya-make ${udfs_prefix}/top
-          ydb-ya-make ${udfs_prefix}/topfreq
-          ydb-ya-make ${udfs_prefix}/unicode_base
-          ydb-ya-make ${udfs_prefix}/url_base
-          ydb-ya-make ${udfs_prefix}/yson2
+          if ${{ inputs.build-query-tracker-ya-make-relwithdebinfo }}; then
+            build_types+=(relwithdebinfo)
+            yqla_output_dirs+=(ya_build)
+            ydb_output_dirs+=(build_qt_ya_make)
+          fi
 
-          ydb-ya-make ../ytsaurus/ydb/ydb/library/yql/udfs/logs/dsv
+          if ${{ inputs.build-query-tracker-ya-make-release }}; then
+            build_types+=(release)
+            yqla_output_dirs+=(ya_build_release)
+            ydb_output_dirs+=(build_qt_ya_make_release)
+          fi
+
+          for i in ${!build_types[@]}; do
+            mkdir -p ../${ydb_output_dirs[$i]}
+            cd ../${ydb_output_dirs[$i]}
+            rm -rf *
+
+            ../ytsaurus/ytsaurus/ya make -T --build=${build_types[$i]}  --output=../${yqla_output_dirs[$i]} ../ytsaurus/ytsaurus/yt/yql/agent/bin
+            alias ydb-ya-make="../ytsaurus/ydb/ya make -T --ignore-recurses --build=relwithdebinfo  --output=."
+
+            ydb-ya-make ../ytsaurus/ydb/ydb/library/yql/tools/mrjob
+            ydb-ya-make ../ytsaurus/ydb/ydb/library/yql/yt/dynamic
+
+            udfs_prefix="../ytsaurus/ydb/ydb/library/yql/udfs/common"
+            ydb-ya-make ${udfs_prefix}/compress_base
+            ydb-ya-make ${udfs_prefix}/datetime2
+            ydb-ya-make ${udfs_prefix}/digest
+            ydb-ya-make ${udfs_prefix}/file
+            ydb-ya-make ${udfs_prefix}/histogram
+            ydb-ya-make ${udfs_prefix}/hyperloglog
+            ydb-ya-make ${udfs_prefix}/hyperscan
+            ydb-ya-make ${udfs_prefix}/ip_base
+            ydb-ya-make ${udfs_prefix}/json
+            ydb-ya-make ${udfs_prefix}/json2
+            ydb-ya-make ${udfs_prefix}/math
+            ydb-ya-make ${udfs_prefix}/pire
+            ydb-ya-make ${udfs_prefix}/protobuf
+            ydb-ya-make ${udfs_prefix}/re2
+            ydb-ya-make ${udfs_prefix}/set
+            ydb-ya-make ${udfs_prefix}/stat
+            ydb-ya-make ${udfs_prefix}/streaming
+            ydb-ya-make ${udfs_prefix}/string
+            ydb-ya-make ${udfs_prefix}/top
+            ydb-ya-make ${udfs_prefix}/topfreq
+            ydb-ya-make ${udfs_prefix}/unicode_base
+            ydb-ya-make ${udfs_prefix}/url_base
+            ydb-ya-make ${udfs_prefix}/yson2
+
+            ydb-ya-make ../ytsaurus/ydb/ydb/library/yql/udfs/logs/dsv
+          done
 
       - name: Build Python packages
         if: ${{ inputs.build-python }}
         run: |
           source ../venv/bin/activate
           YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build
-
