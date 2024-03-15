@@ -254,9 +254,8 @@ private[spark] class YTsaurusOperationManager(
 
 private[spark] object YTsaurusOperationManager extends Logging {
 
-  def create(ytProxy: String, conf: SparkConf): YTsaurusOperationManager = {
+  def create(ytProxy: String, conf: SparkConf, networkName: String): YTsaurusOperationManager = {
     val (user, token) = YTsaurusUtils.userAndToken()
-    var networkName = conf.get("spark.hadoop.yt.networkName")
     val ytClient: YTsaurusClient = buildClient(ytProxy, user, token, networkName)
 
     try {
