@@ -834,23 +834,13 @@ private:
 
                         auto row = TUnversionedRow(modification.Row);
 
-                        // COMPAT(ponasenko-rs)
-                        if (!tableInfo->EnableSharedWriteLocks) {
-                            for (int lockIndex = 0; lockIndex < modification.Locks.GetSize(); ++lockIndex) {
-                                if (modification.Locks.Get(lockIndex) == ELockType::SharedWrite) {
-                                    THROW_ERROR_EXCEPTION("Shared write locks are not allowed for the table");
-                                }
-                            }
-                        }
-
                         bool hasNonKeyColumns = ValidateNonKeyColumnsAgainstLock(
                             row,
                             modification.Locks,
                             *writeSchema,
                             writeIdMapping, // NB: Should be consistent with columnIndexToLockIndex.
                             NameTable_,
-                            columnIndexToLockIndex,
-                            /*allowSharedWriteLocks*/ !tableInfo->IsPhysicallyLog() && tableInfo->EnableSharedWriteLocks);
+                            columnIndexToLockIndex);
 
                         if (hasNonKeyColumns) {
                             // Lock with write.

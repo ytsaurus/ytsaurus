@@ -346,7 +346,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         ]
 
         create_dynamic_table("//tmp/t", schema=schema)
-        set("//tmp/t/@enable_shared_write_locks", True)
         sync_mount_table("//tmp/t")
 
         tx = start_transaction(type="tablet")
@@ -381,7 +380,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             {"name": "c", "type": "int64", "lock": "lc"}
         ]
         create_dynamic_table("//tmp/t", schema=schema)
-        set("//tmp/t/@enable_shared_write_locks", True)
         sync_mount_table("//tmp/t")
 
         tx1 = start_transaction(type="tablet")
@@ -451,7 +449,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             schema[1]["lock"] = "value_lock"
 
         create_dynamic_table("//tmp/t", schema=schema)
-        set("//tmp/t/@enable_shared_write_locks", True)
         sync_mount_table("//tmp/t")
 
         tx_ids = [start_transaction(type="tablet") for _ in range(10)]
@@ -461,49 +458,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             commit_transaction(tx_id)
 
         wait(lambda: lookup_rows("//tmp/t", [{"key": 0}], column_names=["key", "value"]) == [{"key": 0, "value": 10}])
-
-    @authors("ponasenko-rs")
-    def test_enable_shared_write_locks(self):
-        if self.DRIVER_BACKEND == "rpc":
-            # Shared write locks aren't supported on rpc proxy.
-            pytest.skip()
-
-        sync_create_cells(1)
-
-        schema = [
-            {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": "a", "type": "int64", "lock": "la"}
-        ]
-        create_dynamic_table("//tmp/t", schema=schema)
-        sync_mount_table("//tmp/t")
-
-        tx1 = start_transaction(type="tablet")
-        tx2 = start_transaction(type="tablet")
-
-        insert_rows("//tmp/t", [{"key": 1, "a": 1}], update=True, lock_type="shared_write", tx=tx1)
-        insert_rows("//tmp/t", [{"key": 1, "a": 2}], update=True, lock_type="shared_write", tx=tx2)
-
-        with pytest.raises(YtError):
-            commit_transaction(tx1)
-        with pytest.raises(YtError):
-            commit_transaction(tx2)
-
-        wait(lambda: lookup_rows("//tmp/t", [{"key": 1}], column_names=["key", "a"]) == [])
-
-        set("//tmp/t/@enable_shared_write_locks", True)
-        sync_unmount_table("//tmp/t")
-        sync_mount_table("//tmp/t")
-
-        tx1 = start_transaction(type="tablet")
-        tx2 = start_transaction(type="tablet")
-
-        insert_rows("//tmp/t", [{"key": 1, "a": 1}], update=True, lock_type="shared_write", tx=tx1)
-        insert_rows("//tmp/t", [{"key": 1, "a": 2}], update=True, lock_type="shared_write", tx=tx2)
-
-        commit_transaction(tx1)
-        commit_transaction(tx2)
-
-        wait(lambda: lookup_rows("//tmp/t", [{"key": 1}], column_names=["key", "a"]) == [{"key": 1, "a": 2}])
 
     @authors("babenko", "savrus")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])

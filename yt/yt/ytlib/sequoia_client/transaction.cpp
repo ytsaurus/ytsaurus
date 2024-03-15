@@ -549,11 +549,6 @@ private:
                     tabletCommitSession->SubmitUnversionedRow(EWireProtocolCommand::WriteAndLockRow, request.Key, lockMask);
                 },
                 [&] (const TWriteRowRequest& request) {
-                    if (request.LockType == ELockType::SharedWrite && !tableMountInfo->EnableSharedWriteLocks) {
-                        THROW_ERROR_EXCEPTION("Shared write locks should be explicitly enabled for table %v to use them",
-                            tableMountInfo->Path);
-                    }
-
                     auto tabletInfo = GetSortedTabletForRow(tableMountInfo, request.Row, /*validateWrite*/ true);
 
                     TLockMask lockMask;

@@ -101,6 +101,7 @@ public:
             .SetCancelable(true));
 
         DeclareServerFeature(ETabletServiceFeatures::WriteGenerations);
+        DeclareServerFeature(ETabletServiceFeatures::SharedWriteLocks);
         SubscribeLoadAdjusted();
     }
 
