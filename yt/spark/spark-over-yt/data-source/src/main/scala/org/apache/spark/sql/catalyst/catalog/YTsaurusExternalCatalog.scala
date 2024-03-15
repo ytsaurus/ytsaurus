@@ -102,7 +102,7 @@ class YTsaurusExternalCatalog(conf: SparkConf, hadoopConf: Configuration)
       val schemaTree = YtWrapper.attribute(path, "schema")(yt)
       val schema = SchemaConverter.sparkSchema(schemaTree, parsingTypeV3 = config.parsingTypeV3)
       val storage = CatalogStorageFormat(
-        locationUri = Some(new URI(table)),
+        locationUri = Some(new URI("ytTable:/" + path)),
         inputFormat = None, outputFormat = None, serde = None, compressed = false, properties = Map.empty
       )
       Some(CatalogTable(ident, CatalogTableType.MANAGED, storage, schema, provider = Some("yt")))

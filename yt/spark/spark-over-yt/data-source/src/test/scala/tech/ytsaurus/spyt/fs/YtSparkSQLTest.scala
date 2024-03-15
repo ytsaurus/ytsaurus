@@ -1,23 +1,24 @@
 package tech.ytsaurus.spyt.fs
 
+import org.apache.spark.SparkConf
 import org.apache.spark.sql.{AnalysisException, Row}
 import org.apache.spark.sql.types.{ArrayType, LongType, MapType, StringType}
 import org.apache.spark.sql.yson.YsonBinary
 import org.apache.spark.test.UtilsWrapper
 import org.mockito.scalatest.MockitoSugar
 import org.scalatest.prop.TableDrivenPropertyChecks
-import org.scalatest.{FlatSpec, Matchers, PrivateMethodTester}
+import org.scalatest.{FlatSpec, Matchers}
 import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 import tech.ytsaurus.spyt._
 import tech.ytsaurus.spyt.serialization.YsonEncoder
-import tech.ytsaurus.spyt.test.{DynTableTestUtils, LocalSpark, LocalYt, TestRow, TestUtils, TmpDir}
+import tech.ytsaurus.spyt.test.{DynTableTestUtils, LocalSpark, TestRow, TestUtils, TmpDir}
 import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.spyt.wrapper.table.OptimizeMode
 
 import scala.language.postfixOps
 
 class YtSparkSQLTest extends FlatSpec with Matchers with LocalSpark with TmpDir
-  with TestUtils with MockitoSugar with TableDrivenPropertyChecks with PrivateMethodTester  with DynTableTestUtils {
+  with TestUtils with MockitoSugar with TableDrivenPropertyChecks with DynTableTestUtils {
   import spark.implicits._
 
   private val atomicSchema = TableSchema.builder()
@@ -43,19 +44,9 @@ class YtSparkSQLTest extends FlatSpec with Matchers with LocalSpark with TmpDir
     OptimizeMode.Lookup
   )
 
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    spark.conf.set("spark.sql.caseSensitive", value = true)
-  }
-
-  override def afterEach(): Unit = {
+  override def beforeEach(): Unit = {
+    super.beforeEach()
     spark.sessionState.catalog.invalidateAllCachedTables()
-    super.afterEach()
-  }
-
-  override def afterAll(): Unit = {
-    spark.conf.set("spark.sql.caseSensitive", value = false)
-    super.afterAll()
   }
 
   it should "select rows using views" in {
@@ -133,21 +124,6 @@ class YtSparkSQLTest extends FlatSpec with Matchers with LocalSpark with TmpDir
       res.collect() should contain theSameElementsAs Seq(
         Row(2, "b", 0.5),
         Row(3, "c", 1.0)
-      )
-    }
-  }
-
-  it should "read without specified scheme" in {
-    writeTableFromYson(Seq(
-      """{a = 1; b = "a"; c = 0.3}""",
-      """{a = 2; b = "b"; c = 0.5}"""
-    ), tmpPath, atomicSchema)
-
-    withConf("fs.null.impl", "tech.ytsaurus.spyt.fs.YtTableFileSystem") {
-      val res = spark.sql(s"SELECT * FROM yt.`$tmpPath`")
-      res.collect() should contain theSameElementsAs Seq(
-        Row(1, "a", 0.3),
-        Row(2, "b", 0.5)
       )
     }
   }
@@ -312,6 +288,13 @@ class YtSparkSQLTest extends FlatSpec with Matchers with LocalSpark with TmpDir
     a[AnalysisException] shouldBe thrownBy {
       spark.sql(s"INSERT OVERWRITE TABLE yt.`ytTable:/$path2`(c1) VALUES (0l)")
     }
+  }
+
+  it should "work without specified scheme" in {
+    spark.sql(s"CREATE TABLE yt.`$tmpPath`(id INT) USING yt")
+    spark.sql(s"INSERT INTO TABLE yt.`$tmpPath` VALUES (7), (6), (5)")
+    val res = spark.sql(s"SELECT * FROM yt.`$tmpPath`")
+    res.collect() should contain theSameElementsAs Seq(Row(7), Row(6), Row(5))
   }
 
   it should "refresh when modified externally" in {
