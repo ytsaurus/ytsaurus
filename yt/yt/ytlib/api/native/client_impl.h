@@ -790,6 +790,12 @@ public: \
         const TString& passwordSha256,
         const TIssueTokenOptions& options),
         (user, passwordSha256, options))
+    IMPLEMENT_METHOD(TIssueTokenResult, IssueSpecificTemporaryToken, (
+        const TString& user,
+        const TString& token,
+        const NYTree::IAttributeDictionaryPtr& attributes,
+        const TIssueTemporaryTokenOptions& options),
+        (user, token, attributes, options))
     IMPLEMENT_METHOD(TIssueTokenResult, IssueTemporaryToken, (
         const TString& user,
         const NYTree::IAttributeDictionaryPtr& attributes,
@@ -1366,6 +1372,7 @@ private:
 
     TIssueTokenResult DoIssueTokenImpl(
         const TString& user,
+        const TString& token,
         const NYTree::IAttributeDictionaryPtr& attributes,
         const TIssueTokenOptions& options);
 

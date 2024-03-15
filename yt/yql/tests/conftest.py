@@ -23,6 +23,8 @@ class YqlAgent(ExternalComponent):
     def __init__(self, env, count):
         super().__init__(env, count)
 
+        create_user("yql_agent")
+        add_member("yql_agent", "superusers")
         yql_agent_token, _ = issue_token("yql_agent")
         with open(self.token_path, "w") as file:
             file.write(yql_agent_token)

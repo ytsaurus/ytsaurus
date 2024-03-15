@@ -144,6 +144,10 @@ class TYqlAgentConfig
     : public TYqlPluginConfig
 {
 public:
+    TDuration TokenExpirationTimeout;
+    TDuration RefreshTokenPeriod;
+    int IssueTokenAttempts;
+
     //! Used to create channels to other queue agents.
     NBus::TBusConfigPtr BusClient;
 
