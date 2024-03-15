@@ -1479,7 +1479,7 @@ void TSortOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("sort_by", &TThis::SortBy)
         .Default();
     registrar.Parameter("enable_partitioned_data_balancing", &TThis::EnablePartitionedDataBalancing)
-        .Default(true);
+        .Default(false);
     registrar.Parameter("enable_intermediate_output_recalculation", &TThis::EnableIntermediateOutputRecalculation)
         .Default(true);
     registrar.Parameter("pivot_keys", &TThis::PivotKeys)
