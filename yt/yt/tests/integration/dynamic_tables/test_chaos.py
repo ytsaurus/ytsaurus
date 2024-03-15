@@ -1594,6 +1594,91 @@ class TestChaos(ChaosTestBase):
         with pytest.raises(YtError, match="Table schema is not specified"):
             lookup_rows("//tmp/crt", [{"key": 0}])
 
+    @authors("ponasenko-rs")
+    def test_transaction_locks(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
+        set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
+
+        schema = yson.YsonList([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "a", "type": "int64", "lock": "lock_a"},
+            {"name": "b", "type": "int64", "lock": "lock_b"},
+            {"name": "c", "type": "int64", "lock": "lock_c"},
+        ])
+
+        create(
+            "chaos_replicated_table",
+            "//tmp/crt",
+            attributes={
+                "chaos_cell_bundle": "chaos_bundle",
+                "schema": schema,
+            },
+        )
+
+        replicas = [
+            {"cluster_name": "remote_0", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"}
+        ]
+        replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
+        self._create_replica_tables(replicas, replica_ids, schema=schema)
+
+        card_id = get("//tmp/crt/@replication_card_id")
+        self._sync_replication_era(card_id, replicas)
+
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
+
+        insert_rows("//tmp/crt", [{"key": 1, "a": 1}], update=True, tx=tx1)
+        lock_rows("//tmp/crt", [{"key": 1}], locks=["lock_a", "lock_c"], tx=tx1, lock_type="shared_weak")
+        insert_rows("//tmp/crt", [{"key": 1, "b": 2}], update=True, tx=tx2)
+
+        commit_transaction(tx1)
+        commit_transaction(tx2)
+
+        assert lookup_rows("//tmp/crt", [{"key": 1}], column_names=["key", "a", "b"]) == [{"key": 1, "a": 1, "b": 2}]
+
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
+        tx3 = start_transaction(type="tablet")
+
+        insert_rows("//tmp/crt", [{"key": 2, "a": 1}], update=True, tx=tx1)
+        lock_rows("//tmp/crt", [{"key": 2}], locks=["lock_a", "lock_c"], tx=tx1, lock_type="shared_weak")
+
+        insert_rows("//tmp/crt", [{"key": 2, "b": 2}], update=True, tx=tx2)
+        lock_rows("//tmp/crt", [{"key": 2}], locks=["lock_c"], tx=tx2, lock_type="shared_weak")
+
+        lock_rows("//tmp/crt", [{"key": 2}], locks=["lock_a"], tx=tx3, lock_type="shared_weak")
+
+        commit_transaction(tx1)
+        commit_transaction(tx2)
+
+        with pytest.raises(YtError):
+            commit_transaction(tx3)
+
+        assert lookup_rows("//tmp/crt", [{"key": 2}], column_names=["key", "a", "b"]) == [{"key": 2, "a": 1, "b": 2}]
+
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
+
+        lock_rows("//tmp/crt", [{"key": 3}], locks=["lock_a"], tx=tx1, lock_type="shared_weak")
+        insert_rows("//tmp/crt", [{"key": 3, "a": 1}], update=True, tx=tx2)
+
+        commit_transaction(tx2)
+
+        with pytest.raises(YtError):
+            commit_transaction(tx1)
+
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
+
+        lock_rows("//tmp/crt", [{"key": 3}], locks=["lock_a"], tx=tx1, lock_type="shared_strong")
+        insert_rows("//tmp/crt", [{"key": 3, "a": 1}], update=True, tx=tx2)
+
+        commit_transaction(tx1)
+
+        with pytest.raises(YtError):
+            commit_transaction(tx2)
+
     @authors("savrus")
     def test_chaos_table_data_access(self):
         cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")

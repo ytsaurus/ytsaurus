@@ -1010,6 +1010,46 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         with pytest.raises(YtError):
             commit_transaction(tx2)
 
+    @authors("ponasenko-rs")
+    def test_lock_after_delete(self):
+        self._create_cells()
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "a", "type": "int64", "lock": "lock_a"}
+        ]
+
+        self._create_replicated_table("//tmp/t", schema=schema)
+
+        replica_id1 = create_table_replica(
+            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "sync"})
+        replica_id2 = create_table_replica(
+            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2", attributes={"mode": "async"})
+
+        self._create_replica_table("//tmp/r1", replica_id1, schema=schema)
+        sync_enable_table_replica(replica_id1)
+        self._create_replica_table("//tmp/r2", replica_id2, schema=schema)
+        sync_enable_table_replica(replica_id2)
+
+        insert_rows("//tmp/t", [{"key": 1, "a": 1}], update=True)
+
+        expected = [{"key": 1, "a": 1}]
+
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == expected
+        assert lookup_rows("//tmp/r1", [{"key": 1}], driver=self.replica_driver) == expected
+        wait(lambda: lookup_rows("//tmp/r2", [{"key": 1}], driver=self.replica_driver) == expected)
+
+        tx = start_transaction(type="tablet")
+
+        delete_rows("//tmp/t", [{"key": 1}], tx=tx)
+        lock_rows("//tmp/t", [{"key": 1}], locks=["lock_a"], tx=tx, lock_type="shared_strong")
+
+        commit_transaction(tx)
+
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == []
+        assert lookup_rows("//tmp/r1", [{"key": 1}], driver=self.replica_driver) == []
+        wait(lambda: lookup_rows("//tmp/r2", [{"key": 1}], driver=self.replica_driver) == [])
+
     @authors("akozhikhov", "aleksandra-zh")
     @pytest.mark.parametrize("commit_ordering", ["weak", "strong"])
     @pytest.mark.parametrize("use_hunks", [False, True])
