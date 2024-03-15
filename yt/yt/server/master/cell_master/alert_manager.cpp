@@ -50,7 +50,7 @@ public:
             "AlertManager",
             BIND(&TAlertManager::Save, Unretained(this)));
 
-        RegisterMethod(BIND(&TAlertManager::HydraSetCellAlerts, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TAlertManager::HydraSetCellAlerts, Unretained(this)));
     }
 
     void Initialize() override

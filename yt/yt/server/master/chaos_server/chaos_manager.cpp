@@ -84,8 +84,8 @@ public:
             "ChaosManager.Values",
             BIND(&TChaosManager::SaveValues, Unretained(this)));
 
-        RegisterMethod(BIND(&TChaosManager::HydraUpdateAlienCellPeers, Unretained(this)));
-        RegisterMethod(BIND(&TChaosManager::HydraReplicateAlienClusterRegistry, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraUpdateAlienCellPeers, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraReplicateAlienClusterRegistry, Unretained(this)));
     }
 
     void Initialize() override

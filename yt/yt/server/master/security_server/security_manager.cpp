@@ -498,10 +498,10 @@ public:
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
         SuperusersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffd);
 
-        RegisterMethod(BIND(&TSecurityManager::HydraSetAccountStatistics, Unretained(this)));
-        RegisterMethod(BIND(&TSecurityManager::HydraRecomputeMembershipClosure, Unretained(this)));
-        RegisterMethod(BIND(&TSecurityManager::HydraUpdateAccountMasterMemoryUsage, Unretained(this)));
-        RegisterMethod(BIND(&TSecurityManager::HydraUpdateUserActivityStatistics, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraSetAccountStatistics, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraRecomputeMembershipClosure, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraUpdateAccountMasterMemoryUsage, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraUpdateUserActivityStatistics, Unretained(this)));
     }
 
     void Initialize() override

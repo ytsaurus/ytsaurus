@@ -68,10 +68,10 @@ public:
             "CoordinatorManager.Values",
             BIND(&TCoordinatorManager::SaveValues, Unretained(this)));
 
-        RegisterMethod(BIND(&TCoordinatorManager::HydraReqSuspend, Unretained(this)));
-        RegisterMethod(BIND(&TCoordinatorManager::HydraReqResume, Unretained(this)));
-        RegisterMethod(BIND(&TCoordinatorManager::HydraReqGrantShortcuts, Unretained(this)));
-        RegisterMethod(BIND(&TCoordinatorManager::HydraReqRevokeShortcuts, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TCoordinatorManager::HydraReqSuspend, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TCoordinatorManager::HydraReqResume, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TCoordinatorManager::HydraReqGrantShortcuts, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TCoordinatorManager::HydraReqRevokeShortcuts, Unretained(this)));
     }
 
     void Initialize() override

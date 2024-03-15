@@ -90,13 +90,13 @@ public:
             BIND_NO_PROPAGATE(&TMulticellManager::DoSyncWithUpstream, MakeWeak(this)),
             Config_->UpstreamSyncDelay))
     {
-        TMasterAutomatonPart::RegisterMethod(BIND(&TMulticellManager::HydraRegisterSecondaryMasterAtPrimary, Unretained(this)));
-        TMasterAutomatonPart::RegisterMethod(BIND(&TMulticellManager::HydraOnSecondaryMasterRegisteredAtPrimary, Unretained(this)));
-        TMasterAutomatonPart::RegisterMethod(BIND(&TMulticellManager::HydraRegisterSecondaryMasterAtSecondary, Unretained(this)));
-        TMasterAutomatonPart::RegisterMethod(BIND(&TMulticellManager::HydraStartSecondaryMasterRegistration, Unretained(this)));
-        TMasterAutomatonPart::RegisterMethod(BIND(&TMulticellManager::HydraSetCellStatistics, Unretained(this)));
-        TMasterAutomatonPart::RegisterMethod(BIND(&TMulticellManager::HydraSetMulticellStatistics, Unretained(this)));
-        TMasterAutomatonPart::RegisterMethod(BIND(&TMulticellManager::HydraSyncHiveClocksAtMasters, Unretained(this)));
+        TMasterAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TMulticellManager::HydraRegisterSecondaryMasterAtPrimary, Unretained(this)));
+        TMasterAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TMulticellManager::HydraOnSecondaryMasterRegisteredAtPrimary, Unretained(this)));
+        TMasterAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TMulticellManager::HydraRegisterSecondaryMasterAtSecondary, Unretained(this)));
+        TMasterAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TMulticellManager::HydraStartSecondaryMasterRegistration, Unretained(this)));
+        TMasterAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TMulticellManager::HydraSetCellStatistics, Unretained(this)));
+        TMasterAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TMulticellManager::HydraSetMulticellStatistics, Unretained(this)));
+        TMasterAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TMulticellManager::HydraSyncHiveClocksAtMasters, Unretained(this)));
 
         RegisterLoader(
             "MulticellManager.Values",
@@ -113,10 +113,10 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TMulticellManager::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMulticellManager::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& alertManager = Bootstrap_->GetAlertManager();
-        alertManager->RegisterAlertSource(BIND(&TMulticellManager::GetAlerts, MakeWeak(this)));
+        alertManager->RegisterAlertSource(BIND_NO_PROPAGATE(&TMulticellManager::GetAlerts, MakeWeak(this)));
     }
 
 

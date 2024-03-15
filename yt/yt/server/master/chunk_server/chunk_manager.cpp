@@ -387,22 +387,22 @@ public:
                 {CreateChunkCreationTimeHistogramBuilder(bootstrap)}))
         , MediumMap_(TEntityMapTypeTraits<TMedium>(Bootstrap_))
     {
-        RegisterMethod(BIND(&TChunkManager::HydraConfirmChunkListsRequisitionTraverseFinished, Unretained(this)));
-        RegisterMethod(BIND(&TChunkManager::HydraRescheduleChunkListRequisitionTraversals, Unretained(this)));
-        RegisterMethod(BIND(&TChunkManager::HydraUpdateChunkRequisition, Unretained(this)));
-        RegisterMethod(BIND(&TChunkManager::HydraRegisterChunkEndorsements, Unretained(this)));
-        RegisterMethod(BIND(&TChunkManager::HydraScheduleChunkRequisitionUpdates, Unretained(this)));
-        RegisterMethod(BIND(&TChunkManager::HydraExportChunks, Unretained(this)));
-        RegisterMethod(BIND(&TChunkManager::HydraImportChunks, Unretained(this)));
-        RegisterMethod(BIND(&TChunkManager::HydraExecuteBatch, Unretained(this)));
-        RegisterMethod(BIND(&TChunkManager::HydraCreateChunk, Unretained(this)));
-        RegisterMethod(BIND(&TChunkManager::HydraConfirmChunk, Unretained(this)));
-        RegisterMethod(BIND(&TChunkManager::HydraSealChunk, Unretained(this)));
-        RegisterMethod(BIND(&TChunkManager::HydraCreateChunkLists, Unretained(this)));
-        RegisterMethod(BIND(&TChunkManager::HydraAttachChunkTrees, Unretained(this)));
-        RegisterMethod(BIND(&TChunkManager::HydraUnstageChunkTree, Unretained(this)));
-        RegisterMethod(BIND(&TChunkManager::HydraUnstageExpiredChunks, Unretained(this)));
-        RegisterMethod(BIND(&TChunkManager::HydraRedistributeConsistentReplicaPlacementTokens, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraConfirmChunkListsRequisitionTraverseFinished, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraRescheduleChunkListRequisitionTraversals, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraUpdateChunkRequisition, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraRegisterChunkEndorsements, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraScheduleChunkRequisitionUpdates, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraExportChunks, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraImportChunks, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraExecuteBatch, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraCreateChunk, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraConfirmChunk, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraSealChunk, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraCreateChunkLists, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraAttachChunkTrees, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraUnstageChunkTree, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraUnstageExpiredChunks, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraRedistributeConsistentReplicaPlacementTokens, Unretained(this)));
 
         RegisterLoader(
             "ChunkManager.Keys",

@@ -125,10 +125,10 @@ public:
             /*mutationForwarder*/ nullptr)
         , Host_(std::move(host))
     {
-        RegisterMethod(BIND(&TSmoothMovementTracker::HydraStartSmoothMovement, Unretained(this)));
-        RegisterMethod(BIND(&TSmoothMovementTracker::HydraAbortSmoothMovement, Unretained(this)));
-        RegisterMethod(BIND(&TSmoothMovementTracker::HydraChangeSmoothMovementStage, Unretained(this)));
-        RegisterMethod(BIND(&TSmoothMovementTracker::HydraSwitchServant, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TSmoothMovementTracker::HydraStartSmoothMovement, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TSmoothMovementTracker::HydraAbortSmoothMovement, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TSmoothMovementTracker::HydraChangeSmoothMovementStage, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TSmoothMovementTracker::HydraSwitchServant, Unretained(this)));
     }
 
     void CheckTablet(TTablet* tablet) override

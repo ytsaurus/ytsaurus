@@ -60,9 +60,9 @@ public:
             "NodeDisposalManager",
             BIND(&TNodeDisposalManager::Save, Unretained(this)));
 
-        RegisterMethod(BIND(&TNodeDisposalManager::HydraStartNodeDisposal, Unretained(this)));
-        RegisterMethod(BIND(&TNodeDisposalManager::HydraFinishNodeDisposal, Unretained(this)));
-        RegisterMethod(BIND(&TNodeDisposalManager::HydraDisposeLocation, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TNodeDisposalManager::HydraStartNodeDisposal, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TNodeDisposalManager::HydraFinishNodeDisposal, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TNodeDisposalManager::HydraDisposeLocation, Unretained(this)));
     }
 
     void Initialize() override
