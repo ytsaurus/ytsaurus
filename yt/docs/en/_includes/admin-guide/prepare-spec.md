@@ -10,7 +10,7 @@ kind: Ytsaurus
 metadata:
   name: ytdemo
 spec:
-  coreImage: ytsaurus/ytsaurus-nightly:dev-23.1-35ba9c721c7e267d1f03cf9a9b28f6f007e21e6e
+  coreImage: ytsaurus/ytsaurus:stable-23.2.0-relwithdebinfo
   uiImage: ytsaurus/ui:stable
 
   adminCredentials:
@@ -117,7 +117,7 @@ Table 1 shows some general `Ytsaurus` settings.
 
 | **Field** | **Type** | **Description** |
 | ------------------- | --------------- | ------------------------------------------------------------ |
-| `coreImage` | `string` | Image for the main server components (for example, `ytsaurus/ytsaurus:23.1.0-relwithdebinfo`). |
+| `coreImage` | `string` | Image for the main server components (for example, `ytsaurus/ytsaurus:stable-23.2.0-relwithdebinfo`). |
 | `uiImage` | `string` | An image for the UI like `ytsaurus/ui:stable`. |
 | `imagePullSecrets` | `array<LocalObjectReference>` | Secrets needed to pull images from a private registry. Learn more [here](https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/). |
 | `configOverrides` | `optional<LocalObjectReference>` | A ConfigMap for overriding generated static configs. It should only be used in rare cases. |
@@ -153,9 +153,9 @@ For dynamic tables to work (they're needed for system tables of components like 
 
 At the first step, select the main Docker image for the server components.
 
-Most of the server components are released from a separate (release) branch. Currently, the latest stable branch is `stable/23.1`. We strongly recommend using an image compiled from a stable release branch.
+Most of the server components are released from a separate (release) branch. Currently, the latest stable branch is `stable/23.2`. We strongly recommend using an image compiled from a stable release branch.
 
-The names of Docker images built from the release branch follow the format `ytsaurus/ytsaurus:stable-23.1.N` or `ytsaurus/ytsaurus:stable-23.1.N-relwithdebinfo`. The difference between the images is that all the binary files in the second one are built with debug symbols.
+The names of Docker images built from the release branch follow the format `ytsaurus/ytsaurus:stable-23.2.N` or `ytsaurus/ytsaurus:stable-23.2.N-relwithdebinfo`. The difference between the images is that all the binary files in the second one are built with debug symbols.
 
 If the server components crash, the stack trace is printed to the stderr components, and a `coredump` is retrieved from the K8s node (if this is configured in your K8s cluster). This provides detailed information on what exactly happened to the component. With that in mind, we recommend using `relwithdebinfo` images even though they take up more space. Without debug symbols, the {{product-name}} team probably won't be able to help you if you encounter any problems.
 
@@ -168,18 +168,18 @@ The `image` for each component is taken primarily from the component's image fie
 
 | **Field** | **Docker repository** | **Recommended stable release tag** |
 | ------------------- | --------------- | ----------------------------- |
-| `discovery` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.1.0-relwithdebinfo` |
-| `primaryMasters` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.1.0-relwithdebinfo` |
-| `httpProxies` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.1.0-relwithdebinfo` |
-| `rpcProxies` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.1.0-relwithdebinfo` |
-| `dataNodes` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.1.0-relwithdebinfo` |
-| `execNodes` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.1.0-relwithdebinfo` |
-| `tabletNodes` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.1.0-relwithdebinfo` |
-| `schedulers` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.1.0-relwithdebinfo` |
-| `controllerAgents` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.1.0-relwithdebinfo` |
-| `queryTrackers` | [ytsaurus/query-tracker](https://hub.docker.com/r/ytsaurus/query-tracker/tags) | `1.0.0-relwithdebinfo` |
-| `yqlAgents` | [ytsaurus/query-tracker](https://hub.docker.com/r/ytsaurus/query-tracker/tags) | `1.0.0-relwithdebinfo` |
-| `strawberry` | [ytsaurus/strawberry](https://hub.docker.com/r/ytsaurus/strawberry/tags) | `1.0.0-relwithdebinfo` |
+| `discovery` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.2.0-relwithdebinfo` |
+| `primaryMasters` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.2.0-relwithdebinfo` |
+| `httpProxies` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.2.0-relwithdebinfo` |
+| `rpcProxies` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.2.0-relwithdebinfo` |
+| `dataNodes` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.2.0-relwithdebinfo` |
+| `execNodes` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.2.0-relwithdebinfo` |
+| `tabletNodes` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.2.0-relwithdebinfo` |
+| `schedulers` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.2.0-relwithdebinfo` |
+| `controllerAgents` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.2.0-relwithdebinfo` |
+| `queryTrackers` | [ytsaurus/query-tracker](https://hub.docker.com/r/ytsaurus/query-tracker/tags) | `0.0.4-relwithdebinfo` |
+| `yqlAgents` | [ytsaurus/query-tracker](https://hub.docker.com/r/ytsaurus/query-tracker/tags) | `0.0.4-relwithdebinfo` |
+| `strawberry` | [ytsaurus/strawberry](https://hub.docker.com/r/ytsaurus/strawberry/tags) | `0.0.11-relwithdebinfo` |
 | `ui` | [ytsaurus/ui](https://hub.docker.com/r/ytsaurus/ui/tags) | `stable` |
 
 In addition, a common image is provided for all server components at once (except `ui`). You only need to specify it once in `coreImage`, without explicitly specifying anything in the component's `image` field.
