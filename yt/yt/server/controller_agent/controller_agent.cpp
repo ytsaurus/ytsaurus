@@ -1455,6 +1455,8 @@ private:
 
     TPreparedHeartbeatRequest PrepareHeartbeatRequest()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         TPreparedHeartbeatRequest preparedRequest;
 
         auto request = preparedRequest.RpcRequest = SchedulerProxy_.Heartbeat();
@@ -1617,6 +1619,8 @@ private:
 
     void ConfirmHeartbeatRequest(const TPreparedHeartbeatRequest& preparedRequest)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto now = TInstant::Now();
         if (preparedRequest.ExecNodesRequested) {
             LastExecNodesUpdateTime_ = now;
@@ -1677,6 +1681,8 @@ private:
 
     void SendHeartbeat()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto preparedRequest = PrepareHeartbeatRequest();
 
         YT_LOG_DEBUG("Sending heartbeat (ExecNodesRequested: %v, OperationsSent: %v, OperationAlertsSent: %v, SuspiciousJobsSent: %v, "
@@ -1710,17 +1716,6 @@ private:
 
         if (HasExecNodes(rsp)) {
             GetExecNodesUpdateInvoker()->Invoke(BIND(&TImpl::UpdateExecNodeDescriptors, MakeStrong(this), GetExecNodeDescriptorList(rsp)));
-        }
-
-        for (const auto& protoOperationId : rsp->operation_ids_to_unregister()) {
-            auto operationId = FromProto<TOperationId>(protoOperationId);
-            auto operation = FindOperation(operationId);
-            if (!operation) {
-                YT_LOG_DEBUG("Requested to unregister an unknown operation; ignored (OperationId: %v)",
-                    operationId);
-                continue;
-            }
-            UnregisterOperation(operation->GetId());
         }
 
         JobReporter_->SetOperationsArchiveVersion(rsp->operations_archive_version());
@@ -1971,6 +1966,8 @@ private:
 
     void HandleAbortedAllocationEvents(const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto abortedAllocationSummariesPerOperationIdOrError = WaitFor(BIND([this, rsp] {
                 THashMap<TOperationId, std::vector<TAbortedAllocationSummary>> abortedAllocationSummariesPerOperationId;
                 abortedAllocationSummariesPerOperationId.reserve(rsp->scheduler_to_agent_aborted_allocation_events().items_size());
@@ -2012,29 +2009,60 @@ private:
 
     void HandleOperationEvents(const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         OperationEventsInbox_->HandleIncoming(
             rsp->mutable_scheduler_to_agent_operation_events(),
             [&] (const auto* protoEvent) {
                 auto eventType = static_cast<ESchedulerToAgentOperationEventType>(protoEvent->event_type());
                 auto operationId = FromProto<TOperationId>(protoEvent->operation_id());
-                auto operation = this->FindOperation(operationId);
-                if (!operation) {
-                    return;
+
+                switch (eventType) {
+                    case ESchedulerToAgentOperationEventType::UpdateMinNeededAllocationResources:
+                        ProcessUpdateMinNeededAllocationResourcesEvent(operationId);
+                        break;
+
+                    case ESchedulerToAgentOperationEventType::UnregisterOperation:
+                        ProcessUnregisterOperationEvent(operationId);
+                        break;
+
+                    default:
+                        YT_ABORT();
                 }
-
-                auto controller = operation->GetController();
-                controller->GetCancelableInvoker(EOperationControllerQueue::Default)->Invoke(
-                    BIND([controller, eventType] {
-                        switch (eventType) {
-                            case ESchedulerToAgentOperationEventType::UpdateMinNeededAllocationResources:
-                                controller->UpdateMinNeededAllocationResources();
-                                break;
-
-                            default:
-                                YT_ABORT();
-                        }
-                    }));
             });
+    }
+
+    void ProcessUpdateMinNeededAllocationResourcesEvent(TOperationId operationId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto operation = this->FindOperation(operationId);
+        if (!operation) {
+            YT_LOG_DEBUG(
+                "Requested to update min needed allocation resources of an unknown operation; ignored (OperationId: %v)",
+                operationId);
+            return;
+        }
+
+        auto controller = operation->GetController();
+        controller->GetCancelableInvoker(EOperationControllerQueue::Default)->Invoke(
+            BIND(
+                &IOperationController::UpdateMinNeededAllocationResources,
+                controller));
+    }
+
+    void ProcessUnregisterOperationEvent(TOperationId operationId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto operation = FindOperation(operationId);
+        if (!operation) {
+            YT_LOG_DEBUG(
+                "Requested to unregister an unknown operation; ignored (OperationId: %v)",
+                operationId);
+            return;
+        }
+        UnregisterOperation(operation->GetId());
     }
 
     // TODO(ignat): eliminate this copy/paste from scheduler.cpp somehow.

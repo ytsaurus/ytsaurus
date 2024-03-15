@@ -540,7 +540,6 @@ public:
         const auto& scheduler = Bootstrap_->GetScheduler();
 
         auto* request = &context->Request();
-        auto* response = &context->Response();
 
         std::vector<TOperationInfo> operationInfos;
         operationInfos.reserve(request->operations().size());
@@ -550,8 +549,7 @@ public:
 
         agent->GetCancelableControlInvoker()->Invoke(BIND([
                 scheduler,
-                response,
-                agentId = agent->GetId(),
+                agent,
                 operationInfos = std::move(operationInfos)
             ] {
                 RunNoExcept([&] {
@@ -568,10 +566,16 @@ public:
 
                             YT_LOG_DEBUG(
                                 "Unknown operation is running at agent; unregister requested (AgentId: %v, OperationId: %v, TreeIdToOperationTotalTimeDelta: %v)",
-                                agentId,
+                                agent->GetId(),
                                 operationId,
                                 treeIdToOperationTotalTimeDelta);
-                            ToProto(response->add_operation_ids_to_unregister(), operationId);
+
+                            // NB: Some operations might be requested to be unregistered twice
+                            // if this callback is too slow.
+                            agent->GetOperationEventsOutbox()->Enqueue(TSchedulerToAgentOperationEvent{
+                                .EventType = ESchedulerToAgentOperationEventType::UnregisterOperation,
+                                .OperationId = operationId,
+                            });
                             continue;
                         }
                         EmplaceOrCrash(operationIdToOperationJobMetrics, operationId, std::move(operationInfo.JobMetrics));

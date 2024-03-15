@@ -120,6 +120,7 @@ DEFINE_ENUM(EAgentToSchedulerOperationEventType,
 
 DEFINE_ENUM(ESchedulerToAgentOperationEventType,
     ((UpdateMinNeededAllocationResources) (0))
+    ((UnregisterOperation)                (1))
 );
 
 DEFINE_ENUM(EControlQueue,
