@@ -771,6 +771,7 @@ class TestSchedulingHeartbeatThrottling(YTEnvSetup):
         create_pool("small_pool", pool_tree="small_tree")
 
         concurrent_complexity_limit_reached_count = profiler_factory().at_scheduler().counter("scheduler/node_heartbeat/concurrent_complexity_limit_reached_count")
+        unscheduled_resources_by_throttling_count = profiler_factory().at_scheduler().counter("scheduler/unscheduled_node_resources/cpu", tags={"reason": "throttling"})
 
         def get_total_scheduling_heartbeat_complexity():
             total_scheduling_heartbeat_complexity_orchid_path = scheduler_orchid_path() + "/scheduler/node_shards/total_scheduling_heartbeat_complexity"
@@ -794,6 +795,7 @@ class TestSchedulingHeartbeatThrottling(YTEnvSetup):
 
         wait(lambda: get_total_scheduling_heartbeat_complexity() == 15)
         assert concurrent_complexity_limit_reached_count.get_delta() == 0
+        assert unscheduled_resources_by_throttling_count.get_delta() == 0
 
         run_test_vanilla(
             command="sleep 0.5",
@@ -806,3 +808,4 @@ class TestSchedulingHeartbeatThrottling(YTEnvSetup):
 
         wait(lambda: get_total_scheduling_heartbeat_complexity() == 18)
         wait(lambda: concurrent_complexity_limit_reached_count.get_delta() > 0)
+        wait(lambda: unscheduled_resources_by_throttling_count.get_delta() > 0)

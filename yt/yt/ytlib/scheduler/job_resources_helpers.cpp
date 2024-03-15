@@ -185,25 +185,27 @@ void FormatValue(TStringBuilderBase* builder, const TDiskQuota& diskQuota, TStri
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TJobResourcesProfiler::Init(const NProfiling::TProfiler& profiler)
+TJobResourcesProfiler::TJobResourcesProfiler()
+    : Producer_(New<TBufferedProducer>())
+{ }
+
+void TJobResourcesProfiler::Init(const NProfiling::TProfiler& profiler, NProfiling::EMetricType metricType)
 {
-    #define XX(name, Name) Name = profiler.Gauge("/" #name);
-    ITERATE_JOB_RESOURCES(XX)
-    #undef XX
+    Producer_->SetEnabled(true);
+    profiler.AddProducer("", Producer_);
+    MetricType_ = metricType;
 }
 
 void TJobResourcesProfiler::Reset()
 {
-    #define XX(name, Name) Name = {};
-    ITERATE_JOB_RESOURCES(XX)
-    #undef XX
+    Producer_->SetEnabled(false);
 }
 
 void TJobResourcesProfiler::Update(const TJobResources& resources)
 {
-    #define XX(name, Name) Name.Update(static_cast<double>(resources.Get##Name()));
-    ITERATE_JOB_RESOURCES(XX)
-    #undef XX
+    TSensorBuffer sensorBuffer;
+    ProfileResources(&sensorBuffer, resources, "", MetricType_);
+    Producer_->Update(std::move(sensorBuffer));
 }
 
 void ProfileResources(
