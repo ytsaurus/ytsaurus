@@ -1,6 +1,6 @@
 # {{product-name}} сluster components
 
-This section describes the main components that make up the {{product-name}}cluster.
+This section describes the main components that make up the {{product-name}} cluster.
 
 ## Master
 
