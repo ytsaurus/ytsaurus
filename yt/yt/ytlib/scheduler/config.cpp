@@ -1159,6 +1159,10 @@ void TUserJobSpec::Register(TRegistrar registrar)
         if (spec->Profilers) {
             ValidateProfilers(*spec->Profilers);
         }
+
+        if (spec->UseYamrDescriptors && spec->RedirectStdoutToStderr) {
+            THROW_ERROR_EXCEPTION("Uncompatible options \"use_yamr_descriptors\" and \"redirect_stdout_to_stderr\" are both set");
+        }
     });
 }
 

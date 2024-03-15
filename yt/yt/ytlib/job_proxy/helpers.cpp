@@ -141,14 +141,14 @@ IPartitionerPtr CreatePartitioner(const TPartitionJobSpecExt& partitionJobSpecEx
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr int JobFirstOutputTableFdDefault = 1;
-constexpr int JobFirstOutputTableFdWithRedirectStdoutToStderr = 4;
+constexpr int JobFirstOutputTableFDDefault = 1;
+constexpr int JobFirstOutputTableFDWithRedirectStdoutToStderr = 4;
 
-int GetJobFirstOutputTableFdFromSpec(const TUserJobSpec& spec)
+int GetJobFirstOutputTableFDFromSpec(const TUserJobSpec& spec)
 {
     return spec.redirect_stdout_to_stderr()
-        ? JobFirstOutputTableFdWithRedirectStdoutToStderr
-        : JobFirstOutputTableFdDefault;
+        ? JobFirstOutputTableFDWithRedirectStdoutToStderr
+        : JobFirstOutputTableFDDefault;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
