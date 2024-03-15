@@ -14,6 +14,7 @@ __all__ = (
     "TelField",
     "URLField",
     "EmailField",
+    "ColorField",
 )
 
 
@@ -162,3 +163,11 @@ class EmailField(StringField):
     """
 
     widget = widgets.EmailInput()
+
+
+class ColorField(StringField):
+    """
+    Represents an ``<input type="color">``.
+    """
+
+    widget = widgets.ColorInput()

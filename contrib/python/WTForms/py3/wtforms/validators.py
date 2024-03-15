@@ -3,11 +3,6 @@ import math
 import re
 import uuid
 
-try:
-    import email_validator
-except ImportError:
-    email_validator = None
-
 __all__ = (
     "DataRequired",
     "data_required",
@@ -38,6 +33,10 @@ __all__ = (
     "UUID",
     "ValidationError",
     "StopValidation",
+    "readonly",
+    "ReadOnly",
+    "disabled",
+    "Disabled",
 )
 
 
@@ -305,7 +304,9 @@ class InputRequired:
 
     Note there is a distinction between this and DataRequired in that
     InputRequired looks that form-input data was provided, and DataRequired
-    looks at the post-coercion data.
+    looks at the post-coercion data. This means that this validator only checks
+    whether non-empty data was sent, not whether non-empty data was coerced
+    from that data. Initially populated data is not considered sent.
 
     Sets the `required` attribute on widgets.
     """
@@ -389,8 +390,6 @@ class Email:
         allow_smtputf8=True,
         allow_empty_local=False,
     ):
-        if email_validator is None:  # pragma: no cover
-            raise Exception("Install 'email_validator' for email validation support.")
         self.message = message
         self.granular_message = granular_message
         self.check_deliverability = check_deliverability
@@ -398,6 +397,13 @@ class Email:
         self.allow_empty_local = allow_empty_local
 
     def __call__(self, form, field):
+        try:
+            import email_validator
+        except ImportError as exc:  # pragma: no cover
+            raise Exception(
+                "Install 'email_validator' for email validation support."
+            ) from exc
+
         try:
             if field.data is None:
                 raise email_validator.EmailNotValidError()
@@ -509,11 +515,13 @@ class URL(Regexp):
         If true, then the domain-name portion of the URL must contain a .tld
         suffix.  Set this to false if you want to allow domains like
         `localhost`.
+    :param allow_ip:
+        If false, then give ip as host will fail validation
     :param message:
         Error message to raise in case of a validation error.
     """
 
-    def __init__(self, require_tld=True, message=None):
+    def __init__(self, require_tld=True, allow_ip=True, message=None):
         regex = (
             r"^[a-z]+://"
             r"(?P<host>[^\/\?:]+)"
@@ -523,7 +531,7 @@ class URL(Regexp):
         )
         super().__init__(regex, re.IGNORECASE, message)
         self.validate_hostname = HostnameValidation(
-            require_tld=require_tld, allow_ip=True
+            require_tld=require_tld, allow_ip=allow_ip
         )
 
     def __call__(self, form, field):
@@ -674,6 +682,39 @@ class HostnameValidation:
         return True
 
 
+class ReadOnly:
+    """
+    Set a field readonly.
+
+    Validation fails if the form data is different than the
+    field object data, or if unset, from the field default data.
+    """
+
+    def __init__(self):
+        self.field_flags = {"readonly": True}
+
+    def __call__(self, form, field):
+        if field.data != field.object_data:
+            raise ValidationError(field.gettext("This field cannot be edited"))
+
+
+class Disabled:
+    """
+    Set a field disabled.
+
+    Validation fails if the form data has any value.
+    """
+
+    def __init__(self):
+        self.field_flags = {"disabled": True}
+
+    def __call__(self, form, field):
+        if field.raw_data is not None:
+            raise ValidationError(
+                field.gettext("This field is disabled and cannot have a value")
+            )
+
+
 email = Email
 equal_to = EqualTo
 ip_address = IPAddress
@@ -687,3 +728,5 @@ regexp = Regexp
 url = URL
 any_of = AnyOf
 none_of = NoneOf
+readonly = ReadOnly
+disabled = Disabled
