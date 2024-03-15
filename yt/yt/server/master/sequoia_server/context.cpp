@@ -20,6 +20,8 @@ namespace NYT::NSequoiaServer {
 
 using namespace NApi::NNative;
 using namespace NCellMaster;
+using namespace NRpc;
+using namespace NSecurityServer;
 using namespace NSequoiaClient;
 using namespace NTableClient;
 using namespace NTabletClient;
@@ -154,7 +156,15 @@ const ISequoiaContextPtr& GetSequoiaContext()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSequoiaContextGuard::TSequoiaContextGuard(ISequoiaContextPtr context)
+TSequoiaContextGuard::TSequoiaContextGuard(ISecurityManagerPtr securityManager)
+    : UserGuard_(std::move(securityManager))
+{ }
+
+TSequoiaContextGuard::TSequoiaContextGuard(
+        ISequoiaContextPtr context,
+        ISecurityManagerPtr securityManager,
+        TAuthenticationIdentity identity)
+    : UserGuard_(std::move(securityManager), std::move(identity))
 {
     SetSequoiaContext(std::move(context));
 }

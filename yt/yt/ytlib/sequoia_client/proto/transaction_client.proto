@@ -33,6 +33,14 @@ message TReqStartTransaction
     required NYT.NYTree.NProto.TAttributeDictionary attributes = 3;
     required TWriteSet write_set = 4;
     repeated NYT.NTransactionClient.NProto.TTransactionActionData actions = 5;
+
+    message TAuthenticationIdentity
+    {
+        optional string user = 1;
+        optional string user_tag = 2;
+    };
+
+    optional TAuthenticationIdentity identity = 6;
 }
 
 message TRspStartTransaction

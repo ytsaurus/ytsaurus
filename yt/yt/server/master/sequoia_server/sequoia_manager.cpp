@@ -16,6 +16,8 @@ namespace NYT::NSequoiaServer {
 using namespace NCellMaster;
 using namespace NConcurrency;
 using namespace NHydra;
+using namespace NRpc;
+using namespace NSecurityServer;
 using namespace NTransactionClient;
 using namespace NYTree;
 
@@ -46,6 +48,10 @@ public:
 private:
     void HydraStartTransaction(NSequoiaClient::NProto::TReqStartTransaction* request)
     {
+        // To set actual user before creating transaction object.
+        auto identity = ParseAuthenticationIdentityFromProto(request->identity());
+        TAuthenticatedUserGuard userGuard(Bootstrap_->GetSecurityManager(), identity);
+
         auto transactionId = FromProto<TGuid>(request->id());
         auto timeout = FromProto<TDuration>(request->timeout());
 
@@ -84,6 +90,8 @@ private:
             auto data = FromProto<TTransactionActionData>(protoData);
             transaction->Actions().push_back(data);
         }
+
+        transaction->SetAuthenticationIdentity(std::move(identity));
     }
 };
 

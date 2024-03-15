@@ -43,6 +43,8 @@
 
 #include <yt/yt/server/master/tablet_server/tablet.h>
 
+#include <yt/yt/server/master/sequoia_server/context.h>
+
 #include <yt/yt/server/lib/hydra/composite_automaton.h>
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
@@ -92,6 +94,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NCypressServer;
+using namespace NSequoiaServer;
 using namespace NSecurityClient;
 using namespace NTableServer;
 using namespace NObjectServer;
@@ -2235,6 +2238,11 @@ public:
         EPermission permission,
         TPermissionCheckOptions options = {}) override
     {
+        // TODO(cherepashka): remove after acl & inherited attributes are implemented in Sequoia.
+        if (GetSequoiaContext()) {
+            return;
+        }
+
         if (IsPermissionValidationSuppressed()) {
             return;
         }
