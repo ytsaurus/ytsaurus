@@ -225,6 +225,11 @@ def add_start_subparser(subparsers):
     parser.add_argument("--cell-tag", type=int, default=1,
                         help="cluster cell tag")
 
+    parser.add_argument("--job-proxy-logging-mode", default="sandbox", 
+                        help="job proxy logging mode: sandbox, separate_directory")
+    parser.add_argument("--job-proxy-logging-sharding-key-length", default=3,
+                        help="number of symbols for sharding key in separate_directory logging mode")
+
     parser.add_argument("--ytserver-all-path",
                         help="Use specified ytserver_all binary instead of per-service binaries in PATH")
 

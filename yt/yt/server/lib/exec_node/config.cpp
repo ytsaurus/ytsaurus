@@ -763,9 +763,30 @@ void TNbdConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TJobProxyLoggingEnvironment::Register(TRegistrar registrar)
+{
+    registrar.Parameter("logging_mode", &TThis::LoggingMode)
+        .Default();
+
+    registrar.Parameter("logging_directory", &TThis::LoggingDirectory)
+        .Default();
+
+    registrar.Parameter("logging_template", &TThis::LoggingTemplate)
+        .DefaultNew();
+
+    registrar.Parameter("sharding_key_length", &TThis::ShardingKeyLength)
+        .Default();
+
+    registrar.Parameter("job_proxy_stderr_path", &TThis::JobProxyStderrPath)
+        .Default();
+
+    registrar.Parameter("executor_stderr_path", &TThis::ExecutorStderrPath)
+        .Default();
+}
+
 void TJobProxyConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("job_proxy_logging", &TThis::JobProxyLogging)
+    registrar.Parameter("job_proxy_logging_environment", &TThis::JobProxyLoggingEnvironment)
         .DefaultNew();
 
     registrar.Parameter("job_proxy_jaeger", &TThis::JobProxyJaeger)
@@ -779,12 +800,6 @@ void TJobProxyConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("core_watcher", &TThis::CoreWatcher)
         .DefaultNew();
-
-    registrar.Parameter("job_proxy_stderr_path", &TThis::JobProxyStderrPath)
-        .Default();
-
-    registrar.Parameter("executor_stderr_path", &TThis::ExecutorStderrPath)
-        .Default();
 
     registrar.Parameter("supervisor_rpc_timeout", &TThis::SupervisorRpcTimeout)
         .Default(TDuration::Seconds(30));

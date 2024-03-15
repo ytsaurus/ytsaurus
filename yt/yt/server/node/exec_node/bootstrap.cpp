@@ -353,10 +353,25 @@ private:
 
         JobProxyConfigTemplate_->JobEnvironment = SlotManager_->GetJobEnvironmentConfig();
 
-        JobProxyConfigTemplate_->Logging = GetConfig()->ExecNode->JobProxy->JobProxyLogging;
+        auto jobProxyLoggingEnvironment = GetConfig()->ExecNode->JobProxy->JobProxyLoggingEnvironment;
+        JobProxyConfigTemplate_->Logging = jobProxyLoggingEnvironment->LoggingTemplate;
+        if (jobProxyLoggingEnvironment->LoggingMode == EJobProxyLoggingMode::SeparateDirectory) {
+            JobProxyConfigTemplate_->Logging->UpdateWriters([&] (const IMapNodePtr& writerConfigNode) {
+                auto writerConfig = ConvertTo<NLogging::TLogWriterConfigPtr>(writerConfigNode);
+                if (writerConfig->Type != NLogging::TFileLogWriterConfig::Type) {
+                    return writerConfigNode;
+                }
+
+                auto fileLogWriterConfig = ConvertTo<NLogging::TFileLogWriterConfigPtr>(writerConfigNode);
+                fileLogWriterConfig->FileName = NFS::JoinPaths(jobProxyLoggingEnvironment->LoggingDirectory.value(), "job_proxy.log");
+                return writerConfig->BuildFullConfig(fileLogWriterConfig);
+            });
+        }
+        JobProxyConfigTemplate_->ShardingKeyLength = jobProxyLoggingEnvironment->ShardingKeyLength;
+        JobProxyConfigTemplate_->StderrPath = jobProxyLoggingEnvironment->JobProxyStderrPath;
+        JobProxyConfigTemplate_->ExecutorStderrPath = jobProxyLoggingEnvironment->ExecutorStderrPath;
+
         JobProxyConfigTemplate_->Jaeger = GetConfig()->ExecNode->JobProxy->JobProxyJaeger;
-        JobProxyConfigTemplate_->StderrPath = GetConfig()->ExecNode->JobProxy->JobProxyStderrPath;
-        JobProxyConfigTemplate_->ExecutorStderrPath = GetConfig()->ExecNode->JobProxy->ExecutorStderrPath;
         JobProxyConfigTemplate_->TestRootFS = GetConfig()->ExecNode->JobProxy->TestRootFS;
         JobProxyConfigTemplate_->AlwaysAbortOnMemoryReserveOverdraft = GetConfig()->ExecNode->JobProxy->AlwaysAbortOnMemoryReserveOverdraft;
 

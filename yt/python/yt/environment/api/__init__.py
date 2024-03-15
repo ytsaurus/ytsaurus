@@ -42,6 +42,10 @@ class LocalYtConfig(object):
     store_location_count = attr.ib(1)
     use_slot_user_id = attr.ib(True)
     cri_endpoint = attr.ib(None)
+    job_proxy_logging = attr.ib(factory=lambda: {
+        "mode": "sandbox",
+        "sharding_key_length": 3,
+    })
     default_docker_image = "docker.io/library/python:2.7-slim"
 
     """Feature flags"""

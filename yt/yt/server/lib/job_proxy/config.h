@@ -156,6 +156,7 @@ class TJobProxyInternalConfig
 public:
     // Job-specific parameters.
     int SlotIndex = -1;
+    size_t ShardingKeyLength = 3;
 
     TString SlotPath;
 
