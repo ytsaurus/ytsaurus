@@ -105,9 +105,9 @@ std::vector<NYPath::TRichYPath> CombineDataSlices(
         auto keyLength = dataSource.Schema()->ToComparator().GetLength();
 
         int firstSlice = 0;
-        while (firstSlice < static_cast<int>(tableSlices.size())) {
+        while (firstSlice < std::ssize(tableSlices)) {
             int lastSlice = firstSlice + 1;
-            while (lastSlice < static_cast<int>(tableSlices.size())) {
+            while (lastSlice < std::ssize(tableSlices)) {
                 if (!canMergeSlices(tableSlices[lastSlice - 1], tableSlices[lastSlice], versioned, sorted)) {
                     break;
                 }
