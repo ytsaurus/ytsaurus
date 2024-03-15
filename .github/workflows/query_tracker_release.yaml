@@ -2,7 +2,7 @@ name: Release query tracker
 
 on:
   push:
-    branch:
+    branches:
       - mpereskokova/qt-release-build
 
 jobs:
