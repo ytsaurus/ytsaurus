@@ -96,18 +96,14 @@ struct TReadManagerConfigBase
 };
 
 struct TUnorderedReadManagerConfig
-    : TReadManagerConfigBase
+    : public TReadManagerConfigBase
 { };
 
 struct TOrderedReadManagerConfig
-    : TReadManagerConfigBase
+    : public TReadManagerConfigBase
 {
     int RangeCount;
 };
-
-using TReadManagerConfigVariant = std::variant<
-    TUnorderedReadManagerConfig,
-    TOrderedReadManagerConfig>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -698,13 +694,21 @@ class TParallelTableReaderBase
     : public TDerived
 {
 public:
-    TParallelTableReaderBase(
-        THolder<TReadManagerBase<TRow>> readManager)
+    TParallelTableReaderBase(THolder<TReadManagerBase<TRow>> readManager)
         : ReadManager_(std::move(readManager))
     {
         ReadManager_->Start();
         NextBuffer();
         NextNotEmptyBuffer();
+    }
+
+    ~TParallelTableReaderBase()
+    {
+        try {
+            ReadManager_->Stop();
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING("Parallel table reader was finished with exception: %v", ex.what());
+        }
     }
 
     bool IsValid() const override
@@ -743,15 +747,6 @@ public:
         Y_ABORT("Not implemented");
     }
 
-    ~TParallelTableReaderBase()
-    {
-        try {
-            ReadManager_->Stop();
-        } catch (const std::exception& ex) {
-            YT_LOG_WARNING("Parallel table reader was finished with exception: %v", ex.what());
-        }
-    }
-
 private:
     void NextNotEmptyBuffer()
     {
@@ -778,7 +773,7 @@ private:
     THolder<TReadManagerBase<TRow>> ReadManager_;
 };
 
-template <typename T, typename = void>
+template <typename T>
 class TParallelTableReader;
 
 template <>
@@ -800,16 +795,14 @@ public:
 };
 
 template <typename T>
-class TParallelTableReader<
-    T,
-    std::enable_if_t<TIsBaseOf<Message, T>::Value>
->
+    requires std::is_base_of_v<google::protobuf::Message, T>
+class TParallelTableReader<T>
     : public TParallelTableReaderBase<IProtoReaderImpl, T>
 {
 public:
     using TParallelTableReaderBase<IProtoReaderImpl, T>::TParallelTableReaderBase;
 
-    void ReadRow(Message* row) override
+    void ReadRow(google::protobuf::Message* row) override
     {
         static_cast<T&>(*row) = std::move(*this->CurrentBufferIt_);
     }
