@@ -96,6 +96,7 @@ public:
     // Sequoia stuff.
     DEFINE_BYVAL_RW_PROPERTY(bool, IsSequoiaTransaction, false);
     DEFINE_BYREF_RW_PROPERTY(NSequoiaClient::NProto::TWriteSet, SequoiaWriteSet);
+    DEFINE_BYVAL_RW_PROPERTY(NRpc::TAuthenticationIdentity, AuthenticationIdentity, NRpc::GetRootAuthenticationIdentity());
 
 public:
     using TTransactionBase::TTransactionBase;

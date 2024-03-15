@@ -159,6 +159,7 @@ public:
         NApi::NNative::IClientPtr client,
         INodeStatusDirectoryPtr nodeStatusDirectory,
         const NProfiling::TProfiler& profiler,
+        IThroughputThrottlerPtr mediumThrottler,
         TThrottlerProvider throttlerProvider)
         : Config_(std::move(config))
         , Client_(std::move(client))
@@ -177,6 +178,7 @@ public:
             }),
             Config_->PeerInfoExpirationTimeout,
             ReaderInvoker_))
+        , MediumThrottler_(std::move(mediumThrottler))
         , ThrottlerProvider_(throttlerProvider)
         , SuccessfulProbingRequestCounter_(profiler.Counter("/successful_probing_request_count"))
         , FailedProbingRequestCounter_(profiler.Counter("/failed_probing_request_count"))
@@ -207,6 +209,7 @@ private:
     const NLogging::TLogger Logger;
     const IInvokerPtr ReaderInvoker_;
     const TPeerInfoCachePtr PeerInfoCache_;
+    const IThroughputThrottlerPtr MediumThrottler_;
     const TThrottlerProvider ThrottlerProvider_;
 
     NProfiling::TCounter SuccessfulProbingRequestCounter_;
@@ -1032,6 +1035,9 @@ public:
         , State_(std::move(state))
         , Logger(std::move(logger))
         , SessionInvoker_(CreateSerializedInvoker(Reader_->ReaderInvoker_))
+        , NetworkThrottler_(GetNetworkThrottler())
+        , MediumThrottler_(Reader_->MediumThrottler_)
+        , CombinedDataByteThrottler_(CreateCombinedDataByteThrottler())
     { }
 
     TFuture<TSimpleReadFragmentsSessionResult> Run()
@@ -1059,6 +1065,13 @@ private:
 
     int BackendReadRequestCount_ = 0;
     int BackendHedgingReadRequestCount_ = 0;
+
+    i64 BytesThrottled_ = 0;
+    i64 TotalBytesReadFromDisk_ = 0;
+
+    const IThroughputThrottlerPtr NetworkThrottler_;
+    const IThroughputThrottlerPtr MediumThrottler_;
+    const IThroughputThrottlerPtr CombinedDataByteThrottler_;
 
     std::vector<TError> Errors_;
 
@@ -1125,6 +1138,8 @@ private:
         };
 
         if (Promise_.TrySet(std::move(result))) {
+            AccountExtraMediumBandwidth();
+
             YT_LOG_DEBUG("Chunk fragment read session completed "
                 "(RetryIndex: %v/%v, WallTime: %v, ReadRequestCount: %v, HedgingReadRequestCount: %v)",
                 State_->RetryIndex + 1,
@@ -1395,33 +1410,38 @@ private:
 
     TFuture<void> AsyncThrottle(i64 count)
     {
-        if (!Reader_->ThrottlerProvider_) {
-            return VoidFuture;
-        }
+        BytesThrottled_ += count;
 
-        auto throttler = Reader_->ThrottlerProvider_(Options_.WorkloadDescriptor.Category);
-        if (!throttler) {
-            return VoidFuture;
-        }
-
-        return throttler->Throttle(count);
+        return CombinedDataByteThrottler_->Throttle(count);
     }
 
     void ReleaseThrottledBytes(i64 throttledBytes)
     {
-        if (!Reader_->ThrottlerProvider_) {
-            return;
-        }
-
-        auto throttler = Reader_->ThrottlerProvider_(Options_.WorkloadDescriptor.Category);
-        if (!throttler) {
-            return;
-        }
-
         YT_LOG_DEBUG("Releasing excess throttled bytes (ThrottledBytes: %v)",
             throttledBytes);
 
-        throttler->Release(throttledBytes);
+        NetworkThrottler_->Release(throttledBytes);
+    }
+
+    void AccountExtraMediumBandwidth()
+    {
+        auto extraBytesToThrottle = TotalBytesReadFromDisk_ - BytesThrottled_;
+
+        if (extraBytesToThrottle <= 0) {
+            return;
+        }
+
+        YT_LOG_DEBUG("Accounting for extra medium bandwidth in ChunkFragmentReader (TotalBytesReadFromDisk: %v, ThrottledBytes: %v)",
+            TotalBytesReadFromDisk_,
+            BytesThrottled_);
+
+        MediumThrottler_->Acquire(extraBytesToThrottle);
+    }
+
+    void HandleChunkReaderStatistics(const NProto::TChunkReaderStatistics& protoChunkReaderStatistics)
+    {
+        UpdateFromProto(&Options_.ChunkReaderStatistics, protoChunkReaderStatistics);
+        TotalBytesReadFromDisk_ += protoChunkReaderStatistics.data_bytes_read_from_disk();
     }
 
     i64 GetDataBytes(const TReqGetChunkFragmentSetPtr& request) const
@@ -1607,7 +1627,7 @@ private:
         const auto& rsp = rspOrError.Value();
 
         if (rsp->has_chunk_reader_statistics()) {
-            UpdateFromProto(&Options_.ChunkReaderStatistics, rsp->chunk_reader_statistics());
+            HandleChunkReaderStatistics(rsp->chunk_reader_statistics());
         }
 
         Options_.ChunkReaderStatistics->DataBytesTransmitted.fetch_add(
@@ -1668,6 +1688,31 @@ private:
                 TryUpdateChunkReplicas(controller.GetChunkId(), subresponse);
             }
         }
+    }
+
+    IThroughputThrottlerPtr GetNetworkThrottler() const
+    {
+        if (!Reader_->ThrottlerProvider_) {
+            return GetUnlimitedThrottler();
+        }
+
+        auto throttler = Reader_->ThrottlerProvider_(Options_.WorkloadDescriptor.Category);
+        if (!throttler) {
+            return GetUnlimitedThrottler();
+        }
+
+        return throttler;
+    }
+
+    IThroughputThrottlerPtr CreateCombinedDataByteThrottler() const
+    {
+        YT_VERIFY(NetworkThrottler_);
+        YT_VERIFY(MediumThrottler_);
+
+        return CreateCombinedThrottler({
+            NetworkThrottler_,
+            MediumThrottler_,
+        });
     }
 };
 
@@ -1941,6 +1986,7 @@ IChunkFragmentReaderPtr CreateChunkFragmentReader(
     NApi::NNative::IClientPtr client,
     INodeStatusDirectoryPtr nodeStatusDirectory,
     const NProfiling::TProfiler& profiler,
+    IThroughputThrottlerPtr mediumThrottler,
     TThrottlerProvider throttlerProvider)
 {
     return New<TChunkFragmentReader>(
@@ -1948,6 +1994,7 @@ IChunkFragmentReaderPtr CreateChunkFragmentReader(
         std::move(client),
         std::move(nodeStatusDirectory),
         profiler,
+        std::move(mediumThrottler),
         std::move(throttlerProvider));
 }
 

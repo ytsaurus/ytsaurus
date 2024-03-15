@@ -418,7 +418,11 @@ def get_checks_config():
         return {
             "yp_pod_set_controller": {
                 "enable": True,
-                "options": get_yp_options(cluster),
+                "options": dict(
+                    update_timeout=360,
+                    schedule_timeout=360,
+                    **get_yp_options(cluster),
+                )
             }
         }
 
@@ -857,8 +861,10 @@ def get_checks_config():
                     "cluster_name_to_infra_environment_id": {
                         "ada": 2395,
                         "arnold": 81,
+                        "arnold-gnd": 9626,
                         "bohr": 87,
                         "freud": 84,
+                        "freud-gnd": 9552,
                         "hahn": 83,
                         "hume": 85,
                         "landau": 138,
@@ -1097,7 +1103,7 @@ def get_checks_config():
             },
             "yp_pod_set_controller": {
                 "enable": False,
-                "check_timeout": 360,
+                "check_timeout": 540,
                 "alerts": get_yp_alerts("yp_pod_set_controller"),
             },
             "yp_available_timestamps": {
@@ -1250,6 +1256,12 @@ def get_checks_config():
                 dynamic_table_replication_stable,
                 system_quotas_with_non_critical_yp_account,
             ),
+            "arnold-gnd": deep_merge(
+                snapshot_validation,
+                allow_unaware_nodes,
+                clock_quorum_health,
+                nochyt,
+            ),
             "landau": deep_merge(
                 snapshot_validation,
                 clock_quorum_health,
@@ -1296,6 +1308,12 @@ def get_checks_config():
                 enable_discovery,
                 enable_nightly_compression,
                 bundle_controller,
+            ),
+            "freud-gnd": deep_merge(
+                snapshot_validation,
+                allow_unaware_nodes,
+                clock_quorum_health,
+                nochyt,
             ),
             "seneca-sas": deep_merge(
                 snapshot_validation,

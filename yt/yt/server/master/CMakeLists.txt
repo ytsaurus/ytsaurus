@@ -235,6 +235,18 @@ get_built_tool_path(
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
 
 add_library(yt-server-master)
 target_compile_options(yt-server-master PRIVATE
@@ -290,6 +302,7 @@ target_proto_messages(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/node_tracker_server/proto/node_tracker.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/object_server/proto/object_manager.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/security_server/proto/security_manager.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/proto/sequoia_queue_manager.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/proto/transaction_manager.proto
 )
 target_sources(yt-server-master PRIVATE
@@ -311,6 +324,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/node_tracker_server/proto/node_tracker.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/object_server/proto/object_manager.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/security_server/proto/security_manager.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/master/sequoia_server/proto/sequoia_queue_manager.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/alert_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/automaton.cpp
@@ -425,7 +439,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_proxy_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_type_handler_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/public.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/refresh_epoch.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/incumbency_epoch.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/s3_medium_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/s3_medium_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/s3_medium.cpp
@@ -590,6 +604,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/sequoia_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/sequoia_queue_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/sequoia_transaction_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/cypress_integration.cpp

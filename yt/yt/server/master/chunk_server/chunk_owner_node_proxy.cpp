@@ -608,7 +608,13 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Media)
         .SetWritable(true)
         .SetReplicated(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkMedia)
+        .SetWritable(true)
+        .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PrimaryMedium)
+        .SetWritable(true)
+        .SetReplicated(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkPrimaryMedium)
         .SetWritable(true)
         .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CompressionCodec)
@@ -719,6 +725,18 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
             return true;
         }
 
+        case EInternedAttributeKey::HunkMedia: {
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            auto replication = node->HunkReplication();
+            auto defaultMedium = chunkManager->GetMediumByNameOrThrow(NChunkClient::DefaultStoreMediumName);
+            if (!replication.Contains(defaultMedium->GetIndex())) {
+                replication.Aggregate(defaultMedium->GetIndex(), TReplicationPolicy(DefaultReplicationFactor, false));
+            }
+            BuildYsonFluently(consumer)
+                .Value(TSerializableChunkReplication(replication, chunkManager));
+            return true;
+        }
+
         case EInternedAttributeKey::ReplicationFactor: {
             const auto& replication = node->Replication();
             auto primaryMediumIndex = node->GetPrimaryMediumIndex();
@@ -736,6 +754,16 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             auto primaryMediumIndex = node->GetPrimaryMediumIndex();
             auto* medium = chunkManager->GetMediumByIndex(primaryMediumIndex);
+
+            BuildYsonFluently(consumer)
+                .Value(medium->GetName());
+            return true;
+        }
+
+        case EInternedAttributeKey::HunkPrimaryMedium: {
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            auto primaryHunkMediumIndex = node->GetHunkPrimaryMediumIndex();
+            auto* medium = chunkManager->GetMediumByIndex(primaryHunkMediumIndex);
 
             BuildYsonFluently(consumer)
                 .Value(medium->GetName());
@@ -987,6 +1015,14 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             return true;
         }
 
+        case EInternedAttributeKey::HunkPrimaryMedium: {
+            ValidateStorageParametersUpdate();
+            auto mediumName = ConvertTo<TString>(value);
+            auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
+            SetHunkPrimaryMedium(medium);
+            return true;
+        }
+
         case EInternedAttributeKey::Media: {
             ValidateStorageParametersUpdate();
             auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
@@ -995,6 +1031,17 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             // Preserves vitality.
             serializableReplication.ToChunkReplication(&replication, chunkManager);
             SetReplication(replication);
+            return true;
+        }
+
+        case EInternedAttributeKey::HunkMedia: {
+            ValidateStorageParametersUpdate();
+            auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
+            // Copying for modification.
+            auto replication = GetThisImpl<TChunkOwnerBase>()->HunkReplication();
+            // Preserves vitality.
+            serializableReplication.ToChunkReplication(&replication, chunkManager);
+            SetHunkReplication(replication);
             return true;
         }
 
@@ -1198,26 +1245,66 @@ void TChunkOwnerNodeProxy::SetVital(bool vital)
     OnStorageParametersUpdated();
 }
 
-void TChunkOwnerNodeProxy::SetReplication(const TChunkReplication& replication)
-{
+TString TChunkOwnerNodeProxy::DoSetReplication(TChunkReplication* replicationStorage, const TChunkReplication& replication, int mediumIndex) {
     auto* node = GetThisImpl<TChunkOwnerBase>();
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
     YT_VERIFY(node->IsTrunk());
 
-    auto primaryMediumIndex = node->GetPrimaryMediumIndex();
-    ValidateMediaChange(node->Replication(), primaryMediumIndex, replication);
+    ValidateMediaChange(*replicationStorage, mediumIndex, replication);
 
-    node->Replication() = replication;
+    *replicationStorage = replication;
     OnStorageParametersUpdated();
 
-    const auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
+    const auto* primaryMedium = chunkManager->GetMediumByIndex(mediumIndex);
+    return primaryMedium->GetName();
+}
 
+void TChunkOwnerNodeProxy::SetReplication(const TChunkReplication& replication)
+{
+    auto* node = GetThisImpl<TChunkOwnerBase>();
+    auto name = DoSetReplication(&node->Replication(), replication, node->GetPrimaryMediumIndex());
     YT_LOG_DEBUG(
         "Chunk owner replication changed (NodeId: %v, PrimaryMedium: %v, Replication: %v)",
         node->GetId(),
-        primaryMedium->GetName(),
+        name,
         node->Replication());
+}
+
+void TChunkOwnerNodeProxy::SetHunkReplication(const TChunkReplication& replication)
+{
+    auto* node = GetThisImpl<TChunkOwnerBase>();
+    auto name = DoSetReplication(&node->HunkReplication(), replication, node->GetHunkPrimaryMediumIndex());
+    YT_LOG_DEBUG(
+        "Chunk owner hunk replication changed (NodeId: %v, Replication: %v, HunkReplication %v)",
+        node->GetId(),
+        name,
+        node->HunkReplication());
+}
+
+void TChunkOwnerNodeProxy::SetHunkPrimaryMedium(TMedium* medium)
+{
+    auto* node = GetThisImpl<TChunkOwnerBase>();
+    YT_VERIFY(node->IsTrunk());
+
+    TChunkReplication newReplication;
+    if (!ValidatePrimaryMediumChange(
+        medium,
+        node->HunkReplication(),
+        node->GetHunkPrimaryMediumIndex(),
+        &newReplication))
+    {
+        return;
+    }
+
+    node->HunkReplication() = newReplication;
+    node->SetHunkPrimaryMediumIndex(medium->GetIndex());
+    OnStorageParametersUpdated();
+
+    YT_LOG_DEBUG(
+        "Chunk owner hunk primary medium changed (NodeId: %v, PrimaryMedium: %v)",
+        node->GetId(),
+        medium->GetName());
 }
 
 void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium)

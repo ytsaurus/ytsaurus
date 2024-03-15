@@ -355,20 +355,25 @@ struct IChunkManager
         TNodeId nodeId,
         TChunkLocationUuid location) const = 0;
     virtual TFuture<std::vector<NSequoiaClient::NRecords::TLocationReplicas>> GetSequoiaNodeReplicas(TNodeId nodeId) const = 0;
-    virtual TFuture<std::vector<TSequoiaChunkReplica>> GetSequoiaChunkReplicas(TChunkId chunkId) const = 0;
 
+    using TChunkToLocationPtrWithReplicaInfoList = THashMap<TChunkId, TErrorOr<TChunkLocationPtrWithReplicaInfoList>>;
+    // TODO(aleksandra-zh): Let both of these helpers (future and non-future version) live for now, one will take over eventually.
     virtual TErrorOr<TChunkLocationPtrWithReplicaInfoList> GetChunkReplicas(
         const NObjectServer::TEphemeralObjectPtr<TChunk>& chunk) const = 0;
-    virtual THashMap<TChunkId, TErrorOr<TChunkLocationPtrWithReplicaInfoList>> GetChunkReplicas(
+    virtual TChunkToLocationPtrWithReplicaInfoList GetChunkReplicas(
         const std::vector<NObjectServer::TEphemeralObjectPtr<TChunk>>& chunks) const = 0;
 
-    virtual std::vector<TNodeId> GetLastSeenReplicas(
+    // Do not apply anything to these futures using AsyncVia, it will break everything!
+    virtual TFuture<TChunkLocationPtrWithReplicaInfoList> GetChunkReplicasAsync(
+        NObjectServer::TEphemeralObjectPtr<TChunk> chunk) const = 0;
+    virtual TFuture<TChunkToLocationPtrWithReplicaInfoList> GetChunkReplicasAsync(
+        std::vector<NObjectServer::TEphemeralObjectPtr<TChunk>> chunks) const = 0;
+
+    virtual TFuture<std::vector<TNodeId>> GetLastSeenReplicas(
         const NObjectServer::TEphemeralObjectPtr<TChunk>& chunk) const = 0;
 
-    virtual TErrorOr<TChunkLocationPtrWithReplicaInfoList> GetSequoiaChunkReplicas(
-        const NObjectServer::TEphemeralObjectPtr<TChunk>& chunk) const = 0;
-    virtual THashMap<TChunkId, TErrorOr<TChunkLocationPtrWithReplicaInfoList>> GetSequoiaChunkReplicas(
-        const std::vector<NObjectServer::TEphemeralObjectPtr<TChunk>>& chunks) const = 0;
+    virtual TFuture<THashMap<TChunkId, TChunkLocationPtrWithReplicaInfoList>> GetOnlySequoiaChunkReplicas(
+        const std::vector<TChunkId>& chunkIds) const = 0;
 
 private:
     friend class TChunkTypeHandler;

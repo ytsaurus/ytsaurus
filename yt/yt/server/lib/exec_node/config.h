@@ -327,6 +327,9 @@ public:
 
     bool AbortOnOperationWithLayerFailed;
 
+    //! For testing purpuses.
+    bool ThrowOnPrepareVolume;
+
     REGISTER_YSON_STRUCT(TVolumeManagerDynamicConfig);
 
     static void Register(TRegistrar registrar);

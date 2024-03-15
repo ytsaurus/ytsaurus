@@ -133,6 +133,7 @@ struct TTablePullerCounters
     NProfiling::TEventTimer PullRowsTime;
     NProfiling::TEventTimer WriteTime;
     NProfiling::TTimeGauge LagTime;
+    NProfiling::TEventTimer ThrottleTime;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

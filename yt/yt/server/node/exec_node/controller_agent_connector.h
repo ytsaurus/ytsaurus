@@ -57,6 +57,8 @@ public:
         using TRspHeartbeatPtr = TIntrusivePtr<TRspHeartbeat>;
         using TReqHeartbeatPtr = TIntrusivePtr<TReqHeartbeat>;
 
+        TFuture<TJobStartInfo> SettleJob(TOperationId operationId, TAllocationId allocationId);
+
     private:
         friend class TControllerAgentConnectorPool;
 
@@ -74,8 +76,6 @@ public:
         bool ShouldSendOutOfBand_ = false;
 
         THashSet<TJobId> JobIdsToConfirm_;
-
-        THashMap<TAllocationId, TOperationId> AllocationIdsWaitingForSpec_;
 
         TControllerAgentConnectorDynamicConfigPtr GetConfig() const noexcept;
 
@@ -99,14 +99,6 @@ public:
         void DoProcessHeartbeatResponse(
             const TRspHeartbeatPtr& response,
             const TAgentHeartbeatContextPtr& context);
-
-        TFuture<TJobStartInfo> SettleJob(
-            TOperationId operationId,
-            TAllocationId allocationId);
-
-        void OnJobRegistered(const TJobPtr& job);
-
-        void OnAllocationFailed(TAllocationId allocationId);
     };
 
     using TControllerAgentConnectorPtr = TIntrusivePtr<TControllerAgentConnector>;
@@ -117,7 +109,8 @@ public:
 
     void SendOutOfBandHeartbeatsIfNeeded();
 
-    TWeakPtr<TControllerAgentConnector> GetControllerAgentConnector(const TJob* job);
+    TIntrusivePtr<TControllerAgentConnector> GetControllerAgentConnector(
+        const TControllerAgentDescriptor& agentDescriptor);
 
     void OnDynamicConfigChanged(
         const TControllerAgentConnectorDynamicConfigPtr& oldConfig,
@@ -128,13 +121,6 @@ public:
     std::optional<TControllerAgentDescriptor> GetDescriptorByIncarnationId(NScheduler::TIncarnationId incarnationId) const;
 
     std::vector<NScheduler::TIncarnationId> GetRegisteredAgentIncarnationIds() const;
-
-    TFuture<TControllerAgentConnector::TJobStartInfo> SettleJob(
-        const TControllerAgentDescriptor& agentDescriptor,
-        TOperationId operationId,
-        TAllocationId allocationId);
-
-    THashMap<TAllocationId, TOperationId> GetAllocationIdsWaitingForSpec() const;
 
 private:
     THashMap<TControllerAgentDescriptor, TControllerAgentConnectorPtr> ControllerAgentConnectors_;
@@ -150,22 +136,11 @@ private:
     TWeakPtr<TControllerAgentConnector> AddControllerAgentConnector(
         TControllerAgentDescriptor agentDescriptor);
 
-    TIntrusivePtr<TControllerAgentConnector> GetControllerAgentConnector(
-        const TControllerAgentDescriptor& agentDescriptor);
-
     NRpc::IChannelPtr GetOrCreateChannel(const TControllerAgentDescriptor& controllerAgentDescriptor);
 
     void OnConfigUpdated(const TControllerAgentConnectorDynamicConfigPtr& newConfig);
 
     void OnJobFinished(const TJobPtr& job);
-
-    void OnJobRegistered(const TJobPtr& job);
-
-    void OnAllocationFailed(
-        TAllocationId allocationId,
-        TOperationId operationId,
-        const TControllerAgentDescriptor& agentDescriptor,
-        const TError& error);
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorPool)

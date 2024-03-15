@@ -51,6 +51,7 @@ class TCellDirectory
 public:
     DEFINE_SIGNAL_OVERRIDE(TCellReconfigurationSignature, CellDirectoryChanged);
 
+public:
     TCellDirectory(
         TCellDirectoryConfigPtr config,
         NNative::TConnectionOptions options,
@@ -214,7 +215,7 @@ public:
         const auto& oldSecondaryMasterConnectionConfigs = GetSecondaryMasterConnectionConfigs();
 
         if (ClusterMasterCompositionChanged(cellTagToSecondaryMaster)) {
-            YT_LOG_DEBUG("Cluster membership configuration has changed, starting reconfiguration "
+            YT_LOG_INFO("Cluster membership configuration has changed, starting reconfiguration "
                 "(SecondaryMasterCellTags: %v, ReceivedSecondaryMasterCellTags: %v)",
                 oldSecondaryMasterCellTags,
                 secondaryCellTags);
@@ -357,7 +358,7 @@ private:
                     cellTag);
                 InsertOrCrash(addedSecondaryCellTags, cellTag);
             } else if (secondaryMaster->Addresses != GetOrCrash(oldSecondaryMasterConnectionConfigs, cellTag)->Addresses) {
-                YT_LOG_DEBUG("Master cell will be reconfigured (CellTag: %v, NewCellAddresses: %v, OldCellAddresses: %v)",
+                YT_LOG_INFO("Master cell will be reconfigured (CellTag: %v, NewCellAddresses: %v, OldCellAddresses: %v)",
                     cellTag,
                     secondaryMaster->Addresses,
                     GetOrCrash(oldSecondaryMasterConnectionConfigs, cellTag)->Addresses);

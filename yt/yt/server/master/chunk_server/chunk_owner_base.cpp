@@ -61,6 +61,7 @@ TChunkOwnerBase::TChunkOwnerBase(TVersionedNodeId id)
     : TCypressNode(id)
 {
     Replication_.SetVital(true);
+    HunkReplication_.SetVital(true);
     if (IsTrunk()) {
         SetCompressionCodec(NCompression::ECodec::None);
         SetErasureCodec(NErasure::ECodec::None);
@@ -90,6 +91,8 @@ void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
     Save(context, EnableSkynetSharing_);
     Save(context, UpdatedSinceLastMerge_);
     Save(context, ChunkMergerTraversalInfo_);
+    Save(context, HunkReplication_);
+    Save(context, HunkPrimaryMediumIndex_);
 }
 
 void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
@@ -120,6 +123,12 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, EnableSkynetSharing_);
     Load(context, UpdatedSinceLastMerge_);
     Load(context, ChunkMergerTraversalInfo_);
+
+    // COMPAT(kivedernikov)
+    if (context.GetVersion() >= EMasterReign::HunkMedia) {
+        Load(context, HunkReplication_);
+        Load(context, HunkPrimaryMediumIndex_);
+    }
 }
 
 TChunkList* TChunkOwnerBase::GetChunkList() const

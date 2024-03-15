@@ -955,7 +955,7 @@ void TSlotManager::AsyncInitialize()
 
         auto dynamicConfig = DynamicConfig_.Acquire();
         auto timeout = dynamicConfig->SlotReleaseTimeout;
-        auto slotSync = WaitFor(Bootstrap_->GetJobController()->GetAllJobsCleanedupFuture()
+        auto slotSync = WaitFor(Bootstrap_->GetJobController()->GetAllJobsCleanupFinishedFuture()
             .WithTimeout(timeout));
 
         YT_LOG_FATAL_IF(!slotSync.IsOK(), slotSync, "Slot synchronization failed");

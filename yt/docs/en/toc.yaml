@@ -300,10 +300,10 @@ items:
            items:
             - include: { mode: link, path: yql/toc.yaml }
        - name: Proxy
-         when: audience == "public" 
-         items: 
+         when: audience == "public"
+         items:
          - name: Overview
-           href: user-guide/proxy/about.md 
+           href: user-guide/proxy/about.md
          - name: HTTP-proxy
            href: user-guide/proxy/http.md
          - name: RPC-proxy
@@ -436,6 +436,37 @@ items:
 #       - name: Quota monitoring
 #         when: audience == "public"
 #         href: user-guide/best-practice/quota-monitoring.md
+   - name: Admin guide
+     when: audience == "public"
+     items:
+       - name: Cluster components
+         href: admin-guide/components.md
+       - name: Installating YTsaurus
+         href: admin-guide/install-ytsaurus.md
+       - name: Getting the YTsaurus specification ready
+         items:
+          - name: Description
+            href: admin-guide/prepare-spec.md
+          - name: Setting up locations
+            href: admin-guide/locations.md
+          - name: Configuring server component logging
+            href: admin-guide/logging.md
+       - name: Installating additional components
+         items:
+           - name: CHYT
+             href: admin-guide/chyt.md
+           - name: SPYT
+             href: admin-guide/spyt.md
+       - name: Monitoring
+         href: admin-guide/monitoring.md
+       - name: Updating YTsaurus server components
+         href: admin-guide/update-ytsaurus.md
+       - name: Cluster operation
+         href: admin-guide/cluster-operations.md
+       - name: Tagging cluster nodes
+         href: admin-guide/node-tags.md
+       - name: Possible problems
+         href: admin-guide/problems.md
    - name: Releases
      href: admin-guide/releases.md
    - name: FAQ

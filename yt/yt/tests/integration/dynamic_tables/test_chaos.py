@@ -20,7 +20,7 @@ from yt_commands import (
     get_in_sync_replicas, generate_timestamp, MaxTimestamp, raises_yt_error,
     create_table_replica, sync_enable_table_replica, get_tablet_infos, set_node_banned,
     suspend_chaos_cells, resume_chaos_cells, merge, add_maintenance, remove_maintenance,
-    sync_freeze_table, lock, get_tablet_errors)
+    sync_freeze_table, lock, get_tablet_errors, create_tablet_cell_bundle, create_area)
 
 from yt_type_helpers import make_schema
 
@@ -3608,6 +3608,95 @@ class TestChaosRpcProxy(TestChaos):
 
         assert lookup_rows("//tmp/t", [{"key": 0}]) == values
         wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=remote_driver1) == values)
+
+
+##################################################################
+
+
+class TestChaosNativeProxy(ChaosTestBase):
+    NUM_REMOTE_CLUSTERS = 0
+    NUM_NODES = 5
+
+    @authors("osidorkin")
+    def test_partial_pull_rows(self):
+        metadata_cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", metadata_cell_id)
+
+        create_tablet_cell_bundle("b")
+        custom_bundle_id = get("//sys/tablet_cell_bundles/b/@id")
+
+        b_area_id = create_area("b_area", cell_bundle_id=custom_bundle_id)
+        create_area("a_area", cell_bundle_id=custom_bundle_id)
+
+        cell_ids = sync_create_cells(3, tablet_cell_bundle="b", area="a_area")
+        custom_area_cell_id = sync_create_cells(1, tablet_cell_bundle="b", area="b_area")[0]
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/pds"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/pqs"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "async", "enabled": False, "replica_path": "//tmp/pqa"},
+        ]
+
+        card_id, replica_ids = self._create_chaos_tables(metadata_cell_id, replicas, create_tablet_cells=False, create_replica_tables=False, sync_replication_era=False)
+
+        self._create_replica_tables([replicas[0]], [replica_ids[0]], create_tablet_cells=False, mount_tables=False, tablet_cell_bundle="b")
+        sync_mount_table(replicas[0]["replica_path"], driver=get_driver(cluster=replicas[0]["cluster_name"]), target_cell_ids=[cell_ids[0]])
+
+        self._create_replica_tables([replicas[2]], [replica_ids[2]], create_tablet_cells=False, mount_tables=False, tablet_cell_bundle="b")
+        sync_mount_table(replicas[2]["replica_path"], driver=get_driver(cluster=replicas[2]["cluster_name"]), target_cell_ids=[cell_ids[1]])
+
+        self._create_replica_tables([replicas[1]], [replica_ids[1]], pivot_keys=[[], [1]], create_tablet_cells=False, mount_tables=False, tablet_cell_bundle="b")
+        sync_mount_table(
+            replicas[1]["replica_path"],
+            driver=get_driver(cluster=replicas[1]["cluster_name"]),
+            target_cell_ids=[custom_area_cell_id, cell_ids[2]]
+        )
+
+        self._sync_replication_era(card_id, replicas)
+
+        row1 = {"key": 0, "value": "0"}
+        row2 = {"key": 2, "value": "2"}
+
+        insert_rows("//tmp/pds", [row1, row2])
+
+        def _pull_rows(progress_timestamp, response_parameters):
+            return pull_rows(
+                "//tmp/pqs",
+                replication_progress={
+                    "segments": [{"lower_key": [], "timestamp": progress_timestamp}],
+                    "upper_key": [yson.to_yson_type(None, attributes={"type": "max"})]
+                },
+                upstream_replica_id=replica_ids[1],
+                response_parameters=response_parameters)
+
+        def _sync_pull_rows(progress_timestamp, expected_rows, response_parameters):
+            wait(lambda: len(_pull_rows(progress_timestamp, None)) >= len(expected_rows))
+
+            rows = _pull_rows(progress_timestamp, response_parameters)
+
+            print_debug("Replication progress:", response_parameters)
+
+            for row, expected_row in zip(rows, expected_rows):
+                assert row["key"] == expected_row["key"]
+                assert str(row["value"][0]) == expected_row["value"]
+
+        response_parameters = {}
+        _sync_pull_rows(0, [row1, row2], response_parameters)
+
+        assert len(response_parameters["replication_progress"]["segments"]) > 0
+        assert response_parameters["replication_progress"]["segments"][0]["lower_key"] == []
+        for segment in response_parameters["replication_progress"]["segments"]:
+            assert segment["timestamp"] > 0
+
+        response_parameters = {}
+
+        with self.CellsDisabled(clusters=["primary"], area_ids=[b_area_id]):
+            _sync_pull_rows(0, [row2], response_parameters)
+
+        assert len(response_parameters["replication_progress"]["segments"]) == 2
+        assert response_parameters["replication_progress"]["segments"][0]["lower_key"] == []
+        assert response_parameters["replication_progress"]["segments"][0]["timestamp"] == 0
+        assert response_parameters["replication_progress"]["segments"][1]["timestamp"] > 0
 
 
 ##################################################################

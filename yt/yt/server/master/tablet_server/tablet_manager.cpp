@@ -212,39 +212,39 @@ public:
         DefaultTabletCellBundleId_ = MakeWellKnownId(EObjectType::TabletCellBundle, primaryCellTag, 0xffffffffffffffff);
         SequoiaTabletCellBundleId_ = MakeWellKnownId(EObjectType::TabletCellBundle, primaryCellTag, 0xfffffffffffffffe);
 
-        RegisterMethod(BIND(&TImpl::HydraOnTabletMounted, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraOnTabletUnmounted, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraOnTabletFrozen, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraOnTabletUnfrozen, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUpdateTableReplicaStatistics, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraOnTableReplicaEnabled, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraOnTableReplicaDisabled, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUpdateTabletTrimmedRowCount, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraOnTabletLocked, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraCreateTabletAction, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraDestroyTabletActions, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraKickOrphanedTabletActions, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraSetTabletCellStatistics, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUpdateUpstreamTabletState, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUpdateTabletState, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraAllocateDynamicStore, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraSetTabletCellBundleResourceUsage, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUpdateTabletCellBundleResourceUsage, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraOnHunkTabletMounted, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraOnHunkTabletUnmounted, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraSwitchServant, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraDeallocateServant, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraReportSmoothMovementProgress, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraReportSmoothMovementAborted, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraOnTabletMounted, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraOnTabletUnmounted, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraOnTabletFrozen, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraOnTabletUnfrozen, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraUpdateTableReplicaStatistics, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraOnTableReplicaEnabled, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraOnTableReplicaDisabled, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraUpdateTabletTrimmedRowCount, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraOnTabletLocked, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraCreateTabletAction, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraDestroyTabletActions, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraKickOrphanedTabletActions, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraSetTabletCellStatistics, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraUpdateUpstreamTabletState, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraUpdateTabletState, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraAllocateDynamicStore, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraSetTabletCellBundleResourceUsage, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraUpdateTabletCellBundleResourceUsage, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraOnHunkTabletMounted, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraOnHunkTabletUnmounted, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraSwitchServant, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraDeallocateServant, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraReportSmoothMovementProgress, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraReportSmoothMovementAborted, Unretained(this)));
 
         const auto& tabletNodeTracker = Bootstrap_->GetTabletNodeTracker();
-        tabletNodeTracker->SubscribeHeartbeat(BIND(&TImpl::OnTabletNodeHeartbeat, MakeWeak(this)));
+        tabletNodeTracker->SubscribeHeartbeat(BIND_NO_PROPAGATE(&TImpl::OnTabletNodeHeartbeat, MakeWeak(this)));
     }
 
     void Initialize()
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(CreateTabletCellBundleTypeHandler(Bootstrap_));

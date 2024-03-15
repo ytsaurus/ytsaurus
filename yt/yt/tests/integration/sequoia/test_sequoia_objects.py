@@ -1,18 +1,20 @@
 from yt_env_setup import (
     YTEnvSetup,
     Restarter,
-    NODES_SERVICE
+    NODES_SERVICE,
+    MASTERS_SERVICE
 )
 
 from yt_sequoia_helpers import (
-    select_rows_from_ground,
+    select_rows_from_ground, lookup_rows_in_ground, mangle_sequoia_path
 )
 
 from yt.sequoia_tools import DESCRIPTORS
 
 from yt_commands import (
     authors, create, get, remove, get_singular_chunk_id, write_table, read_table, wait,
-    exists, create_domestic_medium, ls, set, get_account_disk_space_limit, set_account_disk_space_limit)
+    exists, create_domestic_medium, ls, set, get_account_disk_space_limit, set_account_disk_space_limit,
+    link, build_master_snapshots, start_transaction, abort_transaction)
 
 from yt.wrapper import yson
 
@@ -263,3 +265,83 @@ class TestSequoiaReplicasMulticell(TestSequoiaReplicas):
 
     def teardown_method(self, method):
         super(TestSequoiaReplicasMulticell, self).teardown_method(method)
+
+
+class TestSequoiaQueues(YTEnvSetup):
+    USE_SEQUOIA = True
+    NUM_CYPRESS_PROXIES = 1
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["sequoia_node_host"]},
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "sequoia_chunk_replicas_percentage": 100,
+            "fetch_replicas_from_sequoia": True
+        }
+    }
+
+    @authors("aleksandra-zh")
+    def test_link(self):
+        create("map_node", "//tmp/m1")
+
+        link_count = len(select_rows_from_ground(f"* from [{DESCRIPTORS.path_to_node_id.get_default_path()}]"))
+
+        link("//tmp/m1", "//tmp/m2")
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.path_to_node_id.get_default_path()}]")) > link_count)
+
+        def get_row(path):
+            return lookup_rows_in_ground(DESCRIPTORS.path_to_node_id.get_default_path(), [{"path": mangle_sequoia_path(path)}])
+
+        wait(lambda: len(get_row('//tmp/m2')) == 1)
+
+        remove("//tmp/m2")
+        wait(lambda: len(get_row('//tmp/m2')) == 0)
+
+    @authors("aleksandra-zh")
+    def test_restart(self):
+        set("//sys/@config/sequoia_manager/sequoia_queue/pause_flush", True)
+
+        create("map_node", "//tmp/m1")
+        link("//tmp/m1", "//tmp/m2")
+
+        build_master_snapshots()
+
+        with Restarter(self.Env, MASTERS_SERVICE):
+            pass
+
+        set("//sys/@config/sequoia_manager/sequoia_queue/pause_flush", False)
+
+        def get_row(path):
+            return lookup_rows_in_ground(DESCRIPTORS.path_to_node_id.get_default_path(), [{"path": mangle_sequoia_path(path)}])
+
+        wait(lambda: len(get_row('//tmp/m2')) == 1)
+
+        set("//sys/@config/sequoia_manager/sequoia_queue/pause_flush", True)
+
+        remove("//tmp/m2")
+
+        build_master_snapshots()
+
+        with Restarter(self.Env, MASTERS_SERVICE):
+            pass
+
+        set("//sys/@config/sequoia_manager/sequoia_queue/pause_flush", False)
+
+        wait(lambda: len(get_row('//tmp/m2')) == 0)
+
+    @authors("aleksandra-zh")
+    def test_branched_link(self):
+        create("map_node", "//tmp/m1")
+
+        link_count = len(select_rows_from_ground(f"* from [{DESCRIPTORS.path_to_node_id.get_default_path()}]"))
+
+        tx = start_transaction()
+        link("//tmp/m1", "//tmp/m2", tx=tx)
+        abort_transaction(tx)
+
+        def get_row(path):
+            return lookup_rows_in_ground(DESCRIPTORS.path_to_node_id.get_default_path(), [{"path": mangle_sequoia_path(path)}])
+
+        assert len(get_row('//tmp/m2')) == 0

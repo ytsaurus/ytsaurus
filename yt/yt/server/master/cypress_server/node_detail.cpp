@@ -541,6 +541,12 @@ void TCompositeNodeBase::TAttributes<Transient>::Persist(const NCellMaster::TPer
     Persist(context, Media);
     Persist(context, TabletCellBundle);
     Persist(context, ChaosCellBundle);
+
+    // COMPAT(kivedernikov)
+    if (!context.IsLoad() || context.GetVersion() >= EMasterReign::HunkMedia) {
+        Persist(context, HunkMedia);
+        Persist(context, HunkPrimaryMediumIndex);
+    }
 }
 
 template <bool Transient>

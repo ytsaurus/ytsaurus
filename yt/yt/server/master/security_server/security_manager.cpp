@@ -43,6 +43,8 @@
 
 #include <yt/yt/server/master/tablet_server/tablet.h>
 
+#include <yt/yt/server/master/sequoia_server/context.h>
+
 #include <yt/yt/server/lib/hydra/composite_automaton.h>
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
@@ -92,6 +94,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NCypressServer;
+using namespace NSequoiaServer;
 using namespace NSecurityClient;
 using namespace NTableServer;
 using namespace NObjectServer;
@@ -498,10 +501,10 @@ public:
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
         SuperusersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffd);
 
-        RegisterMethod(BIND(&TSecurityManager::HydraSetAccountStatistics, Unretained(this)));
-        RegisterMethod(BIND(&TSecurityManager::HydraRecomputeMembershipClosure, Unretained(this)));
-        RegisterMethod(BIND(&TSecurityManager::HydraUpdateAccountMasterMemoryUsage, Unretained(this)));
-        RegisterMethod(BIND(&TSecurityManager::HydraUpdateUserActivityStatistics, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraSetAccountStatistics, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraRecomputeMembershipClosure, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraUpdateAccountMasterMemoryUsage, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraUpdateUserActivityStatistics, Unretained(this)));
     }
 
     void Initialize() override
@@ -2239,6 +2242,11 @@ public:
         EPermission permission,
         TPermissionCheckOptions options = {}) override
     {
+        // TODO(cherepashka): remove after acl & inherited attributes are implemented in Sequoia.
+        if (GetSequoiaContext()) {
+            return;
+        }
+
         if (IsPermissionValidationSuppressed()) {
             return;
         }

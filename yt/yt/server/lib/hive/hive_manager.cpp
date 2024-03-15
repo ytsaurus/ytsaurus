@@ -158,11 +158,11 @@ public:
             .SetHeavy(true));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(GetConsistentState));
 
-        TCompositeAutomatonPart::RegisterMethod(BIND(&THiveManager::HydraAcknowledgeMessages, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&THiveManager::HydraPostMessages, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&THiveManager::HydraSendMessages, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&THiveManager::HydraRegisterMailbox, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&THiveManager::HydraUnregisterMailbox, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&THiveManager::HydraAcknowledgeMessages, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&THiveManager::HydraPostMessages, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&THiveManager::HydraSendMessages, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&THiveManager::HydraRegisterMailbox, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&THiveManager::HydraUnregisterMailbox, Unretained(this)));
 
         RegisterLoader(
             "HiveManager.Keys",
@@ -185,7 +185,7 @@ public:
 
         if (AvenueDirectory_) {
             AvenueDirectory_->SubscribeEndpointUpdated(
-                BIND(&THiveManager::OnAvenueDirectoryEndpointUpdated, MakeWeak(this))
+                BIND_NO_PROPAGATE(&THiveManager::OnAvenueDirectoryEndpointUpdated, MakeWeak(this))
                     .Via(AutomatonInvoker_));
         }
     }

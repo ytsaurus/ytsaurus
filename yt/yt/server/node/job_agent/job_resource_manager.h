@@ -19,8 +19,8 @@ namespace NYT::NJobAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EResourcesConsumerType,
-    ((MasterJob)      (0))
-    ((SchedulerJob)   (1))
+    ((MasterJob)             (0))
+    ((SchedulerAllocation)   (1))
 );
 
 class TJobResourceManager
@@ -107,18 +107,26 @@ class TResourceHolder
     : public TRefCounted
 {
 public:
+    const EResourcesConsumerType ResourcesConsumerType;
+
     TResourceHolder(
         TJobResourceManager* jobResourceManager,
         EResourcesConsumerType resourceConsumerType,
         NLogging::TLogger logger,
-        const NClusterNode::TJobResources& jobResources,
-        const NClusterNode::TJobResourceAttributes& resourceAttributes,
-        int portCount);
+        const NClusterNode::TJobResources& jobResources);
+
+    TResourceHolder(
+        TJobResourceManager* jobResourceManager,
+        EResourcesConsumerType resourceConsumerType,
+        NLogging::TLogger logger,
+        TResourceHolderPtr owner);
 
     TResourceHolder(const TResourceHolder&) = delete;
     TResourceHolder(TResourceHolder&&) = delete;
     ~TResourceHolder();
 
+    //! TransferResourcesTo, ReleaseResources, TryAcquireResourcesFor for the holder should not be called concurrently.
+    void TransferResourcesTo(TResourceHolder& other);
     void ReleaseResources();
 
     const std::vector<int>& GetPorts() const noexcept;
@@ -148,13 +156,18 @@ protected:
 
     std::vector<NClusterNode::ISlotPtr> GpuSlots_;
 
+    void UpdateResourceDemand(
+        const NClusterNode::TJobResources& jobResources,
+        const NClusterNode::TJobResourceAttributes& resourceAttributes,
+        int portCount);
+
 private:
     friend TJobResourceManager::TResourceAcquiringContext;
     friend TJobResourceManager::TImpl;
 
     TJobResourceManager::TImpl* const ResourceManagerImpl_;
 
-    const int PortCount_;
+    int PortCount_ = 0;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ResourcesLock_);
 
@@ -166,7 +179,12 @@ private:
 
     EResourcesState State_ = EResourcesState::Waiting;
 
-    const EResourcesConsumerType ResourcesConsumerType_;
+    TResourceHolderPtr Owner_;
+
+    bool Registered_ = false;
+
+    void Register();
+    void Unregister();
 
     class TAcquiredResources;
     void SetAcquiredResources(TAcquiredResources&& acquiredResources);

@@ -59,6 +59,9 @@ private:
     void FetchVersionedDataSlices();
     void AddUnversionedDataSlices(const TInputTable& inputTable);
     NTableClient::TComparator GetComparator(int tableIndex);
+    void FixLimitsInOrderedDynamicStore(
+        size_t tableIndex,
+        const std::vector<NChunkClient::TInputChunkPtr>& inputChunks);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

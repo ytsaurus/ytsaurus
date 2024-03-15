@@ -369,6 +369,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    bool IsDiscombobulated() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     i64 GetSequenceNumber() const override
     {
         YT_UNIMPLEMENTED();

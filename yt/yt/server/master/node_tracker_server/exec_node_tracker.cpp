@@ -38,13 +38,13 @@ public:
     explicit TExecNodeTracker(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::ExecNodeTracker)
     {
-        RegisterMethod(BIND(&TExecNodeTracker::HydraExecNodeHeartbeat, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TExecNodeTracker::HydraExecNodeHeartbeat, Unretained(this)));
     }
 
     void Initialize() override
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TExecNodeTracker::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TExecNodeTracker::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     void ProcessHeartbeat(TCtxHeartbeatPtr context) override

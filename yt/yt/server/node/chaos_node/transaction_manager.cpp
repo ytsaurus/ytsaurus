@@ -97,7 +97,7 @@ public:
             "TransactionManager.Values",
             BIND(&TTransactionManager::SaveValues, Unretained(this)));
 
-        RegisterMethod(BIND(&TTransactionManager::HydraRegisterTransactionActions, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraRegisterTransactionActions, Unretained(this)));
 
         OrchidService_ = IYPathService::FromProducer(BIND(&TTransactionManager::BuildOrchidYson, MakeWeak(this)), TDuration::Seconds(1))
             ->Via(Slot_->GetGuardedAutomatonInvoker());

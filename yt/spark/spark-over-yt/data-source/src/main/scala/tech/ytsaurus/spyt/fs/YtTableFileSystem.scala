@@ -27,6 +27,9 @@ class YtTableFileSystem extends YtFileSystemBase {
   }
 
   private def listStatus(path: YPathEnriched, expandDirectory: Boolean)(implicit yt: CompoundClient = yt): Array[FileStatus] = {
+    if (!YtWrapper.exists(path.toYPath, path.transaction)) {
+      throw new FileNotFoundException(path.toStringPath)
+    }
     val attributes = YtWrapper.attributes(path.toYPath, path.transaction)
     PathType.fromAttributes(attributes) match {
       case PathType.File => Array(getFileStatus(path.lock()))

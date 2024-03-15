@@ -200,27 +200,27 @@ public:
     void Initialize() override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        nodeTracker->SubscribeNodeUnregistered(BIND(&TTamedCellManager::OnNodeUnregistered, MakeWeak(this)));
+        nodeTracker->SubscribeNodeUnregistered(BIND_NO_PROPAGATE(&TTamedCellManager::OnNodeUnregistered, MakeWeak(this)));
 
         const auto& cellarNodeTracker = Bootstrap_->GetCellarNodeTracker();
-        cellarNodeTracker->SubscribeHeartbeat(BIND(&TTamedCellManager::OnCellarNodeHeartbeat, MakeWeak(this)));
+        cellarNodeTracker->SubscribeHeartbeat(BIND_NO_PROPAGATE(&TTamedCellManager::OnCellarNodeHeartbeat, MakeWeak(this)));
 
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TTamedCellManager::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TTamedCellManager::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(CreateAreaTypeHandler(Bootstrap_, &AreaMap_));
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->SubscribeTransactionCommitted(BIND(&TTamedCellManager::OnTransactionFinished, MakeWeak(this)));
-        transactionManager->SubscribeTransactionAborted(BIND(&TTamedCellManager::OnTransactionFinished, MakeWeak(this)));
+        transactionManager->SubscribeTransactionCommitted(BIND_NO_PROPAGATE(&TTamedCellManager::OnTransactionFinished, MakeWeak(this)));
+        transactionManager->SubscribeTransactionAborted(BIND_NO_PROPAGATE(&TTamedCellManager::OnTransactionFinished, MakeWeak(this)));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
             multicellManager->SubscribeReplicateKeysToSecondaryMaster(
-                BIND(&TTamedCellManager::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
+                BIND_NO_PROPAGATE(&TTamedCellManager::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
             multicellManager->SubscribeReplicateValuesToSecondaryMaster(
-                BIND(&TTamedCellManager::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
+                BIND_NO_PROPAGATE(&TTamedCellManager::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
         }
 
         BundleNodeTracker_->Initialize();

@@ -89,8 +89,8 @@ public:
     explicit TDataNodeTracker(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::DataNodeTracker)
     {
-        RegisterMethod(BIND(&TDataNodeTracker::HydraIncrementalDataNodeHeartbeat, Unretained(this)));
-        RegisterMethod(BIND(&TDataNodeTracker::HydraFullDataNodeHeartbeat, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TDataNodeTracker::HydraIncrementalDataNodeHeartbeat, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TDataNodeTracker::HydraFullDataNodeHeartbeat, Unretained(this)));
 
         RegisterLoader(
             "DataNodeTracker.Keys",

@@ -909,6 +909,7 @@ TListJobsResult ListJobs(
 | `WithStderr`                      | `TMaybe<bool>`                | none    | Записал ли джоб что-нибудь в stderr.                          |
 | `WithSpec`                        | `TMaybe<bool>`                | none    | Сохранена ли спецификация джоба.                                     |
 | `WithFailContext`                 | `TMaybe<bool>`                | none    | Сохранён ли fail context джоба.                               |
+| `WithMonitoringDescriptor`        | `TMaybe<bool>`                | none    | Выдался ли monitoring descriptor джобу.                               |
 | `SortField`                       | `TMaybe<EJobSortField>`       | none    | По какому полю сортировать джобы в ответе. |
 | `SortOrder`                       | `TMaybe<ESortOrder>`          | none    | Сортировать джобы по возрастанию или убыванию.                      |
 | `DataSource`                      | `TMaybe<EListJobsDataSource>` | none    | Где искать джобы: в контроллер-агенте и Кипарисе (`Runtime`), в архиве джобов (`Archive`), автоматически в зависимости от наличия операции в Кипарисе (`Auto`) или как-то иначе (`Manual`). |

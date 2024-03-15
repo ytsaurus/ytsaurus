@@ -71,10 +71,10 @@ public:
                 EAutomatonThreadQueue::Default),
             AutomatonThread);
 
-        RegisterMethod(BIND(&TBackupManager::HydraFinishBackup, Unretained(this)));
-        RegisterMethod(BIND(&TBackupManager::HydraFinishRestore, Unretained(this)));
-        RegisterMethod(BIND(&TBackupManager::HydraResetBackupMode, Unretained(this)));
-        RegisterMethod(BIND(&TBackupManager::HydraOnBackupCheckpointPassed, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TBackupManager::HydraFinishBackup, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TBackupManager::HydraFinishRestore, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TBackupManager::HydraResetBackupMode, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TBackupManager::HydraOnBackupCheckpointPassed, Unretained(this)));
     }
 
     void Initialize() override

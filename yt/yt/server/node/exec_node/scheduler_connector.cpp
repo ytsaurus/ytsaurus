@@ -1,7 +1,7 @@
 #include "scheduler_connector.h"
 
+#include "allocation.h"
 #include "bootstrap.h"
-#include "job.h"
 #include "job_controller.h"
 #include "master_connector.h"
 #include "private.h"
@@ -69,18 +69,6 @@ void TSchedulerConnector::Start()
         &TSchedulerConnector::OnResourcesAcquired,
         MakeWeak(this)));
 
-    const auto& jobController = Bootstrap_->GetJobController();
-
-    jobController->SubscribeJobFinished(BIND_NO_PROPAGATE(
-            &TSchedulerConnector::OnJobFinished,
-            MakeWeak(this))
-        .Via(Bootstrap_->GetJobInvoker()));
-
-    jobController->SubscribeAllocationFailed(BIND_NO_PROPAGATE(
-            &TSchedulerConnector::OnAllocationFailed,
-            MakeWeak(this))
-        .Via(Bootstrap_->GetJobInvoker()));
-
     HeartbeatExecutor_->Start();
 }
 
@@ -133,19 +121,6 @@ void TSchedulerConnector::SendOutOfBandHeartbeatIfNeeded()
         BIND(&TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded, MakeStrong(this)));
 }
 
-void TSchedulerConnector::OnJobFinished(const TJobPtr& job)
-{
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
-
-    EnqueueFinishedJobs({job});
-
-    YT_LOG_DEBUG(
-        "Job finished, send out of band heartbeat to scheduler (JobId: %v)",
-        job->GetId());
-
-    HeartbeatExecutor_->ScheduleOutOfBand();
-}
-
 void TSchedulerConnector::OnResourcesAcquired()
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -160,7 +135,7 @@ void TSchedulerConnector::OnResourcesReleased(
     VERIFY_THREAD_AFFINITY_ANY();
 
     // Scheduler connector is subscribed to JobFinished scheduler job controller signal.
-    if (resourcesConsumerType == EResourcesConsumerType::SchedulerJob && fullyReleased) {
+    if (resourcesConsumerType == EResourcesConsumerType::SchedulerAllocation && fullyReleased) {
         return;
     }
 
@@ -176,30 +151,25 @@ void TSchedulerConnector::SetMinSpareResources(const NScheduler::TJobResources& 
     MinSpareResources_ = minSpareResources;
 }
 
-void TSchedulerConnector::EnqueueFinishedJobs(std::vector<TJobPtr> jobs)
+void TSchedulerConnector::EnqueueFinishedAllocation(TAllocationPtr allocation)
 {
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
-    for (auto& job : jobs) {
-        JobsToForcefullySend_.emplace(std::move(job));
-    }
+    YT_LOG_DEBUG(
+        "Finished allocation enqueued, send out of band heartbeat to scheduler (AllocationId: %v)",
+        allocation->GetId());
+
+    FinishedAllocations_.emplace(std::move(allocation));
+
+    HeartbeatExecutor_->ScheduleOutOfBand();
 }
 
-void TSchedulerConnector::RemoveSentJobs(const THashSet<TJobPtr>& jobs)
+void TSchedulerConnector::RemoveSentAllocations(const THashSet<TAllocationPtr>& allocations)
 {
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
-    for (const auto& job : jobs) {
-        EraseOrCrash(JobsToForcefullySend_, job);
-    }
-}
-
-void TSchedulerConnector::RemoveFailedAllocations(THashMap<TAllocationId, TFailedAllocationInfo> allocations)
-{
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
-
-    for (const auto& [allocationId, _] : allocations) {
-        EraseOrCrash(FailedAllocations_, allocationId);
+    for (const auto& allocation : allocations) {
+        EraseOrCrash(FinishedAllocations_, allocation);
     }
 }
 
@@ -333,8 +303,7 @@ void TSchedulerConnector::DoPrepareHeartbeatRequest(
 {
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
-    context->JobsToForcefullySend = JobsToForcefullySend_;
-    context->FailedAllocations = FailedAllocations_;
+    context->FinishedAllocations = FinishedAllocations_;
 
     const auto& jobController = Bootstrap_->GetJobController();
     jobController->PrepareSchedulerHeartbeatRequest(request, context);
@@ -353,25 +322,7 @@ void TSchedulerConnector::DoProcessHeartbeatResponse(
     const auto& jobController = Bootstrap_->GetJobController();
     jobController->ProcessSchedulerHeartbeatResponse(response, context);
 
-    RemoveFailedAllocations(std::move(context->FailedAllocations));
-    RemoveSentJobs(std::move(context->JobsToForcefullySend));
-}
-
-void TSchedulerConnector::OnAllocationFailed(
-    TAllocationId allocationId,
-    TOperationId operationId,
-    const TControllerAgentDescriptor& /*agentDescriptor*/,
-    const TError& error)
-{
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
-
-    EmplaceOrCrash(
-        FailedAllocations_,
-        allocationId,
-        TFailedAllocationInfo{
-            .OperationId = operationId,
-            .Error = error,
-        });
+    RemoveSentAllocations(context->FinishedAllocations);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

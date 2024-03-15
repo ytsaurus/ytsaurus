@@ -8,17 +8,19 @@ from yt_commands import (
     write_table, alter_table, read_table, map, sync_reshard_table, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect,
     start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks,
-    write_journal, update_nodes_dynamic_config, raises_yt_error)
+    write_journal, create_domestic_medium, update_nodes_dynamic_config, raises_yt_error, copy)
 
 from yt_type_helpers import make_schema
 
 from yt_env_setup import (
     Restarter,
-    NODES_SERVICE
+    NODES_SERVICE,
+    MASTERS_SERVICE
 )
 
 from yt.common import YtError
 from yt.test_helpers import assert_items_equal
+from operator import itemgetter
 
 import pytest
 import yt.yson as yson
@@ -1450,6 +1452,12 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         tablet_id = tablets[tablet_index]["tablet_id"]
         get("//sys/tablets/{}/orchid".format(tablet_id))
 
+    @classmethod
+    def setup_class(cls):
+        super(TestOrderedDynamicTablesHunks, cls).setup_class()
+        create_domestic_medium("hdd1")
+        create_domestic_medium("hdd2")
+
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_flush_inline(self, optimize_for):
@@ -1732,6 +1740,408 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
             assert not _check_all_replicas_ok()
             with raises_yt_error("exceeded retry count limit"):
                 assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+    @authors("kivedernikov")
+    def test_hunk_media_attribute(self):
+        sync_create_cells(1)
+        self._create_table()
+
+        dir_hunk_media = {
+            "hdd1" : {"replication_factor": 7, "data_parts_only": True},
+            "default" : {"replication_factor": 4, "data_parts_only": False}
+        }
+        set("//tmp/@hunk_media", dir_hunk_media)
+
+        self._create_sorted_table("//tmp/a")
+        tbl_hunk_media = get("//tmp/a/@hunk_media")
+        assert tbl_hunk_media == dir_hunk_media
+
+    @authors("kivedernikov")
+    @pytest.mark.parametrize("drop_sevice", [NODES_SERVICE, MASTERS_SERVICE])
+    def test_hunk_media_handlers(self, drop_sevice):
+        sync_create_cells(1)
+        self._create_table()
+
+        create("hunk_storage", "//tmp/h")
+        set("//tmp/t/@hunk_storage_node", "//tmp/h")
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+
+        hunk_media = get("//tmp/t/@hunk_media")
+        assert 'default' in hunk_media
+
+        hunk_media["hdd1"] = {
+            "replication_factor": 5,
+            "data_parts_only": True,
+        }
+
+        sync_unmount_table("//tmp/t")
+        set("//tmp/t/@hunk_media", hunk_media)
+        sync_mount_table("//tmp/t")
+
+        hunk_media = get("//tmp/t/@hunk_media")
+
+        expected_hunk_media = {
+            'default': {
+                'replication_factor': 3,
+                'data_parts_only': False
+            },
+            'hdd1': {
+                'replication_factor': 5,
+                'data_parts_only': True
+            },
+        }
+        assert hunk_media == expected_hunk_media
+
+        build_snapshot(cell_id=None)
+        with Restarter(self.Env, drop_sevice):
+            pass
+
+        hunk_media = get("//tmp/t/@hunk_media")
+        assert hunk_media == expected_hunk_media
+
+    @authors("kivedernikov")
+    def test_requisitions_hunk_media(self):
+        sync_create_cells(1)
+        self._create_sorted_table(
+            "//tmp/t",
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string", "max_inline_hunk_size": 1},
+            ],
+        )
+
+        rows = [{"key": 0, "value": "a"}, {"key": 1, "value": "aa"}]
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        hunk_chunk, journal_chunk = None, None
+        for chunk_id in chunk_ids:
+            if get("#{}/@chunk_type".format(chunk_id)) == "hunk":
+                hunk_chunk = chunk_id
+            else:
+                journal_chunk = chunk_id
+
+        assert hunk_chunk is not None
+        assert journal_chunk is not None
+
+        def check_chunk_requisition(chunk_id, expected):
+            requisition = get("#" + chunk_id + "/@requisition")
+            requisition = sorted(requisition, key=itemgetter("account", "medium"))
+            return requisition == expected
+
+        expected_requisition = [
+            {
+                "account": "tmp",
+                "medium": "default",
+                "replication_policy": {
+                    "replication_factor": 3,
+                    "data_parts_only": False,
+                },
+                "committed": True,
+            }
+        ]
+        wait(lambda: check_chunk_requisition(journal_chunk, expected_requisition))
+
+        expected_hunk_requisition = [
+            {
+                "account": "tmp",
+                "medium": "default",
+                "replication_policy": {
+                    "replication_factor": 3,
+                    "data_parts_only": False,
+                },
+                "committed": False,
+            }
+        ]
+        wait(lambda: check_chunk_requisition(hunk_chunk, expected_hunk_requisition))
+        sync_unmount_table("//tmp/t")
+
+        tbl_media = get("//tmp/t/@media")
+        tbl_media["hdd1"] = {"replication_factor": 7, "data_parts_only": True}
+        tbl_media["default"] = {"replication_factor": 4, "data_parts_only": False}
+        set("//tmp/t/@media", tbl_media)
+        sync_mount_table("//tmp/t")
+
+        expected_requisition = [
+            {
+                "account": "tmp",
+                "medium": "default",
+                "replication_policy": {
+                    "replication_factor": 4,
+                    "data_parts_only": False,
+                },
+                "committed": True,
+            },
+            {
+                "account": "tmp",
+                "medium": "hdd1",
+                "replication_policy": {
+                    "replication_factor": 7,
+                    "data_parts_only": True,
+                },
+                "committed": True,
+            },
+        ]
+        wait(lambda: check_chunk_requisition(journal_chunk, expected_requisition))
+
+        sync_unmount_table("//tmp/t")
+        tbl_hunk_media = get("//tmp/t/@hunk_media")
+        tbl_hunk_media["hdd2"] = {"replication_factor": 2, "data_parts_only": False}
+        set("//tmp/t/@hunk_media", tbl_hunk_media)
+        sync_mount_table("//tmp/t")
+        sync_flush_table("//tmp/t")
+
+        expected_hunk_requisition = [
+            {
+                "account": "tmp",
+                "medium": "default",
+                "replication_policy": {
+                    "replication_factor": 3,
+                    "data_parts_only": False,
+                },
+                "committed": True,
+            },
+            {
+                "account": "tmp",
+                "medium": "hdd2",
+                "replication_policy": {
+                    "replication_factor": 2,
+                    "data_parts_only": False,
+                },
+                "committed": True,
+            },
+        ]
+        wait(lambda: check_chunk_requisition(hunk_chunk, expected_hunk_requisition))
+
+    @authors("kivedernikov")
+    def test_hunk_storage_media(self):
+        sync_create_cells(1)
+        self._create_table()
+
+        create(
+            "hunk_storage",
+            "//tmp/h",
+            attributes={
+                "store_rotation_period": 20000,
+                "store_removal_grace_period": 4000,
+            },
+        )
+        set("//tmp/t/@hunk_storage_node", "//tmp/h")
+        sync_mount_table("//tmp/h")
+
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+
+        hunk_store_id = self._get_active_store_id("//tmp/h")
+        set("//sys/cluster_nodes/@config", {"%true": {
+            "tablet_node": {"hunk_lock_manager": {"hunk_store_extra_lifetime": 123, "unlock_check_period": 127}}
+        }})
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
+        assert len(store_chunk_ids) == 1
+        store_chunk_id = store_chunk_ids[0]
+
+        assert store_chunk_id != hunk_store_id
+
+        hunk_store_parents = get("#{}/@owning_nodes".format(hunk_store_id))
+        assert sorted(hunk_store_parents) == ["//tmp/h", "//tmp/t"]
+
+        def check_chunk_requisition(chunk_id, expected):
+            requisition = get("#" + chunk_id + "/@requisition")
+            requisition = sorted(requisition, key=itemgetter("account", "medium"))
+            return requisition == expected
+
+        expected_requisition = [
+            {
+                "account": "tmp",
+                "medium": "default",
+                "replication_policy": {
+                    "replication_factor": 3,
+                    "data_parts_only": False,
+                },
+                "committed": True,
+            }
+        ]
+        wait(lambda: check_chunk_requisition(store_chunk_id, expected_requisition))
+
+        expected_hunk_requisition = [
+            {
+                "account": "tmp",
+                "medium": "default",
+                "replication_policy": {
+                    "replication_factor": 3,
+                    "data_parts_only": False,
+                },
+                "committed": True,
+            }
+        ]
+        wait(lambda: check_chunk_requisition(hunk_store_id, expected_hunk_requisition))
+
+        sync_unmount_table("//tmp/t")
+        tbl_media = get("//tmp/t/@media")
+        tbl_media["hdd1"] = {"replication_factor": 7, "data_parts_only": True}
+        tbl_media["default"] = {"replication_factor": 4, "data_parts_only": False}
+        set("//tmp/t/@media", tbl_media)
+        sync_mount_table("//tmp/t")
+
+        expected_requisition = [
+            {
+                "account": "tmp",
+                "medium": "default",
+                "replication_policy": {
+                    "replication_factor": 4,
+                    "data_parts_only": False,
+                },
+                "committed": True,
+            },
+            {
+                "account": "tmp",
+                "medium": "hdd1",
+                "replication_policy": {
+                    "replication_factor": 7,
+                    "data_parts_only": True,
+                },
+                "committed": True,
+            },
+        ]
+        wait(lambda: check_chunk_requisition(store_chunk_id, expected_requisition))
+
+        sync_unmount_table("//tmp/t")
+        tbl_hunk_media = get("//tmp/t/@hunk_media")
+        tbl_hunk_media["hdd2"] = {"replication_factor": 5, "data_parts_only": False}
+        set("//tmp/t/@hunk_media", tbl_hunk_media)
+        sync_mount_table("//tmp/t")
+
+        sync_flush_table("//tmp/t")
+
+        expected_hunk_requisition = [
+            {
+                "account": "tmp",
+                "medium": "default",
+                "replication_policy": {
+                    "replication_factor": 3,
+                    "data_parts_only": False,
+                },
+                "committed": True,
+            },
+            {
+                "account": "tmp",
+                "medium": "hdd2",
+                "replication_policy": {
+                    "replication_factor": 5,
+                    "data_parts_only": False,
+                },
+                "committed": True,
+            },
+        ]
+        wait(lambda: check_chunk_requisition(hunk_store_id, expected_hunk_requisition))
+
+    @authors("kivedernikov")
+    def test_hunk_media_many_nodes(self):
+        sync_create_cells(2)
+        self._create_sorted_table(
+            "//tmp/t",
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string", "max_inline_hunk_size": 1},
+            ],
+        )
+
+        sync_mount_table("//tmp/t")
+
+        for i in range(5):
+            rows = [{"key": 2 * i, "value": "a"}, {"key": 1 + 2 * i, "value": "bbb"}]
+            insert_rows("<append=%true>//tmp/t", rows[:1])
+            sync_flush_table("//tmp/t")
+            insert_rows("<append=%true>//tmp/t", rows[1:])
+            sync_flush_table("//tmp/t")
+
+        sync_unmount_table("//tmp/t")
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+
+        hunk_chunks, journal_chunks = [], []
+        for chunk_id in chunk_ids:
+            if get("#{}/@chunk_type".format(chunk_id)) == "hunk":
+                hunk_chunks.append(chunk_id)
+            else:
+                journal_chunks.append(chunk_id)
+
+        assert len(hunk_chunks) > 1
+        assert len(journal_chunks) > 1
+
+        copy("//tmp/t", "//tmp/t2")
+
+        sync_mount_table("//tmp/t2")
+
+        sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/t2")
+        chunk_ids = get("//tmp/t2/@chunk_ids")
+
+        tbl_hunk_media = get("//tmp/t/@hunk_media")
+        tbl_hunk_media["hdd1"] = {"replication_factor": 2, "data_parts_only": True}
+        tbl_hunk_media["default"] = {"replication_factor": 1, "data_parts_only": False}
+        sync_unmount_table("//tmp/t")
+        set("//tmp/t/@hunk_media", tbl_hunk_media)
+        sync_mount_table("//tmp/t")
+        sync_flush_table("//tmp/t")
+
+        tbl_hunk_media = get("//tmp/t2/@hunk_media")
+        tbl_hunk_media["hdd2"] = {"replication_factor": 4, "data_parts_only": True}
+        tbl_hunk_media["default"] = {"replication_factor": 4, "data_parts_only": False}
+        set("//tmp/t2/@hunk_media", tbl_hunk_media)
+        sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t2")
+        sync_flush_table("//tmp/t2")
+
+        def check_chunk_requisition(chunk_id, expected):
+            requisition = get("#" + chunk_id + "/@requisition")
+            requisition = sorted(requisition, key=itemgetter("account", "medium"))
+            return requisition == expected
+
+        expected_hunk_requisition = [
+            {
+                "account": "tmp",
+                "medium": "default",
+                "replication_policy": {
+                    "replication_factor": 4,
+                    "data_parts_only": False,
+                },
+                "committed": True,
+            },
+            {
+                "account": "tmp",
+                "medium": "hdd1",
+                "replication_policy": {
+                    "replication_factor": 2,
+                    "data_parts_only": True,
+                },
+                "committed": True,
+            },
+            {
+                "account": "tmp",
+                "medium": "hdd2",
+                "replication_policy": {
+                    "replication_factor": 4,
+                    "data_parts_only": True,
+                },
+                "committed": True,
+            },
+        ]
+
+        for hunk_chunk in hunk_chunks:
+            wait(lambda: check_chunk_requisition(hunk_chunk, expected_hunk_requisition))
 
 ################################################################################
 

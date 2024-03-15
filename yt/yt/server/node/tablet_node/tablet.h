@@ -912,6 +912,10 @@ NConcurrency::IThroughputThrottlerPtr GetBlobMediumWriteThrottler(
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
     const TTabletSnapshotPtr& tabletSnapshot);
 
+NConcurrency::IThroughputThrottlerPtr GetBlobMediumReadThrottler(
+    const NClusterNode::TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
+    const TTabletSnapshotPtr& tabletSnapshot);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode

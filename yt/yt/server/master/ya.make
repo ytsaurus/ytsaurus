@@ -133,7 +133,7 @@ SRCS(
     chunk_server/proto/chunk_reincarnator.proto
     chunk_server/proto/master_cell_chunk_statistics_collector.proto
     chunk_server/public.cpp
-    chunk_server/refresh_epoch.cpp
+    chunk_server/incumbency_epoch.cpp
     chunk_server/s3_medium_proxy.cpp
     chunk_server/s3_medium_type_handler.cpp
     chunk_server/s3_medium.cpp
@@ -315,8 +315,10 @@ SRCS(
 
     sequoia_server/config.cpp
     sequoia_server/context.cpp
+    sequoia_server/proto/sequoia_queue_manager.proto
     sequoia_server/public.cpp
     sequoia_server/sequoia_manager.cpp
+    sequoia_server/sequoia_queue_manager.cpp
     sequoia_server/sequoia_transaction_service.cpp
 
     table_server/config.cpp

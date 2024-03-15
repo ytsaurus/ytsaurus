@@ -257,8 +257,8 @@ object SchemaConverter {
       .build
   }
 
-  def ytLogicalSchema(sparkSchema: StructType, sortOption: SortOption,
-                      hint: Map[String, YtLogicalType], typeV3Format: Boolean = false): YTreeNode = {
+  def ytLogicalSchema(sparkSchema: StructType, sortOption: SortOption = Unordered,
+                      hint: Map[String, YtLogicalType] = Map.empty, typeV3Format: Boolean = false): YTreeNode = {
     ytLogicalSchemaImpl(sparkSchema, sortOption, hint, typeV3Format)
   }
 

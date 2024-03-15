@@ -656,7 +656,9 @@ protected:
     process(TabletCellBundle, tablet_cell_bundle) \
     process(ChaosCellBundle, chaos_cell_bundle) \
     process(PrimaryMediumIndex, primary_medium) \
-    process(Media, media)
+    process(Media, media) \
+    process(HunkPrimaryMediumIndex, hunk_primary_medium) \
+    process(HunkMedia, hunk_media)
 
 class TCompositeNodeBase
     : public TCypressNode
@@ -681,7 +683,9 @@ private:
         TVersionedBuiltinAttribute<NErasure::ECodec> HunkErasureCodec;
         TVersionedBuiltinAttribute<bool> EnableStripedErasure;
         TVersionedBuiltinAttribute<int> PrimaryMediumIndex;
+        TVersionedBuiltinAttribute<int> HunkPrimaryMediumIndex;
         TVersionedBuiltinAttribute<NChunkServer::TChunkReplication> Media;
+        TVersionedBuiltinAttribute<NChunkServer::TChunkReplication> HunkMedia;
         TVersionedBuiltinAttribute<int> ReplicationFactor;
         TVersionedBuiltinAttribute<bool> Vital;
         TVersionedBuiltinAttribute<TPtr<NTabletServer::TTabletCellBundle>> TabletCellBundle;

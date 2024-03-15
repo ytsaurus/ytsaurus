@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
+#include <yt/yt/server/master/security_server/security_manager.h>
+
 #include <yt/yt/ytlib/sequoia_client/write_set.h>
 
 namespace NYT::NSequoiaServer {
@@ -49,8 +51,14 @@ const ISequoiaContextPtr& GetSequoiaContext();
 class TSequoiaContextGuard
 {
 public:
-    TSequoiaContextGuard(ISequoiaContextPtr context);
+    explicit TSequoiaContextGuard(NSecurityServer::ISecurityManagerPtr securityManager);
+    TSequoiaContextGuard(
+        ISequoiaContextPtr context,
+        NSecurityServer::ISecurityManagerPtr securityManager,
+        NRpc::TAuthenticationIdentity identity);
     ~TSequoiaContextGuard();
+private:
+    NSecurityServer::TAuthenticatedUserGuard UserGuard_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

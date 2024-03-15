@@ -144,12 +144,12 @@ public:
             BIND(&TTransactionManager::SaveValues, Unretained(this)));
 
         // COMPAT(babenko)
-        RegisterMethod(BIND(&TTransactionManager::HydraRegisterTransactionActions, Unretained(this)), {"NYT.NTabletNode.NProto.TReqRegisterTransactionActions"});
-        RegisterMethod(BIND(&TTransactionManager::HydraHandleTransactionBarrier, Unretained(this)));
-        RegisterMethod(BIND(&TTransactionManager::HydraExternalizeTransaction, Unretained(this)));
-        RegisterMethod(BIND(&TTransactionManager::HydraPrepareExternalizedTransaction, Unretained(this)));
-        RegisterMethod(BIND(&TTransactionManager::HydraCommitExternalizedTransaction, Unretained(this)));
-        RegisterMethod(BIND(&TTransactionManager::HydraAbortExternalizedTransaction, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraRegisterTransactionActions, Unretained(this)), {"NYT.NTabletNode.NProto.TReqRegisterTransactionActions"});
+        RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraHandleTransactionBarrier, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraExternalizeTransaction, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraPrepareExternalizedTransaction, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraCommitExternalizedTransaction, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraAbortExternalizedTransaction, Unretained(this)));
 
         OrchidService_ = IYPathService::FromProducer(BIND(&TTransactionManager::BuildOrchidYson, MakeWeak(this)), TDuration::Seconds(1))
             ->Via(Host_->GetGuardedAutomatonInvoker());

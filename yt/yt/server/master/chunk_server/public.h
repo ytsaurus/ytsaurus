@@ -248,6 +248,8 @@ DEFINE_ENUM(EChunkDetachPolicy,
     ((HunkTablet)          (3))
 );
 
+inline static const EChunkScanKind DelegatedScanKinds = EChunkScanKind::Refresh | EChunkScanKind::RequisitionUpdate;
+
 using TFillFactorToNodeMap = std::multimap<double, NNodeTrackerServer::TNode*>;
 using TFillFactorToNodeIterator = TFillFactorToNodeMap::iterator;
 
@@ -275,9 +277,9 @@ constexpr TJobEpoch InvalidJobEpoch = -1;
 using THeartbeatSequenceNumber = i64;
 constexpr THeartbeatSequenceNumber InvalidHeartbeatSequenceNumber = -1;
 
-using TRefreshEpoch = int;
-constexpr TRefreshEpoch InvalidRefreshEpoch = -1;
-constexpr TRefreshEpoch NullRefreshEpoch = 0;
+using TIncumbencyEpoch = int;
+constexpr TIncumbencyEpoch InvalidIncumbencyEpoch = -1;
+constexpr TIncumbencyEpoch NullIncumbencyEpoch = 0;
 
 //! Refers to a requisition specifying that a chunk is not required by any account
 //! on any medium.

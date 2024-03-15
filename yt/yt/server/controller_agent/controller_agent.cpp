@@ -999,7 +999,7 @@ public:
         }
 
         auto result = CachedExecNodeDescriptorsByTags_->Get(filter);
-        return onlineOnly ? result.Online : result.All;
+        return onlineOnly ? result.Available : result.All;
     }
 
     TJobResources GetMaxAvailableResources(const TSchedulingTagFilter& filter)
@@ -1009,12 +1009,12 @@ public:
         return CachedExecNodeDescriptorsByTags_->Get(filter).MaxAvailableResources;
     }
 
-    int GetOnlineExecNodeCount() const
+    int GetAvailableExecNodeCount() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto guard = ReaderGuard(ExecNodeDescriptorsLock_);
-        return OnlineExecNodeCount_;
+        return AvailableExecNodeCount_;
     }
 
     const IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const
@@ -1131,13 +1131,13 @@ private:
     struct TFilteredExecNodeDescriptors
     {
         TRefCountedExecNodeDescriptorMapPtr All;
-        TRefCountedExecNodeDescriptorMapPtr Online;
+        TRefCountedExecNodeDescriptorMapPtr Available;
 
         TJobResources MaxAvailableResources;
     };
 
     const TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TFilteredExecNodeDescriptors>> CachedExecNodeDescriptorsByTags_;
-    int OnlineExecNodeCount_ = 0;
+    int AvailableExecNodeCount_ = 0;
 
     TControllerAgentTrackerServiceProxy SchedulerProxy_;
 
@@ -1657,7 +1657,7 @@ private:
         for (const auto& protoDescriptor : descriptorList.exec_nodes()) {
             auto descriptor = New<TExecNodeDescriptor>();
             FromProto(descriptor.Get(), protoDescriptor);
-            if (descriptor->Online) {
+            if (descriptor->CanSchedule({})) {
                 ++onlineExecNodeCount;
             }
             EmplaceOrCrash(
@@ -1671,7 +1671,7 @@ private:
         {
             auto guard = WriterGuard(ExecNodeDescriptorsLock_);
             std::swap(CachedExecNodeDescriptors_, execNodeDescriptors);
-            OnlineExecNodeCount_ = onlineExecNodeCount;
+            AvailableExecNodeCount_ = onlineExecNodeCount;
         }
     }
 
@@ -1874,7 +1874,7 @@ private:
                         }
 
                         const auto& execNodeDescriptor = *descriptorIt->second;
-                        if (!execNodeDescriptor.Online) {
+                        if (!execNodeDescriptor.CanSchedule({})) {
                             YT_LOG_DEBUG(
                                 "Failed to schedule allocation due to node is offline (OperationId: %v, AllocationId: %v, NodeId: %v)",
                                 operationId,
@@ -2046,14 +2046,14 @@ private:
 
         TFilteredExecNodeDescriptors result;
         result.All = New<TRefCountedExecNodeDescriptorMap>();
-        result.Online = New<TRefCountedExecNodeDescriptorMap>();
+        result.Available = New<TRefCountedExecNodeDescriptorMap>();
 
         TJobResources maxAvailableResources;
         for (const auto& [nodeId, descriptor] : *CachedExecNodeDescriptors_) {
             if (filter.CanSchedule(descriptor->Tags)) {
                 YT_VERIFY(result.All->emplace(nodeId, descriptor).second);
-                if (descriptor->Online) {
-                    YT_VERIFY(result.Online->emplace(nodeId, descriptor).second);
+                if (descriptor->CanSchedule({})) {
+                    YT_VERIFY(result.Available->emplace(nodeId, descriptor).second);
                 }
                 maxAvailableResources = Max(maxAvailableResources, descriptor->ResourceLimits);
             }
@@ -2062,10 +2062,10 @@ private:
         result.MaxAvailableResources = maxAvailableResources;
 
         YT_LOG_DEBUG("Exec nodes filtered "
-            "(Formula: %v, MatchingNodeCount: %v, MatchingOnlineNodeCount: %v, MaxAvailableResources: %v)",
+            "(Formula: %v, MatchingNodeCount: %v, MatchingAvailableNodeCount: %v, MaxAvailableResources: %v)",
             filter.GetBooleanFormula().GetFormula(),
             result.All->size(),
-            result.Online->size(),
+            result.Available->size(),
             result.MaxAvailableResources);
 
         return result;
@@ -2430,9 +2430,9 @@ TFuture<TOperationInfo> TControllerAgent::BuildOperationInfo(TOperationId operat
     return Impl_->BuildOperationInfo(operationId);
 }
 
-int TControllerAgent::GetOnlineExecNodeCount() const
+int TControllerAgent::GetAvailableExecNodeCount() const
 {
-    return Impl_->GetOnlineExecNodeCount();
+    return Impl_->GetAvailableExecNodeCount();
 }
 
 TRefCountedExecNodeDescriptorMapPtr TControllerAgent::GetExecNodeDescriptors(const TSchedulingTagFilter& filter, bool onlineOnly) const

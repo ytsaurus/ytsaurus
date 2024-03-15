@@ -1263,7 +1263,10 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original);
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized);
 
 void ToProto(NProto::TDataSource* serialized, const TDataSource& original);
-void FromProto(TDataSource* original, const NProto::TDataSource& serialized);
+void FromProto(
+    TDataSource* original,
+    const NProto::TDataSource& serialized,
+    IMemoryChunkProviderPtr memoryChunkProvider = GetDefaultMemoryChunkProvider());
 
 struct TInferNameOptions
 {

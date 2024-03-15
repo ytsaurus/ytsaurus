@@ -3777,9 +3777,9 @@ class TestDynamicTablesHydraPersistenceMigrationPortal(TestDynamicTablesMulticel
         cell_id = sync_create_cells(1)[0]
 
         assert ls("//sys/tablet_cells") == [f"{cell_id}"]
-        assert sorted(ls(f"//sys/tablet_cells/{cell_id}")) == ["changelogs", "snapshots"]
-        with pytest.raises(YtError, match="method is not supported"):
-            ls(f"//sys/tablet_cells/{cell_id}&")
+        assert sorted(ls(f"//sys/tablet_cells/{cell_id}")) == ["changelogs", "orchid", "snapshots"]
+        assert get(f"//sys/tablet_cells/{cell_id}/orchid/hydra/state") == "leading"
+
         assert get(f"//sys/tablet_cells/{cell_id}/snapshots/@id") == \
             get(f"//sys/hydra_persistence/tablet_cells/{cell_id}/snapshots/@id")
 

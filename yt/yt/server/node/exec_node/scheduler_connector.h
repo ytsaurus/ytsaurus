@@ -15,18 +15,10 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFailedAllocationInfo
-{
-    TOperationId OperationId;
-    TError Error;
-};
-
 struct TSchedulerHeartbeatContext
     : public TRefCounted
 {
-    THashSet<TJobPtr> JobsToForcefullySend;
-
-    THashMap<TAllocationId, TFailedAllocationInfo> FailedAllocations;
+    THashSet<TAllocationPtr> FinishedAllocations;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerHeartbeatContext)
@@ -46,6 +38,8 @@ public:
         const TSchedulerConnectorDynamicConfigPtr& newConfig);
 
     void SetMinSpareResources(const NScheduler::TJobResources& minSpareResources);
+
+    void EnqueueFinishedAllocation(TAllocationPtr allocation);
 
     using TRspHeartbeat = NRpc::TTypedClientResponse<
         NScheduler::NProto::NNode::TRspHeartbeat>;
@@ -77,9 +71,7 @@ private:
     NProfiling::TEventTimer TimeBetweenAcknowledgedHeartbeatsCounter_;
     NProfiling::TEventTimer TimeBetweenFullyProcessedHeartbeatsCounter_;
 
-    THashSet<TJobPtr> JobsToForcefullySend_;
-
-    THashMap<TAllocationId, TFailedAllocationInfo> FailedAllocations_;
+    THashSet<TAllocationPtr> FinishedAllocations_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -87,12 +79,12 @@ private:
 
     TError DoSendHeartbeat();
 
-    void OnJobFinished(const TJobPtr& job);
-
     void OnResourcesAcquired();
     void OnResourcesReleased(
         NJobAgent::EResourcesConsumerType resourcesConsumerType,
         bool fullyReleased);
+
+    void OnAllocationFinished(TAllocationPtr allocation);
 
     void SendOutOfBandHeartbeatIfNeeded();
     void DoSendOutOfBandHeartbeatIfNeeded();
@@ -111,16 +103,7 @@ private:
         const TRspHeartbeatPtr& response,
         const TSchedulerHeartbeatContextPtr& context);
 
-    void OnAllocationFailed(
-        TAllocationId allocationId,
-        TOperationId operationId,
-        const TControllerAgentDescriptor& agentDescriptor,
-        const TError& error);
-
-    void EnqueueFinishedJobs(std::vector<TJobPtr> jobs);
-    void RemoveSentJobs(const THashSet<TJobPtr>& jobs);
-
-    void RemoveFailedAllocations(THashMap<TAllocationId, TFailedAllocationInfo> allocations);
+    void RemoveSentAllocations(const THashSet<TAllocationPtr>& allocations);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerConnector)

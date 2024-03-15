@@ -113,6 +113,12 @@ struct IClient
 
     virtual bool DoesOperationsArchiveExist() = 0;
 
+    virtual TFuture<TIssueTokenResult> IssueSpecificTemporaryToken(
+        const TString& user,
+        const TString& token,
+        const NYTree::IAttributeDictionaryPtr& attributes,
+        const TIssueTemporaryTokenOptions& options) = 0;
+
     virtual TFuture<TIssueTokenResult> IssueTemporaryToken(
         const TString& user,
         const NYTree::IAttributeDictionaryPtr& attributes,

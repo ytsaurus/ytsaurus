@@ -22,6 +22,8 @@ NCypressServer::INodeTypeHandlerPtr CreateCellBundleMapTypeHandler(
 NCypressServer::INodeTypeHandlerPtr CreateVirtualCellMapTypeHandler(
     NCellMaster::TBootstrap* bootstrap,
     NCellarClient::ECellarType cellarType);
+NCypressServer::INodeTypeHandlerPtr CreateCellOrchidTypeHandler(
+    NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

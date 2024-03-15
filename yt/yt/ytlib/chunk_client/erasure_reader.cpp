@@ -357,7 +357,8 @@ public:
     TErasureReaderWithOverriddenThrottlers(
         TIntrusivePtr<TAdaptiveRepairingErasureReader> underlyingReader,
         const IThroughputThrottlerPtr& bandwidthThrottler,
-        const IThroughputThrottlerPtr& rpsThrottler)
+        const IThroughputThrottlerPtr& rpsThrottler,
+        const IThroughputThrottlerPtr& mediumThrottler)
         : UnderlyingReader_(std::move(underlyingReader))
     {
         ReaderAdapters_.reserve(UnderlyingReader_->Readers_.size());
@@ -365,7 +366,8 @@ public:
             ReaderAdapters_.push_back(CreateReplicationReaderThrottlingAdapter(
                 UnderlyingReader_->Readers_[i],
                 bandwidthThrottler,
-                rpsThrottler));
+                rpsThrottler,
+                mediumThrottler));
         }
     }
 
@@ -420,7 +422,8 @@ DEFINE_REFCOUNTED_TYPE(TErasureReaderWithOverriddenThrottlers)
 IChunkReaderPtr CreateAdaptiveRepairingErasureReaderThrottlingAdapter(
     const IChunkReaderPtr& underlyingReader,
     IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler)
+    IThroughputThrottlerPtr rpsThrottler,
+    IThroughputThrottlerPtr mediumThrottler)
 {
     auto* underlyingErasureReader = dynamic_cast<TAdaptiveRepairingErasureReader*>(underlyingReader.Get());
     YT_VERIFY(underlyingErasureReader);
@@ -428,7 +431,8 @@ IChunkReaderPtr CreateAdaptiveRepairingErasureReaderThrottlingAdapter(
     return New<TErasureReaderWithOverriddenThrottlers>(
         underlyingErasureReader,
         std::move(bandwidthThrottler),
-        std::move(rpsThrottler));
+        std::move(rpsThrottler),
+        std::move(mediumThrottler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

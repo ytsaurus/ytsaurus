@@ -1284,6 +1284,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hydra/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hydra/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hydra/peer_channel.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hydra/peer_discovery.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/incumbent_client/incumbent_descriptor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/incumbent_client/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.cpp

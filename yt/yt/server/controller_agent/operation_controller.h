@@ -231,7 +231,7 @@ struct IOperationControllerHost
 
     virtual TJobProfiler* GetJobProfiler() const = 0;
 
-    virtual int GetOnlineExecNodeCount() = 0;
+    virtual int GetAvailableExecNodeCount() = 0;
     virtual TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter, bool onlineOnly = false) = 0;
     virtual TJobResources GetMaxAvailableResources(const NScheduler::TSchedulingTagFilter& filter) = 0;
     virtual TInstant GetConnectionTime() = 0;

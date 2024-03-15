@@ -2044,8 +2044,16 @@ void TNontemplateCompositeCypressNodeProxyBase::ListSystemAttributes(std::vector
         .SetPresent(hasInheritableAttributes && node->HasPrimaryMediumIndex())
         .SetWritable(true)
         .SetRemovable(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkPrimaryMedium)
+        .SetPresent(hasInheritableAttributes && node->HasHunkPrimaryMediumIndex())
+        .SetWritable(true)
+        .SetRemovable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Media)
         .SetPresent(hasInheritableAttributes && node->HasMedia())
+        .SetWritable(true)
+        .SetRemovable(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkMedia)
+        .SetPresent(hasInheritableAttributes && node->HasHunkMedia())
         .SetWritable(true)
         .SetRemovable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCellBundle)
@@ -2094,6 +2102,18 @@ bool TNontemplateCompositeCypressNodeProxyBase::GetBuiltinAttribute(TInternedAtt
             return true;
         }
 
+        case EInternedAttributeKey::HunkPrimaryMedium: {
+            auto optionalPrimaryMediumIndex = node->TryGetHunkPrimaryMediumIndex();
+            if (!optionalPrimaryMediumIndex) {
+                break;
+            }
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            auto* medium = chunkManager->GetMediumByIndex(*optionalPrimaryMediumIndex);
+            BuildYsonFluently(consumer)
+                .Value(medium->GetName());
+            return true;
+        }
+
         case EInternedAttributeKey::Media: {
             auto optionalMedia = node->TryGetMedia();
             if (!optionalMedia) {
@@ -2102,6 +2122,17 @@ bool TNontemplateCompositeCypressNodeProxyBase::GetBuiltinAttribute(TInternedAtt
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             BuildYsonFluently(consumer)
                 .Value(TSerializableChunkReplication(*optionalMedia, chunkManager));
+            return true;
+        }
+
+        case EInternedAttributeKey::HunkMedia: {
+            auto optionalHunkMedia = node->TryGetHunkMedia();
+            if (!optionalHunkMedia) {
+                break;
+            }
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            BuildYsonFluently(consumer)
+                .Value(TSerializableChunkReplication(*optionalHunkMedia, chunkManager));
             return true;
         }
 
@@ -2157,9 +2188,21 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
             return true;
         }
 
+        case EInternedAttributeKey::HunkPrimaryMedium: {
+            auto primaryMediumName = ConvertTo<TString>(value);
+            SetHunkPrimaryMedium(primaryMediumName);
+            return true;
+        }
+
         case EInternedAttributeKey::Media: {
             auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
             SetMedia(serializableReplication);
+            return true;
+        }
+
+        case EInternedAttributeKey::HunkMedia: {
+            auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
+            SetHunkMedia(serializableReplication);
             return true;
         }
 
@@ -2249,28 +2292,28 @@ void TNontemplateCompositeCypressNodeProxyBase::SetReplicationFactor(int replica
     node->SetReplicationFactor(replicationFactor);
 }
 
-void TNontemplateCompositeCypressNodeProxyBase::SetPrimaryMedium(const TString& primaryMediumName)
+std::optional<int> TNontemplateCompositeCypressNodeProxyBase::DoSetPrimaryMedium(TCompositeNodeBase* node,
+    const std::optional<NChunkServer::TChunkReplication>& replication,
+    const TString& primaryMediumName,
+    std::optional<int> oldPrimaryMediumIndex,
+    TChunkReplication& newReplication)
 {
     ValidateNoTransaction();
 
-    auto* node = GetThisImpl<TCompositeNodeBase>();
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
     auto* medium = chunkManager->GetMediumByNameOrThrow(primaryMediumName);
     const auto mediumIndex = medium->GetIndex();
-    const auto replication = node->TryGetMedia();
 
     if (!replication) {
         ValidatePermission(medium, EPermission::Use);
-        node->SetPrimaryMediumIndex(mediumIndex);
-        return;
+        return mediumIndex;
     }
 
-    TChunkReplication newReplication;
     if (ValidatePrimaryMediumChange(
             medium,
             *replication,
-            node->TryGetPrimaryMediumIndex(), // may be null
+            oldPrimaryMediumIndex, // may be null
             &newReplication))
     {
         const auto replicationFactor = node->TryGetReplicationFactor();
@@ -2279,19 +2322,44 @@ void TNontemplateCompositeCypressNodeProxyBase::SetPrimaryMedium(const TString& 
         {
             ThrowReplicationFactorMismatch(mediumIndex);
         }
-
-        node->SetMedia(newReplication);
-        node->SetPrimaryMediumIndex(mediumIndex);
+        return mediumIndex;
     } // else no change is required
+    return std::nullopt;
 }
 
-void TNontemplateCompositeCypressNodeProxyBase::SetMedia(TSerializableChunkReplication serializableReplication)
+
+void TNontemplateCompositeCypressNodeProxyBase::SetPrimaryMedium(const TString& primaryMediumName)
 {
+    auto* node = GetThisImpl<TCompositeNodeBase>();
+    TChunkReplication newReplication;
+    auto replication = node->TryGetMedia();
+    auto mediumIndex = DoSetPrimaryMedium(node, replication, primaryMediumName, node->TryGetPrimaryMediumIndex(), newReplication);
+    if (mediumIndex) {
+        node->SetPrimaryMediumIndex(*mediumIndex);
+        if (replication) {
+            node->SetMedia(newReplication);
+        }
+    }
+}
+
+void TNontemplateCompositeCypressNodeProxyBase::SetHunkPrimaryMedium(const TString& hunkPrimaryMediumName) {
+    auto* node = GetThisImpl<TCompositeNodeBase>();
+    TChunkReplication newReplication;
+    auto replication = node->TryGetHunkMedia();
+    auto mediumIndex = DoSetPrimaryMedium(node, replication, hunkPrimaryMediumName, node->TryGetPrimaryMediumIndex(), newReplication);
+    if (mediumIndex) {
+        node->SetHunkPrimaryMediumIndex(*mediumIndex);
+        if (replication) {
+            node->SetHunkMedia(newReplication);
+        }
+    }
+}
+
+std::optional<NChunkServer::TChunkReplication> TNontemplateCompositeCypressNodeProxyBase::DoSetMedia(NChunkServer::TSerializableChunkReplication serializableReplication) {
     ValidateNoTransaction();
 
     auto* node = GetThisImpl<TCompositeNodeBase>();
     const auto& chunkManager = Bootstrap_->GetChunkManager();
-
 
     TChunkReplication replication;
     // Vitality isn't a part of TSerializableChunkReplication, assume true.
@@ -2301,9 +2369,19 @@ void TNontemplateCompositeCypressNodeProxyBase::SetMedia(TSerializableChunkRepli
     const auto oldReplication = node->TryGetMedia();
 
     if (replication == oldReplication) {
+        return std::nullopt;
+    }
+    return replication;
+}
+
+void TNontemplateCompositeCypressNodeProxyBase::SetMedia(TSerializableChunkReplication serializableReplication)
+{
+    auto optionalReplication = DoSetMedia(serializableReplication);
+    if (!optionalReplication) {
         return;
     }
-
+    auto replication = *optionalReplication;
+    auto* node = GetThisImpl<TCompositeNodeBase>();
     const auto primaryMediumIndex = node->TryGetPrimaryMediumIndex();
     const auto replicationFactor = node->TryGetReplicationFactor();
     if (primaryMediumIndex && replicationFactor) {
@@ -2314,8 +2392,19 @@ void TNontemplateCompositeCypressNodeProxyBase::SetMedia(TSerializableChunkRepli
 
     // NB: primary medium index may be null, in which case corresponding
     // parts of validation will be skipped.
-    ValidateMediaChange(oldReplication, primaryMediumIndex, replication);
+    ValidateMediaChange(node->TryGetMedia(), primaryMediumIndex, replication);
     node->SetMedia(replication);
+}
+
+void TNontemplateCompositeCypressNodeProxyBase::SetHunkMedia(TSerializableChunkReplication serializableReplication)
+{
+    auto optionalReplication = DoSetMedia(serializableReplication);
+    if (!optionalReplication) {
+        return;
+    }
+    auto replication = *optionalReplication;
+    auto* node = GetThisImpl<TCompositeNodeBase>();
+    node->SetHunkMedia(replication);
 }
 
 void TNontemplateCompositeCypressNodeProxyBase::ThrowReplicationFactorMismatch(int mediumIndex) const
@@ -2349,9 +2438,19 @@ bool TNontemplateCompositeCypressNodeProxyBase::RemoveBuiltinAttribute(TInterned
             node->RemoveMedia();
             return true;
 
+        case EInternedAttributeKey::HunkMedia:
+            ValidateNoTransaction();
+            node->RemoveHunkMedia();
+            return true;
+
         case EInternedAttributeKey::PrimaryMedium:
             ValidateNoTransaction();
             node->RemovePrimaryMediumIndex();
+            return true;
+
+        case EInternedAttributeKey::HunkPrimaryMedium:
+            ValidateNoTransaction();
+            node->RemoveHunkPrimaryMediumIndex();
             return true;
 
         case EInternedAttributeKey::TabletCellBundle: {
@@ -2431,8 +2530,27 @@ TYsonString TInheritedAttributeDictionary::FindYson(TStringBuf key) const
         return ConvertToYsonString(medium->GetName());
     }
 
+    if (key == "hunk_primary_medium") {
+        auto optionalHunkPrimaryMediumIndex = InheritedAttributes_.HunkPrimaryMediumIndex.ToOptional();
+        if (!optionalHunkPrimaryMediumIndex) {
+            return {};
+        }
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto* medium = chunkManager->GetMediumByIndex(*optionalHunkPrimaryMediumIndex);
+        return ConvertToYsonString(medium->GetName());
+    }
+
     if (key == "media") {
         auto optionalReplication = InheritedAttributes_.Media.ToOptional();
+        if (!optionalReplication) {
+            return {};
+        }
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        return ConvertToYsonString(TSerializableChunkReplication(*optionalReplication, chunkManager));
+    }
+
+    if (key == "hunk_media") {
+        auto optionalReplication = InheritedAttributes_.HunkMedia.ToOptional();
         if (!optionalReplication) {
             return {};
         }
@@ -2488,6 +2606,14 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
         return;
     }
 
+    if (key == "hunk_primary_medium") {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& mediumName = ConvertTo<TString>(value);
+        auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
+        InheritedAttributes_.HunkPrimaryMediumIndex.Set(medium->GetIndex());
+        return;
+    }
+
     if (key == "media") {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
@@ -2495,6 +2621,16 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
         replication.SetVital(true);
         serializableReplication.ToChunkReplication(&replication, chunkManager);
         InheritedAttributes_.Media.Set(replication);
+        return;
+    }
+
+    if (key == "hunk_media") {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
+        TChunkReplication replication;
+        replication.SetVital(true);
+        serializableReplication.ToChunkReplication(&replication, chunkManager);
+        InheritedAttributes_.HunkMedia.Set(replication);
         return;
     }
 

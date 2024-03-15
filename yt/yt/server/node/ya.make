@@ -56,6 +56,7 @@ SRCS(
     data_node/table_schema_cache.cpp
     data_node/ytree_integration.cpp
 
+    exec_node/allocation.cpp
     exec_node/bootstrap.cpp
     exec_node/controller_agent_connector.cpp
     exec_node/chunk_cache.cpp

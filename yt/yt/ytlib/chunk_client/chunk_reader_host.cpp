@@ -17,6 +17,7 @@ TChunkReaderHost::TChunkReaderHost(
     NNodeTrackerClient::INodeStatusDirectoryPtr nodeStatusDirectory,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
     NConcurrency::IThroughputThrottlerPtr rpsThrottler,
+    NConcurrency::IThroughputThrottlerPtr mediumThrottler,
     TTrafficMeterPtr trafficMeter)
     : Client(std::move(client))
     , LocalDescriptor(std::move(localDescriptor))
@@ -25,13 +26,15 @@ TChunkReaderHost::TChunkReaderHost(
     , NodeStatusDirectory(std::move(nodeStatusDirectory))
     , BandwidthThrottler(std::move(bandwidthThrottler))
     , RpsThrottler(std::move(rpsThrottler))
+    , MediumThrottler(std::move(mediumThrottler))
     , TrafficMeter(std::move(trafficMeter))
 { }
 
 TChunkReaderHostPtr TChunkReaderHost::FromClient(
     NApi::NNative::IClientPtr client,
     IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler)
+    IThroughputThrottlerPtr rpsThrottler,
+    NConcurrency::IThroughputThrottlerPtr mediumThrottler)
 {
     const auto& connection = client->GetNativeConnection();
     return New<TChunkReaderHost>(
@@ -42,6 +45,7 @@ TChunkReaderHostPtr TChunkReaderHost::FromClient(
         /*nodeStatusDirectory*/ nullptr,
         bandwidthThrottler,
         rpsThrottler,
+        mediumThrottler,
         /*trafficMeter*/ nullptr);
 }
 

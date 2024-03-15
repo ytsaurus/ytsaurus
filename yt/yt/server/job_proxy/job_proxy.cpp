@@ -1331,6 +1331,7 @@ TChunkReaderHostPtr TJobProxy::GetChunkReaderHost() const
         /*nodeStatusDirectory*/ nullptr,
         GetInBandwidthThrottler(),
         GetOutRpsThrottler(),
+        /*mediumThrottler*/ GetUnlimitedThrottler(),
         GetTrafficMeter());
 }
 

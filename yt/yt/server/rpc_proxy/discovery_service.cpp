@@ -275,21 +275,36 @@ private:
     void OnPeriodicEvent(void (TDiscoveryService::*action)())
     {
         TDuration backoffDuration;
+        auto setBackoff = [&] (const std::exception& ex) {
+            backoffDuration = Min(
+                backoffDuration + RandomDuration(Max(backoffDuration, Config_->DiscoveryService->LivenessUpdatePeriod)),
+                Config_->DiscoveryService->BackoffPeriod);
+            YT_LOG_WARNING(ex, "Failed to perform update, backing off (Duration: %v)", backoffDuration);
+        };
+
+        auto setUnavaliable = [&] {
+            if (!IsAvailable() && ProxyCoordinator_->SetAvailableState(false)) {
+                Initialized_ = false;
+                YT_LOG_WARNING("Connectivity lost");
+            }
+        };
+
         while (true) {
             try {
                 (this->*action)();
                 return;
-            } catch (const std::exception& ex) {
-                backoffDuration = Min(
-                    backoffDuration + RandomDuration(Max(backoffDuration, Config_->DiscoveryService->LivenessUpdatePeriod)),
-                    Config_->DiscoveryService->BackoffPeriod);
-                YT_LOG_WARNING(ex, "Failed to perform update, backing off (Duration: %v)", backoffDuration);
-                if (!IsAvailable() && ProxyCoordinator_->SetAvailableState(false)) {
-                    Initialized_ = false;
-                    YT_LOG_WARNING("Connectivity lost");
+            } catch (const TErrorException& ex) {
+                setBackoff(ex);
+                if (ex.Error().FindMatching(NHydra::EErrorCode::ReadOnly)) {
+                    YT_LOG_WARNING("Master is in read-only mode");
+                } else {
+                    setUnavaliable();
                 }
-                TDelayedExecutor::WaitForDuration(backoffDuration);
+            } catch (const std::exception& ex) {
+                setBackoff(ex);
+                setUnavaliable();
             }
+            TDelayedExecutor::WaitForDuration(backoffDuration);
         }
     }
 

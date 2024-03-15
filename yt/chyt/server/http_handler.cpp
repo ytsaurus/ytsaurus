@@ -62,6 +62,8 @@ public:
         , Server_(server)
     {
         TraceContext_ = SetupTraceContext(ClickHouseYtLogger, request);
+        TraceContext_->AddTag("chyt.instance_cookie", Host_->GetInstanceCookie());
+        TraceContext_->AddTag("chyt.instance_address", Host_->GetConfig()->Address);
 
         // By default, trace id coincides with query id. It makes significantly easier to
         // debug singular queries like those which are issued via YQL.

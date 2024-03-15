@@ -238,6 +238,8 @@
     XX(HunkChunkWriter, hunk_chunk_writer) \
     XX(HunkCount, hunk_count) \
     XX(HunkErasureCodec, hunk_erasure_codec) \
+    XX(HunkMedia, hunk_media) \
+    XX(HunkPrimaryMedium, hunk_primary_medium) \
     XX(HunkStatistics, hunk_statistics) \
     XX(HunkStoreWriter, hunk_store_writer) \
     XX(HunkStorageNode, hunk_storage_node) \

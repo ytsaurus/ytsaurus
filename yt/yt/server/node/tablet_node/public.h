@@ -33,6 +33,7 @@ DEFINE_ENUM(ETabletDistributedThrottlerKind,
     // Disk IO.
     (ChangelogMediumWrite)
     (BlobMediumWrite)
+    (BlobMediumRead)
 );
 
 DEFINE_ENUM(EHunkCompactionReason,

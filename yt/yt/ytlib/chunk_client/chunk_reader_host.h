@@ -23,6 +23,7 @@ struct TChunkReaderHost
         NNodeTrackerClient::INodeStatusDirectoryPtr nodeStatusDirectory,
         NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
         NConcurrency::IThroughputThrottlerPtr rpsThrottler,
+        NConcurrency::IThroughputThrottlerPtr mediumThrottler,
         TTrafficMeterPtr trafficMeter);
 
     const NApi::NNative::IClientPtr Client;
@@ -36,13 +37,15 @@ struct TChunkReaderHost
 
     const NConcurrency::IThroughputThrottlerPtr BandwidthThrottler;
     const NConcurrency::IThroughputThrottlerPtr RpsThrottler;
+    const NConcurrency::IThroughputThrottlerPtr MediumThrottler;
 
     const TTrafficMeterPtr TrafficMeter;
 
     static TChunkReaderHostPtr FromClient(
         NApi::NNative::IClientPtr client,
         NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
-        NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
+        NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler(),
+        NConcurrency::IThroughputThrottlerPtr mediumThrottler = NConcurrency::GetUnlimitedThrottler());
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderHost)

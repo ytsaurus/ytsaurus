@@ -141,15 +141,15 @@ public:
             BIND(&TTableManager::SaveValues, Unretained(this)));
 
         // COMPAT(shakurov, gritukan)
-        RegisterMethod(BIND(&TTableManager::HydraSendTableStatisticsUpdates, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqSendTableStatisticsUpdates"});
-        RegisterMethod(BIND(&TTableManager::HydraUpdateTableStatistics, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqUpdateTableStatistics"});
-        RegisterMethod(BIND(&TTableManager::HydraConfirmTableStatisticsUpdate, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqNotifyContentRevisionCasFailed"});
+        RegisterMethod(BIND_NO_PROPAGATE(&TTableManager::HydraSendTableStatisticsUpdates, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqSendTableStatisticsUpdates"});
+        RegisterMethod(BIND_NO_PROPAGATE(&TTableManager::HydraUpdateTableStatistics, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqUpdateTableStatistics"});
+        RegisterMethod(BIND_NO_PROPAGATE(&TTableManager::HydraConfirmTableStatisticsUpdate, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqNotifyContentRevisionCasFailed"});
 
-        RegisterMethod(BIND(&TTableManager::HydraImportMasterTableSchema, Unretained(this)));
-        RegisterMethod(BIND(&TTableManager::HydraUnimportMasterTableSchema, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTableManager::HydraImportMasterTableSchema, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTableManager::HydraUnimportMasterTableSchema, Unretained(this)));
 
         // COMPAT(h0pless): RefactorSchemaExport
-        RegisterMethod(BIND(&TTableManager::HydraTakeArtificialRef, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTableManager::HydraTakeArtificialRef, Unretained(this)));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TMasterTableSchemaTypeHandler>(this));
@@ -167,9 +167,8 @@ public:
     void Initialize() override
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TTableManager::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TTableManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
-
 
     void ScheduleStatisticsUpdate(
         TChunkOwnerBase* chunkOwner,

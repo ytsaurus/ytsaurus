@@ -32,7 +32,9 @@ class TChunkOwnerBase
 public:
     DEFINE_BYVAL_RW_PROPERTY(NChunkClient::EUpdateMode, UpdateMode, NChunkClient::EUpdateMode::None);
     DEFINE_BYREF_RW_PROPERTY(TChunkReplication, Replication);
+    DEFINE_BYREF_RW_PROPERTY(TChunkReplication, HunkReplication);
     DEFINE_BYVAL_RW_PROPERTY(int, PrimaryMediumIndex, NChunkClient::DefaultStoreMediumIndex);
+    DEFINE_BYVAL_RW_PROPERTY(int, HunkPrimaryMediumIndex, NChunkClient::DefaultStoreMediumIndex);
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TDataStatistics, SnapshotStatistics);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TInternedSecurityTags, SnapshotSecurityTags);
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TDataStatistics, DeltaStatistics);

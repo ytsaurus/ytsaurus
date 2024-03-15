@@ -8,6 +8,7 @@
 #include "tablet.h"
 #include "tablet_profiling.h"
 #include "hunk_chunk.h"
+#include "tablet_snapshot_store.h"
 #include "versioned_chunk_meta_manager.h"
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
@@ -173,6 +174,7 @@ public:
                 std::move(nodeStatusDirectory),
                 /*bandwidthThrottler*/ GetUnlimitedThrottler(),
                 /*rpsThrottler*/ GetUnlimitedThrottler(),
+                /*mediumThrottler*/ GetUnlimitedThrottler(),
                 /*trafficMeter*/ nullptr);
 
             // NB: Bandwidth throttler will be set in createRemoteReaderAdapter.
@@ -187,6 +189,19 @@ public:
             YT_LOG_DEBUG("Remote chunk reader created and cached");
         };
 
+        auto getBlobMediumReadThrottler = [&] () -> IThroughputThrottlerPtr {
+            const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+            auto tabletSnapshot = snapshotStore->FindLatestTabletSnapshot(owner->GetTabletId());
+            if (!tabletSnapshot) {
+                YT_LOG_WARNING("Cannot get medium throttler for the tablet (TabletId: %v)",
+                    owner->GetTabletId());
+                return GetUnlimitedThrottler();
+            }
+
+            const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+            return GetBlobMediumReadThrottler(dynamicConfigManager, tabletSnapshot);
+        };
+
         auto createRemoteReaderAdapter = [&] {
             auto bandwidthThrottler = workloadCategory
                 ? Bootstrap_->GetInThrottler(*workloadCategory)
@@ -197,7 +212,8 @@ public:
                 owner->GetChunkId(),
                 ChunkReader_,
                 std::move(bandwidthThrottler),
-                /*rpsThrottler*/ GetUnlimitedThrottler());
+                /*rpsThrottler*/ GetUnlimitedThrottler(),
+                getBlobMediumReadThrottler());
             backendReaders.OffloadingReader = dynamic_cast<IOffloadingReader*>(backendReaders.ChunkReader.Get());
             backendReaders.ReaderConfig = ReaderConfig_;
 
@@ -527,6 +543,11 @@ void TStoreBase::UpdateTabletDynamicMemoryUsage(i64 multiplier)
 const NLogging::TLogger& TStoreBase::GetLogger() const
 {
     return Logger;
+}
+
+TTabletId TStoreBase::GetTabletId() const
+{
+    return TabletId_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

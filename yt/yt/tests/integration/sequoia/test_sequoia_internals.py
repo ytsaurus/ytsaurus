@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, create, ls, get, remove, build_master_snapshots, raises_yt_error,
-    exists, set, copy, move, write_table, read_table,
+    exists, set, copy, move, write_table, read_table, create_user
 )
 
 from yt_sequoia_helpers import (
@@ -118,6 +118,22 @@ class TestSequoiaInternals(YTEnvSetup):
 
         remove("//tmp/m1")
         assert ls("//tmp") == []
+
+    @authors("cherepashka")
+    def test_user(self):
+        create_user("u")
+        create("map_node", "//tmp/m1", authenticated_user="u")
+        assert get("//tmp/m1/@owner") == "u"
+        copy("//tmp/m1", "//tmp/m2", authenticated_user="u")
+        assert get("//tmp/m2/@owner") == "u"
+        move("//tmp/m2", "//tmp/m3", authenticated_user="u")
+        assert get("//tmp/m3/@owner") == "u"
+
+        assert ls("//tmp/m1", authenticated_user="u") == []
+        set("//tmp/m", {"s": "u", "b": "tree"}, authenticated_user="u")
+        assert get("//tmp/m", authenticated_user="u") == {"s": "u", "b": "tree"}
+
+        remove("//tmp/m1", authenticated_user="u")
 
     @authors("danilalexeev")
     def test_list(self):

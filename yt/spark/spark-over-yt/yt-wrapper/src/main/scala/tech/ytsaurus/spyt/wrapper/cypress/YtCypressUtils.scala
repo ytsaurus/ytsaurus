@@ -11,6 +11,7 @@ import tech.ytsaurus.core.cypress.{CypressNodeType, YPath}
 import tech.ytsaurus.core.request.LockMode
 import tech.ytsaurus.ysontree.{YTree, YTreeNode}
 
+import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.util.control.NonFatal
 
@@ -19,17 +20,18 @@ trait YtCypressUtils {
 
   private val log = LoggerFactory.getLogger(getClass)
 
-  def formatPath(path: String): String = {
+  @tailrec
+  final def formatPath(path: String): String = {
     log.debugLazy(s"Formatting path $path")
     if (!path.startsWith("/")) {
       if (path.contains(":/")) {
-        formatPath('/' + path.split(":", 2).last.dropWhile(_ == '/'))
+        formatPath(path.split(":", 2).last)
       } else {
         throw new IllegalArgumentException(s"Relative paths are not allowed: $path")
       }
+    } else {
+      "//" + path.dropWhile(_ == '/')
     }
-    else if (path.startsWith("//")) path
-    else "/" + path
   }
 
   def escape(s: String): String = s.replaceAll("([\\\\/@&*\\[{])", "\\\\$1")

@@ -1193,6 +1193,9 @@ public:
 
     NRpc::TServerDynamicConfigPtr RpcServer;
 
+    //! How many initial successive job aborts are needed to fail operation.
+    THashMap<EAbortReason, int> MaxJobAbortsUntilOperationFailure;
+
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
 
     static void Register(TRegistrar registrar);

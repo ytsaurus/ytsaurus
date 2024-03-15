@@ -1177,7 +1177,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         resource_limits_path = "//sys/cluster_nodes/{}/@resource_limits".format(node)
         wait(lambda: get(resource_limits_path)["user_slots"] == 0)
 
-        wait(lambda: op.get_state() == "failed")
+        op.abort()
 
     @pytest.mark.timeout(180)
     def test_gpu_check_missing(self):

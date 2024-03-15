@@ -23,7 +23,7 @@ public:
     TString ValidatorsDir() const { return Dir_ + "/validators"; }
     TString IntervalsDir(int shard) const;
 
-    TString TablePath(const TString& tableName) const;
+    TString TablePath(const TString& tableName, int retryAttempt) const;
 
     TString CreateIntervalPath(const TString& name, int index, int retryAttempt);
 

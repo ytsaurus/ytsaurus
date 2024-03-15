@@ -1213,7 +1213,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return IYPathService::FromProducer(BIND([this](NYson::IYsonConsumer* consumer) {
+        return IYPathService::FromProducer(BIND([this] (NYson::IYsonConsumer* consumer) {
             BuildYsonFluently(consumer)
                 .Value(GetSecondaryMasterConnectionConfigs());
         }))->Via(GetControlInvoker());
@@ -1475,7 +1475,8 @@ private:
         }
     }
 
-    void InitProxyingChunkService(const NApi::NNative::TMasterConnectionConfigPtr& config) {
+    void InitProxyingChunkService(const NApi::NNative::TMasterConnectionConfigPtr& config)
+    {
         auto service = CreateProxyingChunkService(
             config->CellId,
             Config_->ProxyingChunkService,
@@ -1524,7 +1525,7 @@ private:
             }
         }
 
-        YT_LOG_DEBUG(
+        YT_LOG_INFO(
             "Received new master cell cluster configuration (ReconfiguredCellTags: %v)",
             reconfiguredCellTags);
     }

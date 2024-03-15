@@ -246,7 +246,11 @@ void TCypressNode::CheckInvariants(TBootstrap* bootstrap) const
     if (IsSequoia() && IsNative()) {
         YT_VERIFY(MutableSequoiaProperties() && ImmutableSequoiaProperties());
     } else {
-        YT_VERIFY(!MutableSequoiaProperties() && !ImmutableSequoiaProperties());
+        // TODO(aleksandra-zh)
+        if (GetType() != EObjectType::Link) {
+            YT_VERIFY(!ImmutableSequoiaProperties());
+        }
+        YT_VERIFY(!MutableSequoiaProperties());
     }
 }
 

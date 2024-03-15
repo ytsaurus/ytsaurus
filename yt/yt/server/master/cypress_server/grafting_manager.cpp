@@ -67,7 +67,7 @@ public:
             "GraftingManager.Values",
             BIND(&TGraftingManager::SaveValues, Unretained(this)));
 
-        RegisterMethod(BIND(&TGraftingManager::HydraCreateScion, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TGraftingManager::HydraCreateScion, Unretained(this)));
     }
 
     void Initialize() override

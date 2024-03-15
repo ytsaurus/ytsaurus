@@ -326,9 +326,7 @@ TCellProxyBase::TResolveResult TCellProxyBase::Resolve(const TYPath& path, const
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
 
-    if (tokenizer.GetType() == NYPath::ETokenType::Ampersand) {
-        return TBase::ResolveSelf(TYPath(tokenizer.GetSuffix()), context);
-    }
+    tokenizer.Skip(NYPath::ETokenType::Ampersand);
 
     if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
         return ResolveSelf(TYPath(tokenizer.GetSuffix()), context);

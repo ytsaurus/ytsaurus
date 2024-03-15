@@ -16,7 +16,7 @@
 #include "helpers.h"
 #include "data_node_tracker.h"
 #include "chunk_manager.h"
-#include "refresh_epoch.h"
+#include "incumbency_epoch.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
@@ -374,7 +374,7 @@ TChunkReplicator::TChunkReplicator(
 
     std::fill(JobEpochs_.begin(), JobEpochs_.end(), InvalidJobEpoch);
     for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
-        SetRefreshEpoch(shardIndex, InvalidRefreshEpoch);
+        SetIncumbencyEpoch(shardIndex, InvalidIncumbencyEpoch);
     }
 
     LocationShards_.reserve(TypicalChunkLocationCount * ChunkShardCount);
@@ -482,6 +482,17 @@ void TChunkReplicator::OnIncumbencyStarted(int shardIndex)
 
     StartRefreshes(shardIndex);
     StartRequisitionUpdates(shardIndex);
+
+    auto& jobEpoch = JobEpochs_[shardIndex];
+    YT_VERIFY(jobEpoch == InvalidJobEpoch);
+    jobEpoch = JobRegistry_->StartEpoch();
+    SetIncumbencyEpoch(shardIndex, jobEpoch);
+
+    LastActiveShardSetUpdateTime_ = TInstant::Now();
+
+    YT_LOG_INFO("Incumbency started (ShardIndex: %v, JobEpoch: %v)",
+        shardIndex,
+        jobEpoch);
 }
 
 void TChunkReplicator::OnIncumbencyFinished(int shardIndex)
@@ -490,6 +501,18 @@ void TChunkReplicator::OnIncumbencyFinished(int shardIndex)
 
     StopRefreshes(shardIndex);
     StopRequisitionUpdates(shardIndex);
+
+    auto& jobEpoch = JobEpochs_[shardIndex];
+    YT_VERIFY(jobEpoch != InvalidJobEpoch);
+    JobRegistry_->OnEpochFinished(jobEpoch);
+    auto previousJobEpoch = std::exchange(jobEpoch, InvalidJobEpoch);
+    SetIncumbencyEpoch(shardIndex, jobEpoch);
+
+    LastActiveShardSetUpdateTime_ = TInstant::Now();
+
+    YT_LOG_INFO("Incumbency finished (ShardIndex: %v, JobEpoch: %v)",
+        shardIndex,
+        previousJobEpoch);
 }
 
 void TChunkReplicator::TouchChunk(TChunk* chunk)
@@ -3392,7 +3415,11 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
         // Examine owners, if any.
         for (const auto* owningNode : chunkList->TrunkOwningNodes()) {
             if (auto* account = owningNode->Account().Get()) {
-                requisition.AggregateWith(owningNode->Replication(), account, true);
+                if (owningNode->GetHunkChunkList() == chunkList) {
+                    requisition.AggregateWith(owningNode->HunkReplication(), account, true);
+                } else {
+                    requisition.AggregateWith(owningNode->Replication(), account, true);
+                }
             }
 
             found = true;
@@ -3705,16 +3732,8 @@ void TChunkReplicator::StartRefreshes(int shardIndex)
     BlobRefreshScanner_->Start(chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
     JournalRefreshScanner_->Start(chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
 
-    auto& jobEpoch = JobEpochs_[shardIndex];
-    YT_VERIFY(jobEpoch == InvalidJobEpoch);
-    jobEpoch = JobRegistry_->StartEpoch();
-    SetRefreshEpoch(shardIndex, jobEpoch);
-
-    LastActiveShardSetUpdateTime_ = TInstant::Now();
-
-    YT_LOG_INFO("Chunk refreshes started (ShardIndex: %v, JobEpoch: %v)",
-        shardIndex,
-        jobEpoch);
+    YT_LOG_INFO("Chunk refreshes started (ShardIndex: %v)",
+        shardIndex);
 }
 
 void TChunkReplicator::StopRefreshes(int shardIndex)
@@ -3756,17 +3775,8 @@ void TChunkReplicator::StopRefreshes(int shardIndex)
     }
     OldestPartMissingChunks_ = std::move(newOldestPartMissingChunks);
 
-    auto& jobEpoch = JobEpochs_[shardIndex];
-    YT_VERIFY(jobEpoch != InvalidJobEpoch);
-    JobRegistry_->OnEpochFinished(jobEpoch);
-    auto previousJobEpoch = std::exchange(jobEpoch, InvalidJobEpoch);
-    SetRefreshEpoch(shardIndex, jobEpoch);
-
-    LastActiveShardSetUpdateTime_ = TInstant::Now();
-
-    YT_LOG_INFO("Chunk refreshes stopped (ShardIndex: %v, JobEpoch: %v)",
-        shardIndex,
-        previousJobEpoch);
+    YT_LOG_INFO("Chunk refreshes stopped (ShardIndex: %v)",
+        shardIndex);
 }
 
 void TChunkReplicator::StartRequisitionUpdates(int shardIndex)

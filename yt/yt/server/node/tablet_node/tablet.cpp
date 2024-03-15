@@ -2,6 +2,7 @@
 
 #include "automaton.h"
 #include "compression_dictionary_manager.h"
+#include "bootstrap.h"
 #include "distributed_throttler_manager.h"
 #include "partition.h"
 #include "sorted_chunk_store.h"
@@ -9,6 +10,7 @@
 #include "store_manager.h"
 #include "structured_logger.h"
 #include "tablet_manager.h"
+#include "tablet_snapshot_store.h"
 #include "tablet_slot.h"
 #include "tablet_profiling.h"
 #include "transaction_manager.h"
@@ -2186,9 +2188,12 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
         slot->GetChangelogMediumWriteThrottler();
     DistributedThrottlers_[ETabletDistributedThrottlerKind::BlobMediumWrite] =
         slot->GetMediumWriteThrottler(Settings_.StoreWriterOptions->MediumName);
+    DistributedThrottlers_[ETabletDistributedThrottlerKind::BlobMediumRead] =
+        slot->GetMediumReadThrottler(Settings_.StoreWriterOptions->MediumName);
 
     YT_VERIFY(DistributedThrottlers_[ETabletDistributedThrottlerKind::ChangelogMediumWrite]);
     YT_VERIFY(DistributedThrottlers_[ETabletDistributedThrottlerKind::BlobMediumWrite]);
+    YT_VERIFY(DistributedThrottlers_[ETabletDistributedThrottlerKind::BlobMediumRead]);
 }
 
 void TTablet::ReconfigureChunkFragmentReader(const ITabletSlotPtr& slot)
@@ -2849,6 +2854,17 @@ IThroughputThrottlerPtr GetBlobMediumWriteThrottler(
     return tabletSnapshot->DistributedThrottlers[ETabletDistributedThrottlerKind::BlobMediumWrite];
 }
 
+IThroughputThrottlerPtr GetBlobMediumReadThrottler(
+    const NClusterNode::TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
+    const TTabletSnapshotPtr& tabletSnapshot)
+{
+    auto mediumThrottlersConfig = dynamicConfigManager->GetConfig()->TabletNode->MediumThrottlers;
+    if (!mediumThrottlersConfig->EnableBlobThrottling) {
+        return GetUnlimitedThrottler();
+    }
+
+    return tabletSnapshot->DistributedThrottlers[ETabletDistributedThrottlerKind::BlobMediumRead];
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

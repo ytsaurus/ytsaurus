@@ -181,9 +181,9 @@ public:
         , Slot_(std::move(slot))
         , Bootstrap_(bootstrap)
     {
-        RegisterMethod(BIND(&TBackupManager::HydraSetBackupCheckpoint, Unretained(this)));
-        RegisterMethod(BIND(&TBackupManager::HydraReleaseBackupCheckpoint, Unretained(this)));
-        RegisterMethod(BIND(&TBackupManager::HydraConfirmBackupCheckpointFeasibility, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TBackupManager::HydraSetBackupCheckpoint, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TBackupManager::HydraReleaseBackupCheckpoint, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TBackupManager::HydraConfirmBackupCheckpointFeasibility, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
@@ -197,7 +197,7 @@ public:
         const auto& configManager = Bootstrap_->GetDynamicConfigManager();
         Config_ = configManager->GetConfig()->TabletNode->BackupManager;
         configManager->SubscribeConfigChanged(
-            BIND(&TBackupManager::OnDynamicConfigChanged, MakeWeak(this))
+            BIND_NO_PROPAGATE(&TBackupManager::OnDynamicConfigChanged, MakeWeak(this))
                 .Via(Slot_->GetAutomatonInvoker()));
     }
 
@@ -205,13 +205,13 @@ public:
     {
         const auto& transactionManager = Slot_->GetTransactionManager();
         transactionManager->SubscribeTransactionBarrierHandled(
-            BIND(&TBackupManager::OnTransactionBarrierHandled, MakeStrong(this)));
+            BIND_NO_PROPAGATE(&TBackupManager::OnTransactionBarrierHandled, MakeStrong(this)));
         transactionManager->SubscribeBeforeTransactionSerialized(
-            BIND(&TBackupManager::OnBeforeTransactionSerialized, MakeStrong(this)));
+            BIND_NO_PROPAGATE(&TBackupManager::OnBeforeTransactionSerialized, MakeStrong(this)));
 
         const auto& tabletManager = Slot_->GetTabletManager();
         tabletManager->SubscribeReplicationTransactionFinished(
-            BIND(&TBackupManager::OnReplicationTransactionFinished, MakeStrong(this)));
+            BIND_NO_PROPAGATE(&TBackupManager::OnReplicationTransactionFinished, MakeStrong(this)));
     }
 
     void ValidateReplicationTransactionCommit(

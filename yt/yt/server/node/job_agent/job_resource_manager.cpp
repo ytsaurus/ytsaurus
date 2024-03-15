@@ -365,26 +365,42 @@ public:
         }
     }
 
-    void OnResourceHolderCreated(const TLogger& Logger, const TJobResources& resources)
+    void OnResourceHolderRegistered(const TLogger& Logger, const TResourceHolder* resourceHolder)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         TJobResources currentResourceUsage;
         TJobResources waitingResources;
 
-        {
-            auto guard = WriterGuard(ResourcesLock_);
-            WaitingResources_ += resources;
-            ++WaitingResourceHolderCount_;
+        if (resourceHolder->State_ == EResourcesState::Waiting) {
+            const auto& resources = resourceHolder->BaseResourceUsage_;
+            {
+                auto guard = WriterGuard(ResourcesLock_);
+                WaitingResources_ += resources;
+                ++WaitingResourceHolderCount_;
 
-            currentResourceUsage = ResourceUsage_;
-            waitingResources = WaitingResources_;
+                currentResourceUsage = ResourceUsage_;
+                waitingResources = WaitingResources_;
+            }
+
+            YT_LOG_DEBUG(
+                "Resource holder registered (Resources: %v, ResourceUsage: %v, WaitingResources: %v)",
+                FormatResources(resources),
+                FormatResources(currentResourceUsage),
+                FormatResources(waitingResources));
+        } else {
+            {
+                auto guard = WriterGuard(ResourcesLock_);
+
+                currentResourceUsage = ResourceUsage_;
+                waitingResources = WaitingResources_;
+            }
+
+            YT_LOG_DEBUG(
+                "Resource holder with resources registered (ResourceUsage: %v, WaitingResources: %v)",
+                FormatResources(currentResourceUsage),
+                FormatResources(waitingResources));
         }
-
-        YT_LOG_DEBUG("Resource holder created, resources waiting (Resources: %v, ResourceUsage: %v, WaitingResources: %v)",
-            FormatResources(resources),
-            FormatResources(currentResourceUsage),
-            FormatResources(waitingResources));
     }
 
     void OnResourcesReserved(const TLogger& Logger, const TJobResources& resources)
@@ -404,7 +420,8 @@ public:
             waitingResources = WaitingResources_;
         }
 
-        YT_LOG_DEBUG("Resources acquired (Resources: %v, ResourceUsage: %v, WaitingResources: %v)",
+        YT_LOG_DEBUG(
+            "Resources acquired (Resources: %v, ResourceUsage: %v, WaitingResources: %v)",
             FormatResources(resources),
             FormatResources(currentResourceUsage),
             FormatResources(waitingResources));
@@ -455,7 +472,8 @@ public:
             UserMemoryUsageTracker_->Release(userMemory);
         }
 
-        YT_LOG_DEBUG("Resources released (ResourceHolderStarted: %v, Delta: %v, ResourceUsage: %v, WaitingResources: %v)",
+        YT_LOG_DEBUG(
+            "Resources released (ResourceHolderStarted: %v, Delta: %v, ResourceUsage: %v, WaitingResources: %v)",
             resourceHolderStarted,
             FormatResources(resources),
             FormatResources(currentResourceUsage),
@@ -501,9 +519,13 @@ public:
             UserMemoryUsageTracker_->Release(-userMemory);
         }
 
-        YT_LOG_DEBUG("Resource usage updated (Delta: %v, ResourceUsage: %v, WaitingResources: %v)",
+        auto resourceLimits = GetResourceLimits();
+
+        YT_LOG_DEBUG(
+            "Resource usage updated (Delta: %v, ResourceUsage: %v, ResourceLimits: %v WaitingResources: %v)",
             FormatResources(resourceDelta),
             FormatResources(currentResourceUsage),
+            FormatResources(resourceLimits),
             FormatResources(waitingResources));
 
         if (!Dominates(resourceDelta, ZeroJobResources())) {
@@ -511,7 +533,10 @@ public:
         }
 
         if (resourceUsageOverdrafted) {
-            YT_LOG_DEBUG("Resource usage overdrafted (ResourceUsage: %v)", FormatResources(currentResourceUsage));
+            YT_LOG_INFO(
+                "Resource usage overdrafted (ResourceUsage: %v, ResourceLimits: %v)",
+                FormatResources(currentResourceUsage),
+                FormatResources(resourceLimits));
 
             ResourceUsageOverdrafted_.Fire(MakeStrong(resourceHolder));
         }
@@ -597,7 +622,8 @@ public:
         cpuRequest.set_cpu(neededResources.Cpu);
         cpuRequest.set_allow_idle_cpu_policy(resourceAttributes.AllowIdleCpuPolicy);
 
-        YT_LOG_INFO("Acquiring slot (DiskRequest: %v, CpuRequest: %v)",
+        YT_LOG_INFO(
+            "Acquiring slot (DiskRequest: %v, CpuRequest: %v)",
             diskRequest,
             cpuRequest);
 
@@ -672,12 +698,13 @@ public:
             waitingResources = WaitingResources_;
         }
 
-        YT_LOG_DEBUG("Resources acquisition failed (Resources: %v, ResourceUsage: %v, WaitingResources: %v)",
+        YT_LOG_DEBUG(
+            "Resources acquisition failed (Resources: %v, ResourceUsage: %v, WaitingResources: %v)",
             FormatResources(resources),
             FormatResources(currentResourceUsage),
             FormatResources(waitingResources));
 
-        NotifyResourcesReleased(resourceHolder->ResourcesConsumerType_, /*fullyReleased*/ true);
+        NotifyResourcesReleased(resourceHolder->ResourcesConsumerType, /*fullyReleased*/ true);
     }
 
     bool AcquireResourcesFor(TResourceHolderPtr resourceHolder)
@@ -697,7 +724,8 @@ public:
 
         auto resourceUsage = GetResourceUsage();
         if (!HasEnoughResources(neededResources, resourceUsage)) {
-            YT_LOG_DEBUG("Not enough resources (NeededResources: %v, ResourceUsage: %v)",
+            YT_LOG_DEBUG(
+                "Not enough resources (NeededResources: %v, ResourceUsage: %v)",
                 FormatResources(neededResources),
                 FormatResourceUsage(resourceUsage, GetResourceLimits()));
             return false;
@@ -831,7 +859,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        YT_LOG_INFO_UNLESS(ports.empty(),
+        YT_LOG_INFO_UNLESS(
+            ports.empty(),
             "Releasing ports (PortCount: %v, Ports: %v)",
             ports.size(),
             ports);
@@ -871,12 +900,12 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        OnResourceHolderCreated(Logger, resourceHolder->BaseResourceUsage_);
+        OnResourceHolderRegistered(Logger, resourceHolder);
 
         EmplaceOrCrash(ResourceHolders_, resourceHolder);
     }
 
-    void RemoveResourceHolder(TResourceHolder* resourceHolder)
+    void UnregisterResourceHolder(TResourceHolder* resourceHolder)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -977,6 +1006,7 @@ private:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         std::vector<TResourceHolder::TResourceHolderInfo> result;
+        result.reserve(std::size(ResourceHolders_));
 
         for (const auto& resourceHolder : ResourceHolders_) {
             result.push_back(resourceHolder->BuildResourceHolderInfo());
@@ -1073,7 +1103,8 @@ private:
         i64 mappedMemory = mappedIt->second;
         auto dynamicConfig = GetDynamicConfig();
 
-        YT_LOG_INFO("Mapped memory usage (Usage: %v, Reserved: %v)",
+        YT_LOG_INFO(
+            "Mapped memory usage (Usage: %v, Reserved: %v)",
             mappedMemory,
             dynamicConfig->MappedMemoryController->ReservedMemory);
 
@@ -1202,37 +1233,62 @@ TResourceHolder::TResourceHolder(
     TJobResourceManager* jobResourceManager,
     EResourcesConsumerType resourceConsumerType,
     TLogger logger,
-    const TJobResources& resources,
-    const TJobResourceAttributes& resourceAttributes,
-    int portCount)
-    : Logger(std::move(logger))
+    const TJobResources& resources)
+    : ResourcesConsumerType(resourceConsumerType)
+    , Logger(std::move(logger))
     , ResourceManagerImpl_(static_cast<TJobResourceManager::TImpl*>(jobResourceManager))
-    , PortCount_(portCount)
     , BaseResourceUsage_(resources)
     , AdditionalResourceUsage_(ZeroJobResources())
-    , ResourceAttributes_(resourceAttributes)
-    , ResourcesConsumerType_(resourceConsumerType)
 {
-    ResourceManagerImpl_->RegisterResourceHolder(Logger, this);
+    Register();
 }
+
+TResourceHolder::TResourceHolder(
+    TJobResourceManager* jobResourceManager,
+    EResourcesConsumerType resourceConsumerType,
+    NLogging::TLogger logger,
+    TResourceHolderPtr owner)
+    : ResourcesConsumerType(resourceConsumerType)
+    , Logger(std::move(logger))
+    , ResourceManagerImpl_(static_cast<TJobResourceManager::TImpl*>(jobResourceManager))
+    , BaseResourceUsage_(ZeroJobResources())
+    , AdditionalResourceUsage_(ZeroJobResources())
+    , Owner_(std::move(owner))
+{ }
 
 TResourceHolder::~TResourceHolder()
 {
-    ResourceManagerImpl_->RemoveResourceHolder(this);
-
     YT_LOG_DEBUG_IF(
         State_ != EResourcesState::Released,
-        "Destruct unreleased resource holder (State: %v, Resources: %v)",
+        "Destroying unreleased resource holder (State: %v, Resources: %v)",
         State_,
         FormatResources(GetResourceUsage()));
+
+    YT_VERIFY(!Owner_ || State_ == EResourcesState::Waiting);
+
     if (State_ != EResourcesState::Released) {
         ReleaseResources();
+    }
+}
+
+void TResourceHolder::Register()
+{
+    YT_VERIFY(!std::exchange(Registered_, true));
+    ResourceManagerImpl_->RegisterResourceHolder(Logger, this);
+}
+
+void TResourceHolder::Unregister()
+{
+    if (std::exchange(Registered_, false)) {
+        ResourceManagerImpl_->UnregisterResourceHolder(this);
     }
 }
 
 void TResourceHolder::SetAcquiredResources(TAcquiredResources&& acquiredResources)
 {
     auto guard = WriterGuard(ResourcesLock_);
+
+    YT_VERIFY(!Owner_);
 
     YT_VERIFY(State_ == EResourcesState::Waiting);
 
@@ -1256,6 +1312,14 @@ void TResourceHolder::ReleaseCumulativeResources()
     usedSlotResources.UserSlots = resources.UserSlots;
     usedSlotResources.Gpu = resources.Gpu;
 
+    auto guard = WriterGuard(ResourcesLock_);
+
+    if (Owner_) {
+        YT_VERIFY(State_ == EResourcesState::Waiting);
+
+        return;
+    }
+
     DoSetResourceUsage(
         usedSlotResources,
         "NewResourceUsage",
@@ -1269,24 +1333,102 @@ void TResourceHolder::ReleaseCumulativeResources()
         });
 }
 
+void TResourceHolder::TransferResourcesTo(TResourceHolder& other)
+{
+    YT_LOG_INFO(
+        "Transfering resources to other resource holder (TargetResourceHolderId: %v)",
+        other.GetIdAsGuid());
+
+    {
+        // Resources may be transferred only once for each holder (from Owner_ or to owned).
+        // Locks are always acquired in order from owned to owner.
+        auto otherLockGuard = WriterGuard(other.ResourcesLock_);
+
+        auto guard = Finally([&] {
+            other.Owner_.Reset();
+        });
+
+        if (other.State_ == EResourcesState::Released) {
+            otherLockGuard.Release();
+
+            YT_LOG_DEBUG("Target resource holder has released resources; releasing resources instead of transferring");
+
+            ReleaseResources();
+
+            return;
+        }
+
+        auto selfLockGuard = WriterGuard(ResourcesLock_);
+
+        if (State_ == EResourcesState::Waiting) {
+            selfLockGuard.Release();
+            otherLockGuard.Release();
+
+            YT_LOG_DEBUG("Resources was not acquired yet; skipping transferring");
+
+            ReleaseResources();
+
+            return;
+        }
+
+        YT_VERIFY(other.ResourcesConsumerType == ResourcesConsumerType);
+
+        YT_VERIFY(std::exchange(other.State_, EResourcesState::Acquired) == EResourcesState::Waiting);
+        YT_VERIFY(std::exchange(State_, EResourcesState::Released) == EResourcesState::Acquired);
+
+        YT_VERIFY(!std::exchange(other.UserSlot_, std::move(UserSlot_)));
+        YT_VERIFY(std::size(std::exchange(other.GpuSlots_, std::move(GpuSlots_))) == 0);
+
+        YT_VERIFY(other.CumulativeResourceUsage() == ZeroJobResources());
+        other.BaseResourceUsage_ = BaseResourceUsage_;
+        BaseResourceUsage_ = ZeroJobResources();
+        other.AdditionalResourceUsage_ = AdditionalResourceUsage_;
+        AdditionalResourceUsage_ = ZeroJobResources();
+
+        std::exchange(other.ResourceAttributes_, ResourceAttributes_);
+
+        YT_VERIFY(std::size(std::exchange(other.Ports_, std::move(Ports_))) == 0);
+
+        Unregister();
+        other.Register();
+    }
+
+    const auto& Logger = other.Logger;
+    YT_LOG_INFO(
+        "Resources transferred (SourceResourceHolderId: %v)",
+        GetIdAsGuid());
+}
+
 void TResourceHolder::ReleaseResources()
 {
     TJobResources resources;
     {
         auto guard = ReaderGuard(ResourcesLock_);
+
         YT_VERIFY(State_ != EResourcesState::Released);
+
+        if (Owner_) {
+            YT_VERIFY(State_ == EResourcesState::Waiting);
+
+            return;
+        }
+
         resources = CumulativeResourceUsage();
     }
 
-    YT_LOG_FATAL_IF(UserSlot_ && resources.UserSlots != 1,
+    YT_LOG_FATAL_IF(
+        UserSlot_ && resources.UserSlots != 1,
         "User slot not matched with UserSlots (UserSlotExist: %v, UserSlots: %v)",
         UserSlot_ != nullptr,
         resources.UserSlots);
 
-    YT_LOG_FATAL_IF(std::ssize(GpuSlots_) > resources.Gpu,
+    YT_LOG_FATAL_IF(
+        std::ssize(GpuSlots_) > resources.Gpu,
         "GPU slots not matched with Gpu");
 
-    YT_LOG_DEBUG("Reset resource holder slots");
+    YT_LOG_INFO("Reset resource holder slots");
+
+    auto guard = WriterGuard(ResourcesLock_);
 
     if (UserSlot_) {
         UserSlot_->ResetState();
@@ -1295,26 +1437,41 @@ void TResourceHolder::ReleaseResources()
     UserSlot_.Reset();
     GpuSlots_.clear();
 
-    auto guard = WriterGuard(ResourcesLock_);
     ResourceManagerImpl_->OnResourcesReleased(
-        ResourcesConsumerType_,
+        ResourcesConsumerType,
         Logger,
         CumulativeResourceUsage(),
-        GetPorts(),
+        Ports_,
         /*resourceHolderStarted*/ State_ == EResourcesState::Acquired);
     State_ = EResourcesState::Released;
 
     BaseResourceUsage_ = ZeroJobResources();
     AdditionalResourceUsage_ = ZeroJobResources();
+
+    Unregister();
 }
 
 const std::vector<int>& TResourceHolder::GetPorts() const noexcept
 {
+    auto guard = ReaderGuard(ResourcesLock_);
+
+    if (Owner_) {
+        YT_VERIFY(State_ == EResourcesState::Waiting);
+
+        return Owner_->GetPorts();
+    }
+
     return Ports_;
 }
 
 bool TResourceHolder::SetBaseResourceUsage(TJobResources newResourceUsage)
 {
+    auto guard = WriterGuard(ResourcesLock_);
+
+    if (Owner_) {
+        return Owner_->SetBaseResourceUsage(newResourceUsage);
+    }
+
     return DoSetResourceUsage(
         newResourceUsage,
         "NewResourceUsage",
@@ -1328,6 +1485,12 @@ bool TResourceHolder::SetBaseResourceUsage(TJobResources newResourceUsage)
 
 bool TResourceHolder::UpdateAdditionalResourceUsage(TJobResources additionalResourceUsageDelta)
 {
+    auto guard = WriterGuard(ResourcesLock_);
+
+    if (Owner_) {
+        return Owner_->UpdateAdditionalResourceUsage(additionalResourceUsageDelta);
+    }
+
     return DoSetResourceUsage(
         additionalResourceUsageDelta,
         "ResourceUsageDelta",
@@ -1343,9 +1506,35 @@ TJobResources TResourceHolder::GetResourceLimits() const noexcept
     return ResourceManagerImpl_->GetResourceLimits();
 }
 
+void TResourceHolder::UpdateResourceDemand(
+    const NClusterNode::TJobResources& resources,
+    const NClusterNode::TJobResourceAttributes& resourceAttributes,
+    int portCount)
+{
+    auto guard = WriterGuard(ResourcesLock_);
+
+    YT_VERIFY(!Owner_);
+    YT_VERIFY(State_ == EResourcesState::Waiting);
+    YT_VERIFY(AdditionalResourceUsage_ == ZeroJobResources());
+
+    YT_LOG_DEBUG(
+        "Resource demand updated (NewRecourceDemand: %v, NewPortCount: %v)",
+        FormatResources(resources),
+        portCount);
+
+    BaseResourceUsage_ = resources;
+    ResourceAttributes_ = resourceAttributes;
+    PortCount_ = portCount;
+}
+
 TJobResources TResourceHolder::GetResourceUsage() const noexcept
 {
     auto guard = ReaderGuard(ResourcesLock_);
+
+    if (Owner_) {
+        return Owner_->GetResourceUsage();
+    }
+
     return CumulativeResourceUsage();
 }
 
@@ -1353,11 +1542,21 @@ std::pair<TJobResources, TJobResources> TResourceHolder::GetDetailedResourceUsag
 {
     auto guard = ReaderGuard(ResourcesLock_);
 
+    if (Owner_) {
+        return Owner_->GetDetailedResourceUsage();
+    }
+
     return std::pair(BaseResourceUsage_, AdditionalResourceUsage_);
 }
 
 const TJobResourceAttributes& TResourceHolder::GetResourceAttributes() const noexcept
 {
+    auto guard = ReaderGuard(ResourcesLock_);
+
+    if (Owner_) {
+        return Owner_->GetResourceAttributes();
+    }
+
     return ResourceAttributes_;
 }
 
@@ -1369,6 +1568,7 @@ const NLogging::TLogger& TResourceHolder::GetLogger() const noexcept
 TJobResources TResourceHolder::CumulativeResourceUsage() const noexcept
 {
     VERIFY_SPINLOCK_AFFINITY(ResourcesLock_);
+
     return BaseResourceUsage_ + AdditionalResourceUsage_;
 }
 
@@ -1385,7 +1585,7 @@ TResourceHolder::TResourceHolderInfo TResourceHolder::BuildResourceHolderInfo() 
         .Id = GetIdAsGuid(),
         .BaseResourceUsage = baseResourceUsage,
         .AdditionalResourceUsage = additionalResourceUsage,
-        .ResourcesConsumerType = ResourcesConsumerType_,
+        .ResourcesConsumerType = ResourcesConsumerType,
     };
 }
 
@@ -1399,7 +1599,9 @@ bool TResourceHolder::DoSetResourceUsage(
     TStringBuf argumentName,
     TResourceUsageUpdater resourceUsageUpdater)
 {
-    auto guard = WriterGuard(ResourcesLock_);
+    VERIFY_WRITER_SPINLOCK_AFFINITY(ResourcesLock_);
+
+    YT_VERIFY(!Owner_);
 
     YT_LOG_FATAL_IF(
         State_ != EResourcesState::Acquired,
@@ -1412,7 +1614,7 @@ bool TResourceHolder::DoSetResourceUsage(
 
     auto overdrafted = ResourceManagerImpl_->OnResourcesUpdated(
         this,
-        ResourcesConsumerType_,
+        ResourcesConsumerType,
         GetLogger(),
         resourceUsageDelta);
 

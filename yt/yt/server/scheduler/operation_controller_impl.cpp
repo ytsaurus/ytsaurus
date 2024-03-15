@@ -170,7 +170,7 @@ TFuture<TOperationControllerInitializeResult> TOperationControllerImpl::Initiali
                 OnInitializationFinished(result);
             }
         })
-        .Via(agent->GetCancelableInvoker()));
+        .Via(agent->GetCancelableControlInvoker()));
 
     return PendingInitializeResult_;
 }
@@ -210,7 +210,7 @@ TFuture<TOperationControllerPrepareResult> TOperationControllerImpl::Prepare()
                 OnPreparationFinished(FromProto<TOperationControllerPrepareResult>(rsp->result()));
             }
         })
-        .Via(agent->GetCancelableInvoker()));
+        .Via(agent->GetCancelableControlInvoker()));
 
     return PendingPrepareResult_;
 }
@@ -250,7 +250,7 @@ TFuture<TOperationControllerMaterializeResult> TOperationControllerImpl::Materia
                 OnMaterializationFinished(FromProto<TOperationControllerMaterializeResult>(rsp->result()));
             }
         })
-        .Via(agent->GetCancelableInvoker()));
+        .Via(agent->GetCancelableControlInvoker()));
 
     return PendingMaterializeResult_;
 }
@@ -301,7 +301,7 @@ TFuture<TOperationControllerReviveResult> TOperationControllerImpl::Revive()
                 OnRevivalFinished(result);
             }
         })
-        .Via(agent->GetCancelableInvoker()));
+        .Via(agent->GetCancelableControlInvoker()));
 
     return PendingReviveResult_;
 }
@@ -341,7 +341,7 @@ TFuture<TOperationControllerCommitResult> TOperationControllerImpl::Commit()
                 OnCommitFinished(FromProto<TOperationControllerCommitResult>(rsp->result()));
             }
         })
-        .Via(agent->GetCancelableInvoker()));
+        .Via(agent->GetCancelableControlInvoker()));
 
     return PendingCommitResult_;
 }

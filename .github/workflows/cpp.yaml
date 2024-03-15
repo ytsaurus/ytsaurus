@@ -138,7 +138,8 @@ jobs:
         run: |
           if [[ ${{ needs.tag.outputs.image-tag }} == 'dev' ]]
           then
-            docker tag ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.nightly-image-tag }} ytsaurus/ytsaurus-nightly:latest
+            NIGHTLY_IMAGE_TAG=${{ needs.tag.outputs.nightly-image-tag }}-relwithdebinfo
+            docker tag ytsaurus/ytsaurus-nightly:${NIGHTLY_IMAGE_TAG} ytsaurus/ytsaurus-nightly:latest
             docker push ytsaurus/ytsaurus-nightly:latest
           fi
 
