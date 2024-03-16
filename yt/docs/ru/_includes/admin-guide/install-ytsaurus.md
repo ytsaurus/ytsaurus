@@ -20,7 +20,7 @@
 
 1. Установите утилиту [helm](https://helm.sh/docs/intro/install/).
 2. Установите cert-manager: `kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.yaml`
-3. Установите чарт `helm install ytsaurus oci://registry-1.docker.io/ytsaurus/ytop-chart --version 0.4.1`.
+3. Установите чарт `helm install ytsaurus oci://registry-1.docker.io/ytsaurus/ytop-chart --version 0.6.0`.
 4. Проверьте результат:
 
 ```bash

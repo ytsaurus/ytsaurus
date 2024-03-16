@@ -49,6 +49,7 @@ DEFINE_ENUM(ETabletReign,
     ((PersistLastExclusiveLockTimestamp)           (100805)) // ponasenko-rs
     ((ValueDictionaryCompression_23_2)             (100806)) // akozhikhov
     ((HunkValueDictionaryCompression_23_2)         (100807)) // akozhikhov
+    ((AbortTransactionOnCorruptedChaosProgress)    (100808)) // osidorkin
     // 24.1 starts here.
     ((NoMountRevisionCheckInBulkInsert)            (100900)) // ifsmirnov
     ((SharedWriteLocks)                            (100901)) // ponasenko-rs

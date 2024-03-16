@@ -459,7 +459,7 @@ public:
                     .Item("building_snapshot").Value(DecoratedAutomaton_->IsBuildingSnapshotNow())
                     .Item("last_snapshot_id").Value(DecoratedAutomaton_->GetLastSuccessfulSnapshotId())
                     .Item("last_snapshot_read_only").Value(DecoratedAutomaton_->GetLastSuccessfulSnapshotReadOnly())
-                    .Item("discombobulated").Value(GetDiscombobulated())
+                    .Item("discombobulated").Value(IsDiscombobulated())
                 .EndMap();
         });
     }
@@ -592,6 +592,16 @@ public:
 
         if (auto epochContext = AtomicEpochContext_.Acquire()) {
             return epochContext->ReadOnly;
+        }
+        return false;
+    }
+
+    bool IsDiscombobulated() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (auto epochContext = AtomicEpochContext_.Acquire()) {
+            return epochContext->Discombobulated;
         }
         return false;
     }
@@ -2921,16 +2931,6 @@ private:
         YT_VERIFY(ControlState_ == EPeerState::LeaderRecovery || ControlState_ == EPeerState::FollowerRecovery);
 
         SetReadOnly(DecoratedAutomaton_->GetReadOnly());
-    }
-
-    bool GetDiscombobulated() const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        if (auto epochContext = AtomicEpochContext_.Acquire()) {
-            return epochContext->Discombobulated;
-        }
-        return false;
     }
 
     void DiscombobulateNonvotingPeers()

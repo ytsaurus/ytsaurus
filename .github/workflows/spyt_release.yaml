@@ -50,6 +50,12 @@ jobs:
       release_version: ${{ steps.tag.outputs.RELEASE_VERSION }}
       release_major_version: ${{ steps.tag.outputs.RELEASE_MAJOR_VERSION }}
     steps:
+      - name: Test deadsnakes
+        run: |
+          echo "FROM ubuntu:focal" > Dockerfile
+          head -21 yt/spark/spark-over-yt/tools/release/spyt_image/Dockerfile | tail +4 >> Dockerfile
+          docker build .
+
       - name: Parse tag
         id: tag
         run: |
@@ -71,7 +77,6 @@ jobs:
     name: Run Spark fork release
     needs:
       - start-vm
-      - checkout
       - prepare_env
     if: ${{ needs.prepare_env.outputs.release_type == 'spark_fork' }}
     runs-on: ${{ needs.start-vm.outputs.label }}
@@ -115,10 +120,6 @@ jobs:
           echo "user=${{ secrets.OSSRH_USERNAME }}" >> ~/.sbt/.ossrh_credentials
           echo "password=${{ secrets.OSSRH_PASSWORD }}" >> ~/.sbt/.ossrh_credentials
 
-      - name: Download Livy
-        run: |
-          wget https://storage.yandexcloud.net/ytsaurus-spyt/livy.tgz
-
       - name: Run sbt build
         run: |
           cd yt/spark/spark-over-yt
@@ -138,34 +139,10 @@ jobs:
           OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
           GPG_PASSWORD: ${{ secrets.GPG_PASSWORD }}
 
-      - name: Copy Livy to build
-        run: |
-          cp livy.tgz yt/spark/spark-over-yt/build_output/
-
-      - name: DockerHub login
-        shell: bash
-        run: |
-          echo '${{ secrets.DOCKER_HUB_PASSWORD }}' | docker login --username ${{ secrets.DOCKER_HUB_LOGIN }} --password-stdin
-
-      - name: Build and push spark fork docker image
-        run: |
-          cd yt/spark/spark-over-yt/tools/release/spark_image
-          bash ./build.sh --spark-version ${{ needs.prepare_env.outputs.release_major_version }}
-          docker push ytsaurus/spark:${{ needs.prepare_env.outputs.release_major_version }}
-
-      - name: Build and push spyt docker image
-        run: |
-          cd yt/spark/spark-over-yt/tools/release/spyt_image
-          bash ./build.sh \
-            --spark-version ${{ needs.prepare_env.outputs.release_major_version }} \
-            --spyt-version ${{ needs.prepare_env.outputs.release_version }}
-          docker push ytsaurus/spyt:${{ needs.prepare_env.outputs.release_version }}
-
   cluster_release:
     name: Run Spyt release
     needs:
       - start-vm
-      - checkout
       - prepare_env
     if: ${{ needs.prepare_env.outputs.release_type == 'cluster' }}
     runs-on: ${{ needs.start-vm.outputs.label }}
@@ -209,10 +186,6 @@ jobs:
           echo "user=${{ secrets.OSSRH_USERNAME }}" >> ~/.sbt/.ossrh_credentials
           echo "password=${{ secrets.OSSRH_PASSWORD }}" >> ~/.sbt/.ossrh_credentials
 
-      - name: Download Livy
-        run: |
-          wget https://storage.yandexcloud.net/ytsaurus-spyt/livy.tgz
-
       - name: Run sbt build
         run: |
           cd yt/spark/spark-over-yt
@@ -232,16 +205,48 @@ jobs:
           OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
           GPG_PASSWORD: ${{ secrets.GPG_PASSWORD }}
 
-      - name: Copy Livy to build
+  build_fork_image:
+    name: Build Spark fork docker image
+    needs:
+      - start-vm
+      - prepare_env
+      - spark_fork_release
+    if: ${{ needs.prepare_env.outputs.release_type == 'spark_fork' }}
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: DockerHub login
+        shell: bash
         run: |
-          cp livy.tgz yt/spark/spark-over-yt/build_output/
+          echo '${{ secrets.DOCKER_HUB_PASSWORD }}' | docker login --username ${{ secrets.DOCKER_HUB_LOGIN }} --password-stdin
+
+      - name: Build and push spark fork docker image
+        run: |
+          cd yt/spark/spark-over-yt/tools/release/spark_image
+          bash ./build.sh --spark-version ${{ needs.prepare_env.outputs.release_major_version }}
+          docker push ytsaurus/spark:${{ needs.prepare_env.outputs.release_major_version }}
+
+  build_spyt_image:
+    name: Build SPYT docker image
+    needs: 
+      - start-vm
+      - prepare_env
+      - cluster_release
+      - build_fork_image
+    if: ${{ always() && (needs.cluster_release.result == 'success' || needs.build_fork_image.result == 'success') }}
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+
+      - name: Download Livy
+        run: |
+          cd yt/spark/spark-over-yt/build_output/
+          wget https://storage.yandexcloud.net/ytsaurus-spyt/livy.tgz
 
       - name: DockerHub login
         shell: bash
         run: |
           echo '${{ secrets.DOCKER_HUB_PASSWORD }}' | docker login --username ${{ secrets.DOCKER_HUB_LOGIN }} --password-stdin
 
-      - name: Build and push docker image
+      - name: Build and push spyt docker image
         run: |
           cd yt/spark/spark-over-yt/tools/release/spyt_image
           bash ./build.sh \
@@ -253,11 +258,9 @@ jobs:
     name: Stop VM
     needs:
       - start-vm
-      - prepare_env
-      - spark_fork_release
-      - cluster_release
+      - build_spyt_image
+    if: ${{ always() && needs.build_spyt_image.result == 'success' }}
     runs-on: trampoline
-    if: ${{ always() }}
     steps:
       - name: Stop YC runner
         uses: yc-actions/yc-github-runner@v1

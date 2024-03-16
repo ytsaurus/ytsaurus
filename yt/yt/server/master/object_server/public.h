@@ -115,8 +115,6 @@ DECLARE_ENTITY_TYPE(TSchemaObject, TObjectId, ::THash<TObjectId>)
 
 class TMasterObject;
 
-class TMasterCellClusterReconfigurationConfig;
-
 DECLARE_REFCOUNTED_STRUCT(IObjectProxy)
 DECLARE_REFCOUNTED_STRUCT(IObjectTypeHandler)
 

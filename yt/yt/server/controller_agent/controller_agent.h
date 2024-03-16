@@ -158,7 +158,7 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    int GetOnlineExecNodeCount() const;
+    int GetAvailableExecNodeCount() const;
 
     //! Returns the descriptors of online exec nodes matching a given #filter.
     /*!

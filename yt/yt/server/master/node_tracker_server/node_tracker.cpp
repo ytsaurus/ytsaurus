@@ -129,21 +129,21 @@ public:
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::NodeTracker)
         , NodeDisposalManager_(CreateNodeDisposalManager(bootstrap))
     {
-        RegisterMethod(BIND(&TNodeTracker::HydraRegisterNode, Unretained(this)));
-        RegisterMethod(BIND(&TNodeTracker::HydraUnregisterNode, Unretained(this)));
-        RegisterMethod(BIND(&TNodeTracker::HydraClusterNodeHeartbeat, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraRegisterNode, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraUnregisterNode, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraClusterNodeHeartbeat, Unretained(this)));
         // COMPAT(aleksandra-zh)
-        RegisterMethod(BIND(&TNodeTracker::HydraSetCellNodeDescriptors, Unretained(this)));
-        RegisterMethod(BIND(&TNodeTracker::HydraUpdateNodeResources, Unretained(this)));
-        RegisterMethod(BIND(&TNodeTracker::HydraUpdateNodesForRole, Unretained(this)));
-        RegisterMethod(BIND(&TNodeTracker::HydraAddMaintenance, Unretained(this)));
-        RegisterMethod(BIND(&TNodeTracker::HydraRemoveMaintenance, Unretained(this)));
-        RegisterMethod(BIND(&TNodeTracker::HydraSendNodeStates, Unretained(this)));
-        RegisterMethod(BIND(&TNodeTracker::HydraSetNodeStatistics, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraSetCellNodeDescriptors, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraUpdateNodeResources, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraUpdateNodesForRole, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraAddMaintenance, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraRemoveMaintenance, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraSendNodeStates, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraSetNodeStatistics, Unretained(this)));
         // COMPAT(aleksandra-zh)
-        RegisterMethod(BIND(&TNodeTracker::HydraSetNodeStates, Unretained(this)));
-        RegisterMethod(BIND(&TNodeTracker::HydraSetNodeState, Unretained(this)));
-        RegisterMethod(BIND(&TNodeTracker::HydraResetNodePendingRestartMaintenance, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraSetNodeStates, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraSetNodeState, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraResetNodePendingRestartMaintenance, Unretained(this)));
 
         RegisterLoader(
             "NodeTracker.Keys",

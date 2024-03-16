@@ -1869,7 +1869,10 @@ private:
                 rpcContext->SetReadRequestComplexityLimiter(std::move(limiter));
             }
 
-            ExecuteVerb(rootService, rpcContext);
+            {
+                NConcurrency::TForbidContextSwitchGuard contextSwitchGuard;
+                ExecuteVerb(rootService, rpcContext);
+            }
 
             WaitForSubresponse(subrequest);
         } catch (const TLeaderFallbackException&) {

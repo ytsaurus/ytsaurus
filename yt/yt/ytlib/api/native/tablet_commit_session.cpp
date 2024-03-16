@@ -200,6 +200,11 @@ private:
         auto req = proxy.Write();
         req->SetResponseHeavy(true);
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
+
+        if (batch->HasSharedWriteLocks) {
+            req->RequireServerFeature(ETabletServiceFeatures::SharedWriteLocks);
+        }
+
         ToProto(req->mutable_transaction_id(), transaction->GetId());
         if (transaction->GetAtomicity() == EAtomicity::Full) {
             req->set_transaction_start_timestamp(transaction->GetStartTimestamp());

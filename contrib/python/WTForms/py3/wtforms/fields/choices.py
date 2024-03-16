@@ -30,7 +30,7 @@ class SelectFieldBase(Field):
     def iter_choices(self):
         """
         Provides data for choice widget rendering. Must return a sequence or
-        iterable of (value, label, selected) tuples.
+        iterable of (value, label, selected, render_kw) tuples.
         """
         raise NotImplementedError()
 
@@ -49,8 +49,16 @@ class SelectFieldBase(Field):
             _form=None,
             _meta=self.meta,
         )
-        for i, (value, label, checked) in enumerate(self.iter_choices()):
-            opt = self._Option(label=label, id="%s-%d" % (self.id, i), **opts)
+        for i, choice in enumerate(self.iter_choices()):
+            if len(choice) == 4:
+                value, label, checked, render_kw = choice
+            else:
+                value, label, checked = choice
+                render_kw = {}
+
+            opt = self._Option(
+                label=label, id="%s-%d" % (self.id, i), **opts, **render_kw
+            )
             opt.process(None, value)
             opt.checked = checked
             yield opt
@@ -112,8 +120,10 @@ class SelectField(SelectFieldBase):
         else:
             _choices = zip(choices, choices)
 
-        for value, label in _choices:
-            yield (value, label, self.coerce(value) == self.data)
+        for value, label, *other_args in _choices:
+            selected = self.coerce(value) == self.data
+            render_kw = other_args[0] if len(other_args) else {}
+            yield (value, label, selected, render_kw)
 
     def process_data(self, value):
         try:
@@ -132,13 +142,13 @@ class SelectField(SelectFieldBase):
             raise ValueError(self.gettext("Invalid Choice: could not coerce.")) from exc
 
     def pre_validate(self, form):
-        if self.choices is None:
-            raise TypeError(self.gettext("Choices cannot be None."))
-
         if not self.validate_choice:
             return
 
-        for _, _, match in self.iter_choices():
+        if self.choices is None:
+            raise TypeError(self.gettext("Choices cannot be None."))
+
+        for _, _, match, *_ in self.iter_choices():
             if match:
                 break
         else:
@@ -155,17 +165,19 @@ class SelectMultipleField(SelectField):
     widget = widgets.Select(multiple=True)
 
     def _choices_generator(self, choices):
-        if choices:
-            if isinstance(choices[0], (list, tuple)):
-                _choices = choices
-            else:
-                _choices = zip(choices, choices)
-        else:
+        if not choices:
             _choices = []
 
-        for value, label in _choices:
+        elif isinstance(choices[0], (list, tuple)):
+            _choices = choices
+
+        else:
+            _choices = zip(choices, choices)
+
+        for value, label, *other_args in _choices:
             selected = self.data is not None and self.coerce(value) in self.data
-            yield (value, label, selected)
+            render_kw = other_args[0] if len(other_args) else {}
+            yield (value, label, selected, render_kw)
 
     def process_data(self, value):
         try:
@@ -184,15 +196,17 @@ class SelectMultipleField(SelectField):
             ) from exc
 
     def pre_validate(self, form):
-        if self.choices is None:
-            raise TypeError(self.gettext("Choices cannot be None."))
-
         if not self.validate_choice or not self.data:
             return
 
-        acceptable = {c[0] for c in self.iter_choices()}
-        if any(d not in acceptable for d in self.data):
-            unacceptable = [str(d) for d in set(self.data) - acceptable]
+        if self.choices is None:
+            raise TypeError(self.gettext("Choices cannot be None."))
+
+        acceptable = [self.coerce(choice[0]) for choice in self.iter_choices()]
+        if any(data not in acceptable for data in self.data):
+            unacceptable = [
+                str(data) for data in set(self.data) if data not in acceptable
+            ]
             raise ValidationError(
                 self.ngettext(
                     "'%(value)s' is not a valid choice for this field.",

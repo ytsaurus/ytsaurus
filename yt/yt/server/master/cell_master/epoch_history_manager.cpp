@@ -53,9 +53,9 @@ public:
             "EpochHistoryManager",
             BIND(&TEpochHistoryManager::Load, Unretained(this)));
 
-        RegisterMethod(BIND(&TEpochHistoryManager::HydraStoreMutationTime, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TEpochHistoryManager::HydraStoreMutationTime, Unretained(this)));
 
-        Bootstrap_->GetConfigManager()->SubscribeConfigChanged(BIND(&TEpochHistoryManager::OnDynamicConfigChanged, MakeWeak(this)));
+        Bootstrap_->GetConfigManager()->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TEpochHistoryManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     std::pair<TInstant, TInstant> GetEstimatedMutationTime(TVersion version, TInstant now) const override

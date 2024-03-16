@@ -81,8 +81,7 @@ public:
     TJob(
         TJobId jobId,
         TOperationId operationId,
-        const NClusterNode::TJobResources& resourceUsage,
-        const NClusterNode::TJobResourceAttributes& resourceAttributes,
+        TAllocationPtr allocation,
         NControllerAgent::NProto::TJobSpec&& jobSpec,
         TControllerAgentDescriptor agentDescriptor,
         IBootstrap* bootstrap,
@@ -154,8 +153,6 @@ public:
 
     void SetResourceUsage(const NClusterNode::TJobResources& newUsage);
 
-    bool ResourceUsageOverdrafted() const;
-
     void SetProgress(double progress);
 
     i64 GetStderrSize() const;
@@ -211,7 +208,7 @@ public:
     void DoInterrupt(
         TDuration timeout,
         NScheduler::EInterruptReason interruptionReason,
-        const std::optional<TString>& preemptionReason,
+        std::optional<TString> preemptionReason,
         const std::optional<NScheduler::TPreemptedFor>& preemptedFor);
 
     void DoFail(std::optional<TError> error);
@@ -224,6 +221,8 @@ public:
     void SetStored();
 
     bool IsGrowingStale(TDuration maxDelay) const;
+
+    void OnEvictedFromAllocation();
 
     bool IsJobProxyCompleted() const noexcept;
 
@@ -238,7 +237,7 @@ public:
     void Interrupt(
         TDuration timeout,
         NScheduler::EInterruptReason interruptionReason,
-        const std::optional<TString>& preemptionReason,
+        std::optional<TString> preemptionReason,
         const std::optional<NScheduler::TPreemptedFor>& preemptedFor);
 
     NScheduler::EInterruptReason GetInterruptionReason() const noexcept;
@@ -249,12 +248,16 @@ public:
 
     TFuture<void> GetCleanupFinishedEvent();
 
+    const TAllocationPtr& GetAllocation() const noexcept;
+
 private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
     const TJobId Id_;
     const TOperationId OperationId_;
     IBootstrap* const Bootstrap_;
+
+    TAllocationPtr Allocation_;
 
     TControllerAgentDescriptor ControllerAgentDescriptor_;
     TWeakPtr<TControllerAgentConnectorPool::TControllerAgentConnector> ControllerAgentConnector_;
@@ -337,8 +340,6 @@ private:
     IVolumePtr RootVolume_;
 
     bool IsGpuRequested_;
-    double RequestedCpu_;
-    i64 RequestedMemory_;
 
     EJobState JobState_ = EJobState::Waiting;
     EJobPhase JobPhase_ = EJobPhase::Created;
@@ -377,6 +378,8 @@ private:
     // Tracing.
     NTracing::TTraceContextPtr TraceContext_;
     NTracing::TTraceContextFinishGuard FinishGuard_;
+
+    void OnResourcesAcquired() noexcept override;
 
     // Helpers.
 
@@ -433,6 +436,7 @@ private:
     void RunWithWorkspaceBuilder();
 
     IUserSlotPtr GetUserSlot() const;
+    std::vector<TGpuSlotPtr> GetGpuSlots() const;
 
     TFuture<void> RunGpuCheckCommand(
         const TString& gpuCheckBinaryPath,
@@ -494,7 +498,7 @@ private:
 
     bool IsFatalError(const TError& error);
 
-    void EnrichStatisticsWithGpuInfo(TStatistics* statistics);
+    void EnrichStatisticsWithGpuInfo(TStatistics* statistics, const std::vector<TGpuSlotPtr>& gpuSlots);
     void EnrichStatisticsWithRdmaDeviceInfo(TStatistics* statistics);
     void EnrichStatisticsWithDiskInfo(TStatistics* statistics);
     void EnrichStatisticsWithArtifactsInfo(TStatistics* statistics);
@@ -529,8 +533,6 @@ private:
 
     TFuture<TSharedRef> DumpSensors();
 
-    void OnResourcesAcquired() noexcept override;
-
     void Terminate(EJobState finalState, TError error);
 
     bool Finalize(
@@ -555,8 +557,7 @@ DEFINE_REFCOUNTED_TYPE(TJob)
 TJobPtr CreateJob(
     NJobTrackerClient::TJobId jobId,
     NJobTrackerClient::TOperationId operationId,
-    const NClusterNode::TJobResources& resourceUsage,
-    const NClusterNode::TJobResourceAttributes& resourceAttributes,
+    TAllocationPtr allocation,
     NControllerAgent::NProto::TJobSpec&& jobSpec,
     TControllerAgentDescriptor agentDescriptor,
     IBootstrap* bootstrap,
@@ -564,8 +565,7 @@ TJobPtr CreateJob(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TStatus>
-void FillJobStatus(TStatus* status, const TJobPtr& schedulerJob);
+void FillJobStatus(NControllerAgent::NProto::TJobStatus* status, const TJobPtr& schedulerJob);
 
 ////////////////////////////////////////////////////////////////////////////////
 

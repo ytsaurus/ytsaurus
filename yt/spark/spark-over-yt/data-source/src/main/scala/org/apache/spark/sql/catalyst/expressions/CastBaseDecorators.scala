@@ -28,7 +28,7 @@ class CastBaseDecorators {
   @DecoratedMethod
   protected[this] def cast(from: DataType, to: DataType): Any => Any = {
     if (DataType.equalsStructurally(from, to)) {
-      identity
+      __cast(from, to)
     } else if (from == NullType) {
       _ => throw QueryExecutionErrors.cannotCastFromNullTypeError(to)
     } else {

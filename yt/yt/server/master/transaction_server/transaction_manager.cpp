@@ -149,21 +149,21 @@ public:
 
         Logger = TransactionServerLogger;
 
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraStartTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraStartCypressTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraStartForeignTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraRegisterTransactionActions, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraPrepareTransactionCommit, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraCommitTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraAbortTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraCommitCypressTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraAbortCypressTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraReplicateTransactions, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraNoteNoSuchTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraReturnBoomerang, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraRemoveStuckBoomerangWaves, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraIssueLeases, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionManager::HydraRevokeLeases, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraStartTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraStartCypressTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraStartForeignTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraRegisterTransactionActions, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraPrepareTransactionCommit, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraCommitTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraAbortTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraCommitCypressTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraAbortCypressTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraReplicateTransactions, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraNoteNoSuchTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraReturnBoomerang, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraRemoveStuckBoomerangWaves, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraIssueLeases, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraRevokeLeases, Unretained(this)));
 
         RegisterLoader(
             "TransactionManager.Keys",
@@ -185,7 +185,7 @@ public:
     void Initialize() override
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TTransactionManager::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TTransactionManager::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(Bootstrap_, EObjectType::Transaction));
@@ -199,7 +199,7 @@ public:
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(Bootstrap_, EObjectType::AtomicTabletTransaction));
 
         const auto& leaseManager = Bootstrap_->GetLeaseManager();
-        leaseManager->SubscribeLeaseRevoked(BIND(&TTransactionManager::OnLeaseRevoked, MakeWeak(this)));
+        leaseManager->SubscribeLeaseRevoked(BIND_NO_PROPAGATE(&TTransactionManager::OnLeaseRevoked, MakeWeak(this)));
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
@@ -598,7 +598,7 @@ public:
             UnrefTimestampHolder(transactionId);
         }
 
-        auto sequoiaContextGuard = CreateSequoiaContextGuard(transaction);
+        auto sequoiaContextGuard = MaybeCreateSequoiaContextGuard(transaction);
 
         RunCommitTransactionActions(transaction, options);
 
@@ -1171,7 +1171,7 @@ public:
             GetAndValidatePrerequisiteTransaction(prerequisiteTransactionId);
         }
 
-        auto sequoiaContextGuard = CreateSequoiaContextGuard(transaction);
+        auto sequoiaContextGuard = MaybeCreateSequoiaContextGuard(transaction);
 
         RunPrepareTransactionActions(transaction, options);
 
@@ -2745,13 +2745,13 @@ private:
         }
     }
 
-    std::unique_ptr<TSequoiaContextGuard> CreateSequoiaContextGuard(TTransaction* transaction)
+    TSequoiaContextGuard MaybeCreateSequoiaContextGuard(TTransaction* transaction)
     {
         if (transaction->GetIsSequoiaTransaction()) {
             auto sequoiaContext = CreateSequoiaContext(Bootstrap_, transaction->GetId(), transaction->SequoiaWriteSet());
-            return std::make_unique<TSequoiaContextGuard>(std::move(sequoiaContext));
+            return TSequoiaContextGuard(std::move(sequoiaContext), Bootstrap_->GetSecurityManager(), transaction->GetAuthenticationIdentity());
         } else {
-            return nullptr;
+            return TSequoiaContextGuard(Bootstrap_->GetSecurityManager());
         }
     }
 

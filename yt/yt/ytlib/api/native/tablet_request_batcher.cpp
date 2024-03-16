@@ -107,6 +107,8 @@ private:
             keyColumnCount,
             ColumnEvaluator_);
 
+        bool hasSharedWriteLocks = false;
+
         for (auto it = UnversionedSubmittedRows_.begin(); it != UnversionedSubmittedRows_.end();) {
             auto startIt = it;
             rowMerger.InitPartialRow(startIt->Row);
@@ -131,6 +133,13 @@ private:
 
                     default:
                         YT_ABORT();
+                }
+
+                // COMPAT(ponasenko-rs)
+                for (int lockIndex = 0; lockIndex < it->Locks.GetSize(); ++lockIndex) {
+                    if (it->Locks.Get(lockIndex) == ELockType::SharedWrite) {
+                        hasSharedWriteLocks = true;
+                    }
                 }
 
                 // NB: WriteRow modification generally implies non-key columns presence and it is validated in native client.
@@ -164,7 +173,7 @@ private:
         }
 
         for (const auto& submittedRow : unversionedMergedRows) {
-            WriteRow(submittedRow);
+            WriteRow(submittedRow, hasSharedWriteLocks);
         }
 
         PrepareVersionedRows();
@@ -173,7 +182,7 @@ private:
     void PrepareOrderedBatches()
     {
         for (const auto& submittedRow : UnversionedSubmittedRows_) {
-            WriteRow(submittedRow);
+            WriteRow(submittedRow, /*hasSharedWriteLocks*/ false);
         }
 
         PrepareVersionedRows();
@@ -203,11 +212,15 @@ private:
         }
     }
 
-    void WriteRow(const TUnversionedSubmittedRow& submittedRow)
+    void WriteRow(const TUnversionedSubmittedRow& submittedRow, bool hasSharedWriteLocks)
     {
         IncrementAndCheckRowCount();
 
         auto* batch = GetBatch();
+
+        // COMPAT(ponasenko-rs)
+        batch->HasSharedWriteLocks = batch->HasSharedWriteLocks || hasSharedWriteLocks;
+
         auto* writer = batch->Writer.get();
         ++batch->RowCount;
         batch->DataWeight += GetDataWeight(submittedRow.Row);

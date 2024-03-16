@@ -101,7 +101,6 @@ public:
             BIND(&TBlobWritePipeline::DoAbort, MakeStrong(this)));
     }
 
-
     const TChunkInfo& GetChunkInfo() const
     {
         return Writer_->GetChunkInfo();

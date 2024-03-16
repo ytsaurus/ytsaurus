@@ -733,15 +733,15 @@ TObjectManager::TObjectManager(TBootstrap* bootstrap)
 
     RegisterHandler(CreateMasterTypeHandler(Bootstrap_));
 
-    RegisterMethod(BIND(&TObjectManager::HydraExecuteFollower, Unretained(this)));
-    RegisterMethod(BIND(&TObjectManager::HydraDestroyObjects, Unretained(this)));
-    RegisterMethod(BIND(&TObjectManager::HydraCreateForeignObject, Unretained(this)));
-    RegisterMethod(BIND(&TObjectManager::HydraRemoveForeignObject, Unretained(this)));
-    RegisterMethod(BIND(&TObjectManager::HydraUnrefExportedObjects, Unretained(this)));
-    RegisterMethod(BIND(&TObjectManager::HydraConfirmObjectLifeStage, Unretained(this)));
-    RegisterMethod(BIND(&TObjectManager::HydraAdvanceObjectLifeStage, Unretained(this)));
-    RegisterMethod(BIND(&TObjectManager::HydraConfirmRemovalAwaitingCellsSyncObjects, Unretained(this)));
-    RegisterMethod(BIND(&TObjectManager::HydraRemoveExpiredRecentlyAppliedMutationIds, Unretained(this)));
+    RegisterMethod(BIND_NO_PROPAGATE(&TObjectManager::HydraExecuteFollower, Unretained(this)));
+    RegisterMethod(BIND_NO_PROPAGATE(&TObjectManager::HydraDestroyObjects, Unretained(this)));
+    RegisterMethod(BIND_NO_PROPAGATE(&TObjectManager::HydraCreateForeignObject, Unretained(this)));
+    RegisterMethod(BIND_NO_PROPAGATE(&TObjectManager::HydraRemoveForeignObject, Unretained(this)));
+    RegisterMethod(BIND_NO_PROPAGATE(&TObjectManager::HydraUnrefExportedObjects, Unretained(this)));
+    RegisterMethod(BIND_NO_PROPAGATE(&TObjectManager::HydraConfirmObjectLifeStage, Unretained(this)));
+    RegisterMethod(BIND_NO_PROPAGATE(&TObjectManager::HydraAdvanceObjectLifeStage, Unretained(this)));
+    RegisterMethod(BIND_NO_PROPAGATE(&TObjectManager::HydraConfirmRemovalAwaitingCellsSyncObjects, Unretained(this)));
+    RegisterMethod(BIND_NO_PROPAGATE(&TObjectManager::HydraRemoveExpiredRecentlyAppliedMutationIds, Unretained(this)));
 
     auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
     MasterObjectId_ = MakeWellKnownId(EObjectType::Master, primaryCellTag);
@@ -756,17 +756,17 @@ TObjectManager::TObjectManager(TTestingTag tag, TBootstrap* bootstrap)
 void TObjectManager::Initialize()
 {
     const auto& configManager = Bootstrap_->GetConfigManager();
-    configManager->SubscribeConfigChanged(BIND(&TObjectManager::OnDynamicConfigChanged, MakeWeak(this)));
+    configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TObjectManager::OnDynamicConfigChanged, MakeWeak(this)));
 
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
     transactionManager->RegisterTransactionActionHandlers<NProto::TReqDestroyObjects>({
-        .Prepare = BIND(&TObjectManager::HydraPrepareDestroyObjects, Unretained(this)),
+        .Prepare = BIND_NO_PROPAGATE(&TObjectManager::HydraPrepareDestroyObjects, Unretained(this)),
     });
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     if (multicellManager->IsPrimaryMaster()) {
         multicellManager->SubscribeReplicateValuesToSecondaryMaster(
-            BIND(&TObjectManager::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
+            BIND_NO_PROPAGATE(&TObjectManager::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
     }
 
     ProfilingExecutor_ = New<TPeriodicExecutor>(

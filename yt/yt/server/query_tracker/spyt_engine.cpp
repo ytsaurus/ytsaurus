@@ -170,17 +170,18 @@ public:
         }
         Headers_->Add("Content-Type", "application/json");
         Discovery_ = New<TSpytDiscovery>(QueryClient_, discoveryPath);
-        auto clientVersionOptional = Discovery_->GetModuleValue("version");
-        if (!clientVersionOptional) {
+        auto clusterVersionOptional = Discovery_->GetModuleValue("version");
+        if (!clusterVersionOptional) {
             THROW_ERROR_EXCEPTION(
                 "Cluster version was not found in discovery path. Make sure that SPYT cluster is running");
         }
-        ClusterVersion_ = *clientVersionOptional;
+        ClusterVersion_ = *clusterVersionOptional;
     }
 
     void Start() override
     {
         YT_LOG_DEBUG("Starting SPYT query");
+        StartProgressWriter();
         AsyncQueryResult_ = BIND(&TSpytQueryHandler::Execute, MakeStrong(this))
             .AsyncVia(GetCurrentInvoker())
             .Run();
@@ -193,6 +194,7 @@ public:
         AsyncQueryResult_.Cancel(TError("Query aborted"));
         // After Abort() call there is Detach() call always. But double closing request is not the error.
         FreeResources();
+        StopBackgroundExecutors();
     }
 
     void Detach() override
@@ -200,6 +202,7 @@ public:
         YT_LOG_DEBUG("Detaching SPYT query (SessionUrl: %v)", SessionUrl_);
         AsyncQueryResult_.Cancel(TError("Query detached"));
         FreeResources();
+        StopBackgroundExecutors();
     }
 
 private:
@@ -221,13 +224,14 @@ private:
     // Not exists for YT scheduled jobs
     std::optional<TString> MasterWebUI_;
 
-    void SetProgress(double progress_value)
+    void SetProgress(double progressValue, const std::optional<INodePtr>& plan)
     {
-        YT_LOG_DEBUG("Reporting progress (Progress: %v)", progress_value);
+        YT_LOG_DEBUG("Reporting progress (Progress: %v)", progressValue);
         auto progress = BuildYsonStringFluently()
             .BeginMap()
                 .OptionalItem("webui", MasterWebUI_)
-                .Item("spyt_progress").Value(progress_value)
+                .Item("spyt_progress").Value(progressValue)
+                .OptionalItem("spyt_plan", plan)
             .EndMap();
         OnProgress(std::move(progress));
     }
@@ -269,17 +273,27 @@ private:
         return jsonRoot;
     }
 
-    TString WaitStatusChange(const TString& url, const TString& defaultState, const bool& reportProgress)
+    TString WaitSessionStatusChange(const TString& url, const TString& defaultState)
+    {
+        auto state = defaultState;
+        while (state == defaultState) {
+            TDelayedExecutor::WaitForDuration(Config_->StatusPollPeriod);
+            state = ExecuteGetQuery(url)->AsMap()->GetChildValueOrThrow<TString>("state");
+        }
+        return state;
+    }
+
+    TString WaitStatementStatusChange(const TString& url, const TString& defaultState)
     {
         auto state = defaultState;
         while (state == defaultState) {
             TDelayedExecutor::WaitForDuration(Config_->StatusPollPeriod);
             auto jsonRoot = ExecuteGetQuery(url)->AsMap();
-            state = jsonRoot->GetChildOrThrow("state")->AsString()->GetValue();
-            auto rawProgress = jsonRoot->FindChildValue<double>("progress");
-            if (reportProgress && rawProgress.has_value()) {
-                SetProgress(rawProgress.value());
-            }
+            state = jsonRoot->GetChildValueOrThrow<TString>("state");
+            auto progressValue = jsonRoot->GetChildValueOrThrow<double>("progress");
+            auto rawPlan = jsonRoot->FindChild("plan");
+            auto plan = rawPlan ? std::make_optional(rawPlan) : std::nullopt;
+            SetProgress(progressValue, plan);
         }
         return state;
     }
@@ -369,7 +383,7 @@ private:
 
     void WaitSessionReady()
     {
-        auto state = WaitStatusChange(SessionUrl_, "starting", /*reportProgress*/ false);
+        auto state = WaitSessionStatusChange(SessionUrl_, "starting");
         if (!(state == "idle" || (state == "busy" && SessionReuse_))) {
             THROW_ERROR_EXCEPTION(
                 "Unexpected Livy session state: expected \"idle\" or \"busy\", found %Qv",
@@ -472,8 +486,8 @@ private:
     TString WaitStatementFinished()
     {
         // Query may be in queue.
-        auto state = WaitStatusChange(StatementUrl_, "waiting", /*reportProgress*/ true);
-        state = WaitStatusChange(StatementUrl_, "running", /*reportProgress*/ true);
+        auto state = WaitStatementStatusChange(StatementUrl_, "waiting");
+        state = WaitStatementStatusChange(StatementUrl_, "running");
         if (state != "available") {
             THROW_ERROR_EXCEPTION(
                 "Unexpected Livy result state: expected \"available\", found %Qv",
@@ -597,10 +611,16 @@ private:
         }
     }
 
+    void StopBackgroundExecutors()
+    {
+        StopProgressWriter();
+        YT_UNUSED_FUTURE(RefreshTokenExecutor_->Stop());
+    }
+
     TSharedRef Execute()
     {
         UpdateMasterWebUIUrl();
-        SetProgress(0.0);
+        SetProgress(0.0, std::nullopt);
         auto rootUrl = GetLivyServerUrl();
         try {
             PrepareSession(rootUrl);
@@ -619,10 +639,10 @@ private:
 
     void OnSpytResponse(const TErrorOr<TSharedRef>& queryResultOrError)
     {
+        StopBackgroundExecutors();
         if (queryResultOrError.FindMatching(NYT::EErrorCode::Canceled)) {
             return;
         }
-        SetProgress(1.0);
         if (!queryResultOrError.IsOK()) {
             OnQueryFailed(queryResultOrError);
             return;

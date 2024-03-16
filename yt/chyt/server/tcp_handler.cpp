@@ -77,6 +77,8 @@ Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(
             context->setCurrentQueryId(ToString(header->QueryId));
 
             TTraceContextPtr traceContext = New<TTraceContext>(*header->SpanContext, "TcpHandler");
+            traceContext->AddTag("chyt.instance_cookie", Host_->GetInstanceCookie());
+            traceContext->AddTag("chyt.instance_address", Host_->GetConfig()->Address);
 
             YT_LOG_DEBUG("Registering new user (UserName: %v)", user);
             RegisterNewUser(

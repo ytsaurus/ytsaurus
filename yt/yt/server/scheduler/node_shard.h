@@ -227,6 +227,8 @@ private:
     NProfiling::TCounter HeartbeatResponseProtoMessageBytes_;
     NProfiling::TCounter HeartbeatRegisteredControllerAgentsBytes_;
 
+    TEnumIndexedArray<ENodeSchedulingResult, TJobResourcesProfiler> UnscheduledResourcesCounterByResult_;
+
     THashMap<TAllocationId, TAllocationUpdate> AllocationsToSubmitToStrategy_;
     std::atomic<int> SubmitToStrategyAllocationCount_;
 
@@ -404,10 +406,12 @@ private:
         const TScheduler::TCtxNodeHeartbeat::TTypedRequest* request,
         TScheduler::TCtxNodeHeartbeat::TTypedResponse* response);
 
+    void UpdateUnscheduledNodeCounters(const ISchedulingContextPtr& schedulingContext);
+
     bool ShouldSendRegisteredControllerAgents(TScheduler::TCtxNodeHeartbeat::TTypedRequest* request);
     void AddRegisteredControllerAgentsToResponse(auto* response);
 
-    void SetMinSpareResources(TScheduler::TCtxNodeHeartbeat::TTypedResponse* response);
+    TJobResources GetMinSpareResources() const;
 
     void UpdateAllocationTimeStatisticsIfNeeded(const TAllocationPtr& allocation, TRunningAllocationTimeStatistics timeStatistics);
 };

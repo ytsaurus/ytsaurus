@@ -72,8 +72,8 @@ public:
         , Host_(std::move(host))
         , ChangelogCodec_(GetCodec(Host_->GetConfig()->ChangelogCodec))
     {
-        RegisterMethod(BIND(&TTabletCellWriteManager::HydraFollowerWriteRows, Unretained(this)));
-        RegisterMethod(BIND(&TTabletCellWriteManager::HydraWriteDelayedRows, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletCellWriteManager::HydraFollowerWriteRows, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletCellWriteManager::HydraWriteDelayedRows, Unretained(this)));
     }
 
     // ITabletCellWriteManager overrides.

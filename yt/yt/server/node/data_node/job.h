@@ -42,7 +42,6 @@ public:
         const NChunkServer::NProto::TJobSpec& jobSpec,
         TString jobTrackerAddress,
         const NClusterNode::TJobResources& resourceLimits,
-        const NClusterNode::TJobResourceAttributes& resourceAttributes,
         IBootstrap* bootstrap);
 
     NChunkServer::TJobId GetId() const noexcept;
@@ -81,8 +80,8 @@ protected:
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
-    virtual void DoRun() = 0;
-    void GuardedRun();
+    virtual TFuture<void> DoRun() = 0;
+    TFuture<void> GuardedRun();
 
     void SetCompleted();
     void SetFailed(const TError& error);
@@ -108,7 +107,6 @@ TMasterJobBasePtr CreateJob(
     NChunkServer::NProto::TJobSpec&& jobSpec,
     TString jobTrackerAddress,
     const NClusterNode::TJobResources& resourceLimits,
-    const NClusterNode::TJobResourceAttributes& resourceAttributes,
     IBootstrap* bootstrap,
     const TMasterJobSensors& sensors);
 

@@ -51,10 +51,10 @@ public:
             "TResponseKeeperManager",
             BIND(&TResponseKeeperManager::Load, Unretained(this)));
 
-        RegisterMethod(BIND(&TResponseKeeperManager::HydraEvictKeptResponses, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TResponseKeeperManager::HydraEvictKeptResponses, Unretained(this)));
 
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TResponseKeeperManager::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TResponseKeeperManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
 private:

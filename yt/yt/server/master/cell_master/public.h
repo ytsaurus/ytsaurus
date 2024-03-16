@@ -131,6 +131,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (CypressTransactionService)
     (TransactionService)
     (LeaseManager)
+    (SequoiaQueueManager)
 );
 
 DEFINE_ENUM(EAutomatonThreadBucket,

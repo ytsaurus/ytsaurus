@@ -14,6 +14,7 @@ from yt.test_helpers.job_events import JobEvents
 
 from yt.testlib import (yatest_common, authors, check_rows_equality, set_config_option, set_config_options)  # noqa
 
+import yt.logger as logger
 import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
 import yt.environment.arcadia_interop as arcadia_interop
@@ -319,6 +320,7 @@ def inject_http_error(client, filter_url=None, interrupt_from=0, interrupt_till=
                     and interrupt_every and not (cnt.filtered_total_calls - interrupt_from - 1) % interrupt_every \
                     and cnt.filtered_total_calls < interrupt_till:
                 cnt.filtered_raises += 1
+                logger.debug("Simulate network error for url \"{}\".".format(args[0].url))
                 if raise_custom_exception:
                     raise raise_custom_exception
                 elif raise_connection_reset:

@@ -1,23 +1,24 @@
 package tech.ytsaurus.spyt.fs
 
-import org.apache.spark.sql.Row
+import org.apache.spark.SparkConf
+import org.apache.spark.sql.{AnalysisException, Row}
 import org.apache.spark.sql.types.{ArrayType, LongType, MapType, StringType}
 import org.apache.spark.sql.yson.YsonBinary
 import org.apache.spark.test.UtilsWrapper
 import org.mockito.scalatest.MockitoSugar
 import org.scalatest.prop.TableDrivenPropertyChecks
-import org.scalatest.{FlatSpec, Matchers, PrivateMethodTester}
+import org.scalatest.{FlatSpec, Matchers}
 import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 import tech.ytsaurus.spyt._
 import tech.ytsaurus.spyt.serialization.YsonEncoder
-import tech.ytsaurus.spyt.test.{DynTableTestUtils, LocalSpark, LocalYt, TestRow, TestUtils, TmpDir}
+import tech.ytsaurus.spyt.test.{DynTableTestUtils, LocalSpark, TestRow, TestUtils, TmpDir}
 import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.spyt.wrapper.table.OptimizeMode
 
 import scala.language.postfixOps
 
 class YtSparkSQLTest extends FlatSpec with Matchers with LocalSpark with TmpDir
-  with TestUtils with MockitoSugar with TableDrivenPropertyChecks with PrivateMethodTester  with DynTableTestUtils {
+  with TestUtils with MockitoSugar with TableDrivenPropertyChecks with DynTableTestUtils {
   import spark.implicits._
 
   private val atomicSchema = TableSchema.builder()
@@ -42,6 +43,11 @@ class YtSparkSQLTest extends FlatSpec with Matchers with LocalSpark with TmpDir
     OptimizeMode.Scan,
     OptimizeMode.Lookup
   )
+
+  override def beforeEach(): Unit = {
+    super.beforeEach()
+    spark.sessionState.catalog.invalidateAllCachedTables()
+  }
 
   it should "select rows using views" in {
     YtWrapper.createDir(tmpPath)
@@ -118,21 +124,6 @@ class YtSparkSQLTest extends FlatSpec with Matchers with LocalSpark with TmpDir
       res.collect() should contain theSameElementsAs Seq(
         Row(2, "b", 0.5),
         Row(3, "c", 1.0)
-      )
-    }
-  }
-
-  it should "read without specified scheme" in {
-    writeTableFromYson(Seq(
-      """{a = 1; b = "a"; c = 0.3}""",
-      """{a = 2; b = "b"; c = 0.5}"""
-    ), tmpPath, atomicSchema)
-
-    withConf("fs.null.impl", "tech.ytsaurus.spyt.fs.YtTableFileSystem") {
-      val res = spark.sql(s"SELECT * FROM yt.`$tmpPath`")
-      res.collect() should contain theSameElementsAs Seq(
-        Row(1, "a", 0.3),
-        Row(2, "b", 0.5)
       )
     }
   }
@@ -235,6 +226,92 @@ class YtSparkSQLTest extends FlatSpec with Matchers with LocalSpark with TmpDir
       Row(5, "13"),
       Row(6, "11")
     )
+  }
+
+  it should "create table" in {
+    spark.sql(s"CREATE TABLE yt.`ytTable:/$tmpPath` (id INT, name STRING, age INT) USING yt")
+    val res = spark.read.yt(tmpPath)
+    res.columns should contain theSameElementsAs Seq("id", "name", "age")
+    res.collect() should contain theSameElementsAs Seq()
+
+    a[AnalysisException] shouldBe thrownBy {
+      spark.sql(s"CREATE TABLE yt.`ytTable:/$tmpPath` (id INT, name STRING, age INT) USING yt")
+    }
+  }
+
+  it should "create table as select" in {
+    spark.sql(s"CREATE TABLE yt.`ytTable:/$tmpPath` USING yt AS SELECT col1, col2 FROM VALUES (1, false)")
+    val res = spark.read.yt(tmpPath)
+    res.columns should contain theSameElementsAs Seq("col1", "col2")
+    res.collect() should contain theSameElementsAs Seq(Row(1, false))
+  }
+
+  it should "drop table" in {
+    spark.sql(s"CREATE TABLE yt.`ytTable:/$tmpPath` (id INT, age INT) USING yt")
+    YtWrapper.exists(tmpPath) shouldBe true
+
+    spark.sql(s"DROP TABLE yt.`ytTable:/$tmpPath`")
+    YtWrapper.exists(tmpPath) shouldBe false
+
+    a[AnalysisException] shouldBe thrownBy {
+      spark.sql(s"DROP TABLE yt.`ytTable:/$tmpPath`")
+    }
+
+    spark.sql(s"DROP TABLE IF EXISTS yt.`ytTable:/$tmpPath`")
+  }
+
+  it should "insert to table" in {
+    YtWrapper.createDir(tmpPath)
+    val path = s"$tmpPath/original"
+    val path2 = s"$tmpPath/copy"
+    writeTableFromYson(Seq(
+      """{a = 1; d = "a"}""",
+      """{a = 2; d = "b"}"""
+    ), path, anotherSchema)
+
+    a[AnalysisException] shouldBe thrownBy {
+      spark.sql(s"INSERT INTO TABLE yt.`ytTable:/$path2` SELECT * FROM yt.`ytTable:/$path`")
+    }
+
+    spark.sql(s"CREATE TABLE yt.`ytTable:/$path2` (a INT, d STRING) USING yt")
+    spark.sql(s"INSERT INTO TABLE yt.`ytTable:/$path2` SELECT * FROM yt.`ytTable:/$path`")
+    spark.sql(s"INSERT INTO TABLE yt.`ytTable:/$path2`(a, d) VALUES (3, 'c')")
+
+    val res = spark.read.yt(path2)
+    res.columns should contain theSameElementsAs Seq("a", "d")
+    res.collect() should contain theSameElementsAs Seq(Row(1, "a"), Row(2, "b"), Row(3, "c"))
+
+    spark.sql(s"INSERT OVERWRITE TABLE yt.`ytTable:/$path2`(a, d) VALUES (4, 'd')")
+    val res2 = spark.read.yt(path2)
+    res2.collect() should contain theSameElementsAs Seq(Row(4, "d"))
+
+    a[AnalysisException] shouldBe thrownBy {
+      spark.sql(s"INSERT OVERWRITE TABLE yt.`ytTable:/$path2`(c1) VALUES (0l)")
+    }
+  }
+
+  it should "work without specified scheme" in {
+    spark.sql(s"CREATE TABLE yt.`$tmpPath`(id INT) USING yt")
+    spark.sql(s"INSERT INTO TABLE yt.`$tmpPath` VALUES (7), (6), (5)")
+    val res = spark.sql(s"SELECT * FROM yt.`$tmpPath`")
+    res.collect() should contain theSameElementsAs Seq(Row(7), Row(6), Row(5))
+  }
+
+  it should "refresh when modified externally" in {
+    writeTableFromYson(Seq(
+      """{a = 1; b = "qwe"; c = 0.0}""",
+    ), tmpPath, atomicSchema)
+    val res = spark.sql(s"SELECT * FROM yt.`ytTable:/$tmpPath`")
+    res.collect() shouldBe Seq(Row(1, "qwe", 0.0))
+
+    YtWrapper.remove(tmpPath)
+    writeTableFromYson(Seq(
+      """{a = 1; d = "str1"}""",
+      """{a = 2; d = "str2"}"""
+    ), tmpPath, anotherSchema)
+    spark.sql(s"REFRESH TABLE yt.`ytTable:/$tmpPath`")
+    val res2 = spark.sql(s"SELECT * FROM yt.`ytTable:/$tmpPath`")
+    res2.collect() shouldBe Seq(Row(1, "str1"), Row(2, "str2"))
   }
 
   it should "count io statistics" in {

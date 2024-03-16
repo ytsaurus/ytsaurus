@@ -125,29 +125,29 @@ public:
             "ChaosManager.Values",
             BIND(&TChaosManager::SaveValues, Unretained(this)));
 
-        RegisterMethod(BIND(&TChaosManager::HydraGenerateReplicationCardId, Unretained(this)));
-        RegisterMethod(BIND(&TChaosManager::HydraCreateReplicationCard, Unretained(this)));
-        RegisterMethod(BIND(&TChaosManager::HydraRemoveReplicationCard, Unretained(this)));
-        RegisterMethod(BIND(&TChaosManager::HydraAlterReplicationCard, Unretained(this)));
-        RegisterMethod(BIND(&TChaosManager::HydraChaosNodeRemoveReplicationCard, Unretained(this)));
-        RegisterMethod(BIND(&TChaosManager::HydraUpdateCoordinatorCells, Unretained(this)));
-        RegisterMethod(BIND(&TChaosManager::HydraCreateTableReplica, Unretained(this)));
-        RegisterMethod(BIND(&TChaosManager::HydraRemoveTableReplica, Unretained(this)));
-        RegisterMethod(BIND(&TChaosManager::HydraAlterTableReplica, Unretained(this)));
-        RegisterMethod(BIND(&TChaosManager::HydraUpdateTableReplicaProgress, Unretained(this)));
-        RegisterMethod(BIND(&TChaosManager::HydraCommenceNewReplicationEra, Unretained(this)));
-        RegisterMethod(BIND(&TChaosManager::HydraPropagateCurrentTimestamps, Unretained(this)));
-        RegisterMethod(BIND(&TChaosManager::HydraRspGrantShortcuts, Unretained(this)));
-        RegisterMethod(BIND(&TChaosManager::HydraRspRevokeShortcuts, Unretained(this)));
-        RegisterMethod(BIND(&TChaosManager::HydraSuspendCoordinator, Unretained(this)));
-        RegisterMethod(BIND(&TChaosManager::HydraResumeCoordinator, Unretained(this)));
-        RegisterMethod(BIND(&TChaosManager::HydraRemoveExpiredReplicaHistory, Unretained(this)));
-        RegisterMethod(BIND(&TChaosManager::HydraMigrateReplicationCards, Unretained(this)));
-        RegisterMethod(BIND(&TChaosManager::HydraResumeChaosCell, Unretained(this)));
-        RegisterMethod(BIND(&TChaosManager::HydraChaosNodeMigrateReplicationCards, Unretained(this)));
-        RegisterMethod(BIND(&TChaosManager::HydraChaosNodeConfirmReplicationCardMigration, Unretained(this)));
-        RegisterMethod(BIND(&TChaosManager::HydraCreateReplicationCardCollocation, Unretained(this)));
-        RegisterMethod(BIND(&TChaosManager::HydraChaosNodeRemoveMigratedReplicationCards, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraGenerateReplicationCardId, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraCreateReplicationCard, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraRemoveReplicationCard, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraAlterReplicationCard, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraChaosNodeRemoveReplicationCard, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraUpdateCoordinatorCells, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraCreateTableReplica, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraRemoveTableReplica, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraAlterTableReplica, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraUpdateTableReplicaProgress, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraCommenceNewReplicationEra, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraPropagateCurrentTimestamps, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraRspGrantShortcuts, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraRspRevokeShortcuts, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraSuspendCoordinator, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraResumeCoordinator, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraRemoveExpiredReplicaHistory, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraMigrateReplicationCards, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraResumeChaosCell, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraChaosNodeMigrateReplicationCards, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraChaosNodeConfirmReplicationCardMigration, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraCreateReplicationCardCollocation, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraChaosNodeRemoveMigratedReplicationCards, Unretained(this)));
     }
 
     void Initialize() override

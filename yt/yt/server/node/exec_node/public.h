@@ -15,6 +15,7 @@ namespace NYT::NExecNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 using NScheduler::TAllocationId;
+using NScheduler::EAllocationState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,7 +49,6 @@ struct TUserSandboxOptions
 
 extern const TString ProxyConfigFileName;
 
-DECLARE_REFCOUNTED_CLASS(TJob)
 DECLARE_REFCOUNTED_STRUCT(IJobController)
 
 DECLARE_REFCOUNTED_CLASS(TJobWorkspaceBuilder)

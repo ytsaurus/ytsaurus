@@ -87,7 +87,7 @@ public:
 
     TFuture<IConnectionPtr> Dial(
         const TNetworkAddress& remote,
-        TRemoteContextPtr /*context*/) override
+        TDialerContextPtr /*context*/) override
     {
         auto session = New<TDialSession>(
             remote,
@@ -241,9 +241,9 @@ private:
 
         YT_VERIFY(Pollable_);
         auto pollable = std::move(Pollable_);
-        SpinLock_.Release();
+
+        auto inverseGuard = Unguard(SpinLock_);
         YT_UNUSED_FUTURE(Poller_->Unregister(pollable));
-        SpinLock_.Acquire();
     }
 
     void Connect(TGuard<NThreading::TSpinLock>& guard)

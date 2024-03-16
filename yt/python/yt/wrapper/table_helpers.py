@@ -3,11 +3,11 @@ from __future__ import print_function
 from . import py_wrapper
 
 from .batch_helpers import batch_apply, create_batch_client
-from .common import (NullContext, update, get_value, chunk_iter_stream, require, get_disk_size,
-                     is_of_iterable_type, flatten)
+from .common import (NullContext, update, get_value, chunk_iter_stream, require, get_disk_size,  # noqa
+                     is_of_iterable_type, flatten, typing)  # noqa
 from .config import get_config
 from .errors import YtError
-from .format import create_format, YsonFormat, YamrFormat, SkiffFormat
+from .format import create_format, YsonFormat, YamrFormat, SkiffFormat, Format  # noqa
 from .ypath import TablePath
 from .cypress_commands import exists, get, get_attribute, remove
 from .transaction_commands import abort_transaction
@@ -49,6 +49,19 @@ def iter_by_chunks(iterable, count):
 
 
 def _to_chunk_stream(stream, format, raw, split_rows, chunk_size, rows_chunk_size):
+    # type: (str | bytes | "filelike" |  typing.Iterable, Format, bool, bool, int, int) -> ItemStream
+    #
+    # `raw`: read filelike or str|bytes input and produce:
+    #   `split_rows` - parse raw input by Format and produce raw splitted by one recod (ignore `chunk_size`, `rows_chunk_size`)
+    #     [b'<row1>', b'<row2>', b'<row3>'...]
+    #   !`split_rows` -  hard split raw input by `chunk_size` (in bytes)
+    #     [b'<row', b'1>,<', b'row2', b'>...]
+    # !`raw`: read py objects and produce:
+    #   `filelike` - error
+    #   `split_rows` - serialize each row into Format (ignore `chunk_size`, `rows_chunk_size`)
+    #     [b'<rec2>', b'<row2>', b'<row3>'...]
+    #   !`split_rows` - group rows by `rows_chunk_size` (number, not bytes)
+    #     [b'<rec2>,<row2>', b'<row3>,<row4', ...]
     if isinstance(stream, (text_type, binary_type)):
         if isinstance(stream, text_type):
             try:
@@ -73,8 +86,8 @@ def _to_chunk_stream(stream, format, raw, split_rows, chunk_size, rows_chunk_siz
     else:
         if is_filelike:
             raise YtError("Incorrect input type, it must be generator or list")
-        # is_iterable
         if split_rows:
+            # is_iterable
             stream = (format.dumps_row(row) for row in stream)
         else:
             stream = (format.dumps_rows(chunk) for chunk in iter_by_chunks(stream, rows_chunk_size))

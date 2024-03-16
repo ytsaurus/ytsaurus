@@ -215,8 +215,6 @@ message TRspHeartbeat
     required TSchedulerToAgentAbortedAllocationEventsOutbox scheduler_to_agent_aborted_allocation_events = 4;
     required TSchedulerToAgentOperationEventsOutbox scheduler_to_agent_operation_events = 5;
 
-    repeated NYT.NProto.TGuid operation_ids_to_unregister = 8;
-
     optional int32 operations_archive_version = 9;
 }
 

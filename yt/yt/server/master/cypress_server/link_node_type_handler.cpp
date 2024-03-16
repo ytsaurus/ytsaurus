@@ -8,6 +8,17 @@
 
 #include <yt/yt/server/master/object_server/path_resolver.h>
 
+#include <yt/yt/server/master/sequoia_server/sequoia_queue_manager.h>
+
+#include <yt/yt/ytlib/sequoia_client/helpers.cpp>
+
+#include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
+
+#include <yt/yt/client/table_client/row_buffer.h>
+
+#include <yt/yt/core/ypath/helpers.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NYTree;
@@ -16,6 +27,8 @@ using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NTransactionServer;
 using namespace NSecurityServer;
+using namespace NSequoiaClient;
+using namespace NTableClient;
 
 static const auto& Logger = CypressServerLogger;
 
@@ -56,13 +69,12 @@ private:
         TVersionedNodeId id,
         const TCreateNodeContext& context) override
     {
+        const auto& cypressManager = GetBootstrap()->GetCypressManager();
         auto originalTargetPath = context.ExplicitAttributes->GetAndRemove<TString>("target_path");
+        auto originalLinkPath = cypressManager->GetNodePath(context.ServiceTrunkNode, context.Transaction) + context.UnresolvedPathSuffix;
 
         auto enableSymlinkCyclicityCheck = GetDynamicCypressManagerConfig()->EnableSymlinkCyclicityCheck;
         if (enableSymlinkCyclicityCheck) {
-            const auto& cypressManager = GetBootstrap()->GetCypressManager();
-            auto originalLinkPath = cypressManager->GetNodePath(context.ServiceTrunkNode, context.Transaction) + context.UnresolvedPathSuffix;
-
             //  Make sure originalLinkPath and originalTargetPath get resolved properly.
             auto* shard = context.Shard;
             auto linkPath = shard->MaybeRewritePath(originalLinkPath);
@@ -170,11 +182,45 @@ private:
         auto implHolder = TBase::DoCreate(id, context);
         implHolder->SetTargetPath(originalTargetPath);
 
+        auto sequoiaLinkPath = MangleSequoiaPath(originalLinkPath);
+        implHolder->ImmutableSequoiaProperties() = std::make_unique<TCypressNode::TImmutableSequoiaProperties>(NYPath::DirNameAndBaseName(originalLinkPath).second, originalLinkPath);
+
+        const auto& sequoiaQueueManager = GetBootstrap()->GetSequoiaQueueManager();
+        auto pathToNodeIdRecord = NSequoiaClient::NRecords::TPathToNodeId{
+            .Key = {.Path = sequoiaLinkPath},
+            .NodeId = id.ObjectId,
+        };
+        sequoiaQueueManager->EnqueueWrite(pathToNodeIdRecord);
+        auto nodeIdToPathRecord = NSequoiaClient::NRecords::TNodeIdToPath{
+            .Key = {.NodeId = id.ObjectId},
+            .Path = originalLinkPath,
+        };
+        sequoiaQueueManager->EnqueueWrite(nodeIdToPathRecord);
+
         YT_LOG_DEBUG("Link created (LinkId: %v, TargetPath: %v)",
             id,
             originalTargetPath);
 
         return implHolder;
+    }
+
+    void DoDestroy(TLinkNode* node) override
+    {
+        // TODO(aleksandra-zh, kvk1920 or somebody else): fix this when Sequoia supports branches.
+        if (node->IsTrunk()) {
+            const auto& cypressManager = GetBootstrap()->GetCypressManager();
+            auto path = cypressManager->GetNodePath(node, {});
+            const auto& sequoiaQueueManager = GetBootstrap()->GetSequoiaQueueManager();
+            auto pathToNodeIdRecordKey = NSequoiaClient::NRecords::TPathToNodeIdKey{
+                .Path = MangleSequoiaPath(path),
+            };
+            sequoiaQueueManager->EnqueueDelete(pathToNodeIdRecordKey);
+            auto nodeIdToPathRecordKey = NSequoiaClient::NRecords::TNodeIdToPathKey{
+                .NodeId = node->GetId(),
+            };
+            sequoiaQueueManager->EnqueueDelete(nodeIdToPathRecordKey);
+        }
+        TBase::DoDestroy(node);
     }
 
     void DoBranch(
@@ -237,7 +283,7 @@ private:
         TBase::DoEndCopy(trunkNode, context, factory);
 
         using NYT::Load;
-        trunkNode->SetTargetPath(Load<TYPath>(*context));
+        trunkNode->SetTargetPath(Load<NYTree::TYPath>(*context));
     }
 };
 

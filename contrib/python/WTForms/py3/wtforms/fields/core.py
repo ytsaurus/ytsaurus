@@ -56,7 +56,11 @@ class Field:
         :param validators:
             A sequence of validators to call when `validate` is called.
         :param filters:
-            A sequence of filters which are run on input data by `process`.
+            A sequence of callable which are run by :meth:`~Field.process`
+            to filter or transform the input data. For example
+            ``StringForm(filters=[str.strip, str.upper])``.
+            Note that filters are applied after processing the default and
+            incoming data, but before validation.
         :param description:
             A description for the field, typically used for help text.
         :param id:
@@ -416,7 +420,11 @@ class Flags:
         return getattr(self, name)
 
     def __repr__(self):
-        flags = (name for name in dir(self) if not name.startswith("_"))
+        flags = (
+            f"{name}={getattr(self, name)}"
+            for name in dir(self)
+            if not name.startswith("_")
+        )
         return "<wtforms.fields.Flags: {%s}>" % ", ".join(flags)
 
 

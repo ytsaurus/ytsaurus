@@ -51,16 +51,16 @@ public:
             "MasterCellChunkStatisticsCollector",
             BIND(&TMasterCellChunkStatisticsCollector::Load, Unretained(this)));
 
-        RegisterMethod(BIND(
+        RegisterMethod(BIND_NO_PROPAGATE(
             &TMasterCellChunkStatisticsCollector::HydraUpdateMasterCellChunkStatistics,
             Unretained(this)));
-        RegisterMethod(BIND(
+        RegisterMethod(BIND_NO_PROPAGATE(
             &TMasterCellChunkStatisticsCollector::HydraRecalculateMasterCellChunkStatistics,
             Unretained(this)));
 
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(
-            BIND(&TMasterCellChunkStatisticsCollector::OnDynamicConfigChanged, Unretained(this)));
+            BIND_NO_PROPAGATE(&TMasterCellChunkStatisticsCollector::OnDynamicConfigChanged, Unretained(this)));
     }
 
     void OnChunkCreated(TChunk* chunk) override

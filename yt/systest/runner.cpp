@@ -6,6 +6,7 @@
 #include <yt/systest/dataset_operation.h>
 #include <yt/systest/sort_dataset.h>
 #include <yt/systest/reduce_dataset.h>
+#include <yt/systest/retrier.h>
 #include <yt/systest/run.h>
 
 #include <yt/systest/operation/map.h>
@@ -60,28 +61,38 @@ TRunner::TDatasetInfo TRunner::PopulateBootstrapDataset(const NProto::TBootstrap
 TRunner::TDatasetInfo TRunner::PopulateMapDataset(
     const TString& name,
     const TDatasetInfo& parent,
-    const NProto::TMapRunSpec& runSpec,
-    const TString& path)
+    const NProto::TMapRunSpec& runSpec)
 {
     const auto& input = parent.Table;
     auto mapOperation = CreateFromProto(input, runSpec.operation());
 
     TTable table = CreateTableFromMapOperation(*mapOperation);
 
-    YT_LOG_INFO("Performing Map (InputTable: %v, OutputTable: %v)", parent.Stored.Path, path);
-
+    TString path;
     if (mapOperation->Alterable()) {
+        path = TestHome_.TablePath(name, 0);
         CloneTableViaMap(parent.Table, parent.Stored.Path, path);
         AlterTable(RpcClient_, path, table);
     } else {
-        RunMap(
-            Client_,
-            Pool_,
-            parent.Stored.Path,
-            path,
-            parent.Table,
-            table,
-            *mapOperation);
+        TRetrier<TString> retrier([=, this, &parent, &table, &mapOperation](int attempt) {
+            auto attemptPath = TestHome_.TablePath(name, attempt);
+
+            return BIND([&]() {
+                YT_LOG_INFO("Performing Map (InputTable: %v, OutputTable: %v)", parent.Stored.Path, attemptPath);
+
+                RunMap(
+                    Client_,
+                    Pool_,
+                    parent.Stored.Path,
+                    attemptPath,
+                    parent.Table,
+                    table,
+                    *mapOperation);
+                return attemptPath;
+            }).AsyncVia(GetSyncInvoker()).Run();
+
+        });
+        path = NConcurrency::WaitFor(retrier.Run()).ValueOrThrow();
     }
 
     auto stored = Validator_.VerifyMap(
@@ -104,8 +115,7 @@ TRunner::TDatasetInfo TRunner::PopulateMapDataset(
 TRunner::TDatasetInfo TRunner::PopulateReduceDataset(
     const TString& name,
     const TDatasetInfo& parent,
-    const NProto::TReduceRunSpec& runSpec,
-    const TString& path)
+    const NProto::TReduceRunSpec& runSpec)
 {
     std::vector<TString> columns(runSpec.reduce_by().begin(), runSpec.reduce_by().end());
 
@@ -117,16 +127,25 @@ TRunner::TDatasetInfo TRunner::PopulateReduceDataset(
     std::vector<int> reduceByIndices;
     TTable table = CreateTableFromReduceOperation(parent.Table, reduceOperation, &reduceByIndices);
 
-    YT_LOG_INFO("Performing reduce (InputTable: %v, Columns: %v, OutputTable: %v)",
-        parent.Stored.Path, JoinSeq(",", columns), path);
+    TRetrier<TString> retrier([=, this, &parent, &table, &columns, &reduceOperation](int attempt) {
+        TString attemptPath = TestHome_.TablePath(name, attempt);
 
-    RunReduce(Client_,
-              Pool_,
-              parent.Stored.Path,
-              path,
-              parent.Table,
-              table,
-              reduceOperation);
+        return BIND([&]() {
+            YT_LOG_INFO("Performing reduce (InputTable: %v, Columns: %v, OutputTable: %v)",
+                parent.Stored.Path, JoinSeq(",", columns), attemptPath);
+            RunReduce(Client_,
+                      Pool_,
+                      parent.Stored.Path,
+                      attemptPath,
+                      parent.Table,
+                      table,
+                      reduceOperation);
+
+            return attemptPath;
+        }).AsyncVia(GetSyncInvoker()).Run();
+    });
+
+    TString path = NConcurrency::WaitFor(retrier.Run()).ValueOrThrow();
 
     auto stored = Validator_.VerifyReduce(
         name,
@@ -149,8 +168,7 @@ TRunner::TDatasetInfo TRunner::PopulateReduceDataset(
 TRunner::TDatasetInfo TRunner::PopulateSortDataset(
     const TString& name,
     const TDatasetInfo &parent,
-    const NProto::TSortRunSpec& sort,
-    const TString& path)
+    const NProto::TSortRunSpec& sort)
 {
     std::vector<TString> columns;
     for (const auto& column : sort.sort_by()) {
@@ -159,13 +177,22 @@ TRunner::TDatasetInfo TRunner::PopulateSortDataset(
     TSortOperation sortOperation{columns};
 
     TString sortColumnsString = JoinSeq(",", columns);
-    YT_LOG_INFO("Performing sort (InputTable: %v, Columns: %v, OutputTable: %v)", parent.Stored.Path, sortColumnsString, path);
 
     TTable table;
     ApplySortOperation(parent.Table, sortOperation, &table);
 
-    RunSort(Client_, Pool_, parent.Stored.Path, path,
-        TSortColumns(TVector<TString>(columns.begin(), columns.end())));
+    TRetrier<TString> retrier([=, this, &parent](int attempt) {
+        TString attemptPath = TestHome_.TablePath(name, attempt);
+
+        return BIND([&]() {
+            YT_LOG_INFO("Performing sort (InputTable: %v, Columns: %v, OutputTable: %v)", parent.Stored.Path, sortColumnsString);
+            RunSort(Client_, Pool_, parent.Stored.Path, attemptPath,
+                TSortColumns(TVector<TString>(columns.begin(), columns.end())));
+            return attemptPath;
+        }).AsyncVia(GetSyncInvoker()).Run();
+    });
+
+    TString path = NConcurrency::WaitFor(retrier.Run()).ValueOrThrow();
 
     auto stored = Validator_.VerifySort(
         name,
@@ -239,23 +266,24 @@ void TRunner::PopulateTable(int index)
         parent = &Infos_[pos->second];
     }
     TString name{table.name()};
-    auto path = TestHome_.TablePath(name);
     switch (table.operation_case()) {
-        case NProto::TTableSpec::kBootstrap:
+        case NProto::TTableSpec::kBootstrap: {
             YT_LOG_INFO("Bootstrap (Name: %v)", table.name());
+            TString path = TestHome_.TablePath(table.name(), 0);
             Infos_[index] = PopulateBootstrapDataset(table.bootstrap(), path);
             break;
+        }
         case NProto::TTableSpec::kMap:
             YT_LOG_INFO("Map (Source: %v, Target: %v)", table.parent(), table.name());
-            Infos_[index] = PopulateMapDataset(name, *parent, table.map(), path);
+            Infos_[index] = PopulateMapDataset(name, *parent, table.map());
             break;
         case NProto::TTableSpec::kReduce:
             YT_LOG_INFO("Reduce (Source: %v, Target: %v)", table.parent(), table.name());
-            Infos_[index] = PopulateReduceDataset(name, *parent, table.reduce(), path);
+            Infos_[index] = PopulateReduceDataset(name, *parent, table.reduce());
             break;
         case NProto::TTableSpec::kSort:
             YT_LOG_INFO("Sort (Source: %v, Target: %v)", table.parent(), table.name());
-            Infos_[index] = PopulateSortDataset(name, *parent, table.sort(), path);
+            Infos_[index] = PopulateSortDataset(name, *parent, table.sort());
             break;
         case NProto::TTableSpec::OPERATION_NOT_SET:
             break;

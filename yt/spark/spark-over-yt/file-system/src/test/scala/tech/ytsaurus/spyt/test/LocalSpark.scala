@@ -164,4 +164,6 @@ object LocalSpark {
     .set("spark.sql.adaptive.enabled", "true")
     .set("spark.yt.log.enabled", "false"))
     .set("spark.datasource.yt.recursiveFileLookup", "true")
+    .set("spark.hadoop.fs.null.impl", "tech.ytsaurus.spyt.fs.YtTableFileSystem")
+    .set("spark.sql.caseSensitive", "true")
 }

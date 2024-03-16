@@ -49,13 +49,13 @@ public:
     explicit TCellarNodeTracker(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::CellarNodeTracker)
     {
-        RegisterMethod(BIND(&TCellarNodeTracker::HydraCellarNodeHeartbeat, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TCellarNodeTracker::HydraCellarNodeHeartbeat, Unretained(this)));
     }
 
     void Initialize() override
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TCellarNodeTracker::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TCellarNodeTracker::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     void ProcessHeartbeat(TCtxHeartbeatPtr context) override

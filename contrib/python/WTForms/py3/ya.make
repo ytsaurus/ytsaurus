@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(3.0.1)
+VERSION(3.1.2)
 
 LICENSE(BSD-3-Clause)
 
@@ -63,6 +63,7 @@ RESOURCE_FILES(
     wtforms/locale/nl/LC_MESSAGES/wtforms.mo
     wtforms/locale/pl/LC_MESSAGES/wtforms.mo
     wtforms/locale/pt/LC_MESSAGES/wtforms.mo
+    wtforms/locale/ro/LC_MESSAGES/wtforms.mo
     wtforms/locale/ru/LC_MESSAGES/wtforms.mo
     wtforms/locale/sk/LC_MESSAGES/wtforms.mo
     wtforms/locale/sv/LC_MESSAGES/wtforms.mo

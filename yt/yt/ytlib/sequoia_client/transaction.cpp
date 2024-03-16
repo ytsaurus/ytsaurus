@@ -352,6 +352,8 @@ private:
         THashSet<TTabletCellId> TabletCellIds;
 
         TWriteSet WriteSet;
+
+        TAuthenticationIdentity UserIdentity;
     };
     using TMasterCellCommitSessionPtr = TIntrusivePtr<TMasterCellCommitSession>;
 
@@ -390,6 +392,7 @@ private:
         if (it == MasterCellCommitSessions_.end()) {
             auto session = New<TMasterCellCommitSession>();
             session->CellTag = cellTag;
+            session->UserIdentity = GetCurrentAuthenticationIdentity();
             EmplaceOrCrash(MasterCellCommitSessions_, cellTag, session);
             Transaction_->RegisterParticipant(NativeRootClient_->GetNativeConnection()->GetMasterCellId(cellTag));
             return session;
@@ -546,11 +549,6 @@ private:
                     tabletCommitSession->SubmitUnversionedRow(EWireProtocolCommand::WriteAndLockRow, request.Key, lockMask);
                 },
                 [&] (const TWriteRowRequest& request) {
-                    if (request.LockType == ELockType::SharedWrite && !tableMountInfo->EnableSharedWriteLocks) {
-                        THROW_ERROR_EXCEPTION("Shared write locks should be explicitly enabled for table %v to use them",
-                            tableMountInfo->Path);
-                    }
-
                     auto tabletInfo = GetSortedTabletForRow(tableMountInfo, request.Row, /*validateWrite*/ true);
 
                     TLockMask lockMask;
@@ -620,6 +618,8 @@ private:
             for (const auto& action : session->TransactionActions) {
                 ToProto(req->add_actions(), action);
             }
+            WriteAuthenticationIdentityToProto(req->mutable_identity(), session->UserIdentity);
+
             futures.push_back(req->Invoke().AsVoid());
         }
 

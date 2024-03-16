@@ -371,6 +371,8 @@ public:
 
     const TDynamicAttributes& DynamicAttributesOf(const TSchedulerElement* element) const;
 
+    bool CheckScheduleAllocationTimeoutExpired() const;
+
     //! Testing.
     void DeactivateOperationInTest(TSchedulerOperationElement* element);
 

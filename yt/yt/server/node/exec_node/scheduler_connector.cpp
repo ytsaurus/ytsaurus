@@ -1,7 +1,7 @@
 #include "scheduler_connector.h"
 
+#include "allocation.h"
 #include "bootstrap.h"
-#include "job.h"
 #include "job_controller.h"
 #include "master_connector.h"
 #include "private.h"
@@ -29,6 +29,8 @@
 #include <yt/yt/core/concurrency/scheduler.h>
 
 namespace NYT::NExecNode {
+
+using namespace NTracing;
 
 using namespace NJobAgent;
 using namespace NNodeTrackerClient;
@@ -68,18 +70,6 @@ void TSchedulerConnector::Start()
     jobResourceManager->SubscribeResourcesAcquired(BIND_NO_PROPAGATE(
         &TSchedulerConnector::OnResourcesAcquired,
         MakeWeak(this)));
-
-    const auto& jobController = Bootstrap_->GetJobController();
-
-    jobController->SubscribeJobFinished(BIND_NO_PROPAGATE(
-            &TSchedulerConnector::OnJobFinished,
-            MakeWeak(this))
-        .Via(Bootstrap_->GetJobInvoker()));
-
-    jobController->SubscribeAllocationFailed(BIND_NO_PROPAGATE(
-            &TSchedulerConnector::OnAllocationFailed,
-            MakeWeak(this))
-        .Via(Bootstrap_->GetJobInvoker()));
 
     HeartbeatExecutor_->Start();
 }
@@ -133,19 +123,6 @@ void TSchedulerConnector::SendOutOfBandHeartbeatIfNeeded()
         BIND(&TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded, MakeStrong(this)));
 }
 
-void TSchedulerConnector::OnJobFinished(const TJobPtr& job)
-{
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
-
-    EnqueueFinishedJobs({job});
-
-    YT_LOG_DEBUG(
-        "Job finished, send out of band heartbeat to scheduler (JobId: %v)",
-        job->GetId());
-
-    HeartbeatExecutor_->ScheduleOutOfBand();
-}
-
 void TSchedulerConnector::OnResourcesAcquired()
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -160,7 +137,7 @@ void TSchedulerConnector::OnResourcesReleased(
     VERIFY_THREAD_AFFINITY_ANY();
 
     // Scheduler connector is subscribed to JobFinished scheduler job controller signal.
-    if (resourcesConsumerType == EResourcesConsumerType::SchedulerJob && fullyReleased) {
+    if (resourcesConsumerType == EResourcesConsumerType::SchedulerAllocation && fullyReleased) {
         return;
     }
 
@@ -176,30 +153,25 @@ void TSchedulerConnector::SetMinSpareResources(const NScheduler::TJobResources& 
     MinSpareResources_ = minSpareResources;
 }
 
-void TSchedulerConnector::EnqueueFinishedJobs(std::vector<TJobPtr> jobs)
+void TSchedulerConnector::EnqueueFinishedAllocation(TAllocationPtr allocation)
 {
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
-    for (auto& job : jobs) {
-        JobsToForcefullySend_.emplace(std::move(job));
-    }
+    YT_LOG_DEBUG(
+        "Finished allocation enqueued, send out of band heartbeat to scheduler (AllocationId: %v)",
+        allocation->GetId());
+
+    FinishedAllocations_.emplace(std::move(allocation));
+
+    HeartbeatExecutor_->ScheduleOutOfBand();
 }
 
-void TSchedulerConnector::RemoveSentJobs(const THashSet<TJobPtr>& jobs)
+void TSchedulerConnector::RemoveSentAllocations(const THashSet<TAllocationPtr>& allocations)
 {
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
-    for (const auto& job : jobs) {
-        EraseOrCrash(JobsToForcefullySend_, job);
-    }
-}
-
-void TSchedulerConnector::RemoveFailedAllocations(THashMap<TAllocationId, TFailedAllocationInfo> allocations)
-{
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
-
-    for (const auto& [allocationId, _] : allocations) {
-        EraseOrCrash(FailedAllocations_, allocationId);
+    for (const auto& allocation : allocations) {
+        EraseOrCrash(FinishedAllocations_, allocation);
     }
 }
 
@@ -210,6 +182,18 @@ TError TSchedulerConnector::DoSendHeartbeat()
     const auto& client = Bootstrap_->GetClient();
 
     TAllocationTrackerServiceProxy proxy(client->GetSchedulerChannel());
+    auto nodeId = Bootstrap_->GetNodeId();
+
+    TTraceContextPtr requestTraceContext;
+    bool enableTracing = DynamicConfig_.Acquire()->EnableTracing;
+
+    if (enableTracing) {
+        requestTraceContext = TTraceContext::NewRoot("SchedulerHeartbeatRequest");
+        requestTraceContext->SetRecorded();
+        requestTraceContext->AddTag("node_id", ToString(nodeId));
+    }
+
+    auto contextGuard = TTraceContextGuard(requestTraceContext);
 
     auto req = proxy.Heartbeat();
     req->SetRequestCodec(NCompression::ECodec::Lz4);
@@ -265,10 +249,9 @@ TError TSchedulerConnector::DoSendHeartbeat()
 
     ProcessHeartbeatResponse(rsp, heartbeatContext);
 
-    return
-        operationSuccessful ?
-        TError() :
-        TError("Scheduling skipped");
+    return operationSuccessful
+        ? TError()
+        : TError("Scheduling skipped");
 }
 
 TError TSchedulerConnector::SendHeartbeat()
@@ -333,8 +316,7 @@ void TSchedulerConnector::DoPrepareHeartbeatRequest(
 {
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
-    context->JobsToForcefullySend = JobsToForcefullySend_;
-    context->FailedAllocations = FailedAllocations_;
+    context->FinishedAllocations = FinishedAllocations_;
 
     const auto& jobController = Bootstrap_->GetJobController();
     jobController->PrepareSchedulerHeartbeatRequest(request, context);
@@ -353,25 +335,7 @@ void TSchedulerConnector::DoProcessHeartbeatResponse(
     const auto& jobController = Bootstrap_->GetJobController();
     jobController->ProcessSchedulerHeartbeatResponse(response, context);
 
-    RemoveFailedAllocations(std::move(context->FailedAllocations));
-    RemoveSentJobs(std::move(context->JobsToForcefullySend));
-}
-
-void TSchedulerConnector::OnAllocationFailed(
-    TAllocationId allocationId,
-    TOperationId operationId,
-    const TControllerAgentDescriptor& /*agentDescriptor*/,
-    const TError& error)
-{
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
-
-    EmplaceOrCrash(
-        FailedAllocations_,
-        allocationId,
-        TFailedAllocationInfo{
-            .OperationId = operationId,
-            .Error = error,
-        });
+    RemoveSentAllocations(context->FinishedAllocations);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

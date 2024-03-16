@@ -11,3 +11,5 @@ org/apache/spark/sql/catalyst/expressions/CastDecorators$
 org/apache/spark/deploy/rest/spyt/patch/StandaloneRestServer
 org/apache/spark/deploy/rest/RestSubmissionClientAppSpyt
 org/apache/spark/sql/SparkSessionBuilderDecorators
+org/apache/spark/sql/catalyst/catalog/SessionCatalogSpyt
+org/apache/spark/sql/internal/SharedStateDecorators$

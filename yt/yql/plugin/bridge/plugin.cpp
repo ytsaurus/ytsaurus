@@ -37,10 +37,11 @@ DEFINE_ENUM(EYqlPluginAbiVersion,
     ((AbortQuery)          (1)) // gritukan: Added BridgeAbort; no breaking changes.
     ((ValidateExplain)     (2)) // aleksandr.gaev: Adjusted BridgeRun to accept settings length and execution mode.
     ((DqManager)           (3)) // mpereskokova: Added BridgeStartYqlPlugin; Adjusted TBridgeYqlPluginOptions to save DQ configs.
+    ((TemporaryTokens)     (4)) // mpereskokova: Added GetUsedClusters step; Changed Run options.
 );
 
-constexpr auto MinSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::DqManager;
-constexpr auto MaxSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::DqManager;
+constexpr auto MinSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::TemporaryTokens;
+constexpr auto MaxSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::TemporaryTokens;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -126,7 +127,8 @@ public:
 
     TQueryResult Run(
         TQueryId queryId,
-        TString impersonationUser,
+        TString user,
+        TString token,
         TString queryText,
         NYson::TYsonString settings,
         std::vector<TQueryFile> files,
@@ -150,7 +152,8 @@ public:
         auto* bridgeQueryResult = BridgeRun(
             BridgePlugin_,
             queryIdStr.data(),
-            impersonationUser.data(),
+            user.data(),
+            token.data(),
             queryText.data(),
             settingsString.data(),
             settingsString.length(),
@@ -166,6 +169,46 @@ public:
             .YsonError = ToString(bridgeQueryResult->YsonError, bridgeQueryResult->YsonErrorLength),
         };
         BridgeFreeQueryResult(bridgeQueryResult);
+        return queryResult;
+    }
+
+    TClustersResult GetUsedClusters(
+        TString queryText,
+        NYson::TYsonString settings,
+        std::vector<TQueryFile> files) noexcept override
+    {
+        auto settingsString = settings ? settings.ToString() : "{}";
+
+        std::vector<TBridgeQueryFile> filesData;
+        filesData.reserve(files.size());
+        for (const auto& file : files) {
+            filesData.push_back(TBridgeQueryFile{
+                .Name = file.Name.data(),
+                .NameLength = file.Name.size(),
+                .Content = file.Content.data(),
+                .ContentLength = file.Content.size(),
+                .Type = file.Type,
+            });
+        }
+
+        auto* bridgeClustersResult = BridgeGetUsedClusters(
+            BridgePlugin_,
+            queryText.data(),
+            settingsString.data(),
+            settingsString.length(),
+            filesData.data(),
+            filesData.size());
+
+        std::vector<TString> clusters(bridgeClustersResult->ClusterCount);
+        for (ssize_t i = 0; i < bridgeClustersResult->ClusterCount; i++) {
+            clusters[i] = TString(bridgeClustersResult->Clusters[i]);
+        }
+        TClustersResult queryResult{
+            .Clusters = clusters,
+            .YsonError = ToString(bridgeClustersResult->YsonError, bridgeClustersResult->YsonErrorLength),
+        };
+        BridgeFreeClustersResult(bridgeClustersResult);
+
         return queryResult;
     }
 

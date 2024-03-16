@@ -1,5 +1,6 @@
 #include "job.h"
 
+#include "allocation.h"
 #include "bootstrap.h"
 #include "chunk_cache.h"
 #include "controller_agent_connector.h"
@@ -154,29 +155,27 @@ TGuid MakeNbdExportId(TJobId jobId, int nbdExportIndex)
 TJob::TJob(
     TJobId jobId,
     TOperationId operationId,
-    const NClusterNode::TJobResources& resourceUsage,
-    const NClusterNode::TJobResourceAttributes& resourceAttributes,
+    TAllocationPtr allocation,
     TJobSpec&& jobSpec,
     TControllerAgentDescriptor agentDescriptor,
     IBootstrap* bootstrap,
     const TJobCommonConfigPtr& commonConfig)
     : TResourceHolder(
         bootstrap->GetJobResourceManager().Get(),
-        EResourcesConsumerType::SchedulerJob,
+        EResourcesConsumerType::SchedulerAllocation,
         ExecNodeLogger.WithTag(
             "JobId: %v, OperationId: %v, JobType: %v",
             jobId,
             operationId,
             CheckedEnumCast<EJobType>(jobSpec.type())),
-        resourceUsage,
-        resourceAttributes,
-        jobSpec.GetExtension(TJobSpecExt::job_spec_ext).user_job_spec().port_count())
+        allocation)
     , Id_(jobId)
     , OperationId_(operationId)
     , Bootstrap_(bootstrap)
+    , Allocation_(std::move(allocation))
     , ControllerAgentDescriptor_(std::move(agentDescriptor))
     , ControllerAgentConnector_(
-        Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(this))
+        Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(ControllerAgentDescriptor_))
     , CommonConfig_(commonConfig)
     , Invoker_(Bootstrap_->GetJobInvoker())
     , CreationTime_(TInstant::Now())
@@ -190,9 +189,7 @@ TJob::TJob(
         : New<TJobTestingOptions>())
     , Interruptible_(JobSpecExt_->interruptible())
     , AbortJobIfAccountLimitExceeded_(JobSpecExt_->abort_job_if_account_limit_exceeded())
-    , IsGpuRequested_(resourceUsage.Gpu > 0)
-    , RequestedCpu_(resourceUsage.Cpu)
-    , RequestedMemory_(resourceUsage.UserMemory)
+    , IsGpuRequested_(Allocation_->GetRequestedGpu() > 0)
     , TraceContext_(CreateTraceContextFromCurrent("Job"))
     , FinishGuard_(TraceContext_)
 {
@@ -260,7 +257,7 @@ void TJob::DoStart(TErrorOr<std::vector<TNameWithAddress>>&& resolvedNodeAddress
             }
 
             if (NeedGpu()) {
-                GpuStatistics_.resize(GpuSlots_.size());
+                GpuStatistics_.resize(std::size(GetGpuSlots()));
             }
 
             SetJobPhase(EJobPhase::PreparingNodeDirectory);
@@ -291,9 +288,8 @@ bool TJob::IsStarted() const
 
 void TJob::OnResourcesAcquired() noexcept
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    Start();
+    // Resources can not be acquired for job, we acquire resources for allocation and we can transfer it to job.
+    YT_ABORT();
 }
 
 void TJob::Start() noexcept
@@ -808,24 +804,27 @@ const TControllerAgentDescriptor& TJob::GetControllerAgentDescriptor() const
     return ControllerAgentDescriptor_;
 }
 
-void TJob::UpdateControllerAgentDescriptor(TControllerAgentDescriptor agentDescriptor)
+void TJob::UpdateControllerAgentDescriptor(TControllerAgentDescriptor descriptor)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (ControllerAgentDescriptor_ == agentDescriptor) {
+    if (ControllerAgentDescriptor_ == descriptor) {
         return;
     }
 
     YT_LOG_DEBUG(
         "Update controller agent (ControllerAgentAddress: %v -> %v, ControllerAgentIncarnationId: %v)",
         ControllerAgentDescriptor_.Address,
-        agentDescriptor.Address,
-        agentDescriptor.IncarnationId);
+        descriptor.Address,
+        descriptor.IncarnationId);
 
-    ControllerAgentDescriptor_ = std::move(agentDescriptor);
-    ControllerAgentConnector_ = Bootstrap_
-        ->GetControllerAgentConnectorPool()
-        ->GetControllerAgentConnector(this);
+    ControllerAgentDescriptor_ = std::move(descriptor);
+
+    ControllerAgentConnector_ = ControllerAgentDescriptor_
+        ? ControllerAgentConnector_ = Bootstrap_
+            ->GetControllerAgentConnectorPool()
+            ->GetControllerAgentConnector(ControllerAgentDescriptor_)
+        : nullptr;
 }
 
 EJobType TJob::GetType() const
@@ -1025,11 +1024,6 @@ void TJob::SetResourceUsage(const NClusterNode::TJobResources& newUsage)
     }
 }
 
-bool TJob::ResourceUsageOverdrafted() const
-{
-    return TResourceHolder::GetResourceUsage().UserMemory > RequestedMemory_;
-}
-
 void TJob::SetProgress(double progress)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -1135,8 +1129,8 @@ void TJob::SetStatistics(const TYsonString& statisticsYson)
         auto statistics = ConvertTo<TStatistics>(statisticsYson);
         GetTimeStatistics().AddSamplesTo(&statistics);
 
-        if (!GpuSlots_.empty()) {
-            EnrichStatisticsWithGpuInfo(&statistics);
+        if (auto gpuSlots = GetGpuSlots(); !std::empty(gpuSlots)) {
+            EnrichStatisticsWithGpuInfo(&statistics, gpuSlots);
 
             if (IsFullHostGpuJob()) {
                 EnrichStatisticsWithRdmaDeviceInfo(&statistics);
@@ -1358,7 +1352,7 @@ void TJob::ReportProfile()
 void TJob::DoInterrupt(
     TDuration timeout,
     EInterruptReason interruptionReason,
-    const std::optional<TString>& preemptionReason,
+    std::optional<TString> preemptionReason,
     const std::optional<NScheduler::TPreemptedFor>& preemptedFor)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -1557,6 +1551,13 @@ bool TJob::IsGrowingStale(TDuration maxDelay) const
     return LastStoredTime_ + maxDelay <= TInstant::Now();
 }
 
+void TJob::OnEvictedFromAllocation()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    Allocation_.Reset();
+}
+
 bool TJob::IsJobProxyCompleted() const noexcept
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -1601,10 +1602,11 @@ TControllerAgentConnectorPool::TControllerAgentConnectorPtr TJob::GetControllerA
 void TJob::Interrupt(
     TDuration timeout,
     EInterruptReason interruptionReason,
-    const std::optional<TString>& preemptionReason,
+    std::optional<TString> preemptionReason,
     const std::optional<NScheduler::TPreemptedFor>& preemptedFor)
 {
-    YT_LOG_INFO("Interrupt job (InterruptionReason: %v, PreemptionReason: %v, PreemptedFor: %v, Timeout: %v)",
+    YT_LOG_INFO(
+        "Interrupting job (InterruptionReason: %v, PreemptionReason: %v, PreemptedFor: %v, Timeout: %v)",
         interruptionReason,
         preemptionReason,
         preemptedFor,
@@ -1856,11 +1858,12 @@ void TJob::OnNodeDirectoryPrepared(TErrorOr<std::unique_ptr<NNodeTrackerClient::
 
 std::vector<TDevice> TJob::GetGpuDevices()
 {
+    auto gpuSlots = GetGpuSlots();
+
     std::vector<TDevice> devices;
     for (const auto& deviceName : Bootstrap_->GetGpuManager()->GetGpuDevices()) {
         bool deviceFound = false;
-        for (const auto& slot : GpuSlots_) {
-            auto gpuSlot = StaticPointerCast<TGpuSlot>(slot);
+        for (const auto& gpuSlot : gpuSlots) {
             if (gpuSlot->GetDeviceName() == deviceName) {
                 deviceFound = true;
                 break;
@@ -2142,7 +2145,27 @@ void TJob::OnWaitingForCleanupTimeout()
 
 IUserSlotPtr TJob::GetUserSlot() const
 {
-    return StaticPointerCast<IUserSlot>(UserSlot_);
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    const auto& userSlot = Allocation_ ? Allocation_->GetUserSlot() : UserSlot_;
+
+    return StaticPointerCast<IUserSlot>(userSlot);
+}
+
+std::vector<TGpuSlotPtr> TJob::GetGpuSlots() const
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    const auto& gpuSlots = Allocation_ ? Allocation_->GetGpuSlots() : GpuSlots_;
+
+    std::vector<TGpuSlotPtr> result;
+    result.reserve(std::size(gpuSlots));
+
+    for (const auto& gpuSlot : gpuSlots) {
+        result.push_back(StaticPointerCast<TGpuSlot>(gpuSlot));
+    }
+
+    return result;
 }
 
 void TJob::OnJobProxyFinished(const TError& error)
@@ -2368,6 +2391,11 @@ TFuture<void> TJob::GetCleanupFinishedEvent()
         .ToUncancelable();
 }
 
+const TAllocationPtr& TJob::GetAllocation() const noexcept
+{
+    return Allocation_;
+}
+
 // Preparation.
 std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDirectory()
 {
@@ -2483,7 +2511,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     if (UserJobSpec_ && UserJobSpec_->set_container_cpu_limit()) {
         proxyConfig->ContainerCpuLimit = UserJobSpec_->container_cpu_limit();
         if (*proxyConfig->ContainerCpuLimit <= 0) {
-            proxyConfig->ContainerCpuLimit = RequestedCpu_;
+            proxyConfig->ContainerCpuLimit = Allocation_->GetRequestedCpu();
         }
     }
 
@@ -2562,8 +2590,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         tryReplaceSlotIndex(*proxyConfig->ExecutorStderrPath);
     }
 
-    for (const auto& gpuSlot : GpuSlots_) {
-        auto slot = StaticPointerCast<TGpuSlot>(gpuSlot);
+    for (const auto& slot : GetGpuSlots()) {
         proxyConfig->GpuIndexes.push_back(slot->GetDeviceIndex());
     }
 
@@ -2619,9 +2646,9 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
             ExecAttributes_.IPAddresses.push_back(ToString(address));
         }
 
-        ExecAttributes_.GpuDevices.reserve(GpuSlots_.size());
-        for (const auto& gpuSlot : GpuSlots_) {
-            auto slot = StaticPointerCast<TGpuSlot>(gpuSlot);
+        auto gpuSlots = GetGpuSlots();
+        ExecAttributes_.GpuDevices.reserve(gpuSlots.size());
+        for (const auto& slot : gpuSlots) {
             auto& gpuDevice = ExecAttributes_.GpuDevices.emplace_back(New<TGpuDevice>());
             gpuDevice->DeviceNumber = slot->GetDeviceIndex();
             gpuDevice->DeviceName = slot->GetDeviceName();
@@ -2957,6 +2984,10 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
         return EAbortReason::InterruptionUnsupported;
     }
 
+    if (resultError.FindMatching(NExecNode::EErrorCode::RootVolumePreparationFailed)) {
+        return EAbortReason::RootVolumePreparationFailed;
+    }
+
     if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
         resultError.FindMatching(NChunkClient::EErrorCode::ReaderThrottlingFailed) ||
         resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
@@ -2972,7 +3003,6 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
         resultError.FindMatching(NExecNode::EErrorCode::ArtifactDownloadFailed) ||
         resultError.FindMatching(NExecNode::EErrorCode::NodeDirectoryPreparationFailed) ||
         resultError.FindMatching(NExecNode::EErrorCode::SlotLocationDisabled) ||
-        resultError.FindMatching(NExecNode::EErrorCode::RootVolumePreparationFailed) ||
         resultError.FindMatching(NExecNode::EErrorCode::NotEnoughDiskSpace) ||
         resultError.FindMatching(NJobProxy::EErrorCode::MemoryCheckFailed) ||
         resultError.FindMatching(NContainers::EErrorCode::FailedToStartContainer) ||
@@ -3045,7 +3075,7 @@ bool TJob::IsFatalError(const TError& error)
         error.FindMatching(NFormats::EErrorCode::InvalidFormat);
 }
 
-void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
+void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics, const std::vector<TGpuSlotPtr>& gpuSlots)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -3053,9 +3083,9 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
     i64 totalGpuMemory = 0;
 
     auto gpuInfoMap = Bootstrap_->GetGpuManager()->GetGpuInfoMap();
-    for (int index = 0; index < std::ssize(GpuSlots_); ++index) {
-        const auto& gpuSlot = GpuSlots_[index];
-        auto slot = StaticPointerCast<TGpuSlot>(gpuSlot);
+    for (int index = 0; index < std::ssize(gpuSlots); ++index) {
+        const auto& slot = gpuSlots[index];
+
         auto& [slotStatistics, slotStatisticsLastUpdateTime] = GpuStatistics_[index];
 
         NGpu::TGpuInfo gpuInfo;
@@ -3446,7 +3476,9 @@ void TJob::CollectSensorsFromGpuAndRdmaDeviceInfo(ISensorWriter* writer)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (GpuSlots_.empty()) {
+    auto gpuSlots = GetGpuSlots();
+
+    if (gpuSlots.empty()) {
         return;
     }
 
@@ -3482,9 +3514,8 @@ void TJob::CollectSensorsFromGpuAndRdmaDeviceInfo(ISensorWriter* writer)
     };
 
     auto gpuInfoMap = Bootstrap_->GetGpuManager()->GetGpuInfoMap();
-    for (int index = 0; index < std::ssize(GpuSlots_); ++index) {
-        const auto& gpuSlot = GpuSlots_[index];
-        auto slot = StaticPointerCast<TGpuSlot>(gpuSlot);
+    for (int index = 0; index < std::ssize(gpuSlots); ++index) {
+        auto slot = gpuSlots[index];
 
         auto it = gpuInfoMap.find(slot->GetDeviceIndex());
         if (it == gpuInfoMap.end()) {
@@ -3546,8 +3577,7 @@ bool TJob::NeedsGpuCheck() const
 TJobPtr CreateJob(
     TJobId jobId,
     TOperationId operationId,
-    const NClusterNode::TJobResources& resourceUsage,
-    const NClusterNode::TJobResourceAttributes& resourceAttributes,
+    TAllocationPtr allocation,
     TJobSpec&& jobSpec,
     TControllerAgentDescriptor agentDescriptor,
     IBootstrap* bootstrap,
@@ -3557,8 +3587,7 @@ TJobPtr CreateJob(
         bootstrap->GetJobInvoker(),
         jobId,
         operationId,
-        resourceUsage,
-        resourceAttributes,
+        std::move(allocation),
         std::move(jobSpec),
         std::move(agentDescriptor),
         bootstrap,
@@ -3567,20 +3596,13 @@ TJobPtr CreateJob(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FillStatus(NScheduler::NProto::TAllocationStatus* status, const TJobPtr& job)
-{
-    using NYT::ToProto;
-
-    ToProto(status->mutable_allocation_id(), job->GetAllocationId());
-
-    status->set_state(ToProto<int>(JobStateToAllocationState(job->GetState())));
-}
-
-void FillStatus(NControllerAgent::NProto::TJobStatus* status, const TJobPtr& job)
+void FillJobStatus(NControllerAgent::NProto::TJobStatus* status, const TJobPtr& job)
 {
     using NYT::ToProto;
 
     ToProto(status->mutable_job_id(), job->GetId());
+    ToProto(status->mutable_operation_id(), job->GetOperationId());
+
     status->set_job_type(ToProto<int>(job->GetType()));
     status->set_state(ToProto<int>(job->GetState()));
     status->set_phase(ToProto<int>(job->GetPhase()));
@@ -3598,23 +3620,13 @@ void FillStatus(NControllerAgent::NProto::TJobStatus* status, const TJobPtr& job
     if (const auto& preemptedFor = job->GetPreemptedFor()) {
         ToProto(status->mutable_preempted_for(), *preemptedFor);
     }
+
     if (auto startTime = job->GetStartTime()) {
         status->set_start_time(startTime->GetValue());
     }
-}
-
-template <class TStatus>
-void FillJobStatus(TStatus* status, const TJobPtr& job)
-{
-    FillStatus(status, job);
-
-    ToProto(status->mutable_operation_id(), job->GetOperationId());
 
     status->set_status_timestamp(ToProto<ui64>(TInstant::Now()));
 }
-
-template void FillJobStatus(NScheduler::NProto::TAllocationStatus* status, const TJobPtr& job);
-template void FillJobStatus(NControllerAgent::NProto::TJobStatus* status, const TJobPtr& job);
 
 ////////////////////////////////////////////////////////////////////////////////
 

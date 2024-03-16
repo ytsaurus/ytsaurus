@@ -8,6 +8,11 @@
 - **Мероприятие**: [Публикация на Хабре](https://habr.com/ru/companies/yandex/articles/785994/)
 - **Автор**: Руслан Савченко
 
+### 2023: Как мы адаптировали динамические таблицы YTsaurus для хранения блобов
+- **Мероприятие**: SmartData 2023
+- **Материалы**: [YouTube](https://youtu.be/HNGqS-aLIwE?si=N25wy3LoOTnC_1bA), [slides](https://squidex.jugru.team/api/assets/srm/ec041918-139a-418d-b5e7-0a268c9b2336/smartdata-2023.pdf)
+- **Докладчик**: Максим Бабенко
+
 ### 2023: Транзакционная репликация в YTsaurus
 - **Мероприятие**: HighLoad++ 2023
 - **Материалы**: [YouTube](https://youtu.be/grNyiJrPE3w)

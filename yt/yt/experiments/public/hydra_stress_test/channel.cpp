@@ -49,7 +49,7 @@ IClientRequestControlPtr TPeerChannel::Send(
         }
 
         if (errorKind == 1) {
-            responseHandler->HandleError(error);
+            responseHandler->HandleError(std::move(error));
             return nullptr;
         }
     }

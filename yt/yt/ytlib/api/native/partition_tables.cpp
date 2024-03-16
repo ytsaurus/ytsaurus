@@ -29,6 +29,8 @@
 #include <library/cpp/iterator/enumerate.h>
 #include <library/cpp/iterator/zip.h>
 
+#include <algorithm>
+
 namespace NYT::NApi::NNative {
 
 using namespace NChunkClient;
@@ -126,6 +128,8 @@ void TMultiTablePartitioner::CollectInput()
                 columnarStatisticsFetcher->AddChunk(inputChunk, stableColumnNames);
             }
         }
+
+        FixLimitsInOrderedDynamicStore(tableIndex, inputChunks);
 
         inputTables.emplace_back(TInputTable{std::move(inputChunks), static_cast<int>(tableIndex)});
 
@@ -345,6 +349,58 @@ TComparator TMultiTablePartitioner::GetComparator(int tableIndex)
     YT_VERIFY(tableIndex < std::ssize(DataSourceDirectory_->DataSources()));
 
     return DataSourceDirectory_->DataSources()[tableIndex].Schema()->ToComparator();
+}
+
+void TMultiTablePartitioner::FixLimitsInOrderedDynamicStore(
+    size_t tableIndex,
+    const std::vector<NChunkClient::TInputChunkPtr>& inputChunks)
+{
+    YT_VERIFY(tableIndex < DataSourceDirectory_->DataSources().size());
+
+    const auto& dataSource = DataSourceDirectory_->DataSources()[tableIndex];
+    auto dynamic = dataSource.GetType() == EDataSourceType::VersionedTable;
+    auto sorted = dataSource.Schema()->IsSorted();
+
+    if (!dynamic || sorted) {
+        return;
+    }
+
+    std::vector<size_t> dynamicStores;
+    THashMap<i64, i64> maxStaticStoreUpperRowIndexForTablet;
+
+    for (const auto& [chunkIndex, inputChunk] : Enumerate(inputChunks)) {
+        if (inputChunk->IsOrderedDynamicStore()) {
+            dynamicStores.push_back(chunkIndex);
+        } else {
+            YT_VERIFY(inputChunk->GetTableRowIndex() >= 0);
+            YT_VERIFY(inputChunk->GetTotalRowCount() >= 0);
+
+            maxStaticStoreUpperRowIndexForTablet[inputChunk->GetTabletIndex()] = std::max(
+                maxStaticStoreUpperRowIndexForTablet[inputChunk->GetTabletIndex()],
+                inputChunk->GetTableRowIndex() + inputChunk->GetTotalRowCount());
+        }
+    }
+
+    for (const auto& chunkIndex : dynamicStores) {
+        auto& inputChunk = inputChunks[chunkIndex];
+
+        // Rows in ordered dynamic stores go after rows in static stores of the ordered dynamic table.
+        i64 lowerRowIndex = maxStaticStoreUpperRowIndexForTablet[inputChunk->GetTabletIndex()];
+
+        if (!inputChunk->LowerLimit()) {
+            inputChunk->LowerLimit() = std::make_unique<TLegacyReadLimit>();
+        }
+        if (!inputChunk->LowerLimit()->HasRowIndex()) {
+            inputChunk->LowerLimit()->SetRowIndex(lowerRowIndex);
+        }
+        if (!inputChunk->UpperLimit()) {
+            inputChunk->UpperLimit() = std::make_unique<TLegacyReadLimit>();
+        }
+        if (!inputChunk->UpperLimit()->HasRowIndex()) {
+            YT_VERIFY(inputChunk->GetTotalRowCount() >= 0);
+            inputChunk->UpperLimit()->SetRowIndex(lowerRowIndex + inputChunk->GetTotalRowCount());
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -328,6 +328,17 @@ private:
                     createSnapshotAndChangelogNodes(cellNodePath);
                 }
 
+                if (TypeFromId(cellId) == EObjectType::TabletCell) {
+                    static const TString OrchidKey("orchid");
+                    auto req = TCypressYPathProxy::Create(YPathJoin(cellNodePath, OrchidKey));
+                    req->set_type(ToProto<int>(EObjectType::CellOrchidNode));
+                    auto attributes = CreateEphemeralAttributes();
+                    attributes->Set("cell_id", cellId);
+                    ToProto(req->mutable_node_attributes(), *attributes);
+                    req->set_ignore_existing(true);
+                    batchReq->AddRequest(req);
+                }
+
                 return batchReq->Invoke()
                     .Apply(BIND(ThrowCumulativeErrorIfFailed));
             }).AsyncVia(GetCurrentInvoker()));

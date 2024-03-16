@@ -1159,6 +1159,10 @@ void TUserJobSpec::Register(TRegistrar registrar)
         if (spec->Profilers) {
             ValidateProfilers(*spec->Profilers);
         }
+
+        if (spec->UseYamrDescriptors && spec->RedirectStdoutToStderr) {
+            THROW_ERROR_EXCEPTION("Uncompatible options \"use_yamr_descriptors\" and \"redirect_stdout_to_stderr\" are both set");
+        }
     });
 }
 
@@ -1475,7 +1479,7 @@ void TSortOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("sort_by", &TThis::SortBy)
         .Default();
     registrar.Parameter("enable_partitioned_data_balancing", &TThis::EnablePartitionedDataBalancing)
-        .Default(true);
+        .Default(false);
     registrar.Parameter("enable_intermediate_output_recalculation", &TThis::EnableIntermediateOutputRecalculation)
         .Default(true);
     registrar.Parameter("pivot_keys", &TThis::PivotKeys)
@@ -2559,7 +2563,7 @@ void TJobCpuMonitorConfig::Register(TRegistrar registrar)
 void TOffloadingPoolSettingsConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("pool", &TThis::Pool)
-        .NonEmpty();
+        .Default();
 
     registrar.Parameter("weight", &TThis::Weight)
         .Optional()

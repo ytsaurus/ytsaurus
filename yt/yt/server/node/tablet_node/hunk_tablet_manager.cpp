@@ -85,8 +85,8 @@ public:
             "HunkTabletManager.Values",
             BIND(&THunkTabletManager::SaveValues, Unretained(this)));
 
-        RegisterMethod(BIND(&THunkTabletManager::HydraMountHunkTablet, Unretained(this)));
-        RegisterMethod(BIND(&THunkTabletManager::HydraUnmountHunkTablet, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&THunkTabletManager::HydraMountHunkTablet, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&THunkTabletManager::HydraUnmountHunkTablet, Unretained(this)));
     }
 
     void Initialize() override

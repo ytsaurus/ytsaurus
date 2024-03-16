@@ -61,6 +61,14 @@ struct TPreemptedAllocation
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ENodeSchedulingResult,
+    (FullyScheduled)
+    (Timeout)
+    (Throttling)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct ISchedulingContext
     : public virtual TRefCounted
 {
@@ -119,6 +127,9 @@ struct ISchedulingContext
 
     virtual void StoreScheduleAllocationExecDurationEstimate(TDuration duration) = 0;
     virtual TDuration ExtractScheduleAllocationExecDurationEstimate() = 0;
+
+    virtual ENodeSchedulingResult GetNodeSchedulingResult() const = 0;
+    virtual void SetNodeSchedulingResult(ENodeSchedulingResult result) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulingContext)

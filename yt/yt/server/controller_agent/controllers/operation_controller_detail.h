@@ -1213,7 +1213,7 @@ private:
 
     //! Exec node count do not consider schedufling tag.
     //! But descriptors do.
-    int OnlineExecNodeCount_ = 0;
+    int AvailableExecNodeCount_ = 0;
     TRefCountedExecNodeDescriptorMapPtr ExecNodesDescriptors_ = New<NScheduler::TRefCountedExecNodeDescriptorMap>();
     TRefCountedExecNodeDescriptorMapPtr OnlineExecNodesDescriptors_ = New<NScheduler::TRefCountedExecNodeDescriptorMap>();
 
@@ -1358,6 +1358,9 @@ private:
 
     const NConcurrency::TPeriodicExecutorPtr SendRunningAllocationTimeStatisticsUpdatesExecutor_;
 
+    //! How many initial successive jobs need to abort until we fail operation.
+    THashMap<EAbortReason, int> JobAbortsUntilOperationFailure_;
+
     void AccountExternalScheduleAllocationFailures() const;
 
     void InitializeOrchid();
@@ -1375,7 +1378,7 @@ private:
 
     virtual void OnExecNodesUpdated();
 
-    int GetOnlineExecNodeCount();
+    int GetAvailableExecNodeCount();
 
     void UpdateAggregatedFinishedJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary);
     void UpdateJobMetrics(const TJobletPtr& joblet, const TJobSummary& jobSummary, bool isJobFinished);

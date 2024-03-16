@@ -77,10 +77,10 @@ public:
             "PortalManager.Values",
             BIND(&TPortalManager::SaveValues, Unretained(this)));
 
-        RegisterMethod(BIND(&TPortalManager::HydraCreatePortalExit, Unretained(this)));
-        RegisterMethod(BIND(&TPortalManager::HydraRemovePortalEntrance, Unretained(this)));
-        RegisterMethod(BIND(&TPortalManager::HydraRemovePortalExit, Unretained(this)));
-        RegisterMethod(BIND(&TPortalManager::HydraSynchronizePortalExit, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TPortalManager::HydraCreatePortalExit, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TPortalManager::HydraRemovePortalEntrance, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TPortalManager::HydraRemovePortalExit, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TPortalManager::HydraSynchronizePortalExit, Unretained(this)));
 
         SynchronizePortalExitsExecutor_ = New<NConcurrency::TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::PortalManager),
@@ -88,7 +88,7 @@ public:
         SynchronizePortalExitsExecutor_->Start();
 
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TPortalManager::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TPortalManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     void Initialize() override

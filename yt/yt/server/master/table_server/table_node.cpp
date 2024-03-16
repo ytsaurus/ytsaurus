@@ -107,7 +107,6 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, HunkStorageNode);
     Save(context, SecondaryIndices);
     Save(context, IndexTo);
-    Save(context, EnableSharedWriteLocks);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
@@ -151,8 +150,12 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     }
 
     // COMPAT(ponasenko-rs)
-    if (context.GetVersion() >= EMasterReign::TabletSharedWriteLocks) {
-        Load(context, EnableSharedWriteLocks);
+    // DropLegacyClusterNodeMap is the start of 24.2 reigns.
+    if (context.GetVersion() >= EMasterReign::TabletSharedWriteLocks &&
+        context.GetVersion() < EMasterReign::RemoveEnableSharedWriteLocksFlag &&
+        (context.GetVersion() >= EMasterReign::DropLegacyClusterNodeMap || context.GetVersion() < EMasterReign::RemoveEnableSharedWriteLocksFlag_24_1))
+    {
+        Load<bool>(context);
     }
 }
 
@@ -168,7 +171,6 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     XX(EnableDetailedProfiling) \
     XX(EnableConsistentChunkReplicaPlacement) \
     XX(QueueAgentStage) \
-    XX(EnableSharedWriteLocks) \
 
 void TTableNode::TDynamicTableAttributes::CopyFrom(const TDynamicTableAttributes* other)
 {

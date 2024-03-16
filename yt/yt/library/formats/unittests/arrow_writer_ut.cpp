@@ -463,7 +463,7 @@ bool CheckMaxConst(const char* ptr) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(Simple, JustWork)
+TEST(TArrowWriterTest, SimpleInteger)
 {
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"integer"};
@@ -491,7 +491,7 @@ TEST(Simple, JustWork)
     EXPECT_EQ(ReadInteger64Array(batch->column(0)), column);
 }
 
-TEST(Simple, YT_20699_WrongAlign)
+TEST(TArrowWriterTest, YT_20699_WrongAlign)
 {
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"date"};
@@ -532,10 +532,10 @@ TEST(Simple, YT_20699_WrongAlign)
     }
 }
 
-TEST(Simple, Data)
+TEST(TArrowWriterTest, SimpleDate)
 {
     std::vector<TTableSchemaPtr> tableSchemas;
-    std::vector<std::string> columnNames = {"data"};
+    std::vector<std::string> columnNames = {"date"};
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
         TColumnSchema(TString(columnNames[0]), ESimpleLogicalValueType::Date),
@@ -561,7 +561,7 @@ TEST(Simple, Data)
     EXPECT_EQ(ReadIntegerDateArray(batch->column(0)), column);
 }
 
-TEST(Simple, Datatime)
+TEST(TArrowWriterTest, SimpleDatatime)
 {
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"datatime"};
@@ -591,7 +591,7 @@ TEST(Simple, Datatime)
     EXPECT_EQ(ReadIntegerDate64Array(batch->column(0)), columnRes);
 }
 
-TEST(Simple, Timestamp)
+TEST(TArrowWriterTest, SimpleTimestamp)
 {
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"timestamp"};
@@ -620,7 +620,7 @@ TEST(Simple, Timestamp)
     EXPECT_EQ(ReadTimestampArray(batch->column(0)), column);
 }
 
-TEST(Simple, Interval)
+TEST(TArrowWriterTest, SimpleInterval)
 {
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"Interval"};
@@ -649,7 +649,7 @@ TEST(Simple, Interval)
     EXPECT_EQ(ReadInteger64Array(batch->column(0)), column);
 }
 
-TEST(Simple, Float)
+TEST(TArrowWriterTest, SimpleFloat)
 {
     EXPECT_TRUE(true);
     std::vector<TTableSchemaPtr> tableSchemas;
@@ -678,7 +678,7 @@ TEST(Simple, Float)
     EXPECT_EQ(ReadFloatArray(batch->column(0)), column);
 }
 
-TEST(Simple, ColumnarBatch)
+TEST(TArrowWriterTest, ColumnarBatch)
 {
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"integer"};
@@ -707,7 +707,7 @@ TEST(Simple, ColumnarBatch)
     EXPECT_EQ(ReadInteger64Array(batch->column(0)), column);
 }
 
-TEST(Simple, RowBatch)
+TEST(TArrowWriterTest, RowBatch)
 {
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"integer"};
@@ -737,7 +737,7 @@ TEST(Simple, RowBatch)
     EXPECT_EQ(ReadInteger64Array(batch->column(0)), column);
 }
 
-TEST(Simple, Null)
+TEST(TArrowWriterTest, Null)
 {
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"integer", "null"};
@@ -772,7 +772,7 @@ TEST(Simple, Null)
     EXPECT_EQ(ReadInteger64Array(batch->column(0))[1], 3);
 }
 
-TEST(Simple, MultiTable)
+TEST(TArrowWriterTest, SimpleMultiTypes)
 {
     // First table
     std::vector<std::string> columnNames1 = {"string"};
@@ -905,7 +905,7 @@ TEST(Simple, MultiTable)
 
 }
 
-TEST(Simple, String)
+TEST(TArrowWriterTest, SimpleString)
 {
     std::vector<std::string> columnNames = {"string"};
     std::vector<TTableSchemaPtr> tableSchemas;
@@ -932,7 +932,7 @@ TEST(Simple, String)
     EXPECT_EQ(ReadAnyStringArray(batch->column(0)), column);
 }
 
-TEST(Simple, DictionaryString)
+TEST(TArrowWriterTest, DictionaryString)
 {
     std::vector<std::string> columnNames = {"string"};
     std::vector<TTableSchemaPtr> tableSchemas;
@@ -964,10 +964,10 @@ TEST(Simple, DictionaryString)
     EXPECT_TRUE(IsDictColumn(batch->column(0)));
 }
 
-TEST(Simple, EnumString)
+TEST(TArrowWriterTest, EnumString)
 {
     const size_t batchNumb = 10;
-    const size_t rowsCount = 10;
+    const size_t rowCount = 10;
 
     std::vector<std::string> columnNames = {"string", "string2", "string3"};
     std::vector<TTableSchemaPtr> tableSchemas;
@@ -1001,7 +1001,7 @@ TEST(Simple, EnumString)
         std::vector<std::optional<std::string>> constColumn;
         std::vector<std::optional<std::string>> optColumn;
 
-        for (size_t j = 0; j < rowsCount; j++) {
+        for (size_t j = 0; j < rowCount; j++) {
             column.push_back(enumStrings[rand() % enumStrings.size()]);
             constColumn.push_back(enumStrings[0]);
             if (rand() % 2 == 0) {
@@ -1031,7 +1031,7 @@ TEST(Simple, EnumString)
         auto constColumn = ReadAnyStringArray(batch->column(1));
         auto optColumn = ReadAnyStringArray(batch->column(2));
 
-        for (size_t rowIndex = 0; rowIndex < rowsCount; rowIndex++) {
+        for (size_t rowIndex = 0; rowIndex < rowCount; rowIndex++) {
             if (optColumns[batchIndex][rowIndex] == std::nullopt) {
                 EXPECT_TRUE(batch->column(2)->IsNull(rowIndex));
             } else {
@@ -1046,7 +1046,7 @@ TEST(Simple, EnumString)
 
 }
 
-TEST(Simple, DictionaryAndDirectStrings)
+TEST(TArrowWriterTest, DictionaryAndDirectStrings)
 {
     std::vector<std::string> columnNames = {"string"};
     std::vector<TTableSchemaPtr> tableSchemas;
@@ -1089,30 +1089,30 @@ TEST(Simple, DictionaryAndDirectStrings)
     EXPECT_EQ(ReadAnyStringArray(batches[1]->column(0)), secondColumn);
 }
 
-TEST(StressOneBatch, Integer)
+TEST(TArrowWriterTest, SeveralIntegerColumnsOneBatch)
 {
     // Constans.
-    const size_t columnsCount = 100;
-    const size_t rowsCount = 100;
+    const size_t columnCount = 100;
+    const size_t rowCount = 100;
 
     std::vector<TTableSchemaPtr> tableSchemas;
     TStringStream outputStream;
 
     std::vector<std::string> columnNames;
-    std::vector<ColumnInteger> columnsElements(columnsCount);
+    std::vector<ColumnInteger> columnsElements(columnCount);
 
-    for (size_t columnIndex = 0; columnIndex < columnsCount; columnIndex++) {
+    for (size_t columnIndex = 0; columnIndex < columnCount; columnIndex++) {
         // Create column name.
         std::string ColumnName = "integer" + std::to_string(columnIndex);
         columnNames.push_back(ColumnName);
 
-        for (size_t rowIndex = 0; rowIndex < rowsCount; rowIndex++) {
+        for (size_t rowIndex = 0; rowIndex < rowCount; rowIndex++) {
             columnsElements[columnIndex].push_back(rand());
         }
     }
 
     std::vector<TColumnSchema> schemas_;
-    for (size_t columnIdx = 0; columnIdx < columnsCount; columnIdx++) {
+    for (size_t columnIdx = 0; columnIdx < columnCount; columnIdx++) {
         schemas_.push_back(TColumnSchema(TString(columnNames[columnIdx]), EValueType::Int64));
     }
     tableSchemas.push_back(New<TTableSchema>(schemas_));
@@ -1131,15 +1131,15 @@ TEST(StressOneBatch, Integer)
 
     CheckColumnNames(batch, columnNames);
 
-    for (size_t columnIndex = 0; columnIndex < columnsCount; columnIndex++) {
+    for (size_t columnIndex = 0; columnIndex < columnCount; columnIndex++) {
         EXPECT_EQ(ReadInteger64Array(batch->column(columnIndex)), columnsElements[columnIndex]);
     }
 }
 
-TEST(StressOneBatch, String)
+TEST(TArrowWriterTest, SeveralStringColumnsOneBatch)
 {
-    const size_t columnsCount = 10;
-    const size_t rowsCount = 10;
+    const size_t columnCount = 10;
+    const size_t rowCount = 10;
     const size_t stringSize = 10;
 
     std::vector<TTableSchemaPtr> tableSchemas;
@@ -1147,19 +1147,19 @@ TEST(StressOneBatch, String)
     TStringStream outputStream;
 
     std::vector<std::string> columnNames;
-    std::vector<ColumnString> columnsElements(columnsCount);
+    std::vector<ColumnString> columnsElements(columnCount);
 
-    for (size_t columnIndex = 0; columnIndex < columnsCount; columnIndex++) {
+    for (size_t columnIndex = 0; columnIndex < columnCount; columnIndex++) {
 
         std::string ColumnName = "string" + std::to_string(columnIndex);
         columnNames.push_back(ColumnName);
-        for (size_t rowIndex = 0; rowIndex < rowsCount; rowIndex++) {
+        for (size_t rowIndex = 0; rowIndex < rowCount; rowIndex++) {
             columnsElements[columnIndex].push_back(MakeRandomString(stringSize));
         }
     }
 
     std::vector<TColumnSchema> schemas_;
-    for (size_t columnIdx = 0; columnIdx < columnsCount; columnIdx++) {
+    for (size_t columnIdx = 0; columnIdx < columnCount; columnIdx++) {
         schemas_.push_back(TColumnSchema(TString(columnNames[columnIdx]), EValueType::String));
     }
     tableSchemas.push_back(New<TTableSchema>(schemas_));
@@ -1178,15 +1178,15 @@ TEST(StressOneBatch, String)
 
     CheckColumnNames(batch, columnNames);
 
-    for (size_t columnIndex = 0; columnIndex < columnsCount; columnIndex++) {
+    for (size_t columnIndex = 0; columnIndex < columnCount; columnIndex++) {
         EXPECT_EQ(ReadAnyStringArray(batch->column(columnIndex)), columnsElements[columnIndex]);
     }
 }
 
-TEST(StressOneBatch, MixTypes)
+TEST(TArrowWriterTest, SeveralMultiTypesColumnsOneBatch)
 {
     // Constants.
-    const size_t rowsCount = 10;
+    const size_t rowCount = 10;
     const size_t stringSize = 10;
 
     std::vector<TTableSchemaPtr> tableSchemas;
@@ -1198,7 +1198,7 @@ TEST(StressOneBatch, MixTypes)
     TStringStream outputStream;
 
     auto nameTable = New<TNameTable>();
-    std::vector<TUnversionedOwningRowBuilder> rowsBuilders(rowsCount);
+    std::vector<TUnversionedOwningRowBuilder> rowsBuilders(rowCount);
 
     std::vector<std::string> columnNames;
 
@@ -1211,7 +1211,7 @@ TEST(StressOneBatch, MixTypes)
     std::string ColumnName = "bool";
     auto boolId = nameTable->RegisterName(ColumnName);
     columnNames.push_back(ColumnName);
-    for (size_t rowIndex = 0; rowIndex < rowsCount; rowIndex++) {
+    for (size_t rowIndex = 0; rowIndex < rowCount; rowIndex++) {
         boolColumn.push_back((rand() % 2) == 0);
 
         rowsBuilders[rowIndex].AddValue(MakeUnversionedBooleanValue(boolColumn[rowIndex], boolId));
@@ -1221,7 +1221,7 @@ TEST(StressOneBatch, MixTypes)
     ColumnName = "double";
     auto columnId = nameTable->RegisterName(ColumnName);
     columnNames.push_back(ColumnName);
-    for (size_t rowIndex = 0; rowIndex < rowsCount; rowIndex++) {
+    for (size_t rowIndex = 0; rowIndex < rowCount; rowIndex++) {
         doubleColumn.push_back((double)(rand() % 100) / 10.0);
         rowsBuilders[rowIndex].AddValue(MakeUnversionedDoubleValue(doubleColumn[rowIndex], columnId));
     }
@@ -1230,7 +1230,7 @@ TEST(StressOneBatch, MixTypes)
     ColumnName = "any";
     auto anyId = nameTable->RegisterName(ColumnName);
     columnNames.push_back(ColumnName);
-    for (size_t rowIndex = 0; rowIndex < rowsCount; rowIndex++) {
+    for (size_t rowIndex = 0; rowIndex < rowCount; rowIndex++) {
         std::string randomString = MakeRandomString(stringSize);
 
         anyColumn.push_back(randomString);
@@ -1239,7 +1239,7 @@ TEST(StressOneBatch, MixTypes)
     }
 
     std::vector<TUnversionedOwningRow> owningRows;
-    for (size_t rowIndex = 0; rowIndex < rowsCount; rowIndex++) {
+    for (size_t rowIndex = 0; rowIndex < rowCount; rowIndex++) {
         owningRows.push_back(rowsBuilders[rowIndex].FinishRow());
         rows.push_back(owningRows.back().Get());
     }
@@ -1262,18 +1262,18 @@ TEST(StressOneBatch, MixTypes)
     EXPECT_EQ(ReadAnyStringArray(batch->column(2)), anyColumn);
 }
 
-TEST(StressMultiBatch, Integer)
+TEST(TArrowWriterTest, SeveralIntegerSeveralBatches)
 {
     // Constants.
-    const size_t columnsCount = 10;
-    const size_t rowsCount = 10;
-    const size_t numbOfBatch = 10;
+    const size_t columnCount = 10;
+    const size_t rowCount = 10;
+    const size_t batchCount = 10;
 
     std::vector<std::string> columnNames;
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<TColumnSchema> schemas_;
 
-    for (size_t columnIdx = 0; columnIdx < columnsCount; columnIdx++) {
+    for (size_t columnIdx = 0; columnIdx < columnCount; columnIdx++) {
         std::string ColumnName = "integer" + std::to_string(columnIdx);
         columnNames.push_back(ColumnName);
         schemas_.push_back(TColumnSchema(TString(columnNames[columnIdx]), EValueType::Int64));
@@ -1281,21 +1281,21 @@ TEST(StressMultiBatch, Integer)
     tableSchemas.push_back(New<TTableSchema>(schemas_));
 
     TStringStream outputStream;
-    std::vector<std::vector<ColumnInteger>> columnsElements(numbOfBatch, std::vector<ColumnInteger>(columnsCount));
+    std::vector<std::vector<ColumnInteger>> columnsElements(batchCount, std::vector<ColumnInteger>(columnCount));
 
     auto nameTable = New<TNameTable>();
-    for (size_t columnIndex = 0; columnIndex < columnsCount; columnIndex++) {
+    for (size_t columnIndex = 0; columnIndex < columnCount; columnIndex++) {
         std::string ColumnName = "integer" + std::to_string(columnIndex);
         nameTable->RegisterName(ColumnName);
     }
     auto writer = CreateArrowWriter(nameTable, &outputStream, tableSchemas);
 
 
-    for (size_t batchIndex = 0; batchIndex < numbOfBatch; batchIndex++) {
+    for (size_t batchIndex = 0; batchIndex < batchCount; batchIndex++) {
 
-        for (size_t columnIndex = 0; columnIndex < columnsCount; columnIndex++) {
+        for (size_t columnIndex = 0; columnIndex < columnCount; columnIndex++) {
             std::string ColumnName = "integer" + std::to_string(columnIndex);
-            for (size_t rowIndex = 0; rowIndex < rowsCount; rowIndex++) {
+            for (size_t rowIndex = 0; rowIndex < rowCount; rowIndex++) {
                 columnsElements[batchIndex][columnIndex].push_back(rand());
             }
         }
@@ -1309,11 +1309,11 @@ TEST(StressMultiBatch, Integer)
         .ThrowOnError();
 
 
-    auto batches = MakeAllBatch(outputStream, numbOfBatch);
+    auto batches = MakeAllBatch(outputStream, batchCount);
 
     size_t batchIndex = 0;
     for (auto& batch : batches) {
-        for (size_t columnIndex = 0; columnIndex < columnsCount; columnIndex++) {
+        for (size_t columnIndex = 0; columnIndex < columnCount; columnIndex++) {
             CheckColumnNames(batch, columnNames);
             EXPECT_EQ(ReadInteger64Array(batch->column(columnIndex)), columnsElements[batchIndex][columnIndex]);
         }
@@ -1321,11 +1321,11 @@ TEST(StressMultiBatch, Integer)
     }
 }
 
-TEST(StressMultiBatch, MixTypes)
+TEST(TArrowWriterTest, SeveralMultiTypesSeveralBatches)
 {
     // Сonstants.
-    const size_t rowsCount = 10;
-    const size_t numbOfBatch = 10;
+    const size_t rowCount = 10;
+    const size_t batchCount = 10;
     const size_t stringSize = 10;
 
     std::vector<TTableSchemaPtr> tableSchemas;
@@ -1343,19 +1343,19 @@ TEST(StressMultiBatch, MixTypes)
     auto doubleId = nameTable->RegisterName(columnNames[1]);
     auto anyId = nameTable->RegisterName(columnNames[2]);
 
-    std::vector<ColumnBoolWithNulls> boolColumns(numbOfBatch);
-    std::vector<ColumnDoubleWithNulls> doubleColumns(numbOfBatch);
-    std::vector<ColumnStringWithNulls> anyColumns(numbOfBatch);
+    std::vector<ColumnBoolWithNulls> boolColumns(batchCount);
+    std::vector<ColumnDoubleWithNulls> doubleColumns(batchCount);
+    std::vector<ColumnStringWithNulls> anyColumns(batchCount);
 
     auto writer = CreateArrowWriter(nameTable, &outputStream, tableSchemas);
 
     std::vector<TUnversionedOwningRow> owningRows;
 
-    for (size_t batchIndex = 0; batchIndex < numbOfBatch; batchIndex++) {
-        std::vector<TUnversionedOwningRowBuilder> rowsBuilders(rowsCount);
+    for (size_t batchIndex = 0; batchIndex < batchCount; batchIndex++) {
+        std::vector<TUnversionedOwningRowBuilder> rowsBuilders(rowCount);
         std::vector<TUnversionedRow> rows;
 
-        for (size_t rowIndex = 0; rowIndex < rowsCount; rowIndex++) {
+        for (size_t rowIndex = 0; rowIndex < rowCount; rowIndex++) {
             if (rand() % 2 == 0) {
                 boolColumns[batchIndex].push_back(std::nullopt);
                 doubleColumns[batchIndex].push_back(std::nullopt);
@@ -1385,7 +1385,7 @@ TEST(StressMultiBatch, MixTypes)
         .Get()
         .ThrowOnError();
 
-    auto batches = MakeAllBatch(outputStream, numbOfBatch);
+    auto batches = MakeAllBatch(outputStream, batchCount);
     size_t batchIndex = 0;
     for (auto& batch : batches) {
         CheckColumnNames(batch, columnNames);
@@ -1394,7 +1394,7 @@ TEST(StressMultiBatch, MixTypes)
         auto doubleAr = ReadDoubleArray(batch->column(1));
         auto anyAr = ReadAnyStringArray(batch->column(2));
 
-        for (size_t rowIndex = 0; rowIndex < rowsCount; rowIndex++) {
+        for (size_t rowIndex = 0; rowIndex < rowCount; rowIndex++) {
             if (boolColumns[batchIndex][rowIndex] == std::nullopt) {
                 EXPECT_TRUE(batch->column(0)->IsNull(rowIndex));
                 EXPECT_TRUE(batch->column(1)->IsNull(rowIndex));

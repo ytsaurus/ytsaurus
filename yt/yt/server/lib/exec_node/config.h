@@ -327,6 +327,9 @@ public:
 
     bool AbortOnOperationWithLayerFailed;
 
+    //! For testing purpuses.
+    bool ThrowOnPrepareVolume;
+
     REGISTER_YSON_STRUCT(TVolumeManagerDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -377,6 +380,8 @@ class THeartbeatReporterDynamicConfigBase
 {
 public:
     NConcurrency::TRetryingPeriodicExecutorOptions HeartbeatExecutor;
+
+    bool EnableTracing;
 
     REGISTER_YSON_STRUCT(THeartbeatReporterDynamicConfigBase);
 

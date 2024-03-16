@@ -229,7 +229,7 @@ yt get //tmp/table_2/@schema
    - If you additionally enable the column-by-column format of storing [chunks](../../../user-guide/storage/chunks.md) `optimize_for = scan`, data will be stored more compactly and reading a subset of columns will be faster.
    - Some table readers can work faster for tables with a schema.
 - Convenience and more options:
-   - YQ is more convenient for working with schematized tables.
+   - YQL is more convenient for working with schematized tables.
    - In CHYT, you cannot work with unschematized data.
 
 
