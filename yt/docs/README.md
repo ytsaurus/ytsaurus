@@ -19,7 +19,7 @@
 - [Need Help?](#contacts)
 
 
-## Overview {#overview}
+## Overview (#overview)
 
 YTsaurus follows the "Documentation as a Code" paradigm. The documentation content is stored in an open-source repository along with the YTsaurus codebase and located in the `ytsaurus/yt/docs/` directory. Being bilingual, documentation is hosted in the official YTsaurus website:
 - In Russian: https://ytsaurus.tech/docs/ru
@@ -33,7 +33,7 @@ You are welcome to contribute to the YTsaurus documentation: correct typos, prov
 
 ------
 
-## Documentation Structure {#structure}
+## Documentation Structure (#structure)
 
 ```
 |-- ytsaurus/yt/docs/       # Documentation project root. 
@@ -65,7 +65,7 @@ In addition to these main sections, the documentation also includes other resour
 
 -------
 
-### Table of Contents {#toc}
+### Table of Contents (#toc)
 
 The document structure is described in the `ru/toc.yaml` file for the Russian documentation and in the `en/toc.yaml` for the English one, respectively. This file defines how the table of contents is generated and documentation is built. The structure of the `toc.yaml` file looks like the following:
 
@@ -89,7 +89,7 @@ For more details about the table of contents, see the [YFM official documentatio
 
 ------
 
-### Variables {#presets}
+### Variables (#presets)
 
 You may encounter the `{{}}` construction in the source, for example:
 
@@ -112,7 +112,7 @@ You can read more about using the variables in the official [YFM documentation](
 
 -------
 
-### Reusing Content {#reusing-content}
+### Reusing Content (#reusing-content)
 
 The documentation is written using the Single Source approach. This means the common content that is reused across different parts of the documentation is stored in separate files and then added in the necessary articles. In YTsaurus, the shared content is stored in the `ru/_includes` folder for the Russian content, and in `en/_includes` for the English one.
 
@@ -128,7 +128,7 @@ For more details about reusing content, see the [Diplodoc documentation](https:/
 
 --------
 
-## Supported Languages {#localization}
+## Supported Languages (#localization)
 
 YTsaurus documentation is written in two languages: Russian and English. The source content is originally written in Russian. Then, we automate translations through an internal process, collaborating with professional translators to localize the content. The English version is prepared asynchronously, so that it might be slightly behind the Russian version.
 
@@ -136,7 +136,7 @@ We accept pull requests to the documentation for both the Russian and the Englis
 
 --------
 
-## Contribution {#contribution}
+## Contribution (#contribution)
 
 You can contribute to the YTsaurus documentation in the following ways:
 
@@ -146,13 +146,15 @@ You can contribute to the YTsaurus documentation in the following ways:
 
 - **Share your feedback and ideas.** If you spot inaccuracies in the documentation, or have an idea you would like to share, open an issue or start a discussion. For more details, see the [How to Share Feedback](#how-to-share-feedback) section.
 
-### How to Make a Quick Fix {#how-make-quick-fix}
+### How to Make a Quick Fix (#how-make-quick-fix)
 
 If you spot an error in the documentation, such as a typo or a broken link, you are welcome to fix it through the GitHub web interface. To do this:
 
 1. Open the source file by clicking on the pencil icon located in the upper right corner of the documentation page.
 
-   ![](images/make-edits.png "To suggest changes in the article, click on the pencil icon." =650x245)
+   ![](images/make-edits.png "To suggest changes in the article, click on the pencil icon.")
+   
+   <img src="images/make-edits.png" width="650" height="245">
 
    When you press the button, the source file will be opened for editing. Note that if you see the `{% include ... %}` construction in the file, it means that the current file contains a reusable content which is located in the `_includes` folder. To quickly navigate to the reusable content source file, click on the link name.
 
@@ -174,7 +176,7 @@ If you spot an error in the documentation, such as a typo or a broken link, you 
 
 -------
 
-### How to Add a New Article {#how-to-add-article}
+### How to Add a New Article (#how-to-add-article)
 
 Below are the main steps of how to add new content to the documentation:
 
@@ -240,7 +242,7 @@ To know what happens next, see the [What Happens After Changes are Merged](#afte
 
 -------
 
-### How to Share Feedback {#how-to-share-feedback}
+### How to Share Feedback (#how-to-share-feedback)
 
 Your feedback is always welcome. You can share it in the following ways:
 
@@ -249,7 +251,7 @@ Your feedback is always welcome. You can share it in the following ways:
 
 -------
 
-### What Happens After Changes are Merged {#after-pr-merged}
+### What Happens After Changes are Merged (#after-pr-merged)
 
 🔹 Publication: Once your changes are approved and merged, the pull request will be closed by the YTsaurus team. Expect your changes to be published on a documentation website within a week.
 
@@ -257,13 +259,13 @@ Your feedback is always welcome. You can share it in the following ways:
 
 ------
 
-## Content Writing Recommendations {#recommendations}
+## Content Writing Recommendations (#recommendations)
 
 - [YFM Syntax Quick Reference](#yfm-syntax)
 - [Style Guide](#style-guide)
 - [Documentation Philosophy](#writing-concepts)
 
-## YFM Syntax Quick Reference {#yfm-syntax}
+## YFM Syntax Quick Reference (#yfm-syntax)
 
 - Headers are on a separate line starting with `#`, `##` or `###`.
 - Bold is in `**asterisks**` or `__underlines__`.
@@ -288,7 +290,7 @@ For more details about YFM Syntax, see the [official documentation](https://dipl
 
 ------
 
-## Writing Style Guide {#style-guide}
+## Writing Style Guide (#style-guide)
 
 - [Article Description](#article-description)
 - [Links](#links)
@@ -298,7 +300,7 @@ For more details about YFM Syntax, see the [official documentation](https://dipl
 - [Tables](#tables)
 - [Listings](#listings)
 
-### Article Description {#article-description}
+### Article Description (#article-description)
 
 Every article should begin with a brief overview of what will be described in this section. For example:
 
@@ -307,7 +309,7 @@ This section compiles information about the access control system for tables and
 ```
 
 
-### Links {#links}
+### Links (#links)
 
 The section name in the link should be capitalized. For example:
 
@@ -315,7 +317,7 @@ The section name in the link should be capitalized. For example:
 For more information, see the [Compaction](../../../user-guide/dynamic-tables/compaction.md) section.
 ```
 
-### Links from the `_includes` folder {#links-from-include}
+### Links from the `_includes` folder (#links-from-include)
 
 When adding a link into an article that is located in the `_includes` folder, keep the following in mind:
 
@@ -355,7 +357,7 @@ The `dyn-query-language.md` article also reuses content, same as `query-tracker.
 - The "YT QL" link refers to the article located in the `en/user-guide/dynamic-tables/` folder, but not the `en/_includes/user-guide/dynamic-tables/`.
 - This link is set relativelly to the `_includes` folder.
 
-### Headers {#headers}
+### Headers (#headers)
 
 Headers should always have anchors:
 
@@ -364,7 +366,7 @@ Headers should always have anchors:
 ```
 
 
-### Lists {#lists}
+### Lists (#lists)
 
 Every item in an ordered list starts with a capital letter and ends with a period, while items in an unordered list start with a lowercase letter and end with a semicolon; the last item in the list always ends with a period.
 
@@ -384,7 +386,7 @@ Every item in an ordered list starts with a capital letter and ends with a perio
 - the object to which access is requested.
 ```
 
-### Code Examples Snippets {#snippets}
+### Code Examples Snippets (#snippets)
 
 **Bash**
 
@@ -399,7 +401,7 @@ $ yt get //home/@count
 ```
 ````
 
-### Tables {#tables}
+### Tables (#tables)
 
 When working with tables, keep the following in mind:
 
@@ -420,7 +422,7 @@ The attributes of subjects are shown in Table 1.
 | `member_of`         | `array<string>` | List of group names to which the subject directly belongs |
 ```
 
-### Listings {#listings}
+### Listings (#listings)
 
 Listings are used to indicate the snippets with code examples. A reference to the listing is desirable. The title should start with a capital letter and end without a period.
 
@@ -445,7 +447,7 @@ $ yt check-permission yql write //tmp
 
 ------
 
-### Documentation Philosophy {#writing-concepts}
+### Documentation Philosophy (#writing-concepts)
 
 - When writing text, determine your target audience, whom you are writing for. Take into account that YTsaurus users may have different backgrounds and may be from different areas: analysts, engineers, administrators, and developers. The target audience influences the level of detail of your text and the terminology you use.
 - Your text should not disrupt the integrity of the entire document either its narrative logic. When writing content, consider the context of the whole section where the content is intended to be added.
@@ -457,7 +459,7 @@ $ yt check-permission yql write //tmp
 
 ------
 
-## How to Build Locally {#local-build}
+## How to Build Locally (#local-build)
 
 1. Install [Node.js](https://nodejs.org/ru/download/). The package manager `npm` will be installed simultaneously: it is required for the local build to work.
 2. Install the [@diplodoc/cli](https://www.npmjs.com/package/@doc-tools/docs) package:
@@ -480,7 +482,7 @@ $ yt check-permission yql write //tmp
 
 ------
 
-## Need Help? {#contacts}
+## Need Help? (#contacts)
 
 If you need any help, don't hesitate to ask questions in YTsaurus community chats:
 - [Russian community chat](https://t.me/ytsaurus_ru)
