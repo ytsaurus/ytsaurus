@@ -1031,7 +1031,7 @@ class TestMemoryWatchdog(YTEnvSetup):
 
         wait_breakpoint()
 
-        wait(lambda: all(counter["enqueued"].get_delta() > 0 and counter["dequeued"].get_delta() > 0 for _, counter in counters.items()))
+        wait(lambda: all(all(counter[name].get_delta() != 0 for name in counter_names) for _, counter in counters.items()))
 
         release_breakpoint()
 
