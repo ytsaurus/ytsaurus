@@ -35,13 +35,15 @@ public:
     TAuthenticationManager(
         TAuthenticationManagerConfigPtr config,
         IPollerPtr poller,
-        NApi::IClientPtr client)
+        NApi::IClientPtr client,
+        ITvmServicePtr tvmService)
+        : TvmService_(std::move(tvmService))
     {
         std::vector<NRpc::IAuthenticatorPtr> rpcAuthenticators;
         std::vector<ITokenAuthenticatorPtr> tokenAuthenticators;
         std::vector<ICookieAuthenticatorPtr> cookieAuthenticators;
 
-        if (config->TvmService && poller) {
+        if (!TvmService_ && config->TvmService) {
             TvmService_ = CreateTvmService(
                 config->TvmService,
                 AuthProfiler.WithPrefix("/tvm/remote"));
@@ -244,12 +246,14 @@ private:
 IAuthenticationManagerPtr CreateAuthenticationManager(
     TAuthenticationManagerConfigPtr config,
     IPollerPtr poller,
-    NApi::IClientPtr client)
+    NApi::IClientPtr client,
+    ITvmServicePtr tvmService)
 {
     return New<TAuthenticationManager>(
         std::move(config),
         std::move(poller),
-        std::move(client));
+        std::move(client),
+        std::move(tvmService));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
