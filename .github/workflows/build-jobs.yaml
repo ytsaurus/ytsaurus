@@ -227,8 +227,6 @@ jobs:
       - name: Build query tracker (ya make, relwithdebinfo)
         if: ${{ inputs.build-query-tracker-ya-make-relwithdebinfo || inputs.build-query-tracker-ya-make-release }}
         run: |
-          shopt -s expand_aliases
-
           build_types=()
           yqla_output_dirs=()
           ydb_output_dirs=()
@@ -251,6 +249,7 @@ jobs:
             rm -rf *
 
             ../ytsaurus/ytsaurus/ya make -T --build=${build_types[$i]}  --output=../${yqla_output_dirs[$i]} ../ytsaurus/ytsaurus/yt/yql/agent/bin
+            shopt -s expand_aliases
             alias ydb-ya-make="../ytsaurus/ydb/ya make -T --ignore-recurses --build=relwithdebinfo  --output=."
 
             ydb-ya-make ../ytsaurus/ydb/ydb/library/yql/tools/mrjob
