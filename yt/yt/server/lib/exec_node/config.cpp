@@ -471,26 +471,22 @@ void TUserJobMonitoringDynamicConfig::Register(TRegistrar registrar)
 
 void THeartbeatReporterDynamicConfigBase::Register(TRegistrar registrar)
 {
-    static constexpr TRetryingPeriodicExecutorOptions defaultOptions{
-        {
-            .Period = TDuration::Seconds(5),
-            .Splay = TDuration::Seconds(1),
-            .Jitter = 0.0,
-        },
-        {
-            .MinBackoff = TDuration::Seconds(5),
-            .MaxBackoff = TDuration::Seconds(60),
-            .BackoffMultiplier = 2.0,
-        },
-    };
-
     registrar.Parameter("heartbeat_executor", &TThis::HeartbeatExecutor)
-        .Default(defaultOptions);
+        .Default({
+            {
+                .Period = TDuration::Seconds(5),
+                .Splay = TDuration::Seconds(1),
+                .Jitter = 0.0,
+            },
+            {
+                .MinBackoff = TDuration::Seconds(5),
+                .MaxBackoff = TDuration::Seconds(60),
+                .BackoffMultiplier = 2.0,
+            },
+        });
 
-    //! NB: This overrides defaults from TRetryingExecutorOptions serializer.
-    registrar.Preprocessor([] (TThis* config) {
-        config->HeartbeatExecutor = defaultOptions;
-    });
+    registrar.Parameter("enable_tracing", &TThis::EnableTracing)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

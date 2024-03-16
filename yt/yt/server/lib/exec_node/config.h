@@ -381,6 +381,8 @@ class THeartbeatReporterDynamicConfigBase
 public:
     NConcurrency::TRetryingPeriodicExecutorOptions HeartbeatExecutor;
 
+    bool EnableTracing;
+
     REGISTER_YSON_STRUCT(THeartbeatReporterDynamicConfigBase);
 
     static void Register(TRegistrar registrar);
