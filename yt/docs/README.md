@@ -7,7 +7,7 @@
   - [Reusing Content](#reusing-content)
 - [Supported Languages](#supported-languages)
 - [Contribution](#contribution)
-  - [How to Make a Quick Fix](#how-make-a-quick-fix)
+  - [How to Make a Quick Fix](#how-to-make-a-quick-fix)
   - [How to Add a New Article](#how-to-add-a-new-article)
   - [How to Share Feedback](#how-to-share-feedback)
   - [What Happens After Changes are Merged](#what-happens-after-changes-are-merged)
@@ -25,7 +25,7 @@ YTsaurus follows the "Documentation as a Code" paradigm. The documentation conte
 - In Russian: https://ytsaurus.tech/docs/ru
 - In English: https://ytsaurus.tech/docs/en
 
-Documentation is built and published using the [Diplodoc](https://diplodoc.com/en/) open-source platform. Content is written using the Yandex Flavored Markdown (YFM). It is a Markdown dialect supplemented with unique elements from other markup languages and template engines, such as notes, tabs, reusable content, etc. For more information, see the [YFM Syntax](#yfm-syntax) section.
+Documentation is built and published using the [Diplodoc](https://diplodoc.com/en/) open-source platform. Content is written using the Yandex Flavored Markdown (YFM). It is a Markdown dialect supplemented with unique elements from other markup languages and template engines, such as notes, tabs, reusable content, etc. For more information, see the [YFM Syntax Quick Reference](#yfm-syntax-quick-reference) section.
 
 Documentation is released asynchronously from the main branch. The release cycle is once a week.
 
@@ -108,7 +108,7 @@ default:
     ...
 ```
 
-You can read more about using the variables in the official [YFM documentation](https://diplodoc.com/docs/en/project/presets).
+You can read more about using the variables in the official [YFM official documentation](https://diplodoc.com/docs/en/project/presets).
 
 -------
 
@@ -116,7 +116,7 @@ You can read more about using the variables in the official [YFM documentation](
 
 The documentation is written using the Single Source approach. This means the common content that is reused across different parts of the documentation is stored in separate files and then added in the necessary articles. In YTsaurus, the shared content is stored in the `ru/_includes` folder for the Russian content, and in `en/_includes` for the English one.
 
-To include recurring content in the required places of the document, the `{% include %}` construction is used. For example, below is the source code of the article [CLI and Python API](https://ytsaurus.tech/docs/ru/user-guide/data-processing/chyt/cli-and-api), to which some parts of reusable content were added:
+To include recurring content in the required places of the document, the `{% include %}` construction is used. For example, below is the source code of the article [CLI and Python API](https://ytsaurus.tech/docs/en/user-guide/data-processing/chyt/cli-and-api), to which some parts of reusable content were added:
 
 ```
 {% include [CLI and Python API — Introduction](../../../_includes/user-guide/data-processing/chyt/cli-and-api-intro.md) %}
@@ -140,7 +140,7 @@ We accept pull requests to the documentation for both the Russian and the Englis
 
 You can contribute to the YTsaurus documentation in the following ways:
 
-- **Make quick fixes.** You may suggest corrections for typos, updates, broken links, or improving the phrasing. To do this, you should open a pull request. For more information, see the [How to Make a Quick Fix](#how-make-a-quick-fix) section.
+- **Make quick fixes.** You may suggest corrections for typos, updates, broken links, or improving the phrasing. To do this, you should open a pull request. For more information, see the [How to Make a Quick Fix](#how-to-make-a-quick-fix) section.
 
 - **Write new articles.** You may also provide new content by writing new articles and including them in the documentation. To do this, open a pull request. For more information, see the [How to Add a New Article](#how-to-add-a-new-article) section.
 
@@ -152,27 +152,25 @@ If you spot an error in the documentation, such as a typo or a broken link, you 
 
 1. Open the source file by clicking on the pencil icon located in the upper right corner of the documentation page.
 
-   ![](images/make-edits.png "To suggest changes in the article, click on the pencil icon.")
-
-   <img src="images/make-edits.png" width="650" height="245">
+   <img src="images/make-edits.png" width="650" height="245" alt="To suggest changes in the article, click on the pencil icon.">
 
    When you press the button, the source file will be opened for editing. Note that if you see the `{% include ... %}` construction in the file, it means that the current file contains a reusable content which is located in the `_includes` folder. To quickly navigate to the reusable content source file, click on the link name.
 
-   ![](images/include-in-file.png "To open the source file click on the link name.")
+   <img src="images/include-in-file.png" width="500" height="207" alt="To open the source file click on the link name.">
 
 2. Make the changes to the content. To do this, click on the pencil icon located in the upper right corner. 
 
-   ![](images/edit-file.png "To edit the file sources click on the pencil icon.")
+   <img src="images/edit-file.png" width="530" height="225" alt="To edit the file sources click on the pencil icon.">
 
 3. Make a pull request with your edits. For more information on how to work with pull requests via the GitHub interface, read the [official documentation](https://docs.github.com/en/desktop/working-with-your-remote-repository-on-github-or-github-enterprise/creating-an-issue-or-pull-request-from-github-desktop).
 
 4. After opening a pull request, the message "Merging is blocked" will occur.
     
-   ![](images/merge-blocked-message.png "Review is required before the merging.")
-    
+    <img src="images/merge-blocked-message.png" width="430" height="94" alt="Review is required before the merging.">
+
    This only means that review is required before the merging. YTsaurus team will review your changes and merge them into the main branch.
 
-5. To know what happens next, see the [What Happens After Changes are Merged](#after-pr-merged) section.
+5. To know what happens next, see the [What Happens After Changes are Merged](#what-happens-after-changes-are-merged) section.
 
 -------
 
@@ -187,7 +185,7 @@ Below are the main steps of how to add new content to the documentation:
     - [Style Guide](#style-guide)  
     - [Documentation Philosophy](#documentation-philosophy)
 
-3. Add your article to the proper section in the documentation structure. Depending on the language you are writing in, you should add content to either the `ru/` or `en/` folder, accordingly.
+3. Add your article to the proper section in the documentation structure. Depending on the language you are writing in, you should add content to either the `ru` or `en` folder, accordingly.
 
     Keep in mind that when adding a new article, you should follow the single source approach used in YTsaurus documentation. How to do that, shows the following example.
   
@@ -290,7 +288,7 @@ For more details about YFM Syntax, see the [official documentation](https://dipl
 
 ------
 
-## Writing Style Guide
+## Style Guide
 
 - [Article Description](#article-description)
 - [Links](#links)
