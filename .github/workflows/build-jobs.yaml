@@ -224,7 +224,7 @@ jobs:
           cd ../build_relwithdebinfo
           ninja ytserver-yql-agent
 
-      - name: Build query tracker (ya make, relwithdebinfo)
+      - name: Build query tracker (ya make)
         if: ${{ inputs.build-query-tracker-ya-make-relwithdebinfo || inputs.build-query-tracker-ya-make-release }}
         run: |
           shopt -s expand_aliases
