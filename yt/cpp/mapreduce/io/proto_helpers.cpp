@@ -22,7 +22,6 @@ using ::google::protobuf::Descriptor;
 using ::google::protobuf::DescriptorPool;
 
 using ::google::protobuf::io::CodedInputStream;
-using ::google::protobuf::io::CopyingInputStreamAdaptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 

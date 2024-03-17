@@ -246,29 +246,19 @@ bool TYPathResponse::TryDeserializeBody(TRef /*data*/, std::optional<NCompressio
 TYPathMaybeRef GetRequestTargetYPath(const NRpc::NProto::TRequestHeader& header)
 {
     const auto& ypathExt = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
-    if constexpr (IsArcadiaProtobuf) {
-        // This cast is actually always no-op and performared just to get rid of errors
-        // in case if vanilla protobuf is used.
-        return TYPathMaybeRef(ypathExt.target_path());
-    } else {
-        return FromProto<TYPath>(ypathExt.target_path());
-    }
+    // NB: If Arcadia protobuf is used, the cast is no-op `const TYPath&` -> `const TYPath&`.
+    // If vanilla protobuf is used, the cast is `std::string` -> `TString`.
+    // So in both cases the cast is correct and the most effective possible.
+    return TYPathMaybeRef(ypathExt.target_path());
 }
 
 TYPathMaybeRef GetOriginalRequestTargetYPath(const NRpc::NProto::TRequestHeader& header)
 {
     const auto& ypathExt = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
-    if constexpr (IsArcadiaProtobuf) {
-        // These casts are actually always no-op and performared just to get rid of errors
-        // in case if vanilla protobuf is used.
-        return ypathExt.has_original_target_path()
-            ? TYPathMaybeRef(ypathExt.original_target_path())
-            : TYPathMaybeRef(ypathExt.target_path());
-    } else {
-        return ypathExt.has_original_target_path()
-            ? FromProto<TYPath>(ypathExt.original_target_path())
-            : FromProto<TYPath>(ypathExt.target_path());
-    }
+    // NB: TYPathMaybeRef cast is described above in `GetRequestTargetYPath`.
+    return ypathExt.has_original_target_path()
+        ? TYPathMaybeRef(ypathExt.original_target_path())
+        : TYPathMaybeRef(ypathExt.target_path());
 }
 
 void SetRequestTargetYPath(NRpc::NProto::TRequestHeader* header, TYPath path)
