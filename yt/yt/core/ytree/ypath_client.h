@@ -199,7 +199,7 @@ protected:
 // it would be TYPathBuf, but for now it breaks the advantages for CoW of the
 // TString. Rethink it if and when YT will try to use std::string or non-CoW
 // TString everywhere.
-using TYPathMaybeRef = std::conditional<IsArcadiaProtobuf, const TYPath&, TYPath>::type;
+using TYPathMaybeRef = std::conditional_t<IsArcadiaProtobuf, const TYPath&, TYPath>;
 
 TYPathMaybeRef GetRequestTargetYPath(const NRpc::NProto::TRequestHeader& header);
 TYPathMaybeRef GetOriginalRequestTargetYPath(const NRpc::NProto::TRequestHeader& header);
