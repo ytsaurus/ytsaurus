@@ -1674,7 +1674,8 @@ void TServiceBase::HandleRequest(
 {
     SetActive();
 
-    const auto& method = header->method();
+    // XXX:
+    auto method = FromProto<TString>(header->method());
     auto requestId = FromProto<TRequestId>(header->request_id());
 
     auto replyError = [&] (TError error) {

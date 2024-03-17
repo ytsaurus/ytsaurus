@@ -243,37 +243,33 @@ bool TYPathResponse::TryDeserializeBody(TRef /*data*/, std::optional<NCompressio
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef YT_USE_VANILLA_PROTOBUF
-
-TYPath GetRequestTargetYPath(const NRpc::NProto::TRequestHeader& header)
+TYPathMaybeRef GetRequestTargetYPath(const NRpc::NProto::TRequestHeader& header)
 {
     const auto& ypathExt = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
-    return FromProto<TYPath>(ypathExt.target_path());
+    if constexpr (IsArcadiaProtobuf) {
+        // This cast is actually always no-op and performared just to get rid of errors
+        // in case if vanilla protobuf is used.
+        return TYPathMaybeRef(ypathExt.target_path());
+    } else {
+        return FromProto<TYPath>(ypathExt.target_path());
+    }
 }
 
-TYPath GetOriginalRequestTargetYPath(const NRpc::NProto::TRequestHeader& header)
+TYPathMaybeRef GetOriginalRequestTargetYPath(const NRpc::NProto::TRequestHeader& header)
 {
     const auto& ypathExt = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
-    return ypathExt.has_original_target_path()
-        ? FromProto<TYPath>(ypathExt.original_target_path())
-        : FromProto<TYPath>(ypathExt.target_path());
+    if constexpr (IsArcadiaProtobuf) {
+        // These casts are actually always no-op and performared just to get rid of errors
+        // in case if vanilla protobuf is used.
+        return ypathExt.has_original_target_path()
+            ? TYPathMaybeRef(ypathExt.original_target_path())
+            : TYPathMaybeRef(ypathExt.target_path());
+    } else {
+        return ypathExt.has_original_target_path()
+            ? FromProto<TYPath>(ypathExt.original_target_path())
+            : FromProto<TYPath>(ypathExt.target_path());
+    }
 }
-
-#else
-
-const TYPath& GetRequestTargetYPath(const NRpc::NProto::TRequestHeader& header)
-{
-    const auto& ypathExt = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
-    return ypathExt.target_path();
-}
-
-const TYPath& GetOriginalRequestTargetYPath(const NRpc::NProto::TRequestHeader& header)
-{
-    const auto& ypathExt = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
-    return ypathExt.has_original_target_path() ? ypathExt.original_target_path() : ypathExt.target_path();
-}
-
-#endif
 
 void SetRequestTargetYPath(NRpc::NProto::TRequestHeader* header, TYPath path)
 {
@@ -428,7 +424,7 @@ TString SyncYPathGetKey(const IYPathServicePtr& service, const TYPath& path)
     auto future = ExecuteVerb(service, request);
     auto optionalResult = future.TryGetUnique();
     YT_VERIFY(optionalResult);
-    return optionalResult->ValueOrThrow()->value();
+    return FromProto<TString>(optionalResult->ValueOrThrow()->value());
 }
 
 TYsonString SyncYPathGet(

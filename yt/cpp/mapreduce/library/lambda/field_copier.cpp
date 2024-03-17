@@ -2,7 +2,7 @@
 
 #include <yt/yt_proto/yt/formats/extension.pb.h>
 
-using namespace NProtoBuf;
+using namespace google::protobuf;
 
 // ===========================================================================
 namespace NYT::NDetail {
@@ -64,7 +64,7 @@ const FieldDescriptor* DescriptorByColumn(
     for (int i = 0; i < count; ++i) {
         auto* fieldDesc = descriptor->field(i);
 
-        TString curColumnName = fieldDesc->options().GetExtension(column_name);
+        auto curColumnName = fieldDesc->options().GetExtension(column_name);
         if (curColumnName.empty()) {
             const auto& keyColumnName = fieldDesc->options().GetExtension(key_column_name);
             curColumnName = keyColumnName.empty() ? fieldDesc->name() : keyColumnName;

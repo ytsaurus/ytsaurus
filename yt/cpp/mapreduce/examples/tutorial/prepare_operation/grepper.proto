@@ -2,6 +2,6 @@ import "yt/yt_proto/yt/formats/extension.proto";
 
 message TGrepperRecord
 {
-    optional string Key = 1;
-    optional bytes Other = 2 [(NYT.flags) = OTHER_COLUMNS];
+    optional string key = 1;
+    optional bytes other = 2 [(NYT.flags) = OTHER_COLUMNS];
 };

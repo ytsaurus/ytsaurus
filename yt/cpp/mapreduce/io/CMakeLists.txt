@@ -21,6 +21,7 @@ target_link_libraries(cpp-mapreduce-io PUBLIC
   cpp-mapreduce-interface
   mapreduce-interface-logging
   yt_proto-yt-formats
+  yt-yt-core
   cpp-yson-node
   cpp-mapreduce-skiff
 )

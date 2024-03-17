@@ -23,7 +23,7 @@ public:
     {
         for (const auto& cursor : *reader) {
             auto row = cursor.GetRow();
-            if (row.GetKey() == Pattern_) {
+            if (row.key() == Pattern_) {
                 writer->AddRow(row);
             }
         }

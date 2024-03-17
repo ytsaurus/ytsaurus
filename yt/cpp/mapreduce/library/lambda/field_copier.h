@@ -9,20 +9,20 @@
 // ===========================================================================
 namespace NYT {
 // ===========================================================================
-const NProtoBuf::FieldDescriptor* DescriptorByColumn(const NProtoBuf::Descriptor*, TStringBuf columnName);
+const google::protobuf::FieldDescriptor* DescriptorByColumn(const google::protobuf::Descriptor*, TStringBuf columnName);
 
 template <class TProtoType>
-const NProtoBuf::FieldDescriptor* DescriptorByColumn(TStringBuf columnName) {
+const google::protobuf::FieldDescriptor* DescriptorByColumn(TStringBuf columnName) {
     return DescriptorByColumn(TProtoType::descriptor(), columnName);
 }
 
 namespace NDetail {
-void CheckFieldCopierTypes(TStringBuf columnName, const NProtoBuf::FieldDescriptor* from, const NProtoBuf::FieldDescriptor* to = nullptr);
+void CheckFieldCopierTypes(TStringBuf columnName, const google::protobuf::FieldDescriptor* from, const google::protobuf::FieldDescriptor* to = nullptr);
 } // namespace NDetail
 
 template <class MsgFrom, class MsgTo,
-        bool FromProto = std::is_base_of<NProtoBuf::Message, MsgFrom>::value,
-        bool ToProto = std::is_base_of<NProtoBuf::Message, MsgTo>::value>
+        bool FromProto = std::is_base_of<google::protobuf::Message, MsgFrom>::value,
+        bool ToProto = std::is_base_of<google::protobuf::Message, MsgTo>::value>
 class TFieldCopier {
 public:
     TFieldCopier(const TSortColumns& columns) {
@@ -36,7 +36,7 @@ public:
     }
 
     void operator()(const MsgFrom& from, MsgTo& to) const {
-        using namespace NProtoBuf;
+        using namespace google::protobuf;
         auto reflFrom = from.GetReflection();
         auto reflTo = to.GetReflection();
         // NOTE: code below could be moved to cpp file if that would not hurt performance
@@ -80,7 +80,7 @@ public:
     }
 
 private:
-    TVector<std::pair<const NProtoBuf::FieldDescriptor*, const NProtoBuf::FieldDescriptor*>> CopyDesc_;
+    TVector<std::pair<const google::protobuf::FieldDescriptor*, const google::protobuf::FieldDescriptor*>> CopyDesc_;
 };
 
 /**
@@ -119,7 +119,7 @@ public:
 
     // NOTE: see also io/proto_table_reader.cpp
     void operator()(const MsgFrom& from, MsgTo& to) const {
-        using namespace NProtoBuf;
+        using namespace google::protobuf;
         auto reflTo = to.GetReflection();
         // NOTE: code below could be moved to cpp file if that would not hurt performance
         for (auto& desc : CopyDesc_) {
@@ -168,7 +168,7 @@ public:
     }
 
 private:
-    TVector<std::pair<TString, const NProtoBuf::FieldDescriptor*>> CopyDesc_;
+    TVector<std::pair<TString, const google::protobuf::FieldDescriptor*>> CopyDesc_;
 };
 
 /**
@@ -187,7 +187,7 @@ public:
     }
 
     void operator()(const MsgFrom& from, MsgTo& to) const {
-        using namespace NProtoBuf;
+        using namespace google::protobuf;
         auto reflFrom = from.GetReflection();
         // NOTE: code below could be moved to cpp file if that would not hurt performance
         //       and we restrict that MsgTo to TNode
@@ -231,7 +231,7 @@ public:
     }
 
 private:
-    TVector<std::pair<const NProtoBuf::FieldDescriptor*, TString>> CopyDesc_;
+    TVector<std::pair<const google::protobuf::FieldDescriptor*, TString>> CopyDesc_;
 };
 
 /* NOTE: we can restrict MsgTo in above class to TNode and uncomment this:
