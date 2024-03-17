@@ -82,19 +82,10 @@ TTableSchemaPtr InferInputSchema(const std::vector<TTableSchemaPtr>& schemas, bo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsValidUnfoldedColumnPair(TLogicalTypePtr tableColumnType, const TLogicalTypePtr& indexColumnType)
-{
-    if (tableColumnType->GetMetatype() == ELogicalMetatype::Optional) {
-        tableColumnType = tableColumnType->UncheckedAsOptionalTypeRef().GetElement();
-    }
-    if (tableColumnType->GetMetatype() != ELogicalMetatype::List) {
-        return false;
-    }
-
-    return *tableColumnType->UncheckedAsListTypeRef().GetElement() == *indexColumnType;
-}
-
-void ValidateIndexSchema(const TTableSchema& tableSchema, const TTableSchema& indexTableSchema, const TColumnSchema** unfoldedColumn)
+void ValidateIndexSchema(
+    const TTableSchema& tableSchema,
+    const TTableSchema& indexTableSchema,
+    std::function<void(const TColumnSchema& indexColumn, const TColumnSchema& tableColumn)> typeMismatchCallback)
 {
     THROW_ERROR_EXCEPTION_IF(!tableSchema.IsSorted(),
         "Table must be sorted");
@@ -110,6 +101,7 @@ void ValidateIndexSchema(const TTableSchema& tableSchema, const TTableSchema& in
         if (!tableColumn.SortOrder()) {
             break;
         }
+
         if (tableColumn.Expression()) {
             continue;
         }
@@ -119,6 +111,7 @@ void ValidateIndexSchema(const TTableSchema& tableSchema, const TTableSchema& in
             THROW_ERROR_EXCEPTION("Key column %Qv missing in the index",
                 tableColumn.Name());
         }
+
         if (!indexColumn->SortOrder()) {
             THROW_ERROR_EXCEPTION("Table key column %Qv must be a key column in the index",
                 tableColumn.Name());
@@ -136,13 +129,7 @@ void ValidateIndexSchema(const TTableSchema& tableSchema, const TTableSchema& in
             const auto& indexType = indexColumn.LogicalType();
 
             if (*tableType != *indexType) {
-                THROW_ERROR_EXCEPTION_IF(!unfoldedColumn || *unfoldedColumn || !IsValidUnfoldedColumnPair(tableType, indexType),
-                    "Type mismatch for the column %Qv. 1. Table: %v, index table: %v",
-                    indexColumn.Name(),
-                    *tableType,
-                    *indexType);
-
-                *unfoldedColumn = &indexColumn;
+                typeMismatchCallback(indexColumn, *tableColumn);
             }
 
             THROW_ERROR_EXCEPTION_IF(indexColumn.SortOrder() && tableColumn->Aggregate(),
@@ -162,6 +149,61 @@ void ValidateIndexSchema(const TTableSchema& tableSchema, const TTableSchema& in
             }
         }
     }
+}
+
+void ValidateFullSyncIndexSchema(const TTableSchema& tableSchema, const TTableSchema& indexTableSchema)
+{
+    auto typeMismatchCallback = [] (const TColumnSchema& indexColumn, const TColumnSchema& tableColumn) {
+        THROW_ERROR_EXCEPTION("Type mismatch for column %Qv: %v in the table, %v in the index table",
+            indexColumn.Name(),
+            *tableColumn.LogicalType(),
+            *indexColumn.LogicalType());
+    };
+
+    ValidateIndexSchema(tableSchema, indexTableSchema, typeMismatchCallback);
+}
+
+bool IsValidUnfoldedColumnPair(const TLogicalTypePtr& tableColumnType, const TLogicalTypePtr& indexColumnType)
+{
+    auto tableColumnElementType = tableColumnType;
+    if (tableColumnElementType->GetMetatype() == ELogicalMetatype::Optional) {
+        tableColumnElementType = tableColumnElementType->UncheckedAsOptionalTypeRef().GetElement();
+    }
+
+    if (tableColumnElementType->GetMetatype() != ELogicalMetatype::List) {
+        return false;
+    }
+
+    tableColumnElementType = tableColumnType->UncheckedAsListTypeRef().GetElement();
+
+    return *tableColumnElementType == *indexColumnType;
+}
+
+const TColumnSchema& FindUnfoldingColumnAndValidate(const TTableSchema& tableSchema, const TTableSchema& indexTableSchema)
+{
+    const TColumnSchema* unfoldedColumn = nullptr;
+
+    auto typeMismatchCallback = [&] (const TColumnSchema& indexColumn, const TColumnSchema& tableColumn) {
+        THROW_ERROR_EXCEPTION_IF(!IsValidUnfoldedColumnPair(tableColumn.LogicalType(), indexColumn.LogicalType()),
+            "Type mismatch for column %Qv: %v in the table, %v in the index table",
+            indexColumn.Name(),
+            *tableColumn.LogicalType(),
+            *indexColumn.LogicalType());
+
+        THROW_ERROR_EXCEPTION_IF(unfoldedColumn,
+            "Expected a single unfolded column, found at least two: %v, %v",
+            unfoldedColumn->Name(),
+            indexColumn.Name());
+
+        unfoldedColumn = &indexColumn;
+    };
+
+    ValidateIndexSchema(tableSchema, indexTableSchema, typeMismatchCallback);
+
+    THROW_ERROR_EXCEPTION_IF(!unfoldedColumn,
+        "No candidate for unfolded column found in the index table schema");
+
+    return *unfoldedColumn;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -12,10 +12,13 @@ TTableSchemaPtr InferInputSchema(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateIndexSchema(
+void ValidateFullSyncIndexSchema(
     const TTableSchema& tableSchema,
-    const TTableSchema& indexTableSchema,
-    const TColumnSchema** unfoldedColumn = nullptr);
+    const TTableSchema& indexTableSchema);
+
+const TColumnSchema& FindUnfoldingColumnAndValidate(
+    const TTableSchema& tableSchema,
+    const TTableSchema& indexTableSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 
