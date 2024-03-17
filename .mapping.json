@@ -73,6 +73,7 @@
   "contrib/libs/apache/CMakeLists.txt":"",
   "contrib/libs/apache/arrow/CMakeLists.txt":"",
   "contrib/libs/apache/avro/CMakeLists.txt":"",
+  "contrib/libs/apache/orc-format/CMakeLists.txt":"",
   "contrib/libs/apache/orc/CMakeLists.txt":"",
   "contrib/libs/aws-sdk-cpp/CMakeLists.txt":"",
   "contrib/libs/aws-sdk-cpp/aws-cpp-sdk-core/CMakeLists.txt":"",
