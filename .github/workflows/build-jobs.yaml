@@ -256,6 +256,9 @@ jobs:
             ydb-ya-make --build=${build_types[$i]} ../ytsaurus/ydb/ydb/library/yql/tools/mrjob
             ydb-ya-make --build=${build_types[$i]} ../ytsaurus/ydb/ydb/library/yql/yt/dynamic
 
+            ydb-ya-make --build=${build_types[$i]} ../ytsaurus/ydb/ydb/library/yql/yt/dq_vanilla_job
+            ydb-ya-make --build=${build_types[$i]} ../ytsaurus/ydb/ydb/library/yql/yt/dq_vanilla_job.lite
+
             udfs_prefix="../ytsaurus/ydb/ydb/library/yql/udfs/common"
             ydb-ya-make --build=${build_types[$i]} ${udfs_prefix}/compress_base
             ydb-ya-make --build=${build_types[$i]} ${udfs_prefix}/datetime2
