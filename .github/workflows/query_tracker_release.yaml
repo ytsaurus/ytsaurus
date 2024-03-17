@@ -55,6 +55,7 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       build-python: true
+      build-query-tracker-ya-make-relwithdebinfo: true
       build-query-tracker-ya-make-release: true
     uses: ./.github/workflows/build-jobs.yaml
 
@@ -79,6 +80,7 @@ jobs:
       - tag
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
+      publish-query-tracker-ya-make-relwithdebinfo: true
       publish-query-tracker-ya-make-release: true
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.image-tag }}
