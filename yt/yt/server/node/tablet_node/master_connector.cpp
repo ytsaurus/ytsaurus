@@ -81,7 +81,7 @@ public:
 
         const auto& connection = Bootstrap_->GetClient()->GetNativeConnection();
         connection->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(
-            BIND(&TMasterConnector::OnMasterCellDirectoryChanged, MakeStrong(this))
+            BIND_NO_PROPAGATE(&TMasterConnector::OnMasterCellDirectoryChanged, MakeStrong(this))
                 .Via(Bootstrap_->GetControlInvoker()));
 
         const auto& cellarNodeMasterConnector = Bootstrap_->GetCellarNodeMasterConnector();
@@ -131,16 +131,16 @@ private:
     void OnMasterCellDirectoryChanged(
         const THashSet<TCellTag>& addedSecondaryCellTags,
         const TSecondaryMasterConnectionConfigs& /*reconfiguredSecondaryMasterConfigs*/,
-        const THashSet<TCellTag>& removedSecondaryTags)
+        const THashSet<TCellTag>& removedSecondaryCellTags)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_DEBUG_UNLESS(
-            addedSecondaryCellTags.empty() && removedSecondaryTags.empty(),
+            addedSecondaryCellTags.empty() && removedSecondaryCellTags.empty(),
             "Unexpected master cell configuration detected "
             "(AddedCellTags: %v, RemovedCellTags: %v)",
             addedSecondaryCellTags,
-            removedSecondaryTags);
+            removedSecondaryCellTags);
     }
 
     void OnDynamicConfigChanged(

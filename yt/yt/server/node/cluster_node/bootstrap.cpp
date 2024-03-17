@@ -438,7 +438,7 @@ public:
             return unwrapAddresses(PrimaryMaster_->Addresses);
         }
 
-        const auto secondaryMasterConnectionConfigs = GetSecondaryMasterConnectionConfigs();
+        const auto& secondaryMasterConnectionConfigs = GetSecondaryMasterConnectionConfigs();
         auto secondaryMasterIt = secondaryMasterConnectionConfigs.find(cellTag);
         if (secondaryMasterIt == secondaryMasterConnectionConfigs.end()) {
             THROW_ERROR_EXCEPTION("Master with cell tag %v is not known", cellTag);
@@ -786,7 +786,7 @@ private:
         connectionOptions.ConnectionInvoker = ConnectionThreadPool_->GetInvoker();
         connectionOptions.BlockCache = GetBlockCache();
         Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, std::move(connectionOptions));
-        Connection_->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(BIND(&TBootstrap::OnMasterCellDirectoryChanged, this));
+        Connection_->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(BIND_NO_PROPAGATE(&TBootstrap::OnMasterCellDirectoryChanged, this));
 
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
 
@@ -1159,7 +1159,7 @@ private:
         SetNodeByYPath(
             OrchidRoot_,
             "/connected_secondary_masters",
-            CreateVirtualNode(GetCellTagToSecondaryMasterOrchidService()));
+            CreateVirtualNode(GetSecondaryMasterConnectionConfigsOrchidService()));
         SetBuildAttributes(
             OrchidRoot_,
             "node");
@@ -1209,7 +1209,7 @@ private:
         YT_LOG_INFO("Node started successfully");
     }
 
-    IYPathServicePtr GetCellTagToSecondaryMasterOrchidService()
+    IYPathServicePtr GetSecondaryMasterConnectionConfigsOrchidService()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1491,7 +1491,7 @@ private:
     void OnMasterCellDirectoryChanged(
         const THashSet<TCellTag>& additionalSecondaryTags,
         const TSecondaryMasterConnectionConfigs& reconfiguredSecondaryMasterConfigs,
-        const THashSet<TCellTag>& dissapearedSecondaryTags)
+        const THashSet<TCellTag>& removedSecondaryCellTags)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1500,9 +1500,9 @@ private:
             "Unexpected appearance of master cells in received configuration detected (UnexpectedCellTags: %v)",
             additionalSecondaryTags);
         YT_LOG_WARNING_UNLESS(
-            dissapearedSecondaryTags.empty(),
+            removedSecondaryCellTags.empty(),
             "Some cells disappeared in received configuration of secondary masters (DisappearedCellTags: %v)",
-            dissapearedSecondaryTags);
+            removedSecondaryCellTags);
 
         THashSet<TCellTag> reconfiguredCellTags;
         reconfiguredCellTags.reserve(reconfiguredSecondaryMasterConfigs.size());
