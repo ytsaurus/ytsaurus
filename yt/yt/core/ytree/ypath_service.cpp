@@ -28,20 +28,18 @@
 
 namespace NYT::NYTree {
 
-using NYT::FromProto;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCacheKey
 {
     TYPath Path;
-    TString Method;
+    TProtobufString Method;
     TSharedRef RequestBody;
     TChecksum RequestBodyHash;
 
     TCacheKey(
         const TYPath& path,
-        const TString& method,
+        const TProtobufString& method,
         const TSharedRef& requestBody)
         : Path(path)
         , Method(method)
@@ -834,7 +832,7 @@ bool TCachedYPathService::DoInvoke(const IYPathServiceContextPtr& context)
 
                 TCacheKey key(
                     GetRequestTargetYPath(context->GetRequestHeader()),
-                    FromProto<TString>(context->GetRequestHeader().method()),
+                    context->GetRequestHeader().method(),
                     context->GetRequestMessage()[1]);
 
                 if (auto cachedResponse = cacheSnapshot->LookupResponse(key)) {
