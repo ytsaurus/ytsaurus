@@ -24,6 +24,7 @@ namespace NYT::NExecNode {
 using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NRpc;
+using namespace NTracing;
 using namespace NNodeTrackerClient;
 
 using namespace NControllerAgent;
@@ -243,11 +244,22 @@ TError TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat
         return TError();
     }
 
+    auto currentConfig = GetConfig();
+
+    TTraceContextPtr requestTraceContext;
+
+    if (currentConfig->EnableTracing) {
+        requestTraceContext = TTraceContext::NewRoot("AgentHeartbeatRequest");
+        requestTraceContext->SetRecorded();
+        requestTraceContext->AddTag("node_id", ToString(nodeId));
+    }
+
+    auto contextGuard = TTraceContextGuard(requestTraceContext);
+
     TJobTrackerServiceProxy proxy(Channel_);
     auto request = proxy.Heartbeat();
 
     auto context = New<TAgentHeartbeatContext>();
-    auto currentConfig = GetConfig();
 
     if (currentConfig->TestHeartbeatDelay) {
         TDelayedExecutor::WaitForDuration(currentConfig->TestHeartbeatDelay);

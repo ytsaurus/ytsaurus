@@ -722,6 +722,7 @@ def get_dynamic_node_config():
                 heartbeat_executor = {
                     period = 100;
                 };
+                enable_tracing = %true;
             };
 
             scheduler_connector = {
@@ -745,6 +746,7 @@ def get_dynamic_node_config():
                     max_backoff = 200;
                     backoff_multiplier = 1.0;
                 };
+                enable_tracing = %true;
             };
 
             master_connector = {

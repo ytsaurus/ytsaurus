@@ -30,6 +30,8 @@
 
 namespace NYT::NExecNode {
 
+using namespace NTracing;
+
 using namespace NJobAgent;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
@@ -180,6 +182,18 @@ TError TSchedulerConnector::DoSendHeartbeat()
     const auto& client = Bootstrap_->GetClient();
 
     TAllocationTrackerServiceProxy proxy(client->GetSchedulerChannel());
+    auto nodeId = Bootstrap_->GetNodeId();
+
+    TTraceContextPtr requestTraceContext;
+    bool enableTracing = DynamicConfig_.Acquire()->EnableTracing;
+
+    if (enableTracing) {
+        requestTraceContext = TTraceContext::NewRoot("SchedulerHeartbeatRequest");
+        requestTraceContext->SetRecorded();
+        requestTraceContext->AddTag("node_id", ToString(nodeId));
+    }
+
+    auto contextGuard = TTraceContextGuard(requestTraceContext);
 
     auto req = proxy.Heartbeat();
     req->SetRequestCodec(NCompression::ECodec::Lz4);
@@ -235,10 +249,9 @@ TError TSchedulerConnector::DoSendHeartbeat()
 
     ProcessHeartbeatResponse(rsp, heartbeatContext);
 
-    return
-        operationSuccessful ?
-        TError() :
-        TError("Scheduling skipped");
+    return operationSuccessful
+        ? TError()
+        : TError("Scheduling skipped");
 }
 
 TError TSchedulerConnector::SendHeartbeat()
