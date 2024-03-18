@@ -44,15 +44,15 @@ public:
     {
         auto newSize = Size_ + size;
         if (newSize < Capacity_) {
-            memcpy(Buffer_.get() + Size_, data, size);
+            memcpy(Buffer_->data() + Size_, data, size);
         } else {
             // Closest power of 2 exceeding new size
             auto newCapacity = 1 << (MostSignificantBit(newSize) + 1);
             newCapacity = Max<ssize_t>(64, newCapacity);
             auto newBuffer = std::make_shared<std::string>();
             newBuffer->resize(newCapacity);
-            memcpy(newBuffer.get(), Buffer_.get(), Size_);
-            memcpy(newBuffer.get() + Size_, data, size);
+            memcpy(newBuffer->data(), Buffer_->data(), Size_);
+            memcpy(newBuffer->data() + Size_, data, size);
             Buffer_ = newBuffer;
             Capacity_ = newCapacity;
         }
