@@ -743,6 +743,8 @@ TInsertRowsCommand::TInsertRowsCommand()
         .Default(false);
     RegisterParameter("allow_missing_key_columns", Options.AllowMissingKeyColumns)
         .Default(false);
+    RegisterParameter("lock_type", LockType)
+        .Default(ELockType::Exclusive);
 }
 
 void TInsertRowsCommand::DoExecute(ICommandContextPtr context)
@@ -790,7 +792,8 @@ void TInsertRowsCommand::DoExecute(ICommandContextPtr context)
         Path.GetPath(),
         valueConsumer.GetNameTable(),
         std::move(rowRange),
-        Options);
+        Options,
+        LockType);
 
     if (ShouldCommitTransaction()) {
         WaitFor(transaction->Commit())

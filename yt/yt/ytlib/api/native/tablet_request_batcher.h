@@ -38,6 +38,9 @@ struct ITabletRequestBatcher
         i64 RowCount = 0;
         i64 DataWeight = 0;
 
+        // COMPAT(ponasenko-rs)
+        bool HasSharedWriteLocks = false;
+
         void Materialize(NCompression::ECodec codec);
     };
     virtual std::vector<std::unique_ptr<TBatch>> PrepareBatches() = 0;

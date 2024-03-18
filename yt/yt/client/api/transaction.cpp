@@ -21,13 +21,54 @@ void ITransaction::WriteRows(
     const NYPath::TYPath& path,
     TNameTablePtr nameTable,
     TSharedRange<TUnversionedRow> rows,
-    const TModifyRowsOptions& options)
+    const TModifyRowsOptions& options,
+    ELockType lockType)
 {
+    THROW_ERROR_EXCEPTION_UNLESS(IsWriteLock(lockType), "Inappropriate lock type %Qlv given for write modification",
+        lockType);
+
     std::vector<TRowModification> modifications;
     modifications.reserve(rows.Size());
 
-    for (auto row : rows) {
-        modifications.push_back({ERowModificationType::Write, row.ToTypeErasedRow(), TLockMask()});
+    switch (lockType) {
+        case ELockType::Exclusive: {
+            for (auto row : rows) {
+                modifications.push_back({ERowModificationType::Write, row.ToTypeErasedRow(), TLockMask()});
+            }
+
+            break;
+        }
+
+        case ELockType::SharedWrite: {
+            // NB: This mount revision could differ from the one will be sent to tablet node.
+            // However locks correctness will be checked in native transaction.
+            const auto& tableMountCache = GetClient()->GetTableMountCache();
+            auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
+                .ValueOrThrow();
+
+            std::vector<int> columnIndexToLockIndex;
+            GetLocksMapping(
+                *tableInfo->Schemas[ETableSchemaKind::Write],
+                GetAtomicity() == NTransactionClient::EAtomicity::Full,
+                &columnIndexToLockIndex);
+
+            for (auto row : rows) {
+                TLockMask lockMask;
+                for (const auto& value : row) {
+                    auto lockIndex = columnIndexToLockIndex[value.Id];
+                    if (lockIndex != -1) {
+                        lockMask.Set(lockIndex, lockType);
+                    }
+                }
+
+                modifications.push_back({ERowModificationType::WriteAndLock, row.ToTypeErasedRow(), lockMask});
+            }
+
+            break;
+        }
+
+        default:
+            YT_ABORT();
     }
 
     ModifyRows(

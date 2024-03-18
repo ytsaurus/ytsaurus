@@ -3658,6 +3658,7 @@ private:
                 };
                 transaction->WriteRow(
                     chunkReplica,
+                    ELockType::SharedWrite,
                     NTableClient::EValueFlags::Aggregate);
 
                 for (const auto& replica : replicas) {
@@ -3737,6 +3738,7 @@ private:
                     };
                     transaction->WriteRow(
                         chunkReplica,
+                        ELockType::SharedWrite,
                         NTableClient::EValueFlags::Aggregate);
 
                     NRecords::TLocationReplicas locationReplica{
@@ -3807,6 +3809,7 @@ private:
                     };
                     transaction->WriteRow(
                         chunkReplica,
+                        ELockType::SharedWrite,
                         NTableClient::EValueFlags::Aggregate);
 
                     NRecords::TLocationReplicasKey locationReplicaKey{

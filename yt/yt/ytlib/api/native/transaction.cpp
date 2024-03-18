@@ -756,9 +756,21 @@ private:
             const auto& modificationSchema = !tableInfo->IsPhysicallyLog() && !tableInfo->IsSorted() ? primarySchema : primarySchemaWithTabletIndex;
             const auto& modificationIdMapping = !tableInfo->IsPhysicallyLog() && !tableInfo->IsSorted() ? primaryIdMapping : primaryWithTabletIndexIdMapping;
 
+            std::vector<int> columnIndexToLockIndex;
+            GetLocksMapping(
+                *writeSchema,
+                transaction->GetAtomicity() == NTransactionClient::EAtomicity::Full,
+                &columnIndexToLockIndex);
+
             for (const auto& modification : Modifications_) {
                 switch (modification.Type) {
                     case ERowModificationType::Write:
+                        if (!modification.Locks.IsNone()) {
+                            THROW_ERROR_EXCEPTION("Cannot perform lock by %Qlv modification type, use %Qlv",
+                                ERowModificationType::Write,
+                                ERowModificationType::WriteAndLock);
+                        }
+
                         ValidateClientDataRow(
                             TUnversionedRow(modification.Row),
                             *writeSchema,
@@ -806,19 +818,43 @@ private:
                             NameTable_);
                         break;
 
-                    case ERowModificationType::WriteAndLock:
+                    case ERowModificationType::WriteAndLock: {
                         if (!tableInfo->IsSorted()) {
                             THROW_ERROR_EXCEPTION(
                                 NTabletClient::EErrorCode::TableMustBeSorted,
                                 "Cannot perform lock in a non-sorted table %v",
                                 tableInfo->Path);
                         }
-                        ValidateClientKey(
-                            TUnversionedRow(modification.Row),
-                            *deleteSchema,
-                            deleteIdMapping,
-                            NameTable_);
+
+                        auto row = TUnversionedRow(modification.Row);
+
+                        bool hasNonKeyColumns = ValidateNonKeyColumnsAgainstLock(
+                            row,
+                            modification.Locks,
+                            *writeSchema,
+                            writeIdMapping, // NB: Should be consistent with columnIndexToLockIndex.
+                            NameTable_,
+                            columnIndexToLockIndex);
+
+                        if (hasNonKeyColumns) {
+                            // Lock with write.
+                            ValidateClientDataRow(
+                                row,
+                                *writeSchema,
+                                writeIdMapping,
+                                NameTable_,
+                                tabletIndexColumnId,
+                                Options_.AllowMissingKeyColumns);
+                        } else {
+                            // Lock without write.
+                            ValidateClientKey(
+                                row,
+                                *deleteSchema,
+                                deleteIdMapping,
+                                NameTable_);
+                        }
                         break;
+                    }
 
                     default:
                         YT_ABORT();
@@ -953,6 +989,12 @@ private:
 
             std::vector<bool> columnPresenceBuffer(modificationSchema->GetColumnCount());
 
+            std::vector<int> columnIndexToLockIndex;
+            GetLocksMapping(
+                *primarySchema,
+                transaction->GetAtomicity() == NTransactionClient::EAtomicity::Full,
+                &columnIndexToLockIndex);
+
             int currentHunkDescriptorIndex = 0;
             for (int modificationIndex = 0; modificationIndex < std::ssize(Modifications_); ++modificationIndex) {
                 const auto& modification = Modifications_[modificationIndex];
@@ -980,6 +1022,7 @@ private:
                         }
 
                         auto modificationType = modification.Type;
+                        auto locks = modification.Locks;
                         if (tableInfo->IsPhysicallyLog() && modificationType == ERowModificationType::WriteAndLock) {
                             if (tableInfo->IsChaosReplica() &&
                                 capturedRow.GetCount() == static_cast<ui32>(modificationSchema->GetKeyColumnCount()))
@@ -988,6 +1031,7 @@ private:
                             }
 
                             modificationType = ERowModificationType::Write;
+                            locks = TLockMask();
                         }
 
                         auto session = transaction->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
@@ -1026,7 +1070,27 @@ private:
                         }
 
                         auto command = GetCommand(modificationType);
-                        session->SubmitUnversionedRow(command, capturedRow, modification.Locks);
+
+                        if (modificationType == ERowModificationType::Write &&
+                            tableInfo->IsSorted() &&
+                            !tableInfo->IsPhysicallyLog())
+                        {
+                            YT_VERIFY(locks.IsNone());
+                            for (const auto& value : TUnversionedRow(modification.Row)) {
+                                int mappedId = ApplyIdMapping(value, &primaryIdMapping);
+
+                                auto lockIndex = columnIndexToLockIndex[mappedId];
+                                if (lockIndex == -1) {
+                                    continue;
+                                }
+
+                                locks.Set(lockIndex, ELockType::Exclusive);
+                            }
+
+                            command = GetCommand(ERowModificationType::WriteAndLock);
+                        }
+
+                        session->SubmitUnversionedRow(command, capturedRow, std::move(locks));
 
                         break;
                     }

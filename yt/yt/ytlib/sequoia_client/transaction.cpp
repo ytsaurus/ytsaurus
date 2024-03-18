@@ -167,14 +167,16 @@ public:
 
     void WriteRow(
         ESequoiaTable table,
-        NTableClient::TUnversionedRow row) override
+        TUnversionedRow row,
+        ELockType lockType) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto guard = Guard(Lock_);
 
         TWriteRowRequest request{
-            .Row = row
+            .Row = row,
+            .LockType = lockType,
         };
 
         auto commitSession = GetOrCreateTableCommitSession(table);
@@ -295,6 +297,7 @@ private:
     struct TWriteRowRequest
     {
         TUnversionedRow Row;
+        ELockType LockType;
     };
 
     struct TDeleteRowRequest
@@ -470,8 +473,23 @@ private:
                 [&] (const TWriteRowRequest& request) {
                     auto tabletInfo = GetSortedTabletForRow(tableMountInfo, request.Row, /*validateWrite*/ true);
 
+                    TLockMask lockMask;
+                    if (tableMountInfo->IsSorted()) {
+                        std::vector<int> columnIndexToLockIndex;
+                        GetLocksMapping(
+                            *tableMountInfo->Schemas[ETableSchemaKind::Write],
+                            true,
+                            &columnIndexToLockIndex);
+
+                        for (const auto& value: request.Row) {
+                            if (auto lockIndex = columnIndexToLockIndex[value.Id]; lockIndex != -1) {
+                                lockMask.Set(lockIndex, request.LockType);
+                            }
+                        }
+                    }
+
                     auto tabletCommitSession = GetOrCreateTabletCommitSession(tabletInfo->TabletId, /*dataless*/ false, tableMountInfo, tabletInfo);
-                    tabletCommitSession->SubmitUnversionedRow(EWireProtocolCommand::WriteRow, request.Row, TLockMask{});
+                    tabletCommitSession->SubmitUnversionedRow(EWireProtocolCommand::WriteAndLockRow, request.Row, lockMask);
                 },
                 [&] (const TDeleteRowRequest& request) {
                     auto tabletInfo = GetSortedTabletForRow(tableMountInfo, request.Key, /*validateWrite*/ true);

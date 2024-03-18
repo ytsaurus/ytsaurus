@@ -8,6 +8,7 @@
 namespace NYT::NApi::NNative {
 
 using namespace NTableClient;
+using namespace NTransactionClient;
 using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,6 +107,8 @@ private:
             keyColumnCount,
             ColumnEvaluator_);
 
+        bool hasSharedWriteLocks = false;
+
         for (auto it = UnversionedSubmittedRows_.begin(); it != UnversionedSubmittedRows_.end();) {
             auto startIt = it;
             rowMerger.InitPartialRow(startIt->Row);
@@ -117,12 +120,12 @@ private:
                 switch (it->Command) {
                     case EWireProtocolCommand::DeleteRow:
                         rowMerger.DeletePartialRow(it->Row);
+                        lockMask.Set(PrimaryLockIndex, ELockType::Exclusive);
                         break;
 
                     case EWireProtocolCommand::WriteRow:
-                        rowMerger.AddPartialRow(it->Row);
-                        break;
-
+                        YT_VERIFY(it->Locks.IsNone());
+                        [[fallthrough]];
                     case EWireProtocolCommand::WriteAndLockRow:
                         rowMerger.AddPartialRow(it->Row);
                         lockMask = MaxMask(lockMask, it->Locks);
@@ -132,6 +135,14 @@ private:
                         YT_ABORT();
                 }
                 resultCommand = it->Command;
+
+                // COMPAT(ponasenko-rs)
+                for (int lockIndex = 0; lockIndex < it->Locks.GetSize(); ++lockIndex) {
+                    if (it->Locks.Get(lockIndex) == ELockType::SharedWrite) {
+                        hasSharedWriteLocks = true;
+                    }
+                }
+
                 ++it;
             } while (it != UnversionedSubmittedRows_.end() &&
                 CompareRows(it->Row, startIt->Row, keyColumnCount) == 0);
@@ -139,6 +150,7 @@ private:
             TUnversionedRow mergedRow;
             if (resultCommand == EWireProtocolCommand::DeleteRow) {
                 mergedRow = rowMerger.BuildDeleteRow();
+                lockMask = TLockMask();
             } else {
                 if (lockMask.GetSize() > 0) {
                     resultCommand = EWireProtocolCommand::WriteAndLockRow;
@@ -150,7 +162,7 @@ private:
         }
 
         for (const auto& submittedRow : unversionedMergedRows) {
-            WriteRow(submittedRow);
+            WriteRow(submittedRow, hasSharedWriteLocks);
         }
 
         PrepareVersionedRows();
@@ -159,7 +171,7 @@ private:
     void PrepareOrderedBatches()
     {
         for (const auto& submittedRow : UnversionedSubmittedRows_) {
-            WriteRow(submittedRow);
+            WriteRow(submittedRow, /*hasSharedWriteLocks*/ false);
         }
 
         PrepareVersionedRows();
@@ -189,11 +201,15 @@ private:
         }
     }
 
-    void WriteRow(const TUnversionedSubmittedRow& submittedRow)
+    void WriteRow(const TUnversionedSubmittedRow& submittedRow, bool hasSharedWriteLocks)
     {
         IncrementAndCheckRowCount();
 
         auto* batch = GetBatch();
+
+        // COMPAT(ponasenko-rs)
+        batch->HasSharedWriteLocks = batch->HasSharedWriteLocks || hasSharedWriteLocks;
+
         auto* writer = batch->Writer.get();
         ++batch->RowCount;
         batch->DataWeight += GetDataWeight(submittedRow.Row);
