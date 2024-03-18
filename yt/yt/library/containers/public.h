@@ -92,7 +92,8 @@ DEFINE_ENUM(EStatField,
     (CpuGuarantee)
 
     // Memory
-    (Rss)
+    (ResidentAnon)
+    (TmpfsUsage)
     (MappedFile)
     (MajorPageFaults)
     (MinorPageFaults)

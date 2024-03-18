@@ -22,7 +22,8 @@ const std::vector<EStatField> InstanceStatFields{
     EStatField::CpuLimit,
     EStatField::CpuGuarantee,
 
-    EStatField::Rss,
+    EStatField::ResidentAnon,
+    EStatField::TmpfsUsage,
     EStatField::MappedFile,
     EStatField::MajorPageFaults,
     EStatField::MinorPageFaults,

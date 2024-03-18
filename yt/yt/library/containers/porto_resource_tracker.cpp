@@ -133,7 +133,8 @@ TCpuStatistics TPortoResourceTracker::ExtractCpuStatistics(const TResourceUsage&
 TMemoryStatistics TPortoResourceTracker::ExtractMemoryStatistics(const TResourceUsage& resourceUsage) const
 {
     return TMemoryStatistics{
-        .Rss = GetFieldOrError(resourceUsage, EStatField::Rss),
+        .ResidentAnon = GetFieldOrError(resourceUsage, EStatField::ResidentAnon),
+        .TmpfsUsage = GetFieldOrError(resourceUsage, EStatField::TmpfsUsage),
         .MappedFile = GetFieldOrError(resourceUsage, EStatField::MappedFile),
         .MinorPageFaults = GetFieldOrError(resourceUsage, EStatField::MinorPageFaults),
         .MajorPageFaults = GetFieldOrError(resourceUsage, EStatField::MajorPageFaults),
