@@ -147,18 +147,13 @@ jobs:
           ninja ytserver-all
 
       - name: Build ytsaurus (ya make, relwithdebinfo)
-<<<<<<< HEAD
         if: ${{ inputs.build-ytsaurus-ya-make }}
-=======
-        if: ${{ inputs.build-query-tracker-ya-make-relwithdebinfo || inputs.run-ya-make-tests }}
->>>>>>> Run ya tests only in ya-make pipeline
         run: |
           mkdir -p ../test_ya_build
           cd ../test_ya_build
           rm -rf *
 
           # Check build.
-<<<<<<< HEAD
           ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=. ../ytsaurus/ytsaurus/yt/yt
           # Check python tests.
           ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=. ../ytsaurus/ytsaurus/yt/python/yt/wrapper/tests --run-all-tests -F "*test_get_set_exists*"
@@ -173,9 +168,6 @@ jobs:
           rm -rf *
 
           ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
-=======
-          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=../ya_build ../ytsaurus/ytsaurus/yt/yt
->>>>>>> Run ya tests only in ya-make pipeline
 
       - name: Build ytsaurus (ya make, release)
         if: ${{ inputs.build-query-tracker-ya-make-release }}
@@ -190,9 +182,9 @@ jobs:
         if: ${{ inputs.run-ya-make-tests }}
         run: |
           # Check python tests.
-          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=../ya_build ../ytsaurus/ytsaurus/yt/python/yt/wrapper/tests --run-all-tests -F "*test_get_set_exists*"
+          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo --clear --output=../ya_build ../ytsaurus/ytsaurus/yt/python/yt/wrapper/tests --run-all-tests -F "*test_get_set_exists*"
           # Check integration tests.
-          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=../ya_build ../ytsaurus/ytsaurus/yt/yt/tests/integration/scheduler --run-all-tests -F "*TestMultipleSchedulers*"
+          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo --clear --output=../ya_build ../ytsaurus/ytsaurus/yt/yt/tests/integration/scheduler --run-all-tests -F "*TestMultipleSchedulers*"
 
       - name: Build chyt
         if: ${{ inputs.build-chyt }}
@@ -248,7 +240,7 @@ jobs:
         if: ${{ inputs.build-query-tracker-ya-make-relwithdebinfo || inputs.build-query-tracker-ya-make-release }}
         run: |
           shopt -s expand_aliases
-          alias ydb-ya-make="../ytsaurus/ydb/ya make -T --ignore-recurses --output=."
+          alias ydb-ya-make="../ytsaurus/ydb/ya make -T --ignore-recurses --clear --output=."
 
           build_types=()
           yqla_output_dirs=()
@@ -271,7 +263,7 @@ jobs:
             cd ../${ydb_output_dirs[$i]}
             rm -rf *
 
-            ../ytsaurus/ytsaurus/ya make -T --build=${build_types[$i]}  --output=../${yqla_output_dirs[$i]} ../ytsaurus/ytsaurus/yt/yql/agent/bin
+            ../ytsaurus/ytsaurus/ya make -T --build=${build_types[$i]} --clear --output=../${yqla_output_dirs[$i]} ../ytsaurus/ytsaurus/yt/yql/agent/bin
 
             ydb-ya-make --build=${build_types[$i]} ../ytsaurus/ydb/ydb/library/yql/tools/mrjob
             ydb-ya-make --build=${build_types[$i]} ../ytsaurus/ydb/ydb/library/yql/yt/dynamic
