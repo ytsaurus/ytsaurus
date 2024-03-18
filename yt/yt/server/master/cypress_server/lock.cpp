@@ -13,26 +13,6 @@ using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TLockKey::operator ==(const TLockKey& other) const
-{
-    return Kind == other.Kind && Name == other.Name;
-}
-
-bool TLockKey::operator !=(const TLockKey& other) const
-{
-    return !(*this == other);
-}
-
-bool TLockKey::operator <(const TLockKey& other) const
-{
-    return std::tie(Kind, Name) < std::tie(other.Kind, other.Name);
-}
-
-TLockKey::operator size_t() const
-{
-    return THash<ELockKeyKind>()(Kind) ^ THash<TString>()(Name);
-}
-
 void TLockKey::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -91,7 +71,7 @@ bool TLockRequest::operator!=(const TLockRequest& other) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TCypressNodeLockingState::TLockEntryComparator::operator()(
+bool TCypressNodeLockingState::TTransactionLockPairComparator::operator()(
     std::pair<TTransaction*, TLock*> lhs,
     std::pair<TTransaction*, TLock*> rhs) const
 {
@@ -107,7 +87,7 @@ bool TCypressNodeLockingState::TLockEntryComparator::operator()(
     return lhs.second->GetId() < rhs.second->GetId();
 }
 
-bool TCypressNodeLockingState::TLockEntryComparator::operator()(
+bool TCypressNodeLockingState::TTransactionLockPairComparator::operator()(
     TTransaction* lhs,
     std::pair<TTransaction*, TLock*> rhs) const
 {
@@ -122,7 +102,7 @@ bool TCypressNodeLockingState::TLockEntryComparator::operator()(
     return false;
 }
 
-bool TCypressNodeLockingState::TLockEntryComparator::operator()(
+bool TCypressNodeLockingState::TTransactionLockPairComparator::operator()(
     std::pair<TTransaction*, TLock*> lhs,
     TTransaction* rhs) const
 {
@@ -137,7 +117,9 @@ bool TCypressNodeLockingState::TLockEntryComparator::operator()(
     return false;
 }
 
-bool TCypressNodeLockingState::TLockEntryComparator::operator()(
+////////////////////////////////////////////////////////////////////////////////
+
+bool TCypressNodeLockingState::TTransactionKeyLockTupleComparator::operator()(
     const std::tuple<TTransaction*, TLockKey, TLock*>& lhs,
     const std::tuple<TTransaction*, TLockKey, TLock*>& rhs) const
 {
@@ -163,7 +145,7 @@ bool TCypressNodeLockingState::TLockEntryComparator::operator()(
     return lhsLock->GetId() < rhsLock->GetId();
 }
 
-bool TCypressNodeLockingState::TLockEntryComparator::operator()(
+bool TCypressNodeLockingState::TTransactionKeyLockTupleComparator::operator()(
     std::pair<TTransaction*, TLockKey> lhs,
     const std::tuple<TTransaction*, TLockKey, TLock*>& rhs) const
 {
@@ -186,7 +168,7 @@ bool TCypressNodeLockingState::TLockEntryComparator::operator()(
     return false;
 }
 
-bool TCypressNodeLockingState::TLockEntryComparator::operator()(
+bool TCypressNodeLockingState::TTransactionKeyLockTupleComparator::operator()(
     const std::tuple<TTransaction*, TLockKey, TLock*>& lhs,
     std::pair<TTransaction*, TLockKey> rhs) const
 {
@@ -209,7 +191,7 @@ bool TCypressNodeLockingState::TLockEntryComparator::operator()(
     return false;
 }
 
-bool TCypressNodeLockingState::TLockEntryComparator::operator()(
+bool TCypressNodeLockingState::TTransactionKeyLockTupleComparator::operator()(
     const TTransaction* lhs,
     const std::tuple<TTransaction*, TLockKey, TLock*>& rhs) const
 {
@@ -225,7 +207,7 @@ bool TCypressNodeLockingState::TLockEntryComparator::operator()(
     return false;
 }
 
-bool TCypressNodeLockingState::TLockEntryComparator::operator()(
+bool TCypressNodeLockingState::TTransactionKeyLockTupleComparator::operator()(
     const std::tuple<TTransaction*, TLockKey, TLock*>& lhs,
     TTransaction* rhs) const
 {
@@ -236,6 +218,59 @@ bool TCypressNodeLockingState::TLockEntryComparator::operator()(
     const auto* lhsTransaction = get<TTransaction*>(lhs);
     if (lhsTransaction->GetId() != rhs->GetId()) {
         return lhsTransaction->GetId() < rhs->GetId();
+    }
+
+    return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool TCypressNodeLockingState::TKeyLockPairComparator::operator()(
+    const std::pair<TLockKey, TLock*>& lhs,
+    const std::pair<TLockKey, TLock*>& rhs) const
+{
+    const auto& lhsLockKey = lhs.first;
+    const auto* lhsLock = lhs.second;
+    const auto& rhsLockKey = rhs.first;
+    const auto* rhsLock = rhs.second;
+
+    YT_ASSERT(lhsLock);
+    YT_ASSERT(rhsLock);
+
+    if (auto cmp = lhsLockKey <=> rhsLockKey; cmp != 0) {
+        return cmp < 0;
+    }
+
+    return lhsLock->GetId() < rhsLock->GetId();
+}
+
+bool TCypressNodeLockingState::TKeyLockPairComparator::operator()(
+    const TLockKey& lhs,
+    const std::pair<TLockKey, TLock*>& rhs) const
+{
+    const auto& rhsLockKey = rhs.first;
+    const auto* rhsLock = rhs.second;
+
+    YT_ASSERT(rhsLock);
+
+    if (auto cmp = lhs <=> rhsLockKey; cmp != 0) {
+        return cmp < 0;
+    }
+
+    return false;
+}
+
+bool TCypressNodeLockingState::TKeyLockPairComparator::operator()(
+    const std::pair<TLockKey, TLock*>& lhs,
+    const TLockKey& rhs) const
+{
+    const auto& lhsLockKey = lhs.first;
+    const auto* lhsLock = lhs.second;
+
+    YT_ASSERT(lhsLock);
+
+    if (auto cmp = lhsLockKey <=> rhs; cmp != 0) {
+        return cmp < 0;
     }
 
     return false;

@@ -24,10 +24,7 @@ struct TLockKey
     ELockKeyKind Kind = ELockKeyKind::None;
     TString Name;
 
-    bool operator ==(const TLockKey& other) const;
-    bool operator !=(const TLockKey& other) const;
-    bool operator < (const TLockKey& other) const;
-    operator size_t() const;
+    std::strong_ordering operator<=>(const TLockKey& rhs) const = default;
 
     void Persist(const NCellMaster::TPersistenceContext& context);
 };
@@ -59,11 +56,9 @@ struct TLockRequest
 //! Describes the locking state of a Cypress node.
 struct TCypressNodeLockingState
 {
-    struct TLockEntryComparator
+    struct TTransactionLockPairComparator
     {
         using is_transparent = void;
-
-        // Transaction-lock pair comparisons.
 
         bool operator()(
             std::pair<NTransactionServer::TTransaction*, TLock*> lhs,
@@ -76,8 +71,11 @@ struct TCypressNodeLockingState
         bool operator()(
             std::pair<NTransactionServer::TTransaction*, TLock*> lhs,
             NTransactionServer::TTransaction* rhs) const;
+    };
 
-        // Transaction-key-lock tuple comparisons.
+    struct TTransactionKeyLockTupleComparator
+    {
+        using is_transparent = void;
 
         bool operator()(
             const std::tuple<NTransactionServer::TTransaction*, TLockKey, TLock*>& lhs,
@@ -100,6 +98,23 @@ struct TCypressNodeLockingState
             NTransactionServer::TTransaction* rhs) const;
     };
 
+    struct TKeyLockPairComparator
+    {
+        using is_transparent = void;
+
+        bool operator()(
+            const std::pair<TLockKey, TLock*>& lhs,
+            const std::pair<TLockKey, TLock*>& rhs) const;
+
+        bool operator()(
+            const TLockKey& lhs,
+            const std::pair<TLockKey, TLock*>& rhs) const;
+
+        bool operator()(
+            const std::pair<TLockKey, TLock*>& lhs,
+            const TLockKey& rhs) const;
+    };
+
     std::list<TLock*> AcquiredLocks;
     std::list<TLock*> PendingLocks;
 
@@ -107,13 +122,22 @@ struct TCypressNodeLockingState
     // They must not be invalidated unless the record itself is erased. Keep this
     // in mind when changing container types.
     // NB: deterministic order for both keys and values is required here, hence std::set.
-    std::set<std::pair<NTransactionServer::TTransaction*, TLock*>, TLockEntryComparator> TransactionToExclusiveLocks;
+    std::set<
+        std::pair<NTransactionServer::TTransaction*, TLock*>,
+        TTransactionLockPairComparator
+    > TransactionToExclusiveLocks;
 
-    std::set<std::tuple<NTransactionServer::TTransaction*, TLockKey, TLock*>, TLockEntryComparator> TransactionAndKeyToSharedLocks;
+    std::set<
+        std::tuple<NTransactionServer::TTransaction*, TLockKey, TLock*>,
+        TTransactionKeyLockTupleComparator
+    > TransactionAndKeyToSharedLocks;
     // Only contains "child" and "attribute" shared locks.
-    THashMultiMap<TLockKey, TLock*> KeyToSharedLocks;
+    std::set<
+        std::pair<TLockKey, TLock*>,
+        TKeyLockPairComparator
+    > KeyToSharedLocks;
 
-    std::set<std::pair<NTransactionServer::TTransaction*, TLock*>, TLockEntryComparator> TransactionToSnapshotLocks;
+    std::set<std::pair<NTransactionServer::TTransaction*, TLock*>, TTransactionLockPairComparator> TransactionToSnapshotLocks;
 
     bool HasExclusiveLock(NTransactionServer::TTransaction* transaction) const;
     bool HasSharedLock(NTransactionServer::TTransaction* transaction) const;
@@ -151,7 +175,7 @@ public:
     using TTransactionAndKeyToSharedLocksIterator = decltype(TCypressNodeLockingState::TransactionAndKeyToSharedLocks)::iterator;
     DEFINE_BYVAL_RW_PROPERTY(TTransactionAndKeyToSharedLocksIterator, TransactionAndKeyToSharedLocksIterator);
 
-    using TKeyToSharedLocksIterator = THashMultiMap<TLockKey, TLock*>::iterator;
+    using TKeyToSharedLocksIterator = decltype(TCypressNodeLockingState::KeyToSharedLocks)::iterator;
     DEFINE_BYVAL_RW_PROPERTY(TKeyToSharedLocksIterator, KeyToSharedLocksIterator);
 
     using TTransactionToSnapshotLocksIterator = decltype(TCypressNodeLockingState::TransactionToSnapshotLocks)::iterator;
