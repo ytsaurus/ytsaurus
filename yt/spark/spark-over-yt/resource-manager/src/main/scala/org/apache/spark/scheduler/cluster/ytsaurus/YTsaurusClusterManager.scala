@@ -22,10 +22,13 @@ private[spark] class YTsaurusClusterManager extends ExternalClusterManager with 
     masterURL: String,
     scheduler: TaskScheduler): SchedulerBackend = {
     logInfo("Creating YTsaurus scheduler backend")
+    var ytProxy = sc.conf.get("spark.hadoop.yt.clientProxy")
+    var networkName = sc.conf.get("spark.hadoop.yt.clientProxyNetworkName")
+    if (ytProxy == null) {
+      ytProxy = YTsaurusUtils.parseMasterUrl(masterURL)
+    }
 
-    val ytProxy = YTsaurusUtils.parseMasterUrl(masterURL)
-
-    val operationManager = YTsaurusOperationManager.create(ytProxy, sc.conf)
+    val operationManager = YTsaurusOperationManager.create(ytProxy, sc.conf, networkName)
 
     new YTsaurusSchedulerBackend(scheduler.asInstanceOf[TaskSchedulerImpl], sc, operationManager)
   }
