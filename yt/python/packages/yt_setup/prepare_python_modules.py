@@ -96,6 +96,10 @@ def prepare_python_modules(
     def prepare_bindings_library(module_path, library_path, name):
         replace(os.path.join(source_root, module_path), output_path)
         if prepare_bindings_libraries:
+            so_path = "lib{name}.so".format(name=name)
+            if not os.path.exists(so_path):
+                so_path = "{name}.so".format(name=name)
+
             cp(
                 os.path.join(build_root, library_path, "lib{name}.so".format(name=name)),
                 os.path.join(output_path, "{}/{}.so".format(os.path.basename(module_path), name)))
