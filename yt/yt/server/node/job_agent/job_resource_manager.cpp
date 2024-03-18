@@ -84,7 +84,7 @@ class TJobResourceManager::TImpl
 public:
     DEFINE_SIGNAL_OVERRIDE(void(), ResourcesAcquired);
     DEFINE_SIGNAL_OVERRIDE(void(EResourcesConsumerType, bool), ResourcesReleased);
-    DEFINE_SIGNAL_OVERRIDE(void(TResourceHolderPtr), ResourceUsageOverdrafted);
+    DEFINE_SIGNAL_OVERRIDE(void(TResourceHolderPtr), ResourceUsageOverdraftOccurred);
 
     DEFINE_SIGNAL_OVERRIDE(
         void(i64 mapped),
@@ -503,18 +503,18 @@ public:
             waitingResources = WaitingResources_;
         }
 
-        bool resourceUsageOverdrafted = false;
+        bool resourceUsageOverdraftOccurred = false;
 
         auto systemMemory = resourceDelta.SystemMemory;
         if (systemMemory > 0) {
-            resourceUsageOverdrafted |= !SystemMemoryUsageTracker_->Acquire(systemMemory);
+            resourceUsageOverdraftOccurred |= !SystemMemoryUsageTracker_->Acquire(systemMemory);
         } else if (systemMemory < 0) {
             SystemMemoryUsageTracker_->Release(-systemMemory);
         }
 
         auto userMemory = resourceDelta.UserMemory;
         if (userMemory > 0) {
-            resourceUsageOverdrafted |= !UserMemoryUsageTracker_->Acquire(userMemory);
+            resourceUsageOverdraftOccurred |= !UserMemoryUsageTracker_->Acquire(userMemory);
         } else if (userMemory < 0) {
             UserMemoryUsageTracker_->Release(-userMemory);
         }
@@ -532,16 +532,16 @@ public:
             NotifyResourcesReleased(resourcesConsumerType, /*fullyReceived*/ false);
         }
 
-        if (resourceUsageOverdrafted) {
+        if (resourceUsageOverdraftOccurred) {
             YT_LOG_INFO(
-                "Resource usage overdrafted (ResourceUsage: %v, ResourceLimits: %v)",
+                "Resource usage overdraft occurred (ResourceUsage: %v, ResourceLimits: %v)",
                 FormatResources(currentResourceUsage),
                 FormatResources(resourceLimits));
 
-            ResourceUsageOverdrafted_.Fire(MakeStrong(resourceHolder));
+            ResourceUsageOverdraftOccurred_.Fire(MakeStrong(resourceHolder));
         }
 
-        return resourceUsageOverdrafted;
+        return resourceUsageOverdraftOccurred;
     }
 
     TDiskResources GetDiskResources() const override
@@ -1612,13 +1612,13 @@ bool TResourceHolder::DoSetResourceUsage(
 
     auto resourceUsageDelta = std::invoke(resourceUsageUpdater, newResourceUsage);
 
-    auto overdrafted = ResourceManagerImpl_->OnResourcesUpdated(
+    auto overdraftOccurred = ResourceManagerImpl_->OnResourcesUpdated(
         this,
         ResourcesConsumerType,
         GetLogger(),
         resourceUsageDelta);
 
-    return !overdrafted;
+    return !overdraftOccurred;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

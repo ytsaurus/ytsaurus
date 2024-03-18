@@ -134,8 +134,8 @@ public:
         JobResourceManager_->SubscribeReservedMemoryOvercommited(
             BIND_NO_PROPAGATE(&TJobController::OnReservedMemoryOvercommited, MakeWeak(this))
                 .Via(Bootstrap_->GetJobInvoker()));
-        JobResourceManager_->SubscribeResourceUsageOverdrafted(
-            BIND_NO_PROPAGATE(&TJobController::OnResourceUsageOverdrafted, MakeWeak(this))
+        JobResourceManager_->SubscribeResourceUsageOverdraftOccurred(
+            BIND_NO_PROPAGATE(&TJobController::OnResourceUsageOverdraftOccurred, MakeWeak(this))
                 .Via(Bootstrap_->GetJobInvoker()));
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetJobInvoker(),
@@ -790,7 +790,7 @@ private:
         resources.clear_vcpu();
     }
 
-    void OnResourceUsageOverdrafted(TResourceHolderPtr resourceHolder)
+    void OnResourceUsageOverdraftOccurred(TResourceHolderPtr resourceHolder)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -799,7 +799,7 @@ private:
         auto currentAllocation = DynamicPointerCast<TAllocation>(std::move(resourceHolder));
         YT_LOG_FATAL_UNLESS(
             currentAllocation,
-            "Resources overdrafted for resource holder that not associated with an allocation (ResourceHolderId: %v)",
+            "Resource usage overdraft happened for the resource holder with no allocation (ResourceHolderId: %v)",
             resourceHolder->GetIdAsGuid());
 
         auto allocationId = currentAllocation->GetId();
@@ -808,21 +808,21 @@ private:
             "Handling resource usage overdraft caused by allocation resource usage update (AllocationId: %v)",
             allocationId);
 
-        if (currentAllocation->IsResourceUsageOverdrafted()) {
+        if (currentAllocation->IsResourceUsageOverdraftOccurred()) {
             currentAllocation->Abort(TError(
                 NExecNode::EErrorCode::ResourceOverdraft,
-                "Resource usage overdrafted")
+                "Resource usage overdraft occurred")
                 // GetResourceUsage can be updated again, but it is pretty rare situation.
                 << TErrorAttribute("resource_usage", FormatResources(currentAllocation->GetResourceUsage())));
         } else {
             bool foundJobToAbort = false;
             for (const auto& [_, allocation] : IdToAllocations_) {
                 if (const auto& job = allocation->GetJob();
-                    job && job->GetState() == EJobState::Running && allocation->IsResourceUsageOverdrafted())
+                    job && job->GetState() == EJobState::Running && allocation->IsResourceUsageOverdraftOccurred())
                 {
                     allocation->Abort(TError(
                         NExecNode::EErrorCode::ResourceOverdraft,
-                        "Some other allocation with guarantee overdrafted node resource usage")
+                        "Some other allocation with guarantee overdraft total node resource usage")
                         << TErrorAttribute("resource_usage", FormatResources(job->GetResourceUsage()))
                         << TErrorAttribute("other_allocation_id", currentAllocation->GetId()));
                     foundJobToAbort = true;

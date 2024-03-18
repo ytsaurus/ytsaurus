@@ -62,7 +62,7 @@ public:
         TString preemptionReason,
         const std::optional<NScheduler::TPreemptedFor>& preemptedFor);
 
-    bool IsResourceUsageOverdrafted() const;
+    bool IsResourceUsageOverdraftOccurred() const;
 
     bool IsEmpty() const noexcept;
 

@@ -1046,11 +1046,14 @@ void TSlotLocation::UpdateDiskResources()
                 diskUsage += slotDiskLimit;
                 reservedAvailableSpace += slotDiskLimit - slotDiskUsage;
                 if (dynamicConfig->CheckDiskSpaceLimit && slotDiskUsage > slotDiskLimit) {
-                    auto error = TError("Disk usage overdrafted: %v > %v",
+                    auto error = TError(
+                        "Disk usage overdraft occurred: %v > %v",
                         slotDiskUsage,
                         slotDiskLimit);
 
-                    YT_LOG_INFO(error, "Slot disk usage overdrafted (Path: %v, SlotIndex: %v)",
+                    YT_LOG_INFO(
+                        error,
+                        "Slot disk usage overdraft occurred (Path: %v, SlotIndex: %v)",
                         Config_->Path,
                         slotIndex);
                     sandboxOptions.DiskOverdraftCallback
