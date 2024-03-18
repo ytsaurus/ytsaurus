@@ -67,7 +67,7 @@ In addition to these main sections, the documentation also includes other resour
 
 ### Table of Contents 
 
-The document structure is described in the `ru/toc.yaml` file for the Russian documentation and in the `en/toc.yaml` for the English one, respectively. This file defines how the table of contents is generated and documentation is built. The structure of the `toc.yaml` file looks like the following:
+The document structure is described in the `ru/toc.yaml` file for the Russian documentation and in the `en/toc.yaml` for the English one. This file defines how the table of contents is generated and documentation is built. The structure of the `toc.yaml` file looks like the following:
 
 ```      
 title: "{{product-name}}"    # Variable substitution. For more details, see the "Variables" section below.
@@ -162,15 +162,13 @@ If you spot an error in the documentation, such as a typo or a broken link, you 
 
    <img src="images/edit-file.png" width="530" height="225" alt="To edit the file sources click on the pencil icon.">
 
-3. Make a pull request with your edits. For more information on how to work with pull requests via the GitHub interface, read the [official documentation](https://docs.github.com/en/desktop/working-with-your-remote-repository-on-github-or-github-enterprise/creating-an-issue-or-pull-request-from-github-desktop).
+3. Make a pull request with your edits. To know how to work with pull requests via the GitHub interface, read the [official documentation](https://docs.github.com/en/desktop/working-with-your-remote-repository-on-github-or-github-enterprise/creating-an-issue-or-pull-request-from-github-desktop).
 
-4. After opening a pull request, the message "Merging is blocked" will occur.
+   Note that after opening a pull request, the message "Merging is blocked" will occur. This only means that review is required before the merging. YTsaurus team will review your changes and merge them into the main branch.
     
     <img src="images/merge-blocked-message.png" width="430" height="94" alt="Review is required before the merging.">
 
-   This only means that review is required before the merging. YTsaurus team will review your changes and merge them into the main branch.
-
-5. To know what happens next, see the [What Happens After Changes are Merged](#what-happens-after-changes-are-merged) section.
+4. To know what happens next, see the [What Happens After Changes are Merged](#what-happens-after-changes-are-merged) section.
 
 -------
 
@@ -180,7 +178,7 @@ Below are the main steps of how to add new content to the documentation:
 
 1. Fork the [YTsaurus repository](https://github.com/ytsaurus/ytsaurus/tree/main), create your branch, and perform all your work within this branch. Afterwards, you will create a pull request from it. For additional information, visit the [Fork a repository](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo) and [About branches](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-branches)  sections in the official GitHub documentation.
 
-2. Prepare content. Check out the recommendations for content writing represented in the following sections:
+2. Prepare content. To keep YTsaurus documentation consistent follow the guidelines below:
     - [YFM Syntax Quick Reference](#yfm-syntax-quick-reference)
     - [Style Guide](#style-guide)  
     - [Documentation Philosophy](#documentation-philosophy)
@@ -427,8 +425,6 @@ Listings are used to indicate the snippets with code examples. A reference to th
 Example: 
 
 ````
-Listing 1 shows an example of running an ACL check.
-
 <small>Listing 1 — Example of Running an ACL Check</small>
 
 ```bash
@@ -448,7 +444,7 @@ $ yt check-permission yql write //tmp
 ### Documentation Philosophy
 
 - When writing text, determine your target audience, whom you are writing for. Take into account that YTsaurus users may have different backgrounds and may be from different areas: analysts, engineers, administrators, and developers. The target audience influences the level of detail of your text and the terminology you use.
-- Your text should not disrupt the integrity of the entire document either its narrative logic. When writing content, consider the context of the whole section where the content is intended to be added.
+- Your text should not disrupt the integrity of the entire document or its narrative logic. When writing content, consider the context of the section where this content is intended to be added.
 - Try to avoid jargon, slang, Anglicisms, and colloquial language. Use commonly accepted terms. Strive to follow the academic style.
 - Accompany your text with examples. Content without examples is perceived as abstract and is hard to assimilate.
 - Use cross-links between the sections.
