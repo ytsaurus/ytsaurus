@@ -329,6 +329,7 @@ class CellsHydraPersistenceMigrationBase(ChaosTestBase, MasterSnapshotsCompatibi
     DELTA_MASTER_CONFIG = {
         "world_initializer": {
             "init_retry_period": 100,
+            "init_transaction_timeout": 5000,
             "update_period": 100,
         }
     }
