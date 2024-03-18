@@ -54,7 +54,7 @@ struct IJobController
     //! Set value of flag disabling all jobs.
     virtual void SetJobsDisabledByMaster(bool value) = 0;
 
-    virtual TFuture<void> GetAllJobsCleanedupFuture() = 0;
+    virtual TFuture<void> GetAllJobsCleanupFinishedFuture() = 0;
 
     virtual TFuture<void> AbortAllJobs(const TError& error) = 0;
 
@@ -92,11 +92,9 @@ struct IJobController
     virtual TGuid RegisterThrottlingRequest(TFuture<void> future) = 0;
     virtual TFuture<void> GetThrottlingRequestOrThrow(TGuid id) = 0;
 
-    DECLARE_INTERFACE_SIGNAL(void(const TJobPtr&), JobRegistered);
-    DECLARE_INTERFACE_SIGNAL(
-        void(TAllocationId, TOperationId, const TControllerAgentDescriptor&, const TError&),
-        AllocationFailed);
-    DECLARE_INTERFACE_SIGNAL(void(const TJobPtr&), JobFinished);
+    virtual TJobControllerDynamicConfigPtr GetDynamicConfig() const = 0;
+
+    DECLARE_INTERFACE_SIGNAL(void(TJobPtr), JobFinished);
     DECLARE_INTERFACE_SIGNAL(void(const TError& error), JobProxyBuildInfoUpdated);
 };
 

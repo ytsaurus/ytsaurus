@@ -159,6 +159,7 @@ target_sources(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/data_node/skynet_http_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/data_node/table_schema_cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/data_node/ytree_integration.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/allocation.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/bootstrap.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/controller_agent_connector.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/chunk_cache.cpp

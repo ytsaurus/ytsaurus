@@ -17,6 +17,7 @@ DECLARE_REFCOUNTED_CLASS(TSchedulerConnector)
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TJob)
+DECLARE_REFCOUNTED_CLASS(TAllocation)
 
 DECLARE_REFCOUNTED_STRUCT(TSchedulerHeartbeatContext)
 
