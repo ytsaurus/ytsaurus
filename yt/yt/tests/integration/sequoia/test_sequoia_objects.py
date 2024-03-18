@@ -335,8 +335,6 @@ class TestSequoiaQueues(YTEnvSetup):
     def test_branched_link(self):
         create("map_node", "//tmp/m1")
 
-        link_count = len(select_rows_from_ground(f"* from [{DESCRIPTORS.path_to_node_id.get_default_path()}]"))
-
         tx = start_transaction()
         link("//tmp/m1", "//tmp/m2", tx=tx)
         abort_transaction(tx)
