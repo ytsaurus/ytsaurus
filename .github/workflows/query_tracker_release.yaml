@@ -49,6 +49,7 @@ jobs:
 
   build:
     name: Build
+    timeout-minutes: 480
     needs:
       - start-vm
       - checkout
