@@ -350,19 +350,26 @@ public:
     {
         ThreadData_.reserve(threadCount);
         for (int i = 0; i < threadCount; ++i) {
-            TString threadName = ::TStringBuilder() << "par_reader_" << i;
             auto& data = ThreadData_.emplace_back();
             data.Self = this;
             data.ThreadIndex = i;
-            Threads_.push_back(::MakeHolder<TThread>(
-                TThread::TParams(ReaderThread, &data).SetName(threadName)));
         }
     }
 
-    virtual ~TReadManagerBase() = default;
+    virtual ~TReadManagerBase()
+    {
+        // Inheritors MUST stop ReadManager in their destructors (because only they can call virtual DoStop method)
+        Y_ABORT_IF(!Threads_.empty());
+    }
 
     void Start()
     {
+        for (auto& threadData : ThreadData_) {
+            auto threadName = ::TStringBuilder() << "par_reader_" << threadData.ThreadIndex;
+            Threads_.push_back(::MakeHolder<TThread>(
+                TThread::TParams(ReaderThread, &threadData).SetName(threadName)));
+        }
+
         for (auto& thread : Threads_) {
             thread->Start();
         }
@@ -374,8 +381,18 @@ public:
         for (auto& thread : Threads_) {
             thread->Join();
         }
+        Threads_.clear();
         if (Exception_) {
             std::rethrow_exception(Exception_);
+        }
+    }
+
+    void StopNoExcept() noexcept
+    {
+        try {
+            Stop();
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING("Parallel table reader was finished with exception: %v", ex.what());
         }
     }
 
@@ -470,6 +487,11 @@ public:
         }
     }
 
+    ~TUnorderedReadManager()
+    {
+        TReadManagerBase<TRow>::StopNoExcept();
+    }
+
     void OnBufferDrained(TReaderBufferPtr<TRow> buffer) override
     {
         EmptyBuffers_.Push(std::move(buffer));
@@ -533,6 +555,11 @@ public:
         , Processor_(std::move(processor))
     { }
 
+    ~TProcessingUnorderedReadManager()
+    {
+        TReadManagerBase<TRow>::StopNoExcept();
+    }
+
     void OnBufferDrained(TReaderBufferPtr<TRow> /* buffer */) override
     {
         Y_ABORT();
@@ -586,6 +613,11 @@ public:
                 bufferQueue->Push(std::move(buffer));
             }
         }
+    }
+
+    ~TOrderedReadManager()
+    {
+        TReadManagerBase<TRow>::StopNoExcept();
     }
 
     void OnBufferDrained(TReaderBufferPtr<TRow> buffer) override
@@ -700,15 +732,6 @@ public:
         ReadManager_->Start();
         NextBuffer();
         NextNotEmptyBuffer();
-    }
-
-    ~TParallelTableReaderBase()
-    {
-        try {
-            ReadManager_->Stop();
-        } catch (const std::exception& ex) {
-            YT_LOG_WARNING("Parallel table reader was finished with exception: %v", ex.what());
-        }
     }
 
     bool IsValid() const override
@@ -919,7 +942,6 @@ THolder<TReadManagerBase<TRow>> CreateReadManager(
             rangeReaderOptions);
     }
 
-    THolder<TReadManagerBase<TRow>> readManager;
     if (options.Ordered_) {
         TOrderedReadManagerConfig config;
         config.ThreadCount = options.ThreadCount_;
