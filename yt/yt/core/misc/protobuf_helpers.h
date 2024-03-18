@@ -6,7 +6,6 @@
 #include "range.h"
 #include "serialize.h"
 
-#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 #include <yt/yt/core/compression/public.h>
 
 #include <yt/yt_proto/yt/core/misc/proto/guid.pb.h>
@@ -20,6 +19,7 @@
 #include <google/protobuf/message.h>
 #include <google/protobuf/repeated_field.h>
 
+#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
