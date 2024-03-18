@@ -1914,7 +1914,7 @@ private:
                     }),
                     BIND([=, this_ = MakeStrong(this)] {
                         YT_LOG_DEBUG(
-                            "Failed to schedule job due to operation cancelation (OperationId: %v, AllocationId: %v)",
+                            "Failed to schedule allocation due to operation cancelation (OperationId: %v, AllocationId: %v)",
                             operationId,
                             allocationId);
                         replyWithFailure(

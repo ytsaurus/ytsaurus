@@ -149,7 +149,7 @@ public:
 
     virtual bool ValidateChunkCount(int chunkCount);
 
-    void ScheduleAllocation(
+    void ScheduleJob(
         ISchedulingContext* context,
         const NScheduler::TJobResources& jobLimits,
         const TString& treeId,
