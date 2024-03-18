@@ -28,7 +28,7 @@ jobs:
           memory: 32GB
           core-fraction: 100
           disk-type: network-ssd-nonreplicated
-          disk-size: 379GB
+          disk-size: 372GB
 
   checkout:
     name: Checkout
