@@ -1452,7 +1452,7 @@ private:
 
         for (auto& allocation : allocationsToStart) {
             auto allocationId = allocation->GetId();
-            if (!IdToAllocations_.contains(allocationId)) {
+            if (!IdToAllocations_.contains(allocationId) || allocation->GetState() != EAllocationState::Waiting) {
                 YT_LOG_DEBUG("No such allocation, it seems to be aborted (AllocationId: %v)", allocationId);
                 continue;
             } else {
