@@ -51,18 +51,17 @@ void TMemoryTracker::DumpMemoryUsageStatistics(TStatistics* statistics, const TS
     statistics->AddSample(Format("%v/current_memory", path), GetMemoryStatistics()->Total);
     statistics->AddSample(Format("%v/max_memory", path), MaxMemoryUsage_);
     statistics->AddSample(Format("%v/cumulative_memory_mb_sec", path), CumulativeMemoryUsageMBSec_);
+    statistics->AddSample(Format("%v/peak_resident_anon", path), PeakResidentAnon_);
 }
 
 i64 TMemoryTracker::GetMemoryUsage()
 {
     auto memoryStatistics = GetMemoryStatistics();
 
-    i64 memoryUsage = 0;
-    memoryUsage += memoryStatistics->Total.Rss;
+    auto memoryUsage = memoryStatistics->Total.ResidentAnon + memoryStatistics->Total.TmpfsUsage;
     if (Config_->IncludeMemoryMappedFiles) {
         memoryUsage += memoryStatistics->Total.MappedFile;
     }
-    memoryUsage += TmpfsManager_->GetAggregatedTmpfsUsage();
     return memoryUsage;
 }
 
@@ -124,11 +123,11 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
                 }
             }
 
-            jobMemoryStatistics->Total.Rss = memoryMappingStatistics.PrivateClean + memoryMappingStatistics.PrivateDirty;
+            jobMemoryStatistics->Total.ResidentAnon = memoryMappingStatistics.PrivateClean + memoryMappingStatistics.PrivateDirty;
             jobMemoryStatistics->Total.MappedFile = memoryMappingStatistics.SharedClean + memoryMappingStatistics.SharedDirty;
 
-            YT_LOG_DEBUG("Job memory statistics updated (Rss: %v, Shared: %v, SkippedBecauseOfTmpfs: %v)",
-                jobMemoryStatistics->Total.Rss,
+            YT_LOG_DEBUG("Job memory statistics updated (ResidentAnon: %v, MappedFile: %v, SkippedBecauseOfTmpfs: %v)",
+                jobMemoryStatistics->Total.ResidentAnon,
                 jobMemoryStatistics->Total.MappedFile,
                 skippedBecauseOfTmpfs);
         } else {
@@ -174,7 +173,7 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
                     // RSS from /proc/pid/statm includes all pages resident to current process,
                     // including memory-mapped files and shared memory.
                     // Since we want to account shared memory separately, let's subtract it here.
-                    jobMemoryStatistics->Total.Rss += (memoryUsage.Rss - memoryUsage.Shared);
+                    jobMemoryStatistics->Total.ResidentAnon += (memoryUsage.Rss - memoryUsage.Shared);
                     jobMemoryStatistics->Total.MappedFile += memoryUsage.Shared;
 
                     jobMemoryStatistics->Total.MajorPageFaults += majorPageFaults;
@@ -185,19 +184,24 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
             }
         }
 
-        YT_LOG_DEBUG("Job memory statistics updated (Private: %v, Shared: %v)",
-            jobMemoryStatistics->Total.Rss,
-            jobMemoryStatistics->Total.MappedFile);
+        jobMemoryStatistics->Total.TmpfsUsage = TmpfsManager_->GetAggregatedTmpfsUsage();
     }
 
-    auto memoryUsage = jobMemoryStatistics->Total.Rss + jobMemoryStatistics->Total.MappedFile;
-    MaxMemoryUsage_ = std::max<i64>(MaxMemoryUsage_, memoryUsage);
+    PeakResidentAnon_ = std::max<i64>(PeakResidentAnon_, jobMemoryStatistics->Total.ResidentAnon);
 
-    jobMemoryStatistics->TmpfsUsage = TmpfsManager_->GetAggregatedTmpfsUsage();
+    // NB: TmpfsUsage is not accounted into "max_memory" for historical reasons.
+    auto memoryUsage = jobMemoryStatistics->Total.ResidentAnon + jobMemoryStatistics->Total.MappedFile;
+    MaxMemoryUsage_ = std::max<i64>(MaxMemoryUsage_, memoryUsage);
 
     if (now > LastMemoryMeasureTime_) {
         CumulativeMemoryUsageMBSec_ += memoryUsage * (now - LastMemoryMeasureTime_).SecondsFloat() / 1_MB;
     }
+
+    YT_LOG_DEBUG("Job memory statistics updated (ResidentAnon: %v, MappedFile: %v, TmpfsUsage: %v)",
+        jobMemoryStatistics->Total.ResidentAnon,
+        jobMemoryStatistics->Total.MappedFile,
+        jobMemoryStatistics->Total.TmpfsUsage);
+
     LastMemoryMeasureTime_ = now;
     CachedMemoryStatistics_ = jobMemoryStatistics;
 
