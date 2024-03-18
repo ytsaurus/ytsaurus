@@ -8,7 +8,7 @@ You can use Prometheus metrics with the `yt_logging_*` prefix to analyze the log
 
 Debugging logs are described in the `loggers` section of the {{product-name}} component specification.
 
-<small>Table 1 — `YTsaurus` debug logger settings</small>
+<small>Table 1 — YTsaurus debug logger settings</small>
 
 | **Field** | **Possible values** | **Description** |
 | ------------------- | --------------- | ------- |
