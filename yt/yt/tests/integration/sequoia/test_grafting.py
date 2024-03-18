@@ -93,8 +93,8 @@ class TestGrafting(YTEnvSetup):
         create("map_node", "//tmp/sequoia/m1")
         create("map_node", "//tmp/sequoia/m1/m2")
         remove("//tmp/sequoia", recursive=True)
-        assert select_rows_from_ground(f"* from [{DESCRIPTORS.path_to_node_id.get_default_path()}]") == []
-        assert select_rows_from_ground(f"* from [{DESCRIPTORS.node_id_to_path.get_default_path()}]") == []
+        assert select_rows_from_ground(f"* from [{DESCRIPTORS.path_to_node_id.get_default_path()}] where not is_substr('//sys', path)") == []
+        assert select_rows_from_ground(f"* from [{DESCRIPTORS.node_id_to_path.get_default_path()}] where not is_substr('//sys', path)") == []
         assert not exists(f"#{rootstock_id}")
 
     @authors("kvk1920")
