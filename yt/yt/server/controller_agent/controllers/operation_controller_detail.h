@@ -196,8 +196,8 @@ private: \
     IMPLEMENT_SAFE_METHOD(
         NScheduler::TControllerScheduleAllocationResultPtr,
         ScheduleAllocation,
-        (ISchedulingContext* context, const NScheduler::TJobResources& jobLimits, const TString& treeId),
-        (context, jobLimits, treeId),
+        (ISchedulingContext* context, const NScheduler::TJobResources& resourceLimits, const TString& treeId),
+        (context, resourceLimits, treeId),
         true)
 
     //! Callback called by TChunkScraper when get information on some chunk.
@@ -668,13 +668,13 @@ protected:
 
     void DoScheduleAllocation(
         ISchedulingContext* context,
-        const NScheduler::TJobResources& jobLimits,
+        const NScheduler::TJobResources& resourceLimits,
         const TString& treeId,
         NScheduler::TControllerScheduleAllocationResult* scheduleJobResult);
 
-    void TryScheduleAllocation(
+    void TryScheduleJob(
         ISchedulingContext* context,
-        const NScheduler::TJobResources& jobLimits,
+        const NScheduler::TJobResources& resourceLimits,
         const TString& treeId,
         NScheduler::TControllerScheduleAllocationResult* scheduleJobResult,
         bool scheduleLocalJob);
