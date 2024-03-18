@@ -172,28 +172,6 @@ object YtPublishPlugin extends AutoPlugin {
       }
     }
 
-    def onlyYtProxy: String = {
-      val proxyList = ytProxies
-      proxyList match {
-        case Nil =>
-          throw new NoSuchElementException("No proxy provided")
-        case proxy +: Nil =>
-          proxy
-        case _ =>
-          throw new IllegalArgumentException(s"Few proxies(${proxyList.mkString(",")}) is not supported")
-      }
-    }
-
-    def discoveryPath: String = {
-      val propPath = Option(System.getProperty("discoveryPath"))
-      propPath match {
-        case None =>
-          throw new NoSuchElementException("No discovery path provided")
-        case Some(path) =>
-          path
-      }
-    }
-
     def limitTtlEnabled: Boolean = Option(System.getProperty("limitTtl")).forall(_.toBoolean)
     def configGenerationEnabled: Boolean = Option(System.getProperty("configGeneration")).forall(_.toBoolean)
     def innerSidecarConfigEnabled: Boolean = Option(System.getProperty("innerSidecarConfig")).exists(_.toBoolean)
