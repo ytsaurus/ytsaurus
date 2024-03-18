@@ -5,7 +5,7 @@ from yt.common import wait
 from yt_commands import (
     create, create_secondary_index, create_dynamic_table, create_table_replica, create_table_collocation,
     authors, set, get, exists, remove, copy, get_driver,
-    sync_create_cells, sync_mount_table, sync_enable_table_replica,
+    sync_create_cells, sync_mount_table, sync_unmount_table, sync_enable_table_replica,
     select_rows, insert_rows, delete_rows,
     sorted_dicts, raises_yt_error,
 )
@@ -59,10 +59,14 @@ UNFOLDING_INDEX_SCHEMA = [
 
 
 class TestSecondaryIndexBase(DynamicTablesBase):
-    def _mount(self, *tables):
-        sync_create_cells(1)
+    def _mount(self, *tables, cell_count=1):
+        sync_create_cells(cell_count)
         for table in tables:
             sync_mount_table(table)
+
+    def _unmount(self, *tables):
+        for table in tables:
+            sync_unmount_table(table)
 
     def _create_table(self, table_path, table_schema, external_cell_tag=11):
         return create_dynamic_table(table_path, table_schema, external_cell_tag=external_cell_tag)
@@ -101,13 +105,18 @@ class TestSecondaryIndexReplicatedBase(TestSecondaryIndexBase):
         super(TestSecondaryIndexReplicatedBase, self).setup_method(method)
         self.REPLICA_DRIVER = get_driver(cluster=self.REPLICA_CLUSTER_NAME)
 
-    def _mount(self, *tables):
-        sync_create_cells(1)
-        sync_create_cells(1, driver=self.REPLICA_DRIVER)
+    def _mount(self, *tables, cell_count=1):
+        sync_create_cells(cell_count)
+        sync_create_cells(cell_count, driver=self.REPLICA_DRIVER)
 
         for table in tables:
             sync_mount_table(table)
             sync_mount_table(table + "_replica", driver=self.REPLICA_DRIVER)
+
+    def _unmount(self, *tables):
+        for table in tables:
+            sync_unmount_table(table)
+            sync_unmount_table(table + "_replica", driver=self.REPLICA_DRIVER)
 
     def _create_table(self, table_path, table_schema, external_cell_tag=11):
         table_id = create(
@@ -286,9 +295,9 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
         self._mount("//tmp/table", "//tmp/index_table")
 
         insert_rows("//tmp/table", [
-            {"key": 0, "value": [4, 3, 2]},
-            {"key": 1, "value": [1, 2]},
-            {"key": 2, "value": [3, 1]},
+            {"key": 0, "value": [14, 13, 12]},
+            {"key": 1, "value": [11, 12]},
+            {"key": 2, "value": [13, 11]},
         ])
         insert_rows("//tmp/index_table", [
             {"value": 1, "key": 1},
@@ -300,13 +309,17 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
             {"value": 4, "key": 0},
         ])
 
-        aliased_table_rows = [
-            {"key": 0, "value": [4, 3, 2]},
-            {"key": 1, "value": [1, 2]},
+        self._unmount("//tmp/table", "//tmp/index_table")
+        self._create_secondary_index("//tmp/table", "//tmp/index_table", kind="unfolding")
+        self._mount("//tmp/table", "//tmp/index_table", cell_count=0)
+
+        expected_table_rows = [
+            {"key": 0, "value": [14, 13, 12]},
+            {"key": 1, "value": [11, 12]},
         ]
         rows = select_rows("key, value from [//tmp/table] with index [//tmp/index_table] "
                            "where list_contains(value, 2)")
-        assert_items_equal(sorted_dicts(rows), sorted_dicts(aliased_table_rows))
+        assert_items_equal(sorted_dicts(rows), sorted_dicts(expected_table_rows))
 
 
 ##################################################################
@@ -350,6 +363,17 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         self._insert_rows(update)
 
         self._expect_from_index(update)
+
+    @authors("sabdenovch")
+    def test_secondary_index_insert_same_key_twice_in_one_transaction(self):
+        self._create_basic_tables(mount=True)
+
+        self._insert_rows([
+            {"keyA": 0, "keyB": "key", "valueA": 0, "valueB": False},
+            {"keyA": 0, "keyB": "key", "valueA": 1},
+        ], update=True)
+
+        self._expect_from_index([{"keyA": 0, "keyB": "key", "valueA": 1, "valueB": False}])
 
     @authors("sabdenovch")
     def test_secondary_index_insert_multiple(self):
@@ -667,3 +691,11 @@ class TestSecondaryIndexReplicatedSelect(TestSecondaryIndexReplicatedBase, TestS
 
 class TestSecondaryIndexReplicatedModifications(TestSecondaryIndexReplicatedBase, TestSecondaryIndexModifications):
     pass
+
+
+##################################################################
+
+
+class TestSecondaryIndexModificationsOverRpc(TestSecondaryIndexModifications):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True

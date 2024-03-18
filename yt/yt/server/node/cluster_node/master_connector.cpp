@@ -112,7 +112,7 @@ public:
         MasterCellTags_.insert(connection->GetPrimaryMasterCellTag());
         MasterCellTags_.insert(secondaryMasterCellTags.begin(), secondaryMasterCellTags.end());
         connection->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(
-            BIND(&TMasterConnector::OnMasterCellDirectoryChanged, MakeStrong(this))
+            BIND_NO_PROPAGATE(&TMasterConnector::OnMasterCellDirectoryChanged, MakeStrong(this))
                 .Via(Bootstrap_->GetControlInvoker()));
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
@@ -187,16 +187,16 @@ public:
     void OnMasterCellDirectoryChanged(
         const THashSet<TCellTag>& addedSecondaryCellTags,
         const TSecondaryMasterConnectionConfigs& /*reconfiguredSecondaryMasterConfigs*/,
-        const THashSet<TCellTag>& removedSecondaryTags)
+        const THashSet<TCellTag>& removedSecondaryCellTags)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_DEBUG_UNLESS(
-            addedSecondaryCellTags.empty() && removedSecondaryTags.empty(),
+            addedSecondaryCellTags.empty() && removedSecondaryCellTags.empty(),
             "Unexpected master cell configuration detected "
             "(AddedCellTags: %v, RemovedCellTags: %v)",
             addedSecondaryCellTags,
-            removedSecondaryTags);
+            removedSecondaryCellTags);
     }
 
     void OnHeartbeatResponse(const TRspHeartbeat& response)

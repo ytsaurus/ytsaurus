@@ -61,6 +61,7 @@ target_proto_addincls(rpc_benchmark
   ${PROJECT_SOURCE_DIR}/yt
   ${PROJECT_SOURCE_DIR}/yt
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc-format/src/main/proto/orc/proto
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
