@@ -16,7 +16,7 @@ class SpytEnablers(object):
     IPV6_KEY = "spark.hadoop.yt.preferenceIpv6.enabled"
     TCP_PROXY_KEY = "spark.hadoop.yt.tcpProxy.enabled"
 
-    def __init__(self, enable_byop=True, enable_profiling=False, enable_arrow=None,
+    def __init__(self, enable_byop=False, enable_profiling=False, enable_arrow=True,
                  enable_mtn=False, enable_solomon_agent=True, enable_preference_ipv6=True,
                  enable_tcp_proxy=False):
         self.enable_byop = enable_byop
