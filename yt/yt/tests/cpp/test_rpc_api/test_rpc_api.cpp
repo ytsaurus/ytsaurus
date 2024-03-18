@@ -1325,7 +1325,7 @@ TEST_F(TArrowTestBase, Float)
         .ValueOrThrow();
 
     auto metaRef = WaitFor(stream->Read())
-            .ValueOrThrow();
+        .ValueOrThrow();
 
     NRpcProxy::NProto::TRspReadTableMeta meta;
     if (!TryDeserializeProto(&meta, metaRef)) {
