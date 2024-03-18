@@ -67,7 +67,7 @@ public:
 
     DECLARE_INTERFACE_SIGNAL(void(), ResourcesAcquired);
     DECLARE_INTERFACE_SIGNAL(void(EResourcesConsumerType, bool), ResourcesReleased);
-    DECLARE_INTERFACE_SIGNAL(void(TResourceHolderPtr), ResourceUsageOverdrafted);
+    DECLARE_INTERFACE_SIGNAL(void(TResourceHolderPtr), ResourceUsageOverdraftOccurred);
 
     DECLARE_INTERFACE_SIGNAL(
         void(i64 mapped),
