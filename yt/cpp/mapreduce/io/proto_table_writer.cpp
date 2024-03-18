@@ -179,9 +179,12 @@ void TLenvalProtoTableWriter::AddRow(const Message& row, size_t tableIndex)
     i32 size = row.ByteSizeLong();
     stream->Write(&size, sizeof(size));
 
-    TProtobufOutputStreamAdaptor streamAdaptor(stream);
-    auto result = row.SerializeToZeroCopyStream(&streamAdaptor);
-    Y_ENSURE(result && !streamAdaptor.HasError(), "Failed to serialize protobuf message");
+    // NB: Scope is essential here since output stream adaptor flushes in destructor.
+    {
+        TProtobufOutputStreamAdaptor streamAdaptor(stream);
+        auto result = row.SerializeToZeroCopyStream(&streamAdaptor);
+        Y_ENSURE(result && !streamAdaptor.HasError(), "Failed to serialize protobuf message");
+    }
 
     Output_->OnRowFinished(tableIndex);
 }
@@ -216,9 +219,12 @@ void TLenvalProtoSingleTableWriter::AddRow(const Message& row, size_t tableIndex
     i32 size = row.ByteSizeLong();
     stream->Write(&size, sizeof(size));
 
-    TProtobufOutputStreamAdaptor streamAdaptor(stream);
-    auto result = row.SerializeToZeroCopyStream(&streamAdaptor);
-    Y_ENSURE(result && !streamAdaptor.HasError(), "Failed to serialize protobuf message");
+    // NB: Scope is essential here since output stream adaptor flushes in destructor.
+    {
+        TProtobufOutputStreamAdaptor streamAdaptor(stream);
+        auto result = row.SerializeToZeroCopyStream(&streamAdaptor);
+        Y_ENSURE(result && !streamAdaptor.HasError(), "Failed to serialize protobuf message");
+    }
 
     Output_->OnRowFinished(tableIndex);
 }
