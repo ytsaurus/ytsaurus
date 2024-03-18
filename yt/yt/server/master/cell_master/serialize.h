@@ -213,6 +213,7 @@ DEFINE_ENUM(EMasterReign,
     ((SequoiaQueues)                                                (2544))  // aleksandra-zh
     ((ChunkListTraversalIncumbency)                                 (2545))  // danilalexeev
     ((UsersInSequoia)                                               (2546))  // cherepashka
+    ((RemoveEnableSharedWriteLocksFlag_24_1)                        (2547))  // ponasenko-rs
     // 24.2 starts here.
 );
 

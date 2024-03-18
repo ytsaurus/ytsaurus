@@ -70,6 +70,7 @@ PY_SRCS(
     # into module yt.yt.<...> resulting in module yt being overridden (!) resulting in lots of import errors
     # from module yt (in particular, yt.packages.six).
     NAMESPACE original_tests
+    yt/yt/tests/integration/dynamic_tables/test_dynamic_tables.py
     yt/yt/tests/integration/master/test_master_snapshots.py
     yt/yt/tests/integration/misc/test_get_supported_features.py
     yt/yt/tests/integration/controller/test_map_operation.py
@@ -84,6 +85,7 @@ PY_SRCS(
 
 TEST_SRCS(
     test_compatibility.py
+    test_dynamic_tables.py
     test_get_supported_features.py
     test_master_snapshots_compatibility.py
     test_map_operation.py
