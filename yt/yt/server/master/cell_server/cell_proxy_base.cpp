@@ -347,6 +347,7 @@ TCellProxyBase::TResolveResult TCellProxyBase::ResolveSelf(const TYPath& path, c
     if (method == "Remove" ||
         method == "Get" ||
         method == "Set" ||
+        method == "Exists" ||
         method == "Create" ||
         method == "Copy" ||
         method == "EndCopy")
