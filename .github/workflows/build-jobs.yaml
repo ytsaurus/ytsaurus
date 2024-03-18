@@ -44,6 +44,7 @@ on:
 jobs:
   build:
     runs-on: ${{ inputs.runs-on-value }}
+    timeout-minutes: 480
     steps:
       - name: Prepare python virtual environment
         run: |
