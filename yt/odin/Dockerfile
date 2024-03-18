@@ -149,6 +149,8 @@ RUN apt-get update \
         procps \
         curl \ 
         strace \
+        less \
+        zstd \
         jq \
         linux-perf \
         google-perftools \
