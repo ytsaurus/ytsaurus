@@ -2739,6 +2739,76 @@ void ListContains(
     *ConvertPointerFromWasmToHost(result) = MakeUnversionedBooleanValue(found);
 }
 
+template <ENodeType NodeType, typename TValue>
+bool ListHasIntersectionImpl(const INodePtr& lhsNode, const INodePtr& rhsNode)
+{
+    THashSet<TValue> values;
+    for (const auto& node : rhsNode->AsList()->GetChildren()) {
+        switch (node->GetType()) {
+            case ENodeType::Entity:
+                break;
+            case NodeType:
+                values.insert(ConvertTo<TValue>(node));
+                break;
+            default:
+                ThrowException("ListHasIntersection args list must contain only elements of the same type");
+        }
+    }
+    for (const auto& node : lhsNode->AsList()->GetChildren()) {
+        if (node->GetType() == NodeType && values.contains(ConvertTo<TValue>(node))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void ListHasIntersection(
+    TExpressionContext* /*context*/,
+    TValue* result,
+    TValue* lhsYsonList,
+    TValue* rhsYsonList)
+{
+    auto lhsAtHost = *ConvertPointerFromWasmToHost(lhsYsonList);
+    YT_VERIFY(IsStringLikeType(lhsAtHost.Type));
+    lhsAtHost.Data.String = ConvertPointerFromWasmToHost(lhsAtHost.Data.String, lhsAtHost.Length);
+    auto rhsAtHost = *ConvertPointerFromWasmToHost(rhsYsonList);
+    YT_VERIFY(IsStringLikeType(rhsAtHost.Type));
+    rhsAtHost.Data.String = ConvertPointerFromWasmToHost(rhsAtHost.Data.String, rhsAtHost.Length);
+
+    auto lhsNode = NYTree::ConvertToNode(
+        FromUnversionedValue<NYson::TYsonStringBuf>(lhsAtHost));
+    auto rhsNode = NYTree::ConvertToNode(
+        FromUnversionedValue<NYson::TYsonStringBuf>(rhsAtHost));
+
+    bool found = false;
+    const auto rhsNodeList = rhsNode->AsList()->GetChildren();
+    if (!rhsNodeList.empty()) {
+        auto element= rhsNodeList[0];
+        switch (element->GetType()) {
+            case ENodeType::String:
+                found = ListHasIntersectionImpl<ENodeType::String, TString>(lhsNode, rhsNode);
+                break;
+            case ENodeType::Int64:
+                found = ListHasIntersectionImpl<ENodeType::Int64, i64>(lhsNode, rhsNode);
+                break;
+            case ENodeType::Uint64:
+                found = ListHasIntersectionImpl<ENodeType::Uint64, ui64>(lhsNode, rhsNode);
+                break;
+            case ENodeType::Boolean:
+                found = ListHasIntersectionImpl<ENodeType::Boolean, bool>(lhsNode, rhsNode);
+                break;
+            case ENodeType::Double:
+                found = ListHasIntersectionImpl<ENodeType::Double, double>(lhsNode, rhsNode);
+                break;
+            default:
+                THROW_ERROR_EXCEPTION("ListHasIntersection is not implemented for %Qlv values",
+                element->GetType());
+        }
+    }
+
+    *ConvertPointerFromWasmToHost(result) = MakeUnversionedBooleanValue(found);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void AnyToYsonString(
@@ -3834,6 +3904,7 @@ REGISTER_ROUTINE(AnyToString);
 REGISTER_ROUTINE(MakeMap);
 REGISTER_ROUTINE(MakeList);
 REGISTER_ROUTINE(ListContains);
+REGISTER_ROUTINE(ListHasIntersection);
 REGISTER_ROUTINE(AnyToYsonString);
 REGISTER_ROUTINE(NumericToString);
 REGISTER_ROUTINE(StringToInt64);

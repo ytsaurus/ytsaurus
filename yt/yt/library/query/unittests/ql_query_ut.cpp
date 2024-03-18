@@ -9311,6 +9311,34 @@ TEST_F(TQueryEvaluateTest, GreatestError)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, ListHasIntersection)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Any},
+        {"b", EValueType::Any},
+    });
+    std::vector<TString> source = {
+        "a=[1;2;3];b=[4;6;2]",
+        "a=[\"a\"; \"b\"];b=[\"a\"]",
+        "a=[1;2;3];b=[4;6]",
+        "a=[%true];b=[]",
+    };
+
+    auto result = YsonToRows({
+        "has_intersection=%true",
+        "has_intersection=%true",
+        "has_intersection=%false",
+        "has_intersection=%false",
+    }, MakeSplit({{"has_intersection", EValueType::Boolean},}));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "list_has_intersection(a, b) as has_intersection from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

@@ -304,6 +304,13 @@ LLVM_BC(
 )
 
 LLVM_BC(
+    udf/list_has_intersection.cpp
+    NAME list_has_intersection
+    SYMBOLS
+        list_has_intersection
+)
+
+LLVM_BC(
     udf/any_to_yson_string.cpp
     NAME any_to_yson_string
     SYMBOLS

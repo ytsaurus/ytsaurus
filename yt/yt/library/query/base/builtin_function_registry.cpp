@@ -360,6 +360,16 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         ECallingConvention::UnversionedValue);
 
     builder->RegisterFunction(
+        "list_has_intersection",
+        std::vector<TType>{
+            EValueType::Any,
+            EValueType::Any,
+        },
+        EValueType::Boolean,
+        "list_has_intersection",
+        ECallingConvention::UnversionedValue);
+
+    builder->RegisterFunction(
         "any_to_yson_string",
         std::vector<TType>{EValueType::Any},
         EValueType::String,
