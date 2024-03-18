@@ -671,7 +671,9 @@ DEFINE_ENUM(EJobProxyLoggingMode,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobProxyLoggingEnvironment : public NYTree::TYsonStruct {
+class TJobProxyLoggingEnvironment
+    : public NYTree::TYsonStruct
+{
 public:
     EJobProxyLoggingMode LoggingMode;
 
@@ -679,7 +681,7 @@ public:
 
     NLogging::TLogManagerConfigPtr LoggingTemplate;
 
-    size_t ShardingKeyLength;
+    int ShardingKeyLength;
 
     std::optional<TString> JobProxyStderrPath;
     std::optional<TString> ExecutorStderrPath;

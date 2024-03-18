@@ -2566,9 +2566,9 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     }
 
     auto calculateShardingKey = [&] (size_t shardingKeyLength) {
-        auto random_part = GetId().Underlying().Parts64[1];
-        auto sharding_key = Sprintf("%016lx", random_part);
-        return sharding_key.substr(0, shardingKeyLength);
+        auto randomPart = GetId().Underlying().Parts64[1];
+        auto shardingKey = Sprintf("%016lx", randomPart);
+        return shardingKey.substr(0, shardingKeyLength);
     };
 
     auto tryReplacePatterns = [&] (TString& str) {

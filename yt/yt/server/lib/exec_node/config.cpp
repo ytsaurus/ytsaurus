@@ -775,7 +775,8 @@ void TJobProxyLoggingEnvironment::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("sharding_key_length", &TThis::ShardingKeyLength)
-        .Default();
+        .Default()
+        .GreaterThan(0);
 
     registrar.Parameter("job_proxy_stderr_path", &TThis::JobProxyStderrPath)
         .Default();
