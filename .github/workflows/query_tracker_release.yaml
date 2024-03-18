@@ -71,7 +71,8 @@ jobs:
       - name: Parse tag
         id: tag
         run: |
-          echo "IMAGE_TAG=test" >> $GITHUB_OUTPUT
+          IMAGE_TAG=test
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
   release:
     name: Release
