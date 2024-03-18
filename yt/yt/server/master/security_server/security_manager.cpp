@@ -598,7 +598,7 @@ public:
                 if (!IsObjectAlive(medium)) {
                     continue;
                 }
-                TWithTagGuard(&buffer, "medium", medium->GetName());
+                TWithTagGuard guard(&buffer, "medium", medium->GetName());
                 buffer.AddGauge("/disk_space_in_gb", double(space) / 1_GB);
                 auto committedIt = std::find_if(
                     commitedDiskSpace.begin(),
@@ -615,7 +615,7 @@ public:
                 if (!IsObjectAlive(medium)) {
                     continue;
                 }
-                TWithTagGuard(&buffer, "medium", medium->GetName());
+                TWithTagGuard guard(&buffer, "medium", medium->GetName());
                 buffer.AddGauge("/disk_space_limit_in_gb", space.UnsafeToUnderlying() / double(1_GB));
             }
 
