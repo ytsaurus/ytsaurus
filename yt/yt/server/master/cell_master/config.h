@@ -163,15 +163,17 @@ struct TMasterCellDescriptor
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterCellDirectoryConfig
-    : public NYTree::TYsonStructLite
+    : public NYTree::TYsonStruct
 {
 public:
     std::vector<NApi::NNative::TMasterConnectionConfigPtr> SecondaryMasters;
 
-    REGISTER_YSON_STRUCT_LITE(TMasterCellDirectoryConfig);
+    REGISTER_YSON_STRUCT(TMasterCellDirectoryConfig);
 
     static void Register(TRegistrar registrar);
 };
+
+DEFINE_REFCOUNTED_TYPE(TMasterCellDirectoryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -180,7 +182,7 @@ class TTestConfig
 {
 public:
     // NB: Temporary field to test dynamic reconfiguration of master cell cluster on nodes.
-    std::optional<TMasterCellDirectoryConfig> MasterCellDirectoryOverride;
+    TMasterCellDirectoryConfigPtr MasterCellDirectoryOverride;
 
     REGISTER_YSON_STRUCT(TTestConfig);
 
