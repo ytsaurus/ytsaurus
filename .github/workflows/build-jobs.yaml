@@ -238,7 +238,7 @@ jobs:
         run: |
           source ../venv/bin/activate
           if ${{ inputs.build-query-tracker-ya-make }}; then
-            YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../ya_build --not-prepare-bindings-libraries
+            YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../ya_build
           else
             YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build
           fi
