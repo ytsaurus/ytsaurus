@@ -57,6 +57,7 @@ jobs:
       build-python: true
       build-ytsaurus-ya-make: true
       build-query-tracker-ya-make-relwithdebinfo: true
+      run-ya-make-tests: true
     uses: ./.github/workflows/build-jobs.yaml
 
   tag:
