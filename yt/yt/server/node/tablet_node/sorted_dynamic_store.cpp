@@ -1048,7 +1048,7 @@ void TSortedDynamicStore::WaitOnBlockedRow(
             row,
             TConflictInfo{
                 .LockIndex = lockIndex,
-                .CheckingTimestamp = timestamp
+                .ReadTimestamp = timestamp,
             },
             timeLeft);
 

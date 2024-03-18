@@ -1258,14 +1258,15 @@ void TSortedStoreManager::WaitOnBlockedRow(
         return;
     }
 
-    if (lock.PrepareTimestamp.load() >= conflictInfo.CheckingTimestamp) {
+    if (lock.PrepareTimestamp.load() >= conflictInfo.ReadTimestamp) {
         return;
     }
 
-    YT_LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TransactionId: %v, Timeout: %v)",
+    YT_LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TransactionId: %v, ReadTimestamp: %v, Timeout: %v)",
         RowToKey(*Tablet_->GetPhysicalSchema(), row),
         conflictInfo.LockIndex,
         transaction->GetId(),
+        conflictInfo.ReadTimestamp,
         timeout);
 
     Y_UNUSED(WaitFor(transaction->GetFinished().WithTimeout(timeout)));
