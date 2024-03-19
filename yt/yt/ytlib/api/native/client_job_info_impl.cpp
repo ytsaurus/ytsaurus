@@ -216,7 +216,8 @@ static bool IsNoSuchJobOrOperationError(const TError& error)
 {
     return
         error.FindMatching(NScheduler::EErrorCode::NoSuchJob) ||
-        error.FindMatching(NScheduler::EErrorCode::NoSuchOperation);
+        error.FindMatching(NScheduler::EErrorCode::NoSuchOperation) ||
+        error.FindMatching(NExecNode::EErrorCode::NoSuchJob);
 }
 
 // Get job node descriptor from scheduler and check that user has |requiredPermissions|
