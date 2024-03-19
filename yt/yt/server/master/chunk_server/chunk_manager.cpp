@@ -5615,18 +5615,23 @@ private:
         return chunkReplica;
     }
 
-    TFuture<std::vector<TSequoiaChunkReplica>> DoGetSequoiaLastSeenReplicas(TChunkId chunkId) const
+    TFuture<std::vector<TSequoiaChunkReplica>> DoGetSequoiaReplicas(
+        const std::vector<TChunkId>& chunkIds,
+        const std::function<NYson::TYsonString(const NRecords::TChunkReplicas&)>& extractReplicas) const
     {
-        NRecords::TChunkReplicasKey chunkReplicasKey{
-            .IdHash = HashFromId(chunkId),
-            .ChunkId = chunkId,
-        };
-        std::vector<NRecords::TChunkReplicasKey> keys({chunkReplicasKey});
+        std::vector<NRecords::TChunkReplicasKey> keys;
+        for (auto chunkId : chunkIds) {
+            NRecords::TChunkReplicasKey chunkReplicasKey{
+                .IdHash = HashFromId(chunkId),
+                .ChunkId = chunkId,
+            };
+            keys.push_back(chunkReplicasKey);
+        }
 
         return Bootstrap_
             ->GetSequoiaClient()
             ->LookupRows<NRecords::TChunkReplicasKey>(keys)
-            .Apply(BIND([] (const std::vector<std::optional<NRecords::TChunkReplicas>>& replicaRecords) {
+            .Apply(BIND([extractReplicas] (const std::vector<std::optional<NRecords::TChunkReplicas>>& replicaRecords) {
                 std::vector<TSequoiaChunkReplica> replicas;
                 for (const auto& replicaRecord : replicaRecords) {
                     if (!replicaRecord) {
@@ -5634,7 +5639,7 @@ private:
                     }
 
                     auto chunkId = replicaRecord->Key.ChunkId;
-                    for (const auto& replica : ConvertToNode(replicaRecord->LastSeenReplicas)->AsList()->GetChildren()) {
+                    for (const auto& replica : ConvertToNode(extractReplicas(*replicaRecord))->AsList()->GetChildren()) {
                         replicas.push_back(ParseSequoiaReplica(chunkId, replica));
                     }
                 }
@@ -5643,45 +5648,18 @@ private:
             }));
     }
 
+    TFuture<std::vector<TSequoiaChunkReplica>> DoGetSequoiaLastSeenReplicas(TChunkId chunkId) const
+    {
+        return DoGetSequoiaReplicas({chunkId}, [] (const NRecords::TChunkReplicas& replicaRecord) {
+            return replicaRecord.LastSeenReplicas;
+        });
+    }
+
     TFuture<std::vector<TSequoiaChunkReplica>> DoGetSequoiaChunkReplicas(const std::vector<TChunkId>& chunkIds) const
     {
-        auto buildFilter = [&] (TStringBuf column, const auto& formatter) {
-            TStringBuilder builder;
-            builder.AppendFormat("[%v] in (", column);
-            JoinToString(&builder, chunkIds.begin(), chunkIds.end(), formatter, ", ");
-            builder.AppendChar(')');
-            return builder.Flush();
-        };
-
-        return Bootstrap_
-            ->GetSequoiaClient()
-            ->SelectRows<NRecords::TChunkReplicas>({
-                buildFilter("id_hash", [] (TStringBuilderBase* builder, TChunkId chunkId) {
-                    builder->AppendFormat("%v", HashFromId(chunkId));
-                }),
-                buildFilter("chunk_id", [] (TStringBuilderBase* builder, TChunkId chunkId) {
-                    builder->AppendFormat("%Qv", chunkId);
-                }),
-            }).Apply(BIND([] (const std::vector<NRecords::TChunkReplicas>& replicaRecords) {
-                std::vector<TSequoiaChunkReplica> replicas;
-                for (const auto& replicaRecord : replicaRecords) {
-                    auto chunkId = replicaRecord.Key.ChunkId;
-                    for (const auto& replica : ConvertToNode(replicaRecord.Replicas)->AsList()->GetChildren()) {
-                        const auto& replicaAsList = replica->AsList();
-                        const auto& children = replicaAsList->GetChildren();
-                        YT_VERIFY(children.size() == 3);
-
-                        TSequoiaChunkReplica chunkReplica;
-                        chunkReplica.ChunkId = chunkId;
-                        chunkReplica.LocationUuid = TGuid::FromString(children[0]->AsString()->GetValue());
-                        chunkReplica.ReplicaIndex = children[1]->AsInt64()->GetValue();
-                        chunkReplica.NodeId = TNodeId(children[2]->AsUint64()->GetValue());
-                        replicas.push_back(chunkReplica);
-                    }
-                }
-
-                return replicas;
-            }));
+        return DoGetSequoiaReplicas(chunkIds, [] (const NRecords::TChunkReplicas& replicaRecord) {
+            return replicaRecord.Replicas;
+        });
     }
 
     void OnSequoiaReplicaRemoval()
