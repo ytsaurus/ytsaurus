@@ -23,7 +23,7 @@ public:
     {
         for (auto& cursor : *reader) {
             auto row = cursor.GetRow();
-            row.SetName(ToLowerUTF8(row.GetName()));
+            row.set_name(ToLowerUTF8(TString(row.name())));
             writer->AddRow(row);
         }
     }
@@ -41,12 +41,12 @@ public:
         ui64 count = 0;
         for (auto& cursor : *reader) {
             const auto& row = cursor.GetRow();
-            if (!result.HasName()) {
-                result.SetName(row.GetName());
+            if (!result.has_name()) {
+                result.set_name(row.name());
             }
             ++count;
         }
-        result.SetCount(count);
+        result.set_count(count);
         writer->AddRow(result);
     }
 };

@@ -67,6 +67,7 @@ target_link_options(yt-cpp-mapreduce-interface-ut PRIVATE
   -lpthread
   -lrt
   -ldl
+  -lutil
 )
 target_proto_messages(yt-cpp-mapreduce-interface-ut PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/proto3_ut.proto
@@ -137,6 +138,7 @@ target_proto_addincls(yt-cpp-mapreduce-interface-ut
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_SOURCE_DIR}/yt
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )

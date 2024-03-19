@@ -18,8 +18,8 @@ public:
             const auto& loginRecord = cursor.GetRow();
 
             TEmailRecord emailRecord;
-            emailRecord.SetName(loginRecord.GetName());
-            emailRecord.SetEmail(loginRecord.GetLogin() + "@yandex-team.ru");
+            emailRecord.set_name(loginRecord.name());
+            emailRecord.set_email(loginRecord.login() + "@yandex-team.ru");
 
             writer->AddRow(emailRecord);
         }

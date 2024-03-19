@@ -78,6 +78,7 @@ target_link_libraries(cpp-mapreduce-interface PUBLIC
   mapreduce-interface-logging
   yt_proto-yt-formats
   yt-library-tvm
+  yt-yt-core
   tools-enum_parser-enum_serialization_runtime
 )
 target_sources(cpp-mapreduce-interface PRIVATE

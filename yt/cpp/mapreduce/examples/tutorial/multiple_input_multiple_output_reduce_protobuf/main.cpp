@@ -27,7 +27,7 @@ public:
                 userRecord = cursor.GetRow<TUserRecord>();
             } else if (tableIndex == 1) {
                 const auto& isRobotRecord = cursor.GetRow<TIsRobotRecord>();
-                isRobot = isRobotRecord.GetIsRobot();
+                isRobot = isRobotRecord.is_robot();
             } else {
                 Y_ABORT();
             }
@@ -36,14 +36,14 @@ public:
         // В AddRow мы можем передавать как TRobotRecord так и THumanRecord.
         if (isRobot) {
             TRobotRecord robotRecord;
-            robotRecord.SetUid(userRecord.GetUid());
-            robotRecord.SetLogin(userRecord.GetLogin());
+            robotRecord.set_uid(userRecord.uid());
+            robotRecord.set_login(userRecord.login());
             writer->AddRow(robotRecord, 0);
         } else {
             THumanRecord humanRecord;
-            humanRecord.SetName(userRecord.GetName());
-            humanRecord.SetLogin(userRecord.GetLogin());
-            humanRecord.SetEmail(userRecord.GetLogin() + "@yandex-team.ru");
+            humanRecord.set_name(userRecord.name());
+            humanRecord.set_login(userRecord.login());
+            humanRecord.set_email(userRecord.login() + "@yandex-team.ru");
             writer->AddRow(humanRecord, 1);
         }
     }

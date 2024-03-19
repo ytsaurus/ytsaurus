@@ -29,6 +29,7 @@ target_link_options(yt-cpp-mapreduce-util-ut PRIVATE
   -lpthread
   -lrt
   -ldl
+  -lutil
 )
 target_sources(yt-cpp-mapreduce-util-ut PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/util/temp_table_ut.cpp
