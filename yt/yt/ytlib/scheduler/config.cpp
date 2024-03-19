@@ -1859,8 +1859,6 @@ void TRemoteCopyOperationSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("cluster_connection", &TThis::ClusterConnection)
         .Default();
-    registrar.Parameter("max_chunk_count_per_job", &TThis::MaxChunkCountPerJob)
-        .Default(1000);
     registrar.Parameter("copy_attributes", &TThis::CopyAttributes)
         .Default(false);
     registrar.Parameter("attribute_keys", &TThis::AttributeKeys)

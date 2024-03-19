@@ -1814,7 +1814,6 @@ public:
     NApi::NNative::TConnectionCompoundConfigPtr ClusterConnection;
     std::vector<NYPath::TRichYPath> InputTablePaths;
     NYPath::TRichYPath OutputTablePath;
-    int MaxChunkCountPerJob;
     bool CopyAttributes;
     std::optional<std::vector<TString>> AttributeKeys;
 
