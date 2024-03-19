@@ -725,8 +725,10 @@ void TValidator::StartValidatorOperation()
 
     auto spec = TVanillaOperationSpec()
             .Pool(Pool_)
-            .CoreTablePath(TestHome_.CoreTable())
-            .StderrTablePath(TestHome_.StderrTable("validator"))
+            // Temporarily disable Core/Stderr tables due to YT-21316.
+            //
+            //.CoreTablePath(TestHome_.CoreTable())
+            //.StderrTablePath(TestHome_.StderrTable("validator"))
             .MaxFailedJobCount(10000)
             .AddTask(
                 TVanillaTask()
