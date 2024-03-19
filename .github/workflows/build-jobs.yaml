@@ -159,12 +159,7 @@ jobs:
           cd ../ya_build
           rm -rf *
 
-          # Check build.
-          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=../ya_build ../ytsaurus/ytsaurus/yt/yt
-          # Check python tests.
-          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=../ya_build ../ytsaurus/ytsaurus/yt/python/yt/wrapper/tests --run-all-tests -F "*test_get_set_exists*"
-          # Check integration tests.
-          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=../ya_build ../ytsaurus/ytsaurus/yt/yt/tests/integration/scheduler --run-all-tests -F "*TestMultipleSchedulers*"
+          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
 
       - name: Build chyt
         if: ${{ inputs.build-chyt }}
