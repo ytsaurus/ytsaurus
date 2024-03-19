@@ -179,13 +179,38 @@ Enhancements:
 
 Выкладывается в виде докер-образа.
 
-**Актуальный релиз:** 0.0.5 (`ytsaurus/strawberry:0.0.5`)
+**Актуальный релиз:** 0.0.11 (`ytsaurus/strawberry:0.0.11`)
 
 **Все релизы:**
 
-{% cut "**0.0.5**" %}
+{% cut "**0.0.11**" %}
 
-`ytsaurus/strawberry:0.0.5`
+`ytsaurus/strawberry:0.0.11`
+
+- Improve strawberry cluster initializer to set up JupYT.
+
+{% endcut %}
+
+{% cut "**0.0.10**" %}
+
+`ytsaurus/strawberry:0.0.10`
+
+- Support cookie credentials in strawberry.
+
+{% endcut %}
+
+{% cut "**0.0.9**" %}
+
+`ytsaurus/strawberry:0.0.9`
+
+{% endcut %}
+
+{% cut "**0.0.8**" %}
+
+`ytsaurus/strawberry:0.0.8`
+
+- Support builin log rotation for CHYT controller.
+- Improve strawberry API for UI needs.
 
 {% endcut %}
 
@@ -193,19 +218,33 @@ Enhancements:
 
 Выкладывается в виде докер-образа.
 
-**Актуальный релиз:** 2.14 (`ytsaurus/chyt:2.14.0-relwithdebinfo`)
+**Актуальный релиз:** 2.14.0 (`ytsaurus/chyt:2.14.0-relwithdebinfo`)
 
 **Все релизы:**
 
-{% cut "**2.14**" %}
+{% cut "**2.14.0**" %}
 
-`ytsaurus/chyt:2.14-relwithdebinfo`
+`ytsaurus/chyt:2.14.0-relwithdebinfo`
+
+- Support SQL UDFs.
+- Support reading dynamic and static tables via concat-functions.
 
 {% endcut %}
 
-{% cut "**2.10**" %}
+{% cut "**2.13.0**" %}
 
-`ytsaurus/chyt:2.10`
+`ytsaurus/chyt:2.13.0-relwithdebinfo`
+
+- Update ClickHouse code version to the latest LTS release (22.8 -> 23.8).
+- Support for reading and writing ordered dynamic tables.
+- Move dumping query registry debug information to a separate thread.
+- Configure temporary data storage.
+
+{% endcut %}
+
+{% cut "**2.12.4**" %}
+
+`ytsaurus/chyt:2.12.4-relwithdebinfo`
 
 {% endcut %}
 

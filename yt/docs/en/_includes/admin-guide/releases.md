@@ -4,9 +4,132 @@
 
 All main components are releases as a docker image.
 
-**Current release:** 23.1.0 (`ytsaurus/ytsaurus:stable-23.1.0-relwithdebinfo`)
+**Current release:** 23.2.0 (`ytsaurus/ytsaurus:stable-23.2.0-relwithdebinfo`)
 
 **All releases:**
+
+{% cut "**23.2.0**" %}
+
+`ytsaurus/ytsaurus:stable-23.2.0-relwithdebinfo`
+
+### Scheduler
+
+Many internal changes driven by developing new scheduling mechanics that separate jobs from resource allocations at exec nodes. These changes include modification of the protocol of interaction between schedulers, controller agents and exec nodes, and adding tons of new logic for introducing allocations in exec nodes, controller agents and schedulers.
+
+List of significant changes and fixes:
+  - Optimize performance of scheduler's Control and NodeShard threads.
+  - Optimize performance of the core scheduling algorithm by considering only a subset of operations in most node heartbeats.
+  - Optimize operation launch time overhead by not creating debug transaction if neither stderr or core table have been specified.
+  - Add priority scheduling for pools with resource guarantees.
+  - Consider disk usage in job preemption algorithm.
+  - Add operation module assignment preemption in GPU segments scheduling algorithm.
+  - Add fixes for GPU scheduling algorithms.
+  - Add node heartbeat throttling by scheduling complexity.
+  - Add concurrent schedule job exec duration throttling.
+  - Reuse job monitoring descriptors within a single operation.
+  - Support monitoring descriptors in map operations.
+  - Support filtering jobs with monitoring descriptors in `list_jobs` command.
+  - Fix displaying jobs which disappear due to a node failure as running and "stale" in UI.
+  - Improve ephemeral subpools configuration.
+  - Hide user tokens in scheduler and job proxy logs.
+  - Support configurable max capacity for pipes between job proxy and user job.
+
+### Queue Agent
+
+Aside small improvements, the most significant features include the ability to configure periodic exports of partitioned data from queues into  static tables and the support for using replicated and chaos dynamic tables as queues and consumers.
+
+Features:
+- Support chaos replicated tables as queues and consumers.
+- Support snapshot exports from queues into static tables.
+- Support queues and consumers that are symbolic links for other queues and consumers.
+- Support trimming of rows in queues by lifetime duration.
+- Support for registering and unregistering of consumer to queue from different cluster.
+
+Fixes:
+- Trim queues by its `object_id`, not by `path`.
+- Fix metrics of read rows data weight via consumer.
+- Fix handling frozen tablets in queue.
+
+### Proxy
+Features:
+- Add ability to call `pull_consumer` without specifying `offset`, it will be taken from `consumer` table.
+- Add `advance_consumer` handler for queues.
+- Early implementation of `arrow` format to read/write static tables.
+- Support type conversions for inner fields in complex types.
+- Add new per user memory usage monitoring sensors in RPC proxies.
+- Use ACO for RPC proxies permission management.
+- Introduce TCP Proxies for SPYT.
+- Support of OAuth authorisation.
+
+Fixes:
+- Fix returning requested system columns in `web_json` format.
+
+
+### Dynamic Tables
+Features:
+- DynTables Query language improvments:
+    - New range inferrer.
+    - Add various SQL operators (<>, string length, ||, yson_length, argmin, argmax, coalesce).
+- Add backups for tables with hunks.
+- New fair share threadpool for select operator and network.
+- Add partial key filtering for range selects.
+- Add overload controller.
+- Distribute load among rpc proxies more evenly.
+- Add per-table size metrics.
+- Store heavy chunk meta in blocks.
+
+
+### MapReduce
+
+Features:
+- RemoteСopy now supports cypress file objects, in addition to tables.
+- Add support for per job experiments.
+- Early implementation of CRI (container runtime interface) job environment & support for external docker images.
+- New live preview for MapReduce output tables.
+- Add support for arrow as an input format for MapReduce.
+- Support GPU resource in exec-nodes and schedulers.
+
+Enhancements:
+- Improve memory tracking in data nodes (master jobs, blob write sessions, p2p tracking).
+- Rework memory acccounting in controller agents.
+
+### Master Server
+
+Noticeable/Potentially Breaking Changes:
+  - Read requests are now processed in a multithreaded manner by default.
+  - Read-only mode now persists between restarts. `yt-admin master-exit-read-only` command should be used to leave it.
+  - `list_node` type has been deprecated. Users are advised to use `map_node`s or `document`s instead.
+  - `ChunkService::ExecuteBatch` RPC call has been deprecated and split into individual calls. Batching chunk service has been superseded by proxying chunk service.
+  - New transaction object types: `system_transaction`, `nested_system_transaction`. Support for transaction actions in regular Cypress transactions is now deprecated.
+  - Version 2 of the Hydra library is now enabled by default. Version 1 is officially deprecated.
+
+Features:
+  - It is now possible to update master-servers with no read downtime via leaving non-voting peers to serve read requests while the main quorum is under maintenance.
+  - A data node can now be marked as pending restart, hinting the replicator to ignore its absence for a set amount of time to avoid needless replication bursts.
+  - The `add_maintenance` command now supports HTTP- and RPC-proxies.
+  - Attribute-based access control: a user may now be annotated with a set of tags, while an access-control entry (ACE) may be annotated with a tag filter.
+
+Optimizations & Fixes:
+  - Response keeper is now persistent. No warm-up period is required before a peer may begin leading.
+  - Chunk metadata now include schemas. This opens up a way to a number of significant optimizations.
+  - Data node heartbeat size has been reduced.
+  - Chunks and chunk lists are now loaded from snapshot in parallel.
+  - Fixed excessive memory consumption in multicell configurations.
+  - Accounting code has been improved to properly handle unlimited quotas and avoid negative master memory usage.
+
+Additionally, advancements have been made in the Sequoia project dedicated to scaling master server by offloading certain parts of its state to dynamic tables. (This is far from being production-ready yet.)
+
+### Misc
+
+Enhancements:
+- Add rpc server config dynamization.
+- Add support for peer alternative hostname for Bus TLS.
+- Properly handle Content-Encoding in monitoring web-server.
+- Bring back "host" attribute to errors.
+- Add support for --version option in ytserver binaries.
+- Add additional metainformation in yson/json server log format (fiberId, traceId, sourceFile).
+
+{% endcut %}
 
 {% cut "**23.1.0**" %}
 
@@ -18,9 +141,27 @@ All main components are releases as a docker image.
 
 Publishes as docker images.
 
-**Current release:** 0.0.1 (`ytsaurus/query-tracker:0.0.1`)
+**Current release:** 0.0.4 (`ytsaurus/query-tracker:0.0.4-relwithdebinfo`)
 
 **All releases:**
+
+{% cut "**0.0.4**" %}
+
+—
+
+{% endcut %}
+
+{% cut "**0.0.3**" %}
+
+—
+
+{% endcut %}
+
+{% cut "**0.0.2**" %}
+
+—
+
+{% endcut %}
 
 {% cut "**0.0.1**" %}
 
@@ -32,13 +173,38 @@ Publishes as docker images.
 
 Publishes as docker images.
 
-**Current release:**  (`ytsaurus/strawberry:0.0.5`)
+**Current release:**  0.0.11 (`ytsaurus/strawberry:0.0.11`)
 
 **All releases:**
 
-{% cut "**0.0.5**" %}
+{% cut "**0.0.11**" %}
 
-`ytsaurus/strawberry:0.0.5`
+`ytsaurus/strawberry:0.0.11`
+
+- Improve strawberry cluster initializer to set up JupYT.
+
+{% endcut %}
+
+{% cut "**0.0.10**" %}
+
+`ytsaurus/strawberry:0.0.10`
+
+- Support cookie credentials in strawberry.
+
+{% endcut %}
+
+{% cut "**0.0.9**" %}
+
+`ytsaurus/strawberry:0.0.9`
+
+{% endcut %}
+
+{% cut "**0.0.8**" %}
+
+`ytsaurus/strawberry:0.0.8`
+
+- Support builin log rotation for CHYT controller.
+- Improve strawberry API for UI needs.
 
 {% endcut %}
 
@@ -46,13 +212,33 @@ Publishes as docker images.
 
 Publishes as docker images.
 
-**Current release:** 2.10 (`ytsaurus/chyt:2.10`)
+**Current release:** 2.14.0 (`ytsaurus/chyt:2.14.0-relwithdebinfo`)
 
 **All releases:**
 
-{% cut "**2.10**" %}
+{% cut "**2.14.0**" %}
 
-`ytsaurus/chyt:2.10`
+`ytsaurus/chyt:2.14.0-relwithdebinfo`
+
+- Support SQL UDFs.
+- Support reading dynamic and static tables via concat-functions.
+
+{% endcut %}
+
+{% cut "**2.13.0**" %}
+
+`ytsaurus/chyt:2.13.0-relwithdebinfo`
+
+- Update ClickHouse code version to the latest LTS release (22.8 -> 23.8).
+- Support for reading and writing ordered dynamic tables.
+- Move dumping query registry debug information to a separate thread.
+- Configure temporary data storage.
+
+{% endcut %}
+
+{% cut "**2.12.4**" %}
+
+`ytsaurus/chyt:2.12.4-relwithdebinfo`
 
 {% endcut %}
 
@@ -70,6 +256,12 @@ Publishes as docker images.
 
 {% endcut %}
 
+{% cut "**1.72.0**" %}
+
+`ytsaurus/spyt:1.72.0`
+
+{% endcut %}
+
 {% cut "**1.71.0**" %}
 
 `ytsaurus/spyt:1.71.0`
@@ -80,9 +272,50 @@ Publishes as docker images.
 
 Publishes as a helm-chart on [docker hub](https://hub.docker.com/r/ytsaurus/ytop-chart/tags).
 
-**Current release:** 0.4.1
+**Current release:** 0.6.0
 
 **All releases:**
+
+{% cut "**0.6.0**" %}
+
+- added support for updating masters of 23.2 versions;
+- added the ability to bind masters to the set of nodes by node hostnames;
+- added the ability to configure the number of stored snapshots and changelogs in master spec;
+- added the ability for users to create access control objects;
+- added support for volume mount with mountPropagation = Bidirectional mode in execNodes;
+- added access control object namespace "queries" and object "nobody". They are necessary for query\_tracker versions 0.0.5 and higher;
+- added support for the new Cliques CHYT UI;
+- added the creation of a group for admins (admins);
+- added readiness probes to component statefulset specs;
+- improved ACLs on master schemas;
+- master and scheduler init jobs do not overwrite existing dynamic configs anymore;
+- `exec_agent` was renamed to `exec_node` in exec node config, if your specs have `configOverrides` please rename fields accordingly.
+
+{% endcut %}
+
+{% cut "**0.5.0**" %}
+
+- added minReadyInstanceCount into Ytsaurus components which allows not to wait when all pods are ready;
+- support queue agent;
+- added postprocessing of generated static configs;
+- introduced separate UseIPv4 option to allow dualstack configurations;
+- support masters in host network mode;
+- added spyt engine in query tracker by default;
+- enabled both ipv4 and ipv6 by default in chyt controllers;
+- default CHYT clique creates as tracked instead of untracked;
+- don't run full update check if full update is not enabled (enable_full_update flag in spec);
+- update cluster algorithm was improved. If full update is needed for already running components and new components was added, operator will run new components at first, and only then start full update. Previously such reconfiguration was not supported;
+- added optional TLS support for native-rpc connections;
+- added possibility to configure job proxy loggers.
+- changed how node resource limits are calculated from resourceLimits and resourceRequests;
+- enabled debug logs of YTsaurus go client for controller pod;
+- supported dualstack clusters in YQL agent;
+- supported new config format of YQL agent;
+- supported NodePort specification for HTTP proxy (http, https), UI (http) and RPC proxy (rpc port). For TCP proxy NodePorts are used implicitly when NodePort service is chosen. Port range size and minPort are now customizable;
+- fixed YQL agents on ipv6-only clusters;
+- fixed deadlock in case when UI deployment is manually deleted.
+
+{% endcut %}
 
 {% cut "**0.4.1**" %}
 
@@ -153,9 +386,15 @@ Publishes as a helm-chart on [docker hub](https://hub.docker.com/r/ytsaurus/ytop
 
 Published as packages to [PyPI](https://pypi.org/project/ytsaurus-client/).
 
-**Current release:** 0.13.7
+**Current release:** 0.13.12
 
 **All releases:**
+
+{% cut "**0.13.12**" %}
+
+—
+
+{% endcut %}
 
 {% cut "**0.13.7**" %}
 
