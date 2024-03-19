@@ -35,7 +35,6 @@ struct TJobMemoryStatistics
 {
     TJobEnvironmentMemoryStatistics Total;
     std::vector<TProcessMemoryStatisticsPtr> ProcessesStatistics;
-    i64 TmpfsUsage = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobMemoryStatistics)
@@ -66,6 +65,7 @@ private:
 
     std::atomic<i64> CumulativeMemoryUsageMBSec_ = 0;
     std::atomic<i64> MaxMemoryUsage_ = 0;
+    std::atomic<i64> PeakResidentAnon_ = 0;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, MemoryStatisticsLock_);
 

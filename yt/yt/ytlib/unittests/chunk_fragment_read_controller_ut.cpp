@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_read_controller.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
@@ -88,7 +89,18 @@ TEST(ErasureChunkFragmentReadController, StressTest)
         responses.resize(requestCount);
 
         auto chunkId = TGuid::FromString("0-0-66-0");
-        auto controller = CreateChunkFragmentReadController(chunkId, CodecId, &responses);
+        auto controller = CreateChunkFragmentReadController(
+            chunkId,
+            CodecId,
+            &responses,
+            GetNullBlockCache(),
+            TChunkFragmentReadControllerOptions{
+                .PrefetchWholeBlocks = false,
+            });
+
+        for (int index = 0; index < requestCount; ++index) {
+            controller->RegisterRequest(requests[index]);
+        }
 
         TReplicasWithRevision replicas;
         replicas.Revision = NHydra::NullRevision;
@@ -98,10 +110,6 @@ TEST(ErasureChunkFragmentReadController, StressTest)
             });
         }
         controller->SetReplicas(replicas);
-
-        for (int index = 0; index < requestCount; ++index) {
-            controller->RegisterRequest(requests[index]);
-        }
 
         auto* regularPlan = controller->TryMakePlan();
         ASSERT_TRUE(regularPlan);

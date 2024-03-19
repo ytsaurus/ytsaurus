@@ -1,4 +1,5 @@
 #include "chunk_fragment_read_controller.h"
+#include "block_cache.h"
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
@@ -26,9 +27,13 @@ class TChunkFragmentReadControllerBase
 public:
     TChunkFragmentReadControllerBase(
         TChunkId chunkId,
-        std::vector<TSharedRef>* responseFragments)
+        std::vector<TSharedRef>* responseFragments,
+        IBlockCachePtr blockCache,
+        TChunkFragmentReadControllerOptions options)
         : ChunkId_(chunkId)
         , ResponseFragments_(responseFragments)
+        , BlockCache_(std::move(blockCache))
+        , Options_(std::move(options))
     { }
 
     TChunkId GetChunkId() const override
@@ -41,11 +46,64 @@ public:
         return Done_;
     }
 
+    std::optional<TFragmentRequest> TransformToBlockRequest(const TFragmentRequest& request)
+    {
+        TCachedBlock cachedBlock;
+        if (BlockCache_->IsBlockTypeActive(EBlockType::ChunkFragmentsData)) {
+            cachedBlock = BlockCache_->FindBlock(
+                TBlockId(ChunkId_, request.BlockIndex),
+                EBlockType::ChunkFragmentsData);
+        }
+
+        if (cachedBlock) {
+            auto fragment = cachedBlock.Data.Slice(
+                request.BlockOffset,
+                request.BlockOffset + request.Length);
+            (*ResponseFragments_)[request.FragmentIndex] = std::move(fragment);
+        } else {
+            auto [it, emplaced] = BlockIndexToOriginalRequests_.try_emplace(request.BlockIndex);
+            it->second.push_back(request);
+            if (emplaced) {
+                return TFragmentRequest{
+                    .Length = request.BlockSize.value_or(WholeBlockFragmentRequestLength),
+                    .BlockOffset = 0,
+                    .BlockSize = request.BlockSize.value_or(WholeBlockFragmentRequestLength),
+                    .BlockIndex = request.BlockIndex,
+                    .FragmentIndex = -1,
+                };
+            }
+        }
+
+        return std::nullopt;
+    }
+
+    void ProcessBlockResponse(const TSharedRef& block, int blockIndex)
+    {
+        for (const auto& fragmentRequest : GetOrCrash(BlockIndexToOriginalRequests_, blockIndex)) {
+            YT_VERIFY(fragmentRequest.BlockIndex == blockIndex);
+            auto fragment = block.Slice(
+                fragmentRequest.BlockOffset,
+                fragmentRequest.BlockOffset + fragmentRequest.Length);
+            (*ResponseFragments_)[fragmentRequest.FragmentIndex] = std::move(fragment);
+        }
+
+        if (BlockCache_->IsBlockTypeActive(EBlockType::ChunkFragmentsData)) {
+            BlockCache_->PutBlock(
+                TBlockId(ChunkId_, blockIndex),
+                EBlockType::ChunkFragmentsData,
+                TBlock(block));
+        }
+    }
+
 protected:
     const TChunkId ChunkId_;
     std::vector<TSharedRef>* const ResponseFragments_;
+    const IBlockCachePtr BlockCache_;
+    const TChunkFragmentReadControllerOptions Options_;
 
     bool Done_ = false;
+
+    THashMap<int, std::vector<TFragmentRequest>> BlockIndexToOriginalRequests_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,11 +121,25 @@ public:
 
     void RegisterRequest(const TFragmentRequest& request) override
     {
-        FragmentRequests_.push_back(request);
+        YT_VERIFY(!Done_);
+
+        if (Options_.PrefetchWholeBlocks) {
+            if (auto blockRequest = TransformToBlockRequest(request)) {
+                FragmentRequests_.push_back(*blockRequest);
+            }
+        } else {
+            FragmentRequests_.push_back(request);
+        }
     }
 
     void SetReplicas(const TReplicasWithRevision& replicasWithRevision) override
     {
+        if (FragmentRequests_.empty()) {
+            // NB: All requested fragments were taken from cache.
+            Done_ = true;
+            return;
+        }
+
         ReplicasWithRevision_ = replicasWithRevision;
 
         SortBy(ReplicasWithRevision_.Replicas, [] (const TChunkReplicaInfo& replicaInfo) {
@@ -102,6 +174,7 @@ public:
     {
         ToProto(subrequest->mutable_chunk_id(), ChunkId_);
         subrequest->set_ally_replicas_revision(ReplicasWithRevision_.Revision);
+
         for (const auto& fragmentRequest : FragmentRequests_) {
             auto* fragment = subrequest->add_fragments();
             fragment->set_length(fragmentRequest.Length);
@@ -120,15 +193,24 @@ public:
             return;
         }
 
-        if (!subresponse.has_complete_chunk()) {
-            return;
-        }
+        YT_VERIFY(subresponse.has_complete_chunk());
 
         YT_VERIFY(fragments.size() == FragmentRequests_.size());
-        for (int index = 0; index < std::ssize(fragments); ++index) {
-            const auto& request = FragmentRequests_[index];
-            YT_ASSERT(fragments[index]);
-            (*ResponseFragments_)[request.FragmentIndex] = std::move(fragments[index]);
+
+        if (Options_.PrefetchWholeBlocks) {
+            YT_VERIFY(!BlockIndexToOriginalRequests_.empty());
+
+            for (int index = 0; index < std::ssize(fragments); ++index) {
+                const auto& block = fragments[index];
+                auto blockIndex = FragmentRequests_[index].BlockIndex;
+                ProcessBlockResponse(block, blockIndex);
+            }
+        } else {
+            for (int index = 0; index < std::ssize(fragments); ++index) {
+                const auto& request = FragmentRequests_[index];
+                YT_ASSERT(fragments[index]);
+                (*ResponseFragments_)[request.FragmentIndex] = std::move(fragments[index]);
+            }
         }
 
         Done_ = true;
@@ -153,8 +235,14 @@ public:
     TErasureChunkFragmentReadController(
         TChunkId chunkId,
         NErasure::ECodec codecId,
-        std::vector<TSharedRef>* responseFragments)
-        : TChunkFragmentReadControllerBase(chunkId, responseFragments)
+        std::vector<TSharedRef>* responseFragments,
+        IBlockCachePtr blockCache,
+        TChunkFragmentReadControllerOptions options)
+        : TChunkFragmentReadControllerBase(
+            chunkId,
+            responseFragments,
+            std::move(blockCache),
+            std::move(options))
         , Codec_(NErasure::GetCodec(codecId))
         , TotalPartCount_(Codec_->GetTotalPartCount())
         , DataPartCount_(Codec_->GetDataPartCount())
@@ -169,11 +257,25 @@ public:
     void RegisterRequest(const TFragmentRequest& request) override
     {
         YT_VERIFY(request.BlockSize);
-        Requests_.push_back(TRequest(request, DataPartCount_));
+        YT_VERIFY(!Done_);
+
+        if (Options_.PrefetchWholeBlocks) {
+            if (auto blockRequest = TransformToBlockRequest(request)) {
+                Requests_.push_back(TRequest(*blockRequest, DataPartCount_));
+            }
+        } else {
+            Requests_.push_back(TRequest(request, DataPartCount_));
+        }
     }
 
     void SetReplicas(const TReplicasWithRevision& replicasWithRevision) override
     {
+        if (Requests_.empty()) {
+            // NB: All requested fragments were taken from cache.
+            Done_ = true;
+            return;
+        }
+
         ReplicasRevision_ = replicasWithRevision.Revision;
 
         std::fill(Replicas_.begin(), Replicas_.end(), std::nullopt);
@@ -245,9 +347,7 @@ public:
             return;
         }
 
-        if (!subresponse.has_complete_chunk()) {
-            return;
-        }
+        YT_VERIFY(subresponse.has_complete_chunk());
 
         if (plan == &RegularPlan_) {
             HandleRegularRpcSubresponse(partIndex, fragments);
@@ -297,6 +397,7 @@ private:
         i64 Length;
         int BlockIndex;
         i64 BlockOffset;
+        i64 BlockSize;
         i64 BlockPartSize;
 
         int FirstPartIndex;
@@ -315,7 +416,8 @@ private:
             , Length(request.Length)
             , BlockIndex(request.BlockIndex)
             , BlockOffset(request.BlockOffset)
-            , BlockPartSize(DivCeil<i64>(*request.BlockSize, codecDataPartCount))
+            , BlockSize(*request.BlockSize)
+            , BlockPartSize(DivCeil<i64>(BlockSize, codecDataPartCount))
             , FirstPartIndex(BlockOffset / BlockPartSize)
             , FirstPartStartOffset(BlockOffset % BlockPartSize)
             , LastPartIndex((BlockOffset + Length - 1) / BlockPartSize)
@@ -364,6 +466,7 @@ private:
     std::vector<std::vector<TSharedRef>> RepairFragmentParts_;
 
     TCompactVector<bool, TypicalReplicaCount> HasPartForRepair_;
+
 
     TChunkFragmentReadControllerPlan* BuildRegularPlan()
     {
@@ -612,13 +715,20 @@ private:
 
         request.Parts[relativePartIndex] = std::move(part);
         if (++request.FetchedPartCount == std::ssize(request.Parts)) {
-            auto& response = (*ResponseFragments_)[request.FragmentIndex];
-            if (std::ssize(request.Parts) == 1) {
-                response = std::move(request.Parts.front());
-            } else {
+            if (Options_.PrefetchWholeBlocks) {
                 struct TChunkFragmentReaderTag { };
-                auto fragment = MergeRefsToRef<TChunkFragmentReaderTag>(MakeRange(request.Parts));
-                response = std::move(fragment);
+                auto block = MergeRefsToRef<TChunkFragmentReaderTag>(MakeRange(request.Parts));
+                YT_VERIFY(std::ssize(block) == request.BlockSize);
+                ProcessBlockResponse(block, request.BlockIndex);
+            } else {
+                auto& response = (*ResponseFragments_)[request.FragmentIndex];
+                if (std::ssize(request.Parts) == 1) {
+                    response = std::move(request.Parts.front());
+                } else {
+                    struct TChunkFragmentReaderTag { };
+                    auto fragment = MergeRefsToRef<TChunkFragmentReaderTag>(MakeRange(request.Parts));
+                    response = std::move(fragment);
+                }
             }
 
             request.Parts = {};
@@ -636,21 +746,32 @@ private:
 std::unique_ptr<IChunkFragmentReadController> CreateChunkFragmentReadController(
     TChunkId chunkId,
     NErasure::ECodec erasureCodec,
-    std::vector<TSharedRef>* responseFragments)
+    std::vector<TSharedRef>* responseFragments,
+    IBlockCachePtr blockCache,
+    TChunkFragmentReadControllerOptions options)
 {
     if (IsErasureChunkId(chunkId)) {
         if (erasureCodec == NErasure::ECodec::None) {
             THROW_ERROR_EXCEPTION("Erasure codec is not specified for erasure chunk %v",
                 chunkId);
         }
-        return std::make_unique<TErasureChunkFragmentReadController>(chunkId, erasureCodec, responseFragments);
+        return std::make_unique<TErasureChunkFragmentReadController>(
+            chunkId,
+            erasureCodec,
+            responseFragments,
+            std::move(blockCache),
+            std::move(options));
     } else {
         if (erasureCodec != NErasure::ECodec::None) {
             THROW_ERROR_EXCEPTION("Unexpected erasure codec %Qlv specified for regular chunk %v",
                 erasureCodec,
                 chunkId);
         }
-        return std::make_unique<TRegularChunkFragmentReadController>(chunkId, responseFragments);
+        return std::make_unique<TRegularChunkFragmentReadController>(
+            chunkId,
+            responseFragments,
+            std::move(blockCache),
+            std::move(options));
     }
 }
 

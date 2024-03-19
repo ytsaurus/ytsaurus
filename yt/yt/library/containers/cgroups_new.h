@@ -8,8 +8,8 @@ namespace NYT::NContainers::NCGroups {
 
 struct TMemoryStatistics
 {
-    i64 Rss = 0;
-    i64 PeakRss = 0;
+    i64 ResidentAnon = 0;
+    i64 TmpfsUsage = 0;
     i64 MappedFile = 0;
     i64 MajorPageFaults = 0;
 };
@@ -43,10 +43,6 @@ public:
 private:
     TString CGroup_;
     bool IsV2_;
-
-    mutable i64 PeakRss_ = 0;
-
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
 
     void DetectSelfCGroup();
 };

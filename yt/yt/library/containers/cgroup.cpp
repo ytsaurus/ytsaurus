@@ -641,7 +641,7 @@ TMemory::TStatistics TMemory::GetStatistics() const
             const auto& type = values[2 * lineNumber];
             const auto& unparsedValue = values[2 * lineNumber + 1];
             if (type == "rss") {
-                result.Rss = FromString<i64>(unparsedValue);
+                result.ResidentAnon = FromString<i64>(unparsedValue);
             }
             if (type == "mapped_file") {
                 result.MappedFile = FromString<i64>(unparsedValue);

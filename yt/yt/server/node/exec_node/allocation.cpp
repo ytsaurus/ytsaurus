@@ -342,7 +342,7 @@ void TAllocation::Preempt(
         preemptedFor);
 }
 
-bool TAllocation::IsResourceUsageOverdrafted() const
+bool TAllocation::IsResourceUsageOverdraftOccurred() const
 {
     return TResourceHolder::GetResourceUsage().UserMemory > GetRequestedMemory();
 }

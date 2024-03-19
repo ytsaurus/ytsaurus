@@ -4578,7 +4578,7 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
 
 TControllerScheduleAllocationResultPtr TOperationControllerBase::SafeScheduleAllocation(
     ISchedulingContext* context,
-    const TJobResources& jobLimits,
+    const TJobResources& resourceLimits,
     const TString& treeId)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->ScheduleAllocationControllerQueue));
@@ -4586,7 +4586,7 @@ TControllerScheduleAllocationResultPtr TOperationControllerBase::SafeScheduleAll
     MaybeDelay(Spec_->TestingOperationOptions->ScheduleAllocationDelay);
 
     if (State != EControllerState::Running) {
-        YT_LOG_DEBUG("Stale schedule job attempt");
+        YT_LOG_DEBUG("Stale schedule allocation attempt");
         return nullptr;
     }
 
@@ -4594,17 +4594,17 @@ TControllerScheduleAllocationResultPtr TOperationControllerBase::SafeScheduleAll
     TForbidContextSwitchGuard contextSwitchGuard;
 
     TWallTimer timer;
-    auto scheduleJobResult = New<TControllerScheduleAllocationResult>();
-    DoScheduleAllocation(context, jobLimits, treeId, scheduleJobResult.Get());
-    auto scheduleJobDuration = timer.GetElapsedTime();
-    if (scheduleJobResult->StartDescriptor) {
+    auto scheduleAllocationResult = New<TControllerScheduleAllocationResult>();
+    DoScheduleAllocation(context, resourceLimits, treeId, scheduleAllocationResult.Get());
+    auto scheduleAllocationDuration = timer.GetElapsedTime();
+    if (scheduleAllocationResult->StartDescriptor) {
         AvailableExecNodesObserved_ = true;
     }
-    scheduleJobResult->Duration = scheduleJobDuration;
-    scheduleJobResult->ControllerEpoch = ControllerEpoch;
+    scheduleAllocationResult->Duration = scheduleAllocationDuration;
+    scheduleAllocationResult->ControllerEpoch = ControllerEpoch;
 
-    ScheduleAllocationStatistics_->RecordJobResult(*scheduleJobResult);
-    scheduleJobResult->NextDurationEstimate = ScheduleAllocationStatistics_->SuccessfulDurationMovingAverage().GetAverage();
+    ScheduleAllocationStatistics_->RecordJobResult(*scheduleAllocationResult);
+    scheduleAllocationResult->NextDurationEstimate = ScheduleAllocationStatistics_->SuccessfulDurationMovingAverage().GetAverage();
 
     auto now = NProfiling::GetCpuInstant();
     if (now > ScheduleAllocationStatisticsLogDeadline_) {
@@ -4620,7 +4620,7 @@ TControllerScheduleAllocationResultPtr TOperationControllerBase::SafeScheduleAll
         ScheduleAllocationStatisticsLogDeadline_ = now + NProfiling::DurationToCpuDuration(Config->ScheduleAllocationStatisticsLogBackoff);
     }
 
-    return scheduleJobResult;
+    return scheduleAllocationResult;
 }
 
 bool TOperationControllerBase::IsThrottling() const noexcept
@@ -4835,41 +4835,41 @@ void TOperationControllerBase::ResetTaskLocalityDelays()
 
 void TOperationControllerBase::DoScheduleAllocation(
     ISchedulingContext* context,
-    const TJobResources& jobLimits,
+    const TJobResources& resourceLimits,
     const TString& treeId,
-    TControllerScheduleAllocationResult* scheduleJobResult)
+    TControllerScheduleAllocationResult* scheduleAllocationResult)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->ScheduleAllocationControllerQueue));
 
     if (!IsRunning()) {
         YT_LOG_TRACE("Operation is not running, scheduling request ignored");
-        scheduleJobResult->RecordFail(EScheduleAllocationFailReason::OperationNotRunning);
+        scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::OperationNotRunning);
         return;
     }
 
     if (GetPendingJobCount().GetJobCountFor(treeId) == 0) {
         YT_LOG_TRACE("No pending jobs left, scheduling request ignored");
-        scheduleJobResult->RecordFail(EScheduleAllocationFailReason::NoPendingJobs);
+        scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::NoPendingJobs);
         return;
     }
 
     if (BannedNodeIds_.find(context->GetNodeDescriptor()->Id) != BannedNodeIds_.end()) {
         YT_LOG_TRACE("Node is banned, scheduling request ignored");
-        scheduleJobResult->RecordFail(EScheduleAllocationFailReason::NodeBanned);
+        scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::NodeBanned);
         return;
     }
 
     MaybeDelay(Spec_->TestingOperationOptions->InsideScheduleAllocationDelay);
 
-    TryScheduleAllocation(context, jobLimits, treeId, scheduleJobResult, /*scheduleLocalJob*/ true);
-    if (!scheduleJobResult->StartDescriptor) {
-        TryScheduleAllocation(context, jobLimits, treeId, scheduleJobResult, /*scheduleLocalJob*/ false);
+    TryScheduleJob(context, resourceLimits, treeId, scheduleAllocationResult, /*scheduleLocalJob*/ true);
+    if (!scheduleAllocationResult->StartDescriptor) {
+        TryScheduleJob(context, resourceLimits, treeId, scheduleAllocationResult, /*scheduleLocalJob*/ false);
     }
 }
 
-void TOperationControllerBase::TryScheduleAllocation(
+void TOperationControllerBase::TryScheduleJob(
     ISchedulingContext* context,
-    const TJobResources& jobLimits,
+    const TJobResources& resourceLimits,
     const TString& treeId,
     TControllerScheduleAllocationResult* scheduleAllocationResult,
     bool scheduleLocalJob)
@@ -4891,7 +4891,7 @@ void TOperationControllerBase::TryScheduleAllocation(
         // NB: we do not consider disk resources occupied by jobs that had already be scheduled in
         // current heartbeat. This check would be performed in scheduler.
         auto minNeededResources = task->GetMinNeededResources();
-        if (!Dominates(jobLimits, minNeededResources.ToJobResources()) ||
+        if (!Dominates(resourceLimits, minNeededResources.ToJobResources()) ||
             !CanSatisfyDiskQuotaRequest(context->DiskResources(), minNeededResources.DiskQuota()))
         {
             scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::NotEnoughResources);
@@ -4935,7 +4935,7 @@ void TOperationControllerBase::TryScheduleAllocation(
             task->GetTitle(),
             address,
             locality,
-            jobLimits,
+            resourceLimits,
             task->GetPendingDataWeight(),
             task->GetPendingJobCount());
 
@@ -4945,7 +4945,7 @@ void TOperationControllerBase::TryScheduleAllocation(
             break;
         }
 
-        task->ScheduleAllocation(context, jobLimits, treeId, IsTreeTentative(treeId), IsTreeProbing(treeId), scheduleAllocationResult);
+        task->ScheduleJob(context, resourceLimits, treeId, IsTreeTentative(treeId), IsTreeProbing(treeId), scheduleAllocationResult);
         if (scheduleAllocationResult->StartDescriptor) {
             RegisterTestingSpeculativeJobIfNeeded(task, scheduleAllocationResult->StartDescriptor->Id);
             UpdateTask(task);

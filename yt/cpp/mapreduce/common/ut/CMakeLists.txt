@@ -28,6 +28,7 @@ target_link_options(yt-cpp-mapreduce-common-ut PRIVATE
   -lpthread
   -lrt
   -ldl
+  -lutil
 )
 target_sources(yt-cpp-mapreduce-common-ut PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/common/helpers_ut.cpp

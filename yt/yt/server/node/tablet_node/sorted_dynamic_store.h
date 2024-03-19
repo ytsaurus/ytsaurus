@@ -52,7 +52,7 @@ public:
     struct TConflictInfo
     {
         int LockIndex;
-        TTimestamp CheckingTimestamp;
+        TTimestamp ReadTimestamp;
     };
 
     using TRowBlockedHandler = TCallback<void(TSortedDynamicRow row, TConflictInfo conflictInfo, TDuration timeout)>;

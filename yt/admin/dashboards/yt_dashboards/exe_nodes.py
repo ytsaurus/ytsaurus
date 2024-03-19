@@ -61,7 +61,10 @@ def _build_jobs(d):
         .row()
             .cell(
                 "Controller Started And Completed Jobs",
-                CA("yt.controller_agent.jobs.started_job_count.rate|yt.controller_agent.jobs.completed_job_count.rate").aggr("interruption_reason"))
+                CA("yt.controller_agent.jobs.started_job_count.rate|yt.controller_agent.jobs.completed_job_count.rate")
+                    .aggr("interruption_reason")
+                    .aggr("job_type")
+                    .aggr("tree"))
             .cell(
                 "Node Completed Jobs",
                 node_jobs("completed").aggr("origin"))
@@ -127,7 +130,8 @@ def _build_porto_info(d):
                 .value("container_category", "daemon")
                 .all("backend"))
         .row()
-            .cell("Porto Commands", ExeNode("yt.exec_node.job_envir onment.porto.command*.rate"))
+            # COMPAT(pogorelov): Remove "job_envir onment" after 24.1.
+            .cell("Porto Commands", ExeNode("yt.exec_node.job_envir onment.porto.command*.rate|yt.exec_node.job_environment.porto.command*.rate"))
     )
 
 def _build_volume_errors(d):

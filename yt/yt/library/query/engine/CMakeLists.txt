@@ -192,6 +192,12 @@ get_built_tool_path(
   tools/rescompiler/bin
   rescompiler
 )
+get_built_tool_path(
+  TOOL_rescompiler_bin
+  TOOL_rescompiler_dependency
+  tools/rescompiler/bin
+  rescompiler
+)
 
 add_library(library-query-engine)
 target_compile_options(library-query-engine PRIVATE
@@ -309,6 +315,7 @@ target_sources(library-query-engine.global PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/af42b9c6dbe0713e1e50a65ea99528a4.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/6bc8056dac697953d13f7c8bc9486329.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/75da4cea6889896baa494bec9313e22c.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/f6982b0441e24bc2e9698ceeac663c87.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/fc2bd36183284aed418f1589e5511393.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/b3a3e9a9b46f60092a08755bf58496fd.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/aef3fcfb2f42efbbe6e19dc5e42865dc.cpp
@@ -964,6 +971,30 @@ add_custom_command(
 )
 add_custom_command(
   OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/list_has_intersection_optimized.bc
+  DEPENDS
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/list_has_intersection_merged.bc
+  COMMAND
+  ${LLVMOPT}
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/list_has_intersection_merged.bc
+  -o
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/list_has_intersection_optimized.bc
+  -internalize-public-api-list=list_has_intersection
+  -passes="default<O2>,globalopt,globaldce,internalize"
+)
+add_custom_command(
+  OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/list_has_intersection_merged.bc
+  DEPENDS
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/list_has_intersection.cpp.bc
+  COMMAND
+  ${LLVMLINK}
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/list_has_intersection.cpp.bc
+  -o
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/list_has_intersection_merged.bc
+)
+add_custom_command(
+  OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/any_to_yson_string_optimized.bc
   DEPENDS
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/any_to_yson_string_merged.bc
@@ -1255,6 +1286,13 @@ llvm_compile_cxx(library-query-engine.global
   -emit-llvm
 )
 llvm_compile_cxx(library-query-engine.global
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/list_has_intersection.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/list_has_intersection.cpp.bc
+  ${CLANGPLUSPLUS}
+  -Wno-unknown-warning-option
+  -emit-llvm
+)
+llvm_compile_cxx(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/any_to_yson_string.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/any_to_yson_string.cpp.bc
   ${CLANGPLUSPLUS}
@@ -1463,6 +1501,13 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/list_contains_optimized.bc
   KEYS
   /llvm_bc/list_contains
+)
+resources(library-query-engine.global
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/f6982b0441e24bc2e9698ceeac663c87.cpp
+  INPUTS
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/list_has_intersection_optimized.bc
+  KEYS
+  /llvm_bc/list_has_intersection
 )
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/fc2bd36183284aed418f1589e5511393.cpp

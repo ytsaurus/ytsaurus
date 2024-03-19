@@ -6,42 +6,6 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_flatc_bin
-  TOOL_flatc_dependency
-  contrib/tools/flatc/bin
-  flatc
-)
-get_built_tool_path(
-  TOOL_flatc_bin
-  TOOL_flatc_dependency
-  contrib/tools/flatc/bin
-  flatc
-)
-get_built_tool_path(
-  TOOL_flatc_bin
-  TOOL_flatc_dependency
-  contrib/tools/flatc/bin
-  flatc
-)
-get_built_tool_path(
-  TOOL_flatc_bin
-  TOOL_flatc_dependency
-  contrib/tools/flatc/bin
-  flatc
-)
-get_built_tool_path(
-  TOOL_flatc_bin
-  TOOL_flatc_dependency
-  contrib/tools/flatc/bin
-  flatc
-)
-get_built_tool_path(
-  TOOL_flatc_bin
-  TOOL_flatc_dependency
-  contrib/tools/flatc/bin
-  flatc
-)
 
 add_library(libs-apache-arrow)
 target_compile_options(libs-apache-arrow PUBLIC

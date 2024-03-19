@@ -88,7 +88,7 @@ def main(raw_args=None):
 
     add_group(parser, '--enable-advanced-event-log', '--disable-advanced-event-log', 'advanced_event_log', True)
 
-    add_group(parser, '--enable-rpc-job-proxy', '--disable-rpc-job-proxy', 'rpc_job_proxy', False)
+    add_group(parser, '--enable-rpc-job-proxy', '--disable-rpc-job-proxy', 'rpc_job_proxy', True)
     parser.add_argument("--rpc-job-proxy-thread-pool-size", required=False, default=4, type=int)
 
     add_group(parser, '--enable-worker-log-transfer', '--disable-worker-log-transfer', 'worker_log_transfer', False)

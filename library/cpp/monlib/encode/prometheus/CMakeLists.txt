@@ -6,6 +6,12 @@
 # original buildsystem will not be accepted.
 
 
+get_built_tool_path(
+  TOOL_enum_parser_bin
+  TOOL_enum_parser_dependency
+  tools/enum_parser/enum_parser
+  enum_parser
+)
 
 add_library(monlib-encode-prometheus)
 target_link_libraries(monlib-encode-prometheus PUBLIC
@@ -14,8 +20,17 @@ target_link_libraries(monlib-encode-prometheus PUBLIC
   yutil
   cpp-monlib-encode
   monlib-encode-buffered
+  tools-enum_parser-enum_serialization_runtime
 )
 target_sources(monlib-encode-prometheus PRIVATE
+  ${PROJECT_BINARY_DIR}/library/cpp/monlib/encode/prometheus/prometheus.h_serialized.h
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/encode/prometheus/prometheus_decoder.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/encode/prometheus/prometheus_encoder.cpp
+)
+generate_enum_serilization(monlib-encode-prometheus
+  ${PROJECT_SOURCE_DIR}/library/cpp/monlib/encode/prometheus/prometheus.h
+  GEN_HEADER
+  ${PROJECT_BINARY_DIR}/library/cpp/monlib/encode/prometheus/prometheus.h_serialized.h
+  INCLUDE_HEADERS
+  library/cpp/monlib/encode/prometheus/prometheus.h
 )

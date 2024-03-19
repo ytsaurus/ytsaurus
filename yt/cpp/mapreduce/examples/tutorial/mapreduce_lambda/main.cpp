@@ -24,16 +24,16 @@ int main() {
         outputTable,
         {"name"}, // список ключей, по которым мы будем редьюсить
         [](auto& src, auto& dst) { // mapper
-            dst.SetName(ToLowerUTF8(src.GetName()));
+            dst.set_name(ToLowerUTF8(TString(src.name())));
             return true;
         },
         [](auto& /*src*/, auto& dst) { // reducer
-            // dst.SetName() не вызываем, т.к. когда по
+            // dst.set_count() не вызываем, т.к. когда по
             // "name" редьюсим, это поле уже заполнено.
 
             // так можно делать, т.к. конструктор протобуфа dst
             // проинициализирует .Count в 0 (по умолчанию):
-            dst.SetCount(dst.GetCount() + 1);
+            dst.set_count(dst.count() + 1);
         });
 
     Cout << "Output table: https://yt.yandex-team.ru/freud/#page=navigation&offsetMode=row&path=" << outputTable << Endl;

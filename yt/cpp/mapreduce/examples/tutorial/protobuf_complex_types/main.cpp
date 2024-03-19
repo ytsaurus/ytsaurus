@@ -18,13 +18,13 @@ public:
         TDoc doc;
         for (auto& cursor : *reader) {
             auto entry = cursor.MoveRow();
-            if (!doc.HasTitle()) {
-                doc.SetTitle(entry.GetDocTitle());
+            if (!doc.has_title()) {
+                doc.set_title(entry.doc_title());
             }
-            doc.AddLinks()->Swap(entry.MutableLink());
-            doc.AddOccurrenceCounts(entry.GetOccurrenceCount());
-            auto newCount = doc.GetExtraInfo().GetTotalOccurrenceCount() + entry.GetOccurrenceCount();
-            doc.MutableExtraInfo()->SetTotalOccurrenceCount(newCount);
+            doc.add_links()->Swap(entry.mutable_link());
+            doc.add_occurrence_count(entry.occurrence_count());
+            auto newCount = doc.extra_info().total_occurrence_count() + entry.occurrence_count();
+            doc.mutable_extra_info()->set_total_occurrence_count(newCount);
         }
         writer->AddRow(doc);
     }

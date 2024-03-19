@@ -236,16 +236,20 @@ IIOEngine::TReadRequest TChunkFileReader::MakeChunkFragmentReadRequest(
             << TErrorAttribute("block_count", BlocksExt_->Blocks.size());
     }
 
-    if (fragmentDescriptor.Length < 0) {
+    const auto& blockInfo = BlocksExt_->Blocks[fragmentDescriptor.BlockIndex];
+
+    auto requestLength = fragmentDescriptor.Length;
+    if (requestLength == WholeBlockFragmentRequestLength) {
+        requestLength = blockInfo.Size;
+    } else if (requestLength < 0) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::MalformedReadRequest,
-            "Negative length in fragment descriptor %v")
+            "Negative length in fragment descriptor")
             << makeErrorAttributes();
     }
 
-    const auto& blockInfo = BlocksExt_->Blocks[fragmentDescriptor.BlockIndex];
     if (fragmentDescriptor.BlockOffset < 0 ||
-        fragmentDescriptor.BlockOffset + fragmentDescriptor.Length > blockInfo.Size)
+        fragmentDescriptor.BlockOffset + requestLength > blockInfo.Size)
     {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::MalformedReadRequest,
@@ -257,7 +261,7 @@ IIOEngine::TReadRequest TChunkFileReader::MakeChunkFragmentReadRequest(
     return IIOEngine::TReadRequest{
         .Handle = DataFileHandle_[directIOFlag],
         .Offset = blockInfo.Offset + fragmentDescriptor.BlockOffset,
-        .Size = fragmentDescriptor.Length
+        .Size = requestLength,
     };
 }
 

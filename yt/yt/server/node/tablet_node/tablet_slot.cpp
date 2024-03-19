@@ -800,6 +800,7 @@ public:
             tablet->GetSettings().HunkReaderConfig,
             Bootstrap_->GetClient(),
             Bootstrap_->GetHintManager(),
+            Bootstrap_->GetBlockCache(),
             tablet->GetTableProfiler()->GetProfiler().WithPrefix("/chunk_fragment_reader"),
             std::move(mediumThrottler),
             [bootstrap = Bootstrap_] (EWorkloadCategory category) -> const IThroughputThrottlerPtr& {

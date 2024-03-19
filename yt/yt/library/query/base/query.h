@@ -1266,7 +1266,7 @@ void ToProto(NProto::TDataSource* serialized, const TDataSource& original);
 void FromProto(
     TDataSource* original,
     const NProto::TDataSource& serialized,
-    IMemoryChunkProviderPtr memoryChunkProvider = GetDefaultMemoryChunkProvider());
+    const IMemoryChunkProviderPtr& memoryChunkProvider = GetDefaultMemoryChunkProvider());
 
 struct TInferNameOptions
 {

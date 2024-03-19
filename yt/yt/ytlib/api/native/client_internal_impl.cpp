@@ -3,6 +3,7 @@
 #include <yt/yt/ytlib/api/native/tablet_helpers.h>
 #include <yt/yt/ytlib/api/native/transaction.h>
 
+#include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
@@ -48,6 +49,7 @@ std::vector<TSharedRef> TClient::DoReadHunks(
         options.Config,
         this,
         CreateTrivialNodeStatusDirectory(),
+        GetNullBlockCache(),
         /*profiler*/ {},
         /*mediumThrottler*/ GetUnlimitedThrottler(),
         /*throttlerProvider*/ {});

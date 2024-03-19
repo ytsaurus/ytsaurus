@@ -3632,8 +3632,13 @@ private:
                 {
                     lock->SetTransactionAndKeyToSharedLocksIterator(it);
                     if (lock->Request().Key.Kind != ELockKeyKind::None) {
-                        lock->SetKeyToSharedLocksIterator(
-                            lockingState->KeyToSharedLocks.emplace(lock->Request().Key, lock));
+                        auto [it, inserted] = lockingState->KeyToSharedLocks.emplace(lock->Request().Key, lock);
+                        if (inserted) {
+                            lock->SetKeyToSharedLocksIterator(it);
+                        } else {
+                            YT_LOG_ALERT("Duplicate shared lock entry detected (LockId: %v)",
+                                lock->GetId());
+                        }
                     }
                 } else {
                     AlertDuplicateLock(lock);

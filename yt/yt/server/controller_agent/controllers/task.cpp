@@ -493,7 +493,7 @@ bool TTask::ValidateChunkCount(int /*chunkCount*/)
     return true;
 }
 
-void TTask::ScheduleAllocation(
+void TTask::ScheduleJob(
     ISchedulingContext* context,
     const TJobResources& jobLimits,
     const TString& treeId,
@@ -636,7 +636,7 @@ void TTask::ScheduleAllocation(
         !CanSatisfyDiskQuotaRequests(context->DiskResources(), {neededResources.DiskQuota()}))
     {
         YT_LOG_DEBUG(
-            "Allocation actual resource demand is not met (AvailableJobResources: %v, AvailableDiskResources: %v, NeededResources: %v)",
+            "Actual resource demand is not met (AvailableJobResources: %v, AvailableDiskResources: %v, NeededResources: %v)",
             jobLimits,
             NScheduler::ToString(context->DiskResources(), TaskHost_->GetMediumDirectory()),
             FormatResources(neededResources));

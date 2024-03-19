@@ -23,6 +23,7 @@ target_link_libraries(cpp-mapreduce-io PUBLIC
   yt_proto-yt-formats
   cpp-yson-node
   cpp-mapreduce-skiff
+  yt-yt-core
 )
 target_sources(cpp-mapreduce-io PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/io/counting_raw_reader.cpp

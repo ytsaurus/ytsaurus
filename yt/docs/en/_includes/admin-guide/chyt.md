@@ -18,7 +18,7 @@ spec:
   ytsaurus:
     name:
       minisaurus
-  image: ytsaurus/chyt:2.10.0-relwithdebinfo
+  image: ytsaurus/chyt:2.14.0-relwithdebinfo
   makeDefault: true
 ```
 

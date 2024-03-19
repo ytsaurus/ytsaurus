@@ -1550,7 +1550,7 @@ void ToProto(NProto::TDataSource* serialized, const TDataSource& original)
 void FromProto(
     TDataSource* original,
     const NProto::TDataSource& serialized,
-    IMemoryChunkProviderPtr memoryChunkProvider)
+    const IMemoryChunkProviderPtr& memoryChunkProvider)
 {
     FromProto(&original->ObjectId, serialized.object_id());
     FromProto(&original->CellId, serialized.cell_id());
@@ -1560,7 +1560,7 @@ void FromProto(
     { };
 
     TRowRanges ranges;
-    auto rowBuffer = New<TRowBuffer>(TDataSourceBufferTag(), std::move(memoryChunkProvider));
+    auto rowBuffer = New<TRowBuffer>(TDataSourceBufferTag(), memoryChunkProvider);
     auto rangesReader = CreateWireProtocolReader(
         TSharedRef::FromString<TDataSourceBufferTag>(serialized.ranges()),
         rowBuffer);
