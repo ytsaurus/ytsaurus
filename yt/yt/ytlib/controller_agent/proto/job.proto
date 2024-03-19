@@ -300,10 +300,23 @@ message TUserJobSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TQueryFilterOptions
+{
+    // Default value is false because filtering should be turned off
+    // before controller agents support this setting.
+    // In other way we won't have an ability to turn off chunk filtering.
+    required bool enable_chunk_filter = 1 [default = false];
+
+    required bool enable_row_filter = 2 [default = true];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TQuerySpec
 {
     required NYT.NQueryClient.NProto.TQuery query = 1;
     repeated NYT.NQueryClient.NProto.TExternalFunctionImpl external_functions = 2;
+    optional TQueryFilterOptions options = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

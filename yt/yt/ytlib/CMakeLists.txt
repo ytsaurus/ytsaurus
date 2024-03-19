@@ -1402,6 +1402,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/columnar_statistics_fetcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/dictionary_compression_session.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/granule_min_max_filter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/hunks.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/indexed_versioned_chunk_reader.cpp

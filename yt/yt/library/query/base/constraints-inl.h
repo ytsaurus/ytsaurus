@@ -37,6 +37,11 @@ inline TConstraintRef TConstraintRef::Empty()
     return result;
 }
 
+inline bool TConstraintRef::IsEmpty() const
+{
+    return ColumnId != SentinelColumnId && StartIndex == EndIndex;
+}
+
 inline TConstraintRef TConstraintRef::Universal()
 {
     return {};

@@ -1,4 +1,5 @@
 #include "job_detail.h"
+
 #include "private.h"
 
 #include <yt/yt/server/lib/exec_node/public.h>
@@ -14,13 +15,16 @@
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
-#include <yt/yt/client/node_tracker_client/node_directory.h>
-
 #include <yt/yt/ytlib/job_proxy/helpers.h>
 
+#include <yt/yt/ytlib/table_client/granule_min_max_filter.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
+
+#include <yt/yt/library/query/base/query.h>
+
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/table_client/unversioned_writer.h>
 
@@ -174,6 +178,16 @@ void TSimpleJobBase::Initialize()
             parallelReaderMemoryManagerOptions,
             NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
     }
+
+    if (JobSpecExt_.has_input_query_spec()) {
+        const auto& inputQuerySpec = JobSpecExt_.input_query_spec();
+        auto query = FromProto<TConstQueryPtr>(inputQuerySpec.query());
+        auto enableChunkFilter = inputQuerySpec.options().enable_chunk_filter();
+
+        if (enableChunkFilter && query->WhereClause) {
+            ChunkReadOptions_.GranuleFilter = CreateGranuleMinMaxFilter(query);
+        }
+    }
 }
 
 TJobResult TSimpleJobBase::Run()
@@ -183,7 +197,9 @@ TJobResult TSimpleJobBase::Run()
     Host_->OnPrepared();
 
     const auto& jobSpec = Host_->GetJobSpecHelper()->GetJobSpecExt();
-    if (jobSpec.has_input_query_spec()) {
+    auto enableRowFilter = jobSpec.input_query_spec().options().enable_row_filter();
+
+    if (jobSpec.has_input_query_spec() && enableRowFilter) {
         RunQuery(
             jobSpec.input_query_spec(),
             BIND(&TSimpleJobBase::DoInitializeReader, MakeStrong(this)),

@@ -152,6 +152,7 @@ DECLARE_REFCOUNTED_CLASS(TSchedulerConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TTentativeTreeEligibilityConfig)
 DECLARE_REFCOUNTED_CLASS(TJobCpuMonitorConfig)
 DECLARE_REFCOUNTED_CLASS(TExperimentOperationSpec)
+DECLARE_REFCOUNTED_CLASS(TQueryFilterOptions)
 
 using TJobShellOptionsMap = THashMap<
     TString,

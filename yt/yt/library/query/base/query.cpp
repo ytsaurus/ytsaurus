@@ -405,9 +405,10 @@ TTableSchemaPtr TQuery::GetReadSchema() const
     TSchemaColumns result;
 
     for (const auto& item : Schema.GetOrderedSchemaMapping()) {
-        result.emplace_back(
+        auto& columnSchema = result.emplace_back(
             Schema.Original->Columns()[item.Index].Name(),
             Schema.Original->Columns()[item.Index].LogicalType());
+        columnSchema.SetStableName(Schema.Original->Columns()[item.Index].StableName());
     }
 
     return New<TTableSchema>(std::move(result));

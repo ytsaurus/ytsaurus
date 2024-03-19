@@ -190,6 +190,25 @@ TConstraintRef IsPrefixConstraintExtractor(
     return TConstraintRef::Universal();
 }
 
+TConstraintRef IsNullConstraintExtractor(
+    TConstraintsHolder* constraints,
+    const TConstFunctionExpressionPtr& expr,
+    const TKeyColumns& keyColumns,
+    const TRowBufferPtr& /*rowBuffer*/)
+{
+    auto arg = expr->Arguments[0];
+    auto referenceExpr = arg->As<TReferenceExpression>();
+
+    if (referenceExpr) {
+        int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
+        if (keyPartIndex >= 0) {
+            return constraints->Constant(MakeUnversionedNullValue(), keyPartIndex);
+        }
+    }
+
+    return TConstraintRef::Universal();
+}
+
 class TIsNullCodegen
     : public IFunctionCodegen
 {
@@ -1264,6 +1283,7 @@ TConstConstraintExtractorMapPtr CreateBuiltinConstraintExtractors()
 {
     auto result = New<TConstraintExtractorMap>();
     result->emplace("is_prefix", NBuiltins::IsPrefixConstraintExtractor);
+    result->emplace("is_null", NBuiltins::IsNullConstraintExtractor);
     return result;
 }
 
