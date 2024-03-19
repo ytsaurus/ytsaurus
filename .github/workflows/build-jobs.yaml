@@ -162,7 +162,7 @@ jobs:
           ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=. ../ytsaurus/ytsaurus/yt/yt/tests/integration/scheduler --run-all-tests -F "*TestMultipleSchedulers*"
 
       - name: Build query tracker (ya make, relwithdebinfo)
-        if: ${{ inputs.build-query-tracker-ya-make }}
+        if: ${{ inputs.build-query-tracker-ya-make-relwithdebinfo }}
         run: |
           mkdir -p ../ya_build
           cd ../ya_build
@@ -170,7 +170,7 @@ jobs:
 
           ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
 
-      - name: Build ytsaurus (ya make, release)
+      - name: Build query tracker (ya make, release)
         if: ${{ inputs.build-query-tracker-ya-make-release }}
         run: |
           mkdir -p ../ya_build_release
@@ -189,7 +189,7 @@ jobs:
           cd ../build_relwithdebinfo
           ninja ytserver-clickhouse
 
-      - name: Build query tracker
+      - name: Build yql agent
         if: ${{ inputs.build-query-tracker }}
         run: |
           export CCACHE_BASEDIR="$(realpath ..)"
@@ -229,7 +229,7 @@ jobs:
           cd ../build_relwithdebinfo
           ninja ytserver-yql-agent
 
-      - name: Build query tracker (ya make)
+      - name: Build yql agent (ya make)
         if: ${{ inputs.build-query-tracker-ya-make-relwithdebinfo || inputs.build-query-tracker-ya-make-release }}
         run: |
           shopt -s expand_aliases
