@@ -585,6 +585,7 @@ private:
             Bootstrap_->GetHintManager(),
             Bootstrap_->GetInThrottler(WorkloadCategory_),
             Bootstrap_->GetReadRpsOutThrottler(),
+            NConcurrency::GetUnlimitedThrottler(),
             /*trafficMeter*/ nullptr);
 
         ReadDigestedDictionary(
