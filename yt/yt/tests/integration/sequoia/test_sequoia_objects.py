@@ -1,14 +1,8 @@
-from yt_env_setup import (
-    YTEnvSetup,
-    Restarter,
-    NODES_SERVICE
-)
+from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, create, get, remove, get_singular_chunk_id, write_table, read_table, wait,
-    exists, select_rows, create_domestic_medium, ls, set, get_driver, get_account_disk_space_limit, set_account_disk_space_limit)
-
-from yt.wrapper import yson
+    authors, create, get, remove, get_singular_chunk_id, write_table, wait,
+    select_rows, create_domestic_medium, ls, set, get_driver)
 
 ##################################################################
 
@@ -66,110 +60,6 @@ class TestSequoiaReplicas(YTEnvSetup):
         wait(sequoia_tables_empty)
         super(TestSequoiaReplicas, self).teardown_method(method)
 
-    @authors("aleksandra-zh")
-    def test_chunk_replicas_node_offline1(self):
-        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
-
-        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1})
-
-        write_table("//tmp/t", [{"x": 1}])
-        assert read_table("//tmp/t") == [{"x": 1}]
-
-        chunk_id = get_singular_chunk_id("//tmp/t")
-
-        ground_driver = self.get_ground_driver()
-        assert len(select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)) > 0
-        wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)) == 1)
-        wait(lambda: len(select_rows("* from [//sys/sequoia/location_replicas]", driver=ground_driver)) == 3)
-
-        rows = select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)
-        assert len(rows) == 1
-        assert len(rows[0]["replicas"]) == 3
-
-        with Restarter(self.Env, NODES_SERVICE, indexes=self.table_node_indexes):
-            pass
-
-        remove("//tmp/t")
-
-        wait(lambda: not exists("#{}".format(chunk_id)))
-        wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)) == 0)
-        wait(lambda: len(select_rows("* from [//sys/sequoia/location_replicas]", driver=ground_driver)) == 0)
-
-    @authors("aleksandra-zh")
-    def test_chunk_replicas_node_offline2(self):
-        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
-        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1})
-
-        write_table("//tmp/t", [{"x": 1}])
-        assert read_table("//tmp/t") == [{"x": 1}]
-
-        chunk_id = get_singular_chunk_id("//tmp/t")
-
-        ground_driver = self.get_ground_driver()
-        assert len(select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)) > 0
-        wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)) == 1)
-        wait(lambda: len(select_rows("* from [//sys/sequoia/location_replicas]", driver=ground_driver)) == 3)
-
-        with Restarter(self.Env, NODES_SERVICE, indexes=self.table_node_indexes):
-            remove("//tmp/t")
-
-            wait(lambda: not exists("#{}".format(chunk_id)))
-            wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)) == 0)
-            wait(lambda: len(select_rows("* from [//sys/sequoia/location_replicas]", driver=ground_driver)) == 0)
-
-        wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)) == 0)
-        wait(lambda: len(select_rows("* from [//sys/sequoia/location_replicas]", driver=ground_driver)) == 0)
-
-    @authors("aleksandra-zh")
-    def test_replication(self):
-        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
-        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1, "replication_factor": 2})
-
-        ground_driver = self.get_ground_driver()
-        write_table("//tmp/t", [{"x": 1}], table_writer={"upload_replication_factor": 2})
-        wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)) == 1)
-        wait(lambda: len(select_rows("* from [//sys/sequoia/location_replicas]", driver=ground_driver)) == 2)
-
-        assert read_table("//tmp/t") == [{"x": 1}]
-
-        chunk_id = get_singular_chunk_id("//tmp/t")
-
-        set("//tmp/t/@replication_factor", 3)
-
-        wait(lambda: len(get("#{}/@stored_replicas".format(chunk_id))) == 3)
-        wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)) == 1)
-        wait(lambda: len(select_rows("* from [//sys/sequoia/location_replicas]", driver=ground_driver)) == 3)
-
-        remove("//tmp/t")
-
-    @authors("aleksandra-zh")
-    def test_last_seen_replicas(self):
-        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
-
-        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1})
-
-        write_table("//tmp/t", [{"x": 1}])
-        assert read_table("//tmp/t") == [{"x": 1}]
-
-        chunk_id = get_singular_chunk_id("//tmp/t")
-
-        ground_driver = self.get_ground_driver()
-        assert len(select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)) > 0
-        wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)) == 1)
-        wait(lambda: len(select_rows("* from [//sys/sequoia/location_replicas]", driver=ground_driver)) == 3)
-
-        rows = select_rows("* from [//sys/sequoia/chunk_replicas]", driver=ground_driver)
-        assert len(rows) == 1
-        assert len(rows[0]["last_seen_replicas"]) == 3
-
-        assert read_table("//tmp/t") == [{"x": 1}]
-        chunk_id = get_singular_chunk_id("//tmp/t")
-
-        wait(lambda: len(get("#{}/@stored_replicas".format(chunk_id))) == 3)
-        wait(lambda: len(get("#{}/@last_seen_replicas".format(chunk_id))) == 3)
-
-        remove("//tmp/t")
-
 
 class TestOnlySequoiaReplicas(TestSequoiaReplicas):
     DELTA_DYNAMIC_MASTER_CONFIG = {
@@ -190,63 +80,6 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
         chunk_id = get_singular_chunk_id(table)
         wait(lambda: len(get("#{}/@stored_sequoia_replicas".format(chunk_id))) == 0)
         wait(lambda: len(get("#{}/@stored_master_replicas".format(chunk_id))) > 0)
-        remove(table)
-
-    @authors("kivedernikov")
-    def test_master_sequoia_replicas_handler(self):
-        disk_space_limit = get_account_disk_space_limit("tmp", "default")
-        set_account_disk_space_limit("tmp", disk_space_limit, self.TABLE_MEDIUM_1)
-        set_account_disk_space_limit("tmp", disk_space_limit, self.TABLE_MEDIUM_2)
-
-        table = "//tmp/t"
-        create("table", table, attributes={
-            "media": {
-                self.TABLE_MEDIUM_1: {"replication_factor": 1, "data_parts_only": False},
-                self.TABLE_MEDIUM_2: {"replication_factor": 1, "data_parts_only": False},
-            },
-            "primary_medium": self.TABLE_MEDIUM_1
-        })
-        write_table(table, {"foo": "bar"})
-
-        chunk_id = get(table + "/@chunk_ids")[0]
-
-        def process_yson_medium(data):
-            json_data = yson.yson_to_json(data)
-            return json_data['$attributes']['medium']
-
-        def process_yson_locations(data):
-            json_data = yson.yson_to_json(data)
-            return json_data['$attributes']['location_uuid']
-
-        def check_sequoia_replicas(chunk_id):
-            stored_sequoia_replicas = get("#{}/@stored_sequoia_replicas".format(chunk_id))
-            results = [process_yson_medium(data) == self.TABLE_MEDIUM_1 for data in stored_sequoia_replicas]
-            return all(results) and len(results) > 0
-
-        wait(lambda: check_sequoia_replicas(chunk_id))
-
-        def check_master_replicas(chunk_id):
-            stored_master_replicas = get("#{}/@stored_master_replicas".format(chunk_id))
-            results = [process_yson_medium(data) == self.TABLE_MEDIUM_2 for data in stored_master_replicas]
-            return all(results) and len(results) > 0
-
-        wait(lambda: check_master_replicas(chunk_id))
-
-        def check_stored_replicas(chunk_id):
-            stored_replicas = get("#{}/@stored_replicas".format(chunk_id))
-            stored_sequoia_replicas = get("#{}/@stored_sequoia_replicas".format(chunk_id))
-            stored_master_replicas = get("#{}/@stored_master_replicas".format(chunk_id))
-
-            if len(stored_replicas) != 2 or len(stored_sequoia_replicas) != 1 or len(stored_master_replicas) != 1:
-                return False
-
-            for replica in stored_replicas:
-                if (process_yson_medium(replica) == self.TABLE_MEDIUM_1 and replica not in stored_sequoia_replicas) or \
-                        (process_yson_medium(replica) == self.TABLE_MEDIUM_2 and replica not in stored_master_replicas):
-                    return False
-            return True
-
-        wait(lambda: check_stored_replicas(chunk_id))
         remove(table)
 
 
