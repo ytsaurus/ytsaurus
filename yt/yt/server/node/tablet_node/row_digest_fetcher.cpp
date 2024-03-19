@@ -183,10 +183,13 @@ private:
 
                 auto& compactionHints = sortedChunkStore->CompactionHints().RowDigest;
                 compactionHints.FetchStatus.RequestStep = RequestStep;
-                compactionHints.CompactionHint = GetUpcomingCompactionInfo(
-                    store->GetId(),
-                    store->GetTablet()->GetSettings().MountConfig,
-                    digest);
+                // TODO(dave11ar): Remove when correct considering of aggregate columns will be implemented.
+                if (!store->GetTablet()->GetTableSchema()->HasAggregateColumns()) {
+                    compactionHints.CompactionHint = GetUpcomingCompactionInfo(
+                        store->GetId(),
+                        store->GetTablet()->GetSettings().MountConfig,
+                        digest);
+                }
 
                 ++finishedRequestCount;
                 YT_LOG_DEBUG("Finished fetching row digest (StoreId: %v, ChunkId: %v, "
