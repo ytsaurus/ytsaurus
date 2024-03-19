@@ -98,7 +98,7 @@ def prepare_python_modules(
         if prepare_bindings_libraries:
             real_name = "lib{name}.so".format(name=name)
             if not os.path.exists(os.path.join(build_root, library_path, real_name)):
-                real_name = "{name}.so"
+                real_name = "{name}.so".format(name=name)
 
             cp(
                 os.path.join(build_root, library_path, real_name),
