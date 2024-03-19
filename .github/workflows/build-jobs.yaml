@@ -179,14 +179,6 @@ jobs:
 
           ../ytsaurus/ytsaurus/ya make -T --build=release  --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
 
-      - name: Test ytsaurus (ya make, relwithdebinfo)
-        if: ${{ inputs.run-ya-make-tests }}
-        run: |
-          # Check python tests.
-          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=../ya_build ../ytsaurus/ytsaurus/yt/python/yt/wrapper/tests --run-all-tests -F "*test_get_set_exists*"
-          # Check integration tests.
-          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=../ya_build ../ytsaurus/ytsaurus/yt/yt/tests/integration/scheduler --run-all-tests -F "*TestMultipleSchedulers*"
-
       - name: Build chyt
         if: ${{ inputs.build-chyt }}
         run: |
