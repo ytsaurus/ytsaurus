@@ -8,6 +8,8 @@
 #include <yt/yt/server/lib/io/io_engine.h>
 #include <yt/yt/server/lib/io/chunk_fragment.h>
 
+#include <yt/yt/ytlib/chunk_client/public.h>
+
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -850,8 +852,19 @@ private:
 
         auto range = Index_->GetRecordRange(fragmentDescriptor.BlockIndex);
         auto recordLength = range.second - range.first - static_cast<i64>(sizeof(TRecordHeader));
+
+        auto requestLength = fragmentDescriptor.Length;
+        if (requestLength == NChunkClient::WholeBlockFragmentRequestLength) {
+            requestLength = recordLength;
+        } else if (requestLength < 0) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::MalformedReadRequest,
+                "Negative length in fragment descriptor")
+                << makeErrorAttributes();
+        }
+
         if (fragmentDescriptor.BlockOffset < 0 ||
-            fragmentDescriptor.BlockOffset + fragmentDescriptor.Length > recordLength)
+            fragmentDescriptor.BlockOffset + requestLength > recordLength)
         {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::MalformedReadRequest,
@@ -863,7 +876,7 @@ private:
         return IIOEngine::TReadRequest{
             .Handle = DataFileHandle_,
             .Offset = range.first + static_cast<i64>(sizeof(TRecordHeader)) + fragmentDescriptor.BlockOffset,
-            .Size = fragmentDescriptor.Length
+            .Size = requestLength,
         };
     }
 

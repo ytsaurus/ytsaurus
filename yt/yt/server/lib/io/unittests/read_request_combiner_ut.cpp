@@ -226,7 +226,7 @@ TEST_F(TReadRequestCombinerTest, CombineEOFMultiHandles)
     EXPECT_FALSE( combiner->CheckEof(SliceTail(combineResult[2].ResultBuffer, 4000)).IsOK() );
 }
 
-// ////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
 using TDummyReadRequestCombinerTest = TReadRequestCombinerTestBase<true>;
 

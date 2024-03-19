@@ -181,6 +181,7 @@ public:
     TSlruCacheConfigPtr UncompressedData;
     TSlruCacheConfigPtr HashTableChunkIndex;
     TSlruCacheConfigPtr XorFilter;
+    TSlruCacheConfigPtr ChunkFragmentsData;
 
     REGISTER_YSON_STRUCT(TBlockCacheConfig);
 
@@ -213,6 +214,7 @@ public:
     TSlruCacheDynamicConfigPtr UncompressedData;
     TSlruCacheDynamicConfigPtr HashTableChunkIndex;
     TSlruCacheDynamicConfigPtr XorFilter;
+    TSlruCacheDynamicConfigPtr ChunkFragmentsData;
 
     REGISTER_YSON_STRUCT(TBlockCacheDynamicConfig);
 
