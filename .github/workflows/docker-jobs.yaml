@@ -94,7 +94,7 @@ jobs:
           mv ../ya_build/yt/yt/server/all/ytserver-all ../build/yt/yt/server/all/ytserver-all || true
           mv ../ya_build/yt/yql/agent/bin/ytserver-yql-agent ../build/yt/yql/agent/bin/ytserver-yql-agent || true
 
-          bash ./ytsaurus/yt/docker/query-tracker/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --qt-build-path ../build_qt_ya_make --output-path ../docker-query-tracker-build-ya-make --image-tag ${IMAGE_TAG}
+          bash ./ytsaurus/yt/docker/query-tracker/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --qt-build-path ../build_qt_ya_make --output-path ../docker-query-tracker-build-ya-make-relwithdebinfo --image-tag ${IMAGE_TAG}
           docker push ytsaurus/query-tracker:${IMAGE_TAG}
           docker tag ytsaurus/query-tracker:${IMAGE_TAG} ytsaurus/query-tracker-nightly:${NIGHTLY_IMAGE_TAG}
           docker push ytsaurus/query-tracker-nightly:${NIGHTLY_IMAGE_TAG}
