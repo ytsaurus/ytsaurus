@@ -899,6 +899,7 @@ def get_checks_config():
                         "poincare-alpha": 7046,
                         "poincare-beta": 7047,
                         "vapnik": 6707,
+                        "watt": 9662,
                     },
                 },
             },
@@ -1450,6 +1451,11 @@ def get_checks_config():
             "vapnik": deep_merge(
                 snapshot_validation,
                 allow_unaware_nodes,
+                nochyt,
+            ),
+            "watt": deep_merge(
+                snapshot_validation,
+                clock_quorum_health,
                 nochyt,
             ),
         }
