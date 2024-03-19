@@ -113,6 +113,7 @@ COPY --from=lib-builder ${ODIN_ROOT}/../yt/scripts ${ODIN_ROOT}/../yt/scripts
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        build-essential \
         libcap-dev \
     && rm -rf /var/lib/apt/lists/*
 
@@ -149,8 +150,6 @@ RUN apt-get update \
         procps \
         curl \ 
         strace \
-        less \
-        zstd \
         jq \
         linux-perf \
         google-perftools \
