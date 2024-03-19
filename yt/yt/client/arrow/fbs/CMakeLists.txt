@@ -6,6 +6,30 @@
 # original buildsystem will not be accepted.
 
 
+get_built_tool_path(
+  TOOL_flatc_bin
+  TOOL_flatc_dependency
+  contrib/tools/flatc
+  flatc
+)
+get_built_tool_path(
+  TOOL_flatc_bin
+  TOOL_flatc_dependency
+  contrib/tools/flatc
+  flatc
+)
+get_built_tool_path(
+  TOOL_flatc_bin
+  TOOL_flatc_dependency
+  contrib/tools/flatc
+  flatc
+)
+get_built_tool_path(
+  TOOL_flatc_bin
+  TOOL_flatc_dependency
+  contrib/tools/flatc
+  flatc
+)
 
 add_library(client-arrow-fbs)
 target_link_libraries(client-arrow-fbs PUBLIC
