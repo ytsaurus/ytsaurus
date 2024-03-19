@@ -12,6 +12,10 @@ on:
         default: false
         required: false
         type: boolean
+      build-ytsaurus-ya-make:
+        default: false
+        required: false
+        type: boolean
       build-chyt:
         default: false
         required: false
@@ -45,7 +49,7 @@ jobs:
           /opt/go/bin/go build
 
       - name: Configure ytsaurus
-        if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker }}
+        if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker || inputs.build-python }}
         run: |
           mkdir -p ../build
           cd ../build
@@ -115,7 +119,7 @@ jobs:
             ../ytsaurus/ydb
 
       - name: Build ytsaurus
-        if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker }}
+        if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker || inputs.build-python }}
         run: |
           export CCACHE_BASEDIR="$(realpath ..)"
           export CCACHE_REMOTE_ONLY=true
@@ -124,22 +128,38 @@ jobs:
           cd ../build
           ninja
 
+      - name: Build ytsaurus (relwithdebinfo)
+        if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker }}
+        run: |
+          export CCACHE_BASEDIR="$(realpath ..)"
+          export CCACHE_REMOTE_ONLY=true
+          export CCACHE_REMOTE_STORAGE="${{ vars.CCACHE_REMOTE_STORAGE }}"
+
           cd ../build_relwithdebinfo
           ninja ytserver-all
 
       - name: Build ytsaurus (ya make, relwithdebinfo)
+        if: ${{ inputs.build-ytsaurus-ya-make }}
+        run: |
+          mkdir -p ../test_ya_build
+          cd ../test_ya_build
+          rm -rf *
+
+          # Check build.
+          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=. ../ytsaurus/ytsaurus/yt/yt
+          # Check python tests.
+          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=. ../ytsaurus/ytsaurus/yt/python/yt/wrapper/tests --run-all-tests -F "*test_get_set_exists*"
+          # Check integration tests.
+          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=. ../ytsaurus/ytsaurus/yt/yt/tests/integration/scheduler --run-all-tests -F "*TestMultipleSchedulers*"
+
+      - name: Build query tracker (ya make, relwithdebinfo)
         if: ${{ inputs.build-query-tracker-ya-make }}
         run: |
           mkdir -p ../ya_build
           cd ../ya_build
           rm -rf *
 
-          # Check build.
-          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=../ya_build ../ytsaurus/ytsaurus/yt/yt
-          # Check python tests.
-          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=../ya_build ../ytsaurus/ytsaurus/yt/python/yt/wrapper/tests --run-all-tests -F "*test_get_set_exists*"
-          # Check integration tests.
-          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=../ya_build ../ytsaurus/ytsaurus/yt/yt/tests/integration/scheduler --run-all-tests -F "*TestMultipleSchedulers*"
+          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo  --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
 
       - name: Build chyt
         if: ${{ inputs.build-chyt }}
@@ -237,9 +257,5 @@ jobs:
         if: ${{ inputs.build-python }}
         run: |
           source ../venv/bin/activate
-          if ${{ inputs.build-query-tracker-ya-make }}; then
-            YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../ya_build
-          else
-            YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build
-          fi
+          YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build
 
