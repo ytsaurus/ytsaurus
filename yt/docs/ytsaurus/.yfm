@@ -5,7 +5,7 @@ langs: ['ru', 'en']
 
 docs-viewer:
   project-name: YTsaurus
-  metrika: 96741000
+  metrika: 96741000, 96741017
   show-revision: true
   langs: ['ru', 'en']
   themes: ['light', 'dark']
