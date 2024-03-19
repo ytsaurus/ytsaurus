@@ -127,7 +127,7 @@ void TControllerAgent::SetIncarnationTransaction(NApi::ITransactionPtr transacti
             Id_,
             GetIncarnationId()),
         SchedulerProfiler.WithTag("queue", "operation_events"),
-        CancelableControlInvoker_);
+        GetCancelableHeartbeatInvoker());
     RunningAllocationStatisticsUpdatesInbox_ = std::make_unique<TMessageQueueInbox>(
         SchedulerLogger.WithTag("Kind: AgentToSchedulerRunningAllocationStatisticsUpdates, AgentId: %v, IncarnationId: %v",
             Id_,
