@@ -16,7 +16,11 @@ on:
         required: false
         default: false
         type: boolean
-      publish-query-tracker-ya-make:
+      publish-query-tracker-ya-make-relwithdebinfo:
+        required: false
+        default: false
+        type: boolean
+      publish-query-tracker-ya-make-release:
         required: false
         default: false
         type: boolean
@@ -80,17 +84,32 @@ jobs:
           docker tag ytsaurus/query-tracker:${IMAGE_TAG} ytsaurus/query-tracker-nightly:${NIGHTLY_IMAGE_TAG}
           docker push ytsaurus/query-tracker-nightly:${NIGHTLY_IMAGE_TAG}
 
-      - name: Query tracker image (ya make build)
-        if: ${{ inputs.publish-query-tracker-ya-make }}
+      - name: Query tracker image (ya make build, relwithdebinfo)
+        if: ${{ inputs.publish-query-tracker-ya-make-relwithdebinfo }}
         run: |
-          mkdir -p ../docker-query-tracker-build-ya-make
+          mkdir -p ../docker-query-tracker-build-ya-make-relwithdebinfo
           IMAGE_TAG=${{ inputs.image-tag }}-ya-build-relwithdebinfo
           NIGHTLY_IMAGE_TAG=${{ inputs.nightly-image-tag }}-ya-build-relwithdebinfo
 
           mv ../ya_build/yt/yt/server/all/ytserver-all ../build/yt/yt/server/all/ytserver-all || true
           mv ../ya_build/yt/yql/agent/bin/ytserver-yql-agent ../build/yt/yql/agent/bin/ytserver-yql-agent || true
 
-          bash ./ytsaurus/yt/docker/query-tracker/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --qt-build-path ../build_qt_ya_make --output-path ../docker-query-tracker-build-ya-make --image-tag ${IMAGE_TAG}
+          bash ./ytsaurus/yt/docker/query-tracker/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --qt-build-path ../build_qt_ya_make --output-path ../docker-query-tracker-build-ya-make-relwithdebinfo --image-tag ${IMAGE_TAG}
+          docker push ytsaurus/query-tracker:${IMAGE_TAG}
+          docker tag ytsaurus/query-tracker:${IMAGE_TAG} ytsaurus/query-tracker-nightly:${NIGHTLY_IMAGE_TAG}
+          docker push ytsaurus/query-tracker-nightly:${NIGHTLY_IMAGE_TAG}
+
+      - name: Query tracker image (ya make build, release)
+        if: ${{ inputs.publish-query-tracker-ya-make-release }}
+        run: |
+          mkdir -p ../docker-query-tracker-build-ya-make-release
+          IMAGE_TAG=${{ inputs.image-tag }}-ya-build
+          NIGHTLY_IMAGE_TAG=${{ inputs.nightly-image-tag }}-ya-build
+
+          mv ../ya_build_release/yt/yt/server/all/ytserver-all ../build/yt/yt/server/all/ytserver-all || true
+          mv ../ya_build_release/yt/yql/agent/bin/ytserver-yql-agent ../build/yt/yql/agent/bin/ytserver-yql-agent || true
+
+          bash ./ytsaurus/yt/docker/query-tracker/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --qt-build-path ../build_qt_ya_make_release --output-path ../docker-query-tracker-build-ya-make-release --image-tag ${IMAGE_TAG}
           docker push ytsaurus/query-tracker:${IMAGE_TAG}
           docker tag ytsaurus/query-tracker:${IMAGE_TAG} ytsaurus/query-tracker-nightly:${NIGHTLY_IMAGE_TAG}
           docker push ytsaurus/query-tracker-nightly:${NIGHTLY_IMAGE_TAG}
