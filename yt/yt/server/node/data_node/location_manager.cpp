@@ -62,7 +62,7 @@ TFuture<void> TLocationManager::FailDiskByName(
                         error.GetMessage())
                         .Apply(BIND([=] (const TError& result) {
                             if (!result.IsOK()) {
-                                YT_LOG_ERROR(result,
+                                YT_LOG_INFO(result,
                                     "Error marking the disk as failed (DiskName: %v)",
                                     diskInfo.DeviceName);
                             }
@@ -201,7 +201,7 @@ std::vector<TGuid> TLocationManager::DoDestroyLocations(bool recoverUnlinkedDisk
         for (const auto& diskId : unlinkedDiskIds) {
             YT_UNUSED_FUTURE(RecoverDisk(diskId)
                 .Apply(BIND([] (const TError& result) {
-                    YT_LOG_ERROR_IF(!result.IsOK(), result);
+                    YT_LOG_INFO_IF(!result.IsOK(), result);
                 })));
         }
     }
@@ -354,7 +354,7 @@ void TLocationHealthChecker::OnLocationsHealthCheck()
 
     // Fast path.
     if (!diskInfosOrError.IsOK()) {
-        YT_LOG_ERROR(diskInfosOrError, "Failed to list disk infos");
+        YT_LOG_INFO(diskInfosOrError, "Failed to list disk infos");
         return;
     }
 

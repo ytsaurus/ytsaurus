@@ -76,7 +76,7 @@ void TDiskChangeChecker::OnDiskChangeCheck()
 
     // Fast path.
     if (!diskInfosOrError.IsOK()) {
-        YT_LOG_ERROR(diskInfosOrError, "Failed to list disk infos");
+        YT_LOG_INFO(diskInfosOrError, "Failed to list disk infos");
         return;
     }
 
