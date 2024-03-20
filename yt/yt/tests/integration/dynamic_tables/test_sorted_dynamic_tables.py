@@ -652,7 +652,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         self._create_simple_table(
             "//tmp/t",
             optimize_for=optimize_for,
-            nable_new_scan_reader_for_lookup=True)
+            enable_new_scan_reader_for_lookup=True)
 
         set("//tmp/t/@in_memory_mode", "uncompressed")
         set("//tmp/t/@enable_lookup_hash_table", True)
