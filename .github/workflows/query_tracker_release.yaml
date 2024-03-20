@@ -3,7 +3,7 @@ name: Release query tracker
 on:
   push:
     branches:
-      - mpereskokova
+      - mpereskokova/test-qt-build-memory
 
 jobs:
   start-vm:

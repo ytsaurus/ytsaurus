@@ -3,7 +3,7 @@ name: Ya make
 on:
   push:
     branches:
-      - mpereskokova
+      - mpereskokova/test-qt-build-memory
 
 jobs:
   start-vm:
