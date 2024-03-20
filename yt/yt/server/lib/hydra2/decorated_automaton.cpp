@@ -785,6 +785,8 @@ struct TDecoratedAutomaton::TMutationApplicationResult
     TPromise<TMutationResponse> LocalCommitPromise;
     TMutationId MutationId;
     TSharedRefArray ResponseData;
+    // Null during recovery. May be null in other cases, too (on followers, for certain mutations, etc.).
+    TCallback<void(TMutationContext*)> HandlerToReset;
     // May be null if response keeper says so (or if it's disabled, suppressed etc.)
     std::function<void()> ResponseKeeperPromiseSetter;
 };
@@ -1170,7 +1172,7 @@ void TDecoratedAutomaton::PublishMutationApplicationResults(std::vector<TMutatio
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    for (const auto& result : results) {
+    for (auto& result : results) {
         try {
             if (const auto& setPromises = result.ResponseKeeperPromiseSetter) {
                 setPromises();
@@ -1192,6 +1194,10 @@ void TDecoratedAutomaton::PublishMutationApplicationResults(std::vector<TMutatio
             YT_LOG_ALERT(ex,
                 "Setting a commit promise has thrown (MutationId: %v)",
                 result.MutationId);
+        }
+
+        if (result.HandlerToReset) {
+            result.HandlerToReset.Reset();
         }
     }
 }
@@ -1228,15 +1234,14 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
             GetState() == EPeerState::FollowerRecovery);
     }
 
-    // Mutation could remain alive for quite a while even after it has been applied at leader,
-    // e.g. when some follower is down. The handler could be holding something heavy and needs to be dropped.
-    mutation->Request.Handler.Reset();
-
     MaybeStartSnapshotBuilder();
 
     result.LocalCommitPromise = mutation->LocalCommitPromise;
     result.MutationId = mutation->Request.MutationId;
     result.ResponseData = mutationContext.TakeResponseData();
+    // Mutation could remain alive for quite a while even after it has been applied at leader,
+    // e.g. when some follower is down. The handler could be holding something heavy and needs to be dropped.
+    result.HandlerToReset = std::move(mutation->Request.Handler);
 
     return result;
 }
