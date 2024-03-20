@@ -36,8 +36,6 @@ private:
     THashMap<NCellarClient::ECellarType, ICellBalancerProviderPtr> PerCellarProviders_;
     bool WaitForCommit_ = false;
 
-    THashMap<std::pair<const TCellBase*, const NNodeTrackerServer::TNode*>, TError> PeerFailureCache_;
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     void OnCellPeersReassigned();
@@ -67,14 +65,6 @@ private:
         const TCellBase::TPeer& peer,
         const TCellBase* cell,
         TDuration timeout);
-
-    const TError& CachedIsFailed(
-        const TCellBase::TPeer& peer,
-        const TCellBase* cell,
-        TDuration timeout);
-
-    void ClearPeerFailureCache();
-
     bool IsDecommissioned(
         const NNodeTrackerServer::TNode* node,
         const TCellBase* cell);
