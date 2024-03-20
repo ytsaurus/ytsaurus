@@ -25,7 +25,7 @@ struct TFragmentRequest
     int FragmentIndex;
 };
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
 
 struct TPeerInfo final
 {
@@ -96,10 +96,17 @@ struct IChunkFragmentReadController
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChunkFragmentReadControllerOptions
+{
+    bool PrefetchWholeBlocks;
+};
+
 std::unique_ptr<IChunkFragmentReadController> CreateChunkFragmentReadController(
     TChunkId chunkId,
     NErasure::ECodec erasureCodec,
-    std::vector<TSharedRef>* responseFragments);
+    std::vector<TSharedRef>* responseFragments,
+    IBlockCachePtr blockCache,
+    TChunkFragmentReadControllerOptions options);
 
 ////////////////////////////////////////////////////////////////////////////////
 

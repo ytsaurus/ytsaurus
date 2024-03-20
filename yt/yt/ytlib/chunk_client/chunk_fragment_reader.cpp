@@ -158,6 +158,7 @@ public:
         TChunkFragmentReaderConfigPtr config,
         NApi::NNative::IClientPtr client,
         INodeStatusDirectoryPtr nodeStatusDirectory,
+        IBlockCachePtr blockCache,
         const NProfiling::TProfiler& profiler,
         IThroughputThrottlerPtr mediumThrottler,
         TThrottlerProvider throttlerProvider)
@@ -165,6 +166,7 @@ public:
         , Client_(std::move(client))
         , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory())
         , NodeStatusDirectory_(std::move(nodeStatusDirectory))
+        , BlockCache_(std::move(blockCache))
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
         , Logger(ChunkClientLogger.WithTag("ChunkFragmentReaderId: %v", TGuid::Create()))
         , ReaderInvoker_(TDispatcher::Get()->GetReaderInvoker())
@@ -179,7 +181,7 @@ public:
             Config_->PeerInfoExpirationTimeout,
             ReaderInvoker_))
         , MediumThrottler_(std::move(mediumThrottler))
-        , ThrottlerProvider_(throttlerProvider)
+        , ThrottlerProvider_(std::move(throttlerProvider))
         , SuccessfulProbingRequestCounter_(profiler.Counter("/successful_probing_request_count"))
         , FailedProbingRequestCounter_(profiler.Counter("/failed_probing_request_count"))
     {
@@ -204,6 +206,7 @@ private:
     const NApi::NNative::IClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
     const INodeStatusDirectoryPtr NodeStatusDirectory_;
+    const IBlockCachePtr BlockCache_;
     const TNetworkPreferenceList Networks_;
 
     const NLogging::TLogger Logger;
@@ -1176,7 +1179,11 @@ private:
                 it->second.Controller = CreateChunkFragmentReadController(
                     request.ChunkId,
                     request.ErasureCodec,
-                    &State_->Response.Fragments);
+                    &State_->Response.Fragments,
+                    Reader_->BlockCache_,
+                    TChunkFragmentReadControllerOptions{
+                        .PrefetchWholeBlocks = Reader_->Config_->PrefetchWholeBlocks,
+                    });
             }
 
             int blockHeaderSize = IsJournalChunkId(request.ChunkId) && IsErasureChunkId(request.ChunkId)
@@ -1288,6 +1295,7 @@ private:
 
         // Adjust replica penalties based on suspiciousness and bans.
         // Sort replicas and feed them to controllers.
+        int cachedChunkCount = 0;
         for (auto& [chunkId, chunkState] : ChunkIdToChunkState_) {
             if (chunkState.ReplicasWithRevision.IsEmpty()) {
                 continue;
@@ -1302,20 +1310,27 @@ private:
                 }
             }
 
+            YT_VERIFY(!chunkState.Controller->IsDone());
             chunkState.Controller->SetReplicas(chunkState.ReplicasWithRevision);
-            ++PendingChunkCount_;
+            if (!chunkState.Controller->IsDone()) {
+                ++PendingChunkCount_;
+            } else {
+                ++cachedChunkCount;
+            }
         }
 
-        int unavailableChunkCount = PendingChunkCount_ - std::ssize(ChunkIdToChunkState_);
+        int unavailableChunkCount = std::ssize(ChunkIdToChunkState_) - PendingChunkCount_ - cachedChunkCount;
 
         YT_LOG_DEBUG("Chunk fragment read session started "
-            "(RetryIndex: %v/%v, PendingFragmentCount: %v, TotalChunkCount: %v, UnavailableChunkCount: %v, "
+            "(RetryIndex: %v/%v, PendingFragmentCount: %v, "
+            "TotalChunkCount: %v, UnavailableChunkCount: %v, CachedChunkCount: %v, "
             "TotalNodeCount: %v, SuspiciousNodeCount: %v)",
             State_->RetryIndex + 1,
             Reader_->Config_->RetryCountLimit,
             PendingFragmentCount_,
             ChunkIdToChunkState_.size(),
             unavailableChunkCount,
+            cachedChunkCount,
             nodeIds.size(),
             NodeIdToSuspicionMarkTime_.size());
 
@@ -1348,7 +1363,7 @@ private:
             }
         }
 
-        // NB: This may happen e.g. if some chunks are lost.
+        // NB: This may happen e.g. if some chunks are lost or all fragments were read from cache.
         if (peerCount == 0 && !isHedged) {
             OnCompleted();
             return;
@@ -1408,11 +1423,18 @@ private:
         return peerInfoToPlan;
     }
 
-    TFuture<void> AsyncThrottle(i64 count)
+    void AcquireThrottler(i64 amount)
     {
-        BytesThrottled_ += count;
+        BytesThrottled_ += amount;
 
-        return CombinedDataByteThrottler_->Throttle(count);
+        return CombinedDataByteThrottler_->Acquire(amount);
+    }
+
+    TFuture<void> AsyncThrottle(i64 amount)
+    {
+        BytesThrottled_ += amount;
+
+        return CombinedDataByteThrottler_->Throttle(amount);
     }
 
     void ReleaseThrottledBytes(i64 throttledBytes)
@@ -1431,7 +1453,8 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Accounting for extra medium bandwidth in ChunkFragmentReader (TotalBytesReadFromDisk: %v, ThrottledBytes: %v)",
+        YT_LOG_DEBUG("Accounting for extra medium bandwidth in chunk fragment reader "
+            "(TotalBytesReadFromDisk: %v, ThrottledBytes: %v)",
             TotalBytesReadFromDisk_,
             BytesThrottled_);
 
@@ -1444,12 +1467,15 @@ private:
         TotalBytesReadFromDisk_ += protoChunkReaderStatistics.data_bytes_read_from_disk();
     }
 
-    i64 GetDataBytes(const TReqGetChunkFragmentSetPtr& request) const
+    i64 GetDataByteSize(const TReqGetChunkFragmentSetPtr& request) const
     {
         i64 result = 0;
         for (const auto& subrequest : request->subrequests()) {
             for (const auto& fragment : subrequest.fragments()) {
-                result += fragment.length();
+                // NB: We will peform post-throttling in the other case.
+                if (fragment.length() != WholeBlockFragmentRequestLength) {
+                    result += fragment.length();
+                }
             }
         }
         return result;
@@ -1515,20 +1541,33 @@ private:
                 item.RequestedFragmentCount = subrequest->fragments_size();
             }
 
-            YT_LOG_DEBUG("Requesting chunk fragments (Address: %v, ChunkIds: %v)",
+            i64 dataByteSize = GetDataByteSize(req);
+
+            YT_LOG_DEBUG("Requesting chunk fragments (Address: %v, ByteSize: %v, ChunkIds: %v)",
                 peerInfo->Address,
+                dataByteSize,
                 MakeFormattableView(req->subrequests(), [] (auto* builder, const auto& subrequest) {
                     builder->AppendFormat("%v", FromProto<TChunkId>(subrequest.chunk_id()));
                 }));
 
-            i64 bytesToThrottle = GetDataBytes(req);
-            AsyncThrottle(bytesToThrottle).Subscribe(BIND(
-                &TSimpleReadFragmentsSession::OnRequestThrottled,
-                MakeStrong(this),
-                std::move(req),
-                plan,
-                bytesToThrottle)
-                .Via(SessionInvoker_));
+            YT_VERIFY(req->subrequests_size() != 0);
+
+            auto throttleFuture = AsyncThrottle(dataByteSize);
+            if (throttleFuture.IsSet()) {
+                OnRequestThrottled(
+                    req,
+                    plan,
+                    dataByteSize,
+                    throttleFuture.Get());
+            } else {
+                throttleFuture.Subscribe(BIND(
+                    &TSimpleReadFragmentsSession::OnRequestThrottled,
+                    MakeStrong(this),
+                    std::move(req),
+                    plan,
+                    dataByteSize)
+                    .Via(SessionInvoker_));
+            }
         }
     }
 
@@ -1578,6 +1617,17 @@ private:
 
         if (!rspOrError.IsOK()) {
             ReleaseThrottledBytes(throttledBytes);
+        } else {
+            i64 receivedAttachmentsSize = GetByteSize(rspOrError.Value()->Attachments());
+            if (receivedAttachmentsSize != throttledBytes) {
+                YT_VERIFY(receivedAttachmentsSize > throttledBytes);
+                // NB: This may happen in case of full block reads.
+                AcquireThrottler(receivedAttachmentsSize - throttledBytes);
+                YT_LOG_DEBUG("Performed post throttling after receiving fragments "
+                    "(ReceivedAttachmentSize: %v, UnthrottledBytes: %v)",
+                    receivedAttachmentsSize,
+                    receivedAttachmentsSize - throttledBytes);
+            }
         }
 
         if (Promise_.IsSet()) {
@@ -1985,6 +2035,7 @@ IChunkFragmentReaderPtr CreateChunkFragmentReader(
     TChunkFragmentReaderConfigPtr config,
     NApi::NNative::IClientPtr client,
     INodeStatusDirectoryPtr nodeStatusDirectory,
+    IBlockCachePtr blockCache,
     const NProfiling::TProfiler& profiler,
     IThroughputThrottlerPtr mediumThrottler,
     TThrottlerProvider throttlerProvider)
@@ -1993,6 +2044,7 @@ IChunkFragmentReaderPtr CreateChunkFragmentReader(
         std::move(config),
         std::move(client),
         std::move(nodeStatusDirectory),
+        std::move(blockCache),
         profiler,
         std::move(mediumThrottler),
         std::move(throttlerProvider));

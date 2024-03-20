@@ -253,6 +253,7 @@ public:
         initType(EBlockType::UncompressedData, config->UncompressedData);
         initType(EBlockType::HashTableChunkIndex, config->HashTableChunkIndex);
         initType(EBlockType::XorFilter, config->XorFilter);
+        initType(EBlockType::ChunkFragmentsData, config->ChunkFragmentsData);
 
         // NB: We simply override the limit as underlying per-type caches are unaware of this cascading structure.
         MemoryTracker_->SetLimit(capacity);
@@ -316,6 +317,7 @@ public:
         reconfigureType(EBlockType::UncompressedData, config->UncompressedData);
         reconfigureType(EBlockType::HashTableChunkIndex, config->HashTableChunkIndex);
         reconfigureType(EBlockType::XorFilter, config->XorFilter);
+        reconfigureType(EBlockType::ChunkFragmentsData, config->ChunkFragmentsData);
 
         // NB: We simply override the limit as underlying per-type caches know nothing about this cascading structure.
         MemoryTracker_->SetLimit(newCapacity);

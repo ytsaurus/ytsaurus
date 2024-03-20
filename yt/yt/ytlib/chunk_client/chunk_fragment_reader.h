@@ -55,6 +55,7 @@ IChunkFragmentReaderPtr CreateChunkFragmentReader(
     TChunkFragmentReaderConfigPtr config,
     NApi::NNative::IClientPtr client,
     NNodeTrackerClient::INodeStatusDirectoryPtr nodeStatusDirectory,
+    IBlockCachePtr blockCache,
     const NProfiling::TProfiler& profiler,
     NConcurrency::IThroughputThrottlerPtr mediumThrottler,
     TThrottlerProvider throttlerProvider);

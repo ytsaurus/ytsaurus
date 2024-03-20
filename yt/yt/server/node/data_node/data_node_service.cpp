@@ -1078,7 +1078,9 @@ private:
         for (const auto& subrequest : request->subrequests()) {
             for (const auto& fragment : subrequest.fragments()) {
                 totalFragmentCount += 1;
-                totalFragmentSize += fragment.length();
+                if (fragment.length() != WholeBlockFragmentRequestLength) {
+                    totalFragmentSize += fragment.length();
+                }
             }
         }
 
@@ -1291,6 +1293,7 @@ private:
                                     traceContext->GetElapsedTime().GetValue());
                             }
 
+                            auto totalFragmentSize = GetByteSize(response->Attachments());
                             const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
                             if (netThrottler->IsOverdraft()) {
                                 context->SetComplete();

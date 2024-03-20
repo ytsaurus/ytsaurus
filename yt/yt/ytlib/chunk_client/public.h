@@ -91,16 +91,20 @@ constexpr int TypicalChunkLocationCount = 20;
 
 struct TAllyReplicasInfo;
 
+constexpr int WholeBlockFragmentRequestLength = -1;
+
 DEFINE_BIT_ENUM(EBlockType,
-    ((None)                 (0x0000))
+    ((None)                        (0x0000))
     //! This basically comprises any block regardless of its semantics (data or some system block).
-    ((CompressedData)       (0x0001))
+    ((CompressedData)              (0x0001))
     //! Uncompressed data block.
-    ((UncompressedData)     (0x0002))
+    ((UncompressedData)            (0x0002))
     //! Hash table chunk index system block.
-    ((HashTableChunkIndex)  (0x0004))
+    ((HashTableChunkIndex)         (0x0004))
     //! Xor filter system block.
-    ((XorFilter)            (0x0008))
+    ((XorFilter)                   (0x0008))
+    //! Blocks used by chunk fragment reader cache.
+    ((ChunkFragmentsData)          (0x0010))
 );
 
 DEFINE_ENUM(EChunkType,

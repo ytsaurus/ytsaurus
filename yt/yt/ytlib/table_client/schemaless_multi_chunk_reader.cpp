@@ -156,6 +156,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
         config,
         chunkReaderHost->Client,
         CreateTrivialNodeStatusDirectory(),
+        GetNullBlockCache(),
         /*profiler*/ {},
         /*mediumThrottler*/ GetUnlimitedThrottler(),
         /*throttlerProvider*/ {});
@@ -1356,6 +1357,7 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
                 config,
                 chunkReaderHost->Client,
                 CreateTrivialNodeStatusDirectory(),
+                GetNullBlockCache(),
                 /*profiler*/ {},
                 /*mediumThrottler*/ GetUnlimitedThrottler(),
                 /*throttlerProvider*/ {});

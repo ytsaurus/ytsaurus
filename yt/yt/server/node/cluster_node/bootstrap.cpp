@@ -876,7 +876,8 @@ private:
 
         BlockCache_ = ClientBlockCache_ = CreateClientBlockCache(
             Config_->DataNode->BlockCache,
-            EBlockType::UncompressedData | EBlockType::CompressedData | EBlockType::HashTableChunkIndex | EBlockType::XorFilter,
+            EBlockType::UncompressedData | EBlockType::CompressedData |
+                EBlockType::HashTableChunkIndex | EBlockType::XorFilter | EBlockType::ChunkFragmentsData,
             MemoryUsageTracker_->WithCategory(EMemoryCategory::BlockCache),
             NodeMemoryReferenceTracker_,
             DataNodeProfiler.WithPrefix("/block_cache"));

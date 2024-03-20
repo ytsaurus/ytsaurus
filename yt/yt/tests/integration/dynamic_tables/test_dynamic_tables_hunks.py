@@ -1400,6 +1400,47 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
                 assert str(value[0]) == expected["value"]
             _check_row(read_rows[0], rows[0])
 
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_3_3"])
+    def test_fragment_prefetcher_and_block_cache(self, hunk_erasure_codec):
+        sync_create_cells(1)
+
+        self._create_table(hunk_erasure_codec=hunk_erasure_codec)
+        set("//tmp/t/@hunk_chunk_reader/prefetch_whole_blocks", True)
+        sync_mount_table("//tmp/t")
+
+        keys = [{"key": i} for i in range(10)]
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "block_cache": {
+                    "chunk_fragments_data": {
+                        "capacity": 10000000,
+                    }
+                }
+            }
+        })
+
+        set("//tmp/t/@hunk_chunk_reader/fragment_reader_cache_capacity", 1000)
+        remount_table("//tmp/t")
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+
+        keys1 = [{"key": i} for i in range(10, 20)]
+        rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10, 20)]
+        insert_rows("//tmp/t", rows1)
+        sync_flush_table("//tmp/t")
+
+        assert_items_equal(lookup_rows("//tmp/t", keys + keys1), rows + rows1)
+        assert_items_equal(lookup_rows("//tmp/t", keys + keys1), rows + rows1)
+
+
 ################################################################################
 
 
