@@ -263,6 +263,8 @@ public:
 
     TDuration ForcedUnderfilledBatchReplacementPeriod;
 
+    bool SkipVersionedChunks;
+
     bool ShouldRescheduleAfterChange(
         const TDynamicChunkReincarnatorConfig& that) const noexcept;
 

@@ -781,7 +781,7 @@ protected:
             writeSchema,
             memoryWriter);
 
-        chunkWriter->Write(initialRows);
+        Y_UNUSED(chunkWriter->Write(initialRows));
         EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
 
         return CreateMemoryReader(

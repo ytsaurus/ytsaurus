@@ -137,7 +137,10 @@ public:
                     .ThrowOnError();
                 continue;
             }
-            writer->Write(batch->MaterializeRows());
+            if (!writer->Write(batch->MaterializeRows())) {
+                WaitFor(writer->GetReadyEvent())
+                    .ThrowOnError();
+            }
         }
         writer->Close().Get().ThrowOnError();
     }

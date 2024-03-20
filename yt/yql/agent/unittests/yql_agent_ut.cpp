@@ -92,7 +92,7 @@ TEST(TYqlAgentBuildRowsetTest, SkiffFormat)
     auto row2 = MakeRow(nameTable, {{columns[0], 43}, {columns[1], "test2"}});
     std::vector<TUnversionedRow> rows = {row1, row2};
 
-    skiffWriter->Write(rows);
+    Y_UNUSED(skiffWriter->Write(rows));
     skiffWriter->Close().Get().ThrowOnError();
 
     auto resultNode = ConvertTo<INodePtr>(BuildYsonStringFluently()

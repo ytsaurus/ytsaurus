@@ -135,9 +135,9 @@ private:
                             .ThrowOnError();
                     }
 
-                    writer->Write(rows);
+                    bool ready = writer->Write(rows);
                     rowBuffer->Clear();
-                    return writer->GetReadyEvent();
+                    return ready ? VoidFuture :  writer->GetReadyEvent();
                 })
                 .AsyncVia(Owner_->SerializedInvoker_)
                 .Run();

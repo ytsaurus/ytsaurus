@@ -257,7 +257,7 @@ private:
                 auto writer = WaitFor(asyncWriter)
                     .ValueOrThrow();
 
-                writer->Write(buffer->Rows());
+                Y_UNUSED(writer->Write(buffer->Rows()));
                 WaitFor(writer->Close())
                     .ThrowOnError();
 

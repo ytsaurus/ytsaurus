@@ -75,7 +75,7 @@ IUnversionedRowBatchPtr MakeColumnarRowBatch(
 
     TUnversionedRowsBuilder builder;
 
-    chunkWriter->Write(rows);
+    Y_UNUSED(chunkWriter->Write(rows));
     chunkWriter->Close().Get().IsOK();
 
     auto MemoryReader_ = CreateMemoryReader(

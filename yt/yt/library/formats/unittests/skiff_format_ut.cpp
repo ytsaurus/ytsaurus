@@ -369,11 +369,11 @@ TString TableToSkiff(
     TStringStream resultStream;
     auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {schema});
 
-    writer->Write({
+    Y_UNUSED(writer->Write({
         MakeRow(nameTable, {
             {"value", value}
         }).Get(),
-    });
+    }));
     writer->Close()
         .Get()
         .ThrowOnError();
@@ -493,7 +493,7 @@ void TestAllWireTypes(bool useSchema)
         TStringOutput resultStream(result);
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, tableSchemas);
 
-        writer->Write({
+        auto isWriterReady = writer->Write({
             MakeRow(nameTable, {
                 {"int64", -1},
                 {"uint64", 2u},
@@ -512,7 +512,11 @@ void TestAllWireTypes(bool useSchema)
                 {TableIndexColumnName, 0},
             }).Get(),
         });
-        writer->Write({
+        if (!isWriterReady) {
+            writer->GetReadyEvent().Get().ThrowOnError();
+        }
+
+        Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
                 {"int64", -9},
                 {"uint64", 10u},
@@ -530,7 +534,7 @@ void TestAllWireTypes(bool useSchema)
                 {"opt_string32", nullptr},
                 {TableIndexColumnName, 0},
             }).Get()
-        });
+        }));
 
         writer->Close()
             .Get()
@@ -662,9 +666,9 @@ TEST_P(TSkiffYsonWireTypeP, Test)
     auto nameTable = New<TNameTable>();
     TStringStream actualSkiffDataStream;
     auto writer = CreateSkiffWriter(skiffTableSchema, nameTable, &actualSkiffDataStream, {tableSchema});
-    writer->Write({
+    Y_UNUSED(writer->Write({
         MakeRow(nameTable, {{"column", value}})
-    });
+    }));
     writer->Close()
         .Get()
         .ThrowOnError();
@@ -704,8 +708,14 @@ TEST(TSkiffWriter, TestYsonWireType)
         TStringOutput resultStream(result);
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()});
 
+        auto write = [&] (TUnversionedRow row) {
+            if (!writer->Write({row})) {
+                writer->GetReadyEvent().Get().ThrowOnError();
+            }
+        };
+
         // Row 0 (Null)
-        writer->Write({
+        write({
             MakeRow(nameTable, {
                 {TableIndexColumnName, 0},
 
@@ -715,7 +725,7 @@ TEST(TSkiffWriter, TestYsonWireType)
         });
 
         // Row 1 (Int64)
-        writer->Write({
+        write({
             MakeRow(nameTable, {
                 {TableIndexColumnName, 0},
 
@@ -725,7 +735,7 @@ TEST(TSkiffWriter, TestYsonWireType)
         });
 
         // Row 2 (Uint64)
-        writer->Write({
+        write({
             MakeRow(nameTable, {
                 {TableIndexColumnName, 0},
 
@@ -735,7 +745,7 @@ TEST(TSkiffWriter, TestYsonWireType)
         });
 
         // Row 3 ((Double)
-        writer->Write({
+        write({
             MakeRow(nameTable, {
                 {TableIndexColumnName, 0},
 
@@ -745,7 +755,7 @@ TEST(TSkiffWriter, TestYsonWireType)
         });
 
         // Row 4 ((Boolean)
-        writer->Write({
+        write({
             MakeRow(nameTable, {
                 {TableIndexColumnName, 0},
 
@@ -755,7 +765,7 @@ TEST(TSkiffWriter, TestYsonWireType)
         });
 
         // Row 5 ((String)
-        writer->Write({
+        write({
             MakeRow(nameTable, {
                 {TableIndexColumnName, 0},
 
@@ -765,7 +775,7 @@ TEST(TSkiffWriter, TestYsonWireType)
         });
 
         // Row 6 ((Any)
-        writer->Write({
+        write({
             MakeRow(nameTable, {
                 {TableIndexColumnName, 0},
 
@@ -775,7 +785,7 @@ TEST(TSkiffWriter, TestYsonWireType)
         });
 
         // Row 7 ((missing optional values)
-        writer->Write({
+        write({
             MakeRow(nameTable, {
                 {TableIndexColumnName, 0},
             }).Get(),
@@ -1025,9 +1035,9 @@ TEST_P(TSkiffFormatSmallIntP, Test)
         TColumnSchema("column", logicalType),
     });
     auto writer = CreateSkiffWriter(skiffTableSchema, nameTable, &actualSkiffData, {tableSchema});
-    writer->Write({
+    Y_UNUSED(writer->Write({
         MakeRow(nameTable, {{"column", value}})
-    });
+    }));
     writer->Close()
         .Get()
         .ThrowOnError();
@@ -1059,9 +1069,9 @@ TEST(TSkiffWriter, TestBadSmallIntegers)
         });
         auto nameTable = New<TNameTable>();
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &result, {tableSchema});
-        writer->Write({
+        Y_UNUSED(writer->Write({
             MakeRow(nameTable, {{"column", std::move(value)}})
-        });
+        }));
         writer->Close()
             .Get()
             .ThrowOnError();
@@ -1243,7 +1253,7 @@ TEST_P(TSkiffFormatUuidTestP, Test)
         nonOwningRows.emplace_back(row);
     }
     auto skiffWriter = CreateSkiffWriter(skiffSchema, nameTable, &result, {tableSchema});
-    skiffWriter->Write(MakeRange(nonOwningRows));
+    Y_UNUSED(skiffWriter->Write(MakeRange(nonOwningRows)));
     skiffWriter->Close().Get().ThrowOnError();
     ASSERT_EQ(result.Str(), skiffString);
 
@@ -1268,9 +1278,9 @@ TEST(TSkiffFormatUuidTest, TestError)
 
     TStringStream result;
     auto skiffWriter = CreateSkiffWriter(skiffSchema, nameTable, &result, {tableSchema});
-    skiffWriter->Write({
+    Y_UNUSED(skiffWriter->Write({
         MakeRow(nameTable, {{"uuid", nullptr}}),
-    });
+    }));
     EXPECT_THROW_WITH_SUBSTRING(skiffWriter->Close().Get().ThrowOnError(),
         "Unexpected type");
 
@@ -1309,19 +1319,22 @@ TEST_P(TSkiffWriterSingular, TestOptionalSingular)
         TStringOutput resultStream(result);
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, tableSchemas);
         // Row 0
-        writer->Write({
+        auto isReady = writer->Write({
             MakeRow(nameTable, {
                 {TableIndexColumnName, 0},
                 {"opt_null", nullptr},
             }).Get(),
         });
+        if (!isReady) {
+            writer->GetReadyEvent().Get().ThrowOnError();
+        }
         // Row 1
-        writer->Write({
+        Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
                 {TableIndexColumnName, 0},
                 {"opt_null", EValueType::Composite, "[#]"},
             }).Get(),
-        });
+        }));
         writer->Close()
             .Get()
             .ThrowOnError();
@@ -1359,32 +1372,32 @@ TEST(TSkiffWriter, TestRearrange)
         TStringOutput resultStream(result);
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()});
 
-        writer->Write({
-            MakeRow(nameTable, {
-                {TableIndexColumnName, 0},
-                {"number", 1},
-                {"eng", "one"},
-                {"rus", nullptr},
-            }).Get()
-        });
+        auto write = [&] (TUnversionedRow row) {
+            if (!writer->Write({row})) {
+                writer->GetReadyEvent().Get().ThrowOnError();
+            }
+        };
 
-        writer->Write({
-            MakeRow(nameTable, {
-                {TableIndexColumnName, 0},
-                {"eng", nullptr},
-                {"number", 2},
-                {"rus", "dva"},
-            }).Get()
-        });
+        write(MakeRow(nameTable, {
+            {TableIndexColumnName, 0},
+            {"number", 1},
+            {"eng", "one"},
+            {"rus", nullptr},
+        }).Get());
 
-        writer->Write({
-            MakeRow(nameTable, {
-                {TableIndexColumnName, 0},
-                {"rus", "tri"},
-                {"eng", "three"},
-                {"number", 3},
-            }).Get()
-        });
+        write(MakeRow(nameTable, {
+            {TableIndexColumnName, 0},
+            {"eng", nullptr},
+            {"number", 2},
+            {"rus", "dva"},
+        }).Get());
+
+        write(MakeRow(nameTable, {
+            {TableIndexColumnName, 0},
+            {"rus", "tri"},
+            {"eng", "three"},
+            {"number", 3},
+        }).Get());
 
         writer->Close()
             .Get()
@@ -1433,12 +1446,12 @@ TEST(TSkiffWriter, TestMissingRequiredField)
         TStringOutput resultStream(result);
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()});
 
-        writer->Write({
+        Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
                 {TableIndexColumnName, 0},
                 {"number", 1},
             }).Get()
-        });
+        }));
         writer->Close()
             .Get()
             .ThrowOnError();
@@ -1463,43 +1476,39 @@ TEST(TSkiffWriter, TestSparse)
     TStringOutput resultStream(result);
     auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()});
 
-    writer->Write({
-        MakeRow(nameTable, {
-            {TableIndexColumnName, 0},
-            {"int64", -1},
-            {"string32", "minus one"},
-        }).Get(),
-    });
+    auto write = [&] (TUnversionedRow row) {
+        if (!writer->Write({row})) {
+            writer->GetReadyEvent().Get().ThrowOnError();
+        }
+    };
 
-    writer->Write({
-        MakeRow(nameTable, {
-            {TableIndexColumnName, 0},
-            {"string32", "minus five"},
-            {"int64", -5},
-        }).Get(),
-    });
+    write(MakeRow(nameTable, {
+        {TableIndexColumnName, 0},
+        {"int64", -1},
+        {"string32", "minus one"},
+    }).Get());
 
-    writer->Write({
-        MakeRow(nameTable, {
-            {TableIndexColumnName, 0},
-            {"uint64", 42u},
-        }).Get(),
-    });
+    write(MakeRow(nameTable, {
+        {TableIndexColumnName, 0},
+        {"string32", "minus five"},
+        {"int64", -5},
+    }).Get());
 
-    writer->Write({
-        MakeRow(nameTable, {
-            {TableIndexColumnName, 0},
-            {"int64", -8},
-            {"uint64", nullptr},
-            {"string32", nullptr},
-        }).Get(),
-    });
+    write(MakeRow(nameTable, {
+        {TableIndexColumnName, 0},
+        {"uint64", 42u},
+    }).Get());
 
-    writer->Write({
-        MakeRow(nameTable, {
-            {TableIndexColumnName, 0},
-        }).Get(),
-    });
+    write(MakeRow(nameTable, {
+        {TableIndexColumnName, 0},
+        {"int64", -8},
+        {"uint64", nullptr},
+        {"string32", nullptr},
+    }).Get());
+
+    write(MakeRow(nameTable, {
+        {TableIndexColumnName, 0},
+    }).Get());
 
     writer->Close()
         .Get()
@@ -1556,12 +1565,12 @@ TEST(TSkiffWriter, TestMissingFields)
         auto nameTable = New<TNameTable>();
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()});
 
-        writer->Write({
+        Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
                 {TableIndexColumnName, 0},
                 {"unknown_column", "four"},
             }).Get(),
-        });
+        }));
         writer->Close()
             .Get()
             .ThrowOnError();
@@ -1578,12 +1587,12 @@ TEST(TSkiffWriter, TestMissingFields)
 
         ASSERT_TRUE(unknownColumnId < nameTable->GetId("value"));
 
-        writer->Write({
+        Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
                 {TableIndexColumnName, 0},
                 {"unknown_column", "four"},
             }).Get(),
-        });
+        }));
         writer->Close()
             .Get()
             .ThrowOnError();
@@ -1608,28 +1617,29 @@ TEST(TSkiffWriter, TestOtherColumns)
     nameTable->RegisterName("string_column");
     auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()});
 
+    auto write = [&] (TUnversionedRow row) {
+        if (!writer->Write({row})) {
+            writer->GetReadyEvent().Get().ThrowOnError();
+        }
+    };
+
     // Row 0.
-    writer->Write({
-        MakeRow(nameTable, {
-            {TableIndexColumnName, 0},
-            {"string_column", "foo"},
-        }).Get(),
-    });
+    write(MakeRow(nameTable, {
+        {TableIndexColumnName, 0},
+        {"string_column", "foo"},
+    }).Get());
 
     // Row 1.
-    writer->Write({
-        MakeRow(nameTable, {
-            {TableIndexColumnName, 0},
-            {"int64_column", 42},
-        }).Get(),
-    });
+    write(MakeRow(nameTable, {
+        {TableIndexColumnName, 0},
+        {"int64_column", 42},
+    }).Get());
+
     // Row 2.
-    writer->Write({
-        MakeRow(nameTable, {
-            {TableIndexColumnName, 0},
-            {"other_string_column", "bar"},
-        }).Get(),
-    });
+    write(MakeRow(nameTable, {
+        {TableIndexColumnName, 0},
+        {"other_string_column", "bar"},
+    }).Get());
     writer->Close()
         .Get()
         .ThrowOnError();
@@ -1674,27 +1684,27 @@ TEST(TSkiffWriter, TestKeySwitch)
     auto nameTable = New<TNameTable>();
     auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()}, 1);
 
-    writer->Write({
-        // Row 0.
-        MakeRow(nameTable, {
-            {"value", "one"},
-            {TableIndexColumnName, 0},
-        }).Get(),
-    });
+    auto write = [&] (TUnversionedRow row) {
+        if (!writer->Write({row})) {
+            writer->GetReadyEvent().Get().ThrowOnError();
+        }
+    };
+
+    // Row 0.
+    write(MakeRow(nameTable, {
+        {"value", "one"},
+        {TableIndexColumnName, 0},
+    }).Get());
     // Row 1.
-    writer->Write({
-        MakeRow(nameTable, {
-            {"value", "one"},
-            {TableIndexColumnName, 0},
-        }).Get(),
-    });
+    write(MakeRow(nameTable, {
+        {"value", "one"},
+        {TableIndexColumnName, 0},
+    }).Get());
     // Row 2.
-    writer->Write({
-        MakeRow(nameTable, {
-            {"value", "two"},
-            {TableIndexColumnName, 0},
-        }).Get(),
-    });
+    write(MakeRow(nameTable, {
+        {"value", "two"},
+        {TableIndexColumnName, 0},
+    }).Get());
     writer->Close()
         .Get()
         .ThrowOnError();
@@ -1734,20 +1744,22 @@ TEST(TSkiffWriter, TestEndOfStream)
     auto nameTable = New<TNameTable>();
     auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()}, 1, true);
 
+    auto write = [&] (TUnversionedRow row) {
+        if (!writer->Write({row})) {
+            writer->GetReadyEvent().Get().ThrowOnError();
+        }
+    };
+
     // Row 0.
-    writer->Write({
-        MakeRow(nameTable, {
-            {"value", "zero"},
-            {TableIndexColumnName, 0},
-        }).Get(),
-    });
+    write(MakeRow(nameTable, {
+        {"value", "zero"},
+        {TableIndexColumnName, 0},
+    }).Get());
     // Row 1.
-    writer->Write({
-        MakeRow(nameTable, {
-            {"value", "one"},
-            {TableIndexColumnName, 0},
-        }).Get(),
-    });
+    write(MakeRow(nameTable, {
+        {"value", "one"},
+        {TableIndexColumnName, 0},
+    }).Get());
     writer->Close()
         .Get()
         .ThrowOnError();
@@ -1824,7 +1836,9 @@ TEST(TSkiffWriter, TestRowRangeIndex)
             tableSchemas);
 
         for (const auto& row : rows) {
-            writer->Write({generateUnversionedRow(row, nameTable)});
+            if (!writer->Write({generateUnversionedRow(row, nameTable)})) {
+                writer->GetReadyEvent().Get().ThrowOnError();
+            }
         }
         writer->Close()
             .Get()
@@ -1988,11 +2002,11 @@ TEST(TSkiffWriter, TestRowIndexOnlyOrRangeIndexOnly)
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()}, 1);
 
         // Row 0.
-        writer->Write({
+        Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
                 {columnName, 0},
             }).Get(),
-        });
+        }));
         writer->Close()
             .Get()
             .ThrowOnError();
@@ -2044,12 +2058,12 @@ TEST(TSkiffWriter, TestComplexType)
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema});
 
         // Row 0.
-        writer->Write({
+        Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
                 {"value", EValueType::Composite, "[foo;[[0; 1];[2;3]]]"},
                 {TableIndexColumnName, 0},
             }).Get(),
-        });
+        }));
         writer->Close()
             .Get()
             .ThrowOnError();
@@ -2099,12 +2113,12 @@ TEST(TSkiffWriter, TestEmptyComplexType)
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema});
 
         // Row 0.
-        writer->Write({
+        Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
                 {"value", nullptr},
                 {TableIndexColumnName, 0},
             }).Get(),
-        });
+        }));
         writer->Close()
             .Get()
             .ThrowOnError();
@@ -2146,12 +2160,12 @@ TEST(TSkiffWriter, TestSparseComplexType)
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema});
 
         // Row 0.
-        writer->Write({
+        Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
                 {"value", EValueType::Composite, "[foo;bar;]"},
                 {TableIndexColumnName, 0},
             }).Get(),
-        });
+        }));
         writer->Close()
             .Get()
             .ThrowOnError();
@@ -2199,12 +2213,12 @@ TEST(TSkiffWriter, TestSparseComplexTypeWithExtraOptional)
     auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema});
 
     // Row 0.
-    writer->Write({
+    Y_UNUSED(writer->Write({
         MakeRow(nameTable, {
             {"value", EValueType::Composite, "[foo;bar;]"},
             {TableIndexColumnName, 0},
         }).Get(),
-    });
+    }));
     writer->Close()
         .Get()
         .ThrowOnError();
@@ -2266,13 +2280,13 @@ TEST(TSkiffWriter, TestMissingComplexColumn)
         auto nameTable = New<TNameTable>();
         TStringStream resultStream;
         auto writer = CreateSkiffWriter(optionalSkiffSchema, nameTable, &resultStream, std::vector{New<TTableSchema>()});
-        writer->Write({
+        Y_UNUSED(writer->Write({
             MakeRow(nameTable, { }).Get(),
             MakeRow(nameTable, {
                 {"opt_list", nullptr},
             }).Get(),
             MakeRow(nameTable, { }).Get(),
-        });
+        }));
         writer->Close()
             .Get()
             .ThrowOnError();
@@ -2308,23 +2322,26 @@ TEST(TSkiffWriter, TestSkippedFields)
         TStringOutput resultStream(result);
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {tableSchema});
 
-        writer->Write({
-            MakeRow(nameTable, {
-                {"number", 1},
-                {"string", "hello"},
-                {RangeIndexColumnName, 0},
-                {RowIndexColumnName, 0},
-                {"double", 1.5},
-            }).Get()
-        });
-        writer->Write({
+        if (!writer->Write({
+                MakeRow(nameTable, {
+                    {"number", 1},
+                    {"string", "hello"},
+                    {RangeIndexColumnName, 0},
+                    {RowIndexColumnName, 0},
+                    {"double", 1.5},
+                }).Get()
+            }))
+        {
+            writer->GetReadyEvent().Get().ThrowOnError();
+        }
+        Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
                 {"number", 1},
                 {RangeIndexColumnName, 5},
                 {RowIndexColumnName, 1},
                 {"double", 2.5},
             }).Get()
-        });
+        }));
         writer->Close()
             .Get()
             .ThrowOnError();
@@ -2373,17 +2390,20 @@ TEST(TSkiffWriter, TestSkippedFieldsOutOfRange)
         TStringOutput resultStream(result);
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {tableSchema});
 
-        writer->Write({
-            MakeRow(nameTable, {
-                {"string", "hello"},
-                {RangeIndexColumnName, 0},
-            }).Get()
-        });
-        writer->Write({
+        if (!writer->Write({
+                MakeRow(nameTable, {
+                    {"string", "hello"},
+                    {RangeIndexColumnName, 0},
+                }).Get()
+            }))
+        {
+            writer->GetReadyEvent().Get().ThrowOnError();
+        }
+        Y_UNUSED(writer->Write({
             MakeRow(nameTable, {
                 {RangeIndexColumnName, 5},
             }).Get()
-        });
+        }));
         writer->Close()
             .Get()
             .ThrowOnError();
@@ -2417,30 +2437,30 @@ TEST(TSkiffWriter, TestSkippedFieldsAndKeySwitch)
     auto nameTable = New<TNameTable>();
     auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()}, 1);
 
-    writer->Write({
-        // Row 0.
-        MakeRow(nameTable, {
-            {"value", "one"},
-            {"value1", 0},
-            {TableIndexColumnName, 0},
-        }).Get(),
-    });
+    auto write = [&] (TUnversionedRow row) {
+        if (!writer->Write({row})) {
+            writer->GetReadyEvent().Get().ThrowOnError();
+        }
+    };
+
+    // Row 0.
+    write(MakeRow(nameTable, {
+        {"value", "one"},
+        {"value1", 0},
+        {TableIndexColumnName, 0},
+    }).Get());
     // Row 1.
-    writer->Write({
-        MakeRow(nameTable, {
-            {"value", "one"},
-            {"value1", 1},
-            {TableIndexColumnName, 0},
-        }).Get(),
-    });
+    write(MakeRow(nameTable, {
+        {"value", "one"},
+        {"value1", 1},
+        {TableIndexColumnName, 0},
+    }).Get());
     // Row 2.
-    writer->Write({
-        MakeRow(nameTable, {
-            {"value", "two"},
-            {"value1", 2},
-            {TableIndexColumnName, 0},
-        }).Get(),
-    });
+    write(MakeRow(nameTable, {
+        {"value", "two"},
+        {"value1", 2},
+        {TableIndexColumnName, 0},
+    }).Get());
     writer->Close()
         .Get()
         .ThrowOnError();
