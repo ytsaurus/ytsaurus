@@ -41,4 +41,24 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EListIndexType,
+    (Absolute)
+    (Relative)
+);
+
+struct TIndexParseResult
+{
+    i64 Index;
+    EListIndexType IndexType;
+
+    void EnsureIndexType(EListIndexType indexType, TStringBuf path);
+    void EnsureIndexIsWithinBounds(i64 count, TStringBuf path);
+    bool IsOutOfBounds(i64 count);
+};
+
+// Parses list index from 'end', 'begin', 'before:<index>', 'after:<index>' or Integer in [-count, count).
+TIndexParseResult ParseListIndex(TStringBuf token, i64 count);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NOrm::NAttributes
