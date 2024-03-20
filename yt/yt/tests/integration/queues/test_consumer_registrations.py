@@ -834,15 +834,7 @@ class TestDataApi(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgent
 
     @staticmethod
     def _create_consumer(path, mount=True, without_meta=False, **kwargs):
-        attributes = {
-            "dynamic": True,
-            "schema": init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META if without_meta else init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
-            "treat_as_queue_consumer": True,
-        }
-        attributes.update(kwargs)
-        create("table", path, attributes=attributes)
-        if mount:
-            sync_mount_table(path)
+        TestQueueAgentBase._create_consumer(path, mount, without_meta, **kwargs)
 
     @staticmethod
     def _create_symlink_queue(path):

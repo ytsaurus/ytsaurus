@@ -90,14 +90,7 @@ class TestQueueCommands(object):
 
     @staticmethod
     def _create_consumer(path, **kwargs):
-        attributes = {
-            "dynamic": True,
-            "schema": init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
-            "treat_as_queue_consumer": True,
-        }
-        attributes.update(kwargs)
-        yt.create("table", path, attributes=attributes)
-        yt.mount_table(path, sync=True)
+        yt.create("consumer", path=path, attributes=kwargs)
 
     @authors("achulkov2")
     # This is a very basic test, just to check that there are no bugs in the client api implementation.
