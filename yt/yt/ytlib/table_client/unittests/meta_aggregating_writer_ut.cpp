@@ -114,7 +114,7 @@ protected:
                 descending ? --key : ++key;
             }
             auto rows = builder.Build();
-            chunkWriter->Write(rows);
+            Y_UNUSED(chunkWriter->Write(rows));
             WaitFor(chunkWriter->Close())
                 .ThrowOnError();
             for (auto row : rows) {

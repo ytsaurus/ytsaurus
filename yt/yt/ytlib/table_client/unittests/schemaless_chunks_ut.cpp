@@ -221,7 +221,7 @@ protected:
         WriteNameTable_ = chunkWriter->GetNameTable();
         InitNameTable(WriteNameTable_);
 
-        chunkWriter->Write(Rows_);
+        Y_UNUSED(chunkWriter->Write(Rows_));
         EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
 
         MemoryReader_ = CreateMemoryReader(
@@ -411,7 +411,7 @@ protected:
 
         Rows_ = builder.Build();
 
-        chunkWriter->Write(Rows_);
+        Y_UNUSED(chunkWriter->Write(Rows_));
         EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
 
         MemoryReader_ = CreateMemoryReader(
@@ -724,7 +724,7 @@ protected:
     void InitChunk()
     {
 
-        ChunkWriter_->Write(Rows_);
+        Y_UNUSED(ChunkWriter_->Write(Rows_));
         EXPECT_TRUE(ChunkWriter_->Close().Get().IsOK());
 
         MemoryReader_ = CreateMemoryReader(

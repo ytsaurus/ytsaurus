@@ -173,6 +173,12 @@ public:
         bool recursive = false,
         bool dontLockForeign = false) = 0;
 
+    //! Returns |true| if lock can be acquired.
+    virtual bool CanLock(
+        TCypressNode* trunkNode,
+        const TLockRequest& request,
+        bool recursive = false) = 0;
+
     struct TCreateLockResult
     {
         TLock* Lock;

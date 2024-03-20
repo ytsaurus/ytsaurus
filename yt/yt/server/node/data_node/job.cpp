@@ -2261,7 +2261,7 @@ private:
             readerOptions,
             MakeSingletonRowRange(MinKey(), MaxKey()),
             /*columnFilter*/ {},
-            AsyncLastCommittedTimestamp,
+            AllCommittedTimestamp,
             /*produceAllVersions*/ true);
 
         auto writer = CreateVersionedChunkWriter(
@@ -2271,8 +2271,10 @@ private:
             confirmingWriter);
 
         while (auto batch = ReadRowBatch(reader)) {
-            YT_LOG_DEBUG("Versioned reincarnation: read %v rows", batch->GetRowCount());
-            writer->Write(batch->MaterializeRows());
+            if (!writer->Write(batch->MaterializeRows())) {
+                WaitFor(writer->GetReadyEvent())
+                    .ThrowOnError();
+            }
         }
 
         CopyMeta(writer->GetMeta(), oldChunkMeta);
@@ -2322,7 +2324,10 @@ private:
             chunkTimestamps);
 
         while (auto batch = ReadRowBatch(reader)) {
-            writer->Write(batch->MaterializeRows());
+            if (!writer->Write(batch->MaterializeRows())) {
+                WaitFor(writer->GetReadyEvent())
+                    .ThrowOnError();
+            }
         }
 
         CopyMeta(

@@ -14,6 +14,8 @@
 
 #include <yt/yt/server/master/chunk_server/proto/chunk_reincarnator.pb.h>
 
+#include <yt/yt/server/master/cypress_server/lock.h>
+
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 
 #include <yt/yt/server/master/table_server/helpers.h>
@@ -33,6 +35,7 @@ using namespace NCellMaster;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
+using namespace NCypressServer;
 using namespace NHydra;
 using namespace NNodeTrackerServer;
 using namespace NNodeTrackerClient::NProto;
@@ -333,7 +336,7 @@ public:
             }
         }
 
-        if (!traversalState.TableFound) {
+        if (!traversalState.TableFound && !chunk->IsExported()) {
             // NB: This case is rare enough to log it.
             YT_LOG_DEBUG("Chunk is not reachable from any table (ChunkId: %v)",
                 chunk->GetId());
@@ -462,8 +465,11 @@ private:
 
                     if (owner->GetType() == EObjectType::Table) {
                         auto* table = owner->As<TTableNode>();
+                        const auto& cypressManager = Bootstrap_->GetCypressManager();
+
                         if (table->IsDynamic() &&
-                            table->GetTabletState() != NTabletClient::ETabletState::Unmounted)
+                            table->GetTabletState() != NTabletClient::ETabletState::Unmounted &&
+                            cypressManager->CanLock(table, ELockMode::Exclusive))
                         {
                             return EReincarnationResult::DynamicTableChunk;
                         }
@@ -1663,26 +1669,18 @@ private:
                 continue;
             }
 
-            switch (chunk->GetChunkFormat()) {
-                // Static tables.
-                case EChunkFormat::TableUnversionedSchemaful:
-                case EChunkFormat::TableUnversionedSchemalessHorizontal:
-                case EChunkFormat::TableUnversionedColumnar:
-                // Dynamic tables.
-                case EChunkFormat::TableVersionedColumnar:
-                case EChunkFormat::TableVersionedSlim:
-                case EChunkFormat::TableVersionedSimple:
-                case EChunkFormat::TableVersionedIndexed:
-                // Some old table chunks can have this format. Such chunks should be reincarnated.
-                case EChunkFormat::FileDefault:
-                    break;
-                default:
-                    YT_LOG_DEBUG("Chunk has unsuitable format; skipping (ChunkId: %v, Format: %v)",
-                        chunk->GetId(),
-                        chunk->GetChunkFormat());
-                    OnReincarnationFinished(EReincarnationResult::WrongChunkFormat);
-                    ++skipped.WrongFormat;
-                    continue;
+            if (!IsSuitableFormat(chunk->GetChunkFormat())) {
+                // NB: avoid too many log messages when versioned chunks are
+                // skipped.
+                auto shouldLogWrongFormat = !config->SkipVersionedChunks || config->EnableVerboseLogging;
+                YT_LOG_DEBUG_IF(
+                    shouldLogWrongFormat,
+                    "Chunk has unsuitable format; skipping (ChunkId: %v, Format: %v)",
+                    chunk->GetId(),
+                    chunk->GetChunkFormat());
+                OnReincarnationFinished(EReincarnationResult::WrongChunkFormat);
+                ++skipped.WrongFormat;
+                continue;
             }
 
             if (!(config->IgnoreAccountSettings || options.IgnoreAccountSettings)) {
@@ -1779,6 +1777,27 @@ private:
             "Chunks were not reincarnated because of account settings (ChunkCount: %v, ChunkIds: %v)",
             skippedBecauseOfAccountSettings.size(),
             MakeShrunkFormattableView(skippedBecauseOfAccountSettings, TDefaultFormatter(), SampleChunkIdCount));
+    }
+
+    bool IsSuitableFormat(EChunkFormat chunkFormat)
+    {
+        switch (chunkFormat) {
+            // Static tables.
+            case EChunkFormat::TableUnversionedSchemaful:
+            case EChunkFormat::TableUnversionedSchemalessHorizontal:
+            case EChunkFormat::TableUnversionedColumnar:
+            // Some old table chunks can have this format. Such chunks should be reincarnated.
+            case EChunkFormat::FileDefault:
+                return true;
+            // Dynamic tables.
+            case EChunkFormat::TableVersionedColumnar:
+            case EChunkFormat::TableVersionedSlim:
+            case EChunkFormat::TableVersionedSimple:
+            case EChunkFormat::TableVersionedIndexed:
+                return !GetDynamicConfig()->SkipVersionedChunks;
+            default:
+                return false;
+        }
     }
 
     bool IsReincarnationAllowedByAccountSettings(TChunk* chunk)

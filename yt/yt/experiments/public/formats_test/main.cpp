@@ -59,7 +59,7 @@ int main(int argc, char** argv)
                     MergeRefsToRef<TDefaultBlobTag>(attachments));
 
                 auto writer = CreateVersionedWriterForFormat(format, schema, output);
-                writer->Write(rowset->GetRows());
+                Y_UNUSED(writer->Write(rowset->GetRows()));
                 WaitFor(writer->Close())
                     .ThrowOnError();
             } else {
@@ -68,7 +68,7 @@ int main(int argc, char** argv)
                     MergeRefsToRef<TDefaultBlobTag>(attachments));
 
                 auto writer = CreateSchemafulWriterForFormat(format, schema, output);
-                writer->Write(rowset->GetRows());
+                Y_UNUSED(writer->Write(rowset->GetRows()));
                 WaitFor(writer->Close())
                     .ThrowOnError();
             }
