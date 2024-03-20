@@ -117,7 +117,7 @@ def get_cluster_client_factory_from_db_config(db_config):
         raise RuntimeError("Unsupported storage type: {}".format(repr(storage_type)))
 
 
-def init_yt_table(table, client, bundle):
+def init_yt_table(table, client, bundle, primary_medium):
     schema = [
         {"name": "cluster", "type": "string", "sort_order": "ascending"},
         {"name": "service", "type": "string", "sort_order": "ascending"},
@@ -128,5 +128,5 @@ def init_yt_table(table, client, bundle):
     ]
 
     client.create("table", table, recursive=True,
-                  attributes={"dynamic": True, "schema": schema, "tablet_cell_bundle": bundle})
+                  attributes={"dynamic": True, "schema": schema, "tablet_cell_bundle": bundle, "primary_medium": primary_medium})
     client.mount_table(table, sync=True)
