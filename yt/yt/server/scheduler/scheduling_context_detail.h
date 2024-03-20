@@ -76,6 +76,9 @@ public:
     virtual void StoreScheduleAllocationExecDurationEstimate(TDuration duration) override;
     virtual TDuration ExtractScheduleAllocationExecDurationEstimate() override;
 
+    ENodeSchedulingResult GetNodeSchedulingResult() const override;
+    void SetNodeSchedulingResult(ENodeSchedulingResult result) override;
+
 private:
     const int NodeShardId_;
     const TSchedulerConfigPtr Config_;
@@ -107,6 +110,8 @@ private:
     TScheduleAllocationsStatistics SchedulingStatistics_;
 
     std::optional<TDuration> ScheduleAllocationExecDurationEstimate_;
+
+    ENodeSchedulingResult NodeSchedulingResult_ = ENodeSchedulingResult::FullyScheduled;
 
     bool CanSatisfyResourceRequest(
         const TJobResources& allocationResources,

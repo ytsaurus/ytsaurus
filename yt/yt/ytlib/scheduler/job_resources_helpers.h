@@ -64,14 +64,15 @@ TString FormatResourcesConfig(const TJobResourcesConfigPtr& config);
 class TJobResourcesProfiler
 {
 public:
-    void Init(const NProfiling::TProfiler& profiler);
+    TJobResourcesProfiler();
+
+    void Init(const NProfiling::TProfiler& profiler, NProfiling::EMetricType metricType = NProfiling::EMetricType::Gauge);
     void Reset();
     void Update(const TJobResources& resources);
 
 private:
-#define XX(name, Name) NProfiling::TGauge Name;
-    ITERATE_JOB_RESOURCES(XX)
-#undef XX
+    NProfiling::TBufferedProducerPtr Producer_;
+    NProfiling::EMetricType MetricType_ = NProfiling::EMetricType::Gauge;
 };
 
 void ProfileResources(

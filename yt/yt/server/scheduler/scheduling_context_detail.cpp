@@ -280,6 +280,16 @@ TDuration TSchedulingContextBase::ExtractScheduleAllocationExecDurationEstimate(
     return *std::exchange(ScheduleAllocationExecDurationEstimate_, {});
 }
 
+ENodeSchedulingResult TSchedulingContextBase::GetNodeSchedulingResult() const
+{
+    return NodeSchedulingResult_;
+}
+
+void TSchedulingContextBase::SetNodeSchedulingResult(ENodeSchedulingResult result)
+{
+    NodeSchedulingResult_ = result;
+}
+
 void TSchedulingContextBase::ResetDiscounts()
 {
     UnconditionalDiscount_ = {};
