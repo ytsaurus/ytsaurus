@@ -1142,6 +1142,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_transactions_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/connection.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/consumer_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/default_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/file_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/file_writer.cpp
@@ -1341,6 +1342,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/shuffle.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/join_tree.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/consumer_init.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/dynamic_state.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/registration_manager.cpp
