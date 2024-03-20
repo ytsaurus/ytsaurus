@@ -6,6 +6,7 @@
 #include "chunk_view.h"
 #include "chunk_location.h"
 #include "dynamic_store.h"
+#include "job.h"
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
@@ -1266,6 +1267,29 @@ std::vector<TInstant> GenerateChunkCreationTimeHistogramBucketBounds(TInstant no
     }
     bounds.push_back(now);
     return bounds;
+}
+
+TJobPtr MummifyJob(const TJobPtr& job)
+{
+    YT_VERIFY(job);
+
+    class TMummyJob
+        : public TJob
+    {
+    public:
+        TMummyJob(const TJob& other)
+            : TJob(other)
+        { }
+
+        bool FillJobSpec(
+            NCellMaster::TBootstrap* /*bootstrap*/,
+            NProto::TJobSpec* /*jobSpec*/) const override
+        {
+            YT_UNIMPLEMENTED();
+        };
+    };
+
+    return New<TMummyJob>(*job);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
