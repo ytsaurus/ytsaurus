@@ -244,6 +244,8 @@ items:
                href: user-guide/data-processing/chyt/reference/data-types.md
              - name: Functions
                href: user-guide/data-processing/chyt/reference/functions.md
+             - name: User-defined SQL functions (UDF)
+               href: user-guide/data-processing/chyt/reference/user-defined-functions.md 
            - name: Controller
              href: user-guide/data-processing/chyt/cliques/controller.md
            - name: Performance and recommendations
@@ -477,5 +479,3 @@ items:
      href: user-guide/problems/howtoreport.md
    - name: Event presentations, publications, and workshops
      href: other/video-posts.md
-
-

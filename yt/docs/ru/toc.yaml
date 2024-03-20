@@ -257,7 +257,7 @@ items:
             - name: Функции
               href: user-guide/data-processing/chyt/reference/functions.md
             - name: Пользовательские функции (UDF)
-              href: user-guide/data-processing/chyt/reference/user_defined_functions.md
+              href: user-guide/data-processing/chyt/reference/user-defined-functions.md
           - name: Контроллер
             href: user-guide/data-processing/chyt/cliques/controller.md
           - name: Производительность и рекомендации
@@ -439,4 +439,3 @@ items:
   - name: Выступления на мероприятиях, публикации и семинары
     when: audience == "public"
     href: other/video-posts.md
-
