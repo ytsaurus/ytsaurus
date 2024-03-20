@@ -445,7 +445,7 @@ void DoGlobalizeHunkValue(
     Visit(
         ReadHunkValue(TRef(value->Data.String, value->Length)),
         [&] (const TInlineHunkValue& inlineHunkValue) {
-            if (compressionDictionaryId) {
+            if (compressionDictionaryId && !inlineHunkValue.Payload.Empty()) {
                 TCompressedInlineRefHunkValue compressedInlineRefHunkValue{
                     .CompressionDictionaryId = compressionDictionaryId,
                     .Payload = inlineHunkValue.Payload,

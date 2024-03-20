@@ -543,6 +543,11 @@ private:
                     YT_VERIFY(IsStringLikeType(value.Type));
                     YT_VERIFY(None(value.Flags & EValueFlags::Hunk));
 
+                    // YT-21327.
+                    if (value.Length == 0) {
+                        continue;
+                    }
+
                     MaybeAddSample(
                         &columnInfo,
                         TRef(value.Data.String, value.Length));

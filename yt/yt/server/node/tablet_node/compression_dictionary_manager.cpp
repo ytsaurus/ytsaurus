@@ -203,6 +203,10 @@ private:
             return false;
         }
 
+        if (value.Length == 0) {
+            return false;
+        }
+
         return true;
     }
 };
