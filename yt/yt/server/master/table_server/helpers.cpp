@@ -15,6 +15,7 @@ namespace NYT::NTableServer {
 
 using namespace NCellMaster;
 using namespace NQueueClient;
+using namespace NRpc;
 using namespace NTableClient;
 using namespace NTableServer;
 using namespace NYPath;
@@ -38,8 +39,9 @@ TFuture<TYsonString> GetQueueAgentAttributeAsync(
     TInternedAttributeKey key)
 {
     const auto& connection = bootstrap->GetClusterConnection();
-    const auto& clusterName = connection->GetStaticConfig()->ClusterName;
-    if (!clusterName) {
+
+    const auto& currentClusterName = connection->GetStaticConfig()->ClusterName;
+    if (!currentClusterName) {
         THROW_ERROR_EXCEPTION("Cluster name is not set in cluster connection config");
     }
 
@@ -59,14 +61,38 @@ TFuture<TYsonString> GetQueueAgentAttributeAsync(
 
     auto queueAgentStage = GetEffectiveQueueAgentStage(bootstrap, queueAgentStageOptional);
 
-    // NB: instead of using cluster connection from our bootstrap, we take it
-    // from the cluster directory. This works as a poor man's dynamic cluster connection
-    // allowing us to reconfigure queue agent stages without need to update master config.
-    auto dynamicConnection = connection->GetClusterDirectory()->GetConnectionOrThrow(*clusterName);
+    auto getQueueAgentChannelFromClusterOrNull = [&](TString clusterName) -> IChannelPtr {
+        // NB: instead of using cluster connection from our bootstrap, we take it
+        // from the cluster directory. This works as a poor man's dynamic cluster connection
+        // allowing us to reconfigure queue agent stages without need to update master config.
+        auto dynamicConnection = connection->GetClusterDirectory()->FindConnection(clusterName);
 
-    auto queueAgentObjectService = CreateQueueAgentYPathService(
-        dynamicConnection->GetQueueAgentChannelOrThrow(queueAgentStage),
-        *clusterName,
+        return dynamicConnection->GetQueueAgentChannelOrNull(queueAgentStage);
+    };
+
+    IChannelPtr queueAgentChannel = nullptr;
+
+    queueAgentChannel = getQueueAgentChannelFromClusterOrNull(*currentClusterName);
+
+    if (!queueAgentChannel) {
+        for (const auto& clusterName : connection->GetClusterDirectory()->GetClusterNames()) {
+            if (clusterName == *currentClusterName) {
+                continue;
+            }
+            queueAgentChannel = getQueueAgentChannelFromClusterOrNull(clusterName);
+            if (queueAgentChannel) {
+                break;
+            }
+        }
+    }
+
+    if (!queueAgentChannel) {
+        THROW_ERROR_EXCEPTION("Queue agent stage %Qv is not found", queueAgentStage);
+    }
+
+    IYPathServicePtr queueAgentObjectService = CreateQueueAgentYPathService(
+        queueAgentChannel,
+        *currentClusterName,
         objectKind,
         path);
 

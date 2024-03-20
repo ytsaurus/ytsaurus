@@ -556,11 +556,11 @@ public:
         return WrapChaosChannel(ReplicationCardChannelFactory_->CreateChannel(replicationCardId, peerKind));
     }
 
-    const IChannelPtr& GetQueueAgentChannelOrThrow(TStringBuf stage) const override
+    IChannelPtr GetQueueAgentChannelOrNull(TStringBuf stage) const override
     {
         auto it = QueueAgentChannels_.find(stage);
         if (it == QueueAgentChannels_.end()) {
-            THROW_ERROR_EXCEPTION("Queue agent stage %Qv is not found", stage);
+            return nullptr;
         }
         return it->second;
     }

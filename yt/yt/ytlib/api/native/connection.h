@@ -114,7 +114,7 @@ struct IConnection
         NChaosClient::TReplicationCardId replicationCardId,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader) = 0;
 
-    virtual const NRpc::IChannelPtr& GetQueueAgentChannelOrThrow(TStringBuf stage) const = 0;
+    virtual NRpc::IChannelPtr GetQueueAgentChannelOrNull(TStringBuf stage) const = 0;
     virtual const NQueueClient::TQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const = 0;
 
     virtual NRpc::IRoamingChannelProviderPtr GetYqlAgentChannelProviderOrThrow(const TString& stage) const = 0;
