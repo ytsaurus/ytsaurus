@@ -10,6 +10,7 @@ TEST_SRCS(
     test_consumer_registrations.py
     test_object_watchlist.py
     test_queue_agent.py
+    test_queue_agent_stages.py
 )
 
 PEERDIR(
