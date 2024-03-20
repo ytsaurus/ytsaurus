@@ -34,4 +34,5 @@ target_sources(yt-server-rpc_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/rpc_proxy/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/rpc_proxy/discovery_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/rpc_proxy/dynamic_config_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/rpc_proxy/bundle_dynamic_config_manager.cpp
 )

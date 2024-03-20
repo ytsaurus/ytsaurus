@@ -76,6 +76,7 @@ private:
     NTracing::TSamplerPtr TraceSampler_;
     NNodeTrackerClient::TAddressMap LocalAddresses_;
     IDynamicConfigManagerPtr DynamicConfigManager_;
+    IBundleDynamicConfigManagerPtr BundleDynamicConfigManager_;
     IAccessCheckerPtr AccessChecker_;
 
     INodeMemoryTrackerPtr MemoryUsageTracker_;
@@ -91,10 +92,18 @@ private:
         const TProxyDynamicConfigPtr& /*oldConfig*/,
         const TProxyDynamicConfigPtr& newConfig);
 
+    void OnBundleDynamicConfigChanged(
+        const TBundleProxyDynamicConfigPtr& /*oldConfig*/,
+        const TBundleProxyDynamicConfigPtr& newConfig);
+
     const IInvokerPtr& GetWorkerInvoker() const;
     const IInvokerPtr& GetControlInvoker() const;
 
     void ReconfigureMemoryLimits(const TProxyMemoryLimitsPtr& memoryLimits);
+
+    void ReconfigureConnection(
+        const TProxyDynamicConfigPtr& dynamicConfig,
+        const TBundleProxyDynamicConfigPtr& bundleConfig);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -190,4 +190,12 @@ void TProxyMemoryLimits::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TBundleProxyDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("clock_cluster_tag", &TThis::ClockClusterTag)
+        .Optional();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NRpcProxy
