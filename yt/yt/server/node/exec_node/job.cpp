@@ -2571,20 +2571,20 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         return shardingKey.substr(0, shardingKeyLength);
     };
 
-    auto tryReplacePatterns = [&] (TString& str) {
-        size_t sharding_key_pattern_index = str.find(ShardingKeyPattern);
-        if (sharding_key_pattern_index != TString::npos) {
-            str.replace(sharding_key_pattern_index, ShardingKeyPattern.size(), calculateShardingKey(proxyConfig->ShardingKeyLength));
+    auto replacePatterns = [&] (TString& str) {
+        size_t shardingKeyPatternIndex = str.find(ShardingKeyPattern);
+        if (shardingKeyPatternIndex != TString::npos) {
+            str.replace(shardingKeyPatternIndex, ShardingKeyPattern.size(), calculateShardingKey(proxyConfig->ShardingKeyLength));
         }
 
-        size_t job_id_pattern_index = str.find(JobIdPattern);
-        if (job_id_pattern_index != TString::npos) {
-            str.replace(job_id_pattern_index, JobIdPattern.size(), ToString(GetId()));
+        size_t jobIdPatternIndex = str.find(JobIdPattern);
+        if (jobIdPatternIndex != TString::npos) {
+            str.replace(jobIdPatternIndex, JobIdPattern.size(), ToString(GetId()));
         }
 
-        size_t slot_index_pattern_index = str.find(SlotIndexPattern);
-        if (slot_index_pattern_index != TString::npos) {
-            str.replace(slot_index_pattern_index, SlotIndexPattern.size(), ToString(GetUserSlot()->GetSlotIndex()));
+        size_t slotIndexPatternIndex = str.find(SlotIndexPattern);
+        if (slotIndexPatternIndex != TString::npos) {
+            str.replace(slotIndexPatternIndex, SlotIndexPattern.size(), ToString(GetUserSlot()->GetSlotIndex()));
         }
     };
 
@@ -2596,16 +2596,16 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         }
 
         auto fileLogWriterConfig = ConvertTo<NLogging::TFileLogWriterConfigPtr>(writerConfigNode);
-        tryReplacePatterns(fileLogWriterConfig->FileName);
+        replacePatterns(fileLogWriterConfig->FileName);
         return writerConfig->BuildFullConfig(fileLogWriterConfig);
     });
 
     if (proxyConfig->StderrPath) {
-        tryReplacePatterns(*proxyConfig->StderrPath);
+        replacePatterns(*proxyConfig->StderrPath);
     }
 
     if (proxyConfig->ExecutorStderrPath) {
-        tryReplacePatterns(*proxyConfig->ExecutorStderrPath);
+        replacePatterns(*proxyConfig->ExecutorStderrPath);
     }
 
     for (const auto& slot : GetGpuSlots()) {

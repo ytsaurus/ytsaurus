@@ -763,15 +763,15 @@ void TNbdConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TJobProxyLoggingEnvironment::Register(TRegistrar registrar)
+void TJobProxyLoggingConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("logging_mode", &TThis::LoggingMode)
+    registrar.Parameter("mode", &TThis::Mode)
         .Default();
 
-    registrar.Parameter("logging_directory", &TThis::LoggingDirectory)
+    registrar.Parameter("directory", &TThis::Directory)
         .Default();
 
-    registrar.Parameter("logging_template", &TThis::LoggingTemplate)
+    registrar.Parameter("log_manager_template", &TThis::LogManagerTemplate)
         .DefaultNew();
 
     registrar.Parameter("sharding_key_length", &TThis::ShardingKeyLength)
@@ -787,7 +787,7 @@ void TJobProxyLoggingEnvironment::Register(TRegistrar registrar)
 
 void TJobProxyConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("job_proxy_logging_environment", &TThis::JobProxyLoggingEnvironment)
+    registrar.Parameter("job_proxy_logging", &TThis::JobProxyLogging)
         .DefaultNew();
 
     registrar.Parameter("job_proxy_jaeger", &TThis::JobProxyJaeger)

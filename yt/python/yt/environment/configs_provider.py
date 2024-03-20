@@ -902,32 +902,32 @@ def _build_node_configs(node_dirs,
 
         set_at(
             config,
-            "exec_node/job_proxy/job_proxy_logging_environment/logging_mode",
+            "exec_node/job_proxy/job_proxy_logging/mode",
             yt_config.job_proxy_logging["mode"]
         )
         set_at(
             config,
-            "exec_node/job_proxy/job_proxy_logging_environment/sharding_key_length",
+            "exec_node/job_proxy/job_proxy_logging/sharding_key_length",
             yt_config.job_proxy_logging["sharding_key_length"]
         )
         set_at(
             config,
-            "exec_node/job_proxy/job_proxy_logging_environment/logging_directory",
+            "exec_node/job_proxy/job_proxy_logging/directory",
             os.path.join(logs_dir, "job_proxy-{0}/%sharding_key%/%job_id%".format(index))
         )
         set_at(
             config,
-            "exec_node/job_proxy/job_proxy_logging_environment/logging_template",
+            "exec_node/job_proxy/job_proxy_logging/log_manager_template",
             _init_logging(logs_dir, log_name, yt_config)
         )
         set_at(
             config,
-            "exec_node/job_proxy/job_proxy_logging_environment/job_proxy_stderr_path",
+            "exec_node/job_proxy/job_proxy_logging/job_proxy_stderr_path",
             os.path.join(logs_dir, "job_proxy-{0}-stderr-slot-%slot_index%".format(index)),
         )
         set_at(
             config,
-            "exec_node/job_proxy/job_proxy_logging_environment/executor_stderr_path",
+            "exec_node/job_proxy/job_proxy_logging/executor_stderr_path",
             os.path.join(logs_dir, "ytserver_exec-{0}-stderr-slot-%slot_index%".format(index))
         )
 

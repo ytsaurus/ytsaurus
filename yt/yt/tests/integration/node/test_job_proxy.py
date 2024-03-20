@@ -4,7 +4,8 @@ from yt_helpers import profiler_factory
 
 from yt_commands import (
     ls, get, set, print_debug, authors, wait, run_test_vanilla, create_user,
-    wait_breakpoint, with_breakpoint, release_breakpoint, create, remove, read_table)
+    wait_breakpoint, with_breakpoint, release_breakpoint, create, remove, read_table,
+    write_table, map)
 
 from yt.common import YtError, update_inplace
 from yt.wrapper import YtClient
@@ -379,3 +380,34 @@ class TestJobProxyProfiling(YTEnvSetup):
         op.abort()
 
         wait(lambda: thread_count.get() is None)
+
+
+class TestJobProxyLogging(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "job_proxy_logging": {
+                    "mode": "per_job_directory",
+                },
+            },
+        }
+    }
+
+    @authors("tagirhamitov")
+    def test_separate_directory(self):
+        create("table", "//tmp/input", attributes={"replication_factor": 1})
+        create("table", "//tmp/output", attributes={"replication_factor": 1})
+        write_table("//tmp/input", [{"a": 1}, {"b": 2}, {"c": 3}])
+        op = map(
+            command="cat",
+            in_="//tmp/input",
+            out="//tmp/output",
+            job_count=3
+        )
+        op.complete()
+        job_proxy_logs_dir = os.path.join(self.path_to_run, "logs/job_proxy-0")
+        assert os.path.isdir(job_proxy_logs_dir)
