@@ -199,12 +199,10 @@ void TCellTrackerImpl::ScanCells()
 
 void TCellTrackerImpl::ScanCellarCells(ECellarType cellarType)
 {
-    ClearPeerFailureCache();
-
     auto balancer = CreateCellBalancer(PerCellarProviders_[cellarType]);
 
     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-    const auto& cellManager = Bootstrap_->GetTamedCellManager();
+    const auto& cellManger = Bootstrap_->GetTamedCellManager();
 
     TReqReassignPeers request;
 
@@ -214,7 +212,7 @@ void TCellTrackerImpl::ScanCellarCells(ECellarType cellarType)
     // is not ready yet. For such bundles we do not execute any leader reassignments to synchronize
     // reassignment downtimes of different cells.
     THashSet<TCellBundle*> bundlesWithUnreadyLeaderReassignments;
-    for (auto* cell : cellManager->Cells(cellarType)) {
+    for (auto* cell : cellManger->Cells(cellarType)) {
         if (!IsObjectAlive(cell)) {
             continue;
         }
@@ -335,7 +333,7 @@ bool TCellTrackerImpl::IsLeaderReassignmentRequired(TCellBase* cell)
         return false;
     }
 
-    auto error = CachedIsFailed(leadingPeer, cell, GetDynamicConfig()->LeaderReassignmentTimeout);
+    auto error = IsFailed(leadingPeer, cell, GetDynamicConfig()->LeaderReassignmentTimeout);
     return static_cast<bool>(error.FindMatching(NCellServer::EErrorCode::NodeDecommissioned));
 }
 
@@ -345,7 +343,7 @@ int TCellTrackerImpl::FindNewLeadingPeerId(TCellBase* cell)
     TError error;
 
     if (!leadingPeer.Descriptor.IsNull()) {
-        error = CachedIsFailed(leadingPeer, cell, GetDynamicConfig()->LeaderReassignmentTimeout);
+        error = IsFailed(leadingPeer, cell, GetDynamicConfig()->LeaderReassignmentTimeout);
         if (error.IsOK()) {
             return InvalidPeerId;
         }
@@ -384,7 +382,7 @@ void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell, int newLeadin
     TError error;
 
     if (!leadingPeer.Descriptor.IsNull()) {
-        error = CachedIsFailed(leadingPeer, cell, GetDynamicConfig()->LeaderReassignmentTimeout);
+        error = IsFailed(leadingPeer, cell, GetDynamicConfig()->LeaderReassignmentTimeout);
     }
 
     YT_LOG_DEBUG(error, "Scheduling leader reassignment (CellId: %v, LeaderPeerId: %v, NewLeadingPeerId: %v, Address: %v)",
@@ -478,7 +476,7 @@ void TCellTrackerImpl::SchedulePeerRevocation(
             continue;
         }
 
-        auto error = CachedIsFailed(peer, cell, GetDynamicConfig()->PeerRevocationTimeout);
+        auto error = IsFailed(peer, cell, GetDynamicConfig()->PeerRevocationTimeout);
         if (!error.IsOK()) {
             if (GetDynamicConfig()->DecommissionThroughExtraPeers && error.FindMatching(NCellServer::EErrorCode::NodeDecommissioned)) {
                 // If decommission through extra peers is enabled we never revoke leader during decommission.
@@ -539,24 +537,6 @@ bool TCellTrackerImpl::SchedulePeerCountChange(TCellBase* cell, TReqReassignPeer
     return false;
 }
 
-const TError& TCellTrackerImpl::CachedIsFailed(
-    const TCellBase::TPeer& peer,
-    const TCellBase* cell,
-    TDuration timeout)
-{
-    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-    const auto* node = nodeTracker->FindNodeByAddress(peer.Descriptor.GetDefaultAddress());
-
-    auto cacheIt = PeerFailureCache_.find(std::pair(cell, node));
-    if (cacheIt != PeerFailureCache_.end()) {
-        return cacheIt->second;
-    }
-
-    auto error = IsFailed(peer, cell, timeout);
-
-    return EmplaceOrCrash(PeerFailureCache_, std::pair(cell, node), std::move(error))->second;
-}
-
 TError TCellTrackerImpl::IsFailed(
     const TCellBase::TPeer& peer,
     const TCellBase* cell,
@@ -564,7 +544,6 @@ TError TCellTrackerImpl::IsFailed(
 {
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
     const auto* node = nodeTracker->FindNodeByAddress(peer.Descriptor.GetDefaultAddress());
-
 
     if (node) {
         if (!peer.Node && peer.LastSeenTime + timeout < TInstant::Now()) {
@@ -606,11 +585,6 @@ TError TCellTrackerImpl::IsFailed(
     }
 
     return TError();
-}
-
-void TCellTrackerImpl::ClearPeerFailureCache()
-{
-    PeerFailureCache_.clear();
 }
 
 bool TCellTrackerImpl::IsDecommissioned(
