@@ -1619,9 +1619,9 @@ private:
             ReleaseThrottledBytes(throttledBytes);
         } else {
             i64 receivedAttachmentsSize = GetByteSize(rspOrError.Value()->Attachments());
-            if (receivedAttachmentsSize != throttledBytes) {
-                YT_VERIFY(receivedAttachmentsSize > throttledBytes);
+            if (receivedAttachmentsSize > throttledBytes) {
                 // NB: This may happen in case of full block reads.
+                // We cannot rely on receivedAttachmentsSize always being not less than throttledBytes, i.e. due to missing chunk.
                 AcquireThrottler(receivedAttachmentsSize - throttledBytes);
                 YT_LOG_DEBUG("Performed post throttling after receiving fragments "
                     "(ReceivedAttachmentSize: %v, UnthrottledBytes: %v)",
