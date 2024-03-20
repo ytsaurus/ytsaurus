@@ -51,15 +51,13 @@ private:
         SyncWithUpstream();
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
-        const auto& statistics = request->statistics();
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
-        context->SetRequestInfo("NodeId: %v, Address: %v, %v",
+        context->SetRequestInfo("NodeId: %v, Address: %v",
             nodeId,
-            node->GetDefaultAddress(),
-            statistics);
+            node->GetDefaultAddress());
 
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
         dataNodeTracker->ProcessFullHeartbeat(context);
