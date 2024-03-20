@@ -2845,7 +2845,7 @@ private:
         VERIFY_INVOKER_AFFINITY(StrategyHost_->GetOrchidWorkerInvoker());
 
         if (!treeSnapshot) {
-            YT_LOG_DEBUG("Skipping construction of full fair share info, since shapshot is not constructed yet");
+            YT_LOG_DEBUG("Skipping construction of full fair share info, since snapshot is not constructed yet");
             return;
         }
 
