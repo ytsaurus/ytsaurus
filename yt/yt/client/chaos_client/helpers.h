@@ -14,6 +14,7 @@ TReplicationCardId MakeReplicationCardCollocationId(NObjectClient::TObjectId ran
 
 NObjectClient::TCellTag GetSiblingChaosCellTag(NObjectClient::TCellTag cellTag);
 
+bool IsValidReplicationProgress(const TReplicationProgress& progress);
 bool IsOrderedTabletReplicationProgress(const TReplicationProgress& progress);
 void ValidateOrderedTabletReplicationProgress(const TReplicationProgress& progress);
 

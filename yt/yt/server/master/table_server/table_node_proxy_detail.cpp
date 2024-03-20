@@ -58,6 +58,7 @@
 #include <yt/yt/library/heavy_schema_validation/schema_validation.h>
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
+#include <yt/yt/client/chaos_client/helpers.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
@@ -2065,6 +2066,17 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
                 !(options.UpstreamReplicaId && IsChaosTableReplicaType(TypeFromId(*options.UpstreamReplicaId))))
             {
                 THROW_ERROR_EXCEPTION("Replication progress can only be set for tables bound for chaos replication");
+            }
+
+            if (!IsValidReplicationProgress(*options.ReplicationProgress)) {
+                THROW_ERROR_EXCEPTION("Invalid replication progress");
+            }
+
+            if (options.ReplicationProgress->UpperKey < MaxKey() ||
+                options.ReplicationProgress->Segments.empty() ||
+                options.ReplicationProgress->Segments[0].LowerKey > MinKey())
+            {
+                THROW_ERROR_EXCEPTION("Replication progress should fully cover key space");
             }
 
             table->ValidateAllTabletsUnmounted("Cannot change replication progress");
