@@ -103,13 +103,13 @@ public:
     //! NB: Due to the comment above, it is important to keep the number of (category, tags) combinations very reasonably finite, since each of them causes a sensor to be produced.
     virtual void PublishAlerts() = 0;
 
-    // TODO(achulkov2): Implement some mechanism for clearing out unnneeded gauges.
+    // TODO(achulkov2): Implement some mechanism for clearing out unneeded gauges.
 };
 
 DEFINE_REFCOUNTED_TYPE(IAlertCollector)
 
 //! The alert collector will subscribe itself to the manager upon construction and unsubscribe upon destruction.
-IAlertCollectorPtr CreateAlertCollector(const IAlertManagerPtr& alertManager);
+IAlertCollectorPtr CreateAlertCollector(IAlertManagerPtr alertManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 

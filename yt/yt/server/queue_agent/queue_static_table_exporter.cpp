@@ -491,7 +491,7 @@ private:
 
         if (!ExportConfig_.UseUpperBoundForTableNames) {
             unixTs -= periodInSeconds;
-    }
+        }
 
         auto instant = TInstant::Seconds(unixTs);
 

@@ -183,13 +183,13 @@ public:
     {
         alertManager->SubscribePopulateAlerts(PopulateAlertsCallback_);
     }
+
     ~TAlertCollector()
     {
         if (auto alertManager = AlertManager_.Lock()) {
             alertManager->UnsubscribePopulateAlerts(PopulateAlertsCallback_);
         }
     }
-
 
     void StageAlert(TAlert alert) override
     {
@@ -251,9 +251,9 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TAlertCollector)
 
-IAlertCollectorPtr CreateAlertCollector(const IAlertManagerPtr& alertManager)
+IAlertCollectorPtr CreateAlertCollector(IAlertManagerPtr alertManager)
 {
-    return New<TAlertCollector>(alertManager);
+    return New<TAlertCollector>(std::move(alertManager));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

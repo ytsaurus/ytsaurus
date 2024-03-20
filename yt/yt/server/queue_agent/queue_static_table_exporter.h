@@ -15,8 +15,6 @@
 
 #include <yt/yt/library/auth/auth.h>
 
-#include <yt/yt/core/misc/error_code_counter.h>
-
 namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
