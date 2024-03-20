@@ -347,7 +347,7 @@ yt merge --mode ordered --src //tmp/table --dst '<schema=[{name = a; type = int6
 
 There are more automatic solutions:
 
-- Make a request of the `INSERT INTO "path/to/somewhere" SELECT * FROM "source/table"` type via YQ. YQ will try to output the schema by reading the first row or the first rows.
+- Make a request of the `INSERT INTO "path/to/somewhere" SELECT * FROM "source/table"` type via YQL. YQL will try to output the schema by reading the first row or the first rows.
 
    {% if doc_type=='internal' %}
 

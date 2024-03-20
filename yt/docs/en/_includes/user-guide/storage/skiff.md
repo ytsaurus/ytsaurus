@@ -17,7 +17,7 @@ Format objectives:
 
 Protobuf has the following drawbacks:
 
-- For some clients (YQ), message structure is defined at runtime. Protobuf is inconvenient to parse and write for an unknown type.
+- For some clients (YQL), message structure is defined at runtime. Protobuf is inconvenient to parse and write for an unknown type.
 - Protobuf supports backward compatibility. This results in tags that have to be maintained current.
 - Protobuf field order is not specified. This produces extra branches for tags on each field.
 - Protobuf frequently uses type varint. For job_proxy that talks to a job via a pipe, it is less costly to write a uint64 number than serialize and deserialize a varint.
@@ -28,7 +28,7 @@ Protobuf has the following drawbacks:
 
 {% cut "flatbuffers" %}
 
-- For some clients (YQ), message structure is defined at runtime. Flatbuffers is inconvenient to parse and write for an unknown type because there is no reflection.
+- For some clients (YQL), message structure is defined at runtime. Flatbuffers is inconvenient to parse and write for an unknown type because there is no reflection.
 
 {% endcut %}
 
