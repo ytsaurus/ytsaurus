@@ -6,9 +6,9 @@ namespace NYT::NNodeTrackerClient::NProto {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TNodeStatistics& statistics)
+void FormatValue(TStringBuilderBase* builder, const TNodeStatistics& statistics, TStringBuf /*spec*/)
 {
-    return Format(
+    builder->AppendFormat(
         "Space: %v/%v, TotalStoredChunks: %v, TotalCachedChunks: %v, UserSessions: %v, "
         "ReplicationSessions: %v, RepairSessions: %v, TabletSlots: %v/%v",
         statistics.total_used_space(),
@@ -20,6 +20,11 @@ TString ToString(const TNodeStatistics& statistics)
         statistics.total_repair_session_count(),
         statistics.used_tablet_slots(),
         statistics.available_tablet_slots() + statistics.used_tablet_slots());
+}
+
+TString ToString(const TNodeStatistics& statistics)
+{
+    return ToStringViaBuilder(statistics);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
