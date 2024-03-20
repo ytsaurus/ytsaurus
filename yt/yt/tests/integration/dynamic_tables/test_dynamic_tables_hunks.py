@@ -2995,3 +2995,20 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         assert_items_equal(
             lookup_rows("//tmp/t", [{"key": 3, "key1": 4}], column_names=["key1", "value1"]),
             [{"key1": 4, "value1": "y"}])
+
+    @authors("akozhikhov")
+    def test_value_compression_empty_strings(self):
+        sync_create_cells(1)
+        self._create_table()
+        self._setup_for_dictionary_compression("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        keys = [{"key": i} for i in range(100)]
+        rows = [{"key": i, "value": "x" * 100} for i in range(100)]
+        insert_rows("//tmp/t", rows + [{"key": 100, "value": ""}])
+        sync_flush_table("//tmp/t")
+
+        self._wait_dictionaries_built("//tmp/t", 1)
+        self._perform_forced_compaction("//tmp/t", "compaction")
+
+        assert_items_equal(lookup_rows("//tmp/t", keys + [{"key": 100}]), rows + [{"key": 100, "value": ""}])
