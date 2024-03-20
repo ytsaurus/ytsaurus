@@ -229,6 +229,13 @@ TNodeShard::TNodeShard(
         .Counter("/node_heartbeat/response/proto_message_bytes");
     HeartbeatRegisteredControllerAgentsBytes_ = SchedulerProfiler
         .Counter("/node_heartbeat/response/proto_registered_controller_agents_bytes");
+
+    for (auto reason : TEnumTraitsImpl<ENodeSchedulingResult>::GetDomainValues()) {
+        UnscheduledResourcesCounterByResult_[reason].Init(SchedulerProfiler
+            .WithPrefix("/unscheduled_node_resources")
+            .WithTag("reason", FormatEnum(reason)),
+            EMetricType::Counter);
+    }
 }
 
 int TNodeShard::GetId() const
@@ -678,7 +685,14 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         /*requestContext*/ context);
 
     ProcessOperationInfoHeartbeat(request, response);
-    SetMinSpareResources(response);
+
+    ToProto(response->mutable_min_spare_resources(), GetMinSpareResources());
+
+    if (isThrottlingActive) {
+        schedulingContext->SetNodeSchedulingResult(ENodeSchedulingResult::Throttling);
+    }
+
+    UpdateUnscheduledNodeCounters(schedulingContext);
 
     auto now = TInstant::Now();
     auto shouldSendRegisteredControllerAgents = ShouldSendRegisteredControllerAgents(request);
@@ -2409,13 +2423,19 @@ void TNodeShard::ProcessOperationInfoHeartbeat(
     }
 }
 
-void TNodeShard::SetMinSpareResources(
-    TScheduler::TCtxNodeHeartbeat::TTypedResponse* response)
+void TNodeShard::UpdateUnscheduledNodeCounters(const ISchedulingContextPtr& schedulingContext)
 {
-    auto minSpareResources = Config_->MinSpareJobResourcesOnNode
-        ? ToJobResources(*Config_->MinSpareJobResourcesOnNode, TJobResources())
-        : TJobResources();
-    ToProto(response->mutable_min_spare_resources(), minSpareResources);
+    auto nodeSchedulingResult = schedulingContext->GetNodeSchedulingResult();
+    if (nodeSchedulingResult == ENodeSchedulingResult::FullyScheduled) {
+        return;
+    }
+
+    auto minSpareResources = GetMinSpareResources();
+    auto nodeFreeResources = schedulingContext->GetNodeFreeResourcesWithoutDiscount();
+
+    if (Dominates(nodeFreeResources, minSpareResources)) {
+        UnscheduledResourcesCounterByResult_[nodeSchedulingResult].Update(nodeFreeResources);
+    }
 }
 
 bool TNodeShard::ShouldSendRegisteredControllerAgents(TScheduler::TCtxNodeHeartbeat::TTypedRequest* request)
@@ -2444,6 +2464,13 @@ void TNodeShard::AddRegisteredControllerAgentsToResponse(auto* response)
 
     HeartbeatRegisteredControllerAgentsBytes_.Increment(
         response->registered_controller_agents().SpaceUsedExcludingSelfLong());
+}
+
+TJobResources TNodeShard::GetMinSpareResources() const
+{
+    return Config_->MinSpareJobResourcesOnNode
+        ? ToJobResources(*Config_->MinSpareJobResourcesOnNode, TJobResources())
+        : TJobResources();
 }
 
 void TNodeShard::RegisterJob(const TJobPtr& job)

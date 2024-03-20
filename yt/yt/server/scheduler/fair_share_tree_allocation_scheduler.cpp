@@ -993,7 +993,7 @@ void TScheduleJobsContext::PrescheduleJob(
 bool TScheduleJobsContext::ShouldContinueScheduling(const std::optional<TJobResources>& customMinSpareJobResources) const
 {
     return SchedulingContext_->CanStartMoreJobs(customMinSpareJobResources) &&
-        SchedulingContext_->GetNow() < SchedulingDeadline_;
+        !CheckScheduleAllocationTimeoutExpired();
 }
 
 TScheduleJobsContext::TFairShareScheduleJobResult TScheduleJobsContext::ScheduleJob(bool ignorePacking)
@@ -1014,7 +1014,7 @@ TScheduleJobsContext::TFairShareScheduleJobResult TScheduleJobsContext::Schedule
         ReactivateBadPackingOperations();
     }
 
-    if (SchedulingContext_->GetNow() >= SchedulingDeadline_) {
+    if (CheckScheduleAllocationTimeoutExpired()) {
         ScheduleJobsDeadlineReachedCounter_.Increment();
     }
 
@@ -1475,6 +1475,15 @@ const TDynamicAttributes& TScheduleJobsContext::DynamicAttributesOf(const TSched
     YT_ASSERT(Initialized_);
 
     return DynamicAttributesManager_.AttributesOf(element);
+}
+
+bool TScheduleJobsContext::CheckScheduleAllocationTimeoutExpired() const
+{
+    if (SchedulingContext_->GetNow() >= SchedulingDeadline_) {
+        SchedulingContext_->SetNodeSchedulingResult(ENodeSchedulingResult::Timeout);
+        return true;
+    }
+    return false;
 }
 
 void TScheduleJobsContext::DeactivateOperationInTest(TSchedulerOperationElement* element)
