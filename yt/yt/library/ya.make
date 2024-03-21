@@ -1,4 +1,5 @@
 RECURSE(
+    arrow_parquet_adapter
     auth
     auth_server
     backtrace_introspector
@@ -15,6 +16,7 @@ RECURSE(
     error_skeleton
     formats
     heavy_schema_validation
+    huggingface_client
     monitoring
     numeric
     process

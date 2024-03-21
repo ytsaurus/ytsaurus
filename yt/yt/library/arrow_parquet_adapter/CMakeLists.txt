@@ -5,11 +5,24 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-add_subdirectory(blob_table)
-add_subdirectory(lambda)
-add_subdirectory(mock_client)
-add_subdirectory(operation_tracker)
-add_subdirectory(parallel_io)
-add_subdirectory(table_schema)
+add_library(yt-library-arrow_parquet_adapter)
+
+
+target_link_libraries(yt-library-arrow_parquet_adapter PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  cpp-mapreduce-client
+  cpp-yt-assert
+  libs-apache-arrow
+)
+
+target_sources(yt-library-arrow_parquet_adapter PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/arrow_parquet_adapter/arrow.cpp
+)
+
+
+
+
 
 

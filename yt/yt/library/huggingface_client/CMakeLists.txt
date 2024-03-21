@@ -5,11 +5,23 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-add_subdirectory(blob_table)
-add_subdirectory(lambda)
-add_subdirectory(mock_client)
-add_subdirectory(operation_tracker)
-add_subdirectory(parallel_io)
-add_subdirectory(table_schema)
+add_library(yt-library-huggingface_client)
+
+
+target_link_libraries(yt-library-huggingface_client PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  yt-yt-core
+  library-cpp-json
+)
+
+target_sources(yt-library-huggingface_client PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/huggingface_client/client.cpp
+)
+
+
+
+
 
 
