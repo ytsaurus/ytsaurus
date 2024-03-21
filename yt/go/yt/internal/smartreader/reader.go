@@ -89,6 +89,13 @@ func (r *smartReader) Next() bool {
 	for {
 		if r.r == nil {
 			select {
+			case <-r.ctx.Done():
+				r.err = r.ctx.Err()
+				return false
+			default:
+			}
+
+			select {
 			case <-r.tx.Finished():
 				r.err = fmt.Errorf("read transaction aborted")
 				return false
