@@ -16,7 +16,7 @@ IF (SANITIZER_TYPE)
     )
 ELSE()
     REQUIREMENTS(
-        ram:8
+        ram:12
     )
 ENDIF()
 

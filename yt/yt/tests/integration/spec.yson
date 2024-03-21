@@ -6,7 +6,7 @@
     ];
     cypress_root="//home/yt-integration-tests";
     operation_spec={
-        scheduling_tag_filter="!cpu_vendor_amd & !nanny_service:vla_yt_arnold_co_exe_nodes_over_yp";
+        scheduling_tag_filter="!cpu_vendor_amd";
         job_cpu_monitor={
             enable_cpu_reclaim=%false;
         };
