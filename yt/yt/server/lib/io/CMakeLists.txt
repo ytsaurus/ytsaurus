@@ -5,16 +5,18 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(unittests)
-
 add_library(server-lib-io)
+
+
 target_compile_options(server-lib-io PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(server-lib-io PUBLIC
   ${PROJECT_BINARY_DIR}/yt
 )
+
 target_link_libraries(server-lib-io PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -24,6 +26,7 @@ target_link_libraries(server-lib-io PUBLIC
   yt-yt-ytlib
   contrib-libs-liburing
 )
+
 target_sources(server-lib-io PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/gentle_loader.cpp
@@ -41,3 +44,9 @@ target_sources(server-lib-io PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/io_engine_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/io_engine_uring.cpp
 )
+
+
+
+
+
+

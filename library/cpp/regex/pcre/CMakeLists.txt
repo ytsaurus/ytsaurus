@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(cpp-regex-pcre)
+
+
 target_link_libraries(cpp-regex-pcre PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -17,7 +17,14 @@ target_link_libraries(cpp-regex-pcre PUBLIC
   libs-pcre-pcre32
   cpp-containers-stack_array
 )
+
 target_sources(cpp-regex-pcre PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/regex/pcre/pcre.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/regex/pcre/regexp.cpp
 )
+
+
+
+
+
+

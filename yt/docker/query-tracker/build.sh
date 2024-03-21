@@ -60,6 +60,8 @@ ytserver_all="${ytsaurus_build_path}/yt/yt/server/all/ytserver-all"
 ytserver_yql_agent="${ytsaurus_build_path}/yt/yql/agent/bin/ytserver-yql-agent"
 init_query_tracker_state="${ytsaurus_source_path}/yt/python/yt/environment/init_query_tracker_state.py"
 mrjob="${qt_build_path}/ydb/library/yql/tools/mrjob/mrjob"
+dq_vanilla_job="${qt_build_path}/ydb/library/yql/yt/dq_vanilla_job/dq_vanilla_job"
+dq_vanilla_job_lite="${qt_build_path}/ydb/library/yql/yt/dq_vanilla_job.lite/dq_vanilla_job.lite"
 
 ytsaurus_credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits"
 qt_credits="${ytsaurus_source_path}/yt/docker/query-tracker/credits"
@@ -71,6 +73,8 @@ mkdir ${output_path}/yql
 cp ${ytserver_all} ${output_path}
 cp ${ytserver_yql_agent} ${output_path}
 cp ${mrjob} ${output_path}
+cp ${dq_vanilla_job} ${output_path}
+cp ${dq_vanilla_job_lite} ${output_path}
 cp ${init_query_tracker_state} ${output_path}
 
 find ${qt_build_path} -name 'lib*.so' -print0 | xargs -0 -I '{}' cp '{}' ${output_path}/yql

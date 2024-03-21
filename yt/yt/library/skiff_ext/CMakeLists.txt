@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-library-skiff_ext)
+
+
 target_compile_options(yt-library-skiff_ext PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-library-skiff_ext PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,7 +19,14 @@ target_link_libraries(yt-library-skiff_ext PUBLIC
   yt-yt-core
   library-cpp-skiff
 )
+
 target_sources(yt-library-skiff_ext PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/skiff_ext/serialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/skiff_ext/schema_match.cpp
 )
+
+
+
+
+
+

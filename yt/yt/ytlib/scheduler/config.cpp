@@ -1212,12 +1212,24 @@ void TVanillaTaskSpec::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TQueryFilterOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable_chunk_filter", &TThis::EnableChunkFilter)
+        .Default(true);
+    registrar.Parameter("enable_row_filter", &TThis::EnableRowFilter)
+        .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TInputlyQueryableSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("input_query", &TThis::InputQuery)
         .Default();
     registrar.Parameter("input_schema", &TThis::InputSchema)
         .Default();
+    registrar.Parameter("input_query_filter_options", &TThis::InputQueryFilterOptions)
+        .DefaultNew();
 
     registrar.Postprocessor([] (TInputlyQueryableSpec* spec) {
         if (spec->InputSchema && !spec->InputQuery) {
@@ -2595,6 +2607,20 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TStrategyOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationSpecBase);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TVanillaOperationSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+
+void ToProto(
+    NControllerAgent::NProto::TQueryFilterOptions* protoQueryFilterOptions,
+    const TQueryFilterOptionsPtr& queryFilterOptions)
+{
+    protoQueryFilterOptions->set_enable_chunk_filter(queryFilterOptions->EnableChunkFilter);
+    protoQueryFilterOptions->set_enable_row_filter(queryFilterOptions->EnableRowFilter);
+}
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

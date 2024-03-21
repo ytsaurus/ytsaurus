@@ -5,15 +5,22 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-boost-winapi INTERFACE)
+
+
 target_include_directories(restricted-boost-winapi INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/winapi/include
 )
+
 target_link_libraries(restricted-boost-winapi INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   restricted-boost-config
   restricted-boost-predef
 )
+
+
+
+
+
+

@@ -5,18 +5,26 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(library-ytprof-api)
+
+
 target_compile_options(library-ytprof-api PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(library-ytprof-api PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   cpp-yt-memory
 )
+
 target_sources(library-ytprof-api PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/ytprof/api/api.cpp
 )
+
+
+
+
+
+

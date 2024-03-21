@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-aws-aws-c-s3)
+
+
 target_compile_options(restricted-aws-aws-c-s3 PRIVATE
   -DAWS_AUTH_USE_IMPORT_EXPORT
   -DAWS_CAL_USE_IMPORT_EXPORT
@@ -35,9 +35,11 @@ target_compile_options(restricted-aws-aws-c-s3 PRIVATE
   -DS2N___RESTRICT__SUPPORTED
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-aws-aws-c-s3 PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-s3/include
 )
+
 target_link_libraries(restricted-aws-aws-c-s3 PUBLIC
   contrib-libs-linux-headers
   restricted-aws-aws-c-auth
@@ -48,6 +50,7 @@ target_link_libraries(restricted-aws-aws-c-s3 PUBLIC
   restricted-aws-aws-c-sdkutils
   restricted-aws-aws-checksums
 )
+
 target_sources(restricted-aws-aws-c-s3 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-s3/source/s3.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-s3/source/s3_auto_ranged_get.c
@@ -67,3 +70,9 @@ target_sources(restricted-aws-aws-c-s3 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-s3/source/s3_request_messages.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-s3/source/s3_util.c
 )
+
+
+
+
+
+

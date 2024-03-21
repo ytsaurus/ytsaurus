@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(libs-poco-JSON)
+
+
 target_compile_options(libs-poco-JSON PRIVATE
   -DPOCO_ENABLE_CPP11
   -DPOCO_ENABLE_CPP14
@@ -17,6 +17,7 @@ target_compile_options(libs-poco-JSON PRIVATE
   -DPOCO_HAVE_FD_EPOLL
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(libs-poco-JSON PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/JSON/include
 )
@@ -24,11 +25,13 @@ target_include_directories(libs-poco-JSON PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/JSON/src
 )
+
 target_link_libraries(libs-poco-JSON PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   libs-poco-Foundation
 )
+
 target_sources(libs-poco-JSON PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/JSON/src/Array.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/JSON/src/Handler.cpp
@@ -44,3 +47,9 @@ target_sources(libs-poco-JSON PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/JSON/src/TemplateCache.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/JSON/src/pdjson.c
 )
+
+
+
+
+
+

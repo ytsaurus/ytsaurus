@@ -5,13 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -20,6 +20,8 @@ get_built_tool_path(
 )
 
 add_executable(hydra_stress)
+
+
 target_link_libraries(hydra_stress PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -33,6 +35,7 @@ target_link_libraries(hydra_stress PUBLIC
   cpp-getopt-small
   contrib-libs-protobuf
 )
+
 target_link_options(hydra_stress PRIVATE
   -ldl
   -lrt
@@ -44,9 +47,11 @@ target_link_options(hydra_stress PRIVATE
   -ldl
   -lutil
 )
+
 target_proto_messages(hydra_stress PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/peer_service.proto
 )
+
 target_sources(hydra_stress PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/experiments/public/hydra_stress_test/peer_service.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/automaton.cpp
@@ -58,10 +63,14 @@ target_sources(hydra_stress PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/main.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/hydra_stress_test/peer.cpp
 )
+
+
+
 target_allocator(hydra_stress
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 target_proto_addincls(hydra_stress
   ./yt
   ${PROJECT_SOURCE_DIR}/yt
@@ -74,8 +83,14 @@ target_proto_addincls(hydra_stress
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(hydra_stress
   --cpp_out=${PROJECT_BINARY_DIR}/yt
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
+
 vcs_info(hydra_stress)
+
+
+
+

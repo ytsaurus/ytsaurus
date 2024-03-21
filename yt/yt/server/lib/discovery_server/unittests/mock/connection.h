@@ -174,7 +174,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    const NRpc::IChannelPtr& GetQueueAgentChannelOrThrow(TStringBuf /*stage*/) const override
+    NRpc::IChannelPtr GetQueueAgentChannelOrNull(TStringBuf /*stage*/) const override
     {
         YT_UNIMPLEMENTED();
     }

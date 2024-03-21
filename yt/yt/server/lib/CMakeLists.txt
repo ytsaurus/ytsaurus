@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(admin)
 add_subdirectory(alert_manager)
 add_subdirectory(cell_server)
@@ -47,8 +46,9 @@ add_subdirectory(transaction_supervisor)
 add_subdirectory(user_job)
 add_subdirectory(zookeeper_master)
 add_subdirectory(zookeeper_proxy)
-
 add_library(ytserver INTERFACE)
+
+
 target_link_libraries(ytserver INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -71,3 +71,9 @@ target_link_libraries(ytserver INTERFACE
   yt-library-coredumper
   server-lib-misc
 )
+
+
+
+
+
+

@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(lib-DebugInfo-PDB)
+
+
 target_compile_options(lib-DebugInfo-PDB PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(lib-DebugInfo-PDB PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/DebugInfo/PDB
 )
+
 target_link_libraries(lib-DebugInfo-PDB PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -24,6 +26,7 @@ target_link_libraries(lib-DebugInfo-PDB PUBLIC
   llvm16-lib-Object
   llvm16-lib-Support
 )
+
 target_sources(lib-DebugInfo-PDB PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/DebugInfo/PDB/GenericError.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/DebugInfo/PDB/IPDBSourceFile.cpp
@@ -119,3 +122,9 @@ target_sources(lib-DebugInfo-PDB PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/DebugInfo/PDB/PDBSymbolUsingNamespace.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/DebugInfo/PDB/UDTLayout.cpp
 )
+
+
+
+
+
+

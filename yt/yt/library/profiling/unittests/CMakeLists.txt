@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(deps)
-
 add_executable(yt-yt-library-profiling-unittests)
+
+
 target_compile_options(yt-yt-library-profiling-unittests PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-yt-library-profiling-unittests PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -26,6 +27,7 @@ target_link_libraries(yt-yt-library-profiling-unittests PUBLIC
   library-profiling-resource_tracker
   library-profiling-perf
 )
+
 target_link_options(yt-yt-library-profiling-unittests PRIVATE
   -ldl
   -lrt
@@ -37,6 +39,7 @@ target_link_options(yt-yt-library-profiling-unittests PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(yt-yt-library-profiling-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/sensor_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/name_conflicts_ut.cpp
@@ -47,12 +50,15 @@ target_sources(yt-yt-library-profiling-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/exporter_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/perf_counter_ut.cpp
 )
+
+
 add_test(
   NAME
   yt-yt-library-profiling-unittests
   COMMAND
   yt-yt-library-profiling-unittests
 )
+
 set_property(
   TEST
   yt-yt-library-profiling-unittests
@@ -60,6 +66,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   yt-yt-library-profiling-unittests
@@ -67,14 +74,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   yt-yt-library-profiling-unittests
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(yt-yt-library-profiling-unittests
   cpp-malloc-tcmalloc
   contrib-libs-tcmalloc
 )
+
 vcs_info(yt-yt-library-profiling-unittests)
+
+
+
+

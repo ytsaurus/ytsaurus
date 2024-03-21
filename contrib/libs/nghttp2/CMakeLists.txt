@@ -5,14 +5,15 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(contrib-libs-nghttp2)
+
+
 target_compile_options(contrib-libs-nghttp2 PRIVATE
   -DBUILDING_NGHTTP2
   -DHAVE_CONFIG_H
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(contrib-libs-nghttp2 PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp2/lib/includes
 )
@@ -20,9 +21,11 @@ target_include_directories(contrib-libs-nghttp2 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp2
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp2/lib
 )
+
 target_link_libraries(contrib-libs-nghttp2 PUBLIC
   contrib-libs-linux-headers
 )
+
 target_sources(contrib-libs-nghttp2 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp2/lib/nghttp2_alpn.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp2/lib/nghttp2_buf.c
@@ -51,3 +54,9 @@ target_sources(contrib-libs-nghttp2 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp2/lib/nghttp2_version.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp2/lib/sfparse.c
 )
+
+
+
+
+
+

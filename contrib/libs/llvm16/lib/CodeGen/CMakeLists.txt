@@ -5,19 +5,21 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(AsmPrinter)
 add_subdirectory(GlobalISel)
 add_subdirectory(MIRParser)
 add_subdirectory(SelectionDAG)
-
 add_library(llvm16-lib-CodeGen)
+
+
 target_compile_options(llvm16-lib-CodeGen PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(llvm16-lib-CodeGen PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen
 )
+
 target_link_libraries(llvm16-lib-CodeGen PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -36,6 +38,7 @@ target_link_libraries(llvm16-lib-CodeGen PUBLIC
   lib-Transforms-Scalar
   lib-Transforms-Utils
 )
+
 target_sources(llvm16-lib-CodeGen PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/AggressiveAntiDepBreaker.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/AllocationOrder.cpp
@@ -258,3 +261,9 @@ target_sources(llvm16-lib-CodeGen PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/WinEHPrepare.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/XRayInstrumentation.cpp
 )
+
+
+
+
+
+

@@ -5,13 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_enum_parser_bin
   TOOL_enum_parser_dependency
   tools/enum_parser/enum_parser
   enum_parser
 )
+
 get_built_tool_path(
   TOOL_enum_parser_bin
   TOOL_enum_parser_dependency
@@ -20,12 +20,15 @@ get_built_tool_path(
 )
 
 add_library(yson_pull)
+
+
 target_link_libraries(yson_pull PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   tools-enum_parser-enum_serialization_runtime
 )
+
 target_sources(yson_pull PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/yson_pull/consumer.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/yson_pull/event.cpp
@@ -37,13 +40,21 @@ target_sources(yson_pull PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/yson_pull/scalar.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/yson_pull/writer.cpp
 )
+
+
+
 generate_enum_serilization(yson_pull
   ${PROJECT_SOURCE_DIR}/library/cpp/yson_pull/event.h
   INCLUDE_HEADERS
   library/cpp/yson_pull/event.h
 )
+
 generate_enum_serilization(yson_pull
   ${PROJECT_SOURCE_DIR}/library/cpp/yson_pull/scalar.h
   INCLUDE_HEADERS
   library/cpp/yson_pull/scalar.h
 )
+
+
+
+

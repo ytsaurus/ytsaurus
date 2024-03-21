@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(contrib-libs-icu)
+
+
 target_compile_options(contrib-libs-icu PRIVATE
   -DU_COMMON_IMPLEMENTATION
   -DU_I18N_IMPLEMENTATION
@@ -15,6 +15,7 @@ target_compile_options(contrib-libs-icu PRIVATE
   -DU_STATIC_IMPLEMENTATION
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(contrib-libs-icu PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/icu/include
 )
@@ -23,10 +24,12 @@ target_include_directories(contrib-libs-icu PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/icu/i18n
   ${PROJECT_SOURCE_DIR}/contrib/libs/icu/io
 )
+
 target_link_libraries(contrib-libs-icu PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
 )
+
 target_sources(contrib-libs-icu PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/icu/common/appendable.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/icu/common/bmpset.cpp
@@ -483,7 +486,14 @@ target_sources(contrib-libs-icu PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/icu/io/ustdio.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/icu/io/ustream.cpp
 )
+
+
+
 target_rodata_sources(contrib-libs-icu
   PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/icu/icudt73_dat.rodata
 )
+
+
+
+

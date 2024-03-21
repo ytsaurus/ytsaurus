@@ -184,6 +184,28 @@ class YtSortedTableJoinTest extends FlatSpec with Matchers with LocalSpark with 
     }
   }
 
+  it should "work on sequential joins" in {
+    withConfs(conf) {
+      val tmpPath2 = s"$tmpPath-${UUID.randomUUID()}"
+
+      val data = (1L to 5L).map(x => (x / 10, x / 10, x / 10))
+      data.toDF("s1", "a", "t3").write.sortedBy("s1", "a").yt(tmpPath)
+      data.toDF("s1", "s2", "s3").write.sortedBy("s1").yt(tmpPath2)
+
+      val t1 = spark.read.yt(commonTable)
+      val t2 = spark.read.yt(tmpPath)
+      val t3 = spark.read.yt(tmpPath2)
+      val res = t1
+        .join(t2, t1("a") === t2("a"))
+        .join(t3, t3("s1") === t2("s1"))
+      res.collect()
+
+      findNotProcessedJoin(res).length shouldBe 0
+      findProcessedOneSideJoin(res).length shouldBe 2
+      findProcessedBothSideJoin(res).length shouldBe 0
+    }
+  }
+
   it should "be disabled on unsorted data" in {
     withConfs(conf) {
       val data = (1L to 2000L).map(x => (x, x / 10))

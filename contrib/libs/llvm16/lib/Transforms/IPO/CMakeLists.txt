@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(lib-Transforms-IPO)
+
+
 target_compile_options(lib-Transforms-IPO PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(lib-Transforms-IPO PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/IPO
 )
+
 target_link_libraries(lib-Transforms-IPO PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -37,6 +39,7 @@ target_link_libraries(lib-Transforms-IPO PUBLIC
   lib-Transforms-Utils
   lib-Transforms-Vectorize
 )
+
 target_sources(lib-Transforms-IPO PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/IPO/AlwaysInliner.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/IPO/Annotation2Metadata.cpp
@@ -82,3 +85,9 @@ target_sources(lib-Transforms-IPO PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/IPO/ThinLTOBitcodeWriter.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/IPO/WholeProgramDevirt.cpp
 )
+
+
+
+
+
+

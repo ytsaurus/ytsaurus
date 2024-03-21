@@ -5,13 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -20,9 +20,12 @@ get_built_tool_path(
 )
 
 add_library(server-lib-job_proxy)
+
+
 target_compile_options(server-lib-job_proxy PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(server-lib-job_proxy PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -33,14 +36,19 @@ target_link_libraries(server-lib-job_proxy PUBLIC
   server-lib-rpc_proxy
   contrib-libs-protobuf
 )
+
 target_proto_messages(server-lib-job_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/job_proxy/proto/job_prober_service.proto
 )
+
 target_sources(server-lib-job_proxy PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/server/lib/job_proxy/proto/job_prober_service.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/job_proxy/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/job_proxy/job_probe.cpp
 )
+
+
+
 target_proto_addincls(server-lib-job_proxy
   ./
   ${PROJECT_SOURCE_DIR}/
@@ -52,7 +60,12 @@ target_proto_addincls(server-lib-job_proxy
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(server-lib-job_proxy
   --cpp_out=${PROJECT_BINARY_DIR}/
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
+
+
+
+

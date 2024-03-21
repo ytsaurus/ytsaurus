@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-library-clickhouse-discovery)
+
+
 target_compile_options(unittester-library-clickhouse-discovery PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-library-clickhouse-discovery PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -24,6 +25,7 @@ target_link_libraries(unittester-library-clickhouse-discovery PUBLIC
   yt-core-test_framework
   yt-library-clickhouse_discovery
 )
+
 target_link_options(unittester-library-clickhouse-discovery PRIVATE
   -ldl
   -lrt
@@ -35,16 +37,20 @@ target_link_options(unittester-library-clickhouse-discovery PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-library-clickhouse-discovery PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_discovery/unittests/discovery_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_discovery/unittests/helpers_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-library-clickhouse-discovery
   COMMAND
   unittester-library-clickhouse-discovery
 )
+
 set_property(
   TEST
   unittester-library-clickhouse-discovery
@@ -52,6 +58,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-library-clickhouse-discovery
@@ -59,13 +66,21 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-library-clickhouse-discovery
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-library-clickhouse-discovery
   cpp-ytalloc-impl
 )
+
 vcs_info(unittester-library-clickhouse-discovery)
+
+
+
+

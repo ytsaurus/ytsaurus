@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(unittests)
-
 add_library(yt-library-process)
+
+
 target_compile_options(yt-library-process PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-library-process PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,6 +20,7 @@ target_link_libraries(yt-library-process PUBLIC
   yt-yt-core
   contrib-libs-re2
 )
+
 target_sources(yt-library-process PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/process/io_dispatcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/process/pipe.cpp
@@ -26,3 +28,9 @@ target_sources(yt-library-process PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/process/pty.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/process/subprocess.cpp
 )
+
+
+
+
+
+

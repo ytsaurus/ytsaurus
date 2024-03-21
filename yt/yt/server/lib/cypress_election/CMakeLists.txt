@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(server-lib-cypress_election)
+
+
 target_compile_options(server-lib-cypress_election PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(server-lib-cypress_election PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,7 +19,14 @@ target_link_libraries(server-lib-cypress_election PUBLIC
   yt-yt-core
   yt-yt-client
 )
+
 target_sources(server-lib-cypress_election PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/cypress_election/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/cypress_election/election_manager.cpp
 )
+
+
+
+
+
+

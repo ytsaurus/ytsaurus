@@ -487,3 +487,123 @@ class TestJobQuery(YTEnvSetup):
                 'a where b in ("foo_9", "foo_12", "foo_23")',
                 [{"a": 9}, {"a": 12}, {"a": 23}],
             )
+
+    @authors("gudqeit")
+    def test_query_chunk_filter_and_rename(self):
+        skip_if_renaming_disabled(self.Env)
+
+        input_table = "//tmp/t_in"
+        input_table_with_append = "<append=%true>" + input_table
+        output_table = "//tmp/t_out"
+
+        schema1 = make_schema([
+            make_column("a", "int64"),
+            make_column("b", "string"),
+            make_column("c", "int64"),
+        ])
+
+        schema2 = make_schema([
+            make_column("b", "int64", stable_name="a"),
+            make_column("c_renamed", "int64", stable_name="c"),
+            make_column("a", "string", stable_name="b"),
+        ])
+
+        create(
+            "table",
+            input_table,
+            attributes={
+                "schema": schema1,
+                "optimize_for": "scan",
+            },
+        )
+        create("table", output_table)
+
+        def _test(query, expected_rows):
+            map(
+                in_=input_table,
+                out=output_table,
+                command="cat",
+                spec={
+                    "input_query": query,
+                    "input_query_filter_options": {
+                        "enable_chunk_filter": True,
+                        "enable_row_filter": False,
+                    },
+                    "max_failed_job_count": 1,
+                },
+            )
+            assert_items_equal(read_table(output_table), expected_rows)
+
+        write_table(input_table_with_append, [{"a": 0, "b": "x", "c": 1}])
+
+        _test("*", [{"a": 0, "b": "x", "c": 1}])
+        _test("* where b >= 'x' and c > 1", [])
+        _test("* where a = 0 and b = 'x' and c = 1", [{"a": 0, "b": "x", "c": 1}])
+
+        alter_table(input_table, schema=schema2)
+
+        write_table(input_table_with_append, [{"a": "y", "b": 2, "c_renamed": 20}])
+
+        _test("a, b, c_renamed where c_renamed > 100", [])
+        _test("a, b where b != 0", [{"a": "y", "b": 2}])
+
+        alter_table(input_table, schema=schema1)
+
+        write_table(
+            input_table_with_append,
+            [
+                {"a": 3, "b": "g", "c": 1},
+                {"a": -1, "b": "y", "c": 10},
+            ],
+        )
+
+        _test("* where c > 9 and a < 2", [{"a": 3, "b": "g", "c": 1}, {"a": -1, "b": "y", "c": 10}])
+        _test("a, b, c where a > 0 and c > 10 or a <= 0 and b < 'g'", [{"a": 2, "b": "y", "c": 20}])
+
+    @authors("gudqeit")
+    def test_query_chunk_filter_by_nulls(self):
+        input_table = "//tmp/t_in"
+        input_table_with_append = "<append=%true>" + input_table
+        output_table = "//tmp/t_out"
+
+        schema = make_schema([
+            {"name": "a", "type": "int64"},
+            {"name": "b", "type": "int64"},
+        ])
+
+        create(
+            "table",
+            input_table,
+            attributes={
+                "schema": schema,
+                "optimize_for": "scan",
+            },
+        )
+        create("table", output_table)
+
+        def _test(query, expected_rows):
+            map(
+                in_=input_table,
+                out=output_table,
+                command="cat",
+                spec={
+                    "input_query": query,
+                    "input_query_filter_options": {
+                        "enable_chunk_filter": True,
+                        "enable_row_filter": False,
+                    },
+                    "max_failed_job_count": 1,
+                },
+            )
+            assert_items_equal(read_table(output_table), expected_rows)
+
+        write_table(input_table_with_append, [{"a": 0, "b": None}, {"a": 1, "b": None}])
+
+        _test("* where b = 1", [])
+        _test("* where is_null(b)", [{"a": 0, "b": None}, {"a": 1, "b": None}])
+
+        write_table(input_table_with_append, [{"a": 0, "b": 0}, {"a": -1, "b": None}])
+
+        _test("* where b >= 0", [{"a": 0, "b": 0}, {"a": -1, "b": None}])
+
+        _test("* where b != null", [{"a": 0, "b": 0}, {"a": -1, "b": None}])

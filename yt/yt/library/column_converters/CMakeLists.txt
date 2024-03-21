@@ -5,18 +5,20 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-library-column_converters)
+
+
 target_compile_options(yt-library-column_converters PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-library-column_converters PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
 )
+
 target_sources(yt-library-column_converters PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/column_converters/boolean_column_converter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/column_converters/column_converter.cpp
@@ -26,3 +28,9 @@ target_sources(yt-library-column_converters PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/column_converters/null_column_converter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/column_converters/string_column_converter.cpp
 )
+
+
+
+
+
+

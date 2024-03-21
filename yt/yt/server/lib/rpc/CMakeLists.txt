@@ -5,18 +5,26 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(server-lib-rpc)
+
+
 target_compile_options(server-lib-rpc PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(server-lib-rpc PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   ytserver
 )
+
 target_sources(server-lib-rpc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc/per_workload_category_request_queue_provider.cpp
 )
+
+
+
+
+
+

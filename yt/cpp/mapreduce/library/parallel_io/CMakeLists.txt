@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(mapreduce-library-parallel_io)
+
+
 target_compile_options(mapreduce-library-parallel_io PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(mapreduce-library-parallel_io PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,7 @@ target_link_libraries(mapreduce-library-parallel_io PUBLIC
   cpp-mapreduce-interface
   cpp-yt-memory
 )
+
 target_sources(mapreduce-library-parallel_io PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/parallel_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/parallel_writer.cpp
@@ -25,3 +27,9 @@ target_sources(mapreduce-library-parallel_io PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/parallel_file_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/resource_limiter.cpp
 )
+
+
+
+
+
+

@@ -5,10 +5,11 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(base64)
 add_subdirectory(levenshtein_diff)
 add_subdirectory(quote)
 add_subdirectory(relaxed_escaper)
 add_subdirectory(scan)
 add_subdirectory(url)
+
+

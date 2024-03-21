@@ -7678,7 +7678,8 @@ void TOperationControllerBase::PrepareInputQuery()
 
 void TOperationControllerBase::ParseInputQuery(
     const TString& queryString,
-    const std::optional<TTableSchema>& schema)
+    const std::optional<TTableSchema>& schema,
+    TQueryFilterOptionsPtr queryFilterOptions)
 {
     for (const auto& table : InputTables_) {
         if (table->Path.GetColumns()) {
@@ -7755,6 +7756,7 @@ void TOperationControllerBase::ParseInputQuery(
     InputQuery.emplace();
     InputQuery->Query = std::move(query);
     InputQuery->ExternalCGInfo = std::move(externalCGInfo);
+    InputQuery->QueryFilterOptions = std::move(queryFilterOptions);
 
     ValidateTableSchema(
         *InputQuery->Query->GetTableSchema(),
@@ -7769,6 +7771,7 @@ void TOperationControllerBase::WriteInputQueryToJobSpec(TJobSpecExt* jobSpecExt)
     querySpec->mutable_query()->set_input_row_limit(std::numeric_limits<i64>::max() / 4);
     querySpec->mutable_query()->set_output_row_limit(std::numeric_limits<i64>::max() / 4);
     ToProto(querySpec->mutable_external_functions(), InputQuery->ExternalCGInfo->Functions);
+    NScheduler::NProto::ToProto(querySpec->mutable_options(), InputQuery->QueryFilterOptions);
 }
 
 void TOperationControllerBase::CollectTotals()

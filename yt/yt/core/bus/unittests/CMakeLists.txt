@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-core-bus)
+
+
 target_compile_options(unittester-core-bus PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-core-bus PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +23,7 @@ target_link_libraries(unittester-core-bus PUBLIC
   yt-core-test_framework
   cpp-testing-common
 )
+
 target_link_options(unittester-core-bus PRIVATE
   -ldl
   -lrt
@@ -33,16 +35,20 @@ target_link_options(unittester-core-bus PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-core-bus PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/unittests/bus_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/bus/unittests/ssl_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-core-bus
   COMMAND
   unittester-core-bus
 )
+
 set_property(
   TEST
   unittester-core-bus
@@ -50,6 +56,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-core-bus
@@ -57,13 +64,21 @@ set_property(
   PROCESSORS
   4
 )
+
 set_property(
   TEST
   unittester-core-bus
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-core-bus
   cpp-ytalloc-impl
 )
+
 vcs_info(unittester-core-bus)
+
+
+
+

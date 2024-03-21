@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-boost-container)
+
+
 target_compile_options(restricted-boost-container PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-boost-container PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/container/include
 )
+
 target_link_libraries(restricted-boost-container PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -23,6 +25,7 @@ target_link_libraries(restricted-boost-container PUBLIC
   restricted-boost-move
   restricted-boost-static_assert
 )
+
 target_sources(restricted-boost-container PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/container/src/alloc_lib.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/container/src/dlmalloc.cpp
@@ -32,3 +35,9 @@ target_sources(restricted-boost-container PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/container/src/synchronized_pool_resource.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/container/src/unsynchronized_pool_resource.cpp
 )
+
+
+
+
+
+

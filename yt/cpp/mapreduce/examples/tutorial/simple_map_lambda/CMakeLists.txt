@@ -5,13 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -20,9 +20,12 @@ get_built_tool_path(
 )
 
 add_executable(simple_map_lambda)
+
+
 target_compile_options(simple_map_lambda PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(simple_map_lambda PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -32,6 +35,7 @@ target_link_libraries(simple_map_lambda PUBLIC
   cpp-mapreduce-client
   contrib-libs-protobuf
 )
+
 target_link_options(simple_map_lambda PRIVATE
   -ldl
   -lrt
@@ -43,17 +47,23 @@ target_link_options(simple_map_lambda PRIVATE
   -ldl
   -lutil
 )
+
 target_proto_messages(simple_map_lambda PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/simple_map_lambda/data.proto
 )
+
 target_sources(simple_map_lambda PRIVATE
   ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/examples/tutorial/simple_map_lambda/data.pb.h
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/simple_map_lambda/main.cpp
 )
+
+
+
 target_allocator(simple_map_lambda
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 target_proto_addincls(simple_map_lambda
   ./
   ${PROJECT_SOURCE_DIR}/
@@ -64,8 +74,14 @@ target_proto_addincls(simple_map_lambda
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(simple_map_lambda
   --cpp_out=${PROJECT_BINARY_DIR}/
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
+
 vcs_info(simple_map_lambda)
+
+
+
+

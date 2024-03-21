@@ -5,19 +5,27 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(lib-hydra-dry_run)
+
+
 target_compile_options(lib-hydra-dry_run PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(lib-hydra-dry_run PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
 )
+
 target_sources(lib-hydra-dry_run PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/dry_run/journal_as_local_file_read_only_changelog.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/dry_run/utils.cpp
 )
+
+
+
+
+
+

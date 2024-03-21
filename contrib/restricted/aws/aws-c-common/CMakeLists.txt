@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-aws-aws-c-common)
+
+
 target_compile_options(restricted-aws-aws-c-common PRIVATE
   -DAWS_COMMON_USE_IMPORT_EXPORT
   -DAWS_PTHREAD_GETNAME_TAKES_3ARGS
@@ -20,13 +20,16 @@ target_compile_options(restricted-aws-aws-c-common PRIVATE
   -DUSE_SIMD_ENCODING
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-aws-aws-c-common PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/generated/include
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/include
 )
+
 target_link_libraries(restricted-aws-aws-c-common PUBLIC
   contrib-libs-linux-headers
 )
+
 target_sources(restricted-aws-aws-c-common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/source/allocator.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/source/allocator_sba.c
@@ -83,6 +86,9 @@ target_sources(restricted-aws-aws-c-common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/source/posix/thread.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/source/posix/time.c
 )
+
+
+
 target_sources_custom(restricted-aws-aws-c-common
   .avx2
   SRCS
@@ -93,3 +99,7 @@ target_sources_custom(restricted-aws-aws-c-common
   -mbmi
   -mbmi2
 )
+
+
+
+

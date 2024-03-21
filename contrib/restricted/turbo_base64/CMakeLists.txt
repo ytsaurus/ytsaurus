@@ -5,20 +5,25 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(contrib-restricted-turbo_base64)
+
+
 target_compile_options(contrib-restricted-turbo_base64 PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_link_libraries(contrib-restricted-turbo_base64 PUBLIC
   contrib-libs-linux-headers
 )
+
 target_sources(contrib-restricted-turbo_base64 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/turbo_base64/turbob64c.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/turbo_base64/turbob64d.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/turbo_base64/turbob64sse.c
 )
+
+
+
 target_sources_custom(contrib-restricted-turbo_base64
   .avx
   SRCS
@@ -26,6 +31,7 @@ target_sources_custom(contrib-restricted-turbo_base64
   CUSTOM_FLAGS
   -mavx
 )
+
 target_sources_custom(contrib-restricted-turbo_base64
   .avx2
   SRCS
@@ -36,3 +42,7 @@ target_sources_custom(contrib-restricted-turbo_base64
   -mbmi
   -mbmi2
 )
+
+
+
+

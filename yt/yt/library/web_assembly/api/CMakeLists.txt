@@ -5,18 +5,20 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(library-web_assembly-api)
+
+
 target_compile_options(library-web_assembly-api PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(library-web_assembly-api PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
 )
+
 target_sources(library-web_assembly-api PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/api/compartment.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/api/data_transfer.cpp
@@ -24,3 +26,9 @@ target_sources(library-web_assembly-api PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/api/memory_pool.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/api/type_builder.cpp
 )
+
+
+
+
+
+

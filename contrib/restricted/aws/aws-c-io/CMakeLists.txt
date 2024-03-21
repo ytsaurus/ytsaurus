@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-aws-aws-c-io)
+
+
 target_compile_options(restricted-aws-aws-c-io PRIVATE
   -DAWS_CAL_USE_IMPORT_EXPORT
   -DAWS_COMMON_USE_IMPORT_EXPORT
@@ -28,15 +28,18 @@ target_compile_options(restricted-aws-aws-c-io PRIVATE
   -DUSE_S2N
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-aws-aws-c-io PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-io/include
 )
+
 target_link_libraries(restricted-aws-aws-c-io PUBLIC
   contrib-libs-linux-headers
   restricted-aws-aws-c-cal
   restricted-aws-aws-c-common
   restricted-aws-s2n
 )
+
 target_sources(restricted-aws-aws-c-io PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-io/source/alpn_handler.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-io/source/channel.c
@@ -64,3 +67,9 @@ target_sources(restricted-aws-aws-c-io PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-io/source/posix/socket.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-io/source/s2n/s2n_tls_channel_handler.c
 )
+
+
+
+
+
+

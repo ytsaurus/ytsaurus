@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(cpp-http-server)
+
+
 target_link_libraries(cpp-http-server PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -17,6 +17,7 @@ target_link_libraries(cpp-http-server PUBLIC
   cpp-threading-equeue
   cpp-deprecated-atomic
 )
+
 target_sources(cpp-http-server PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/http/server/conn.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/http/server/http.cpp
@@ -24,3 +25,9 @@ target_sources(cpp-http-server PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/http/server/options.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/http/server/response.cpp
 )
+
+
+
+
+
+

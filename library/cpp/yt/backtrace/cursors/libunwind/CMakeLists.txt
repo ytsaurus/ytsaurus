@@ -5,18 +5,26 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(backtrace-cursors-libunwind)
+
+
 target_compile_options(backtrace-cursors-libunwind PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(backtrace-cursors-libunwind PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   contrib-libs-libunwind
 )
+
 target_sources(backtrace-cursors-libunwind PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/yt/backtrace/cursors/libunwind/libunwind_cursor.cpp
 )
+
+
+
+
+
+

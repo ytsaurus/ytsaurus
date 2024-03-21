@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(dump-changelog)
+
+
 target_compile_options(dump-changelog PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(dump-changelog PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -23,6 +24,7 @@ target_link_libraries(dump-changelog PUBLIC
   server-lib-hydra
   cpp-getopt-small
 )
+
 target_link_options(dump-changelog PRIVATE
   -ldl
   -lrt
@@ -34,11 +36,20 @@ target_link_options(dump-changelog PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(dump-changelog PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/dump_changelog/main.cpp
 )
+
+
+
 target_allocator(dump-changelog
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(dump-changelog)
+
+
+
+

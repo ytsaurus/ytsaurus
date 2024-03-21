@@ -5,13 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(avx)
 add_subdirectory(avx2)
 add_subdirectory(core)
 add_subdirectory(plain)
-
 add_library(libs-fastops-fastops)
+
+
 target_link_libraries(libs-fastops-fastops PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,7 +19,14 @@ target_link_libraries(libs-fastops-fastops PUBLIC
   fastops-fastops-avx2
   fastops-fastops-plain
 )
+
 target_sources(libs-fastops-fastops PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/fastops.h
   ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/fastops.cpp
 )
+
+
+
+
+
+

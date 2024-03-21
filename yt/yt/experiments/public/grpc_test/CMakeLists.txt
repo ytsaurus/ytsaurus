@@ -5,13 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -20,6 +20,8 @@ get_built_tool_path(
 )
 
 add_executable(grpc_test)
+
+
 target_link_libraries(grpc_test PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -30,6 +32,7 @@ target_link_libraries(grpc_test PUBLIC
   library-cpp-getopt
   contrib-libs-protobuf
 )
+
 target_link_options(grpc_test PRIVATE
   -ldl
   -lrt
@@ -41,17 +44,23 @@ target_link_options(grpc_test PRIVATE
   -ldl
   -lutil
 )
+
 target_proto_messages(grpc_test PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/grpc_test/main.proto
 )
+
 target_sources(grpc_test PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/experiments/public/grpc_test/main.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/grpc_test/main.cpp
 )
+
+
+
 target_allocator(grpc_test
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 target_proto_addincls(grpc_test
   ./
   ${PROJECT_SOURCE_DIR}/
@@ -62,8 +71,14 @@ target_proto_addincls(grpc_test
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(grpc_test
   --cpp_out=${PROJECT_BINARY_DIR}/
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
+
 vcs_info(grpc_test)
+
+
+
+

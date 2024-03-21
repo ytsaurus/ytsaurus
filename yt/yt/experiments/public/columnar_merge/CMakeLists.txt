@@ -5,16 +5,18 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(columnar_merge)
+
+
 target_compile_options(columnar_merge PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(columnar_merge PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
   ${PROJECT_SOURCE_DIR}/contrib/libs/re2
 )
+
 target_link_libraries(columnar_merge PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -28,6 +30,7 @@ target_link_libraries(columnar_merge PUBLIC
   server-lib-io
   library-cpp-getopt
 )
+
 target_link_options(columnar_merge PRIVATE
   -ldl
   -lrt
@@ -39,11 +42,20 @@ target_link_options(columnar_merge PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(columnar_merge PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/columnar_merge/main.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/columnar_merge/routines.cpp
 )
+
+
+
 target_allocator(columnar_merge
   cpp-ytalloc-impl
 )
+
 vcs_info(columnar_merge)
+
+
+
+

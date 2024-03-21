@@ -5,13 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -20,9 +20,12 @@ get_built_tool_path(
 )
 
 add_library(library-dns_over_rpc-client)
+
+
 target_compile_options(library-dns_over_rpc-client PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(library-dns_over_rpc-client PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -30,15 +33,20 @@ target_link_libraries(library-dns_over_rpc-client PUBLIC
   yt-yt-core
   contrib-libs-protobuf
 )
+
 target_proto_messages(library-dns_over_rpc-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/dns_over_rpc/client/proto/dns_over_rpc_service.proto
 )
+
 target_sources(library-dns_over_rpc-client PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/library/dns_over_rpc/client/proto/dns_over_rpc_service.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/library/dns_over_rpc/client/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/dns_over_rpc/client/dns_over_rpc_resolver.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/dns_over_rpc/client/helpers.cpp
 )
+
+
+
 target_proto_addincls(library-dns_over_rpc-client
   ./
   ${PROJECT_SOURCE_DIR}/
@@ -49,7 +57,12 @@ target_proto_addincls(library-dns_over_rpc-client
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(library-dns_over_rpc-client
   --cpp_out=${PROJECT_BINARY_DIR}/
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
+
+
+
+

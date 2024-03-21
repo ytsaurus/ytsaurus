@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(lib-Transforms-Coroutines)
+
+
 target_compile_options(lib-Transforms-Coroutines PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(lib-Transforms-Coroutines PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Coroutines
 )
+
 target_link_libraries(lib-Transforms-Coroutines PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -26,6 +28,7 @@ target_link_libraries(lib-Transforms-Coroutines PUBLIC
   lib-Transforms-Scalar
   lib-Transforms-Utils
 )
+
 target_sources(lib-Transforms-Coroutines PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Coroutines/CoroCleanup.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Coroutines/CoroConditionalWrapper.cpp
@@ -35,3 +38,9 @@ target_sources(lib-Transforms-Coroutines PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Coroutines/CoroSplit.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Coroutines/Coroutines.cpp
 )
+
+
+
+
+
+

@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(unittests)
-
 add_library(yt-library-vector_hdrf)
+
+
 target_compile_options(yt-library-vector_hdrf PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-library-vector_hdrf PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,6 +21,7 @@ target_link_libraries(yt-library-vector_hdrf PUBLIC
   library-numeric-serialize
   yt-yt-core
 )
+
 target_sources(yt-library-vector_hdrf PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/vector_hdrf/job_resources.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/vector_hdrf/piecewise_linear_function_helpers.cpp
@@ -28,3 +30,9 @@ target_sources(yt-library-vector_hdrf PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/vector_hdrf/resource_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/vector_hdrf/fair_share_update.cpp
 )
+
+
+
+
+
+

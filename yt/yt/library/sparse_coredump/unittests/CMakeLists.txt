@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-core-dump)
+
+
 target_compile_options(unittester-core-dump PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-core-dump PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,6 +21,7 @@ target_link_libraries(unittester-core-dump PUBLIC
   cpp-testing-gtest_main
   yt-library-sparse_coredump
 )
+
 target_link_options(unittester-core-dump PRIVATE
   -ldl
   -lrt
@@ -31,15 +33,19 @@ target_link_options(unittester-core-dump PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-core-dump PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/sparse_coredump/unittests/core_dump_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-core-dump
   COMMAND
   unittester-core-dump
 )
+
 set_property(
   TEST
   unittester-core-dump
@@ -47,6 +53,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-core-dump
@@ -54,14 +61,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-core-dump
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-core-dump
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(unittester-core-dump)
+
+
+
+

@@ -5,13 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -20,9 +20,12 @@ get_built_tool_path(
 )
 
 add_executable(unittester-tablet-node)
+
+
 target_compile_options(unittester-tablet-node PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-tablet-node PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -36,6 +39,7 @@ target_link_libraries(unittester-tablet-node PUBLIC
   lib-hydra-mock
   contrib-libs-protobuf
 )
+
 target_link_options(unittester-tablet-node PRIVATE
   -ldl
   -lrt
@@ -47,9 +51,11 @@ target_link_options(unittester-tablet-node PRIVATE
   -ldl
   -lutil
 )
+
 target_proto_messages(unittester-tablet-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/proto/simple_transaction_supervisor.proto
 )
+
 target_sources(unittester-tablet-node PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/server/node/tablet_node/unittests/proto/simple_transaction_supervisor.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/lookup_ut.cpp
@@ -67,12 +73,15 @@ target_sources(unittester-tablet-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/tablet_cell_write_manager_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/tablet_context_mock.cpp
 )
+
+
 add_test(
   NAME
   unittester-tablet-node
   COMMAND
   unittester-tablet-node
 )
+
 set_property(
   TEST
   unittester-tablet-node
@@ -80,6 +89,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-tablet-node
@@ -87,16 +97,20 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-tablet-node
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-tablet-node
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 target_proto_addincls(unittester-tablet-node
   ./
   ${PROJECT_SOURCE_DIR}/
@@ -110,8 +124,14 @@ target_proto_addincls(unittester-tablet-node
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(unittester-tablet-node
   --cpp_out=${PROJECT_BINARY_DIR}/
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
+
 vcs_info(unittester-tablet-node)
+
+
+
+

@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-controller-agent)
+
+
 target_compile_options(unittester-controller-agent PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-controller-agent PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -21,6 +22,7 @@ target_link_libraries(unittester-controller-agent PUBLIC
   yt-server-controller_agent
   lib-chunk_pools-mock
 )
+
 target_link_options(unittester-controller-agent PRIVATE
   -ldl
   -lrt
@@ -32,6 +34,7 @@ target_link_options(unittester-controller-agent PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-controller-agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/auto_merge_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/job_monitoring_index_manager_ut.cpp
@@ -39,12 +42,15 @@ target_sources(unittester-controller-agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/partitions_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/unittests/docker_image_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-controller-agent
   COMMAND
   unittester-controller-agent
 )
+
 set_property(
   TEST
   unittester-controller-agent
@@ -52,6 +58,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-controller-agent
@@ -59,14 +66,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-controller-agent
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-controller-agent
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(unittester-controller-agent)
+
+
+
+

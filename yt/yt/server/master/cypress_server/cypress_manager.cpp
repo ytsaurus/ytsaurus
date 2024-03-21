@@ -1728,6 +1728,15 @@ public:
         return handler->GetProxy(trunkNode, transaction);
     }
 
+    bool CanLock(TCypressNode* trunkNode, const TLockRequest& request, bool recursive) override
+    {
+        return CheckLock(
+            trunkNode,
+            /*transaction*/ nullptr,
+            request,
+            recursive)
+            .IsOK();
+    }
 
     TCypressNode* LockNode(
         TCypressNode* trunkNode,

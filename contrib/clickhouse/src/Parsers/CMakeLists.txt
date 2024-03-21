@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(clickhouse-src-Parsers)
+
+
 target_compile_options(clickhouse-src-Parsers PUBLIC
   -DOS_LINUX
 )
@@ -32,6 +32,7 @@ target_compile_options(clickhouse-src-Parsers PRIVATE
   -D__GCC_HAVE_DWARF2_CFI_ASM=1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(clickhouse-src-Parsers PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/pcg-random
@@ -43,6 +44,7 @@ target_include_directories(clickhouse-src-Parsers PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
   ${PROJECT_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2
 )
+
 target_link_libraries(clickhouse-src-Parsers PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -74,6 +76,7 @@ target_link_libraries(clickhouse-src-Parsers PUBLIC
   dragonbox
   contrib-restricted-magic_enum
 )
+
 target_sources(clickhouse-src-Parsers PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTAlterNamedCollectionQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/ASTAlterQuery.cpp
@@ -267,3 +270,9 @@ target_sources(clickhouse-src-Parsers PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/queryToString.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Parsers/toOneLineQuery.cpp
 )
+
+
+
+
+
+

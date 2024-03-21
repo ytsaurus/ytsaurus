@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(server-controller_agent-controllers)
+
+
 target_compile_options(server-controller_agent-controllers PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(server-controller_agent-controllers PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -21,6 +22,7 @@ target_link_libraries(server-controller_agent-controllers PUBLIC
   server-lib-tablet_server
   yt-library-safe_assert
 )
+
 target_sources(server-controller_agent-controllers PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/aggregated_job_statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/alert_manager.cpp
@@ -50,3 +52,9 @@ target_sources(server-controller_agent-controllers PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/unordered_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/vanilla_controller.cpp
 )
+
+
+
+
+
+

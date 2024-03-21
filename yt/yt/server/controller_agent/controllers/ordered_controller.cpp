@@ -549,7 +549,10 @@ private:
     void PrepareInputQuery() override
     {
         if (Spec_->InputQuery) {
-            ParseInputQuery(*Spec_->InputQuery, Spec_->InputSchema);
+            ParseInputQuery(
+                *Spec_->InputQuery,
+                Spec_->InputSchema,
+                Spec_->InputQueryFilterOptions);
         }
     }
 
@@ -824,7 +827,10 @@ private:
     void PrepareInputQuery() override
     {
         if (Spec_->InputQuery) {
-            ParseInputQuery(*Spec_->InputQuery, Spec_->InputSchema);
+            ParseInputQuery(
+                *Spec_->InputQuery,
+                Spec_->InputSchema,
+                Spec_->InputQueryFilterOptions);
         }
     }
 

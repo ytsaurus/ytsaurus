@@ -387,7 +387,7 @@ void TLeaderCommitter::BuildMonitoring(TFluentMap fluent)
         .Item("last_offloaded_sequence_number").Value(LastOffloadedSequenceNumber_)
         .Item("last_random_seed").Value(LastRandomSeed_)
         .Item("committed_sequence_number").Value(CommittedState_.SequenceNumber)
-        .Item("committed_seqment_id").Value(CommittedState_.SegmentId)
+        .Item("committed_segment_id").Value(CommittedState_.SegmentId)
         .Item("peer_states").DoListFor(
             PeerStates_,
             [&] (TFluentList fluent, const auto& peer) {
@@ -944,7 +944,7 @@ TFuture<int> TLeaderCommitter::BuildSnapshot(bool waitForCompletion, bool readOn
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     YT_VERIFY(!LastSnapshotInfo_);
-    LastSnapshotInfo_ = TShapshotInfo{
+    LastSnapshotInfo_ = TSnapshotInfo{
         .SnapshotId = NextLoggedVersion_.SegmentId + 1,
         .ReadOnly = readOnly
     };
@@ -1042,7 +1042,7 @@ void TLeaderCommitter::OnChangelogAcquired(const TErrorOr<IChangelogPtr>& change
     }
 
     if (!LastSnapshotInfo_) {
-        LastSnapshotInfo_ = TShapshotInfo{
+        LastSnapshotInfo_ = TSnapshotInfo{
             .SnapshotId = changelogId,
             .ReadOnly = EpochContext_->ReadOnly
         };

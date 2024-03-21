@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(rpc-unittests-mock)
+
+
 target_compile_options(rpc-unittests-mock PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(rpc-unittests-mock PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,13 @@ target_link_libraries(rpc-unittests-mock PUBLIC
   yt-yt-core
   cpp-testing-gtest
 )
+
 target_sources(rpc-unittests-mock PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/mock/service.cpp
 )
+
+
+
+
+
+

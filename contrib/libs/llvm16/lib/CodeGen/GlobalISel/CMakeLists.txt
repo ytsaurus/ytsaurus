@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(lib-CodeGen-GlobalISel)
+
+
 target_compile_options(lib-CodeGen-GlobalISel PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(lib-CodeGen-GlobalISel PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel
 )
+
 target_link_libraries(lib-CodeGen-GlobalISel PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -28,6 +30,7 @@ target_link_libraries(lib-CodeGen-GlobalISel PUBLIC
   llvm16-lib-Target
   lib-Transforms-Utils
 )
+
 target_sources(lib-CodeGen-GlobalISel PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/CSEInfo.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/CSEMIRBuilder.cpp
@@ -54,3 +57,9 @@ target_sources(lib-CodeGen-GlobalISel PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/RegBankSelect.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/GlobalISel/Utils.cpp
 )
+
+
+
+
+
+

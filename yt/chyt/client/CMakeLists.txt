@@ -5,13 +5,19 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(protos)
-
 add_library(yt-chyt-client INTERFACE)
+
+
 target_link_libraries(yt-chyt-client INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   chyt-client-protos
 )
+
+
+
+
+
+

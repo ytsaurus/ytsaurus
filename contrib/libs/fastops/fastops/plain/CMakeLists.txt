@@ -5,15 +5,22 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(fastops-fastops-plain)
+
+
 target_link_libraries(fastops-fastops-plain PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   contrib-libs-fmath
 )
+
 target_sources(fastops-fastops-plain PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/plain/ops_plain.h
   ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/plain/ops_plain.cpp
 )
+
+
+
+
+
+

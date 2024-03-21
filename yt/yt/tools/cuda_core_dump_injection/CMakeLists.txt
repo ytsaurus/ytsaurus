@@ -5,14 +5,15 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_shared_library(cuda_core_dump_injection)
+
+
 target_link_libraries(cuda_core_dump_injection PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
 )
+
 target_link_options(cuda_core_dump_injection PRIVATE
   -ldl
   -lrt
@@ -24,7 +25,15 @@ target_link_options(cuda_core_dump_injection PRIVATE
   -lrt
   -ldl
 )
+
 target_sources(cuda_core_dump_injection PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/cuda_core_dump_injection/cuda_core_dump_injection.c
 )
+
+
+
 vcs_info(cuda_core_dump_injection)
+
+
+
+

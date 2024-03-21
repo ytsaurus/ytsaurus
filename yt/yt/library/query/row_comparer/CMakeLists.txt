@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(library-query-row_comparer INTERFACE)
+
+
 target_link_libraries(library-query-row_comparer INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -17,10 +17,17 @@ target_link_libraries(library-query-row_comparer INTERFACE
   yt-library-codegen
 )
 
-add_global_library_for(library-query-row_comparer.global library-query-row_comparer)
+
+
+
+add_global_library_for(library-query-row_comparer.global
+  library-query-row_comparer)
+
+
 target_compile_options(library-query-row_comparer.global PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(library-query-row_comparer.global PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -29,6 +36,13 @@ target_link_libraries(library-query-row_comparer.global PUBLIC
   yt-yt-core
   yt-library-codegen
 )
+
 target_sources(library-query-row_comparer.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/row_comparer/row_comparer_generator.cpp
 )
+
+
+
+
+
+

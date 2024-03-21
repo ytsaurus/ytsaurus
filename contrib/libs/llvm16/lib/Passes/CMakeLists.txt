@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(llvm16-lib-Passes)
+
+
 target_compile_options(llvm16-lib-Passes PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(llvm16-lib-Passes PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Passes
 )
+
 target_link_libraries(llvm16-lib-Passes PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -35,6 +37,7 @@ target_link_libraries(llvm16-lib-Passes PUBLIC
   lib-Transforms-Utils
   lib-Transforms-Vectorize
 )
+
 target_sources(llvm16-lib-Passes PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Passes/OptimizationLevel.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Passes/PassBuilder.cpp
@@ -43,3 +46,9 @@ target_sources(llvm16-lib-Passes PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Passes/PassPlugin.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Passes/StandardInstrumentations.cpp
 )
+
+
+
+
+
+

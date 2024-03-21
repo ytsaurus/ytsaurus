@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(unittests)
-
 add_library(yt-library-auth_server)
+
+
 target_compile_options(yt-library-auth_server PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-library-auth_server PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -23,6 +24,7 @@ target_link_libraries(yt-library-auth_server PUBLIC
   cpp-string_utils-quote
   cpp-string_utils-url
 )
+
 target_sources(yt-library-auth_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/authentication_manager.cpp
@@ -48,3 +50,9 @@ target_sources(yt-library-auth_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/oauth_token_authenticator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/oauth_service.cpp
 )
+
+
+
+
+
+

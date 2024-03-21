@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(chyt_query)
+
+
 target_link_libraries(chyt_query PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -17,6 +17,7 @@ target_link_libraries(chyt_query PUBLIC
   yt-yt-ytlib
   cpp-getopt-small
 )
+
 target_link_options(chyt_query PRIVATE
   -ldl
   -lrt
@@ -28,11 +29,20 @@ target_link_options(chyt_query PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(chyt_query PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/chyt_query/main.cpp
 )
+
+
+
 target_allocator(chyt_query
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(chyt_query)
+
+
+
+

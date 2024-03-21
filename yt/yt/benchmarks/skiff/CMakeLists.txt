@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(skiff)
+
+
 target_compile_options(skiff PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(skiff PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +23,7 @@ target_link_libraries(skiff PUBLIC
   yt-library-formats
   library-cpp-getopt
 )
+
 target_link_options(skiff PRIVATE
   -ldl
   -lrt
@@ -33,12 +35,21 @@ target_link_options(skiff PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(skiff PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/skiff/main.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/skiff/experimental_yson_pull_format.cpp
 )
+
+
+
 target_allocator(skiff
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(skiff)
+
+
+
+

@@ -5,17 +5,19 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(Target-ARM-MCTargetDesc)
+
+
 target_compile_options(Target-ARM-MCTargetDesc PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(Target-ARM-MCTargetDesc PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc
 )
+
 target_link_libraries(Target-ARM-MCTargetDesc PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -29,6 +31,7 @@ target_link_libraries(Target-ARM-MCTargetDesc PUBLIC
   Target-ARM-Utils
   llvm16-lib-TargetParser
 )
+
 target_sources(Target-ARM-MCTargetDesc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMAsmBackend.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMELFObjectWriter.cpp
@@ -45,3 +48,9 @@ target_sources(Target-ARM-MCTargetDesc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMWinCOFFObjectWriter.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/MCTargetDesc/ARMWinCOFFStreamer.cpp
 )
+
+
+
+
+
+

@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(unittests)
 get_built_tool_path(
   TOOL_protoc_bin
@@ -13,6 +12,7 @@ get_built_tool_path(
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -21,9 +21,12 @@ get_built_tool_path(
 )
 
 add_library(server-lib-discovery_server)
+
+
 target_compile_options(server-lib-discovery_server PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(server-lib-discovery_server PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -33,9 +36,11 @@ target_link_libraries(server-lib-discovery_server PUBLIC
   yt-ytlib-discovery_client
   contrib-libs-protobuf
 )
+
 target_proto_messages(server-lib-discovery_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/discovery_server/proto/discovery_server_service.proto
 )
+
 target_sources(server-lib-discovery_server PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/server/lib/discovery_server/proto/discovery_server_service.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/discovery_server/config.cpp
@@ -47,6 +52,9 @@ target_sources(server-lib-discovery_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/discovery_server/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/discovery_server/member.cpp
 )
+
+
+
 target_proto_addincls(server-lib-discovery_server
   ./
   ${PROJECT_SOURCE_DIR}/
@@ -58,7 +66,12 @@ target_proto_addincls(server-lib-discovery_server
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(server-lib-discovery_server
   --cpp_out=${PROJECT_BINARY_DIR}/
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
+
+
+
+

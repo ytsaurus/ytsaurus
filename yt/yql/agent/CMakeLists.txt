@@ -5,14 +5,15 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(bin)
 add_subdirectory(unittests)
-
 add_library(yt-yql-agent)
+
+
 target_compile_options(yt-yql-agent PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-yql-agent PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -32,6 +33,7 @@ target_link_libraries(yt-yql-agent PUBLIC
   library-query-row_comparer
   yql-plugin-bridge
 )
+
 target_sources(yt-yql-agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yql/agent/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yql/agent/config.cpp
@@ -40,3 +42,9 @@ target_sources(yt-yql-agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yql/agent/yql_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yql/agent/interop.cpp
 )
+
+
+
+
+
+

@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(lib)
-
 add_executable(tablet-balancer-dry-mode)
+
+
 target_compile_options(tablet-balancer-dry-mode PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(tablet-balancer-dry-mode PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -21,6 +22,7 @@ target_link_libraries(tablet-balancer-dry-mode PUBLIC
   cpp-getopt-small
   cpp-yt-logging
 )
+
 target_link_options(tablet-balancer-dry-mode PRIVATE
   -ldl
   -lrt
@@ -32,11 +34,20 @@ target_link_options(tablet-balancer-dry-mode PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(tablet-balancer-dry-mode PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/dry_run/main.cpp
 )
+
+
+
 target_allocator(tablet-balancer-dry-mode
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(tablet-balancer-dry-mode)
+
+
+
+

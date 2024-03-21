@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(backtrace-symbolizers-dwarf INTERFACE)
+
+
 target_link_libraries(backtrace-symbolizers-dwarf INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -16,7 +16,13 @@ target_link_libraries(backtrace-symbolizers-dwarf INTERFACE
   cpp-yt-backtrace
 )
 
-add_global_library_for(backtrace-symbolizers-dwarf.global backtrace-symbolizers-dwarf)
+
+
+
+add_global_library_for(backtrace-symbolizers-dwarf.global
+  backtrace-symbolizers-dwarf)
+
+
 target_link_libraries(backtrace-symbolizers-dwarf.global PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -24,6 +30,13 @@ target_link_libraries(backtrace-symbolizers-dwarf.global PUBLIC
   library-cpp-dwarf_backtrace
   cpp-yt-backtrace
 )
+
 target_sources(backtrace-symbolizers-dwarf.global PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/yt/backtrace/symbolizers/dwarf/dwarf_symbolizer.cpp
 )
+
+
+
+
+
+

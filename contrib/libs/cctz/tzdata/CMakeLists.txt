@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
@@ -14,6 +13,8 @@ get_built_tool_path(
 )
 
 add_library(libs-cctz-tzdata INTERFACE)
+
+
 target_link_libraries(libs-cctz-tzdata INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,7 +23,13 @@ target_link_libraries(libs-cctz-tzdata INTERFACE
   library-cpp-resource
 )
 
-add_global_library_for(libs-cctz-tzdata.global libs-cctz-tzdata)
+
+
+
+add_global_library_for(libs-cctz-tzdata.global
+  libs-cctz-tzdata)
+
+
 target_link_libraries(libs-cctz-tzdata.global PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -30,10 +37,14 @@ target_link_libraries(libs-cctz-tzdata.global PUBLIC
   contrib-libs-cctz
   library-cpp-resource
 )
+
 target_sources(libs-cctz-tzdata.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/cctz/tzdata/factory.cpp
   ${PROJECT_BINARY_DIR}/contrib/libs/cctz/tzdata/0be5888175f70ec803b38a1f5cc4d221.cpp
 )
+
+
+
 resources(libs-cctz-tzdata.global
   ${PROJECT_BINARY_DIR}/contrib/libs/cctz/tzdata/0be5888175f70ec803b38a1f5cc4d221.cpp
   INPUTS
@@ -1235,3 +1246,7 @@ resources(libs-cctz-tzdata.global
   /cctz/tzdata/WET
   /cctz/tzdata/Zulu
 )
+
+
+
+

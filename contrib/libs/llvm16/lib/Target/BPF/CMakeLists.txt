@@ -5,20 +5,22 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(AsmParser)
 add_subdirectory(Disassembler)
 add_subdirectory(MCTargetDesc)
 add_subdirectory(TargetInfo)
-
 add_library(lib-Target-BPF)
+
+
 target_compile_options(lib-Target-BPF PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(lib-Target-BPF PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
 )
+
 target_link_libraries(lib-Target-BPF PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -39,6 +41,7 @@ target_link_libraries(lib-Target-BPF PUBLIC
   lib-Transforms-Scalar
   lib-Transforms-Utils
 )
+
 target_sources(lib-Target-BPF PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFAbstractMemberAccess.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFAdjustOpt.cpp
@@ -60,3 +63,9 @@ target_sources(lib-Target-BPF PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BPFTargetMachine.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/BTFDebug.cpp
 )
+
+
+
+
+
+

@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(cpp-mapreduce-io)
+
+
 target_compile_options(cpp-mapreduce-io PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(cpp-mapreduce-io PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -25,6 +26,7 @@ target_link_libraries(cpp-mapreduce-io PUBLIC
   cpp-mapreduce-skiff
   yt-yt-core
 )
+
 target_sources(cpp-mapreduce-io PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/io/counting_raw_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/io/job_reader.cpp
@@ -41,3 +43,9 @@ target_sources(cpp-mapreduce-io PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/io/yamr_table_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/io/yamr_table_writer.cpp
 )
+
+
+
+
+
+

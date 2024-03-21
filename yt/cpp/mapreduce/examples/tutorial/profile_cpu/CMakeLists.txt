@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(profile_cpu)
+
+
 target_compile_options(profile_cpu PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(profile_cpu PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,6 +20,7 @@ target_link_libraries(profile_cpu PUBLIC
   cpp-mapreduce-interface
   cpp-mapreduce-client
 )
+
 target_link_options(profile_cpu PRIVATE
   -ldl
   -lrt
@@ -30,11 +32,20 @@ target_link_options(profile_cpu PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(profile_cpu PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/profile_cpu/main.cpp
 )
+
+
+
 target_allocator(profile_cpu
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(profile_cpu)
+
+
+
+

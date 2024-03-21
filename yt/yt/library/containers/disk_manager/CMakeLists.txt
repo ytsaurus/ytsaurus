@@ -5,20 +5,28 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(library-containers-disk_manager)
+
+
 target_compile_options(library-containers-disk_manager PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(library-containers-disk_manager PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
 )
+
 target_sources(library-containers-disk_manager PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/disk_manager/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/disk_manager/disk_info_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/disk_manager/disk_manager_proxy.cpp
 )
+
+
+
+
+
+

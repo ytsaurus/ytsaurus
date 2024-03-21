@@ -5,16 +5,18 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(Target-ARM-TargetInfo)
+
+
 target_compile_options(Target-ARM-TargetInfo PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(Target-ARM-TargetInfo PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/TargetInfo
 )
+
 target_link_libraries(Target-ARM-TargetInfo PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +24,13 @@ target_link_libraries(Target-ARM-TargetInfo PUBLIC
   llvm16-lib-MC
   llvm16-lib-Support
 )
+
 target_sources(Target-ARM-TargetInfo PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/TargetInfo/ARMTargetInfo.cpp
 )
+
+
+
+
+
+

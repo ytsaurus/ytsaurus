@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-core-crypto)
+
+
 target_compile_options(unittester-core-crypto PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-core-crypto PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +23,7 @@ target_link_libraries(unittester-core-crypto PUBLIC
   core-rpc-grpc
   yt-core-test_framework
 )
+
 target_link_options(unittester-core-crypto PRIVATE
   -ldl
   -lrt
@@ -33,16 +35,20 @@ target_link_options(unittester-core-crypto PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-core-crypto PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/crypto/unittests/crypto_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/crypto/unittests/tls_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-core-crypto
   COMMAND
   unittester-core-crypto
 )
+
 set_property(
   TEST
   unittester-core-crypto
@@ -50,6 +56,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-core-crypto
@@ -57,13 +64,21 @@ set_property(
   PROCESSORS
   4
 )
+
 set_property(
   TEST
   unittester-core-crypto
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-core-crypto
   cpp-ytalloc-impl
 )
+
 vcs_info(unittester-core-crypto)
+
+
+
+

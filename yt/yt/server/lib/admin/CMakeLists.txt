@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(server-lib-admin)
+
+
 target_compile_options(server-lib-admin PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(server-lib-admin PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,7 +19,14 @@ target_link_libraries(server-lib-admin PUBLIC
   yt-yt-ytlib
   yt-library-coredumper
 )
+
 target_sources(server-lib-admin PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/admin/admin_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/admin/restart_service.cpp
 )
+
+
+
+
+
+

@@ -5,10 +5,10 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(proto)
-
 add_library(library-cpp-porto)
+
+
 target_link_libraries(library-cpp-porto PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -16,7 +16,14 @@ target_link_libraries(library-cpp-porto PUBLIC
   cpp-porto-proto
   contrib-libs-protobuf
 )
+
 target_sources(library-cpp-porto PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/porto/libporto.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/porto/metrics.cpp
 )
+
+
+
+
+
+

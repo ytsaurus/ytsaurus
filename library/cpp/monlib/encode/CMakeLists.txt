@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(buffered)
 add_subdirectory(json)
 add_subdirectory(prometheus)
@@ -18,6 +17,8 @@ get_built_tool_path(
 )
 
 add_library(cpp-monlib-encode)
+
+
 target_link_libraries(cpp-monlib-encode PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -25,12 +26,16 @@ target_link_libraries(cpp-monlib-encode PUBLIC
   cpp-monlib-metrics
   tools-enum_parser-enum_serialization_runtime
 )
+
 target_sources(cpp-monlib-encode PRIVATE
   ${PROJECT_BINARY_DIR}/library/cpp/monlib/encode/encoder_state_enum.h_serialized.h
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/encode/encoder.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/encode/encoder_state.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/encode/format.cpp
 )
+
+
+
 generate_enum_serilization(cpp-monlib-encode
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/encode/encoder_state_enum.h
   GEN_HEADER
@@ -38,3 +43,7 @@ generate_enum_serilization(cpp-monlib-encode
   INCLUDE_HEADERS
   library/cpp/monlib/encode/encoder_state_enum.h
 )
+
+
+
+

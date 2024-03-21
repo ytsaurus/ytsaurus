@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(utils-TableGen-GlobalISel)
+
+
 target_compile_options(utils-TableGen-GlobalISel PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(utils-TableGen-GlobalISel PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/GlobalISel
 )
+
 target_link_libraries(utils-TableGen-GlobalISel PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -21,6 +23,7 @@ target_link_libraries(utils-TableGen-GlobalISel PUBLIC
   llvm16-lib-Support
   llvm16-lib-TableGen
 )
+
 target_sources(utils-TableGen-GlobalISel PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/GlobalISel/CodeExpander.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/GlobalISel/GIMatchDag.cpp
@@ -31,3 +34,9 @@ target_sources(utils-TableGen-GlobalISel PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/GlobalISel/GIMatchDagPredicateDependencyEdge.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/GlobalISel/GIMatchTree.cpp
 )
+
+
+
+
+
+

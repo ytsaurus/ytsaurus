@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(ExecutionEngine-Orc-TargetProcess)
+
+
 target_compile_options(ExecutionEngine-Orc-TargetProcess PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(ExecutionEngine-Orc-TargetProcess PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/TargetProcess
 )
+
 target_link_libraries(ExecutionEngine-Orc-TargetProcess PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +24,7 @@ target_link_libraries(ExecutionEngine-Orc-TargetProcess PUBLIC
   llvm16-lib-Support
   llvm16-lib-TargetParser
 )
+
 target_sources(ExecutionEngine-Orc-TargetProcess PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/TargetProcess/ExecutorSharedMemoryMapperService.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/TargetProcess/JITLoaderGDB.cpp
@@ -32,3 +35,9 @@ target_sources(ExecutionEngine-Orc-TargetProcess PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/TargetProcess/SimpleRemoteEPCServer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/TargetProcess/TargetExecutionUtils.cpp
 )
+
+
+
+
+
+

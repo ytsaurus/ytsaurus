@@ -5,16 +5,23 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(proto)
-
 add_library(library-timers-timer)
+
+
 target_link_libraries(library-timers-timer PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   timers-timer-proto
 )
+
 target_sources(library-timers-timer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/library/timers/timer/timer.cpp
 )
+
+
+
+
+
+

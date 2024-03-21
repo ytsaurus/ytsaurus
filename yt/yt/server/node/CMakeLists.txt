@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(cellar_node)
 add_subdirectory(chaos_node)
 add_subdirectory(data_node)
@@ -17,42 +16,49 @@ get_built_tool_path(
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -61,15 +67,19 @@ get_built_tool_path(
 )
 
 add_library(yt-server-node)
+
+
 target_compile_options(yt-server-node PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(yt-server-node PUBLIC
   ${PROJECT_BINARY_DIR}/yt
 )
 target_include_directories(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
 )
+
 target_link_libraries(yt-server-node PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -104,12 +114,14 @@ target_link_libraries(yt-server-node PUBLIC
   libs-tcmalloc-malloc_extension
   contrib-libs-protobuf
 )
+
 target_proto_messages(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/artifact.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/in_memory_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/transaction_manager.proto
 )
+
 target_sources(yt-server-node PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/server/node/data_node/artifact.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/node/exec_node/volume.pb.h
@@ -277,6 +289,9 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/overload_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/overload_controlling_service_base.cpp
 )
+
+
+
 target_proto_addincls(yt-server-node
   ./yt
   ${PROJECT_SOURCE_DIR}/yt
@@ -291,7 +306,12 @@ target_proto_addincls(yt-server-node
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(yt-server-node
   --cpp_out=${PROJECT_BINARY_DIR}/yt
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
+
+
+
+

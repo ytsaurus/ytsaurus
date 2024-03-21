@@ -5,9 +5,10 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(test_base)
 add_subdirectory(test_cypress_election)
 add_subdirectory(test_hydra)
 add_subdirectory(test_native_api)
 add_subdirectory(test_rpc_api)
+
+

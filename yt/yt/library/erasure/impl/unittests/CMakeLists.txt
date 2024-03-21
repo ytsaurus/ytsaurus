@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-library-erasure)
+
+
 target_compile_options(unittester-library-erasure PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-library-erasure PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +23,7 @@ target_link_libraries(unittester-library-erasure PUBLIC
   yt-core-test_framework
   library-erasure-impl
 )
+
 target_link_options(unittester-library-erasure PRIVATE
   -ldl
   -lrt
@@ -33,15 +35,19 @@ target_link_options(unittester-library-erasure PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-library-erasure PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/erasure/impl/unittests/erasure_stability_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-library-erasure
   COMMAND
   unittester-library-erasure
 )
+
 set_property(
   TEST
   unittester-library-erasure
@@ -49,6 +55,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   unittester-library-erasure
@@ -56,13 +63,21 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-library-erasure
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-library-erasure
   cpp-ytalloc-impl
 )
+
 vcs_info(unittester-library-erasure)
+
+
+
+

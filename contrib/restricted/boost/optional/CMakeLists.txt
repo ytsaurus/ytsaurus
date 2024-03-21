@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-boost-optional INTERFACE)
+
+
 target_include_directories(restricted-boost-optional INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/optional/include
 )
+
 target_link_libraries(restricted-boost-optional INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -25,3 +26,9 @@ target_link_libraries(restricted-boost-optional INTERFACE
   restricted-boost-type_traits
   restricted-boost-utility
 )
+
+
+
+
+
+

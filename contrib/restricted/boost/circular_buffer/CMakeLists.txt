@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-boost-circular_buffer INTERFACE)
+
+
 target_include_directories(restricted-boost-circular_buffer INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/circular_buffer/include
 )
+
 target_link_libraries(restricted-boost-circular_buffer INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -23,3 +24,9 @@ target_link_libraries(restricted-boost-circular_buffer INTERFACE
   restricted-boost-throw_exception
   restricted-boost-type_traits
 )
+
+
+
+
+
+

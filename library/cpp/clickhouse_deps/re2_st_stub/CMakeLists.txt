@@ -5,15 +5,22 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(cpp-clickhouse_deps-re2_st_stub INTERFACE)
+
+
 target_include_directories(cpp-clickhouse_deps-re2_st_stub INTERFACE
   ${PROJECT_SOURCE_DIR}/library/cpp/clickhouse_deps/re2_st_stub/include
 )
+
 target_link_libraries(cpp-clickhouse_deps-re2_st_stub INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   contrib-libs-re2
 )
+
+
+
+
+
+

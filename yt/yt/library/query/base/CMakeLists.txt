@@ -5,16 +5,18 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(library-query-base)
+
+
 target_compile_options(library-query-base PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(library-query-base PUBLIC
   ${PROJECT_BINARY_DIR}/yt
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/base
 )
+
 target_link_libraries(library-query-base PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -25,6 +27,7 @@ target_link_libraries(library-query-base PUBLIC
   library-query-proto
   bison-bison-induced
 )
+
 target_sources(library-query-base PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/base/parser.h
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/ast.cpp
@@ -43,12 +46,20 @@ target_sources(library-query-base PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/query_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/query_preparer.cpp
 )
+
+
+
 target_bison_parser(library-query-base
   PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/parser.ypp
 )
+
 target_ragel_lexers(library-query-base
   PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/lexer.rl6
   -CG2
 )
+
+
+
+

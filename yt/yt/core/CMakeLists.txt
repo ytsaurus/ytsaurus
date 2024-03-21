@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(actions)
 add_subdirectory(bus)
 add_subdirectory(compression)
@@ -25,12 +24,14 @@ add_subdirectory(tracing)
 add_subdirectory(ypath)
 add_subdirectory(yson)
 add_subdirectory(ytree)
-
 add_library(yt-yt-core)
+
+
 target_compile_options(yt-yt-core PRIVATE
   -mpclmul
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-yt-core PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -76,6 +77,7 @@ target_link_libraries(yt-yt-core PUBLIC
   yt-library-tracing
   backtrace-cursors-libunwind
 )
+
 target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/actions/cancelable_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/actions/current_invoker.cpp
@@ -331,11 +333,18 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytalloc/statistics_producer.cpp
 )
 
-add_global_library_for(yt-yt-core.global yt-yt-core)
+
+
+
+add_global_library_for(yt-yt-core.global
+  yt-yt-core)
+
+
 target_compile_options(yt-yt-core.global PRIVATE
   -mpclmul
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-yt-core.global PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -381,6 +390,7 @@ target_link_libraries(yt-yt-core.global PUBLIC
   yt-library-tracing
   backtrace-cursors-libunwind
 )
+
 target_sources(yt-yt-core.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/logging/log.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/logging/log_manager.cpp
@@ -390,3 +400,9 @@ target_sources(yt-yt-core.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/tracing/allocation_hooks.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/tracing/trace_context.cpp
 )
+
+
+
+
+
+

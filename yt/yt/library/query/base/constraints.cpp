@@ -31,6 +31,11 @@ TConstraintRef TConstraintsHolder::Append(std::initializer_list<TConstraint> con
     return result;
 }
 
+TConstraintRef TConstraintsHolder::Constant(TValue value, ui32 keyPartIndex)
+{
+    return Interval({value, false}, {value, true}, keyPartIndex);
+}
+
 TConstraintRef TConstraintsHolder::Interval(TValueBound lower, TValueBound upper, ui32 keyPartIndex)
 {
     return Append({TConstraint::Make(lower, upper)}, keyPartIndex);

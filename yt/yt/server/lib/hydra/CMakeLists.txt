@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(dry_run)
 add_subdirectory(mock)
 add_subdirectory(unittests)
@@ -15,6 +14,7 @@ get_built_tool_path(
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -23,12 +23,16 @@ get_built_tool_path(
 )
 
 add_library(server-lib-hydra)
+
+
 target_compile_options(server-lib-hydra PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(server-lib-hydra PUBLIC
   ${PROJECT_BINARY_DIR}/yt
 )
+
 target_link_libraries(server-lib-hydra PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -43,9 +47,11 @@ target_link_libraries(server-lib-hydra PUBLIC
   streams-lz-snappy
   contrib-libs-protobuf
 )
+
 target_proto_messages(server-lib-hydra PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/proto/hydra_service.proto
 )
+
 target_sources(server-lib-hydra PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/server/lib/hydra/proto/hydra_service.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/changelog.cpp
@@ -88,6 +94,9 @@ target_sources(server-lib-hydra PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/state_hash_checker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/unbuffered_file_changelog.cpp
 )
+
+
+
 target_proto_addincls(server-lib-hydra
   ./yt
   ${PROJECT_SOURCE_DIR}/yt
@@ -100,7 +109,12 @@ target_proto_addincls(server-lib-hydra
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(server-lib-hydra
   --cpp_out=${PROJECT_BINARY_DIR}/yt
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
+
+
+
+

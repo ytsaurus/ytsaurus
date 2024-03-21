@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(monlib-encode-json)
+
+
 target_link_libraries(monlib-encode-json PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,7 +18,14 @@ target_link_libraries(monlib-encode-json PUBLIC
   library-cpp-json
   cpp-json-writer
 )
+
 target_sources(monlib-encode-json PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/encode/json/json_decoder.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/encode/json/json_encoder.cpp
 )
+
+
+
+
+
+

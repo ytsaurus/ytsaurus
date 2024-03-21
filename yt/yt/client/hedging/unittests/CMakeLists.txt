@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(yt-yt-client-hedging-unittests)
+
+
 target_compile_options(yt-yt-client-hedging-unittests PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-yt-client-hedging-unittests PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -26,6 +27,7 @@ target_link_libraries(yt-yt-client-hedging-unittests PUBLIC
   yt-yt-core
   library-profiling-solomon
 )
+
 target_link_options(yt-yt-client-hedging-unittests PRIVATE
   -ldl
   -lrt
@@ -37,18 +39,22 @@ target_link_options(yt-yt-client-hedging-unittests PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(yt-yt-client-hedging-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/unittests/counters_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/unittests/hedging_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/unittests/penalty_provider_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/unittests/hook.cpp
 )
+
+
 add_test(
   NAME
   yt-yt-client-hedging-unittests
   COMMAND
   yt-yt-client-hedging-unittests
 )
+
 set_property(
   TEST
   yt-yt-client-hedging-unittests
@@ -56,6 +62,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   yt-yt-client-hedging-unittests
@@ -63,14 +70,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   yt-yt-client-hedging-unittests
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(yt-yt-client-hedging-unittests
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(yt-yt-client-hedging-unittests)
+
+
+
+

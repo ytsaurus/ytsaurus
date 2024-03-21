@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-aws-aws-c-event-stream)
+
+
 target_compile_options(restricted-aws-aws-c-event-stream PRIVATE
   -DAWS_CAL_USE_IMPORT_EXPORT
   -DAWS_CHECKSUMS_USE_IMPORT_EXPORT
@@ -30,15 +30,18 @@ target_compile_options(restricted-aws-aws-c-event-stream PRIVATE
   -DS2N___RESTRICT__SUPPORTED
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-aws-aws-c-event-stream PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-event-stream/include
 )
+
 target_link_libraries(restricted-aws-aws-c-event-stream PUBLIC
   contrib-libs-linux-headers
   restricted-aws-aws-c-common
   restricted-aws-aws-c-io
   restricted-aws-aws-checksums
 )
+
 target_sources(restricted-aws-aws-c-event-stream PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-event-stream/source/event_stream.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-event-stream/source/event_stream_channel_handler.c
@@ -46,3 +49,9 @@ target_sources(restricted-aws-aws-c-event-stream PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-event-stream/source/event_stream_rpc_client.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-event-stream/source/event_stream_rpc_server.c
 )
+
+
+
+
+
+

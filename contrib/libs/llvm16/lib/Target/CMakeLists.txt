@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(AArch64)
 add_subdirectory(ARM)
 add_subdirectory(BPF)
@@ -13,14 +12,17 @@ add_subdirectory(NVPTX)
 add_subdirectory(PowerPC)
 add_subdirectory(WebAssembly)
 add_subdirectory(X86)
-
 add_library(llvm16-lib-Target)
+
+
 target_compile_options(llvm16-lib-Target PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(llvm16-lib-Target PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target
 )
+
 target_link_libraries(llvm16-lib-Target PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -32,6 +34,7 @@ target_link_libraries(llvm16-lib-Target PUBLIC
   llvm16-lib-Support
   llvm16-lib-TargetParser
 )
+
 target_sources(llvm16-lib-Target PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/Target.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/TargetIntrinsicInfo.cpp
@@ -39,3 +42,9 @@ target_sources(llvm16-lib-Target PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/TargetMachine.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/TargetMachineC.cpp
 )
+
+
+
+
+
+

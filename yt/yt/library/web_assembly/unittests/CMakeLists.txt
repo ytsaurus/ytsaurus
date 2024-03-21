@@ -5,17 +5,19 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-web-assembly)
+
+
 target_compile_options(unittester-web-assembly PRIVATE
   -DWASM_C_API=WAVM_API
   -DWAVM_API=
   -Wdeprecated-this-capture
 )
+
 target_include_directories(unittester-web-assembly PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Include
 )
+
 target_link_libraries(unittester-web-assembly PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -28,6 +30,7 @@ target_link_libraries(unittester-web-assembly PUBLIC
   library-web_assembly-engine
   library-web_assembly-api
 )
+
 target_link_options(unittester-web-assembly PRIVATE
   -rdynamic
   -ldl
@@ -40,16 +43,20 @@ target_link_options(unittester-web-assembly PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-web-assembly PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/unittests/disable_system_libraries.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/unittests/wasm_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-web-assembly
   COMMAND
   unittester-web-assembly
 )
+
 set_property(
   TEST
   unittester-web-assembly
@@ -57,6 +64,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-web-assembly
@@ -64,14 +72,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-web-assembly
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-web-assembly
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(unittester-web-assembly)
+
+
+
+

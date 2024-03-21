@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(convert_operations_to_binary_format)
+
+
 target_include_directories(convert_operations_to_binary_format PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator
 )
+
 target_link_libraries(convert_operations_to_binary_format PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,7 @@ target_link_libraries(convert_operations_to_binary_format PUBLIC
   library-cpp-cpuid_check
   yt-tools-scheduler_simulator
 )
+
 target_link_options(convert_operations_to_binary_format PRIVATE
   -ldl
   -lrt
@@ -29,10 +31,19 @@ target_link_options(convert_operations_to_binary_format PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(convert_operations_to_binary_format PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/bin/converter/convert.cpp
 )
+
+
+
 target_allocator(convert_operations_to_binary_format
   cpp-ytalloc-impl
 )
+
 vcs_info(convert_operations_to_binary_format)
+
+
+
+

@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-master)
+
+
 target_compile_options(unittester-master PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-master PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,6 +21,7 @@ target_link_libraries(unittester-master PUBLIC
   cpp-testing-gtest_main
   yt-server-master
 )
+
 target_link_options(unittester-master PRIVATE
   -ldl
   -lrt
@@ -31,6 +33,7 @@ target_link_options(unittester-master PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_list_statistics_ut.cpp
@@ -45,12 +48,15 @@ target_sources(unittester-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/interned_pool_attributes_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/tablet_cell_balancer_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-master
   COMMAND
   unittester-master
 )
+
 set_property(
   TEST
   unittester-master
@@ -58,6 +64,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-master
@@ -65,14 +72,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-master
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-master
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(unittester-master)
+
+
+
+

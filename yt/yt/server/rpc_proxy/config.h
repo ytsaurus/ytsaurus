@@ -187,4 +187,20 @@ DEFINE_REFCOUNTED_TYPE(TProxyDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBundleProxyDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+
+    std::optional<NObjectClient::TCellTag> ClockClusterTag;
+
+    REGISTER_YSON_STRUCT(TBundleProxyDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBundleProxyDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NRpcProxy

@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(unittests)
-
 add_library(yt-server-rpc_proxy)
+
+
 target_compile_options(yt-server-rpc_proxy PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-server-rpc_proxy PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -28,10 +29,18 @@ target_link_libraries(yt-server-rpc_proxy PUBLIC
   cpp-yt-phdr_cache
   library-cpp-getopt
 )
+
 target_sources(yt-server-rpc_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/rpc_proxy/access_checker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/rpc_proxy/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/rpc_proxy/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/rpc_proxy/discovery_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/rpc_proxy/dynamic_config_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/rpc_proxy/bundle_dynamic_config_manager.cpp
 )
+
+
+
+
+
+

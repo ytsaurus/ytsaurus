@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(server-lib-cellar_agent)
+
+
 target_compile_options(server-lib-cellar_agent PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(server-lib-cellar_agent PUBLIC
   ${PROJECT_BINARY_DIR}/yt
 )
+
 target_link_libraries(server-lib-cellar_agent PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -23,6 +25,7 @@ target_link_libraries(server-lib-cellar_agent PUBLIC
   server-lib-lease_server
   server-lib-transaction_supervisor
 )
+
 target_sources(server-lib-cellar_agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/cellar_agent/cellar.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/cellar_agent/cellar_manager.cpp
@@ -31,3 +34,9 @@ target_sources(server-lib-cellar_agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/cellar_agent/master_connector_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/cellar_agent/occupant.cpp
 )
+
+
+
+
+
+

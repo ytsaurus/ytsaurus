@@ -5,14 +5,21 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(contrib-libs-pfr INTERFACE)
+
+
 target_include_directories(contrib-libs-pfr INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/libs/pfr/include
 )
+
 target_link_libraries(contrib-libs-pfr INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
 )
+
+
+
+
+
+

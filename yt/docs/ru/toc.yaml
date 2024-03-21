@@ -257,7 +257,7 @@ items:
             - name: Функции
               href: user-guide/data-processing/chyt/reference/functions.md
             - name: Пользовательские функции (UDF)
-              href: user-guide/data-processing/chyt/reference/user_defined_functions.md
+              href: user-guide/data-processing/chyt/reference/user-defined-functions.md
           - name: Контроллер
             href: user-guide/data-processing/chyt/cliques/controller.md
           - name: Производительность и рекомендации
@@ -277,6 +277,8 @@ items:
                 href: user-guide/data-processing/spyt/cluster/cluster-desc.md
               - name: Запуск кластера
                 href: user-guide/data-processing/spyt/cluster/cluster-start.md
+              - name: Порядок обновления SPYT
+                href: user-guide/data-processing/spyt/version.md
               - name: Livy сервер
                 href: user-guide/data-processing/spyt/cluster/livy.md
               # - name: Метрики в Prometheus
@@ -285,10 +287,12 @@ items:
                 href: user-guide/data-processing/spyt/cluster/configuration.md
               - name: Логи
                 href: user-guide/data-processing/spyt/logs.md
-            - name: Чтение и запись под транзакцией
-              href: user-guide/data-processing/spyt/read-transaction.md
+              - name: Решение проблем
+                href: user-guide/data-processing/spyt/problems.md
             - name: Structured Streaming
               href: user-guide/data-processing/spyt/structured-streaming.md
+            - name: Spark SQL
+              href: user-guide/data-processing/spyt/spark-sql.md
             - name: API
               items:
                 - name: SPYT в Python
@@ -303,14 +307,12 @@ items:
               items:
                 - name: Опции чтения
                   href: user-guide/data-processing/spyt/thesaurus/read-options.md
+                - name: Чтение и запись под транзакцией
+                  href: user-guide/data-processing/spyt/read-transaction.md
                 - name: Опции записи
                   href: user-guide/data-processing/spyt/thesaurus/write-options.md
-            - name: Порядок обновления SPYT
-              href: user-guide/data-processing/spyt/version.md
             - name: Best practices
               href: user-guide/data-processing/spyt/best-practices.md
-            - name: Решение проблем
-              href: user-guide/data-processing/spyt/problems.md
         - name: YQL
           when: audience == "public"
           items:
@@ -437,4 +439,3 @@ items:
   - name: Выступления на мероприятиях, публикации и семинары
     when: audience == "public"
     href: other/video-posts.md
-

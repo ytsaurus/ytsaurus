@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(llvm16-lib-Analysis)
+
+
 target_compile_options(llvm16-lib-Analysis PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(llvm16-lib-Analysis PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Analysis
 )
+
 target_link_libraries(llvm16-lib-Analysis PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -26,6 +28,7 @@ target_link_libraries(llvm16-lib-Analysis PUBLIC
   llvm16-lib-Support
   llvm16-lib-TargetParser
 )
+
 target_sources(llvm16-lib-Analysis PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Analysis/AliasAnalysis.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Analysis/AliasAnalysisEvaluator.cpp
@@ -149,3 +152,9 @@ target_sources(llvm16-lib-Analysis PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Analysis/ValueTracking.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Analysis/VectorUtils.cpp
 )
+
+
+
+
+
+

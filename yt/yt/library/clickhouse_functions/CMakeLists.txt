@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-library-clickhouse_functions)
+
+
 target_compile_options(yt-library-clickhouse_functions PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(yt-library-clickhouse_functions PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src
   ${PROJECT_SOURCE_DIR}/contrib/libs/double-conversion
@@ -21,6 +22,7 @@ target_include_directories(yt-library-clickhouse_functions PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/re2
   ${PROJECT_SOURCE_DIR}/contrib/libs/rapidjson/include
 )
+
 target_link_libraries(yt-library-clickhouse_functions PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -28,15 +30,23 @@ target_link_libraries(yt-library-clickhouse_functions PUBLIC
   yt-yt-core
   contrib-clickhouse-src
 )
+
 target_sources(yt-library-clickhouse_functions PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_functions/unescaped_yson.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_functions/yson_parser_adapter.cpp
 )
 
-add_global_library_for(yt-library-clickhouse_functions.global yt-library-clickhouse_functions)
+
+
+
+add_global_library_for(yt-library-clickhouse_functions.global
+  yt-library-clickhouse_functions)
+
+
 target_compile_options(yt-library-clickhouse_functions.global PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(yt-library-clickhouse_functions.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src
   ${PROJECT_SOURCE_DIR}/contrib/libs/double-conversion
@@ -47,6 +57,7 @@ target_include_directories(yt-library-clickhouse_functions.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/re2
   ${PROJECT_SOURCE_DIR}/contrib/libs/rapidjson/include
 )
+
 target_link_libraries(yt-library-clickhouse_functions.global PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -54,8 +65,15 @@ target_link_libraries(yt-library-clickhouse_functions.global PUBLIC
   yt-yt-core
   contrib-clickhouse-src
 )
+
 target_sources(yt-library-clickhouse_functions.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_functions/convert_yson.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_functions/ypath.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_functions/yson_extract.cpp
 )
+
+
+
+
+
+

@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(contrib-libs-curl)
+
+
 target_compile_options(contrib-libs-curl PUBLIC
   -DCURL_STATICLIB
 )
@@ -17,6 +17,7 @@ target_compile_options(contrib-libs-curl PRIVATE
   -DARCADIA_CURL_DNS_RESOLVER_ARES
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(contrib-libs-curl PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/include
 )
@@ -24,6 +25,7 @@ target_include_directories(contrib-libs-curl PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib
 )
+
 target_link_libraries(contrib-libs-curl PUBLIC
   contrib-libs-linux-headers
   contrib-libs-libc_compat
@@ -32,6 +34,7 @@ target_link_libraries(contrib-libs-curl PUBLIC
   contrib-libs-zlib
   contrib-libs-c-ares
 )
+
 target_sources(contrib-libs-curl PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/altsvc.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/amigaos.c
@@ -194,3 +197,9 @@ target_sources(contrib-libs-curl PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/warnless.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib/ws.c
 )
+
+
+
+
+
+

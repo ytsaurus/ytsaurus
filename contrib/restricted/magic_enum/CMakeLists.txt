@@ -5,14 +5,21 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(contrib-restricted-magic_enum INTERFACE)
+
+
 target_include_directories(contrib-restricted-magic_enum INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/magic_enum/include
 )
+
 target_link_libraries(contrib-restricted-magic_enum INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
 )
+
+
+
+
+
+

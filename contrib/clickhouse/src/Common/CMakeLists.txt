@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(clickhouse-src-Common)
+
+
 target_compile_options(clickhouse-src-Common PUBLIC
   -DOS_LINUX
 )
@@ -36,6 +36,7 @@ target_compile_options(clickhouse-src-Common PRIVATE
   -D__GCC_HAVE_DWARF2_CFI_ASM=1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(clickhouse-src-Common PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/pcg-random
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/includes/configs
@@ -54,6 +55,7 @@ target_include_directories(clickhouse-src-Common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2
   ${PROJECT_SOURCE_DIR}/contrib/restricted/fast_float/include
 )
+
 target_link_libraries(clickhouse-src-Common PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -107,6 +109,7 @@ target_link_libraries(clickhouse-src-Common PUBLIC
   cpp-clickhouse_deps-re2_st_stub
   cpp-sanitizer-include
 )
+
 target_sources(clickhouse-src-Common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/includes/configs/config_version.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/ActionLock.cpp
@@ -377,3 +380,9 @@ target_sources(clickhouse-src-Common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/parseDateTimeBestEffort.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/IO/readFloatText.cpp
 )
+
+
+
+
+
+

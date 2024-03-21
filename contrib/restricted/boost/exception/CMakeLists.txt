@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-boost-exception)
+
+
 target_compile_options(restricted-boost-exception PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-boost-exception PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/exception/include
 )
+
 target_link_libraries(restricted-boost-exception PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -25,6 +27,13 @@ target_link_libraries(restricted-boost-exception PUBLIC
   restricted-boost-tuple
   restricted-boost-type_traits
 )
+
 target_sources(restricted-boost-exception PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/exception/src/clone_current_exception_non_intrusive.cpp
 )
+
+
+
+
+
+

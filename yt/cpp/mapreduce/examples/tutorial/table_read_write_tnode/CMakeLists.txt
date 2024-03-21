@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(table_read_write_tnode)
+
+
 target_compile_options(table_read_write_tnode PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(table_read_write_tnode PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,7 @@ target_link_libraries(table_read_write_tnode PUBLIC
   library-cpp-cpuid_check
   cpp-mapreduce-client
 )
+
 target_link_options(table_read_write_tnode PRIVATE
   -ldl
   -lrt
@@ -29,11 +31,20 @@ target_link_options(table_read_write_tnode PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(table_read_write_tnode PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/table_read_write_tnode/main.cpp
 )
+
+
+
 target_allocator(table_read_write_tnode
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(table_read_write_tnode)
+
+
+
+

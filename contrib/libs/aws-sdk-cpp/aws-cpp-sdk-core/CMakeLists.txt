@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(libs-aws-sdk-cpp-aws-cpp-sdk-core)
+
+
 target_compile_options(libs-aws-sdk-cpp-aws-cpp-sdk-core PRIVATE
   -DAWS_AUTH_USE_IMPORT_EXPORT
   -DAWS_CAL_USE_IMPORT_EXPORT
@@ -50,9 +50,11 @@ target_compile_options(libs-aws-sdk-cpp-aws-cpp-sdk-core PRIVATE
   -DS2N___RESTRICT__SUPPORTED
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(libs-aws-sdk-cpp-aws-cpp-sdk-core PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/aws-sdk-cpp/aws-cpp-sdk-core/include
 )
+
 target_link_libraries(libs-aws-sdk-cpp-aws-cpp-sdk-core PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -70,6 +72,7 @@ target_link_libraries(libs-aws-sdk-cpp-aws-cpp-sdk-core PUBLIC
   restricted-aws-aws-checksums
   restricted-aws-aws-crt-cpp
 )
+
 target_sources(libs-aws-sdk-cpp-aws-cpp-sdk-core PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/aws-sdk-cpp/aws-cpp-sdk-core/source/AmazonSerializableWebServiceRequest.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/aws-sdk-cpp/aws-cpp-sdk-core/source/AmazonStreamingWebServiceRequest.cpp
@@ -198,3 +201,9 @@ target_sources(libs-aws-sdk-cpp-aws-cpp-sdk-core PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/aws-sdk-cpp/aws-cpp-sdk-core/source/platform/linux-shared/Security.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/aws-sdk-cpp/aws-cpp-sdk-core/source/platform/linux-shared/Time.cpp
 )
+
+
+
+
+
+

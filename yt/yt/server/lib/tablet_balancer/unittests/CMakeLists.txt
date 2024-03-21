@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-tablet-balancer-lib)
+
+
 target_compile_options(unittester-tablet-balancer-lib PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-tablet-balancer-lib PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +23,7 @@ target_link_libraries(unittester-tablet-balancer-lib PUBLIC
   tablet_balancer-dry_run-lib
   yt-core-test_framework
 )
+
 target_link_options(unittester-tablet-balancer-lib PRIVATE
   -ldl
   -lrt
@@ -33,15 +35,19 @@ target_link_options(unittester-tablet-balancer-lib PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-tablet-balancer-lib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/unittests/balancing_helpers_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-tablet-balancer-lib
   COMMAND
   unittester-tablet-balancer-lib
 )
+
 set_property(
   TEST
   unittester-tablet-balancer-lib
@@ -49,6 +55,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   unittester-tablet-balancer-lib
@@ -56,13 +63,21 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-tablet-balancer-lib
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-tablet-balancer-lib
   cpp-ytalloc-impl
 )
+
 vcs_info(unittester-tablet-balancer-lib)
+
+
+
+

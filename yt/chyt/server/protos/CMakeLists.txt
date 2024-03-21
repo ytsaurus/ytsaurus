@@ -5,6 +5,19 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
 
 get_built_tool_path(
   TOOL_protoc_bin
@@ -12,18 +25,7 @@ get_built_tool_path(
   contrib/tools/protoc/bin
   protoc
 )
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -32,12 +34,16 @@ get_built_tool_path(
 )
 
 add_library(chyt-server-protos)
+
+
 target_compile_options(chyt-server-protos PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(chyt-server-protos PUBLIC
   ${PROJECT_BINARY_DIR}/yt
 )
+
 target_link_libraries(chyt-server-protos PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -46,14 +52,19 @@ target_link_libraries(chyt-server-protos PUBLIC
   yt_proto-yt-core
   contrib-libs-protobuf
 )
+
 target_proto_messages(chyt-server-protos PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/protos/clickhouse_service.proto
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/protos/subquery_spec.proto
 )
+
 target_sources(chyt-server-protos PRIVATE
   ${PROJECT_BINARY_DIR}/yt/chyt/server/protos/clickhouse_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/chyt/server/protos/subquery_spec.pb.h
 )
+
+
+
 target_proto_addincls(chyt-server-protos
   ./yt
   ${PROJECT_SOURCE_DIR}/yt
@@ -66,7 +77,12 @@ target_proto_addincls(chyt-server-protos
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(chyt-server-protos
   --cpp_out=${PROJECT_BINARY_DIR}/yt
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
+
+
+
+

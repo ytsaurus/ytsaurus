@@ -5,22 +5,31 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(contrib-libs-expat)
+
+
 target_compile_options(contrib-libs-expat PRIVATE
   -DHAVE_CONFIG_H
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(contrib-libs-expat PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/expat
   ${PROJECT_SOURCE_DIR}/contrib/libs/expat/lib
 )
+
 target_link_libraries(contrib-libs-expat PUBLIC
   contrib-libs-linux-headers
 )
+
 target_sources(contrib-libs-expat PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/expat/lib/xmlparse.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/expat/lib/xmlrole.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/expat/lib/xmltok.c
 )
+
+
+
+
+
+

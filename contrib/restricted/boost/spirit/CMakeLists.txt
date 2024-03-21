@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-boost-spirit INTERFACE)
+
+
 target_include_directories(restricted-boost-spirit INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/spirit/include
 )
+
 target_link_libraries(restricted-boost-spirit INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -43,3 +44,9 @@ target_link_libraries(restricted-boost-spirit INTERFACE
   restricted-boost-utility
   restricted-boost-variant
 )
+
+
+
+
+
+

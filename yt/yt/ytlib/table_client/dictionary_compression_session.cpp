@@ -147,6 +147,7 @@ private:
             auto* compressedValue = values[newDecompressedValueCount];
             YT_VERIFY(IsStringLikeType(compressedValue->Type));
             YT_VERIFY(None(compressedValue->Flags & EValueFlags::Hunk));
+            YT_VERIFY(compressedValue->Length != 0);
 
             ++newDecompressedValueCount;
 

@@ -5,13 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -20,9 +20,12 @@ get_built_tool_path(
 )
 
 add_library(server-node-chaos_node)
+
+
 target_compile_options(server-node-chaos_node PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(server-node-chaos_node PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -32,9 +35,11 @@ target_link_libraries(server-node-chaos_node PUBLIC
   server-lib-transaction_supervisor
   contrib-libs-protobuf
 )
+
 target_proto_messages(server-node-chaos_node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/chaos_manager.proto
 )
+
 target_sources(server-node-chaos_node PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/server/node/chaos_node/chaos_manager.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/automaton.cpp
@@ -59,6 +64,9 @@ target_sources(server-node-chaos_node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/replicated_table_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/replication_card_serialization.cpp
 )
+
+
+
 target_proto_addincls(server-node-chaos_node
   ./
   ${PROJECT_SOURCE_DIR}/
@@ -70,7 +78,12 @@ target_proto_addincls(server-node-chaos_node
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(server-node-chaos_node
   --cpp_out=${PROJECT_BINARY_DIR}/
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
+
+
+
+

@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(chyt)
 add_subdirectory(cpp)
 add_subdirectory(examples)
@@ -13,3 +12,5 @@ add_subdirectory(systest)
 add_subdirectory(yql)
 add_subdirectory(yt)
 add_subdirectory(yt_proto)
+
+

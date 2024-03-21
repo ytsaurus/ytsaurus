@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-server-queue_agent)
+
+
 target_compile_options(yt-server-queue_agent PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-server-queue_agent PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -27,6 +28,7 @@ target_link_libraries(yt-server-queue_agent PUBLIC
   server-lib-cypress_registrar
   server-lib-misc
 )
+
 target_sources(yt-server-queue_agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/config.cpp
@@ -42,3 +44,9 @@ target_sources(yt-server-queue_agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/snapshot_representation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/queue_agent/queue_static_table_exporter.cpp
 )
+
+
+
+
+
+

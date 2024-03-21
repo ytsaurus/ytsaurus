@@ -7,7 +7,7 @@ ENV(YT_TEST_FILTER=SMALL)
 INCLUDE(../YaMakeDependsBoilerplate.txt)
 
 REQUIREMENTS(
-    cpu:12
+    cpu:16
 )
 
 IF (SANITIZER_TYPE)
@@ -16,7 +16,7 @@ IF (SANITIZER_TYPE)
     )
 ELSE()
     REQUIREMENTS(
-        ram:8
+        ram:12
     )
 ENDIF()
 

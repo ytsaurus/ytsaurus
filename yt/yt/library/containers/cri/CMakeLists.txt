@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(library-containers-cri)
+
+
 target_compile_options(library-containers-cri PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(library-containers-cri PUBLIC
   ${PROJECT_SOURCE_DIR}/yt/yt/contrib/cri-api
 )
+
 target_link_libraries(library-containers-cri PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,8 +24,15 @@ target_link_libraries(library-containers-cri PUBLIC
   core-rpc-grpc
   yt-contrib-cri-api
 )
+
 target_sources(library-containers-cri PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/cri/cri_api.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/cri/cri_executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/cri/config.cpp
 )
+
+
+
+
+
+

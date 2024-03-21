@@ -5,21 +5,24 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(contrib-libs-croaring)
+
+
 target_compile_options(contrib-libs-croaring PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(contrib-libs-croaring PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/include
 )
 target_include_directories(contrib-libs-croaring PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/include/roaring
 )
+
 target_link_libraries(contrib-libs-croaring PUBLIC
   contrib-libs-linux-headers
 )
+
 target_sources(contrib-libs-croaring PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/src/array_util.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/src/bitset.c
@@ -42,3 +45,9 @@ target_sources(contrib-libs-croaring PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/src/roaring_array.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/src/roaring_priority_queue.c
 )
+
+
+
+
+
+

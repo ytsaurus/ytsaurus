@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-boost-smart_ptr INTERFACE)
+
+
 target_include_directories(restricted-boost-smart_ptr INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/smart_ptr/include
 )
+
 target_link_libraries(restricted-boost-smart_ptr INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,3 +23,9 @@ target_link_libraries(restricted-boost-smart_ptr INTERFACE
   restricted-boost-throw_exception
   restricted-boost-type_traits
 )
+
+
+
+
+
+

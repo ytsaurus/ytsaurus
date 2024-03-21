@@ -5,20 +5,22 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(AsmParser)
 add_subdirectory(Disassembler)
 add_subdirectory(MCTargetDesc)
 add_subdirectory(TargetInfo)
-
 add_library(lib-Target-PowerPC)
+
+
 target_compile_options(lib-Target-PowerPC PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(lib-Target-PowerPC PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
 )
+
 target_link_libraries(lib-Target-PowerPC PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -40,6 +42,7 @@ target_link_libraries(lib-Target-PowerPC PUBLIC
   lib-Transforms-Scalar
   lib-Transforms-Utils
 )
+
 target_sources(lib-Target-PowerPC PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/GISel/PPCCallLowering.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/GISel/PPCInstructionSelector.cpp
@@ -83,3 +86,9 @@ target_sources(lib-Target-PowerPC PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCVSXFMAMutate.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/PPCVSXSwapRemoval.cpp
 )
+
+
+
+
+
+

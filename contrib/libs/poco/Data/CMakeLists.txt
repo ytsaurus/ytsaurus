@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(libs-poco-Data)
+
+
 target_compile_options(libs-poco-Data PRIVATE
   -DPOCO_ENABLE_CPP11
   -DPOCO_ENABLE_CPP14
@@ -18,6 +18,7 @@ target_compile_options(libs-poco-Data PRIVATE
   -DPOCO_HAVE_FD_EPOLL
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(libs-poco-Data PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/include
 )
@@ -25,11 +26,13 @@ target_include_directories(libs-poco-Data PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/include
 )
+
 target_link_libraries(libs-poco-Data PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   libs-poco-Foundation
 )
+
 target_sources(libs-poco-Data PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/AbstractBinder.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/AbstractBinding.cpp
@@ -67,3 +70,9 @@ target_sources(libs-poco-Data PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/Time.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Data/src/Transaction.cpp
 )
+
+
+
+
+
+

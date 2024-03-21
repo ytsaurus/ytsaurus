@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(scheduler_simulator)
+
+
 target_include_directories(scheduler_simulator PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator
 )
+
 target_link_libraries(scheduler_simulator PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,6 +21,7 @@ target_link_libraries(scheduler_simulator PUBLIC
   cpp-yt-phdr_cache
   library-cpp-getopt
 )
+
 target_link_options(scheduler_simulator PRIVATE
   -ldl
   -lrt
@@ -31,10 +33,19 @@ target_link_options(scheduler_simulator PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(scheduler_simulator PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/bin/simulator/main.cpp
 )
+
+
+
 target_allocator(scheduler_simulator
   cpp-ytalloc-impl
 )
+
 vcs_info(scheduler_simulator)
+
+
+
+

@@ -5,15 +5,22 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(consistent-hashing)
+
+
 target_link_libraries(consistent-hashing PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   library-cpp-pop_count
 )
+
 target_sources(consistent-hashing PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/consistent_hashing/consistent_hashing.cpp
 )
+
+
+
+
+
+

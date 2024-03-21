@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(server-lib-nbd)
+
+
 target_compile_options(server-lib-nbd PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(server-lib-nbd PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,6 +21,7 @@ target_link_libraries(server-lib-nbd PUBLIC
   yt-yt-ytlib
   yt_proto-yt-client
 )
+
 target_sources(server-lib-nbd PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/cypress_file_block_device.cpp
@@ -28,3 +30,9 @@ target_sources(server-lib-nbd PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/profiler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/server.cpp
 )
+
+
+
+
+
+

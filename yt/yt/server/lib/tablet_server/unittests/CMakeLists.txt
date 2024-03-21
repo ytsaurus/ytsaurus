@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-server-lib-tablet_server)
+
+
 target_link_libraries(unittester-server-lib-tablet_server PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +22,7 @@ target_link_libraries(unittester-server-lib-tablet_server PUBLIC
   client-unittests-mock
   yt_proto-yt-client
 )
+
 target_link_options(unittester-server-lib-tablet_server PRIVATE
   -ldl
   -lrt
@@ -33,15 +34,19 @@ target_link_options(unittester-server-lib-tablet_server PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-server-lib-tablet_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_server/unittests/replicated_table_tracker_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-server-lib-tablet_server
   COMMAND
   unittester-server-lib-tablet_server
 )
+
 set_property(
   TEST
   unittester-server-lib-tablet_server
@@ -49,6 +54,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-server-lib-tablet_server
@@ -56,13 +62,21 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-server-lib-tablet_server
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-server-lib-tablet_server
   cpp-ytalloc-impl
 )
+
 vcs_info(unittester-server-lib-tablet_server)
+
+
+
+

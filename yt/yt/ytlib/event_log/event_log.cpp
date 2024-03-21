@@ -165,6 +165,7 @@ private:
     TEventLogManagerConfigPtr Config_;
 
     NTableClient::IUnversionedWriterPtr EventLogWriter_;
+    TFuture<void> EventLogWriterReadyEvent_;
 
     TMpscStack<TUnversionedOwningRow> PendingEventLogRows_;
     TPeriodicExecutorPtr PendingRowsFlushExecutor_;
@@ -180,10 +181,21 @@ private:
 
     void OnPendingEventLogRowsFlush()
     {
+        if (EventLogWriterReadyEvent_) {
+            if (!EventLogWriterReadyEvent_.IsSet()) {
+                return;
+            }
+
+            EventLogWriterReadyEvent_.Get().ThrowOnError();
+            EventLogWriterReadyEvent_ = {};
+        }
+
         auto owningRows = PendingEventLogRows_.DequeueAll();
         if (!owningRows.empty()) {
             std::vector<TUnversionedRow> rows(owningRows.begin(), owningRows.end());
-            EventLogWriter_->Write(rows);
+            if (!EventLogWriter_->Write(rows)) {
+                EventLogWriterReadyEvent_ = EventLogWriter_->GetReadyEvent();
+            }
         }
     }
 

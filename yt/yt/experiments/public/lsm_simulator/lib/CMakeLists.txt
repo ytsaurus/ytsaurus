@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(public-lsm_simulator-lib)
+
+
 target_compile_options(public-lsm_simulator-lib PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(public-lsm_simulator-lib PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,6 +21,7 @@ target_link_libraries(public-lsm_simulator-lib PUBLIC
   library-cpp-getopt
   library-cpp-json
 )
+
 target_sources(public-lsm_simulator-lib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/action_queue.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/compaction.cpp
@@ -37,3 +39,9 @@ target_sources(public-lsm_simulator-lib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/mount_config_optimizer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/lib/tabular_formatter.cpp
 )
+
+
+
+
+
+

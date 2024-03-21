@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(server-lib-rpc_proxy)
+
+
 target_compile_options(server-lib-rpc_proxy PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(server-lib-rpc_proxy PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -24,6 +25,7 @@ target_link_libraries(server-lib-rpc_proxy PUBLIC
   server-lib-transaction_server
   yt-yt-core
 )
+
 target_sources(server-lib-rpc_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/access_checker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/api_service.cpp
@@ -34,3 +36,9 @@ target_sources(server-lib-rpc_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/proxy_coordinator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/security_manager.cpp
 )
+
+
+
+
+
+

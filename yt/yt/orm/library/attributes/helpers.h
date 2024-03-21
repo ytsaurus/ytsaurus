@@ -25,7 +25,7 @@ NYTree::INodePtr ConvertProtobufToNode(
 class TYsonStringWriterHelper
 {
 public:
-    TYsonStringWriterHelper(
+    explicit TYsonStringWriterHelper(
         NYson::EYsonFormat format = NYson::EYsonFormat::Binary,
         NYson::EYsonType type = NYson::EYsonType::Node);
 
@@ -36,8 +36,28 @@ public:
 private:
     TString ValueString_;
     TStringOutput Output_;
-    std::unique_ptr<NYson::IFlushableYsonConsumer> Writer_;
+    const std::unique_ptr<NYson::IFlushableYsonConsumer> Writer_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EListIndexType,
+    (Absolute)
+    (Relative)
+);
+
+struct TIndexParseResult
+{
+    i64 Index;
+    EListIndexType IndexType;
+
+    void EnsureIndexType(EListIndexType indexType, TStringBuf path);
+    void EnsureIndexIsWithinBounds(i64 count, TStringBuf path);
+    bool IsOutOfBounds(i64 count);
+};
+
+// Parses list index from 'end', 'begin', 'before:<index>', 'after:<index>' or Integer in [-count, count).
+TIndexParseResult ParseListIndex(TStringBuf token, i64 count);
 
 ////////////////////////////////////////////////////////////////////////////////
 

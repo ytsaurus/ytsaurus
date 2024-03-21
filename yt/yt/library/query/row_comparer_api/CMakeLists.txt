@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(library-query-row_comparer_api)
+
+
 target_compile_options(library-query-row_comparer_api PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(library-query-row_comparer_api PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,13 @@ target_link_libraries(library-query-row_comparer_api PUBLIC
   yt-yt-core
   yt-yt-client
 )
+
 target_sources(library-query-row_comparer_api PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/row_comparer_api/row_comparer_generator.cpp
 )
+
+
+
+
+
+

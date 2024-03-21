@@ -3,12 +3,36 @@
 #include <yt/yt/core/ypath/public.h>
 #include <yt/yt/core/yson/string.h>
 
+#include <yt/yt/orm/library/attributes/helpers.h>
 #include <yt/yt/orm/library/attributes/merge_attributes.h>
+#include <yt/yt/orm/library/attributes/unwrapping_consumer.h>
 
 namespace NYT::NOrm::NAttributes::NTests {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+NYson::TYsonString ConsumingMergeAttributes(std::vector<TAttributeValue> values)
+{
+    std::ranges::sort(values, /*comparator*/ {}, /*projection*/ &TAttributeValue::Path);
+    ValidateSortedPaths(values, &TAttributeValue::Path, &TAttributeValue::IsEtc);
+
+    TYsonStringWriterHelper writeHelper(NYson::EYsonFormat::Text);
+    TMergeAttributesHelper mergeHelper(writeHelper.GetConsumer());
+    for (const auto& value : values) {
+        mergeHelper.ToNextPath(value.Path, value.IsEtc);
+        if (value.IsEtc) {
+            TUnwrappingConsumer unwrappingConsumer(writeHelper.GetConsumer());
+            unwrappingConsumer.OnRaw(value.Value.AsStringBuf(), value.Value.GetType());
+        } else {
+            writeHelper.GetConsumer()->OnRaw(value.Value);
+        }
+    }
+    mergeHelper.Finalize();
+    return writeHelper.Flush();
+}
+
+//////////////////////////////////////////////////////////////////////////////
 
 TEST(TMergeAttributesTest, ListForwardSimple)
 {
@@ -88,6 +112,163 @@ TEST(TMergeAttributesTest, Etc)
         }, NYson::EYsonFormat::Text);
     NYson::TYsonString expectedYsonString{R"({"etc"={"a"="c";"b"="d";};})"sv};
     EXPECT_EQ(mergedYsonString.AsStringBuf(), expectedYsonString.AsStringBuf());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TValidateSortedPathsTest, SimpleOk)
+{
+    std::vector<TAttributeValue> attributes = {
+        TAttributeValue{
+            .Path = "/data",
+            .IsEtc = false,
+        },
+        TAttributeValue{
+            .Path = "/key",
+            .IsEtc = true,
+        },
+        TAttributeValue{
+            .Path = "/key/inner",
+            .IsEtc = false,
+        }
+    };
+
+    ASSERT_NO_THROW(ValidateSortedPaths(attributes, &TAttributeValue::Path, &TAttributeValue::IsEtc));
+}
+
+TEST(TValidateSortedPathsTest, SimpleError)
+{
+    std::vector<TAttributeValue> attributes = {
+        TAttributeValue{
+            .Path = "/data",
+            .IsEtc = false,
+        },
+        TAttributeValue{
+            .Path = "/data",
+            .IsEtc = false,
+        }
+    };
+
+    ASSERT_ANY_THROW(ValidateSortedPaths(attributes, &TAttributeValue::Path, &TAttributeValue::IsEtc));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TSortAndRemoveNestedPathsTest, Root)
+{
+    std::vector<NYPath::TYPath> paths = {"", "/foo"};
+
+    SortAndRemoveNestedPaths(paths);
+
+    std::vector<NYPath::TYPath> expectedResult = {""};
+    ASSERT_EQ(paths, expectedResult);
+}
+
+TEST(TSortAndRemoveNestedPathsTest, NonIntersecting)
+{
+    std::vector<NYPath::TYPath> paths = {"/foo", "/bar"};
+
+    SortAndRemoveNestedPaths(paths);
+
+    std::vector<NYPath::TYPath> expectedResult = {"/bar", "/foo"};
+    ASSERT_EQ(paths, expectedResult);
+}
+
+TEST(TSortAndRemoveNestedPathsTest, Intersecting)
+{
+    std::vector<NYPath::TYPath> paths = {"/foo", "/bar", "/foo/bar"};
+
+    SortAndRemoveNestedPaths(paths);
+
+    std::vector<NYPath::TYPath> expectedResult = {"/bar", "/foo"};
+    ASSERT_EQ(paths, expectedResult);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TConsumingMergeTest, Simple)
+{
+    auto result = ConsumingMergeAttributes({
+        TAttributeValue{
+            .Path = "/data",
+            .Value = NYson::TYsonString{R"({})"sv},
+            .IsEtc = false,
+        }
+    });
+    ASSERT_EQ(result.ToString(), R"({"data"={};})");
+}
+
+TEST(TConsumingMergeTest, Multiple)
+{
+    auto result = ConsumingMergeAttributes({
+        TAttributeValue{
+            .Path = "/data",
+            .Value = NYson::TYsonString{R"({})"sv},
+            .IsEtc = false,
+        },
+        TAttributeValue{
+            .Path = "/key",
+            .Value = NYson::TYsonString{R"("value")"sv},
+            .IsEtc = false,
+        }
+    });
+    ASSERT_EQ(result.ToString(), R"({"data"={};"key"="value";})");
+}
+
+TEST(TConsumingMergeTest, Etc)
+{
+    auto result = ConsumingMergeAttributes({
+        TAttributeValue{
+            .Path = "",
+            .Value = NYson::TYsonString{R"({"key"="value";})"sv},
+            .IsEtc = true,
+        },
+    });
+    ASSERT_EQ(result.ToString(), R"({"key"="value";})");
+}
+
+TEST(TConsumingMergeTest, MultiEtc)
+{
+    auto result = ConsumingMergeAttributes({
+        TAttributeValue{
+            .Path = "",
+            .Value = NYson::TYsonString{R"({"key1"=#;})"sv},
+            .IsEtc = true,
+        },
+        TAttributeValue{
+            .Path = "",
+            .Value = NYson::TYsonString{R"({"key2"=#;})"sv},
+            .IsEtc = true,
+        },
+    });
+    ASSERT_EQ(result.ToString(), R"({"key1"=#;"key2"=#;})");
+}
+
+TEST(TConsumingMergeTest, MultipleWithEtc)
+{
+    auto result = ConsumingMergeAttributes({
+        TAttributeValue{
+            .Path = "",
+            .Value = NYson::TYsonString{R"({"key"="value";})"sv},
+            .IsEtc = true,
+        },
+        TAttributeValue{
+            .Path = "/data",
+            .Value = NYson::TYsonString{R"({})"sv},
+            .IsEtc = true,
+        },
+        TAttributeValue{
+            .Path = "/data",
+            .Value = NYson::TYsonString{R"({"key"="value";})"sv},
+            .IsEtc = true,
+        },
+        TAttributeValue{
+            .Path = "/data/data",
+            .Value = NYson::TYsonString{R"("value")"sv},
+            .IsEtc = false,
+        },
+    });
+    ASSERT_EQ(result.ToString(), R"({"key"="value";"data"={"key"="value";"data"="value";};})");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

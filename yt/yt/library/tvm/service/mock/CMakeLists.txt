@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(tvm-service-mock)
+
+
 target_compile_options(tvm-service-mock PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(tvm-service-mock PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,13 @@ target_link_libraries(tvm-service-mock PUBLIC
   cpp-testing-gtest
   library-tvm-service
 )
+
 target_sources(tvm-service-mock PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/tvm/service/mock/mock_tvm_service.cpp
 )
+
+
+
+
+
+

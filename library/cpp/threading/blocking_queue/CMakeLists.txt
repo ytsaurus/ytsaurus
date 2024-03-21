@@ -5,14 +5,21 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(cpp-threading-blocking_queue)
+
+
 target_link_libraries(cpp-threading-blocking_queue PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
 )
+
 target_sources(cpp-threading-blocking_queue PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/threading/blocking_queue/blocking_queue.cpp
 )
+
+
+
+
+
+

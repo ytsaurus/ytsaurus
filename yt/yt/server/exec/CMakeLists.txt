@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-server-exec)
+
+
 target_compile_options(yt-server-exec PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-server-exec PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,6 +20,13 @@ target_link_libraries(yt-server-exec PUBLIC
   yt-library-program
   yt-yt-core
 )
+
 target_sources(yt-server-exec PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/exec/user_job_synchronizer.cpp
 )
+
+
+
+
+
+

@@ -5,21 +5,26 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(unittests)
-
 add_library(isa-l_crc_yt_patch)
+
+
 target_compile_options(isa-l_crc_yt_patch PRIVATE
   -mpclmul
 )
+
 target_link_libraries(isa-l_crc_yt_patch PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
 )
+
 target_sources(isa-l_crc_yt_patch PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/isa_crc64/crc64_yt_norm_refs.c
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/isa_crc64/checksum.cpp
 )
+
+
+
 target_yasm_source(isa-l_crc_yt_patch
   PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/isa_crc64/crc64_yt_norm_by8.asm
@@ -30,3 +35,7 @@ target_yasm_source(isa-l_crc_yt_patch
   -I
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/isa_crc64/include
 )
+
+
+
+

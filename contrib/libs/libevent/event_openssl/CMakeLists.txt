@@ -5,23 +5,32 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(libs-libevent-event_openssl)
+
+
 target_compile_options(libs-libevent-event_openssl PRIVATE
   -DHAVE_CONFIG_H
   -DEVENT__HAVE_STRLCPY=1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(libs-libevent-event_openssl PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/libevent
   ${PROJECT_SOURCE_DIR}/contrib/libs/libevent/include
 )
+
 target_link_libraries(libs-libevent-event_openssl PUBLIC
   contrib-libs-linux-headers
   contrib-libs-libc_compat
   contrib-libs-openssl
 )
+
 target_sources(libs-libevent-event_openssl PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/libevent/bufferevent_openssl.c
 )
+
+
+
+
+
+

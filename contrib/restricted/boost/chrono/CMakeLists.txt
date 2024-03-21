@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-boost-chrono)
+
+
 target_compile_options(restricted-boost-chrono PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-boost-chrono PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/chrono/include
 )
+
 target_link_libraries(restricted-boost-chrono PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -33,8 +35,15 @@ target_link_libraries(restricted-boost-chrono PUBLIC
   restricted-boost-utility
   restricted-boost-winapi
 )
+
 target_sources(restricted-boost-chrono PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/chrono/src/chrono.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/chrono/src/process_cpu_clocks.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/chrono/src/thread_clock.cpp
 )
+
+
+
+
+
+

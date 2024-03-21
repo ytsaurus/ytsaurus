@@ -5,15 +5,22 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(cpp-threading-cron)
+
+
 target_link_libraries(cpp-threading-cron PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   cpp-deprecated-atomic
 )
+
 target_sources(cpp-threading-cron PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/threading/cron/cron.cpp
 )
+
+
+
+
+
+

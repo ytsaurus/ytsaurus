@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(moody_camel_skew)
+
+
 target_compile_options(moody_camel_skew PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(moody_camel_skew PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,7 @@ target_link_libraries(moody_camel_skew PUBLIC
   library-cpp-cpuid_check
   yt-yt-core
 )
+
 target_link_options(moody_camel_skew PRIVATE
   -ldl
   -lrt
@@ -29,11 +31,20 @@ target_link_options(moody_camel_skew PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(moody_camel_skew PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/moody_camel_skew/main.cpp
 )
+
+
+
 target_allocator(moody_camel_skew
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(moody_camel_skew)
+
+
+
+

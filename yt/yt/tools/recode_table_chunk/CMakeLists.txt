@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(recode-table-chunk)
+
+
 target_compile_options(recode-table-chunk PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(recode-table-chunk PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +23,7 @@ target_link_libraries(recode-table-chunk PUBLIC
   yt-library-program
   cpp-getopt-small
 )
+
 target_link_options(recode-table-chunk PRIVATE
   -ldl
   -lrt
@@ -33,11 +35,20 @@ target_link_options(recode-table-chunk PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(recode-table-chunk PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/recode_table_chunk/main.cpp
 )
+
+
+
 target_allocator(recode-table-chunk
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(recode-table-chunk)
+
+
+
+

@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(offline_controller)
+
+
 target_compile_options(offline_controller PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(offline_controller PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -23,6 +24,7 @@ target_link_libraries(offline_controller PUBLIC
   cpp-getopt-small
   yt-library-coredumper
 )
+
 target_link_options(offline_controller PRIVATE
   -ldl
   -lrt
@@ -34,10 +36,19 @@ target_link_options(offline_controller PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(offline_controller PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/offline_controller/main.cpp
 )
+
+
+
 target_allocator(offline_controller
   cpp-ytalloc-impl
 )
+
 vcs_info(offline_controller)
+
+
+
+

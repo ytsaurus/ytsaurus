@@ -5,19 +5,21 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 find_package(Python3 REQUIRED COMPONENTS Development)
-
 add_library(yt-python-common)
+
+
 target_compile_options(yt-python-common PRIVATE
   -DPYCXX_PYTHON_2TO3
   -DPYCXX_6_2_COMPATIBILITY
   -DPy_LIMITED_API=0x03040000
   -Wno-register
 )
+
 target_include_directories(yt-python-common PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
 )
+
 target_link_libraries(yt-python-common PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -26,6 +28,7 @@ target_link_libraries(yt-python-common PUBLIC
   contrib-libs-pycxx
   Python3::Module
 )
+
 target_sources(yt-python-common PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/python/common/buffered_stream.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/python/common/cache.cpp
@@ -36,3 +39,9 @@ target_sources(yt-python-common PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/python/common/stream.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/python/common/tee_input_stream.cpp
 )
+
+
+
+
+
+

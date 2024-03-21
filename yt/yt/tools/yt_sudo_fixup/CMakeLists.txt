@@ -5,16 +5,18 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(yt-sudo-fixup)
+
+
 target_compile_options(yt-sudo-fixup PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-sudo-fixup PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
 )
+
 target_link_options(yt-sudo-fixup PRIVATE
   -ldl
   -lrt
@@ -23,11 +25,20 @@ target_link_options(yt-sudo-fixup PRIVATE
   -fPIC
   -lpthread
 )
+
 target_sources(yt-sudo-fixup PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/yt_sudo_fixup/main.cpp
 )
+
+
+
 target_allocator(yt-sudo-fixup
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(yt-sudo-fixup)
+
+
+
+

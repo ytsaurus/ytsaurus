@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-server-tcp_proxy)
+
+
 target_compile_options(yt-server-tcp_proxy PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(yt-server-tcp_proxy PUBLIC
   ${PROJECT_BINARY_DIR}/yt
 )
+
 target_link_libraries(yt-server-tcp_proxy PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -25,6 +27,7 @@ target_link_libraries(yt-server-tcp_proxy PUBLIC
   library-cpp-getopt
   cpp-yt-phdr_cache
 )
+
 target_sources(yt-server-tcp_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/tcp_proxy/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/tcp_proxy/config.cpp
@@ -33,3 +36,9 @@ target_sources(yt-server-tcp_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/tcp_proxy/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/tcp_proxy/router.cpp
 )
+
+
+
+
+
+

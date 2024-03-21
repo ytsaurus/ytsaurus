@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(job_statistics)
+
+
 target_compile_options(job_statistics PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(job_statistics PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,7 @@ target_link_libraries(job_statistics PUBLIC
   library-cpp-cpuid_check
   cpp-mapreduce-client
 )
+
 target_link_options(job_statistics PRIVATE
   -ldl
   -lrt
@@ -29,11 +31,20 @@ target_link_options(job_statistics PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(job_statistics PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/job_statistics/main.cpp
 )
+
+
+
 target_allocator(job_statistics
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(job_statistics)
+
+
+
+

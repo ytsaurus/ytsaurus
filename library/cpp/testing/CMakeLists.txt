@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(common)
 add_subdirectory(gbenchmark)
 add_subdirectory(gmock_in_unittest)
@@ -15,3 +14,5 @@ add_subdirectory(gtest_main)
 add_subdirectory(hook)
 add_subdirectory(unittest)
 add_subdirectory(unittest_main)
+
+

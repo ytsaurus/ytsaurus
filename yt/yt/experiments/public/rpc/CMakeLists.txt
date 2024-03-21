@@ -5,13 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -20,9 +20,12 @@ get_built_tool_path(
 )
 
 add_executable(rpc)
+
+
 target_compile_options(rpc PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(rpc PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -36,6 +39,7 @@ target_link_libraries(rpc PUBLIC
   cpp-deprecated-atomic
   contrib-libs-protobuf
 )
+
 target_link_options(rpc PRIVATE
   -ldl
   -lrt
@@ -47,16 +51,22 @@ target_link_options(rpc PRIVATE
   -ldl
   -lutil
 )
+
 target_proto_messages(rpc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/rpc/main.proto
 )
+
 target_sources(rpc PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/experiments/public/rpc/main.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/rpc/main.cpp
 )
+
+
+
 target_allocator(rpc
   cpp-ytalloc-impl
 )
+
 target_proto_addincls(rpc
   ./yt
   ${PROJECT_SOURCE_DIR}/yt
@@ -69,8 +79,14 @@ target_proto_addincls(rpc
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(rpc
   --cpp_out=${PROJECT_BINARY_DIR}/yt
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
+
 vcs_info(rpc)
+
+
+
+

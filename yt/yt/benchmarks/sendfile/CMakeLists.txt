@@ -5,18 +5,20 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(sendfile)
+
+
 target_compile_options(sendfile PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(sendfile PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
 )
+
 target_link_options(sendfile PRIVATE
   -ldl
   -lrt
@@ -27,11 +29,20 @@ target_link_options(sendfile PRIVATE
   -lrt
   -ldl
 )
+
 target_sources(sendfile PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/sendfile/main.c
 )
+
+
+
 target_allocator(sendfile
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(sendfile)
+
+
+
+

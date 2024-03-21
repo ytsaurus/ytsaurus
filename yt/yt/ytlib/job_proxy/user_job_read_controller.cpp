@@ -7,10 +7,13 @@
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
+#include <yt/yt/ytlib/table_client/granule_min_max_filter.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 
 #include <yt/yt/ytlib/chunk_client/data_source.h>
+
+#include <yt/yt/library/query/base/query.h>
 
 #include <yt/yt/client/table_client/adapters.h>
 #include <yt/yt/client/table_client/name_table.h>
@@ -29,13 +32,14 @@ namespace NYT::NJobProxy {
 using namespace NApi;
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NControllerAgent;
+using namespace NControllerAgent::NProto;
 using namespace NFormats;
 using namespace NNodeTrackerClient;
+using namespace NQueryClient;
 using namespace NTableClient;
 using namespace NYson;
 using namespace NYTree;
-using namespace NControllerAgent;
-using namespace NControllerAgent::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,7 +68,9 @@ public:
         const auto& userJobSpec = jobSpecExt.user_job_spec();
 
         auto format = ConvertTo<TFormat>(TYsonString(userJobSpec.input_format()));
-        if (jobSpecExt.has_input_query_spec()) {
+        auto enableRowFilter = jobSpecExt.input_query_spec().options().enable_row_filter();
+
+        if (jobSpecExt.has_input_query_spec() && enableRowFilter) {
             return PrepareInputActionsQuery(jobSpecExt.input_query_spec(), format, asyncOutput, enableContextSaving);
         } else {
             return PrepareInputActionsPassthrough(format, asyncOutput, enableContextSaving);
@@ -355,17 +361,26 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     IInvokerPtr invoker,
     TClosure onNetworkRelease,
     std::optional<TString> udfDirectory,
-    const TClientChunkReadOptions& chunkReadOptions,
+    TClientChunkReadOptions chunkReadOptions,
     TString localHostName)
 {
     if (jobSpecHelper->GetJobType() != EJobType::Vanilla) {
+        if (jobSpecHelper->GetJobSpecExt().has_input_query_spec()) {
+            const auto& inputQuerySpec = jobSpecHelper->GetJobSpecExt().input_query_spec();
+            auto query = FromProto<TConstQueryPtr>(inputQuerySpec.query());
+            auto enableChunkFilter = inputQuerySpec.options().enable_chunk_filter();
+
+            if (enableChunkFilter && query->WhereClause) {
+                chunkReadOptions.GranuleFilter = CreateGranuleMinMaxFilter(query);
+            }
+        }
         return New<TUserJobReadController>(
             jobSpecHelper,
             invoker,
             onNetworkRelease,
             CreateUserJobIOFactory(
                 jobSpecHelper,
-                chunkReadOptions,
+                std::move(chunkReadOptions),
                 std::move(chunkReaderHost),
                 std::move(localHostName),
                 nullptr),

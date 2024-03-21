@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-aws-aws-c-http)
+
+
 target_compile_options(restricted-aws-aws-c-http PRIVATE
   -DAWS_CAL_USE_IMPORT_EXPORT
   -DAWS_COMMON_USE_IMPORT_EXPORT
@@ -30,9 +30,11 @@ target_compile_options(restricted-aws-aws-c-http PRIVATE
   -DS2N___RESTRICT__SUPPORTED
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-aws-aws-c-http PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-http/include
 )
+
 target_link_libraries(restricted-aws-aws-c-http PUBLIC
   contrib-libs-linux-headers
   restricted-aws-aws-c-cal
@@ -40,6 +42,7 @@ target_link_libraries(restricted-aws-aws-c-http PUBLIC
   restricted-aws-aws-c-compression
   restricted-aws-aws-c-io
 )
+
 target_sources(restricted-aws-aws-c-http PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-http/source/connection.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-http/source/connection_manager.c
@@ -69,3 +72,9 @@ target_sources(restricted-aws-aws-c-http PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-http/source/websocket_decoder.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-http/source/websocket_encoder.c
 )
+
+
+
+
+
+

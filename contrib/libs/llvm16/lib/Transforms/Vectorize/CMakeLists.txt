@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(lib-Transforms-Vectorize)
+
+
 target_compile_options(lib-Transforms-Vectorize PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(lib-Transforms-Vectorize PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Vectorize
 )
+
 target_link_libraries(lib-Transforms-Vectorize PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -24,6 +26,7 @@ target_link_libraries(lib-Transforms-Vectorize PUBLIC
   llvm16-lib-Support
   lib-Transforms-Utils
 )
+
 target_sources(lib-Transforms-Vectorize PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Vectorize/LoadStoreVectorizer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Vectorize/LoopVectorizationLegality.cpp
@@ -38,3 +41,9 @@ target_sources(lib-Transforms-Vectorize PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Vectorize/VectorCombine.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Vectorize/Vectorize.cpp
 )
+
+
+
+
+
+

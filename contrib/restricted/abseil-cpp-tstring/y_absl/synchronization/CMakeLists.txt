@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(abseil-cpp-tstring-y_absl-synchronization)
+
+
 target_compile_options(abseil-cpp-tstring-y_absl-synchronization PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(abseil-cpp-tstring-y_absl-synchronization PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring
 )
+
 target_link_libraries(abseil-cpp-tstring-y_absl-synchronization PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -24,6 +26,7 @@ target_link_libraries(abseil-cpp-tstring-y_absl-synchronization PUBLIC
   abseil-cpp-tstring-y_absl-strings
   abseil-cpp-tstring-y_absl-time
 )
+
 target_sources(abseil-cpp-tstring-y_absl-synchronization PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/synchronization/barrier.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/synchronization/blocking_counter.cc
@@ -40,3 +43,9 @@ target_sources(abseil-cpp-tstring-y_absl-synchronization PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/synchronization/mutex.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/synchronization/notification.cc
 )
+
+
+
+
+
+

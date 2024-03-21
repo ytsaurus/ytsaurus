@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(context_switch)
+
+
 target_compile_options(context_switch PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(context_switch PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,7 @@ target_link_libraries(context_switch PUBLIC
   library-cpp-cpuid_check
   yt-yt-core
 )
+
 target_link_options(context_switch PRIVATE
   -ldl
   -lrt
@@ -29,10 +31,19 @@ target_link_options(context_switch PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(context_switch PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/context_switch/main.cpp
 )
+
+
+
 target_allocator(context_switch
   cpp-ytalloc-impl
 )
+
 vcs_info(context_switch)
+
+
+
+

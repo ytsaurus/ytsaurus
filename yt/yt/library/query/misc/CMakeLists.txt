@@ -5,22 +5,31 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(library-query-misc)
+
+
 target_compile_options(library-query-misc PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(library-query-misc PUBLIC
   ${PROJECT_BINARY_DIR}/yt
 )
+
 target_link_libraries(library-query-misc PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   cpp-yt-assert
 )
+
 target_sources(library-query-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/misc/objects_holder.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/misc/function_context.cpp
 )
+
+
+
+
+
+

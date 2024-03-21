@@ -8,6 +8,7 @@ SRCS(
     config.cpp
     discovery_service.cpp
     dynamic_config_manager.cpp
+    bundle_dynamic_config_manager.cpp
 )
 
 PEERDIR(

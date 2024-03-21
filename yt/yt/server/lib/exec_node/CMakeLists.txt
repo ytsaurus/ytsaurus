@@ -5,13 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -20,9 +20,12 @@ get_built_tool_path(
 )
 
 add_library(server-lib-exec_node)
+
+
 target_compile_options(server-lib-exec_node PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(server-lib-exec_node PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -37,9 +40,11 @@ target_link_libraries(server-lib-exec_node PUBLIC
   server-lib-misc
   contrib-libs-protobuf
 )
+
 target_proto_messages(server-lib-exec_node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/exec_node/proto/supervisor_service.proto
 )
+
 target_sources(server-lib-exec_node PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/server/lib/exec_node/proto/supervisor_service.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/exec_node/public.cpp
@@ -48,6 +53,9 @@ target_sources(server-lib-exec_node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/exec_node/gpu_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/exec_node/helpers.cpp
 )
+
+
+
 target_proto_addincls(server-lib-exec_node
   ./
   ${PROJECT_SOURCE_DIR}/
@@ -61,7 +69,12 @@ target_proto_addincls(server-lib-exec_node
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(server-lib-exec_node
   --cpp_out=${PROJECT_BINARY_DIR}/
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
+
+
+
+

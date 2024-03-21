@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(apache)
 add_subdirectory(aws-sdk-cpp)
 add_subdirectory(backtrace)
@@ -65,3 +64,5 @@ add_subdirectory(yajl)
 add_subdirectory(zlib)
 add_subdirectory(zstd)
 add_subdirectory(zstd06)
+
+

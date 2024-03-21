@@ -28,7 +28,7 @@ jobs:
           memory: 32GB
           core-fraction: 100
           disk-type: network-ssd-nonreplicated
-          disk-size: 279GB
+          disk-size: 372GB
 
   checkout:
     name: Checkout sources
@@ -55,7 +55,8 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       build-python: true
-      build-query-tracker-ya-make: true
+      build-ytsaurus-ya-make: true
+      build-query-tracker-ya-make-relwithdebinfo: true
     uses: ./.github/workflows/build-jobs.yaml
 
   tag:
@@ -96,7 +97,7 @@ jobs:
       - tag
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
-      publish-query-tracker-ya-make: true
+      publish-query-tracker-ya-make-relwithdebinfo: true
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
     secrets:

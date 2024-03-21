@@ -5,18 +5,26 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(cpp-yt-cpu_clock)
+
+
 target_compile_options(cpp-yt-cpu_clock PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(cpp-yt-cpu_clock PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   cpp-yt-assert
 )
+
 target_sources(cpp-yt-cpu_clock PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/yt/cpu_clock/clock.cpp
 )
+
+
+
+
+
+

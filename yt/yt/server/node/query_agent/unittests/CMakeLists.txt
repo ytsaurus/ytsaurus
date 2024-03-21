@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-query-agent)
+
+
 target_compile_options(unittester-query-agent PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-query-agent PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,6 +21,7 @@ target_link_libraries(unittester-query-agent PUBLIC
   cpp-testing-gtest_main
   yt-server-node
 )
+
 target_link_options(unittester-query-agent PRIVATE
   -ldl
   -lrt
@@ -31,15 +33,19 @@ target_link_options(unittester-query-agent PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-query-agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/query_agent/unittests/replication_log_batch_reader_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-query-agent
   COMMAND
   unittester-query-agent
 )
+
 set_property(
   TEST
   unittester-query-agent
@@ -47,6 +53,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   unittester-query-agent
@@ -54,14 +61,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-query-agent
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-query-agent
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(unittester-query-agent)
+
+
+
+

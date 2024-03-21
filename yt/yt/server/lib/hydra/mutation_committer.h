@@ -173,7 +173,7 @@ private:
 
     TInstant SnapshotBuildDeadline_ = TInstant::Max();
 
-    struct TShapshotInfo
+    struct TSnapshotInfo
     {
         int SnapshotId = -1;
         // Build a snapshot right after this mutation.
@@ -185,7 +185,7 @@ private:
 
         TPromise<int> Promise = NewPromise<int>();
     };
-    std::optional<TShapshotInfo> LastSnapshotInfo_;
+    std::optional<TSnapshotInfo> LastSnapshotInfo_;
 
     i64 MutationQueueDataSize_ = 0;
     std::deque<TPendingMutationPtr> MutationQueue_;

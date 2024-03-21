@@ -51,7 +51,7 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     IInvokerPtr invoker,
     TClosure onNetworkRelease,
     std::optional<TString> udfDirectory,
-    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+    NChunkClient::TClientChunkReadOptions chunkReadOptions,
     TString localHostName);
 
 ////////////////////////////////////////////////////////////////////////////////

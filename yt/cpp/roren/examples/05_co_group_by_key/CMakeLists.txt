@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(05_co_group_by_key)
+
+
 target_link_libraries(05_co_group_by_key PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -16,6 +16,7 @@ target_link_libraries(05_co_group_by_key PUBLIC
   cpp-roren-interface
   cpp-roren-yt
 )
+
 target_link_options(05_co_group_by_key PRIVATE
   -ldl
   -lrt
@@ -27,11 +28,20 @@ target_link_options(05_co_group_by_key PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(05_co_group_by_key PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/examples/05_co_group_by_key/main.cpp
 )
+
+
+
 target_allocator(05_co_group_by_key
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(05_co_group_by_key)
+
+
+
+

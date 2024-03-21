@@ -5,17 +5,19 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(contrib-libs-yajl)
+
+
 target_compile_options(contrib-libs-yajl PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_link_libraries(contrib-libs-yajl PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
 )
+
 target_sources(contrib-libs-yajl PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/yajl/yajl.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/yajl/yajl_buf.c
@@ -28,3 +30,9 @@ target_sources(contrib-libs-yajl PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/yajl/yajl_tree.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/yajl/yajl_parser.cpp
 )
+
+
+
+
+
+

@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-core-profiling)
+
+
 target_compile_options(unittester-core-profiling PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-core-profiling PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -21,6 +22,7 @@ target_link_libraries(unittester-core-profiling PUBLIC
   yt-yt-core
   yt-core-test_framework
 )
+
 target_link_options(unittester-core-profiling PRIVATE
   -ldl
   -lrt
@@ -32,16 +34,20 @@ target_link_options(unittester-core-profiling PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-core-profiling PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/profiling/unittests/timer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/profiling/unittests/timing_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-core-profiling
   COMMAND
   unittester-core-profiling
 )
+
 set_property(
   TEST
   unittester-core-profiling
@@ -49,6 +55,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   unittester-core-profiling
@@ -56,13 +63,21 @@ set_property(
   PROCESSORS
   4
 )
+
 set_property(
   TEST
   unittester-core-profiling
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-core-profiling
   cpp-ytalloc-impl
 )
+
 vcs_info(unittester-core-profiling)
+
+
+
+

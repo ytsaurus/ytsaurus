@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(abseil-cpp-tstring-y_absl-hash)
+
+
 target_compile_options(abseil-cpp-tstring-y_absl-hash PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(abseil-cpp-tstring-y_absl-hash PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring
 )
+
 target_link_libraries(abseil-cpp-tstring-y_absl-hash PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -23,8 +25,15 @@ target_link_libraries(abseil-cpp-tstring-y_absl-hash PUBLIC
   abseil-cpp-tstring-y_absl-strings
   abseil-cpp-tstring-y_absl-types
 )
+
 target_sources(abseil-cpp-tstring-y_absl-hash PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/hash/internal/city.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/hash/internal/hash.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/hash/internal/low_level_hash.cc
 )
+
+
+
+
+
+

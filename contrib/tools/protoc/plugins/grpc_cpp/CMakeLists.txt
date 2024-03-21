@@ -5,17 +5,19 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(grpc_cpp)
+
+
 target_compile_options(grpc_cpp PRIVATE
   -DGRPC_USE_ABSL=0
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(grpc_cpp PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/include
 )
+
 target_link_libraries(grpc_cpp PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -23,6 +25,7 @@ target_link_libraries(grpc_cpp PUBLIC
   library-cpp-cpuid_check
   src-compiler-grpc_plugin_support
 )
+
 target_link_options(grpc_cpp PRIVATE
   -ldl
   -lrt
@@ -33,11 +36,20 @@ target_link_options(grpc_cpp PRIVATE
   -lrt
   -ldl
 )
+
 target_sources(grpc_cpp PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/compiler/cpp_plugin.cc
 )
+
+
+
 target_allocator(grpc_cpp
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(grpc_cpp)
+
+
+
+

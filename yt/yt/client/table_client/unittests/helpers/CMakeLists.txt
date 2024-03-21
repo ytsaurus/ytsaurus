@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(table_client-unittests-helpers)
+
+
 target_compile_options(table_client-unittests-helpers PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(table_client-unittests-helpers PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,13 @@ target_link_libraries(table_client-unittests-helpers PUBLIC
   yt-yt-client
   yt-core-test_framework
 )
+
 target_sources(table_client-unittests-helpers PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/unittests/helpers/helpers.cpp
 )
+
+
+
+
+
+

@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(writer)
+
+
 target_compile_options(writer PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(writer PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,6 +20,7 @@ target_link_libraries(writer PUBLIC
   yt-yt-core
   library-cpp-getopt
 )
+
 target_link_options(writer PRIVATE
   -ldl
   -lrt
@@ -30,11 +32,20 @@ target_link_options(writer PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(writer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/log_compression/writer/main.cpp
 )
+
+
+
 target_allocator(writer
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(writer)
+
+
+
+

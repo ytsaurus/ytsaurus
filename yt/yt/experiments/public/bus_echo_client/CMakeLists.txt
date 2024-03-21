@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(bus_echo_client)
+
+
 target_link_libraries(bus_echo_client PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -17,6 +17,7 @@ target_link_libraries(bus_echo_client PUBLIC
   yt-library-program
   library-cpp-getopt
 )
+
 target_link_options(bus_echo_client PRIVATE
   -ldl
   -lrt
@@ -28,11 +29,20 @@ target_link_options(bus_echo_client PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(bus_echo_client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/bus_echo_client/main.cpp
 )
+
+
+
 target_allocator(bus_echo_client
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(bus_echo_client)
+
+
+
+

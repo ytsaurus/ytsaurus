@@ -5,17 +5,19 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(Target-X86-Disassembler)
+
+
 target_compile_options(Target-X86-Disassembler PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(Target-X86-Disassembler PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/Disassembler
 )
+
 target_link_libraries(Target-X86-Disassembler PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -25,6 +27,13 @@ target_link_libraries(Target-X86-Disassembler PUBLIC
   llvm16-lib-Support
   Target-X86-TargetInfo
 )
+
 target_sources(Target-X86-Disassembler PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/Disassembler/X86Disassembler.cpp
 )
+
+
+
+
+
+

@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-boost-intrusive INTERFACE)
+
+
 target_include_directories(restricted-boost-intrusive INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/intrusive/include
 )
+
 target_link_libraries(restricted-boost-intrusive INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,3 +21,9 @@ target_link_libraries(restricted-boost-intrusive INTERFACE
   restricted-boost-move
   restricted-boost-static_assert
 )
+
+
+
+
+
+

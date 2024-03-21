@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(crash_handler_tests)
+
+
 target_link_libraries(crash_handler_tests PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -15,6 +15,7 @@ target_link_libraries(crash_handler_tests PUBLIC
   library-cpp-cpuid_check
   yt-yt-core
 )
+
 target_link_options(crash_handler_tests PRIVATE
   -ldl
   -lrt
@@ -26,11 +27,20 @@ target_link_options(crash_handler_tests PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(crash_handler_tests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/crash_handler_test/main.cpp
 )
+
+
+
 target_allocator(crash_handler_tests
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(crash_handler_tests)
+
+
+
+

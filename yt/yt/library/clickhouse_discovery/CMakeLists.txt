@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(unittests)
-
 add_library(yt-library-clickhouse_discovery)
+
+
 target_compile_options(yt-library-clickhouse_discovery PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-library-clickhouse_discovery PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -21,6 +22,7 @@ target_link_libraries(yt-library-clickhouse_discovery PUBLIC
   yt-ytlib-discovery_client
   cpp-yt-threading
 )
+
 target_sources(yt-library-clickhouse_discovery PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_discovery/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_discovery/discovery_base.cpp
@@ -28,3 +30,9 @@ target_sources(yt-library-clickhouse_discovery PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_discovery/discovery_v2.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_discovery/helpers.cpp
 )
+
+
+
+
+
+

@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(contrib-libs-xdelta3)
+
+
 target_compile_options(contrib-libs-xdelta3 PRIVATE
   -DNOT_MAIN=1
   -DSECONDARY_DJW=1
@@ -16,12 +16,21 @@ target_compile_options(contrib-libs-xdelta3 PRIVATE
   -DXD3_MAIN=1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(contrib-libs-xdelta3 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/xdelta3
 )
+
 target_link_libraries(contrib-libs-xdelta3 PUBLIC
   contrib-libs-linux-headers
 )
+
 target_sources(contrib-libs-xdelta3 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/xdelta3/xdelta3.c
 )
+
+
+
+
+
+

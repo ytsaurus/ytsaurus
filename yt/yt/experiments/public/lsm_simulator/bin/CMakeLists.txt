@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(lsm-sim)
+
+
 target_compile_options(lsm-sim PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(lsm-sim PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,7 @@ target_link_libraries(lsm-sim PUBLIC
   library-cpp-cpuid_check
   public-lsm_simulator-lib
 )
+
 target_link_options(lsm-sim PRIVATE
   -ldl
   -lrt
@@ -29,10 +31,19 @@ target_link_options(lsm-sim PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(lsm-sim PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/lsm_simulator/bin/main.cpp
 )
+
+
+
 target_allocator(lsm-sim
   cpp-ytalloc-impl
 )
+
 vcs_info(lsm-sim)
+
+
+
+

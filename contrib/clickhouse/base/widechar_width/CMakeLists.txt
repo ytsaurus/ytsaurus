@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(clickhouse-base-widechar_width)
+
+
 target_compile_options(clickhouse-base-widechar_width PUBLIC
   -DOS_LINUX
 )
@@ -16,13 +16,22 @@ target_compile_options(clickhouse-base-widechar_width PRIVATE
   -D__GCC_HAVE_DWARF2_CFI_ASM=1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(clickhouse-base-widechar_width PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/widechar_width
 )
+
 target_link_libraries(clickhouse-base-widechar_width PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
 )
+
 target_sources(clickhouse-base-widechar_width PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/widechar_width/widechar_width.cpp
 )
+
+
+
+
+
+

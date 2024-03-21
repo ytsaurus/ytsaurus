@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-library-error-skeleton)
+
+
 target_compile_options(unittester-library-error-skeleton PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-library-error-skeleton PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -21,6 +22,7 @@ target_link_libraries(unittester-library-error-skeleton PUBLIC
   yt-library-error_skeleton
   yt-core-test_framework
 )
+
 target_link_options(unittester-library-error-skeleton PRIVATE
   -ldl
   -lrt
@@ -32,15 +34,19 @@ target_link_options(unittester-library-error-skeleton PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-library-error-skeleton PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/error_skeleton/unittests/skeleton_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-library-error-skeleton
   COMMAND
   unittester-library-error-skeleton
 )
+
 set_property(
   TEST
   unittester-library-error-skeleton
@@ -48,6 +54,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   unittester-library-error-skeleton
@@ -55,13 +62,21 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-library-error-skeleton
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-library-error-skeleton
   cpp-ytalloc-impl
 )
+
 vcs_info(unittester-library-error-skeleton)
+
+
+
+

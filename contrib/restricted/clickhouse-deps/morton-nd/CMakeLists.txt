@@ -5,14 +5,21 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-clickhouse-deps-morton-nd INTERFACE)
+
+
 target_include_directories(restricted-clickhouse-deps-morton-nd INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/clickhouse-deps/morton-nd/include
 )
+
 target_link_libraries(restricted-clickhouse-deps-morton-nd INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
 )
+
+
+
+
+
+

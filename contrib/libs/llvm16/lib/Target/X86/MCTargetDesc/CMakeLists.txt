@@ -5,17 +5,19 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(Target-X86-MCTargetDesc)
+
+
 target_compile_options(Target-X86-MCTargetDesc PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(Target-X86-MCTargetDesc PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc
 )
+
 target_link_libraries(Target-X86-MCTargetDesc PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -28,6 +30,7 @@ target_link_libraries(Target-X86-MCTargetDesc PUBLIC
   Target-X86-TargetInfo
   llvm16-lib-TargetParser
 )
+
 target_sources(Target-X86-MCTargetDesc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86ATTInstPrinter.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86AsmBackend.cpp
@@ -46,3 +49,9 @@ target_sources(Target-X86-MCTargetDesc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86WinCOFFStreamer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86WinCOFFTargetStreamer.cpp
 )
+
+
+
+
+
+

@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(cpp-integration-test-hydra)
+
+
 target_compile_options(cpp-integration-test-hydra PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(cpp-integration-test-hydra PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -24,6 +25,7 @@ target_link_libraries(cpp-integration-test-hydra PUBLIC
   yt-yt-ytlib
   yt-core-test_framework
 )
+
 target_link_options(cpp-integration-test-hydra PRIVATE
   -ldl
   -lrt
@@ -35,15 +37,19 @@ target_link_options(cpp-integration-test-hydra PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(cpp-integration-test-hydra PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_hydra/test_remote_changelog_store.cpp
 )
+
+
 add_test(
   NAME
   cpp-integration-test-hydra
   COMMAND
   cpp-integration-test-hydra
 )
+
 set_property(
   TEST
   cpp-integration-test-hydra
@@ -51,6 +57,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   cpp-integration-test-hydra
@@ -58,13 +65,21 @@ set_property(
   PROCESSORS
   4
 )
+
 set_property(
   TEST
   cpp-integration-test-hydra
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(cpp-integration-test-hydra
   cpp-ytalloc-impl
 )
+
 vcs_info(cpp-integration-test-hydra)
+
+
+
+

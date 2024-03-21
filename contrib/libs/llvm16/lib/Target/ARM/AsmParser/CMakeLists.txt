@@ -5,17 +5,19 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(Target-ARM-AsmParser)
+
+
 target_compile_options(Target-ARM-AsmParser PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(Target-ARM-AsmParser PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/AsmParser
 )
+
 target_link_libraries(Target-ARM-AsmParser PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -29,6 +31,13 @@ target_link_libraries(Target-ARM-AsmParser PUBLIC
   Target-ARM-Utils
   llvm16-lib-TargetParser
 )
+
 target_sources(Target-ARM-AsmParser PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/AsmParser/ARMAsmParser.cpp
 )
+
+
+
+
+
+

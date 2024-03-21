@@ -5,17 +5,19 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(Target-BPF-MCTargetDesc)
+
+
 target_compile_options(Target-BPF-MCTargetDesc PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(Target-BPF-MCTargetDesc PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/MCTargetDesc
 )
+
 target_link_libraries(Target-BPF-MCTargetDesc PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -26,6 +28,7 @@ target_link_libraries(Target-BPF-MCTargetDesc PUBLIC
   Target-BPF-TargetInfo
   llvm16-lib-TargetParser
 )
+
 target_sources(Target-BPF-MCTargetDesc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/MCTargetDesc/BPFAsmBackend.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/MCTargetDesc/BPFELFObjectWriter.cpp
@@ -33,3 +36,9 @@ target_sources(Target-BPF-MCTargetDesc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/MCTargetDesc/BPFMCCodeEmitter.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/MCTargetDesc/BPFMCTargetDesc.cpp
 )
+
+
+
+
+
+

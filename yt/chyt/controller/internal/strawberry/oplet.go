@@ -932,6 +932,7 @@ func (oplet *Oplet) Pass(ctx context.Context) error {
 	}
 
 	if err == nil {
+		oplet.clearError()
 		oplet.resetBackoff()
 	} else {
 		oplet.increaseBackoff()

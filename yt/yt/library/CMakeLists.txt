@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(auth)
 add_subdirectory(auth_server)
 add_subdirectory(backtrace_introspector)
@@ -45,3 +44,5 @@ add_subdirectory(vector_hdrf)
 add_subdirectory(web_assembly)
 add_subdirectory(xor_filter)
 add_subdirectory(ytprof)
+
+

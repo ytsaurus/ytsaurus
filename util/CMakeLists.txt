@@ -5,14 +5,15 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(charset)
 add_subdirectory(draft)
-
 add_library(yutil)
+
+
 target_compile_options(yutil PRIVATE
   -Wnarrowing
 )
+
 target_link_libraries(yutil PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -21,6 +22,7 @@ target_link_libraries(yutil PUBLIC
   contrib-libs-double-conversion
   contrib-libs-libc_compat
 )
+
 target_sources(yutil PRIVATE
   ${PROJECT_SOURCE_DIR}/util/system/compiler.cpp
   ${PROJECT_SOURCE_DIR}/util/digest/city.cpp
@@ -29,6 +31,9 @@ target_sources(yutil PRIVATE
   ${PROJECT_SOURCE_DIR}/util/system/valgrind.cpp
   ${PROJECT_SOURCE_DIR}/util/system/mktemp_system.cpp
 )
+
+
+
 target_joined_source(yutil
   all_datetime.cpp
   ${PROJECT_SOURCE_DIR}/util/datetime/base.cpp
@@ -37,6 +42,7 @@ target_joined_source(yutil
   ${PROJECT_SOURCE_DIR}/util/datetime/systime.cpp
   ${PROJECT_SOURCE_DIR}/util/datetime/uptime.cpp
 )
+
 target_joined_source(yutil
   all_digest.cpp
   ${PROJECT_SOURCE_DIR}/util/digest/fnv.cpp
@@ -45,12 +51,14 @@ target_joined_source(yutil
   ${PROJECT_SOURCE_DIR}/util/digest/numeric.cpp
   ${PROJECT_SOURCE_DIR}/util/digest/sequence.cpp
 )
+
 target_joined_source(yutil
   all_util.cpp
   ${PROJECT_SOURCE_DIR}/util/ysafeptr.cpp
   ${PROJECT_SOURCE_DIR}/util/ysaveload.cpp
   ${PROJECT_SOURCE_DIR}/util/str_stl.cpp
 )
+
 target_joined_source(yutil
   all_folder.cpp
   ${PROJECT_SOURCE_DIR}/util/folder/dirut.cpp
@@ -62,6 +70,7 @@ target_joined_source(yutil
   ${PROJECT_SOURCE_DIR}/util/folder/pathsplit.cpp
   ${PROJECT_SOURCE_DIR}/util/folder/tempdir.cpp
 )
+
 target_joined_source(yutil
   all_generic.cpp
   ${PROJECT_SOURCE_DIR}/util/generic/adaptor.cpp
@@ -124,6 +133,7 @@ target_joined_source(yutil
   ${PROJECT_SOURCE_DIR}/util/generic/ylimits.cpp
   ${PROJECT_SOURCE_DIR}/util/generic/ymath.cpp
 )
+
 target_joined_source(yutil
   all_memory.cpp
   ${PROJECT_SOURCE_DIR}/util/memory/addstorage.cpp
@@ -136,6 +146,7 @@ target_joined_source(yutil
   ${PROJECT_SOURCE_DIR}/util/memory/smallobj.cpp
   ${PROJECT_SOURCE_DIR}/util/memory/tempbuf.cpp
 )
+
 target_joined_source(yutil
   all_network.cpp
   ${PROJECT_SOURCE_DIR}/util/network/address.cpp
@@ -152,6 +163,7 @@ target_joined_source(yutil
   ${PROJECT_SOURCE_DIR}/util/network/sock.cpp
   ${PROJECT_SOURCE_DIR}/util/network/socket.cpp
 )
+
 target_joined_source(yutil
   all_random.cpp
   ${PROJECT_SOURCE_DIR}/util/random/common_ops.cpp
@@ -166,6 +178,7 @@ target_joined_source(yutil
   ${PROJECT_SOURCE_DIR}/util/random/shuffle.cpp
   ${PROJECT_SOURCE_DIR}/util/random/init_atfork.cpp
 )
+
 target_joined_source(yutil
   all_stream.cpp
   ${PROJECT_SOURCE_DIR}/util/stream/aligned.cpp
@@ -197,6 +210,7 @@ target_joined_source(yutil
   ${PROJECT_SOURCE_DIR}/util/stream/zerocopy_output.cpp
   ${PROJECT_SOURCE_DIR}/util/stream/zlib.cpp
 )
+
 target_joined_source(yutil
   all_string.cpp
   ${PROJECT_SOURCE_DIR}/util/string/ascii.cpp
@@ -215,6 +229,7 @@ target_joined_source(yutil
   ${PROJECT_SOURCE_DIR}/util/string/util.cpp
   ${PROJECT_SOURCE_DIR}/util/string/vector.cpp
 )
+
 target_joined_source(yutil
   all_system_1.cpp
   ${PROJECT_SOURCE_DIR}/util/system/atexit.cpp
@@ -244,6 +259,7 @@ target_joined_source(yutil
   ${PROJECT_SOURCE_DIR}/util/system/hp_timer.cpp
   ${PROJECT_SOURCE_DIR}/util/system/info.cpp
 )
+
 target_joined_source(yutil
   all_system_2.cpp
   ${PROJECT_SOURCE_DIR}/util/system/align.cpp
@@ -287,6 +303,7 @@ target_joined_source(yutil
   ${PROJECT_SOURCE_DIR}/util/system/yassert.cpp
   ${PROJECT_SOURCE_DIR}/util/system/yield.cpp
 )
+
 target_joined_source(yutil
   all_thread.cpp
   ${PROJECT_SOURCE_DIR}/util/thread/factory.cpp
@@ -296,11 +313,13 @@ target_joined_source(yutil
   ${PROJECT_SOURCE_DIR}/util/thread/pool.cpp
   ${PROJECT_SOURCE_DIR}/util/thread/singleton.cpp
 )
+
 target_ragel_lexers(yutil
   PRIVATE
   ${PROJECT_SOURCE_DIR}/util/datetime/parser.rl6
   -CG2
 )
+
 target_yasm_source(yutil
   PRIVATE
   ${PROJECT_SOURCE_DIR}/util/system/context_x86.asm
@@ -309,3 +328,7 @@ target_yasm_source(yutil
   -I
   ${PROJECT_SOURCE_DIR}
 )
+
+
+
+

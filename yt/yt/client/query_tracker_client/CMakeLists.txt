@@ -5,18 +5,26 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-client-query_tracker_client)
+
+
 target_compile_options(yt-client-query_tracker_client PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-client-query_tracker_client PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
 )
+
 target_sources(yt-client-query_tracker_client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/query_tracker_client/public.cpp
 )
+
+
+
+
+
+

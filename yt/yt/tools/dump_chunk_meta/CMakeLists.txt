@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(dump-chunk-meta)
+
+
 target_compile_options(dump-chunk-meta PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(dump-chunk-meta PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +23,7 @@ target_link_libraries(dump-chunk-meta PUBLIC
   yt-library-program
   cpp-getopt-small
 )
+
 target_link_options(dump-chunk-meta PRIVATE
   -ldl
   -lrt
@@ -33,11 +35,20 @@ target_link_options(dump-chunk-meta PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(dump-chunk-meta PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/dump_chunk_meta/main.cpp
 )
+
+
+
 target_allocator(dump-chunk-meta
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(dump-chunk-meta)
+
+
+
+

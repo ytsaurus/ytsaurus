@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(dns_test)
+
+
 target_compile_options(dns_test PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(dns_test PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -21,6 +22,7 @@ target_link_libraries(dns_test PUBLIC
   library-cpp-getopt
   cpp-yt-misc
 )
+
 target_link_options(dns_test PRIVATE
   -ldl
   -lrt
@@ -32,10 +34,19 @@ target_link_options(dns_test PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(dns_test PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/dns_test/main.cpp
 )
+
+
+
 target_allocator(dns_test
   cpp-ytalloc-impl
 )
+
 vcs_info(dns_test)
+
+
+
+

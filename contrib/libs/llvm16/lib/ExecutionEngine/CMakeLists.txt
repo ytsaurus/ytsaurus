@@ -5,19 +5,21 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(JITLink)
 add_subdirectory(MCJIT)
 add_subdirectory(Orc)
 add_subdirectory(RuntimeDyld)
-
 add_library(llvm16-lib-ExecutionEngine)
+
+
 target_compile_options(llvm16-lib-ExecutionEngine PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(llvm16-lib-ExecutionEngine PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine
 )
+
 target_link_libraries(llvm16-lib-ExecutionEngine PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -32,6 +34,7 @@ target_link_libraries(llvm16-lib-ExecutionEngine PUBLIC
   llvm16-lib-Target
   llvm16-lib-TargetParser
 )
+
 target_sources(llvm16-lib-ExecutionEngine PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/ExecutionEngine.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/ExecutionEngineBindings.cpp
@@ -39,3 +42,9 @@ target_sources(llvm16-lib-ExecutionEngine PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/SectionMemoryManager.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/TargetSelect.cpp
 )
+
+
+
+
+
+

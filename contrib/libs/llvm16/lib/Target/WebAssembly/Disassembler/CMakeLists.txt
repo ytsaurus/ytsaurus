@@ -5,17 +5,19 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(Target-WebAssembly-Disassembler)
+
+
 target_compile_options(Target-WebAssembly-Disassembler PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(Target-WebAssembly-Disassembler PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/Disassembler
 )
+
 target_link_libraries(Target-WebAssembly-Disassembler PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -28,6 +30,13 @@ target_link_libraries(Target-WebAssembly-Disassembler PUBLIC
   Target-WebAssembly-TargetInfo
   Target-WebAssembly-Utils
 )
+
 target_sources(Target-WebAssembly-Disassembler PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/Disassembler/WebAssemblyDisassembler.cpp
 )
+
+
+
+
+
+

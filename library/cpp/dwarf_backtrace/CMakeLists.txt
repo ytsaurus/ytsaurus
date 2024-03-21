@@ -5,15 +5,22 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(library-cpp-dwarf_backtrace)
+
+
 target_link_libraries(library-cpp-dwarf_backtrace PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   contrib-libs-backtrace
 )
+
 target_sources(library-cpp-dwarf_backtrace PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/dwarf_backtrace/backtrace.cpp
 )
+
+
+
+
+
+

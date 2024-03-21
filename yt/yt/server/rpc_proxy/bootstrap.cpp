@@ -3,6 +3,7 @@
 #include "access_checker.h"
 #include "config.h"
 #include "discovery_service.h"
+#include "bundle_dynamic_config_manager.h"
 #include "dynamic_config_manager.h"
 #include "private.h"
 
@@ -26,9 +27,12 @@
 #include <yt/yt/library/containers/disk_manager/disk_info_provider.h>
 #include <yt/yt/library/containers/disk_manager/disk_manager_proxy.h>
 
+#include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
+
+#include <yt/yt/ytlib/transaction_client/config.h>
 
 #include <yt/yt/ytlib/queue_client/registration_manager.h>
 
@@ -187,6 +191,11 @@ void TBootstrap::DoRun()
         ProxyCoordinator_,
         Connection_,
         GetControlInvoker());
+    BundleDynamicConfigManager_ = CreateBundleDynamicConfigManager(
+        Config_,
+        ProxyCoordinator_,
+        Connection_,
+        GetControlInvoker());
     AccessChecker_ = CreateAccessChecker(
         Config_->AccessChecker,
         ProxyCoordinator_,
@@ -208,6 +217,7 @@ void TBootstrap::DoRun()
     }
 
     DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
+    BundleDynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnBundleDynamicConfigChanged, this));
 
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
@@ -240,6 +250,10 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/dynamic_config_manager",
         CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
+    SetNodeByYPath(
+        orchidRoot,
+        "/bundle_dynamic_config_manager",
+        CreateVirtualNode(BundleDynamicConfigManager_->GetOrchidService()));
     SetNodeByYPath(
         orchidRoot,
         "/cluster_connection",
@@ -296,6 +310,9 @@ void TBootstrap::DoRun()
     DiskChangeChecker_->Start();
     DynamicConfigManager_->Initialize();
     DynamicConfigManager_->Start();
+
+    BundleDynamicConfigManager_->Initialize();
+    BundleDynamicConfigManager_->Start();
 
     // NB: We must apply the first dynamic config before ApiService_ starts.
     YT_LOG_INFO("Waiting for dynamic config");
@@ -400,6 +417,19 @@ void TBootstrap::ReconfigureMemoryLimits(const TProxyMemoryLimitsPtr& memoryLimi
         memoryLimits->Rpc.value_or(staticLimits->Rpc.value_or(totalLimit)));
 }
 
+void TBootstrap::ReconfigureConnection(
+    const TProxyDynamicConfigPtr& dynamicConfig,
+    const TBundleProxyDynamicConfigPtr& bundleConfig)
+{
+    auto connectionConfig = CloneYsonStruct(dynamicConfig->ClusterConnection);
+    const auto& clockManagerConfig = connectionConfig->ClockManager;
+    if (bundleConfig->ClockClusterTag) {
+        clockManagerConfig->ClockClusterTag = bundleConfig->ClockClusterTag;
+    }
+
+    Connection_->Reconfigure(connectionConfig);
+}
+
 void TBootstrap::OnDynamicConfigChanged(
     const TProxyDynamicConfigPtr& /*oldConfig*/,
     const TProxyDynamicConfigPtr& newConfig)
@@ -408,8 +438,6 @@ void TBootstrap::OnDynamicConfigChanged(
 
     TraceSampler_->UpdateConfig(newConfig->Tracing);
 
-    Connection_->Reconfigure(newConfig->ClusterConnection);
-
     ApiService_->OnDynamicConfigChanged(newConfig->Api);
 
     RpcServer_->OnDynamicConfigChanged(newConfig->RpcServer);
@@ -417,6 +445,15 @@ void TBootstrap::OnDynamicConfigChanged(
     DiskManagerProxy_->OnDynamicConfigChanged(newConfig->DiskManagerProxy);
 
     ReconfigureMemoryLimits(newConfig->MemoryLimits);
+
+    ReconfigureConnection(newConfig, BundleDynamicConfigManager_->GetConfig());
+}
+
+void TBootstrap::OnBundleDynamicConfigChanged(
+    const TBundleProxyDynamicConfigPtr& /*oldConfig*/,
+    const TBundleProxyDynamicConfigPtr& newConfig)
+{
+    ReconfigureConnection(DynamicConfigManager_->GetConfig(), newConfig);
 }
 
 const IInvokerPtr& TBootstrap::GetWorkerInvoker() const

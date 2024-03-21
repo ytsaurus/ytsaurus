@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(cpp-xdelta3-state)
+
+
 target_link_libraries(cpp-xdelta3-state PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -15,6 +15,7 @@ target_link_libraries(cpp-xdelta3-state PUBLIC
   cpp-xdelta3-proto
   cpp-xdelta3-xdelta_codec
 )
+
 target_sources(cpp-xdelta3-state PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/xdelta3/state/create_proto.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/xdelta3/state/data_ptr.cpp
@@ -22,3 +23,9 @@ target_sources(cpp-xdelta3-state PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/xdelta3/state/state.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/xdelta3/state/merge.cpp
 )
+
+
+
+
+
+

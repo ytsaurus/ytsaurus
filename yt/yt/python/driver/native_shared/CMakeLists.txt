@@ -5,16 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 find_package(Python3 REQUIRED COMPONENTS Development)
-
 add_shared_library(driver_lib)
+
+
 target_compile_options(driver_lib PRIVATE
   -DPYCXX_PYTHON_2TO3
   -DPYCXX_6_2_COMPATIBILITY
   -DPy_LIMITED_API=0x03040000
   -Wno-register
 )
+
 target_link_libraries(driver_lib PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +23,7 @@ target_link_libraries(driver_lib PUBLIC
   Python3::Module
   python-driver-native
 )
+
 target_link_options(driver_lib PRIVATE
   -ldl
   -lrt
@@ -35,7 +37,15 @@ target_link_options(driver_lib PRIVATE
   -ldl
   -lutil
 )
+
+
+
 use_export_script(driver_lib
   ${PROJECT_SOURCE_DIR}/yt/yt/python/driver/native_shared/driver3.exports
 )
+
 vcs_info(driver_lib)
+
+
+
+

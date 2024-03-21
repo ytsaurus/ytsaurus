@@ -5,17 +5,19 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(Target-BPF-Disassembler)
+
+
 target_compile_options(Target-BPF-Disassembler PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(Target-BPF-Disassembler PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/Disassembler
 )
+
 target_link_libraries(Target-BPF-Disassembler PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -26,6 +28,13 @@ target_link_libraries(Target-BPF-Disassembler PUBLIC
   llvm16-lib-Support
   Target-BPF-TargetInfo
 )
+
 target_sources(Target-BPF-Disassembler PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/Disassembler/BPFDisassembler.cpp
 )
+
+
+
+
+
+

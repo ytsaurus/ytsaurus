@@ -5,17 +5,19 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(Target-NVPTX-MCTargetDesc)
+
+
 target_compile_options(Target-NVPTX-MCTargetDesc PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(Target-NVPTX-MCTargetDesc PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/MCTargetDesc
 )
+
 target_link_libraries(Target-NVPTX-MCTargetDesc PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -26,9 +28,16 @@ target_link_libraries(Target-NVPTX-MCTargetDesc PUBLIC
   Target-NVPTX-TargetInfo
   llvm16-lib-TargetParser
 )
+
 target_sources(Target-NVPTX-MCTargetDesc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/MCTargetDesc/NVPTXInstPrinter.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/MCTargetDesc/NVPTXMCAsmInfo.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/MCTargetDesc/NVPTXMCTargetDesc.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/MCTargetDesc/NVPTXTargetStreamer.cpp
 )
+
+
+
+
+
+

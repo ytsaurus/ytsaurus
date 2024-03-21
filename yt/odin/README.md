@@ -1,4 +1,4 @@
-Odin is a service to run checks on a cluster periodically, it is used as an external moniroting tool.
+Odin is a service to run checks on a cluster periodically, it is used as an external monitoring tool.
 
 ## How to build
 

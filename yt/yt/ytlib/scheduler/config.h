@@ -1330,12 +1330,29 @@ DEFINE_REFCOUNTED_TYPE(TVanillaTaskSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TQueryFilterOptions
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    bool EnableChunkFilter;
+    bool EnableRowFilter;
+
+    REGISTER_YSON_STRUCT(TQueryFilterOptions);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueryFilterOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TInputlyQueryableSpec
     : public virtual NYTree::TYsonStruct
 {
 public:
     std::optional<TString> InputQuery;
     std::optional<NTableClient::TTableSchema> InputSchema;
+    TQueryFilterOptionsPtr InputQueryFilterOptions;
 
     REGISTER_YSON_STRUCT(TInputlyQueryableSpec);
 
@@ -2028,6 +2045,16 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobCpuMonitorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+
+void ToProto(
+    NControllerAgent::NProto::TQueryFilterOptions* protoQueryFilterOptions,
+    const TQueryFilterOptionsPtr& queryFilterOptions);
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -5,13 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -20,12 +20,16 @@ get_built_tool_path(
 )
 
 add_library(yt-ytlib-distributed_throttler)
+
+
 target_compile_options(yt-ytlib-distributed_throttler PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(yt-ytlib-distributed_throttler PUBLIC
   ${PROJECT_BINARY_DIR}/yt
 )
+
 target_link_libraries(yt-ytlib-distributed_throttler PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -34,14 +38,19 @@ target_link_libraries(yt-ytlib-distributed_throttler PUBLIC
   yt-ytlib-discovery_client
   contrib-libs-protobuf
 )
+
 target_proto_messages(yt-ytlib-distributed_throttler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/distributed_throttler/proto/distributed_throttler.proto
 )
+
 target_sources(yt-ytlib-distributed_throttler PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/distributed_throttler/proto/distributed_throttler.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/distributed_throttler/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/distributed_throttler/distributed_throttler.cpp
 )
+
+
+
 target_proto_addincls(yt-ytlib-distributed_throttler
   ./yt
   ${PROJECT_SOURCE_DIR}/yt
@@ -53,7 +62,12 @@ target_proto_addincls(yt-ytlib-distributed_throttler
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(yt-ytlib-distributed_throttler
   --cpp_out=${PROJECT_BINARY_DIR}/yt
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
+
+
+
+

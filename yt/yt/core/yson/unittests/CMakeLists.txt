@@ -5,6 +5,19 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
 
 get_built_tool_path(
   TOOL_protoc_bin
@@ -12,54 +25,49 @@ get_built_tool_path(
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -68,9 +76,12 @@ get_built_tool_path(
 )
 
 add_executable(unittester-core-yson)
+
+
 target_compile_options(unittester-core-yson PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-core-yson PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -82,6 +93,7 @@ target_link_libraries(unittester-core-yson PUBLIC
   yt-core-test_framework
   contrib-libs-protobuf
 )
+
 target_link_options(unittester-core-yson PRIVATE
   -ldl
   -lrt
@@ -93,6 +105,7 @@ target_link_options(unittester-core-yson PRIVATE
   -ldl
   -lutil
 )
+
 target_proto_messages(unittester-core-yson PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/unittests/proto/protobuf_scalar_type_ut.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/unittests/proto/protobuf_yson_ut.proto
@@ -100,6 +113,7 @@ target_proto_messages(unittester-core-yson PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/unittests/proto/protobuf_yson_casing_ext_ut.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/unittests/proto/protobuf_yson_schema_ut.proto
 )
+
 target_sources(unittester-core-yson PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/core/yson/unittests/proto/protobuf_scalar_type_ut.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/core/yson/unittests/proto/protobuf_yson_ut.pb.h
@@ -121,12 +135,15 @@ target_sources(unittester-core-yson PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/unittests/yson_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/unittests/yson_writer_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-core-yson
   COMMAND
   unittester-core-yson
 )
+
 set_property(
   TEST
   unittester-core-yson
@@ -134,6 +151,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   unittester-core-yson
@@ -141,6 +159,7 @@ set_property(
   PROCESSORS
   4
 )
+
 set_property(
   TEST
   unittester-core-yson
@@ -148,9 +167,12 @@ set_property(
   ENVIRONMENT
   ASAN_OPTIONS=detect_leaks=0
 )
+
+
 target_allocator(unittester-core-yson
   cpp-ytalloc-impl
 )
+
 target_proto_addincls(unittester-core-yson
   ./yt
   ${PROJECT_SOURCE_DIR}/yt
@@ -162,8 +184,14 @@ target_proto_addincls(unittester-core-yson
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(unittester-core-yson
   --cpp_out=${PROJECT_BINARY_DIR}/yt
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
+
 vcs_info(unittester-core-yson)
+
+
+
+

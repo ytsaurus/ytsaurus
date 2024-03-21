@@ -5,19 +5,20 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
@@ -26,9 +27,12 @@ get_built_tool_path(
 )
 
 add_executable(unittester-formats)
+
+
 target_compile_options(unittester-formats PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-formats PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -48,6 +52,7 @@ target_link_libraries(unittester-formats PUBLIC
   library-cpp-resource
   contrib-libs-protobuf
 )
+
 target_link_options(unittester-formats PRIVATE
   -ldl
   -lrt
@@ -59,9 +64,11 @@ target_link_options(unittester-formats PRIVATE
   -ldl
   -lutil
 )
+
 target_proto_messages(unittester-formats PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/protobuf_format_ut.proto
 )
+
 target_sources(unittester-formats PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/library/formats/unittests/protobuf_format_ut.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/arrow_parser_ut.cpp
@@ -82,12 +89,15 @@ target_sources(unittester-formats PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/yson_helpers.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/formats/unittests/5e5361e0329be49ce689f46dafdeeab6.cpp
 )
+
+
 add_test(
   NAME
   unittester-formats
   COMMAND
   unittester-formats
 )
+
 set_property(
   TEST
   unittester-formats
@@ -95,6 +105,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-formats
@@ -102,12 +113,15 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-formats
   PROPERTY
   ENVIRONMENT
 )
+
+
 resources(unittester-formats
   ${PROJECT_BINARY_DIR}/yt/yt/library/formats/unittests/5e5361e0329be49ce689f46dafdeeab6.cpp
   INPUTS
@@ -117,9 +131,11 @@ resources(unittester-formats
   /types/good
   /types/bad
 )
+
 target_allocator(unittester-formats
   cpp-ytalloc-impl
 )
+
 target_proto_addincls(unittester-formats
   ./yt
   ${PROJECT_SOURCE_DIR}/yt
@@ -132,8 +148,14 @@ target_proto_addincls(unittester-formats
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(unittester-formats
   --cpp_out=${PROJECT_BINARY_DIR}/yt
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
+
 vcs_info(unittester-formats)
+
+
+
+

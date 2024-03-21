@@ -246,25 +246,69 @@ Publishes as docker images.
 
 Publishes as docker images.
 
-**Current release:** 1.76.1 (`ytsaurus/spyt:1.76.1`)
+**Current release:** 1.77.0 (`ytsaurus/spyt:1.77.0`)
 
 **All releases:**
 
+{% cut "**1.77.0**" %}
+
+- Support for Spark Streaming using ordered dynamic tables;
+- Support for CREATE TABLE AS, DROP TABLE and INSERT operations;
+- Session reuse for QT SPYT engine;
+- SPYT compilation using vanilla Spark 3.2.2;
+- Minor perfomance optimizations
+
+{% endcut %}
+
 {% cut "**1.76.1**" %}
 
-`ytsaurus/spyt:1.76.1`
+- Fix IPV6 for submitting jobs in cluster mode;
+- Fix Livy configuration;
+- Support for reading ordered dynamic tables.
 
 {% endcut %}
 
-{% cut "**1.72.0**" %}
+{% cut "**1.76.0**" %}
 
-`ytsaurus/spyt:1.72.0`
+- Support for submitting Spark tasks to YTsaurus via spark-submit;
+- Shrinking SPYT distributive size up to 3 times by separating SPYT and Spark dependencies;
+- Fix reading nodes with a lot (>32) of dynamic tables ([Issue #240](https://github.com/ytsaurus/ytsaurus/issues/240));
+- Assembling sorted table from parts uses concatenate operation instead of merge ([Issue #133](https://github.com/ytsaurus/ytsaurus/issues/133)).
 
 {% endcut %}
 
-{% cut "**1.71.0**" %}
+{% cut "**1.75.4**" %}
 
-`ytsaurus/spyt:1.71.0`
+- Fix backward compatibility for ytsaurus-spyt
+- Optimizations for count action
+- Include livy in SPYT deploying pipeline
+- Update default configs
+
+{% endcut %}
+
+{% cut "**1.75.3**" %}
+
+- Added random port attaching for Livy server.
+- Disabled YTsaurus operation stderr tables by default.
+- Fix nested schema pruning bug.
+
+{% endcut %}
+
+{% cut "**1.75.2**" %}
+
+- More configurable TCP proxies support: new options --tcp-proxy-range-start and --tcp-proxy-range-size.
+- Added aliases for type v3 enabling options: spark.yt.read.typeV3.enabled and spark.yt.write.typeV3.enabled.
+- Added option for disabling tmpfs: --disable-tmpfs.
+- Fixed minor bugs.
+
+{% endcut %}
+
+{% cut "**1.75.1**" %}
+
+- Extracting YTsaurus file system bundle outside Spark Fork
+- Fix reading arrow tables from Spark SQL engine
+- Binding Spark standalone cluster Master and Worker RPC/REST endpoints to wildcard network interface
+- Add configurable thread pool size of internal RPC Job proxy
 
 {% endcut %}
 

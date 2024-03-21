@@ -5,12 +5,18 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(cpp-clickhouse_deps-h3_compat INTERFACE)
+
+
 target_link_libraries(cpp-clickhouse_deps-h3_compat INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   contrib-libs-h3
 )
+
+
+
+
+
+

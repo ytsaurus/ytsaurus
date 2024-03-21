@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-library-gpu)
+
+
 target_compile_options(yt-library-gpu PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-library-gpu PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,6 +21,7 @@ target_link_libraries(yt-library-gpu PUBLIC
   core-rpc-grpc
   cpp-protobuf-interop
 )
+
 target_sources(yt-library-gpu PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/gpu_info_provider.cpp
@@ -27,3 +29,9 @@ target_sources(yt-library-gpu PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/nv_manager_gpu_info_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/nvidia_smi_gpu_info_provider.cpp
 )
+
+
+
+
+
+

@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-library-process)
+
+
 target_compile_options(unittester-library-process PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-library-process PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -23,6 +24,7 @@ target_link_libraries(unittester-library-process PUBLIC
   yt-core-test_framework
   yt-library-process
 )
+
 target_link_options(unittester-library-process PRIVATE
   -ldl
   -lrt
@@ -34,17 +36,21 @@ target_link_options(unittester-library-process PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-library-process PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/process/unittests/pipes_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/process/unittests/process_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/process/unittests/subprocess_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-library-process
   COMMAND
   unittester-library-process
 )
+
 set_property(
   TEST
   unittester-library-process
@@ -52,6 +58,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-library-process
@@ -59,13 +66,21 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-library-process
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-library-process
   cpp-ytalloc-impl
 )
+
 vcs_info(unittester-library-process)
+
+
+
+

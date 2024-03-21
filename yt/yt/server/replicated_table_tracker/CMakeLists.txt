@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-server-replicated_table_tracker)
+
+
 target_compile_options(yt-server-replicated_table_tracker PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-server-replicated_table_tracker PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -28,6 +29,7 @@ target_link_libraries(yt-server-replicated_table_tracker PUBLIC
   cpp-yt-phdr_cache
   library-cpp-getopt
 )
+
 target_sources(yt-server-replicated_table_tracker PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/replicated_table_tracker/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/replicated_table_tracker/config.cpp
@@ -35,3 +37,9 @@ target_sources(yt-server-replicated_table_tracker PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/replicated_table_tracker/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/replicated_table_tracker/replicated_table_tracker_host.cpp
 )
+
+
+
+
+
+

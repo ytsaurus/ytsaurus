@@ -42,6 +42,7 @@ struct TConstraintRef
     ui32 EndIndex = 0;
 
     static TConstraintRef Empty();
+    bool IsEmpty() const;
 
     static TConstraintRef Universal();
 };
@@ -93,6 +94,8 @@ struct TConstraintsHolder
     { }
 
     TConstraintRef Append(std::initializer_list<TConstraint> constraints, ui32 keyPartIndex);
+
+    TConstraintRef Constant(TValue value, ui32 keyPartIndex);
 
     TConstraintRef Interval(TValueBound lower, TValueBound upper, ui32 keyPartIndex);
 

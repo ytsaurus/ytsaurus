@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(lib-Transforms-Scalar)
+
+
 target_compile_options(lib-Transforms-Scalar PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(lib-Transforms-Scalar PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Scalar
 )
+
 target_link_libraries(lib-Transforms-Scalar PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -26,6 +28,7 @@ target_link_libraries(lib-Transforms-Scalar PUBLIC
   lib-Transforms-InstCombine
   lib-Transforms-Utils
 )
+
 target_sources(lib-Transforms-Scalar PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Scalar/ADCE.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Scalar/AlignmentFromAssumptions.cpp
@@ -107,3 +110,9 @@ target_sources(lib-Transforms-Scalar PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Scalar/TailRecursionElimination.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Scalar/WarnMissedTransforms.cpp
 )
+
+
+
+
+
+

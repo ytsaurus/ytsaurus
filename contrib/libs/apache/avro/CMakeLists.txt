@@ -5,18 +5,20 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(libs-apache-avro)
+
+
 target_compile_options(libs-apache-avro PRIVATE
   -DAVRO_SOURCE
   -DAVRO_VERSION="1.11.3"
   -DSNAPPY_CODEC_AVAILABLE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(libs-apache-avro PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/avro/api
 )
+
 target_link_libraries(libs-apache-avro PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -28,6 +30,7 @@ target_link_libraries(libs-apache-avro PUBLIC
   restricted-boost-iostreams
   restricted-boost-math
 )
+
 target_sources(libs-apache-avro PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/avro/impl/BinaryDecoder.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/avro/impl/BinaryEncoder.cc
@@ -55,3 +58,9 @@ target_sources(libs-apache-avro PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/avro/impl/parsing/Symbol.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/avro/impl/parsing/ValidatingCodec.cc
 )
+
+
+
+
+
+

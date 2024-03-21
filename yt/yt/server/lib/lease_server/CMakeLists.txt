@@ -5,13 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -20,12 +20,16 @@ get_built_tool_path(
 )
 
 add_library(server-lib-lease_server)
+
+
 target_compile_options(server-lib-lease_server PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(server-lib-lease_server PUBLIC
   ${PROJECT_BINARY_DIR}/yt
 )
+
 target_link_libraries(server-lib-lease_server PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -35,15 +39,20 @@ target_link_libraries(server-lib-lease_server PUBLIC
   server-lib-hydra
   contrib-libs-protobuf
 )
+
 target_proto_messages(server-lib-lease_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/lease_server/proto/lease_manager.proto
 )
+
 target_sources(server-lib-lease_server PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/server/lib/lease_server/proto/lease_manager.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/lease_server/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/lease_server/lease_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/lease_server/serialize.cpp
 )
+
+
+
 target_proto_addincls(server-lib-lease_server
   ./yt
   ${PROJECT_SOURCE_DIR}/yt
@@ -56,7 +65,12 @@ target_proto_addincls(server-lib-lease_server
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(server-lib-lease_server
   --cpp_out=${PROJECT_BINARY_DIR}/yt
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
+
+
+
+

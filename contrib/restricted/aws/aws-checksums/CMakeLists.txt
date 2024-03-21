@@ -5,24 +5,33 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-aws-aws-checksums)
+
+
 target_compile_options(restricted-aws-aws-checksums PRIVATE
   -DAWS_CHECKSUMS_USE_IMPORT_EXPORT
   -DAWS_COMMON_USE_IMPORT_EXPORT
   -DHAVE_SYSCONF
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-aws-aws-checksums PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-checksums/include
 )
+
 target_link_libraries(restricted-aws-aws-checksums PUBLIC
   contrib-libs-linux-headers
   restricted-aws-aws-c-common
 )
+
 target_sources(restricted-aws-aws-checksums PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-checksums/source/crc.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-checksums/source/crc_sw.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-checksums/source/intel/asm/crc32c_sse42_asm.c
 )
+
+
+
+
+
+

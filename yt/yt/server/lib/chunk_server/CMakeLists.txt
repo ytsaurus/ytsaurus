@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(unittests)
 get_built_tool_path(
   TOOL_protoc_bin
@@ -13,30 +12,35 @@ get_built_tool_path(
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -45,9 +49,12 @@ get_built_tool_path(
 )
 
 add_library(server-lib-chunk_server)
+
+
 target_compile_options(server-lib-chunk_server PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(server-lib-chunk_server PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -55,11 +62,13 @@ target_link_libraries(server-lib-chunk_server PUBLIC
   yt-yt-ytlib
   contrib-libs-protobuf
 )
+
 target_proto_messages(server-lib-chunk_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_server/proto/job_common.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_server/proto/job_tracker_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_server/proto/job.proto
 )
+
 target_sources(server-lib-chunk_server PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/server/lib/chunk_server/proto/job_common.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/lib/chunk_server/proto/job_tracker_service.pb.h
@@ -67,6 +76,9 @@ target_sources(server-lib-chunk_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_server/immutable_chunk_meta.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_server/helpers.cpp
 )
+
+
+
 target_proto_addincls(server-lib-chunk_server
   ./
   ${PROJECT_SOURCE_DIR}/
@@ -78,7 +90,12 @@ target_proto_addincls(server-lib-chunk_server
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(server-lib-chunk_server
   --cpp_out=${PROJECT_BINARY_DIR}/
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
+
+
+
+

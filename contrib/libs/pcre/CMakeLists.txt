@@ -5,11 +5,11 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(pcre16)
 add_subdirectory(pcre32)
-
 add_library(contrib-libs-pcre)
+
+
 target_compile_options(contrib-libs-pcre PUBLIC
   -DPCRE_STATIC
 )
@@ -18,12 +18,15 @@ target_compile_options(contrib-libs-pcre PRIVATE
   -DARCADIA_PCRE_ENABLE_JIT
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(contrib-libs-pcre PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/pcre
 )
+
 target_link_libraries(contrib-libs-pcre PUBLIC
   contrib-libs-linux-headers
 )
+
 target_sources(contrib-libs-pcre PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/pcre/pcre_byte_order.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/pcre/pcre_chartables.c
@@ -48,3 +51,9 @@ target_sources(contrib-libs-pcre PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/pcre/pcre_xclass.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/pcre/pcreposix.c
 )
+
+
+
+
+
+

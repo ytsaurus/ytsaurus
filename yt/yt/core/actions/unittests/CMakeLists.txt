@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-core-actions)
+
+
 target_compile_options(unittester-core-actions PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-core-actions PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -24,6 +25,7 @@ target_link_libraries(unittester-core-actions PUBLIC
   yt-library-profiling
   library-profiling-solomon
 )
+
 target_link_options(unittester-core-actions PRIVATE
   -ldl
   -lrt
@@ -35,6 +37,7 @@ target_link_options(unittester-core-actions PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-core-actions PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/actions/unittests/actions_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/actions/unittests/bind_ut.cpp
@@ -42,12 +45,15 @@ target_sources(unittester-core-actions PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/actions/unittests/invoker_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/actions/unittests/new_with_offloaded_dtor_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-core-actions
   COMMAND
   unittester-core-actions
 )
+
 set_property(
   TEST
   unittester-core-actions
@@ -55,6 +61,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-core-actions
@@ -62,13 +69,21 @@ set_property(
   PROCESSORS
   4
 )
+
 set_property(
   TEST
   unittester-core-actions
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-core-actions
   cpp-ytalloc-impl
 )
+
 vcs_info(unittester-core-actions)
+
+
+
+

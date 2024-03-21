@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(library-backtrace_introspector-http)
+
+
 target_compile_options(library-backtrace_introspector-http PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(library-backtrace_introspector-http PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,6 +20,13 @@ target_link_libraries(library-backtrace_introspector-http PUBLIC
   yt-core-http
   yt-library-backtrace_introspector
 )
+
 target_sources(library-backtrace_introspector-http PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/backtrace_introspector/http/handler.cpp
 )
+
+
+
+
+
+

@@ -244,6 +244,8 @@ items:
                href: user-guide/data-processing/chyt/reference/data-types.md
              - name: Functions
                href: user-guide/data-processing/chyt/reference/functions.md
+             - name: User-defined SQL functions (UDF)
+               href: user-guide/data-processing/chyt/reference/user-defined-functions.md 
            - name: Controller
              href: user-guide/data-processing/chyt/cliques/controller.md
            - name: Performance and recommendations
@@ -265,14 +267,16 @@ items:
                  href: user-guide/data-processing/spyt/cluster/cluster-desc.md
                - name: Starting a Spark cluster
                  href: user-guide/data-processing/spyt/cluster/cluster-start.md
+               - name: Versioning rules
+                 href: user-guide/data-processing/spyt/version.md
               #  - name: Metrics in Prometheus
               #    href: user-guide/data-processing/spyt/cluster/prometheus.md
                - name: Configurations
                  href: user-guide/data-processing/spyt/cluster/configuration.md
                - name: Logs
                  href: user-guide/data-processing/spyt/logs.md
-             - name: Reading and writing within a transaction
-               href: user-guide/data-processing/spyt/read-transaction.md
+               - name: Troubleshooting
+                 href: user-guide/data-processing/spyt/problems.md
              - name: API
                items:
                  - name: SPYT in Python
@@ -287,14 +291,12 @@ items:
                items:
                  - name: Read options
                    href: user-guide/data-processing/spyt/thesaurus/read-options.md
+                 - name: Reading and writing within a transaction
+                   href: user-guide/data-processing/spyt/read-transaction.md
                  - name: Write options
                    href: user-guide/data-processing/spyt/thesaurus/write-options.md
-             - name: Versioning rules
-               href: user-guide/data-processing/spyt/version.md
              - name: Best practices
                href: user-guide/data-processing/spyt/best-practices.md
-             - name: Troubleshooting
-               href: user-guide/data-processing/spyt/problems.md
          - name: YQL
            when: audience == "public"
            items:
@@ -477,5 +479,3 @@ items:
      href: user-guide/problems/howtoreport.md
    - name: Event presentations, publications, and workshops
      href: other/video-posts.md
-
-

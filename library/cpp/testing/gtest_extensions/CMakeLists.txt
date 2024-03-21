@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(cpp-testing-gtest_extensions)
+
+
 target_link_libraries(cpp-testing-gtest_extensions PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -15,6 +15,7 @@ target_link_libraries(cpp-testing-gtest_extensions PUBLIC
   restricted-googletest-googlemock
   restricted-googletest-googletest
 )
+
 target_sources(cpp-testing-gtest_extensions PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/testing/gtest_extensions/assertions.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/testing/gtest_extensions/gtest_extensions.cpp
@@ -22,3 +23,9 @@ target_sources(cpp-testing-gtest_extensions PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/testing/gtest_extensions/pretty_printers.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/testing/gtest_extensions/probe.cpp
 )
+
+
+
+
+
+

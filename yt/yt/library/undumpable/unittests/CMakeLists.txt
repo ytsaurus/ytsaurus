@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(yt-yt-library-undumpable-unittests)
+
+
 target_compile_options(yt-yt-library-undumpable-unittests PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-yt-library-undumpable-unittests PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,6 +21,7 @@ target_link_libraries(yt-yt-library-undumpable-unittests PUBLIC
   cpp-testing-gtest_main
   yt-library-undumpable
 )
+
 target_link_options(yt-yt-library-undumpable-unittests PRIVATE
   -ldl
   -lrt
@@ -30,15 +32,19 @@ target_link_options(yt-yt-library-undumpable-unittests PRIVATE
   -lrt
   -ldl
 )
+
 target_sources(yt-yt-library-undumpable-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/undumpable/unittests/undumpable_ut.cpp
 )
+
+
 add_test(
   NAME
   yt-yt-library-undumpable-unittests
   COMMAND
   yt-yt-library-undumpable-unittests
 )
+
 set_property(
   TEST
   yt-yt-library-undumpable-unittests
@@ -46,6 +52,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   yt-yt-library-undumpable-unittests
@@ -53,14 +60,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   yt-yt-library-undumpable-unittests
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(yt-yt-library-undumpable-unittests
   cpp-malloc-tcmalloc
   contrib-libs-tcmalloc
 )
+
 vcs_info(yt-yt-library-undumpable-unittests)
+
+
+
+

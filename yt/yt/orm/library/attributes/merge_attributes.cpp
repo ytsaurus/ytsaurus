@@ -1,5 +1,8 @@
 #include "merge_attributes.h"
 
+#include "helpers.h"
+#include "unwrapping_consumer.h"
+
 #include <yt/yt/core/yson/string_merger.h>
 #include <yt/yt/core/ypath/tokenizer.h>
 #include <yt/yt/core/ytree/convert.h>
@@ -171,6 +174,23 @@ TYsonString MergeAttributeValuesAsNodes(
     return ConvertToYsonString(rootNode, format);
 }
 
+bool HasPrefixes(const std::vector<TAttributeValue>& attributeValues)
+{
+    for (size_t i = 0; i < attributeValues.size(); i++) {
+        for (size_t j = 0; j < attributeValues.size(); j++) {
+            if (i != j && NYPath::HasPrefix(attributeValues[i].Path, attributeValues[j].Path)) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+} // anonymous namespace
+
+//////////////////////////////////////////////////////////////////////////////
+
 bool IsOnePrefixOfAnother(const NYPath::TYPath& lhs, const NYPath::TYPath& rhs)
 {
     auto [lit, rit] = std::mismatch(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
@@ -183,20 +203,85 @@ bool IsOnePrefixOfAnother(const NYPath::TYPath& lhs, const NYPath::TYPath& rhs)
     return false;
 }
 
-bool HasPrefixes(const std::vector<TAttributeValue>& attributeValues)
+void SortAndRemoveNestedPaths(std::vector<NYPath::TYPath>& paths)
 {
-    for (size_t i = 0; i < attributeValues.size(); i++) {
-        for (size_t j = i + 1; j < attributeValues.size(); j++) {
-            if (IsOnePrefixOfAnother(attributeValues[i].Path, attributeValues[j].Path)) {
-                return true;
-            }
+    std::sort(paths.begin(), paths.end());
+
+    int lastRemainingPath = 0;
+    for (int i = 1; i < std::ssize(paths); ++i) {
+        if (!NYPath::HasPrefix(paths[i], paths[lastRemainingPath])) {
+            paths[++lastRemainingPath] = paths[i];
         }
     }
 
-    return false;
+    paths.resize(lastRemainingPath + 1);
 }
 
-} // anonymous namespace
+//////////////////////////////////////////////////////////////////////////////
+
+TMergeAttributesHelper::TMergeAttributesHelper(NYson::IYsonConsumer* consumer)
+    : Consumer_(consumer)
+{
+    Consumer_->OnBeginMap();
+}
+
+void TMergeAttributesHelper::ToNextPath(NYPath::TYPathBuf path, bool isEtc)
+{
+    NYPath::TTokenizer tokenizer(path);
+    tokenizer.Expect(NYPath::ETokenType::StartOfStream);
+    tokenizer.Advance();
+
+    int matchedPrefixLen = 0;
+    while (matchedPrefixLen < std::ssize(PathToCurrentMap_) &&
+        tokenizer.GetType() != NYPath::ETokenType::EndOfStream)
+    {
+        tokenizer.Expect(NYPath::ETokenType::Slash);
+        tokenizer.Advance();
+        tokenizer.Expect(NYPath::ETokenType::Literal);
+        if (tokenizer.GetLiteralValue() == PathToCurrentMap_[matchedPrefixLen]) {
+            tokenizer.Advance();
+            ++matchedPrefixLen;
+        } else {
+            break;
+        }
+    }
+
+    while (std::ssize(PathToCurrentMap_) > matchedPrefixLen) {
+        Consumer_->OnEndMap();
+        PathToCurrentMap_.pop_back();
+    }
+
+    if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
+        // Current path turned out to be prefix of previous one.
+        // That is supported only if current path is etc.
+        YT_VERIFY(isEtc);
+        return;
+    }
+
+    while (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
+        tokenizer.Skip(NYPath::ETokenType::Slash);
+        tokenizer.Expect(NYPath::ETokenType::Literal);
+        auto lastLiteral = tokenizer.GetLiteralValue();
+        Consumer_->OnKeyedItem(lastLiteral);
+
+        if (tokenizer.Advance() != NYPath::ETokenType::EndOfStream || isEtc) {
+            Consumer_->OnBeginMap();
+            PathToCurrentMap_.push_back(lastLiteral);
+        }
+    }
+}
+
+void TMergeAttributesHelper::Finalize()
+{
+    while (std::ssize(PathToCurrentMap_) > 0) {
+        Consumer_->OnEndMap();
+        PathToCurrentMap_.pop_back();
+    }
+
+    Consumer_->OnEndMap();
+}
+
+//////////////////////////////////////////////////////////////////////////////
 
 TYsonString MergeAttributes(
     std::vector<TAttributeValue> attributeValues,
@@ -208,11 +293,19 @@ TYsonString MergeAttributes(
             EYsonType::Node);
     }
 
-    auto expandedAttributeValues = ExpandWildcardValueLists(std::move(attributeValues), format);
-
     bool hasEtcs = std::any_of(attributeValues.begin(), attributeValues.end(), [] (const TAttributeValue& value) {
         return value.IsEtc;
     });
+
+    bool allPathsEmpty = std::all_of(attributeValues.begin(), attributeValues.end(), [] (const TAttributeValue& value) {
+        return value.Path.Empty();
+    });
+
+    if (!hasEtcs && allPathsEmpty && !attributeValues.empty()) {
+        return attributeValues.back().Value;
+    }
+
+    auto expandedAttributeValues = ExpandWildcardValueLists(std::move(attributeValues), format);
 
     if (hasEtcs || HasPrefixes(expandedAttributeValues)) {
         return MergeAttributeValuesAsNodes(std::move(expandedAttributeValues), format);

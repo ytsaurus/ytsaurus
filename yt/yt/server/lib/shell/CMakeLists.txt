@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(server-lib-shell)
+
+
 target_compile_options(server-lib-shell PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(server-lib-shell PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,9 +20,16 @@ target_link_libraries(server-lib-shell PUBLIC
   yt-library-containers
   yt-library-process
 )
+
 target_sources(server-lib-shell PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/shell/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/shell/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/shell/shell.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/shell/shell_manager.cpp
 )
+
+
+
+
+
+

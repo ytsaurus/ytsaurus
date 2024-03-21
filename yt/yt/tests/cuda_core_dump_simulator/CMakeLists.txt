@@ -5,18 +5,20 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(cuda_core_dump_simulator)
+
+
 target_compile_options(cuda_core_dump_simulator PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(cuda_core_dump_simulator PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
 )
+
 target_link_options(cuda_core_dump_simulator PRIVATE
   -ldl
   -lrt
@@ -27,11 +29,20 @@ target_link_options(cuda_core_dump_simulator PRIVATE
   -lrt
   -ldl
 )
+
 target_sources(cuda_core_dump_simulator PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tests/cuda_core_dump_simulator/main.c
 )
+
+
+
 target_allocator(cuda_core_dump_simulator
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(cuda_core_dump_simulator)
+
+
+
+

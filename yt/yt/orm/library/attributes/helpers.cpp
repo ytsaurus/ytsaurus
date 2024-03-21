@@ -82,4 +82,69 @@ bool TYsonStringWriterHelper::IsEmpty() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TIndexParseResult::EnsureIndexType(EListIndexType indexType, TStringBuf path)
+{
+    THROW_ERROR_EXCEPTION_UNLESS(IndexType == indexType,
+        "Error traversing path %Qv: index token must be %v",
+        path,
+        indexType);
+}
+
+void TIndexParseResult::EnsureIndexIsWithinBounds(i64 count, TStringBuf path)
+{
+    THROW_ERROR_EXCEPTION_IF(IsOutOfBounds(count),
+        "Repeated field index at %Qv must be in range [-%v, %v), but got %v",
+        path,
+        count,
+        count,
+        Index);
+}
+
+bool TIndexParseResult::IsOutOfBounds(i64 count)
+{
+    return Index < 0 || Index >= count;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TIndexParseResult ParseListIndex(TStringBuf token, i64 count)
+{
+    auto parseAbsoluteIndex = [count] (TStringBuf token) {
+        i64 index = NYPath::ParseListIndex(token);
+        if (index < 0) {
+            index += count;
+        }
+        return index;
+    };
+
+    if (token == NYPath::ListBeginToken) {
+        return TIndexParseResult{
+            .Index = 0,
+            .IndexType = EListIndexType::Relative
+        };
+    } else if (token == NYPath::ListEndToken) {
+        return TIndexParseResult{
+            .Index = count,
+            .IndexType = EListIndexType::Relative
+        };
+    } else if (token.StartsWith(NYPath::ListBeforeToken) || token.StartsWith(NYPath::ListAfterToken)) {
+        auto index = parseAbsoluteIndex(NYPath::ExtractListIndex(token));
+
+        if (token.StartsWith(NYPath::ListAfterToken)) {
+            ++index;
+        }
+        return TIndexParseResult{
+            .Index = index,
+            .IndexType = EListIndexType::Relative
+        };
+    } else {
+        return TIndexParseResult{
+            .Index = parseAbsoluteIndex(token),
+            .IndexType = EListIndexType::Absolute
+        };
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NOrm::NAttributes

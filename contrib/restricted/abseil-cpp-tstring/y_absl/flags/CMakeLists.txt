@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(abseil-cpp-tstring-y_absl-flags)
+
+
 target_compile_options(abseil-cpp-tstring-y_absl-flags PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(abseil-cpp-tstring-y_absl-flags PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring
 )
+
 target_link_libraries(abseil-cpp-tstring-y_absl-flags PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -30,6 +32,7 @@ target_link_libraries(abseil-cpp-tstring-y_absl-flags PUBLIC
   abseil-cpp-tstring-y_absl-time
   abseil-cpp-tstring-y_absl-types
 )
+
 target_sources(abseil-cpp-tstring-y_absl-flags PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/flags/commandlineflag.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/flags/internal/commandlineflag.cc
@@ -43,3 +46,9 @@ target_sources(abseil-cpp-tstring-y_absl-flags PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/flags/usage.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/flags/usage_config.cc
 )
+
+
+
+
+
+

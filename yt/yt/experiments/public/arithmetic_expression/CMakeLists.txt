@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(arithmetic_expression)
+
+
 target_link_libraries(arithmetic_expression PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -15,6 +15,7 @@ target_link_libraries(arithmetic_expression PUBLIC
   library-cpp-cpuid_check
   yt-yt-core
 )
+
 target_link_options(arithmetic_expression PRIVATE
   -ldl
   -lrt
@@ -26,11 +27,20 @@ target_link_options(arithmetic_expression PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(arithmetic_expression PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/arithmetic_expression/main.cpp
 )
+
+
+
 target_allocator(arithmetic_expression
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(arithmetic_expression)
+
+
+
+

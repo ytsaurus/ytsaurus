@@ -5,14 +5,15 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(mock)
 add_subdirectory(unittests)
-
 add_library(yt-core-http)
+
+
 target_compile_options(yt-core-http PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-core-http PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -21,6 +22,7 @@ target_link_libraries(yt-core-http PUBLIC
   yt-yt-core
   contrib-restricted-http-parser
 )
+
 target_sources(yt-core-http PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/http/client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/http/compression.cpp
@@ -34,3 +36,9 @@ target_sources(yt-core-http PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/http/stream.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/http/compression_opensource.cpp
 )
+
+
+
+
+
+

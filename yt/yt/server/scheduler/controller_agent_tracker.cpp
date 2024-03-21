@@ -614,145 +614,150 @@ public:
         auto* request = &context->Request();
         auto* response = &context->Response();
 
+        std::vector<NScheduler::NProto::TAgentToSchedulerOperationEvent> eventsToProcess;
+        eventsToProcess.reserve(std::size(request->agent_to_scheduler_operation_events().items()));
+
+        agent->GetOperationEventsInbox()->HandleIncoming(
+            request->mutable_agent_to_scheduler_operation_events(),
+            [&] (auto* protoEvent) {
+                eventsToProcess.push_back(std::move(*protoEvent));
+            });
+        agent->GetOperationEventsInbox()->ReportStatus(
+            response->mutable_agent_to_scheduler_operation_events());
+
         agent->GetCancelableControlInvoker()->Invoke(BIND([
                 this,
                 this_ = MakeStrong(this),
                 agent,
                 scheduler,
-                requestEvents = std::move(*request->mutable_agent_to_scheduler_operation_events()),
-                responseEvents = std::move(*response->mutable_agent_to_scheduler_operation_events())
+                eventsToProcess = std::move(eventsToProcess)
             ] () mutable {
                 // NB: OnInitializationFinished, OnPreparationFinished, OnMaterializationFinished, OnRevivalFinished and OnCommitFinished
                 // can in fact throw if agent pointer expires. However, we have it in our closure meaning that
                 // we are guaranteed to have agent alive at least while this lambda is alive.
                 RunNoExcept([&] {
                     YT_LOG_DEBUG("Handling operation events inbox");
-                    agent->GetOperationEventsInbox()->HandleIncoming(
-                        &requestEvents,
-                        [&] (auto* protoEvent) {
-                            auto eventType = static_cast<EAgentToSchedulerOperationEventType>(protoEvent->event_type());
-                            auto operationId = FromProto<TOperationId>(protoEvent->operation_id());
-                            auto controllerEpoch = TControllerEpoch(protoEvent->controller_epoch());
-                            auto error = FromProto<TError>(protoEvent->error());
+                    for (auto& protoEvent : eventsToProcess) {
+                        auto eventType = static_cast<EAgentToSchedulerOperationEventType>(protoEvent.event_type());
+                        auto operationId = FromProto<TOperationId>(protoEvent.operation_id());
+                        auto controllerEpoch = TControllerEpoch(protoEvent.controller_epoch());
+                        auto error = FromProto<TError>(protoEvent.error());
 
-                            auto operation = scheduler->FindOperation(operationId);
-                            if (!operation) {
-                                return;
+                        auto operation = scheduler->FindOperation(operationId);
+                        if (!operation) {
+                            continue;
+                        }
+
+                        if (operation->ControllerEpoch() != controllerEpoch) {
+                            YT_LOG_DEBUG(
+                                "Received operation event with unexpected controller epoch; ignored (OperationId: %v, ControllerEpoch: %v, EventType: %v)",
+                                operationId,
+                                controllerEpoch,
+                                eventType);
+                            continue;
+                        }
+
+                        switch (eventType) {
+                            case EAgentToSchedulerOperationEventType::Completed:
+                                scheduler->OnOperationCompleted(operation);
+                                break;
+                            case EAgentToSchedulerOperationEventType::Suspended:
+                                scheduler->OnOperationSuspended(operation, error);
+                                break;
+                            case EAgentToSchedulerOperationEventType::Aborted:
+                                scheduler->OnOperationAborted(operation, error);
+                                break;
+                            case EAgentToSchedulerOperationEventType::Failed:
+                                scheduler->OnOperationFailed(operation, error);
+                                break;
+                            case EAgentToSchedulerOperationEventType::BannedInTentativeTree: {
+                                auto treeId = protoEvent.tentative_tree_id();
+                                auto allocationIds = FromProto<std::vector<TAllocationId>>(protoEvent.tentative_tree_allocation_ids());
+                                scheduler->OnOperationBannedInTentativeTree(operation, treeId, allocationIds);
+                                break;
                             }
+                            case EAgentToSchedulerOperationEventType::InitializationFinished: {
+                                TErrorOr<TOperationControllerInitializeResult> resultOrError;
+                                if (error.IsOK()) {
+                                    YT_ASSERT(protoEvent.has_initialize_result());
 
-                            if (operation->ControllerEpoch() != controllerEpoch) {
-                                YT_LOG_DEBUG("Received operation event with unexpected controller epoch; ignored "
-                                    "(OperationId: %v, ControllerEpoch: %v, EventType: %v)",
-                                    operationId,
-                                    controllerEpoch,
-                                    eventType);
-                                return;
+                                    TOperationControllerInitializeResult result;
+                                    FromProto(
+                                        &result,
+                                        protoEvent.initialize_result(),
+                                        operationId,
+                                        Bootstrap_,
+                                        SchedulerConfig_->OperationTransactionPingPeriod);
+
+                                    resultOrError = std::move(result);
+                                } else {
+                                    resultOrError = std::move(error);
+                                }
+
+                                operation->GetController()->OnInitializationFinished(resultOrError);
+                                break;
                             }
-
-                            switch (eventType) {
-                                case EAgentToSchedulerOperationEventType::Completed:
-                                    scheduler->OnOperationCompleted(operation);
-                                    break;
-                                case EAgentToSchedulerOperationEventType::Suspended:
-                                    scheduler->OnOperationSuspended(operation, error);
-                                    break;
-                                case EAgentToSchedulerOperationEventType::Aborted:
-                                    scheduler->OnOperationAborted(operation, error);
-                                    break;
-                                case EAgentToSchedulerOperationEventType::Failed:
-                                    scheduler->OnOperationFailed(operation, error);
-                                    break;
-                                case EAgentToSchedulerOperationEventType::BannedInTentativeTree: {
-                                    auto treeId = protoEvent->tentative_tree_id();
-                                    auto allocationIds = FromProto<std::vector<TAllocationId>>(protoEvent->tentative_tree_allocation_ids());
-                                    scheduler->OnOperationBannedInTentativeTree(operation, treeId, allocationIds);
-                                    break;
+                            case EAgentToSchedulerOperationEventType::PreparationFinished: {
+                                TErrorOr<TOperationControllerPrepareResult> resultOrError;
+                                if (error.IsOK()) {
+                                    YT_ASSERT(protoEvent.has_prepare_result());
+                                    resultOrError = FromProto<TOperationControllerPrepareResult>(protoEvent.prepare_result());
+                                } else {
+                                    resultOrError = std::move(error);
                                 }
-                                case EAgentToSchedulerOperationEventType::InitializationFinished: {
-                                    TErrorOr<TOperationControllerInitializeResult> resultOrError;
-                                    if (error.IsOK()) {
-                                        YT_ASSERT(protoEvent->has_initialize_result());
 
-                                        TOperationControllerInitializeResult result;
-                                        FromProto(
-                                            &result,
-                                            protoEvent->initialize_result(),
-                                            operationId,
-                                            Bootstrap_,
-                                            SchedulerConfig_->OperationTransactionPingPeriod);
-
-                                        resultOrError = std::move(result);
-                                    } else {
-                                        resultOrError = std::move(error);
-                                    }
-
-                                    operation->GetController()->OnInitializationFinished(resultOrError);
-                                    break;
-                                }
-                                case EAgentToSchedulerOperationEventType::PreparationFinished: {
-                                    TErrorOr<TOperationControllerPrepareResult> resultOrError;
-                                    if (error.IsOK()) {
-                                        YT_ASSERT(protoEvent->has_prepare_result());
-                                        resultOrError = FromProto<TOperationControllerPrepareResult>(protoEvent->prepare_result());
-                                    } else {
-                                        resultOrError = std::move(error);
-                                    }
-
-                                    operation->GetController()->OnPreparationFinished(resultOrError);
-                                    break;
-                                }
-                                case EAgentToSchedulerOperationEventType::MaterializationFinished: {
-                                    TErrorOr<TOperationControllerMaterializeResult> resultOrError;
-                                    if (error.IsOK()) {
-                                        YT_ASSERT(protoEvent->has_materialize_result());
-                                        resultOrError = FromProto<TOperationControllerMaterializeResult>(protoEvent->materialize_result());
-                                    } else {
-                                        resultOrError = std::move(error);
-                                    }
-
-                                    operation->GetController()->OnMaterializationFinished(resultOrError);
-                                    break;
-                                }
-                                case EAgentToSchedulerOperationEventType::RevivalFinished: {
-                                    TErrorOr<TOperationControllerReviveResult> resultOrError;
-                                    if (error.IsOK()) {
-                                        YT_ASSERT(protoEvent->has_revive_result());
-
-                                        TOperationControllerReviveResult result;
-                                        FromProto(
-                                            &result,
-                                            protoEvent->revive_result(),
-                                            operationId,
-                                            agent->GetIncarnationId(),
-                                            operation->GetController()->GetPreemptionMode());
-
-                                        resultOrError = std::move(result);
-                                    } else {
-                                        resultOrError = std::move(error);
-                                    }
-
-                                    operation->GetController()->OnRevivalFinished(resultOrError);
-                                    break;
-                                }
-                                case EAgentToSchedulerOperationEventType::CommitFinished: {
-                                    TErrorOr<TOperationControllerCommitResult> resultOrError;
-                                    if (error.IsOK()) {
-                                        YT_ASSERT(protoEvent->has_commit_result());
-                                        resultOrError = FromProto<TOperationControllerCommitResult>(protoEvent->commit_result());
-                                    } else {
-                                        resultOrError = std::move(error);
-                                    }
-
-                                    operation->GetController()->OnCommitFinished(resultOrError);
-                                    break;
-                                }
-                                default:
-                                    YT_ABORT();
+                                operation->GetController()->OnPreparationFinished(resultOrError);
+                                break;
                             }
-                        });
+                            case EAgentToSchedulerOperationEventType::MaterializationFinished: {
+                                TErrorOr<TOperationControllerMaterializeResult> resultOrError;
+                                if (error.IsOK()) {
+                                    YT_ASSERT(protoEvent.has_materialize_result());
+                                    resultOrError = FromProto<TOperationControllerMaterializeResult>(protoEvent.materialize_result());
+                                } else {
+                                    resultOrError = std::move(error);
+                                }
 
-                    agent->GetOperationEventsInbox()->ReportStatus(
-                        &responseEvents);
+                                operation->GetController()->OnMaterializationFinished(resultOrError);
+                                break;
+                            }
+                            case EAgentToSchedulerOperationEventType::RevivalFinished: {
+                                TErrorOr<TOperationControllerReviveResult> resultOrError;
+                                if (error.IsOK()) {
+                                    YT_ASSERT(protoEvent.has_revive_result());
+
+                                    TOperationControllerReviveResult result;
+                                    FromProto(
+                                        &result,
+                                        protoEvent.revive_result(),
+                                        operationId,
+                                        agent->GetIncarnationId(),
+                                        operation->GetController()->GetPreemptionMode());
+
+                                    resultOrError = std::move(result);
+                                } else {
+                                    resultOrError = std::move(error);
+                                }
+
+                                operation->GetController()->OnRevivalFinished(resultOrError);
+                                break;
+                            }
+                            case EAgentToSchedulerOperationEventType::CommitFinished: {
+                                TErrorOr<TOperationControllerCommitResult> resultOrError;
+                                if (error.IsOK()) {
+                                    YT_ASSERT(protoEvent.has_commit_result());
+                                    resultOrError = FromProto<TOperationControllerCommitResult>(protoEvent.commit_result());
+                                } else {
+                                    resultOrError = std::move(error);
+                                }
+
+                                operation->GetController()->OnCommitFinished(resultOrError);
+                                break;
+                            }
+                            default:
+                                YT_ABORT();
+                        }
+                    }
 
                     YT_LOG_DEBUG("Operation events inbox handled");
                 });

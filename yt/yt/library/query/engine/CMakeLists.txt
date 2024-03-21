@@ -5,6 +5,12 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+get_built_tool_path(
+  TOOL_rescompiler_bin
+  TOOL_rescompiler_dependency
+  tools/rescompiler/bin
+  rescompiler
+)
 
 get_built_tool_path(
   TOOL_rescompiler_bin
@@ -12,186 +18,210 @@ get_built_tool_path(
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
   tools/rescompiler/bin
   rescompiler
 )
-get_built_tool_path(
-  TOOL_rescompiler_bin
-  TOOL_rescompiler_dependency
-  tools/rescompiler/bin
-  rescompiler
-)
+
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
@@ -200,11 +230,14 @@ get_built_tool_path(
 )
 
 add_library(library-query-engine)
+
+
 target_compile_options(library-query-engine PRIVATE
   -DWASM_C_API=WAVM_API
   -DWAVM_API=
   -Wdeprecated-this-capture
 )
+
 target_include_directories(library-query-engine PUBLIC
   ${PROJECT_BINARY_DIR}/yt
 )
@@ -214,6 +247,7 @@ target_include_directories(library-query-engine PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/xdelta3
   ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Include
 )
+
 target_link_libraries(library-query-engine PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -232,6 +266,7 @@ target_link_libraries(library-query-engine PUBLIC
   contrib-libs-sparsehash
   library-cpp-resource
 )
+
 target_sources(library-query-engine PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/cg_fragment_compiler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/cg_helpers.cpp
@@ -247,12 +282,19 @@ target_sources(library-query-engine PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/disable_system_libraries.cpp
 )
 
-add_global_library_for(library-query-engine.global library-query-engine)
+
+
+
+add_global_library_for(library-query-engine.global
+  library-query-engine)
+
+
 target_compile_options(library-query-engine.global PRIVATE
   -DWASM_C_API=WAVM_API
   -DWAVM_API=
   -Wdeprecated-this-capture
 )
+
 target_include_directories(library-query-engine.global PUBLIC
   ${PROJECT_BINARY_DIR}/yt
 )
@@ -262,6 +304,7 @@ target_include_directories(library-query-engine.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/xdelta3
   ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Include
 )
+
 target_link_libraries(library-query-engine.global PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -280,6 +323,7 @@ target_link_libraries(library-query-engine.global PUBLIC
   contrib-libs-sparsehash
   library-cpp-resource
 )
+
 target_sources(library-query-engine.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/append_function_implementation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/column_evaluator.cpp
@@ -321,6 +365,8 @@ target_sources(library-query-engine.global PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/aef3fcfb2f42efbbe6e19dc5e42865dc.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/d34e0bd6058ed25e8015ef8decbea547.cpp
 )
+
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/hyperloglog_optimized.bc
@@ -334,6 +380,7 @@ add_custom_command(
   -internalize-public-api-list=cardinality_init#cardinality_update#cardinality_merge#cardinality_finalize
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/hyperloglog_merged.bc
@@ -345,6 +392,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/hyperloglog_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/farm_hash_optimized.bc
@@ -358,6 +406,7 @@ add_custom_command(
   -internalize-public-api-list=farm_hash
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/farm_hash_merged.bc
@@ -369,6 +418,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/farm_hash_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/bigb_hash_optimized.bc
@@ -382,6 +432,7 @@ add_custom_command(
   -internalize-public-api-list=bigb_hash
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/bigb_hash_merged.bc
@@ -393,6 +444,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/bigb_hash_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/make_map_optimized.bc
@@ -406,6 +458,7 @@ add_custom_command(
   -internalize-public-api-list=make_map
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/make_map_merged.bc
@@ -417,6 +470,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/make_map_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/make_list_optimized.bc
@@ -430,6 +484,7 @@ add_custom_command(
   -internalize-public-api-list=make_list
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/make_list_merged.bc
@@ -441,6 +496,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/make_list_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/make_entity_optimized.bc
@@ -454,6 +510,7 @@ add_custom_command(
   -internalize-public-api-list=make_entity
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/make_entity_merged.bc
@@ -465,6 +522,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/make_entity_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/str_conv_optimized.bc
@@ -478,6 +536,7 @@ add_custom_command(
   -internalize-public-api-list=numeric_to_string#parse_int64#parse_uint64#parse_double
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/str_conv_merged.bc
@@ -489,6 +548,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/str_conv_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/regex_optimized.bc
@@ -502,6 +562,7 @@ add_custom_command(
   -internalize-public-api-list=regex_full_match#regex_partial_match#regex_replace_first#regex_replace_all#regex_extract#regex_escape
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/regex_merged.bc
@@ -513,6 +574,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/regex_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/avg_optimized.bc
@@ -526,6 +588,7 @@ add_custom_command(
   -internalize-public-api-list=avg_init#avg_update#avg_merge#avg_finalize
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/avg_merged.bc
@@ -537,6 +600,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/avg_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/concat_optimized.bc
@@ -550,6 +614,7 @@ add_custom_command(
   -internalize-public-api-list=concat
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/concat_merged.bc
@@ -561,6 +626,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/concat_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/stored_replica_set_optimized.bc
@@ -574,6 +640,7 @@ add_custom_command(
   -internalize-public-api-list=_yt_stored_replica_set_init#_yt_stored_replica_set_update#_yt_stored_replica_set_merge#_yt_stored_replica_set_finalize
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/stored_replica_set_merged.bc
@@ -585,6 +652,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/stored_replica_set_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/last_seen_replica_set_optimized.bc
@@ -598,6 +666,7 @@ add_custom_command(
   -internalize-public-api-list=_yt_last_seen_replica_set_init#_yt_last_seen_replica_set_update#_yt_last_seen_replica_set_merge#_yt_last_seen_replica_set_finalize
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/last_seen_replica_set_merged.bc
@@ -609,6 +678,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/last_seen_replica_set_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/first_optimized.bc
@@ -622,6 +692,7 @@ add_custom_command(
   -internalize-public-api-list=first_init#first_update#first_merge#first_finalize
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/first_merged.bc
@@ -633,6 +704,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/first_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/is_prefix_optimized.bc
@@ -646,6 +718,7 @@ add_custom_command(
   -internalize-public-api-list=is_prefix
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/is_prefix_merged.bc
@@ -657,6 +730,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/is_prefix_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/is_substr_optimized.bc
@@ -670,6 +744,7 @@ add_custom_command(
   -internalize-public-api-list=is_substr
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/is_substr_merged.bc
@@ -681,6 +756,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/is_substr_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/to_any_optimized.bc
@@ -694,6 +770,7 @@ add_custom_command(
   -internalize-public-api-list=to_any
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/to_any_merged.bc
@@ -705,6 +782,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/to_any_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/max_optimized.bc
@@ -718,6 +796,7 @@ add_custom_command(
   -internalize-public-api-list=max_init#max_update#max_merge#max_finalize
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/max_merged.bc
@@ -729,6 +808,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/max_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/min_optimized.bc
@@ -742,6 +822,7 @@ add_custom_command(
   -internalize-public-api-list=min_init#min_update#min_merge#min_finalize
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/min_merged.bc
@@ -753,6 +834,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/min_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/sleep_optimized.bc
@@ -766,6 +848,7 @@ add_custom_command(
   -internalize-public-api-list=sleep#sleep
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/sleep_merged.bc
@@ -777,6 +860,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/sleep_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/sum_optimized.bc
@@ -790,6 +874,7 @@ add_custom_command(
   -internalize-public-api-list=sum_init#sum_update#sum_merge#sum_finalize
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/sum_merged.bc
@@ -801,6 +886,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/sum_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/ypath_get_optimized.bc
@@ -814,6 +900,7 @@ add_custom_command(
   -internalize-public-api-list=try_get_int64#get_int64#try_get_uint64#get_uint64#try_get_double#get_double#try_get_boolean#get_boolean#try_get_string#get_string#try_get_any#get_any
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/ypath_get_merged.bc
@@ -825,6 +912,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/ypath_get_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/lower_optimized.bc
@@ -838,6 +926,7 @@ add_custom_command(
   -internalize-public-api-list=lower
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/lower_merged.bc
@@ -849,6 +938,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/lower_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/length_optimized.bc
@@ -862,6 +952,7 @@ add_custom_command(
   -internalize-public-api-list=length
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/length_merged.bc
@@ -873,6 +964,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/length_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/yson_length_optimized.bc
@@ -886,6 +978,7 @@ add_custom_command(
   -internalize-public-api-list=yson_length
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/yson_length_merged.bc
@@ -897,6 +990,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/yson_length_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/dates_optimized.bc
@@ -910,6 +1004,7 @@ add_custom_command(
   -internalize-public-api-list=format_timestamp#timestamp_floor_hour#timestamp_floor_day#timestamp_floor_week#timestamp_floor_month#timestamp_floor_year
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/dates_merged.bc
@@ -921,6 +1016,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/dates_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/format_guid_optimized.bc
@@ -934,6 +1030,7 @@ add_custom_command(
   -internalize-public-api-list=format_guid
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/format_guid_merged.bc
@@ -945,6 +1042,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/format_guid_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/list_contains_optimized.bc
@@ -958,6 +1056,7 @@ add_custom_command(
   -internalize-public-api-list=list_contains
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/list_contains_merged.bc
@@ -969,6 +1068,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/list_contains_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/list_has_intersection_optimized.bc
@@ -982,6 +1082,7 @@ add_custom_command(
   -internalize-public-api-list=list_has_intersection
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/list_has_intersection_merged.bc
@@ -993,6 +1094,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/list_has_intersection_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/any_to_yson_string_optimized.bc
@@ -1006,6 +1108,7 @@ add_custom_command(
   -internalize-public-api-list=any_to_yson_string
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/any_to_yson_string_merged.bc
@@ -1017,6 +1120,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/any_to_yson_string_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/has_permissions_optimized.bc
@@ -1030,6 +1134,7 @@ add_custom_command(
   -internalize-public-api-list=has_permissions
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/has_permissions_merged.bc
@@ -1041,6 +1146,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/has_permissions_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/xdelta_optimized.bc
@@ -1054,6 +1160,7 @@ add_custom_command(
   -internalize-public-api-list=xdelta_init#xdelta_update#xdelta_merge#xdelta_finalize
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/xdelta_merged.bc
@@ -1065,6 +1172,7 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/xdelta_merged.bc
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/greatest_optimized.bc
@@ -1078,6 +1186,7 @@ add_custom_command(
   -internalize-public-api-list=greatest
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/greatest_merged.bc
@@ -1089,6 +1198,8 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/greatest_merged.bc
 )
+
+
 llvm_compile_c(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/avg.c
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/avg.c.bc
@@ -1096,6 +1207,7 @@ llvm_compile_c(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_c(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/concat.c
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/concat.c.bc
@@ -1103,6 +1215,7 @@ llvm_compile_c(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_c(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/first.c
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/first.c.bc
@@ -1110,6 +1223,7 @@ llvm_compile_c(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_c(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/is_prefix.c
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/is_prefix.c.bc
@@ -1117,6 +1231,7 @@ llvm_compile_c(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_c(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/is_substr.c
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/is_substr.c.bc
@@ -1124,6 +1239,7 @@ llvm_compile_c(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_c(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/max.c
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/max.c.bc
@@ -1131,6 +1247,7 @@ llvm_compile_c(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_c(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/min.c
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/min.c.bc
@@ -1138,6 +1255,7 @@ llvm_compile_c(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_c(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/sleep.c
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/sleep.c.bc
@@ -1145,6 +1263,7 @@ llvm_compile_c(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_c(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/sum.c
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/sum.c.bc
@@ -1152,6 +1271,7 @@ llvm_compile_c(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_c(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/ypath_get.c
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/ypath_get.c.bc
@@ -1159,6 +1279,7 @@ llvm_compile_c(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_c(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/length.c
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/length.c.bc
@@ -1166,6 +1287,7 @@ llvm_compile_c(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_c(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/dates.c
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/dates.c.bc
@@ -1173,6 +1295,7 @@ llvm_compile_c(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_c(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/format_guid.c
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/format_guid.c.bc
@@ -1180,6 +1303,7 @@ llvm_compile_c(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_c(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/xdelta3.c
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/xdelta3.c.bc
@@ -1187,6 +1311,7 @@ llvm_compile_c(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_cxx(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/hyperloglog.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/hyperloglog.cpp.bc
@@ -1194,6 +1319,7 @@ llvm_compile_cxx(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_cxx(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/farm_hash.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/farm_hash.cpp.bc
@@ -1201,6 +1327,7 @@ llvm_compile_cxx(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_cxx(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/bigb_hash.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/bigb_hash.cpp.bc
@@ -1208,6 +1335,7 @@ llvm_compile_cxx(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_cxx(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/make_map.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/make_map.cpp.bc
@@ -1215,6 +1343,7 @@ llvm_compile_cxx(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_cxx(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/make_list.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/make_list.cpp.bc
@@ -1222,6 +1351,7 @@ llvm_compile_cxx(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_cxx(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/make_entity.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/make_entity.cpp.bc
@@ -1229,6 +1359,7 @@ llvm_compile_cxx(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_cxx(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/str_conv.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/str_conv.cpp.bc
@@ -1236,6 +1367,7 @@ llvm_compile_cxx(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_cxx(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/regex.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/regex.cpp.bc
@@ -1243,6 +1375,7 @@ llvm_compile_cxx(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_cxx(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/replica_set.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/replica_set.cpp.bc
@@ -1250,6 +1383,7 @@ llvm_compile_cxx(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_cxx(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/last_seen_replica_set.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/last_seen_replica_set.cpp.bc
@@ -1257,6 +1391,7 @@ llvm_compile_cxx(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_cxx(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/to_any.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/to_any.cpp.bc
@@ -1264,6 +1399,7 @@ llvm_compile_cxx(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_cxx(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/lower.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/lower.cpp.bc
@@ -1271,6 +1407,7 @@ llvm_compile_cxx(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_cxx(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/yson_length.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/yson_length.cpp.bc
@@ -1278,6 +1415,7 @@ llvm_compile_cxx(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_cxx(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/list_contains.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/list_contains.cpp.bc
@@ -1285,6 +1423,7 @@ llvm_compile_cxx(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_cxx(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/list_has_intersection.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/list_has_intersection.cpp.bc
@@ -1292,6 +1431,7 @@ llvm_compile_cxx(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_cxx(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/any_to_yson_string.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/any_to_yson_string.cpp.bc
@@ -1299,6 +1439,7 @@ llvm_compile_cxx(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_cxx(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/has_permissions.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/has_permissions.cpp.bc
@@ -1306,6 +1447,7 @@ llvm_compile_cxx(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 llvm_compile_cxx(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/greatest.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/greatest.cpp.bc
@@ -1313,6 +1455,7 @@ llvm_compile_cxx(library-query-engine.global
   -Wno-unknown-warning-option
   -emit-llvm
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/7012e6bf1f3f80fdfce54d63afee3869.cpp
   INPUTS
@@ -1320,6 +1463,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/hyperloglog
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/4ea047f29359e3ff85a43c2543e4ce0b.cpp
   INPUTS
@@ -1327,6 +1471,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/farm_hash
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/f4f5f9a1dc189a93c6482fc5d1bf55fb.cpp
   INPUTS
@@ -1334,6 +1479,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/bigb_hash
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/0680164b1b2d7a3009f45ca5fe358052.cpp
   INPUTS
@@ -1341,6 +1487,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/make_map
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/0c0a10846744d25c634d768a9768b1ff.cpp
   INPUTS
@@ -1348,6 +1495,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/make_list
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/43c6ac9a1f19fedb26644012aee30ed4.cpp
   INPUTS
@@ -1355,6 +1503,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/make_entity
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/3cdfaa942527999ed18a33f359e2cf3e.cpp
   INPUTS
@@ -1362,6 +1511,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/str_conv
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/60ad550d891a29805e726874c57ef36a.cpp
   INPUTS
@@ -1369,6 +1519,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/regex
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/223c93075db70d4bf4537276bcbff515.cpp
   INPUTS
@@ -1376,6 +1527,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/avg
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/f876b2a9884e4bebbbf4b079ee82a487.cpp
   INPUTS
@@ -1383,6 +1535,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/concat
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/e971c0ece58623181dac5d452089c077.cpp
   INPUTS
@@ -1390,6 +1543,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/stored_replica_set
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/fec22857b30708093435cf7c48c182d1.cpp
   INPUTS
@@ -1397,6 +1551,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/last_seen_replica_set
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/737152a993bed557c44fc80c57b4770a.cpp
   INPUTS
@@ -1404,6 +1559,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/first
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/70f91f505af875ed195810036e510f1e.cpp
   INPUTS
@@ -1411,6 +1567,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/is_prefix
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/ddb6d2ed0678e1cd1cf0421f38baada1.cpp
   INPUTS
@@ -1418,6 +1575,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/is_substr
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/6f9672363d86885757d05d833295f5b0.cpp
   INPUTS
@@ -1425,6 +1583,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/to_any
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/3ec77e425a852b536353a21a8ea196a4.cpp
   INPUTS
@@ -1432,6 +1591,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/max
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/47ee53635911ccb5e9e2ee208b131e5e.cpp
   INPUTS
@@ -1439,6 +1599,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/min
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/8612743541c6a8f3336686e050bd30e8.cpp
   INPUTS
@@ -1446,6 +1607,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/sleep
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/fa5223e6e0305ead558739f3efdbef9c.cpp
   INPUTS
@@ -1453,6 +1615,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/sum
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/bfbc701f4d6d63efc47c4c254fe12159.cpp
   INPUTS
@@ -1460,6 +1623,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/ypath_get
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/d930b71c13c5eb81a9643257198db5df.cpp
   INPUTS
@@ -1467,6 +1631,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/lower
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/0918cf6c9b95beb29a73c252c855bfa6.cpp
   INPUTS
@@ -1474,6 +1639,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/length
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/1fdf3d24a25162b835f3654b564ee586.cpp
   INPUTS
@@ -1481,6 +1647,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/yson_length
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/af42b9c6dbe0713e1e50a65ea99528a4.cpp
   INPUTS
@@ -1488,6 +1655,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/dates
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/6bc8056dac697953d13f7c8bc9486329.cpp
   INPUTS
@@ -1495,6 +1663,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/format_guid
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/75da4cea6889896baa494bec9313e22c.cpp
   INPUTS
@@ -1502,6 +1671,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/list_contains
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/f6982b0441e24bc2e9698ceeac663c87.cpp
   INPUTS
@@ -1509,6 +1679,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/list_has_intersection
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/fc2bd36183284aed418f1589e5511393.cpp
   INPUTS
@@ -1516,6 +1687,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/any_to_yson_string
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/b3a3e9a9b46f60092a08755bf58496fd.cpp
   INPUTS
@@ -1523,6 +1695,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/has_permissions
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/aef3fcfb2f42efbbe6e19dc5e42865dc.cpp
   INPUTS
@@ -1530,6 +1703,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/xdelta
 )
+
 resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/d34e0bd6058ed25e8015ef8decbea547.cpp
   INPUTS
@@ -1537,3 +1711,7 @@ resources(library-query-engine.global
   KEYS
   /llvm_bc/greatest
 )
+
+
+
+

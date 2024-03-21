@@ -5,14 +5,15 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(mock)
 add_subdirectory(unittests)
-
 add_library(server-lib-chunk_pools)
+
+
 target_compile_options(server-lib-chunk_pools PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(server-lib-chunk_pools PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,6 +21,7 @@ target_link_libraries(server-lib-chunk_pools PUBLIC
   yt-yt-ytlib
   server-lib-controller_agent
 )
+
 target_sources(server-lib-chunk_pools PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/chunk_pool.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/config.cpp
@@ -45,10 +47,17 @@ target_sources(server-lib-chunk_pools PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/vanilla_chunk_pool.cpp
 )
 
-add_global_library_for(server-lib-chunk_pools.global server-lib-chunk_pools)
+
+
+
+add_global_library_for(server-lib-chunk_pools.global
+  server-lib-chunk_pools)
+
+
 target_compile_options(server-lib-chunk_pools.global PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(server-lib-chunk_pools.global PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -56,6 +65,13 @@ target_link_libraries(server-lib-chunk_pools.global PUBLIC
   yt-yt-ytlib
   server-lib-controller_agent
 )
+
 target_sources(server-lib-chunk_pools.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/chunk_pool_factory.cpp
 )
+
+
+
+
+
+

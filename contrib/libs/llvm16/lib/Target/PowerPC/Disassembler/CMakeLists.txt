@@ -5,17 +5,19 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(Target-PowerPC-Disassembler)
+
+
 target_compile_options(Target-PowerPC-Disassembler PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(Target-PowerPC-Disassembler PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/Disassembler
 )
+
 target_link_libraries(Target-PowerPC-Disassembler PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -26,6 +28,13 @@ target_link_libraries(Target-PowerPC-Disassembler PUBLIC
   llvm16-lib-Support
   Target-PowerPC-TargetInfo
 )
+
 target_sources(Target-PowerPC-Disassembler PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/PowerPC/Disassembler/PPCDisassembler.cpp
 )
+
+
+
+
+
+

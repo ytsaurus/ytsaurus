@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-server-discovery_server)
+
+
 target_compile_options(yt-server-discovery_server PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(yt-server-discovery_server PUBLIC
   ${PROJECT_BINARY_DIR}/yt
 )
+
 target_link_libraries(yt-server-discovery_server PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -24,8 +26,15 @@ target_link_libraries(yt-server-discovery_server PUBLIC
   ytserver
   server-lib-discovery_server
 )
+
 target_sources(yt-server-discovery_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/discovery_server/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/discovery_server/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/discovery_server/program.cpp
 )
+
+
+
+
+
+

@@ -11,7 +11,8 @@ from yt_commands import (
     is_active_primary_master_follower,
     switch_leader,
     make_batch_request, execute_batch, get_batch_output,
-    sync_mount_table, sync_create_cells, insert_rows, lookup_rows, sync_unmount_table)
+    sync_mount_table, sync_create_cells, insert_rows, lookup_rows, sync_unmount_table,
+    sync_flush_table)
 
 from yt.common import YtError
 
@@ -22,7 +23,7 @@ from datetime import datetime, timedelta
 import pytest
 import builtins
 
-################################################################################
+##################################################################
 
 
 def sorted_requisition(requisition):
@@ -37,7 +38,7 @@ def sorted_requisition(requisition):
     return sorted(requisition, key=key)
 
 
-################################################################################
+##################################################################
 
 
 class ReincarnatorStatistic:
@@ -88,6 +89,7 @@ class TestChunkReincarnatorBase(YTEnvSetup):
             "chunk_reincarnator": {
                 "chunk_scan_period": 600,
                 "ignore_account_settings": True,
+                "skip_versioned_chunks": False,
             }
         },
         "cell_master": {
@@ -109,7 +111,8 @@ class TestChunkReincarnatorBase(YTEnvSetup):
         }
 
     def _create_table(self, path, *, attributes=None):
-        print_debug(f"Create table with erasure codec: {self.ERASURE_CODEC}")
+        if self.ERASURE_CODEC is not None:
+            print_debug(f"Create table with erasure codec: {self.ERASURE_CODEC}")
         attributes = attributes or {}
         if self.ERASURE_CODEC and "erasure_codec" not in attributes:
             attributes["erasure_codec"] = self.ERASURE_CODEC
@@ -176,7 +179,7 @@ class TestChunkReincarnatorBase(YTEnvSetup):
         wait(chunks_reincarnated)
         self._disable_chunk_reincarnator()
 
-    def _get_chunk_info(self, chunk_id):
+    def _get_chunk_info(self, chunk_id, versioned=False):
         while True:
             attrs = get(f"#{chunk_id}/@")
 
@@ -204,7 +207,13 @@ class TestChunkReincarnatorBase(YTEnvSetup):
                 "staging_transaction_id",
                 "shard_index",
                 "chunk_replicator_address",
+                "compressed_data_size",
+                "max_block_size",
             ]
+
+            if versioned:
+                # NB: size may be different because of uncommitted changes.
+                unimportant_attrs.append("uncompressed_data_size")
 
             # COMPAT(h0pless): Remove this when reincarnator will learn how to set chunk schemas
             if "schema" in attrs:
@@ -237,23 +246,23 @@ class TestChunkReincarnatorBase(YTEnvSetup):
         expected = sorted_external_requisition(expected)
         wait(lambda: sorted_external_requisition(get(f"#{chunk_id}/@external_requisitions")) == expected, timeout=15)
 
-    def _save_tables(self, *tables):
+    def _save_tables(self, *tables, verbose=False, versioned=False):
         result = {}
         for table in tables:
             result[table] = {
-                "content": read_table(table),
+                "content": read_table(table, verbose=verbose),
                 "chunks": [
-                    self._get_chunk_info(chunk)
+                    self._get_chunk_info(chunk, versioned=versioned)
                     for chunk in get(f"{table}/@chunk_ids")
                 ],
             }
         return result
 
-    def _check_tables(self, tables):
+    def _check_tables(self, tables, verbose=True, versioned=False):
         for table, info in tables.items():
-            assert info["content"] == read_table(table)
+            assert info["content"] == read_table(table, verbose=verbose)
             for chunk_id, chunk_info in zip(get(f"{table}/@chunk_ids"), info["chunks"]):
-                assert self._get_chunk_info(chunk_id) == chunk_info
+                assert self._get_chunk_info(chunk_id, versioned=versioned) == chunk_info
 
     def _switch_leader(self, cell_id):
         old_leader = get_active_primary_master_leader_address(self)
@@ -285,6 +294,49 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
         self._wait_for_requisition([self._build_requisition_entry()], table="//tmp/t")
         self._check_tables(tables)
         wait(lambda: statistics.get_delta() == 1)
+
+    @authors("kvk1920")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_single_versioned_chunk(self, optimize_for):
+        sync_create_cells(1)
+        self._create_table("//tmp/t", attributes={
+            "optimize_for": optimize_for,
+            "dynamic": True,
+            "schema": make_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value1", "type": "string"},
+                {"name": "value2", "type": "string"},
+            ]),
+        })
+        sync_mount_table("//tmp/t")
+
+        content = [
+            {"key": i, "value1": str(i * 2), "value2": str(i * 2 + 1)}
+            for i in range(10**4)
+        ]
+        insert_rows("//tmp/t", content, verbose=False)
+        sync_flush_table("//tmp/t")
+        for i in range(0, 10**4, 2):
+            content[i]["value1"] = str(int(content[i]["value1"]) + 1)
+        insert_rows("//tmp/t", content[::2], verbose=False)
+        sync_unmount_table("//tmp/t")
+
+        assert read_table("//tmp/t", verbose=False) == content
+        tables = self._save_tables("//tmp/t", versioned=True)
+        statistics = ReincarnatorStatistic("successful_reincarnations")
+        old_chunks = get("//tmp/t/@chunk_ids")
+        for chunk_id in old_chunks:
+            self._wait_for_chunk_obsolescence(chunk_id)
+        self._wait_for_reincarnation("//tmp/t", datetime.utcnow())
+        self._wait_for_requisition([self._build_requisition_entry()], table="//tmp/t")
+        self._check_tables(tables, verbose=False, versioned=True)
+        wait(lambda: statistics.get_delta() == len(old_chunks))
+
+        sync_mount_table("//tmp/t")
+        assert lookup_rows("//tmp/t", [{"key": row["key"]} for row in content], verbose=False) == content
+
+        # Old chunks should become unused.
+        wait(lambda: all([not exists(f"#{chunk}") for chunk in old_chunks]))
 
     @authors("kvk1920")
     def test_shared_chunk(self):
@@ -465,7 +517,7 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
             {"key": 2, "value": "b"}
         ]
         self._wait_for_requisition([self._build_requisition_entry()], table="//tmp/t")
-        tables = self._save_tables("//tmp/t")
+        tables = self._save_tables("//tmp/t", versioned=True)
 
         old_chunks = builtins.set(get("//tmp/t/@chunk_ids"))
 
@@ -476,7 +528,7 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
         assert not (old_chunks & new_chunks), "Every dynamic table's chunk should be reincarnated"
 
         self._wait_for_requisition([self._build_requisition_entry()], table="//tmp/t")
-        self._check_tables(tables)
+        self._check_tables(tables, versioned=True)
 
         sync_mount_table("//tmp/t")
         content = lookup_rows("//tmp/t", [{"key": 1}, {"key": 2}])

@@ -511,7 +511,9 @@ public:
     {
         auto owningRow = Builder_.FinishRow();
         TUnversionedRow row[] = {owningRow};
-        Writer_->Write(row);
+        if (!Writer_->Write(row)) {
+            Writer_->GetReadyEvent().Get().ThrowOnError();
+        }
     }
 
 private:
@@ -585,7 +587,9 @@ void GenerateCodeDecode(EBenchmarkedFormat format, const IDataset& dataset)
     auto writerProc = [&] {
         for (const auto& value : data) {
             TUnversionedRow row = value;
-            writer->Write({row});
+            if (!writer->Write({row})) {
+                writer->GetReadyEvent().Get().ThrowOnError();
+            }
         }
         writer->Close()
             .Get()
@@ -635,7 +639,9 @@ void GenerateCode(EBenchmarkedFormat format, const IDataset& dataset, int writer
         while (it != data.data() + data.size()) {
             auto next = std::min(it + rangeSize, data.data() + data.size());
             TRange<TUnversionedRow> range(it, next);
-            writer->Write(range);
+            if (!writer->Write(range)) {
+                writer->GetReadyEvent().Get().ThrowOnError();
+            }
             it = next;
         }
     }

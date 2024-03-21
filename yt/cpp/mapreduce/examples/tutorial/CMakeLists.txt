@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(batch_request)
 add_subdirectory(dyntable_get_insert)
 add_subdirectory(job_statistics)
@@ -28,3 +27,5 @@ add_subdirectory(simple_map_tnode)
 add_subdirectory(simple_reduce_tnode)
 add_subdirectory(stateful_map_tnode)
 add_subdirectory(table_read_write_tnode)
+
+

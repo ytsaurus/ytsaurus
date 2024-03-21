@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-server-clock_server)
+
+
 target_compile_options(yt-server-clock_server PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-server-clock_server PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,6 +21,7 @@ target_link_libraries(yt-server-clock_server PUBLIC
   server-lib-hive
   server-lib-timestamp_server
 )
+
 target_sources(yt-server-clock_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/clock_server/cluster_clock/automaton.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/clock_server/cluster_clock/bootstrap.cpp
@@ -27,3 +29,9 @@ target_sources(yt-server-clock_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/clock_server/cluster_clock/hydra_facade.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/clock_server/cluster_clock/serialize.cpp
 )
+
+
+
+
+
+

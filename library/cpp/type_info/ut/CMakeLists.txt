@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
@@ -14,6 +13,8 @@ get_built_tool_path(
 )
 
 add_executable(library-cpp-type_info-ut)
+
+
 target_link_libraries(library-cpp-type_info-ut PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -25,6 +26,7 @@ target_link_libraries(library-cpp-type_info-ut PUBLIC
   cpp-yson-node
   library-cpp-resource
 )
+
 target_link_options(library-cpp-type_info-ut PRIVATE
   -ldl
   -lrt
@@ -35,6 +37,7 @@ target_link_options(library-cpp-type_info-ut PRIVATE
   -lrt
   -ldl
 )
+
 target_sources(library-cpp-type_info-ut PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/builder.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/type_basics.cpp
@@ -52,6 +55,8 @@ target_sources(library-cpp-type_info-ut PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/test_data.cpp
   ${PROJECT_BINARY_DIR}/library/cpp/type_info/ut/5e5361e0329be49ce689f46dafdeeab6.cpp
 )
+
+
 set_property(
   TARGET
   library-cpp-type_info-ut
@@ -59,6 +64,7 @@ set_property(
   SPLIT_FACTOR
   1
 )
+
 add_yunittest(
   NAME
   library-cpp-type_info-ut
@@ -71,6 +77,7 @@ add_yunittest(
   --print-times
   --show-fails
 )
+
 set_yunittest_property(
   TEST
   library-cpp-type_info-ut
@@ -78,6 +85,7 @@ set_yunittest_property(
   LABELS
   SMALL
 )
+
 set_yunittest_property(
   TEST
   library-cpp-type_info-ut
@@ -85,12 +93,15 @@ set_yunittest_property(
   PROCESSORS
   1
 )
+
 set_yunittest_property(
   TEST
   library-cpp-type_info-ut
   PROPERTY
   ENVIRONMENT
 )
+
+
 resources(library-cpp-type_info-ut
   ${PROJECT_BINARY_DIR}/library/cpp/type_info/ut/5e5361e0329be49ce689f46dafdeeab6.cpp
   INPUTS
@@ -100,8 +111,14 @@ resources(library-cpp-type_info-ut
   /good
   /bad
 )
+
 target_allocator(library-cpp-type_info-ut
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(library-cpp-type_info-ut)
+
+
+
+

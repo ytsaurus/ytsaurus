@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-boost-filesystem)
+
+
 target_compile_options(restricted-boost-filesystem PUBLIC
   -DBOOST_FILESYSTEM_HAS_POSIX_AT_APIS
 )
@@ -15,9 +15,11 @@ target_compile_options(restricted-boost-filesystem PRIVATE
   -DBOOST_FILESYSTEM_NO_CXX20_ATOMIC_REF
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-boost-filesystem PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/filesystem/include
 )
+
 target_link_libraries(restricted-boost-filesystem PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -35,6 +37,7 @@ target_link_libraries(restricted-boost-filesystem PUBLIC
   restricted-boost-type_traits
   restricted-boost-winapi
 )
+
 target_sources(restricted-boost-filesystem PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/filesystem/src/codecvt_error_category.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/filesystem/src/directory.cpp
@@ -47,3 +50,9 @@ target_sources(restricted-boost-filesystem PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/filesystem/src/utf8_codecvt_facet.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/filesystem/src/windows_file_codecvt.cpp
 )
+
+
+
+
+
+

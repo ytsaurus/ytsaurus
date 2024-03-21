@@ -5,21 +5,30 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(contrib-libs-metrohash)
+
+
 target_compile_options(contrib-libs-metrohash PRIVATE
   -msse4.2
 )
+
 target_include_directories(contrib-libs-metrohash PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/metrohash/src
 )
+
 target_link_libraries(contrib-libs-metrohash PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
 )
+
 target_sources(contrib-libs-metrohash PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/metrohash/src/metrohash128.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/metrohash/src/metrohash128crc.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/metrohash/src/metrohash64.cpp
 )
+
+
+
+
+
+

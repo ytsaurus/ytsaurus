@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(libs-poco-NetSSL_OpenSSL)
+
+
 target_compile_options(libs-poco-NetSSL_OpenSSL PRIVATE
   -DPOCO_ENABLE_CPP11
   -DPOCO_ENABLE_CPP14
@@ -17,6 +17,7 @@ target_compile_options(libs-poco-NetSSL_OpenSSL PRIVATE
   -DPOCO_HAVE_FD_EPOLL
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(libs-poco-NetSSL_OpenSSL PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/NetSSL_OpenSSL/include
 )
@@ -27,6 +28,7 @@ target_include_directories(libs-poco-NetSSL_OpenSSL PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/NetSSL_OpenSSL/src
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Util/include
 )
+
 target_link_libraries(libs-poco-NetSSL_OpenSSL PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -38,6 +40,7 @@ target_link_libraries(libs-poco-NetSSL_OpenSSL PUBLIC
   libs-poco-Util
   libs-poco-XML
 )
+
 target_sources(libs-poco-NetSSL_OpenSSL PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/NetSSL_OpenSSL/src/AcceptCertificateHandler.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/NetSSL_OpenSSL/src/CertificateHandlerFactory.cpp
@@ -67,3 +70,9 @@ target_sources(libs-poco-NetSSL_OpenSSL PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/NetSSL_OpenSSL/src/VerificationErrorArgs.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/NetSSL_OpenSSL/src/X509Certificate.cpp
 )
+
+
+
+
+
+

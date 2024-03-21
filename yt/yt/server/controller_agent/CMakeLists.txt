@@ -5,14 +5,15 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(controllers)
 add_subdirectory(unittests)
-
 add_library(yt-server-controller_agent)
+
+
 target_compile_options(yt-server-controller_agent PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-server-controller_agent PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -27,6 +28,7 @@ target_link_libraries(yt-server-controller_agent PUBLIC
   library-cpp-getopt
   libs-tcmalloc-malloc_extension
 )
+
 target_sources(yt-server-controller_agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/chunk_list_pool.cpp
@@ -53,3 +55,9 @@ target_sources(yt-server-controller_agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/memory_watchdog.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/virtual.cpp
 )
+
+
+
+
+
+

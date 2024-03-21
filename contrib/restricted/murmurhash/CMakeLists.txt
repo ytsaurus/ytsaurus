@@ -5,17 +5,25 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(contrib-restricted-murmurhash)
+
+
 target_compile_options(contrib-restricted-murmurhash PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_link_libraries(contrib-restricted-murmurhash PUBLIC
   contrib-libs-linux-headers
 )
+
 target_sources(contrib-restricted-murmurhash PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/murmurhash/MurmurHash1.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/murmurhash/MurmurHash2.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/murmurhash/MurmurHash3.cpp
 )
+
+
+
+
+
+

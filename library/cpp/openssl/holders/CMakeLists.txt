@@ -5,16 +5,23 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(cpp-openssl-holders)
+
+
 target_link_libraries(cpp-openssl-holders PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   contrib-libs-openssl
 )
+
 target_sources(cpp-openssl-holders PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/openssl/holders/bio.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/openssl/holders/x509_vfy.cpp
 )
+
+
+
+
+
+

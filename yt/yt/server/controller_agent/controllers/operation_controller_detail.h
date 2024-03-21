@@ -600,6 +600,7 @@ protected:
     {
         NQueryClient::TQueryPtr Query;
         NQueryClient::TExternalCGInfoPtr ExternalCGInfo;
+        NScheduler::TQueryFilterOptionsPtr QueryFilterOptions;
     };
 
     std::optional<TInputQuery> InputQuery;
@@ -751,7 +752,8 @@ protected:
 
     void ParseInputQuery(
         const TString& queryString,
-        const std::optional<NQueryClient::TTableSchema>& schema);
+        const std::optional<NQueryClient::TTableSchema>& schema,
+        NScheduler::TQueryFilterOptionsPtr queryFilterOptions);
     void WriteInputQueryToJobSpec(
         NControllerAgent::NProto::TJobSpecExt* jobSpecExt);
     virtual void PrepareInputQuery();

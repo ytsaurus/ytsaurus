@@ -5,19 +5,27 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(mapreduce-library-table_schema)
+
+
 target_compile_options(mapreduce-library-table_schema PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(mapreduce-library-table_schema PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   cpp-mapreduce-interface
 )
+
 target_sources(mapreduce-library-table_schema PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/table_schema/protobuf.h
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/table_schema/protobuf.cpp
 )
+
+
+
+
+
+

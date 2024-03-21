@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(insert)
+
+
 target_compile_options(insert PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(insert PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +23,7 @@ target_link_libraries(insert PUBLIC
   yt-yt-ytlib
   cpp-getopt-small
 )
+
 target_link_options(insert PRIVATE
   -ldl
   -lrt
@@ -33,11 +35,20 @@ target_link_options(insert PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(insert PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/insert/main.cpp
 )
+
+
+
 target_allocator(insert
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(insert)
+
+
+
+

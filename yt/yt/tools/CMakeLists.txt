@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(changelog_surgeon)
 add_subdirectory(cuda_core_dump_injection)
 add_subdirectory(cypress_nbd_server)
@@ -26,3 +25,5 @@ add_subdirectory(unpack_local_changelog)
 add_subdirectory(unpack_local_snapshot)
 add_subdirectory(upload_chunk)
 add_subdirectory(yt_sudo_fixup)
+
+

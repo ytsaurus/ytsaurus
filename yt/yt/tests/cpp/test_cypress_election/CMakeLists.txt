@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(cpp-integration-test-cypress-election)
+
+
 target_compile_options(cpp-integration-test-cypress-election PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(cpp-integration-test-cypress-election PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -24,6 +25,7 @@ target_link_libraries(cpp-integration-test-cypress-election PUBLIC
   tests-cpp-test_base
   yt-yt-ytlib
 )
+
 target_link_options(cpp-integration-test-cypress-election PRIVATE
   -ldl
   -lrt
@@ -35,15 +37,19 @@ target_link_options(cpp-integration-test-cypress-election PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(cpp-integration-test-cypress-election PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_cypress_election/test_cypress_election.cpp
 )
+
+
 add_test(
   NAME
   cpp-integration-test-cypress-election
   COMMAND
   cpp-integration-test-cypress-election
 )
+
 set_property(
   TEST
   cpp-integration-test-cypress-election
@@ -51,6 +57,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   cpp-integration-test-cypress-election
@@ -58,13 +65,21 @@ set_property(
   PROCESSORS
   4
 )
+
 set_property(
   TEST
   cpp-integration-test-cypress-election
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(cpp-integration-test-cypress-election
   cpp-ytalloc-impl
 )
+
 vcs_info(cpp-integration-test-cypress-election)
+
+
+
+

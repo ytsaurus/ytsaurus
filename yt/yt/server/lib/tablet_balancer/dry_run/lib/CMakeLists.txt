@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(tablet_balancer-dry_run-lib)
+
+
 target_compile_options(tablet_balancer-dry_run-lib PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(tablet_balancer-dry_run-lib PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,8 +21,15 @@ target_link_libraries(tablet_balancer-dry_run-lib PUBLIC
   server-lib-tablet_node
   yt-yt-ytlib
 )
+
 target_sources(tablet_balancer-dry_run-lib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/dry_run/lib/executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/dry_run/lib/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/dry_run/lib/holders.cpp
 )
+
+
+
+
+
+

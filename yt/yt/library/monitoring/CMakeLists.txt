@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-library-monitoring)
+
+
 target_compile_options(yt-library-monitoring PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-library-monitoring PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -24,7 +25,14 @@ target_link_libraries(yt-library-monitoring PUBLIC
   library-ytprof-http
   library-backtrace_introspector-http
 )
+
 target_sources(yt-library-monitoring PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/monitoring/http_integration.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/monitoring/monitoring_manager.cpp
 )
+
+
+
+
+
+

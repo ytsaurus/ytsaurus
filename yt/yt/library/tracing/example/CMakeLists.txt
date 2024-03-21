@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(tracing-example)
+
+
 target_compile_options(tracing-example PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(tracing-example PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,7 @@ target_link_libraries(tracing-example PUBLIC
   library-cpp-cpuid_check
   library-tracing-jaeger
 )
+
 target_link_options(tracing-example PRIVATE
   -ldl
   -lrt
@@ -29,11 +31,20 @@ target_link_options(tracing-example PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(tracing-example PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/tracing/example/main.cpp
 )
+
+
+
 target_allocator(tracing-example
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(tracing-example)
+
+
+
+

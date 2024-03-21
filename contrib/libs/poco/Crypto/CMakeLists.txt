@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(libs-poco-Crypto)
+
+
 target_compile_options(libs-poco-Crypto PRIVATE
   -DPOCO_ENABLE_CPP11
   -DPOCO_ENABLE_CPP14
@@ -17,6 +17,7 @@ target_compile_options(libs-poco-Crypto PRIVATE
   -DPOCO_HAVE_FD_EPOLL
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(libs-poco-Crypto PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Crypto/include
 )
@@ -24,12 +25,14 @@ target_include_directories(libs-poco-Crypto PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Crypto/src
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/include
 )
+
 target_link_libraries(libs-poco-Crypto PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   contrib-libs-openssl
   libs-poco-Foundation
 )
+
 target_sources(libs-poco-Crypto PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Crypto/src/Cipher.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Crypto/src/CipherFactory.cpp
@@ -54,3 +57,9 @@ target_sources(libs-poco-Crypto PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Crypto/src/RSAKeyImpl.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Crypto/src/X509Certificate.cpp
 )
+
+
+
+
+
+

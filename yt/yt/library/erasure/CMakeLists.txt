@@ -5,19 +5,27 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(impl)
-
 add_library(yt-library-erasure)
+
+
 target_compile_options(yt-library-erasure PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-library-erasure PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
 )
+
 target_sources(yt-library-erasure PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/erasure/public.cpp
 )
+
+
+
+
+
+

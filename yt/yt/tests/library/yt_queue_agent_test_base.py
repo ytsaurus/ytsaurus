@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 from yt_chaos_test_base import ChaosTestBase
 
-from yt_commands import (get, set, ls, wait, create, remove, sync_mount_table, sync_create_cells, exists,
+from yt_commands import (get, set, ls, wait, create, remove, sync_mount_table, sync_unmount_table, sync_create_cells, exists,
                          select_rows, sync_reshard_table, print_debug, get_driver, register_queue_consumer,
                          sync_freeze_table, sync_unfreeze_table, create_table_replica, sync_enable_table_replica,
                          advance_consumer, insert_rows)
@@ -369,16 +369,22 @@ class TestQueueAgentBase(YTEnvSetup):
 
         return schema, queue_id
 
-    def _create_consumer(self, path, mount=True, without_meta=False, **kwargs):
-        attributes = {
-            "dynamic": True,
-            "schema": init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META if without_meta else init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
-            "treat_as_queue_consumer": True,
-        }
-        attributes.update(kwargs)
-        create("table", path, attributes=attributes)
-        if mount:
-            sync_mount_table(path)
+    @staticmethod
+    def _create_consumer(path, mount=True, without_meta=False, **kwargs):
+        if without_meta:
+            attributes = {
+                "dynamic": True,
+                "schema": init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META,
+                "treat_as_queue_consumer": True,
+            }
+            attributes.update(kwargs)
+            create("table", path, attributes=attributes)
+            if mount:
+                sync_mount_table(path)
+        else:
+            create("consumer", path, attributes=kwargs)
+            if not mount:
+                sync_unmount_table(path)
 
     def _create_registered_consumer(self, consumer_path, queue_path, vital=False, without_meta=False, **kwargs):
         self._create_consumer(consumer_path, **kwargs)

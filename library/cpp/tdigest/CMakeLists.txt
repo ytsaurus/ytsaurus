@@ -5,13 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -20,19 +20,26 @@ get_built_tool_path(
 )
 
 add_library(library-cpp-tdigest)
+
+
 target_link_libraries(library-cpp-tdigest PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   contrib-libs-protobuf
 )
+
 target_proto_messages(library-cpp-tdigest PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/tdigest/tdigest.proto
 )
+
 target_sources(library-cpp-tdigest PRIVATE
   ${PROJECT_BINARY_DIR}/library/cpp/tdigest/tdigest.pb.h
   ${PROJECT_SOURCE_DIR}/library/cpp/tdigest/tdigest.cpp
 )
+
+
+
 target_proto_addincls(library-cpp-tdigest
   ./
   ${PROJECT_SOURCE_DIR}/
@@ -42,7 +49,12 @@ target_proto_addincls(library-cpp-tdigest
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(library-cpp-tdigest
   --cpp_out=${PROJECT_BINARY_DIR}/
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
+
+
+
+

@@ -5,6 +5,19 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
 
 get_built_tool_path(
   TOOL_protoc_bin
@@ -12,18 +25,7 @@ get_built_tool_path(
   contrib/tools/protoc/bin
   protoc
 )
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -32,20 +34,27 @@ get_built_tool_path(
 )
 
 add_library(yt_proto-yt-formats)
+
+
 target_link_libraries(yt_proto-yt-formats PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   contrib-libs-protobuf
 )
+
 target_proto_messages(yt_proto-yt-formats PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/formats/extension.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/formats/yamr.proto
 )
+
 target_sources(yt_proto-yt-formats PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/formats/extension.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/formats/yamr.pb.h
 )
+
+
+
 target_proto_addincls(yt_proto-yt-formats
   ./
   ${PROJECT_SOURCE_DIR}/
@@ -55,7 +64,12 @@ target_proto_addincls(yt_proto-yt-formats
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(yt_proto-yt-formats
   --cpp_out=${PROJECT_BINARY_DIR}/
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
+
+
+
+

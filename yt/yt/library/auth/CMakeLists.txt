@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(unittests)
-
 add_library(yt-library-auth)
+
+
 target_compile_options(yt-library-auth PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-library-auth PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,8 +20,15 @@ target_link_libraries(yt-library-auth PUBLIC
   yt-yt-core
   yt-library-tvm
 )
+
 target_sources(yt-library-auth PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/auth/auth.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/auth/authentication_options.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/auth/credentials_injecting_channel.cpp
 )
+
+
+
+
+
+

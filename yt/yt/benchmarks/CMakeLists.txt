@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(action_queue)
 add_subdirectory(bus)
 add_subdirectory(context_switch)
@@ -25,3 +24,5 @@ add_subdirectory(rpc)
 add_subdirectory(sendfile)
 add_subdirectory(skiff)
 add_subdirectory(versioned_block_format)
+
+

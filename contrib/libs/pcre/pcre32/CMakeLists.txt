@@ -5,19 +5,22 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(libs-pcre-pcre32)
+
+
 target_compile_options(libs-pcre-pcre32 PRIVATE
   -DHAVE_CONFIG_H
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(libs-pcre-pcre32 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/pcre
 )
+
 target_link_libraries(libs-pcre-pcre32 PUBLIC
   contrib-libs-linux-headers
 )
+
 target_sources(libs-pcre-pcre32 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/pcre/pcre32_byte_order.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/pcre/pcre32_chartables.c
@@ -43,3 +46,9 @@ target_sources(libs-pcre-pcre32 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/pcre/pcre32_xclass.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/pcre/pcre_chartables.c
 )
+
+
+
+
+
+

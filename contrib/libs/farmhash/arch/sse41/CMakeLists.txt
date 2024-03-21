@@ -5,18 +5,26 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(farmhash-arch-sse41)
+
+
 target_compile_options(farmhash-arch-sse41 PRIVATE
   -msse4.1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_link_libraries(farmhash-arch-sse41 PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
 )
+
 target_sources(farmhash-arch-sse41 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/farmhash/farmhashnt.cc
 )
+
+
+
+
+
+

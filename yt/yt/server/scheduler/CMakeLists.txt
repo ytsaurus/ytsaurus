@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(unittests)
-
 add_library(yt-server-scheduler)
+
+
 target_compile_options(yt-server-scheduler PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-server-scheduler PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -24,6 +25,7 @@ target_link_libraries(yt-server-scheduler PUBLIC
   yt-library-numeric
   cpp-yt-phdr_cache
 )
+
 target_sources(yt-server-scheduler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/allocation_tracker_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/bootstrap.cpp
@@ -67,3 +69,9 @@ target_sources(yt-server-scheduler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_segment_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/serialize.cpp
 )
+
+
+
+
+
+

@@ -5,16 +5,18 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(Target-AArch64-TargetInfo)
+
+
 target_compile_options(Target-AArch64-TargetInfo PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(Target-AArch64-TargetInfo PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/TargetInfo
 )
+
 target_link_libraries(Target-AArch64-TargetInfo PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +24,13 @@ target_link_libraries(Target-AArch64-TargetInfo PUBLIC
   llvm16-lib-MC
   llvm16-lib-Support
 )
+
 target_sources(Target-AArch64-TargetInfo PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/TargetInfo/AArch64TargetInfo.cpp
 )
+
+
+
+
+
+

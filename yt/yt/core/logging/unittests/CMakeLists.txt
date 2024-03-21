@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-core-logging)
+
+
 target_compile_options(unittester-core-logging PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-core-logging PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +23,7 @@ target_link_libraries(unittester-core-logging PUBLIC
   yt-core-test_framework
   cpp-streams-zstd
 )
+
 target_link_options(unittester-core-logging PRIVATE
   -ldl
   -lrt
@@ -33,15 +35,19 @@ target_link_options(unittester-core-logging PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-core-logging PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/logging/unittests/logging_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-core-logging
   COMMAND
   unittester-core-logging
 )
+
 set_property(
   TEST
   unittester-core-logging
@@ -49,6 +55,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   unittester-core-logging
@@ -56,13 +63,21 @@ set_property(
   PROCESSORS
   4
 )
+
 set_property(
   TEST
   unittester-core-logging
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-core-logging
   cpp-ytalloc-impl
 )
+
 vcs_info(unittester-core-logging)
+
+
+
+

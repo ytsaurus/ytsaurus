@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(print_column_statistics)
+
+
 target_link_libraries(print_column_statistics PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +18,7 @@ target_link_libraries(print_column_statistics PUBLIC
   cpp-yt-phdr_cache
   yt-yt-core
 )
+
 target_link_options(print_column_statistics PRIVATE
   -ldl
   -lrt
@@ -29,11 +30,20 @@ target_link_options(print_column_statistics PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(print_column_statistics PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/print_column_statistics/main.cpp
 )
+
+
+
 target_allocator(print_column_statistics
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(print_column_statistics)
+
+
+
+

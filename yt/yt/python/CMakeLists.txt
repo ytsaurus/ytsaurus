@@ -5,8 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(common)
 add_subdirectory(driver)
 add_subdirectory(yson)
 add_subdirectory(yson_shared)
+
+

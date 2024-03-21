@@ -5,16 +5,18 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(udf)
-
 add_executable(unittester-query)
+
+
 target_compile_options(unittester-query PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(unittester-query PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
 )
+
 target_link_libraries(unittester-query PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -29,6 +31,7 @@ target_link_libraries(unittester-query PUBLIC
   query-unittests-udf
   contrib-libs-sparsehash
 )
+
 target_link_options(unittester-query PRIVATE
   -rdynamic
   -ldl
@@ -41,6 +44,7 @@ target_link_options(unittester-query PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-query PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ast_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_computed_columns_ut.cpp
@@ -52,12 +56,15 @@ target_sources(unittester-query PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_range_coordination_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/disable_web_assembly.cpp
 )
+
+
 add_test(
   NAME
   unittester-query
   COMMAND
   unittester-query
 )
+
 set_property(
   TEST
   unittester-query
@@ -65,6 +72,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-query
@@ -72,14 +80,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-query
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-query
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(unittester-query)
+
+
+
+

@@ -5,13 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -20,9 +20,12 @@ get_built_tool_path(
 )
 
 add_library(library-profiling-solomon)
+
+
 target_compile_options(library-profiling-solomon PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(library-profiling-solomon PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -38,9 +41,11 @@ target_link_libraries(library-profiling-solomon PUBLIC
   cpp-yt-threading
   contrib-libs-protobuf
 )
+
 target_proto_messages(library-profiling-solomon PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/sensor_dump.proto
 )
+
 target_sources(library-profiling-solomon PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/library/profiling/solomon/sensor_dump.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/cube.cpp
@@ -54,6 +59,9 @@ target_sources(library-profiling-solomon PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/sensor_set.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/tag_registry.cpp
 )
+
+
+
 target_proto_addincls(library-profiling-solomon
   ./
   ${PROJECT_SOURCE_DIR}/
@@ -64,7 +72,12 @@ target_proto_addincls(library-profiling-solomon
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(library-profiling-solomon
   --cpp_out=${PROJECT_BINARY_DIR}/
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
+
+
+
+

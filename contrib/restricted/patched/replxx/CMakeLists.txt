@@ -5,25 +5,28 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-patched-replxx)
+
+
 target_compile_options(restricted-patched-replxx PUBLIC
   -DREPLXX_STATIC
 )
 target_compile_options(restricted-patched-replxx PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-patched-replxx PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/patched/replxx/include
 )
 target_include_directories(restricted-patched-replxx PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/patched/replxx/src
 )
+
 target_link_libraries(restricted-patched-replxx PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
 )
+
 target_sources(restricted-patched-replxx PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/patched/replxx/src/ConvertUTF.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/patched/replxx/src/conversion.cxx
@@ -37,3 +40,9 @@ target_sources(restricted-patched-replxx PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/patched/replxx/src/wcwidth.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/patched/replxx/src/windows.cxx
 )
+
+
+
+
+
+

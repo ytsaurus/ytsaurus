@@ -188,13 +188,13 @@ def _build_controller_agent_rpc_statistics(d):
         .container_legend_format()
         .row()
             .cell("JobTrackerService: Heartbeat rate", ca_rate.service_method("JobTrackerService", "Heartbeat"))
-            .cell("JobSpecService: GetJobSpecs rate", ca_rate.service_method("JobSpecService", "GetJobSpecs"))
+            .cell("JobSpecService: SettleJob rate", ca_rate.service_method("JobTrackerService", "SettleJob"))
         .row()
             .cell("JobTrackerService: Heartbeat time max", ca_time_max.service_method("JobTrackerService", "Heartbeat"))
-            .cell("JobSpecService: GetJobSpecs time max", ca_time_max.service_method("JobSpecService", "GetJobSpecs"))
+            .cell("JobSpecService: SettleJob time max", ca_time_max.service_method("JobTrackerService", "SettleJob"))
         .row()
             .cell("JobTrackerService: Heartbeat queue size", ca_queue_size.service_method("JobTrackerService", "Heartbeat"))
-            .cell("JobSpecService: GetJobSpecs queue size", ca_queue_size.service_method("JobSpecService", "GetJobSpecs"))
+            .cell("JobSpecService: SettleJob queue size", ca_queue_size.service_method("JobTrackerService", "SettleJob"))
     )
 
 

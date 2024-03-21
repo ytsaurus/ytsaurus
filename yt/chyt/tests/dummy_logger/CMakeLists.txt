@@ -5,18 +5,20 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(dummy-logger)
+
+
 target_compile_options(dummy-logger PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(dummy-logger PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
 )
+
 target_link_options(dummy-logger PRIVATE
   -ldl
   -lrt
@@ -27,10 +29,19 @@ target_link_options(dummy-logger PRIVATE
   -lrt
   -ldl
 )
+
 target_sources(dummy-logger PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/tests/dummy_logger/main.cpp
 )
+
+
+
 target_allocator(dummy-logger
   cpp-ytalloc-impl
 )
+
 vcs_info(dummy-logger)
+
+
+
+

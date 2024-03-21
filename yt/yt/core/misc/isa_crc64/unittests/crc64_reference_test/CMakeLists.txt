@@ -5,18 +5,20 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(crc64_reference_test)
+
+
 target_compile_options(crc64_reference_test PRIVATE
   -Wdeprecated-this-capture
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_link_libraries(crc64_reference_test PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   isa-l_crc_yt_patch
 )
+
 target_link_options(crc64_reference_test PRIVATE
   -ldl
   -lrt
@@ -25,11 +27,20 @@ target_link_options(crc64_reference_test PRIVATE
   -fPIC
   -lpthread
 )
+
 target_sources(crc64_reference_test PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/isa_crc64/unittests/crc64_reference_test/crc64_reference_test.c
 )
+
+
+
 target_allocator(crc64_reference_test
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(crc64_reference_test)
+
+
+
+

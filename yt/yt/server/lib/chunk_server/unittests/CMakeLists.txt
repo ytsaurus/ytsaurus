@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-server-lib-chunk-server)
+
+
 target_compile_options(unittester-server-lib-chunk-server PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-server-lib-chunk-server PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +23,7 @@ target_link_libraries(unittester-server-lib-chunk-server PUBLIC
   yt-core-test_framework
   server-lib-chunk_server
 )
+
 target_link_options(unittester-server-lib-chunk-server PRIVATE
   -ldl
   -lrt
@@ -33,15 +35,19 @@ target_link_options(unittester-server-lib-chunk-server PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-server-lib-chunk-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_server/unittests/immutable_chunk_meta_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-server-lib-chunk-server
   COMMAND
   unittester-server-lib-chunk-server
 )
+
 set_property(
   TEST
   unittester-server-lib-chunk-server
@@ -49,6 +55,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   unittester-server-lib-chunk-server
@@ -56,14 +63,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-server-lib-chunk-server
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-server-lib-chunk-server
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(unittester-server-lib-chunk-server)
+
+
+
+

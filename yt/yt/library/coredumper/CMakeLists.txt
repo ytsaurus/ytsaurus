@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-library-coredumper)
+
+
 target_compile_options(yt-library-coredumper PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-library-coredumper PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,7 +19,14 @@ target_link_libraries(yt-library-coredumper PUBLIC
   yt-yt-core
   yt-library-sparse_coredump
 )
+
 target_sources(yt-library-coredumper PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/coredumper/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/coredumper/coredumper.cpp
 )
+
+
+
+
+
+

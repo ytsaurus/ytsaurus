@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-aws-aws-c-mqtt)
+
+
 target_compile_options(restricted-aws-aws-c-mqtt PRIVATE
   -DAWS_CAL_USE_IMPORT_EXPORT
   -DAWS_COMMON_USE_IMPORT_EXPORT
@@ -32,15 +32,18 @@ target_compile_options(restricted-aws-aws-c-mqtt PRIVATE
   -DS2N___RESTRICT__SUPPORTED
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-aws-aws-c-mqtt PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-mqtt/include
 )
+
 target_link_libraries(restricted-aws-aws-c-mqtt PUBLIC
   contrib-libs-linux-headers
   restricted-aws-aws-c-common
   restricted-aws-aws-c-http
   restricted-aws-aws-c-io
 )
+
 target_sources(restricted-aws-aws-c-mqtt PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-mqtt/source/client.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-mqtt/source/client_channel_handler.c
@@ -60,3 +63,9 @@ target_sources(restricted-aws-aws-c-mqtt PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-mqtt/source/v5/mqtt5_utils.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-mqtt/source/v5/rate_limiters.c
 )
+
+
+
+
+
+

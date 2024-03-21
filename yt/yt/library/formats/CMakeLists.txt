@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(unittests)
-
 add_library(yt-library-formats)
+
+
 target_compile_options(yt-library-formats PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-library-formats PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +23,7 @@ target_link_libraries(yt-library-formats PUBLIC
   yt-library-column_converters
   libs-apache-arrow
 )
+
 target_sources(yt-library-formats PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/arrow_parser.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/arrow_writer.cpp
@@ -52,3 +54,9 @@ target_sources(yt-library-formats PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/yson_map_to_unversioned_value.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/yson_parser.cpp
 )
+
+
+
+
+
+
